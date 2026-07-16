@@ -40,6 +40,9 @@ Its job is to read current repository state, identify the recommended next Spec 
 
 ## Process
 
+- For every feature-bearing candidate, first run `{{specify-subcmd:workflow show --feature-dir <feature-dir> --format json}}`, then `{{specify-subcmd:workflow next --feature-dir <feature-dir> --format json}}`. `FEATURE_DIR/workflow-runtime.json` is the required-stage phase lock. Consume the returned structured `next_argv`; never reconstruct or infer the required phase action from Markdown fields.
+- When `next_argv` names `workflow complete-stage`, route to the current required-stage owner so it can finish and validate that stage. When it names `workflow transition --to <stage>`, route to that destination stage and pass the exact argv. When active `accept` returns `workflow closeout`, route to the current accept owner so human acceptance can resume; only completed `accept` has no successor.
+- A blocked runtime intentionally has no `next_argv`. Preserve its tutorial and wait for the declared evidence; once present, fill only the required evidence input in `data.resolution_action` and execute its runtime-owned base argv. `show_argv` refreshes state but never resolves it.
 - Inspect the current repository state surfaces in priority order.
 - When concurrent lanes exist, resolve candidates by command semantics first and run reconcile before any resume decision.
 - If the selected lane has a materialized worktree, continue from that isolated worktree context instead of assuming the leader workspace is the active feature root.
@@ -68,16 +71,23 @@ Its job is to read current repository state, identify the recommended next Spec 
 
 Inspect the available state surfaces in this order and prefer the most specific active truth source that does not violate an upstream gate:
 
-1. Active feature `workflow-state.md`
-   - Treat `FEATURE_DIR/workflow-state.md` as the primary phase-lock and `next_command` source for feature workflows. Canonical state tokens include `/sp.plan`, `/sp.tasks`, `/sp.implement`, `/sp.clarify`, and `/sp.deep-research`; `/sp.analyze` is a legacy or explicitly requested diagnostic route only.
+1. Active feature phase runtime and rich state
+   - Treat `FEATURE_DIR/workflow-runtime.json` plus `workflow show`/`workflow next` as the primary required-stage phase lock. `FEATURE_DIR/workflow-state.md` is rich workflow-owned resume/evidence context and may add an auxiliary gate, but it cannot skip or reverse the runtime stage.
+   - Use only the runtime's structured `next_argv` for `complete-stage`, forward `transition`, blocker resume, or terminal status. Legacy `next_command` and `active_command` fields are fallback hints only when no runtime file exists for a noncanonical auxiliary workflow.
    - Clean completed task-generation state with `active_command: sp-tasks`, `status: completed`, `phase_mode: task-generation-only`, and `next_command: /sp.implement` should route directly to `/sp.implement`; preserve `/sp.analyze` only when a feature-level state file explicitly records that legacy or diagnostic route.
-   - If a feature-level `workflow-state.md` explicitly points upstream, obey it even when later-stage artifacts also exist.
+   - If a feature-level `workflow-state.md` contains evidence that explicitly
+     invalidates an upstream stage, do not jump around the CLI phase lock. Use
+     `workflow reopen` with the current revision, reason, evidence, and complete
+     invalidated-artifact set when that evidence is sufficient. A mapped stage
+     already active resumes its owner; the same completed stage is reactivated
+     through reopen. Otherwise route to analyze or the current owner to produce
+     a valid reopen decision.
 
 2. Active implementation execution state
    - Read `FEATURE_DIR/implement-tracker.md` together with `workflow-state.md`.
    - If execution is still active and `workflow-state.md` allows `/sp.implement`, resume the canonical `/sp.implement` route.
    - If trusted execution is completed and `next_command: /sp.accept`, route to canonical `/sp.accept`; do not repeat implementation or skip to integration.
-   - If `workflow-state.md` still requires `/sp.analyze`, `/sp.plan`, `/sp.tasks`, `/sp.clarify`, or `/sp.deep-research`, obey that recorded upstream gate before resuming implementation.
+   - If `workflow-state.md` still requires `/sp.analyze`, `/sp.plan`, `/sp.tasks`, `/sp.clarify`, or `/sp.deep-research`, reconcile that gate with the CLI runtime. Execute an evidence-backed `workflow reopen` for a backward move or same-completed-stage reactivation; do not route to an upstream command while the runtime still owns a later stage.
 
 3. Post-implementation human acceptance state
    - If trusted implementation closeout exists and `human-acceptance.json` is `draft`, `ready`, `in_progress`, `blocked`, `rejected`, or `stale`, route to canonical `/sp.accept` before integration or delivery.
@@ -96,7 +106,7 @@ Inspect the available state surfaces in this order and prefer the most specific 
    - Read active `.specify/discussions/*/discussion-state.json` files when no higher-authority feature, implementation, quick, or debug state has already selected a unique route; use Markdown only for legacy recovery.
    - Treat `status: handoff-ready` plus `next_command: /sp.specify` or `sp-specify` as a `/sp.specify` candidate only when `handoff_consumption_status` is not `consumed`.
    - If `handoff_consumption_status: consumed`, `status: completed`, `consumed_by_feature_dir` is populated, or `next_command: none`, do not count that discussion as a resumable candidate.
-   - If a handoff-ready discussion's `handoff-to-specify.json` path is already referenced by a feature `brainstorming/handoff-to-specify.json` as `source_contract`, treat it as a consumed-stale cleanup item, not a competing route. Recommend `specify discussion mark-consumed <slug> --feature-dir <feature-dir>` as the repair evidence, or perform that repair only when the active workflow allows state cleanup before routing.
+   - If a handoff-ready discussion's `handoff-to-specify.json` path is already referenced by a feature `brainstorming/handoff-to-specify.json` as `source_contract`, treat it as a consumed-stale cleanup item, not a competing route. Recommend `{{specify-subcmd:discussion mark-consumed <slug> --feature-dir <feature-dir>}}` as the repair evidence, or perform that repair only when the active workflow allows state cleanup before routing.
    - If multiple unconsumed handoff-ready discussions remain, stop and ask for a specific slug instead of guessing.
 
 ## Route Resolution

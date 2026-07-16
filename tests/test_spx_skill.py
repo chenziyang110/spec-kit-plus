@@ -16,6 +16,7 @@ from specify_cli.integrations.manifest import IntegrationManifest
 from specify_cli.launcher import (
     SpecifyLauncherSpec,
     diagnose_project_runtime_compatibility,
+    render_command,
     write_project_cognition_launcher_config,
 )
 
@@ -69,6 +70,22 @@ SKILLS_INTEGRATIONS = (
     "vibe",
     "zcode",
 )
+TEST_SPECIFY_COMMIT = "a" * 40
+TEST_SPECIFY_SOURCE = (
+    "git+https://github.com/chenziyang110/spec-kit-plus.git@"
+    f"{TEST_SPECIFY_COMMIT}"
+)
+TEST_SPECIFY_COMMAND = f"uvx --from {TEST_SPECIFY_SOURCE} specify"
+
+
+def _test_specify_launcher_payload() -> dict[str, object]:
+    return {
+        "command": TEST_SPECIFY_COMMAND,
+        "argv": ["uvx", "--from", TEST_SPECIFY_SOURCE, "specify"],
+        "source": "git",
+        "kind": "source_bound",
+        "runtime_id": "chenziyang110/spec-kit-plus",
+    }
 
 
 def _frontmatter(path: Path) -> dict:
@@ -694,10 +711,7 @@ def test_advanced_local_references_use_the_project_pinned_launcher(tmp_path) -> 
     config.write_text(
         json.dumps(
             {
-                "specify_launcher": {
-                    "command": "python -m specify_cli",
-                    "argv": ["python", "-m", "specify_cli"],
-                },
+                "specify_launcher": _test_specify_launcher_payload(),
                 "project_cognition_launcher": {
                     "command": "C:/tools/project-cognition.exe",
                     "argv": ["C:/tools/project-cognition.exe"],
@@ -734,33 +748,27 @@ def test_advanced_local_references_use_the_project_pinned_launcher(tmp_path) -> 
         / "project-cognition.md"
     ).read_text(encoding="utf-8")
 
-    assert "python -m specify_cli implement resume-audit" in execution
-    assert "python -m specify_cli sp-teams auto-dispatch" in teams
+    assert f"{TEST_SPECIFY_COMMAND} implement resume-audit" in execution
+    assert f"{TEST_SPECIFY_COMMAND} sp-teams auto-dispatch" in teams
     assert "C:\\tools\\project-cognition.exe" in cognition or (
         "C:/tools/project-cognition.exe" in cognition
     )
     assert "{{specify-subcmd:" not in execution + teams + cognition
 
 
-def test_fresh_advanced_codex_init_binds_root_discussion_skill_to_source_launcher(
-    monkeypatch,
-    tmp_path,
-) -> None:
+def _fresh_codex_init(monkeypatch, tmp_path, profile: str):
     import importlib
 
-    project = tmp_path / "fresh-advanced-project"
+    project = tmp_path / f"fresh-{profile}-project"
     project.mkdir()
     assert not (project / ".specify" / "config.json").exists()
-    pinned_command = (
-        "uvx --from "
-        "git+https://github.com/chenziyang110/spec-kit-plus.git@abc123 specify"
-    )
+    pinned_command = TEST_SPECIFY_COMMAND
     pinned_launcher = SpecifyLauncherSpec(
         command=pinned_command,
         argv=(
             "uvx",
             "--from",
-            "git+https://github.com/chenziyang110/spec-kit-plus.git@abc123",
+            TEST_SPECIFY_SOURCE,
             "specify",
         ),
     )
@@ -789,7 +797,7 @@ def test_fresh_advanced_codex_init_binds_root_discussion_skill_to_source_launche
                 "--ai",
                 "codex",
                 "--workflow-profile",
-                "advanced",
+                profile,
                 "--script",
                 "sh",
                 "--no-git",
@@ -801,6 +809,27 @@ def test_fresh_advanced_codex_init_binds_root_discussion_skill_to_source_launche
         os.chdir(old_cwd)
 
     assert initialized.exit_code == 0, initialized.output
+    context = (project / "AGENTS.md").read_text(encoding="utf-8")
+    assert (
+        f"`{pinned_launcher.command} learning start --command <workflow> "
+        "--format json`"
+    ) in context
+    assert f"`{pinned_launcher.command} --help`" in context
+    assert f"{pinned_launcher.command} check\n" in context
+    assert f"{pinned_launcher.command} --help\n" in context
+    assert "`specify learning start" not in context
+    assert "`specify --help`" not in context
+    assert "\nspecify check\n" not in context
+    assert "\nspecify --help\n" not in context
+    return project, pinned_launcher
+
+
+def test_fresh_advanced_codex_init_binds_root_discussion_skill_to_source_launcher(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    project, pinned_launcher = _fresh_codex_init(monkeypatch, tmp_path, "advanced")
+    pinned_command = pinned_launcher.command
     config = json.loads(
         (project / ".specify" / "config.json").read_text(encoding="utf-8")
     )
@@ -817,10 +846,19 @@ def test_fresh_advanced_codex_init_binds_root_discussion_skill_to_source_launche
         / "project-learning.md"
     ).read_text(encoding="utf-8")
     assert f"{pinned_command} discussion list --json" in discussion
-    assert f"{pinned_command} discussion init <slug> --json" in discussion
-    assert (
-        f"{pinned_command} learning start --command <classic-command-name> "
-        "--format json"
+    assert render_command(
+        (*pinned_launcher.argv, "discussion", "init", "<slug>", "--json")
+    ) in discussion
+    assert render_command(
+        (
+            *pinned_launcher.argv,
+            "learning",
+            "start",
+            "--command",
+            "<classic-command-name>",
+            "--format",
+            "json",
+        )
     ) in learning
     assert "`specify discussion" not in discussion
     assert "\nspecify learning" not in learning
@@ -834,6 +872,116 @@ def test_fresh_advanced_codex_init_binds_root_discussion_skill_to_source_launche
     assert "unbound-generated-specify-launcher" not in diagnostic_codes
 
 
+def test_fresh_classic_codex_init_binds_all_runtime_commands_to_source_launcher(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    project, pinned_launcher = _fresh_codex_init(monkeypatch, tmp_path, "classic")
+
+    discussion = (
+        project / ".codex" / "skills" / "sp-discussion" / "SKILL.md"
+    ).read_text(encoding="utf-8")
+    assert render_command(
+        (
+            *pinned_launcher.argv,
+            "discussion",
+            "mark-consumed",
+            "<slug>",
+            "--feature-dir",
+            "<feature-dir>",
+        )
+    ) in discussion
+    assert "{{specify-subcmd:" not in discussion
+
+    diagnostic_codes = {
+        issue["code"] for issue in diagnose_project_runtime_compatibility(project)
+    }
+    assert "unbound-generated-specify-launcher" not in diagnostic_codes
+
+
+def test_runtime_repair_rebinds_unmodified_manifest_owned_source_launcher(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    project, old_launcher = _fresh_codex_init(monkeypatch, tmp_path, "advanced")
+    integration = get_integration("codex")
+    manifest = IntegrationManifest.load("codex", project)
+    config_path = project / ".specify" / "config.json"
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+    new_source = (
+        "git+https://github.com/chenziyang110/spec-kit-plus.git@" + "b" * 40
+    )
+    new_command = f"uvx --from {new_source} specify"
+    config["specify_launcher"].update(
+        {
+            "command": new_command,
+            "argv": ["uvx", "--from", new_source, "specify"],
+        }
+    )
+    config_path.write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")
+    discussion = project / ".codex" / "skills" / "spx-discussion" / "SKILL.md"
+    assert old_launcher.command in discussion.read_text(encoding="utf-8")
+
+    repaired = integration.repair_runtime_assets(
+        project,
+        manifest,
+        script_type="sh",
+    )
+
+    content = discussion.read_text(encoding="utf-8")
+    assert discussion in repaired
+    assert old_launcher.command not in content
+    assert new_command in content
+    assert manifest.check_modified() == []
+    assert not any(
+        issue["code"] in {
+            "stale-generated-specify-launcher",
+            "unbound-generated-specify-launcher",
+        }
+        and ".codex/skills/spx-discussion/SKILL.md" in issue["summary"]
+        for issue in diagnose_project_runtime_compatibility(project)
+    )
+
+
+def test_runtime_repair_preserves_modified_source_bound_guidance(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    project, old_launcher = _fresh_codex_init(monkeypatch, tmp_path, "advanced")
+    integration = get_integration("codex")
+    manifest = IntegrationManifest.load("codex", project)
+    discussion = project / ".codex" / "skills" / "spx-discussion" / "SKILL.md"
+    original = discussion.read_text(encoding="utf-8") + "\nUser-owned note.\n"
+    discussion.write_text(original, encoding="utf-8")
+    config_path = project / ".specify" / "config.json"
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+    new_source = (
+        "git+https://github.com/chenziyang110/spec-kit-plus.git@" + "b" * 40
+    )
+    config["specify_launcher"].update(
+        {
+            "command": f"uvx --from {new_source} specify",
+            "argv": ["uvx", "--from", new_source, "specify"],
+        }
+    )
+    config_path.write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")
+
+    repaired = integration.repair_runtime_assets(
+        project,
+        manifest,
+        script_type="sh",
+    )
+
+    assert discussion not in repaired
+    assert discussion.read_text(encoding="utf-8") == original
+    assert old_launcher.command in original
+    assert ".codex/skills/spx-discussion/SKILL.md" in getattr(
+        integration,
+        "_last_repair_skipped_modified",
+    )
+    assert ".codex/skills/spx-discussion/SKILL.md" in manifest.check_modified()
+
+
 def test_advanced_local_references_without_cognition_launcher_use_recovery_contract(
     tmp_path,
 ) -> None:
@@ -844,10 +992,7 @@ def test_advanced_local_references_without_cognition_launcher_use_recovery_contr
     config.write_text(
         json.dumps(
             {
-                "specify_launcher": {
-                    "command": "python -m specify_cli",
-                    "argv": ["python", "-m", "specify_cli"],
-                }
+                "specify_launcher": _test_specify_launcher_payload()
             }
         ),
         encoding="utf-8",
@@ -872,8 +1017,8 @@ def test_advanced_local_references_without_cognition_launcher_use_recovery_contr
     assert len(set(cognition_references)) == 1
     cognition = cognition_references[0]
     assert "PROJECT_COGNITION_LAUNCHER_UNAVAILABLE" in cognition
-    assert "python -m specify_cli check" in cognition
-    assert "python -m specify_cli integration repair" in cognition
+    assert f"{TEST_SPECIFY_COMMAND} check" in cognition
+    assert f"{TEST_SPECIFY_COMMAND} integration repair" in cognition
     assert "specify cognition" in cognition
     assert "do not" in cognition.lower()
     assert "(requires project-cognition" not in cognition
@@ -891,10 +1036,7 @@ def test_advanced_runtime_repair_rebinds_unavailable_cognition_references(
     config.write_text(
         json.dumps(
             {
-                "specify_launcher": {
-                    "command": "python -m specify_cli",
-                    "argv": ["python", "-m", "specify_cli"],
-                }
+                "specify_launcher": _test_specify_launcher_payload()
             }
         ),
         encoding="utf-8",
@@ -947,10 +1089,7 @@ def test_runtime_repair_preserves_user_modified_cognition_guidance(tmp_path) -> 
     config.write_text(
         json.dumps(
             {
-                "specify_launcher": {
-                    "command": "python -m specify_cli",
-                    "argv": ["python", "-m", "specify_cli"],
-                }
+                "specify_launcher": _test_specify_launcher_payload()
             }
         ),
         encoding="utf-8",
@@ -1090,10 +1229,7 @@ def test_classic_missing_cognition_launcher_has_equivalent_recovery_and_rebinds(
     config.write_text(
         json.dumps(
             {
-                "specify_launcher": {
-                    "command": "python -m specify_cli",
-                    "argv": ["python", "-m", "specify_cli"],
-                }
+                "specify_launcher": _test_specify_launcher_payload()
             }
         ),
         encoding="utf-8",
@@ -1117,8 +1253,8 @@ def test_classic_missing_cognition_launcher_has_equivalent_recovery_and_rebinds(
         in implement_content
     )
     assert "PROJECT_COGNITION_LAUNCHER_UNAVAILABLE" in cognition_gate
-    assert "python -m specify_cli check" in cognition_gate
-    assert "python -m specify_cli integration repair" in cognition_gate
+    assert f"{TEST_SPECIFY_COMMAND} check" in cognition_gate
+    assert f"{TEST_SPECIFY_COMMAND} integration repair" in cognition_gate
     assert "specify cognition" in cognition_gate
     assert "do not" in cognition_gate.lower()
 
@@ -1148,10 +1284,7 @@ def test_markdown_command_integration_installs_and_rebinds_cognition_recovery(
     config.write_text(
         json.dumps(
             {
-                "specify_launcher": {
-                    "command": "python -m specify_cli",
-                    "argv": ["python", "-m", "specify_cli"],
-                }
+                "specify_launcher": _test_specify_launcher_payload()
             }
         ),
         encoding="utf-8",
@@ -1167,8 +1300,8 @@ def test_markdown_command_integration_installs_and_rebinds_cognition_recovery(
     ).read_text(encoding="utf-8")
     assert "PROJECT_COGNITION_LAUNCHER_UNAVAILABLE:project-cognition" in implement
     assert "PROJECT_COGNITION_LAUNCHER_UNAVAILABLE" in semantic_contract
-    assert "python -m specify_cli check" in semantic_contract
-    assert "python -m specify_cli integration repair" in semantic_contract
+    assert f"{TEST_SPECIFY_COMMAND} check" in semantic_contract
+    assert f"{TEST_SPECIFY_COMMAND} integration repair" in semantic_contract
     assert "specify cognition" in semantic_contract
     assert "do not" in semantic_contract.lower()
 
@@ -1200,10 +1333,7 @@ def test_toml_command_integration_rebinds_cognition_recovery_as_valid_toml(
     config.write_text(
         json.dumps(
             {
-                "specify_launcher": {
-                    "command": "python -m specify_cli",
-                    "argv": ["python", "-m", "specify_cli"],
-                }
+                "specify_launcher": _test_specify_launcher_payload()
             }
         ),
         encoding="utf-8",

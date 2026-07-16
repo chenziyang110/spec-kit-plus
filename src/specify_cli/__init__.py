@@ -24,6 +24,7 @@ Or install globally:
     specify init --here
 """
 
+import hashlib
 import os
 import re
 import subprocess
@@ -35,8 +36,15 @@ import json
 import json5
 import stat
 import yaml
+from dataclasses import dataclass
 from datetime import date
 from enum import Enum
+
+from specify_cli.atomic_io import (
+    atomic_write_bytes,
+    interprocess_lock,
+    read_local_state_bytes,
+)
 from pathlib import Path
 from typing import Any, Optional, Tuple
 
@@ -144,9 +152,13 @@ from specify_cli.workflow_runtime import (
     WorkflowRuntimeError,
     block_workflow,
     closeout_workflow,
+    complete_workflow_stage,
     enter_workflow,
     next_workflow,
+    reopen_workflow,
+    resolve_workflow_blocker,
     show_workflow,
+    terminal_acceptance_snapshot_path,
     transition_workflow,
 )
 
@@ -763,7 +775,9 @@ def _workflow_artifact_gate(
     for item in raw.get("blockers", []):
         blocker = dict(item)
         blocker["code"] = "artifact-validation-blocked"
-        resume_command = subprocess.list2cmdline(resume_argv)
+        from .launcher import render_command
+
+        resume_command = render_command(tuple(resume_argv))
         blocker["resume"] = {
             "instruction": f"Run the exact resume command: {resume_command}",
             "command": resume_command,
@@ -793,7 +807,6 @@ def _workflow_transition_operation(
     target_stage: str,
     expected_revision: int,
     summary: str,
-    resolution_evidence: list[str] | None,
 ) -> dict[str, Any]:
     """Validate the completed source stage before performing its guarded handoff."""
 
@@ -807,14 +820,13 @@ def _workflow_transition_operation(
     if (
         str(target_stage or "").strip().lower() != next_stage
         or expected_revision != current_revision
-        or (upcoming["status"] == "blocked" and not resolution_evidence)
+        or upcoming["data"].get("status") != "completed"
     ):
         return transition_workflow(
             feature_dir,
             target_stage=target_stage,
             expected_revision=expected_revision,
             summary=summary,
-            resolution_evidence=resolution_evidence,
         )
 
     resume_argv = [
@@ -830,8 +842,6 @@ def _workflow_transition_operation(
         "--format",
         "json",
     ]
-    for evidence in resolution_evidence or []:
-        resume_argv.extend(["--resolution-evidence", evidence])
     artifact_block = _workflow_artifact_gate(
         feature_dir=feature_dir,
         current_stage=current_stage,
@@ -847,25 +857,19 @@ def _workflow_transition_operation(
         target_stage=target_stage,
         expected_revision=expected_revision,
         summary=summary,
-        resolution_evidence=resolution_evidence,
     )
 
 
 def _workflow_closeout_operation(
     *, feature_dir: Path, expected_revision: int, summary: str
 ) -> dict[str, Any]:
-    shown = show_workflow(feature_dir)
-    data = shown["data"]
-    if (
-        data.get("stage") != "accept"
-        or data.get("status") != "active"
-        or data.get("revision") != expected_revision
-    ):
-        return closeout_workflow(
-            feature_dir,
-            expected_revision=expected_revision,
-            summary=summary,
-        )
+    from .human_acceptance import (
+        acceptance_closeout_blockers,
+        validate_human_acceptance,
+    )
+
+    project_root = Path.cwd().resolve()
+    acceptance_path = feature_dir / "human-acceptance.json"
     resume_argv = [
         "specify",
         "workflow",
@@ -877,17 +881,186 @@ def _workflow_closeout_operation(
         "--format",
         "json",
     ]
+
+    def acceptance_block(acceptance: dict[str, Any]) -> dict[str, Any]:
+        return agent_envelope(
+            "blocked",
+            "Human product acceptance must be completed before workflow closeout.",
+            data={
+                "error_code": "human-acceptance-required",
+                "stage": "accept",
+                "target_stage": "workflow closeout",
+                "revision": expected_revision,
+                "human_acceptance": acceptance,
+            },
+            blockers=acceptance_closeout_blockers(
+                feature_dir,
+                acceptance=acceptance,
+            ),
+            show_argv=[
+                "specify",
+                "workflow",
+                "show",
+                "--feature-dir",
+                str(feature_dir),
+                "--format",
+                "json",
+            ],
+            next_argv=[],
+        )
+
+    # Acceptance writers use this lock before mutating the guide. Keep it held
+    # through the runtime CAS so an accepted verdict and terminal phase commit
+    # are one ordered transaction (acceptance lock -> workflow lock).
+    with interprocess_lock(feature_dir / ".human-acceptance.lock"):
+        shown = show_workflow(feature_dir)
+        data = shown["data"]
+        if (
+            data.get("stage") != "accept"
+            or data.get("status") != "active"
+            or data.get("revision") != expected_revision
+        ):
+            return closeout_workflow(
+                feature_dir,
+                expected_revision=expected_revision,
+                summary=summary,
+                acceptance_sha256="",
+            )
+        acceptance = validate_human_acceptance(
+            project_root,
+            feature_dir,
+            require_accepted=True,
+        )
+        if not acceptance["valid"]:
+            return acceptance_block(acceptance)
+        artifact_block = _workflow_artifact_gate(
+            feature_dir=feature_dir,
+            current_stage="accept",
+            target_stage="workflow closeout",
+            expected_revision=expected_revision,
+            resume_argv=resume_argv,
+            require_accepted=True,
+        )
+        if artifact_block is not None:
+            return artifact_block
+        # Revalidate after hooks so an autofix or injected concurrent write cannot
+        # invalidate acceptance between the gate and the terminal runtime write.
+        try:
+            acceptance_bytes_before = read_local_state_bytes(
+                acceptance_path,
+                root=feature_dir,
+            )
+        except (OSError, ValueError) as exc:
+            unstable = validate_human_acceptance(
+                project_root,
+                feature_dir,
+                require_accepted=True,
+            )
+            unstable.update(
+                {
+                    "valid": False,
+                    "accepted": False,
+                    "contract_valid": False,
+                    "required_action_owner": "agent",
+                    "errors": [
+                        *list(unstable.get("errors") or []),
+                        f"human-acceptance.json could not be snapshotted: {type(exc).__name__}",
+                    ],
+                }
+            )
+            return acceptance_block(unstable)
+        acceptance = validate_human_acceptance(
+            project_root,
+            feature_dir,
+            require_accepted=True,
+        )
+        try:
+            acceptance_bytes_after = read_local_state_bytes(
+                acceptance_path,
+                root=feature_dir,
+            )
+        except (OSError, ValueError) as exc:
+            unstable = {
+                **acceptance,
+                "valid": False,
+                "accepted": False,
+                "contract_valid": False,
+                "required_action_owner": "agent",
+                "errors": [
+                    *list(acceptance.get("errors") or []),
+                    f"human-acceptance.json changed during snapshot: {type(exc).__name__}",
+                ],
+            }
+            return acceptance_block(unstable)
+        if not acceptance["valid"]:
+            return acceptance_block(acceptance)
+        if acceptance_bytes_before != acceptance_bytes_after:
+            unstable = {
+                **acceptance,
+                "valid": False,
+                "accepted": False,
+                "contract_valid": False,
+                "required_action_owner": "agent",
+                "errors": [
+                    *list(acceptance.get("errors") or []),
+                    "human-acceptance.json changed during terminal validation",
+                ],
+            }
+            return acceptance_block(unstable)
+        acceptance_sha256 = hashlib.sha256(acceptance_bytes_after).hexdigest()
+        atomic_write_bytes(
+            terminal_acceptance_snapshot_path(feature_dir),
+            acceptance_bytes_after,
+        )
+        return closeout_workflow(
+            feature_dir,
+            expected_revision=expected_revision,
+            summary=summary,
+            acceptance_sha256=acceptance_sha256,
+        )
+
+
+def _workflow_complete_stage_operation(
+    *,
+    feature_dir: Path,
+    expected_revision: int,
+    summary: str,
+) -> dict[str, Any]:
+    shown = show_workflow(feature_dir)
+    data = shown["data"]
+    current_stage = str(data.get("stage") or "")
+    next_stage = data.get("next_stage")
+    if (
+        data.get("revision") != expected_revision
+        or data.get("status") != "active"
+        or not next_stage
+    ):
+        return complete_workflow_stage(
+            feature_dir,
+            expected_revision=expected_revision,
+            summary=summary,
+        )
+    resume_argv = [
+        "specify",
+        "workflow",
+        "complete-stage",
+        "--feature-dir",
+        str(feature_dir),
+        "--expected-revision",
+        str(expected_revision),
+        "--format",
+        "json",
+    ]
     artifact_block = _workflow_artifact_gate(
         feature_dir=feature_dir,
-        current_stage="accept",
-        target_stage="workflow closeout",
+        current_stage=current_stage,
+        target_stage=str(next_stage),
         expected_revision=expected_revision,
         resume_argv=resume_argv,
-        require_accepted=True,
     )
     if artifact_block is not None:
         return artifact_block
-    return closeout_workflow(
+    return complete_workflow_stage(
         feature_dir,
         expected_revision=expected_revision,
         summary=summary,
@@ -985,7 +1158,7 @@ def workflow_show_command(
     feature_dir: str = typer.Option(..., "--feature-dir", help="Feature directory"),
     output_format: str = AGENT_JSON_FORMAT_OPTION,
 ) -> None:
-    """Read the current compact workflow state."""
+    """Read the current compact phase runtime without parsing rich workflow state."""
 
     _require_agent_json_format(output_format)
     _run_agent_operation(
@@ -1005,7 +1178,7 @@ def workflow_enter_command(
     summary: str = typer.Option("", "--summary", help="Compact stage summary"),
     output_format: str = AGENT_JSON_FORMAT_OPTION,
 ) -> None:
-    """Create guarded workflow state at discussion or specify."""
+    """Create guarded phase runtime at discussion or specify."""
 
     _require_agent_json_format(output_format)
     _run_agent_operation(
@@ -1031,6 +1204,27 @@ def workflow_next_command(
     )
 
 
+@workflow_app.command("complete-stage")
+def workflow_complete_stage_command(
+    feature_dir: str = typer.Option(..., "--feature-dir", help="Feature directory"),
+    expected_revision: int = typer.Option(
+        ..., "--expected-revision", help="Current workflow revision"
+    ),
+    summary: str = typer.Option("", "--summary", help="Compact closeout summary"),
+    output_format: str = AGENT_JSON_FORMAT_OPTION,
+) -> None:
+    """Validate and complete the current stage without entering the next one."""
+
+    _require_agent_json_format(output_format)
+    _run_agent_operation(
+        lambda: _workflow_complete_stage_operation(
+            feature_dir=_resolve_workflow_feature_dir(feature_dir),
+            expected_revision=expected_revision,
+            summary=summary,
+        )
+    )
+
+
 @workflow_app.command("transition")
 def workflow_transition_command(
     target_stage: str = typer.Option(..., "--to", help="Required next stage"),
@@ -1039,11 +1233,6 @@ def workflow_transition_command(
         ..., "--expected-revision", help="Current workflow revision"
     ),
     summary: str = typer.Option("", "--summary", help="Compact target summary"),
-    resolution_evidence: list[str] | None = typer.Option(
-        None,
-        "--resolution-evidence",
-        help="Sanitized evidence resolving a recorded blocker; repeat as needed",
-    ),
     output_format: str = AGENT_JSON_FORMAT_OPTION,
 ) -> None:
     """Advance exactly one mandatory SP/SPX stage."""
@@ -1055,7 +1244,76 @@ def workflow_transition_command(
             target_stage=target_stage,
             expected_revision=expected_revision,
             summary=summary,
+        )
+    )
+
+
+@workflow_app.command("reopen")
+def workflow_reopen_command(
+    target_stage: str = typer.Option(
+        ...,
+        "--to",
+        help="Earlier invalidated or same completed stage: specify, plan, tasks, or implement",
+    ),
+    feature_dir: str = typer.Option(..., "--feature-dir", help="Feature directory"),
+    expected_revision: int = typer.Option(
+        ..., "--expected-revision", help="Current workflow revision"
+    ),
+    reason: str = typer.Option(
+        ...,
+        "--reason",
+        help="Compact reason the upstream contract is invalid",
+    ),
+    evidence: list[str] = typer.Option(
+        ...,
+        "--evidence",
+        help="Sanitized evidence proving invalidation; repeat as needed",
+    ),
+    invalidated_artifact: list[str] = typer.Option(
+        ...,
+        "--invalidated-artifacts",
+        help="Invalidated target or downstream artifact; repeat as needed",
+    ),
+    output_format: str = AGENT_JSON_FORMAT_OPTION,
+) -> None:
+    """Reopen an earlier or same completed stage without deleting stale artifacts."""
+
+    _require_agent_json_format(output_format)
+    _run_agent_operation(
+        lambda: reopen_workflow(
+            _resolve_workflow_feature_dir(feature_dir),
+            target_stage=target_stage,
+            expected_revision=expected_revision,
+            reason=reason,
+            evidence=evidence,
+            invalidated_artifacts=invalidated_artifact,
+        )
+    )
+
+
+@workflow_app.command("resolve")
+def workflow_resolve_command(
+    feature_dir: str = typer.Option(..., "--feature-dir", help="Feature directory"),
+    expected_revision: int = typer.Option(
+        ..., "--expected-revision", help="Current blocked workflow revision"
+    ),
+    resolution_evidence: list[str] = typer.Option(
+        ...,
+        "--resolution-evidence",
+        help="Sanitized evidence satisfying the unblock criteria; repeat as needed",
+    ),
+    summary: str = typer.Option("", "--summary", help="Compact resolution summary"),
+    output_format: str = AGENT_JSON_FORMAT_OPTION,
+) -> None:
+    """Resolve a persisted blocker and reactivate its current owner."""
+
+    _require_agent_json_format(output_format)
+    _run_agent_operation(
+        lambda: resolve_workflow_blocker(
+            _resolve_workflow_feature_dir(feature_dir),
+            expected_revision=expected_revision,
             resolution_evidence=resolution_evidence,
+            summary=summary,
         )
     )
 
@@ -1076,7 +1334,8 @@ def workflow_block_command(
 
     def operation() -> dict[str, Any]:
         payload = _read_agent_input(input_source)
-        raw_feature_dir = feature_dir or str(payload.pop("feature_dir", ""))
+        payload_feature_dir = str(payload.pop("feature_dir", ""))
+        raw_feature_dir = feature_dir or payload_feature_dir
         expected_revision = payload.pop("expected_revision", None)
         if isinstance(expected_revision, bool) or not isinstance(
             expected_revision, int
@@ -1098,7 +1357,6 @@ def workflow_block_command(
         affected_scope = payload.pop("affected_scope", [])
         exact_next_action = payload.pop("exact_next_action", "")
         unblock_criteria = payload.pop("unblock_criteria", "")
-        resume_argv = payload.pop("resume_argv", [])
         if payload:
             unknown = ", ".join(sorted(payload))
             raise AgentApiError(f"unknown blocker input field(s): {unknown}")
@@ -1113,7 +1371,6 @@ def workflow_block_command(
             affected_scope=affected_scope,
             exact_next_action=exact_next_action,
             unblock_criteria=unblock_criteria,
-            resume_argv=resume_argv,
             human_action=human_action,
             human_action_required=human_action_required,
         )
@@ -1282,8 +1539,22 @@ def _open_block(
 
 
 @app.callback()
-def callback(ctx: typer.Context):
+def callback(
+    ctx: typer.Context,
+    runtime_id: bool = typer.Option(
+        False,
+        "--runtime-id",
+        hidden=True,
+        is_eager=True,
+        help="Print the stable Spec Kit Plus runtime identity and exit.",
+    ),
+):
     """Show banner when no subcommand is provided."""
+    if runtime_id:
+        from .launcher import SPECIFY_RUNTIME_ID
+
+        typer.echo(SPECIFY_RUNTIME_ID)
+        raise typer.Exit(0)
     if (
         ctx.invoked_subcommand is None
         and "--help" not in sys.argv
@@ -1741,8 +2012,10 @@ def _preferred_newline(text: str) -> str:
     return "\n"
 
 
-def _render_spec_kit_managed_block(*, newline: str) -> str:
-    return newline.join(
+def _render_spec_kit_managed_block(*, project_root: Path, newline: str) -> str:
+    from .launcher import render_project_launcher_placeholders
+
+    template = newline.join(
         [
             SPEC_KIT_BLOCK_START,
             "## Spec Kit Plus Managed Rules",
@@ -1754,7 +2027,7 @@ def _render_spec_kit_managed_block(*, newline: str) -> str:
             "",
             "- Project cognition and Project Learning are always available, even without an active `sp-*` workflow.",
             "- When existing-system truth matters, use project cognition before broad source inspection and use its results to narrow live reads.",
-            "- Run `specify learning start --command <workflow> --format json` before non-trivial decisions that depend on local conventions, constraints, or past lessons; expand only selected matching Learning through `show_argv`.",
+            "- Run `{{specify-cli}} learning start --command <workflow> --format json` before non-trivial decisions that depend on local conventions, constraints, or past lessons; expand only selected matching Learning through `show_argv`.",
             "",
             "## Workflow Recommendations",
             "",
@@ -1764,8 +2037,8 @@ def _render_spec_kit_managed_block(*, newline: str) -> str:
             "",
             "## Command Surface Rules",
             "",
-            "- Treat live `specify --help` output as the authoritative CLI surface.",
-            "- Before suggesting or running a `specify <subcommand>` invocation, verify that help exposes it.",
+            "- Treat live `{{specify-cli}} --help` output as the authoritative CLI surface.",
+            "- Before suggesting or running a `{{specify-cli}} <subcommand>` invocation, verify that help exposes it.",
             "- Do not invent unsupported CLI names such as `specify create-feature`.",
             "- Feature creation uses the generated create-feature script at `.specify/scripts/bash/create-new-feature.sh` or `.specify/scripts/powershell/create-new-feature.ps1`; default feature workspace names use `YYYY-MM-DD-<slug>`.",
             "",
@@ -1780,9 +2053,10 @@ def _render_spec_kit_managed_block(*, newline: str) -> str:
             SPEC_KIT_BLOCK_END,
         ]
     )
+    return render_project_launcher_placeholders(project_root, template)
 
 
-def _upsert_spec_kit_managed_block(target_path: Path) -> bool:
+def _upsert_spec_kit_managed_block(target_path: Path, *, project_root: Path) -> bool:
     content = target_path.read_text(encoding="utf-8") if target_path.exists() else ""
     raw_start_count = content.count(SPEC_KIT_BLOCK_START)
     raw_end_count = content.count(SPEC_KIT_BLOCK_END)
@@ -1797,11 +2071,17 @@ def _upsert_spec_kit_managed_block(target_path: Path) -> bool:
     if raw_start_count == 1 and raw_end_count == 1 and len(complete_blocks) == 1:
         match = complete_blocks[0]
         newline = _preferred_newline(match.group(0) or content)
-        block = _render_spec_kit_managed_block(newline=newline)
+        block = _render_spec_kit_managed_block(
+            project_root=project_root,
+            newline=newline,
+        )
         updated = content[: match.start()] + block + content[match.end() :]
     elif content:
         newline = _preferred_newline(content)
-        block = _render_spec_kit_managed_block(newline=newline)
+        block = _render_spec_kit_managed_block(
+            project_root=project_root,
+            newline=newline,
+        )
         if block in content:
             updated = content
         else:
@@ -1813,7 +2093,10 @@ def _upsert_spec_kit_managed_block(target_path: Path) -> bool:
                 separator = newline + newline
             updated = content + separator + block
     else:
-        updated = _render_spec_kit_managed_block(newline="\n")
+        updated = _render_spec_kit_managed_block(
+            project_root=project_root,
+            newline="\n",
+        )
 
     if updated == content and target_path.exists():
         return False
@@ -1850,7 +2133,7 @@ def _render_bootstrap_context_content(project_root: Path, context_path: Path) ->
         "[DATE]": date.today().isoformat(),
         "[EXTRACTED FROM ALL PLAN.MD FILES]": "- Bootstrap context only; run specify -> plan to capture active technologies",
         "[ACTUAL STRUCTURE FROM PLANS]": ".specify/\nfeatures/",
-        "[ONLY COMMANDS FOR ACTIVE TECHNOLOGIES]": "specify check\nspecify --help",
+        "[ONLY COMMANDS FOR ACTIVE TECHNOLOGIES]": "{{specify-cli}} check\n{{specify-cli}} --help",
         "[LANGUAGE-SPECIFIC, ONLY FOR LANGUAGES IN USE]": "General: Follow existing repository conventions and refresh this file after the first plan.",
         "[LAST 3 FEATURES AND WHAT THEY ADDED]": "- Initial Spec Kit Plus scaffolding",
     }
@@ -1867,7 +2150,9 @@ def _render_bootstrap_context_content(project_root: Path, context_path: Path) ->
         )
         content = frontmatter + content
 
-    return content
+    from .launcher import render_project_launcher_placeholders
+
+    return render_project_launcher_placeholders(project_root, content)
 
 
 def _bootstrap_integration_context_file(
@@ -1895,10 +2180,62 @@ def _bootstrap_integration_context_file(
         target_path.parent.mkdir(parents=True, exist_ok=True)
         target_path.write_bytes(content.encode("utf-8"))
 
-    _upsert_spec_kit_managed_block(target_path)
+    _upsert_spec_kit_managed_block(target_path, project_root=project_root)
     if not existed:
         manifest.record_existing(rel)
     return target_path
+
+
+def _repair_integration_context_launcher_guidance(
+    project_root: Path,
+    integration: Any,
+    manifest: Any,
+) -> tuple[Path | None, str | None]:
+    """Refresh managed context safely and report block-external user conflicts."""
+
+    context_file = getattr(integration, "context_file", None)
+    if not context_file:
+        return None, None
+    relative = Path(context_file).as_posix()
+    target = project_root / context_file
+    if not target.exists():
+        return _bootstrap_integration_context_file(
+            project_root,
+            integration,
+            manifest,
+        ), None
+
+    from .launcher import (
+        load_project_specify_launcher,
+        rebind_source_bound_specify_launchers,
+        rebind_unbound_specify_runtime_calls,
+    )
+
+    modified = set(manifest.check_modified())
+    manifest_owned = relative in manifest.files
+    original = target.read_text(encoding="utf-8")
+    launcher = load_project_specify_launcher(project_root)
+    transformed = original
+    change_count = 0
+    if launcher is not None:
+        transformed, source_count = rebind_source_bound_specify_launchers(
+            transformed,
+            launcher,
+        )
+        transformed, bare_count = rebind_unbound_specify_runtime_calls(
+            transformed,
+            launcher.command,
+        )
+        change_count = source_count + bare_count
+
+    safe_whole_file = manifest_owned and relative not in modified
+    if safe_whole_file and transformed != original:
+        target.write_bytes(transformed.encode("utf-8"))
+    _upsert_spec_kit_managed_block(target, project_root=project_root)
+    if safe_whole_file:
+        manifest.record_existing(relative)
+        return target, None
+    return target, relative if change_count else None
 
 
 def _render_quick_task_table(tasks: list[dict[str, Any]]) -> None:
@@ -2707,7 +3044,7 @@ def implement_closeout(
     if acceptance_blocked:
         payload["blockers"] = acceptance_closeout_blockers(
             resolved_feature_dir,
-            acceptance_errors=list(acceptance_payload.get("errors") or []),
+            acceptance=acceptance_payload,
         )
     if output_format.lower() == "json":
         print_json(payload, indent=2)
@@ -2783,7 +3120,7 @@ def accept_prepare(
     if payload["status"] in {"blocked", "conflict"}:
         payload["blockers"] = acceptance_closeout_blockers(
             resolved_feature_dir,
-            acceptance_errors=list(payload.get("errors") or []),
+            acceptance=payload,
         )
     if output_format.lower() == "json":
         print_json(payload, indent=2)
@@ -2803,6 +3140,46 @@ def accept_prepare(
         )
     if payload["status"] in {"blocked", "conflict"}:
         raise typer.Exit(10)
+
+
+@accept_app.command("route-repair")
+def accept_route_repair(
+    feature_dir: str = typer.Option(..., "--feature-dir", help="Feature directory"),
+    finding_id: str = typer.Option(
+        ..., "--finding-id", help="Open acceptance finding ID"
+    ),
+    route: str = typer.Option(
+        ...,
+        "--route",
+        help="Recorded repair route, for example spx-implement or sp-clarify",
+    ),
+    expected_revision: int = typer.Option(
+        ..., "--expected-revision", help="Current accept workflow revision"
+    ),
+    evidence: list[str] = typer.Option(
+        ...,
+        "--evidence",
+        help="Sanitized evidence authorizing this repair handoff; repeat as needed",
+    ),
+    output_format: str = AGENT_JSON_FORMAT_OPTION,
+) -> None:
+    """Invalidate a failed verdict and reopen its deterministic repair stage."""
+
+    from .human_acceptance import route_human_acceptance_repair
+
+    _require_agent_json_format(output_format)
+    project_root = Path.cwd()
+    _require_spec_kit_plus_project(project_root)
+    _run_agent_operation(
+        lambda: route_human_acceptance_repair(
+            project_root,
+            _resolve_workflow_feature_dir(feature_dir),
+            route=route,
+            finding_id=finding_id,
+            expected_revision=expected_revision,
+            evidence=evidence,
+        )
+    )
 
 
 @accept_app.command("validate")
@@ -2858,47 +3235,139 @@ def accept_closeout(
     project_root = Path.cwd()
     _require_spec_kit_plus_project(project_root)
     resolved_feature_dir = _resolve_feature_dir(project_root, feature_dir)
-    acceptance = validate_human_acceptance(
-        project_root, resolved_feature_dir, require_accepted=True
-    )
-    hook_result = run_quality_hook(
-        project_root,
-        "workflow.state.validate",
-        {"command_name": "accept", "feature_dir": str(resolved_feature_dir)},
-    )
-    hook_passed = hook_result.status in {"ok", "warn", "repaired"}
-    payload = {
-        "status": "accepted" if acceptance["valid"] and hook_passed else "blocked",
-        "feature_dir": str(resolved_feature_dir),
-        "human_acceptance": acceptance,
-        "hook_result": hook_result.to_dict(),
-    }
-    if hook_result.status == "error":
-        payload["status"] = "error"
-    elif payload["status"] == "blocked":
-        payload["blockers"] = acceptance_closeout_blockers(
-            resolved_feature_dir,
-            acceptance_errors=list(acceptance["errors"]),
-            hook_errors=(
-                list(hook_result.errors)
-                if hook_result.status in {"blocked", "repairable-block"}
-                else []
-            ),
-        )
+    exact_show_argv = [
+        "specify",
+        "workflow",
+        "show",
+        "--feature-dir",
+        str(resolved_feature_dir),
+        "--format",
+        "json",
+    ]
+    acceptance: dict[str, Any] | None = None
+    hook_result = None
+    try:
+        shown = show_workflow(resolved_feature_dir)
+    except WorkflowRuntimeError as exc:
+        # Runtime blockers and terminal-evidence drift are authoritative. Do not
+        # reinterpret their owner from the mutable acceptance artifact.
+        payload = exc.to_envelope()
+    else:
+        workflow = shown["data"]
+        workflow_stage = workflow.get("stage")
+        workflow_status = workflow.get("status")
+        if shown["status"] == "blocked" or workflow_status == "blocked":
+            payload = shown
+        elif workflow_stage == "accept" and workflow_status == "completed":
+            payload = agent_envelope(
+                "ok",
+                "Human acceptance and terminal workflow closeout are already complete.",
+                data={
+                    "feature_dir": str(resolved_feature_dir),
+                    "workflow": workflow,
+                    "already_completed": True,
+                },
+                show_argv=exact_show_argv,
+                next_argv=[],
+            )
+        elif workflow_stage != "accept" or workflow_status != "active":
+            payload = agent_envelope(
+                "blocked",
+                "The workflow runtime is not active at accept.",
+                data={
+                    "error_code": "invalid-acceptance-runtime",
+                    "feature_dir": str(resolved_feature_dir),
+                    "workflow": workflow,
+                },
+                blockers=acceptance_closeout_blockers(
+                    resolved_feature_dir,
+                    runtime=shown,
+                ),
+                show_argv=shown["show_argv"] or exact_show_argv,
+                next_argv=[],
+            )
+        else:
+            acceptance = validate_human_acceptance(
+                project_root,
+                resolved_feature_dir,
+                require_accepted=True,
+            )
+            hook_result = run_quality_hook(
+                project_root,
+                "workflow.state.validate",
+                {"command_name": "accept", "feature_dir": str(resolved_feature_dir)},
+            )
+            hook_passed = hook_result.status in {"ok", "warn", "repaired"}
+            common_data = {
+                "feature_dir": str(resolved_feature_dir),
+                "human_acceptance": acceptance,
+                "hook_result": hook_result.to_dict(),
+            }
+            if acceptance["valid"] and hook_passed:
+                revision = int(workflow["revision"])
+                payload = agent_envelope(
+                    "ok",
+                    "Human product acceptance is complete and ready for terminal workflow closeout.",
+                    data=common_data,
+                    show_argv=exact_show_argv,
+                    next_argv=[
+                        "specify",
+                        "workflow",
+                        "closeout",
+                        "--feature-dir",
+                        str(resolved_feature_dir),
+                        "--expected-revision",
+                        str(revision),
+                        "--format",
+                        "json",
+                    ],
+                )
+            else:
+                status = "error" if hook_result.status == "error" else "blocked"
+                payload = agent_envelope(
+                    status,
+                    (
+                        "Human acceptance closeout validation failed unexpectedly."
+                        if status == "error"
+                        else "Human product acceptance is not ready for closeout."
+                    ),
+                    data=common_data,
+                    blockers=acceptance_closeout_blockers(
+                        resolved_feature_dir,
+                        acceptance=acceptance,
+                        hook_errors=(
+                            list(hook_result.errors)
+                            if hook_result.status
+                            in {"blocked", "repairable-block"}
+                            else []
+                        ),
+                    ),
+                    next_argv=[],
+                )
     if output_format.lower() == "json":
         print_json(payload, indent=2)
-    elif payload["status"] == "accepted":
-        console.print(
-            f"Human product acceptance is complete: {acceptance['state_path']}"
+    elif payload["status"] == "ok":
+        state_path = (
+            acceptance.get("state_path")
+            if isinstance(acceptance, dict)
+            else resolved_feature_dir / "human-acceptance.json"
         )
+        console.print(f"Human product acceptance is complete: {state_path}")
     else:
         console.print("[red]Human acceptance closeout is blocked.[/red]")
-        for error in [*acceptance["errors"], *hook_result.errors]:
+        errors = [
+            *(
+                list(acceptance.get("errors") or [])
+                if isinstance(acceptance, dict)
+                else []
+            ),
+            *(list(hook_result.errors) if hook_result is not None else []),
+        ]
+        for error in errors:
             console.print(f"- {error}")
-    if payload["status"] == "blocked":
-        raise typer.Exit(10)
-    if payload["status"] == "error":
-        raise typer.Exit(1)
+    exit_code = classify_exit(payload)
+    if exit_code:
+        raise typer.Exit(exit_code)
 
 
 @implement_app.command("resume-audit")
@@ -4116,6 +4585,10 @@ def _install_shared_infra(
     tracker: StepTracker | None = None,
     *,
     overwrite_existing: bool = False,
+    preserve_conflicting_launcher: bool = False,
+    preserve_modified_tracked: bool = False,
+    skipped_modified: list[str] | None = None,
+    launcher_conflicts: list[str] | None = None,
 ) -> bool:
     """Install shared infrastructure files into *project_path*.
 
@@ -4125,11 +4598,22 @@ def _install_shared_infra(
     Returns ``True`` on success.
     """
     from .integrations.manifest import IntegrationManifest
-    from .launcher import write_project_specify_launcher_config
+    from .launcher import (
+        load_project_specify_launcher,
+        render_project_launcher_placeholders,
+        write_project_specify_launcher_config,
+    )
 
     core = _locate_core_pack()
-    manifest = IntegrationManifest(
-        "speckit", project_path, version=get_speckit_version()
+    try:
+        manifest = IntegrationManifest.load("speckit", project_path)
+        manifest.version = get_speckit_version()
+    except (FileNotFoundError, ValueError):
+        manifest = IntegrationManifest(
+            "speckit", project_path, version=get_speckit_version()
+        )
+    previously_modified = (
+        set(manifest.check_modified()) if preserve_modified_tracked else set()
     )
     preexisting_config = project_path / ".specify" / "config.json"
     config_existed = preexisting_config.exists()
@@ -4142,6 +4626,28 @@ def _install_shared_infra(
         scripts_src = repo_root / "scripts"
 
     skipped_files: list[str] = []
+    launcher_guidance_paths: list[Path] = []
+
+    def should_write(destination: Path) -> bool:
+        relative = destination.relative_to(project_path).as_posix()
+        present = destination.exists() or destination.is_symlink()
+        if not present:
+            return True
+        if not overwrite_existing:
+            skipped_files.append(relative)
+            return False
+        if not preserve_modified_tracked:
+            return True
+        if (
+            relative in manifest.files
+            and relative not in previously_modified
+            and not destination.is_symlink()
+        ):
+            return True
+        skipped_files.append(relative)
+        if skipped_modified is not None:
+            skipped_modified.append(relative)
+        return False
 
     if scripts_src.is_dir():
         dest_scripts = project_path / ".specify" / "scripts"
@@ -4158,9 +4664,7 @@ def _install_shared_infra(
                     if rel_path is None:
                         continue
                     dst_path = dest_variant / rel_path
-                    if dst_path.exists() and not overwrite_existing:
-                        skipped_files.append(str(dst_path.relative_to(project_path)))
-                    else:
+                    if should_write(dst_path):
                         dst_path.parent.mkdir(parents=True, exist_ok=True)
                         shutil.copy2(src_path, dst_path)
                         rel = dst_path.relative_to(project_path).as_posix()
@@ -4174,10 +4678,13 @@ def _install_shared_infra(
                     continue
                 if src_path.is_file():
                     rel_path = src_path.relative_to(shared_src)
+                    if rel_path.as_posix() in {
+                        "specify-launcher.sh.template",
+                        "specify-launcher.ps1.template",
+                    }:
+                        continue
                     dst_path = dest_shared / rel_path
-                    if dst_path.exists() and not overwrite_existing:
-                        skipped_files.append(str(dst_path.relative_to(project_path)))
-                    else:
+                    if should_write(dst_path):
                         dst_path.parent.mkdir(parents=True, exist_ok=True)
                         shutil.copy2(src_path, dst_path)
                         rel = dst_path.relative_to(project_path).as_posix()
@@ -4216,13 +4723,14 @@ def _install_shared_infra(
                 continue
             dst = dest_templates / rel_path
             dst.parent.mkdir(parents=True, exist_ok=True)
-            if dst.exists() and not overwrite_existing:
-                skipped_files.append(str(dst.relative_to(project_path)))
+            if not should_write(dst):
                 continue
 
             shutil.copy2(src_path, dst)
             rel = dst.relative_to(project_path).as_posix()
             manifest.record_existing(rel)
+            if rel_path.as_posix() == "project-handbook-template.md":
+                launcher_guidance_paths.append(dst)
 
         # Wheel installs split several template directories out of
         # ``core_pack/templates`` into sibling directories. Mirror them back
@@ -4247,8 +4755,7 @@ def _install_shared_infra(
                     rel_path = src_path.relative_to(extra_src)
                     dst = extra_dest / rel_path
                     dst.parent.mkdir(parents=True, exist_ok=True)
-                    if dst.exists() and not overwrite_existing:
-                        skipped_files.append(str(dst.relative_to(project_path)))
+                    if not should_write(dst):
                         continue
 
                     shutil.copy2(src_path, dst)
@@ -4266,9 +4773,53 @@ def _install_shared_infra(
             "\n".join(f"  {f}" for f in skipped_files),
         )
 
-    launcher_config = write_project_specify_launcher_config(project_path)
+    try:
+        launcher_config = write_project_specify_launcher_config(
+            project_path,
+            preserve_conflicting_wrapper=preserve_conflicting_launcher,
+        )
+    except RuntimeError as exc:
+        if not preserve_conflicting_launcher:
+            raise
+        launcher_config = None
+        if launcher_conflicts is not None:
+            launcher_conflicts.append(str(exc))
     if launcher_config is not None and not config_existed:
         manifest.record_existing(launcher_config.relative_to(project_path).as_posix())
+    if load_project_specify_launcher(project_path) is not None:
+        for guidance_path in launcher_guidance_paths:
+            rendered = render_project_launcher_placeholders(
+                project_path,
+                guidance_path.read_text(encoding="utf-8"),
+            )
+            guidance_path.write_text(rendered, encoding="utf-8")
+            manifest.record_existing(
+                guidance_path.relative_to(project_path).as_posix()
+            )
+    if launcher_config is not None:
+        from .launcher import (
+            SPECIFY_PROJECT_LAUNCHER_POSIX,
+            SPECIFY_PROJECT_LAUNCHER_WINDOWS,
+            project_specify_launcher_is_available,
+        )
+
+        configured_launcher = load_project_specify_launcher(project_path)
+        if (
+            configured_launcher is not None
+            and configured_launcher.kind == "machine_binding"
+            and project_specify_launcher_is_available(
+                project_path,
+                configured_launcher,
+            )
+        ):
+            launcher_rel = (
+                SPECIFY_PROJECT_LAUNCHER_WINDOWS
+                if os.name == "nt"
+                else SPECIFY_PROJECT_LAUNCHER_POSIX
+            )
+            launcher_path = project_path / launcher_rel
+            if launcher_path.is_file():
+                manifest.record_existing(launcher_rel)
 
     manifest.save()
     return True
@@ -8787,11 +9338,20 @@ def _update_init_options_for_integration(
     save_init_options(project_root, opts)
 
 
+@dataclass(frozen=True)
+class IntegrationRepairReport:
+    active_key: str | None
+    tracked_files: int
+    repaired_files: tuple[str, ...] = ()
+    skipped_modified: tuple[str, ...] = ()
+    remaining_issues: tuple[dict[str, str], ...] = ()
+
+
 def _repair_active_integration_runtime_assets(
     project_root: Path,
     *,
     script_type: str,
-) -> tuple[str | None, int]:
+) -> IntegrationRepairReport:
     """Refresh shared infra and the active integration's managed runtime assets.
 
     This path is intentionally conservative: it refreshes shared/runtime-managed
@@ -8800,8 +9360,12 @@ def _repair_active_integration_runtime_assets(
     from .integrations import get_integration
     from .integrations.manifest import IntegrationManifest
     from .launcher import (
+        SPECIFY_PROJECT_LAUNCHER_POSIX,
+        SPECIFY_PROJECT_LAUNCHER_WINDOWS,
+        diagnose_project_runtime_compatibility,
         load_project_cognition_launcher,
         project_cognition_launcher_is_compatible,
+        write_project_specify_launcher_config,
     )
     from .project_cognition_runtime import (
         ensure_binary as ensure_project_cognition_binary,
@@ -8810,6 +9374,13 @@ def _repair_active_integration_runtime_assets(
 
     current = _read_integration_json(project_root)
     installed_key = current.get("integration")
+
+    shared_skipped: list[str] = []
+    launcher_conflicts: list[str] = []
+    try:
+        write_project_specify_launcher_config(project_root)
+    except RuntimeError as exc:
+        launcher_conflicts.append(str(exc))
 
     cognition_launcher = load_project_cognition_launcher(project_root)
     cognition_available = project_cognition_launcher_is_compatible(
@@ -8825,12 +9396,50 @@ def _repair_active_integration_runtime_assets(
                 "could not be updated with the project-pinned launcher"
             )
 
-    _install_shared_infra(project_root, script_type, overwrite_existing=True)
+    _install_shared_infra(
+        project_root,
+        script_type,
+        overwrite_existing=True,
+        preserve_conflicting_launcher=True,
+        preserve_modified_tracked=True,
+        skipped_modified=shared_skipped,
+        launcher_conflicts=launcher_conflicts,
+    )
     if os.name != "nt":
         ensure_executable_scripts(project_root)
 
     if not installed_key:
-        return None, 0
+        remaining = [
+            issue
+            for issue in diagnose_project_runtime_compatibility(project_root)
+            if issue.get("code")
+            in {
+                "broken-project-launcher",
+                "stale-generated-specify-launcher",
+                "unbound-generated-specify-launcher",
+                "unrebound-project-cognition-launcher",
+                "unbound-generated-project-cognition-launcher",
+            }
+        ]
+        if launcher_conflicts:
+            remaining.append(
+                {
+                    "code": "project-launcher-wrapper-conflict",
+                    "summary": "The generated project launcher was user-modified and was preserved; repair must be resumed through the trusted external Spec Kit Plus runtime.",
+                    "repair": "Back up and move the conflicting project launcher aside, then rerun integration repair through the current trusted external Python environment.",
+                }
+            )
+            shared_skipped.append(
+                SPECIFY_PROJECT_LAUNCHER_WINDOWS
+                if os.name == "nt"
+                else SPECIFY_PROJECT_LAUNCHER_POSIX
+            )
+        return IntegrationRepairReport(
+            None,
+            0,
+            skipped_modified=tuple(sorted(set(shared_skipped))),
+            remaining_issues=tuple(remaining),
+        )
 
     integration = get_integration(installed_key)
     if integration is None:
@@ -8844,11 +9453,24 @@ def _repair_active_integration_runtime_assets(
             integration.key, project_root, version=get_speckit_version()
         )
 
-    integration.repair_runtime_assets(
+    repaired = integration.repair_runtime_assets(
         project_root,
         manifest,
         script_type=script_type,
     )
+    context_path, context_skipped = _repair_integration_context_launcher_guidance(
+        project_root,
+        integration,
+        manifest,
+    )
+    if context_path is not None:
+        repaired.append(context_path)
+    skipped_modified = list(shared_skipped)
+    skipped_modified.extend(
+        getattr(integration, "_last_repair_skipped_modified", ())
+    )
+    if context_skipped:
+        skipped_modified.append(context_skipped)
     from .integrations.base import SkillsIntegration
 
     workflow_profiles = (
@@ -8874,7 +9496,48 @@ def _repair_active_integration_runtime_assets(
     _update_init_options_for_integration(
         project_root, integration, script_type=script_type
     )
-    return integration.key, len(manifest.files)
+    remaining = [
+        issue
+        for issue in diagnose_project_runtime_compatibility(project_root)
+        if issue.get("code")
+        in {
+            "broken-project-launcher",
+            "stale-generated-specify-launcher",
+            "unbound-generated-specify-launcher",
+            "unrebound-project-cognition-launcher",
+            "unbound-generated-project-cognition-launcher",
+        }
+    ]
+    if launcher_conflicts:
+        wrapper_relative = (
+            SPECIFY_PROJECT_LAUNCHER_WINDOWS
+            if os.name == "nt"
+            else SPECIFY_PROJECT_LAUNCHER_POSIX
+        )
+        skipped_modified.append(wrapper_relative)
+        remaining.append(
+            {
+                "code": "project-launcher-wrapper-conflict",
+                "summary": f"The generated project launcher `{wrapper_relative}` was user-modified and was preserved; repair must be resumed through the trusted external Spec Kit Plus runtime.",
+                "repair": "Back up and move the conflicting launcher aside, then rerun integration repair through the current trusted external Python environment.",
+            }
+        )
+    repaired_relative = tuple(
+        sorted(
+            {
+                path.resolve().relative_to(project_root.resolve()).as_posix()
+                for path in repaired
+                if path.exists()
+            }
+        )
+    )
+    return IntegrationRepairReport(
+        active_key=integration.key,
+        tracked_files=len(manifest.files),
+        repaired_files=repaired_relative,
+        skipped_modified=tuple(sorted(set(skipped_modified))),
+        remaining_issues=tuple(remaining),
+    )
 
 
 @integration_app.command("uninstall")
@@ -9164,17 +9827,81 @@ def integration_repair(
     _require_spec_kit_plus_project(project_root)
 
     selected_script = _resolve_script_type(project_root, script)
-    active_key, tracked_files = _repair_active_integration_runtime_assets(
+    report = _repair_active_integration_runtime_assets(
         project_root,
         script_type=selected_script,
     )
 
-    if active_key:
+    if report.skipped_modified or report.remaining_issues:
+        from .launcher import (
+            SPECIFY_PROJECT_LAUNCHER_POSIX,
+            SPECIFY_PROJECT_LAUNCHER_WINDOWS,
+            SPECIFY_RUNTIME_ID,
+            resolve_specify_launcher_spec,
+        )
+
+        external_command = resolve_specify_launcher_spec().command
+        wrapper_relative = (
+            SPECIFY_PROJECT_LAUNCHER_WINDOWS
+            if os.name == "nt"
+            else SPECIFY_PROJECT_LAUNCHER_POSIX
+        )
+        wrapper_conflict = any(
+            issue.get("code") == "project-launcher-wrapper-conflict"
+            for issue in report.remaining_issues
+        )
+        console.print(
+            "[yellow]PARTIAL[/yellow] Runtime-owned files were repaired where safe, but user-modified or incompatible launcher surfaces still need a human merge."
+        )
+        if report.skipped_modified:
+            console.print("\n[bold]Files preserved without overwrite[/bold]")
+            for path in report.skipped_modified:
+                console.print(Text(f"- {path}"))
+        if report.remaining_issues:
+            console.print("\n[bold]Remaining diagnostics[/bold]")
+            for issue in report.remaining_issues:
+                console.print(Text(f"- {issue.get('code')}: {issue.get('summary')}"))
+        console.print("\n[bold]Human repair tutorial[/bold]")
+        steps = [
+            "1. Prerequisite: commit or back up the listed files. Expected: `git status` clearly separates your edits. If not, stop and make a backup first.",
+            f"2. Verify the external runtime that is executing this repair: `{external_command} --runtime-id`. Expected: exactly `{SPECIFY_RUNTIME_ID}`. If it differs or the command fails, stop and reinstall/select the trusted Spec Kit Plus environment; do not use the project launcher.",
+        ]
+        if wrapper_conflict:
+            backup_path = f"{wrapper_relative}.user-backup"
+            if os.name == "nt":
+                move_command = (
+                    f"Move-Item -LiteralPath '{wrapper_relative}' "
+                    f"-Destination '{backup_path}'"
+                )
+            else:
+                move_command = f"mv -- '{wrapper_relative}' '{backup_path}'"
+            steps.extend(
+                [
+                    f"3. The project launcher is modified. From the project root run `{move_command}`. Expected: `{wrapper_relative}` is absent and `{backup_path}` contains your original file. If the destination already exists, rename that older backup first; never delete either copy.",
+                    f"4. Regenerate the launcher through the verified external runtime: `{external_command} integration repair --script {selected_script}`. Expected: a new `{wrapper_relative}` appears. If it does not, return the exact diagnostic code and sanitized error text.",
+                ]
+            )
+            next_step = 5
+        else:
+            next_step = 3
+        steps.extend(
+            [
+                f"{next_step}. For every other preserved file, run `git diff -- <path>` and compare it with its `.user-backup` or committed version. Keep user prose, but apply only the reported launcher/marker/runtime delta. If the file is wholly runtime-owned and the merge is unclear, move it to `<path>.user-backup` and rerun the external repair so a canonical copy is regenerated.",
+                f"{next_step + 1}. Resume with `{external_command} integration repair --script {selected_script}`. Expected: `OK`, or `PARTIAL` naming only intentionally preserved files. If a diagnostic remains, return its code, path/line, and the smallest sanitized diff; never include tokens or secrets.",
+                f"{next_step + 2}. Independently verify with `{external_command} check`. Expected: no broken/stale/unbound launcher or unresolved project-cognition marker diagnostic before resuming the interrupted SP/SPX workflow.",
+            ]
+        )
+        for step in steps:
+            console.print(Text(step))
+        raise typer.Exit(10)
+
+    if report.active_key:
         console.print(
             f"[green]OK[/green] Refreshed shared assets and repaired runtime-managed surfaces for integration "
-            f"[cyan]{active_key}[/cyan]."
+            f"[cyan]{report.active_key}[/cyan]."
         )
-        console.print(f"[dim]Tracked files refreshed: {tracked_files}[/dim]")
+        console.print(f"[dim]Tracked files refreshed: {report.tracked_files}[/dim]")
+        console.print(f"[dim]Launcher-bound files repaired: {len(report.repaired_files)}[/dim]")
     else:
         console.print(
             "[green]OK[/green] Refreshed shared project assets. No active integration was installed."

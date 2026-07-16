@@ -31,7 +31,7 @@ or promote Learning.
 Prefer deterministic capture from durable workflow state:
 
 ```text
-specify learning capture-auto --command <command> <state locator> --format json
+{{specify-subcmd:learning capture-auto --command <command> <state locator> --format json}}
 ```
 
 Use manual capture only when durable state cannot express the lesson. Supply a

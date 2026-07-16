@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import hashlib
 import importlib.metadata as importlib_metadata
 import json
 import os
@@ -11,8 +12,17 @@ import re
 import shutil
 import shlex
 import subprocess
+import sys
 from typing import Any, Callable, TYPE_CHECKING
+from urllib.parse import urlsplit
+import uuid
 
+from .atomic_io import (
+    atomic_write_bytes,
+    atomic_write_text,
+    read_local_state_text,
+    safe_local_state_path,
+)
 from .hook_artifacts import contains_claude_managed_hook_entries
 
 if TYPE_CHECKING:
@@ -22,6 +32,25 @@ if TYPE_CHECKING:
 SPECIFY_PACKAGE_NAME = "specify-cli"
 SPECIFY_CONFIG_FILE = ".specify/config.json"
 SPECIFY_LAUNCHER_CONFIG_KEY = "specify_launcher"
+SPECIFY_RUNTIME_ID = "chenziyang110/spec-kit-plus"
+SPECIFY_SOURCE_REPOSITORY = (
+    "git+https://github.com/chenziyang110/spec-kit-plus.git"
+)
+SPECIFY_PROJECT_LAUNCHER_POSIX = ".specify/scripts/shared/specify-launcher"
+SPECIFY_PROJECT_LAUNCHER_WINDOWS = ".specify/scripts/shared/specify-launcher.ps1"
+SPECIFY_PROJECT_LAUNCHER_TEMPLATE_POSIX = "specify-launcher.sh.template"
+SPECIFY_PROJECT_LAUNCHER_TEMPLATE_WINDOWS = "specify-launcher.ps1.template"
+SPECIFY_LOCAL_BINDING_ENV = "SPECIFY_PROJECT_LAUNCHER_STATE_DIR"
+SPECIFY_BINDING_ID_RE = re.compile(r"^[0-9a-f]{32}$")
+SPECIFY_BINDING_ENTRY = "binding-entry.py"
+SPECIFY_BINDING_METADATA = "binding.json"
+SPECIFY_BINDING_POSIX = "invoke"
+SPECIFY_BINDING_WINDOWS = "invoke.ps1"
+SPECIFY_BINDING_DISPATCH_POSIX = "dispatch"
+SPECIFY_BINDING_DISPATCH_WINDOWS = "dispatch.ps1"
+SPECIFY_BINDING_DISPATCH_METADATA = "dispatch.json"
+SPECIFY_BINDING_PLACEHOLDER = "__SPECIFY_BINDING_ID__"
+SPECIFY_REPAIR_MESSAGE_PLACEHOLDER = "__SPECIFY_REPAIR_MESSAGE__"
 PROJECT_COGNITION_LAUNCHER_CONFIG_KEY = "project_cognition_launcher"
 PROJECT_COGNITION_UNAVAILABLE_MARKER = "PROJECT_COGNITION_LAUNCHER_UNAVAILABLE"
 HOOK_RUNTIME_ARGV_ENV = "SPECIFY_HOOK_RUNTIME_ARGV"
@@ -37,7 +66,10 @@ DIRECT_HOOK_DISPATCH_MARKERS = (
 GENERATED_GUIDANCE_ROOTS = (
     ".codex/skills",
     ".claude/commands",
+    ".claude/hooks",
+    ".claude/skills",
     ".gemini/commands",
+    ".gemini/hooks",
     ".github/agents",
     ".cursor/skills",
     ".qwen/commands",
@@ -54,6 +86,7 @@ GENERATED_GUIDANCE_ROOTS = (
     ".shai/commands",
     ".tabnine/agent/commands",
     ".kimi/skills",
+    ".mimocode/commands",
     ".pi/prompts",
     ".iflow/commands",
     ".forge/commands",
@@ -63,14 +96,52 @@ GENERATED_GUIDANCE_ROOTS = (
     ".vibe/skills",
     ".zcode/skills",
 )
+GENERATED_CONTEXT_FILES = (
+    "AGENTS.md",
+    "CLAUDE.md",
+    "CODEBUDDY.md",
+    "GEMINI.md",
+    "IFLOW.md",
+    "KIMI.md",
+    "QODER.md",
+    "QWEN.md",
+    "SHAI.md",
+    "TABNINE.md",
+    ".augment/rules/specify-rules.md",
+    ".cursor/rules/specify-rules.mdc",
+    ".github/copilot-instructions.md",
+    ".junie/AGENTS.md",
+    ".kilocode/rules/specify-rules.md",
+    ".roo/rules/specify-rules.md",
+    ".trae/rules/project_rules.md",
+    ".windsurf/rules/specify-rules.md",
+)
+GENERATED_GUIDANCE_FILES = (
+    ".specify/templates/project-handbook-template.md",
+)
 GENERATED_GUIDANCE_SUFFIXES = {".md", ".toml"}
+SPEC_KIT_MANAGED_BLOCK_RE = re.compile(
+    r"<!-- SPEC-KIT:BEGIN -->.*?<!-- SPEC-KIT:END -->",
+    re.DOTALL,
+)
 SOURCE_BOUND_UVX_SPECIFY_RE = re.compile(r"uvx\s+--from\s+git\+\S+\s+specify")
 _MARKDOWN_INLINE_CODE_RE = re.compile(r"`(?P<code>[^`\r\n]+)`")
 _MARKDOWN_FENCE_RE = re.compile(
     r"^\s*(?P<marker>`{3,}|~{3,})(?P<language>[A-Za-z0-9_+-]*)\s*$"
 )
 _BARE_SPECIFY_LINE_RE = re.compile(
-    r"^\s*(?:(?:PS>)|\$)?\s*(?P<command>specify(?:\s+[^\r\n]+)?)\s*$"
+    r"^(?P<prefix>\s*(?:(?:PS>)|\$)?\s*)(?P<command>specify(?:\s+[^\r\n]+)?)(?P<suffix>\s*)$"
+)
+_BARE_PROJECT_COGNITION_LINE_RE = re.compile(
+    r"^(?P<prefix>\s*(?:(?:PS>)|\$)?\s*)"
+    r"(?P<command>project-cognition(?:\s+[^\r\n]+)?)"
+    r"(?P<suffix>\s*)$"
+)
+_SPECIFY_OPTION_RE = re.compile(r"^-{1,2}[A-Za-z][A-Za-z0-9-]*$")
+_POWERSHELL_SAFE_ARG_RE = re.compile(r"^[A-Za-z0-9_./:\\@%+=,~-]+$")
+_POWERSHELL_VARIABLE_ARG_RE = re.compile(
+    r"^\$(?:env:)?[A-Za-z_][A-Za-z0-9_]*$",
+    re.IGNORECASE,
 )
 _NON_EXECUTABLE_SPECIFY_CONTEXT_RE = re.compile(
     r"\b(?:do\s+not|don't|never|must\s+not|unsupported|not\s+executable|"
@@ -138,6 +209,10 @@ class SpecifyLauncherSpec:
 
     command: str
     argv: tuple[str, ...]
+    source: str = "direct"
+    kind: str = "direct"
+    runtime_id: str = ""
+    binding_id: str = ""
 
 
 @dataclass(frozen=True)
@@ -153,7 +228,16 @@ def render_command(argv: tuple[str, ...]) -> str:
     """Render *argv* as an operator-readable command string."""
 
     if os.name == "nt":
-        return subprocess.list2cmdline(list(argv))
+        rendered: list[str] = []
+        for item in argv:
+            if _POWERSHELL_SAFE_ARG_RE.fullmatch(item) or _POWERSHELL_VARIABLE_ARG_RE.fullmatch(item):
+                rendered.append(item)
+            else:
+                rendered.append("'" + item.replace("'", "''") + "'")
+        command = " ".join(rendered)
+        if rendered and rendered[0].startswith("'"):
+            command = f"& {command}"
+        return command
     return " ".join(shlex.quote(item) for item in argv)
 
 
@@ -162,54 +246,710 @@ def default_specify_launcher_spec() -> SpecifyLauncherSpec:
     return SpecifyLauncherSpec(command=render_command(argv), argv=argv)
 
 
+def current_environment_specify_launcher_spec() -> SpecifyLauncherSpec:
+    """Bind invocation to the interpreter that loaded this Specify package."""
+
+    argv = (sys.executable, "-m", "specify_cli")
+    return SpecifyLauncherSpec(
+        command=render_command(argv),
+        argv=argv,
+        source="local_environment",
+        kind="local_environment",
+        runtime_id=SPECIFY_RUNTIME_ID,
+    )
+
+
+def project_local_specify_launcher_spec(binding_id: str) -> SpecifyLauncherSpec:
+    """Return the cwd-independent command for a machine-local binding."""
+
+    if not SPECIFY_BINDING_ID_RE.fullmatch(binding_id):
+        raise ValueError("invalid Specify machine binding id")
+    if os.name == "nt":
+        argv = (
+            _windows_powershell_executable(),
+            "-NoLogo",
+            "-NoProfile",
+            "-NonInteractive",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            str(_project_launcher_dispatch_path()),
+            binding_id,
+        )
+    else:
+        argv = (str(_project_launcher_dispatch_path()), binding_id)
+    return SpecifyLauncherSpec(
+        command=render_command(argv),
+        argv=argv,
+        source="machine_binding",
+        kind="machine_binding",
+        runtime_id=SPECIFY_RUNTIME_ID,
+        binding_id=binding_id,
+    )
+
+
+def _source_bound_specify_launcher_spec(
+    argv: tuple[str, ...],
+) -> SpecifyLauncherSpec | None:
+    """Return a canonical commit-pinned upstream launcher, or reject it."""
+
+    if len(argv) != 4 or argv[:2] != ("uvx", "--from") or argv[3] != "specify":
+        return None
+    locator, separator, commit_id = argv[2].rpartition("@")
+    if (
+        separator != "@"
+        or locator != SPECIFY_SOURCE_REPOSITORY
+        or re.fullmatch(r"(?:[0-9a-fA-F]{40}|[0-9a-fA-F]{64})", commit_id)
+        is None
+    ):
+        return None
+    normalized_argv = ("uvx", "--from", f"{locator}@{commit_id}", "specify")
+    return SpecifyLauncherSpec(
+        command=render_command(normalized_argv),
+        argv=normalized_argv,
+        source="git",
+        kind="source_bound",
+        runtime_id=SPECIFY_RUNTIME_ID,
+    )
+
+
 def resolve_specify_launcher_spec() -> SpecifyLauncherSpec:
     """Return the best available launcher for the current ``specify`` source.
 
     Git direct-url installs are converted into a ``uvx --from git+... specify``
-    launcher so generated project hooks do not accidentally call an older
-    ``specify`` executable that happens to appear earlier on PATH.
+    launcher. Other installs bind to the current Python environment. Both forms
+    avoid calling an unrelated ``specify`` executable that appears earlier on
+    PATH.
     """
 
-    default = default_specify_launcher_spec()
+    current_environment = current_environment_specify_launcher_spec()
 
     try:
         distribution = importlib_metadata.distribution(SPECIFY_PACKAGE_NAME)
     except importlib_metadata.PackageNotFoundError:
-        return default
+        return current_environment
 
     try:
         direct_url_text = distribution.read_text("direct_url.json")
     except FileNotFoundError:
-        return default
+        return current_environment
 
     if not direct_url_text:
-        return default
+        return current_environment
 
     try:
         payload = json.loads(direct_url_text)
     except json.JSONDecodeError:
-        return default
+        return current_environment
 
     if not isinstance(payload, dict):
-        return default
+        return current_environment
 
     vcs_info = payload.get("vcs_info")
     url = payload.get("url")
     if not isinstance(vcs_info, dict) or not isinstance(url, str):
-        return default
+        return current_environment
     if vcs_info.get("vcs") != "git" or not url.strip():
-        return default
+        return current_environment
+
+    # A direct-url record can contain authenticated clone URLs. Persisting one
+    # would copy credentials into project config and every generated command.
+    # Fall back to the machine-local binding whenever the URL is not a clean,
+    # credential-free source locator.
+    try:
+        parsed_url = urlsplit(url.removeprefix("git+"))
+    except ValueError:
+        return current_environment
+    if (
+        parsed_url.username
+        or parsed_url.password
+        or parsed_url.query
+        or parsed_url.fragment
+        or re.search(r"[\s\"'`;&|<>^$(){}\[\]\\]", url)
+    ):
+        return current_environment
 
     commit_id = str(vcs_info.get("commit_id", "")).strip()
+    if not re.fullmatch(r"(?:[0-9a-fA-F]{40}|[0-9a-fA-F]{64})", commit_id):
+        return current_environment
     source = url if url.startswith("git+") else f"git+{url}"
+    if source != SPECIFY_SOURCE_REPOSITORY:
+        return current_environment
     if commit_id:
         source = f"{source}@{commit_id}"
 
     if not shutil.which("uvx"):
-        return default
+        return current_environment
 
     argv = ("uvx", "--from", source, "specify")
-    return SpecifyLauncherSpec(command=render_command(argv), argv=argv)
+    return _source_bound_specify_launcher_spec(argv) or current_environment
+
+
+def _project_launcher_state_root() -> Path:
+    override = os.environ.get(SPECIFY_LOCAL_BINDING_ENV, "").strip()
+    return (
+        Path(override).expanduser().resolve()
+        if override
+        else Path.home() / ".specify" / "project-launchers"
+    )
+
+
+def _windows_powershell_executable() -> str:
+    """Return the system Windows PowerShell host without consulting PATH."""
+
+    system_root = os.environ.get("SystemRoot", r"C:\Windows")
+    candidate = (
+        Path(system_root)
+        / "System32"
+        / "WindowsPowerShell"
+        / "v1.0"
+        / "powershell.exe"
+    )
+    return str(candidate)
+
+
+def _project_launcher_binding_dir(binding_id: str) -> Path:
+    if not SPECIFY_BINDING_ID_RE.fullmatch(binding_id):
+        raise ValueError("invalid Specify machine binding id")
+    return _project_launcher_state_root() / binding_id
+
+
+def _project_launcher_binding_path(binding_id: str) -> Path:
+    return _project_launcher_binding_dir(binding_id) / SPECIFY_BINDING_METADATA
+
+
+def _project_launcher_dispatch_path() -> Path:
+    name = (
+        SPECIFY_BINDING_DISPATCH_WINDOWS
+        if os.name == "nt"
+        else SPECIFY_BINDING_DISPATCH_POSIX
+    )
+    return _project_launcher_state_root() / name
+
+
+def _project_launcher_dispatch_metadata_path() -> Path:
+    return _project_launcher_state_root() / SPECIFY_BINDING_DISPATCH_METADATA
+
+
+def _project_launcher_native_binding_path(binding_id: str) -> Path:
+    name = SPECIFY_BINDING_WINDOWS if os.name == "nt" else SPECIFY_BINDING_POSIX
+    return _project_launcher_binding_dir(binding_id) / name
+
+
+def _binding_package_identity() -> tuple[Path, str, str]:
+    launcher_path = Path(__file__).resolve()
+    package_dir = launcher_path.parent
+    package_init = package_dir / "__init__.py"
+    if not package_init.is_file() or launcher_path.name != "launcher.py":
+        raise RuntimeError("cannot locate the loaded specify_cli package source")
+    import_root = package_dir.parent.resolve()
+    return (
+        import_root,
+        hashlib.sha256(package_init.read_bytes()).hexdigest(),
+        hashlib.sha256(launcher_path.read_bytes()).hexdigest(),
+    )
+
+
+def _binding_entry_source(
+    binding_id: str,
+    package_import_root: Path,
+    package_init_sha256: str,
+    package_launcher_sha256: str,
+    repair_command: str,
+) -> str:
+    return f'''#!/usr/bin/env python3
+"""Machine-local Spec Kit Plus binding entry. Generated; do not edit."""
+
+from __future__ import annotations
+
+import hashlib
+import sys
+from pathlib import Path
+
+EXPECTED_RUNTIME_ID = {SPECIFY_RUNTIME_ID!r}
+BINDING_ID = {binding_id!r}
+PACKAGE_IMPORT_ROOT = {str(package_import_root)!r}
+PACKAGE_INIT_SHA256 = {package_init_sha256!r}
+PACKAGE_LAUNCHER_SHA256 = {package_launcher_sha256!r}
+REPAIR_COMMAND = {repair_command!r}
+
+
+def _recovery(detail: str) -> None:
+    print("Spec Kit Plus machine binding is unavailable or incompatible.", file=sys.stderr)
+    print(f"Binding: {{BINDING_ID}}", file=sys.stderr)
+    print(f"Cause: {{detail}}", file=sys.stderr)
+    print(f"Run this exact trusted repair command from the project root: {{REPAIR_COMMAND}}", file=sys.stderr)
+
+
+def _sha256(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def main() -> int:
+    try:
+        import_root = Path(PACKAGE_IMPORT_ROOT)
+        if not import_root.is_absolute():
+            raise RuntimeError("recorded package import root is not absolute")
+        package_dir = import_root / "specify_cli"
+        package_init = package_dir / "__init__.py"
+        package_launcher = package_dir / "launcher.py"
+        if _sha256(package_init) != PACKAGE_INIT_SHA256:
+            raise RuntimeError("recorded package __init__.py digest no longer matches")
+        if _sha256(package_launcher) != PACKAGE_LAUNCHER_SHA256:
+            raise RuntimeError("recorded package launcher.py digest no longer matches")
+        sys.path.insert(0, str(import_root))
+        import specify_cli.launcher as launcher_runtime
+        if Path(launcher_runtime.__file__).resolve() != package_launcher.resolve():
+            raise RuntimeError("loaded package does not match the recorded import root")
+        if launcher_runtime.SPECIFY_RUNTIME_ID != EXPECTED_RUNTIME_ID:
+            raise RuntimeError(
+                f"runtime identity {{launcher_runtime.SPECIFY_RUNTIME_ID!r}} does not match {{EXPECTED_RUNTIME_ID!r}}"
+            )
+        from specify_cli import main as specify_main
+    except Exception as exc:
+        _recovery(str(exc))
+        return 2
+    specify_main()
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
+'''
+
+
+def _binding_invoke_source(interpreter: str, entry_path: Path) -> str:
+    if os.name == "nt":
+        quoted_interpreter = interpreter.replace("'", "''")
+        return (
+            "param(\r\n"
+            "    [Parameter(ValueFromRemainingArguments = $true)]\r\n"
+            "    [string[]]$ForwardedArgs\r\n"
+            ")\r\n"
+            "$ErrorActionPreference = 'Stop'\r\n"
+            "$utf8 = [System.Text.UTF8Encoding]::new($false)\r\n"
+            "[Console]::InputEncoding = $utf8\r\n"
+            "[Console]::OutputEncoding = $utf8\r\n"
+            "$OutputEncoding = $utf8\r\n"
+            "$env:PYTHONUTF8 = '1'\r\n"
+            "$env:PYTHONIOENCODING = 'utf-8'\r\n"
+            f"& '{quoted_interpreter}' (Join-Path $PSScriptRoot '{entry_path.name}') @ForwardedArgs\r\n"
+            "exit $LASTEXITCODE\r\n"
+        )
+    command = " ".join(shlex.quote(item) for item in (interpreter, str(entry_path)))
+    return f'#!/bin/sh\nexec {command} "$@"\n'
+
+
+def _absolute_launcher_entry(entry: str) -> str:
+    """Make an executable path absolute without dereferencing venv symlinks."""
+
+    candidate = Path(entry).expanduser()
+    if candidate.is_absolute():
+        return os.path.abspath(str(candidate))
+    located = shutil.which(entry)
+    if located:
+        return os.path.abspath(os.path.expanduser(located))
+    return os.path.abspath(str(candidate))
+
+
+def _binding_repair_argv(interpreter: str) -> tuple[str, ...]:
+    return (interpreter, "-m", "specify_cli", "integration", "repair")
+
+
+def _binding_repair_message(repair_command: str) -> str:
+    return f"Run this exact trusted repair command from the project root: {repair_command}"
+
+
+def _binding_dispatch_source(repair_command: str) -> str:
+    repair_message = _binding_repair_message(repair_command)
+    if os.name == "nt":
+        quoted_repair_message = "'" + repair_message.replace("'", "''") + "'"
+        return r'''param(
+    [Parameter(Mandatory = $true, Position = 0)]
+    [ValidatePattern('^[0-9a-f]{32}$')]
+    [string]$BindingId,
+    [Parameter(Position = 1, ValueFromRemainingArguments = $true)]
+    [string[]]$ForwardedArgs
+)
+$ErrorActionPreference = 'Stop'
+$stateRoot = $PSScriptRoot
+$binding = Join-Path $stateRoot "$BindingId/invoke.ps1"
+if (-not (Test-Path -LiteralPath $binding -PathType Leaf)) {
+    [Console]::Error.WriteLine("Spec Kit Plus cannot find this project's machine-local Specify binding.")
+    [Console]::Error.WriteLine("Binding: $BindingId")
+    [Console]::Error.WriteLine("Expected: $binding")
+    [Console]::Error.WriteLine(__SPECIFY_REPAIR_MESSAGE__)
+    exit 2
+}
+& $binding @ForwardedArgs
+exit $LASTEXITCODE
+'''.replace(SPECIFY_REPAIR_MESSAGE_PLACEHOLDER, quoted_repair_message)
+    quoted_repair_message = shlex.quote(repair_message)
+    return '''#!/bin/sh
+set -eu
+binding_id="${1:-}"
+case "$binding_id" in
+  *[!0-9a-f]*|'') echo "Spec Kit Plus received an invalid machine binding id." >&2; exit 2 ;;
+esac
+if [ "${#binding_id}" -ne 32 ]; then
+  echo "Spec Kit Plus received an invalid machine binding id." >&2
+  exit 2
+fi
+shift
+state_root=$(CDPATH= cd "$(dirname "$0")" && pwd -P)
+binding="${state_root}/${binding_id}/invoke"
+if [ ! -x "$binding" ]; then
+  echo "Spec Kit Plus cannot find this project's machine-local Specify binding." >&2
+  echo "Binding: ${binding_id}" >&2
+  echo "Expected: ${binding}" >&2
+  echo __SPECIFY_REPAIR_MESSAGE__ >&2
+  exit 2
+fi
+exec "$binding" "$@"
+'''.replace(SPECIFY_REPAIR_MESSAGE_PLACEHOLDER, quoted_repair_message)
+
+
+def _write_project_launcher_binding(
+    binding_id: str,
+    launcher: SpecifyLauncherSpec,
+) -> Path:
+    binding_dir = _project_launcher_binding_dir(binding_id)
+    binding_dir.mkdir(parents=True, exist_ok=True)
+    entry_path = binding_dir / SPECIFY_BINDING_ENTRY
+    invoke_path = _project_launcher_native_binding_path(binding_id)
+    dispatch_path = _project_launcher_dispatch_path()
+    binding_path = _project_launcher_binding_path(binding_id)
+    interpreter = _absolute_launcher_entry(launcher.argv[0])
+    repair_argv = _binding_repair_argv(interpreter)
+    repair_command = render_command(repair_argv)
+    package_import_root, package_init_sha256, package_launcher_sha256 = (
+        _binding_package_identity()
+    )
+    atomic_write_text(
+        entry_path,
+        _binding_entry_source(
+            binding_id,
+            package_import_root,
+            package_init_sha256,
+            package_launcher_sha256,
+            repair_command,
+        ),
+    )
+    invoke_source = _binding_invoke_source(interpreter, entry_path)
+    dispatch_source = _binding_dispatch_source(repair_command)
+    if os.name == "nt":
+        # Windows PowerShell 5 decodes BOM-less scripts through the active ANSI
+        # code page. Use UTF-8 BOM so CJK interpreter/state paths remain exact.
+        atomic_write_bytes(invoke_path, invoke_source.encode("utf-8-sig"))
+        atomic_write_bytes(dispatch_path, dispatch_source.encode("utf-8-sig"))
+    else:
+        atomic_write_text(invoke_path, invoke_source)
+        atomic_write_text(dispatch_path, dispatch_source)
+    dispatch_payload = {
+        "runtime_id": SPECIFY_RUNTIME_ID,
+        "repair_argv": list(repair_argv),
+        "dispatch_path": str(dispatch_path),
+        "dispatch_sha256": hashlib.sha256(dispatch_path.read_bytes()).hexdigest(),
+    }
+    atomic_write_text(
+        _project_launcher_dispatch_metadata_path(),
+        json.dumps(dispatch_payload, ensure_ascii=False, indent=2) + "\n",
+    )
+    payload = {
+        "runtime_id": SPECIFY_RUNTIME_ID,
+        "binding_id": binding_id,
+        "entry_argv": [interpreter, str(entry_path)],
+        "package_import_root": str(package_import_root),
+        "package_init_sha256": package_init_sha256,
+        "package_launcher_sha256": package_launcher_sha256,
+        "invoke_path": str(invoke_path),
+        "entry_sha256": hashlib.sha256(entry_path.read_bytes()).hexdigest(),
+        "invoke_sha256": hashlib.sha256(invoke_path.read_bytes()).hexdigest(),
+    }
+    atomic_write_text(
+        binding_path,
+        json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
+    )
+    if os.name != "nt":
+        entry_path.chmod(0o600)
+        binding_path.chmod(0o600)
+        _project_launcher_dispatch_metadata_path().chmod(0o600)
+        invoke_path.chmod(0o700)
+        dispatch_path.chmod(0o700)
+    return binding_path
+
+
+def _read_project_launcher_binding(binding_id: str) -> dict[str, Any] | None:
+    try:
+        payload = json.loads(
+            read_local_state_text(
+                _project_launcher_binding_path(binding_id),
+                root=_project_launcher_state_root(),
+            )
+        )
+    except (OSError, ValueError, json.JSONDecodeError):
+        return None
+    if (
+        not isinstance(payload, dict)
+        or payload.get("runtime_id") != SPECIFY_RUNTIME_ID
+        or payload.get("binding_id") != binding_id
+    ):
+        return None
+    entry_argv = payload.get("entry_argv")
+    invoke_path = payload.get("invoke_path")
+    entry_sha256 = payload.get("entry_sha256")
+    package_import_root = payload.get("package_import_root")
+    package_init_sha256 = payload.get("package_init_sha256")
+    package_launcher_sha256 = payload.get("package_launcher_sha256")
+    invoke_sha256 = payload.get("invoke_sha256")
+    if (
+        not isinstance(entry_argv, list)
+        or len(entry_argv) != 2
+        or not all(isinstance(item, str) and item for item in entry_argv)
+        or not isinstance(invoke_path, str)
+        or not invoke_path
+        or not isinstance(entry_sha256, str)
+        or not re.fullmatch(r"[0-9a-f]{64}", entry_sha256)
+        or not isinstance(package_import_root, str)
+        or not package_import_root
+        or not Path(package_import_root).is_absolute()
+        or not isinstance(package_init_sha256, str)
+        or not re.fullmatch(r"[0-9a-f]{64}", package_init_sha256)
+        or not isinstance(package_launcher_sha256, str)
+        or not re.fullmatch(r"[0-9a-f]{64}", package_launcher_sha256)
+        or not isinstance(invoke_sha256, str)
+        or not re.fullmatch(r"[0-9a-f]{64}", invoke_sha256)
+    ):
+        return None
+    return payload
+
+
+def _read_project_launcher_dispatch() -> dict[str, Any] | None:
+    try:
+        payload = json.loads(
+            read_local_state_text(
+                _project_launcher_dispatch_metadata_path(),
+                root=_project_launcher_state_root(),
+            )
+        )
+    except (OSError, ValueError, json.JSONDecodeError):
+        return None
+    if not isinstance(payload, dict) or payload.get("runtime_id") != SPECIFY_RUNTIME_ID:
+        return None
+    repair_argv = payload.get("repair_argv")
+    dispatch_path = payload.get("dispatch_path")
+    dispatch_sha256 = payload.get("dispatch_sha256")
+    if (
+        not isinstance(repair_argv, list)
+        or len(repair_argv) != 5
+        or not all(isinstance(item, str) and item for item in repair_argv)
+        or tuple(repair_argv[1:])
+        != ("-m", "specify_cli", "integration", "repair")
+        or not Path(repair_argv[0]).is_absolute()
+        or not isinstance(dispatch_path, str)
+        or not dispatch_path
+        or not isinstance(dispatch_sha256, str)
+        or not re.fullmatch(r"[0-9a-f]{64}", dispatch_sha256)
+    ):
+        return None
+    return payload
+
+
+def _launcher_entry_exists(entry: str) -> bool:
+    candidate = Path(entry).expanduser()
+    return candidate.is_file() if candidate.is_absolute() else shutil.which(entry) is not None
+
+
+def project_specify_launcher_is_available(
+    project_root: Path,
+    launcher: SpecifyLauncherSpec,
+) -> bool:
+    """Validate both a persisted launcher entry and its project-local binding."""
+
+    if not launcher.argv:
+        return False
+    if launcher.kind != "machine_binding":
+        return _launcher_entry_exists(launcher.argv[0])
+    if (
+        launcher.runtime_id != SPECIFY_RUNTIME_ID
+        or not SPECIFY_BINDING_ID_RE.fullmatch(launcher.binding_id)
+    ):
+        return False
+    try:
+        wrapper = project_local_specify_launcher_spec(launcher.binding_id)
+        destination, expected = _render_project_launcher_asset(
+            launcher.binding_id,
+            project_root,
+        )
+    except (FileNotFoundError, ValueError):
+        return False
+    if launcher.argv != wrapper.argv:
+        return False
+    try:
+        if read_local_state_text(destination, root=project_root) != expected:
+            return False
+    except (OSError, ValueError):
+        return False
+    return _machine_binding_probe(launcher.binding_id)
+
+
+def _machine_binding_probe(binding_id: str) -> bool:
+    binding = _read_project_launcher_binding(binding_id)
+    dispatch = _read_project_launcher_dispatch()
+    if binding is None or dispatch is None:
+        return False
+    entry_argv = tuple(binding["entry_argv"])
+    package_import_root = Path(binding["package_import_root"])
+    package_init_sha256 = str(binding["package_init_sha256"])
+    package_launcher_sha256 = str(binding["package_launcher_sha256"])
+    invoke_path = Path(binding["invoke_path"])
+    dispatch_path = Path(dispatch["dispatch_path"])
+    dispatch_repair_argv = tuple(dispatch["repair_argv"])
+    binding_dir = _project_launcher_binding_dir(binding_id).resolve()
+    entry_path = binding_dir / SPECIFY_BINDING_ENTRY
+    expected_invoke = _project_launcher_native_binding_path(binding_id).resolve()
+    expected_dispatch = _project_launcher_dispatch_path().resolve()
+    try:
+        recorded_entry = Path(entry_argv[1]).resolve()
+        recorded_invoke = invoke_path.resolve()
+        recorded_dispatch = dispatch_path.resolve()
+        recorded_import_root = package_import_root.resolve()
+    except OSError:
+        return False
+    if (
+        recorded_entry != entry_path
+        or recorded_invoke != expected_invoke
+        or recorded_dispatch != expected_dispatch
+        or recorded_import_root != package_import_root
+        or not _launcher_entry_exists(entry_argv[0])
+        or not _launcher_entry_exists(dispatch_repair_argv[0])
+        or not entry_path.is_file()
+        or not invoke_path.is_file()
+        or not dispatch_path.is_file()
+    ):
+        return False
+    try:
+        package_init = package_import_root / "specify_cli" / "__init__.py"
+        package_launcher = package_import_root / "specify_cli" / "launcher.py"
+        entry_hash = hashlib.sha256(entry_path.read_bytes()).hexdigest()
+        invoke_hash = hashlib.sha256(invoke_path.read_bytes()).hexdigest()
+        dispatch_hash = hashlib.sha256(dispatch_path.read_bytes()).hexdigest()
+        package_init_hash = hashlib.sha256(package_init.read_bytes()).hexdigest()
+        package_launcher_hash = hashlib.sha256(package_launcher.read_bytes()).hexdigest()
+        repair_command = render_command(_binding_repair_argv(entry_argv[0]))
+        expected_entry = _binding_entry_source(
+            binding_id,
+            package_import_root,
+            package_init_sha256,
+            package_launcher_sha256,
+            repair_command,
+        )
+        expected_dispatch = _binding_dispatch_source(
+            render_command(dispatch_repair_argv)
+        ).encode(
+            "utf-8-sig" if os.name == "nt" else "utf-8"
+        )
+        actual_entry = entry_path.read_text(encoding="utf-8")
+        actual_dispatch = dispatch_path.read_bytes()
+    except OSError:
+        return False
+    if (
+        entry_hash != binding["entry_sha256"]
+        or invoke_hash != binding["invoke_sha256"]
+        or dispatch_hash != dispatch["dispatch_sha256"]
+        or package_init_hash != package_init_sha256
+        or package_launcher_hash != package_launcher_sha256
+        or actual_entry != expected_entry
+        or actual_dispatch != expected_dispatch
+    ):
+        return False
+    try:
+        probe = subprocess.run(
+            [*project_local_specify_launcher_spec(binding_id).argv, "--runtime-id"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+            timeout=10,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    return probe.returncode == 0 and probe.stdout.strip() == SPECIFY_RUNTIME_ID
+
+
+def _project_launcher_asset() -> Path | None:
+    module_dir = Path(__file__).resolve().parent
+    name = (
+        SPECIFY_PROJECT_LAUNCHER_TEMPLATE_WINDOWS
+        if os.name == "nt"
+        else SPECIFY_PROJECT_LAUNCHER_TEMPLATE_POSIX
+    )
+    for candidate in (
+        module_dir / "core_pack" / "scripts" / "shared" / name,
+        module_dir.parent.parent / "scripts" / "shared" / name,
+    ):
+        if candidate.is_file():
+            return candidate
+    return None
+
+
+def _project_launcher_destination(project_root: Path) -> Path:
+    relative = (
+        SPECIFY_PROJECT_LAUNCHER_WINDOWS
+        if os.name == "nt"
+        else SPECIFY_PROJECT_LAUNCHER_POSIX
+    )
+    return project_root / relative
+
+
+def _render_project_launcher_asset(binding_id: str, project_root: Path | None = None) -> tuple[Path, str]:
+    source = _project_launcher_asset()
+    if source is None:
+        raise FileNotFoundError("packaged project launcher template is unavailable")
+    if not SPECIFY_BINDING_ID_RE.fullmatch(binding_id):
+        raise ValueError("invalid Specify machine binding id")
+    root = project_root or Path.cwd()
+    destination = _project_launcher_destination(root)
+    binding = _read_project_launcher_binding(binding_id)
+    if binding is None:
+        raise FileNotFoundError("machine binding metadata is unavailable or invalid")
+    repair_command = render_command(_binding_repair_argv(binding["entry_argv"][0]))
+    repair_message = _binding_repair_message(repair_command)
+    repair_literal = (
+        "'" + repair_message.replace("'", "''") + "'"
+        if os.name == "nt"
+        else shlex.quote(repair_message)
+    )
+    rendered = source.read_text(encoding="utf-8").replace(
+        SPECIFY_BINDING_PLACEHOLDER,
+        binding_id,
+    )
+    rendered = rendered.replace(SPECIFY_REPAIR_MESSAGE_PLACEHOLDER, repair_literal)
+    return destination, rendered
+
+
+def install_project_specify_launcher(project_root: Path, binding_id: str) -> Path:
+    """Install the portable project wrapper used by local environment bindings."""
+
+    destination, rendered = _render_project_launcher_asset(binding_id, project_root)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    if destination.exists():
+        try:
+            current = read_local_state_text(destination, root=project_root)
+        except (OSError, ValueError) as exc:
+            raise RuntimeError(f"cannot inspect existing project launcher: {destination}") from exc
+        if current != rendered:
+            raise RuntimeError(
+                "project launcher conflict: existing runtime shim was modified; "
+                f"preserved {destination}. Back up the file, compare it with the installed "
+                "Spec Kit Plus launcher template, then run the trusted `specify integration repair` command."
+            )
+        return destination
+    atomic_write_text(destination, rendered)
+    if os.name != "nt":
+        destination.chmod(0o700)
+    return destination
 
 
 def _hook_launcher_assets_dir() -> Path | None:
@@ -332,6 +1072,8 @@ def install_shared_hook_launcher_assets(
     *,
     manifest: IntegrationManifest | None = None,
     include_node: bool = True,
+    preserve_modified: bool = False,
+    skipped_modified: list[str] | None = None,
 ) -> list[Path]:
     """Install shared native-hook launcher assets into ``.specify/bin/``."""
 
@@ -342,18 +1084,33 @@ def install_shared_hook_launcher_assets(
     created: list[Path] = []
     dest_dir = project_root / ".specify" / "bin"
     dest_dir.mkdir(parents=True, exist_ok=True)
+    modified = (
+        set(manifest.check_modified())
+        if preserve_modified and manifest is not None
+        else set()
+    )
     for src_file in sorted(assets_dir.iterdir()):
         if not src_file.is_file():
             continue
         if not include_node and src_file.name == HOOK_LAUNCHER_NODE:
             continue
         dst_file = dest_dir / src_file.name
+        relative = dst_file.relative_to(project_root).as_posix()
+        if preserve_modified and (dst_file.exists() or dst_file.is_symlink()):
+            if (
+                manifest is None
+                or relative not in manifest.files
+                or relative in modified
+                or dst_file.is_symlink()
+            ):
+                if skipped_modified is not None:
+                    skipped_modified.append(relative)
+                continue
         shutil.copy2(src_file, dst_file)
         if dst_file.name == HOOK_LAUNCHER_POSIX:
             dst_file.chmod(dst_file.stat().st_mode | 0o111)
         if manifest is not None:
-            rel = dst_file.resolve().relative_to(project_root.resolve())
-            manifest.record_existing(rel)
+            manifest.record_existing(relative)
         created.append(dst_file)
     return created
 
@@ -368,26 +1125,81 @@ def _load_config(path: Path) -> dict[str, Any] | None:
     return loaded if isinstance(loaded, dict) else None
 
 
-def _normalize_launcher_payload(payload: Any) -> SpecifyLauncherSpec | None:
+def _payload_argv(payload: Any) -> tuple[str, ...] | None:
     if not isinstance(payload, dict):
         return None
     argv = payload.get("argv")
-    if not isinstance(argv, list) or not argv or not all(isinstance(item, str) and item for item in argv):
+    if (
+        not isinstance(argv, list)
+        or not argv
+        or not all(isinstance(item, str) and item for item in argv)
+    ):
+        return None
+    return tuple(argv)
+
+
+def _normalize_specify_launcher_payload(payload: Any) -> SpecifyLauncherSpec | None:
+    """Load only canonical Specify launchers; persisted command text is untrusted."""
+
+    normalized_argv = _payload_argv(payload)
+    if normalized_argv is None or not isinstance(payload, dict):
+        return None
+    source = payload.get("source", "direct")
+    kind = payload.get("kind", "direct")
+    runtime_id = payload.get("runtime_id", "")
+    binding_id = payload.get("binding_id", "")
+    if not all(isinstance(item, str) for item in (source, kind, runtime_id, binding_id)):
         return None
 
-    normalized_argv = tuple(argv)
-    command = payload.get("command")
-    if not isinstance(command, str) or not command.strip():
-        command = render_command(normalized_argv)
+    if kind == "machine_binding":
+        if (
+            source != "machine_binding"
+            or runtime_id != SPECIFY_RUNTIME_ID
+            or not SPECIFY_BINDING_ID_RE.fullmatch(binding_id)
+        ):
+            return None
+        # Never execute argv/command copied from project-writable JSON. The
+        # validated identifier deterministically selects our machine dispatcher.
+        return project_local_specify_launcher_spec(binding_id)
 
-    return SpecifyLauncherSpec(command=command.strip(), argv=normalized_argv)
+    source_bound = _source_bound_specify_launcher_spec(normalized_argv)
+    if source_bound is not None:
+        return source_bound
+
+    if (
+        kind != "source_bound"
+        or source != "git"
+        or runtime_id != SPECIFY_RUNTIME_ID
+        or binding_id
+    ):
+        return None
+    return None
+
+
+def _normalize_project_cognition_payload(payload: Any) -> SpecifyLauncherSpec | None:
+    """Load a shell-free single-executable cognition launcher."""
+
+    normalized_argv = _payload_argv(payload)
+    if normalized_argv is None or len(normalized_argv) != 1:
+        return None
+    return SpecifyLauncherSpec(
+        command=render_command(normalized_argv),
+        argv=normalized_argv,
+    )
 
 
 def _launcher_payload(launcher: SpecifyLauncherSpec) -> dict[str, Any]:
-    return {
-        "command": launcher.command,
+    payload = {
+        "command": render_command(launcher.argv),
         "argv": list(launcher.argv),
+        "source": launcher.source,
+        "kind": launcher.kind,
     }
+    if launcher.runtime_id:
+        payload["runtime_id"] = launcher.runtime_id
+    if launcher.binding_id:
+        payload["binding_id"] = launcher.binding_id
+    return payload
 
 
 def load_project_specify_launcher(project_root: Path) -> SpecifyLauncherSpec | None:
@@ -397,7 +1209,101 @@ def load_project_specify_launcher(project_root: Path) -> SpecifyLauncherSpec | N
     payload = _load_config(config_path)
     if payload is None:
         return None
-    return _normalize_launcher_payload(payload.get(SPECIFY_LAUNCHER_CONFIG_KEY))
+    return _normalize_specify_launcher_payload(
+        payload.get(SPECIFY_LAUNCHER_CONFIG_KEY)
+    )
+
+
+def find_project_specify_root(start: Path) -> Path | None:
+    """Find the nearest ancestor that owns a persisted Specify launcher."""
+
+    candidate = start.expanduser().resolve(strict=False)
+    if not candidate.is_dir():
+        candidate = candidate.parent
+    for root in (candidate, *candidate.parents):
+        specify_dir = root / ".specify"
+        if specify_dir.is_dir():
+            return root if (root / SPECIFY_CONFIG_FILE).is_file() else None
+    return None
+
+
+def bind_project_launcher_payload(payload: Any, project_root: Path) -> Any:
+    """Bind agent-facing ``*_argv`` records to the project's launcher.
+
+    Command arrays are the executable source of truth.  Operator-facing command
+    strings derived from those arrays are rewritten in the same pass so a
+    payload cannot advertise a pinned argv while its tutorial or resume text
+    still invokes an unrelated executable from ``PATH``.
+    """
+
+    root = find_project_specify_root(project_root)
+    if root is None:
+        return payload
+    launcher = load_project_specify_launcher(root)
+    if launcher is None:
+        return payload
+
+    replacements: dict[str, str] = {}
+
+    def is_argv_key(key: object) -> bool:
+        return isinstance(key, str) and (key == "argv" or key.endswith("_argv"))
+
+    def collect(value: Any, *, key: object = None) -> None:
+        if isinstance(value, dict):
+            for nested_key, nested_value in value.items():
+                collect(nested_value, key=nested_key)
+            return
+        if isinstance(value, (list, tuple)):
+            if (
+                is_argv_key(key)
+                and value
+                and all(isinstance(item, str) for item in value)
+                and value[0] == "specify"
+            ):
+                original = tuple(value)
+                bound = (*launcher.argv, *original[1:])
+                replacements[render_command(original)] = render_command(bound)
+                return
+            for item in value:
+                collect(item)
+
+    collect(payload)
+    ordered_replacements = sorted(
+        replacements.items(), key=lambda item: len(item[0]), reverse=True
+    )
+
+    def transform(value: Any, *, key: object = None) -> Any:
+        if isinstance(value, dict):
+            return {
+                nested_key: transform(nested_value, key=nested_key)
+                for nested_key, nested_value in value.items()
+            }
+        if isinstance(value, list):
+            if (
+                is_argv_key(key)
+                and value
+                and all(isinstance(item, str) for item in value)
+                and value[0] == "specify"
+            ):
+                return [*launcher.argv, *value[1:]]
+            return [transform(item) for item in value]
+        if isinstance(value, tuple):
+            if (
+                is_argv_key(key)
+                and value
+                and all(isinstance(item, str) for item in value)
+                and value[0] == "specify"
+            ):
+                return (*launcher.argv, *value[1:])
+            return tuple(transform(item) for item in value)
+        if isinstance(value, str):
+            rendered = value
+            for original, bound in ordered_replacements:
+                rendered = rendered.replace(original, bound)
+            return rendered
+        return value
+
+    return transform(payload)
 
 
 def load_project_cognition_launcher(project_root: Path) -> SpecifyLauncherSpec | None:
@@ -407,7 +1313,9 @@ def load_project_cognition_launcher(project_root: Path) -> SpecifyLauncherSpec |
     payload = _load_config(config_path)
     if payload is None:
         return None
-    return _normalize_launcher_payload(payload.get(PROJECT_COGNITION_LAUNCHER_CONFIG_KEY))
+    return _normalize_project_cognition_payload(
+        payload.get(PROJECT_COGNITION_LAUNCHER_CONFIG_KEY)
+    )
 
 
 def resolve_project_cognition_launcher_argv(
@@ -425,14 +1333,17 @@ def resolve_project_cognition_launcher_argv(
     if candidate.is_absolute():
         executable = candidate
     else:
-        project_candidate = (project_root / candidate).resolve()
+        try:
+            project_candidate = safe_local_state_path(
+                project_root / candidate,
+                root=project_root,
+            )
+        except ValueError:
+            return None
         if project_candidate.is_file():
             executable = project_candidate
         else:
-            located = shutil.which(entry)
-            if not located:
-                return None
-            executable = Path(located)
+            return None
 
     if not executable.is_file():
         return None
@@ -471,6 +1382,32 @@ def _stale_source_bound_specify_launchers(text: str, launcher: SpecifyLauncherSp
     return stale
 
 
+def rebind_source_bound_specify_launchers(
+    text: str,
+    launcher: SpecifyLauncherSpec,
+    *,
+    command_renderer: Callable[[str], str] | None = None,
+) -> tuple[str, int]:
+    """Replace stale commit/source-bound Specify prefixes with the active launcher."""
+
+    expected = _normalize_command_text(launcher.command)
+    replacement = (
+        command_renderer(launcher.command)
+        if command_renderer is not None
+        else launcher.command
+    )
+    count = 0
+
+    def replace(match: re.Match[str]) -> str:
+        nonlocal count
+        if _normalize_command_text(match.group(0)) == expected:
+            return match.group(0)
+        count += 1
+        return replacement
+
+    return SOURCE_BOUND_UVX_SPECIFY_RE.sub(replace, text), count
+
+
 def _is_bare_specify_runtime_command(command: str) -> bool:
     """Return whether *command* starts a recognized bare Specify CLI call."""
 
@@ -484,21 +1421,63 @@ def _is_bare_specify_runtime_command(command: str) -> bool:
     if not tokens or tokens[0] != "specify" or len(tokens) < 2:
         return False
     root = tokens[1]
-    return root.startswith("-") or root in _SPECIFY_RUNTIME_ROOTS
+    return bool(_SPECIFY_OPTION_RE.fullmatch(root)) or root in _SPECIFY_RUNTIME_ROOTS
 
 
-def _contains_unbound_specify_runtime_call(text: str) -> bool:
-    """Detect executable Markdown spans that bypass a configured launcher.
+def _is_bare_project_cognition_runtime_command(command: str) -> bool:
+    """Return whether *command* starts a bare project-cognition CLI call."""
 
-    Detection is deliberately limited to inline-code commands and shell-like
-    fenced command lines. Plain prose, negative examples, display-only
-    literals, and source-code fences are ignored.
-    """
+    stripped = command.strip()
+    if not stripped.startswith("project-cognition"):
+        return False
+    try:
+        tokens = shlex.split(stripped, posix=os.name != "nt")
+    except ValueError:
+        return False
+    return len(tokens) >= 2 and tokens[0] == "project-cognition"
 
+
+def _inline_command_context(
+    line: str,
+    match: re.Match[str],
+    previous_nonempty: str,
+) -> str:
+    """Return the local prose clause governing one inline-code span."""
+
+    before = line[: match.start()]
+    after = line[match.end() :]
+    clause_start = max(before.rfind(mark) for mark in (".", ";", ",")) + 1
+    clause_ends = [position for mark in (".", ";", ",") if (position := after.find(mark)) >= 0]
+    clause_end = min(clause_ends) if clause_ends else len(after)
+    local = before[clause_start:] + match.group(0) + after[:clause_end]
+    if not before[clause_start:].strip():
+        local = f"{previous_nonempty}\n{local}"
+    return local
+
+
+def rebind_unbound_specify_runtime_calls(
+    text: str,
+    launcher_command: str,
+    *,
+    command_renderer: Callable[[str], str] | None = None,
+) -> tuple[str, int]:
+    """Rebind only executable bare Specify calls recognized by diagnostics."""
+
+    rendered_launcher = (
+        command_renderer(launcher_command)
+        if command_renderer is not None
+        else launcher_command
+    )
+    count = 0
     fence_marker: str | None = None
     fence_is_shell_like = False
+    fence_context = ""
     previous_nonempty = ""
-    for line in text.splitlines():
+    output: list[str] = []
+
+    for raw_line in text.splitlines(keepends=True):
+        line = raw_line.rstrip("\r\n")
+        newline = raw_line[len(line) :]
         fence_match = _MARKDOWN_FENCE_RE.match(line)
         if fence_match:
             marker = fence_match.group("marker")
@@ -506,48 +1485,163 @@ def _contains_unbound_specify_runtime_call(text: str) -> bool:
                 fence_marker = marker
                 language = fence_match.group("language").lower()
                 fence_is_shell_like = language not in _NON_SHELL_FENCE_LANGUAGES
+                fence_context = previous_nonempty
             elif marker[0] == fence_marker[0]:
                 fence_marker = None
                 fence_is_shell_like = False
-            if line.strip():
-                previous_nonempty = line
-            continue
-
-        if fence_marker is not None:
-            if fence_is_shell_like:
-                command_match = _BARE_SPECIFY_LINE_RE.match(line)
-                context = f"{previous_nonempty}\n{line}"
-                if (
-                    command_match
-                    and _is_bare_specify_runtime_command(
-                        command_match.group("command")
-                    )
-                    and not _NON_EXECUTABLE_SPECIFY_CONTEXT_RE.search(context)
-                ):
-                    return True
-            if line.strip():
-                previous_nonempty = line
+                fence_context = ""
+                previous_nonempty = ""
+            output.append(raw_line)
             continue
 
         command_match = _BARE_SPECIFY_LINE_RE.match(line)
+        context = (
+            f"{fence_context}\n{line}"
+            if fence_marker is not None
+            else f"{previous_nonempty}\n{line}"
+        )
         if (
-            command_match
+            (fence_marker is None or fence_is_shell_like)
+            and command_match
             and _is_bare_specify_runtime_command(command_match.group("command"))
-            and not _NON_EXECUTABLE_SPECIFY_CONTEXT_RE.search(line)
+            and not _NON_EXECUTABLE_SPECIFY_CONTEXT_RE.search(context)
         ):
-            return True
+            command = command_match.group("command")
+            line = (
+                command_match.group("prefix")
+                + rendered_launcher
+                + command[len("specify") :]
+                + command_match.group("suffix")
+            )
+            raw_line = line + newline
+            count += 1
 
-        for inline_match in _MARKDOWN_INLINE_CODE_RE.finditer(line):
-            code = inline_match.group("code")
-            if not _is_bare_specify_runtime_command(code):
-                continue
-            context = f"{previous_nonempty}\n{line}"
-            if not _NON_EXECUTABLE_SPECIFY_CONTEXT_RE.search(context):
-                return True
+        if fence_marker is None:
+            def replace_inline(match: re.Match[str]) -> str:
+                nonlocal count
+                code = match.group("code")
+                if (
+                    not _is_bare_specify_runtime_command(code)
+                    or _NON_EXECUTABLE_SPECIFY_CONTEXT_RE.search(
+                        _inline_command_context(line, match, previous_nonempty)
+                    )
+                ):
+                    return match.group(0)
+                leading = code[: len(code) - len(code.lstrip())]
+                trailing = code[len(code.rstrip()) :]
+                stripped = code.strip()
+                count += 1
+                return f"`{leading}{rendered_launcher}{stripped[len('specify'):]}{trailing}`"
 
-        if line.strip():
-            previous_nonempty = line
-    return False
+            raw_line = _MARKDOWN_INLINE_CODE_RE.sub(replace_inline, raw_line)
+            previous_nonempty = line if line.strip() else ""
+        output.append(raw_line)
+    return "".join(output), count
+
+
+def rebind_unbound_project_cognition_runtime_calls(
+    text: str,
+    launcher_command: str,
+    *,
+    command_renderer: Callable[[str], str] | None = None,
+) -> tuple[str, int]:
+    """Rebind executable bare project-cognition calls to the pinned binary."""
+
+    rendered_launcher = (
+        command_renderer(launcher_command)
+        if command_renderer is not None
+        else launcher_command
+    )
+    count = 0
+    fence_marker: str | None = None
+    fence_is_shell_like = False
+    fence_context = ""
+    previous_nonempty = ""
+    output: list[str] = []
+
+    for raw_line in text.splitlines(keepends=True):
+        line = raw_line.rstrip("\r\n")
+        newline = raw_line[len(line) :]
+        fence_match = _MARKDOWN_FENCE_RE.match(line)
+        if fence_match:
+            marker = fence_match.group("marker")
+            if fence_marker is None:
+                fence_marker = marker
+                language = fence_match.group("language").lower()
+                fence_is_shell_like = language not in _NON_SHELL_FENCE_LANGUAGES
+                fence_context = previous_nonempty
+            elif marker[0] == fence_marker[0]:
+                fence_marker = None
+                fence_is_shell_like = False
+                fence_context = ""
+                previous_nonempty = ""
+            output.append(raw_line)
+            continue
+
+        command_match = _BARE_PROJECT_COGNITION_LINE_RE.match(line)
+        context = (
+            f"{fence_context}\n{line}"
+            if fence_marker is not None
+            else f"{previous_nonempty}\n{line}"
+        )
+        if (
+            (fence_marker is None or fence_is_shell_like)
+            and command_match
+            and _is_bare_project_cognition_runtime_command(
+                command_match.group("command")
+            )
+            and not _NON_EXECUTABLE_SPECIFY_CONTEXT_RE.search(context)
+        ):
+            command = command_match.group("command")
+            line = (
+                command_match.group("prefix")
+                + rendered_launcher
+                + command[len("project-cognition") :]
+                + command_match.group("suffix")
+            )
+            raw_line = line + newline
+            count += 1
+
+        if fence_marker is None:
+            def replace_inline(match: re.Match[str]) -> str:
+                nonlocal count
+                code = match.group("code")
+                if (
+                    not _is_bare_project_cognition_runtime_command(code)
+                    or _NON_EXECUTABLE_SPECIFY_CONTEXT_RE.search(
+                        _inline_command_context(line, match, previous_nonempty)
+                    )
+                ):
+                    return match.group(0)
+                leading = code[: len(code) - len(code.lstrip())]
+                trailing = code[len(code.rstrip()) :]
+                stripped = code.strip()
+                count += 1
+                return (
+                    f"`{leading}{rendered_launcher}"
+                    f"{stripped[len('project-cognition'):]}{trailing}`"
+                )
+
+            raw_line = _MARKDOWN_INLINE_CODE_RE.sub(replace_inline, raw_line)
+            previous_nonempty = line if line.strip() else ""
+        output.append(raw_line)
+    return "".join(output), count
+
+
+def _contains_unbound_specify_runtime_call(text: str) -> bool:
+    _, count = rebind_unbound_specify_runtime_calls(
+        text,
+        "__SPEC_KIT_BOUND_SPECIFY__",
+    )
+    return count > 0
+
+
+def _contains_unbound_project_cognition_runtime_call(text: str) -> bool:
+    _, count = rebind_unbound_project_cognition_runtime_calls(
+        text,
+        "__SPEC_KIT_BOUND_PROJECT_COGNITION__",
+    )
+    return count > 0
 
 
 def _generated_guidance_files(project_root: Path) -> list[Path]:
@@ -559,7 +1653,25 @@ def _generated_guidance_files(project_root: Path) -> list[Path]:
         for path in root.rglob("*"):
             if path.is_file() and path.suffix.lower() in GENERATED_GUIDANCE_SUFFIXES:
                 files.append(path)
+    for rel_path in GENERATED_CONTEXT_FILES:
+        path = project_root / rel_path
+        if path.is_file():
+            files.append(path)
+    for rel_path in GENERATED_GUIDANCE_FILES:
+        path = project_root / rel_path
+        if path.is_file():
+            files.append(path)
     return files
+
+
+def _generated_guidance_text(project_root: Path, path: Path, text: str) -> str:
+    """Limit root context diagnostics to the runtime-owned managed block."""
+
+    relative = path.relative_to(project_root).as_posix()
+    if relative not in GENERATED_CONTEXT_FILES:
+        return text
+    blocks = SPEC_KIT_MANAGED_BLOCK_RE.findall(text)
+    return blocks[0] if len(blocks) == 1 else ""
 
 
 def project_specify_subcommand(
@@ -580,7 +1692,7 @@ def project_specify_subcommand(
 def render_project_launcher_placeholders(project_root: Path, body: str) -> str:
     """Expand launcher placeholders in template or guidance text."""
 
-    if not isinstance(body, str) or "{{specify-" not in body:
+    if not isinstance(body, str):
         return body
 
     launcher = load_project_specify_launcher(project_root)
@@ -613,7 +1725,21 @@ def render_project_launcher_placeholders(project_root: Path, body: str) -> str:
         subcommand = project_specify_subcommand(project_root, tokens)
         return subcommand.command if subcommand is not None else render_command((*default.argv, *tokens))
 
-    return pattern.sub(replace, rendered)
+    rendered = pattern.sub(replace, rendered)
+    rendered, _ = rebind_unbound_specify_runtime_calls(
+        rendered,
+        active_launcher.command,
+    )
+    cognition_command = (
+        cognition_launcher.command
+        if cognition_launcher is not None
+        else f"{PROJECT_COGNITION_UNAVAILABLE_MARKER}:project-cognition"
+    )
+    rendered, _ = rebind_unbound_project_cognition_runtime_calls(
+        rendered,
+        cognition_command,
+    )
+    return rendered
 
 
 def rebind_unavailable_project_cognition_commands(
@@ -633,19 +1759,32 @@ def rebind_unavailable_project_cognition_commands(
         if command_renderer is not None
         else launcher.command
     )
-    return body.replace(marker, command)
+    rebound = body.replace(marker, command)
+    rebound, _ = rebind_unbound_project_cognition_runtime_calls(
+        rebound,
+        launcher.command,
+        command_renderer=command_renderer,
+    )
+    return rebound
 
 
 def write_project_specify_launcher_config(
     project_root: Path,
     launcher: SpecifyLauncherSpec | None = None,
+    *,
+    preserve_conflicting_wrapper: bool = False,
 ) -> Path | None:
     """Persist the preferred ``specify`` launcher into ``.specify/config.json``.
 
-    Returns the written config path, or ``None`` when there is no source-bound
-    launcher to persist. Existing user/project keys are preserved.
+    Git sources are persisted directly. A normal wheel, tool, editable, or
+    otherwise environment-local install is recorded outside the project and
+    exposed through a cwd-independent machine dispatcher plus a project repair
+    shim. Generated guidance therefore contains neither a PATH-level ``specify``
+    call nor an ephemeral absolute interpreter path. Existing user/project keys
+    are preserved.
     """
 
+    explicit_launcher = launcher is not None
     resolved = launcher or resolve_specify_launcher_spec()
     if resolved.argv == default_specify_launcher_spec().argv:
         return None
@@ -654,16 +1793,71 @@ def write_project_specify_launcher_config(
     payload = _load_config(config_path)
     if payload is None:
         return None
+    existing_payload = payload.get(SPECIFY_LAUNCHER_CONFIG_KEY)
+    existing = _normalize_specify_launcher_payload(existing_payload)
+    if not explicit_launcher and isinstance(existing_payload, dict):
+        raw_runtime_id = existing_payload.get("runtime_id")
+        raw_argv = _payload_argv(existing_payload)
+        recognized_legacy_source = (
+            raw_argv is not None
+            and _source_bound_specify_launcher_spec(raw_argv) is not None
+        )
+        owned_by_this_runtime = (
+            raw_runtime_id == SPECIFY_RUNTIME_ID or recognized_legacy_source
+        )
+        if not owned_by_this_runtime:
+            # An unknown or explicitly foreign record is not ours to replace
+            # during ordinary init/repair. An explicit caller may intentionally
+            # take ownership by supplying a trusted launcher.
+            return config_path
 
-    desired = _launcher_payload(resolved)
+    persisted = _source_bound_specify_launcher_spec(resolved.argv)
+    if resolved.source == "local_environment":
+        expected_local = current_environment_specify_launcher_spec()
+        if resolved.argv != expected_local.argv or resolved.runtime_id != SPECIFY_RUNTIME_ID:
+            raise ValueError(
+                "local_environment launcher must match the currently loaded Specify runtime"
+            )
+        binding_id = (
+            existing.binding_id
+            if existing is not None
+            and existing.kind == "machine_binding"
+            and existing.runtime_id == SPECIFY_RUNTIME_ID
+            and SPECIFY_BINDING_ID_RE.fullmatch(existing.binding_id)
+            else uuid.uuid4().hex
+        )
+        _write_project_launcher_binding(binding_id, resolved)
+        if not _machine_binding_probe(binding_id):
+            raise RuntimeError(
+                "the machine-local Spec Kit Plus binding failed its runtime identity probe; "
+                "the project launcher and configuration were not changed"
+            )
+        try:
+            install_project_specify_launcher(project_root, binding_id)
+        except RuntimeError:
+            if (
+                not preserve_conflicting_wrapper
+                or existing is None
+                or existing.kind != "machine_binding"
+                or existing.binding_id != binding_id
+            ):
+                raise
+        persisted = project_local_specify_launcher_spec(binding_id)
+    elif persisted is None:
+        raise ValueError(
+            "Specify launchers must use the current local environment or the "
+            "canonical commit-pinned Spec Kit Plus uvx source"
+        )
+
+    desired = _launcher_payload(persisted)
     if payload.get(SPECIFY_LAUNCHER_CONFIG_KEY) == desired:
         return config_path
 
     payload[SPECIFY_LAUNCHER_CONFIG_KEY] = desired
     config_path.parent.mkdir(parents=True, exist_ok=True)
-    config_path.write_text(
+    atomic_write_text(
+        config_path,
         json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
-        encoding="utf-8",
     )
     return config_path
 
@@ -674,7 +1868,6 @@ def write_project_cognition_launcher_config(project_root: Path, binary: str | Pa
     binary_path = Path(binary).expanduser()
     if not binary_path.is_absolute():
         binary_path = binary_path.resolve()
-
     launcher = SpecifyLauncherSpec(
         command=render_command((str(binary_path),)),
         argv=(str(binary_path),),
@@ -690,9 +1883,9 @@ def write_project_cognition_launcher_config(project_root: Path, binary: str | Pa
 
     payload[PROJECT_COGNITION_LAUNCHER_CONFIG_KEY] = desired
     config_path.parent.mkdir(parents=True, exist_ok=True)
-    config_path.write_text(
+    atomic_write_text(
+        config_path,
         json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
-        encoding="utf-8",
     )
     return config_path
 
@@ -720,11 +1913,34 @@ def diagnose_project_runtime_compatibility(project_root: Path) -> list[dict[str,
             or "$specsdir = join-path $reporoot 'specs'" in lowered
         )
 
+    launcher_config = _load_config(project_root / SPECIFY_CONFIG_FILE)
+    raw_launcher_present = (
+        isinstance(launcher_config, dict)
+        and SPECIFY_LAUNCHER_CONFIG_KEY in launcher_config
+    )
     launcher = load_project_specify_launcher(project_root)
+    if raw_launcher_present and launcher is None:
+        trusted_repair_launcher = resolve_specify_launcher_spec()
+        trusted_repair_command = render_command(
+            (*trusted_repair_launcher.argv, "integration", "repair")
+        )
+        issues.append(
+            {
+                "code": "broken-project-launcher",
+                "summary": (
+                    "Persisted project launcher is configured but unavailable because "
+                    "it is malformed, untrusted, or uses an unsupported runtime source."
+                ),
+                "repair": (
+                    "Preserve `.specify/config.json`, then run the exact trusted repair "
+                    f"command `{trusted_repair_command}` from the project root. Verify "
+                    "the repaired launcher reports runtime identity "
+                    f"`{SPECIFY_RUNTIME_ID}` before continuing."
+                ),
+            }
+        )
     if launcher is not None and launcher.argv:
-        launcher_entry = launcher.argv[0]
-        launcher_exists = Path(launcher_entry).exists() if Path(launcher_entry).is_absolute() else shutil.which(launcher_entry)
-        if not launcher_exists:
+        if not project_specify_launcher_is_available(project_root, launcher):
             issues.append(
                 {
                     "code": "broken-project-launcher",
@@ -735,7 +1951,11 @@ def diagnose_project_runtime_compatibility(project_root: Path) -> list[dict[str,
         stale_launcher_files: list[str] = []
         unbound_launcher_files: list[str] = []
         for path in _generated_guidance_files(project_root):
-            text = _read_text_if_exists(path)
+            text = _generated_guidance_text(
+                project_root,
+                path,
+                _read_text_if_exists(path),
+            )
             if _stale_source_bound_specify_launchers(text, launcher):
                 stale_launcher_files.append(path.relative_to(project_root).as_posix())
             if _contains_unbound_specify_runtime_call(text):
@@ -782,9 +2002,24 @@ def diagnose_project_runtime_compatibility(project_root: Path) -> list[dict[str,
 
     if (project_root / ".specify").exists():
         cognition_launcher = load_project_cognition_launcher(project_root)
-        if not project_cognition_launcher_is_compatible(
+        cognition_compatible = project_cognition_launcher_is_compatible(
             project_root, cognition_launcher
-        ):
+        )
+        marker_files: list[str] = []
+        unbound_cognition_files: list[str] = []
+        for path in _generated_guidance_files(project_root):
+            text = _generated_guidance_text(
+                project_root,
+                path,
+                _read_text_if_exists(path),
+            )
+            relative = path.relative_to(project_root).as_posix()
+            if f"{PROJECT_COGNITION_UNAVAILABLE_MARKER}:project-cognition" in text:
+                marker_files.append(relative)
+            if cognition_compatible and _contains_unbound_project_cognition_runtime_call(text):
+                unbound_cognition_files.append(relative)
+
+        if not cognition_compatible:
             repair = project_specify_subcommand(
                 project_root,
                 ("integration", "repair"),
@@ -802,6 +2037,41 @@ def diagnose_project_runtime_compatibility(project_root: Path) -> list[dict[str,
                         f"Run `{repair_command}` to install a compatible runtime, pin it in "
                         "`.specify/config.json`, and rebind unmodified generated guidance. "
                         "Do not probe `specify cognition` or `specify project-cognition`."
+                    ),
+                }
+            )
+        if marker_files:
+            preview = ", ".join(marker_files[:5])
+            if len(marker_files) > 5:
+                preview += f", +{len(marker_files) - 5} more"
+            issues.append(
+                {
+                    "code": "unrebound-project-cognition-launcher",
+                    "summary": (
+                        "Generated guidance still contains unavailable project-cognition "
+                        f"markers: {preview}."
+                    ),
+                    "repair": (
+                        "Use a trusted external Spec Kit Plus launcher to run `integration repair`; "
+                        "user-modified files are preserved and must be merged using the reported tutorial."
+                    ),
+                }
+            )
+        if unbound_cognition_files:
+            preview = ", ".join(unbound_cognition_files[:5])
+            if len(unbound_cognition_files) > 5:
+                preview += f", +{len(unbound_cognition_files) - 5} more"
+            issues.append(
+                {
+                    "code": "unbound-generated-project-cognition-launcher",
+                    "summary": (
+                        "Generated workflow guidance invokes PATH-level bare `project-cognition` "
+                        f"despite a project-pinned launcher: {preview}."
+                    ),
+                    "repair": (
+                        "Run `integration repair` through a trusted external Spec Kit Plus launcher, "
+                        "then verify each executable call begins with the project_cognition_launcher "
+                        "recorded in `.specify/config.json`."
                     ),
                 }
             )

@@ -79,7 +79,7 @@ TeamCreate({
    - run `{{specify-subcmd:project-cognition compass --intent implement --query="$ARGUMENTS" --format json}}` first and include the compass packet in teammate context
    - read top-level `minimal_live_reads` first, then use lane-level `first_pass_paths` reasons, evidence hints, `verification_hints`, `followup_surfaces`, and `before_fix_claim` checks
    - carry `coverage_diagnostics` as confidence and closeout signals, not route candidates
-   - treat `expansion_ref` as a normal continuation path and run `project-cognition expand --id <id> --section <section> --format json` only when coverage state or live evidence requires more map detail
+   - treat `expansion_ref` as a normal continuation path and run `{{specify-subcmd:project-cognition expand --id <id> --section <section> --format json}}` only when coverage state or live evidence requires more map detail
    - do not infer final edit scope from `minimal_live_reads` or `first_pass_paths`; carry them as advisory first-pass evidence routes in every teammate context packet
    - preserve advanced `lexicon -> semantic_intake -> query` / `project-cognition query --query-plan` only as conditional precision escalation when explicit concept decisions are needed or coverage cannot be resolved from the default compass packet
    - in that precision escalation, derive project-language search terms from the alias catalog before source search; do not search only the raw user words

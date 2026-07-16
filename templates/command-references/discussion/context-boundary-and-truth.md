@@ -78,7 +78,7 @@ Readiness handling:
 
 - `query_ready`: read top-level `minimal_live_reads` first, then use lane-level `first_pass_paths` reasons.
 - `review`: perform only the returned `minimal_live_reads` before continuing and inspect `coverage_diagnostics`.
-- `needs_rebuild`: route through `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only for documented brownfield rebuild triggers.
+- `needs_rebuild`: route by `recommended_next_action.action_id`, not readiness alone. Preserve resumable actions such as `complete_scan_packets`; only `action_id=project_cognition.rebuild` may use `rebuild_reasons[]` and `recommended_next_action.workflow_routes.classic.steps` for the rebuild handoff.
 - `readiness=blocked`: report project cognition as unavailable or degraded, continue with product framing or bounded live evidence when safe, and recommend a map maintenance workflow only when the user asks for map maintenance or handoff needs evidence that live reads cannot provide.
 
 If the idea is clearly greenfield or does not depend on existing project structure, keep the stand-down reason as pending project context and persist it to `project-context.md` only at the next semantic checkpoint; avoid existing-code placement claims.

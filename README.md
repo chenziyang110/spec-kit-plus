@@ -466,13 +466,21 @@ summary cards. Expand only a selected operation with
 capability/schema with `specify api show` and `specify api schema`. This keeps
 help text and parameters out of context until they are needed.
 
-Feature stages use `specify workflow show|enter|next|transition|block|closeout`.
-The destination stage runs `specify workflow transition --to <stage>` with the
-current revision; the CLI validates the completed source-stage artifacts and
-refuses skips or stale writes without mutation. Exit code `10` means a durable,
+Feature phase order lives in CLI-owned `FEATURE_DIR/workflow-runtime.json`;
+rich `workflow-state.md` remains workflow-owned evidence and Learning state.
+Feature stages use `specify workflow show|enter|next|complete-stage|transition|reopen|block|resolve|closeout`.
+After an active stage's artifacts pass, its owner runs `specify workflow complete-stage`
+with the current revision. The destination stage then runs the exact returned
+`specify workflow transition --to <stage>` argv. Only completed `accept` is
+terminal. The CLI refuses skips or stale writes without mutation. Exit code `10` means a durable,
 resumable business blocker, `2` means invalid usage, `1` means execution
 failure, and `0` means success. Human-owned blockers include exact steps,
 expected results, safe failure branches, evidence to return, and resume argv.
+Evidence-backed `workflow reopen` handles an invalidated earlier or same
+completed non-accept stage without deleting stale artifacts; failed acceptance
+uses atomic `accept route-repair`. An unresolved blocker cannot be replaced or
+bypassed. After its criteria are proven, `workflow resolve` reactivates the same
+owner and preserves the complete blocker audit.
 
 Optional feasibility branch when `sp-specify` finds an unproven implementation chain:
 

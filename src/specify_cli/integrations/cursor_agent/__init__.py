@@ -68,7 +68,7 @@ class CursorAgentIntegration(SkillsIntegration):
             "- If `baseline_kind=greenfield_empty`, do not recommend map-scan -> map-build solely because the graph has no paths; continue with workflow artifacts and live requirements.\n"
             "- Use map-update for ordinary existing-baseline gaps. Use map-scan -> map-build only for brownfield first/missing/unusable baseline, schema failure, schema v1 or old broad-schema rebuild-required readiness, zero active-generation path_index rows outside greenfield_empty, missing or invalid alias_index, explicit_rebuild_requested, or baseline_identity_invalid.\n"
             "- Entry advisory is not closeout ownership: stale or weak cognition at entry may remain advisory, but workflow-owned mutation closeout must run inline project cognition update for changes this workflow made.\n"
-            "- Inline project cognition update uses `project-cognition delta append` plus `project-cognition update --delta-session \"$DELTA_SESSION_ID\" --reason workflow-finalize --format json` when a delta session exists, or `project-cognition update --payload-file \".specify/project-cognition/updates/<update-id>.json\" --reason workflow-finalize --format json` when no delta session exists.\n"
+            "- Inline project cognition update uses `{{specify-subcmd:project-cognition delta append --help}}` plus `{{specify-subcmd:project-cognition update --delta-session \"$DELTA_SESSION_ID\" --reason workflow-finalize --format json}}` when a delta session exists, or `{{specify-subcmd:project-cognition update --payload-file \".specify/project-cognition/updates/<update-id>.json\" --reason workflow-finalize --format json}}` when no delta session exists.\n"
             "- The payload-file path must include changed_paths, behavior_surfaces, generated_surfaces, state_contracts, verification, known_unknowns, and confidence_notes so the update is equivalent to `sp-map-update`, not just a path stamp; `verification_evidence` and `generated_surface_notes` are accepted compatibility aliases.\n"
             "- Use `known_unknowns` only for blockers that make the cognition update unsafe to trust. If unrelated dirty or untracked working-tree paths were excluded by explicit workflow-owned paths, record that as `confidence_notes` or `boundary.initial_dirty_paths`, not as blocking `known_unknowns`.\n"
             "- clean closeout keys on `result_state`, not `update_id`, `last_update_id`, or freshness alone. Treat `ready` and `no_op` as clean, `partial_refresh` as recorded but not fully clean, `needs_rebuild` as a map-scan/map-build route, `blocked` as blocked, and `recorded` as legacy recorded-only output that is never clean completion.\n"
@@ -162,7 +162,12 @@ class CursorAgentIntegration(SkillsIntegration):
         else:
             updated = content + addendum
 
-        self.write_file_and_record(updated, path, project_root, manifest)
+        self._write_augmented_skill(
+            updated,
+            path,
+            project_root,
+            manifest,
+        )
         return path
 
     @staticmethod
@@ -186,8 +191,12 @@ class CursorAgentIntegration(SkillsIntegration):
         )
         if updated == content:
             return None
-        path.write_text(updated, encoding="utf-8")
-        self.record_file_in_manifest(path, project_root, manifest)
+        self._write_augmented_skill(
+            updated,
+            path,
+            project_root,
+            manifest,
+        )
         return path
 
     def _augment_quick_skill(
@@ -238,7 +247,12 @@ class CursorAgentIntegration(SkillsIntegration):
 
         marker = "## Cursor Subagent Execution"
         if marker in content:
-            self.write_file_and_record(content, quick_skill, project_root, manifest)
+            self._write_augmented_skill(
+                content,
+                quick_skill,
+                project_root,
+                manifest,
+            )
             return
 
         addendum = (
@@ -259,8 +273,8 @@ class CursorAgentIntegration(SkillsIntegration):
             "- Use `leader-inline-fallback` only after native subagents and the managed-team path are unavailable or unsafe, and record the fallback reason in `STATUS.md`.\n"
             f"- Result contract: {descriptor.result_contract_hint}\n"
             f"- Result file handoff path: {descriptor.result_handoff_hint}\n"
-            "- For filesystem handoffs, use `specify result path` with the concrete workflow identifiers such as `--feature-dir`/`--task-id`, `--workspace`/`--lane-id`, or `--session-slug`/`--lane-id`.\n"
-            "- `specify result path` emits JSON and does not accept `--format`; do not append `--format`.\n"
+            "- For filesystem handoffs, use `{{specify-subcmd:result path --help}}` with the concrete workflow identifiers such as `--feature-dir`/`--task-id`, `--workspace`/`--lane-id`, or `--session-slug`/`--lane-id`.\n"
+            "- The result-path command emits JSON and does not accept `--format`; do not append `--format`.\n"
             "- Re-check strategy after every join point and continue automatically until the quick task is complete or blocked.\n"
             "- Keep validation and final quick-task summary on the leader path even when execution fan-out is delegated.\n"
         )
@@ -282,4 +296,9 @@ class CursorAgentIntegration(SkillsIntegration):
                 "- Treat `NEEDS_CONTEXT` as a blocked handoff that must carry the missing context or failed assumption explicitly.\n"
             )
 
-        self.write_file_and_record(content, quick_skill, project_root, manifest)
+        self._write_augmented_skill(
+            content,
+            quick_skill,
+            project_root,
+            manifest,
+        )

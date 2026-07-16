@@ -425,7 +425,7 @@ class TestCodexAutoPromote:
         skill_lower = skill_content.lower()
 
         assert "DESIGN.md" in skill_content
-        assert "specify design lint" in skill_content
+        assert "design lint" in skill_content
         assert "Forbidden Writes" in skill_content
         assert "CSS or theme implementation files" in skill_content
         assert "active_command: sp-design" in skill_content
@@ -699,7 +699,9 @@ class TestCodexAutoPromote:
                 encoding="utf-8"
             )
         )
-        generated_discussion = "\n".join([skill_content, command_template])
+        generated_discussion = "\n".join([skill_content, command_template]).replace(
+            "project-cognition.exe", "project-cognition"
+        )
         generated_lower = generated_discussion.lower()
 
         assert "Turn Classifier" in generated_discussion
@@ -898,7 +900,7 @@ def test_codex_generated_sp_implement_teams_skill_exists_and_is_codex_only(tmp_p
     assert "e2e" in lower
     assert "polish" in lower
     assert "explicit execution packet shape" in lower or "explicit execution packet" in lower
-    assert "project-cognition compass --intent implement" in lower
+    assert "compass --intent implement" in lower
     assert "minimal_live_reads" in lower
     assert "first_pass_paths" in lower
     assert "coverage_diagnostics" in lower
@@ -1087,9 +1089,12 @@ def test_codex_generated_sp_implement_includes_native_spawn_agent_routing(tmp_pa
     assert "spawn_agent" in content
     assert "wait_agent" in content
     assert "close_agent" in content
-    assert "specify result path --command implement --request-id <request-id>" in content
+    assert "result path" in content
+    assert "--command implement" in content
+    assert "--request-id" in content
     assert "active runtime-managed result channel for that request id" in content.lower()
-    assert "does not accept `--format`" in content.lower()
+    assert "json-only command" in content.lower()
+    assert "do not append `--format`" in content.lower()
     assert "execution_model: adaptive" in content or "execution model: `adaptive`" in content
     assert "one-subagent" in content and "parallel-subagents" in content
     assert "native-subagents" in content
@@ -1100,7 +1105,7 @@ def test_codex_generated_sp_implement_includes_native_spawn_agent_routing(tmp_pa
     assert "just in time" in content.lower()
     assert "map-update" in content.lower()
     assert "workflow-owned mutation closeout is not an external map-maintenance handoff" in content.lower()
-    assert "project-cognition update --delta-session" in content.lower()
+    assert "update --delta-session" in content.lower()
     assert "sp-map-update is for manual/external maintenance and follow-up repair" in content.lower()
     assert "do not claim completion from chat narration" in content.lower()
     assert "validation evidence" in content.lower()
@@ -1604,7 +1609,7 @@ def test_codex_generated_sp_debug_includes_leader_led_native_investigation_guida
     assert "candidate queue" in content
     assert "root-cause mode" in content
     assert "workflow-owned mutation closeout is not an external map-maintenance handoff" in content
-    assert "project-cognition update --delta-session" in content
+    assert "update --delta-session" in content
     assert "sp-map-update is for manual/external maintenance and follow-up repair" in content
 
 
@@ -1868,7 +1873,7 @@ def test_codex_generated_sp_quick_supports_lightweight_tracked_execution(tmp_pat
     assert "project cognition can support route selection but cannot be the sole evidence for completion" in content
     assert "map-update" in content
     assert "workflow-owned mutation closeout is not an external map-maintenance handoff" in content
-    assert "project-cognition update --delta-session" in content
+    assert "update --delta-session" in content
     assert "sp-map-update is for manual/external maintenance and follow-up repair" in content
     assert "resume" in content
     assert "resolved/" in content

@@ -155,7 +155,7 @@ render_speckit_managed_block() {
 
 - Project cognition and Project Learning are always available, even without an active `sp-*` workflow.
 - When existing-system truth matters, use project cognition before broad source inspection and use its results to narrow live reads.
-- Run `specify learning start --command <workflow> --format json` before non-trivial decisions that depend on local conventions, constraints, or past lessons; expand only selected matching Learning through `show_argv`.
+- Run `{{specify-cli}} learning start --command <workflow> --format json` before non-trivial decisions that depend on local conventions, constraints, or past lessons; expand only selected matching Learning through `show_argv`.
 
 ## Workflow Recommendations
 
@@ -165,8 +165,8 @@ render_speckit_managed_block() {
 
 ## Command Surface Rules
 
-- Treat live `specify --help` output as the authoritative CLI surface.
-- Before suggesting or running a `specify <subcommand>` invocation, verify that help exposes it.
+- Treat live `{{specify-cli}} --help` output as the authoritative CLI surface.
+- Before suggesting or running a `{{specify-cli}} <subcommand>` invocation, verify that help exposes it.
 - Do not invent unsupported CLI names such as `specify create-feature`.
 - Feature creation uses the generated create-feature script at `.specify/scripts/bash/create-new-feature.sh` or `.specify/scripts/powershell/create-new-feature.ps1`; default feature workspace names use `YYYY-MM-DD-<slug>`.
 
@@ -197,8 +197,9 @@ upsert_speckit_managed_block() {
         return 1
     fi
 
-    if ! "$python_cmd" - "$target_file" "$SPEC_KIT_BLOCK_START" "$SPEC_KIT_BLOCK_END" "$rendered_block" <<'PY'
+    if ! "$python_cmd" - "$target_file" "$SPEC_KIT_BLOCK_START" "$SPEC_KIT_BLOCK_END" "$rendered_block" "$REPO_ROOT" <<'PY'
 from pathlib import Path
+import json
 import sys
 import os
 import re
@@ -208,6 +209,18 @@ path = Path(sys.argv[1])
 start = sys.argv[2]
 end = sys.argv[3]
 block = sys.argv[4]
+project_root = Path(sys.argv[5])
+launcher = "specify"
+try:
+    payload = json.loads(
+        (project_root / ".specify" / "config.json").read_text(encoding="utf-8")
+    )
+    configured = payload.get("specify_launcher", {}).get("command", "")
+    if isinstance(configured, str) and configured.strip():
+        launcher = configured.strip()
+except (OSError, json.JSONDecodeError, AttributeError):
+    pass
+block = block.replace("{{specify-cli}}", launcher)
 
 content = path.read_text(encoding="utf-8") if path.exists() else ""
 

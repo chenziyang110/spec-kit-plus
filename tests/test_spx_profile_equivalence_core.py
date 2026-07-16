@@ -22,7 +22,10 @@ def _text(skill: str, *references: str) -> str:
 def test_spx_auto_preserves_authoritative_resume_routing() -> None:
     content = _text("spx-auto", "routing-contract.md")
 
-    assert "`workflow-state.md` is the primary feature phase lock" in content
+    assert "`feature_dir/workflow-runtime.json` is the primary required-stage phase lock" in content
+    assert "workflow show" in content and "workflow next" in content
+    assert "structured `next_argv`" in content
+    assert "`workflow-state.md` remains rich workflow-owned" in content
     assert "reconcile" in content
     assert "exactly one unique safe candidate" in content
     assert "`uncertain`" in content and "stop" in content
@@ -50,7 +53,7 @@ def test_spx_accept_preserves_classic_human_acceptance_boundary() -> None:
     )
 
 
-def test_spx_optional_feature_stages_preserve_runtime_owned_resume_state() -> None:
+def test_spx_optional_feature_stages_separate_runtime_and_rich_resume_state() -> None:
     expected = {
         "spx-clarify": ("clarify", "planning-only"),
         "spx-analyze": ("analyze", "analysis-only"),
@@ -58,7 +61,11 @@ def test_spx_optional_feature_stages_preserve_runtime_owned_resume_state() -> No
 
     for skill, (command, phase) in expected.items():
         content = _text(skill)
-        assert "create or resume runtime-owned `workflow-state.md`" in content, skill
+        assert "`feature_dir/workflow-runtime.json` is cli-owned" in content, skill
+        assert "must not write it" in content, skill
+        assert "workflow show" in content, skill
+        assert "typed owner handoff" in content, skill
+        assert "rich workflow-owned `workflow-state.md`" in content, skill
         assert f"`phase_mode: {phase}`" in content, skill
         assert "source revision" in content, skill
         assert "target boundary" in content, skill

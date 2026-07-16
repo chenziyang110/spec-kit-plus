@@ -5,13 +5,13 @@ Workflow-owned mutation closeout is not an external map-maintenance handoff and 
 Call the planner first:
 
 ```text
-project-cognition closeout-plan --workflow "$ACTIVE_WORKFLOW" --format json
+{{specify-subcmd:project-cognition closeout-plan --workflow "$ACTIVE_WORKFLOW" --format json}}
 ```
 
 When `DELTA_SESSION_ID` exists, pass it into the planner:
 
 ```text
-project-cognition closeout-plan --workflow "$ACTIVE_WORKFLOW" --delta-session "$DELTA_SESSION_ID" --format json
+{{specify-subcmd:project-cognition closeout-plan --workflow "$ACTIVE_WORKFLOW" --delta-session "$DELTA_SESSION_ID" --format json}}
 ```
 
 Consume `workflow_canonical`, `update_mode`, `payload_draft`, `required_agent_fields`, `unknown_paths`, `unknown_path_dispositions`, `delta_append_draft`, display-only `delta_append_command`, `update_argv`, display-only `update_command`, and `recommended_next_command`.
@@ -48,8 +48,8 @@ Completed payload drafts preserve the planner-owned `changed_paths` and `scope_p
 Structured `update` invalidates related claims and returns their stable IDs in `affected_graph_claims`. This is separate from update readiness: generic workflow verification and `result_state=ready` must not re-promote stale or contradicted graph claims. Only when this workflow already has decisive claim-specific bounded live evidence for an exact returned claim ID may it submit semantic reconciliation intent and run:
 
 ```text
-project-cognition claim-reconcile prepare --input <intent.json> --format json
-project-cognition claim-reconcile apply --input <prepared_packet_path> --format json
+{{specify-subcmd:project-cognition claim-reconcile prepare --input <intent.json> --format json}}
+{{specify-subcmd:project-cognition claim-reconcile apply --input <prepared_packet_path> --format json}}
 ```
 
 Provide only reconciliation intent: workflow, stable `claim_id`, reason, and evidence containing repository-relative `source_path`, bounded line `span`, and `supporting` or `contradicting` role. Add verification only when it is claim-specific. The runtime owns the contract version, active generation, expected state and revision, UTC observation and expiry, source kind, content hashes, repository snapshot, IDs, and prepared packet path. Do not author or edit those integrity fields; execute the returned `apply_argv` exactly. If no such evidence exists, leave the claim stale. If reconciliation returns ready, rerun Compass once so later routing consumes the current evidence basis; partial or blocked reconciliation remains withheld and follows `recommended_next_action`.

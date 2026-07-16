@@ -20,10 +20,7 @@ import (
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/store"
 )
 
-const (
-	rewriteStatusFromDBMetadata = "rewrite_status_from_db_metadata"
-	graphStorePath              = ".specify/project-cognition/project-cognition.db"
-)
+const graphStorePath = ".specify/project-cognition/project-cognition.db"
 
 var unsafeIDPartPattern = regexp.MustCompile(`[^A-Za-z0-9._-]+`)
 
@@ -100,7 +97,7 @@ func Run(paths rt.Paths) (Payload, error) {
 		payload.Errors = append(payload.Errors, fmt.Sprintf("read DB identity snapshot: %v", err))
 		if blockErr := writePostImportBlockedState(paths, st, generationID); blockErr != nil {
 			if isBlockedStatusWriteError(blockErr) {
-				payload.RecoveryAction = rewriteStatusFromDBMetadata
+				payload.RecoveryAction = runtimegate.RepairStatusAction
 			}
 			payload.Errors = append(payload.Errors, blockErr.Error())
 			return payload, blockErr
@@ -113,7 +110,7 @@ func Run(paths rt.Paths) (Payload, error) {
 		payload.Errors = append(payload.Errors, errors...)
 		if err := writePostImportBlockedState(paths, st, generationID); err != nil {
 			if isBlockedStatusWriteError(err) {
-				payload.RecoveryAction = rewriteStatusFromDBMetadata
+				payload.RecoveryAction = runtimegate.RepairStatusAction
 			}
 			payload.Errors = append(payload.Errors, err.Error())
 			return payload, err
@@ -128,7 +125,7 @@ func Run(paths rt.Paths) (Payload, error) {
 		payload.Errors = append(payload.Errors, sparse.Errors...)
 		if err := writePostImportBlockedState(paths, st, generationID); err != nil {
 			if isBlockedStatusWriteError(err) {
-				payload.RecoveryAction = rewriteStatusFromDBMetadata
+				payload.RecoveryAction = runtimegate.RepairStatusAction
 			}
 			payload.Errors = append(payload.Errors, err.Error())
 			return payload, err
@@ -155,7 +152,7 @@ func Run(paths rt.Paths) (Payload, error) {
 		payload.Status = "blocked"
 		payload.Readiness = rt.BlockedReadiness
 		if strings.Contains(err.Error(), "write status:") {
-			payload.RecoveryAction = rewriteStatusFromDBMetadata
+			payload.RecoveryAction = runtimegate.RepairStatusAction
 		}
 		payload.Errors = append(payload.Errors, fmt.Sprintf("publish ready runtime metadata: %v", err))
 		return payload, err

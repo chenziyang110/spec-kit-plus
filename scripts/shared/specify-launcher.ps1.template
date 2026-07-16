@@ -1,0 +1,20 @@
+$ErrorActionPreference = 'Stop'
+
+$bindingId = '__SPECIFY_BINDING_ID__'
+$stateRoot = if ($env:SPECIFY_PROJECT_LAUNCHER_STATE_DIR) {
+    $env:SPECIFY_PROJECT_LAUNCHER_STATE_DIR
+} else {
+    Join-Path $HOME '.specify/project-launchers'
+}
+$binding = Join-Path $stateRoot "$bindingId/invoke.ps1"
+
+if (-not (Test-Path -LiteralPath $binding -PathType Leaf)) {
+    [Console]::Error.WriteLine("Spec Kit Plus cannot find this project's machine-local Specify binding.")
+    [Console]::Error.WriteLine("Binding: $bindingId")
+    [Console]::Error.WriteLine("Expected: $binding")
+    [Console]::Error.WriteLine(__SPECIFY_REPAIR_MESSAGE__)
+    exit 2
+}
+
+& $binding @args
+exit $LASTEXITCODE

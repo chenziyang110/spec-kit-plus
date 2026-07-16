@@ -10,6 +10,11 @@ from specify_cli.integrations.manifest import IntegrationManifest
 
 SHARED_PRD_HELPER = ".specify/scripts/shared/prd-state.py"
 SHARED_DISCUSSION_HELPER = ".specify/scripts/shared/discussion-state.py"
+PROJECT_SPECIFY_LAUNCHER = (
+    ".specify/scripts/shared/specify-launcher.ps1"
+    if os.name == "nt"
+    else ".specify/scripts/shared/specify-launcher"
+)
 
 
 class TestGenericIntegration:
@@ -96,7 +101,9 @@ class TestGenericIntegration:
                     ".specify/scripts/powershell/update-agent-context.ps1",
                 ]
             )
-        expected.extend([SHARED_DISCUSSION_HELPER, SHARED_PRD_HELPER])
+        expected.extend(
+            [SHARED_DISCUSSION_HELPER, SHARED_PRD_HELPER, PROJECT_SPECIFY_LAUNCHER]
+        )
 
         expected.extend(f".specify/templates/{name}" for name in cls._template_files())
         return sorted(expected)

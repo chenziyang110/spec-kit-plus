@@ -16,7 +16,7 @@ Do not create the contract before explicit request and boundary lock.
 
 ## Deterministic Self-Review
 
-Use `specify discussion validate-handoff <slug> --json`. Validate schema/version, goal/scope, consumer eligibility, context boundary, implementation target, evidence shape, `MP-*`/`CA-###` coverage, planning/coverage gates, unknown/conflict counts, and the protected digest.
+Use `{{specify-subcmd:discussion validate-handoff <slug> --json}}`. Validate schema/version, goal/scope, consumer eligibility, context boundary, implementation target, evidence shape, `MP-*`/`CA-###` coverage, planning/coverage gates, unknown/conflict counts, and the protected digest.
 
 Use agent review only for judgment that deterministic validation cannot decide: whether the selected direction matches user intent, whether a soft unknown is genuinely non-blocking, or whether a tradeoff/reopen condition is truthful.
 

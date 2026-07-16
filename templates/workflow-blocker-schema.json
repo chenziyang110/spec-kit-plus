@@ -20,6 +20,7 @@
     "affected_scope",
     "can_continue",
     "human_action_required",
+    "human_action_guide",
     "resume"
   ],
   "properties": {
@@ -139,14 +140,15 @@
     "resume": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["instruction", "command"],
+      "required": ["instruction", "command", "argv"],
       "properties": {
         "instruction": {
           "type": "string",
           "minLength": 1
         },
         "command": {
-          "type": ["string", "null"]
+          "type": "string",
+          "minLength": 1
         },
         "argv": {
           "type": "array",
@@ -177,6 +179,40 @@
           }
         }
       }
+    },
+    {
+      "if": {
+        "properties": {
+          "human_action_required": {
+            "const": false
+          }
+        },
+        "required": ["human_action_required"]
+      },
+      "then": {
+        "properties": {
+          "human_action_guide": {
+            "type": "null"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "owner": {
+            "enum": ["user", "maintainer"]
+          }
+        },
+        "required": ["owner"]
+      },
+      "then": {
+        "properties": {
+          "human_action_required": {
+            "const": true
+          }
+        }
+      }
     }
   ],
   "$defs": {
@@ -204,6 +240,7 @@
         },
         "prerequisites": {
           "type": "array",
+          "minItems": 1,
           "items": {
             "type": "string",
             "minLength": 1
@@ -211,6 +248,7 @@
         },
         "safety_notes": {
           "type": "array",
+          "minItems": 1,
           "items": {
             "type": "string",
             "minLength": 1

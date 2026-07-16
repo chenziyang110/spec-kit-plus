@@ -1,15 +1,15 @@
 # Claude Hook Assets
 
 This directory contains the project-local Claude Code native hook assets that
-`specify init --ai claude` installs into `.claude/hooks/`.
+`{{specify-subcmd:init --ai claude}}` installs into `.claude/hooks/`.
 
 The hooks in this directory are intentionally thin adapters. They translate
-Claude-native hook events into the shared `specify hook ...` command surface so
+Claude-native hook events into the shared `{{specify-subcmd:hook --help}}` command surface so
 workflow truth remains centralized under `src/specify_cli/hooks/`.
 
 Managed native hook coverage:
 
-- `SessionStart` renders active workflow orientation through `specify hook render-statusline`.
+- `SessionStart` renders active workflow orientation through `{{specify-subcmd:hook render-statusline}}`.
 - `SessionStart` renders active workflow orientation and bounded resume cues.
 - `SessionStart` injects the structured recovery summary for active resumable workflows.
 - `UserPromptSubmit` applies shared prompt-bypass guards and workflow-policy checks.

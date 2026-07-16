@@ -38,12 +38,19 @@ from specify_cli.launcher import (
 )
 from specify_cli import launcher as launcher_module
 
+TEST_SPECIFY_COMMIT = "a" * 40
+TEST_SPECIFY_SOURCE = (
+    "git+https://github.com/chenziyang110/spec-kit-plus.git@"
+    f"{TEST_SPECIFY_COMMIT}"
+)
+TEST_SPECIFY_COMMAND = f"uvx --from {TEST_SPECIFY_SOURCE} specify"
+TEST_UPDATED_SPECIFY_SOURCE = (
+    "git+https://github.com/chenziyang110/spec-kit-plus.git@" + "b" * 40
+)
+
 
 def _write_pinned_launcher_config(project_root):
-    pinned_command = (
-        "uvx --from "
-        "git+https://github.com/chenziyang110/spec-kit-plus.git@abc123 specify"
-    )
+    pinned_command = TEST_SPECIFY_COMMAND
     config_path = project_root / ".specify" / "config.json"
     config_path.parent.mkdir(parents=True, exist_ok=True)
     config_path.write_text(
@@ -54,7 +61,7 @@ def _write_pinned_launcher_config(project_root):
                     "argv": [
                         "uvx",
                         "--from",
-                        "git+https://github.com/chenziyang110/spec-kit-plus.git@abc123",
+                        TEST_SPECIFY_SOURCE,
                         "specify",
                     ],
                 }
@@ -128,11 +135,11 @@ def test_write_project_specify_launcher_config_preserves_existing_keys(tmp_path)
     written = write_project_specify_launcher_config(
         tmp_path,
         SpecifyLauncherSpec(
-            command="uvx --from git+https://github.com/chenziyang110/spec-kit-plus.git specify",
+            command=TEST_SPECIFY_COMMAND,
             argv=(
                 "uvx",
                 "--from",
-                "git+https://github.com/chenziyang110/spec-kit-plus.git",
+                TEST_SPECIFY_SOURCE,
                 "specify",
             ),
         ),
@@ -144,7 +151,7 @@ def test_write_project_specify_launcher_config_preserves_existing_keys(tmp_path)
     assert payload["specify_launcher"]["argv"] == [
         "uvx",
         "--from",
-        "git+https://github.com/chenziyang110/spec-kit-plus.git",
+        TEST_SPECIFY_SOURCE,
         "specify",
     ]
 
@@ -157,6 +164,164 @@ def test_write_project_specify_launcher_config_skips_unbound_path_launcher(tmp_p
 
     assert written is None
     assert not (tmp_path / ".specify" / "config.json").exists()
+
+
+def test_non_explicit_write_preserves_foreign_launcher_record(monkeypatch, tmp_path):
+    config_path = tmp_path / ".specify" / "config.json"
+    config_path.parent.mkdir(parents=True)
+    original = {
+        "specify_launcher": {
+            "command": "foreign-specify",
+            "argv": ["foreign-specify"],
+            "runtime_id": "another/vendor",
+            "kind": "managed",
+            "source": "foreign",
+        }
+    }
+    config_path.write_text(json.dumps(original), encoding="utf-8")
+    monkeypatch.setattr(
+        "specify_cli.launcher.resolve_specify_launcher_spec",
+        current_environment_specify_launcher_spec,
+    )
+
+    written = write_project_specify_launcher_config(tmp_path)
+
+    assert written == config_path
+    assert json.loads(config_path.read_text(encoding="utf-8")) == original
+    assert not (tmp_path / ".specify" / "scripts" / "shared").exists()
+
+
+def test_machine_binding_config_rebuilds_untrusted_command_and_argv(
+    monkeypatch,
+    tmp_path,
+):
+    state_dir = tmp_path / "bindings"
+    monkeypatch.setenv("SPECIFY_PROJECT_LAUNCHER_STATE_DIR", str(state_dir))
+    binding_id = "a" * 32
+    config_path = tmp_path / ".specify" / "config.json"
+    config_path.parent.mkdir(parents=True)
+    config_path.write_text(
+        json.dumps(
+            {
+                "specify_launcher": {
+                    "command": "pwsh -Command INJECTED_SECOND_COMMAND",
+                    "argv": ["pwsh", "-Command", "INJECTED_SECOND_COMMAND"],
+                    "source": "machine_binding",
+                    "kind": "machine_binding",
+                    "runtime_id": SPECIFY_RUNTIME_ID,
+                    "binding_id": binding_id,
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    launcher = load_project_specify_launcher(tmp_path)
+    bound = bind_project_launcher_payload(
+        {"next_argv": ["specify", "workflow", "show"]},
+        tmp_path,
+    )
+
+    assert launcher == launcher_module.project_local_specify_launcher_spec(binding_id)
+    assert "INJECTED" not in launcher.command
+    assert "INJECTED" not in json.dumps(bound)
+    assert bound["next_argv"] == [*launcher.argv, "workflow", "show"]
+
+
+def test_source_bound_config_rebuilds_command_and_rejects_argv_injection(tmp_path):
+    config_path = tmp_path / ".specify" / "config.json"
+    config_path.parent.mkdir(parents=True)
+    trusted_argv = [
+        "uvx",
+        "--from",
+        TEST_SPECIFY_SOURCE,
+        "specify",
+    ]
+    config_path.write_text(
+        json.dumps(
+            {
+                "specify_launcher": {
+                    "command": "pwsh -Command INJECTED_SECOND_COMMAND",
+                    "argv": trusted_argv,
+                    "source": "git",
+                    "kind": "source_bound",
+                    "runtime_id": SPECIFY_RUNTIME_ID,
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    trusted = load_project_specify_launcher(tmp_path)
+    assert trusted is not None
+    assert trusted.argv == tuple(trusted_argv)
+    assert trusted.command == render_command(tuple(trusted_argv))
+    assert "INJECTED" not in trusted.command
+
+    payload = json.loads(config_path.read_text(encoding="utf-8"))
+    payload["specify_launcher"]["argv"] = [
+        "pwsh",
+        "-Command",
+        "INJECTED_SECOND_COMMAND",
+    ]
+    config_path.write_text(json.dumps(payload), encoding="utf-8")
+    assert load_project_specify_launcher(tmp_path) is None
+
+
+@pytest.mark.parametrize(
+    "commit_id",
+    ("a" * 7, "a" * 39, "a" * 41, "a" * 63),
+)
+def test_source_bound_config_rejects_non_full_commit_ids(
+    tmp_path,
+    commit_id,
+):
+    config_path = tmp_path / ".specify" / "config.json"
+    config_path.parent.mkdir(parents=True)
+    source = (
+        "git+https://github.com/chenziyang110/spec-kit-plus.git@" + commit_id
+    )
+    config_path.write_text(
+        json.dumps(
+            {
+                "specify_launcher": {
+                    "command": f"uvx --from {source} specify",
+                    "argv": ["uvx", "--from", source, "specify"],
+                    "source": "git",
+                    "kind": "source_bound",
+                    "runtime_id": SPECIFY_RUNTIME_ID,
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    assert load_project_specify_launcher(tmp_path) is None
+
+
+def test_project_cognition_config_rebuilds_untrusted_command(tmp_path):
+    binary_name = "project-cognition.exe" if os.name == "nt" else "project-cognition"
+    binary = tmp_path / binary_name
+    config_path = tmp_path / ".specify" / "config.json"
+    config_path.parent.mkdir(parents=True)
+    config_path.write_text(
+        json.dumps(
+            {
+                "project_cognition_launcher": {
+                    "command": "pwsh -Command INJECTED_SECOND_COMMAND",
+                    "argv": [str(binary)],
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    launcher = launcher_module.load_project_cognition_launcher(tmp_path)
+
+    assert launcher is not None
+    assert launcher.argv == (str(binary),)
+    assert launcher.command == render_command((str(binary),))
+    assert "INJECTED" not in launcher.command
 
 
 def test_resolve_specify_launcher_binds_normal_install_to_current_interpreter(
@@ -293,7 +458,7 @@ def test_normal_install_persists_portable_wrapper_and_local_binding(
     tmp_path,
 ):
     project = tmp_path / "project"
-    state_dir = tmp_path / "local-bindings"
+    state_dir = tmp_path / "local bindings 项目"
     project.mkdir()
     monkeypatch.setenv("SPECIFY_PROJECT_LAUNCHER_STATE_DIR", str(state_dir))
     local_launcher = current_environment_specify_launcher_spec()
@@ -325,7 +490,8 @@ def test_normal_install_persists_portable_wrapper_and_local_binding(
     assert config["specify_launcher"]["runtime_id"] == SPECIFY_RUNTIME_ID
     wrapper = project / wrapper_relative
     assert wrapper.is_file()
-    assert sys.executable not in wrapper.read_text(encoding="utf-8")
+    wrapper_text = wrapper.read_text(encoding="utf-8")
+    assert "integration repair" in wrapper_text
     rendered = render_project_launcher_placeholders(
         project,
         "Run `{{specify-subcmd:learning start --command ask --format json}}`.",
@@ -337,13 +503,18 @@ def test_normal_install_persists_portable_wrapper_and_local_binding(
     binding_path = binding_dir / "binding.json"
     binding = json.loads(binding_path.read_text(encoding="utf-8"))
     assert binding["runtime_id"] == SPECIFY_RUNTIME_ID
-    assert Path(binding["entry_argv"][0]) == Path(sys.executable).resolve()
+    assert Path(binding["entry_argv"][0]) == Path(os.path.abspath(sys.executable))
+    expected_import_root = Path(launcher_module.__file__).resolve().parent.parent
+    assert Path(binding["package_import_root"]) == expected_import_root
+    assert len(binding["package_init_sha256"]) == 64
+    assert len(binding["package_launcher_sha256"]) == 64
 
     execution_env = {
         **os.environ,
         "PATH": "",
         "SPECIFY_PROJECT_LAUNCHER_STATE_DIR": str(state_dir),
     }
+    execution_env.pop("PYTHONPATH", None)
     result = subprocess.run(
         [*persisted_argv, "--runtime-id"],
         cwd=project,
@@ -390,7 +561,77 @@ def test_normal_install_persists_portable_wrapper_and_local_binding(
         check=False,
     )
     assert missing_result.returncode == 2
-    assert "specify integration repair" in missing_result.stderr
+    assert "specify_cli integration repair" in missing_result.stderr
+    repair_command = render_command(
+        (
+            binding["entry_argv"][0],
+            "-m",
+            "specify_cli",
+            "integration",
+            "repair",
+        )
+    )
+    assert repair_command in missing_result.stderr
+    assert "git+..." not in missing_result.stderr
+    assert "__SPECIFY_" not in missing_result.stderr
+
+
+def test_failed_machine_probe_does_not_leave_project_half_installed(
+    monkeypatch,
+    tmp_path,
+):
+    project = tmp_path / "project"
+    state_dir = tmp_path / "bindings"
+    monkeypatch.setenv("SPECIFY_PROJECT_LAUNCHER_STATE_DIR", str(state_dir))
+    original_probe = launcher_module._machine_binding_probe
+    probe_calls = 0
+
+    def fail_once(binding_id):
+        nonlocal probe_calls
+        probe_calls += 1
+        return False if probe_calls == 1 else original_probe(binding_id)
+
+    monkeypatch.setattr(launcher_module, "_machine_binding_probe", fail_once)
+
+    with pytest.raises(RuntimeError, match="project launcher and configuration were not changed"):
+        write_project_specify_launcher_config(
+            project,
+            current_environment_specify_launcher_spec(),
+        )
+
+    wrapper = launcher_module._project_launcher_destination(project)
+    assert not wrapper.exists()
+    assert not (project / ".specify" / "config.json").exists()
+
+    written = write_project_specify_launcher_config(
+        project,
+        current_environment_specify_launcher_spec(),
+    )
+    assert written is not None
+    assert wrapper.is_file()
+    assert load_project_specify_launcher(project) is not None
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX venv interpreter symlink contract")
+def test_machine_binding_preserves_symlinked_venv_interpreter(monkeypatch, tmp_path):
+    state_dir = tmp_path / "bindings"
+    monkeypatch.setenv("SPECIFY_PROJECT_LAUNCHER_STATE_DIR", str(state_dir))
+    interpreter = tmp_path / "venv" / "bin" / "python"
+    interpreter.parent.mkdir(parents=True)
+    interpreter.symlink_to(Path(sys.executable))
+    monkeypatch.setattr(launcher_module.sys, "executable", str(interpreter))
+
+    config_path = write_project_specify_launcher_config(
+        tmp_path / "project",
+        current_environment_specify_launcher_spec(),
+    )
+
+    assert config_path is not None
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+    binding_path = state_dir / config["specify_launcher"]["binding_id"] / "binding.json"
+    binding = json.loads(binding_path.read_text(encoding="utf-8"))
+    assert binding["entry_argv"][0] == str(interpreter.absolute())
+    assert binding["entry_argv"][0] != str(interpreter.resolve())
 
 
 def test_relative_binding_state_override_is_frozen_for_nested_cwd(
@@ -477,7 +718,7 @@ def test_windows_machine_binding_forwards_metacharacters_without_reparse(tmp_pat
     state_dir = tmp_path / "bindings"
     binding_dir = state_dir / binding_id
     binding_dir.mkdir(parents=True)
-    capture = tmp_path / "capture.py"
+    capture = binding_dir / "capture.py"
     capture.write_text(
         "import json, sys\nprint(json.dumps(sys.argv[1:], ensure_ascii=False))\n",
         encoding="utf-8",
@@ -489,7 +730,11 @@ def test_windows_machine_binding_forwards_metacharacters_without_reparse(tmp_pat
     )
     dispatch = state_dir / "dispatch.ps1"
     dispatch.write_text(
-        launcher_module._binding_dispatch_source(),
+        launcher_module._binding_dispatch_source(
+            render_command(
+                (sys.executable, "-m", "specify_cli", "integration", "repair")
+            )
+        ),
         encoding="utf-8",
     )
     secret_name = "SPX_REVIEW_SECRET"
@@ -552,6 +797,36 @@ def test_normal_init_preserves_modified_project_launcher(monkeypatch, tmp_path):
     assert load_project_specify_launcher(tmp_path) == launcher
 
 
+def test_equal_content_project_launcher_symlink_is_rejected(monkeypatch, tmp_path):
+    state_dir = tmp_path / "bindings"
+    monkeypatch.setenv("SPECIFY_PROJECT_LAUNCHER_STATE_DIR", str(state_dir))
+    write_project_specify_launcher_config(
+        tmp_path,
+        current_environment_specify_launcher_spec(),
+    )
+    launcher = load_project_specify_launcher(tmp_path)
+    assert launcher is not None
+    wrapper = launcher_module._project_launcher_destination(tmp_path)
+    external = tmp_path.parent / f"{tmp_path.name}-external-launcher"
+    external.write_text(wrapper.read_text(encoding="utf-8"), encoding="utf-8")
+    wrapper.unlink()
+    try:
+        wrapper.symlink_to(external)
+    except OSError as exc:
+        pytest.skip(f"symlinks unavailable: {exc}")
+
+    assert not launcher_module.project_specify_launcher_is_available(
+        tmp_path,
+        launcher,
+    )
+    with pytest.raises(RuntimeError, match="cannot inspect existing project launcher"):
+        write_project_specify_launcher_config(
+            tmp_path,
+            current_environment_specify_launcher_spec(),
+        )
+    assert external.read_text(encoding="utf-8") != ""
+
+
 def test_machine_binding_identity_mismatch_fails_closed_with_recovery(
     monkeypatch,
     tmp_path,
@@ -594,7 +869,21 @@ def test_machine_binding_identity_mismatch_fails_closed_with_recovery(
     )
     assert result.returncode == 2
     assert "incompatible" in result.stderr
-    assert "specify integration repair" in result.stderr
+    assert "specify_cli integration repair" in result.stderr
+    binding = json.loads(
+        (state_dir / binding_id / "binding.json").read_text(encoding="utf-8")
+    )
+    repair_command = render_command(
+        (
+            binding["entry_argv"][0],
+            "-m",
+            "specify_cli",
+            "integration",
+            "repair",
+        )
+    )
+    assert repair_command in result.stderr
+    assert "git+..." not in result.stderr
 
 
 def test_machine_binding_probe_rejects_tampered_dispatch(monkeypatch, tmp_path):
@@ -628,11 +917,11 @@ def test_machine_binding_probe_rejects_tampered_dispatch(monkeypatch, tmp_path):
 
 def test_shared_infra_writes_source_bound_launcher_config(monkeypatch, tmp_path):
     launcher = SpecifyLauncherSpec(
-        command="uvx --from git+https://github.com/chenziyang110/spec-kit-plus.git@abc123 specify",
+        command=TEST_SPECIFY_COMMAND,
         argv=(
             "uvx",
             "--from",
-            "git+https://github.com/chenziyang110/spec-kit-plus.git@abc123",
+            TEST_SPECIFY_SOURCE,
             "specify",
         ),
     )
@@ -651,11 +940,11 @@ def test_load_project_specify_launcher_reads_valid_config(tmp_path):
         json.dumps(
             {
                 "specify_launcher": {
-                    "command": "uvx --from git+https://github.com/chenziyang110/spec-kit-plus.git specify",
+                    "command": TEST_SPECIFY_COMMAND,
                     "argv": [
                         "uvx",
                         "--from",
-                        "git+https://github.com/chenziyang110/spec-kit-plus.git",
+                        TEST_SPECIFY_SOURCE,
                         "specify",
                     ],
                 }
@@ -667,13 +956,16 @@ def test_load_project_specify_launcher_reads_valid_config(tmp_path):
     launcher = load_project_specify_launcher(tmp_path)
 
     assert launcher == SpecifyLauncherSpec(
-        command="uvx --from git+https://github.com/chenziyang110/spec-kit-plus.git specify",
+        command=TEST_SPECIFY_COMMAND,
         argv=(
             "uvx",
             "--from",
-            "git+https://github.com/chenziyang110/spec-kit-plus.git",
+            TEST_SPECIFY_SOURCE,
             "specify",
         ),
+        source="git",
+        kind="source_bound",
+        runtime_id=SPECIFY_RUNTIME_ID,
     )
 
 
@@ -684,11 +976,11 @@ def test_project_specify_subcommand_uses_project_launcher_config(tmp_path):
         json.dumps(
             {
                 "specify_launcher": {
-                    "command": "uvx --from git+https://github.com/chenziyang110/spec-kit-plus.git specify",
+                    "command": TEST_SPECIFY_COMMAND,
                     "argv": [
                         "uvx",
                         "--from",
-                        "git+https://github.com/chenziyang110/spec-kit-plus.git",
+                        TEST_SPECIFY_SOURCE,
                         "specify",
                     ],
                 }
@@ -706,7 +998,7 @@ def test_project_specify_subcommand_uses_project_launcher_config(tmp_path):
     assert spec.argv == (
         "uvx",
         "--from",
-        "git+https://github.com/chenziyang110/spec-kit-plus.git",
+        TEST_SPECIFY_SOURCE,
         "specify",
         "hook",
         "validate-state",
@@ -723,11 +1015,11 @@ def test_render_project_launcher_placeholders_expands_cli_and_subcommand(tmp_pat
         json.dumps(
             {
                 "specify_launcher": {
-                    "command": "uvx --from git+https://github.com/chenziyang110/spec-kit-plus.git specify",
+                    "command": TEST_SPECIFY_COMMAND,
                     "argv": [
                         "uvx",
                         "--from",
-                        "git+https://github.com/chenziyang110/spec-kit-plus.git",
+                        TEST_SPECIFY_SOURCE,
                         "specify",
                     ],
                 }
@@ -741,9 +1033,9 @@ def test_render_project_launcher_placeholders_expands_cli_and_subcommand(tmp_pat
         'Run `{{specify-cli}}` and then `{{specify-subcmd:hook validate-state --command plan}}`.',
     )
 
-    assert "`uvx --from git+https://github.com/chenziyang110/spec-kit-plus.git specify`" in rendered
+    assert f"`{TEST_SPECIFY_COMMAND}`" in rendered
     assert (
-        "`uvx --from git+https://github.com/chenziyang110/spec-kit-plus.git specify hook validate-state --command plan`"
+        f"`{TEST_SPECIFY_COMMAND} hook validate-state --command plan`"
         in rendered
     )
 
@@ -879,6 +1171,42 @@ def test_project_cognition_launcher_resolves_project_relative_binary(
     assert captured == {"argv": (str(binary),), "cwd": tmp_path}
 
 
+def test_missing_relative_cognition_launcher_does_not_fall_back_to_path(
+    monkeypatch,
+    tmp_path,
+):
+    binary_name = "project-cognition.exe" if os.name == "nt" else "project-cognition"
+    path_candidate = tmp_path / "malicious-path" / binary_name
+    path_candidate.parent.mkdir()
+    path_candidate.write_text("malicious", encoding="utf-8")
+    if os.name != "nt":
+        path_candidate.chmod(path_candidate.stat().st_mode | stat.S_IXUSR)
+    config_path = tmp_path / ".specify" / "config.json"
+    config_path.parent.mkdir(parents=True)
+    config_path.write_text(
+        json.dumps(
+            {
+                "project_cognition_launcher": {
+                    "command": binary_name,
+                    "argv": [binary_name],
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        launcher_module.shutil,
+        "which",
+        lambda _entry: str(path_candidate),
+    )
+
+    assert resolve_project_cognition_launcher_argv(tmp_path) is None
+    assert any(
+        issue["code"] == "broken-project-cognition-launcher"
+        for issue in diagnose_project_runtime_compatibility(tmp_path)
+    )
+
+
 def test_diagnose_project_runtime_compatibility_rejects_corrupt_cognition_binary(
     tmp_path,
 ):
@@ -914,11 +1242,11 @@ def test_diagnose_project_runtime_compatibility_reports_stale_generated_skill_la
         json.dumps(
             {
                 "specify_launcher": {
-                    "command": "uvx --from git+https://github.com/chenziyang110/spec-kit-plus.git@new456 specify",
+                    "command": f"uvx --from {TEST_UPDATED_SPECIFY_SOURCE} specify",
                     "argv": [
                         "uvx",
                         "--from",
-                        "git+https://github.com/chenziyang110/spec-kit-plus.git@new456",
+                        TEST_UPDATED_SPECIFY_SOURCE,
                         "specify",
                     ],
                 }
@@ -955,10 +1283,7 @@ def test_diagnose_project_runtime_compatibility_reports_bare_generated_skill_lau
 ):
     config_path = tmp_path / ".specify" / "config.json"
     config_path.parent.mkdir(parents=True)
-    pinned_command = (
-        "uvx --from "
-        "git+https://github.com/chenziyang110/spec-kit-plus.git@abc123 specify"
-    )
+    pinned_command = TEST_SPECIFY_COMMAND
     config_path.write_text(
         json.dumps(
             {
@@ -967,7 +1292,7 @@ def test_diagnose_project_runtime_compatibility_reports_bare_generated_skill_lau
                     "argv": [
                         "uvx",
                         "--from",
-                        "git+https://github.com/chenziyang110/spec-kit-plus.git@abc123",
+                        TEST_SPECIFY_SOURCE,
                         "specify",
                     ],
                 }
@@ -1000,10 +1325,7 @@ def test_diagnose_project_runtime_compatibility_ignores_non_executable_specify_m
 ):
     config_path = tmp_path / ".specify" / "config.json"
     config_path.parent.mkdir(parents=True)
-    pinned_command = (
-        "uvx --from "
-        "git+https://github.com/chenziyang110/spec-kit-plus.git@abc123 specify"
-    )
+    pinned_command = TEST_SPECIFY_COMMAND
     config_path.write_text(
         json.dumps(
             {
@@ -1012,7 +1334,7 @@ def test_diagnose_project_runtime_compatibility_ignores_non_executable_specify_m
                     "argv": [
                         "uvx",
                         "--from",
-                        "git+https://github.com/chenziyang110/spec-kit-plus.git@abc123",
+                        TEST_SPECIFY_SOURCE,
                         "specify",
                     ],
                 }

@@ -5,18 +5,28 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import subprocess
 from copy import deepcopy
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
 import pathspec
 
-from .atomic_io import atomic_write_text, interprocess_lock
+from .atomic_io import (
+    atomic_write_bytes,
+    atomic_write_text,
+    interprocess_lock,
+    read_local_state_bytes,
+    read_local_state_text,
+)
+from .launcher import render_command
 
 
 ACCEPTANCE_FILENAME = "human-acceptance.json"
 IMPLEMENTATION_SUMMARY_FILENAME = "implementation-summary.md"
+ACCEPTANCE_REPAIR_JOURNAL_FILENAME = ".human-acceptance-repair.json"
+ACCEPTANCE_REPAIR_BACKUP_FILENAME = ".human-acceptance-repair-backup.json"
 ACCEPTANCE_SCHEMA_REF = ".specify/templates/human-acceptance-state-schema.json"
 ACCEPTANCE_COMMAND = "sp-accept (Classic) or spx-accept (Advanced)"
 ACCEPTANCE_STATUSES = {
@@ -47,6 +57,26 @@ FINDING_ROUTES = {
     "spx-clarify",
     "spx-specify",
     "human-action",
+}
+ACCEPTANCE_REPAIR_TARGETS = {
+    "sp-implement": "implement",
+    "sp-debug": "implement",
+    "sp-clarify": "specify",
+    "sp-specify": "specify",
+    "spx-implement": "implement",
+    "spx-debug": "implement",
+    "spx-clarify": "specify",
+    "spx-specify": "specify",
+}
+ACCEPTANCE_REPAIR_OWNERS = {
+    "sp-implement": "sp-implement",
+    "sp-debug": "sp-implement",
+    "sp-clarify": "sp-specify",
+    "sp-specify": "sp-specify",
+    "spx-implement": "spx-implement",
+    "spx-debug": "spx-implement",
+    "spx-clarify": "spx-specify",
+    "spx-specify": "spx-specify",
 }
 
 
@@ -92,9 +122,659 @@ def prepare_human_acceptance(project_root: Path, feature_dir: Path) -> dict[str,
         return _prepare_human_acceptance_locked(root, resolved_feature_dir)
 
 
+def _acceptance_repair_paths(feature_dir: Path) -> tuple[Path, Path]:
+    return (
+        feature_dir / ACCEPTANCE_REPAIR_JOURNAL_FILENAME,
+        feature_dir / ACCEPTANCE_REPAIR_BACKUP_FILENAME,
+    )
+
+
+def _decorate_acceptance_repair_payload(
+    payload: dict[str, Any],
+    *,
+    root: Path,
+    feature_dir: Path,
+    route: str,
+) -> dict[str, Any]:
+    data = payload.setdefault("data", {})
+    data["acceptance_state_path"] = _display_path(
+        feature_dir / ACCEPTANCE_FILENAME,
+        root,
+    )
+    data["acceptance_status"] = "draft"
+    data["repair_handoff_command"] = route
+    data["owning_stage_command"] = ACCEPTANCE_REPAIR_OWNERS[route]
+    data["acceptance_return_argv"] = [
+        "specify",
+        "accept",
+        "prepare",
+        "--feature-dir",
+        str(feature_dir),
+        "--format",
+        "json",
+    ]
+    return payload
+
+
+def _write_acceptance_repair_journal(path: Path, payload: dict[str, Any]) -> None:
+    atomic_write_text(
+        path,
+        json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
+    )
+
+
+def _clear_acceptance_repair_transaction(journal_path: Path, backup_path: Path) -> None:
+    journal_path.unlink(missing_ok=True)
+    try:
+        backup_path.unlink(missing_ok=True)
+    except OSError:
+        # The journal is the transaction marker.  A leftover backup is inert and
+        # the next route attempt will clean or replace it before any mutation.
+        pass
+
+
+def _validated_acceptance_repair_backup(
+    *,
+    backup_path: Path,
+    expected_sha256: str,
+    finding_id: str,
+    route: str,
+) -> bytes:
+    backup_bytes = read_local_state_bytes(backup_path, root=backup_path.parent)
+    actual_sha256 = hashlib.sha256(backup_bytes).hexdigest()
+    if not re.fullmatch(r"[0-9a-f]{64}", expected_sha256) or actual_sha256 != expected_sha256:
+        raise ValueError(
+            f"backup digest mismatch: expected {expected_sha256 or 'missing'}, "
+            f"found {actual_sha256}"
+        )
+    payload = json.loads(backup_bytes.decode("utf-8"))
+    if not isinstance(payload, dict) or payload.get("status") not in {
+        "rejected",
+        "blocked",
+    }:
+        raise ValueError("backup must contain a rejected or blocked acceptance object")
+    findings = payload.get("findings")
+    if not isinstance(findings, list) or not any(
+        isinstance(item, dict)
+        and item.get("id") == finding_id
+        and item.get("route") == route
+        and item.get("status") == "open"
+        for item in findings
+    ):
+        raise ValueError("backup does not preserve the named open finding and route")
+    if not isinstance(payload.get("source"), dict) or not isinstance(
+        payload.get("overall"), dict
+    ):
+        raise ValueError("backup is missing acceptance source or verdict metadata")
+    return backup_bytes
+
+
+def _acceptance_repair_recovery_error(
+    *,
+    root: Path,
+    feature_dir: Path,
+    reason: str,
+    evidence: list[str],
+    route: str,
+    finding_id: str,
+    expected_revision: int,
+) -> Exception:
+    from .workflow_runtime import WorkflowRuntimeError
+
+    journal_path, backup_path = _acceptance_repair_paths(feature_dir)
+    resume_argv = [
+        "specify",
+        "accept",
+        "route-repair",
+        "--feature-dir",
+        str(feature_dir),
+        "--finding-id",
+        finding_id,
+        "--route",
+        route,
+        "--expected-revision",
+        str(expected_revision),
+        "--evidence",
+        "<sanitized-evidence>",
+        "--format",
+        "json",
+    ]
+    blocker = _acceptance_blocker(
+        blocker_id="ACCEPTANCE-REPAIR-RECOVERY",
+        category="artifact-or-state",
+        owner="maintainer",
+        summary=reason,
+        evidence=[
+            *evidence,
+            f"journal: {_display_path(journal_path, root)}",
+            f"backup: {_display_path(backup_path, root)}",
+        ],
+        exact_next_action=(
+            "Inspect the journal, backup, workflow-runtime.json, rich workflow-state.md, "
+            "and human-acceptance.json; restore the backup only when the phase runtime "
+            "still names the journal's "
+            "original accept revision, otherwise preserve all files for maintainer review."
+        ),
+        unblock_criteria=(
+            "The acceptance file and workflow state match one journal phase, and a "
+            "read-only retry reports no pending repair transaction."
+        ),
+        resume_argv=resume_argv,
+        human_action_required=True,
+    )
+    blocker["human_action_guide"] = {
+        "goal": "Recover one interrupted acceptance repair without losing either state file.",
+        "why_human": (
+            "The deterministic states no longer match a safe automatic recovery case; "
+            "choosing which durable record to preserve requires maintainer authority."
+        ),
+        "prerequisites": [
+            f"Access to the project at {root}",
+            f"The journal at {_display_path(journal_path, root)}",
+            f"The backup at {_display_path(backup_path, root)}",
+            "The current workflow-runtime.json, workflow-state.md, and human-acceptance.json files",
+        ],
+        "safety_notes": [
+            "Do not delete the journal or backup before copying both to a safe location.",
+            "Do not edit revision numbers or invent a missing acceptance verdict.",
+            "Do not paste secrets or unredacted private acceptance evidence into chat.",
+        ],
+        "steps": [
+            {
+                "order": 1,
+                "title": "Preserve the recovery packet",
+                "action": "Copy the journal, backup, workflow state, and acceptance state before editing anything.",
+                "command": None,
+                "expected_result": "Four unchanged recovery files are available for comparison.",
+                "if_failed": "Stop without editing and report the inaccessible path and sanitized OS error.",
+            },
+            {
+                "order": 2,
+                "title": "Match the recorded phase",
+                "action": "Compare the journal expected revision/target with the current workflow stage and acceptance status.",
+                "command": None,
+                "expected_result": "The state matches either the original accept phase or the completed repair handoff.",
+                "if_failed": "Preserve all files and return their stage, status, and revision values; do not guess.",
+            },
+            {
+                "order": 3,
+                "title": "Restore only the proven side",
+                "action": "If workflow is still at the original accept revision, restore the backup acceptance file; if the repair handoff is fully committed, keep the draft acceptance file and remove only the journal and backup.",
+                "command": None,
+                "expected_result": "Both durable files describe the same repair phase.",
+                "if_failed": "Stop and return the smallest sanitized filesystem error; do not broaden permissions or delete evidence.",
+            },
+            {
+                "order": 4,
+                "title": "Verify through the CLI",
+                "action": "Rerun the exact route-repair command with real sanitized evidence and inspect its JSON result.",
+                "command": render_command(tuple(resume_argv)),
+                "expected_result": "The command either completes once or returns a new typed blocker without changing both states inconsistently.",
+                "if_failed": "Return the complete blocker JSON and keep the recovery copies.",
+            },
+        ],
+        "verification": [
+            "No pending journal remains after a successful recovery",
+            "Workflow stage/revision and acceptance status describe one consistent phase",
+            "The named open finding and its evidence are preserved",
+        ],
+        "evidence_to_return": [
+            "Current workflow stage, status, and revision",
+            "Current acceptance status, finding ID, and route",
+            "Sanitized CLI recovery result or OS error",
+        ],
+        "resume_instruction": (
+            "After the files are consistent, replace <sanitized-evidence> and run: "
+            f"{render_command(tuple(resume_argv))}"
+        ),
+    }
+    return WorkflowRuntimeError(
+        reason,
+        code="acceptance-repair-recovery-required",
+        data={
+            "journal_path": _display_path(journal_path, root),
+            "backup_path": _display_path(backup_path, root),
+            "finding_id": finding_id,
+            "repair_route": route,
+        },
+        blocker=blocker,
+    )
+
+
+def _recover_acceptance_repair_transaction(
+    *,
+    root: Path,
+    feature_dir: Path,
+) -> dict[str, Any] | None:
+    journal_path, backup_path = _acceptance_repair_paths(feature_dir)
+    if not journal_path.exists():
+        return None
+    try:
+        journal = json.loads(
+            read_local_state_text(journal_path, root=feature_dir)
+        )
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        raise _acceptance_repair_recovery_error(
+            root=root,
+            feature_dir=feature_dir,
+            reason="Acceptance repair journal is unreadable.",
+            evidence=[f"read failure: {type(exc).__name__}: {exc}"],
+            route="sp-implement",
+            finding_id="unknown",
+            expected_revision=0,
+        ) from exc
+    if not isinstance(journal, dict):
+        raise _acceptance_repair_recovery_error(
+            root=root,
+            feature_dir=feature_dir,
+            reason="Acceptance repair journal is not a JSON object.",
+            evidence=["journal shape: non-object"],
+            route="sp-implement",
+            finding_id="unknown",
+            expected_revision=0,
+        )
+    route = str(journal.get("route") or "")
+    finding_id = str(journal.get("finding_id") or "")
+    target_stage = str(journal.get("target_stage") or "")
+    expected_revision = journal.get("expected_revision")
+    backup_sha256 = str(journal.get("backup_sha256") or "")
+    invalidated_sha256 = str(journal.get("invalidated_acceptance_sha256") or "")
+    if (
+        route not in ACCEPTANCE_REPAIR_TARGETS
+        or target_stage != ACCEPTANCE_REPAIR_TARGETS.get(route)
+        or not finding_id
+        or isinstance(expected_revision, bool)
+        or not isinstance(expected_revision, int)
+        or not re.fullmatch(r"[0-9a-f]{64}", backup_sha256)
+        or not re.fullmatch(r"[0-9a-f]{64}", invalidated_sha256)
+    ):
+        raise _acceptance_repair_recovery_error(
+            root=root,
+            feature_dir=feature_dir,
+            reason="Acceptance repair journal metadata is invalid.",
+            evidence=[
+                "journal route, target, finding, revision, or state digest failed validation"
+            ],
+            route=route or "sp-implement",
+            finding_id=finding_id or "unknown",
+            expected_revision=(
+                expected_revision if isinstance(expected_revision, int) else 0
+            ),
+        )
+
+    from .agent_api import envelope
+    from .workflow_runtime import show_workflow
+
+    shown = show_workflow(feature_dir)
+    workflow = shown["data"]
+    acceptance_path = feature_dir / ACCEPTANCE_FILENAME
+    acceptance_text = read_local_state_text(acceptance_path, root=feature_dir)
+    acceptance_sha256 = hashlib.sha256(acceptance_text.encode("utf-8")).hexdigest()
+    try:
+        acceptance = json.loads(acceptance_text)
+    except json.JSONDecodeError as exc:
+        raise _acceptance_repair_recovery_error(
+            root=root,
+            feature_dir=feature_dir,
+            reason="Current acceptance state is invalid JSON during recovery.",
+            evidence=[
+                f"current acceptance digest: {acceptance_sha256}",
+                f"JSON error: {exc.msg}",
+            ],
+            route=route,
+            finding_id=finding_id,
+            expected_revision=expected_revision,
+        ) from exc
+    if not isinstance(acceptance, dict):
+        raise _acceptance_repair_recovery_error(
+            root=root,
+            feature_dir=feature_dir,
+            reason="Current acceptance state is not a JSON object during recovery.",
+            evidence=[f"current acceptance digest: {acceptance_sha256}"],
+            route=route,
+            finding_id=finding_id,
+            expected_revision=expected_revision,
+        )
+    finding_preserved = any(
+        isinstance(item, dict)
+        and item.get("id") == finding_id
+        and item.get("route") == route
+        and item.get("status") == "open"
+        for item in acceptance.get("findings", [])
+    )
+    if (
+        workflow.get("stage") == target_stage
+        and workflow.get("status") == "active"
+        and workflow.get("revision") == expected_revision + 1
+        and acceptance_sha256 == invalidated_sha256
+        and acceptance.get("status") == "draft"
+        and acceptance.get("overall", {}).get("next_command") == route
+        and finding_preserved
+    ):
+        _clear_acceptance_repair_transaction(journal_path, backup_path)
+        recovered = envelope(
+            "ok",
+            f"Recovered completed acceptance repair route {route}.",
+            data={
+                **workflow,
+                "reopened_from": "accept",
+                "repair_route": route,
+                "finding_id": finding_id,
+                "repair_handoff_command": route,
+                "owning_stage_command": ACCEPTANCE_REPAIR_OWNERS[route],
+                "acceptance_state_path": _display_path(acceptance_path, root),
+                "acceptance_status": "draft",
+            },
+            show_argv=shown["show_argv"],
+        )
+        return _decorate_acceptance_repair_payload(
+            recovered,
+            root=root,
+            feature_dir=feature_dir,
+            route=route,
+        )
+    if (
+        workflow.get("stage") == "accept"
+        and workflow.get("status") in {"active", "blocked"}
+        and workflow.get("revision") == expected_revision
+    ):
+        if acceptance_sha256 == backup_sha256:
+            _clear_acceptance_repair_transaction(journal_path, backup_path)
+            return None
+        if acceptance_sha256 != invalidated_sha256 or not finding_preserved:
+            raise _acceptance_repair_recovery_error(
+                root=root,
+                feature_dir=feature_dir,
+                reason="Current acceptance draft changed after the repair journal was written.",
+                evidence=[
+                    f"expected invalidated digest: {invalidated_sha256}",
+                    f"current acceptance digest: {acceptance_sha256}",
+                    f"named finding preserved: {finding_preserved}",
+                ],
+                route=route,
+                finding_id=finding_id,
+                expected_revision=expected_revision,
+            )
+        try:
+            backup_bytes = _validated_acceptance_repair_backup(
+                backup_path=backup_path,
+                expected_sha256=backup_sha256,
+                finding_id=finding_id,
+                route=route,
+            )
+        except (OSError, ValueError, json.JSONDecodeError) as exc:
+            raise _acceptance_repair_recovery_error(
+                root=root,
+                feature_dir=feature_dir,
+                reason="Acceptance repair backup is unavailable for rollback.",
+                evidence=[f"backup read failure: {type(exc).__name__}: {exc}"],
+                route=route,
+                finding_id=finding_id,
+                expected_revision=expected_revision,
+            ) from exc
+        atomic_write_bytes(acceptance_path, backup_bytes)
+        _clear_acceptance_repair_transaction(journal_path, backup_path)
+        return None
+    raise _acceptance_repair_recovery_error(
+        root=root,
+        feature_dir=feature_dir,
+        reason="Interrupted acceptance repair does not match a safe automatic recovery phase.",
+        evidence=[
+            f"workflow stage/status/revision: {workflow.get('stage')}/{workflow.get('status')}/{workflow.get('revision')}",
+            f"acceptance status: {acceptance.get('status')}",
+            f"journal phase: {journal.get('phase')}",
+        ],
+        route=route,
+        finding_id=finding_id,
+        expected_revision=expected_revision,
+    )
+
+
+def route_human_acceptance_repair(
+    project_root: Path,
+    feature_dir: Path,
+    *,
+    route: str,
+    finding_id: str,
+    expected_revision: int,
+    evidence: list[str],
+) -> dict[str, Any]:
+    """Invalidate a failed verdict and atomically guard its workflow handoff."""
+
+    root = project_root.resolve()
+    resolved_feature_dir = _resolve_feature_dir(root, feature_dir)
+    normalized_route = str(route or "").strip()
+    target_stage = ACCEPTANCE_REPAIR_TARGETS.get(normalized_route)
+    if target_stage is None:
+        allowed = ", ".join(sorted(ACCEPTANCE_REPAIR_TARGETS))
+        raise ValueError(f"route must be one of: {allowed}")
+    normalized_finding = str(finding_id or "").strip()
+    if not normalized_finding:
+        raise ValueError("finding_id is required")
+    normalized_evidence = [str(item).strip() for item in evidence if str(item).strip()]
+    if not normalized_evidence:
+        raise ValueError("at least one sanitized evidence item is required")
+
+    state_path = resolved_feature_dir / ACCEPTANCE_FILENAME
+    with interprocess_lock(state_path.parent / ".human-acceptance.lock"):
+        recovered = _recover_acceptance_repair_transaction(
+            root=root,
+            feature_dir=resolved_feature_dir,
+        )
+        if recovered is not None:
+            return recovered
+        from .workflow_runtime import (
+            reopen_acceptance_workflow,
+            show_workflow,
+        )
+
+        workflow = show_workflow(resolved_feature_dir)
+        workflow_data = workflow["data"]
+        if (
+            workflow_data.get("stage") != "accept"
+            or workflow_data.get("status") != "active"
+            or workflow_data.get("revision") != expected_revision
+        ):
+            # Reuse the runtime's typed source/revision blocker before touching
+            # acceptance bytes. This keeps rejected repairs byte-identical and
+            # preserves any existing human blocker/tutorial.
+            return reopen_acceptance_workflow(
+                resolved_feature_dir,
+                target_stage=target_stage,
+                repair_route=normalized_route,
+                finding_id=normalized_finding,
+                expected_revision=expected_revision,
+                evidence=normalized_evidence,
+            )
+        if not state_path.is_file():
+            raise ValueError(f"missing {ACCEPTANCE_FILENAME}")
+        original_state_bytes = read_local_state_bytes(
+            state_path,
+            root=resolved_feature_dir,
+        )
+        state = _read_state(state_path)
+        validation = validate_human_acceptance(root, resolved_feature_dir)
+        if not validation["valid"]:
+            errors = "; ".join(validation["errors"])
+            raise ValueError(
+                f"human-acceptance state must be valid before repair routing: {errors}"
+            )
+        if state.get("status") not in {"rejected", "blocked"}:
+            raise ValueError(
+                "acceptance repair requires human-acceptance status rejected or blocked"
+            )
+        findings = state.get("findings")
+        if not isinstance(findings, list):
+            raise ValueError("human-acceptance findings must be an array")
+        finding = next(
+            (
+                item
+                for item in findings
+                if isinstance(item, dict) and item.get("id") == normalized_finding
+            ),
+            None,
+        )
+        if finding is None:
+            raise ValueError(f"acceptance finding '{normalized_finding}' was not found")
+        if finding.get("status") != "open":
+            raise ValueError(f"acceptance finding '{normalized_finding}' is not open")
+        if finding.get("route") != normalized_route:
+            raise ValueError(
+                f"acceptance finding '{normalized_finding}' routes to "
+                f"{finding.get('route') or 'missing'}, not {normalized_route}"
+            )
+
+        finding_evidence = finding.get("evidence")
+        if not isinstance(finding_evidence, list):
+            finding_evidence = []
+        finding["evidence"] = list(
+            dict.fromkeys([*map(str, finding_evidence), *normalized_evidence])
+        )
+        for scenario in state.get("scenarios", []):
+            if not isinstance(scenario, dict):
+                continue
+            scenario["verdict"] = "pending"
+            for step in scenario.get("steps", []):
+                if not isinstance(step, dict):
+                    continue
+                step["result"] = "pending"
+                step["observed_result"] = None
+                step["evidence"] = []
+        state["status"] = "draft"
+        source = state.get("source")
+        if isinstance(source, dict):
+            source["prepared_from_sha256"] = ""
+        state["cursor"] = {
+            "scenario_id": finding.get("scenario_id"),
+            "step_id": finding.get("step_id"),
+        }
+        state["overall"] = {
+            "verdict": "pending",
+            "summary": (
+                f"Acceptance finding {normalized_finding} is being repaired through "
+                f"{normalized_route}; the prior verdict is no longer valid."
+            ),
+            "next_command": normalized_route,
+        }
+        journal_path, backup_path = _acceptance_repair_paths(resolved_feature_dir)
+        backup_path.unlink(missing_ok=True)
+        atomic_write_bytes(backup_path, original_state_bytes)
+        journal = {
+            "version": 1,
+            "phase": "prepared",
+            "finding_id": normalized_finding,
+            "route": normalized_route,
+            "target_stage": target_stage,
+            "owning_stage_command": ACCEPTANCE_REPAIR_OWNERS[normalized_route],
+            "expected_revision": expected_revision,
+            "backup_sha256": hashlib.sha256(original_state_bytes).hexdigest(),
+            "invalidated_acceptance_sha256": hashlib.sha256(
+                (json.dumps(state, ensure_ascii=False, indent=2) + "\n").encode(
+                    "utf-8"
+                )
+            ).hexdigest(),
+            "acceptance_file": ACCEPTANCE_FILENAME,
+            "backup_file": ACCEPTANCE_REPAIR_BACKUP_FILENAME,
+        }
+        try:
+            _write_acceptance_repair_journal(journal_path, journal)
+        except OSError:
+            backup_path.unlink(missing_ok=True)
+            raise
+        try:
+            _write_state(state_path, state)
+        except OSError:
+            if (
+                read_local_state_bytes(state_path, root=resolved_feature_dir)
+                == original_state_bytes
+            ):
+                _clear_acceptance_repair_transaction(journal_path, backup_path)
+            raise
+        journal["phase"] = "acceptance-invalidated"
+        _write_acceptance_repair_journal(journal_path, journal)
+
+        try:
+            routed = reopen_acceptance_workflow(
+                resolved_feature_dir,
+                target_stage=target_stage,
+                repair_route=normalized_route,
+                finding_id=normalized_finding,
+                expected_revision=expected_revision,
+                evidence=normalized_evidence,
+            )
+        except Exception:
+            # The runtime mutation may have committed before its caller observed
+            # a transport/filesystem exception. Re-read both durable states via
+            # the journal recovery state machine: it returns the committed
+            # payload, rolls back only at the original accept revision, and
+            # preserves recovery evidence for every ambiguous phase.
+            recovered_after_error = _recover_acceptance_repair_transaction(
+                root=root,
+                feature_dir=resolved_feature_dir,
+            )
+            if recovered_after_error is not None:
+                return recovered_after_error
+            raise
+
+        journal["phase"] = "workflow-reopened"
+        _write_acceptance_repair_journal(journal_path, journal)
+        _clear_acceptance_repair_transaction(journal_path, backup_path)
+
+    return _decorate_acceptance_repair_payload(
+        routed,
+        root=root,
+        feature_dir=resolved_feature_dir,
+        route=normalized_route,
+    )
+
+
 def _prepare_human_acceptance_locked(
     root: Path, resolved_feature_dir: Path
 ) -> dict[str, Any]:
+    from .workflow_runtime import (
+        MissingWorkflowState,
+        WorkflowRuntimeError,
+        show_workflow,
+    )
+
+    try:
+        workflow = show_workflow(resolved_feature_dir)
+    except MissingWorkflowState:
+        workflow = None
+    except WorkflowRuntimeError as exc:
+        return {
+            "status": "blocked",
+            "error_code": "workflow-runtime-validation-blocked",
+            "required_action_owner": "agent",
+            "state_path": _display_path(
+                resolved_feature_dir / ACCEPTANCE_FILENAME, root
+            ),
+            "errors": [str(exc)],
+            "runtime_error": exc.to_envelope(),
+            "next_command": "Repair terminal workflow evidence before any acceptance write.",
+        }
+    if (
+        workflow is not None
+        and workflow["data"].get("stage") == "accept"
+        and workflow["data"].get("status") == "completed"
+    ):
+        return {
+            "status": "blocked",
+            "error_code": "terminal-feature-immutable",
+            "required_action_owner": "agent",
+            "state_path": _display_path(
+                resolved_feature_dir / ACCEPTANCE_FILENAME, root
+            ),
+            "errors": [
+                "The feature workflow is already terminal; its accepted evidence is immutable."
+            ],
+            "workflow": workflow["data"],
+            "next_command": (
+                "Preserve this feature and start a new sp-specify or spx-specify "
+                "workflow for changed implementation scope."
+            ),
+        }
+
     summary_path = resolved_feature_dir / IMPLEMENTATION_SUMMARY_FILENAME
     state_path = resolved_feature_dir / ACCEPTANCE_FILENAME
     if not summary_path.is_file():
@@ -369,6 +1049,9 @@ def validate_human_acceptance(
                 "cursor must be null or reference an existing scenario and step"
             )
 
+    if status in {"draft", "ready", "in_progress"} and overall_verdict != "pending":
+        errors.append(f"{status} status requires overall.verdict=pending")
+
     if status == "accepted":
         if not required_verdicts or any(
             verdict != "pass" for verdict in required_verdicts
@@ -393,21 +1076,31 @@ def validate_human_acceptance(
         errors.append("blocked status requires overall.verdict=blocked")
     if status == "blocked" and not findings:
         errors.append("blocked status requires a routed acceptance finding")
+    contract_valid = not errors
     if require_accepted and status != "accepted":
         errors.append("human acceptance closeout requires status=accepted")
 
-    return _validation_payload(root, state_path, state, errors, stale=stale)
+    return _validation_payload(
+        root,
+        state_path,
+        state,
+        errors,
+        stale=stale,
+        contract_valid=contract_valid,
+    )
 
 
 def acceptance_closeout_blockers(
     feature_dir: Path,
     *,
-    acceptance_errors: list[str] | None = None,
+    acceptance: Mapping[str, Any] | None = None,
     hook_errors: list[str] | None = None,
+    runtime: Mapping[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
     """Build canonical blockers for prepare/validate/closeout CLI stops."""
 
     blockers: list[dict[str, Any]] = []
+    context = dict(acceptance or {})
     closeout_argv = [
         "specify",
         "accept",
@@ -417,33 +1110,141 @@ def acceptance_closeout_blockers(
         "--format",
         "json",
     ]
-    errors = [
-        str(item).strip() for item in (acceptance_errors or []) if str(item).strip()
+    prepare_argv = [
+        "specify",
+        "accept",
+        "prepare",
+        "--feature-dir",
+        str(feature_dir),
+        "--format",
+        "json",
     ]
+    show_argv = [
+        "specify",
+        "workflow",
+        "show",
+        "--feature-dir",
+        str(feature_dir),
+        "--format",
+        "json",
+    ]
+    errors = [
+        str(item).strip()
+        for item in (context.get("errors") or [])
+        if str(item).strip()
+    ]
+    runtime_error = context.get("runtime_error")
+    if (
+        context.get("error_code") == "workflow-runtime-validation-blocked"
+        and isinstance(runtime_error, Mapping)
+    ):
+        runtime_blockers = runtime_error.get("blockers")
+        if isinstance(runtime_blockers, list) and runtime_blockers:
+            blockers.extend(
+                dict(item) for item in runtime_blockers if isinstance(item, Mapping)
+            )
+            errors = []
     if errors:
-        needs_human = any(
-            "status=accepted" in item or "human acceptance" in item.casefold()
-            for item in errors
+        status = str(context.get("status") or "missing").strip().lower()
+        contract_valid = context.get("contract_valid") is True
+        routes = [
+            dict(item)
+            for item in (context.get("finding_routes") or [])
+            if isinstance(item, Mapping) and item.get("status") == "open"
+        ]
+        routed = routes[0] if routes else {}
+        route = str(routed.get("route") or "")
+        needs_human = (
+            context.get("required_action_owner") == "user"
+            or route == "human-action"
+            or (contract_valid and status in {"draft", "ready", "in_progress"})
         )
+        if needs_human:
+            category = "human-review"
+            owner = "user"
+            summary = "Human product acceptance has not reached an accepted verdict."
+            exact_next_action = (
+                "Run sp-accept or spx-accept and guide the human through every "
+                "required real-product scenario before retrying closeout."
+            )
+            resume_argv = closeout_argv
+        elif route in ACCEPTANCE_REPAIR_TARGETS:
+            category = "artifact-or-state"
+            owner = "agent"
+            summary = "A rejected or blocked acceptance finding requires agent-owned repair routing."
+            exact_next_action = (
+                f"Run accept route-repair for finding {routed.get('id') or 'unknown'} "
+                f"through {route}, using sanitized evidence already recorded by the "
+                "human, then resume the owning stage."
+            )
+            resume_argv = show_argv
+        elif context.get("error_code") == "terminal-feature-immutable":
+            category = "conflict-or-drift"
+            owner = "agent"
+            summary = "The terminal feature and its accepted evidence are immutable."
+            exact_next_action = str(
+                context.get("next_command")
+                or "Preserve this feature and start a new specification workflow for changed scope."
+            )
+            resume_argv = show_argv
+        else:
+            category = "artifact-or-state"
+            owner = "agent"
+            summary = "The human acceptance artifact is missing, stale, unreadable, or invalid."
+            exact_next_action = (
+                "Preserve any recoverable human evidence, then use accept prepare and "
+                "the owning SP/SPX acceptance workflow to deterministically rebuild or "
+                "repair human-acceptance.json before asking the human to continue."
+            )
+            resume_argv = prepare_argv
         blockers.append(
             _acceptance_blocker(
                 blocker_id="ACCEPTANCE-NOT-CLOSED",
-                category="human-review" if needs_human else "artifact-or-state",
-                owner="user" if needs_human else "agent",
-                summary=(
-                    "Human product acceptance has not reached an accepted verdict."
-                    if needs_human
-                    else "The human acceptance artifact is incomplete or invalid."
-                ),
+                category=category,
+                owner=owner,
+                summary=summary,
                 evidence=errors,
-                exact_next_action=(
-                    "Run sp-accept or spx-accept and guide the human through every required scenario before retrying closeout."
-                    if needs_human
-                    else "Repair or rebuild human-acceptance.json, then validate it before retrying closeout."
-                ),
+                exact_next_action=exact_next_action,
                 unblock_criteria="human-acceptance.json is fresh, schema-valid, and records status=accepted with every required scenario passing.",
-                resume_argv=closeout_argv,
+                resume_argv=resume_argv,
                 human_action_required=needs_human,
+            )
+        )
+    if runtime is not None:
+        runtime_data = runtime.get("data")
+        runtime_data = dict(runtime_data) if isinstance(runtime_data, Mapping) else {}
+        stage = str(runtime_data.get("stage") or "missing")
+        status = str(runtime_data.get("status") or "missing")
+        runtime_next = runtime.get("next_argv")
+        runtime_show = runtime.get("show_argv")
+        resume_argv = (
+            [str(item) for item in runtime_next]
+            if isinstance(runtime_next, list) and runtime_next
+            else (
+                [str(item) for item in runtime_show]
+                if isinstance(runtime_show, list) and runtime_show
+                else show_argv
+            )
+        )
+        blockers.append(
+            _acceptance_blocker(
+                blocker_id="ACCEPTANCE-RUNTIME-OWNER",
+                category="workflow-validation",
+                owner="agent",
+                summary=(
+                    "Acceptance is valid, but the phase runtime is not active at accept."
+                ),
+                evidence=[
+                    f"workflow stage/status: {stage}/{status}",
+                    "required workflow stage/status: accept/active",
+                ],
+                exact_next_action=(
+                    "Follow the phase runtime's exact next_argv until accept is active; "
+                    "do not reconstruct or skip a stage."
+                ),
+                unblock_criteria="The workflow runtime is active at accept at its current revision.",
+                resume_argv=resume_argv,
+                human_action_required=False,
             )
         )
     hook_evidence = [
@@ -478,7 +1279,7 @@ def _acceptance_blocker(
     resume_argv: list[str],
     human_action_required: bool,
 ) -> dict[str, Any]:
-    resume_command = subprocess.list2cmdline(resume_argv)
+    resume_command = render_command(tuple(resume_argv))
     blocker: dict[str, Any] = {
         "version": 1,
         "blocker_id": blocker_id,
@@ -572,7 +1373,7 @@ def _acceptance_blocker(
 
 
 def _read_state(path: Path) -> dict[str, Any]:
-    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload = json.loads(read_local_state_text(path, root=path.parent))
     if not isinstance(payload, dict):
         raise ValueError("top-level JSON must be an object")
     return payload
@@ -821,16 +1622,30 @@ def _validation_payload(
     errors: list[str],
     *,
     stale: bool,
+    contract_valid: bool = False,
 ) -> dict[str, Any]:
     overall = (state or {}).get("overall")
     next_command_value = (
         overall.get("next_command") if isinstance(overall, dict) else None
     )
+    findings = (state or {}).get("findings")
+    finding_routes = [
+        {
+            "id": str(item.get("id") or ""),
+            "status": str(item.get("status") or ""),
+            "route": str(item.get("route") or ""),
+            "classification": str(item.get("classification") or ""),
+        }
+        for item in findings
+        if isinstance(findings, list) and isinstance(item, dict)
+    ] if isinstance(findings, list) else []
     return {
         "status": str((state or {}).get("status") or "missing"),
         "valid": not errors,
+        "contract_valid": contract_valid,
         "accepted": not errors and (state or {}).get("status") == "accepted",
         "stale": stale,
+        "finding_routes": finding_routes,
         "state_path": _display_path(state_path, project_root),
         "errors": errors,
         "next_command": str(next_command_value).strip()

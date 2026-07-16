@@ -55,6 +55,7 @@ Required context inputs:
 
   - `query_ready`: read top-level `minimal_live_reads` first, then use lane-level `first_pass_paths` reasons.
   - `review`: perform only the returned `minimal_live_reads` before continuing and inspect `coverage_diagnostics`.
+  - `needs_rebuild`: route by `recommended_next_action.action_id`, not readiness alone. Preserve resumable actions such as `complete_scan_packets`; only `action_id=project_cognition.rebuild` may consume `rebuild_reasons[]` and `recommended_next_action.workflow_routes.classic.steps` as a rebuild handoff.
   - `blocked`: report the blocking runtime issue and continue with live evidence only where this workflow allows degraded navigation.
 - `PROJECT-HANDBOOK.md` only when compatibility/export evidence is explicitly relevant.
 - `.specify/prd/status.json` as the stable PRD scan freshness record when present.

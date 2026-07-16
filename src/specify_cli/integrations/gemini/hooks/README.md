@@ -1,10 +1,10 @@
 # Gemini Hook Assets
 
 This directory contains the project-local Gemini CLI native hook assets that
-`specify init --ai gemini` installs into `.gemini/hooks/`.
+`{{specify-subcmd:init --ai gemini}}` installs into `.gemini/hooks/`.
 
 The hooks in this directory are intentionally thin adapters. They translate
-Gemini-native hook events into the shared `specify hook ...` command surface so
+Gemini-native hook events into the shared `{{specify-subcmd:hook --help}}` command surface so
 workflow truth remains centralized under `src/specify_cli/hooks/`.
 
 Managed native hook coverage:

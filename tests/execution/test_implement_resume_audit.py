@@ -16,7 +16,10 @@ from specify_cli.execution.implementation_review import (
     write_task_ledger,
     write_task_review_record,
 )
-from specify_cli.implementation_summary import build_implementation_summary
+from specify_cli.implementation_summary import (
+    build_implementation_summary,
+    implementation_closeout_blockers,
+)
 
 
 def _write_basic_feature(
@@ -2306,6 +2309,12 @@ def test_implementation_summary_exposes_pending_ui_human_review(tmp_path: Path) 
     assert blocker["category"] == "human-review"
     assert blocker["human_action_required"] is True
     assert len(blocker["human_action_guide"]["steps"]) == 4
+    assert blocker["resume"]["argv"][:3] == [
+        "specify",
+        "implement",
+        "resume-audit",
+    ]
+    assert str(feature_dir) in blocker["resume"]["argv"]
     assert (
         "viewport/state"
         in " ".join(blocker["human_action_guide"]["evidence_to_return"]).lower()
@@ -2366,6 +2375,12 @@ def test_implementation_summary_renders_protected_ci_babysitter_guide(
     Draft202012Validator(schema).validate(blocker)
     assert blocker["category"] == "external-system"
     assert blocker["human_action_required"] is True
+    assert blocker["resume"]["argv"][:3] == [
+        "specify",
+        "implement",
+        "resume-audit",
+    ]
+    assert str(feature_dir) in blocker["resume"]["argv"]
     assert guide["steps"][0]["command"] == (
         "git branch --show-current; git rev-parse HEAD; git status --short"
     )
@@ -2379,6 +2394,71 @@ def test_implementation_summary_renders_protected_ci_babysitter_guide(
         "Resume:",
     ):
         assert required in report
+
+
+def test_closeout_normalizes_malformed_task_lifecycle_blockers(tmp_path: Path) -> None:
+    feature_dir = tmp_path / ".specify" / "features" / "001-demo"
+    _write_basic_feature(feature_dir)
+    lifecycle_dir = feature_dir / "implementation-review" / "tasks"
+    lifecycle_dir.mkdir(parents=True)
+    (lifecycle_dir / "T001.json").write_text(
+        json.dumps(
+            {
+                "task_id": "T001",
+                "status": "blocked",
+                "blockers": [
+                    {
+                        "classification": "technical",
+                        "owner": "unexpected",
+                        "evidence": ["owner field is corrupt"],
+                        "exact_next_action": "Repair the lifecycle record",
+                        "approval_question": None,
+                        "unblock_criteria": "The lifecycle record validates",
+                        "implementation_can_continue": False,
+                        "completion_impact": "mandatory_for_completion",
+                    },
+                    {
+                        "classification": "technical",
+                        "owner": "agent",
+                        "evidence": [],
+                        "exact_next_action": "Repair the lifecycle record",
+                        "approval_question": None,
+                        "unblock_criteria": "The lifecycle record validates",
+                        "implementation_can_continue": False,
+                        "completion_impact": "mandatory_for_completion",
+                    },
+                ],
+                "ui_verification": {"applicable": False},
+            }
+        ),
+        encoding="utf-8",
+    )
+    blockers = implementation_closeout_blockers(
+        feature_dir,
+        resume_audit={
+            "status": "fail",
+            "trusted_terminal_state": False,
+            "open_gaps": ["task lifecycle validation failed"],
+        },
+    )
+    schema = json.loads(
+        (
+            Path(__file__).resolve().parents[2]
+            / "templates"
+            / "workflow-blocker-schema.json"
+        ).read_text(encoding="utf-8")
+    )
+    validator = Draft202012Validator(schema)
+
+    assert len(blockers) == 3
+    assert all(list(validator.iter_errors(blocker)) == [] for blocker in blockers)
+    assert [blocker["code"] for blocker in blockers[:2]] == [
+        "invalid-task-lifecycle-blocker",
+        "invalid-task-lifecycle-blocker",
+    ]
+    assert all(blocker["owner"] == "agent" for blocker in blockers[:2])
+    assert "invalid owner" in " ".join(blockers[0]["evidence"])
+    assert "non-empty" in " ".join(blockers[1]["evidence"])
 
 
 def test_implementation_helpers_reject_feature_paths_outside_project(

@@ -103,6 +103,22 @@ def _seed_repo(
     )
 
 
+def _write_pinned_launcher_config(repo: Path) -> None:
+    import json
+
+    (repo / ".specify" / "config.json").write_text(
+        json.dumps(
+            {
+                "specify_launcher": {
+                    "command": "python -m specify_cli",
+                    "argv": ["python", "-m", "specify_cli"],
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
 def _run_bash_update(repo: Path, agent_type: str = "codex") -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         ["bash", _bash_path(BASH_SCRIPT), agent_type],
@@ -212,6 +228,23 @@ def test_bash_script_inserts_managed_block_without_overwriting_user_content(
     assert content[: content.index(BLOCK_START)] == initial
     assert BLOCK_START in content
     assert BLOCK_END in content
+
+
+@pytest.mark.skipif(shutil.which("bash") is None, reason="bash is not installed")
+def test_bash_script_binds_managed_commands_to_project_launcher(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _seed_repo(repo)
+    _write_pinned_launcher_config(repo)
+
+    result = _run_bash_update(repo)
+
+    assert result.returncode == 0, result.stderr
+    content = (repo / "AGENTS.md").read_text(encoding="utf-8")
+    assert "`python -m specify_cli learning start --command <workflow> --format json`" in content
+    assert "`python -m specify_cli --help`" in content
+    assert "`specify learning start" not in content
+    assert "`specify --help`" not in content
 
 
 @pytest.mark.skipif(shutil.which("bash") is None, reason="bash is not installed")
@@ -338,6 +371,27 @@ def test_powershell_script_replaces_existing_managed_block_only_and_preserves_su
     assert content.count(BLOCK_START) == 1
     assert content.count(BLOCK_END) == 1
     assert "old block" not in content
+
+
+def test_powershell_script_binds_managed_commands_to_project_launcher(
+    tmp_path: Path,
+) -> None:
+    if POWERSHELL is None:
+        pytest.skip("PowerShell is not installed")
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _seed_repo(repo)
+    _write_pinned_launcher_config(repo)
+
+    result = _run_powershell_update(repo)
+
+    assert result.returncode == 0, result.stderr
+    content = _read_utf8_without_bom(repo / "AGENTS.md")
+    assert "`python -m specify_cli learning start --command <workflow> --format json`" in content
+    assert "`python -m specify_cli --help`" in content
+    assert "`specify learning start" not in content
+    assert "`specify --help`" not in content
 
 
 def test_powershell_script_does_not_pair_stale_begin_with_later_end_and_is_repeat_safe(

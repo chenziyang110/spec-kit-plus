@@ -126,8 +126,9 @@ def test_install_codex_team_assets_creates_notify_hook_config(tmp_path: Path):
     with open(config_path, "r", encoding="utf-8") as f:
         config = json.load(f)
         
+    launcher = resolve_specify_launcher_spec()
     assert "notify" in config
-    assert config["notify"] == "specify sp-teams notify-hook"
+    assert config["notify"] == f"{launcher.command} sp-teams notify-hook"
 
 
 def test_install_codex_team_assets_creates_codex_config_with_argv_notify(monkeypatch, tmp_path: Path):
@@ -149,7 +150,9 @@ def test_install_codex_team_assets_creates_codex_config_with_argv_notify(monkeyp
     codex_config = project_root / ".codex" / "config.toml"
     assert codex_config.exists()
     content = codex_config.read_text(encoding="utf-8")
-    assert 'notify = ["specify", "sp-teams", "notify-hook"]' in content
+    launcher = resolve_specify_launcher_spec()
+    expected_notify = json.dumps([*launcher.argv, "sp-teams", "notify-hook"])
+    assert f"notify = {expected_notify}" in content
     assert "[mcp_servers.specify_teams]" in content
     assert 'command = "specify-teams-mcp"' in content
     assert ".codex/config.toml" in manifest.files
@@ -184,9 +187,11 @@ def test_install_codex_team_assets_restores_existing_configs_on_uninstall(monkey
     )
 
     merged_specify_config = json.loads(specify_config.read_text(encoding="utf-8"))
-    assert merged_specify_config["notify"] == "specify sp-teams notify-hook"
+    launcher = resolve_specify_launcher_spec()
+    assert merged_specify_config["notify"] == f"{launcher.command} sp-teams notify-hook"
     assert merged_specify_config["preserve_me"] == {"enabled": True}
-    assert 'notify = ["specify", "sp-teams", "notify-hook"]' in codex_config.read_text(encoding="utf-8")
+    expected_notify = json.dumps([*launcher.argv, "sp-teams", "notify-hook"])
+    assert f"notify = {expected_notify}" in codex_config.read_text(encoding="utf-8")
 
     assert ".codex/config.toml" not in manifest.files
     assert ".specify/config.json" not in manifest.files

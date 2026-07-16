@@ -544,8 +544,8 @@ func TestRunBlocksSplitBrainBaseline(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected split-brain agreement error")
 	}
-	if !strings.Contains(err.Error(), "rewrite_status_from_db_metadata") {
-		t.Fatalf("error = %q, want rewrite_status_from_db_metadata", err.Error())
+	if !strings.Contains(err.Error(), "run_map_scan_build") {
+		t.Fatalf("error = %q, want graph-store rebuild", err.Error())
 	}
 }
 
@@ -558,8 +558,8 @@ func TestLexiconBlocksSplitBrainBaseline(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected split-brain agreement error")
 	}
-	if !strings.Contains(err.Error(), "rewrite_status_from_db_metadata") {
-		t.Fatalf("error = %q, want rewrite_status_from_db_metadata", err.Error())
+	if !strings.Contains(err.Error(), "run_map_scan_build") {
+		t.Fatalf("error = %q, want graph-store rebuild", err.Error())
 	}
 }
 

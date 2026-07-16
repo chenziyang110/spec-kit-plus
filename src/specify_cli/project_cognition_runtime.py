@@ -18,6 +18,7 @@ DEFAULT_VERSION = "latest"
 REQUIRED_COMMANDS = (
     "build-from-scan",
     "init-empty",
+    "repair-status",
     "generate-ignore",
     "scan-set",
     "scan-prepare",

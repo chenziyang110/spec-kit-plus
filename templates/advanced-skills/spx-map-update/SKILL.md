@@ -37,7 +37,10 @@ Never finalize `partial_refresh`, `blocked`, or `needs_rebuild` as fresh.
 
 Validate the affected scope with
 `{{specify-subcmd:project-cognition compass --intent implement --query "<changed scope>" --format json}}`
-and targeted expansion. If the runtime reports `needs_rebuild`, stop and route to
-`$spx-map-rebuild`, but do not invoke `$spx-map-rebuild` in this run. Report the
+and targeted expansion. Route by `recommended_next_action.action_id`, not
+`needs_rebuild` alone. Preserve resumable actions such as
+`complete_scan_packets`; only `action_id=project_cognition.rebuild` may consume
+`rebuild_reasons[]` and the Advanced workflow route to recommend
+`$spx-map-rebuild`. Do not invoke `$spx-map-rebuild` in this run. Report the
 updated scope, validation, gaps, and recovery state. This invocation authorizes
 only this workflow stage; a recovery handoff does not authorize another one.

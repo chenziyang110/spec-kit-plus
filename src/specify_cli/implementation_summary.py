@@ -7,6 +7,7 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
+from specify_cli.agent_api import validate_workflow_blocker_payload
 from specify_cli.atomic_io import atomic_write_text
 from specify_cli.execution.implementation_review import (
     branch_review_path,
@@ -14,6 +15,7 @@ from specify_cli.execution.implementation_review import (
     task_review_path,
 )
 from specify_cli.implement_audit import _parse_tasks
+from specify_cli.launcher import render_command
 
 
 SUMMARY_FILENAME = "implementation-summary.md"
@@ -112,6 +114,18 @@ def build_implementation_summary(
     return payload
 
 
+def _implementation_resume_argv(feature_dir: Path) -> list[str]:
+    return [
+        "specify",
+        "implement",
+        "resume-audit",
+        "--feature-dir",
+        str(feature_dir),
+        "--format",
+        "json",
+    ]
+
+
 def implementation_closeout_blockers(
     feature_dir: Path,
     *,
@@ -121,15 +135,7 @@ def implementation_closeout_blockers(
     """Return canonical blockers for an implementation closeout stop."""
 
     blockers = _implementation_blockers(feature_dir)
-    resume_argv = [
-        "specify",
-        "implement",
-        "resume-audit",
-        "--feature-dir",
-        str(feature_dir),
-        "--format",
-        "json",
-    ]
+    resume_argv = _implementation_resume_argv(feature_dir)
     if hook_errors:
         evidence = [str(item).strip() for item in hook_errors if str(item).strip()]
         blockers.append(
@@ -186,7 +192,7 @@ def _implementation_gate_blocker(
     unblock_criteria: str,
     resume_argv: list[str],
 ) -> dict[str, Any]:
-    resume_command = subprocess.list2cmdline(resume_argv)
+    resume_command = render_command(tuple(resume_argv))
     return {
         "version": 1,
         "blocker_id": blocker_id,
@@ -259,7 +265,31 @@ def _implementation_blockers(feature_dir: Path) -> list[dict[str, Any]]:
         task_id = str(payload.get("task_id") or lifecycle_path.stem).upper()
         for index, raw_blocker in enumerate(payload.get("blockers") or [], start=1):
             if isinstance(raw_blocker, dict):
-                blockers.append(_lifecycle_blocker_detail(task_id, index, raw_blocker))
+                source_errors = _lifecycle_blocker_source_errors(raw_blocker)
+                if source_errors:
+                    blockers.append(
+                        _invalid_lifecycle_blocker_detail(
+                            feature_dir,
+                            task_id,
+                            index,
+                            source_errors,
+                        )
+                    )
+                    continue
+                detail = _lifecycle_blocker_detail(
+                    feature_dir, task_id, index, raw_blocker
+                )
+                output_errors = validate_workflow_blocker_payload(detail)
+                blockers.append(
+                    detail
+                    if not output_errors
+                    else _invalid_lifecycle_blocker_detail(
+                        feature_dir,
+                        task_id,
+                        index,
+                        [f"rendered blocker: {error}" for error in output_errors],
+                    )
+                )
 
         verification = payload.get("ui_verification")
         if isinstance(verification, dict) and verification.get("applicable") is True:
@@ -276,11 +306,125 @@ def _implementation_blockers(feature_dir: Path) -> list[dict[str, Any]]:
                 "pending-human-review",
             }:
                 review_ref = str(verification.get("human_review_ref") or "not recorded")
-                blockers.append(_ui_human_blocker(task_id, review_ref))
+                blockers.append(
+                    _ui_human_blocker(feature_dir, task_id, review_ref)
+                )
     return blockers
 
 
+def _lifecycle_blocker_source_errors(blocker: dict[str, Any]) -> list[str]:
+    required_fields = (
+        "classification",
+        "owner",
+        "evidence",
+        "exact_next_action",
+        "approval_question",
+        "unblock_criteria",
+        "implementation_can_continue",
+        "completion_impact",
+    )
+    errors = [
+        f"missing required field: {field}"
+        for field in required_fields
+        if field not in blocker
+    ]
+    classification = str(blocker.get("classification") or "").strip()
+    if classification not in {
+        "technical",
+        "external",
+        "human-action",
+        "verification_policy",
+        "project_cognition_readiness",
+        "baseline_timeout",
+    }:
+        errors.append(f"invalid classification: {classification or 'empty'}")
+    owner = str(blocker.get("owner") or "").strip()
+    if owner not in {"agent", "user", "maintainer", "external-system"}:
+        errors.append(f"invalid owner: {owner or 'empty'}")
+    completion_impact = str(blocker.get("completion_impact") or "").strip()
+    if completion_impact not in {
+        "mandatory_for_completion",
+        "optional_cleanup",
+        "external_baseline_maintenance",
+        "follow_up_risk",
+    }:
+        errors.append(f"invalid completion_impact: {completion_impact or 'empty'}")
+    evidence = blocker.get("evidence")
+    if isinstance(evidence, str):
+        evidence_valid = bool(evidence.strip())
+    elif isinstance(evidence, list):
+        evidence_valid = bool(evidence) and all(
+            isinstance(item, str) and bool(item.strip()) for item in evidence
+        )
+    else:
+        evidence_valid = False
+    if not evidence_valid:
+        errors.append("evidence must be a non-empty string or string list")
+    for field in ("exact_next_action", "unblock_criteria"):
+        if not isinstance(blocker.get(field), str) or not str(blocker[field]).strip():
+            errors.append(f"{field} must be a non-empty string")
+    if not isinstance(blocker.get("implementation_can_continue"), bool):
+        errors.append("implementation_can_continue must be a boolean")
+    approval_question = blocker.get("approval_question")
+    if approval_question is not None and not isinstance(approval_question, str):
+        errors.append("approval_question must be a string or null")
+    if owner in {"user", "maintainer"} and not str(approval_question or "").strip():
+        errors.append(f"approval_question is required for owner {owner}")
+    return errors
+
+
+def _invalid_lifecycle_blocker_detail(
+    feature_dir: Path,
+    task_id: str,
+    index: int,
+    errors: list[str],
+) -> dict[str, Any]:
+    resume_argv = _implementation_resume_argv(feature_dir)
+    resume_command = render_command(tuple(resume_argv))
+    return {
+        "version": 1,
+        "blocker_id": f"{task_id}-B{index:02d}",
+        "code": "invalid-task-lifecycle-blocker",
+        "workflow": "sp-implement|spx-implement",
+        "stage": f"task {task_id}",
+        "category": "artifact-or-state",
+        "owner": "agent",
+        "summary": f"{task_id}: task lifecycle blocker state is invalid.",
+        "details": (
+            "The lifecycle record cannot be trusted or forwarded until its blocker "
+            "entry satisfies the deterministic contract."
+        ),
+        "evidence": [f"blocker {index}: {error}" for error in errors]
+        or [f"blocker {index}: lifecycle blocker validation failed"],
+        "attempted_recovery": [
+            {
+                "action": "Validate the task lifecycle blocker before closeout.",
+                "result": "The recorded blocker failed its required field contract.",
+            }
+        ],
+        "exact_next_action": (
+            f"Repair blocker {index} in the {task_id} task lifecycle record, then "
+            "rerun the implementation resume audit."
+        ),
+        "approval_question": None,
+        "unblock_criteria": (
+            "Every task lifecycle blocker has a supported classification and owner, "
+            "non-empty evidence and recovery fields, and valid typed values."
+        ),
+        "affected_scope": [task_id, "implementation closeout"],
+        "can_continue": True,
+        "human_action_required": False,
+        "human_action_guide": None,
+        "resume": {
+            "instruction": f"Run the exact resume audit command: {resume_command}",
+            "command": resume_command,
+            "argv": resume_argv,
+        },
+    }
+
+
 def _lifecycle_blocker_detail(
+    feature_dir: Path,
     task_id: str,
     index: int,
     blocker: dict[str, Any],
@@ -321,6 +465,8 @@ def _lifecycle_blocker_detail(
     )
     if human_required and protected_ci:
         category = "external-system"
+    resume_argv = _implementation_resume_argv(feature_dir)
+    resume_command = render_command(tuple(resume_argv))
     detail: dict[str, Any] = {
         "version": 1,
         "blocker_id": f"{task_id}-B{index:02d}",
@@ -340,8 +486,12 @@ def _lifecycle_blocker_detail(
         "human_action_required": human_required,
         "human_action_guide": None,
         "resume": {
-            "instruction": f"Resume implementation at {task_id} after returning the requested evidence.",
-            "command": "sp-implement (Classic) or spx-implement (Advanced)",
+            "instruction": (
+                f"After returning the requested evidence for {task_id}, run the "
+                f"exact implementation resume audit: {resume_command}"
+            ),
+            "command": resume_command,
+            "argv": resume_argv,
         },
     }
     if human_required:
@@ -466,8 +616,14 @@ def _human_action_guide(
     }
 
 
-def _ui_human_blocker(task_id: str, review_ref: str) -> dict[str, Any]:
+def _ui_human_blocker(
+    feature_dir: Path,
+    task_id: str,
+    review_ref: str,
+) -> dict[str, Any]:
     summary = f"{task_id}: UI visual approval is pending; review target: {review_ref}"
+    resume_argv = _implementation_resume_argv(feature_dir)
+    resume_command = render_command(tuple(resume_argv))
     return {
         "version": 1,
         "blocker_id": f"{task_id}-UI-REVIEW",
@@ -544,8 +700,12 @@ def _ui_human_blocker(task_id: str, review_ref: str) -> dict[str, Any]:
             "resume_instruction": f"Return the review evidence and resume {task_id} with sp-implement or spx-implement.",
         },
         "resume": {
-            "instruction": f"Resume UI acceptance for {task_id} after the human decision is returned.",
-            "command": "sp-implement (Classic) or spx-implement (Advanced)",
+            "instruction": (
+                f"After the human decision for {task_id} is returned, run the exact "
+                f"implementation resume audit: {resume_command}"
+            ),
+            "command": resume_command,
+            "argv": resume_argv,
         },
     }
 

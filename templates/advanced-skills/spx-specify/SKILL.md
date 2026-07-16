@@ -30,11 +30,14 @@ brief adds no decision value.
 
 After the feature directory exists, enter or resume `specify` through the
 workflow runtime before substantive artifact work. Keep specification truth in
-the contract rather than reconstructing phase state. Run
+the contract rather than reconstructing phase state. Create or resume rich
+`workflow-state.md` from the installed template for specification evidence,
+resume details, and Learning; it does not own phase order or runtime revision.
+Run
 `{{specify-subcmd:hook validate-state --command specify --feature-dir <feature-dir> --autofix --format json}}`
 and stop if the repaired state remains invalid.
 Create only specification-stage outputs here: `spec-contract.json`, `spec.md`,
-a triggered `ui-brief.md`, and specification evidence or runtime-owned state.
+a triggered `ui-brief.md`, and specification evidence or workflow-owned rich state.
 Do not create `plan-contract.json`, `plan.md`, `research.md`, `data-model.md`,
 `contracts/`, `quickstart.md`, `tasks.md`, or `task-index.json`; `$spx-plan` and
 `$spx-tasks` own those downstream artifacts.

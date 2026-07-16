@@ -365,8 +365,8 @@ class TestBuiltInSkillGeneration:
         assert "fixed heavy discovery lifecycle" in specify_body.lower()
         assert "final-handoff-decision" in specify_body.lower()
         assert "planning-relevant gray areas" in specify_body.lower()
-        assert "project-cognition compass --intent plan" in specify_body
-        assert "project-cognition query --intent plan --query-plan" in specify_body
+        assert "compass --intent plan" in specify_body
+        assert "query --intent plan --query-plan" in specify_body
         assert "--query-plan" in specify_body
         assert "minimal_live_reads" in specify_body
         assert "named evidence reference" in specify_body.lower()
@@ -377,12 +377,15 @@ class TestBuiltInSkillGeneration:
         assert "spec-contract.json" in specify_body
         assert "compile mode" in specify_body.lower()
         assert "semantic_delta" in specify_body
-        assert "one bounded `project-cognition compass" in specify_body
+        assert "one bounded" in specify_body
+        assert "compass --intent plan" in specify_body
         assert "do not build a second broad repository summary" in specify_body.lower()
         assert "workflow-state.md" in specify_body
-        assert "specify workflow show --feature-dir <feature-dir> --format json" in specify_body
-        assert "specify workflow enter --command specify" in specify_body
-        assert "deterministic runtime owns `workflow-state.md`" in specify_body
+        assert "workflow show" in specify_body
+        assert "--feature-dir" in specify_body
+        assert "workflow enter" in specify_body
+        assert "--command specify" in specify_body
+        assert "deterministic runtime owns only `workflow-runtime.json`" in specify_body
         assert "create or resume sparse `WORKFLOW_STATE_FILE`" not in specify_body
         assert "Do not implement code, edit source files, edit tests, or run implementation-oriented fix loops from `sp-specify`." in specify_body
         assert "open live files only for the named gap" in specify_body.lower()
@@ -583,7 +586,7 @@ class TestBuiltInSkillGeneration:
         assert ".specify/memory/learnings/index.md" not in checklist_lower
         assert ".planning/learnings/candidates.md" not in checklist_lower
         assert "consume-only" in checklist_lower
-        assert "project-cognition compass --intent plan" in checklist_lower
+        assert "compass --intent plan" in checklist_lower
         assert "lexicon -> semantic_intake -> query" in checklist_lower
         assert "query --intent plan --query-plan" in checklist_lower or "query --query-plan" in checklist_lower
         assert "alias catalog" in checklist_lower

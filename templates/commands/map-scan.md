@@ -31,8 +31,8 @@ Use `execution_surface: native-subagents`.
 
 ## Process
 
-- Before repository inventory, run `project-cognition generate-ignore --format json`. If it creates `.specify/project-cognition/.cognitionignore`, ask the user to review the starter suggestions and wait for confirmation before continuing.
-- After the ignore gate is clear, run `project-cognition scan-set --out .specify/project-cognition/tmp/scan-files.json --format json` and use the returned file list as the candidate scan set. The agent may choose scan intent and concrete `--scope` values, but `project-cognition scan-set` decides the initial included file list through deterministic runtime rules; do not let the agent freely decide which files to omit.
+- Before repository inventory, run `{{specify-subcmd:project-cognition generate-ignore --format json}}`. If it creates `.specify/project-cognition/.cognitionignore`, ask the user to review the starter suggestions and wait for confirmation before continuing.
+- After the ignore gate is clear, run `{{specify-subcmd:project-cognition scan-set --out .specify/project-cognition/tmp/scan-files.json --format json}}` and use the returned file list as the candidate scan set. The agent may choose scan intent and concrete `--scope` values, but `project-cognition scan-set` decides the initial included file list through deterministic runtime rules; do not let the agent freely decide which files to omit.
 - Build a value-weighted evidence baseline before any graph reconstruction work begins.
 - First spread out the resolved scan set as a cheap inventory pass: enumerate paths, metadata, runtime exclusion status, Git tracking status, size, extension, directory family, and likely generated/vendor/test/doc/config/source classification without deep-reading file contents.
 - Classify every non-excluded candidate path by value tier before dispatch: `P0` core behavior and entry surfaces, `P1` supporting contracts and runtime/config surfaces, `P2` selective tests/docs/examples, and `P3` low-signal generated/vendor/assets/cache/static output.

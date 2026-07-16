@@ -32,6 +32,13 @@ When human action is truly required, provide a self-contained tutorial:
 5. Name the sanitized status, output, URL/ID, screenshot, or decision to return.
 6. Give the exact SPX command or message that resumes from the preserved state.
 
+For a feature runtime blocker, do not author `resume_argv` or replace the
+persisted blocker. Use the runtime-returned read-only `show_argv` and structured
+`resolution_action`; an empty `next_argv` means evidence is still required.
+After the criteria are proven, attach sanitized evidence through the action's
+declared input and execute its base argv. It reactivates the same owner and
+preserves the prior blocker audit.
+
 For protected CI, identify the repository, branch, pipeline/manual job,
 authorization boundary, expected terminal state, safe logs to collect, and the
 pipeline URL/ID to return. For visual review, identify the real entry point,

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -138,8 +139,11 @@ func TestCheckAgreementBlocksSplitBrainActiveGeneration(t *testing.T) {
 	if agreement.Status != "blocked" {
 		t.Fatalf("Status = %q, want blocked", agreement.Status)
 	}
-	if agreement.RecoveryAction != "rewrite_status_from_db_metadata" {
-		t.Fatalf("RecoveryAction = %q, want rewrite_status_from_db_metadata", agreement.RecoveryAction)
+	if agreement.RecoveryAction != RepairStatusAction {
+		t.Fatalf("RecoveryAction = %q, want %q", agreement.RecoveryAction, RepairStatusAction)
+	}
+	if agreement.CauseCode != CauseStatusGenerationMismatch || agreement.CauseOwner != CauseOwnerStatus {
+		t.Fatalf("cause = %q/%q, want status generation mismatch", agreement.CauseOwner, agreement.CauseCode)
 	}
 	if !strings.Contains(strings.Join(agreement.Errors, "\n"), "mismatch") {
 		t.Fatalf("Errors = %v, want mismatch message", agreement.Errors)
@@ -221,11 +225,197 @@ func TestCheckAgreementBlocksMissingRequiredMetadata(t *testing.T) {
 	if agreement.Status != "blocked" {
 		t.Fatalf("Status = %q, want blocked; errors=%v", agreement.Status, agreement.Errors)
 	}
-	if agreement.RecoveryAction != "rewrite_status_from_db_metadata" {
-		t.Fatalf("RecoveryAction = %q, want rewrite_status_from_db_metadata", agreement.RecoveryAction)
+	if agreement.RecoveryAction != rebuildAction {
+		t.Fatalf("RecoveryAction = %q, want %q", agreement.RecoveryAction, rebuildAction)
+	}
+	if agreement.CauseCode != CauseGraphStoreMetadataInvalid || agreement.CauseOwner != CauseOwnerGraphStore {
+		t.Fatalf("cause = %q/%q, want graph store metadata invalid", agreement.CauseOwner, agreement.CauseCode)
 	}
 	if !strings.Contains(strings.Join(agreement.Errors, "\n"), "metadata missing runtime_format") {
 		t.Fatalf("Errors = %#v, want missing metadata error", agreement.Errors)
+	}
+}
+
+func TestCheckAgreementRoutesEveryInvalidDBMetadataInvariantToGraphRepair(t *testing.T) {
+	tests := []struct {
+		key   string
+		value any
+	}{
+		{key: "runtime_format", value: "wrong-runtime"},
+		{key: "runtime_schema", value: 99},
+		{key: "schema_version", value: 1},
+		{key: "active_generation_id", value: "GEN-missing"},
+		{key: "graph_store_path", value: ".specify/wrong.db"},
+		{key: "graph_ready", value: false},
+		{key: "baseline_state", value: "stale"},
+		{key: "baseline_kind", value: "invalid"},
+		{key: "query_contract_version", value: 99},
+		{key: "update_contract_version", value: 99},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.key, func(t *testing.T) {
+			paths := testPaths(t)
+			st, err := store.Open(paths)
+			if err != nil {
+				t.Fatal(err)
+			}
+			importAndPublishReady(t, st, "GEN-1")
+			encoded, err := json.Marshal(tt.value)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := st.DB().ExecContext(
+				context.Background(),
+				`UPDATE metadata SET value_json = ? WHERE key = ?`,
+				string(encoded),
+				tt.key,
+			); err != nil {
+				_ = st.Close()
+				t.Fatal(err)
+			}
+			if err := st.Close(); err != nil {
+				t.Fatal(err)
+			}
+			status := rt.DefaultStatus(paths)
+			status.Status = "ok"
+			status.Freshness = rt.ReadyFreshness
+			status.Readiness = rt.ReadyReadiness
+			status.GraphReady = true
+			status.ActiveGenerationID = "GEN-1"
+			if err := rt.WriteStatus(paths, status); err != nil {
+				t.Fatal(err)
+			}
+
+			agreement := Check(paths)
+
+			if agreement.Status != "blocked" || agreement.CauseOwner != CauseOwnerGraphStore {
+				t.Fatalf("agreement = %#v, want graph-store blocker", agreement)
+			}
+			if agreement.RecoveryAction != rebuildAction || agreement.RecommendedNextAction != rebuildAction {
+				t.Fatalf("actions = %q/%q, want rebuild", agreement.RecoveryAction, agreement.RecommendedNextAction)
+			}
+			if agreement.CauseCode == "" {
+				t.Fatal("CauseCode is empty")
+			}
+		})
+	}
+}
+
+func TestRepairStatusFromDBRepairsOnlyStatusOwnedMismatch(t *testing.T) {
+	paths := testPaths(t)
+	st, err := store.Open(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	importAndPublishReady(t, st, "GEN-db")
+	if err := st.Close(); err != nil {
+		t.Fatal(err)
+	}
+	status := rt.DefaultStatus(paths)
+	status.Status = "ok"
+	status.Freshness = rt.ReadyFreshness
+	status.Readiness = rt.ReadyReadiness
+	status.RecommendedNextAction = "use_project_cognition"
+	status.GraphReady = true
+	status.ActiveGenerationID = "GEN-old"
+	if err := rt.WriteStatus(paths, status); err != nil {
+		t.Fatal(err)
+	}
+
+	repaired, err := RepairStatusFromDB(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if repaired.ActiveGenerationID != "GEN-db" || repaired.Readiness != rt.ReadyReadiness {
+		t.Fatalf("repaired status = %#v", repaired)
+	}
+	if agreement := Check(paths); agreement.Status != "ok" {
+		t.Fatalf("agreement after repair = %#v", agreement)
+	}
+}
+
+func TestRepairStatusFromDBRefusesCorruptGraphMetadataWithoutChangingStatus(t *testing.T) {
+	paths := testPaths(t)
+	st, err := store.Open(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	importAndPublishReady(t, st, "GEN-1")
+	if _, err := st.DB().ExecContext(
+		context.Background(),
+		`UPDATE metadata SET value_json = '"wrong-runtime"' WHERE key = 'runtime_format'`,
+	); err != nil {
+		_ = st.Close()
+		t.Fatal(err)
+	}
+	if err := st.Close(); err != nil {
+		t.Fatal(err)
+	}
+	status := rt.DefaultStatus(paths)
+	status.Status = "ok"
+	status.Freshness = rt.ReadyFreshness
+	status.Readiness = rt.ReadyReadiness
+	status.GraphReady = true
+	status.ActiveGenerationID = "GEN-1"
+	if err := rt.WriteStatus(paths, status); err != nil {
+		t.Fatal(err)
+	}
+	before, err := os.ReadFile(paths.StatusPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = RepairStatusFromDB(paths)
+
+	if err == nil || !strings.Contains(err.Error(), "runtime_format") {
+		t.Fatalf("error = %v, want runtime_format graph validation failure", err)
+	}
+	var typed *RepairError
+	if !errors.As(err, &typed) || typed.CauseCode != CauseGraphStoreMetadataInvalid || typed.CauseOwner != CauseOwnerGraphStore {
+		t.Fatalf("typed repair error = %#v, want graph metadata owner", typed)
+	}
+	after, readErr := os.ReadFile(paths.StatusPath)
+	if readErr != nil {
+		t.Fatal(readErr)
+	}
+	if string(after) != string(before) {
+		t.Fatal("status changed after graph-owned repair refusal")
+	}
+}
+
+func TestRepairStatusFromDBReconstructsBlockedGraphState(t *testing.T) {
+	paths := testPaths(t)
+	st, err := store.Open(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.ImportGeneration(context.Background(), store.ImportInput{
+		GenerationID: "GEN-blocked",
+		Kind:         "full",
+	}); err != nil {
+		_ = st.Close()
+		t.Fatal(err)
+	}
+	if err := st.MarkRuntimeMetadataBlocked(context.Background(), "GEN-blocked"); err != nil {
+		_ = st.Close()
+		t.Fatal(err)
+	}
+	if err := st.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	repaired, err := RepairStatusFromDB(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if repaired.Status != "blocked" || repaired.Readiness != rt.BlockedReadiness || repaired.GraphReady {
+		t.Fatalf("repaired status = %#v, want truthful blocked graph state", repaired)
+	}
+	if repaired.RecommendedNextAction != rebuildAction {
+		t.Fatalf("recommended action = %q, want %q", repaired.RecommendedNextAction, rebuildAction)
 	}
 }
 
@@ -261,7 +451,7 @@ func TestRuntimeGateBlocksGreenfieldKindMismatch(t *testing.T) {
 	if agreement.Status != "blocked" {
 		t.Fatalf("agreement = %#v", agreement)
 	}
-	if !containsString(agreement.Errors, `baseline_kind mismatch: status.json has "greenfield_empty", DB metadata has "brownfield_full"`) {
+	if !containsString(agreement.Errors, `baseline_kind mismatch: DB metadata has "brownfield_full", active generation has "greenfield_empty"`) {
 		t.Fatalf("errors = %#v", agreement.Errors)
 	}
 }
@@ -333,8 +523,8 @@ func TestBlockIfExistingSkipsMissingBaselineAndBlocksSplitBrain(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected split-brain agreement error")
 	}
-	if !strings.Contains(err.Error(), "rewrite_status_from_db_metadata") {
-		t.Fatalf("error = %q, want rewrite_status_from_db_metadata", err.Error())
+	if !strings.Contains(err.Error(), RepairStatusAction) {
+		t.Fatalf("error = %q, want %s", err.Error(), RepairStatusAction)
 	}
 }
 

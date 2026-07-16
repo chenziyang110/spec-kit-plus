@@ -76,6 +76,7 @@ type CompassPayload struct {
 
 type CompassAction struct {
 	ActionID       string                 `json:"action_id"`
+	Argv           []string               `json:"argv,omitempty"`
 	WorkflowRoutes *CompassWorkflowRoutes `json:"workflow_routes,omitempty"`
 }
 
@@ -95,13 +96,15 @@ type CompassRebuildReason struct {
 }
 
 type CompassRebuildReasonEvidence struct {
-	StatusExists     *bool  `json:"status_exists,omitempty"`
-	GraphStoreExists *bool  `json:"graph_store_exists,omitempty"`
-	DetectedSchema   *int   `json:"detected_schema,omitempty"`
-	RequiredSchema   *int   `json:"required_schema,omitempty"`
-	RuntimeStatus    string `json:"runtime_status,omitempty"`
-	Freshness        string `json:"freshness,omitempty"`
-	Diagnostic       string `json:"diagnostic,omitempty"`
+	StatusExists     *bool    `json:"status_exists,omitempty"`
+	GraphStoreExists *bool    `json:"graph_store_exists,omitempty"`
+	DetectedSchema   *int     `json:"detected_schema,omitempty"`
+	RequiredSchema   *int     `json:"required_schema,omitempty"`
+	RuntimeStatus    string   `json:"runtime_status,omitempty"`
+	Freshness        string   `json:"freshness,omitempty"`
+	Diagnostic       string   `json:"diagnostic,omitempty"`
+	Reasons          []string `json:"reasons,omitempty"`
+	AffectedPaths    []string `json:"affected_paths,omitempty"`
 }
 
 type CompassIntentFacet struct {
@@ -249,7 +252,7 @@ func Compass(paths rt.Paths, input CompassInput) (CompassPayload, error) {
 	}
 
 	if compassReadinessBlocked(status.Readiness) {
-		if status.Readiness == rt.NeedsRebuildReadiness {
+		if status.Readiness == rt.NeedsRebuildReadiness && status.RecommendedNextAction == "run_map_scan_build" {
 			payload.RebuildReasons = compassStatusRebuildReasons(paths, status)
 			payload.RecommendedNextAction = compassRebuildAction()
 			payload.RecoveryAction = compassRecommendedActionRebuild
@@ -379,7 +382,15 @@ func blockedAgreementCompassPayload(paths rt.Paths, input CompassInput, agreemen
 }
 
 func compassAction(actionID string) CompassAction {
-	return CompassAction{ActionID: actionID}
+	action := CompassAction{ActionID: actionID}
+	if actionID == runtimegate.RepairStatusAction {
+		action.Argv = []string{"project-cognition", "repair-status", "--format", "json"}
+	}
+	return action
+}
+
+func RecoveryAction(actionID string) CompassAction {
+	return compassAction(actionID)
 }
 
 func compassRebuildAction() CompassAction {
@@ -390,6 +401,14 @@ func compassRebuildAction() CompassAction {
 			Classic:  CompassWorkflowRoute{Steps: []string{"sp-map-scan", "sp-map-build"}},
 		},
 	}
+}
+
+func RebuildAction() CompassAction {
+	return compassRebuildAction()
+}
+
+func AgreementRebuildReasons(paths rt.Paths, agreement runtimegate.Agreement) []CompassRebuildReason {
+	return compassAgreementRebuildReasons(paths, agreement)
 }
 
 func compassStatusRebuildReasons(paths rt.Paths, status rt.Status) []CompassRebuildReason {
@@ -420,6 +439,14 @@ func compassStatusRebuildReasons(paths rt.Paths, status rt.Status) []CompassRebu
 		Evidence: CompassRebuildReasonEvidence{
 			RuntimeStatus: status.Status,
 			Freshness:     status.Freshness,
+			Reasons: normalizeStrings(append(
+				append([]string{}, status.StaleReasons...),
+				status.DirtyReasons...,
+			)),
+			AffectedPaths: normalizeStrings(append(
+				append([]string{}, status.StalePaths...),
+				status.DirtyScopePaths...,
+			)),
 		},
 	}}
 }
@@ -469,9 +496,8 @@ func compassAgreementRebuildReasons(paths rt.Paths, agreement runtimegate.Agreem
 			},
 		}}
 	}
-	joinedErrors := strings.Join(agreement.Errors, "\n")
-	switch {
-	case strings.Contains(joinedErrors, "unsupported_legacy_runtime"):
+	switch agreement.CauseCode {
+	case runtimegate.CauseUnsupportedRuntime:
 		return []CompassRebuildReason{{
 			Code:    "unsupported_runtime",
 			Message: "The installed project cognition state uses an unsupported runtime format.",
@@ -479,7 +505,7 @@ func compassAgreementRebuildReasons(paths rt.Paths, agreement runtimegate.Agreem
 				Diagnostic: firstAgreementError(agreement),
 			},
 		}}
-	case strings.Contains(joinedErrors, "structurally incompatible") || strings.Contains(joinedErrors, "schema_version"):
+	case runtimegate.CauseGraphStoreIncompatible:
 		evidence := CompassRebuildReasonEvidence{
 			RequiredSchema: compassInt(store.SchemaVersion),
 			Diagnostic:     firstAgreementError(agreement),
@@ -492,10 +518,34 @@ func compassAgreementRebuildReasons(paths rt.Paths, agreement runtimegate.Agreem
 			Message:  "The project cognition graph schema is incomplete or incompatible with this runtime.",
 			Evidence: evidence,
 		}}
-	case strings.Contains(joinedErrors, "no active generation"):
+	case runtimegate.CauseGraphStoreUnreadable:
+		return []CompassRebuildReason{{
+			Code:    "graph_store_unreadable",
+			Message: "Project cognition graph state could not be read safely.",
+			Evidence: CompassRebuildReasonEvidence{
+				Diagnostic: firstAgreementError(agreement),
+			},
+		}}
+	case runtimegate.CauseMissingActiveGeneration:
 		return []CompassRebuildReason{{
 			Code:    "missing_active_generation",
 			Message: "The graph store has no active project cognition generation.",
+			Evidence: CompassRebuildReasonEvidence{
+				Diagnostic: firstAgreementError(agreement),
+			},
+		}}
+	case runtimegate.CauseGraphStoreMetadataInvalid:
+		return []CompassRebuildReason{{
+			Code:    "graph_store_metadata_invalid",
+			Message: "Project cognition graph metadata is incomplete or internally inconsistent.",
+			Evidence: CompassRebuildReasonEvidence{
+				Diagnostic: firstAgreementError(agreement),
+			},
+		}}
+	case runtimegate.CauseGraphStoreBaselineKindInvalid:
+		return []CompassRebuildReason{{
+			Code:    "graph_store_baseline_kind_invalid",
+			Message: "Project cognition graph baseline metadata disagrees with its active generation.",
 			Evidence: CompassRebuildReasonEvidence{
 				Diagnostic: firstAgreementError(agreement),
 			},
@@ -545,15 +595,7 @@ func compassInt(value int) *int {
 }
 
 func compassAgreementNeedsRebuild(agreement runtimegate.Agreement, recoveryAction string) bool {
-	if recoveryAction == "run_map_scan_build" {
-		return true
-	}
-	for _, err := range agreement.Errors {
-		if strings.Contains(err, "project-cognition.db metadata schema_version") {
-			return true
-		}
-	}
-	return false
+	return recoveryAction == "run_map_scan_build" || agreement.CauseOwner == runtimegate.CauseOwnerGraphStore
 }
 
 func firstNonEmpty(values ...string) string {

@@ -1,11 +1,37 @@
 # Auto routing contract
 
-`workflow-state.md` is the primary feature phase lock. Use the lane registry
-only to discover candidates, then reconcile it with real state, artifacts, and
-any materialized worktree. A recorded upstream gate outranks an implementation
-tracker or later artifact. Stop on an `uncertain` lane, conflicting states, or
-anything other than exactly one unique safe candidate; report the evidence and
-smallest repair instead of guessing.
+For every feature candidate, first run `workflow show`, then `workflow next`.
+`FEATURE_DIR/workflow-runtime.json` is the primary required-stage phase lock.
+Consume its structured `next_argv`: `workflow complete-stage` routes to the
+current stage owner, while `workflow transition --to <stage>` routes to that
+destination and is passed through exactly. Never reconstruct runtime flags from
+prose or infer a successor from Markdown. Active `accept` returning
+`workflow closeout` routes to the current accept owner; only completed `accept`
+has no successor. `workflow-state.md` remains rich
+workflow-owned resume/evidence context; it may add an auxiliary gate but cannot
+skip or reverse the runtime stage. Legacy `next_command`/`active_command`
+heuristics are fallback only for noncanonical auxiliary state when no runtime
+file exists.
+
+A blocked runtime intentionally has no `next_argv`. Preserve its tutorial and
+wait for the declared evidence; when available, fill only the required evidence
+input in `data.resolution_action` and execute its runtime-owned base argv.
+`show_argv` refreshes state but does not resolve it.
+
+When rich state contains evidence that an upstream required stage is invalid,
+do not infer a reverse route from its prose alone. Use `workflow reopen` with
+the current revision, compact reason, sanitized evidence, and complete
+invalidated-artifact set when the record is sufficient. Resume an already active
+mapped owner; reactivate the same completed owner through reopen. Otherwise
+route to analyze or the current owner to establish a valid reopen decision. A
+blocked runtime must first use `workflow resolve` with evidence, and acceptance
+findings use `accept route-repair`.
+
+Use the lane registry only to discover candidates, then reconcile it with real
+state, artifacts, and any materialized worktree. A recorded upstream gate
+outranks an implementation tracker or later artifact. Stop on an `uncertain`
+lane, conflicting states, or anything other than exactly one unique safe
+candidate; report the evidence and smallest repair instead of guessing.
 
 Choose the first applicable trustworthy route:
 

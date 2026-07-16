@@ -76,7 +76,9 @@ Use `execution_surface: native-subagents`.
 
 **Maintain workflow quality without hook choreography**:
 - Confirm project cognition freshness and valid workflow entry before deeper research begins.
-- Keep `workflow-state.md` current as the durable source of truth for phase, allowed artifact writes, next action, and exit criteria.
+- Keep `workflow-state.md` current as the durable research-session truth for
+  allowed artifact writes, next action, and exit criteria; it does not own
+  required-stage order or runtime revision.
 - Verify the final `deep-research.md` and `workflow-state.md` outputs before handoff instead of relying on chat narration.
 - Update durable state before compaction-risk transitions, prototype-evidence synthesis handoffs, or any stop where resume will depend on more than the visible conversation.
 
@@ -84,10 +86,14 @@ Use `execution_surface: native-subagents`.
 
 ## Workflow Phase Lock
 
+- [AGENT] Before any artifact or rich-state write, run `{{specify-subcmd:workflow show --feature-dir <feature-dir> --format json}}`. `FEATURE_DIR/workflow-runtime.json` is CLI-owned and this auxiliary workflow must not write it. The expected required-stage owner is `specify`. If the runtime is missing, corrupt, at another stage, or already completed, stop with its blocker or a typed owner handoff naming the observed stage, expected owner, affected files, exact next action, unblock criteria, and resume argv; do not overwrite either state surface to force entry.
 - [AGENT] Create or resume `WORKFLOW_STATE_FILE` before substantial research.
 - Read `templates/workflow-state-template.md`.
 - If `WORKFLOW_STATE_FILE` already exists, read it first and preserve still-valid `next_action`, `exit_criteria`, and `next_command` details instead of relying on chat memory alone.
-- Treat `WORKFLOW_STATE_FILE` as the stage-state source of truth on resume after compaction for the current command, allowed artifact writes, forbidden actions, authoritative files, next action, and exit criteria.
+- Treat `WORKFLOW_STATE_FILE` as the resume/evidence source of truth after
+  compaction for this research command: allowed writes, forbidden actions,
+  authoritative files, next action, and exit criteria. It is not the
+  required-stage phase lock.
 - Set or update the state for this run with at least:
   - `active_command: sp-deep-research`
   - `phase_mode: research-only`
@@ -246,6 +252,7 @@ Use `execution_surface: native-subagents`.
 
      - `query_ready`: read top-level `minimal_live_reads` first, then use lane-level `first_pass_paths` reasons.
      - `review`: perform only the returned `minimal_live_reads` before continuing and inspect `coverage_diagnostics`.
+     - `needs_rebuild`: route by `recommended_next_action.action_id`, not readiness alone. Preserve resumable actions such as `complete_scan_packets`; only `action_id=project_cognition.rebuild` may consume `rebuild_reasons[]` and `recommended_next_action.workflow_routes.classic.steps` as a rebuild handoff.
      - `blocked`: report the blocking runtime issue and continue with live evidence only where this workflow allows degraded navigation.
      - **CARRY FORWARD**: Treat project-cognition results as repository-grounded
        starting context. Preserve cited capabilities, constraints, affected

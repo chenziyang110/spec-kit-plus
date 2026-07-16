@@ -63,7 +63,7 @@ chmod 0755 "$tmp"
 echo "==> Verifying..."
 "$tmp" --version
 root_help="$("$tmp" --help 2>&1 || true)"
-for required_command in scan-set scan-prepare scan-accept; do
+for required_command in repair-status scan-set scan-prepare scan-accept; do
   if [[ "$root_help" != *"$required_command"* ]]; then
     echo "Error: downloaded project-cognition binary is missing required ${required_command} command." >&2
     echo "Expected 'project-cognition --help' to include ${required_command}." >&2

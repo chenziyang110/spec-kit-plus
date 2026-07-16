@@ -42,6 +42,41 @@ def _reject_link_components(path: Path) -> None:
             raise ValueError(f"refusing local state I/O through symlink: {current}")
 
 
+def safe_local_state_path(path: Path, *, root: Path | None = None) -> Path:
+    """Return a contained absolute path after rejecting links and junctions."""
+
+    target = _absolute_path_without_link_resolution(path)
+    if root is not None:
+        boundary = _absolute_path_without_link_resolution(root)
+        try:
+            target.relative_to(boundary)
+        except ValueError as exc:
+            raise ValueError(
+                f"refusing local state I/O outside root: {target}"
+            ) from exc
+    _reject_link_components(target)
+    return target
+
+
+def read_local_state_bytes(path: Path, *, root: Path | None = None) -> bytes:
+    """Read local state only through a lexical, non-link path."""
+
+    target = safe_local_state_path(path, root=root)
+    with target.open("rb") as handle:
+        return handle.read()
+
+
+def read_local_state_text(
+    path: Path,
+    *,
+    root: Path | None = None,
+    encoding: str = "utf-8",
+) -> str:
+    """Read text local state only through a lexical, non-link path."""
+
+    return read_local_state_bytes(path, root=root).decode(encoding)
+
+
 @contextmanager
 def interprocess_lock(path: Path) -> Iterator[None]:
     """Hold an OS-released exclusive lock for one local state transaction."""
@@ -120,4 +155,50 @@ def atomic_write_text(path: Path, content: str, *, encoding: str = "utf-8") -> N
             temp_path.unlink(missing_ok=True)
 
 
-__all__ = ["atomic_write_text", "interprocess_lock"]
+def atomic_write_bytes(path: Path, content: bytes) -> None:
+    """Flush and atomically replace a binary file without newline conversion."""
+
+    target = _absolute_path_without_link_resolution(path)
+    _reject_link_components(target)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    _reject_link_components(target)
+    try:
+        target_mode = stat.S_IMODE(target.stat().st_mode)
+    except FileNotFoundError:
+        target_mode = 0o644
+    temp_path: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="wb",
+            dir=target.parent,
+            prefix=f"{target.name}.",
+            suffix=".tmp",
+            delete=False,
+        ) as handle:
+            temp_path = Path(handle.name)
+            handle.write(content)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.chmod(temp_path, target_mode)
+        _reject_link_components(target)
+        os.replace(temp_path, target)
+        temp_path = None
+        if os.name != "nt":
+            directory_fd = os.open(target.parent, os.O_RDONLY)
+            try:
+                os.fsync(directory_fd)
+            finally:
+                os.close(directory_fd)
+    finally:
+        if temp_path is not None:
+            temp_path.unlink(missing_ok=True)
+
+
+__all__ = [
+    "atomic_write_bytes",
+    "atomic_write_text",
+    "interprocess_lock",
+    "read_local_state_bytes",
+    "read_local_state_text",
+    "safe_local_state_path",
+]

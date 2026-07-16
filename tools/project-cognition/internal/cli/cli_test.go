@@ -39,6 +39,164 @@ func TestHelpListsClaimReconcileCommands(t *testing.T) {
 	if code != 0 || !strings.Contains(stdout.String(), "claim-reconcile prepare|apply") {
 		t.Fatalf("code=%d stderr=%s help=%s, want prepare and apply commands", code, stderr.String(), stdout.String())
 	}
+	if !strings.Contains(stdout.String(), "repair-status") {
+		t.Fatalf("help=%s, want repair-status command", stdout.String())
+	}
+}
+
+func TestRepairStatusCommandRestoresStatusOwnedGenerationMismatch(t *testing.T) {
+	root := initEmptyCLIRuntime(t)
+	paths := cliRuntimePaths(root)
+	status, err := rt.ReadStatus(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantGeneration := status.ActiveGenerationID
+	status.ActiveGenerationID = "GEN-stale-status"
+	if err := rt.WriteStatus(paths, status); err != nil {
+		t.Fatal(err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"repair-status", "--format", "json"}, &stdout, &stderr, "test")
+
+	if code != 0 {
+		t.Fatalf("code=%d stderr=%s stdout=%s", code, stderr.String(), stdout.String())
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload["status"] != "ok" || payload["active_generation_id"] != wantGeneration {
+		t.Fatalf("payload = %#v, want repaired generation %q", payload, wantGeneration)
+	}
+}
+
+func TestRepairStatusCommandReturnsTypedRebuildContractForCorruptGraph(t *testing.T) {
+	root := initEmptyCLIRuntime(t)
+	paths := cliRuntimePaths(root)
+	st, err := store.OpenExisting(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.DB().ExecContext(
+		context.Background(),
+		`UPDATE metadata SET value_json = '"wrong-runtime"' WHERE key = 'runtime_format'`,
+	); err != nil {
+		_ = st.Close()
+		t.Fatal(err)
+	}
+	if err := st.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"repair-status", "--format", "json"}, &stdout, &stderr, "test")
+
+	if code != exitCodeBlocked {
+		t.Fatalf("code=%d stderr=%s stdout=%s, want blocked exit %d", code, stderr.String(), stdout.String(), exitCodeBlocked)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload["cause_code"] != "graph_store_metadata_invalid" || payload["cause_owner"] != "graph_store" {
+		t.Fatalf("typed cause = %#v/%#v", payload["cause_owner"], payload["cause_code"])
+	}
+	action, ok := payload["recommended_next_action"].(map[string]any)
+	if !ok || action["action_id"] != "project_cognition.rebuild" {
+		t.Fatalf("recommended_next_action = %#v", payload["recommended_next_action"])
+	}
+	routes := action["workflow_routes"].(map[string]any)
+	advanced := routes["advanced"].(map[string]any)
+	classic := routes["classic"].(map[string]any)
+	if !reflect.DeepEqual(jsonAnySliceStrings(advanced["steps"].([]any)), []string{"spx-map-rebuild"}) {
+		t.Fatalf("advanced route = %#v", advanced)
+	}
+	if !reflect.DeepEqual(jsonAnySliceStrings(classic["steps"].([]any)), []string{"sp-map-scan", "sp-map-build"}) {
+		t.Fatalf("classic route = %#v", classic)
+	}
+	reasons := payload["rebuild_reasons"].([]any)
+	if len(reasons) != 1 || reasons[0].(map[string]any)["code"] != "graph_store_metadata_invalid" {
+		t.Fatalf("rebuild_reasons = %#v", reasons)
+	}
+}
+
+func TestRepairStatusCommandReturnsOperatorTutorialWhenStatusPathCannotBeWritten(t *testing.T) {
+	root := initEmptyCLIRuntime(t)
+	paths := cliRuntimePaths(root)
+	if err := os.Remove(paths.StatusPath); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(paths.StatusPath, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"repair-status", "--format", "json"}, &stdout, &stderr, "test")
+
+	if code != exitCodeBlocked {
+		t.Fatalf("code=%d stderr=%s stdout=%s, want blocked exit %d", code, stderr.String(), stdout.String(), exitCodeBlocked)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload["cause_code"] != "status_write_failed" || payload["cause_owner"] != "status" {
+		t.Fatalf("typed cause = %#v/%#v", payload["cause_owner"], payload["cause_code"])
+	}
+	if payload["recovery_action"] != "project_cognition.resolve_status_access" {
+		t.Fatalf("recovery_action = %#v", payload["recovery_action"])
+	}
+	if payload["status_path"] != ".specify/project-cognition/status.json" {
+		t.Fatalf("status_path = %#v", payload["status_path"])
+	}
+	if !strings.Contains(payload["os_error"].(string), "write repaired status") {
+		t.Fatalf("os_error = %#v", payload["os_error"])
+	}
+
+	action := payload["recommended_next_action"].(map[string]any)
+	if action["action_id"] != "project_cognition.resolve_status_access" || action["owner"] != "human" {
+		t.Fatalf("recommended_next_action = %#v", action)
+	}
+	if _, hasArgv := action["argv"]; hasArgv {
+		t.Fatalf("operator action must not self-invoke repair-status: %#v", action)
+	}
+
+	human := payload["human_action"].(map[string]any)
+	if human["status_path"] != payload["status_path"] || human["why_human"] == "" {
+		t.Fatalf("human_action identity = %#v", human)
+	}
+	if len(human["prerequisites"].([]any)) == 0 || len(human["safety_warnings"].([]any)) == 0 {
+		t.Fatalf("human_action missing prerequisites or warnings: %#v", human)
+	}
+	steps := human["steps"].([]any)
+	if len(steps) < 4 {
+		t.Fatalf("steps = %#v, want a self-contained tutorial", steps)
+	}
+	for index, raw := range steps {
+		step := raw.(map[string]any)
+		if step["instruction"] == "" || step["expected_result"] == "" || step["failure_branch"] == "" {
+			t.Fatalf("step %d is incomplete: %#v", index+1, step)
+		}
+	}
+	verification := human["independent_verification"].(map[string]any)
+	if !reflect.DeepEqual(jsonAnySliceStrings(verification["argv"].([]any)), []string{"project-cognition", "status", "--format", "json"}) {
+		t.Fatalf("independent_verification = %#v", verification)
+	}
+	resume := human["exact_resume"].(map[string]any)
+	if !reflect.DeepEqual(jsonAnySliceStrings(resume["argv"].([]any)), []string{"project-cognition", "repair-status", "--format", "json"}) {
+		t.Fatalf("exact_resume = %#v", resume)
+	}
+	if len(human["evidence_to_return"].([]any)) == 0 {
+		t.Fatalf("evidence_to_return = %#v", human["evidence_to_return"])
+	}
+	if !strings.Contains(strings.Join(jsonAnySliceStrings(human["safety_warnings"].([]any)), "\n"), "project-cognition.db") {
+		t.Fatalf("safety_warnings = %#v, want graph-store protection", human["safety_warnings"])
+	}
+	if info, err := os.Stat(paths.StatusPath); err != nil || !info.IsDir() {
+		t.Fatalf("status path conflict was mutated: info=%#v err=%v", info, err)
+	}
 }
 
 func TestRebuildReturnsStableBlockedExitCodeWithJSONPayload(t *testing.T) {
@@ -1985,7 +2143,7 @@ func TestCompassV1DatabaseReturnsBlockedPacketWithRebuildGuidance(t *testing.T) 
 	}
 }
 
-func TestCompassActiveGenerationMismatchPreservesRewriteStatusRecovery(t *testing.T) {
+func TestCompassActiveGenerationMismatchReturnsExecutableStatusRepair(t *testing.T) {
 	root := setupReadyMinimalCLIRuntime(t)
 	paths, err := rt.ResolvePaths(root)
 	if err != nil {
@@ -2033,11 +2191,15 @@ func TestCompassActiveGenerationMismatchPreservesRewriteStatusRecovery(t *testin
 	if !strings.Contains(diagnostic, "active_generation_id mismatch") || !strings.Contains(diagnostic, "GEN-mismatched-status") {
 		t.Fatalf("errors = %#v, want active_generation_id mismatch diagnostic", payload["errors"])
 	}
-	assertCompassJSONAction(t, payload, "rewrite_status_from_db_metadata", nil)
+	assertCompassJSONAction(t, payload, "project_cognition.repair_status", nil)
+	action := payload["recommended_next_action"].(map[string]any)
+	if !reflect.DeepEqual(jsonAnySliceStrings(action["argv"].([]any)), []string{"project-cognition", "repair-status", "--format", "json"}) {
+		t.Fatalf("recommended_next_action.argv = %#v", action["argv"])
+	}
 	if _, ok := payload["rebuild_reasons"]; ok {
 		t.Fatalf("rebuild_reasons = %#v, want omitted for non-rebuild blocker", payload["rebuild_reasons"])
 	}
-	if payload["recovery_action"] != "rewrite_status_from_db_metadata" {
+	if payload["recovery_action"] != "project_cognition.repair_status" {
 		t.Fatalf("recovery_action = %#v, payload = %#v", payload["recovery_action"], payload)
 	}
 }
@@ -2848,7 +3010,7 @@ func TestPublishRuntimeMetadataReturnsNonzeroWhenBlockedStatusWriteFails(t *test
 	if !jsonStringSliceHasPrefix(payload["errors"], "write blocked status:") {
 		t.Fatalf("errors = %#v, want blocked status write failure", payload["errors"])
 	}
-	if payload["recovery_action"] != "rewrite_status_from_db_metadata" {
+	if payload["recovery_action"] != "project_cognition.repair_status" {
 		t.Fatalf("recovery_action = %#v, payload = %#v", payload["recovery_action"], payload)
 	}
 
@@ -2929,7 +3091,7 @@ func TestPublishRuntimeMetadataReturnsNonzeroWhenReadyStatusWriteFails(t *testin
 	if !jsonStringSliceHasPrefix(payload["errors"], "write ready status:") {
 		t.Fatalf("errors = %#v, want ready status write failure", payload["errors"])
 	}
-	if payload["recovery_action"] != "rewrite_status_from_db_metadata" {
+	if payload["recovery_action"] != "project_cognition.repair_status" {
 		t.Fatalf("recovery_action = %#v, payload = %#v", payload["recovery_action"], payload)
 	}
 
@@ -2973,7 +3135,7 @@ func TestBuildFromScanCommandReturnsNonzeroForOperationalErrorPayload(t *testing
 	if payload["status"] != "blocked" {
 		t.Fatalf("status = %#v, payload = %#v", payload["status"], payload)
 	}
-	if payload["recovery_action"] != "rewrite_status_from_db_metadata" {
+	if payload["recovery_action"] != "project_cognition.repair_status" {
 		t.Fatalf("recovery_action = %#v, payload = %#v", payload["recovery_action"], payload)
 	}
 }

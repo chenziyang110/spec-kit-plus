@@ -317,10 +317,17 @@ def test_wheel_force_include_bundles_shared_hook_launcher_assets() -> None:
     assert '"src/specify_cli/shared_hooks" = "specify_cli/core_pack/shared_hooks"' in pyproject
 
 
-def test_wheel_force_include_bundles_shared_prd_state_helper() -> None:
+def test_wheel_force_include_bundles_shared_runtime_helpers() -> None:
     pyproject = (REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8")
 
     assert '"scripts/shared" = "specify_cli/core_pack/scripts/shared"' in pyproject
+    for name in (
+        "specify-launcher.sh.template",
+        "specify-launcher.ps1.template",
+    ):
+        asset = REPO_ROOT / "scripts" / "shared" / name
+        assert asset.is_file(), name
+        assert "__SPECIFY_BINDING_ID__" in asset.read_text(encoding="utf-8")
 
 
 def test_wheel_force_include_bundles_project_cognition_source() -> None:

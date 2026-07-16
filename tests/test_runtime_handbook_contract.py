@@ -91,7 +91,11 @@ def test_context_loading_gradient_uses_cognition_runtime_gate() -> None:
     content = _read("templates/command-partials/common/context-loading-gradient.md")
     lowered = content.lower()
 
-    assert "default project cognition intake is `project-cognition compass" in lowered
+    assert (
+        "default project cognition intake is "
+        "`{{specify-subcmd:project-cognition compass"
+        in lowered
+    )
     assert "project-cognition lexicon" in lowered
     assert "alias catalog" in lowered
     assert "semantic_intake" in lowered

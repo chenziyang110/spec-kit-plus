@@ -9,7 +9,11 @@ from typer.testing import CliRunner
 from specify_cli import app
 from specify_cli.command_catalog import command_catalog
 from specify_cli.human_acceptance import prepare_human_acceptance
-from specify_cli.workflow_runtime import enter_workflow, transition_workflow
+from specify_cli.workflow_runtime import (
+    complete_workflow_stage,
+    enter_workflow,
+    transition_workflow,
+)
 
 
 runner = CliRunner()
@@ -28,6 +32,20 @@ def _project(tmp_path: Path) -> Path:
     project = tmp_path / "agent-api-project"
     (project / ".specify").mkdir(parents=True)
     return project
+
+
+def _complete_then_transition(
+    feature_dir: Path,
+    *,
+    target_stage: str,
+    revision: int,
+) -> dict[str, object]:
+    completed = complete_workflow_stage(feature_dir, expected_revision=revision)
+    return transition_workflow(
+        feature_dir,
+        target_stage=target_stage,
+        expected_revision=completed["data"]["revision"],
+    )
 
 
 def _write_valid_spec_contract(feature_dir: Path) -> None:
@@ -86,6 +104,59 @@ def _write_valid_spec_contract(feature_dir: Path) -> None:
     (feature_dir / "spec-contract.json").write_text(
         json.dumps(payload), encoding="utf-8"
     )
+    _write_rich_workflow_state(
+        feature_dir,
+        command="sp-specify",
+        phase="planning-only",
+        next_command="/sp.plan",
+    )
+
+
+def _write_rich_workflow_state(
+    feature_dir: Path,
+    *,
+    command: str,
+    phase: str,
+    next_command: str,
+) -> None:
+    (feature_dir / "workflow-state.md").write_text(
+        f"""# Workflow State
+
+## Current Command
+
+- active_command: `{command}`
+- status: `completed`
+
+## Phase Mode
+
+- phase_mode: `{phase}`
+
+## Stage State
+
+- current_stage: `complete`
+- current_domain: `none`
+- next_action: `Continue through the deterministic phase runtime.`
+- blocker_reason: `none`
+- final_handoff_decision: `{next_command}`
+
+## Allowed Artifact Writes
+
+- workflow-owned evidence
+
+## Forbidden Actions
+
+- skip deterministic runtime stages
+
+## Authoritative Files
+
+- workflow-state.md
+
+## Next Command
+
+- `{next_command}`
+""",
+        encoding="utf-8",
+    )
 
 
 def test_agent_api_handshake_is_compact_and_machine_readable() -> None:
@@ -110,6 +181,8 @@ def test_agent_api_handshake_is_compact_and_machine_readable() -> None:
     assert payload["data"]["missing_capabilities"] == []
     assert "learning.start" in payload["data"]["capability_ids"]
     assert "workflow.enter" in payload["data"]["capability_ids"]
+    assert "workflow.reopen" in payload["data"]["capability_ids"]
+    assert "workflow.resolve" in payload["data"]["capability_ids"]
     assert "accept.route-repair" in payload["data"]["capability_ids"]
 
 
@@ -202,6 +275,8 @@ def test_agent_api_command_expands_only_one_cli_operation() -> None:
     [
         ("workflow-enter-input", "workflow.enter"),
         ("workflow-transition-input", "workflow.transition"),
+        ("workflow-reopen-input", "workflow.reopen"),
+        ("workflow-resolve-input", "workflow.resolve"),
     ],
 )
 def test_workflow_input_schema_fields_map_to_published_cli_options(
@@ -225,14 +300,25 @@ def test_workflow_input_schema_fields_map_to_published_cli_options(
     schema_options = {
         f"--{field_name.replace('_', '-')}" for field_name in schema["properties"]
     }
+    command_parameters = json.loads(command_result.stdout)["data"]["parameters"]
     command_options = {
         flag
-        for parameter in json.loads(command_result.stdout)["data"]["parameters"]
+        for parameter in command_parameters
         for flag in parameter["flags"]
         if flag.startswith("--") and flag != "--format"
     }
 
     assert schema_options == command_options
+    parameters_by_flag = {
+        flag: parameter
+        for parameter in command_parameters
+        for flag in parameter["flags"]
+    }
+    for field_name in schema["required"]:
+        flag = f"--{field_name.replace('_', '-')}"
+        assert parameters_by_flag[flag]["required"] is True
+        if schema["properties"][field_name].get("type") == "array":
+            assert parameters_by_flag[flag]["repeatable"] is True
 
 
 def test_agent_api_command_recognizes_boolean_json_output_switches() -> None:
@@ -391,9 +477,7 @@ def test_workflow_cli_validates_current_stage_artifacts_before_advancing(
         project,
         [
             "workflow",
-            "transition",
-            "--to",
-            "plan",
+            "complete-stage",
             "--feature-dir",
             str(feature_dir),
             "--expected-revision",
@@ -450,6 +534,22 @@ def test_workflow_cli_advances_after_source_stage_artifacts_pass(
     assert entered.exit_code == 0
     _write_valid_spec_contract(feature_dir)
 
+    completed = _invoke_in_project(
+        project,
+        [
+            "workflow",
+            "complete-stage",
+            "--feature-dir",
+            str(feature_dir),
+            "--expected-revision",
+            "1",
+            "--format",
+            "json",
+        ],
+    )
+    assert completed.exit_code == 0, completed.stdout
+    completed_payload = json.loads(completed.stdout)
+
     result = _invoke_in_project(
         project,
         [
@@ -460,7 +560,7 @@ def test_workflow_cli_advances_after_source_stage_artifacts_pass(
             "--feature-dir",
             str(feature_dir),
             "--expected-revision",
-            "1",
+            str(completed_payload["data"]["revision"]),
             "--format",
             "json",
         ],
@@ -469,7 +569,52 @@ def test_workflow_cli_advances_after_source_stage_artifacts_pass(
     assert result.exit_code == 0
     payload = json.loads(result.stdout)
     assert payload["data"]["stage"] == "plan"
-    assert payload["data"]["revision"] == 2
+    assert payload["data"]["revision"] == 3
+
+
+def test_workflow_cli_reopens_an_invalidated_upstream_stage(tmp_path: Path) -> None:
+    project = _project(tmp_path)
+    feature_dir = project / ".specify" / "features" / "006-reopen-plan"
+    feature_dir.mkdir(parents=True)
+    entered = enter_workflow(feature_dir, stage="specify", expected_revision=0)
+    revision = entered["data"]["revision"]
+    for stage in ("plan", "tasks", "implement"):
+        advanced = _complete_then_transition(
+            feature_dir,
+            target_stage=stage,
+            revision=revision,
+        )
+        revision = advanced["data"]["revision"]
+
+    result = _invoke_in_project(
+        project,
+        [
+            "workflow",
+            "reopen",
+            "--feature-dir",
+            str(feature_dir),
+            "--to",
+            "plan",
+            "--expected-revision",
+            str(revision),
+            "--reason",
+            "Analyze invalidated the plan contract.",
+            "--evidence",
+            "AN-004",
+            "--invalidated-artifacts",
+            "plan.md",
+            "--invalidated-artifacts",
+            "tasks.md",
+            "--format",
+            "json",
+        ],
+    )
+
+    assert result.exit_code == 0, result.stdout
+    payload = json.loads(result.stdout)
+    assert payload["data"]["stage"] == "plan"
+    assert payload["data"]["last_reopen"]["source_stage"] == "implement"
+    assert payload["next_argv"][:3] == ["specify", "workflow", "complete-stage"]
 
 
 def test_workflow_cli_human_blocker_includes_novice_acceptance_steps(
@@ -494,7 +639,7 @@ def test_workflow_cli_human_blocker_includes_novice_acceptance_steps(
     blocker_input.write_text(
         json.dumps(
             {
-                "feature_dir": str(feature_dir),
+                "feature_dir": "ignored/by-explicit-override",
                 "expected_revision": 1,
                 "category": "credentials-or-permission",
                 "owner": "maintainer",
@@ -506,13 +651,6 @@ def test_workflow_cli_human_blocker_includes_novice_acceptance_steps(
                 "affected_scope": ["protected pipeline"],
                 "exact_next_action": "Enable the named protected setting.",
                 "unblock_criteria": "A read-only probe reports enabled.",
-                "resume_argv": [
-                    "specify",
-                    "workflow",
-                    "transition",
-                    "--to",
-                    "plan",
-                ],
             }
         ),
         encoding="utf-8",
@@ -520,7 +658,16 @@ def test_workflow_cli_human_blocker_includes_novice_acceptance_steps(
 
     result = _invoke_in_project(
         project,
-        ["workflow", "block", "--input", "blocker.json", "--format", "json"],
+        [
+            "workflow",
+            "block",
+            "--input",
+            "blocker.json",
+            "--feature-dir",
+            str(feature_dir),
+            "--format",
+            "json",
+        ],
     )
 
     assert result.exit_code == 10
@@ -528,7 +675,36 @@ def test_workflow_cli_human_blocker_includes_novice_acceptance_steps(
     blocker = payload["blockers"][0]
     assert blocker["human_action_required"] is True
     assert len(blocker["human_action_guide"]["steps"]) >= 3
-    assert blocker["resume"]["argv"] == payload["next_argv"]
+    assert payload["next_argv"] == []
+    assert payload["show_argv"][:3] == ["specify", "workflow", "show"]
+    assert "resolution_action" not in blocker
+    assert payload["data"]["resolution_action"]["capability_id"] == "workflow.resolve"
+
+    resumed = _invoke_in_project(project, payload["show_argv"][1:])
+    assert resumed.exit_code == 10
+    resumed_payload = json.loads(resumed.stdout)
+    assert resumed_payload["status"] == "blocked"
+    assert resumed_payload["blockers"][0]["blocker_id"] == blocker["blocker_id"]
+
+    resolved = _invoke_in_project(
+        project,
+        [
+            "workflow",
+            "resolve",
+            "--feature-dir",
+            str(feature_dir),
+            "--expected-revision",
+            "2",
+            "--resolution-evidence",
+            "Read-only probe reports the setting enabled.",
+            "--format",
+            "json",
+        ],
+    )
+    assert resolved.exit_code == 0
+    resolved_payload = json.loads(resolved.stdout)
+    assert resolved_payload["data"]["status"] == "active"
+    assert resolved_payload["data"]["last_blocker_resolution"]["owner"] == "maintainer"
 
 
 def test_workflow_cli_external_system_blocker_does_not_invent_human_work(
@@ -568,7 +744,6 @@ def test_workflow_cli_external_system_blocker_does_not_invent_human_work(
                 "affected_scope": ["remote verification evidence"],
                 "exact_next_action": "Retry after the upstream service recovers.",
                 "unblock_criteria": "The health probe returns HTTP 200.",
-                "resume_argv": ["specify", "workflow", "show"],
                 "human_action_required": False,
             }
         ),
@@ -586,7 +761,9 @@ def test_workflow_cli_external_system_blocker_does_not_invent_human_work(
     assert blocker["human_action_required"] is False
     assert blocker["human_action_guide"] is None
     assert blocker["evidence"] == ["A sanitized health probe returned HTTP 503."]
-    assert blocker["resume"]["argv"] == payload["next_argv"]
+    assert payload["next_argv"] == []
+    assert "resolution_action" not in blocker
+    assert payload["data"]["resolution_action"]["capability_id"] == "workflow.resolve"
 
 
 def test_workflow_cli_requires_matching_revision_for_mutation(tmp_path: Path) -> None:
@@ -639,10 +816,10 @@ def test_workflow_cli_validates_human_acceptance_before_closeout(
     entered = enter_workflow(feature_dir, stage="specify", expected_revision=0)
     revision = entered["data"]["revision"]
     for stage in ("plan", "tasks", "implement", "accept"):
-        advanced = transition_workflow(
+        advanced = _complete_then_transition(
             feature_dir,
             target_stage=stage,
-            expected_revision=revision,
+            revision=revision,
         )
         revision = advanced["data"]["revision"]
 
@@ -662,7 +839,14 @@ def test_workflow_cli_validates_human_acceptance_before_closeout(
 
     assert result.exit_code == 10
     payload = json.loads(result.stdout)
-    assert payload["data"]["error_code"] == "artifact-validation-blocked"
+    assert payload["data"]["error_code"] == "human-acceptance-required"
+    assert payload["blockers"][0]["owner"] == "agent"
+    assert payload["blockers"][0]["human_action_required"] is False
+    assert payload["blockers"][0]["resume"]["argv"][:3] == [
+        "specify",
+        "accept",
+        "prepare",
+    ]
     shown = json.loads(
         _invoke_in_project(
             project,
@@ -690,13 +874,19 @@ def test_workflow_closeout_rejects_a_valid_but_unaccepted_draft(
         encoding="utf-8",
     )
     prepare_human_acceptance(project, feature_dir)
+    _write_rich_workflow_state(
+        feature_dir,
+        command="sp-accept",
+        phase="acceptance-only",
+        next_command="/sp.accept",
+    )
     entered = enter_workflow(feature_dir, stage="specify", expected_revision=0)
     revision = entered["data"]["revision"]
     for stage in ("plan", "tasks", "implement", "accept"):
-        advanced = transition_workflow(
+        advanced = _complete_then_transition(
             feature_dir,
             target_stage=stage,
-            expected_revision=revision,
+            revision=revision,
         )
         revision = advanced["data"]["revision"]
 
@@ -717,7 +907,11 @@ def test_workflow_closeout_rejects_a_valid_but_unaccepted_draft(
     assert result.exit_code == 10
     payload = json.loads(result.stdout)
     assert payload["status"] == "blocked"
-    assert any("status=accepted" in error for error in payload["data"]["errors"])
+    assert payload["data"]["error_code"] == "human-acceptance-required"
+    assert any(
+        "status=accepted" in error
+        for error in payload["data"]["human_acceptance"]["errors"]
+    )
     assert (
         json.loads(
             _invoke_in_project(

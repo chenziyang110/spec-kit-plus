@@ -12,7 +12,11 @@ import json5
 
 from ..base import TomlIntegration
 from ..manifest import IntegrationManifest
-from ...launcher import install_shared_hook_launcher_assets, render_hook_launcher_command
+from ...launcher import (
+    install_shared_hook_launcher_assets,
+    render_hook_launcher_command,
+    render_project_launcher_placeholders,
+)
 from .multi_agent import GeminiMultiAgentAdapter
 
 GEMINI_HOOK_DISPATCH = "gemini-hook-dispatch.py"
@@ -159,6 +163,8 @@ class GeminiIntegration(TomlIntegration):
         *,
         project_root: Path,
         manifest: IntegrationManifest,
+        preserve_modified: bool = False,
+        skipped_modified: list[str] | None = None,
     ) -> list[Path]:
         assets_dir = self._hook_assets_dir()
         if not assets_dir:
@@ -167,12 +173,30 @@ class GeminiIntegration(TomlIntegration):
         created: list[Path] = []
         hooks_dir = project_root / ".gemini" / "hooks"
         hooks_dir.mkdir(parents=True, exist_ok=True)
+        modified = set(manifest.check_modified()) if preserve_modified else set()
 
         for src_file in sorted(assets_dir.iterdir()):
             if not src_file.is_file():
                 continue
             dst_file = hooks_dir / src_file.name
-            shutil.copy2(src_file, dst_file)
+            relative = dst_file.relative_to(project_root).as_posix()
+            if preserve_modified and (dst_file.exists() or dst_file.is_symlink()):
+                if (
+                    relative not in manifest.files
+                    or relative in modified
+                    or dst_file.is_symlink()
+                ):
+                    if skipped_modified is not None:
+                        skipped_modified.append(relative)
+                    continue
+            if src_file.suffix.lower() == ".md":
+                rendered = render_project_launcher_placeholders(
+                    project_root,
+                    src_file.read_text(encoding="utf-8"),
+                )
+                dst_file.write_text(rendered, encoding="utf-8")
+            else:
+                shutil.copy2(src_file, dst_file)
             if dst_file.suffix == ".py":
                 dst_file.chmod(dst_file.stat().st_mode | 0o111)
             self.record_file_in_manifest(dst_file, project_root, manifest)
@@ -354,11 +378,16 @@ class GeminiIntegration(TomlIntegration):
             parsed_options=parsed_options,
             **opts,
         )
-        self._install_hook_assets(project_root=project_root, manifest=manifest)
+        self._install_hook_assets(
+            project_root=project_root,
+            manifest=manifest,
+            preserve_modified=True,
+        )
         install_shared_hook_launcher_assets(
             project_root,
             manifest=manifest,
             include_node=False,
+            preserve_modified=True,
         )
         self._install_or_merge_hook_settings(
             project_root=project_root,
@@ -374,10 +403,15 @@ class GeminiIntegration(TomlIntegration):
         **opts: Any,
     ) -> list[Path]:
         created = super().repair_runtime_assets(project_root, manifest, **opts)
+        skipped_modified = list(
+            getattr(self, "_last_repair_skipped_modified", ())
+        )
         created.extend(
             self._install_hook_assets(
                 project_root=project_root,
                 manifest=manifest,
+                preserve_modified=True,
+                skipped_modified=skipped_modified,
             )
         )
         created.extend(
@@ -385,6 +419,8 @@ class GeminiIntegration(TomlIntegration):
                 project_root,
                 manifest=manifest,
                 include_node=False,
+                preserve_modified=True,
+                skipped_modified=skipped_modified,
             )
         )
         created.extend(
@@ -393,6 +429,9 @@ class GeminiIntegration(TomlIntegration):
                 manifest=manifest,
                 script_type=opts.get("script_type", "sh"),
             )
+        )
+        self._last_repair_skipped_modified = tuple(
+            sorted(set(skipped_modified))
         )
         return created
 

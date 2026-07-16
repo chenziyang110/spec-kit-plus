@@ -112,7 +112,7 @@ def _assert_compact_managed_context(content: str) -> None:
     assert "when existing-system truth matters" in lower
     assert "before broad source inspection" in lower
     assert "narrow live reads" in lower
-    assert "specify learning start --command <workflow> --format json" in content
+    assert "learning start --command <workflow> --format json" in content
     assert "show_argv" in content
     assert ".specify/memory/learnings/INDEX.md" not in content
     assert "## Workflow Recommendations" in content
@@ -122,7 +122,8 @@ def _assert_compact_managed_context(content: str) -> None:
     assert "`sp-deep-research` for feasibility proof" in lower
     assert "`sp-debug` for root-cause diagnosis" in lower
     assert "## Command Surface Rules" in content
-    assert "specify --help" in content
+    assert "--help" in content
+    assert "{{specify-cli}}" not in content
     assert "generated create-feature script" in lower
     assert "## Durable State" in content
     assert "prefer durable workflow state and explicit feature paths" in lower
@@ -564,7 +565,8 @@ def test_generated_planning_skills_require_inline_cognition_update_for_source_ch
                 integration.skills_dest(project) / skill_name / "SKILL.md"
             ).read_text(encoding="utf-8").lower()
             assert "artifact-only" in content
-            assert "do not call `project-cognition mark-dirty`" in content
+            assert "do not call" in content
+            assert "mark-dirty --help" in content
             assert (
                 "if this planning workflow makes actual source/runtime/template/config/test/generated-asset changes"
                 in content
@@ -649,7 +651,9 @@ def test_real_discussion_reference_sidecars_are_rendered(tmp_path):
             assert path.name in index, path
 
     truth_reference = references_dir / "context-boundary-and-truth.md"
-    assert "$sp-map-scan" in truth_reference.read_text(encoding="utf-8")
+    truth_content = truth_reference.read_text(encoding="utf-8")
+    assert "recommended_next_action.action_id" in truth_content
+    assert "project_cognition.rebuild" in truth_content
 
 
 def test_generated_reference_sidecars_are_reachable_from_index(tmp_path, monkeypatch):

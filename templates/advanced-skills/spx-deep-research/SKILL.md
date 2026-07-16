@@ -25,8 +25,17 @@ and name the planning decision each research question must unlock. Use live
 repository evidence first and current primary external sources when the answer
 depends on an API, platform, standard, dependency, or recent behavior.
 
-Create or resume the feature's `workflow-state.md` before substantial work and
-read it before reconstructing intent from chat. Persist at least
+Before any write, run
+`{{specify-subcmd:workflow show --feature-dir <feature-dir> --format json}}`.
+`FEATURE_DIR/workflow-runtime.json` is CLI-owned; this auxiliary skill must not write
+it, and its expected required-stage owner is `specify`. On missing, corrupt,
+different, or completed runtime state, stop with the returned blocker or a
+typed owner handoff containing the observed stage, expected owner, affected
+files, exact next action, unblock criteria, and resume argv. Never overwrite
+either state surface to force entry.
+
+Create or resume the feature's rich workflow-owned `workflow-state.md` before
+substantial work and read it before reconstructing intent from chat. Persist at least
 `active_command: sp-deep-research`, `phase_mode: research-only`, the current
 stage, accepted/rejected evidence, blockers, exit criteria, next action, and
 next command. Set

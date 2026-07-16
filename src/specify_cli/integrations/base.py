@@ -355,6 +355,9 @@ class IntegrationBase(ABC):
         self,
         project_root: Path,
         manifest: IntegrationManifest,
+        *,
+        preserve_modified: bool = False,
+        skipped_modified: list[str] | None = None,
     ) -> list[Path]:
         """Copy integration-specific scripts into the project.
 
@@ -370,6 +373,7 @@ class IntegrationBase(ABC):
             return []
 
         created: list[Path] = []
+        modified = set(manifest.check_modified()) if preserve_modified else set()
         scripts_dest = project_root / ".specify" / "integrations" / self.key / "scripts"
         scripts_dest.mkdir(parents=True, exist_ok=True)
 
@@ -377,6 +381,12 @@ class IntegrationBase(ABC):
             if not src_script.is_file():
                 continue
             dst_script = scripts_dest / src_script.name
+            relative = dst_script.relative_to(project_root).as_posix()
+            if preserve_modified and (dst_script.exists() or dst_script.is_symlink()):
+                if relative not in manifest.files or relative in modified:
+                    if skipped_modified is not None:
+                        skipped_modified.append(relative)
+                    continue
             shutil.copy2(src_script, dst_script)
             if dst_script.suffix == ".sh":
                 dst_script.chmod(dst_script.stat().st_mode | 0o111)
@@ -553,9 +563,9 @@ class IntegrationBase(ABC):
             "- Before drafting or asking clarification questions, identify the target need, scope boundary, key constraints, acceptance proof, known unknowns, and safest next step.\n"
             "- Keep guided requirement discovery concise and avoid reviving the deprecated fixed heavy discovery lifecycle.\n"
             "- Treat `final-handoff-decision` as a compatibility readiness check name only; do not restore the legacy staged handoff flow.\n"
-            "- In compile mode, reuse the confirmed discussion contract's context capsule and decision digest. Run one bounded `project-cognition compass --intent plan --query=\"$ARGUMENTS\" --format json` intake only when a planning facet is absent or outdated; preserve `project-cognition query --intent plan --query-plan` as a precision escalation for an explicit unresolved concept.\n"
+            "- In compile mode, reuse the confirmed discussion contract's context capsule and decision digest. Run one bounded `{{specify-subcmd:project-cognition compass --intent plan --query=\"$ARGUMENTS\" --format json}}` intake only when a planning facet is absent or outdated; preserve `{{specify-subcmd:project-cognition query --intent plan --query-plan \"<query_plan_json>\" --format json}}` as a precision escalation for an explicit unresolved concept.\n"
             "- Read top-level `minimal_live_reads` first and open live files only for the named gap. Do not build a second broad repository summary or infer final scope from first-pass paths.\n"
-            "- After `FEATURE_DIR` is known, use `specify workflow show --feature-dir <feature-dir> --format json`; when state is missing, run `specify workflow enter --command specify --feature-dir <feature-dir> --format json`. The deterministic runtime owns `workflow-state.md`; do not reconstruct it in the prompt. Do not implement code, edit source files, edit tests, or run implementation-oriented fix loops from `sp-specify`.\n"
+            "- After `FEATURE_DIR` is known, use `{{specify-subcmd:workflow show --feature-dir <feature-dir> --format json}}`; when state is missing, run `{{specify-subcmd:workflow enter --command specify --feature-dir <feature-dir> --format json}}`. The deterministic runtime owns only `workflow-runtime.json`; create or resume rich `workflow-state.md` from the installed template for specification evidence and Learning, and never use it to skip runtime stages. Do not implement code, edit source files, edit tests, or run implementation-oriented fix loops from `sp-specify`.\n"
             "- Write canonical `spec-contract.json` first. Render `spec.md`; write `alignment.md`, `context.md`, `references.md`, or diagnostics only when the triggered content has independent project-review value and cannot be represented by a stable ref.\n"
             "- Clarify only planning-critical ambiguity. Recommend `/sp.clarify` or `/sp.deep-research` only when the unresolved item belongs there.\n"
             "- Preserve this as an internal understand-before-acting pass; do not replace the one-question-at-a-time requirement discovery flow with a broad analysis report.\n"
@@ -580,14 +590,14 @@ class IntegrationBase(ABC):
         addendum = (
             "\n"
             f"{marker}\n\n"
-            "- This workflow is artifact-only unless the user explicitly requested source/runtime/template/config/test/generated-asset changes; do not call `project-cognition mark-dirty`, `project-cognition complete-refresh`, or `project-cognition validate-build --format json` just because `sp-specify`, `sp-plan`, or `sp-tasks` wrote planning artifacts.\n"
+            "- This workflow is artifact-only unless the user explicitly requested source/runtime/template/config/test/generated-asset changes; do not call `{{specify-subcmd:project-cognition mark-dirty --help}}`, `{{specify-subcmd:project-cognition complete-refresh --help}}`, or `{{specify-subcmd:project-cognition validate-build --format json}}` just because `sp-specify`, `sp-plan`, or `sp-tasks` wrote planning artifacts.\n"
             "- If this planning workflow makes actual source/runtime/template/config/test/generated-asset changes in the current run, it stops being artifact-only for closeout: run inline project cognition update from the workflow-owned changed paths and affected surfaces.\n"
             "- Git-baseline freshness only changes after source/runtime/template/config/test/generated-asset changes are recorded; planning-only artifact edits do not require `project-cognition complete-refresh`, and manual override/fallback belongs only to an explicit map-maintenance recovery path.\n"
-            "- Inline project cognition update uses `project-cognition delta append` followed by `project-cognition update --delta-session \"$DELTA_SESSION_ID\" --reason workflow-finalize --format json` when a delta session exists, or `project-cognition update --payload-file \".specify/project-cognition/updates/<update-id>.json\" --reason workflow-finalize --format json` when no delta session exists.\n"
+            "- Inline project cognition update uses `{{specify-subcmd:project-cognition delta append --help}}` followed by `{{specify-subcmd:project-cognition update --delta-session \"$DELTA_SESSION_ID\" --reason workflow-finalize --format json}}` when a delta session exists, or `{{specify-subcmd:project-cognition update --payload-file \".specify/project-cognition/updates/<update-id>.json\" --reason workflow-finalize --format json}}` when no delta session exists.\n"
             "- The payload-file path must include changed_paths, behavior_surfaces, generated_surfaces, state_contracts, verification, known_unknowns, and confidence_notes so the update is equivalent to `sp-map-update`, not just a path stamp; `verification_evidence` and `generated_surface_notes` are accepted compatibility aliases.\n"
             "- Use `known_unknowns` only for blockers that make the cognition update unsafe to trust. If unrelated dirty or untracked working-tree paths were excluded by explicit workflow-owned paths, record that as `confidence_notes` or `boundary.initial_dirty_paths`, not as blocking `known_unknowns`.\n"
             "- clean closeout keys on `result_state`, not `update_id`, `last_update_id`, or freshness alone. Treat `ready` and `no_op` as clean, `partial_refresh` as recorded but not fully clean, `needs_rebuild` as a map-scan/map-build route, `blocked` as blocked, and `recorded` as legacy recorded-only output that is never clean completion.\n"
-            "- Use `project-cognition mark-dirty --reason \"<reason>\" --format json` only when inline update cannot complete.\n"
+            "- Use `{{specify-subcmd:project-cognition mark-dirty --reason \"<reason>\" --format json}}` only when inline update cannot complete.\n"
             "- `sp-map-update` is for manual/external maintenance and follow-up repair, not routine cleanup for changes this workflow just made; run `/sp-map-scan` followed by `/sp-map-build` only for brownfield first/missing/unusable baseline, schema failure, schema v1 or old broad-schema rebuild-required readiness, zero active-generation `path_index` rows outside `greenfield_empty`, missing or invalid `alias_index`, `explicit_rebuild_requested`, or `baseline_identity_invalid`.\n"
         )
         return content + addendum
@@ -606,8 +616,8 @@ class IntegrationBase(ABC):
         addendum = (
             "\n"
             f"{marker}\n\n"
-            "- Run `project-cognition compass --intent plan --query=\"$ARGUMENTS\" --format json` before shaping the checklist. Read top-level `minimal_live_reads` first, then use lane-level `first_pass_paths` reasons, `verification_hints`, `followup_surfaces`, and `before_fix_claim`; treat `coverage_diagnostics` as confidence and closeout signals and `expansion_ref` as a continuation path only when coverage state or live evidence requires it.\n"
-            "- Preserve the advanced `lexicon -> semantic_intake -> query` path with `project-cognition query --intent plan --query-plan` when explicit concept decisions are needed; include `query_plan`, `semantic_intake`, `concept_decisions`, `covered_facets`, `missing_facets`, `match_sources`, `lexicon_generation_id`, and `repository_search_terms` there.\n"
+            "- Run `{{specify-subcmd:project-cognition compass --intent plan --query=\"$ARGUMENTS\" --format json}}` before shaping the checklist. Read top-level `minimal_live_reads` first, then use lane-level `first_pass_paths` reasons, `verification_hints`, `followup_surfaces`, and `before_fix_claim`; treat `coverage_diagnostics` as confidence and closeout signals and `expansion_ref` as a continuation path only when coverage state or live evidence requires it.\n"
+            "- Preserve the advanced `lexicon -> semantic_intake -> query` path with `{{specify-subcmd:project-cognition query --intent plan --query-plan \"<query_plan_json>\" --format json}}` when explicit concept decisions are needed; include `query_plan`, `semantic_intake`, `concept_decisions`, `covered_facets`, `missing_facets`, `match_sources`, `lexicon_generation_id`, and `repository_search_terms` there.\n"
         )
         return content + addendum
 
@@ -689,16 +699,16 @@ class IntegrationBase(ABC):
             f"## {agent_name} Project Cognition Advisory Gate\n\n"
             f"{query_gate}\n"
             f"- {EPISTEMIC_CONTRACT_GUIDANCE}\n"
-            "- Interpret returned readiness: `query_ready` reads top-level `minimal_live_reads` first and then lane-level `first_pass_paths`; `review` permits only returned `minimal_live_reads` plus `coverage_diagnostics`; `needs_rebuild` treats map output as advisory, continues with live repository evidence, and recommends `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only for brownfield first/missing/unusable baseline, schema failure, schema v1 or old broad-schema rebuild-required readiness, zero active-generation `path_index` rows outside a `greenfield_empty` baseline, missing or invalid `alias_index`, `explicit_rebuild_requested`, or `baseline_identity_invalid`; `blocked` reports the runtime issue as advisory map state and continues with live repository evidence; `unsupported_runtime` continues with live evidence and records that compass intake was unavailable. If `baseline_kind=greenfield_empty`, continue with workflow artifacts and live requirements instead of treating absent graph paths as `needs_rebuild`. If the user's actual request is to fix cognition runtime state, report the blocked state and follow the same map-update-first routing policy.\n"
+            "- Route every Compass packet by `recommended_next_action.action_id`, never by readiness alone. `query_ready` reads top-level `minimal_live_reads` first and then lane-level `first_pass_paths`; `review` permits only returned `minimal_live_reads` plus `coverage_diagnostics`; `needs_rebuild` may carry a resumable non-rebuild action such as `complete_scan_packets`, which must be preserved. Only `action_id=project_cognition.rebuild` may consume `rebuild_reasons[]` and the canonical Classic steps in `recommended_next_action.workflow_routes.classic.steps`; `action_id=project_cognition.repair_status` must run its returned `argv`. `blocked` reports the runtime issue as advisory map state and continues with live repository evidence unless the user's request is to repair cognition; `unsupported_runtime` continues with live evidence and records that compass intake was unavailable. If `baseline_kind=greenfield_empty`, continue with workflow artifacts and live requirements instead of inferring rebuild from absent graph paths.\n"
             "- Use `map-update` for ordinary existing-baseline gaps. If `baseline_kind=greenfield_empty`, do not recommend map-scan -> map-build solely because the graph has no paths; continue with workflow artifacts and live requirements. Use `map-scan -> map-build` only for brownfield first/missing/unusable baseline, schema failure, schema v1 or old broad-schema rebuild-required readiness, zero active-generation `path_index` rows outside `greenfield_empty`, missing or invalid `alias_index`, `explicit_rebuild_requested`, or `baseline_identity_invalid`.\n"
             "- Treat the project cognition compass packet as advisory navigation for brownfield context; do not fall back to chat memory or ad hoc repository instincts when compass-backed runtime coverage should guide the route.\n"
             "- Treat this as advisory navigation, not a hard gate; continue with live repository evidence when the bundle is weak, stale, or missing, and use map maintenance only when it is actually useful.\n"
             "- Mutation closeout is separate from entry routing: entry stale may continue, but workflow-owned mutation closeout is not an external map-maintenance handoff. If the workflow changes source/runtime truth-owning surfaces, shared surfaces, command/route/contract boundaries, verification entry points, runtime assumptions, or other project-related behavior surfaces, final state must run inline project cognition update from changed paths, affected surfaces, and verification evidence.\n"
-            "- Inline project cognition update uses `project-cognition delta append` followed by `project-cognition update --delta-session \"$DELTA_SESSION_ID\" --reason workflow-finalize --format json` when a delta session exists, or `project-cognition update --payload-file \".specify/project-cognition/updates/<update-id>.json\" --reason workflow-finalize --format json` when no delta session exists.\n"
+            "- Inline project cognition update uses `{{specify-subcmd:project-cognition delta append --help}}` followed by `{{specify-subcmd:project-cognition update --delta-session \"$DELTA_SESSION_ID\" --reason workflow-finalize --format json}}` when a delta session exists, or `{{specify-subcmd:project-cognition update --payload-file \".specify/project-cognition/updates/<update-id>.json\" --reason workflow-finalize --format json}}` when no delta session exists.\n"
             "- The payload-file path must include changed_paths, behavior_surfaces, generated_surfaces, state_contracts, verification, known_unknowns, and confidence_notes so the update is equivalent to `sp-map-update`, not just a path stamp; `verification_evidence` and `generated_surface_notes` are accepted compatibility aliases.\n"
             "- Use `known_unknowns` only for blockers that make the cognition update unsafe to trust. If unrelated dirty or untracked working-tree paths were excluded by explicit workflow-owned paths, record that as `confidence_notes` or `boundary.initial_dirty_paths`, not as blocking `known_unknowns`.\n"
             "- clean closeout keys on `result_state`, not `update_id`, `last_update_id`, or freshness alone. Treat `ready` and `no_op` as clean, `partial_refresh` as recorded but not fully clean, `needs_rebuild` as a map-scan/map-build route, `blocked` as blocked, and `recorded` as legacy recorded-only output that is never clean completion.\n"
-            "- Use `project-cognition mark-dirty --reason \"<reason>\" --format json` only when inline update cannot complete. Dirty only when inline update cannot complete.\n"
+            "- Use `{{specify-subcmd:project-cognition mark-dirty --reason \"<reason>\" --format json}}` only when inline update cannot complete. Dirty only when inline update cannot complete.\n"
             "- `sp-map-update` is for manual/external maintenance and follow-up repair after user edits, interrupted workflows, or explicit operator map-maintenance requests. It is not routine cleanup for changes this workflow just made.\n"
             "- A project-cognition compass intake is not complete when it returns JSON. It is complete only when readiness drives routing, `minimal_live_reads` constrains inspection, lane-level `first_pass_paths` reasons are considered, and relevant facts are carried into the next workflow artifact or execution state.\n"
             f"{carry_forward}"
@@ -739,7 +749,7 @@ class IntegrationBase(ABC):
             f"{command_step}. {EPISTEMIC_CONTRACT_GUIDANCE} Read top-level `minimal_live_reads` first, then use lane-level `first_pass_paths` reasons, "
             "`verification_hints`, `followup_surfaces`, and `before_fix_claim`; treat `coverage_diagnostics` as confidence "
             "and closeout signals, never as route candidates. Treat `expansion_ref` as a normal continuation path and run "
-            "`project-cognition expand --id <id> --section <section> --format json` only when coverage state or live evidence "
+            "`{{specify-subcmd:project-cognition expand --id <id> --section <section> --format json}}` only when coverage state or live evidence "
             "requires more map detail. Do not infer final edit scope from `minimal_live_reads` or `first_pass_paths`. "
             "Readiness values are `query_ready`, `review`, `needs_rebuild`, `blocked`, and `unsupported_runtime`. "
             "When `compass_state=needs_semantic_intake`, write `semantic_intake` from project vocabulary and rerun compass "
@@ -952,15 +962,15 @@ class IntegrationBase(ABC):
         if "<request-id>" in descriptor.result_handoff_hint:
             result_cli_guidance = (
                 "- Runtime-managed result paths require a dispatch request id; compute the path with "
-                f"`specify result path --command {command_name} --request-id <request-id>` and report final completion "
+                f"`{{{{specify-subcmd:result path --command {command_name} --request-id <request-id>}}}}` and report final completion "
                 "through the active runtime-managed result channel for that request id.\n"
-                "- `specify result path` emits JSON and does not accept `--format`; do not append `--format`.\n"
+                "- `{{specify-subcmd:result path --help}}` documents a JSON-only command; do not append `--format`.\n"
             )
         else:
             result_cli_guidance = (
-                "- For filesystem handoffs, use `specify result path` with the concrete workflow identifiers "
+                "- For filesystem handoffs, use `{{specify-subcmd:result path --help}}` with the concrete workflow identifiers "
                 "such as `--feature-dir`/`--task-id`, `--workspace`/`--lane-id`, or `--session-slug`/`--lane-id`.\n"
-                "- `specify result path` emits JSON and does not accept `--format`; do not append `--format`.\n"
+                "- The result-path command emits JSON and does not accept `--format`; do not append `--format`.\n"
             )
         addendum = (
             "\n"
@@ -1674,12 +1684,34 @@ class IntegrationBase(ABC):
         **opts: Any,
     ) -> list[Path]:
         """Refresh runtime-managed integration assets without rewriting workflow content."""
-        created = self.install_scripts(project_root, manifest)
+        skipped: list[str] = []
+        cognition_skipped: list[str] = []
+        created = self.install_scripts(
+            project_root,
+            manifest,
+            preserve_modified=True,
+            skipped_modified=skipped,
+        )
         created.extend(
             self.rebind_unavailable_project_cognition_commands(
                 project_root,
                 manifest,
+                skipped_modified=cognition_skipped,
             )
+        )
+        skipped.extend(cognition_skipped)
+        rebound, guidance_skipped = self.rebind_manifest_owned_specify_guidance(
+            project_root,
+            manifest,
+        )
+        created.extend(rebound)
+        skipped.extend(guidance_skipped)
+        self._last_repair_skipped_modified = tuple(sorted(set(skipped)))
+        self._last_repair_unresolved_cognition_markers = tuple(
+            sorted(set(cognition_skipped))
+        )
+        self._last_repair_unresolved_cognition_calls = tuple(
+            sorted(set(cognition_skipped))
         )
         return created
 
@@ -1687,34 +1719,67 @@ class IntegrationBase(ABC):
         self,
         project_root: Path,
         manifest: IntegrationManifest,
+        *,
+        skipped_modified: list[str] | None = None,
     ) -> list[Path]:
         """Rebind unmodified generated guidance after cognition runtime recovery."""
 
         from specify_cli.launcher import (
             PROJECT_COGNITION_UNAVAILABLE_MARKER,
+            load_project_cognition_launcher,
             rebind_unavailable_project_cognition_commands,
+            rebind_unbound_project_cognition_runtime_calls,
         )
 
         project_root_resolved = project_root.resolve()
+        cognition_launcher = load_project_cognition_launcher(project_root)
         modified = set(manifest.check_modified())
         rebound: list[Path] = []
         for relative in sorted(manifest.files):
-            if relative in modified:
+            lexical_path = project_root_resolved / relative
+            if lexical_path.is_symlink():
+                if relative in modified and skipped_modified is not None:
+                    skipped_modified.append(relative)
                 continue
-            path = (project_root_resolved / relative).resolve()
+            path = lexical_path.resolve()
             try:
                 path.relative_to(project_root_resolved)
             except ValueError:
+                if skipped_modified is not None:
+                    skipped_modified.append(relative)
                 continue
             if not path.is_file() or path.suffix.lower() not in {".md", ".toml"}:
                 continue
-            content = path.read_text(encoding="utf-8")
-            if PROJECT_COGNITION_UNAVAILABLE_MARKER not in content:
+            try:
+                content = path.read_text(encoding="utf-8")
+            except (OSError, UnicodeError):
+                if skipped_modified is not None:
+                    skipped_modified.append(relative)
+                continue
+            marker_present = (
+                f"{PROJECT_COGNITION_UNAVAILABLE_MARKER}:project-cognition"
+                in content
+            )
+            _, bare_count = rebind_unbound_project_cognition_runtime_calls(
+                content,
+                "__SPEC_KIT_BOUND_PROJECT_COGNITION__",
+            )
+            if not marker_present and bare_count == 0:
+                continue
+            if relative in modified:
+                if skipped_modified is not None:
+                    skipped_modified.append(relative)
+                continue
+            if cognition_launcher is None:
+                if skipped_modified is not None:
+                    skipped_modified.append(relative)
                 continue
             command_renderer = None
             if path.suffix.lower() == ".toml":
                 render_toml_string = getattr(self, "_render_toml_string", None)
                 if not callable(render_toml_string):
+                    if skipped_modified is not None:
+                        skipped_modified.append(relative)
                     continue
 
                 def command_renderer(command: str) -> str:
@@ -1726,7 +1791,14 @@ class IntegrationBase(ABC):
                 content,
                 command_renderer=command_renderer,
             )
+            repaired, _ = rebind_unbound_project_cognition_runtime_calls(
+                repaired,
+                cognition_launcher.command,
+                command_renderer=command_renderer,
+            )
             if repaired == content:
+                if skipped_modified is not None:
+                    skipped_modified.append(relative)
                 continue
             rebound.append(
                 self.write_file_and_record(
@@ -1737,6 +1809,107 @@ class IntegrationBase(ABC):
                 )
             )
         return rebound
+
+    def rebind_manifest_owned_specify_guidance(
+        self,
+        project_root: Path,
+        manifest: IntegrationManifest,
+    ) -> tuple[list[Path], list[str]]:
+        """Rebind safe generated guidance while preserving every user edit."""
+
+        from specify_cli.launcher import (
+            SPEC_KIT_MANAGED_BLOCK_RE,
+            load_project_specify_launcher,
+            rebind_source_bound_specify_launchers,
+            rebind_unbound_specify_runtime_calls,
+        )
+
+        launcher = load_project_specify_launcher(project_root)
+        if launcher is None:
+            return [], []
+        project_root_resolved = project_root.resolve()
+        modified = set(manifest.check_modified())
+        context_relative = (
+            Path(self.context_file).as_posix()
+            if self.context_file
+            else None
+        )
+        rebound: list[Path] = []
+        skipped: list[str] = []
+        for relative in sorted(manifest.files):
+            lexical_path = project_root_resolved / Path(relative)
+            if lexical_path.is_symlink():
+                skipped.append(relative)
+                continue
+            path = lexical_path.resolve()
+            try:
+                path.relative_to(project_root_resolved)
+            except ValueError:
+                skipped.append(relative)
+                continue
+            if not path.is_file() or path.suffix.lower() not in {".md", ".toml"}:
+                continue
+            try:
+                content = path.read_text(encoding="utf-8")
+            except OSError:
+                skipped.append(relative)
+                continue
+            command_renderer = None
+            if path.suffix.lower() == ".toml":
+                render_toml_string = getattr(self, "_render_toml_string", None)
+                if not callable(render_toml_string):
+                    continue
+
+                def command_renderer(command: str) -> str:
+                    rendered = render_toml_string(command)
+                    return rendered[1:-1]
+
+            updated, source_count = rebind_source_bound_specify_launchers(
+                content,
+                launcher,
+                command_renderer=command_renderer,
+            )
+            updated, bare_count = rebind_unbound_specify_runtime_calls(
+                updated,
+                launcher.command,
+                command_renderer=command_renderer,
+            )
+            if source_count + bare_count == 0 or updated == content:
+                continue
+            if relative in modified:
+                if relative == context_relative:
+                    def rebind_managed_block(match: re.Match[str]) -> str:
+                        block, _ = rebind_source_bound_specify_launchers(
+                            match.group(0),
+                            launcher,
+                        )
+                        block, _ = rebind_unbound_specify_runtime_calls(
+                            block,
+                            launcher.command,
+                        )
+                        return block
+
+                    managed_updated = SPEC_KIT_MANAGED_BLOCK_RE.sub(
+                        rebind_managed_block,
+                        content,
+                    )
+                    if managed_updated != content:
+                        path.write_bytes(managed_updated.encode("utf-8"))
+                        rebound.append(path)
+                    if managed_updated != updated:
+                        skipped.append(relative)
+                    continue
+                skipped.append(relative)
+                continue
+            rebound.append(
+                self.write_file_and_record(
+                    updated,
+                    path,
+                    project_root,
+                    manifest,
+                )
+            )
+        return rebound, sorted(set(skipped))
 
     def post_init_bootstrap(
         self,
@@ -3312,11 +3485,11 @@ class SkillsIntegration(IntegrationBase):
             "3. join point expectations and result handoff expectations are explicit\n"
             "4. the team-managed lane cannot be treated as complete from a status flip alone; the leader still needs the promised completion handoff or result evidence\n\n"
             "Before assigning team-managed work, preserve the same project cognition compass contract that `sp-implement` uses:\n\n"
-            "1. run `project-cognition compass --intent implement --query=\"$ARGUMENTS\" --format json` and include the compass packet in the execution context bundle\n"
+            "1. run `{{specify-subcmd:project-cognition compass --intent implement --query=\"$ARGUMENTS\" --format json}}` and include the compass packet in the execution context bundle\n"
             f"2. {EPISTEMIC_CONTRACT_GUIDANCE} Carry `epistemic_contract` in every teammate context packet.\n"
             "3. read top-level `minimal_live_reads` first, then use lane-level `first_pass_paths` reasons, evidence hints, `verification_hints`, `followup_surfaces`, and `before_fix_claim` checks\n"
             "4. preserve `coverage_diagnostics` as confidence and closeout signals, not route candidates\n"
-            "5. treat `expansion_ref` as a normal continuation path and run `project-cognition expand --id <id> --section <section> --format json` only when coverage state or live evidence requires more map detail\n"
+            "5. treat `expansion_ref` as a normal continuation path and run `{{specify-subcmd:project-cognition expand --id <id> --section <section> --format json}}` only when coverage state or live evidence requires more map detail\n"
             "6. do not infer final edit scope from `minimal_live_reads` or `first_pass_paths`; carry them as advisory first-pass evidence routes in every teammate context packet\n"
             "7. use the advanced `lexicon -> semantic_intake -> query` path only when explicit concept decisions are needed or coverage cannot be resolved from the default compass packet\n"
             "8. in that precision escalation, normalize user input and write a `semantic_intake` object with `workflow_intent`, `normalized_query`, `intent_facets`, `negative_constraints`, `alias_interpretations`, and `open_semantic_questions`\n"
@@ -3325,7 +3498,7 @@ class SkillsIntegration(IntegrationBase):
             "11. keep `alias_interpretations` object-shaped, for example `{\"alias\": \"<user term>\", \"meaning\": \"<project term>\", \"confidence\": \"medium\"}`, never as a string array\n"
             "12. build a `query_plan` with `selected_concepts`, `rejected_concepts`, `concept_decisions`, `covered_facets`, `missing_facets`, `match_sources`, `lexicon_generation_id`, `expanded_queries`, `repository_search_terms`, and justified `paths`\n"
             "13. derive project-language search terms from the alias catalog before source search; do not search only the raw user words; include component names, state names, file names, command names, UI labels, and route names from candidates, aliases, matched terms, returned paths, `normalized_query`, and `expanded_queries`\n"
-            "14. run `project-cognition query --intent implement --query-plan \"<query_plan_json>\" --format json` only for that precision escalation, and preserve returned readiness, `minimal_live_reads`, `first_pass_paths`, and the task-local bundle in every teammate context packet\n"
+            "14. run `{{specify-subcmd:project-cognition query --intent implement --query-plan \"<query_plan_json>\" --format json}}` only for that precision escalation, and preserve returned readiness, `minimal_live_reads`, `first_pass_paths`, and the task-local bundle in every teammate context packet\n"
             "15. if the query reports diagnostics, preserve `warnings`, `repair_hints`, normalized `query_plan`, structured `errors`, and `expected_shape` so the leader can repair the plan instead of losing the diagnostics in team chat\n\n"
             "The only intended difference is the dispatch path:\n\n"
             f"1. `{canonical_command}` may route the current ready batch through subagents first\n"

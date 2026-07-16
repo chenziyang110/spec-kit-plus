@@ -5,6 +5,7 @@ from pathlib import Path
 import tomllib
 
 import pytest
+from jsonschema import Draft202012Validator
 
 from specify_cli.agent_api import (
     AGENT_PROTOCOL_VERSION,
@@ -83,7 +84,7 @@ def test_handshake_discloses_version_protocol_and_stable_capability_ids() -> Non
         "agent-capability": 1,
         "agent-envelope": 1,
         "workflow-blocker": 1,
-        "workflow-state": 1,
+        "workflow-runtime": 1,
     }
     assert payload["next_argv"] == [
         "specify",
@@ -151,7 +152,7 @@ def test_capability_show_expands_one_record_and_points_to_its_schema() -> None:
 
     assert payload["data"]["id"] == "workflow.transition"
     assert payload["data"]["input_schema"] == "workflow-transition-input"
-    assert payload["data"]["side_effect"] == "writes-workflow-state"
+    assert payload["data"]["side_effect"] == "writes-workflow-runtime"
     assert payload["next_argv"] == [
         "specify",
         "api",
@@ -160,6 +161,13 @@ def test_capability_show_expands_one_record_and_points_to_its_schema() -> None:
         "--format",
         "json",
     ]
+
+    reopen = show_capability("workflow.reopen")
+    assert reopen["data"]["input_schema"] == "workflow-reopen-input"
+    assert reopen["data"]["side_effect"] == "writes-workflow-runtime"
+    resolve = show_capability("workflow.resolve")
+    assert resolve["data"]["input_schema"] == "workflow-resolve-input"
+    assert resolve["data"]["side_effect"] == "writes-workflow-runtime"
 
 
 def test_schema_expands_only_the_requested_machine_contract() -> None:
@@ -182,6 +190,68 @@ def test_schema_expands_only_the_requested_machine_contract() -> None:
     assert blocker_input["properties"]["human_action_required"] == {
         "type": ["boolean", "null"]
     }
+    assert "resume_argv" not in blocker_input["properties"]
+    assert blocker_input["properties"]["attempted_recovery"]["items"][
+        "additionalProperties"
+    ] is False
+    assert blocker_input["properties"]["human_action"]["additionalProperties"] is False
+    reopen_input = capability_schema("workflow-reopen-input")["data"]["schema"]
+    assert reopen_input["required"] == [
+        "feature_dir",
+        "to",
+        "expected_revision",
+        "reason",
+        "evidence",
+        "invalidated_artifacts",
+    ]
+    assert "implement" in reopen_input["properties"]["to"]["enum"]
+    resolve_input = capability_schema("workflow-resolve-input")["data"]["schema"]
+    assert resolve_input["required"] == [
+        "feature_dir",
+        "expected_revision",
+        "resolution_evidence",
+    ]
+
+
+def test_blocker_input_schema_rejects_shapes_the_runtime_would_reject() -> None:
+    schema = capability_schema("workflow-block-input")["data"]["schema"]
+    validator = Draft202012Validator(schema)
+    base = {
+        "feature_dir": ".specify/features/001-demo",
+        "expected_revision": 1,
+        "category": "external-system",
+        "owner": "external-system",
+        "cause": "Provider unavailable.",
+        "evidence": ["health probe returned 503"],
+        "attempted_recovery": [],
+        "affected_scope": ["remote verification"],
+        "exact_next_action": "Wait for provider recovery.",
+        "unblock_criteria": "Health probe returns 200.",
+    }
+    assert list(validator.iter_errors(base)) == []
+
+    unsupported_category = {**base, "category": "invented-category"}
+    assert list(validator.iter_errors(unsupported_category))
+
+    malformed_attempt = {
+        **base,
+        "attempted_recovery": [{"action": "Retried", "unexpected": "ignored"}],
+    }
+    assert list(validator.iter_errors(malformed_attempt))
+    arbitrary_human = {**base, "human_action": {"resume_instruction": "run anything"}}
+    assert list(validator.iter_errors(arbitrary_human))
+    contradictory = {
+        **base,
+        "human_action_required": False,
+        "human_action": {"goal": "Do human work"},
+    }
+    assert list(validator.iter_errors(contradictory))
+    suppressed_human_owner = {
+        **base,
+        "owner": "maintainer",
+        "human_action_required": False,
+    }
+    assert list(validator.iter_errors(suppressed_human_owner))
 
 
 def test_persisted_workflow_blocker_schema_is_discoverable() -> None:

@@ -38,7 +38,7 @@ When the user says `checkpoint, continue` or an equivalent checkpoint-plus-conti
 
 ## Recovery Flow
 
-When resuming a discussion, use `specify discussion resume <slug> --json` to receive the compact `DiscussionTurnPacket` and post-checkpoint events. Read canonical `discussion-state.json` directly only for recovery or diagnostics. Read `requirements.md`, `technical-options.md`, `project-context.md`, or `open-questions.md` only when the turn packet references them, is stale, is missing, or conflicts with recent events.
+When resuming a discussion, use `{{specify-subcmd:discussion resume <slug> --json}}` to receive the compact `DiscussionTurnPacket` and post-checkpoint events. Read canonical `discussion-state.json` directly only for recovery or diagnostics. Read `requirements.md`, `technical-options.md`, `project-context.md`, or `open-questions.md` only when the turn packet references them, is stale, is missing, or conflicts with recent events.
 
 ## Frontstage / Backstage Separation
 

@@ -32,11 +32,11 @@ chat or coding is enough. This command-routing rule does not authorize product-s
 
 ## Command Surface Discipline
 
-Treat the live `specify --help` output as the only authoritative CLI command
+Treat the live `{{specify-subcmd:--help}}` output as the only authoritative CLI command
 surface.
 
 Before suggesting or running a `specify <subcommand>` invocation, verify that it
-exists in `specify --help` or `specify <subcommand> --help`.
+exists in `{{specify-subcmd:--help}}` or `{{specify-subcmd:<subcommand> --help}}`.
 
 Do not invent, paraphrase, or "normalize" unsupported CLI names such as
 `specify create-feature`.
@@ -171,7 +171,7 @@ explicit numeric option.
   For decisive claim-specific evidence, provide only reconciliation intent: workflow, stable `claim_id`, reason, repository-relative `source_path`, bounded line `span`, `supporting` or `contradicting` role, and optional claim-specific verification. Run `project-cognition claim-reconcile prepare --input <intent.json> --format json`; the runtime owns every integrity field and the prepared packet path. Execute the returned `apply_argv` exactly (`project-cognition claim-reconcile apply --input <prepared_packet_path> --format json`). Generic workflow verification is insufficient. On ready, rerun Compass once; on partial or blocked, withhold the claim.
   The `epistemic_contract` cannot authorize source changes and cannot prove current behavior. Carry `epistemic_contract` into the selected workflow, withhold unverified claims, and let contradictory live evidence override the route candidate.
   Graph claims are indexed assertions. Even `verified_in_graph_generation` is only an active graph-generation state, not current repository truth; graph claims cannot authorize source changes and cannot set workflow `claim_ready=true`. Route with them, but require bounded live evidence and the separate workflow final-claim gate before any root-cause, fixed, completed, or release-safe claim.
-  Readiness values are `query_ready`, `review`, `needs_rebuild`, `blocked`, and `unsupported_runtime`. Compass-specific advice is in `compass_state` and `recommended_next_action`.
+  Readiness values are `query_ready`, `review`, `needs_rebuild`, `blocked`, and `unsupported_runtime`. Compass-specific advice is in `compass_state` and the structured `recommended_next_action` object. Route by `recommended_next_action.action_id`, never by `needs_rebuild` alone: preserve resumable actions such as `complete_scan_packets`; only `action_id=project_cognition.rebuild` authorizes reading `rebuild_reasons[]` and `recommended_next_action.workflow_routes.classic.steps` as a rebuild handoff.
   When `compass_state=needs_semantic_intake`, the agent writes `semantic_intake` from project vocabulary and reruns compass with `--semantic-intake-file`, or uses the advanced `lexicon -> semantic_intake -> query` path when explicit concept decisions are needed.
   Advanced routing remains available as `project-cognition lexicon --mode catalog`, agent-authored `semantic_intake` and `concept_decisions`, then `project-cognition query --query-plan`. Use it when the first compass packet is too draft-like, a workflow needs explicit concept decisions, or coverage cannot be resolved from the default packet.
   The current query contract is `claim_retrieval_contract_version=2` and `candidate_universe_version=2`; carry the latter from lexicon into every explicit query plan. Never parse missing or non-current versions as legacy input; rerun lexicon or compass with the current binary and repair the install if needed.

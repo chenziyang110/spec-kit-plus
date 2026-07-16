@@ -140,6 +140,12 @@ class CopilotIntegration(IntegrationBase):
                 command_name=src_file.stem,
                 snapshot=runtime_snapshot,
             )
+            from specify_cli.launcher import render_project_launcher_placeholders
+
+            processed = render_project_launcher_placeholders(
+                project_root,
+                processed,
+            )
             dst_name = self.command_filename(src_file.stem)
             dst_file = self.write_file_and_record(
                 processed, dest / dst_name, project_root, manifest

@@ -62,7 +62,7 @@ def _assert_subagent_using_surfaces_have_discovery(paths):
 def _assert_canonical_cognition_intake_contract(content: str) -> None:
     normalized = " ".join(
         content.replace('\\"', '"').replace("\\n", "\n").split()
-    ).lower()
+    ).lower().replace("project-cognition.exe", "project-cognition")
 
     for required in (
         "project-cognition compass",

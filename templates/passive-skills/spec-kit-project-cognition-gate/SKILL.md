@@ -35,7 +35,8 @@ judgment in an established Spec Kit Plus repository:
   The `epistemic_contract` cannot authorize source changes and cannot prove current behavior. Carry `epistemic_contract` forward, withhold unverified claims, and let contradictory live evidence override the route candidate.
   Graph claims are indexed assertions. Even `verified_in_graph_generation` is only an active graph-generation state, not current repository truth; graph claims cannot authorize source changes and cannot set workflow `claim_ready=true`. Treat `candidate` and `supported` as navigation hypotheses, and `contradicted` or `stale` as negative-route or historical context until bounded live evidence is checked.
   Readiness values are `query_ready`, `review`, `needs_rebuild`, `blocked`, and `unsupported_runtime`. Compass-specific advice is in `compass_state` and `recommended_next_action`.
-  Treat `recommended_next_action` as an object. Do not treat `recommended_next_action` as a string. Read `recommended_next_action.action_id` for every packet. For `needs_rebuild`, inspect every entry in `rebuild_reasons[]`, preserve its stable `code`, human-readable `message`, and relevant `evidence`, and require `recommended_next_action.action_id=project_cognition.rebuild`. Then follow the canonical Classic sequence in `recommended_next_action.workflow_routes.classic.steps`; project those canonical step names through this integration's invocation syntax instead of guessing from an internal action ID. Non-rebuild actions omit `recommended_next_action.workflow_routes` and are selected by `action_id` alone.
+  Treat `recommended_next_action` as an object. Do not treat `recommended_next_action` as a string. Read `recommended_next_action.action_id` for every packet: `needs_rebuild` alone is not a rebuild route and can accompany a resumable action such as `complete_scan_packets`. Only for `action_id=project_cognition.rebuild`, inspect every entry in `rebuild_reasons[]`, preserve its stable `code`, human-readable `message`, and relevant `evidence`, then follow the canonical Classic sequence in `recommended_next_action.workflow_routes.classic.steps`. Project those canonical step names through this integration's invocation syntax instead of guessing from readiness or an internal action ID. Non-rebuild actions omit workflow routes and must be preserved by `action_id` alone.
+  If a non-workflow action includes `recommended_next_action.argv`, execute that exact argv through the project-pinned cognition launcher. `project_cognition.repair_status` owns the deterministic `repair-status` action; never patch graph-store metadata by hand.
   When `compass_state=needs_semantic_intake`, the agent writes `semantic_intake` from project vocabulary and reruns compass with `--semantic-intake-file`, or uses the advanced `lexicon -> semantic_intake -> query` path when explicit concept decisions are needed.
   Advanced routing remains available as `project-cognition lexicon --mode catalog`, agent-authored `semantic_intake` and `concept_decisions`, then `project-cognition query --query-plan`. Use it when the first compass packet is too draft-like, a workflow needs explicit concept decisions, or coverage cannot be resolved from the default packet.
   The current query contract is `claim_retrieval_contract_version=2` and `candidate_universe_version=2`; carry the latter from lexicon into every explicit query plan. Never parse missing or non-current versions as legacy input; rerun lexicon or compass with the current binary and repair the install if needed.
@@ -113,7 +114,7 @@ judgment in an established Spec Kit Plus repository:
   `minimal_live_reads`, `first_pass_paths`, `coverage_diagnostics`, missing coverage, evidence traces, verification routes,
   ambiguity, conflicts, and weak coverage.
 - Treat project cognition under `.specify/project-cognition/` as an advisory navigation surface. Legacy project-map exports are not evidence for current project behavior and `templates/project-map/**` is historical compatibility/export only.
-- Consume project rules and reusable Learning through `specify learning start -> list -> show`; do not parse Learning storage as part of cognition intake.
+- Consume project rules and reusable Learning through `{{specify-subcmd:learning start --command <command> --format json}}`, then its returned list/show actions; do not parse Learning storage as part of cognition intake.
 
 ## Cross-Project Reference Directories
 
@@ -146,8 +147,8 @@ judgment in an established Spec Kit Plus repository:
 
 ## Command Surface Discipline
 
-- Treat the live `specify --help` output as the only authoritative CLI command surface.
-- Before suggesting or running a `specify <subcommand>` invocation while satisfying this gate, verify that it exists in `specify --help` or `specify <subcommand> --help`.
+- Treat the live `{{specify-subcmd:--help}}` output as the only authoritative CLI command surface.
+- Before suggesting or running a `specify <subcommand>` invocation while satisfying this gate, verify that it exists in `{{specify-subcmd:--help}}` or `{{specify-subcmd:<subcommand> --help}}`.
 - Do not invent, paraphrase, or "normalize" unsupported CLI names such as `specify create-feature`.
 - Feature creation remains `{{invoke:specify}}` plus the generated create-feature script at `.specify/scripts/bash/create-new-feature.sh` or `.specify/scripts/powershell/create-new-feature.ps1`, not a separate branch-creation command. Default feature workspace names use `YYYY-MM-DD-<slug>`; numeric prefixes are legacy and require the script's explicit numeric option.
 

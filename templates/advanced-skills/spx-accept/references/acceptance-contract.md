@@ -15,7 +15,8 @@ the current snapshot differs from `prepared_from_sha256`, status is `stale` and
 no prior verdict can close acceptance. Rebuild orientation/scenarios from
 current evidence, update the summary and snapshot digests, and rerun validation.
 
-Use `workflow-state.md` as phase state:
+Use CLI-owned `workflow-runtime.json` as the required phase lock. Use rich
+`workflow-state.md` only for acceptance-owned resume and evidence state:
 
 - `active_command: sp-accept`
 - `phase_mode: acceptance-only`
@@ -83,6 +84,24 @@ Routes are handoff-and-stop:
 - genuinely new scope: `spx-specify`;
 - human-only access/authority: retain `spx-accept` with a Human Action Guide.
 
-After repair, rerun `accept prepare`. Reuse passed scenarios only when their
-implementation evidence and dependencies are unchanged; otherwise reset the
-affected results and cursor.
+For every non-human repair route, first run
+`{{specify-subcmd:accept route-repair --feature-dir <feature-dir> --finding-id <finding-id> --route <recorded-route> --expected-revision <revision> --evidence <sanitized-evidence> --format json}}`.
+The runtime invalidates the prior verdict, preserves the failed scenario as the
+cursor, and reopens `implement` for implement/debug routes or `specify` for
+clarify/specify routes. Invoke `repair_handoff_command` separately and stop.
+Debug and clarify must not write CLI-owned `workflow-runtime.json`. Clarify may update the feature's rich
+`workflow-state.md` specification resume/evidence sections; debug keeps both
+feature state surfaces read-only and persists its session under
+`.planning/debug/`. When it finishes, separately invoke
+`owning_stage_command` (`spx-implement` after debug or `spx-specify` after
+clarify). The owning required stage reads the reopened CLI state, completes it
+through `workflow complete-stage`, and progresses every required stage in
+order. Only after the runtime re-enters active `accept` execute
+`acceptance_return_argv` to rebuild/freshness-check the guide and resume the
+preserved failed scenario. Reuse prior passes only after fresh evidence proves
+their implementation dependencies did not change.
+
+After `accept closeout` succeeds and its exact `next_argv` commits terminal
+workflow closeout, the acceptance state, immutable terminal snapshot, and
+completed runtime are read-only. Changed implementation scope starts a new
+feature workflow; never rewrite the terminal verdict to draft or stale.

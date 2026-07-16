@@ -12,13 +12,15 @@ import json
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
+from jsonschema import Draft202012Validator
+
 
 AGENT_PROTOCOL_VERSION = "1.0"
 SCHEMA_VERSIONS: dict[str, int] = {
     "agent-capability": 1,
     "agent-envelope": 1,
     "workflow-blocker": 1,
-    "workflow-state": 1,
+    "workflow-runtime": 1,
 }
 
 _SUCCESS_STATUSES = frozenset({"ok", "warn", "repaired"})
@@ -106,6 +108,46 @@ def _object_schema(
 _STRING = {"type": "string", "minLength": 1}
 _PATH = {"type": "string", "minLength": 1}
 _REVISION = {"type": "integer", "minimum": 0}
+_RECOVERY_ATTEMPT = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["action", "result"],
+    "properties": {"action": _STRING, "result": _STRING},
+}
+_HUMAN_ACTION_STEP = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["order", "title", "action", "expected_result", "if_failed"],
+    "properties": {
+        "order": {"type": "integer", "minimum": 1},
+        "title": _STRING,
+        "action": _STRING,
+        "command": {"type": ["string", "null"]},
+        "expected_result": _STRING,
+        "if_failed": _STRING,
+    },
+}
+_HUMAN_ACTION_INPUT = {
+    "type": ["object", "null"],
+    "additionalProperties": False,
+    "properties": {
+        "goal": _STRING,
+        "why_human": _STRING,
+        "prerequisites": {"type": "array", "minItems": 1, "items": _STRING},
+        "safety_notes": {"type": "array", "minItems": 1, "items": _STRING},
+        "steps": {
+            "type": "array",
+            "minItems": 1,
+            "items": _HUMAN_ACTION_STEP,
+        },
+        "verification": {"type": "array", "minItems": 1, "items": _STRING},
+        "evidence_to_return": {
+            "type": "array",
+            "minItems": 1,
+            "items": _STRING,
+        },
+    },
+}
 
 
 def _load_workflow_blocker_schema() -> dict[str, Any]:
@@ -124,6 +166,13 @@ def _load_workflow_blocker_schema() -> dict[str, Any]:
             if isinstance(payload, dict):
                 return payload
     raise RuntimeError("packaged workflow blocker schema is missing")
+
+
+_WORKFLOW_BLOCKER_SCHEMA = _load_workflow_blocker_schema()
+WORKFLOW_BLOCKER_CATEGORIES = tuple(
+    str(item)
+    for item in _WORKFLOW_BLOCKER_SCHEMA["properties"]["category"]["enum"]
+)
 
 
 _SCHEMAS: dict[str, dict[str, Any]] = {
@@ -187,10 +236,10 @@ _SCHEMAS: dict[str, dict[str, Any]] = {
         properties={
             "feature_dir": _PATH,
             "command": {"enum": ["discussion", "specify"], "default": "specify"},
-            "expected_revision": _REVISION,
+            "expected_revision": {**_REVISION, "default": 0},
             "summary": {"type": "string"},
         },
-        required=["feature_dir", "expected_revision"],
+        required=["feature_dir"],
     ),
     "workflow-transition-input": _object_schema(
         "workflow-transition-input",
@@ -207,33 +256,74 @@ _SCHEMAS: dict[str, dict[str, Any]] = {
             },
             "expected_revision": _REVISION,
             "summary": {"type": "string"},
-            "resolution_evidence": {
+        },
+        required=["feature_dir", "to", "expected_revision"],
+    ),
+    "workflow-reopen-input": _object_schema(
+        "workflow-reopen-input",
+        properties={
+            "feature_dir": _PATH,
+            "to": {"enum": ["specify", "plan", "tasks", "implement"]},
+            "expected_revision": _REVISION,
+            "reason": _STRING,
+            "evidence": {"type": "array", "minItems": 1, "items": _STRING},
+            "invalidated_artifacts": {
                 "type": "array",
+                "minItems": 1,
                 "items": _STRING,
             },
         },
-        required=["feature_dir", "to", "expected_revision"],
+        required=[
+            "feature_dir",
+            "to",
+            "expected_revision",
+            "reason",
+            "evidence",
+            "invalidated_artifacts",
+        ],
     ),
     "workflow-next-input": _object_schema(
         "workflow-next-input",
         properties={"feature_dir": _PATH},
         required=["feature_dir"],
     ),
+    "workflow-complete-stage-input": _object_schema(
+        "workflow-complete-stage-input",
+        properties={
+            "feature_dir": _PATH,
+            "expected_revision": _REVISION,
+            "summary": {"type": "string"},
+        },
+        required=["feature_dir", "expected_revision"],
+    ),
+    "workflow-resolve-input": _object_schema(
+        "workflow-resolve-input",
+        properties={
+            "feature_dir": _PATH,
+            "expected_revision": _REVISION,
+            "resolution_evidence": {
+                "type": "array",
+                "minItems": 1,
+                "items": _STRING,
+            },
+            "summary": {"type": "string"},
+        },
+        required=["feature_dir", "expected_revision", "resolution_evidence"],
+    ),
     "workflow-block-input": _object_schema(
         "workflow-block-input",
         properties={
             "feature_dir": _PATH,
             "expected_revision": _REVISION,
-            "category": _STRING,
+            "category": {"enum": list(WORKFLOW_BLOCKER_CATEGORIES)},
             "owner": {"enum": ["agent", "user", "maintainer", "external-system"]},
             "cause": _STRING,
             "evidence": {"type": "array", "minItems": 1, "items": _STRING},
-            "attempted_recovery": {"type": "array", "items": {"type": "object"}},
+            "attempted_recovery": {"type": "array", "items": _RECOVERY_ATTEMPT},
             "affected_scope": {"type": "array", "minItems": 1, "items": _STRING},
             "exact_next_action": _STRING,
             "unblock_criteria": _STRING,
-            "resume_argv": {"type": "array", "minItems": 1, "items": _STRING},
-            "human_action": {"type": ["object", "null"]},
+            "human_action": _HUMAN_ACTION_INPUT,
             "human_action_required": {"type": ["boolean", "null"]},
         },
         required=[
@@ -247,7 +337,6 @@ _SCHEMAS: dict[str, dict[str, Any]] = {
             "affected_scope",
             "exact_next_action",
             "unblock_criteria",
-            "resume_argv",
         ],
     ),
     "workflow-closeout-input": _object_schema(
@@ -259,13 +348,76 @@ _SCHEMAS: dict[str, dict[str, Any]] = {
         },
         required=["feature_dir", "expected_revision"],
     ),
+    "accept-route-repair-input": _object_schema(
+        "accept-route-repair-input",
+        properties={
+            "feature_dir": _PATH,
+            "finding_id": _STRING,
+            "route": {
+                "enum": [
+                    "sp-implement",
+                    "sp-debug",
+                    "sp-clarify",
+                    "sp-specify",
+                    "spx-implement",
+                    "spx-debug",
+                    "spx-clarify",
+                    "spx-specify",
+                ]
+            },
+            "expected_revision": _REVISION,
+            "evidence": {"type": "array", "minItems": 1, "items": _STRING},
+        },
+        required=[
+            "feature_dir",
+            "finding_id",
+            "route",
+            "expected_revision",
+            "evidence",
+        ],
+    ),
     "learning-start-input": _object_schema(
         "learning-start-input",
         properties={"command": _STRING},
         required=["command"],
     ),
-    "workflow-blocker": _load_workflow_blocker_schema(),
+    "workflow-blocker": deepcopy(_WORKFLOW_BLOCKER_SCHEMA),
 }
+
+_SCHEMAS["workflow-block-input"]["allOf"] = [
+    {
+        "if": {
+            "properties": {"human_action_required": {"const": False}},
+            "required": ["human_action_required"],
+        },
+        "then": {"properties": {"human_action": {"type": "null"}}},
+    },
+    {
+        "if": {
+            "properties": {"owner": {"enum": ["user", "maintainer"]}},
+            "required": ["owner"],
+        },
+        "then": {
+            "properties": {
+                "human_action_required": {"enum": [True, None]},
+            }
+        },
+    },
+]
+
+
+def validate_workflow_blocker_payload(payload: Mapping[str, Any]) -> list[str]:
+    """Return compact schema errors for one persisted workflow blocker."""
+
+    validator = Draft202012Validator(_SCHEMAS["workflow-blocker"])
+    errors: list[str] = []
+    for error in sorted(
+        validator.iter_errors(dict(payload)),
+        key=lambda item: "/".join(str(part) for part in item.path),
+    ):
+        path = ".".join(str(item) for item in error.path)
+        errors.append(f"{path}: {error.message}" if path else error.message)
+    return errors
 
 _CAPABILITIES: tuple[dict[str, Any], ...] = (
     {
@@ -321,36 +473,64 @@ _CAPABILITIES: tuple[dict[str, Any], ...] = (
         "id": "workflow.enter",
         "summary": "Create a guarded workflow at discussion or specify.",
         "input_schema": "workflow-enter-input",
-        "side_effect": "writes-workflow-state",
+        "side_effect": "writes-workflow-runtime",
         "command": ["specify", "workflow", "enter"],
     },
     {
         "id": "workflow.transition",
         "summary": "Advance exactly one required workflow stage.",
         "input_schema": "workflow-transition-input",
-        "side_effect": "writes-workflow-state",
+        "side_effect": "writes-workflow-runtime",
         "command": ["specify", "workflow", "transition"],
     },
     {
+        "id": "workflow.reopen",
+        "summary": "Reopen an invalidated earlier or same completed required stage.",
+        "input_schema": "workflow-reopen-input",
+        "side_effect": "writes-workflow-runtime",
+        "command": ["specify", "workflow", "reopen"],
+    },
+    {
         "id": "workflow.next",
-        "summary": "Resolve the next legal stage and exact transition argv.",
+        "summary": "Resolve the next legal runtime action argv.",
         "input_schema": "workflow-next-input",
         "side_effect": "none",
         "command": ["specify", "workflow", "next"],
     },
     {
+        "id": "workflow.complete-stage",
+        "summary": "Validate and close one stage without entering its successor.",
+        "input_schema": "workflow-complete-stage-input",
+        "side_effect": "writes-workflow-runtime",
+        "command": ["specify", "workflow", "complete-stage"],
+    },
+    {
+        "id": "workflow.resolve",
+        "summary": "Resolve one persisted blocker and reactivate its owning stage.",
+        "input_schema": "workflow-resolve-input",
+        "side_effect": "writes-workflow-runtime",
+        "command": ["specify", "workflow", "resolve"],
+    },
+    {
         "id": "workflow.block",
         "summary": "Record a resumable blocker and novice human action guide.",
         "input_schema": "workflow-block-input",
-        "side_effect": "writes-workflow-state",
+        "side_effect": "writes-workflow-runtime",
         "command": ["specify", "workflow", "block"],
     },
     {
         "id": "workflow.closeout",
         "summary": "Complete an accepted workflow with a revision guard.",
         "input_schema": "workflow-closeout-input",
-        "side_effect": "writes-workflow-state",
+        "side_effect": "writes-workflow-runtime",
         "command": ["specify", "workflow", "closeout"],
+    },
+    {
+        "id": "accept.route-repair",
+        "summary": "Invalidate a failed verdict and reopen its owning repair stage.",
+        "input_schema": "accept-route-repair-input",
+        "side_effect": "writes-workflow-runtime-and-acceptance-state",
+        "command": ["specify", "accept", "route-repair"],
     },
     {
         "id": "learning.start",

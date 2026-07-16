@@ -132,7 +132,7 @@ function Get-SpecKitManagedBlock {
         [string]$Newline = "`n"
     )
 
-    return (
+    $template = (
         @(
             '<!-- SPEC-KIT:BEGIN -->'
             '## Spec Kit Plus Managed Rules'
@@ -144,7 +144,7 @@ function Get-SpecKitManagedBlock {
             ''
             '- Project cognition and Project Learning are always available, even without an active `sp-*` workflow.'
             '- When existing-system truth matters, use project cognition before broad source inspection and use its results to narrow live reads.'
-            '- Run `specify learning start --command <workflow> --format json` before non-trivial decisions that depend on local conventions, constraints, or past lessons; expand only selected matching Learning through `show_argv`.'
+            '- Run `{{specify-cli}} learning start --command <workflow> --format json` before non-trivial decisions that depend on local conventions, constraints, or past lessons; expand only selected matching Learning through `show_argv`.'
             ''
             '## Workflow Recommendations'
             ''
@@ -154,8 +154,8 @@ function Get-SpecKitManagedBlock {
             ''
             '## Command Surface Rules'
             ''
-            '- Treat live `specify --help` output as the authoritative CLI surface.'
-            '- Before suggesting or running a `specify <subcommand>` invocation, verify that help exposes it.'
+            '- Treat live `{{specify-cli}} --help` output as the authoritative CLI surface.'
+            '- Before suggesting or running a `{{specify-cli}} <subcommand>` invocation, verify that help exposes it.'
             '- Do not invent unsupported CLI names such as `specify create-feature`.'
             '- Feature creation uses the generated create-feature script at `.specify/scripts/bash/create-new-feature.sh` or `.specify/scripts/powershell/create-new-feature.ps1`; default feature workspace names use `YYYY-MM-DD-<slug>`.'
             ''
@@ -170,6 +170,21 @@ function Get-SpecKitManagedBlock {
             '<!-- SPEC-KIT:END -->'
         ) -join $Newline
     )
+
+    $launcher = 'specify'
+    $configPath = Join-Path $REPO_ROOT '.specify/config.json'
+    if (Test-Path -LiteralPath $configPath) {
+        try {
+            $config = Get-Content -LiteralPath $configPath -Raw -Encoding utf8 | ConvertFrom-Json
+            if ($config.specify_launcher.command) {
+                $launcher = [string]$config.specify_launcher.command
+            }
+        }
+        catch {
+            # Keep the PATH-level fallback when project launcher state is unreadable.
+        }
+    }
+    return $template.Replace('{{specify-cli}}', $launcher)
 }
 
 function Get-PreferredNewline {

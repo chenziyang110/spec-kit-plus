@@ -26,15 +26,21 @@ When cognition is available, consume only what helps the task:
 Treat `recommended_next_action` as an object. Do not treat
 `recommended_next_action` as a string. Read
 `recommended_next_action.action_id` for every packet; workflow routes are
-present only when the action requires a workflow handoff. For
-`readiness=needs_rebuild`, inspect every entry in `rebuild_reasons[]` and report
-its stable `code`, human-readable `message`, and relevant `evidence`. Require
-`recommended_next_action.action_id=project_cognition.rebuild`, then select the
-canonical Advanced steps from
+present only when the action requires a workflow handoff. A
+`readiness=needs_rebuild` packet can still own a resumable action such as
+`complete_scan_packets`; never route from readiness alone. Only when
+`recommended_next_action.action_id=project_cognition.rebuild`, inspect every
+entry in `rebuild_reasons[]`, report its stable `code`, human-readable `message`,
+and relevant `evidence`, then select the canonical Advanced steps from
 `recommended_next_action.workflow_routes.advanced.steps`. The expected
 Advanced route is `spx-map-rebuild`; use this installed integration's projected
 invocation syntax when presenting the handoff. Do not guess a rebuild cause or
-derive a route from a legacy action string.
+derive a route from readiness or a legacy action string. For every other action
+ID, preserve that action and do not invent rebuild reasons or workflow routes.
+When a non-workflow action includes `recommended_next_action.argv`, execute that
+exact argv through the project-pinned cognition launcher. In particular,
+`project_cognition.repair_status` owns the deterministic `repair-status` action;
+do not rewrite graph-store metadata by hand.
 
 - Read `minimal_live_reads` before broad repository search and use
   `first_pass_paths` to choose the next live evidence.
@@ -54,8 +60,8 @@ rules, visual/accessibility tests, and reference assets. Carry only verified
 live routes into the plan context capsule; do not add a UI-specific cognition
 runtime or treat a graph owner label as proof.
 
-If readiness says `needs_rebuild` and the structured recovery contract names the
-Advanced rebuild route, recommend the matching maintenance skill,
+If `recommended_next_action.action_id=project_cognition.rebuild` and the
+structured recovery contract names the Advanced rebuild route, recommend the matching maintenance skill,
 `$spx-map-rebuild`. Recommend `$spx-map-update` for explicit maintenance,
 external changes, or recovery of an interrupted incremental update. Do not
 invoke `$spx-map-rebuild` or `$spx-map-update` from the active workflow; a

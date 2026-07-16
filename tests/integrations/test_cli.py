@@ -22,7 +22,10 @@ def _read_skill_with_references(skill_path):
             reference_path.read_text(encoding="utf-8")
             for reference_path in sorted(references_dir.glob("**/*.md"))
         )
-    return "\n\n".join(parts)
+    return "\n\n".join(parts).replace(
+        "project-cognition.exe",
+        "project-cognition",
+    )
 
 
 def test_top_level_cli_exposes_discussion_entrypoint():
@@ -274,7 +277,12 @@ class TestInitIntegrationFlag:
         assert "debug-workflow-contract" not in debug_content
         assert "spawn_agent" not in debug_content
 
-        fast_content = (skills_dir / "sp-fast" / "SKILL.md").read_text(encoding="utf-8").lower()
+        fast_content = (
+            (skills_dir / "sp-fast" / "SKILL.md")
+            .read_text(encoding="utf-8")
+            .lower()
+            .replace("project-cognition.exe", "project-cognition")
+        )
         assert "compass --intent implement" in fast_content
         assert "lexicon -> semantic_intake -> query" in fast_content
         assert "project-cognition query --query-plan" in fast_content
@@ -2144,3 +2152,50 @@ def test_maybe_bootstrap_codex_teams_environment_runs_psmux_and_initial_commit(m
     assert calls == ["psmux", "git"]
     assert final_status["runtime_backend_available"] is True
     assert final_status["git_head_available"] is True
+
+
+def test_shared_infra_repair_only_overwrites_manifest_proven_unmodified_files(
+    tmp_path,
+    monkeypatch,
+):
+    from specify_cli import _install_shared_infra
+
+    core_pack = tmp_path / "core-pack"
+    scripts = core_pack / "scripts" / "powershell"
+    templates = core_pack / "templates"
+    scripts.mkdir(parents=True)
+    templates.mkdir(parents=True)
+    source_script = scripts / "common.ps1"
+    source_template = templates / "spec-template.md"
+    source_script.write_text("# runtime v1\n", encoding="utf-8")
+    source_template.write_text("# template v1\n", encoding="utf-8")
+    monkeypatch.setattr("specify_cli._locate_core_pack", lambda: core_pack)
+    monkeypatch.setattr(
+        "specify_cli.launcher.write_project_specify_launcher_config",
+        lambda *args, **kwargs: None,
+    )
+
+    project = tmp_path / "project"
+    project.mkdir()
+    assert _install_shared_infra(project, "ps") is True
+    installed_script = project / ".specify" / "scripts" / "powershell" / "common.ps1"
+    installed_template = project / ".specify" / "templates" / "spec-template.md"
+    installed_template.write_text("# USER MODIFICATION\n", encoding="utf-8")
+    source_script.write_text("# runtime v2\n", encoding="utf-8")
+    source_template.write_text("# template v2\n", encoding="utf-8")
+    skipped: list[str] = []
+
+    assert (
+        _install_shared_infra(
+            project,
+            "ps",
+            overwrite_existing=True,
+            preserve_modified_tracked=True,
+            skipped_modified=skipped,
+        )
+        is True
+    )
+
+    assert installed_script.read_text(encoding="utf-8") == "# runtime v2\n"
+    assert installed_template.read_text(encoding="utf-8") == "# USER MODIFICATION\n"
+    assert ".specify/templates/spec-template.md" in skipped

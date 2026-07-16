@@ -949,8 +949,8 @@ func TestRunBlocksWhenStatusWriteFailsAfterReadyDBCommit(t *testing.T) {
 	if payload.Status != "blocked" {
 		t.Fatalf("Status = %q, want blocked", payload.Status)
 	}
-	if payload.RecoveryAction != "rewrite_status_from_db_metadata" {
-		t.Fatalf("RecoveryAction = %q, want rewrite_status_from_db_metadata", payload.RecoveryAction)
+	if payload.RecoveryAction != "project_cognition.repair_status" {
+		t.Fatalf("RecoveryAction = %q, want project_cognition.repair_status", payload.RecoveryAction)
 	}
 	if payload.ActiveGenerationID == "" {
 		t.Fatal("ActiveGenerationID is empty after status write failure")

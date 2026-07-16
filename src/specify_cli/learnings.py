@@ -2547,7 +2547,7 @@ def list_learning_summaries(
         next_argv.extend(
             ["--cursor", str(next_cursor), "--limit", str(limit), "--format", "json"]
         )
-    return {
+    payload = {
         "schema_version": 1,
         "record_schema": ".specify/templates/project-learning-record-schema.json#/$defs/summaryList",
         "command": normalized_command,
@@ -2570,6 +2570,9 @@ def list_learning_summaries(
         "items": page,
         "warnings": list(diagnostics.get("warnings", [])),
     }
+    from .launcher import bind_project_launcher_payload
+
+    return bind_project_launcher_payload(payload, project_root)
 
 
 def show_learning_detail(project_root: Path, *, learning_ref: str) -> dict[str, Any]:

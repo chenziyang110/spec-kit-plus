@@ -1,6 +1,9 @@
 import ast
+import json
+import os
 from pathlib import Path
 import subprocess
+import sys
 
 
 class _FakeTextStream:
@@ -138,3 +141,29 @@ def test_render_json_for_stdout_falls_back_to_ascii_for_gbk_stream():
 
     assert "✅" not in rendered
     assert "\\u2705" in rendered
+
+
+def test_non_utf8_subprocess_json_is_ascii_safe_for_cjk_workspace(tmp_path):
+    workspace = tmp_path / "PI项目研究"
+    workspace.mkdir()
+    env = os.environ.copy()
+    env["PYTHONIOENCODING"] = "gbk"
+    script = (
+        "from pathlib import Path; "
+        "from specify_cli.cli_output import print_json; "
+        "print_json({'workspace_path': str(Path.cwd())})"
+    )
+
+    result = subprocess.run(
+        [sys.executable, "-c", script],
+        cwd=workspace,
+        env=env,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr.decode("gbk", errors="replace")
+    raw = result.stdout.decode("ascii")
+    assert json.loads(raw)["workspace_path"] == str(workspace)
+    assert "项目研究" not in raw
+    assert "\\u9879" in raw

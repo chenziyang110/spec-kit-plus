@@ -20,6 +20,12 @@ report may stay short, but every blocker must appear in the durable gate state.
 Do not confuse missing prose with missing behavior coverage, or artifact claims
 with proof that the implementation already satisfies them.
 
+The selected repair route must also name the required-stage runtime target and
+every artifact made stale. Clarify and deep-research invalidate `specify`; plan
+invalidates `plan`; task decomposition invalidates `tasks`. Use the CLI reopen
+operation only after the full finding set is known so one deterministic backward
+transition covers the complete invalidation scope.
+
 Persist a complete blocker bundle in `workflow-state.md`: `gate_status: cleared
 | blocked`, incremented `gate_cycle`, `highest_invalid_stage`, `blocker_bundle`,
 finding attribution, evidence fingerprint, and exactly one next route. Preserve

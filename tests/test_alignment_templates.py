@@ -541,7 +541,7 @@ def test_design_workflow_is_not_an_implementation_workflow() -> None:
     assert "source code" in lowered
     assert "css or theme implementation files" in lowered
     assert "ask the user to approve a direction" in lowered
-    assert "specify design lint" in lowered
+    assert "{{specify-subcmd:design lint" in lowered
     assert "write the project's own `design.md`" in lowered
 
 
@@ -1098,7 +1098,7 @@ def _assert_managed_block_v2_contract(block: str) -> None:
     assert "`sp-debug` for root-cause diagnosis" in lowered
 
     assert "## Command Surface Rules" in block
-    assert "specify --help" in block
+    assert "{{specify-cli}} --help" in block
     assert "specify create-feature" in block
     assert ".specify/scripts/bash/create-new-feature.sh" in block
     assert ".specify/scripts/powershell/create-new-feature.ps1" in block

@@ -1,0 +1,16 @@
+#!/bin/sh
+set -eu
+
+binding_id="__SPECIFY_BINDING_ID__"
+state_root="${SPECIFY_PROJECT_LAUNCHER_STATE_DIR:-${HOME}/.specify/project-launchers}"
+binding="${state_root}/${binding_id}/invoke"
+
+if [ ! -x "$binding" ]; then
+  echo "Spec Kit Plus cannot find this project's machine-local Specify binding." >&2
+  echo "Binding: ${binding_id}" >&2
+  echo "Expected: ${binding}" >&2
+  echo __SPECIFY_REPAIR_MESSAGE__ >&2
+  exit 2
+fi
+
+exec "$binding" "$@"

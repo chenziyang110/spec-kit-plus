@@ -21,7 +21,7 @@ scripts:
 3. Build the acceptance state from `.specify/templates/human-acceptance-state-template.json` and schema. Explain the outcome, why it matters, user-visible changes, exclusions, prerequisites, and exact starting point in ordinary product language. Do not make the human inspect diffs, source, test logs, or planning artifacts.
 4. Create the smallest complete ordered scenario set that proves the user-visible value. Every step names the exact action, visible expected result, safe failure branch, and the minimal reply/evidence to return. Validate the state before starting.
 5. Present a short context reset, then guide only the current step. Wait for the human's observed result, persist it and the resume cursor, and advance one step at a time. Accept short replies such as “看到了”, “没有”, “通过”, or a screenshot/error; translate them into the structured state yourself.
-6. PASS only when every required scenario has an explicit human pass. Record a mismatch as a finding with expected/observed/evidence and route it without editing production source in this workflow. Run `{{specify-subcmd:accept closeout --feature-dir <feature-dir> --format json}}` only after explicit human acceptance.
+6. PASS only when every required scenario has an explicit human pass. Record a mismatch as a finding with expected/observed/evidence and route it without editing production source in this workflow. Run `{{specify-subcmd:accept closeout --feature-dir <feature-dir> --format json}}` only after explicit human acceptance, then execute its successful `next_argv` verbatim to commit terminal workflow closeout; never reconstruct the revision-bound command.
 
 ## Workflow Boundary
 

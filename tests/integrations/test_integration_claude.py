@@ -21,6 +21,11 @@ from .test_base import _assert_canonical_cognition_intake_contract
 SPEC_KIT_BLOCK_START = "<!-- SPEC-KIT:BEGIN -->"
 SHARED_PRD_HELPER = ".specify/scripts/shared/prd-state.py"
 SHARED_DISCUSSION_HELPER = ".specify/scripts/shared/discussion-state.py"
+PROJECT_SPECIFY_LAUNCHER = (
+    ".specify/scripts/shared/specify-launcher.ps1"
+    if os.name == "nt"
+    else ".specify/scripts/shared/specify-launcher"
+)
 
 
 def _read_skill_with_references(skill_path: Path) -> str:
@@ -45,7 +50,7 @@ def _assert_compact_managed_context(content: str) -> None:
     assert "when existing-system truth matters" in lower
     assert "before broad source inspection" in lower
     assert "narrow live reads" in lower
-    assert "specify learning start --command <workflow> --format json" in content
+    assert "learning start --command <workflow> --format json" in content
     assert "show_argv" in content
     assert ".specify/memory/learnings/INDEX.md" not in content
     assert "## Workflow Recommendations" in content
@@ -55,7 +60,8 @@ def _assert_compact_managed_context(content: str) -> None:
     assert "`sp-deep-research` for feasibility proof" in lower
     assert "`sp-debug` for root-cause diagnosis" in lower
     assert "## Command Surface Rules" in content
-    assert "specify --help" in content
+    assert "--help" in content
+    assert "{{specify-cli}}" not in content
     assert "generated create-feature script" in lower
     assert "## Durable State" in content
     assert "prefer durable workflow state and explicit feature paths" in lower
@@ -510,7 +516,9 @@ class TestClaudeIntegration:
                     ".specify/scripts/powershell/update-agent-context.ps1",
                 ]
             )
-        expected.extend([SHARED_DISCUSSION_HELPER, SHARED_PRD_HELPER])
+        expected.extend(
+            [SHARED_DISCUSSION_HELPER, SHARED_PRD_HELPER, PROJECT_SPECIFY_LAUNCHER]
+        )
 
         expected.extend(f".specify/templates/{name}" for name in cls._template_files())
         return sorted(expected)
@@ -3329,9 +3337,11 @@ def test_claude_generated_sp_implement_teams_skill_uses_agent_teams_surface(tmp_
     )
     assert "hard prerequisite for `/sp-implement-teams`" in lower
     assert "executioncontextbundle" in lower or "execution context bundle" in lower
-    assert "project-cognition compass --intent implement" in lower
+    assert "compass --intent implement" in lower
     assert "project-cognition lexicon --intent implement" not in lower
-    assert "project-cognition query --query-plan" in lower
+    assert "project-cognition query --query-plan" in lower.replace(
+        "project-cognition.exe", "project-cognition"
+    )
     assert "--query-plan" in lower
     assert "{{specify-subcmd:" not in content
     assert ".specify/project-cognition/status.json" in lower

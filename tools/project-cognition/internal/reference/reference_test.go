@@ -29,8 +29,8 @@ func TestDiscoverReportsSplitBrainReferenceAsBlocked(t *testing.T) {
 	if project.ReferenceReadiness != rt.BlockedReadiness {
 		t.Fatalf("ReferenceReadiness = %q, want %q", project.ReferenceReadiness, rt.BlockedReadiness)
 	}
-	if !containsText(project.Blockers, "rewrite_status_from_db_metadata") {
-		t.Fatalf("Blockers = %#v, want rewrite_status_from_db_metadata", project.Blockers)
+	if !containsText(project.Blockers, "run_map_scan_build") {
+		t.Fatalf("Blockers = %#v, want graph-store rebuild", project.Blockers)
 	}
 }
 
@@ -44,8 +44,8 @@ func TestReadRejectsSplitBrainReference(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected split-brain reference error")
 	}
-	if !strings.Contains(err.Error(), "rewrite_status_from_db_metadata") {
-		t.Fatalf("error = %q, want rewrite_status_from_db_metadata", err.Error())
+	if !strings.Contains(err.Error(), "run_map_scan_build") {
+		t.Fatalf("error = %q, want graph-store rebuild", err.Error())
 	}
 }
 

@@ -227,7 +227,7 @@ def test_passive_workflow_skills_enforce_real_specify_command_surface() -> None:
     cognition_gate = read_template("templates/passive-skills/spec-kit-project-cognition-gate/SKILL.md").lower()
 
     for content in (routing, cognition_gate):
-        assert "specify --help" in content
+        assert "{{specify-subcmd:--help}}" in content
         assert "generated\ncreate-feature script" in content or "generated create-feature script" in content
         assert ".specify/scripts/bash/create-new-feature.sh" in content
         assert ".specify/scripts/powershell/create-new-feature.ps1" in content
@@ -261,7 +261,6 @@ def test_command_surfaces_require_help_verification_and_do_not_invent_feature_co
         "use `specify new feature`",
     )
     required = (
-        "specify --help",
         "generated create-feature script",
         ".specify/scripts/bash/create-new-feature.sh",
         ".specify/scripts/powershell/create-new-feature.ps1",
@@ -272,6 +271,11 @@ def test_command_surfaces_require_help_verification_and_do_not_invent_feature_co
             assert needle not in content, f"{name} still teaches invented command surface: {needle}"
         for needle in required:
             assert needle in content, f"{name} is missing required command-surface guidance: {needle}"
+        assert (
+            "specify --help" in content
+            or "{{specify-cli}} --help" in content
+            or "{{specify-subcmd:--help}}" in content
+        ), f"{name} is missing launcher-aware help verification"
 
 
 def test_upgrade_guide_uses_current_runtime_repair_language() -> None:
@@ -688,7 +692,7 @@ def test_update_agent_context_managed_block_uses_refresh_or_dirty_binary_and_mem
         assert "even without an active `sp-*` workflow" in content
         assert "when existing-system truth matters" in content
         assert "before broad source inspection" in content
-        assert "specify learning start --command <workflow> --format json" in content
+        assert "{{specify-cli}} learning start --command <workflow> --format json" in content
         assert "show_argv" in content
         assert ".specify/memory/learnings/index.md" not in content
         assert "do not auto-enter an `sp-*` workflow" in content

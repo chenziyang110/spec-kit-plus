@@ -68,6 +68,8 @@ func Run(args []string, stdout io.Writer, stderr io.Writer, version string) int 
 	switch args[0] {
 	case "status", "check", "doctor":
 		return statusCommand(args[1:], stdout, stderr, paths)
+	case "repair-status":
+		return repairStatusCommand(args[1:], stdout, stderr, paths)
 	case "init-empty":
 		return initEmptyCommand(args[1:], stdout, stderr, paths)
 	case "generate-ignore":
@@ -135,7 +137,7 @@ func Run(args []string, stdout io.Writer, stderr io.Writer, version string) int 
 func printHelp(w io.Writer, version string) {
 	fmt.Fprintf(w, "project-cognition %s\n\n", version)
 	fmt.Fprintln(w, "Usage: project-cognition <command> [options]")
-	fmt.Fprintln(w, "Commands: status, check, init-empty, generate-ignore, scan-set, scan-prepare, scan-accept, mark-dirty, clear-dirty, record-refresh, complete-refresh, refresh-topics, validate-scan, validate-build, build-from-scan, import-scan, rebuild-from-scan, publish-runtime-metadata, changes, closeout-plan, update, claim-reconcile prepare|apply, lexicon, query, semantic-intake, semantic-audit, semantic-audit-resume, compass, expand, discover, read, doctor, rebuild, delta")
+	fmt.Fprintln(w, "Commands: status, check, repair-status, init-empty, generate-ignore, scan-set, scan-prepare, scan-accept, mark-dirty, clear-dirty, record-refresh, complete-refresh, refresh-topics, validate-scan, validate-build, build-from-scan, import-scan, rebuild-from-scan, publish-runtime-metadata, changes, closeout-plan, update, claim-reconcile prepare|apply, lexicon, query, semantic-intake, semantic-audit, semantic-audit-resume, compass, expand, discover, read, doctor, rebuild, delta")
 }
 
 func claimReconcileCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {
@@ -270,6 +272,173 @@ func statusCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.P
 	return writeJSON(stdout, status)
 }
 
+func repairStatusCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {
+	fs := flag.NewFlagSet("repair-status", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	format := fs.String("format", "json", "Output format: json")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	if *format != "json" {
+		return writeErrorJSON(stdout, map[string]any{
+			"status":    "blocked",
+			"readiness": rt.BlockedReadiness,
+			"errors":    []string{"repair-status supports only --format json"},
+			"warnings":  []string{},
+		})
+	}
+	status, err := runtimegate.RepairStatusFromDB(paths)
+	if err != nil {
+		var typed *runtimegate.RepairError
+		if !errors.As(err, &typed) {
+			typed = &runtimegate.RepairError{
+				CauseCode:  runtimegate.CauseRuntimeStateUnreadable,
+				CauseOwner: runtimegate.CauseOwnerRuntimeState,
+				Err:        err,
+			}
+		}
+		payload := map[string]any{
+			"status":      "blocked",
+			"readiness":   rt.BlockedReadiness,
+			"cause_code":  typed.CauseCode,
+			"cause_owner": typed.CauseOwner,
+			"errors":      []string{err.Error()},
+			"warnings":    []string{},
+		}
+		if typed.CauseOwner == runtimegate.CauseOwnerStatus {
+			addStatusAccessRecovery(payload, paths, typed.CauseCode, err)
+		} else if typed.CauseOwner == runtimegate.CauseOwnerGraphStore || typed.CauseOwner == runtimegate.CauseOwnerRuntimeState {
+			agreement := runtimegate.Agreement{
+				Status:     "blocked",
+				Readiness:  rt.NeedsRebuildReadiness,
+				CauseCode:  typed.CauseCode,
+				CauseOwner: typed.CauseOwner,
+				Errors:     []string{err.Error()},
+			}
+			payload["readiness"] = rt.NeedsRebuildReadiness
+			payload["recovery_action"] = "project_cognition.rebuild"
+			payload["recommended_next_action"] = query.RebuildAction()
+			payload["rebuild_reasons"] = query.AgreementRebuildReasons(paths, agreement)
+		}
+		return writeBlockedJSON(stdout, payload)
+	}
+	return writeCompactJSON(stdout, map[string]any{
+		"status":                  "ok",
+		"readiness":               status.Readiness,
+		"status_path":             rt.RelativeRuntimePath(paths, paths.StatusPath),
+		"active_generation_id":    status.ActiveGenerationID,
+		"baseline_kind":           status.BaselineKind,
+		"recommended_next_action": status.RecommendedNextAction,
+		"errors":                  []string{},
+		"warnings":                []string{},
+	})
+}
+
+func addStatusAccessRecovery(payload map[string]any, paths rt.Paths, causeCode runtimegate.CauseCode, repairErr error) {
+	statusPath := rt.RelativeRuntimePath(paths, paths.StatusPath)
+	graphStorePath := rt.RelativeRuntimePath(paths, paths.DatabasePath)
+	resumeArgv := []string{"project-cognition", "repair-status", "--format", "json"}
+	verifyArgv := []string{"project-cognition", "status", "--format", "json"}
+	attemptedRecovery := []string{
+		"validated graph-store schema, metadata, active generation, and baseline agreement",
+	}
+	switch causeCode {
+	case runtimegate.CauseStatusAccessFailed:
+		attemptedRecovery = append(attemptedRecovery,
+			"inspected the status path before reconstruction, but the operating system denied or failed that inspection",
+			"preserved the status path and graph store without attempting a write after inspection failed",
+		)
+	case runtimegate.CauseStatusWriteFailed:
+		attemptedRecovery = append(attemptedRecovery,
+			"attempted deterministic status reconstruction through an atomic status-file write",
+			"preserved the graph store and the conflicting or inaccessible status path after the write failed",
+		)
+	default:
+		attemptedRecovery = append(attemptedRecovery,
+			"attempted deterministic status reconstruction and then verified runtime agreement",
+			"stopped after the repaired status could not be read or verified safely",
+		)
+	}
+
+	payload["recovery_action"] = runtimegate.ResolveStatusAccessAction
+	payload["recommended_next_action"] = map[string]any{
+		"action_id":   runtimegate.ResolveStatusAccessAction,
+		"owner":       "human",
+		"status_path": statusPath,
+	}
+	payload["status_path"] = statusPath
+	payload["graph_store_path"] = graphStorePath
+	payload["os_error"] = repairErr.Error()
+	payload["human_action_required"] = true
+	payload["affected_scope"] = []string{statusPath, graphStorePath}
+	payload["attempted_recovery"] = attemptedRecovery
+	payload["unblock_criteria"] = []string{
+		"the status parent directory is writable by the operator running the project-pinned binary",
+		"the exact status path is absent or a regular writable file, not a directory, symlink, or special file",
+		"the exact resume command exits zero and returns status=ok",
+	}
+	payload["human_action"] = map[string]any{
+		"owner":       "human",
+		"category":    "filesystem_access",
+		"title":       "Restore safe write access to project cognition status",
+		"why_human":   "The graph store validated, but the operating system refused inspection or replacement of the status path. Filesystem ownership, permissions, and path conflicts require operator authority.",
+		"status_path": statusPath,
+		"os_error":    repairErr.Error(),
+		"prerequisites": []string{
+			"Run these steps from the repository root with the same user account that runs the project-pinned project-cognition binary.",
+			"Stop other project-cognition processes or editors that may be holding the status file open.",
+			"Have permission to inspect the status path and its parent directory; request the repository owner or administrator if you do not.",
+		},
+		"safety_warnings": []string{
+			"Do not delete, edit, replace, or change permissions on project-cognition.db; status repair treats it as validated source data.",
+			"Do not delete a directory, symlink, or special file found at the status path. Back it up and identify why it occupies that path before moving it.",
+			"Do not use elevated administrator privileges until the repository owner confirms the intended owner and permission boundary.",
+		},
+		"steps": []map[string]any{
+			{
+				"step":            1,
+				"instruction":     "Inspect the exact status path and its parent directory without changing them. Record whether the target is absent, a regular file, a directory, a symlink, or another special file, plus the current owner and write permissions.",
+				"expected_result": "The parent directory exists and the target is either absent or a regular JSON file.",
+				"failure_branch":  "If the target is a directory, symlink, or special file, do not overwrite it; record its type and continue only after completing the backup step. If inspection itself is denied, stop and ask the repository owner or administrator to inspect it.",
+			},
+			{
+				"step":            2,
+				"instruction":     "Create a readable backup outside .specify/project-cognition of the existing regular status file or conflicting path, and separately back up the validated graph-store file without editing either source.",
+				"expected_result": "The backup location contains readable copies or a documented safe move plan for the conflicting path, while the original graph store remains unchanged.",
+				"failure_branch":  "If a complete backup cannot be made, stop before changing permissions or moving anything and return the OS error to the repository owner.",
+			},
+			{
+				"step":            3,
+				"instruction":     "Restore owner-level write access on the status parent directory. If a backed-up directory, symlink, or special file occupies the exact status path, move that conflict to the approved backup location so the status path becomes absent; do not touch the graph store.",
+				"expected_result": "The parent directory is writable by the normal operator account and the exact status path is absent or a regular writable file.",
+				"failure_branch":  "If ownership policy, an active file lock, endpoint protection, or administrator policy still blocks access, stop and ask the responsible owner to resolve that specific OS error; do not repeatedly run repair-status.",
+			},
+			{
+				"step":            4,
+				"instruction":     "Run the exact resume argv through the project-pinned project-cognition launcher, then retain its complete JSON result.",
+				"expected_result": "The command exits zero, returns status=ok, and reports the repaired status path and active generation.",
+				"failure_branch":  "If it returns a graph-owned rebuild action, follow that typed route. If it returns resolve_status_access again, stop and return the new cause_code, status_path, os_error, file type, owner, permissions, and sanitized JSON result.",
+			},
+		},
+		"independent_verification": map[string]any{
+			"argv":            verifyArgv,
+			"expected_result": "The command exits zero and returns parseable JSON whose status_path names the repaired regular status file.",
+			"failure_branch":  "If verification cannot read the status file, do not claim recovery; return its sanitized stderr together with the repair result.",
+		},
+		"evidence_to_return": []string{
+			"the status-path file type, owner, and permissions after repair",
+			"the exact cause_code, status_path, and os_error from any failed resume",
+			"the sanitized JSON from the exact resume and independent verification commands",
+			"never include tokens, credentials, unrelated environment variables, or graph-store contents",
+		},
+		"exact_resume": map[string]any{
+			"argv":            resumeArgv,
+			"expected_result": "Exit code 0 with status=ok; only then run independent verification and resume the caller after repair-status.",
+			"failure_branch":  "Do not loop. Follow a returned graph-owned rebuild route or return the filesystem evidence requested above for a repeated status-access failure.",
+		},
+	}
+}
+
 func initEmptyCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {
 	fs := flag.NewFlagSet("init-empty", flag.ContinueOnError)
 	fs.SetOutput(stderr)
@@ -330,7 +499,7 @@ func initEmptyCommand(args []string, stdout io.Writer, stderr io.Writer, paths r
 	status.UpdateContractVersion = 1
 	status.BaselineKind = rt.BaselineKindGreenfieldEmpty
 	if err := rt.WriteStatus(paths, status); err != nil {
-		return writeErrorJSON(stdout, map[string]any{"status": "blocked", "readiness": rt.BlockedReadiness, "errors": []string{err.Error()}, "warnings": []string{}, "recovery_action": "rewrite_status_from_db_metadata"})
+		return writeErrorJSON(stdout, map[string]any{"status": "blocked", "readiness": rt.BlockedReadiness, "errors": []string{err.Error()}, "warnings": []string{}, "recovery_action": runtimegate.RepairStatusAction})
 	}
 	return writeJSON(stdout, map[string]any{
 		"status":               "ok",
@@ -679,7 +848,7 @@ func publishMetadataCommand(args []string, stdout io.Writer, stderr io.Writer, p
 			}
 			if strings.HasPrefix(err.Error(), "write blocked status:") {
 				sparse.Errors = append(sparse.Errors, err.Error())
-				payload["recovery_action"] = "rewrite_status_from_db_metadata"
+				payload["recovery_action"] = runtimegate.RepairStatusAction
 				payload["errors"] = sparse.Errors
 				code := writeJSON(stdout, payload)
 				if code != 0 {
@@ -726,7 +895,7 @@ func publishMetadataCommand(args []string, stdout io.Writer, stderr io.Writer, p
 	if err != nil {
 		payload := map[string]any{"status": "error", "errors": []string{err.Error()}, "warnings": []string{}}
 		if strings.HasPrefix(err.Error(), "write ready status:") {
-			payload["recovery_action"] = "rewrite_status_from_db_metadata"
+			payload["recovery_action"] = runtimegate.RepairStatusAction
 			code := writeJSON(stdout, payload)
 			if code != 0 {
 				return code
@@ -1528,4 +1697,11 @@ func writeErrorJSON(w io.Writer, payload any) int {
 		return code
 	}
 	return 1
+}
+
+func writeBlockedJSON(w io.Writer, payload any) int {
+	if code := writeJSON(w, payload); code != 0 {
+		return code
+	}
+	return exitCodeBlocked
 }

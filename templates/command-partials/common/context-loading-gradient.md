@@ -11,7 +11,7 @@ scripts, configuration, or authoritative docs.
 
 ### Required Project Cognition Compass
 
-Default project cognition intake is `project-cognition compass --intent <intent> --query="$ARGUMENTS" --format json`.
+Default project cognition intake is `{{specify-subcmd:project-cognition compass --intent <intent> --query="$ARGUMENTS" --format json}}`.
 
 Consume the packet in this order:
 
@@ -20,12 +20,12 @@ Consume the packet in this order:
 3. Then use lane-level `first_pass_paths` for reasons, evidence hints, verification hints, follow-up surfaces, and `before_fix_claim` checks.
 4. Read lane-level `claim_refs` only as compact route candidates. `route_confidence` is scoped by `confidence_scope=route_candidate`; inspect each claim's `state`, `freshness`, and `stale` marker, and require live verification before using it as repository truth.
 5. Treat `coverage_diagnostics` as confidence and closeout signals, never as route candidates.
-6. Treat `expansion_ref` as a normal continuation path. Run `project-cognition expand --id <id> --section claim_evidence --format json` when an active claim needs its bounded `source_path`/`span` evidence; use other sections only when coverage state or live evidence requires more map detail. Advanced `project-cognition query` may also return top-level `claim_signals` with bounded evidence refs.
+6. Treat `expansion_ref` as a normal continuation path. Run `{{specify-subcmd:project-cognition expand --id <id> --section claim_evidence --format json}}` when an active claim needs its bounded `source_path`/`span` evidence; use other sections only when coverage state or live evidence requires more map detail. Advanced `project-cognition query` may also return top-level `claim_signals` with bounded evidence refs.
 7. Do not infer final edit scope from `minimal_live_reads`, `first_pass_paths`, `claim_refs`, `claim_signals`, or `claim_evidence`.
 
 Compass applies graph claims only as a bounded rerank after repository-backed route eligibility is established. `match_score` remains the eligibility score; lane `claim_ranking.adjustment` may only move an already-matched candidate by `+1` for fresh `supported`/`verified_in_graph_generation`, `-1` for stale, or `-2` for contradicted. Claims cannot create candidates and cannot replace live verification. When `coverage_diagnostics` contains `stale_claim_signal` or `contradicted_claim_signal`, treat the packet as `usable_with_review`, follow `reconcile_claims_with_minimal_live_reads`, and complete the lane-specific refresh or reconciliation action against the live repository.
 
-For a selected stale or contradicted claim, open only the returned claim-specific bounded live reads. If those reads are decisive, provide only reconciliation intent: workflow, stable `claim_id`, reason, and evidence with repository-relative `source_path`, bounded line `span`, and `supporting` or `contradicting` role, plus optional claim-specific verification. Run `project-cognition claim-reconcile prepare --input <intent.json> --format json`. The runtime owns the contract version, active generation, expected state and revision, UTC observation and expiry, source kind, file hashes, repository snapshot, IDs, and prepared packet path; do not author or edit those integrity fields. Execute the returned `apply_argv` exactly; it invokes `project-cognition claim-reconcile apply --input <prepared_packet_path> --format json`. A generic workflow verification is insufficient. On `result_state=ready`, rerun Compass once and use the new packet only for routing; on partial or blocked output, withhold the claim and follow `recommended_next_action`.
+For a selected stale or contradicted claim, open only the returned claim-specific bounded live reads. If those reads are decisive, provide only reconciliation intent: workflow, stable `claim_id`, reason, and evidence with repository-relative `source_path`, bounded line `span`, and `supporting` or `contradicting` role, plus optional claim-specific verification. Run `{{specify-subcmd:project-cognition claim-reconcile prepare --input <intent.json> --format json}}`. The runtime owns the contract version, active generation, expected state and revision, UTC observation and expiry, source kind, file hashes, repository snapshot, IDs, and prepared packet path; do not author or edit those integrity fields. Execute the returned `apply_argv` exactly; it invokes `{{specify-subcmd:project-cognition claim-reconcile apply --input <prepared_packet_path> --format json}}`. A generic workflow verification is insufficient. On `result_state=ready`, rerun Compass once and use the new packet only for routing; on partial or blocked output, withhold the claim and follow `recommended_next_action`.
 
 The `epistemic_contract` cannot authorize source changes and cannot prove current behavior. Carry `epistemic_contract` into downstream state, withhold unverified claims, and let contradictory live evidence override the route candidate.
 
@@ -35,9 +35,11 @@ Readiness values are `query_ready`, `review`, `needs_rebuild`, `blocked`, and `u
 
 - `query_ready`: read top-level `minimal_live_reads` first, then use lane-level `first_pass_paths` reasons before expanding.
 - `review`: inspect the returned `minimal_live_reads` before expanding and carry review notes from `coverage_diagnostics`.
-- `needs_rebuild`: inspect every entry in `rebuild_reasons[]` and preserve its stable `code`, human-readable `message`, and relevant `evidence`. Require `recommended_next_action.action_id=project_cognition.rebuild`, consume the canonical sequence from `recommended_next_action.workflow_routes.classic.steps`, and project those step names through this integration's invocation syntax. Reserve `{{invoke:map-scan}} -> {{invoke:map-build}}` for documented brownfield rebuild triggers; do not infer either the cause or route from a legacy action string.
+- `needs_rebuild`: do not route from readiness alone; it can accompany a resumable action such as `complete_scan_packets`. Preserve non-rebuild `recommended_next_action.action_id` values. Only for `action_id=project_cognition.rebuild`, inspect every `rebuild_reasons[]` entry, consume `recommended_next_action.workflow_routes.classic.steps`, and project those steps through this integration's invocation syntax. Reserve `{{invoke:map-scan}} -> {{invoke:map-build}}` for that structured route; do not infer cause or route from readiness or a legacy action string.
 - `blocked`: report the runtime state clearly; continue with live evidence only when this workflow allows degraded advisory navigation.
 - `unsupported_runtime`: continue with live evidence and record that compass intake was unavailable.
+
+If a non-workflow action includes `recommended_next_action.argv`, execute that exact argv through the project-pinned cognition launcher. `project_cognition.repair_status` owns deterministic status reconstruction after the graph store validates; never patch graph metadata by hand.
 
 When `compass_state=needs_semantic_intake`, the agent writes `semantic_intake` from project vocabulary and reruns compass with `--semantic-intake-file`, or uses the advanced `lexicon -> semantic_intake -> query` path when explicit concept decisions are needed.
 

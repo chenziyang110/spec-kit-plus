@@ -5,9 +5,12 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
 
 	rt "github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtime"
+	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtimegate"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/store"
 	_ "modernc.org/sqlite"
 )
@@ -89,6 +92,125 @@ func TestCompassNeedsRebuildReturnsProfileAwareWorkflowRoutes(t *testing.T) {
 	assertWorkflowSteps(t, routes, "classic", []string{"sp-map-scan", "sp-map-build"})
 }
 
+func TestCompassNeedsRebuildPreservesInProgressScanResumeAction(t *testing.T) {
+	paths := queryTestPaths(t)
+	seedCompassModelSwitchGraph(t, paths)
+	status, err := rt.ReadStatus(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	status.Status = "scanning"
+	status.Freshness = rt.StaleFreshness
+	status.Readiness = rt.NeedsRebuildReadiness
+	status.RecommendedNextAction = "complete_scan_packets"
+	status.GraphReady = false
+	if err := rt.WriteStatus(paths, status); err != nil {
+		t.Fatal(err)
+	}
+
+	payload := serializedCompassPayload(t, paths)
+	action, ok := payload["recommended_next_action"].(map[string]any)
+	if !ok || action["action_id"] != "complete_scan_packets" {
+		t.Fatalf("recommended_next_action = %#v, want complete_scan_packets continuation", payload["recommended_next_action"])
+	}
+	if _, exists := action["workflow_routes"]; exists {
+		t.Fatalf("recommended_next_action.workflow_routes = %#v, want omitted for scan continuation", action["workflow_routes"])
+	}
+	if _, exists := payload["rebuild_reasons"]; exists {
+		t.Fatalf("rebuild_reasons = %#v, want omitted while scan packets are resumable", payload["rebuild_reasons"])
+	}
+	if _, exists := payload["recovery_action"]; exists {
+		t.Fatalf("recovery_action = %#v, want omitted while status owns the resume action", payload["recovery_action"])
+	}
+}
+
+func TestCompassStatusRebuildReasonPreservesRecordedCauseAndScope(t *testing.T) {
+	paths := queryTestPaths(t)
+	seedCompassModelSwitchGraph(t, paths)
+	status, err := rt.ReadStatus(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	status.Status = "stale"
+	status.Freshness = rt.StaleFreshness
+	status.Readiness = rt.NeedsRebuildReadiness
+	status.RecommendedNextAction = "run_map_scan_build"
+	status.Dirty = true
+	status.StaleReasons = []string{"affected closure cannot be bounded safely"}
+	status.DirtyReasons = []string{"project structure changed"}
+	status.StalePaths = []string{"src/ownership.go"}
+	status.DirtyScopePaths = []string{"templates/commands"}
+	if err := rt.WriteStatus(paths, status); err != nil {
+		t.Fatal(err)
+	}
+
+	payload := serializedCompassPayload(t, paths)
+	reason := rebuildReasonByCode(t, payload, "status_requires_rebuild")
+	evidence, ok := reason["evidence"].(map[string]any)
+	if !ok {
+		t.Fatalf("rebuild reason evidence = %#v, want object", reason["evidence"])
+	}
+	assertJSONStringsEqual(t, evidence["reasons"], []string{
+		"affected closure cannot be bounded safely",
+		"project structure changed",
+	})
+	assertJSONStringsEqual(t, evidence["affected_paths"], []string{
+		"src/ownership.go",
+		"templates/commands",
+	})
+}
+
+func TestCompassGraphMetadataFailureUsesTypedRebuildReason(t *testing.T) {
+	paths := queryTestPaths(t)
+	seedCompassModelSwitchGraph(t, paths)
+	db, err := sql.Open("sqlite", paths.DatabasePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.ExecContext(
+		context.Background(),
+		`UPDATE metadata SET value_json = '"wrong-runtime"' WHERE key = 'runtime_format'`,
+	); err != nil {
+		_ = db.Close()
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	payload := serializedCompassPayload(t, paths)
+	action, ok := payload["recommended_next_action"].(map[string]any)
+	if !ok || action["action_id"] != "project_cognition.rebuild" {
+		t.Fatalf("recommended_next_action = %#v, want rebuild", payload["recommended_next_action"])
+	}
+	reason := rebuildReasonByCode(t, payload, "graph_store_metadata_invalid")
+	evidence, ok := reason["evidence"].(map[string]any)
+	if !ok || evidence["diagnostic"] == "" {
+		t.Fatalf("reason evidence = %#v, want diagnostic", reason["evidence"])
+	}
+}
+
+func TestAgreementRebuildReasonsMapsGraphUnreadableCauseExplicitly(t *testing.T) {
+	paths := queryTestPaths(t)
+	if err := os.MkdirAll(filepath.Dir(paths.StatusPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(paths.StatusPath, []byte(`{}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(paths.DatabasePath, []byte("not a sqlite database"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	reasons := AgreementRebuildReasons(paths, runtimegate.Agreement{
+		CauseCode:  runtimegate.CauseGraphStoreUnreadable,
+		CauseOwner: runtimegate.CauseOwnerGraphStore,
+		Errors:     []string{"read DB active generation: disk I/O error"},
+	})
+	if len(reasons) != 1 || reasons[0].Code != "graph_store_unreadable" {
+		t.Fatalf("reasons = %#v, want explicit graph_store_unreadable", reasons)
+	}
+}
+
 func serializedCompassPayload(t *testing.T, paths rt.Paths) map[string]any {
 	t.Helper()
 	payload, err := Compass(paths, CompassInput{
@@ -138,6 +260,19 @@ func assertWorkflowSteps(t *testing.T, routes map[string]any, profile string, wa
 	for index, wantStep := range want {
 		if steps[index] != wantStep {
 			t.Fatalf("workflow_routes[%q].steps[%d] = %#v, want %q", profile, index, steps[index], wantStep)
+		}
+	}
+}
+
+func assertJSONStringsEqual(t *testing.T, value any, want []string) {
+	t.Helper()
+	items, ok := value.([]any)
+	if !ok || len(items) != len(want) {
+		t.Fatalf("JSON strings = %#v, want %#v", value, want)
+	}
+	for index, wantValue := range want {
+		if items[index] != wantValue {
+			t.Fatalf("JSON strings[%d] = %#v, want %q; all=%#v", index, items[index], wantValue, value)
 		}
 	}
 }

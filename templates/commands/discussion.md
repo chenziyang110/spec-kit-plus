@@ -38,7 +38,7 @@ You are a senior product-engineering advisor: a senior technical expert and seni
 
 ## Session Store
 
-All state lives under `.specify/discussions/<slug>/`. Use `specify discussion init`, `list`, `resume`, `checkpoint`, `write-handoff`, `validate-handoff`, `mark-ready`, `mark-consumed`, `close`, and `archive` for lifecycle operations instead of reconstructing state by hand.
+All state lives under `.specify/discussions/<slug>/`. Use the project-pinned `{{specify-subcmd:discussion --help}}` lifecycle surface for `init`, `list`, `resume`, `checkpoint`, `write-handoff`, `validate-handoff`, `mark-ready`, `mark-consumed`, `close`, and `archive` instead of reconstructing state by hand.
 
 Required files:
 
@@ -72,8 +72,8 @@ Use the shared discussion runtime to initialize state and render `discussion-sta
 - Valid statuses are `active | blocked | handoff-ready | completed | abandoned`.
 - Incomplete statuses are `active`, `blocked`, and `handoff-ready`.
 - `handoff-ready` is intentionally still resumable until consumed. It means the handoff can be consumed by `sp-specify`; it does not mean the discussion is archived or hidden from default resume selection.
-- After `sp-specify` consumes the handoff into a feature workspace, mark the source discussion consumed/completed so future `sp-auto` runs do not treat stale handoff-ready state as a live candidate. Use `specify discussion mark-consumed <slug> --feature-dir <feature-dir>` when the generated project has the Specify CLI helper surface available.
-- To remove a no-longer-needed discussion from default resume candidates without consumption, close it as `completed` or `abandoned` after the user confirms the topic should be dropped, then archive it. Use `specify discussion close <slug> --status completed|abandoned` followed by `specify discussion archive <slug>` when the generated project has the Specify CLI helper surface available.
+- After `sp-specify` consumes the handoff into a feature workspace, mark the source discussion consumed/completed so future `sp-auto` runs do not treat stale handoff-ready state as a live candidate. Use `{{specify-subcmd:discussion mark-consumed <slug> --feature-dir <feature-dir>}}` when the generated project has the Specify CLI helper surface available.
+- To remove a no-longer-needed discussion from default resume candidates without consumption, close it as `completed` or `abandoned` after the user confirms the topic should be dropped, then archive it. Use `{{specify-subcmd:discussion close <slug> --status completed|abandoned}}` followed by `{{specify-subcmd:discussion archive <slug>}}` when the generated project has the Specify CLI helper surface available.
 - Do not archive `active`, `blocked`, or `handoff-ready` discussions directly.
 - If the user specifies a slug, resume or create that slug according to the user's wording.
 - If no slug is specified and exactly one incomplete discussion exists, resume it.

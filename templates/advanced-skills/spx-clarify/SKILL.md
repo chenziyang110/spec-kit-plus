@@ -17,8 +17,17 @@ paths-only mode. Do not create a new feature. Read `spec-contract.json` first,
 then only the views, discussion handoff, UI evidence, project rules, or live
 paths needed for the named gaps.
 
-Create or resume runtime-owned `workflow-state.md` before substantive work,
-using the installed workflow-state template only when it is absent. Record
+Before any write, run
+`{{specify-subcmd:workflow show --feature-dir <feature-dir> --format json}}`.
+`FEATURE_DIR/workflow-runtime.json` is CLI-owned; this auxiliary skill must not write
+it, and its expected required-stage owner is `specify`. On missing, corrupt,
+different, or completed runtime state, stop with the returned blocker or a
+typed owner handoff containing the observed stage, expected owner, affected
+files, exact next action, unblock criteria, and resume argv. Never overwrite
+either state surface to force entry.
+
+Create or resume rich workflow-owned `workflow-state.md` before substantive
+work, using the installed workflow-state template only when it is absent. Record
 `active_command: sp-clarify`, `phase_mode: planning-only`, the source revision,
 target boundary, current blocker, and next route without copying spec truth.
 Run `{{specify-subcmd:hook validate-state --command clarify --feature-dir <feature-dir> --autofix --format json}}`

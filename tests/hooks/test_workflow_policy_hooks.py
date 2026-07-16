@@ -2,6 +2,7 @@ from pathlib import Path
 
 from specify_cli.hooks.engine import run_quality_hook
 from specify_cli.hooks.types import HookResult
+from specify_cli.agent_api import validate_workflow_blocker_payload
 
 
 def _create_project(tmp_path: Path) -> Path:
@@ -26,6 +27,16 @@ def test_hook_result_supports_repairable_block_status():
     assert blocker["human_action_required"] is False
     assert blocker["unblock_criteria"]
     assert blocker["resume"]["instruction"]
+    assert blocker["resume"]["argv"] == [
+        "specify",
+        "api",
+        "command",
+        "hook.workflow-policy",
+        "--format",
+        "json",
+    ]
+    assert blocker["resume"]["command"]
+    assert validate_workflow_blocker_payload(blocker) == []
 
 
 def test_hook_result_preserves_explicit_human_blocker_tutorial():
@@ -56,7 +67,18 @@ def test_hook_result_preserves_explicit_human_blocker_tutorial():
             "evidence_to_return": ["pipeline URL"],
             "resume_instruction": "Resume spx-implement",
         },
-        "resume": {"instruction": "Resume implementation", "command": "spx-implement"},
+        "resume": {
+            "instruction": "Inspect the implementation workflow command contract.",
+            "command": "specify api command workflow.next --format json",
+            "argv": [
+                "specify",
+                "api",
+                "command",
+                "workflow.next",
+                "--format",
+                "json",
+            ],
+        },
     }
     result = HookResult(
         event="workflow.commit.validate",

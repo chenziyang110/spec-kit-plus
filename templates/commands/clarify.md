@@ -92,10 +92,13 @@ Goal: Strengthen an existing spec package after `/sp.specify` by closing plannin
    - Set `REFERENCES_FILE` to `FEATURE_DIR/references.md`.
    - Set `WORKFLOW_STATE_FILE` to `FEATURE_DIR/workflow-state.md`.
 
+   Before any artifact or rich-state write, run `{{specify-subcmd:workflow show --feature-dir <feature-dir> --format json}}`. `FEATURE_DIR/workflow-runtime.json` is CLI-owned and this auxiliary workflow must not write it. The expected required-stage owner is `specify`. If the runtime is missing, corrupt, at another stage, or already completed, stop with its blocker or a typed owner handoff naming the observed stage, expected owner, affected files, exact next action, unblock criteria, and resume argv; do not overwrite either state surface to force entry.
+
 2. Create or resume the workflow state:
    - Read `templates/workflow-state-template.md`.
    - If `WORKFLOW_STATE_FILE` already exists, read it first and preserve still-valid `next_action`, `exit_criteria`, and `next_command` details instead of relying on chat memory alone.
-   - Treat `WORKFLOW_STATE_FILE` as the stage-state source of truth for `sp-clarify`.
+   - Treat `WORKFLOW_STATE_FILE` as the resume/evidence source of truth within
+     `sp-clarify`; it does not own required-stage order or runtime revision.
    - Persist at least these fields for the active pass:
      - `active_command: sp-clarify`
      - `phase_mode: planning-only`
@@ -127,6 +130,7 @@ Goal: Strengthen an existing spec package after `/sp.specify` by closing plannin
 
      - `query_ready`: read top-level `minimal_live_reads` first, then use lane-level `first_pass_paths` reasons.
      - `review`: perform only the returned `minimal_live_reads` before continuing and inspect `coverage_diagnostics`.
+     - `needs_rebuild`: route by `recommended_next_action.action_id`, not readiness alone. Preserve resumable actions such as `complete_scan_packets`; only `action_id=project_cognition.rebuild` may consume `rebuild_reasons[]` and `recommended_next_action.workflow_routes.classic.steps` as a rebuild handoff.
      - `blocked`: report the blocking runtime issue and continue with live evidence only where this workflow allows degraded navigation.
      - **CARRY FORWARD**: Use project-cognition facts to decide whether an
        apparent requirement gap is already answered by repository truth. Preserve

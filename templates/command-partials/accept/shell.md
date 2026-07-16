@@ -12,7 +12,7 @@ Guide a contextless human through accepting completed product behavior and keep 
 - Transition from the validated `implement` stage into `accept` through the deterministic workflow runtime before any acceptance-owned write.
 - Run `{{specify-subcmd:accept prepare --feature-dir <feature-dir> --format json}}`. This creates the deterministic state skeleton after implementation closeout or reports that the existing guide is stale/conflicting.
 - Read `implementation-summary.md`, `human-acceptance.json`, the relevant acceptance requirements, and the real user entrypoint. Use code/test evidence only to prepare accurate instructions; do not ask the human to understand it.
-- Validate runtime-owned phase state with `{{specify-subcmd:hook validate-state --command accept --feature-dir <feature-dir> --format json}}`.
+- Validate acceptance-owned rich resume/evidence state with `{{specify-subcmd:hook validate-state --command accept --feature-dir <feature-dir> --format json}}`.
 
 ## Zero-Context Reset
 
@@ -46,11 +46,12 @@ Use product words and concrete labels. Do not assume they remember the feature n
 - Keep `human-acceptance.json` schema-valid, fresh against implementation evidence, and sufficient to resume from the exact current step.
 - The visible reply restores only the context needed now, gives one current action and expected result, and asks for one minimal human observation.
 - Final output records accepted, rejected, or blocked honestly and names the exact next workflow without invoking it.
+- After the successful `accept closeout` `next_argv` commits terminal workflow closeout, `human-acceptance.json`, its immutable terminal snapshot, and the completed runtime are read-only. Changed implementation scope starts a new feature workflow; never rewrite the terminal verdict to draft or stale.
 
 ## Guardrails
 
 - Allowed: `FEATURE_DIR/human-acceptance.json` and acceptance-owned `workflow-state.md` fields.
 - Forbidden: production source, tests, `spec.md`, planning/task artifacts, implementation lifecycle records, commits, pushes, deployments, external writes, and silent cross-workflow fixes.
-- Every failure route is handoff-and-stop. Preserve the acceptance finding and exact resume point so the repair workflow can return to the failed scenario instead of restarting the whole feature.
+- Every failure route is handoff-and-stop. Before the handoff, run `{{specify-subcmd:accept route-repair --feature-dir <feature-dir> --finding-id <finding-id> --route <recorded-route> --expected-revision <revision> --evidence <sanitized-evidence> --format json}}`; do not use it for `human-action`. The result invalidates the prior verdict, preserves the failed cursor, and returns `repair_handoff_command`, `owning_stage_command`, and `acceptance_return_argv`. Invoke `repair_handoff_command` separately and stop. Debug and clarify must not write CLI-owned `workflow-runtime.json`. Clarify may update the feature's rich `workflow-state.md` specification resume/evidence sections; debug keeps both feature state surfaces read-only and persists its session under `.planning/debug/`. After it finishes, separately invoke `owning_stage_command` (`implement` after debug, `specify` after clarify). The owning required stage reads the reopened CLI runtime, completes it through `workflow complete-stage`, and progresses every required stage in order. Only after the runtime re-enters active `accept` execute `acceptance_return_argv` to rebuild/freshness-check the guide and resume the preserved failed scenario.
 
 {{spec-kit-include: ../common/blocker-resolution.md}}

@@ -13,6 +13,7 @@ dependencies = [
     "packaging>=26.2",
     "pathspec>=1.1.1",
     "json5>=0.14.0",
+    "jsonschema>=4.26.0",
     "pydantic-graph<2",
 ]
 
@@ -112,7 +113,6 @@ mcp = [
     "mcp[cli]>=1.28.1,<2",
 ]
 test = [
-    "jsonschema>=4.26.0",
     "pytest>=9.1.1",
     "pytest-asyncio>=1.4.0",
     "pytest-cov>=7.1.0",

@@ -3,10 +3,21 @@
 import json
 import os
 
+import pytest
 from typer.testing import CliRunner
 
+import specify_cli as cli_module
 from specify_cli import app
-from specify_cli.launcher import SpecifyLauncherSpec, render_claude_hook_launcher
+from specify_cli.integrations import get_integration
+from specify_cli.integrations.manifest import IntegrationManifest
+from specify_cli.launcher import (
+    PROJECT_COGNITION_UNAVAILABLE_MARKER,
+    SPECIFY_PROJECT_LAUNCHER_POSIX,
+    SPECIFY_PROJECT_LAUNCHER_WINDOWS,
+    SpecifyLauncherSpec,
+    render_claude_hook_launcher,
+    resolve_specify_launcher_spec,
+)
 
 
 runner = CliRunner()
@@ -484,6 +495,273 @@ class TestIntegrationSwitch:
 
 
 class TestIntegrationRepair:
+    def test_repair_runtime_assets_preserves_modified_integration_script(
+        self,
+        tmp_path,
+    ):
+        project = tmp_path / "project"
+        integration = get_integration("claude")
+        assert integration is not None
+        manifest = IntegrationManifest("claude", project)
+        installed = integration.install_scripts(project, manifest)
+        assert installed
+        target = installed[0]
+        original = "# USER INTEGRATION SCRIPT\n"
+        target.write_text(original, encoding="utf-8")
+
+        repaired = integration.repair_runtime_assets(
+            project,
+            manifest,
+            script_type="ps",
+        )
+
+        relative = target.relative_to(project).as_posix()
+        assert target not in repaired
+        assert target.read_text(encoding="utf-8") == original
+        assert relative in integration._last_repair_skipped_modified
+
+    @pytest.mark.parametrize(
+        ("integration", "hook_readme"),
+        (
+            ("claude", ".claude/hooks/README.md"),
+            ("gemini", ".gemini/hooks/README.md"),
+        ),
+    )
+    def test_repair_preserves_modified_hook_and_shared_launcher_assets(
+        self,
+        tmp_path,
+        integration,
+        hook_readme,
+    ):
+        project = _init_project(tmp_path, integration)
+        readme = project / hook_readme
+        shared_launcher = project / ".specify" / "bin" / "specify-hook.py"
+        readme_sentinel = "# USER HOOK README SENTINEL\n"
+        launcher_sentinel = "# USER SHARED LAUNCHER SENTINEL\n"
+        readme.write_text(readme_sentinel, encoding="utf-8")
+        shared_launcher.write_text(launcher_sentinel, encoding="utf-8")
+
+        old_cwd = os.getcwd()
+        try:
+            os.chdir(project)
+            result = runner.invoke(
+                app,
+                ["integration", "repair", "--script", "sh"],
+                catch_exceptions=False,
+            )
+        finally:
+            os.chdir(old_cwd)
+
+        assert result.exit_code == 10, result.output
+        assert "PARTIAL" in result.output
+        assert hook_readme in result.output
+        assert ".specify/bin/specify-hook.py" in result.output
+        assert readme.read_text(encoding="utf-8") == readme_sentinel
+        assert shared_launcher.read_text(encoding="utf-8") == launcher_sentinel
+
+    @pytest.mark.parametrize(
+        "runtime_call",
+        (
+            f"{PROJECT_COGNITION_UNAVAILABLE_MARKER}:project-cognition compass",
+            "`project-cognition compass --intent plan --format json`",
+        ),
+    )
+    def test_repair_reports_modified_cognition_runtime_call_as_partial_candidate(
+        self,
+        tmp_path,
+        runtime_call,
+    ):
+        project = tmp_path / "project"
+        integration = get_integration("claude")
+        assert integration is not None
+        manifest = IntegrationManifest("claude", project)
+        target = project / ".claude" / "skills" / "sp-plan" / "SKILL.md"
+        target.parent.mkdir(parents=True)
+        target.write_text(
+            f"Run {runtime_call}.\n",
+            encoding="utf-8",
+        )
+        manifest.record_existing(target.relative_to(project))
+        original = target.read_text(encoding="utf-8") + "User-owned note.\n"
+        target.write_text(original, encoding="utf-8")
+
+        integration.repair_runtime_assets(project, manifest, script_type="ps")
+
+        relative = target.relative_to(project).as_posix()
+        assert target.read_text(encoding="utf-8") == original
+        assert relative in integration._last_repair_skipped_modified
+        assert relative in integration._last_repair_unresolved_cognition_markers
+
+    def test_repair_rebinds_unmodified_bare_project_cognition_call(self, tmp_path):
+        project = tmp_path / "project"
+        integration = get_integration("claude")
+        assert integration is not None
+        manifest = IntegrationManifest("claude", project)
+        binary = project / "runtime" / "project-cognition.exe"
+        binary.parent.mkdir(parents=True)
+        binary.write_text("runtime", encoding="utf-8")
+        config = project / ".specify" / "config.json"
+        config.parent.mkdir(parents=True)
+        config.write_text(
+            json.dumps(
+                {
+                    "project_cognition_launcher": {
+                        "command": str(binary),
+                        "argv": [str(binary)],
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+        target = project / ".claude" / "skills" / "sp-plan" / "SKILL.md"
+        target.parent.mkdir(parents=True)
+        target.write_text(
+            "Run `project-cognition compass --intent plan --format json`.\n",
+            encoding="utf-8",
+        )
+        manifest.record_existing(target.relative_to(project))
+
+        repaired = integration.repair_runtime_assets(
+            project,
+            manifest,
+            script_type="ps",
+        )
+
+        content = target.read_text(encoding="utf-8")
+        assert target in repaired
+        assert str(binary) in content
+        assert "`project-cognition compass" not in content
+        assert target.relative_to(project).as_posix() not in (
+            integration._last_repair_skipped_modified
+        )
+
+    def test_repair_converts_wrapper_conflict_to_typed_partial_report(
+        self,
+        tmp_path,
+        monkeypatch,
+    ):
+        project = tmp_path / "project"
+        (project / ".specify").mkdir(parents=True)
+
+        def fail_launcher(*args, **kwargs):
+            raise RuntimeError("project launcher conflict: preserved wrapper")
+
+        monkeypatch.setattr(
+            "specify_cli.launcher.write_project_specify_launcher_config",
+            fail_launcher,
+        )
+        monkeypatch.setattr(
+            "specify_cli.launcher.load_project_cognition_launcher",
+            lambda project_root: object(),
+        )
+        monkeypatch.setattr(
+            "specify_cli.launcher.project_cognition_launcher_is_compatible",
+            lambda project_root, launcher: True,
+        )
+        monkeypatch.setattr(cli_module, "_install_shared_infra", lambda *args, **kwargs: True)
+
+        report = cli_module._repair_active_integration_runtime_assets(
+            project,
+            script_type="ps",
+        )
+
+        wrapper = (
+            SPECIFY_PROJECT_LAUNCHER_WINDOWS
+            if os.name == "nt"
+            else SPECIFY_PROJECT_LAUNCHER_POSIX
+        )
+        assert wrapper in report.skipped_modified
+        assert any(
+            issue["code"] == "project-launcher-wrapper-conflict"
+            for issue in report.remaining_issues
+        )
+
+    def test_repair_diagnostics_fall_back_to_unresolved_cognition_marker_scan(
+        self,
+        tmp_path,
+        monkeypatch,
+    ):
+        project = tmp_path / "project"
+        (project / ".specify").mkdir(parents=True)
+        generated = project / ".claude" / "skills" / "sp-plan" / "SKILL.md"
+        generated.parent.mkdir(parents=True)
+        generated.write_text(
+            f"{PROJECT_COGNITION_UNAVAILABLE_MARKER}:project-cognition compass\n",
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(
+            "specify_cli.launcher.write_project_specify_launcher_config",
+            lambda project_root: None,
+        )
+        monkeypatch.setattr(
+            "specify_cli.launcher.load_project_cognition_launcher",
+            lambda project_root: object(),
+        )
+        monkeypatch.setattr(
+            "specify_cli.launcher.project_cognition_launcher_is_compatible",
+            lambda project_root, launcher: True,
+        )
+        monkeypatch.setattr(cli_module, "_install_shared_infra", lambda *args, **kwargs: True)
+
+        report = cli_module._repair_active_integration_runtime_assets(
+            project,
+            script_type="ps",
+        )
+
+        assert any(
+            issue["code"] == "unrebound-project-cognition-launcher"
+            and ".claude/skills/sp-plan/SKILL.md" in issue["summary"]
+            for issue in report.remaining_issues
+        )
+
+    def test_partial_repair_tutorial_uses_external_runtime_for_wrapper_recovery(
+        self,
+        tmp_path,
+        monkeypatch,
+    ):
+        project = tmp_path / "project"
+        (project / ".specify").mkdir(parents=True)
+        wrapper = (
+            SPECIFY_PROJECT_LAUNCHER_WINDOWS
+            if os.name == "nt"
+            else SPECIFY_PROJECT_LAUNCHER_POSIX
+        )
+        report = cli_module.IntegrationRepairReport(
+            active_key="claude",
+            tracked_files=1,
+            skipped_modified=(wrapper,),
+            remaining_issues=(
+                {
+                    "code": "project-launcher-wrapper-conflict",
+                    "summary": "wrapper preserved",
+                    "repair": "use external runtime",
+                },
+            ),
+        )
+        monkeypatch.setattr(
+            cli_module,
+            "_repair_active_integration_runtime_assets",
+            lambda project_root, script_type: report,
+        )
+        old_cwd = os.getcwd()
+        try:
+            os.chdir(project)
+            result = runner.invoke(
+                app,
+                ["integration", "repair", "--script", "ps"],
+                catch_exceptions=False,
+            )
+        finally:
+            os.chdir(old_cwd)
+
+        external = resolve_specify_launcher_spec().command
+        assert result.exit_code == 10, result.output
+        normalized_output = " ".join(result.output.split())
+        assert f"{external} --runtime-id" in normalized_output
+        assert f"{external} integration repair --script ps" in normalized_output
+        assert "copy the exact `specify_launcher.command`" not in result.output
+        assert wrapper in result.output
+
     def test_repair_upgrades_direct_claude_hook_commands_to_shared_launcher(self, tmp_path):
         project = _init_project(tmp_path, "claude")
 
@@ -540,11 +818,11 @@ class TestIntegrationRepair:
         config_path.write_text(json.dumps(config_payload, indent=2) + "\n", encoding="utf-8")
 
         launcher = SpecifyLauncherSpec(
-            command="uvx --from git+https://github.com/chenziyang110/spec-kit-plus.git@abc123 specify",
+            command="uvx --from git+https://github.com/chenziyang110/spec-kit-plus.git@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa specify",
             argv=(
                 "uvx",
                 "--from",
-                "git+https://github.com/chenziyang110/spec-kit-plus.git@abc123",
+                "git+https://github.com/chenziyang110/spec-kit-plus.git@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
                 "specify",
             ),
         )
@@ -602,15 +880,13 @@ class TestIntegrationRepair:
         assert all("$CLAUDE_PROJECT_DIR" not in json.dumps(hook) for hook in hooks)
         assert all("$env:CLAUDE_PROJECT_DIR" not in json.dumps(hook) for hook in hooks)
 
-    def test_repair_refreshes_shared_powershell_script_assets(self, tmp_path):
+    def test_repair_preserves_user_modified_shared_powershell_script(self, tmp_path):
         project = _init_project(tmp_path, "claude")
 
         common_path = project / ".specify" / "scripts" / "powershell" / "common.ps1"
         common_path.parent.mkdir(parents=True, exist_ok=True)
-        common_path.write_text(
-            "function Get-FeaturePathsEnv { $featureDir = Get-FeatureDir -RepoRoot $repoRoot -Branch $currentBranch }\n",
-            encoding="utf-8",
-        )
+        original = "function Get-FeaturePathsEnv { $featureDir = Get-FeatureDir -RepoRoot $repoRoot -Branch $currentBranch }\n"
+        common_path.write_text(original, encoding="utf-8")
 
         old_cwd = os.getcwd()
         try:
@@ -623,9 +899,11 @@ class TestIntegrationRepair:
         finally:
             os.chdir(old_cwd)
 
-        assert result.exit_code == 0, result.output
+        assert result.exit_code == 10, result.output
+        assert "PARTIAL" in result.output
+        assert ".specify/scripts/powershell/common.ps1" in result.output
         repaired = common_path.read_text(encoding="utf-8")
-        assert "Find-FeatureDirFromLaneState" in repaired
+        assert repaired == original
 
     def test_repair_preserves_user_modified_skill_content(self, tmp_path):
         project = _init_project(tmp_path, "claude")

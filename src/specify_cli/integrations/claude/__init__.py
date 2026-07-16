@@ -12,7 +12,11 @@ import yaml
 
 from ..base import SkillsIntegration
 from ..manifest import IntegrationManifest
-from ...launcher import install_shared_hook_launcher_assets, render_claude_hook_launcher
+from ...launcher import (
+    install_shared_hook_launcher_assets,
+    render_claude_hook_launcher,
+    render_project_launcher_placeholders,
+)
 from ...orchestration import CapabilitySnapshot, describe_delegation_surface
 from .multi_agent import ClaudeMultiAgentAdapter
 
@@ -197,6 +201,8 @@ class ClaudeIntegration(SkillsIntegration):
         *,
         project_root: Path,
         manifest: IntegrationManifest,
+        preserve_modified: bool = False,
+        skipped_modified: list[str] | None = None,
     ) -> list[Path]:
         assets_dir = self._hook_assets_dir()
         if not assets_dir:
@@ -205,12 +211,30 @@ class ClaudeIntegration(SkillsIntegration):
         created: list[Path] = []
         hooks_dir = project_root / ".claude" / "hooks"
         hooks_dir.mkdir(parents=True, exist_ok=True)
+        modified = set(manifest.check_modified()) if preserve_modified else set()
 
         for src_file in sorted(assets_dir.iterdir()):
             if not src_file.is_file():
                 continue
             dst_file = hooks_dir / src_file.name
-            shutil.copy2(src_file, dst_file)
+            relative = dst_file.relative_to(project_root).as_posix()
+            if preserve_modified and (dst_file.exists() or dst_file.is_symlink()):
+                if (
+                    relative not in manifest.files
+                    or relative in modified
+                    or dst_file.is_symlink()
+                ):
+                    if skipped_modified is not None:
+                        skipped_modified.append(relative)
+                    continue
+            if src_file.suffix.lower() == ".md":
+                rendered = render_project_launcher_placeholders(
+                    project_root,
+                    src_file.read_text(encoding="utf-8"),
+                )
+                dst_file.write_text(rendered, encoding="utf-8")
+            else:
+                shutil.copy2(src_file, dst_file)
             if dst_file.suffix == ".py":
                 dst_file.chmod(dst_file.stat().st_mode | 0o111)
             self.record_file_in_manifest(dst_file, project_root, manifest)
@@ -481,8 +505,8 @@ class ClaudeIntegration(SkillsIntegration):
             "## Claude Code Subagent Result Contract\n\n"
             f"- Preferred result contract: {descriptor.result_contract_hint}\n"
             f"- Result file handoff path: {descriptor.result_handoff_hint}\n"
-            "- For filesystem handoffs, use `specify result path` with the concrete workflow identifiers such as `--feature-dir`/`--task-id`, `--workspace`/`--lane-id`, or `--session-slug`/`--lane-id`.\n"
-            "- `specify result path` emits JSON and does not accept `--format`; do not append `--format`.\n"
+            "- For filesystem handoffs, use `{{specify-subcmd:result path --help}}` with the concrete workflow identifiers such as `--feature-dir`/`--task-id`, `--workspace`/`--lane-id`, or `--session-slug`/`--lane-id`.\n"
+            "- The result-path command emits JSON and does not accept `--format`; do not append `--format`.\n"
             "- Normalize subagent-reported statuses like `DONE`, `DONE_WITH_CONCERNS`, `BLOCKED`, and `NEEDS_CONTEXT` into the shared `WorkerTaskResult` contract before the leader accepts the handoff.\n"
             "- Keep `reported_status` when normalization occurs so the leader can distinguish raw subagent language from canonical orchestration state.\n"
             "- Wait for every subagent's structured handoff before accepting the join point, closing the batch, or declaring completion.\n"
@@ -511,8 +535,8 @@ class ClaudeIntegration(SkillsIntegration):
             "## Claude Agent Teams Teammate Result Contract\n\n"
             f"- Preferred result contract: {descriptor.result_contract_hint}\n"
             f"- Result file handoff path: {descriptor.result_handoff_hint}\n"
-            "- For filesystem handoffs, use `specify result path` with the concrete workflow identifiers such as `--feature-dir`/`--task-id`, `--workspace`/`--lane-id`, or `--session-slug`/`--lane-id`.\n"
-            "- `specify result path` emits JSON and does not accept `--format`; do not append `--format`.\n"
+            "- For filesystem handoffs, use `{{specify-subcmd:result path --help}}` with the concrete workflow identifiers such as `--feature-dir`/`--task-id`, `--workspace`/`--lane-id`, or `--session-slug`/`--lane-id`.\n"
+            "- The result-path command emits JSON and does not accept `--format`; do not append `--format`.\n"
             "- Normalize teammate-reported statuses like `DONE`, `DONE_WITH_CONCERNS`, `BLOCKED`, and `NEEDS_CONTEXT` into the shared `WorkerTaskResult` contract before the leader accepts the handoff.\n"
             "- Keep `reported_status` when normalization occurs so the leader can distinguish raw teammate language from canonical orchestration state.\n"
             "- Wait for every Agent Teams teammate's structured handoff before accepting the join point, closing the team wave, or declaring completion.\n"
@@ -847,8 +871,12 @@ class ClaudeIntegration(SkillsIntegration):
                 content=content,
                 skill_name=command_name,
             )
-            path.write_bytes(content.encode("utf-8"))
-            self.record_file_in_manifest(path, project_root, manifest)
+            self._write_augmented_skill(
+                content,
+                path,
+                project_root,
+                manifest,
+            )
 
         implement_teams_skill = skills_dir / "sp-implement-teams" / "SKILL.md"
         if implement_teams_skill.exists():
@@ -863,8 +891,12 @@ class ClaudeIntegration(SkillsIntegration):
             )
             content = implement_teams_skill.read_text(encoding="utf-8")
             content = self._append_agent_teams_teammate_result_contract(content=content)
-            implement_teams_skill.write_bytes(content.encode("utf-8"))
-            self.record_file_in_manifest(implement_teams_skill, project_root, manifest)
+            self._write_augmented_skill(
+                content,
+                implement_teams_skill,
+                project_root,
+                manifest,
+            )
 
         return created
 
@@ -875,6 +907,9 @@ class ClaudeIntegration(SkillsIntegration):
         **opts: Any,
     ) -> list[Path]:
         created = super().repair_runtime_assets(project_root, manifest, **opts)
+        skipped_modified = list(
+            getattr(self, "_last_repair_skipped_modified", ())
+        )
         skills_dir = self.skills_dest(project_root)
         classic_installed = any(skills_dir.glob("sp-*/SKILL.md"))
         if not classic_installed:
@@ -883,12 +918,16 @@ class ClaudeIntegration(SkillsIntegration):
             self._install_hook_assets(
                 project_root=project_root,
                 manifest=manifest,
+                preserve_modified=True,
+                skipped_modified=skipped_modified,
             )
         )
         created.extend(
             install_shared_hook_launcher_assets(
                 project_root,
                 manifest=manifest,
+                preserve_modified=True,
+                skipped_modified=skipped_modified,
             )
         )
         created.extend(
@@ -897,6 +936,9 @@ class ClaudeIntegration(SkillsIntegration):
                 manifest=manifest,
                 script_type=opts.get("script_type", "sh"),
             )
+        )
+        self._last_repair_skipped_modified = tuple(
+            sorted(set(skipped_modified))
         )
         return created
 

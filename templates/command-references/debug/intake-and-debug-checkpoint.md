@@ -144,7 +144,7 @@ Use the returned readiness:
 
 - `query_ready`: read top-level `minimal_live_reads` first, then use lane-level `first_pass_paths` reasons.
 - `review`: perform only the returned `minimal_live_reads` before continuing and inspect `coverage_diagnostics`.
-- `needs_rebuild`: route through `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only for documented brownfield rebuild triggers.
+- `needs_rebuild`: route by `recommended_next_action.action_id`, not readiness alone. Preserve resumable actions such as `complete_scan_packets`; only `action_id=project_cognition.rebuild` may use `rebuild_reasons[]` and `recommended_next_action.workflow_routes.classic.steps` for the rebuild handoff.
 - `blocked`: report the blocking runtime issue and continue with live evidence only where this workflow allows degraded navigation.
 - **CARRY FORWARD**: Write the selected capability or symptom, evidence routes,
   minimal reads, competing truths, and unresolved coverage gaps into debug

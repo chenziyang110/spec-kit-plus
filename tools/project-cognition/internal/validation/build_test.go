@@ -133,7 +133,7 @@ func TestValidateBuildBlocksGreenfieldMetadataKindMismatch(t *testing.T) {
 	if payload.Status != "blocked" {
 		t.Fatalf("payload = %#v", payload)
 	}
-	if !hasValidationError(payload.Errors, `baseline_kind mismatch: status.json has "greenfield_empty", DB metadata has "brownfield_full"`) {
+	if !hasValidationError(payload.Errors, `baseline_kind mismatch: DB metadata has "brownfield_full", active generation has "greenfield_empty"`) {
 		t.Fatalf("errors = %#v", payload.Errors)
 	}
 }
@@ -790,8 +790,8 @@ func TestValidateBuildBlocksGenerationMismatchWithRecoveryAction(t *testing.T) {
 	if payload.Status != "blocked" {
 		t.Fatalf("Status = %q, want blocked; errors=%#v", payload.Status, payload.Errors)
 	}
-	if payload.Details["recovery_action"] != "rewrite_status_from_db_metadata" {
-		t.Fatalf("recovery_action = %#v, want rewrite_status_from_db_metadata; details=%#v", payload.Details["recovery_action"], payload.Details)
+	if payload.Details["recovery_action"] != "project_cognition.repair_status" {
+		t.Fatalf("recovery_action = %#v, want project_cognition.repair_status; details=%#v", payload.Details["recovery_action"], payload.Details)
 	}
 	if hasValidationError(payload.Errors, "status.json active_generation_id") {
 		t.Fatalf("Errors = %#v, graph validation should not duplicate runtimegate generation mismatch", payload.Errors)

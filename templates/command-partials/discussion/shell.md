@@ -64,7 +64,7 @@ Drive a resumable product and technical discussion that locks context boundaries
 ## Output Contract
 
 - Maintain the independent discussion state and artifacts under `.specify/discussions/<slug>/`.
-- Treat `handoff-ready` as resumable until `sp-specify` consumes it or the user confirms the topic should be dropped; after consumption, mark it with `specify discussion mark-consumed <slug> --feature-dir <feature-dir>` before archiving.
+- Treat `handoff-ready` as resumable until `sp-specify` consumes it or the user confirms the topic should be dropped; after consumption, mark it with `{{specify-subcmd:discussion mark-consumed <slug> --feature-dir <feature-dir>}}` before archiving.
 - Provide 2-3 project-grounded technical options only after the relevant boundary is locked.
 - Report unresolved questions honestly instead of forcing planning readiness.
 - Distinguish verified project facts from open assumptions before presenting technical options.

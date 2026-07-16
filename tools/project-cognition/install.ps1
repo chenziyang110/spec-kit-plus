@@ -75,7 +75,7 @@ try {
 Write-Host "==> Verifying..."
 & $candidate --version
 $rootHelp = Get-NativeHelpOutput -Command $candidate -Arguments @("--help")
-foreach ($requiredCommand in @("scan-set", "scan-prepare", "scan-accept")) {
+foreach ($requiredCommand in @("repair-status", "scan-set", "scan-prepare", "scan-accept")) {
     if ($rootHelp -notmatch [regex]::Escape($requiredCommand)) {
         Write-Host "Error: downloaded project-cognition binary is missing required ${requiredCommand} command."
         Write-Host "Expected 'project-cognition --help' to include ${requiredCommand}."

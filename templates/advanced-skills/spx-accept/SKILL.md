@@ -24,7 +24,7 @@ human-acceptance template/schema with a plain-language orientation and the
 smallest complete set of user-value scenarios. Do not ask the human to inspect
 source, diffs, test logs, specs, plans, or task state.
 
-Validate the runtime-owned state with
+Validate the acceptance-owned rich resume/evidence state with
 `{{specify-subcmd:hook validate-state --command accept --feature-dir
 <feature-dir> --format json}}`. A changed implementation-summary fingerprint
 makes the guide stale; rebuild it from current evidence before continuing.
@@ -53,7 +53,8 @@ the full Human Action Guide.
 After the human explicitly accepts all required scenarios, set the durable state
 to `accepted`, run
 `{{specify-subcmd:accept closeout --feature-dir <feature-dir> --format json}}`,
-then run the workflow-runtime `closeout` command with its current revision,
+then execute that successful response's `next_argv` verbatim; it is the
+revision-bound workflow-runtime closeout command, so do not reconstruct it,
 and report what they personally verified, residual risk, the state path, and the
 next integration or delivery command. Recommend that command; do not invoke it
 in this acceptance invocation.

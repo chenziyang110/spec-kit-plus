@@ -114,7 +114,7 @@ The workflow output is a root `DESIGN.md` contract plus supporting `.specify/des
 
 Before closeout:
 
-1. Run `specify design lint --level ready` when the CLI helper is available.
+1. Run `{{specify-subcmd:design lint --level ready}}` when the CLI helper is available.
 2. Write `.specify/design/review.md` with:
    - selected mode
    - inputs read

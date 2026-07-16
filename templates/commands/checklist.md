@@ -68,6 +68,7 @@ Use `execution_surface: native-subagents`.
    - [AGENT] Readiness values are `query_ready`, `review`, `needs_rebuild`, `blocked`, and `unsupported_runtime`. Use the returned readiness:
      - `query_ready`: read top-level `minimal_live_reads` first, then use lane-level `first_pass_paths` reasons.
      - `review`: perform only the returned `minimal_live_reads` before continuing and inspect `coverage_diagnostics`.
+     - `needs_rebuild`: route by `recommended_next_action.action_id`, not readiness alone. Preserve resumable actions such as `complete_scan_packets`; only `action_id=project_cognition.rebuild` may consume `rebuild_reasons[]` and `recommended_next_action.workflow_routes.classic.steps` as a rebuild handoff.
      - `blocked`: report the blocking runtime issue and continue with live evidence only where this workflow allows degraded navigation.
      - `unsupported_runtime`: continue with live evidence and record that compass intake was unavailable.
    - Treat this as a coverage-model check, not a file-presence check. If the returned task-local bundle cannot identify the touched area's owning surfaces, change-propagation hotspots, verification entry points, or known unknowns, route through the returned `recommended_next_action`.

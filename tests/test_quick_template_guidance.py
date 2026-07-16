@@ -62,7 +62,8 @@ def test_quick_template_exists_and_defines_lightweight_tracked_flow() -> None:
     assert "build-workflow-contract" not in content
     assert "product-and-capability-map" not in content
     assert "change-entrypoints" not in content
-    assert "`needs_rebuild`: route through `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only for documented brownfield rebuild triggers" in content
+    assert "`needs_rebuild`: route by `recommended_next_action.action_id`, not readiness alone" in content
+    assert "`complete_scan_packets`" in content
     assert "if project cognition readiness requires `{{invoke:map-update}}`, `{{invoke:map-scan}}`, or `{{invoke:map-build}}`" in content
     assert "returned task-local bundle" in content
     assert "must_refresh_topics" not in content
@@ -300,13 +301,11 @@ def test_quick_template_refreshes_project_cognition_when_truth_surfaces_change()
     assert "refresh the project cognition runtime through `{{invoke:map-update}}` using the changed paths" not in content
     assert "sp-map-update is for manual/external maintenance and follow-up repair" in content
     assert "it is not routine cleanup for changes this workflow just made" in content
-    assert "`needs_rebuild`: route through `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only for documented brownfield rebuild triggers" in content
-    assert "schema failure" in content
-    assert "schema v1 or old broad-schema rebuild-required readiness" in content
-    assert "zero active-generation path_index rows" in content
-    assert "missing or invalid alias_index" in content
-    assert "explicit_rebuild_requested" in content
-    assert "baseline_identity_invalid" in content
+    assert "`needs_rebuild`: route by `recommended_next_action.action_id`, not readiness alone" in content
+    assert "`complete_scan_packets`" in content
+    assert "action_id=project_cognition.rebuild" in content
+    assert "rebuild_reasons[]" in content
+    assert "recommended_next_action.workflow_routes.classic.steps" in content
     assert "{{specify-subcmd:project-cognition mark-dirty --reason \"workflow-closeout-failed\" --format json}}" in content
 
 
@@ -352,7 +351,8 @@ def test_quick_template_marks_learning_and_fail_closed_coverage_gates_with_agent
     content = read_command_with_references("quick")
     lowered = content.lower()
 
-    assert "`needs_rebuild`: route through `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only for documented brownfield rebuild triggers" in lowered
+    assert "`needs_rebuild`: route by `recommended_next_action.action_id`, not readiness alone" in lowered
+    assert "`complete_scan_packets`" in lowered
     assert "if project cognition readiness requires `{{invoke:map-update}}`, `{{invoke:map-scan}}`, or `{{invoke:map-build}}`" in lowered
     assert "must_refresh_topics" not in lowered
     assert "review_topics" not in lowered

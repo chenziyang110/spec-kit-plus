@@ -279,6 +279,7 @@ def test_project_cognition_placeholder_uses_persisted_binary(tmp_path: Path):
 def test_project_cognition_required_commands_include_compass_and_expand():
     assert "build-from-scan" in project_cognition_runtime.REQUIRED_COMMANDS
     assert "init-empty" in project_cognition_runtime.REQUIRED_COMMANDS
+    assert "repair-status" in project_cognition_runtime.REQUIRED_COMMANDS
     assert "generate-ignore" in project_cognition_runtime.REQUIRED_COMMANDS
     assert "scan-set" in project_cognition_runtime.REQUIRED_COMMANDS
     assert "scan-prepare" in project_cognition_runtime.REQUIRED_COMMANDS
@@ -308,7 +309,7 @@ def test_project_cognition_install_scripts_verify_closeout_plan_flags():
     assert "semantic-intake binary is missing required input flag" in shell_script
     assert "semantic-audit-resume --help" in shell_script
     assert "semantic-audit-resume binary is missing required input flag" in shell_script
-    assert "required_command in scan-set scan-prepare scan-accept" in shell_script
+    assert "required_command in repair-status scan-set scan-prepare scan-accept" in shell_script
     assert "scan-prepare --help" in shell_script
     assert "-force" in shell_script
     assert "scan-accept --help" in shell_script
@@ -321,7 +322,7 @@ def test_project_cognition_install_scripts_verify_closeout_plan_flags():
     assert "semantic-intake binary is missing required input flag" in powershell_script
     assert '@("semantic-audit-resume", "--help")' in powershell_script
     assert "semantic-audit-resume binary is missing required input flag" in powershell_script
-    assert '"scan-set", "scan-prepare", "scan-accept"' in powershell_script
+    assert '"repair-status", "scan-set", "scan-prepare", "scan-accept"' in powershell_script
     assert '@("scan-prepare", "--help")' in powershell_script
     assert '@("scan-accept", "--help")' in powershell_script
     assert '@("--help")' in powershell_script
@@ -335,7 +336,7 @@ def test_project_cognition_binary_support_requires_compass_and_expand(
 
     class RootHelpResult:
         stdout = (
-            "Commands: status, build-from-scan, init-empty, generate-ignore, scan-set, scan-prepare, scan-accept, changes, "
+            "Commands: status, build-from-scan, init-empty, repair-status, generate-ignore, scan-set, scan-prepare, scan-accept, changes, "
             "update, lexicon, delta\n"
         )
         stderr = ""
@@ -360,8 +361,36 @@ def test_project_cognition_binary_support_requires_changes(monkeypatch, tmp_path
 
     class RootHelpResult:
         stdout = (
-            "Commands: status, build-from-scan, init-empty, generate-ignore, scan-set, scan-prepare, scan-accept, update, lexicon, compass, "
+            "Commands: status, build-from-scan, init-empty, repair-status, generate-ignore, scan-set, scan-prepare, scan-accept, update, lexicon, compass, "
             "expand, delta, closeout-plan\n"
+        )
+        stderr = ""
+
+    calls: list[list[str]] = []
+
+    def fake_run(command, **kwargs):
+        calls.append([str(part) for part in command])
+        if command[1:] == ["--help"]:
+            return RootHelpResult()
+        raise AssertionError(f"unexpected command: {command}")
+
+    monkeypatch.setattr(project_cognition_runtime.subprocess, "run", fake_run)
+
+    assert project_cognition_runtime._binary_supports_required_commands(binary) is False
+    assert calls == [[str(binary), "--help"]]
+
+
+def test_project_cognition_binary_support_requires_repair_status(
+    monkeypatch, tmp_path: Path
+):
+    binary = tmp_path / "project-cognition"
+    binary.write_text("binary", encoding="utf-8")
+
+    class RootHelpResult:
+        stdout = (
+            "Commands: status, build-from-scan, init-empty, generate-ignore, "
+            "scan-set, scan-prepare, scan-accept, changes, update, semantic-intake, "
+            "semantic-audit-resume, lexicon, compass, expand, delta, closeout-plan\n"
         )
         stderr = ""
 
@@ -385,7 +414,7 @@ def test_project_cognition_binary_support_requires_update_payload_file(monkeypat
 
     class RootHelpResult:
         stdout = (
-            "Commands: status, build-from-scan, init-empty, generate-ignore, scan-set, scan-prepare, scan-accept, changes, update, semantic-intake, semantic-audit-resume, lexicon, compass, "
+            "Commands: status, build-from-scan, init-empty, repair-status, generate-ignore, scan-set, scan-prepare, scan-accept, changes, update, semantic-intake, semantic-audit-resume, lexicon, compass, "
             "expand, delta, closeout-plan\n"
         )
         stderr = ""
@@ -418,7 +447,7 @@ def test_project_cognition_binary_support_requires_closeout_plan_root_command(
 
     class RootHelpResult:
         stdout = (
-            "Commands: status, build-from-scan, init-empty, generate-ignore, scan-set, scan-prepare, scan-accept, changes, update, semantic-intake, semantic-audit-resume, lexicon, compass, "
+            "Commands: status, build-from-scan, init-empty, repair-status, generate-ignore, scan-set, scan-prepare, scan-accept, changes, update, semantic-intake, semantic-audit-resume, lexicon, compass, "
             "expand, delta\n"
         )
         stderr = ""
@@ -445,7 +474,7 @@ def test_project_cognition_binary_support_requires_update_verification_flag(
 
     class RootHelpResult:
         stdout = (
-            "Commands: status, build-from-scan, init-empty, generate-ignore, scan-set, scan-prepare, scan-accept, changes, update, semantic-intake, semantic-audit-resume, lexicon, compass, "
+            "Commands: status, build-from-scan, init-empty, repair-status, generate-ignore, scan-set, scan-prepare, scan-accept, changes, update, semantic-intake, semantic-audit-resume, lexicon, compass, "
             "expand, delta, closeout-plan\n"
         )
         stderr = ""
@@ -474,7 +503,7 @@ def test_project_cognition_binary_support_requires_lexicon_catalog_mode(
 
     class RootHelpResult:
         stdout = (
-            "Commands: status, build-from-scan, init-empty, generate-ignore, scan-set, scan-prepare, scan-accept, changes, update, semantic-intake, semantic-audit-resume, lexicon, compass, "
+            "Commands: status, build-from-scan, init-empty, repair-status, generate-ignore, scan-set, scan-prepare, scan-accept, changes, update, semantic-intake, semantic-audit-resume, lexicon, compass, "
             "expand, delta, closeout-plan\n"
         )
         stderr = ""
@@ -521,7 +550,7 @@ def test_project_cognition_binary_support_requires_semantic_intake_input_flag(
 
     class RootHelpResult:
         stdout = (
-            "Commands: status, build-from-scan, init-empty, generate-ignore, scan-set, scan-prepare, scan-accept, changes, update, "
+            "Commands: status, build-from-scan, init-empty, repair-status, generate-ignore, scan-set, scan-prepare, scan-accept, changes, update, "
             "semantic-intake, semantic-audit-resume, lexicon, compass, expand, delta, closeout-plan\n"
         )
         stderr = ""
@@ -564,7 +593,7 @@ def test_project_cognition_binary_support_requires_compass_precision_flags(
 
     class RootHelpResult:
         stdout = (
-            "Commands: status, build-from-scan, init-empty, generate-ignore, scan-set, scan-prepare, scan-accept, changes, update, semantic-intake, semantic-audit-resume, lexicon, compass, "
+            "Commands: status, build-from-scan, init-empty, repair-status, generate-ignore, scan-set, scan-prepare, scan-accept, changes, update, semantic-intake, semantic-audit-resume, lexicon, compass, "
             "expand, delta, closeout-plan\n"
         )
         stderr = ""
@@ -617,7 +646,7 @@ def test_project_cognition_binary_support_requires_expand_section_flag(
 
     class RootHelpResult:
         stdout = (
-            "Commands: status, build-from-scan, init-empty, generate-ignore, scan-set, scan-prepare, scan-accept, changes, update, semantic-intake, semantic-audit-resume, lexicon, compass, "
+            "Commands: status, build-from-scan, init-empty, repair-status, generate-ignore, scan-set, scan-prepare, scan-accept, changes, update, semantic-intake, semantic-audit-resume, lexicon, compass, "
             "expand, delta, closeout-plan\n"
         )
         stderr = ""
@@ -678,7 +707,7 @@ def test_project_cognition_binary_support_requires_delta_append_verification_fla
 
     class RootHelpResult:
         stdout = (
-            "Commands: status, build-from-scan, init-empty, generate-ignore, scan-set, scan-prepare, scan-accept, changes, update, semantic-intake, semantic-audit-resume, lexicon, compass, "
+            "Commands: status, build-from-scan, init-empty, repair-status, generate-ignore, scan-set, scan-prepare, scan-accept, changes, update, semantic-intake, semantic-audit-resume, lexicon, compass, "
             "expand, delta, closeout-plan\n"
         )
         stderr = ""
@@ -745,7 +774,7 @@ def test_project_cognition_binary_support_requires_closeout_plan_delta_session_f
 
     class RootHelpResult:
         stdout = (
-            "Commands: status, build-from-scan, init-empty, generate-ignore, scan-set, scan-prepare, scan-accept, changes, update, semantic-intake, semantic-audit-resume, lexicon, compass, "
+            "Commands: status, build-from-scan, init-empty, repair-status, generate-ignore, scan-set, scan-prepare, scan-accept, changes, update, semantic-intake, semantic-audit-resume, lexicon, compass, "
             "expand, delta, closeout-plan\n"
         )
         stderr = ""
@@ -834,7 +863,7 @@ def test_project_cognition_binary_support_requires_scan_workbench_flags(
 
     outputs = {
         ("--help",): (
-            "build-from-scan init-empty generate-ignore scan-set scan-prepare scan-accept "
+            "build-from-scan init-empty repair-status generate-ignore scan-set scan-prepare scan-accept "
             "changes closeout-plan semantic-intake semantic-audit-resume lexicon compass "
             "expand update delta"
         ),

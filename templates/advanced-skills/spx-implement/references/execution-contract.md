@@ -35,16 +35,16 @@ can continue; mark the feature blocked only when no ready work remains. A
 off, or `resolved` before its evidence exists.
 
 Do not push, trigger remote CI, or perform another external write without the
-required authorization. A commit needed for mandatory protected-CI evidence is
-a non-final checkpoint only after
-First validate the checkpoint explicitly with
+required authorization. For a commit needed to obtain mandatory protected-CI
+evidence, first validate the checkpoint explicitly with
 `{{specify-subcmd:hook validate-commit --commit-message <message> --feature-dir <feature-dir> --commit-intent external-evidence-checkpoint}}`.
-On Claude or Gemini native hooks, carry the same authorization on the actual
-commit as `git -c specify.commitIntent=external-evidence-checkpoint commit -m
-"<message>"`; the hook binds it to the active feature and revalidates the
-task-local mandatory external blocker.
-passes. This checkpoint does not finalize the workflow or authorize push/CI;
-ordinary final commits retain the terminal-state gate.
+Proceed only when that validation passes. On Claude or Gemini native hooks,
+carry the same intent on the actual commit as
+`git -c specify.commitIntent=external-evidence-checkpoint commit -m "<message>"`;
+the hook binds it to the active feature and revalidates the task-local mandatory
+external blocker. The resulting commit is a non-final checkpoint: it does not
+finalize the workflow or authorize push, CI, or acceptance. Ordinary final
+commits retain the terminal-state gate.
 
 For UI tasks, apply the packet `ui_contract` as binding scope. Run the visual convergence loop at the real entry point: render the required states and
 viewports, capture stable screenshots or platform output, inspect against
@@ -79,7 +79,11 @@ acceptance workflow restores a later human's context and owns the explicit
 product verdict; implementation tests, agent review, and technical closeout do
 not substitute for that verdict.
 
-Before stopping, keep `workflow-state.md` owned by `sp-implement`, record
-`status: completed`, `phase_mode: execution-only`, and canonical
-`next_command: /sp.accept`. Do not set `active_command: sp-accept`; the
-acceptance workflow claims that phase only when it actually starts.
+Before stopping, update owned rich `workflow-state.md` evidence/resume fields
+truthfully, including the acceptance handoff. Then run the workflow runtime
+`complete-stage` command with the current revision. It records
+`implement/completed` only in CLI-owned `workflow-runtime.json`; it does not update
+rich `workflow-state.md` fields such as `active_command`, `phase_mode`, or
+`next_command`. Do not execute
+the returned transition or set `active_command: sp-accept`; the separately
+invoked acceptance workflow claims that phase only when it actually starts.

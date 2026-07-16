@@ -25,6 +25,11 @@ from specify_cli.learnings import (
     read_learning_entries,
 )
 from specify_cli.launcher import SpecifyLauncherSpec, render_command, write_project_specify_launcher_config
+from specify_cli.workflow_runtime import (
+    complete_workflow_stage,
+    enter_workflow,
+    transition_workflow,
+)
 
 
 runner = CliRunner()
@@ -1797,7 +1802,7 @@ def test_learning_summary_argv_uses_the_persisted_project_launcher(tmp_path: Pat
     launcher_argv = (
         "uvx",
         "--from",
-        "git+https://github.com/chenziyang110/spec-kit-plus.git@abc1234",
+        "git+https://github.com/chenziyang110/spec-kit-plus.git@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
         "specify",
     )
     write_project_specify_launcher_config(
@@ -3140,6 +3145,52 @@ def test_learning_capture_auto_materializes_explicit_semantic_triggers(
     assert by_type["map_coverage_gap"]["trigger_signals"] == [
         "cognition_gap: generated integration was absent from the path index"
     ]
+
+
+def test_phase_completion_and_transition_preserve_learning_capture_source(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path
+    (project / ".specify").mkdir(parents=True, exist_ok=True)
+    _seed_learning_templates(project)
+    feature_dir = project / "specs" / "runtime-signal"
+    _write_workflow_state(
+        feature_dir,
+        trigger_signals=[
+            "tooling_trap: invoke the project-bound launcher instead of a shadowed global CLI"
+        ],
+    )
+    rich_before = (feature_dir / "workflow-state.md").read_bytes()
+
+    enter_workflow(feature_dir, stage="specify", expected_revision=0)
+    completed = complete_workflow_stage(feature_dir, expected_revision=1)
+    transition_workflow(
+        feature_dir,
+        target_stage="plan",
+        expected_revision=completed["data"]["revision"],
+    )
+
+    assert (feature_dir / "workflow-state.md").read_bytes() == rich_before
+    result = _invoke_in_project(
+        project,
+        [
+            "learning",
+            "capture-auto",
+            "--command",
+            "plan",
+            "--feature-dir",
+            str(feature_dir),
+            "--format",
+            "json",
+        ],
+    )
+    assert result.exit_code == 0, result.stdout
+    entries = [item["entry"] for item in json.loads(result.stdout)["captured"]]
+    assert any(
+        entry["learning_type"] == "tooling_trap"
+        and "project-bound launcher" in entry["summary"]
+        for entry in entries
+    )
 
 
 def test_implement_closeout_validates_state_and_auto_captures(tmp_path: Path) -> None:

@@ -931,8 +931,8 @@ func TestCompleteRefreshBlocksSplitBrainBaselineBeforeStatusWrite(t *testing.T) 
 	if err == nil {
 		t.Fatal("expected split-brain agreement error")
 	}
-	if !strings.Contains(err.Error(), "rewrite_status_from_db_metadata") {
-		t.Fatalf("error = %q, want rewrite_status_from_db_metadata", err.Error())
+	if !strings.Contains(err.Error(), "project_cognition.repair_status") {
+		t.Fatalf("error = %q, want project_cognition.repair_status", err.Error())
 	}
 	assertStatusActiveGeneration(t, paths, "GEN-old")
 }
@@ -946,8 +946,8 @@ func TestMarkDirtyBlocksSplitBrainBaselineBeforeStatusWrite(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected split-brain agreement error")
 	}
-	if !strings.Contains(err.Error(), "rewrite_status_from_db_metadata") {
-		t.Fatalf("error = %q, want rewrite_status_from_db_metadata", err.Error())
+	if !strings.Contains(err.Error(), "project_cognition.repair_status") {
+		t.Fatalf("error = %q, want project_cognition.repair_status", err.Error())
 	}
 	assertStatusActiveGeneration(t, paths, "GEN-old")
 }
@@ -964,8 +964,8 @@ func TestRunUpdateBlocksSplitBrainBaselineBeforeMutation(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected split-brain agreement error")
 	}
-	if !strings.Contains(err.Error(), "rewrite_status_from_db_metadata") {
-		t.Fatalf("error = %q, want rewrite_status_from_db_metadata", err.Error())
+	if !strings.Contains(err.Error(), "project_cognition.repair_status") {
+		t.Fatalf("error = %q, want project_cognition.repair_status", err.Error())
 	}
 
 	status, err := rt.ReadStatus(paths)
@@ -1000,8 +1000,8 @@ func TestRunUpdateWithDeltaSessionBlocksSplitBrainBaselineBeforeMutation(t *test
 	if err == nil {
 		t.Fatal("expected split-brain agreement error")
 	}
-	if !strings.Contains(err.Error(), "rewrite_status_from_db_metadata") {
-		t.Fatalf("error = %q, want rewrite_status_from_db_metadata", err.Error())
+	if !strings.Contains(err.Error(), "project_cognition.repair_status") {
+		t.Fatalf("error = %q, want project_cognition.repair_status", err.Error())
 	}
 }
 
