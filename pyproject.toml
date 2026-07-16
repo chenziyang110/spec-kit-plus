@@ -1,6 +1,6 @@
 [project]
 name = "specify-cli"
-version = "0.5.6.dev0"
+version = "0.5.22.dev0"
 description = "Specify CLI for Spec Kit Plus. A tool to bootstrap projects for Spec-Driven Development (SDD)."
 requires-python = ">=3.11"
 dependencies = [
@@ -8,13 +8,12 @@ dependencies = [
     "click>=8.3.3",
     "rich",
     "platformdirs",
-    "readchar",
+    "readchar>=4.2.2",
     "pyyaml>=6.0.3",
     "packaging>=26.2",
     "pathspec>=1.1.1",
     "json5>=0.14.0",
-    "pydantic-ai",
-    "pydantic-graph",
+    "pydantic-graph<2",
 ]
 
 [project.scripts]
@@ -32,6 +31,8 @@ packages = ["src/specify_cli"]
 # Bundle core assets so `specify init` works without network access (air-gapped / enterprise)
 # Page templates (exclude commands/ — bundled separately below to avoid duplication)
 "templates/agent-file-template.md" = "specify_cli/core_pack/templates/agent-file-template.md"
+"templates/agent-phase-transition-schema.json" = "specify_cli/core_pack/templates/agent-phase-transition-schema.json"
+"templates/agent-phase-transition-template.json" = "specify_cli/core_pack/templates/agent-phase-transition-template.json"
 "templates/alignment-template.md" = "specify_cli/core_pack/templates/alignment-template.md"
 "templates/brainstorming-complexity-template.json" = "specify_cli/core_pack/templates/brainstorming-complexity-template.json"
 "templates/brainstorming-domains-template.json" = "specify_cli/core_pack/templates/brainstorming-domains-template.json"
@@ -47,31 +48,50 @@ packages = ["src/specify_cli"]
 "templates/constitution-template.md" = "specify_cli/core_pack/templates/constitution-template.md"
 "templates/context-template.md" = "specify_cli/core_pack/templates/context-template.md"
 "templates/debug.md" = "specify_cli/core_pack/templates/debug.md"
+"templates/design-template.md" = "specify_cli/core_pack/templates/design-template.md"
+"templates/design-library" = "specify_cli/core_pack/templates/design-library"
 "templates/discussion-state-template.md" = "specify_cli/core_pack/templates/discussion-state-template.md"
+"templates/discussion-state-schema.json" = "specify_cli/core_pack/templates/discussion-state-schema.json"
+"templates/discussion-handoff-schema.json" = "specify_cli/core_pack/templates/discussion-handoff-schema.json"
+"templates/discussion-handoff-template.json" = "specify_cli/core_pack/templates/discussion-handoff-template.json"
 "templates/implement-execution-state-template.json" = "specify_cli/core_pack/templates/implement-execution-state-template.json"
+"templates/human-acceptance-state-schema.json" = "specify_cli/core_pack/templates/human-acceptance-state-schema.json"
+"templates/human-acceptance-state-template.json" = "specify_cli/core_pack/templates/human-acceptance-state-template.json"
 "templates/plan-contract-template.json" = "specify_cli/core_pack/templates/plan-contract-template.json"
 "templates/plan-template.md" = "specify_cli/core_pack/templates/plan-template.md"
 "templates/project-handbook-template.md" = "specify_cli/core_pack/templates/project-handbook-template.md"
 "templates/project-learning-detail-template.md" = "specify_cli/core_pack/templates/project-learning-detail-template.md"
+"templates/project-learning-record-schema.json" = "specify_cli/core_pack/templates/project-learning-record-schema.json"
 "templates/project-learnings-index-template.md" = "specify_cli/core_pack/templates/project-learnings-index-template.md"
-"templates/project-learnings-template.md" = "specify_cli/core_pack/templates/project-learnings-template.md"
+"templates/project-confirmed-learnings-template.md" = "specify_cli/core_pack/templates/project-confirmed-learnings-template.md"
 "templates/project-rules-template.md" = "specify_cli/core_pack/templates/project-rules-template.md"
 "templates/research-template.md" = "specify_cli/core_pack/templates/research-template.md"
 "templates/references-template.md" = "specify_cli/core_pack/templates/references-template.md"
 "templates/specify-draft-template.md" = "specify_cli/core_pack/templates/specify-draft-template.md"
 "templates/spec-template.md" = "specify_cli/core_pack/templates/spec-template.md"
+"templates/spec-contract-template.json" = "specify_cli/core_pack/templates/spec-contract-template.json"
 "templates/tasks-template.md" = "specify_cli/core_pack/templates/tasks-template.md"
+"templates/ui-reference-notes-template.md" = "specify_cli/core_pack/templates/ui-reference-notes-template.md"
+"templates/ui-brief-template.md" = "specify_cli/core_pack/templates/ui-brief-template.md"
+"templates/ui-target-template.html" = "specify_cli/core_pack/templates/ui-target-template.html"
 "templates/task-index-template.json" = "specify_cli/core_pack/templates/task-index-template.json"
+"templates/task-lifecycle-template.json" = "specify_cli/core_pack/templates/task-lifecycle-template.json"
+"templates/task-lifecycle-schema.json" = "specify_cli/core_pack/templates/task-lifecycle-schema.json"
 "templates/task-packet-template.json" = "specify_cli/core_pack/templates/task-packet-template.json"
 "templates/workflow-state-template.md" = "specify_cli/core_pack/templates/workflow-state-template.md"
+"templates/workflow-blocker-schema.json" = "specify_cli/core_pack/templates/workflow-blocker-schema.json"
+"templates/workflow-blocker-template.md" = "specify_cli/core_pack/templates/workflow-blocker-template.md"
 "templates/vscode-settings.json" = "specify_cli/core_pack/templates/vscode-settings.json"
 # Command templates
 "templates/command-partials" = "specify_cli/core_pack/command-partials"
+"templates/command-references" = "specify_cli/core_pack/command-references"
 "templates/commands" = "specify_cli/core_pack/commands"
 "templates/examples" = "specify_cli/core_pack/templates/examples"
 "templates/passive-skills" = "specify_cli/core_pack/passive-skills"
+"templates/advanced-skills" = "specify_cli/core_pack/advanced-skills"
 "templates/prd" = "specify_cli/core_pack/templates/prd"
 "templates/worker-prompts" = "specify_cli/core_pack/worker-prompts"
+"templates/artifacts" = "specify_cli/core_pack/templates/artifacts"
 "src/specify_cli/shared_hooks" = "specify_cli/core_pack/shared_hooks"
 "scripts/bash" = "specify_cli/core_pack/scripts/bash"
 "scripts/powershell" = "specify_cli/core_pack/scripts/powershell"
@@ -92,6 +112,7 @@ mcp = [
     "mcp[cli]>=1.27.1,<2",
 ]
 test = [
+    "jsonschema>=4.26.0",
     "pytest>=9.0.3",
     "pytest-asyncio>=1.4.0",
     "pytest-cov>=7.1.0",

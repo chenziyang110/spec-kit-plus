@@ -13,6 +13,14 @@ User-facing workflow skill:
 /sp-implement-teams
 ```
 
+[AGENT] For project-cognition-backed semantic intake, routing, audit, resume, or final-claim gates, read `references/semantic-work-contract.md`.
+
+## Detailed References
+
+Read [Reference index](references/INDEX.md) before applying shared semantic contracts.
+
+- [semantic work contract](references/semantic-work-contract.md)
+
 ## Team Bootstrap Gate
 
 This gate is mandatory and precedes all broad implementation-context recovery.
@@ -68,11 +76,16 @@ TeamCreate({
    - team membership lives in `~/.claude/teams/{team-name}/config.json`
    - shared tasks live under `~/.claude/tasks/{team-name}/`
 7. Before the first `TaskCreate`, compile an execution context bundle for the current batch:
-   - include the `{{specify-subcmd:project-cognition lexicon --intent implement --query="$ARGUMENTS" --mode catalog --format json}}` lexicon result, the agent-generated `semantic_intake` and `query_plan` with `repository_search_terms`, and the `{{specify-subcmd:project-cognition query --intent implement --query-plan "<query_plan_json>" --format json}}` result for the current batch
-   - derive project-language search terms from the alias catalog before source search; do not search only the raw user words
-   - the literal runtime commands are `project-cognition lexicon --intent implement --mode catalog` and `project-cognition query --intent implement`; include their outputs, not raw graph files, in teammate context
-   - candidate selection must satisfy facet coverage through `covered_facets`, `missing_facets`, and `match_sources`; do not trust top similarity alone
-   - include returned readiness, the task-local bundle, and only the returned `minimal_live_reads` needed for the lane
+   - run `{{specify-subcmd:project-cognition compass --intent implement --query="$ARGUMENTS" --format json}}` first and include the compass packet in teammate context
+   - read top-level `minimal_live_reads` first, then use lane-level `first_pass_paths` reasons, evidence hints, `verification_hints`, `followup_surfaces`, and `before_fix_claim` checks
+   - carry `coverage_diagnostics` as confidence and closeout signals, not route candidates
+   - treat `expansion_ref` as a normal continuation path and run `project-cognition expand --id <id> --section <section> --format json` only when coverage state or live evidence requires more map detail
+   - do not infer final edit scope from `minimal_live_reads` or `first_pass_paths`; carry them as advisory first-pass evidence routes in every teammate context packet
+   - preserve advanced `lexicon -> semantic_intake -> query` / `project-cognition query --query-plan` only as conditional precision escalation when explicit concept decisions are needed or coverage cannot be resolved from the default compass packet
+   - in that precision escalation, derive project-language search terms from the alias catalog before source search; do not search only the raw user words
+   - candidate selection in the precision escalation must satisfy facet coverage through `covered_facets`, `missing_facets`, and `match_sources`; do not trust top similarity alone
+   - run `{{specify-subcmd:project-cognition query --intent implement --query-plan "<query_plan_json>" --format json}}` only for that precision escalation
+   - if the precision escalation runs, include returned readiness, the task-local bundle, and only the returned `minimal_live_reads` needed for the lane
    - include `.specify/project-cognition/status.json` and `.specify/project-cognition/project-cognition.db` as the runtime freshness/store boundary when the teammate must acknowledge the underlying cognition runtime
    - include compatibility/export files such as `PROJECT-HANDBOOK.md` only when the task explicitly depends on handbook/export parity, downstream compatibility, or exported handbook wording
    - for each bundled item, preserve the path or query source, why it matters, and a read order so the teammate knows which query results are primary and which compatibility/export artifacts are supplementary
@@ -99,7 +112,7 @@ Write Set:
 - apps/relay-server/src/protocol.rs
 Required References:
 - .specify/project-cognition/status.json
-- project-cognition query task-local bundle and returned `minimal_live_reads`
+- project-cognition compass intake packet with top-level `minimal_live_reads` and lane-level `first_pass_paths`
 - PROJECT-HANDBOOK.md (only when compatibility/export parity matters)
 Deliverables:
 - matching protocol definitions on both sides

@@ -38,7 +38,7 @@ def _seed_learning_templates(project_path: Path) -> None:
     target_root.mkdir(parents=True, exist_ok=True)
     for name in (
         "project-rules-template.md",
-        "project-learnings-template.md",
+        "project-confirmed-learnings-template.md",
         "project-learnings-index-template.md",
         "project-learning-detail-template.md",
     ):
@@ -88,8 +88,9 @@ def test_ensure_constitution_from_template_materializes_defaults(tmp_path):
     assert "sp-map-update is for manual/external maintenance" in lowered
     assert (
         "Recommend `map-scan` followed by `map-build` only for first/missing/unusable baseline, "
-        "schema failure, zero active-generation `path_index` rows, `explicit_rebuild_requested`, "
-        "or `baseline_identity_invalid`."
+        "schema failure, schema v1 or old broad-schema rebuild-required readiness, "
+        "zero active-generation `path_index` rows, missing or invalid `alias_index`, "
+        "`explicit_rebuild_requested`, or `baseline_identity_invalid`."
     ) in compact_content
     _assert_project_style_standard(content)
     assert "[PROJECT_NAME]" not in content
@@ -224,22 +225,23 @@ def test_ensure_learning_memory_from_templates_materializes_defaults(tmp_path):
     ensure_learning_memory_from_templates(project_path)
 
     rules_path = project_path / ".specify" / "memory" / "project-rules.md"
-    learnings_path = project_path / ".specify" / "memory" / "project-learnings.md"
+    learnings_path = project_path / ".specify" / "memory" / "learnings" / "confirmed.md"
     index_path = project_path / ".specify" / "memory" / "learnings" / "INDEX.md"
 
     assert rules_path.exists()
     assert learnings_path.exists()
     assert index_path.exists()
     assert "Project Rules" in rules_path.read_text(encoding="utf-8")
-    assert "Project Learnings" in learnings_path.read_text(encoding="utf-8")
+    assert "Confirmed Project Learning" in learnings_path.read_text(encoding="utf-8")
     index_content = index_path.read_text(encoding="utf-8")
     assert "Project Learning Index" in index_content
-    assert "Open only the linked detail documents" in index_content
-    assert "trigger_signals" in index_content
+    assert "specify learning start" in index_content
+    assert "specify learning show" in index_content
+    assert "do not parse this file directly" in index_content
     assert "Shared defaults that later `sp-xxx` workflows should follow" in rules_path.read_text(encoding="utf-8")
     learnings_content = learnings_path.read_text(encoding="utf-8")
-    assert "Compatibility summary for older generated projects" in learnings_content
-    assert ".specify/memory/learnings/INDEX.md" in learnings_content
+    assert "Runtime-maintained confirmed Learning" in learnings_content
+    assert "specify learning start" in learnings_content
 
 
 def test_ensure_learning_memory_from_templates_preserves_existing_files(tmp_path):
@@ -250,7 +252,8 @@ def test_ensure_learning_memory_from_templates_preserves_existing_files(tmp_path
     memory_dir = project_path / ".specify" / "memory"
     memory_dir.mkdir(parents=True, exist_ok=True)
     rules_path = memory_dir / "project-rules.md"
-    learnings_path = memory_dir / "project-learnings.md"
+    learnings_path = memory_dir / "learnings" / "confirmed.md"
+    learnings_path.parent.mkdir(parents=True, exist_ok=True)
     rules_path.write_text("# Custom Rules\n", encoding="utf-8")
     learnings_path.write_text("# Custom Learnings\n", encoding="utf-8")
 

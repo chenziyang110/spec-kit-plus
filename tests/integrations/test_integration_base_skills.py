@@ -9,19 +9,19 @@ adapted for the ``sp-<name>/SKILL.md`` skills layout.
 """
 
 import os
-import re
 
-import pytest
 import yaml
 
 from specify_cli.integrations import INTEGRATION_REGISTRY, get_integration
-from specify_cli.integrations.base import SkillsIntegration
+from specify_cli.integrations.base import IntegrationBase, SkillsIntegration
 from specify_cli.integrations.codex import CodexIntegration
 from specify_cli.integrations.manifest import IntegrationManifest
+from tests.template_utils import assert_quick_checkpoint_card_shape
 from .test_base import _assert_canonical_cognition_intake_contract
 
 SPEC_KIT_BLOCK_START = "<!-- SPEC-KIT:BEGIN -->"
 SHARED_PRD_HELPER = ".specify/scripts/shared/prd-state.py"
+SHARED_DISCUSSION_HELPER = ".specify/scripts/shared/discussion-state.py"
 STALE_COGNITION_ADDENDUM_PHRASES = (
     "for blocked, stale, missing, or incomplete references",
     "{{invoke:map-scan}} -> {{invoke:map-build}} or "
@@ -46,6 +46,37 @@ STALE_COGNITION_ADDENDUM_PHRASES = (
     "path-index " + "incomplete",
     "unadoptable " + "coverage gaps",
 )
+
+
+def _write_skill_command_with_reference_fixture(root):
+    commands = root / "commands"
+    references = root / "command-references" / "plan"
+    commands.mkdir(parents=True)
+    references.mkdir(parents=True)
+    (commands / "plan.md").write_text(
+        "---\n"
+        "description: Plan command\n"
+        "scripts:\n"
+        "  sh: scripts/bash/setup-plan.sh --json\n"
+        "---\n\n"
+        "# Plan Main\n\n"
+        "Use [reference index](references/INDEX.md) for detailed contract routing.\n",
+        encoding="utf-8",
+    )
+    (references / "INDEX.md").write_text(
+        "# Plan Reference Index\n\n"
+        "- [details](details.md): Trigger: detail routing; Purpose: sidecar test; "
+        "Preserved Contract: sidecar rules\n",
+        encoding="utf-8",
+    )
+    (references / "details.md").write_text(
+        "Trigger: detail routing\n\n"
+        "Purpose: prove sidecar rendering\n\n"
+        "Preserved Contract: keep sidecar details\n\n"
+        "Run {SCRIPT} with {ARGS} for __AGENT__ before {{invoke:tasks}}.\n",
+        encoding="utf-8",
+    )
+    return commands, root / "command-references"
 
 
 def _extract_generated_cognition_policy(content: str) -> str:
@@ -76,13 +107,14 @@ def _assert_compact_managed_context(content: str) -> None:
     assert SPEC_KIT_BLOCK_START in content
     assert "[AGENT]" in content
     assert "## Always-On Context" in content
-    assert "project cognition and project memory are always available" in lower
+    assert "project cognition and project learning are always available" in lower
     assert "even without an active `sp-*` workflow" in lower
     assert "when existing-system truth matters" in lower
     assert "before broad source inspection" in lower
     assert "narrow live reads" in lower
-    assert ".specify/memory/project-rules.md" in content
-    assert ".specify/memory/learnings/INDEX.md" in content
+    assert "specify learning start --command <workflow> --format json" in content
+    assert "show_argv" in content
+    assert ".specify/memory/learnings/INDEX.md" not in content
     assert "## Workflow Recommendations" in content
     assert "do not auto-enter an `sp-*` workflow" in lower
     assert "recommend `sp-discussion`" in lower
@@ -94,8 +126,10 @@ def _assert_compact_managed_context(content: str) -> None:
     assert "generated create-feature script" in lower
     assert "## Durable State" in content
     assert "prefer durable workflow state and explicit feature paths" in lower
+    assert "frontstage-only deferred persistence" in lower
+    assert "do not write discussion files, counters, dirty markers, receipts, or status summaries for every user reply" in lower
     assert "project cognition freshness truthful" in lower
-    assert "store reusable lessons in project memory" in lower
+    assert "store reusable lessons through project learning" in lower
 
     assert "## Workflow Activation Discipline" not in content
     assert "1% chance" not in content
@@ -121,10 +155,17 @@ def test_generated_specify_skill_teaches_simplified_specify_contract(tmp_path):
     assert "one high-impact question at a time" in content
     assert "two or three approaches" in content or "2-3 approaches" in content
     assert "semantic term" in content
-    assert "source_signal_disposition" in content
-    assert "discussion-log.md" in content
-    assert "requirements.md" in content
-    assert "open-questions.md" in content
+    assert "source_signal_disposition" not in content
+    assert "decision digest" in content
+    assert "capability operations" in content
+    assert "handoff-ready" in content
+    assert "quality_gate.status: user_confirmed" in content
+    assert "planning_gate_status: ready" in content
+    assert "derive the feature description" in content
+    assert "do not pass the raw handoff" in content
+    assert "spec-contract.json" in content
+    assert "semantic_delta" in content
+    assert "named evidence reference is stale, missing, or contradictory" in content
     assert "facts-lock" not in content
     assert "route-lock" not in content
     assert "intent-lock" not in content
@@ -141,33 +182,102 @@ def _assert_discussion_contract(skill_content: str) -> None:
     assert "Turn Classifier" in skill_content
     assert "Question Evidence Gate" in skill_content
     assert "Cognition Advisory, Code Authority" in skill_content
-    assert "project-cognition lexicon --intent discussion" in skill_content
-    assert "project-cognition query --intent discussion" in skill_content
+    assert "project-cognition compass --intent discussion" in skill_content
+    assert "project-cognition query --query-plan" in skill_content
+    assert "only when `compass_state`, coverage diagnostics, localization, or live evidence requires explicit concept decisions" in skill_content
     assert "project-cognition query --intent plan" not in skill_content
-    assert "ordinary turns append" in skill_lower
+    assert "ordinary turns do not write local files by default" in skill_lower
+    assert "a user reply is not itself a save trigger" in skill_lower
+    assert "hidden counters" in skill_lower
+    assert "per-user-reply or per-tool-use discussion writes" in skill_lower
+    assert "deferred persistence" in skill_lower
+    assert "compaction preserve" in skill_lower
+    assert "user-triggered save" in skill_lower
+    assert "turn count alone is never a save trigger" in skill_lower
+    assert "semantic checkpoint is a durable meaning change" in skill_lower
+    assert "pending truth-pass state" in skill_lower
+    assert "persist it to `discussion-state.md` only at semantic checkpoints or save triggers" in skill_lower
+    assert "persist them to `open-questions.md` only when they materially change" in skill_lower
     assert "semantic checkpoints" in skill_lower
-    assert "draft pair" in skill_lower
+    assert "agent-only" in skill_lower
+    assert "do not write a markdown companion" in skill_lower
     assert "truth pass" in skill_lower
     assert "verified_project_facts" in skill_content
     assert "open_assumptions" in skill_content
     assert "evidence_checked" in skill_content
     assert "advice_confidence" in skill_content
-    assert "boss-friendly advisor response" in skill_lower
+    assert "high-throughput collaborative brief" in skill_lower
+    assert "frontstage / backstage separation" in skill_lower
+    assert "visible conversation" in skill_lower
+    assert "state accounting backstage" in skill_lower
+    assert "continue by default" in skill_lower
+    assert "do not ask for continuation" in skill_lower
+    assert "do not persist every turn" in skill_lower
+    assert "checkpoint persistence" in skill_lower
+    assert "surface file paths and state updates only" in skill_lower
     assert "discussion compass" in skill_lower
     assert "anti-toothpaste" in skill_lower
-    assert "ask only the highest-impact question" in skill_lower
+    assert "ask only when user judgment is genuinely required" in skill_lower
     assert "Context Boundary Gate" in skill_content
     assert "target project root" in skill_lower
     assert "adaptive question pack" in skill_lower
     assert "primary question" in skill_lower
     assert "optional follow-up" in skill_lower
     assert "recommended option" in skill_lower
+    assert "adaptive reply contract" in skill_lower
+    assert "reply_shape_id" not in skill_content
+    assert "unified frontstage contract" in skill_lower
+    assert "do not choose among named answer templates" in skill_lower
+    assert "agent controls heading names" in skill_lower
+    assert "discussion responsibility boundary" in skill_lower
+    assert "does not own implementation planning" in skill_lower
+    assert "do not split the work into p0/p1/p2" in skill_lower
+    assert "migration phases" in skill_lower
+    assert "task packets" in skill_lower
+    assert "those belong to `sp-plan`, `sp-tasks`, or `sp-implement`" in skill_lower
+    assert "no parallel old-backend operation" in skill_lower
+    assert "no old-stack cutover fallback" in skill_lower
+    assert "no alternate product path" in skill_lower
+    assert "database snapshots" in skill_lower
+    assert "data-safety mechanisms" in skill_lower
+    assert "downstream planning and implementation safety constraints" in skill_lower
+    assert "handoff request-changes repair" in skill_lower
+    assert "blocked_by_handoff_integrity" in skill_content
+    assert "the repair belongs to `sp-discussion`" in skill_lower
+    assert "update canonical `handoff-to-specify.json`" in skill_lower
+    assert "source_contract" in skill_content
+    assert "field-level validation errors" in skill_content
+    assert "review_digest" in skill_content
+    assert "recommendation-first is not questionless" in skill_lower
     assert "one unified" in skill_lower or "single unified" in skill_lower
-    assert "handoff-to-specify.md" in skill_content
+    assert "discussion_requirement_contract" in skill_content
+    assert "Agent-Facing Requirement Contract" in skill_content
+    assert "consumer_eligibility" in skill_content
+    assert "recommended_consumer" in skill_content
+    assert "planning_constraints" in skill_content
+    assert "quick_task_candidate" not in skill_content
+    assert "do not describe current execution or implementation progress" in skill_lower
     assert "handoff-to-specify.json" in skill_content
+    assert "Human Confirmation" in skill_content
+    assert "current digest" in skill_lower
     assert "quality_gate" in skill_content
     assert "user confirmation" in skill_lower
     assert "Must-Preserve Ledger" in skill_content
+    assert "discussion_decision_digest" in skill_content
+    assert "locked_direction" in skill_content
+    assert "rejected_alternatives" in skill_content
+    assert "accepted_tradeoffs" in skill_content
+    assert "experience_commitments" in skill_content
+    assert "review_criteria_carried_forward" in skill_content
+    assert "must_not_dilute" in skill_content
+    assert "handoff-ready closeout" in skill_lower
+    assert "selected direction" in skill_lower
+    assert "target boundary" in skill_lower
+    assert "Must-Preserve coverage" in skill_content
+    assert "package paths" in skill_lower
+    assert "next consumption path" in skill_lower
+    assert "do not close with only file paths, status counters, or a next command" in skill_lower
+    assert "keep ready-summary quality checks internal" in skill_lower
     assert "coverage_status" in skill_content
     assert "planning_gate_status" in skill_content
     assert (
@@ -185,6 +295,56 @@ def _assert_discussion_contract(skill_content: str) -> None:
     assert "CAND-001" not in skill_content
 
 
+def _assert_ui_reference_guidance(content: str) -> None:
+    assert "choose_ui_reference_lane_dispatch" in content
+    assert "ui-reference-artifact" in content
+    assert "ui-reference-notes.md" in content
+    assert "ui-brief.md" in content
+    assert "Reference-Implementation" in content
+
+
+def _assert_ask_contract(content: str) -> None:
+    lowered = content.lower()
+
+    assert "sp-ask" in content
+    assert "Evidence-Backed Project Q&A" in content
+    assert "project-cognition compass --intent ask" in content
+    assert "project-cognition query --intent ask" in content
+    assert "project cognition provides advisory navigation" in lowered
+    assert "live evidence is authoritative" in lowered
+    assert "do not create `.specify/ask/`" in lowered
+    assert "do not write handoff" in lowered
+    assert "do not edit source files" in lowered
+    assert "do not run tests" in lowered
+    assert "do not run builds" in lowered
+    assert "do not run package managers" in lowered
+    assert "do not execute project cli" in lowered
+    assert "answer first" in lowered
+    assert "next step" in lowered
+    assert "same-topic follow-up" in lowered
+    assert "reuse the previous evidence set" in lowered
+    assert "one-sentence evidence route" in lowered
+    assert "localized, mixed-language, cjk, colloquial, or project-slang" in lowered
+    assert "project-language search terms" in lowered
+    assert "proven from live evidence" in lowered
+    assert "inferred from live evidence" in lowered
+    assert "client fields or callsites" in lowered
+    assert "interface urls or payload/schema names" in lowered
+    assert "whether backend/server/runtime code exists" in lowered
+    assert "discussion-state.md" not in content
+    assert "handoff-to-specify" not in content
+
+
+def _assert_design_contract(content: str) -> None:
+    lowered = content.lower()
+
+    assert "sp-design" in content
+    assert "DESIGN.md" in content
+    assert "specify design lint" in content
+    assert "Forbidden Writes" in content or "forbidden writes" in lowered
+    assert "CSS or theme implementation files" in content
+
+
 def _assert_runtime_cognition_carry_forward(content: str, command_name: str) -> None:
     advisory_index = content.find("project cognition advisory gate")
     assert advisory_index != -1
@@ -196,6 +356,10 @@ def _assert_runtime_cognition_carry_forward(content: str, command_name: str) -> 
     assert "project-cognition delta append" in content
     assert "project-cognition update --delta-session" in content
     assert "project-cognition update --payload-file" in content
+    assert "project-cognition claim-reconcile prepare" in content
+    assert "project-cognition claim-reconcile apply" in content
+    assert "apply_argv" in content
+    assert "expected_content_hash" not in content
     assert "verification_evidence" in content
     assert "generated_surface_notes" in content
     assert "result_state" in content
@@ -223,8 +387,31 @@ def _assert_runtime_cognition_carry_forward(content: str, command_name: str) -> 
         assert "debug session state" in content
 
 
+def _assert_embedded_implement_review_contract(content: str) -> None:
+    lowered = content.lower()
 
-SKILLS_INTEGRATION_SAMPLE_KEYS = ("codex", "agy", "vibe")
+    assert "event-triggered review" in lowered
+    assert "entry revision check" in lowered
+    assert "parallel lanes join" in lowered
+    assert "task lifecycle record" in lowered
+    assert "do not create separate task briefs, review packages, or a duplicate task ledger" in lowered
+    assert "/sp.review" not in content
+    assert "sp-review" not in content
+
+
+def _read_skill_with_references(skill_path):
+    parts = [skill_path.read_text(encoding="utf-8")]
+    references_dir = skill_path.parent / "references"
+    if references_dir.is_dir():
+        parts.extend(
+            path.read_text(encoding="utf-8")
+            for path in sorted(references_dir.glob("**/*.md"))
+        )
+    return "\n\n".join(parts)
+
+
+
+SKILLS_INTEGRATION_SAMPLE_KEYS = ("codex", "agy", "vibe", "zcode")
 
 
 def test_collected_skills_integrations_preserve_shared_discussion_contracts(tmp_path):
@@ -236,7 +423,7 @@ def test_collected_skills_integrations_preserve_shared_discussion_contracts(tmp_
 
         generated = "\n".join(
             path.read_text(encoding="utf-8").lower()
-            for path in integration.skills_dest(project).glob("**/SKILL.md")
+            for path in integration.skills_dest(project).glob("**/*.md")
         )
 
         assert "senior consequence analysis gate" in generated, integration_key
@@ -246,9 +433,123 @@ def test_collected_skills_integrations_preserve_shared_discussion_contracts(tmp_
         assert "ca-###" in generated, integration_key
         _assert_canonical_cognition_intake_contract(generated)
 
+        specify_path = integration.skills_dest(project) / "sp-specify" / "SKILL.md"
+        assert specify_path.exists(), integration_key
+        _assert_ui_reference_guidance(specify_path.read_text(encoding="utf-8"))
+
         discussion_path = integration.skills_dest(project) / "sp-discussion" / "SKILL.md"
         assert discussion_path.exists(), integration_key
-        _assert_discussion_contract(discussion_path.read_text(encoding="utf-8"))
+        _assert_discussion_contract(_read_skill_with_references(discussion_path))
+
+
+def test_collected_skills_integrations_preserve_ask_contract(tmp_path):
+    for integration_key in INTEGRATION_REGISTRY:
+        integration = get_integration(integration_key)
+        if not isinstance(integration, SkillsIntegration):
+            continue
+
+        project = tmp_path / integration_key
+        manifest = IntegrationManifest(integration_key, project)
+        integration.setup(project, manifest)
+
+        ask_path = integration.skills_dest(project) / "sp-ask" / "SKILL.md"
+        assert ask_path.exists(), integration_key
+        _assert_ask_contract(ask_path.read_text(encoding="utf-8"))
+
+
+def test_collected_skills_integrations_embed_internal_implement_review_loop(tmp_path):
+    for integration_key in SKILLS_INTEGRATION_SAMPLE_KEYS:
+        project = tmp_path / integration_key
+        integration = get_integration(integration_key)
+        manifest = IntegrationManifest(integration_key, project)
+        integration.setup(project, manifest)
+
+        implement_path = integration.skills_dest(project) / "sp-implement" / "SKILL.md"
+        assert implement_path.exists(), integration_key
+        _assert_embedded_implement_review_contract(
+            _read_skill_with_references(implement_path)
+        )
+
+
+def test_collected_skills_integrations_generate_design_workflow(tmp_path):
+    for integration_key in SKILLS_INTEGRATION_SAMPLE_KEYS:
+        project = tmp_path / integration_key
+        integration = get_integration(integration_key)
+        manifest = IntegrationManifest(integration_key, project)
+        integration.setup(project, manifest)
+
+        design_path = integration.skills_dest(project) / "sp-design" / "SKILL.md"
+        assert design_path.exists(), integration_key
+        _assert_design_contract(design_path.read_text(encoding="utf-8"))
+
+
+def test_all_skills_integrations_generate_migrated_workflow_references(tmp_path):
+    for integration_key in INTEGRATION_REGISTRY:
+        integration = get_integration(integration_key)
+        if not isinstance(integration, SkillsIntegration):
+            continue
+
+        project = tmp_path / integration_key
+        manifest = IntegrationManifest(integration_key, project)
+        integration.setup(project, manifest, script_type="sh")
+
+        for workflow in IntegrationBase.COMMAND_REFERENCE_WORKFLOWS:
+            skill_dir = integration.skills_dest(project) / f"sp-{workflow}"
+            references_dir = skill_dir / "references"
+            if not (skill_dir / "SKILL.md").exists():
+                continue
+            assert (references_dir / "INDEX.md").exists(), (integration_key, workflow)
+            assert any(
+                path.name != "INDEX.md" for path in references_dir.glob("*.md")
+            ), (integration_key, workflow)
+
+
+def test_all_skills_integrations_route_semantic_contract_to_references(tmp_path):
+    for integration_key in INTEGRATION_REGISTRY:
+        integration = get_integration(integration_key)
+        if not isinstance(integration, SkillsIntegration):
+            continue
+
+        project = tmp_path / integration_key
+        manifest = IntegrationManifest(integration_key, project)
+        integration.setup(project, manifest, script_type="sh")
+
+        for workflow in IntegrationBase.COMMAND_REFERENCE_WORKFLOWS:
+            skill_dir = integration.skills_dest(project) / f"sp-{workflow}"
+            skill = skill_dir / "SKILL.md"
+            if not skill.exists():
+                continue
+            semantic_ref = skill_dir / "references" / "semantic-work-contract.md"
+            assert semantic_ref.exists(), (integration_key, workflow)
+            assert "v1.3 verification owner discovery" not in skill.read_text(
+                encoding="utf-8"
+            ), (integration_key, workflow)
+            semantic_content = semantic_ref.read_text(encoding="utf-8")
+            assert "v1.3 verification owner discovery" in semantic_content, (
+                integration_key,
+                workflow,
+            )
+            assert "{{spec-kit-include:" not in semantic_content, (
+                integration_key,
+                workflow,
+            )
+
+
+def test_all_skills_integrations_manifest_owns_reference_sidecars(tmp_path):
+    for integration_key in INTEGRATION_REGISTRY:
+        integration = get_integration(integration_key)
+        if not isinstance(integration, SkillsIntegration):
+            continue
+
+        project = tmp_path / integration_key
+        manifest = IntegrationManifest(integration_key, project)
+        integration.setup(project, manifest, script_type="sh")
+
+        for reference in integration.skills_dest(project).glob(
+            "sp-*/references/**/*.md"
+        ):
+            rel = reference.relative_to(project).as_posix()
+            assert rel in manifest.files, (integration_key, rel)
 
 
 def test_generated_planning_skills_require_inline_cognition_update_for_source_changes(tmp_path):
@@ -270,6 +571,166 @@ def test_generated_planning_skills_require_inline_cognition_update_for_source_ch
             )
             assert "run inline project cognition update" in content
             assert "sp-map-update is for manual/external maintenance" in content
+
+
+def test_skills_install_processed_reference_sidecars_and_manifest_entries(
+    tmp_path, monkeypatch
+):
+    commands, refs = _write_skill_command_with_reference_fixture(tmp_path / "fixtures")
+    i = get_integration("codex")
+    monkeypatch.setattr(i, "list_command_templates", lambda: [commands / "plan.md"])
+    monkeypatch.setattr(i, "shared_command_references_dir", lambda: refs)
+    monkeypatch.setattr(i, "list_passive_skill_templates", lambda: [])
+
+    project = tmp_path / "project"
+    manifest = IntegrationManifest("codex", project)
+    i.setup(project, manifest, script_type="sh")
+
+    skill_dir = i.skills_dest(project) / "sp-plan"
+    skill = skill_dir / "SKILL.md"
+    index = skill_dir / "references" / "INDEX.md"
+    detail = skill_dir / "references" / "details.md"
+
+    assert skill.exists()
+    assert index.exists()
+    assert detail.exists()
+    assert "references/INDEX.md" in skill.read_text(encoding="utf-8")
+    detail_content = detail.read_text(encoding="utf-8")
+    assert "scripts/bash/setup-plan.sh --json" in detail_content
+    assert "{SCRIPT}" not in detail_content
+    assert "{ARGS}" not in detail_content
+    assert "__AGENT__" not in detail_content
+    assert "{{invoke:tasks}}" not in detail_content
+    assert str(index.relative_to(project)).replace("\\", "/") in manifest.files
+    assert str(detail.relative_to(project)).replace("\\", "/") in manifest.files
+
+
+def test_generated_reference_sidecars_have_no_unresolved_renderer_tokens(
+    tmp_path, monkeypatch
+):
+    commands, refs = _write_skill_command_with_reference_fixture(tmp_path / "fixtures")
+    i = get_integration("codex")
+    monkeypatch.setattr(i, "list_command_templates", lambda: [commands / "plan.md"])
+    monkeypatch.setattr(i, "shared_command_references_dir", lambda: refs)
+    monkeypatch.setattr(i, "list_passive_skill_templates", lambda: [])
+
+    manifest = IntegrationManifest("codex", tmp_path)
+    i.setup(tmp_path, manifest, script_type="sh")
+
+    sidecars = sorted(i.skills_dest(tmp_path).glob("sp-*/references/**/*.md"))
+    assert sidecars
+    for path in sidecars:
+        content = path.read_text(encoding="utf-8")
+        assert "{SCRIPT}" not in content, path
+        assert "{AGENT_SCRIPT}" not in content, path
+        assert "{ARGS}" not in content, path
+        assert "__AGENT__" not in content, path
+        assert "{{invoke:" not in content, path
+
+
+def test_real_discussion_reference_sidecars_are_rendered(tmp_path):
+    i = get_integration("codex")
+    manifest = IntegrationManifest("codex", tmp_path)
+    i.setup(tmp_path, manifest, script_type="sh")
+
+    references_dir = i.skills_dest(tmp_path) / "sp-discussion" / "references"
+    sidecars = sorted(references_dir.glob("*.md"))
+    assert sidecars
+    index = (references_dir / "INDEX.md").read_text(encoding="utf-8")
+
+    for path in sidecars:
+        content = path.read_text(encoding="utf-8")
+        assert "{SCRIPT}" not in content, path
+        assert "{AGENT_SCRIPT}" not in content, path
+        assert "{ARGS}" not in content, path
+        assert "__AGENT__" not in content, path
+        assert "{{invoke:" not in content, path
+        if path.name != "INDEX.md":
+            assert path.name in index, path
+
+    truth_reference = references_dir / "context-boundary-and-truth.md"
+    assert "$sp-map-scan" in truth_reference.read_text(encoding="utf-8")
+
+
+def test_generated_reference_sidecars_are_reachable_from_index(tmp_path, monkeypatch):
+    commands, refs = _write_skill_command_with_reference_fixture(tmp_path / "fixtures")
+    i = get_integration("codex")
+    monkeypatch.setattr(i, "list_command_templates", lambda: [commands / "plan.md"])
+    monkeypatch.setattr(i, "shared_command_references_dir", lambda: refs)
+    monkeypatch.setattr(i, "list_passive_skill_templates", lambda: [])
+
+    manifest = IntegrationManifest("codex", tmp_path)
+    i.setup(tmp_path, manifest, script_type="sh")
+
+    skill_dir = i.skills_dest(tmp_path) / "sp-plan"
+    references_dir = skill_dir / "references"
+    skill = skill_dir / "SKILL.md"
+    skill_content = skill.read_text(encoding="utf-8")
+    assert "references/INDEX.md" in skill_content, skill
+
+    index = references_dir / "INDEX.md"
+    assert index.exists(), skill_dir
+    index_content = index.read_text(encoding="utf-8")
+    for reference in sorted(references_dir.glob("**/*.md")):
+        if reference.name == "INDEX.md":
+            continue
+        rel = reference.relative_to(references_dir).as_posix()
+        assert rel in index_content, reference
+
+
+def test_repair_missing_reference_sidecars_restores_manifest_owned_missing_file(
+    tmp_path, monkeypatch
+):
+    commands, refs = _write_skill_command_with_reference_fixture(tmp_path / "fixtures")
+    i = get_integration("codex")
+    monkeypatch.setattr(i, "list_command_templates", lambda: [commands / "plan.md"])
+    monkeypatch.setattr(i, "shared_command_references_dir", lambda: refs)
+    monkeypatch.setattr(i, "list_passive_skill_templates", lambda: [])
+
+    project = tmp_path / "project"
+    manifest = IntegrationManifest("codex", project)
+    i.setup(project, manifest, script_type="sh")
+
+    reference = i.skills_dest(project) / "sp-plan" / "references" / "INDEX.md"
+    assert reference.exists()
+    reference.unlink()
+
+    restored = i.repair_missing_command_reference_sidecars(
+        project,
+        manifest,
+        script_type="sh",
+    )
+
+    assert reference in restored
+    assert reference.exists()
+    assert "Plan Reference Index" in reference.read_text(encoding="utf-8")
+
+
+def test_repair_missing_reference_sidecars_preserves_existing_modified_file(
+    tmp_path, monkeypatch
+):
+    commands, refs = _write_skill_command_with_reference_fixture(tmp_path / "fixtures")
+    i = get_integration("codex")
+    monkeypatch.setattr(i, "list_command_templates", lambda: [commands / "plan.md"])
+    monkeypatch.setattr(i, "shared_command_references_dir", lambda: refs)
+    monkeypatch.setattr(i, "list_passive_skill_templates", lambda: [])
+
+    project = tmp_path / "project"
+    manifest = IntegrationManifest("codex", project)
+    i.setup(project, manifest, script_type="sh")
+
+    reference = i.skills_dest(project) / "sp-plan" / "references" / "INDEX.md"
+    original = "# user-modified reference index\n"
+    reference.write_text(original, encoding="utf-8")
+
+    restored = i.repair_missing_command_reference_sidecars(
+        project,
+        manifest,
+        script_type="sh",
+    )
+
+    assert restored == []
+    assert reference.read_text(encoding="utf-8") == original
 
 
 class SkillsIntegrationTests:
@@ -334,6 +795,10 @@ class SkillsIntegrationTests:
         assert "for blocked, stale, or incomplete references" in content
         assert "fall back to minimal live reads" in content
         assert "map-update" in content
+        assert "project-cognition claim-reconcile prepare" in content
+        assert "project-cognition claim-reconcile apply" in content
+        assert "apply_argv" in content
+        assert "expected_content_hash" not in content
         assert "localized stale coverage" in content
         assert "weak reference coverage" in content
         assert "external/manual changed-path map maintenance" in content
@@ -365,21 +830,32 @@ class SkillsIntegrationTests:
 
             assert "advisory gate" in content
             assert "project cognition" in content
-            assert "project-cognition query" in content
-            assert "alias catalog" in content
-            assert "semantic_intake" in content
-            assert "facet coverage" in content
-            assert "concept_decisions" in content
-            assert "lexicon_generation_id" in content
             assert "minimal_live_reads" in content
             assert "returned map terms" not in content
             assert "map-scan" in content
             assert "map-build" in content
             _assert_runtime_cognition_carry_forward(content, name)
-            if name == "debug":
-                assert "project-cognition query --intent debug" in content
+            if name == "implement":
+                assert "current-task navigation repair" in content
+                assert "only when a required ref is stale, missing, or contradicted by live code" in content
+                assert "project-cognition query --query-plan" not in content
+                assert "current task's required refs" in content
+            elif name == "debug":
+                assert "project-cognition query" in content
+                assert "alias catalog" in content
+                assert "semantic_intake" in content
+                assert "facet coverage" in content
+                assert "concept_decisions" in content
+                assert "lexicon_generation_id" in content
+                assert "project-cognition query --query-plan" in content
                 assert "debug-handbook.md" not in content
             else:
+                assert "project-cognition query" in content
+                assert "alias catalog" in content
+                assert "semantic_intake" in content
+                assert "facet coverage" in content
+                assert "concept_decisions" in content
+                assert "lexicon_generation_id" in content
                 assert "build-handbook.md" not in content
                 assert "map-update" in content
 
@@ -506,24 +982,38 @@ class SkillsIntegrationTests:
         assert discussion_path.exists()
         _assert_discussion_contract(discussion_path.read_text(encoding="utf-8"))
 
+    def test_ask_skill_preserves_read_only_qa_contract(self, tmp_path):
+        i = get_integration(self.KEY)
+        m = IntegrationManifest(self.KEY, tmp_path)
+        i.setup(tmp_path, m)
+
+        ask_path = i.skills_dest(tmp_path) / "sp-ask" / "SKILL.md"
+        assert ask_path.exists()
+        _assert_ask_contract(ask_path.read_text(encoding="utf-8"))
+
     def test_specify_skill_preserves_discussion_fidelity_contract(self, tmp_path):
         i = get_integration(self.KEY)
         m = IntegrationManifest(self.KEY, tmp_path)
         i.setup(tmp_path, m)
 
-        content = (i.skills_dest(tmp_path) / "sp-specify" / "SKILL.md").read_text(encoding="utf-8")
+        content = _read_skill_with_references(i.skills_dest(tmp_path) / "sp-specify" / "SKILL.md")
         lowered = content.lower()
 
         assert "Must-Preserve Ledger" in content
-        assert "coverage_status" in content
-        assert "planning_gate_status" in content
-        assert "entry_source: sp-discussion" in content
-        assert "discussion-log.md" in content
-        assert "requirements.md" in content
-        assert "open-questions.md" in content
-        assert "source_signal_disposition" in content
-        assert "source_files_read" in content
-        assert "not only the handoff summary" in lowered
+        assert "spec-contract.json" in content
+        assert "semantic_delta" in content
+        assert "decision_digest_ref" in content
+        assert "discussion_decision_digest" in content
+        assert "must_not_dilute" in content
+        assert "named evidence reference" in lowered
+        assert "stale, missing, or contradictory" in lowered
+        assert "source_files_read" not in content
+        assert "do not repeat user review" in lowered
+        assert "choose_ui_reference_lane_dispatch" in content
+        assert "ui-reference-artifact" in content
+        assert "ui-reference-notes.md" in content
+        assert "ui-brief.md" in content
+        assert "Reference-Implementation" in content
         assert "capability-like" in lowered
         assert "handoffs/<candidate_id>" not in content
         assert "do not silently" in lowered
@@ -622,6 +1112,12 @@ class SkillsIntegrationTests:
         routing_skill = i.skills_dest(tmp_path) / "spec-kit-workflow-routing" / "SKILL.md"
         if routing_skill.exists():
             surfaces.append(routing_skill)
+            routing_content = routing_skill.read_text(encoding="utf-8").lower()
+            assert "high-throughput senior product-engineering advisor" in routing_content
+            assert "frontstage / backstage separation" in routing_content
+            assert "does not persist every turn" in routing_content
+            assert "continues by default" in routing_content
+            assert "does not ask for continuation" in routing_content
 
         for path in surfaces:
             content = path.read_text(encoding="utf-8").lower()
@@ -649,7 +1145,7 @@ class SkillsIntegrationTests:
         i.setup(tmp_path, m)
 
         implement_path = i.skills_dest(tmp_path) / "sp-implement" / "SKILL.md"
-        content = implement_path.read_text(encoding="utf-8")
+        content = _read_skill_with_references(implement_path)
         lowered = content.lower()
 
         assert "## Orchestration Model" in content
@@ -668,7 +1164,9 @@ class SkillsIntegrationTests:
         i.setup(tmp_path, m)
 
         for name in ("implement", "debug", "quick"):
-            content = (i.skills_dest(tmp_path) / f"sp-{name}" / "SKILL.md").read_text(encoding="utf-8").lower()
+            content = _read_skill_with_references(
+                i.skills_dest(tmp_path) / f"sp-{name}" / "SKILL.md"
+            ).lower()
             assert "subagent dispatch contract" in content
             assert "subagent dispatch" in content
             assert "native subagent capability discovery" in content
@@ -690,8 +1188,12 @@ class SkillsIntegrationTests:
         i.setup(tmp_path, m)
         agent_name = i.config["name"].replace(" CLI", "")
 
-        debug_content = (i.skills_dest(tmp_path) / "sp-debug" / "SKILL.md").read_text(encoding="utf-8").lower()
-        quick_content = (i.skills_dest(tmp_path) / "sp-quick" / "SKILL.md").read_text(encoding="utf-8").lower()
+        debug_content = _read_skill_with_references(
+            i.skills_dest(tmp_path) / "sp-debug" / "SKILL.md"
+        ).lower()
+        quick_content = _read_skill_with_references(
+            i.skills_dest(tmp_path) / "sp-quick" / "SKILL.md"
+        ).lower()
 
         assert f"## {agent_name} Leader Gate".lower() in debug_content
         assert "you are the **leader**, not a freeform debugger" in debug_content
@@ -701,12 +1203,28 @@ class SkillsIntegrationTests:
         assert "execution_surface: leader-inline | native-subagents | none" in debug_content
         assert "small focused investigation" in debug_content
         assert "subagent-assisted" in debug_content
+        assert "debug understanding checkpoint" in debug_content
+        assert "understanding_confirmed: true" in debug_content
+        assert "debug checkpoint" in debug_content
+        assert "first evidence action" in debug_content
+        assert "<br>" not in debug_content
+        assert "plain text for terminal output" in debug_content
+        assert "resolve discussion handoff intake before quick-task execution" in quick_content
+        assert "discussion_requirement_contract" in quick_content
+        assert "consumer_eligibility.sp-quick.status" in quick_content
+        assert "planning constraints" in quick_content
+        assert "review_digest" in quick_content
+        assert "quick_task_candidate" not in quick_content
+        assert "do not repeat user confirmation" in quick_content
 
         assert f"## {agent_name} Leader Gate".lower() in quick_content
         assert "you are the **leader**, not the concrete implementer" in quick_content
         assert "quick execution routing" in quick_content
         assert "understanding checkpoint" in quick_content
+        assert_quick_checkpoint_card_shape(quick_content)
         assert "understanding_confirmed: true" in quick_content
+        assert "<br>" not in quick_content
+        assert "plain text for terminal output" in quick_content
         assert "dispatch_shape: one-subagent | parallel-subagents" in quick_content
         assert "execution_surface: native-subagents" in quick_content
         assert "validated `workertaskpacket` or equivalent execution contract preserves quality" in quick_content
@@ -756,6 +1274,9 @@ class SkillsIntegrationTests:
             assert "native structured question tool" in content
             assert "fallback-only guidance" in content
             assert "must use it" in content
+            assert "auto_default_recommendation" in content
+            assert "must auto-resolve" in content
+            assert "do not invoke the native structured question tool" in content
             assert "do not render the textual fallback block" in content
             assert "do not self-authorize textual fallback" in content
             assert (
@@ -1042,6 +1563,7 @@ class SkillsIntegrationTests:
         skills_prefix = i.config["folder"].rstrip("/") + "/" + i.config.get("commands_subdir", "skills")
 
         files = []
+        files.append("DESIGN.md")
         # Skill files
         for cmd in self._skill_commands():
             files.append(f"{skills_prefix}/sp-{cmd}/SKILL.md")
@@ -1059,7 +1581,7 @@ class SkillsIntegrationTests:
             ".specify/integrations/speckit.manifest.json",
             ".specify/memory/constitution.md",
             ".specify/memory/learnings/INDEX.md",
-            ".specify/memory/project-learnings.md",
+            ".specify/memory/learnings/confirmed.md",
             ".specify/memory/project-rules.md",
         ]
         # Script variant
@@ -1068,6 +1590,7 @@ class SkillsIntegrationTests:
                 ".specify/scripts/bash/check-prerequisites.sh",
                 ".specify/scripts/bash/common.sh",
                 ".specify/scripts/bash/create-new-feature.sh",
+                ".specify/scripts/bash/discussion-state.sh",
                 ".specify/scripts/bash/prd-state.sh",
                 ".specify/scripts/bash/project-cognition-freshness.sh",
                 ".specify/scripts/bash/quick-state.sh",
@@ -1080,6 +1603,7 @@ class SkillsIntegrationTests:
                 ".specify/scripts/powershell/check-prerequisites.ps1",
                 ".specify/scripts/powershell/common.ps1",
                 ".specify/scripts/powershell/create-new-feature.ps1",
+                ".specify/scripts/powershell/discussion-state.ps1",
                 ".specify/scripts/powershell/prd-state.ps1",
                 ".specify/scripts/powershell/project-cognition-freshness.ps1",
                 ".specify/scripts/powershell/quick-state.ps1",
@@ -1087,7 +1611,7 @@ class SkillsIntegrationTests:
                 ".specify/scripts/powershell/setup-plan.ps1",
                 ".specify/scripts/powershell/update-agent-context.ps1",
             ]
-        files.append(SHARED_PRD_HELPER)
+        files.extend([SHARED_DISCUSSION_HELPER, SHARED_PRD_HELPER])
         # Templates
         files += [f".specify/templates/{name}" for name in self._template_files()]
         return sorted(files)

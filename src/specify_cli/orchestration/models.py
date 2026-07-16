@@ -20,6 +20,52 @@ DispatchShape = Literal[
 ExecutionSurface = Literal["native-subagents", "leader-inline", "none"]
 NativeWorkerSurface = Literal["unknown", "none", "native-cli", "spawn_agent"]
 DelegationConfidence = Literal["low", "medium", "high"]
+EvidenceLaneMode = Literal["read-only-evidence", "ui-reference-artifact"]
+READ_ONLY_EVIDENCE_ALLOWED_OPERATIONS: tuple[str, ...] = (
+    "file-read",
+    "rg",
+    "project-cognition",
+    "memory-read",
+    "state-read",
+    "docs-read",
+    "template-read",
+)
+READ_ONLY_EVIDENCE_FORBIDDEN_OPERATIONS: tuple[str, ...] = (
+    "file-write",
+    "state-write",
+    "handoff-write",
+    "tests",
+    "builds",
+    "package-managers",
+    "project-cli",
+    "app-server",
+)
+UI_REFERENCE_ALLOWED_OPERATIONS: tuple[str, ...] = (
+    "file-read",
+    "rg",
+    "project-cognition",
+    "memory-read",
+    "state-read",
+    "docs-read",
+    "template-read",
+    "reference-input-read",
+    "ui-reference-notes-write",
+    "ui-brief-write",
+    "ui-target-html-write",
+)
+UI_REFERENCE_FORBIDDEN_OPERATIONS: tuple[str, ...] = (
+    "source-code-write",
+    "test-write",
+    "app-style-write",
+    "component-implementation-write",
+    "broad-state-write",
+    "handoff-readiness-write",
+    "tests",
+    "builds",
+    "package-managers",
+    "project-cli",
+    "app-server",
+)
 _CANONICAL_DISPATCH_SHAPES = frozenset(
     {
         "one-subagent",
@@ -159,6 +205,61 @@ class ReviewGatePolicy:
     peer_review_lane_recommended: bool = False
     reason: str = "low_risk_batch"
     created_at: str = field(default_factory=utc_now)
+
+
+@dataclass(slots=True)
+class EvidenceLaneDecision:
+    """Dispatch decision for optional read-only evidence lanes."""
+
+    command_name: str
+    dispatch_shape: DispatchShape
+    reason: str
+    created_at: str = field(default_factory=utc_now)
+    execution_surface: ExecutionSurface | None = None
+    workflow_status: WorkflowStatus = "ready"
+    blocked_reason: str | None = None
+    capability_degraded: bool = False
+    lane_mode: EvidenceLaneMode = "read-only-evidence"
+    structured_result: str = "evidence_packet"
+    allowed_operations: tuple[str, ...] = READ_ONLY_EVIDENCE_ALLOWED_OPERATIONS
+    forbidden_operations: tuple[str, ...] = READ_ONLY_EVIDENCE_FORBIDDEN_OPERATIONS
+
+    def __post_init__(self) -> None:
+        if self.lane_mode == "ui-reference-artifact":
+            if self.structured_result == "evidence_packet":
+                object.__setattr__(self, "structured_result", "ui_reference_artifacts")
+            object.__setattr__(self, "allowed_operations", UI_REFERENCE_ALLOWED_OPERATIONS)
+            object.__setattr__(self, "forbidden_operations", UI_REFERENCE_FORBIDDEN_OPERATIONS)
+        object.__setattr__(
+            self,
+            "dispatch_shape",
+            _normalize_dispatch_shape(self.dispatch_shape),
+        )
+        if self.execution_surface is None:
+            object.__setattr__(self, "execution_surface", _derive_execution_surface(self.dispatch_shape))
+        else:
+            object.__setattr__(
+                self,
+                "execution_surface",
+                _normalize_execution_surface(self.execution_surface),
+            )
+        object.__setattr__(
+            self,
+            "workflow_status",
+            _normalize_workflow_status(self.workflow_status),
+        )
+        if self.execution_surface != _derive_execution_surface(self.dispatch_shape):
+            raise ValueError("execution_surface must match dispatch_shape")
+        if self.blocked_reason is not None:
+            object.__setattr__(self, "blocked_reason", self.blocked_reason.strip())
+        if self.workflow_status == "blocked" and not self.blocked_reason:
+            raise ValueError("blocked EvidenceLaneDecision requires blocked_reason")
+        if self.workflow_status == "blocked" and self.dispatch_shape != "subagent-blocked":
+            raise ValueError("blocked workflow_status requires subagent-blocked dispatch")
+        if self.dispatch_shape == "subagent-blocked" and self.workflow_status != "blocked":
+            raise ValueError("subagent-blocked dispatch requires blocked workflow_status")
+        if self.dispatch_shape == "subagent-blocked" and not self.blocked_reason:
+            raise ValueError("subagent-blocked dispatch requires blocked_reason")
 
 
 @dataclass(slots=True)

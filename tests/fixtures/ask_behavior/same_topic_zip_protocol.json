@@ -1,0 +1,90 @@
+{
+  "id": "sp-ask.same-topic-zip-protocol",
+  "description": "Same-topic sp-ask follow-up with Chinese project slang and a client/server protocol boundary.",
+  "conversation": [
+    {
+      "role": "user",
+      "content": "小包 / zip 包和 exe 安装包到底走哪块？"
+    },
+    {
+      "role": "assistant",
+      "evidence_set": [
+        "NSIS entrypoint",
+        "JxNsis.dll split logic",
+        "client package request fields"
+      ],
+      "proven_facts": [
+        "JxNsis.dll owns package split behavior.",
+        "The client request includes package-type data."
+      ]
+    },
+    {
+      "role": "user",
+      "content": "那后端需不需要支持 zip 包协议？"
+    }
+  ],
+  "prompt_contract_anchors": [
+    "same-topic follow-up",
+    "reuse the previous evidence set",
+    "one-sentence evidence route",
+    "localized, mixed-language, CJK, colloquial, or project-slang",
+    "project-language search terms",
+    "client fields or callsites",
+    "interface URLs or payload/schema names",
+    "whether backend/server/runtime code exists",
+    "Proven from live evidence",
+    "Inferred from live evidence"
+  ],
+  "grader": {
+    "required_route_terms": [
+      "NSIS",
+      "JxNsis.dll",
+      "接口",
+      "后端"
+    ],
+    "required_reuse_terms": [
+      "复用",
+      "evidence set",
+      "只补"
+    ],
+    "required_user_terms": [
+      "小包",
+      "zip 包",
+      "exe 安装包",
+      "下载安装器"
+    ],
+    "required_project_terms": [
+      "JxNsisZip",
+      "JxNsis.dll",
+      "NSIS"
+    ],
+    "required_sections": [
+      "已证明",
+      "推断",
+      "未知"
+    ],
+    "required_protocol_terms": [
+      "客户端",
+      "接口",
+      "payload",
+      "后端",
+      "未找到"
+    ],
+    "forbidden_terms": [
+      "重新完整跑 compass",
+      "后端也必改"
+    ]
+  },
+  "good_transcript": [
+    "我会复用上一轮 evidence set，只补查接口字段和后端代码是否在仓库内；路线是 NSIS 入口、JxNsis.dll 分流、客户端接口 payload、后端实现四处。",
+    "术语归一：小包 / zip 包 -> JxNsisZip；exe 安装包 / 下载安装器 -> NSIS + JxNsis.dll。",
+    "已证明：JxNsis.dll 是安装包分流证据点，客户端 payload 带有包类型字段。",
+    "推断：后端需要理解该字段或等价协议，否则客户端选择无法被服务端可靠区分；这是从客户端字段和当前接口行为推出来的，不是后端代码证据。",
+    "未知：仓库内未找到后端/server 实现，所以不能证明后端已经支持或必须改哪一个文件。"
+  ],
+  "bad_transcript": [
+    "我会重新完整跑 compass 并重新读所有 skill 和 memory。",
+    "结论：JxNsis.dll 必改，后端也必改。",
+    "证据：看起来 zip 包和 exe 安装包不一样。"
+  ]
+}

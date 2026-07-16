@@ -7,10 +7,21 @@ from pathlib import Path
 
 from specify_cli.codex_team.state_paths import batch_record_path, review_record_path
 from specify_cli.codex_team.task_ops import get_task, mark_join_point
+from specify_cli.execution.implementation_review import (
+    ImplementationFindingType,
+    ImplementationReviewFinding,
+    ImplementationReviewRecord,
+    write_review_record,
+)
 from specify_cli.execution.review_schema import ReviewFinding, ReviewRoundRecord, review_round_payload
 
 
 _SEVERITY_ORDER = {"critical": 0, "high": 1, "medium": 2, "low": 3}
+_EMBEDDED_FINDING_TYPE_BY_CATEGORY: dict[str, ImplementationFindingType] = {
+    "simplify": "implementation_gap",
+    "harden": "failed_validation",
+    "spec": "implementation_gap",
+}
 
 
 def build_review_lanes(batch_payload: dict[str, object], *, round_number: int) -> list[dict[str, object]]:
@@ -75,6 +86,65 @@ def compile_review_fix_tasks(findings: list[ReviewFinding]) -> dict[str, object]
     }
 
 
+def _embedded_finding_from_batch_review(
+    finding: ReviewFinding,
+    *,
+    task_ids: list[str],
+) -> ImplementationReviewFinding:
+    return ImplementationReviewFinding(
+        finding_id=finding.finding_id,
+        finding_type=_EMBEDDED_FINDING_TYPE_BY_CATEGORY[finding.category],
+        severity=finding.severity,
+        summary=finding.summary,
+        affected_artifacts=[finding.file_path] if finding.file_path else [],
+        task_ids=task_ids,
+        repairable_at_task_layer=True,
+        recommendation=finding.recommendation,
+    )
+
+
+def _resolve_batch_feature_dir(project_root: Path, batch_payload: dict[str, object]) -> Path | None:
+    raw_feature_dir = str(batch_payload.get("feature_dir") or "").strip()
+    if not raw_feature_dir:
+        return None
+    feature_dir = Path(raw_feature_dir)
+    if feature_dir.is_absolute():
+        return feature_dir
+    return project_root / feature_dir
+
+
+def write_embedded_review_record_from_batch_review(
+    project_root: Path,
+    *,
+    batch_payload: dict[str, object],
+    review_record: ReviewRoundRecord,
+) -> Path | None:
+    feature_dir = _resolve_batch_feature_dir(project_root, batch_payload)
+    if feature_dir is None:
+        return None
+
+    task_ids = [str(item) for item in batch_payload.get("task_ids", [])]
+    decision = "cleared" if review_record.status == "approved" else "repair-and-rerun-current-window"
+    next_action = (
+        "continue implementation"
+        if review_record.status == "approved"
+        else "repair batch review findings before continuing"
+    )
+    embedded_record = ImplementationReviewRecord(
+        review_id=review_record.review_id,
+        scope="join-point-drift",
+        trigger=f"codex-team-batch:{review_record.batch_id}",
+        decision=decision,
+        reviewed_tasks=task_ids,
+        findings=[
+            _embedded_finding_from_batch_review(finding, task_ids=task_ids)
+            for finding in review_record.findings
+        ],
+        next_action=next_action,
+    )
+    return write_review_record(feature_dir, embedded_record)
+
+
 def record_review_round(
     project_root: Path,
     *,
@@ -99,6 +169,11 @@ def record_review_round(
     record_path.write_text(
         json.dumps(review_round_payload(review_record), ensure_ascii=False, indent=2),
         encoding="utf-8",
+    )
+    embedded_review_path = write_embedded_review_record_from_batch_review(
+        project_root,
+        batch_payload=batch_payload,
+        review_record=review_record,
     )
 
     batch_payload["review_round"] = round_number
@@ -132,4 +207,7 @@ def record_review_round(
         "round_number": round_number,
         "status": review_status,
         "fix_plan": compile_review_fix_tasks(findings),
+        "implementation_review_path": (
+            embedded_review_path.as_posix() if embedded_review_path is not None else ""
+        ),
     }

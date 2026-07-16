@@ -33,6 +33,14 @@ scripts:
 
 {{spec-kit-include: ../command-partials/checklist/shell.md}}
 
+[AGENT] For project-cognition-backed semantic intake, routing, audit, resume, or final-claim gates, read `references/semantic-work-contract.md`.
+
+## Detailed References
+
+Read [Reference index](references/INDEX.md) before applying shared semantic contracts.
+
+- [semantic work contract](references/semantic-work-contract.md)
+
 ## Mandatory Subagent Execution
 
 All substantive tasks in ordinary `sp-*` workflows default to and must use subagents.
@@ -46,18 +54,7 @@ Use `dispatch_shape: one-subagent | parallel-subagents`.
 Use `execution_surface: native-subagents`.
 
 
-## Passive Project Learning Layer
-
-- [AGENT] Run `{{specify-subcmd:learning start --command checklist --format json}}` when available so passive learning files exist and the current checklist run can consume reusable requirement-quality lessons before generating new review items.
-- Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/learnings/INDEX.md` in that order before broader checklist shaping.
-- Open only learning detail docs linked from checklist-relevant index entries, especially repeated requirement gaps, review defaults, or project constraints that should shape the generated checklist.
-- Learning Reflex: before final closeout, ask whether a future senior engineer would benefit from seeing this lesson before related work. If yes, update `.specify/memory/learnings/INDEX.md` and the linked detail markdown document without asking for routine permission.
-- [AGENT] When checklist-shaping friction exposes user corrections, artifact rewrites, scope changes, false starts, hidden dependencies, validation gaps, or reusable constraints, make sure durable state captures that context.
-- [AGENT] Prefer `{{specify-subcmd:learning capture-auto --command checklist --feature-dir "$FEATURE_DIR" --format json}}` when `workflow-state.md` already preserves route reasons, false starts, hidden dependencies, or reusable constraints.
-- [AGENT] When the durable state does not capture the reusable lesson cleanly, update `.specify/memory/learnings/INDEX.md` and a linked detail document with the command, type, summary, and evidence.
-- [AGENT] Before the final report, when the checklist exposes a reusable requirement-quality gap that should influence future workflows and auto-capture did not preserve it, use the manual `learning capture` helper surface.
-  Required options: `--command`, `--type`, `--summary`, `--evidence`
-  Command shape: `{{specify-subcmd:learning capture --command checklist --type <workflow_gap|decision_debt|project_constraint> --summary "<summary>" --evidence "<evidence>"}}`
+{{spec-kit-include: ../command-partials/common/learning-layer.md}}
 
 ## Execution Steps
 
@@ -66,14 +63,13 @@ Use `execution_surface: native-subagents`.
    - For single quotes in args like "I'm Groot", use escape syntax: e.g 'I'\''m Groot' (or double-quote if possible: "I'm Groot").
 
 2. **Query brownfield navigation context before shaping the checklist**
-   - [AGENT] Run or emulate `{{specify-subcmd:project-cognition lexicon --intent plan --query="$ARGUMENTS" --mode catalog --format json}}`, write `semantic_intake` from the alias catalog, select candidates by facet coverage, write `concept_decisions` with `covered_facets`, `missing_facets`, and `match_sources`, carry `lexicon_generation_id`, add `repository_search_terms`, then run `{{specify-subcmd:project-cognition query --intent plan --query-plan "<query_plan_json>" --format json}}`. Derive project-language search terms from the alias catalog before source search. Do not search only the raw user words; include component names, state names, file names, command names, UI labels, and route names from candidates, aliases, matched_terms, colloquial_matches, returned paths, `normalized_query`, and `expanded_queries`. Use these project-language search terms before broad repository search.
-   - [AGENT] Use the returned readiness:
-     - `ready`: continue with the returned task-local bundle.
-     - `review`: perform only the returned `minimal_live_reads` before continuing.
-     - `ambiguous`: ask the user to select the intended candidate.
-     - `needs_update`: route through `{{invoke:map-update}}`; this includes adoptable missing path-index coverage.
-     - `needs_rebuild`: route through `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; this is reserved for first/missing/unusable baseline, schema failure, zero active-generation path_index rows, explicit_rebuild_requested, or baseline_identity_invalid.
-     - `blocked`: stop and report the blocking runtime issue.
+   - [AGENT] Run or emulate `{{specify-subcmd:project-cognition compass --intent plan --query="$ARGUMENTS" --format json}}`. Read top-level `minimal_live_reads` first, then use lane-level `first_pass_paths` reasons, `verification_hints`, `followup_surfaces`, and `before_fix_claim`. Treat `coverage_diagnostics` as confidence and closeout signals, do not infer final edit scope from first-pass reads, and use `project-cognition expand` only when the packet's coverage state or live evidence requires it.
+   - [AGENT] Preserve the advanced `lexicon -> semantic_intake -> query` flow for explicit concept decisions or unresolved coverage. In that escalation, write `semantic_intake` from the alias catalog, select candidates by facet coverage, write `concept_decisions` with `covered_facets`, `missing_facets`, and `match_sources`, carry `lexicon_generation_id`, add `repository_search_terms`, then run `{{specify-subcmd:project-cognition query --intent plan --query-plan "<query_plan_json>" --format json}}`. Agent-owned semantic normalization is mandatory: raw lexicon ranking and `agent_normalization` are only bootstrap signals, not route decisions. If `agent_normalization.required=true`, every raw candidate is `score=0`, or the prompt is localized, mixed-language, CJK, colloquial, or symptom-first, extract embedded project terms and write `semantic_intake` from the alias catalog before selecting or rejecting concepts. If `agent_normalization` is omitted, treat it as `required=false`; CJK or mixed CJK/ASCII input still requires agent normalization even when positive raw lexical matches exist because embedded project tokens do not translate the surrounding user language. The agent still owns translation; `agent_normalization` is advisory guidance, not a route decision. This includes mixed-language or CJK text. (raw lexicon ranking is only a bootstrap; action: write_semantic_intake_from_alias_catalog) Derive project-language search terms from the alias catalog before source search. Do not search only the raw user words; include component names, state names, file names, command names, UI labels, and route names from candidates, aliases, matched_terms, colloquial_matches, returned paths, `normalized_query`, and `expanded_queries`. Use these project-language search terms before broad repository search.
+   - [AGENT] Readiness values are `query_ready`, `review`, `needs_rebuild`, `blocked`, and `unsupported_runtime`. Use the returned readiness:
+     - `query_ready`: read top-level `minimal_live_reads` first, then use lane-level `first_pass_paths` reasons.
+     - `review`: perform only the returned `minimal_live_reads` before continuing and inspect `coverage_diagnostics`.
+     - `blocked`: report the blocking runtime issue and continue with live evidence only where this workflow allows degraded navigation.
+     - `unsupported_runtime`: continue with live evidence and record that compass intake was unavailable.
    - Treat this as a coverage-model check, not a file-presence check. If the returned task-local bundle cannot identify the touched area's owning surfaces, change-propagation hotspots, verification entry points, or known unknowns, route through the returned `recommended_next_action`.
 
 3. **Clarify intent (dynamic)**: Derive up to THREE initial contextual clarifying questions (no pre-baked catalog). They MUST:

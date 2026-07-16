@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
 import re
+import threading
 import time
 import os
 import tempfile
@@ -778,6 +779,129 @@ def test_route_ready_parallel_batch_agent_teams_executor_completes_end_to_end(
         task_record_path(codex_team_project_root, "T003"),
     }
     assert expected_atomic_paths <= set(write_calls)
+
+
+def test_complete_dispatched_batch_waits_for_agent_teams_terminal_dispatch(
+    monkeypatch,
+    codex_team_project_root: Path,
+):
+    monkeypatch.setenv("SPECIFY_CODEX_TEAM_EXECUTOR", "agent-teams-runtime")
+    runtime_cli = codex_team_project_root / "fake-runtime-cli.py"
+    _write_fake_agent_teams_runtime_cli(runtime_cli)
+    monkeypatch.setenv("SPECIFY_CODEX_TEAM_RUNTIME_CLI", str(runtime_cli))
+    monkeypatch.setattr("specify_cli.codex_team.runtime_bridge.is_native_windows", lambda: False)
+    monkeypatch.setattr(
+        "specify_cli.codex_team.runtime_bridge.shutil.which",
+        lambda name: r"C:\tool.exe" if name in {"tmux", "node"} else None,
+    )
+    monkeypatch.setattr("specify_cli.codex_team.runtime_bridge.detect_available_backends", lambda: {})
+
+    from specify_cli.codex_team import auto_dispatch
+
+    monkeypatch.setattr(auto_dispatch, "launch_agent_teams_batch_executor", lambda *_, **__: None)
+
+    feature_dir = _write_feature_tasks(
+        codex_team_project_root,
+        """# Tasks
+
+- [X] T001 Shared setup
+- [ ] T002 [P] Worker A
+- [ ] T003 [P] Worker B
+
+**Parallel Batch 1.1**
+
+- `T002`
+- `T003`
+
+**Join Point 1.1**: merge before T004
+""",
+    )
+
+    result = route_ready_parallel_batch(
+        codex_team_project_root,
+        feature_dir=feature_dir,
+        session_id="default",
+    )
+
+    request_ids = {
+        "T002": "default-parallel-batch-1-1-t002",
+        "T003": "default-parallel-batch-1-1-t003",
+    }
+    for task_id, request_id in request_ids.items():
+        result_path = result_record_path(codex_team_project_root, request_id)
+        result_path.parent.mkdir(parents=True, exist_ok=True)
+        worker_result = WorkerTaskResult(
+            task_id=task_id,
+            status="success",
+            changed_files=[f"src/{task_id.lower()}.py"],
+            validation_results=[
+                ValidationResult(
+                    command="pytest tests/unit/test_auth_service.py -q",
+                    status="passed",
+                    output="1 passed",
+                )
+            ],
+            summary=f"{task_id} finished cleanly",
+            rule_acknowledgement=RuleAcknowledgement(
+                required_references_read=True,
+                forbidden_drift_respected=True,
+                context_bundle_read=True,
+                paths_read=["src/contracts/auth.py", *CONTEXT_BUNDLE_PATHS],
+            ),
+        )
+        result_path.write_text(
+            json.dumps(worker_task_result_payload(worker_result), ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+
+    def _complete_in_background() -> None:
+        time.sleep(0.05)
+        for task_id, request_id in request_ids.items():
+            record = get_task(codex_team_project_root, task_id)
+            token = claim_task(
+                codex_team_project_root,
+                task_id=task_id,
+                worker_id=task_id.lower(),
+                expected_version=record.version,
+            )
+            in_progress = transition_task_status(
+                codex_team_project_root,
+                task_id=task_id,
+                new_status="in_progress",
+                owner=task_id.lower(),
+                expected_version=record.version + 1,
+                claim_token=token,
+            )
+            transition_task_status(
+                codex_team_project_root,
+                task_id=task_id,
+                new_status="completed",
+                owner=task_id.lower(),
+                expected_version=in_progress.version,
+                claim_token=token,
+            )
+            dispatch_path = dispatch_record_path(codex_team_project_root, request_id)
+            dispatch_payload = json.loads(dispatch_path.read_text(encoding="utf-8"))
+            dispatch_payload["status"] = "completed"
+            dispatch_path.write_text(json.dumps(dispatch_payload, indent=2) + "\n", encoding="utf-8")
+
+    thread = threading.Thread(target=_complete_in_background)
+    thread.start()
+
+    def _unexpected_resubmit(*args, **kwargs):
+        raise AssertionError("complete_dispatched_batch should not resubmit terminal agent-teams results")
+
+    monkeypatch.setattr(auto_dispatch, "submit_runtime_result", _unexpected_resubmit)
+    try:
+        completion = complete_dispatched_batch(
+            codex_team_project_root,
+            batch_id=result.batch_id,
+            session_id="default",
+        )
+    finally:
+        thread.join(timeout=2)
+
+    assert completion.status == "completed"
 
 
 def test_complete_dispatched_batch_retries_join_point_after_metadata_version_race(

@@ -11,6 +11,8 @@ workflow_contract:
 
 {{spec-kit-include: ../command-partials/common/execution-note.md}}
 
+{{spec-kit-include: ../command-partials/common/learning-layer.md}}
+
 ## Mandatory Subagent Execution
 
 All substantive tasks in ordinary `sp-*` workflows default to and must use subagents.
@@ -48,14 +50,14 @@ Its job is to read current repository state, identify the recommended next Spec 
 
 - Report the routed command and the state file that justified it.
 - Preserve the downstream workflow's canonical `next_command` and artifact semantics.
-- If no safe route exists, return a read-only diagnostic explaining the missing or conflicting state.
+- If no safe route exists, return a read-only diagnostic plus a self-unblock recommendation explaining the missing or conflicting state and the safest repair or canonical command.
 
 ## Guardrails
 
-- `sp-auto` does not replace `sp-specify`, `sp-plan`, `sp-tasks`, `sp-analyze`, `sp-implement`, `sp-debug`, `sp-quick`, or `sp-fast`.
+- `sp-auto` does not replace `sp-specify`, `sp-plan`, `sp-tasks`, `sp-analyze`, `sp-implement`, `sp-accept`, `sp-debug`, `sp-quick`, or `sp-fast`.
 - `sp-auto` must never invent a new phase progression from chat memory when repository state already records the next step.
 - Always obey the recorded upstream gate.
-- Do not rewrite the underlying workflow state to `/sp.auto`; preserve the canonical downstream `next_command` such as `/sp.plan`, `/sp.tasks`, `/sp.implement`, `/sp.debug`, `/sp.quick`, `/sp.fast`, `/sp.clarify`, or `/sp.deep-research`. Preserve `/sp.analyze` only when an existing state file explicitly records that legacy or diagnostic route.
+- Do not rewrite the underlying workflow state to `/sp.auto`; preserve the canonical downstream `next_command` such as `/sp.plan`, `/sp.tasks`, `/sp.implement`, `/sp.accept`, `/sp.debug`, `/sp.quick`, `/sp.fast`, `/sp.clarify`, or `/sp.deep-research`. Preserve `/sp.analyze` only when an existing state file explicitly records that legacy or diagnostic route.
 - If state is missing, stale, conflicting, or cannot identify one safe next step, stop in read-only diagnosis and report the exact blocker instead of improvising a route.
 - Do not guess when multiple resumable lanes exist.
 - Never auto-resume an `uncertain` lane.
@@ -74,16 +76,28 @@ Inspect the available state surfaces in this order and prefer the most specific 
 2. Active implementation execution state
    - Read `FEATURE_DIR/implement-tracker.md` together with `workflow-state.md`.
    - If execution is still active and `workflow-state.md` allows `/sp.implement`, resume the canonical `/sp.implement` route.
+   - If trusted execution is completed and `next_command: /sp.accept`, route to canonical `/sp.accept`; do not repeat implementation or skip to integration.
    - If `workflow-state.md` still requires `/sp.analyze`, `/sp.plan`, `/sp.tasks`, `/sp.clarify`, or `/sp.deep-research`, obey that recorded upstream gate before resuming implementation.
 
-3. Quick-task state
+3. Post-implementation human acceptance state
+   - If trusted implementation closeout exists and `human-acceptance.json` is `draft`, `ready`, `in_progress`, `blocked`, `rejected`, or `stale`, route to canonical `/sp.accept` before integration or delivery.
+   - Treat `accepted` as complete only when the summary fingerprint is fresh and every required scenario has explicit human PASS.
+
+4. Quick-task state
    - Read unfinished `.planning/quick/*/STATUS.md` files.
    - If one active quick task clearly owns the next action, route to the canonical `/sp.quick` token.
    - If the recorded next command is a bounded local repair lane, canonical `/sp.fast` is allowed only when the state explicitly justifies that smaller route.
 
-4. Debug session state
+5. Debug session state
    - Read active `.planning/debug/*.md` session files.
    - If a live investigation owns the current next action, route to the canonical `/sp.debug` token.
+
+6. Discussion handoff state
+   - Read active `.specify/discussions/*/discussion-state.json` files when no higher-authority feature, implementation, quick, or debug state has already selected a unique route; use Markdown only for legacy recovery.
+   - Treat `status: handoff-ready` plus `next_command: /sp.specify` or `sp-specify` as a `/sp.specify` candidate only when `handoff_consumption_status` is not `consumed`.
+   - If `handoff_consumption_status: consumed`, `status: completed`, `consumed_by_feature_dir` is populated, or `next_command: none`, do not count that discussion as a resumable candidate.
+   - If a handoff-ready discussion's `handoff-to-specify.json` path is already referenced by a feature `brainstorming/handoff-to-specify.json` as `source_contract`, treat it as a consumed-stale cleanup item, not a competing route. Recommend `specify discussion mark-consumed <slug> --feature-dir <feature-dir>` as the repair evidence, or perform that repair only when the active workflow allows state cleanup before routing.
+   - If multiple unconsumed handoff-ready discussions remain, stop and ask for a specific slug instead of guessing.
 
 ## Route Resolution
 
@@ -102,9 +116,23 @@ Choose exactly one routed command.
 Once the routed command is chosen:
 
 1. Announce the routed command and the state file that justified it.
-2. Read `.specify/templates/commands/<target>.md` when available, or follow the routed command's shared contract from the generated local integration surface if that is the active source of truth.
-3. Continue under the routed command's rules, artifacts, validations, delegation policy, and completion criteria for the rest of the turn.
-4. Do not blend multiple workflows into one ad hoc pass. Route once, then execute that workflow faithfully.
+2. Carry a temporary routed-pass mode named `auto_default_recommendation: true` into the target command. This is an execution hint for this turn only; do not persist it as the target workflow's canonical `next_command`.
+3. Read `.specify/templates/commands/<target>.md` when available, or follow the routed command's shared contract from the generated local integration surface if that is the active source of truth.
+4. Continue under the routed command's rules, artifacts, validations, delegation policy, and completion criteria for the rest of the turn.
+5. Do not blend multiple workflows into one ad hoc pass. Route once, then execute that workflow faithfully.
+
+## Recommended Default Continuation
+
+When `auto_default_recommendation: true` is active, the routed command must auto-resolve a question or confirmation gate by accepting the recommended/default continuation when all of these are true:
+
+- The target workflow would otherwise stop only to ask the user to answer a bounded question, choose from a bounded list, or confirm a previously presented safe default.
+- The list or confirmation gate has one single explicitly recommended option or one safe default continuation.
+- The recommended/default option preserves the user's current stated intent, keeps the current scope, and does not discard or defer an upstream capability signal.
+- There is no explicit user disagreement, no unresolved planning-critical ambiguity, no out-of-scope conflict, no scope reduction, no security-sensitive decision, no destructive or irreversible action, and no external-cost or credential-affecting decision.
+
+If those conditions hold, record the recommended option as accepted by `sp-auto` in the routed workflow's state or summary and continue. Do not invoke a structured question tool, do not render a textual question block, and do not stop only to ask the user to reply `1`, `2`, or `3` when the only safe pending action is accepting that single recommended option.
+
+If the recommended/default continuation cannot satisfy every condition, do not guess and do not wait silently for user input. Write a self-unblock recommendation that names the blocker, the safest recommended user decision or canonical command, the evidence that would make automatic continuation safe next time, and any reversible repair the agent can perform before stopping under the routed workflow's normal confirmation gate.
 
 ## Diagnostic Fallback
 
@@ -113,7 +141,9 @@ If no safe route can be selected:
 - stay read-only
 - report which state files were checked
 - report what was missing or conflicting
+- perform any reversible state-inspection or reconcile step allowed by this contract before giving up
 - tell the user which canonical workflow must be run manually or which state artifact must be repaired first
+- include the exact evidence that would let a future `sp-auto` run continue automatically
 
 ## Expected Routed Outcomes
 

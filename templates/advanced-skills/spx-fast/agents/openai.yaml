@@ -1,0 +1,7 @@
+interface:
+  display_name: "SPX Fast"
+  short_description: "Trivial verified repository changes"
+  default_prompt: "Use $spx-fast to make this small, low-risk change directly."
+
+policy:
+  allow_implicit_invocation: false

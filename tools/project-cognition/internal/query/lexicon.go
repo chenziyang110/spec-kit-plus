@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 	"unicode"
@@ -15,26 +14,35 @@ import (
 )
 
 type LexiconPayload struct {
-	Readiness                string           `json:"readiness"`
-	RecommendedNextAction    string           `json:"recommended_next_action"`
-	BaselineKind             string           `json:"baseline_kind,omitempty"`
-	Intent                   string           `json:"intent"`
-	Query                    string           `json:"query"`
-	ActiveGenerationID       string           `json:"active_generation_id,omitempty"`
-	LexiconGenerationID      string           `json:"lexicon_generation_id,omitempty"`
-	CandidateUniverseVersion int              `json:"candidate_universe_version"`
-	Terms                    []string         `json:"terms"`
-	AvailableTerms           []string         `json:"available_terms"`
-	ConceptCandidates        []map[string]any `json:"concept_candidates"`
-	AliasCatalog             []map[string]any `json:"alias_catalog,omitempty"`
-	AliasCatalogCount        int              `json:"alias_catalog_count,omitempty"`
-	AliasCatalogLimit        int              `json:"alias_catalog_limit,omitempty"`
-	AliasCatalogTruncated    bool             `json:"alias_catalog_truncated,omitempty"`
-	QueryPlanningContract    map[string]any   `json:"query_planning_contract"`
-	CandidateUniverse        map[string]any   `json:"candidate_universe"`
-	MatchingProfile          map[string]any   `json:"matching_profile"`
-	UnmappedIntent           bool             `json:"unmapped_intent"`
-	MissingCoverage          []string         `json:"missing_coverage"`
+	Readiness                string                        `json:"readiness"`
+	RecommendedNextAction    string                        `json:"recommended_next_action"`
+	BaselineKind             string                        `json:"baseline_kind,omitempty"`
+	Intent                   string                        `json:"intent"`
+	Query                    string                        `json:"query"`
+	ActiveGenerationID       string                        `json:"active_generation_id,omitempty"`
+	LexiconGenerationID      string                        `json:"lexicon_generation_id,omitempty"`
+	CandidateUniverseVersion int                           `json:"candidate_universe_version"`
+	Terms                    []string                      `json:"terms"`
+	AvailableTerms           []string                      `json:"available_terms"`
+	ConceptCandidates        []map[string]any              `json:"concept_candidates"`
+	AliasCatalog             []map[string]any              `json:"alias_catalog,omitempty"`
+	AliasCatalogCount        int                           `json:"alias_catalog_count,omitempty"`
+	AliasCatalogLimit        int                           `json:"alias_catalog_limit,omitempty"`
+	AliasCatalogTruncated    bool                          `json:"alias_catalog_truncated,omitempty"`
+	QueryPlanningContract    map[string]any                `json:"query_planning_contract"`
+	CandidateUniverse        map[string]any                `json:"candidate_universe"`
+	MatchingProfile          map[string]any                `json:"matching_profile"`
+	UnmappedIntent           bool                          `json:"unmapped_intent"`
+	MissingCoverage          []string                      `json:"missing_coverage"`
+	AgentNormalization       *AgentNormalizationDiagnostic `json:"agent_normalization,omitempty"`
+}
+
+type AgentNormalizationDiagnostic struct {
+	Required bool     `json:"required"`
+	Reason   string   `json:"reason"`
+	Triggers []string `json:"triggers"`
+	Action   string   `json:"action"`
+	Reminder string   `json:"reminder"`
 }
 
 type LexiconInput struct {
@@ -172,8 +180,59 @@ func LexiconWithOptions(paths rt.Paths, input LexiconInput) (LexiconPayload, err
 		payload.UnmappedIntent = true
 		payload.MissingCoverage = []string{"no_graph_candidate_matched_query"}
 	}
+	payload.AgentNormalization = agentNormalizationDiagnostic(status, payload.AliasCatalog, positiveMatches, payload.MissingCoverage, text)
 
 	return payload, nil
+}
+
+func agentNormalizationDiagnostic(status rt.Status, aliasCatalog []map[string]any, positiveMatches int, missingCoverage []string, query string) *AgentNormalizationDiagnostic {
+	if len(aliasCatalog) == 0 || !agentNormalizationCatalogUsable(status) {
+		return nil
+	}
+
+	triggers := []string{}
+	if positiveMatches == 0 {
+		triggers = append(triggers, "zero_positive_matches")
+	}
+	if hasStringValue(missingCoverage, "no_graph_candidate_matched_query") {
+		triggers = append(triggers, "no_graph_candidate_matched_query")
+	}
+	if queryHasCJKOrMixedCJKASCII(query) {
+		triggers = append(triggers, "cjk_or_mixed_language_query")
+	}
+	if len(triggers) == 0 {
+		return nil
+	}
+
+	return &AgentNormalizationDiagnostic{
+		Required: true,
+		Reason:   "raw_terms_did_not_match_project_aliases",
+		Triggers: uniqueStrings(triggers),
+		Action:   "write_semantic_intake_from_alias_catalog",
+		Reminder: "Do not stop at score=0. Translate user language into project vocabulary using the alias catalog.",
+	}
+}
+
+func agentNormalizationCatalogUsable(status rt.Status) bool {
+	return status.Readiness == rt.ReadyReadiness && status.Freshness == rt.ReadyFreshness && status.GraphReady
+}
+
+func queryHasCJKOrMixedCJKASCII(query string) bool {
+	for _, r := range query {
+		if unicode.In(r, unicode.Han, unicode.Hiragana, unicode.Katakana, unicode.Hangul) {
+			return true
+		}
+	}
+	return false
+}
+
+func hasStringValue(values []string, want string) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
 }
 
 func termsFrom(text string, limit int) []string {
@@ -182,19 +241,58 @@ func termsFrom(text string, limit int) []string {
 	}
 	seen := map[string]bool{}
 	var terms []string
-	for _, field := range strings.FieldsFunc(strings.ToLower(text), func(r rune) bool {
-		return !(unicode.IsLetter(r) || unicode.IsDigit(r) || r == '_' || r == '-')
-	}) {
+	var current strings.Builder
+	currentClass := termClassNone
+	appendCurrent := func() bool {
+		field := strings.Trim(current.String(), "_-")
+		current.Reset()
+		currentClass = termClassNone
 		if field == "" || seen[field] {
-			continue
+			return false
 		}
 		seen[field] = true
 		terms = append(terms, field)
-		if len(terms) >= limit {
-			break
+		return len(terms) >= limit
+	}
+	for _, r := range strings.ToLower(text) {
+		if !isTermRune(r) {
+			if current.Len() > 0 && appendCurrent() {
+				return terms
+			}
+			continue
 		}
+		runeClass := classifyTermRune(r)
+		if current.Len() > 0 && currentClass != runeClass && (currentClass == termClassCJK || runeClass == termClassCJK) {
+			if appendCurrent() {
+				return terms
+			}
+		}
+		current.WriteRune(r)
+		currentClass = runeClass
+	}
+	if current.Len() > 0 {
+		appendCurrent()
 	}
 	return terms
+}
+
+type termClass int
+
+const (
+	termClassNone termClass = iota
+	termClassCJK
+	termClassOther
+)
+
+func isTermRune(r rune) bool {
+	return unicode.IsLetter(r) || unicode.IsDigit(r) || r == '_' || r == '-'
+}
+
+func classifyTermRune(r rune) termClass {
+	if unicode.In(r, unicode.Han, unicode.Hiragana, unicode.Katakana, unicode.Hangul) {
+		return termClassCJK
+	}
+	return termClassOther
 }
 
 func queryPlanningContract() map[string]any {
@@ -215,6 +313,7 @@ func queryPlanningContract() map[string]any {
 			"rejected_concepts",
 			"concept_decisions",
 			"lexicon_generation_id",
+			"candidate_universe_version",
 			"selection_reason",
 			"reason",
 		},
@@ -237,8 +336,9 @@ func queryPlanningContract() map[string]any {
 			"risk",
 			"paths",
 		},
-		"path_hint_alias": "paths",
-		"reason_alias":    "selection_reason",
+		"path_hint_alias":            "paths",
+		"reason_alias":               "selection_reason",
+		"candidate_universe_version": CandidateUniverseVersion,
 	}
 }
 
@@ -288,16 +388,7 @@ func rankConceptCandidates(rows []store.ConceptCandidateRow, terms []string, lim
 func newRankedConceptCandidate(row store.ConceptCandidateRow) rankedConceptCandidate {
 	attrs := parseAttrs(row.AttrsJSON)
 	paths := uniqueStrings(append(append([]string{}, row.Paths...), row.EvidencePaths...))
-	aliases := []string{row.Title, row.NodeID, row.NodeType}
-	aliases = append(aliases, attrStrings(attrs, "aliases")...)
-	aliases = append(aliases, attrString(attrs, "domain"), attrString(attrs, "owner"), attrString(attrs, "workflow"), attrString(attrs, "route"))
-	aliases = append(aliases, attrStrings(attrs, "route_hints")...)
-	aliases = append(aliases, attrStrings(attrs, "verification_hints")...)
-	aliases = append(aliases, paths...)
-	for _, path := range paths {
-		aliases = append(aliases, pathMaterial(path)...)
-	}
-	aliases = append(aliases, row.ObservationSummaries...)
+	aliases := aliasStrings(row.Aliases)
 	return rankedConceptCandidate{
 		row:               row,
 		attrs:             attrs,
@@ -306,6 +397,14 @@ func newRankedConceptCandidate(row store.ConceptCandidateRow) rankedConceptCandi
 		routeHints:        uniqueStrings(append(attrStrings(attrs, "route_hints"), attrString(attrs, "route"))),
 		verificationHints: uniqueStrings(attrStrings(attrs, "verification_hints")),
 	}
+}
+
+func aliasStrings(rows []store.ConceptAliasRow) []string {
+	out := make([]string, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, row.Alias)
+	}
+	return uniqueStrings(out)
 }
 
 func (candidate rankedConceptCandidate) toMap(rank int) map[string]any {
@@ -470,23 +569,6 @@ func toString(value any) string {
 		}
 		return strings.TrimSpace(string(bytes))
 	}
-}
-
-func pathMaterial(path string) []string {
-	path = filepath.ToSlash(strings.TrimSpace(path))
-	if path == "" {
-		return []string{}
-	}
-	parts := strings.FieldsFunc(path, func(r rune) bool {
-		return r == '/' || r == '\\' || r == '.' || r == '_' || r == '-'
-	})
-	base := filepath.Base(path)
-	ext := filepath.Ext(base)
-	if ext != "" {
-		base = strings.TrimSuffix(base, ext)
-	}
-	parts = append(parts, base)
-	return uniqueStrings(parts)
 }
 
 func uniqueStrings(values []string) []string {

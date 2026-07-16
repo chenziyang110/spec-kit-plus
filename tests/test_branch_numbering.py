@@ -1,5 +1,5 @@
 """
-Unit tests for branch numbering options (sequential vs timestamp).
+Unit tests for branch prefix options (date vs sequential vs timestamp).
 
 Tests cover:
 - Persisting branch_numbering in init-options.json
@@ -30,7 +30,14 @@ class TestSaveBranchNumbering:
         saved = json.loads((tmp_path / ".specify/init-options.json").read_text())
         assert saved["branch_numbering"] == "sequential"
 
-    def test_branch_numbering_defaults_to_sequential(self, tmp_path: Path):
+    def test_save_branch_numbering_date(self, tmp_path: Path):
+        opts = {"branch_numbering": "date", "ai": "claude"}
+        save_init_options(tmp_path, opts)
+
+        saved = json.loads((tmp_path / ".specify/init-options.json").read_text())
+        assert saved["branch_numbering"] == "date"
+
+    def test_branch_numbering_defaults_to_date(self, tmp_path: Path):
         from typer.testing import CliRunner
         from specify_cli import app
 
@@ -40,7 +47,7 @@ class TestSaveBranchNumbering:
         assert result.exit_code == 0
 
         saved = json.loads((project_dir / ".specify/init-options.json").read_text())
-        assert saved["branch_numbering"] == "sequential"
+        assert saved["branch_numbering"] == "date"
 
 
 class TestBranchNumberingValidation:
@@ -61,6 +68,15 @@ class TestBranchNumberingValidation:
 
         runner = CliRunner()
         result = runner.invoke(app, ["init", str(tmp_path / "proj"), "--ai", "claude", "--branch-numbering", "sequential", "--ignore-agent-tools", "--no-git", "--script", "sh"])
+        assert result.exit_code == 0
+        assert "Invalid --branch-numbering" not in (result.output or "")
+
+    def test_valid_branch_numbering_date(self, tmp_path: Path):
+        from typer.testing import CliRunner
+        from specify_cli import app
+
+        runner = CliRunner()
+        result = runner.invoke(app, ["init", str(tmp_path / "proj"), "--ai", "claude", "--branch-numbering", "date", "--ignore-agent-tools", "--no-git", "--script", "sh"])
         assert result.exit_code == 0
         assert "Invalid --branch-numbering" not in (result.output or "")
 

@@ -11,7 +11,9 @@ import re
 import shutil
 import shlex
 import subprocess
-from typing import Any, TYPE_CHECKING
+from typing import Any, Callable, TYPE_CHECKING
+
+from .hook_artifacts import contains_claude_managed_hook_entries
 
 if TYPE_CHECKING:
     from specify_cli.integrations.manifest import IntegrationManifest
@@ -21,6 +23,7 @@ SPECIFY_PACKAGE_NAME = "specify-cli"
 SPECIFY_CONFIG_FILE = ".specify/config.json"
 SPECIFY_LAUNCHER_CONFIG_KEY = "specify_launcher"
 PROJECT_COGNITION_LAUNCHER_CONFIG_KEY = "project_cognition_launcher"
+PROJECT_COGNITION_UNAVAILABLE_MARKER = "PROJECT_COGNITION_LAUNCHER_UNAVAILABLE"
 HOOK_RUNTIME_ARGV_ENV = "SPECIFY_HOOK_RUNTIME_ARGV"
 HOOK_RUNTIME_COMMAND_ENV = "SPECIFY_HOOK_RUNTIME_COMMAND"
 HOOK_LAUNCHER_POSIX = "specify-hook"
@@ -31,6 +34,37 @@ DIRECT_HOOK_DISPATCH_MARKERS = (
     "claude-hook-dispatch.py",
     "gemini-hook-dispatch.py",
 )
+GENERATED_GUIDANCE_ROOTS = (
+    ".codex/skills",
+    ".claude/commands",
+    ".gemini/commands",
+    ".github/agents",
+    ".cursor/skills",
+    ".qwen/commands",
+    ".opencode/command",
+    ".windsurf/workflows",
+    ".junie/commands",
+    ".kilocode/workflows",
+    ".augment/commands",
+    ".roo/commands",
+    ".codebuddy/commands",
+    ".qoder/commands",
+    ".kiro/prompts",
+    ".agents/commands",
+    ".shai/commands",
+    ".tabnine/agent/commands",
+    ".kimi/skills",
+    ".pi/prompts",
+    ".iflow/commands",
+    ".forge/commands",
+    ".bob/commands",
+    ".trae/skills",
+    ".agents/skills",
+    ".vibe/skills",
+    ".zcode/skills",
+)
+GENERATED_GUIDANCE_SUFFIXES = {".md", ".toml"}
+SOURCE_BOUND_UVX_SPECIFY_RE = re.compile(r"uvx\s+--from\s+git\+\S+\s+specify")
 
 
 @dataclass(frozen=True)
@@ -311,6 +345,79 @@ def load_project_cognition_launcher(project_root: Path) -> SpecifyLauncherSpec |
     return _normalize_launcher_payload(payload.get(PROJECT_COGNITION_LAUNCHER_CONFIG_KEY))
 
 
+def resolve_project_cognition_launcher_argv(
+    project_root: Path,
+    launcher: SpecifyLauncherSpec | None = None,
+) -> tuple[str, ...] | None:
+    """Resolve a cognition launcher entry relative to its project when needed."""
+
+    resolved = launcher or load_project_cognition_launcher(project_root)
+    if resolved is None or not resolved.argv:
+        return None
+
+    entry = resolved.argv[0]
+    candidate = Path(entry).expanduser()
+    if candidate.is_absolute():
+        executable = candidate
+    else:
+        project_candidate = (project_root / candidate).resolve()
+        if project_candidate.is_file():
+            executable = project_candidate
+        else:
+            located = shutil.which(entry)
+            if not located:
+                return None
+            executable = Path(located)
+
+    if not executable.is_file():
+        return None
+    if os.name != "nt" and not os.access(executable, os.X_OK):
+        return None
+    return (str(executable), *resolved.argv[1:])
+
+
+def project_cognition_launcher_is_compatible(
+    project_root: Path,
+    launcher: SpecifyLauncherSpec | None = None,
+) -> bool:
+    """Probe the configured launcher for the current required command surface."""
+
+    argv = resolve_project_cognition_launcher_argv(project_root, launcher)
+    if argv is None:
+        return False
+    from .project_cognition_runtime import launcher_supports_required_commands
+
+    return launcher_supports_required_commands(argv, cwd=project_root)
+
+
+def _normalize_command_text(command: str) -> str:
+    return " ".join(command.split())
+
+
+def _stale_source_bound_specify_launchers(text: str, launcher: SpecifyLauncherSpec | None) -> list[str]:
+    if launcher is None:
+        return []
+    expected = _normalize_command_text(launcher.command)
+    stale: list[str] = []
+    for match in SOURCE_BOUND_UVX_SPECIFY_RE.finditer(text):
+        command = _normalize_command_text(match.group(0))
+        if command != expected and command not in stale:
+            stale.append(command)
+    return stale
+
+
+def _generated_guidance_files(project_root: Path) -> list[Path]:
+    files: list[Path] = []
+    for rel_root in GENERATED_GUIDANCE_ROOTS:
+        root = project_root / rel_root
+        if not root.is_dir():
+            continue
+        for path in root.rglob("*"):
+            if path.is_file() and path.suffix.lower() in GENERATED_GUIDANCE_SUFFIXES:
+                files.append(path)
+    return files
+
+
 def project_specify_subcommand(
     project_root: Path,
     args: list[str] | tuple[str, ...],
@@ -353,19 +460,36 @@ def render_project_launcher_placeholders(project_root: Path, body: str) -> str:
         if tokens[0] == "project-cognition":
             if cognition_launcher is not None:
                 return render_command((*cognition_launcher.argv, *tokens[1:]))
-            if launcher is None:
-                return (
-                    f"{render_command(tokens)} "
-                    "(requires project-cognition on PATH or PROJECT_COGNITION_BIN; "
-                    "project launcher configured in `.specify/config.json` can pin the downloaded binary)"
-                )
-            return render_command(tokens)
+            return (
+                f"{PROJECT_COGNITION_UNAVAILABLE_MARKER}:"
+                f"{render_command(tokens)}"
+            )
         if launcher is None:
             return render_command((*default.argv, *tokens))
         subcommand = project_specify_subcommand(project_root, tokens)
         return subcommand.command if subcommand is not None else render_command((*default.argv, *tokens))
 
     return pattern.sub(replace, rendered)
+
+
+def rebind_unavailable_project_cognition_commands(
+    project_root: Path,
+    body: str,
+    *,
+    command_renderer: Callable[[str], str] | None = None,
+) -> str:
+    """Replace recoverable unavailable markers with the pinned cognition binary."""
+
+    launcher = load_project_cognition_launcher(project_root)
+    if launcher is None:
+        return body
+    marker = f"{PROJECT_COGNITION_UNAVAILABLE_MARKER}:project-cognition"
+    command = (
+        command_renderer(launcher.command)
+        if command_renderer is not None
+        else launcher.command
+    )
+    return body.replace(marker, command)
 
 
 def write_project_specify_launcher_config(
@@ -464,6 +588,48 @@ def diagnose_project_runtime_compatibility(project_root: Path) -> list[dict[str,
                     "repair": "Repair `.specify/config.json`. If regeneration is required, use the `specify init --here --force` command surface from a trusted launcher source and supply the same integration-specific options that originally bootstrapped the project.",
                 }
             )
+        stale_launcher_files: list[str] = []
+        for path in _generated_guidance_files(project_root):
+            text = _read_text_if_exists(path)
+            if _stale_source_bound_specify_launchers(text, launcher):
+                stale_launcher_files.append(path.relative_to(project_root).as_posix())
+        if stale_launcher_files:
+            preview = ", ".join(stale_launcher_files[:5])
+            if len(stale_launcher_files) > 5:
+                preview += f", +{len(stale_launcher_files) - 5} more"
+            issues.append(
+                {
+                    "code": "stale-generated-specify-launcher",
+                    "summary": f"Generated workflow guidance embeds an older source-bound `specify` launcher than `.specify/config.json`: {preview}.",
+                    "repair": "Run `specify integration repair` from the current trusted launcher, or re-run `specify init --here --force` with the active integration options, so generated commands are re-rendered from `.specify/config.json`.",
+                }
+            )
+
+    if (project_root / ".specify").exists():
+        cognition_launcher = load_project_cognition_launcher(project_root)
+        if not project_cognition_launcher_is_compatible(
+            project_root, cognition_launcher
+        ):
+            repair = project_specify_subcommand(
+                project_root,
+                ("integration", "repair"),
+            )
+            repair_command = repair.command if repair else "specify integration repair"
+            issues.append(
+                {
+                    "code": (
+                        "broken-project-cognition-launcher"
+                        if cognition_launcher
+                        else "missing-project-cognition-launcher"
+                    ),
+                    "summary": "The project-pinned project-cognition launcher is unavailable.",
+                    "repair": (
+                        f"Run `{repair_command}` to install a compatible runtime, pin it in "
+                        "`.specify/config.json`, and rebind unmodified generated guidance. "
+                        "Do not probe `specify cognition` or `specify project-cognition`."
+                    ),
+                }
+            )
 
     if (project_root / ".specify").exists() and not learning_index.exists():
         issues.append(
@@ -532,6 +698,17 @@ def diagnose_project_runtime_compatibility(project_root: Path) -> list[dict[str,
                 "code": "stale-review-learning-command-surface",
                 "summary": "Generated learning guidance still references unsupported `review-learning` helper options.",
                 "repair": "Run `specify integration repair` so generated workflow and passive-skill assets refresh to the current helper command surface.",
+            }
+        )
+
+    codex_hooks = project_root / ".codex" / "hooks.json"
+    codex_hooks_payload = _load_config(codex_hooks)
+    if isinstance(codex_hooks_payload, dict) and contains_claude_managed_hook_entries(codex_hooks_payload):
+        issues.append(
+            {
+                "code": "codex-claude-hook-artifact",
+                "summary": "Codex native hook configuration contains misplaced Claude managed hook commands.",
+                "repair": "Run `specify integration repair` for this Codex project so `.codex/hooks.json` stops invoking `specify-hook claude` routes.",
             }
         )
 

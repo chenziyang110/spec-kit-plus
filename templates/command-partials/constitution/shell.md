@@ -6,15 +6,15 @@ Create or update the project constitution as the authoritative rule layer for do
 
 ## Context
 
-- Primary inputs: the current constitution, the user's requested principle changes, the stable shared memory layer (`project-rules.md`, `learnings/INDEX.md`, and relevant learning detail docs), and the smallest repository context needed to derive missing values.
+- Primary inputs: the current constitution, the user's requested principle changes, the consume-only Learning CLI intake, and the smallest repository context needed to derive missing values.
 - Constitution amendments may invalidate downstream planning artifacts, active workflow state, dependent templates, guidance files, or lower-order project memory. Treat those as re-entry or follow-up signals to report, not as permission to edit additional files.
 - Versioning and governance metadata are part of the contract, not optional decoration.
 
 ## Process
 
-- Run `{{specify-subcmd:learning start --command constitution --format json}}` when available so passive learning files exist and relevant shared memory is visible before broader context collection.
-- Load the current constitution, then read `.specify/memory/project-rules.md` and `.specify/memory/learnings/INDEX.md` in that order before broader repository context. Open only relevant learning detail docs linked from the index.
-- If the repository already has code and you need repo-derived evidence, read `.specify/project-cognition/status.json` plus the smallest relevant query-backed cognition artifact first to assess map freshness as advisory navigation before trusting any compatibility/export artifact. If the cognition baseline is stale or too weak for an ordinary existing-baseline touched area, continue from live repository evidence and recommend `/sp-map-update` only as external/manual map maintenance when the user asks for map maintenance or before a separate map-maintenance pass. Use `/sp-map-scan -> /sp-map-build` only for first/missing/unusable baseline, schema failure, zero active-generation `path_index` rows, `explicit_rebuild_requested`, or `baseline_identity_invalid`.
+- Run `{{specify-subcmd:learning start --command constitution --format json}}`; expand only selected matching Learning with its `show_argv`.
+- Load the current constitution before broader repository context. Do not parse project Learning storage files directly.
+- If the repository already has code and you need repo-derived evidence, read `.specify/project-cognition/status.json` plus the smallest relevant query-backed cognition artifact first to assess map freshness as advisory navigation before trusting any compatibility/export artifact. If the cognition baseline is stale or too weak for an ordinary existing-baseline touched area, continue from live repository evidence and recommend `/sp-map-update` only as external/manual map maintenance when the user asks for map maintenance or before a separate map-maintenance pass. Use `/sp-map-scan -> /sp-map-build` only for first/missing/unusable baseline, schema failure, schema v1 or old broad-schema rebuild-required readiness, zero active-generation `path_index` rows, missing or invalid `alias_index`, `explicit_rebuild_requested`, or `baseline_identity_invalid`.
 - Load the current constitution and identify unresolved placeholders or requested changes.
 - Derive the right version bump and updated governance metadata.
 - Rewrite only `.specify/memory/constitution.md`.

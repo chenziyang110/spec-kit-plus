@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "workflow_state": {
+    "semantic_audit_input_path": "missing-semantic-audit-input.json",
+    "semantic_audit_output_path": "semantic-audit-output.json",
+    "semantic_audit_route_fingerprint": "semantic-audit-route:v1:bab591a662cd55d2",
+    "active_claim_type": "root_cause_claim",
+    "selected_candidate_ids": [
+      "environment-settings-page"
+    ],
+    "claim_readiness_status": "claim_ready",
+    "claim_authorization_refs": [
+      "workflow:debug#root-cause-reviewed"
+    ],
+    "claim_verification_refs": [
+      "test:EnvironmentSettings.test.tsx#passed"
+    ]
+  }
+}

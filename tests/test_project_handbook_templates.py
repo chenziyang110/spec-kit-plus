@@ -28,12 +28,31 @@ def test_project_handbook_template_exists_and_routes_to_project_cognition():
     assert "## Compatibility Export Model" in content
     assert "`.specify/project-cognition/status.json`" in content
     assert "`.specify/project-cognition/project-cognition.db`" in content
-    assert "project cognition query bundle" in content
+    assert "project-cognition compass" in content
+    assert "conditional advanced project cognition query bundles" in content
     assert "`DEBUG-HANDBOOK.md`" in content
     assert "`BUILD-HANDBOOK.md`" in content
     assert "Legacy project-map artifacts" in content
     assert "there is no Python runtime alias" in content
     assert "new workflows should not call or require `.specify/project-map/**`" in content
+
+
+def test_project_handbook_template_documents_discussion_deferred_persistence():
+    content = _read("templates/project-handbook-template.md").lower()
+
+    assert "frontstage-only deferred in-conversation persistence rather than file writes" in content
+    assert "including for counters, receipts, status summaries, and dirty markers" in content
+    assert "not a per-user-reply or per-tool-use persistence loop" in content
+    assert "only at save triggers, semantic checkpoints, and lifecycle transitions" in content
+
+
+def test_project_handbooks_document_feature_ui_reference_lane():
+    for rel_path in ("templates/project-handbook-template.md", "PROJECT-HANDBOOK.md"):
+        content = _read(rel_path)
+
+        assert "ui-brief.md" in content
+        assert "ui-reference-notes.md" in content
+        assert "UI reference" in content
 
 
 def test_project_map_templates_share_metadata_contract():
@@ -140,7 +159,7 @@ def test_project_handbook_template_points_readers_to_project_cognition_first():
 
     assert "`.specify/project-cognition/status.json` for freshness" in content
     assert "`.specify/project-cognition/project-cognition.db` as the canonical graph store" in content
-    assert "task-local project cognition query bundle" in content
+    assert "task-local `project-cognition compass` packet" in content
     assert "Advisory project cognition index" in content
     assert "Map points, code proves" in content
     assert "new workflows should not call or require `.specify/project-map/**`" in content
@@ -158,7 +177,7 @@ def test_project_handbook_template_defines_cross_project_cognition_reference_con
     assert "minimal read" in lowered
     assert "`.specify/project-cognition/status.json`" in content
     assert "`.specify/project-cognition/project-cognition.db`" in content
-    assert "project cognition query bundle" in content
+    assert "project-cognition compass" in content
     assert "legacy project-map artifacts" in lowered
     assert "there is no python runtime alias" in lowered
     assert "new workflows should not call or require `.specify/project-map/**`" in lowered
@@ -191,7 +210,7 @@ def test_project_handbook_template_routes_compatibility_export_model() -> None:
 def test_project_handbook_routes_generated_status_to_project_cognition() -> None:
     content = _read("PROJECT-HANDBOOK.md")
 
-    assert "Generated-project `.specify/project-cognition/status.json` plus the `project-cognition query` task-local bundle" in content
+    assert "Generated-project `.specify/project-cognition/status.json` plus the `project-cognition compass` task-local packet" in content
     assert "Generated-project `.specify/project-map/index/status.json`: freshness and module coverage status." not in content
 
 

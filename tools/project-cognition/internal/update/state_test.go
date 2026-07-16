@@ -4,15 +4,85 @@ import (
 	"context"
 	"encoding/json"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/boundary"
+	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/claim"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/delta"
+	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/query"
 	rt "github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtime"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/store"
+	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/validation"
 )
+
+func TestRunUpdateInvalidatesOnlyAffectedGraphClaimsAndReportsIDs(t *testing.T) {
+	paths := testPaths(t)
+	seedReadyRuntime(t, paths)
+	st, err := store.OpenExisting(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.DB().ExecContext(context.Background(), `INSERT INTO claims(id, generation_id, node_id, graph_claim_type, summary, state, prior_state, freshness, state_reason, attrs_json, created_at, updated_at) VALUES('claim:app-owner', 'GEN-db', 'N-app', 'runtime_owner', 'App owns runtime behavior', ?, '', ?, 'supporting_evidence', '{}', '2026-07-13T00:00:00Z', '2026-07-13T00:00:00Z')`, claim.StateSupported, claim.FreshnessFresh); err != nil {
+		_ = st.Close()
+		t.Fatal(err)
+	}
+	if _, err := st.DB().ExecContext(context.Background(), `INSERT INTO claim_evidence(claim_id, evidence_id, role) VALUES('claim:app-owner', 'E-app', 'supporting')`); err != nil {
+		_ = st.Close()
+		t.Fatal(err)
+	}
+	if _, err := st.DB().ExecContext(context.Background(), `INSERT INTO evidence(id, generation_id, source_kind, source_path, commit_sha, span, extractor, content_hash, captured_at, attrs_json) VALUES('E-other', 'GEN-db', 'source', 'src/other.go', 'abc123', '', 'test', 'hash-other', '2026-07-13T00:00:00Z', '{}')`); err != nil {
+		_ = st.Close()
+		t.Fatal(err)
+	}
+	if _, err := st.DB().ExecContext(context.Background(), `INSERT INTO nodes(id, generation_id, type, title, confidence, attrs_json, created_at, updated_at) VALUES('N-other', 'GEN-db', 'capability', 'Other', 'high', '{}', '2026-07-13T00:00:00Z', '2026-07-13T00:00:00Z')`); err != nil {
+		_ = st.Close()
+		t.Fatal(err)
+	}
+	if _, err := st.DB().ExecContext(context.Background(), `INSERT INTO path_index(id, generation_id, path, node_id, relation, confidence, evidence_id, updated_at) VALUES('P-other', 'GEN-db', 'src/other.go', 'N-other', 'owns', 'high', 'E-other', '2026-07-13T00:00:00Z')`); err != nil {
+		_ = st.Close()
+		t.Fatal(err)
+	}
+	if _, err := st.DB().ExecContext(context.Background(), `INSERT INTO claims(id, generation_id, node_id, graph_claim_type, summary, state, prior_state, freshness, state_reason, attrs_json, created_at, updated_at) VALUES('claim:other-owner', 'GEN-db', 'N-other', 'runtime_owner', 'Other owns unrelated behavior', ?, '', ?, 'supporting_evidence', '{}', '2026-07-13T00:00:00Z', '2026-07-13T00:00:00Z')`, claim.StateSupported, claim.FreshnessFresh); err != nil {
+		_ = st.Close()
+		t.Fatal(err)
+	}
+	if _, err := st.DB().ExecContext(context.Background(), `INSERT INTO claim_evidence(claim_id, evidence_id, role) VALUES('claim:other-owner', 'E-other', 'supporting')`); err != nil {
+		_ = st.Close()
+		t.Fatal(err)
+	}
+	if err := st.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	payload, err := RunUpdate(paths, UpdateInput{ChangedPaths: []string{"src/app.go"}, Reason: "manual"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(payload.AffectedGraphClaims) != 1 || payload.AffectedGraphClaims[0] != "claim:app-owner" {
+		t.Fatalf("AffectedGraphClaims = %#v, want claim:app-owner", payload.AffectedGraphClaims)
+	}
+	st, err = store.OpenExisting(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	var state, priorState, freshness string
+	if err := st.DB().QueryRowContext(context.Background(), `SELECT state, prior_state, freshness FROM claims WHERE id = 'claim:app-owner'`).Scan(&state, &priorState, &freshness); err != nil {
+		t.Fatal(err)
+	}
+	if state != string(claim.StateStale) || priorState != string(claim.StateSupported) || freshness != string(claim.FreshnessStale) {
+		t.Fatalf("claim lifecycle = %q/%q/%q, want stale/supported/stale", state, priorState, freshness)
+	}
+	if err := st.DB().QueryRowContext(context.Background(), `SELECT state, freshness FROM claims WHERE id = 'claim:other-owner'`).Scan(&state, &freshness); err != nil {
+		t.Fatal(err)
+	}
+	if state != string(claim.StateSupported) || freshness != string(claim.FreshnessFresh) {
+		t.Fatalf("unrelated claim lifecycle = %q/%q, want supported/fresh", state, freshness)
+	}
+}
 
 func testPaths(t *testing.T) rt.Paths {
 	t.Helper()
@@ -97,6 +167,65 @@ func TestCompleteRefreshClearsDirtyState(t *testing.T) {
 	}
 	if status.Freshness != rt.ReadyFreshness {
 		t.Fatalf("freshness = %q", status.Freshness)
+	}
+}
+
+func TestCompleteRefreshRecordsGitBaselineCommit(t *testing.T) {
+	paths := testPaths(t)
+	seedReadyRuntime(t, paths)
+	initGitRepositoryForUpdateTest(t, paths.Root)
+
+	before, err := rt.GitHead(paths.Root)
+	if err != nil {
+		t.Fatalf("GitHead before complete refresh: %v", err)
+	}
+
+	status, err := CompleteRefresh(paths, "map-update")
+	if err != nil {
+		t.Fatalf("CompleteRefresh returned error: %v", err)
+	}
+
+	if status.LastRefreshGitCommit != before {
+		t.Fatalf("LastRefreshGitCommit = %q, want %q", status.LastRefreshGitCommit, before)
+	}
+	if status.LastRefreshGitBranch == "" {
+		t.Fatal("LastRefreshGitBranch is empty")
+	}
+}
+
+func TestRecordRefreshRecordsGitBaselineCommitWhenGitExists(t *testing.T) {
+	paths := testPaths(t)
+	seedReadyRuntime(t, paths)
+	initGitRepositoryForUpdateTest(t, paths.Root)
+
+	want, err := rt.GitHead(paths.Root)
+	if err != nil {
+		t.Fatalf("GitHead before record refresh: %v", err)
+	}
+
+	status, err := RecordRefresh(paths, "map-update")
+	if err != nil {
+		t.Fatalf("RecordRefresh returned error: %v", err)
+	}
+
+	if status.LastRefreshGitCommit != want {
+		t.Fatalf("LastRefreshGitCommit = %q, want %q", status.LastRefreshGitCommit, want)
+	}
+	if status.LastRefreshGitBranch == "" {
+		t.Fatal("LastRefreshGitBranch is empty")
+	}
+}
+
+func TestRecordRefreshDoesNotFailOutsideGitRepository(t *testing.T) {
+	paths := testPaths(t)
+	seedReadyRuntime(t, paths)
+
+	status, err := RecordRefresh(paths, "manual")
+	if err != nil {
+		t.Fatalf("RecordRefresh returned error outside git repository: %v", err)
+	}
+	if status.LastRefreshGitCommit != "" {
+		t.Fatalf("LastRefreshGitCommit = %q, want empty outside git", status.LastRefreshGitCommit)
 	}
 }
 
@@ -306,6 +435,19 @@ func TestRunUpdatePathOnlyUnknownCoverageReturnsPartialRefresh(t *testing.T) {
 	if !containsString(payload.MinimalLiveReads, "src/new-feature.go") {
 		t.Fatalf("MinimalLiveReads = %#v, want changed path", payload.MinimalLiveReads)
 	}
+	if !containsString(payload.PartialRefreshReasons, "changed_paths_missing_active_path_index") {
+		t.Fatalf("PartialRefreshReasons = %#v, want missing path_index diagnostic", payload.PartialRefreshReasons)
+	}
+	if !containsString(payload.PartialRefreshReasons, "missing_passing_verification_result") {
+		t.Fatalf("PartialRefreshReasons = %#v, want missing verification diagnostic", payload.PartialRefreshReasons)
+	}
+	reasons, ok := payload.PathAdoption["partial_refresh_reasons"].([]string)
+	if !ok {
+		t.Fatalf("path adoption partial_refresh_reasons = %#v, want []string", payload.PathAdoption["partial_refresh_reasons"])
+	}
+	if !containsString(reasons, "missing_passing_verification_result") {
+		t.Fatalf("path adoption partial_refresh_reasons = %#v, want missing verification", reasons)
+	}
 	status, err := rt.ReadStatus(paths)
 	if err != nil {
 		t.Fatal(err)
@@ -352,6 +494,111 @@ func TestRunUpdateAdoptsVerifiedUnindexedPath(t *testing.T) {
 	if len(nodes) == 0 {
 		t.Fatal("expected adopted path to be queryable")
 	}
+
+	var relation, confidence string
+	if err := st.DB().QueryRowContext(context.Background(), `SELECT relation, confidence FROM path_index WHERE path = ?`, "src/new-feature.go").Scan(&relation, &confidence); err != nil {
+		t.Fatal(err)
+	}
+	if relation != "provisional_path" {
+		t.Fatalf("relation = %q, want provisional_path", relation)
+	}
+	if confidence != "partial" {
+		t.Fatalf("confidence = %q, want partial", confidence)
+	}
+}
+
+func TestRunUpdateAdoptsVerifiedUnindexedPathInMixedWorkflowCloseout(t *testing.T) {
+	paths := testPaths(t)
+	seedReadyRuntime(t, paths)
+
+	payload, err := RunUpdate(paths, UpdateInput{
+		ChangedPaths:     []string{"src/app.go", "src/new-feature.go"},
+		Reason:           "workflow-finalize",
+		Workflow:         "sp-implement",
+		BehaviorSurfaces: []string{"application entrypoint", "new feature entrypoint"},
+		Verification: []VerificationEvidence{
+			{Command: "go test ./...", Result: "passed"},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if payload.ResultState != ResultReady {
+		t.Fatalf("ResultState = %q, payload=%#v", payload.ResultState, payload)
+	}
+	if !containsString(payload.AdoptedPaths, "src/new-feature.go") {
+		t.Fatalf("AdoptedPaths = %#v, want new-feature adoption", payload.AdoptedPaths)
+	}
+	if len(payload.ReviewPaths) != 0 {
+		t.Fatalf("ReviewPaths = %#v, want none", payload.ReviewPaths)
+	}
+
+	st, err := store.OpenExisting(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	nodes, err := st.NodesForPaths(context.Background(), []string{"src/app.go", "src/new-feature.go"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(nodes) < 2 {
+		t.Fatalf("NodesForPaths returned %#v, want indexed and adopted nodes", nodes)
+	}
+}
+
+func TestRunUpdateTreatsExcludedUnrelatedDirtyWorkspaceNoteAsNonBlocking(t *testing.T) {
+	paths := testPaths(t)
+	seedReadyRuntime(t, paths)
+
+	payload, err := RunUpdate(paths, UpdateInput{
+		ChangedPaths:     []string{"src/app.go"},
+		Reason:           "workflow-finalize",
+		Workflow:         "sp-implement",
+		BehaviorSurfaces: []string{"application entrypoint"},
+		Verification: []VerificationEvidence{
+			{Command: "go test ./...", Result: "passed"},
+		},
+		KnownUnknowns: []string{
+			"unrelated dirty workspace paths excluded by explicit workflow-owned paths; include-working-tree=false include-untracked=false",
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if payload.ResultState != ResultReady {
+		t.Fatalf("ResultState = %q, payload=%#v", payload.ResultState, payload)
+	}
+	if !containsText(payload.KnownUnknowns, "unrelated dirty workspace paths excluded") {
+		t.Fatalf("KnownUnknowns = %#v, want retained non-blocking scope note", payload.KnownUnknowns)
+	}
+}
+
+func TestRunUpdateAdoptionPassesBuildIdentityValidation(t *testing.T) {
+	paths := testPaths(t)
+	writeUpdateMatchingScanPackage(t, paths)
+	seedReadyRuntime(t, paths)
+
+	payload, err := RunUpdate(paths, UpdateInput{
+		ChangedPaths:     []string{"src/new-feature.go"},
+		Reason:           "workflow-finalize",
+		Workflow:         "sp-quick",
+		BehaviorSurfaces: []string{"new feature entrypoint"},
+		Verification: []VerificationEvidence{
+			{Command: "go test ./...", Result: "passed"},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if payload.ResultState != ResultReady {
+		t.Fatalf("ResultState = %q, payload=%#v", payload.ResultState, payload)
+	}
+
+	build := validation.ValidateBuild(paths)
+	if build.Status != "ok" {
+		t.Fatalf("ValidateBuild status = %q, errors=%#v", build.Status, build.Errors)
+	}
 }
 
 func TestRunUpdatePayloadFileAcceptsVerificationEvidenceAlias(t *testing.T) {
@@ -387,6 +634,87 @@ func TestRunUpdatePayloadFileAcceptsVerificationEvidenceAlias(t *testing.T) {
 	}
 	if !containsString(payload.AdoptedPaths, "src/new-feature.go") {
 		t.Fatalf("AdoptedPaths = %#v, want payload alias path adoption", payload.AdoptedPaths)
+	}
+}
+
+func TestRunUpdatePayloadFileNormalizesPassedVerificationAliases(t *testing.T) {
+	paths := testPaths(t)
+	seedReadyRuntime(t, paths)
+	payloadPath := filepath.Join(paths.RuntimeDir, "updates", "workflow-finalize.json")
+	if err := os.MkdirAll(filepath.Dir(payloadPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	data := []byte(`{
+  "workflow": "sp-implement",
+  "reason": "workflow-finalize",
+  "changed_paths": ["src/pass-alias.go"],
+  "behavior_surfaces": ["pass alias entrypoint"],
+  "verification": [
+    {"command": "go test ./...", "result": "pass"}
+  ],
+  "known_unknowns": []
+}`)
+	if err := os.WriteFile(payloadPath, data, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	payload, err := RunUpdate(paths, UpdateInput{
+		PayloadFile: payloadPath,
+		Reason:      "workflow-finalize",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if payload.ResultState != ResultReady {
+		t.Fatalf("ResultState = %q, payload=%#v", payload.ResultState, payload)
+	}
+	if !containsString(payload.AdoptedPaths, "src/pass-alias.go") {
+		t.Fatalf("AdoptedPaths = %#v, want pass-alias adoption", payload.AdoptedPaths)
+	}
+
+	st, err := store.OpenExisting(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	var attrsJSON string
+	if err := st.DB().QueryRowContext(context.Background(), `SELECT attrs_json FROM updates WHERE id = ?`, payload.UpdateID).Scan(&attrsJSON); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(attrsJSON, `"result":"passed"`) {
+		t.Fatalf("attrs_json = %s, want normalized passed result", attrsJSON)
+	}
+}
+
+func TestRunUpdateAdoptedPathIsCompassDiscoverable(t *testing.T) {
+	paths := testPaths(t)
+	seedReadyRuntime(t, paths)
+
+	payload, err := RunUpdate(paths, UpdateInput{
+		ChangedPaths:     []string{"src/semantic-router.go"},
+		Reason:           "workflow-finalize",
+		Workflow:         "sp-implement",
+		BehaviorSurfaces: []string{"semantic routing"},
+		Verification: []VerificationEvidence{
+			{Command: "go test ./...", Result: "passed"},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if payload.ResultState != ResultReady {
+		t.Fatalf("ResultState = %q, payload=%#v", payload.ResultState, payload)
+	}
+
+	compass, err := query.Compass(paths, query.CompassInput{
+		Intent: "implement",
+		Query:  "semantic router",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !containsString(compass.MinimalLiveReads, "src/semantic-router.go") {
+		t.Fatalf("MinimalLiveReads = %#v, want adopted semantic router path", compass.MinimalLiveReads)
 	}
 }
 
@@ -482,6 +810,83 @@ func TestRunUpdatePayloadForIndexedPathReturnsReady(t *testing.T) {
 	}
 }
 
+func TestRunUpdateRefreshesEachIndexedPathAgainstItsOwnNode(t *testing.T) {
+	paths := testPaths(t)
+	seedReadyRuntimeWithImports(t, paths,
+		[]store.EvidenceImport{
+			{ID: "E-app", SourceKind: "file", SourcePath: "src/app.go", CommitSHA: "abc123", Extractor: "test", ContentHash: "hash-app"},
+			{ID: "E-worker", SourceKind: "file", SourcePath: "src/worker.go", CommitSHA: "abc123", Extractor: "test", ContentHash: "hash-worker"},
+		},
+		[]store.NodeImport{
+			{ID: "N-app", Type: "capability", Title: "App", Confidence: "verified", EvidenceIDs: []string{"E-app"}},
+			{ID: "N-worker", Type: "capability", Title: "Worker", Confidence: "verified", EvidenceIDs: []string{"E-worker"}},
+		},
+		[]store.PathIndexImport{
+			{ID: "P-app", Path: "src/app.go", NodeID: "N-app", Relation: "owns", Confidence: "verified", EvidenceID: "E-app"},
+			{ID: "P-worker", Path: "src/worker.go", NodeID: "N-worker", Relation: "owns", Confidence: "verified", EvidenceID: "E-worker"},
+		},
+	)
+
+	payload, err := RunUpdate(paths, UpdateInput{
+		ChangedPaths: []string{"src/app.go", "src/worker.go"},
+		Reason:       "workflow-finalize",
+		Verification: []VerificationEvidence{
+			{Command: "go test ./...", Result: "passed"},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if payload.ResultState != ResultReady {
+		t.Fatalf("ResultState = %q, payload=%#v", payload.ResultState, payload)
+	}
+
+	st, err := store.OpenExisting(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	for path, wantNode := range map[string]string{
+		"src/app.go":    "N-app",
+		"src/worker.go": "N-worker",
+	} {
+		var gotNode string
+		if err := st.DB().QueryRowContext(context.Background(), `SELECT node_id FROM path_index WHERE path = ?`, path).Scan(&gotNode); err != nil {
+			t.Fatal(err)
+		}
+		if gotNode != wantNode {
+			t.Fatalf("path %s node_id = %q, want %q", path, gotNode, wantNode)
+		}
+	}
+}
+
+func TestRunUpdateRejectsUnsafeChangedPathsBeforeMutation(t *testing.T) {
+	paths := testPaths(t)
+	seedReadyRuntime(t, paths)
+
+	_, err := RunUpdate(paths, UpdateInput{
+		ChangedPaths: []string{"../outside.go"},
+		Reason:       "workflow-finalize",
+		Verification: []VerificationEvidence{
+			{Command: "go test ./...", Result: "passed"},
+		},
+	})
+	if err == nil {
+		t.Fatal("expected unsafe changed path error")
+	}
+	if !strings.Contains(err.Error(), "invalid changed path") {
+		t.Fatalf("error = %q, want invalid changed path", err.Error())
+	}
+
+	status, statusErr := rt.ReadStatus(paths)
+	if statusErr != nil {
+		t.Fatal(statusErr)
+	}
+	if status.LastUpdateID != "" {
+		t.Fatalf("LastUpdateID = %q, want no mutation", status.LastUpdateID)
+	}
+}
+
 func TestRunUpdateRecordsAffectedClosure(t *testing.T) {
 	paths := testPaths(t)
 	seedReadyRuntime(t, paths)
@@ -509,11 +914,11 @@ func TestRunUpdateRecordsAffectedClosure(t *testing.T) {
 	if !jsonArrayContains(t, nodesJSON, "N-app") {
 		t.Fatalf("affected_nodes_json = %s, want N-app", nodesJSON)
 	}
-	if !jsonArrayContains(t, claimsJSON, "claim:app") {
-		t.Fatalf("affected_claims_json = %s, want claim:app", claimsJSON)
+	if got := jsonArrayValues(t, claimsJSON); len(got) != 0 {
+		t.Fatalf("affected_claims_json = %#v, want empty schema-v2 claim closure", got)
 	}
-	if !jsonArrayContains(t, slicesJSON, "slice:runtime") {
-		t.Fatalf("affected_slices_json = %s, want slice:runtime", slicesJSON)
+	if got := jsonArrayValues(t, slicesJSON); len(got) != 0 {
+		t.Fatalf("affected_slices_json = %#v, want empty schema-v2 slice closure", got)
 	}
 }
 
@@ -762,7 +1167,16 @@ func seedSplitBrainRuntime(t *testing.T, paths rt.Paths) {
 
 func seedReadyRuntime(t *testing.T, paths rt.Paths) {
 	t.Helper()
-	seedRuntimeGeneration(t, paths, "GEN-db")
+	seedReadyRuntimeWithImports(t, paths,
+		[]store.EvidenceImport{{ID: "E-app", SourceKind: "file", SourcePath: "src/app.go", CommitSHA: "abc123", Extractor: "test", ContentHash: "hash-app"}},
+		[]store.NodeImport{{ID: "N-app", Type: "capability", Title: "App", Confidence: "verified", EvidenceIDs: []string{"E-app"}}},
+		[]store.PathIndexImport{{ID: "P-app", Path: "src/app.go", NodeID: "N-app", Relation: "owns", Confidence: "verified", EvidenceID: "E-app"}},
+	)
+}
+
+func seedReadyRuntimeWithImports(t *testing.T, paths rt.Paths, evidence []store.EvidenceImport, nodes []store.NodeImport, pathIndex []store.PathIndexImport) {
+	t.Helper()
+	seedRuntimeGenerationWithImports(t, paths, "GEN-db", evidence, nodes, pathIndex)
 	status := rt.DefaultStatus(paths)
 	status.Status = "ok"
 	status.Freshness = rt.ReadyFreshness
@@ -777,6 +1191,30 @@ func seedReadyRuntime(t *testing.T, paths rt.Paths) {
 
 func seedRuntimeGeneration(t *testing.T, paths rt.Paths, generationID string) {
 	t.Helper()
+	seedRuntimeGenerationWithImports(t, paths, generationID,
+		[]store.EvidenceImport{{ID: "E-app", SourceKind: "file", SourcePath: "src/app.go", CommitSHA: "abc123", Extractor: "test", ContentHash: "hash-app"}},
+		[]store.NodeImport{{ID: "N-app", Type: "capability", Title: "App", Confidence: "verified", EvidenceIDs: []string{"E-app"}}},
+		[]store.PathIndexImport{{ID: "P-app", Path: "src/app.go", NodeID: "N-app", Relation: "owns", Confidence: "verified", EvidenceID: "E-app"}},
+	)
+}
+
+func seedRuntimeGenerationWithImports(t *testing.T, paths rt.Paths, generationID string, evidence []store.EvidenceImport, nodes []store.NodeImport, pathIndex []store.PathIndexImport) {
+	t.Helper()
+	aliases := make([]store.AliasImport, 0, len(nodes))
+	for _, node := range nodes {
+		if node.Title == "" {
+			continue
+		}
+		aliases = append(aliases, store.AliasImport{
+			ID:              "ALIAS-" + node.ID + "-title",
+			Alias:           node.Title,
+			NormalizedAlias: strings.ToLower(node.Title),
+			TargetType:      "node",
+			TargetID:        node.ID,
+			Source:          "node_title",
+			Confidence:      node.Confidence,
+		})
+	}
 	st, err := store.Open(paths)
 	if err != nil {
 		t.Fatal(err)
@@ -785,18 +1223,10 @@ func seedRuntimeGeneration(t *testing.T, paths rt.Paths, generationID string) {
 		GenerationID: generationID,
 		Kind:         "full",
 		SourceCommit: "abc123",
-		Evidence:     []store.EvidenceImport{{ID: "E-app", SourceKind: "file", SourcePath: "src/app.go", CommitSHA: "abc123", Extractor: "test", ContentHash: "hash-app"}},
-		Nodes:        []store.NodeImport{{ID: "N-app", Type: "capability", Title: "App", Confidence: "verified", EvidenceIDs: []string{"E-app"}}},
-		Claims: []store.ClaimImport{{
-			ID:          "claim:app",
-			SubjectRef:  "N-app",
-			Predicate:   "owns",
-			ObjectText:  "src/app.go",
-			Confidence:  "verified",
-			EvidenceIDs: []string{"E-app"},
-		}},
-		PathIndex:    []store.PathIndexImport{{ID: "P-app", Path: "src/app.go", NodeID: "N-app", Relation: "owns", Confidence: "verified", EvidenceID: "E-app"}},
-		SliceMembers: []store.SliceMemberImport{{ID: "slice-member:app", SliceID: "slice:runtime", ObjectType: "node", ObjectID: "N-app", Rank: 1, Reason: "runtime entrypoint"}},
+		Evidence:     evidence,
+		Nodes:        nodes,
+		PathIndex:    pathIndex,
+		Aliases:      aliases,
 	})
 	if err != nil {
 		_ = st.Close()
@@ -811,13 +1241,65 @@ func seedRuntimeGeneration(t *testing.T, paths rt.Paths, generationID string) {
 	}
 }
 
+func writeUpdateMatchingScanPackage(t *testing.T, paths rt.Paths) {
+	t.Helper()
+	files := map[string]string{
+		filepath.Join(paths.RuntimeDir, "evidence", "E-app.json"):                 `{"id":"E-app","source_kind":"file","source_path":"src/app.go","commit_sha":"abc123","span":"L1-L5","extractor":"test","content_hash":"hash-app","attrs":{"language":"go"}}`,
+		filepath.Join(paths.RuntimeDir, "provisional", "nodes.json"):              `{"nodes":[{"id":"N-app","type":"capability","title":"App","confidence":"verified","paths":["src/app.go"],"evidence_ids":["E-app"],"attrs":{"owner":"app"}}]}`,
+		filepath.Join(paths.RuntimeDir, "provisional", "edges.json"):              `{"edges":[]}`,
+		filepath.Join(paths.RuntimeDir, "provisional", "observations.json"):       `{"observations":[]}`,
+		filepath.Join(paths.RuntimeDir, "coverage.json"):                          `{"rows":[{"path":"src/app.go"}]}`,
+		filepath.Join(paths.RuntimeDir, "workbench", "map-scan.md"):               `# Map Scan`,
+		filepath.Join(paths.RuntimeDir, "workbench", "coverage-ledger.md"):        `# Coverage Ledger`,
+		filepath.Join(paths.RuntimeDir, "workbench", "coverage-ledger.json"):      `{"rows":[{"path":"src/app.go","status":"covered"}],"open_gaps":[]}`,
+		filepath.Join(paths.RuntimeDir, "workbench", "scan-packets", "lane-1.md"): `# Lane 1`,
+		filepath.Join(paths.RuntimeDir, "workbench", "worker-results", "lane-1.json"): `{
+			"packet_id":"lane-1",
+			"family_id":"app",
+			"assigned_paths":["src/app.go"],
+			"paths_read":["src/app.go"],
+			"ledger":{"todo":[],"doing":[],"done":["src/app.go"],"blocked":[],"overflow":[]},
+			"coverage":[{"path":"src/app.go","outcome":"read","evidence_ids":["E-app"]}],
+			"confidence":"high",
+			"acceptance":"pass"
+		}`,
+		filepath.Join(paths.RuntimeDir, "workbench", "map-state.md"):             `# Map State`,
+		filepath.Join(paths.RuntimeDir, "workbench", "capability-ledger.json"):   `{"rows":[]}`,
+		filepath.Join(paths.RuntimeDir, "workbench", "control-ledger.json"):      `{"rows":[]}`,
+		filepath.Join(paths.RuntimeDir, "workbench", "repository-universe.json"): `{"rows":[{"path":"src/app.go"}]}`,
+		filepath.Join(paths.RuntimeDir, "workbench", "scan-queue.json"): `{"packets":[{
+			"packet_id":"lane-1",
+			"state":"accepted",
+			"assigned_paths":["src/app.go"],
+			"result_handoff_path":".specify/project-cognition/workbench/worker-results/lane-1.json"
+		}]}`,
+		filepath.Join(paths.RuntimeDir, "workbench", "handoff-ledger.json"): `{"events":[
+			{"event_id":"dispatch-1","packet_id":"lane-1","event_type":"dispatched","created_at":"2026-05-26T00:00:00Z"},
+			{"event_id":"return-1","packet_id":"lane-1","event_type":"returned","worker_result_path":".specify/project-cognition/workbench/worker-results/lane-1.json","created_at":"2026-05-26T00:01:00Z"}
+		]}`,
+	}
+	for path, content := range files {
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(content+"\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
 func jsonArrayContains(t *testing.T, raw string, want string) bool {
+	t.Helper()
+	return containsString(jsonArrayValues(t, raw), want)
+}
+
+func jsonArrayValues(t *testing.T, raw string) []string {
 	t.Helper()
 	var values []string
 	if err := json.Unmarshal([]byte(raw), &values); err != nil {
 		t.Fatal(err)
 	}
-	return containsString(values, want)
+	return values
 }
 
 func assertStatusActiveGeneration(t *testing.T, paths rt.Paths, want string) {
@@ -829,4 +1311,24 @@ func assertStatusActiveGeneration(t *testing.T, paths rt.Paths, want string) {
 	if status.ActiveGenerationID != want {
 		t.Fatalf("ActiveGenerationID = %q, want %q", status.ActiveGenerationID, want)
 	}
+}
+
+func initGitRepositoryForUpdateTest(t *testing.T, root string) {
+	t.Helper()
+	runUpdateGit(t, root, "init")
+	runUpdateGit(t, root, "config", "user.email", "test@example.com")
+	runUpdateGit(t, root, "config", "user.name", "Test User")
+	runUpdateGit(t, root, "add", ".")
+	runUpdateGit(t, root, "commit", "-m", "baseline")
+}
+
+func runUpdateGit(t *testing.T, root string, args ...string) string {
+	t.Helper()
+	cmd := exec.Command("git", args...)
+	cmd.Dir = root
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("git %v failed: %v\n%s", args, err, output)
+	}
+	return string(output)
 }

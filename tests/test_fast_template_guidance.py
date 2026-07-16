@@ -31,8 +31,9 @@ def test_fast_template_exists_and_defines_scope_gate() -> None:
     assert "delegated change" not in content
     assert "delegate it through" not in content
     assert "project cognition gate" in content
-    assert "project-cognition lexicon --intent implement" in content
-    assert "project-cognition query --intent implement" in content
+    assert "project-cognition compass --intent implement" in content
+    assert "lexicon -> semantic_intake -> query" in content
+    assert "project-cognition query --query-plan" in content
     assert "--query-plan" in content
     assert "query_plan" in content
     assert "concept_decisions" in content
@@ -43,7 +44,8 @@ def test_fast_template_exists_and_defines_scope_gate() -> None:
     assert "build-workflow-contract" not in content
     assert "product-and-capability-map" not in content
     assert "change-entrypoints" not in content
-    assert "returned task-local bundle" in content
+    assert "default compass packet" in content
+    assert "returned `minimal_live_reads`" in content
     assert "map-update" in content
     assert ".specify/project-map/index/status.json" not in content
     assert "shared surfaces" in content
@@ -65,11 +67,14 @@ def test_fast_template_exists_and_defines_scope_gate() -> None:
     assert "verification_evidence" in content
     assert "project_cognition_refresh" in content
     assert "workflow-owned mutation closeout is not an external map-maintenance handoff" in content
-    assert "project-cognition delta append" in content
-    assert "project-cognition update --delta-session" in content
-    assert "project-cognition update --payload-file" in content
+    assert "project-cognition closeout-plan --workflow" in content
+    assert "update_mode=delta_session" in content
+    assert "update_mode=payload_file" in content
+    assert "update_argv" in content
+    assert "delta_append_draft.argv_prefix" in content
+    assert "unknown_path_dispositions" in content
     assert "clean closeout keys on `result_state`" in content
-    assert "not `update_id`, `last_update_id`, or freshness alone" in content
+    assert "not `status=ok`, `update_id`, `last_update_id`, or freshness alone" in content
     assert "legacy recorded-only output" in content
     assert "sp-map-update is for manual/external maintenance and follow-up repair" in content
     assert "dirty only when inline update" in content
@@ -78,14 +83,14 @@ def test_fast_template_exists_and_defines_scope_gate() -> None:
     assert "actual `{{invoke:map-update}}` refresh" not in content
     assert "if the fast-path change unexpectedly touched" not in content
     assert "use map-update for ordinary existing-baseline gaps" in content
-    assert "use map-scan -> map-build only for first/missing/unusable baseline, schema failure, zero active-generation path_index rows, explicit_rebuild_requested, or baseline_identity_invalid" in content
+    assert "use map-scan -> map-build only for first/missing/unusable baseline, schema failure, schema v1 or old broad-schema rebuild-required readiness, zero active-generation path_index rows, missing or invalid alias_index, explicit_rebuild_requested, or baseline_identity_invalid" in content
     assert "complete-refresh" in content
     assert "incremental freshness finalization" in content
     assert "do not run `complete-refresh` as a rebuild finalizer" in content
-    assert "{{specify-subcmd:project-cognition mark-dirty --reason \"<reason>\" --format json}}" in content
-    assert "skip all learning hooks" in content
-    assert "skip all learning hooks" in content
-    assert "returned task-local bundle" in content
+    assert "{{specify-subcmd:project-cognition mark-dirty --reason \"workflow-closeout-failed\" --format json}}" in content
+    assert "do not run learning intake, hooks, capture, or promotion" in content
+    assert "default compass packet" in content
+    assert "returned `minimal_live_reads`" in content
     assert "fast-task state or report" in content
     assert "verification route" in content
     assert "project-language search terms" in content
@@ -143,10 +148,9 @@ def test_fast_template_routes_consequence_triggers_out_of_fast_path() -> None:
 def test_fast_template_marks_learning_and_fail_closed_routing_gates_with_agent_marker() -> None:
     content = read_template("templates/commands/fast.md").lower()
 
-    assert "skip all learning hooks" in content
-    assert "do not run learning start, signal, review, or capture" in content
+    assert "do not run learning intake, hooks, capture, or promotion" in content
+    assert "if reusable friction appears, upgrade out of fast" in content
     assert "learning capture --command fast" not in content
-    assert "skip all learning hooks" in content
 
 
 def test_fast_template_requires_tdd_gate_for_behavior_changes() -> None:

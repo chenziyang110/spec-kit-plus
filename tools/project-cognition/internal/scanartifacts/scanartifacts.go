@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"os"
@@ -11,6 +12,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/claim"
 	rt "github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtime"
 )
 
@@ -33,6 +35,7 @@ type Package struct {
 	Nodes         []NodeRow
 	Edges         []EdgeRow
 	Observations  []ObservationRow
+	Claims        []ClaimRow
 	CoveragePaths []string
 	AcceptedGaps  map[string]bool
 	Identities    IdentitySet
@@ -49,6 +52,17 @@ type Boundary struct {
 	Criticality           map[string]string
 	ClassificationReasons map[string]string
 	DecisionSource        map[string]string
+}
+
+type ScanTargets struct {
+	Present            bool
+	SelectedPaths      map[string]bool
+	SampledPaths       map[string]bool
+	InventoryOnlyPaths map[string]bool
+	ExcludedPaths      map[string]bool
+	BlockedPaths       map[string]bool
+	ValueTier          map[string]string
+	ScanDecision       map[string]string
 }
 
 type PathIndexRequirements struct {
@@ -99,6 +113,7 @@ type IdentitySet struct {
 	Nodes         map[string]bool `json:"nodes"`
 	Edges         map[string]bool `json:"edges"`
 	Observations  map[string]bool `json:"observations"`
+	Claims        map[string]bool `json:"claims"`
 	CoveragePaths map[string]bool `json:"coverage_paths"`
 }
 
@@ -145,6 +160,23 @@ type ObservationRow struct {
 	Attrs           map[string]any
 }
 
+type ClaimRow struct {
+	ID                       string
+	NodeID                   string
+	GraphClaimType           string
+	Summary                  string
+	RequestedState           claim.State
+	SupportingEvidenceIDs    []string
+	ContradictingEvidenceIDs []string
+	Verifications            []claim.Verification
+	StaleReason              string
+	State                    claim.State
+	PriorState               claim.State
+	Freshness                claim.Freshness
+	StateReason              string
+	Attrs                    map[string]any
+}
+
 func Validate(paths rt.Paths, opts ValidateOptions) Result {
 	_, result := Load(paths, opts)
 	return result
@@ -183,6 +215,7 @@ func Load(paths rt.Paths, opts ValidateOptions) (Package, Result) {
 	loadEdges(paths, &pkg, &result)
 	normalizeEdgeEndpoints(&pkg)
 	loadObservations(paths, &pkg, &result)
+	loadClaims(paths, &pkg, &result)
 	loadCoverage(paths, &pkg, &result)
 	boundary := loadBoundary(paths, &result)
 	pkg.AcceptedGaps = acceptedNonblockingGapPaths(paths, boundary)
@@ -216,10 +249,12 @@ func Load(paths rt.Paths, opts ValidateOptions) (Package, Result) {
 func LoadPathIndexRequirements(paths rt.Paths) (PathIndexRequirements, []string) {
 	result := newResult([]string{})
 	boundary := loadBoundary(paths, &result)
+	scanTargets := loadScanTargets(paths, &result)
 	acceptedGaps := acceptedNonblockingGapPaths(paths, boundary)
 	pkg := Package{}
 	loadNodes(paths, &pkg, &result)
 	canonicalNodePathCount, compatibilityNodePathCount := nodePathCounts(pkg.Nodes)
+	nodePaths := nodePathSet(pkg.Nodes)
 	requirements := PathIndexRequirements{
 		IncludedPaths:                 sortedKeys(boundary.IncludedPaths),
 		ExcludedPaths:                 sortedKeys(boundary.ExcludedPaths),
@@ -229,6 +264,9 @@ func LoadPathIndexRequirements(paths rt.Paths) (PathIndexRequirements, []string)
 	}
 	for path := range boundary.IncludedPaths {
 		if boundary.ExcludedPaths[path] || acceptedGaps[path] {
+			continue
+		}
+		if scanTargets.Present && !graphEligibleScanTarget(path, scanTargets, nodePaths) {
 			continue
 		}
 		requirements.IndexRequiredPaths = append(requirements.IndexRequiredPaths, path)
@@ -338,6 +376,7 @@ func newIdentitySet() IdentitySet {
 		Nodes:         map[string]bool{},
 		Edges:         map[string]bool{},
 		Observations:  map[string]bool{},
+		Claims:        map[string]bool{},
 		CoveragePaths: map[string]bool{},
 	}
 }
@@ -729,6 +768,75 @@ func loadObservations(paths rt.Paths, pkg *Package, result *Result) {
 	}
 }
 
+func loadClaims(paths rt.Paths, pkg *Package, result *Result) {
+	claimPath := filepath.Join(paths.RuntimeDir, "provisional", "claims.json")
+	if _, err := os.Stat(claimPath); errors.Is(err, os.ErrNotExist) {
+		return
+	} else if err != nil {
+		result.Errors = append(result.Errors, "claims.json: "+err.Error())
+		return
+	}
+	raw, err := readJSONFile(claimPath, "claims.json")
+	if err != nil {
+		result.Errors = append(result.Errors, err.Error())
+		return
+	}
+	rows, err := arrayRows(raw, "claims")
+	if err != nil {
+		result.Errors = append(result.Errors, "claims.json: "+err.Error())
+		return
+	}
+	for i, row := range rows {
+		verifications, err := claimVerifications(row["verifications"])
+		if err != nil {
+			result.Errors = append(result.Errors, fmt.Sprintf("claims.json claim row %d: %v", i, err))
+			continue
+		}
+		item := ClaimRow{
+			ID:                       normalizedIdentityString(firstValue(row, "id", "claim_id")),
+			NodeID:                   firstNormalizedString(row, "node_id", "subject_node_id"),
+			GraphClaimType:           firstNormalizedString(row, "graph_claim_type", "type"),
+			Summary:                  firstNormalizedString(row, "summary", "statement"),
+			RequestedState:           claim.State(normalizedString(row["requested_state"])),
+			SupportingEvidenceIDs:    uniqueStrings(normalizedStringSlice(row["supporting_evidence_ids"])),
+			ContradictingEvidenceIDs: uniqueStrings(normalizedStringSlice(row["contradicting_evidence_ids"])),
+			Verifications:            verifications,
+			StaleReason:              normalizedString(row["stale_reason"]),
+			Attrs:                    objectMapFromAliases(row, "attrs", "attrs_json"),
+		}
+		if item.ID == "" {
+			item.ID = generatedRowID("CLAIM", row, i, item.NodeID, item.GraphClaimType, item.Summary)
+		}
+		pkg.Claims = append(pkg.Claims, item)
+	}
+}
+
+func claimVerifications(value any) ([]claim.Verification, error) {
+	if value == nil {
+		return []claim.Verification{}, nil
+	}
+	rows, ok := value.([]any)
+	if !ok {
+		return nil, fmt.Errorf("verifications must be an array")
+	}
+	out := make([]claim.Verification, 0, len(rows))
+	for index, value := range rows {
+		row, ok := value.(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("verification row %d must be an object", index)
+		}
+		out = append(out, claim.Verification{
+			ID:         normalizedIdentityString(firstValue(row, "id", "verification_id")),
+			Result:     claim.VerificationResult(normalizedString(row["result"])),
+			Command:    normalizedString(row["command"]),
+			EvidenceID: normalizedIdentityString(row["evidence_id"]),
+			ObservedAt: normalizedString(row["observed_at"]),
+			Attrs:      objectMapFromAliases(row, "attrs", "attrs_json"),
+		})
+	}
+	return out, nil
+}
+
 func normalizeEdgeEndpoints(pkg *Package) {
 	nodeIDs := nodeIDSet(pkg.Nodes)
 	pathOwners := nodeIDsByPath(pkg.Nodes)
@@ -829,11 +937,82 @@ func loadBoundary(paths rt.Paths, result *Result) Boundary {
 	boundary.IncludedPaths = boundaryPathsFromValue(obj["included_paths"])
 	boundary.ExcludedPaths = boundaryPathsFromValue(obj["excluded_paths"])
 	boundary.AmbiguousPaths = boundaryPathsFromValue(obj["ambiguous_paths"])
-	boundary.Dispositions = boundaryDispositionMap(obj["dispositions"])
+	boundary.Dispositions = boundaryDispositionsFromObject(obj, boundary.CandidatePaths)
 	boundary.Criticality = boundaryDispositionMap(obj["criticality"])
 	boundary.ClassificationReasons = boundaryDispositionMap(obj["classification_reasons"])
 	boundary.DecisionSource = boundaryDispositionMap(obj["decision_source"])
 	return boundary
+}
+
+func loadScanTargets(paths rt.Paths, result *Result) ScanTargets {
+	targets := ScanTargets{
+		SelectedPaths:      map[string]bool{},
+		SampledPaths:       map[string]bool{},
+		InventoryOnlyPaths: map[string]bool{},
+		ExcludedPaths:      map[string]bool{},
+		BlockedPaths:       map[string]bool{},
+		ValueTier:          map[string]string{},
+		ScanDecision:       map[string]string{},
+	}
+	path := filepath.Join(paths.RuntimeDir, "workbench", "scan-targets.json")
+	if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
+		return targets
+	} else if err != nil {
+		result.Errors = append(result.Errors, fmt.Sprintf("scan-targets.json: %v", err))
+		return targets
+	}
+	raw, err := readJSONFile(path, "scan-targets.json")
+	if err != nil {
+		result.Errors = append(result.Errors, err.Error())
+		return targets
+	}
+	obj, ok := raw.(map[string]any)
+	if !ok {
+		result.Errors = append(result.Errors, "scan-targets.json must contain a top-level JSON object")
+		return targets
+	}
+	targets.Present = true
+	targets.SelectedPaths = boundaryPathsFromValue(obj["selected_paths"])
+	targets.SampledPaths = boundaryPathsFromValue(obj["sampled_paths"])
+	targets.InventoryOnlyPaths = boundaryPathsFromValue(obj["inventory_only_paths"])
+	targets.ExcludedPaths = boundaryPathsFromValue(obj["excluded_paths"])
+	targets.BlockedPaths = boundaryPathsFromValue(obj["blocked_paths"])
+	targets.ValueTier = upperDispositionMap(obj["value_tier"])
+	targets.ScanDecision = boundaryDispositionMap(obj["scan_decision"])
+	return targets
+}
+
+func graphEligibleScanTarget(path string, targets ScanTargets, nodePaths map[string]bool) bool {
+	if targets.ExcludedPaths[path] || targets.BlockedPaths[path] || targets.InventoryOnlyPaths[path] {
+		return false
+	}
+	if !targets.SelectedPaths[path] {
+		return false
+	}
+	decision := targets.ScanDecision[path]
+	switch decision {
+	case "inventory_only", "exclude", "blocked":
+		return false
+	}
+	tier := strings.ToUpper(targets.ValueTier[path])
+	switch tier {
+	case "P0", "P1":
+		return decision == "" || decision == "scan"
+	case "P2":
+		return nodePaths[path] && (decision == "scan" || decision == "sample" || decision == "sampled" || decision == "")
+	case "":
+		return decision == "scan"
+	default:
+		return false
+	}
+}
+
+func upperDispositionMap(value any) map[string]string {
+	values := boundaryDispositionMap(value)
+	for path, item := range values {
+		values[path] = strings.ToUpper(item)
+	}
+	return values
 }
 
 func isVersionedBoundaryObject(obj map[string]any) bool {
@@ -844,6 +1023,7 @@ func isVersionedBoundaryObject(obj map[string]any) bool {
 		"excluded_paths",
 		"ambiguous_paths",
 		"dispositions",
+		"disposition_map",
 		"classification_reasons",
 		"decision_source",
 	} {
@@ -866,7 +1046,17 @@ func validateVersionedBoundaryShapes(obj map[string]any, result *Result) {
 			result.Errors = append(result.Errors, fmt.Sprintf("repository-universe %s must be an array", key))
 		}
 	}
-	for _, key := range []string{"dispositions", "criticality", "classification_reasons", "decision_source"} {
+	if _, ok := obj["dispositions"].(map[string]any); !ok {
+		if _, aliasOK := obj["disposition_map"].(map[string]any); !aliasOK {
+			result.Errors = append(result.Errors, "repository-universe dispositions must be an object")
+		}
+	}
+	if _, exists := obj["disposition_map"]; exists {
+		if _, ok := obj["disposition_map"].(map[string]any); !ok {
+			result.Errors = append(result.Errors, "repository-universe disposition_map must be an object")
+		}
+	}
+	for _, key := range []string{"criticality", "classification_reasons", "decision_source"} {
 		if _, ok := obj[key].(map[string]any); !ok {
 			result.Errors = append(result.Errors, fmt.Sprintf("repository-universe %s must be an object", key))
 		}
@@ -919,6 +1109,30 @@ func boundaryDispositionMap(value any) map[string]string {
 		}
 	}
 	return values
+}
+
+func boundaryDispositionsFromObject(obj map[string]any, candidates map[string]string) map[string]string {
+	dispositions := boundaryDispositionMap(obj["dispositions"])
+	alias := boundaryDispositionMap(obj["disposition_map"])
+	if len(alias) == 0 {
+		return dispositions
+	}
+	if len(dispositions) == 0 {
+		return alias
+	}
+	merged := map[string]string{}
+	for path, disposition := range dispositions {
+		merged[path] = disposition
+	}
+	for path, disposition := range alias {
+		if _, exists := merged[path]; exists {
+			continue
+		}
+		if _, candidate := candidates[path]; candidate {
+			merged[path] = disposition
+		}
+	}
+	return merged
 }
 
 func boundaryCandidatePaths(value any) map[string]string {
@@ -1441,7 +1655,7 @@ func validatePacketLedger(packetID string, assigned map[string]bool, ledger map[
 			continue
 		}
 		for i, path := range normalizedStringSlice(ledger[state]) {
-			if !validConcreteRepositoryPath(path) {
+			if !ValidConcreteRepositoryPath(path) {
 				result.Errors = append(result.Errors, fmt.Sprintf("packet %s ledger.%s[%d] must be a concrete repository path, not a glob or directory pattern", packetID, state, i))
 			}
 			if !assigned[path] {
@@ -1619,7 +1833,7 @@ func validateConcretePathField(packetID string, field string, value any, result 
 		result.Errors = append(result.Errors, fmt.Sprintf("%s %s must be a concrete path string", packetID, field))
 		return ""
 	}
-	if !validConcreteRepositoryPath(path) {
+	if !ValidConcreteRepositoryPath(path) {
 		result.Errors = append(result.Errors, fmt.Sprintf("%s %s must be a concrete repository path, not a glob or directory pattern", packetID, field))
 	}
 	return path
@@ -1679,7 +1893,7 @@ func ledgerAccountsForFinalPath(ledger map[string]any, path string) bool {
 	return false
 }
 
-func validConcreteRepositoryPath(path string) bool {
+func ValidConcreteRepositoryPath(path string) bool {
 	if path == "" || path == "." || path == ".." {
 		return false
 	}
@@ -1916,6 +2130,9 @@ func buildIdentities(pkg *Package) {
 	}
 	for _, row := range pkg.Observations {
 		pkg.Identities.Observations[row.ID] = true
+	}
+	for _, row := range pkg.Claims {
+		pkg.Identities.Claims[row.ID] = true
 	}
 	for _, path := range pkg.CoveragePaths {
 		pkg.Identities.CoveragePaths[path] = true
@@ -2194,6 +2411,16 @@ func nodePathCounts(nodes []NodeRow) (int, int) {
 		}
 	}
 	return len(canonical), len(compatibility)
+}
+
+func nodePathSet(nodes []NodeRow) map[string]bool {
+	paths := map[string]bool{}
+	for _, node := range nodes {
+		for _, path := range node.Paths {
+			paths[path] = true
+		}
+	}
+	return paths
 }
 
 func intFromValue(value any) int {

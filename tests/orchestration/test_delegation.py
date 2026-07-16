@@ -10,6 +10,15 @@ def test_research_alias_normalizes_to_deep_research_for_orchestration_support() 
     assert supports_workflow_command("sp-research") is True
 
 
+def test_ask_command_is_supported_by_orchestration_adapter() -> None:
+    assert normalize_command_name("ask") == "ask"
+    assert normalize_command_name("sp-ask") == "ask"
+    assert normalize_command_name("/sp.ask") == "ask"
+    assert supports_workflow_command("ask") is True
+    assert supports_workflow_command("sp-ask") is True
+    assert supports_workflow_command("/sp.ask") is True
+
+
 def test_describe_delegation_surface_for_codex_implement_prefers_spawn_agent_contract() -> None:
     descriptor = describe_delegation_surface(
         command_name="implement",

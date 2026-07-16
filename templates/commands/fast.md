@@ -11,6 +11,14 @@ workflow_contract:
 
 {{spec-kit-include: ../command-partials/common/senior-consequence-analysis-gate.md}}
 
+[AGENT] For project-cognition-backed semantic intake, routing, audit, resume, or final-claim gates, read `references/semantic-work-contract.md`.
+
+## Detailed References
+
+Read [Reference index](references/INDEX.md) before applying shared semantic contracts.
+
+- [semantic work contract](references/semantic-work-contract.md)
+
 ## Execution Mode
 
 {{spec-kit-include: ../command-partials/common/dispatch-mode-gradient.md}}
@@ -32,6 +40,25 @@ Use `sp-fast` only when ALL of:
 
 If any check fails → upgrade to `/sp-quick`.
 If scope >10 files or crosses module boundary → upgrade to `/sp-specify`.
+
+## UI Fast Gate
+
+- A user-visible UI change is fast-eligible only when it is a narrow adjustment
+  to an approved existing pattern, introduces no new visual/product decision,
+  affects a bounded state, and can be run and visually checked at the real
+  entry point.
+- `DESIGN.md` with `design_system.status: bootstrap`, a new surface, supplied
+  fidelity target, responsive multi-state work, or a shared component/token
+  change leaves fast: route a new direction to `/sp-design`, bounded tracked UI
+  to `/sp-quick`, and feature-level acceptance to `/sp-specify`.
+- Eligible UI fast work still requires a representative visual capture and
+  runtime diagnostics plus visual inspection against the governing design/live
+  pattern; add a structure snapshot whenever semantics, hierarchy, focus, or
+  interaction changes.
+- `representative screenshot or platform` output remains a compatibility name
+  for the required visual capture; it does not replace runtime or structure
+  evidence when those are triggered.
+  Code, unit, or style tests alone do not close visible UI behavior.
 
 ## Fast Path Consequence Routing
 
@@ -62,7 +89,7 @@ Upgrade to `/sp-specify` immediately if:
 
 Fast path does not load the full passive learning layer.
 
-**This command tier: trivial.** Skip all learning hooks. Do not read constitution, project-rules, or project-learnings. Do not run learning start, signal, review, or capture. Learning Reflex is acknowledged but not executed on the fast path; leave `.specify/memory/learnings/INDEX.md` and any linked detail document untouched unless the task is upgraded out of the fast path.
+**This command tier: trivial.** Do not run Learning intake, hooks, capture, or promotion and do not parse Learning storage. If reusable friction appears, upgrade out of fast before consuming or producing Learning.
 
 ## Process
 
@@ -78,20 +105,18 @@ Fast path does not load the full passive learning layer.
      Run or emulate:
 
      ```text
-     {{specify-subcmd:project-cognition lexicon --intent implement --query="$ARGUMENTS" --mode catalog --format json}}
-     # Agent: retrieve the alias catalog, write semantic_intake with normalized_query, intent_facets, negative_constraints, and alias_interpretations; include selected_concepts, rejected_concepts, concept_decisions with covered_facets, missing_facets, match_sources, lexicon_generation_id, expanded_queries, repository_search_terms, and justified paths in <query_plan_json>. Candidate selection must satisfy facet coverage; do not trust top similarity alone. Derive project-language search terms from the alias catalog before reading source. Do not search only the raw user words; include component names, state names, file names, command names, UI labels, and route names from candidates, aliases, matched_terms, colloquial_matches, returned paths, normalized_query, and expanded_queries. Use these project-language search terms before broad repository search.
-     {{specify-subcmd:project-cognition query --intent implement --query-plan "<query_plan_json>" --format json}}
+     {{specify-subcmd:project-cognition compass --intent implement --query="$ARGUMENTS" --format json}}
      ```
+
+     After the default compass packet, run the advanced `lexicon -> semantic_intake -> query` path only when `compass_state`, coverage diagnostics, localization, or live evidence requires explicit concept decisions. In that escalation, use `project-cognition lexicon --mode catalog` as the alias catalog, write agent-authored `semantic_intake` and `concept_decisions`, then run `project-cognition query --query-plan "<query_plan_json>"`; include `query_plan`, `semantic_intake`, `concept_decisions`, `covered_facets`, `missing_facets`, `match_sources`, `lexicon_generation_id`, `repository_search_terms`, project-language search terms, and facet coverage; do not search only the raw user words before source search. Include component names, state names, file names, command names, UI labels, and route names from candidates, aliases, matched terms, returned paths, `normalized_query`, and `expanded_queries`; use these project-language search terms before broad repository search. Agent-owned semantic normalization remains mandatory: `agent_normalization` and raw lexicon ranking are bootstrap signals only; if `agent_normalization` is omitted, treat it as `required=false`; use `write_semantic_intake_from_alias_catalog` when needed. Raw lexicon ranking is only a bootstrap; CJK or mixed CJK/ASCII input still requires agent-owned normalization even when positive raw lexical matches exist. The agent still owns translation. Readiness values are `query_ready`, `review`, `needs_rebuild`, `blocked`, and `unsupported_runtime`.
 
      Use the returned readiness:
 
-     - `ready`: continue with the returned task-local bundle.
-     - `review`: perform only the returned `minimal_live_reads` before continuing.
-     - `ambiguous`: ask the user to select the intended candidate.
-     - `needs_update`: route through `{{invoke:map-update}}`; this includes adoptable missing path-index coverage. Use map-update for ordinary existing-baseline gaps. Use map-scan -> map-build only for first/missing/unusable baseline, schema failure, zero active-generation path_index rows, explicit_rebuild_requested, or baseline_identity_invalid.
-     - `needs_rebuild`: route through `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; this is reserved for first/missing/unusable baseline, schema failure, zero active-generation path_index rows, explicit_rebuild_requested, or baseline_identity_invalid.
-     - `blocked`: stop and report the blocking runtime issue.
-     - Pre-work map maintenance may record ordinary uncertain closure, partial/low-confidence facts, known unknowns, and `minimal_live_reads`. After a successful existing-baseline maintenance refresh, use `{{specify-subcmd:project-cognition complete-refresh --format json}}` only for incremental freshness finalization; do not run `complete-refresh` as a rebuild finalizer.
+     - `query_ready`: read top-level `minimal_live_reads` first, then use lane-level `first_pass_paths` reasons.
+     - `review`: perform only the returned `minimal_live_reads` before continuing and inspect `coverage_diagnostics`.
+     - `blocked`: report the blocking runtime issue and continue with live evidence only where this workflow allows degraded navigation.
+     - Use map-scan -> map-build only for first/missing/unusable baseline, schema failure, schema v1 or old broad-schema rebuild-required readiness, zero active-generation path_index rows, missing or invalid alias_index, explicit_rebuild_requested, or baseline_identity_invalid.
+     - Pre-work map maintenance may record ordinary uncertain closure, partial/low-confidence facts, known unknowns, and `minimal_live_reads`. Use map-update for ordinary existing-baseline gaps. After a successful existing-baseline maintenance refresh, use `{{specify-subcmd:project-cognition complete-refresh --format json}}` only for incremental freshness finalization; do not run `complete-refresh` as a rebuild finalizer.
      - **CARRY FORWARD**: Use project-cognition signals to decide whether
        fast-path execution is still safe. Carry the selected capability, minimal reads,
        and verification route into the fast-task state or report.

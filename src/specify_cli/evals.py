@@ -169,7 +169,7 @@ def find_learning_source(project_root: Path, recurrence_key: str) -> tuple[str, 
     paths = build_learning_paths(project_root)
     for source_layer, path in (
         ("project_rules", paths.project_rules),
-        ("project_learnings", paths.project_learnings),
+        ("confirmed_learnings", paths.confirmed_learnings),
         ("candidates", paths.candidates),
     ):
         if not path.exists():
@@ -201,12 +201,12 @@ def create_eval_case(
         source_layer, entry = source
         if not summary:
             summary = entry.summary
-        if verification_method is None and source_layer in {"project_rules", "project_learnings"}:
+        if verification_method is None and source_layer in {"project_rules", "confirmed_learnings"}:
             verification_method = "rule-check"
             target = target or (
                 ".specify/memory/project-rules.md"
                 if source_layer == "project_rules"
-                else ".specify/memory/project-learnings.md"
+                else ".specify/memory/learnings/confirmed.md"
             )
             contains = contains or entry.summary
             expect = expect or "found"

@@ -6,7 +6,9 @@ import json
 from typing import Any
 
 from .result_schema import (
+    CURRENT_UI_EVIDENCE_KINDS,
     RuleAcknowledgement,
+    UIVerification,
     ValidationResult,
     WorkerTaskResult,
 )
@@ -31,6 +33,19 @@ _VALIDATION_STATUS_ALIASES = {
     "error": "failed",
     "skipped": "skipped",
     "skip": "skipped",
+}
+_OBSOLETE_UI_RESULT_FIELDS = {
+    "ui_fidelity_evidence",
+    "uiFidelityEvidence",
+    "uiEvidence",
+    "uiVerification",
+}
+_CURRENT_UI_VERIFICATION_FIELDS = {
+    "contract_check",
+    "runtime_evidence",
+    "visual_comparison",
+    "fidelity_status",
+    "reviewer",
 }
 
 
@@ -112,6 +127,53 @@ def _normalize_rule_acknowledgement(payload: dict[str, Any]) -> RuleAcknowledgem
     )
 
 
+def _normalize_ui_verification(payload: dict[str, Any]) -> UIVerification:
+    raw = payload.get("ui_verification")
+    if raw is None:
+        return UIVerification()
+    if not isinstance(raw, dict):
+        raise ValueError("ui_verification must be an object")
+    unsupported_fields = sorted(set(raw) - _CURRENT_UI_VERIFICATION_FIELDS)
+    if unsupported_fields:
+        raise ValueError(
+            "ui_verification contains unsupported fields: "
+            + ", ".join(unsupported_fields)
+        )
+    return UIVerification(
+        contract_check=str(raw.get("contract_check") or "not-run"),
+        runtime_evidence=str(raw.get("runtime_evidence") or "not-run"),
+        visual_comparison=str(raw.get("visual_comparison") or "unavailable"),
+        fidelity_status=str(raw.get("fidelity_status") or "not-applicable"),
+        reviewer=str(_pick(raw, "reviewer") or "agent"),
+    )
+
+
+def _normalize_ui_evidence(value: object) -> list[dict[str, str]]:
+    if value is None:
+        return []
+    if not isinstance(value, list):
+        raise ValueError("ui_evidence must be a list")
+    if any(not isinstance(item, dict) for item in value):
+        raise ValueError("ui_evidence entries must be objects")
+    normalized: list[dict[str, str]] = []
+    for index, raw_item in enumerate(value):
+        item = {
+            str(key).strip(): str(raw_value).strip()
+            for key, raw_value in raw_item.items()
+            if str(key).strip() and str(raw_value).strip()
+        }
+        kind = item.get("kind", "")
+        ref = item.get("ref", "")
+        if kind not in CURRENT_UI_EVIDENCE_KINDS:
+            raise ValueError(
+                f"ui_evidence[{index}] uses unsupported kind: {kind or '<blank>'}"
+            )
+        if not ref:
+            raise ValueError(f"ui_evidence[{index}] requires ref")
+        normalized.append(item)
+    return normalized
+
+
 def normalize_worker_task_result_payload(payload: WorkerTaskResult | dict[str, Any] | str) -> WorkerTaskResult:
     """Normalize common worker result payload shapes into ``WorkerTaskResult``."""
 
@@ -121,6 +183,12 @@ def normalize_worker_task_result_payload(payload: WorkerTaskResult | dict[str, A
         payload = json.loads(payload)
     if not isinstance(payload, dict):
         raise TypeError("worker result payload must be a WorkerTaskResult, dict, or JSON text")
+    obsolete_ui_fields = sorted(_OBSOLETE_UI_RESULT_FIELDS & payload.keys())
+    if obsolete_ui_fields:
+        raise ValueError(
+            "obsolete UI result fields are not supported; use ui_evidence: "
+            + ", ".join(obsolete_ui_fields)
+        )
 
     raw_status = str(_pick(payload, "status", "reported_status", "result_status") or "").strip().lower()
     canonical_status = _STATUS_ALIASES.get(raw_status, "failed")
@@ -182,4 +250,6 @@ def normalize_worker_task_result_payload(payload: WorkerTaskResult | dict[str, A
         consequence_evidence=_normalize_evidence_items(
             _pick(payload, "consequence_evidence", "consequenceEvidence")
         ),
+        ui_evidence=_normalize_ui_evidence(payload.get("ui_evidence")),
+        ui_verification=_normalize_ui_verification(payload),
     )

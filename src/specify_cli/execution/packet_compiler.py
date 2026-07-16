@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 from pathlib import Path
 
@@ -11,15 +12,22 @@ from .packet_schema import (
     DispatchPolicy,
     ExecutionIntent,
     MustPreserveObligation,
+    PacketInterfaces,
     PacketReference,
     PacketScope,
+    UI_CONTRACT_FIELDS,
+    UIContract,
     WorkerTaskPacket,
 )
-from .packet_validator import validate_worker_task_packet
+from .packet_validator import PacketValidationError, validate_worker_task_packet
 
 
-SECTION_RE = re.compile(r"(?ms)^#{2,3}\s+(?P<title>.+?)\n(?P<body>.*?)(?=^#{2,3}\s+|\Z)")
-TASK_DETAIL_RE = re.compile(r"(?ms)^##\s+(?P<task_id>T\d+)\b[^\n]*\n(?P<body>.*?)(?=^##\s+|\Z)")
+SECTION_RE = re.compile(
+    r"(?ms)^#{2,3}\s+(?P<title>.+?)\n(?P<body>.*?)(?=^#{2,3}\s+|\Z)"
+)
+TASK_DETAIL_RE = re.compile(
+    r"(?ms)^##\s+(?P<task_id>T\d+)\b[^\n]*\n(?P<body>.*?)(?=^##\s+|\Z)"
+)
 FENCED_CODE_BLOCK_RE = re.compile(r"(?ms)^```.*?^```")
 BULLET_RE = re.compile(r"(?m)^\s*-\s+`?(?P<value>.+?)`?\s*$")
 TASK_RE = re.compile(r"(?m)^\s*-\s\[[ xX]\]\s(?P<task_id>T\d+)(?P<body>.+)$")
@@ -32,6 +40,62 @@ CONSEQUENCE_ID_RE = re.compile(r"\bCA-\d{3}\b")
 
 def _read(path: Path) -> str:
     return path.read_text(encoding="utf-8") if path.exists() else ""
+
+
+def _read_json_object(path: Path) -> dict[str, object]:
+    if not path.exists():
+        return {}
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except OSError as exc:
+        raise PacketValidationError(
+            "DP0", f"{path.name} could not be read: {exc}"
+        ) from exc
+    except json.JSONDecodeError as exc:
+        raise PacketValidationError(
+            "DP0", f"{path.name} is malformed JSON: {exc}"
+        ) from exc
+    if not isinstance(payload, dict):
+        raise PacketValidationError(
+            "DP0", f"{path.name} must contain a top-level object"
+        )
+    return payload
+
+
+def _string_list(value: object) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    result: list[str] = []
+    for item in value:
+        if isinstance(item, str) and item.strip():
+            result.append(item.strip())
+        elif isinstance(item, dict):
+            for key in ("ref", "path", "id", "value"):
+                candidate = item.get(key)
+                if isinstance(candidate, str) and candidate.strip():
+                    result.append(candidate.strip())
+                    break
+    return result
+
+
+def _task_index_entry(payload: dict[str, object], task_id: str) -> dict[str, object]:
+    tasks = payload.get("tasks")
+    if not isinstance(tasks, list):
+        return {}
+    normalized = task_id.upper()
+    for item in tasks:
+        if not isinstance(item, dict):
+            continue
+        candidate = item.get("task_id", item.get("id"))
+        if isinstance(candidate, str) and candidate.upper() == normalized:
+            return item
+    return {}
+
+
+def _task_contract_mapping_body(tasks_text: str) -> str:
+    return _section_body(tasks_text, "Task Contract Mapping") or _section_body(
+        tasks_text, "Task Guardrail Index"
+    )
 
 
 def _section_body(text: str, title: str) -> str:
@@ -117,7 +181,9 @@ def _normalized_header_name(value: str) -> str:
 
 
 def _is_table_separator(parts: list[str]) -> bool:
-    return bool(parts) and all(re.fullmatch(r":?-{3,}:?", part.strip()) for part in parts)
+    return bool(parts) and all(
+        re.fullmatch(r":?-{3,}:?", part.strip()) for part in parts
+    )
 
 
 def _parse_pipe_fields(line: str, headers: list[str] | None = None) -> dict[str, str]:
@@ -162,7 +228,9 @@ def _split_list_field(value: str) -> list[str]:
     ]
 
 
-def _task_detail_table_field_values(task_detail: str, section_title: str, field_name: str) -> list[str]:
+def _task_detail_table_field_values(
+    task_detail: str, section_title: str, field_name: str
+) -> list[str]:
     section = _section_body(task_detail, section_title)
     values: list[str] = []
     expected_field = _normalized_header_name(field_name)
@@ -179,8 +247,92 @@ def _task_detail_table_field_values(task_detail: str, section_title: str, field_
     return _unique(values)
 
 
+def _mapping_string(payload: dict[str, object], *keys: str) -> str:
+    for key in keys:
+        value = payload.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return ""
+
+
+def _dict_list(value: object) -> list[dict[str, object]]:
+    if not isinstance(value, list):
+        return []
+    return [dict(item) for item in value if isinstance(item, dict)]
+
+
+def _unique_dicts(values: list[dict[str, object]]) -> list[dict[str, object]]:
+    seen: set[str] = set()
+    ordered: list[dict[str, object]] = []
+    for value in values:
+        marker = json.dumps(value, sort_keys=True, separators=(",", ":"), default=str)
+        if marker not in seen:
+            ordered.append(value)
+            seen.add(marker)
+    return ordered
+
+
+def _ui_contract_from_task_entry(
+    task_entry: dict[str, object],
+) -> UIContract:
+    if "ui_fidelity_requirements" in task_entry:
+        raise PacketValidationError(
+            "DP0", "task-index uses obsolete ui_fidelity_requirements"
+        )
+    payload = task_entry.get("ui_contract")
+    if not isinstance(payload, dict):
+        if "ui_contract" in task_entry:
+            raise PacketValidationError(
+                "DP0", "task-index ui_contract must be an object"
+            )
+        return UIContract()
+    if not payload:
+        raise PacketValidationError("DP0", "task-index ui_contract must not be empty")
+    unknown_fields = set(payload) - UI_CONTRACT_FIELDS
+    if unknown_fields:
+        raise PacketValidationError(
+            "DP0",
+            "task-index ui_contract contains unsupported fields: "
+            + ", ".join(sorted(unknown_fields)),
+        )
+    missing_fields = UI_CONTRACT_FIELDS - set(payload)
+    if missing_fields:
+        raise PacketValidationError(
+            "DP0",
+            "task-index ui_contract is missing current fields: "
+            + ", ".join(sorted(missing_fields)),
+        )
+    return UIContract(
+        ui_work_type=_mapping_string(payload, "ui_work_type"),
+        surface_type=_mapping_string(payload, "surface_type"),
+        platforms=_unique(_string_list(payload.get("platforms"))),
+        subject=_mapping_string(payload, "subject"),
+        audience=_mapping_string(payload, "audience"),
+        single_job=_mapping_string(payload, "single_job"),
+        visual_thesis=_mapping_string(payload, "visual_thesis"),
+        content_thesis=_mapping_string(payload, "content_thesis"),
+        interaction_thesis=_mapping_string(payload, "interaction_thesis"),
+        signature_element=_mapping_string(payload, "signature_element"),
+        approved_visual_ref=_mapping_string(payload, "approved_visual_ref"),
+        design_sources=_unique(_string_list(payload.get("design_sources"))),
+        reference_notes=_mapping_string(payload, "reference_notes"),
+        visual_target=_mapping_string(payload, "visual_target"),
+        reference_intents=_unique_dicts(_dict_list(payload.get("reference_intents"))),
+        real_content_plan=_unique_dicts(_dict_list(payload.get("real_content_plan"))),
+        image_plan=_unique_dicts(_dict_list(payload.get("image_plan"))),
+        fidelity_level=_mapping_string(payload, "fidelity_level") or "none",
+        must_preserve=_unique(_string_list(payload.get("must_preserve"))),
+        may_adapt=_unique(_string_list(payload.get("may_adapt"))),
+        must_not=_unique(_string_list(payload.get("must_not"))),
+        required_states=_unique(_string_list(payload.get("required_states"))),
+        required_evidence=_unique(_string_list(payload.get("required_evidence"))),
+    )
+
+
 def _line_mentions_task(line: str, task_id: str) -> bool:
-    return any(part.strip() == task_id for part in re.split(r"[,;\s]+", line) if part.strip())
+    return any(
+        part.strip() == task_id for part in re.split(r"[,;\s]+", line) if part.strip()
+    )
 
 
 def _consequence_obligations_for_task(
@@ -209,7 +361,9 @@ def _consequence_obligations_for_task(
             continue
         seen.add(obligation_id)
         fields = _parse_pipe_fields(raw_line, headers)
-        affected_objects = _split_csv_field(fields.get("affected_objects", "")) or [task_id]
+        affected_objects = _split_csv_field(fields.get("affected_objects", "")) or [
+            task_id
+        ]
         stop_and_reopen_condition = fields.get(
             "stop_and_reopen_condition",
             f"No validation evidence supplied for {obligation_id}",
@@ -217,9 +371,13 @@ def _consequence_obligations_for_task(
         obligations.append(
             ConsequenceObligation(
                 obligation_id=obligation_id,
-                claim=fields.get("claim", f"{obligation_id} consequence obligation for {task_id}"),
+                claim=fields.get(
+                    "claim", f"{obligation_id} consequence obligation for {task_id}"
+                ),
                 affected_objects=affected_objects,
-                state_behavior_refs=_split_csv_field(fields.get("state_behavior_refs", "")),
+                state_behavior_refs=_split_csv_field(
+                    fields.get("state_behavior_refs", "")
+                ),
                 dependency_refs=_split_csv_field(fields.get("dependency_refs", "")),
                 recovery_validation_refs=_split_csv_field(fields.get("validation", "")),
                 owner=fields.get("owner", "sp-tasks"),
@@ -233,11 +391,13 @@ def _consequence_obligations_for_task(
 
 def _does_not_remove_for_task(tasks_text: str, task_id: str) -> list[str]:
     values: list[str] = []
-    guardrail_body = _section_body(tasks_text, "Task Guardrail Index")
+    guardrail_body = _task_contract_mapping_body(tasks_text)
     for line in guardrail_body.splitlines():
         if task_id not in line:
             continue
-        match = re.search(r"does-not-remove guard:\s*(?P<value>.+)", line, re.IGNORECASE)
+        match = re.search(
+            r"does-not-remove guard:\s*(?P<value>.+)", line, re.IGNORECASE
+        )
         if match:
             values.append(match.group("value").strip(" ."))
     return _unique(values)
@@ -282,7 +442,9 @@ def _task_contract_bullet_values(task_detail: str, *titles: str) -> list[str]:
     ]
 
 
-def _must_preserve_obligations_from_text(text: str, *, source: str) -> list[MustPreserveObligation]:
+def _must_preserve_obligations_from_text(
+    text: str, *, source: str
+) -> list[MustPreserveObligation]:
     obligations: list[MustPreserveObligation] = []
     seen: set[str] = set()
     for line in text.splitlines():
@@ -307,9 +469,11 @@ def _must_preserve_obligations_from_text(text: str, *, source: str) -> list[Must
     return obligations
 
 
-def _applicable_mp_ids_from_tasks(tasks_text: str, task_id: str, task_body: str) -> set[str]:
+def _applicable_mp_ids_from_tasks(
+    tasks_text: str, task_id: str, task_body: str
+) -> set[str]:
     applicable = set(MP_ID_ONLY_RE.findall(task_body))
-    guardrail_body = _section_body(tasks_text, "Task Guardrail Index")
+    guardrail_body = _task_contract_mapping_body(tasks_text)
     for line in guardrail_body.splitlines():
         if task_id not in line:
             continue
@@ -321,19 +485,37 @@ def _global_must_preserve_ids(plan_text: str) -> set[str]:
     ids: set[str] = set()
     for line in plan_text.splitlines():
         lowered = line.lower()
-        if "applies to all" not in lowered and "all implementation tasks" not in lowered:
+        if (
+            "applies to all" not in lowered
+            and "all implementation tasks" not in lowered
+        ):
             continue
         ids.update(MP_ID_ONLY_RE.findall(line))
     return ids
 
 
-def _unique_obligations(values: list[MustPreserveObligation]) -> list[MustPreserveObligation]:
+def _unique_obligations(
+    values: list[MustPreserveObligation],
+) -> list[MustPreserveObligation]:
     seen: set[str] = set()
     unique: list[MustPreserveObligation] = []
     for value in values:
         if value.id in seen:
             continue
         seen.add(value.id)
+        unique.append(value)
+    return unique
+
+
+def _unique_consequence_obligations(
+    values: list[ConsequenceObligation],
+) -> list[ConsequenceObligation]:
+    seen: set[str] = set()
+    unique: list[ConsequenceObligation] = []
+    for value in values:
+        if value.obligation_id in seen:
+            continue
+        seen.add(value.obligation_id)
         unique.append(value)
     return unique
 
@@ -405,6 +587,59 @@ def _context_bundle_from_project_docs(
     return items
 
 
+def _plan_contract(feature_dir: Path) -> dict[str, object]:
+    direct = _read_json_object(feature_dir / "plan-contract.json")
+    if direct:
+        return direct
+    return _read_json_object(feature_dir / "plan" / "plan-contract.json")
+
+
+def _ui_context_nav(
+    plan_contract: dict[str, object],
+    ui_contract: UIContract,
+) -> list[dict[str, str]]:
+    if ui_contract.fidelity_level == "none" and not ui_contract.design_sources:
+        return []
+    ui_plan = plan_contract.get("ui_design_contract")
+    context_capsule = plan_contract.get("context_capsule")
+    ui_plan = ui_plan if isinstance(ui_plan, dict) else {}
+    context_capsule = context_capsule if isinstance(context_capsule, dict) else {}
+    candidates: list[tuple[str, str, str]] = []
+
+    def add(kind: str, values: list[str], source: str) -> None:
+        candidates.extend((kind, value, source) for value in values if value)
+
+    add(
+        "ui_entrypoint", _string_list(ui_plan.get("entry_points")), "plan-contract.json"
+    )
+    add("design_source", ui_contract.design_sources, "task-index.json")
+    add(
+        "token_component_route",
+        _string_list(ui_plan.get("token_strategy"))
+        + _string_list(ui_plan.get("component_strategy")),
+        "plan-contract.json",
+    )
+    add(
+        "minimal_live_read",
+        _string_list(context_capsule.get("minimal_live_reads")),
+        "plan-contract.json#/context_capsule",
+    )
+    add(
+        "visual_test_route",
+        _string_list(context_capsule.get("validation_routes")),
+        "plan-contract.json#/context_capsule",
+    )
+    seen: set[tuple[str, str, str]] = set()
+    result: list[dict[str, str]] = []
+    for kind, value, source in candidates:
+        marker = (kind, value, source)
+        if marker in seen:
+            continue
+        seen.add(marker)
+        result.append({"kind": kind, "value": value, "source": source})
+    return result
+
+
 def compile_worker_task_packet(
     *,
     project_root: Path,
@@ -417,21 +652,98 @@ def compile_worker_task_packet(
     constitution_text = _read(project_root / ".specify" / "memory" / "constitution.md")
     plan_text = _read(feature_dir / "plan.md")
     tasks_text = _read(feature_dir / "tasks.md")
+    task_index = _read_json_object(feature_dir / "task-index.json")
+    plan_contract = _plan_contract(feature_dir)
+    task_entry = _task_index_entry(task_index, task_id)
+    task_index_version = task_index.get("version")
+    canonical_task_index = (
+        isinstance(task_index_version, int)
+        and not isinstance(task_index_version, bool)
+        and task_index_version >= 2
+    )
+    if canonical_task_index and not task_entry:
+        raise PacketValidationError(
+            "DP0", f"{task_id} is missing from canonical task-index.json"
+        )
 
-    resolved_task_body = task_body if task_body is not None else _task_body(tasks_text, task_id)
+    indexed_objective = str(task_entry.get("objective") or "").strip()
+    resolved_task_body = (
+        task_body
+        if task_body is not None
+        else indexed_objective or _task_body(tasks_text, task_id)
+    )
     task_detail = _task_detail_body(tasks_text, task_id)
     objective = resolved_task_body
+    if (
+        "### UI Implementation Contract" in task_detail
+        and "ui_contract" not in task_entry
+    ):
+        raise PacketValidationError(
+            "DP0",
+            f"{task_id} has a UI projection but no canonical task-index ui_contract",
+        )
+    ui_contract = _ui_contract_from_task_entry(task_entry)
+    review_inputs = _task_detail_table_field_values(
+        task_detail,
+        "Scope Boundaries",
+        "review_inputs",
+    )
 
     required_references = [
         PacketReference(
             path=value,
             reason="compiled from Required Implementation References",
         )
-        for value in _bullet_values(_section_body(plan_text, "Required Implementation References"))
+        for value in _bullet_values(
+            _section_body(plan_text, "Required Implementation References")
+        )
     ]
+    for value in _unique(
+        _string_list(task_entry.get("required_refs"))
+        + _string_list(task_entry.get("authoritative_refs"))
+        + _string_list(task_entry.get("fidelity_refs"))
+    ):
+        if value not in {reference.path for reference in required_references}:
+            required_references.append(
+                PacketReference(path=value, reason="canonical task-index reference")
+            )
+    existing_reference_paths = {reference.path for reference in required_references}
+    ui_reference_candidates = [
+        *ui_contract.design_sources,
+        *review_inputs,
+        ui_contract.approved_visual_ref,
+        ui_contract.reference_notes,
+        ui_contract.visual_target,
+        *[
+            str(item.get("ref") or "").strip()
+            for item in ui_contract.reference_intents
+            if isinstance(item, dict)
+        ],
+        *[
+            str(item.get("source_ref") or "").strip()
+            for item in ui_contract.real_content_plan
+            if isinstance(item, dict)
+        ],
+        *[
+            str(item.get("ref") or "").strip()
+            for item in ui_contract.image_plan
+            if isinstance(item, dict)
+        ],
+    ]
+    for value in ui_reference_candidates:
+        if not value or value in existing_reference_paths:
+            continue
+        required_references.append(
+            PacketReference(
+                path=value,
+                reason="UI implementation contract reference",
+            )
+        )
+        existing_reference_paths.add(value)
     forbidden_drift = _unique(
         _bullet_values(_section_body(plan_text, "Forbidden Implementation Drift"))
         + _task_detail_table_field_values(task_detail, "Scope Boundaries", "forbidden")
+        + _string_list(task_entry.get("forbidden_drift"))
     )
     platform_guardrails = _section_or_subsection_values(
         plan_text,
@@ -441,12 +753,20 @@ def compile_worker_task_packet(
     hard_rules = _unique(
         _bullet_values(constitution_text)
         + _bullet_values(_section_body(plan_text, "Task-Level Quality Floor"))
+        + _string_list(task_entry.get("hard_rules"))
     )
     validation_gates = [
         value
-        for value in _leading_bullet_values(_section_body(tasks_text, "Validation Gates"))
+        for value in _leading_bullet_values(
+            _section_body(tasks_text, "Validation Gates")
+        )
         if not value.startswith("[ ]")
     ]
+    validation_gates = _unique(
+        validation_gates
+        + _string_list(task_entry.get("verification"))
+        + _string_list(task_entry.get("required_validation"))
+    )
 
     handoff_requirements = _unique(
         [
@@ -471,31 +791,97 @@ def compile_worker_task_packet(
         project_root,
         required_references=required_references,
     )
-    read_scope = _unique([item.path for item in context_bundle] + [ref.path for ref in required_references])
+    context_nav = _ui_context_nav(plan_contract, ui_contract)
+    existing_context_paths = {item.path for item in context_bundle}
+    next_read_order = max((item.read_order for item in context_bundle), default=0) + 1
+    for item in context_nav:
+        if item["kind"] != "minimal_live_read":
+            continue
+        path = item["value"]
+        if not path or "://" in path or path in existing_context_paths:
+            continue
+        context_bundle.append(
+            ContextBundleItem(
+                path=path,
+                kind="task_reference",
+                purpose="Live UI owner or boundary read selected by the planning cognition capsule.",
+                required_for=["ui_implementation", "live_verification"],
+                read_order=next_read_order,
+                must_read=True,
+                selection_reason="carried from plan-contract context_capsule minimal_live_reads",
+            )
+        )
+        existing_context_paths.add(path)
+        next_read_order += 1
+    read_scope = _unique(
+        [item.path for item in context_bundle]
+        + [ref.path for ref in required_references]
+    )
     scope_write_scope = _unique(
         _paths_from_task_body(resolved_task_body)
-        + _task_detail_table_field_values(task_detail, "Scope Boundaries", "write_scope")
+        + _task_detail_table_field_values(
+            task_detail, "Scope Boundaries", "write_scope"
+        )
+        + _string_list(task_entry.get("expected_write_scope"))
+        + _string_list(task_entry.get("write_scope"))
     )
     scope_read_scope = _unique(
-        read_scope + _task_detail_table_field_values(task_detail, "Scope Boundaries", "read_scope")
+        read_scope
+        + _task_detail_table_field_values(task_detail, "Scope Boundaries", "read_scope")
+        + _string_list(task_entry.get("read_scope"))
     )
-    applicable_mp_ids = _applicable_mp_ids_from_tasks(tasks_text, task_id, resolved_task_body) | _global_must_preserve_ids(
-        plan_text
+    indexed_mp_ids = set(_string_list(task_entry.get("must_preserve_refs")))
+    applicable_mp_ids = (
+        _applicable_mp_ids_from_tasks(tasks_text, task_id, resolved_task_body)
+        | _global_must_preserve_ids(plan_text)
+        | indexed_mp_ids
     )
     must_preserve_obligations = _unique_obligations(
         [
             *[
                 obligation
-                for obligation in _must_preserve_obligations_from_text(plan_text, source="plan.md")
+                for obligation in _must_preserve_obligations_from_text(
+                    plan_text, source="plan.md"
+                )
                 if not applicable_mp_ids or obligation.id in applicable_mp_ids
             ],
             *[
                 obligation
-                for obligation in _must_preserve_obligations_from_text(tasks_text, source="tasks.md")
+                for obligation in _must_preserve_obligations_from_text(
+                    tasks_text, source="tasks.md"
+                )
                 if not applicable_mp_ids or obligation.id in applicable_mp_ids
             ],
         ]
     )
+    existing_mp_ids = {item.id for item in must_preserve_obligations}
+    must_preserve_obligations.extend(
+        MustPreserveObligation(
+            id=mp_id,
+            type="execution",
+            claim=f"Preserve canonical obligation {mp_id}",
+            source="task-index.json",
+            downstream_requirement="Preserve this task-relevant obligation during implementation.",
+            mapped_to=[f"task-index.json#/tasks/{task_id}"],
+        )
+        for mp_id in sorted(indexed_mp_ids - existing_mp_ids)
+        if MP_ID_ONLY_RE.fullmatch(mp_id)
+    )
+
+    indexed_consequence_obligations = [
+        ConsequenceObligation(
+            obligation_id=obligation_id,
+            claim=f"Satisfy canonical consequence obligation {obligation_id}",
+            affected_objects=[task_id],
+            recovery_validation_refs=validation_gates,
+            owner="sp-implement",
+            latest_resolve_phase="implement",
+            status="open",
+            stop_and_reopen_condition=f"Required evidence for {obligation_id} cannot be produced",
+        )
+        for obligation_id in _string_list(task_entry.get("consequence_obligation_refs"))
+        if CONSEQUENCE_ID_RE.fullmatch(obligation_id)
+    ]
 
     packet = WorkerTaskPacket(
         feature_id=feature_dir.name,
@@ -505,7 +891,9 @@ def compile_worker_task_packet(
         intent=ExecutionIntent(
             outcome=objective,
             constraints=_unique([*forbidden_drift, *hard_rules]),
-            success_signals=done_criteria if (done_criteria := [objective]) else [objective],
+            success_signals=done_criteria
+            if (done_criteria := [objective])
+            else [objective],
         ),
         scope=PacketScope(
             write_scope=scope_write_scope,
@@ -516,20 +904,96 @@ def compile_worker_task_packet(
         hard_rules=hard_rules,
         forbidden_drift=forbidden_drift,
         validation_gates=validation_gates,
-        done_criteria=done_criteria,
+        done_criteria=_unique(
+            done_criteria
+            + _string_list(task_entry.get("acceptance"))
+            + _string_list(task_entry.get("acceptance_refs"))
+        ),
         handoff_requirements=handoff_requirements,
         platform_guardrails=platform_guardrails,
+        context_nav=context_nav,
         anti_goals=_task_contract_bullet_values(task_detail, "Anti-Goals"),
         does_not_remove=_unique(
             _does_not_remove_for_task(tasks_text, task_id)
-            + _task_detail_table_field_values(task_detail, "Scope Boundaries", "does_not_remove")
+            + _task_detail_table_field_values(
+                task_detail, "Scope Boundaries", "does_not_remove"
+            )
         ),
         capability_operations=_unique(
             _capability_operations_for_task(tasks_text, task_id)
-            + _task_detail_table_field_values(task_detail, "Scope Boundaries", "capability_operations")
+            + _task_detail_table_field_values(
+                task_detail, "Scope Boundaries", "capability_operations"
+            )
+            + _string_list(task_entry.get("capability_operation_refs"))
         ),
+        verify_commands=_unique(
+            _task_contract_bullet_values(
+                task_detail, "Verify Commands", "Verification Commands"
+            )
+            + _task_detail_table_field_values(
+                task_detail, "Scope Boundaries", "verify_commands"
+            )
+            + _string_list(task_entry.get("verification"))
+            + _string_list(task_entry.get("required_validation"))
+        ),
+        acceptance_criteria=_unique(
+            _task_contract_bullet_values(task_detail, "Acceptance Criteria")
+            + _task_detail_table_field_values(
+                task_detail, "Scope Boundaries", "acceptance_criteria"
+            )
+            + _string_list(task_entry.get("acceptance"))
+            + _string_list(task_entry.get("acceptance_refs"))
+        ),
+        consumer_surfaces=_unique(
+            _task_contract_bullet_values(task_detail, "Consumer Surfaces")
+            + _task_detail_table_field_values(
+                task_detail, "Scope Boundaries", "consumer_surfaces"
+            )
+        ),
+        required_evidence=_unique(
+            _task_contract_bullet_values(task_detail, "Required Evidence")
+            + _task_detail_table_field_values(
+                task_detail, "Scope Boundaries", "required_evidence"
+            )
+            + _string_list(task_entry.get("required_consumer_evidence"))
+            + _string_list(task_entry.get("required_evidence"))
+        ),
+        global_constraints=_unique(
+            _section_or_subsection_values(
+                plan_text,
+                "Global Constraints",
+                "Profile-Driven Implementation Constraints",
+            )
+            + _task_detail_table_field_values(
+                task_detail, "Scope Boundaries", "global_constraints"
+            )
+        ),
+        interfaces=PacketInterfaces(
+            consumes=_task_detail_table_field_values(
+                task_detail, "Scope Boundaries", "consumes"
+            ),
+            produces=_task_detail_table_field_values(
+                task_detail, "Scope Boundaries", "produces"
+            ),
+        ),
+        review_inputs=review_inputs,
+        review_risks=_unique(
+            _section_or_subsection_values(plan_text, "Review-Risk Notes")
+            + _task_detail_table_field_values(
+                task_detail, "Scope Boundaries", "review_risks"
+            )
+        ),
+        controller_checks_required=_task_detail_table_field_values(
+            task_detail,
+            "Scope Boundaries",
+            "controller_checks_required",
+        ),
+        ui_contract=ui_contract,
         must_preserve_obligations=must_preserve_obligations,
-        consequence_obligations=_consequence_obligations_for_task(tasks_text, task_id),
+        consequence_obligations=_unique_consequence_obligations(
+            _consequence_obligations_for_task(tasks_text, task_id)
+            + indexed_consequence_obligations
+        ),
         dispatch_policy=DispatchPolicy(mode="hard_fail", must_acknowledge_rules=True),
     )
     return validate_worker_task_packet(packet)

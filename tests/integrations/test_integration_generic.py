@@ -9,6 +9,7 @@ from specify_cli.integrations.base import MarkdownIntegration
 from specify_cli.integrations.manifest import IntegrationManifest
 
 SHARED_PRD_HELPER = ".specify/scripts/shared/prd-state.py"
+SHARED_DISCUSSION_HELPER = ".specify/scripts/shared/discussion-state.py"
 
 
 class TestGenericIntegration:
@@ -33,10 +34,23 @@ class TestGenericIntegration:
             if not rel_path.startswith("project-map/")
         )
 
+    @staticmethod
+    def _command_reference_files() -> list[str]:
+        integration = get_integration("generic")
+        references_root = integration.shared_command_references_dir()
+        assert references_root is not None
+        return sorted(
+            f".myagent/commands/references/{template.stem}/{reference.relative_to(references_root / template.stem).as_posix()}"
+            for template in integration.list_command_templates()
+            for reference in integration.list_command_reference_templates(template.stem)
+        )
+
     @classmethod
     def _expected_inventory(cls, script_variant: str) -> list[str]:
         expected = [
+            "DESIGN.md",
             *(f".myagent/commands/sp.{stem}.md" for stem in cls._command_stems()),
+            *cls._command_reference_files(),
             ".specify/config.json",
             ".specify/init-options.json",
             ".specify/integration.json",
@@ -46,7 +60,7 @@ class TestGenericIntegration:
             ".specify/integrations/speckit.manifest.json",
             ".specify/memory/constitution.md",
             ".specify/memory/learnings/INDEX.md",
-            ".specify/memory/project-learnings.md",
+            ".specify/memory/learnings/confirmed.md",
             ".specify/memory/project-rules.md",
             ".specify/project-cognition/project-cognition.db",
             ".specify/project-cognition/status.json",
@@ -58,6 +72,7 @@ class TestGenericIntegration:
                     ".specify/scripts/bash/check-prerequisites.sh",
                     ".specify/scripts/bash/common.sh",
                     ".specify/scripts/bash/create-new-feature.sh",
+                    ".specify/scripts/bash/discussion-state.sh",
                     ".specify/scripts/bash/prd-state.sh",
                     ".specify/scripts/bash/project-cognition-freshness.sh",
                     ".specify/scripts/bash/quick-state.sh",
@@ -72,6 +87,7 @@ class TestGenericIntegration:
                     ".specify/scripts/powershell/check-prerequisites.ps1",
                     ".specify/scripts/powershell/common.ps1",
                     ".specify/scripts/powershell/create-new-feature.ps1",
+                    ".specify/scripts/powershell/discussion-state.ps1",
                     ".specify/scripts/powershell/prd-state.ps1",
                     ".specify/scripts/powershell/project-cognition-freshness.ps1",
                     ".specify/scripts/powershell/quick-state.ps1",
@@ -80,7 +96,7 @@ class TestGenericIntegration:
                     ".specify/scripts/powershell/update-agent-context.ps1",
                 ]
             )
-        expected.append(SHARED_PRD_HELPER)
+        expected.extend([SHARED_DISCUSSION_HELPER, SHARED_PRD_HELPER])
 
         expected.extend(f".specify/templates/{name}" for name in cls._template_files())
         return sorted(expected)
@@ -142,10 +158,10 @@ class TestGenericIntegration:
         )
         expected_dir = tmp_path / ".myagent" / "commands"
         assert expected_dir.exists(), f"Expected directory {expected_dir} was not created"
-        cmd_files = [f for f in created if "scripts" not in f.parts]
+        cmd_files = [f for f in created if expected_dir in f.parents or f == expected_dir]
         assert len(cmd_files) > 0, "No command files were created"
         for f in cmd_files:
-            assert f.resolve().parent == expected_dir.resolve(), (
+            assert expected_dir.resolve() in f.resolve().parents, (
                 f"{f} is not under {expected_dir}"
             )
 
@@ -156,7 +172,8 @@ class TestGenericIntegration:
             tmp_path, m,
             parsed_options={"commands_dir": ".custom/cmds"},
         )
-        cmd_files = [f for f in created if "scripts" not in f.parts]
+        commands_dir = (tmp_path / ".custom" / "cmds").resolve()
+        cmd_files = [f for f in created if f.resolve().parent == commands_dir]
         assert len(cmd_files) > 0
         for f in cmd_files:
             assert f.name.startswith("sp.")

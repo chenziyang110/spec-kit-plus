@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spec-kit-plus.local/schemas/agent-phase-transition-v1.json",
+  "title": "Spec Kit Plus Agent Phase Transition",
+  "type": "object",
+  "required": [
+    "version",
+    "status",
+    "source_ref",
+    "semantic_delta",
+    "required_refs",
+    "blockers",
+    "next_action"
+  ],
+  "properties": {
+    "version": {"const": 1},
+    "status": {"enum": ["ready", "blocked"]},
+    "source_ref": {"type": ["string", "null"]},
+    "semantic_delta": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["ref", "change"],
+        "properties": {
+          "ref": {"type": "string", "minLength": 1},
+          "change": {"type": "string", "minLength": 1}
+        },
+        "additionalProperties": false
+      }
+    },
+    "required_refs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["ref", "purpose"],
+        "properties": {
+          "ref": {"type": "string", "minLength": 1},
+          "purpose": {"type": "string", "minLength": 1}
+        },
+        "additionalProperties": false
+      }
+    },
+    "blockers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["code", "cause"],
+        "properties": {
+          "code": {"type": "string", "minLength": 1},
+          "cause": {"type": "string", "minLength": 1},
+          "owner": {"enum": ["agent", "user", "maintainer", "external-system"]}
+        },
+        "additionalProperties": false
+      }
+    },
+    "next_action": {"type": ["string", "null"]},
+    "recovery": {
+      "type": ["object", "null"],
+      "properties": {
+        "retry": {"type": "string", "minLength": 1},
+        "stop_if": {"type": "string", "minLength": 1}
+      },
+      "required": ["retry", "stop_if"],
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

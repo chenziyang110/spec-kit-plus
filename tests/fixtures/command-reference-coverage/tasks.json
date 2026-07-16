@@ -1,0 +1,13 @@
+{
+  "workflow": "tasks",
+  "source": "templates/commands/tasks.md",
+  "entries": [
+    {"kind": "intake", "source_excerpt": "plan-contract.json", "target": "templates/command-references/tasks/plan-intake.md"},
+    {"kind": "cognition", "source_excerpt": "project-cognition compass --intent plan", "target": "templates/command-references/tasks/task-generation-sequence.md"},
+    {"kind": "sequence", "source_excerpt": "task-index.json", "target": "templates/command-references/tasks/task-generation-sequence.md"},
+    {"kind": "packet", "source_excerpt": "WorkerTaskPacket", "target": "templates/command-references/tasks/task-packet-schema.md"},
+    {"kind": "parallel", "source_excerpt": "Every parallel batch MUST be followed by a join point", "target": "templates/command-references/tasks/dependencies-and-parallel-safety.md"},
+    {"kind": "obligation", "source_excerpt": "Consequence Obligation Mapping", "target": "templates/command-references/tasks/must-preserve-ledger.md"},
+    {"kind": "review", "source_excerpt": "Deterministic Task-Graph Review", "target": "templates/command-references/tasks/review-and-repair.md"}
+  ]
+}

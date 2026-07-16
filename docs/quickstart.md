@@ -52,12 +52,13 @@ Invocation syntax depends on the integration:
 | Codex skills | `$sp-constitution` | `$sp-specify` | `$sp-prd-scan -> $sp-prd-build` | `$sp-plan` | `$sp-tasks` |
 | Kimi Code skills | `/skill:sp-constitution` | `/skill:sp-specify` | `/skill:sp-prd-scan -> /skill:sp-prd-build` | `/skill:sp-plan` | `/skill:sp-tasks` |
 | Claude skills | `/sp-constitution` | `/sp-specify` | `/sp-prd-scan -> /sp-prd-build` | `/sp-plan` | `/sp-tasks` |
+| MiMo Code commands | `/sp.constitution` | `/sp.specify` | `/sp.prd-scan -> /sp.prd-build` | `/sp.plan` | `/sp.tasks` |
 | Slash-dot command integrations | `/sp.constitution` | `/sp.specify` | `/sp.prd-scan -> /sp.prd-build` | `/sp.plan` | `/sp.tasks` |
 
 `/sp-*` is not universal for skills-backed integrations. Use the syntax
 generated for the integration selected during `specify init`; for example, run
 `$sp-specify` in Codex, `/skill:sp-specify` in Kimi, `/sp-specify` in Claude, or
-`/sp.specify` in slash-dot command integrations. For existing-project PRD
+`/sp.specify` in MiMo Code and other slash-dot command integrations. For existing-project PRD
 extraction, use the same mapping for the canonical `prd-scan -> prd-build`
 workflow pair, such as `$sp-prd-scan -> $sp-prd-build`, `/skill:sp-prd-scan ->
 /skill:sp-prd-build`, `/sp-prd-scan -> /sp-prd-build`, or `/sp.prd-scan ->
@@ -113,26 +114,25 @@ ambiguous terms such as "capability" or "real", compares two or three concrete
 approaches when scope needs a choice, and writes artifacts only after the
 important meaning decisions are explicit.
 
-When `specify` starts from a `discussion` handoff, it must read the named
-discussion source files, at least `discussion-log.md`, `requirements.md`, and
-`open-questions.md` when present, instead of trusting the handoff summary alone.
-The compatibility handoff JSON records `source_files_read` and
-`source_signal_disposition` so upstream capability-like signals are preserved,
-deferred, dropped, or reopened explicitly.
+When `specify` starts from `discussion`, pass the handoff JSON path or discussion slug, or let it select the single eligible unconsumed ready contract. It validates the confirmed contract before feature creation and reads supporting discussion files only through named stale, missing, or contradictory evidence refs. `specification-input.md` and other discussion files are not substitute handoffs.
+`spec-contract.json` records semantic delta, stable evidence refs, and capability
+operations so upstream signals are preserved without a repeated source sweep.
 
 Command-surface minimization must not delete capability. If the discussion or
 specification includes a new/create/scaffold/authoring operation, downstream
 planning and task generation must preserve it through an explicit public
-command, TUI route, core API, private helper, or user-confirmed deferral.
+command, TUI route, core API, private helper, or user-confirmed deferral
+carrying confirmation source, exact excluded behavior, residual risk, reopen or
+stop condition, and downstream artifact.
 Manual copy instructions and template-only docs can support that flow, but they
 do not replace the confirmed operation unless the user chose that narrower entry
 point.
 
-The planning package centers on `spec.md`, `alignment.md`, `context.md`,
-`workflow-state.md`, `checklists/requirements.md`, and a minimal compatibility
-`brainstorming/handoff-to-specify.json`. `alignment.md` carries the semantic
-traceability table through `Semantic Term Decisions`, `Upstream Intent Disposition`,
-and `Out-Of-Scope Conflicts`.
+The planning package centers on canonical Agent-only `spec-contract.json` and
+project-facing `spec.md`. `alignment.md`, `context.md`, `references.md`, and
+requirements diagnostics are conditional views; `workflow-state.md` is sparse
+resume state. Semantic decisions, capability operations, evidence refs,
+protected obligations, and semantic delta live in the canonical contract.
 
 That package then moves forward through structured handoff contracts into
 `plan`, `tasks`, and `implement`.
@@ -181,7 +181,7 @@ Use `deep-research` only when the requirements are clear but feasibility still n
 Use `research` only as a compatibility alias for `deep-research`; it should route into the same gate and must not create separate workflow artifacts.
 When `specify` records an unproven implementation chain after artifact review, the recommended pre-planning branch is `specify` -> `deep-research` -> `plan`.
 
-Generated workflows preserve the user's confirmed product scope. Scope reduction requires user confirmation: a smaller MVP, pilot, prototype, or staged delivery boundary is valid only when the user asks for it, the request already defines it, or the agent names a constraint and the user confirms the scope decision.
+Generated workflows preserve the user's complete user-confirmed scope. Scope reduction requires user confirmation: agents should not steer a requirement toward an MVP, pilot, prototype, first-story release, future-work delivery slice, agent-invented `v1/v2`, agent-invented `P0/P1`, or smaller validation build unless the user asked for that shape, the request already defines that boundary, or a named constraint makes reduced scope a decision the user confirms. Complexity alone is not a valid reason to shrink, defer, or block ordinary work; `sp-plan` and `sp-tasks` should use sequencing, dependencies, batches, join points, refinement checkpoints, and validation paths. Runtime capability limits are blockers only under the adaptive execution policy for heavy, safety-critical, or unpacketizable work, and they do not reduce scope.
 
 ### Step 5: Break Down and Implement
 
@@ -214,19 +214,19 @@ When the feature touches an established boundary pattern in the target project, 
 
 - For brownfield map-quality decisions, treat `.specify/project-cognition/status.json` as advisory git-baseline freshness metadata.
 - During explicit map-maintenance or repair work, invoke the project launcher from `.specify/config.json` with `project-cognition validate-build --format json`, then `project-cognition complete-refresh --format json` only when build acceptance passes.
-- Ordinary workflows should report changed paths and run inline project cognition update for their own source-changing closeout. Recommend `map-update` only for external/manual localized stale cognition maintenance, ordinary existing-baseline gaps, and weak localized coverage after a usable baseline; completion still depends on live code, tests, scripts, configuration, or authoritative docs. Use `map-scan -> map-build` only for first/missing/unusable baseline, schema failure, zero active-generation `path_index` rows, `explicit_rebuild_requested`, or `baseline_identity_invalid`.
+- Ordinary workflows should report changed paths and run planner-first project cognition update for their own source-changing closeout. Recommend `map-update` only for external/manual localized stale cognition maintenance, ordinary existing-baseline gaps, and weak localized coverage after a usable baseline; completion still depends on live code, tests, scripts, configuration, or authoritative docs. Use `map-scan -> map-build` only for first/missing/unusable baseline, schema failure, zero active-generation `path_index` rows, `explicit_rebuild_requested`, or `baseline_identity_invalid`.
 
 - `plan` should write an `Implementation Constitution` section instead of leaving the rule as background context only.
 - Use `Implementation Constitution` for architecture invariants, boundary ownership, forbidden implementation drift, required implementation references, and review focus.
-- `tasks` should turn those rules into explicit implementation guardrails before setup or feature work begins.
-- `tasks` should also preserve a `Task Guardrail Index` or equivalent task-to-guardrail mapping when subagent work needs task-local rule inheritance.
-- `implement` should treat those guardrails as binding execution constraints and confirm the owning framework, defining reference files, and forbidden drift before dispatching code-writing work.
+- `tasks` should map those rules to concrete tasks once in canonical `task-index.json` before setup or feature work begins.
+- `implement` should treat those refs as binding execution constraints and resolve the owning framework, defining references, and forbidden drift before changing code.
 - Delegated execution should not rely on raw task text when architecture or quality rules matter.
 - `plan` should provide `Dispatch Compilation Hints`.
-- `implement` should compile and validate a `WorkerTaskPacket` before dispatching subagents; if delegation is unavailable, unsafe, or not packetized, it should use `leader-inline-fallback` with an explicit recorded reason.
+- `implement` should compile and validate a `WorkerTaskPacket` just in time only when it selects delegation. Small or tightly coupled tasks may run leader-direct; dispatch failure requires explicit route re-evaluation.
 - Subagent packets should carry platform guardrails when the lane depends on supported-platform constraints, conditional compilation, or environment-sensitive runtime assumptions.
-- If the active integration exposes a runtime-managed result channel, subagents should use it. Otherwise they should write normalized result envelopes to the workflow-specific worker-results path.
-- When the local `specify` CLI is available and no runtime-managed result channel exists, subagents should prefer `specify result path` and `specify result submit` instead of inventing ad-hoc result locations or payload shapes.
+- If the active integration exposes a runtime-managed result channel, subagents should use it; Codex runtime-managed result paths require the dispatch request id and use `.specify/teams/state/results/<request-id>.json`.
+- Otherwise they should write normalized result envelopes to the workflow-specific worker-results path.
+- When the local `specify` CLI is available and no runtime-managed result channel exists, subagents should prefer `specify result path` and `specify result submit` instead of inventing ad-hoc result locations or payload shapes. `specify result path` emits JSON directly and does not accept `--format`.
 - Preserve the raw `reported_status` when subagent language such as `DONE_WITH_CONCERNS` or `NEEDS_CONTEXT` is normalized into canonical orchestration state.
 - Top-level `tasks.md` items should usually fit one coffee-break-sized implementation slice, roughly 10-20 minutes, while subagents may still break them into smaller 2-5 minute atomic steps internally.
 - Keep decomposition progressive: refine only the current executable window after each join point instead of over-specifying later batches too early.
@@ -245,7 +245,7 @@ When the feature touches an established boundary pattern in the target project, 
 After initialization, treat the generated commands as three groups:
 
 - **Core workflow skills**: `constitution`, `specify`, `plan`, `tasks`, `implement`
-- **Support skills**: `map-scan`, `map-build`, `map-update`, `auto`, `discussion`, `prd-scan`, `prd-build`, `prd` (deprecated compatibility entrypoint), `clarify`, `deep-research` (`research` alias), `checklist`, `analyze`, `debug`, `explain`
+- **Support skills**: `map-scan`, `map-build`, `map-update`, `auto`, `ask`, `discussion`, `prd-scan`, `prd-build`, `prd` (deprecated compatibility entrypoint), `clarify`, `deep-research` (`research` alias), `checklist`, `analyze`, `debug`, `explain`
 - **Codex-only runtime**: `sp-teams` and `sp-teams` skill surface when the project was initialized for Codex
 
 For Codex team-mode execution, use the runtime surface deliberately:
@@ -255,9 +255,9 @@ For Codex team-mode execution, use the runtime surface deliberately:
 - If agent automation should use the optional MCP facade, install it with `pip install "specify-cli[mcp]"` and refresh the generated Codex config with `scripts/sync-ecc-to-codex.sh` or `scripts/powershell/sync-ecc-to-codex.ps1`.
 - Use `sp-teams result-template --request-id <id>` and `sp-teams submit-result --print-schema` instead of inventing handoff JSON by guesswork. The generated result template is a `pending placeholder` and must be replaced with a real success, blocked, or failed result before submission.
 - Use `sp-teams sync-back` after managed team execution when the canonical code changes landed under `.specify/teams/worktrees/<session>/...` and need to be promoted back to the main workspace.
-- In execution-oriented workflows, use the leader + subagents model: `subagents-first` execution, `one-subagent` or `parallel-subagents` dispatch, and `leader-inline-fallback` only when delegation is unavailable, unsafe, or not packetized.
-- Use `native-subagents` when the active integration supports in-session subagents, `managed-team` only when durable state or lifecycle control is needed, and `leader-inline` only as the recorded fallback surface.
-- Prefer subagent execution only when a validated `WorkerTaskPacket` or equivalent execution contract preserves quality.
+- In `sp-implement`, use adaptive execution: `leader-direct` for a small or tightly coupled task, `one-subagent` for one independent bounded lane, and `parallel-subagents` only for isolated lanes with an explicit join.
+- Use `native-subagents` for selected delegated lanes and `managed-team` only when durable state or lifecycle control is needed.
+- Compile a validated `WorkerTaskPacket` just in time only for delegated work; do not pre-generate packets for every task.
 - Interpret `DONE_WITH_CONCERNS` as lane-local completion with follow-up concerns, not silent success.
 - Treat lane-local completion and repo-global verification separately: a batch can be complete while `doctor` still reports repo verification blocked by baseline debt.
 - Keep join point validation explicit in team-mode runs, and do not accept `idle` without the promised result handoff as completed work.
@@ -267,11 +267,13 @@ Generated project navigation now follows the project cognition runtime:
 - Generated projects use `.specify/project-cognition/status.json` plus the task-local `project-cognition query` bundle as the advisory project cognition index.
 - Read the cognition status and the returned task-local bundle before broader repository analysis when available, then prove claims from live repository evidence.
 - New generated workflows use `.specify/project-cognition/status.json`, `.specify/project-cognition/project-cognition.db`, and `project-cognition query` as advisory navigation inputs. Legacy project-map artifacts may still exist in old projects, but there is no Python runtime alias and new workflows should not read or require `.specify/project-map/**`.
+- Persisted semantic audit state is reusable only after claim readiness resume validation. `project-cognition semantic-audit-resume --input <resume-validation.json> --format json`, when available, compares the saved audit input/output pair with workflow state; it does not authorize source changes or final claims, and does not grant P3/P4. Multiple `authorized_claims` require one `active_claim_type`, and failed, blocked, skipped, or inconclusive verification results keep claim readiness blocked with `verification_result_failed`, `verification_result_blocked`, or `verification_result_inconclusive` until a newer matching passed rerun supersedes them.
 - Empty projects initialized by `specify init` run `project-cognition init-empty` after pinning the binary. When there is no business code yet, this creates `.specify/project-cognition/status.json` and `.specify/project-cognition/project-cognition.db` with baseline kind `baseline_kind=greenfield_empty`; greenfield flows do not require map-scan -> map-build solely because the graph has no paths. Projects with existing code still use map-scan -> map-build when a full first brownfield cognition baseline is needed for a first/missing/unusable baseline, schema failure, zero active-generation `path_index` rows, `explicit_rebuild_requested`, or `baseline_identity_invalid`.
 - Use `map-update` only for external/manual localized stale cognition refresh, user-edited changed-path map maintenance, interrupted workflow repair, explicit map maintenance, follow-up repair, and ordinary existing-baseline gaps; recommend `map-scan` followed by `map-build` only for first/missing/unusable baseline, schema failure, zero active-generation `path_index` rows, `explicit_rebuild_requested`, or `baseline_identity_invalid`.
 - For the first brownfield cognition baseline, run `sp-map-scan` followed by `sp-map-build` when you want a map baseline. That pair is map-maintenance complete only when scan acceptance and build acceptance pass: `project-cognition validate-scan --format json` and `project-cognition validate-build --format json`. Ordinary workflows may continue from live repository evidence when the map is missing, stale, or blocked.
-- Any source-changing `sp-*` workflow that alters navigation meaning should run inline project cognition update from changed paths, affected surfaces, and verification evidence during closeout; recommend `map-update` only for external/manual map-maintenance cases.
-- Workflow-owned mutation closeout uses the same lower-level update engine as `sp-map-update`. Delta-session closeout calls `project-cognition update --delta-session "$DELTA_SESSION_ID" --reason workflow-finalize --format json`; non-delta closeout writes `.specify/project-cognition/updates/<update-id>.json` and calls `project-cognition update --payload-file ".specify/project-cognition/updates/<update-id>.json" --reason workflow-finalize --format json`. A clean closeout requires `result_state=ready` or `result_state=no_op`; `update_id`, `last_update_id`, freshness, and legacy `recorded-only` output are not enough.
+- Any source-changing `sp-*` workflow that alters navigation meaning should run planner-first project cognition update from changed paths, affected surfaces, and verification evidence during closeout; recommend `map-update` only for external/manual map-maintenance cases.
+- Workflow-owned mutation closeout is planner-first: source-changing `sp-*` workflows run `project-cognition closeout-plan --workflow "$ACTIVE_WORKFLOW" --format json`, passing `--delta-session "$DELTA_SESSION_ID"` when a delta session exists. The planner returns `update_mode=delta_session` or `update_mode=payload_file`, `required_agent_fields`, `unknown_path_dispositions`, display-only command templates, and structured execution fields. Agents execute via `update_argv` after writing a completed payload, or by completing `delta_append_draft.argv_prefix` with agent-owned evidence placeholders before running `update_argv`. Verified `adoptable` unknown paths can be recorded without becoming blocking `known_unknowns`; only `blocking_known_unknown` dispositions become payload or delta known unknowns. Clean closeout gates on `result_state=ready` or `result_state=no_op`, not `status=ok`, `update_id`, `last_update_id`, freshness, display-only command templates, or legacy `recorded-only` output.
+- Closeout agents should use `known_unknowns` only for blockers that make the cognition update unsafe to trust. If unrelated dirty or untracked working-tree paths were excluded by explicit workflow-owned paths, record that as `confidence_notes` or `boundary.initial_dirty_paths`, not as blocking `known_unknowns`.
 - Map points, code proves: technical claims must be backed by live code, tests, scripts, configuration, or authoritative docs.
 
 ## Senior Consequence Analysis Gate
@@ -294,10 +296,15 @@ Use support skills when they solve a specific gap:
 
 - `map-update` for localized stale cognition runtime refresh, external/manual changed-path map maintenance, ordinary existing-baseline gaps, and weak localized coverage after a usable baseline; use `map-scan` followed by `map-build` only when the baseline is first/missing/unusable, schema failure is present, active-generation `path_index` rows are zero, `explicit_rebuild_requested` is recorded, or `baseline_identity_invalid` is recorded
 - `auto` when the repository already records the recommended next step and you want a single state-driven continue entrypoint instead of naming the exact workflow yourself
-- `discussion` to shape a rough idea through resumable senior product and technical discussion before formal specification. It writes `.specify/discussions/<slug>/` artifacts, uses an Adaptive Question Pack with one required primary question and up to two optional same-topic follow-ups only for local low-risk topics, runs the Context Boundary Gate before technicalizing unclear target/reference/external boundaries, and locks the target project root, current project role, reference source, and evidence source before project-specific claims. It acts as a senior product-engineering advisor: before project-specific technical advice it performs a Truth Pass, records verified project facts, open assumptions, checked evidence, and advice confidence, gives decision-ready judgment with evidence and risk, maintains a Discussion Compass, and proactively surfaces adjacent implications instead of forcing one-point-at-a-time replies. It creates exactly one single unified handoff: `handoff-to-specify.md` plus `handoff-to-specify.json` only after explicit handoff request, self-review, and user confirmation. Missing JSON is a hard integrity blocker for downstream intake. The handoff includes `handoff_goal`, `context_boundary`, `implementation_target`, `source_evidence`, `blocking_unknowns`, `downstream_instructions`, `quality_gate`, and a Must-Preserve Ledger. It does not automatically invoke `specify`.
+- `ask` for read-only evidence-backed project Q&A. Use it when you need a direct answer from project files, templates, docs, state, or memory before choosing an action workflow. Project cognition guides the search; live evidence proves the answer. Same-topic follow-ups reuse the prior evidence set when it still applies, localized or project-slang terms are normalized into project vocabulary, and complex answers separate proven facts from evidence-derived inferences. `sp-ask` is independent from `sp-discussion`; it creates no state or handoff, makes no source edits, and does not run tests, builds, package managers, or project CLI commands by default. There is no `specify ask` helper in v1.
+- `discussion` to shape a rough idea before formal specification or bounded quick execution. It keeps human replies natural while Agent state and the single `handoff-to-specify.json` contract stay machine-oriented. `sp-specify` compiles a confirmed contract into `spec-contract.json`; `sp-quick` may consume it only when quick eligibility remains bounded. When the contract introduces no quick-stage `semantic_delta`, Quick binds understanding to the confirmed `review_digest` and does not ask for the same confirmation again.
+- `discussion` continues by default, uses recommendation-first progression, and runs the Context Boundary Gate before project-specific claims. Project cognition is advisory navigation; live evidence proves current facts.
+- Continue by default, do not ask for continuation, and ask only when user judgment is genuinely required and no safe default exists.
+- `sp-specify` compiles a confirmed discussion contract into `spec-contract.json`; `sp-quick` consumes the same JSON only when eligible and reuses `review_digest` when no quick-stage semantic delta exists.
+- The main feature pipeline passes `handoff-to-specify.json` -> `spec-contract.json` -> `plan-contract.json` -> `task-index.json` -> per-task lifecycle records -> `human-acceptance.json`. Optional research/design/lane artifacts are trigger-driven, WorkerTaskPackets are just-in-time, implementation reviews are event-triggered, and human product acceptance is a separate context-restoring stage after technical closeout.
 - `prd-scan` followed by `prd-build` as the existing-project reverse PRD lane when you need repository-first current-state product documentation; it is the heavy reconstruction workflow, substantive scans are subagent-mandatory, critical claims target `L4 Reconstruction-Ready`, `config-contracts.json` is part of the scan contract surface, `prd-build` must not perform a second repository scan, it writes `.specify/prd-runs/<run-id>/`, and it does not automatically hand off to `plan`. `prd` remains a deprecated compatibility entrypoint that should route into the same pair
 - Treat the project cognition runtime as an advisory brownfield navigation index that gives agents dependency, claim, conflict, ownership, and change-impact context before deeper brownfield work starts.
-- `specify`, `clarify`, `deep-research`, `plan`, and `tasks` should not directly rewrite cognition content for artifact-only work. When they actually change source/runtime/template/config/test/generated-asset surfaces, they run inline project cognition update during closeout; recommend `map-update` only for external/manual changed-path map maintenance, ordinary existing-baseline gaps, and separate map-maintenance passes. Use map-scan -> map-build only for first/missing/unusable baseline, schema failure, zero active-generation path_index rows, `explicit_rebuild_requested`, or `baseline_identity_invalid`
+- `specify`, `clarify`, `deep-research`, `plan`, and `tasks` should not directly rewrite cognition content for artifact-only work. When they actually change source/runtime/template/config/test/generated-asset surfaces, they run planner-first project cognition update during closeout; recommend `map-update` only for external/manual changed-path map maintenance, ordinary existing-baseline gaps, and separate map-maintenance passes. Use map-scan -> map-build only for first/missing/unusable baseline, schema failure, zero active-generation path_index rows, `explicit_rebuild_requested`, or `baseline_identity_invalid`
 - `clarify` when an existing spec still needs deeper analysis before planning
 - `deep-research` when a planning-ready spec still needs feasibility evidence or a disposable demo before `plan`; `research` is only its compatibility alias
 - `checklist` when you want to audit requirement quality after planning
@@ -308,7 +315,7 @@ Use support skills when they solve a specific gap:
 - `analyze` should also flag subagent packet failures through `DP1`, `DP2`, and `DP3` when task packets or subagent results lose required rule-carrying evidence
 - `explain` when you want the current spec, plan, task, implement, project cognition, or compatibility/export artifact restated in plain language
 
-If you're starting from an existing codebase, consult `.specify/project-cognition/status.json` plus the workflow-appropriate slice when available. For the first brownfield cognition baseline, run `sp-map-scan` followed by `sp-map-build` when you want map maintenance and require `project-cognition validate-scan --format json` plus `project-cognition validate-build --format json` to pass for that map-maintenance workflow. Downstream workflows use cognition freshness in `.specify/project-cognition/status.json` as map-quality diagnostics; source-changing `sp-*` workflows run inline project cognition update for their own closeout, while `map-update` is external/manual localized stale cognition maintenance and follow-up repair, with uncertain closure recorded as partial/low-confidence facts, known unknowns, and `minimal_live_reads`.
+If you're starting from an existing codebase, consult `.specify/project-cognition/status.json` plus the task-local compass packet when available. For the first brownfield cognition baseline, run `sp-map-scan` followed by `sp-map-build` when you want map maintenance and require `project-cognition validate-scan --format json` plus `project-cognition validate-build --format json` to pass for that map-maintenance workflow. Downstream workflows use cognition freshness in `.specify/project-cognition/status.json` as map-quality diagnostics; source-changing `sp-*` workflows run planner-first project cognition update for their own closeout, while `map-update` is external/manual localized stale cognition maintenance and follow-up repair, with uncertain closure recorded as partial/low-confidence facts, known unknowns, and `minimal_live_reads`.
 
 Use the lightweight routing rules consistently:
 
@@ -324,6 +331,19 @@ Use the lightweight routing rules consistently:
   - Command shape: `specify quick resume <id>`
   - Command shape: `specify quick close <id> --status resolved|blocked`
   - Command shape: `specify quick archive <id>`
+- Discussion sessions live under `.specify/discussions/<slug>/`, with canonical typed state in `discussion-state.json`, a short derived compatibility view in `discussion-state.md`, compact semantic events in `discussion-log.jsonl`, and a derived management index in `.specify/discussions/index.json`. `handoff-ready` remains resumable until an eligible consumer records matching source paths and `review_digest`; after verified consumption, `specify discussion mark-consumed <slug> --feature-dir <feature-dir>` closes the source discussion so old handoffs do not block `sp-auto`.
+- Use `specify discussion list` to inspect unclosed discussions by default.
+- Discussion helper command shapes:
+  - Command shape: `specify discussion init <topic> [--slug <slug>]`
+  - Command shape: `specify discussion status <slug>`
+  - Command shape: `specify discussion resume <slug>`
+  - Command shape: `specify discussion checkpoint <slug> --summary <summary> [--phase <phase>]`
+  - Command shape: `specify discussion write-handoff <slug> --input <draft.json>`
+  - Command shape: `specify discussion validate-handoff <slug>`
+  - Command shape: `specify discussion mark-ready <slug>`
+  - Command shape: `specify discussion close <slug> --status completed|abandoned`
+  - Command shape: `specify discussion mark-consumed <slug> --feature-dir <feature-dir>`
+  - Command shape: `specify discussion archive <slug>`
 - Upgrade to `specify` when the request spans multiple independent capabilities, carries compatibility or rollout risk, or needs explicit acceptance criteria before implementation.
 
 Required action markers:
@@ -333,29 +353,39 @@ Required action markers:
 - Existing `AGENTS.md` files are extended through a managed `SPEC-KIT` block instead of full-file replacement.
 - `fast`, `quick`, `map-scan`, and `map-build` are the first-wave `[AGENT]` workflows, and the shared `specify`, `plan`, `tasks`, `implement`, and `debug` workflows now use the same marker for advisory navigation.
 
-Passive project learning layer:
+Project Learning lifecycle:
 
-- Generated projects now include `.specify/memory/project-rules.md` and `.specify/memory/project-learnings.md` as stable shared project memory below the constitution.
-- This shared project memory is available across later work in the repository, not just when a `sp-*` workflow is active.
-- Runtime candidate learnings live under `.planning/learnings/candidates.md`, with `.planning/learnings/review.md` tracking passive promotion notes.
-- The major workflow templates read this passive project learning layer before deeper command-local context so recurring pitfalls, constraints, and user defaults can influence later runs.
-- The passive start step can auto-promote repeated candidates into shared learnings before the command does deeper local analysis, including repeated high-signal candidates that should no longer stay stuck in the candidate layer.
-- Low-level helper commands exist for the passive lifecycle:
+- Agents read Learning through CLI progressive disclosure, not by parsing confirmed, index, detail, or candidate files.
+- `learning start` gives the current workflow a compact relevant intake; `learning list` filters/pages summaries; `learning show` expands one selected record. All three are read-only.
+- `learning capture` and `capture-auto` produce or merge candidates. `learning promote` performs explicit lifecycle changes; workflow start never silently promotes.
+- Reusable corrections, retries, route changes, blockers/recovery, false leads, hidden dependencies, verification gaps, tooling traps, state loss, cognition gaps, constraints, and near misses trigger review. Routine one-off output does not.
+- An owning workflow can persist a semantic signal under `## Learning Triggers` as `kind: compact evidence`; `capture-auto` maps it into a typed candidate.
+- Low-level helper commands:
   - `specify learning ensure --format json`
   - `specify learning status --format json`
   - `specify learning start`
     - Command shape: `specify learning start --command <workflow> --format json`
+  - `specify learning list`
+    - Command shape: `specify learning list --command <workflow> --format json`
+    - Use `--all` for all matching summaries or execute `pagination.next_argv` to continue a page at a time.
+  - `specify learning show`
+    - Command shape: `specify learning show --ref <recurrence-key-or-id> --format json`
   - `specify learning capture`
     - Required options: `--command`, `--type`, `--summary`, `--evidence`
+    - Agent guidance options: `--problem`, `--action`, `--trigger`, `--success`, `--avoid`, `--exception`
   - `specify learning capture-auto`
-    - Command shape: `specify learning capture-auto --command <workflow> --format json`
+    - Command shape: `specify learning capture-auto --command <workflow> (--feature-dir <dir> | --workspace <dir> | --session-file <file>) --format json`
   - `specify implement closeout`
     - Command shape: `specify implement closeout --feature-dir <feature-dir> --format json`
+    - Writes `FEATURE_DIR/implementation-summary.md`, prepares fingerprinted `FEATURE_DIR/human-acceptance.json`, and returns `implementation_summary` plus the default `sp-accept` / `spx-accept` handoff. Baseline comparison commands remain `git diff --stat HEAD` and `git diff --name-status HEAD`.
+  - `specify accept prepare|validate|closeout`
+    - Command shape: `specify accept validate --feature-dir <feature-dir> --format json`
+    - Keeps contextless-human orientation, one-step scenarios, resume cursor, observations, findings, source freshness, and explicit human verdict mechanically checkable.
   - `specify learning aggregate --format json`
   - `specify learning promote`
     - Command shape: `specify learning promote --recurrence-key <key> --target learning|rule`
-- `specify learning aggregate --format json` groups repeated patterns so operators can decide what to promote into shared learnings or rules.
-- Treat this as an internal/runtime helper surface, not as a separate daily slash workflow. Direct learning-memory commands preserve structured path-learning fields such as pain score, false starts, decisive signal, root-cause family, injection target, and promotion hint.
+- `specify learning aggregate --format json` groups repeated patterns so operators can decide what to promote into confirmed Learning or project rules.
+- Treat this as a passive internal/runtime lifecycle, not as a separate daily slash workflow.
 - Durable eval helpers exist once a rule should become executable proof instead of only remembered guidance:
   - `specify eval create`
     - Command shape: `specify eval create --recurrence-key <key> --summary "<summary>"`
@@ -365,7 +395,7 @@ Passive project learning layer:
 Hook runtime and diagnostics:
 
 - `specify hook ...` is kept for compatibility, diagnostics, tests, and native adapters. Normal `sp-*` workflow steps should not call `specify hook ...`.
-- Use durable workflow state, artifact checks, packet/result contracts, verification output, and direct project learning memory during normal work.
+- Use durable workflow state, artifact checks, packet/result contracts, verification output, and CLI-selected project Learning during normal work.
 - Diagnostic command shapes:
   - `specify hook validate-state --command <workflow> --feature-dir <dir>`
   - `specify hook validate-session-state --command <workflow> --feature-dir <dir>`

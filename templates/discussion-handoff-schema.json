@@ -1,0 +1,103 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spec-kit-plus.local/schemas/discussion-handoff-v4.json",
+  "title": "Spec Kit Plus Discussion Requirement Contract",
+  "type": "object",
+  "required": [
+    "version",
+    "handoff_kind",
+    "status",
+    "entry_source",
+    "discussion_slug",
+    "source_contract",
+    "handoff_goal",
+    "agent_requirement_contract",
+    "consumer_eligibility",
+    "recommended_consumer",
+    "context_boundary",
+    "implementation_target",
+    "source_evidence",
+    "blocking_unknowns",
+    "downstream_instructions",
+    "quality_gate",
+    "discussion_decision_digest",
+    "must_preserve",
+    "coverage_status",
+    "planning_gate_status",
+    "hard_unknown_count",
+    "open_conflict_count",
+    "review_digest"
+  ],
+  "properties": {
+    "version": {"const": 4},
+    "handoff_kind": {"const": "discussion_requirement_contract"},
+    "status": {"enum": ["draft", "handoff-ready"]},
+    "entry_source": {"const": "sp-discussion"},
+    "discussion_slug": {"type": "string", "minLength": 1},
+    "source_contract": {"type": "string", "minLength": 1},
+    "handoff_goal": {"type": "string", "minLength": 1},
+    "agent_requirement_contract": {"type": "object"},
+    "consumer_eligibility": {"type": "object"},
+    "recommended_consumer": {"enum": ["sp-specify", "sp-quick", "continue-discussion"]},
+    "context_boundary": {"type": "object"},
+    "implementation_target": {"type": "object"},
+    "source_evidence": {"type": "array"},
+    "blocking_unknowns": {"type": "array"},
+    "soft_unknowns": {"type": "array"},
+    "downstream_instructions": {
+      "type": "object",
+      "required": [
+        "settled_decisions",
+        "preserved_assumptions",
+        "conflicts_requiring_return",
+        "capability_map",
+        "dependencies",
+        "planning_constraints",
+        "deferred_scope",
+        "reopen_conditions"
+      ],
+      "properties": {
+        "settled_decisions": {"type": "array"},
+        "preserved_assumptions": {"type": "array"},
+        "conflicts_requiring_return": {"type": "array"},
+        "capability_map": {"type": "array"},
+        "dependencies": {"type": "array"},
+        "planning_constraints": {"type": "array"},
+        "deferred_scope": {"type": "array"},
+        "reopen_conditions": {"type": "array"}
+      },
+      "additionalProperties": false
+    },
+    "quality_gate": {"type": "object"},
+    "discussion_decision_digest": {"type": "object"},
+    "must_preserve": {"type": "array", "minItems": 1},
+    "conflicts": {"type": "array"},
+    "coverage_status": {
+      "enum": ["not_started", "in_progress", "complete", "blocked_by_handoff_integrity"]
+    },
+    "planning_gate_status": {
+      "enum": ["blocked_by_incomplete_coverage", "blocked_by_handoff_integrity", "ready"]
+    },
+    "hard_unknown_count": {"type": "integer", "minimum": 0},
+    "open_conflict_count": {"type": "integer", "minimum": 0},
+    "review_digest": {"type": ["string", "null"]},
+    "handoff_integrity": {"type": "string"}
+  },
+  "additionalProperties": true,
+  "allOf": [
+    {
+      "if": {
+        "properties": {"status": {"const": "handoff-ready"}},
+        "required": ["status"]
+      },
+      "then": {
+        "properties": {
+          "coverage_status": {"const": "complete"},
+          "planning_gate_status": {"const": "ready"},
+          "hard_unknown_count": {"const": 0},
+          "open_conflict_count": {"const": 0}
+        }
+      }
+    }
+  ]
+}

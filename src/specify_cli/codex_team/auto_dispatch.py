@@ -6,6 +6,7 @@ import json
 import os
 import re
 import sys
+import time
 from dataclasses import asdict, dataclass
 from hashlib import sha1
 from pathlib import Path
@@ -782,6 +783,36 @@ def _load_expected_dispatch_records(
     return dispatch_by_task_id
 
 
+def _load_dispatch_record_payload(project_root: Path, request_id: str) -> dict[str, object]:
+    dispatch_path = dispatch_record_path(project_root, request_id)
+    if not dispatch_path.exists():
+        return {}
+    try:
+        payload = json.loads(dispatch_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def _wait_for_terminal_agent_teams_dispatch(
+    project_root: Path,
+    request_id: str,
+    *,
+    timeout_s: float = 2.0,
+    interval_s: float = 0.05,
+) -> dict[str, object]:
+    deadline = time.monotonic() + timeout_s
+    latest: dict[str, object] = {}
+    while True:
+        latest = _load_dispatch_record_payload(project_root, request_id)
+        status = str(latest.get("status", "")).strip()
+        if status in {"completed", "failed", "blocked"}:
+            return latest
+        if time.monotonic() >= deadline:
+            return latest
+        time.sleep(interval_s)
+
+
 def launch_dispatched_worker(
     project_root: Path,
     *,
@@ -1185,6 +1216,11 @@ def complete_dispatched_batch(
             isinstance(delegation_metadata, dict)
             and delegation_metadata.get("structured_results_expected")
         )
+        executor_mode = (
+            str(delegation_metadata.get("executor_mode", "")).strip()
+            if isinstance(delegation_metadata, dict)
+            else ""
+        )
 
         if dispatch_status in {"failed", "retry_pending"} and dispatch_reason:
             raise AutoDispatchError(f"dispatch result for {task_id} is unavailable: {dispatch_reason}")
@@ -1210,6 +1246,22 @@ def complete_dispatched_batch(
                     raise AutoDispatchError(
                         f"dispatch result for {task_id} is not complete: {validated_result.status}"
                     )
+                if (
+                    request_id
+                    and executor_mode == "agent-teams-runtime"
+                    and dispatch_status not in {"completed", "failed", "blocked"}
+                ):
+                    refreshed_dispatch = _wait_for_terminal_agent_teams_dispatch(
+                        project_root,
+                        request_id,
+                    )
+                    if refreshed_dispatch:
+                        dispatch_status = str(refreshed_dispatch.get("status", "")).strip()
+                        dispatch_reason = str(refreshed_dispatch.get("reason", "")).strip()
+                        if dispatch_status in {"failed", "retry_pending"} and dispatch_reason:
+                            raise AutoDispatchError(
+                                f"dispatch result for {task_id} is unavailable: {dispatch_reason}"
+                            )
                 existing_task = task_ops.get_task(project_root, task_id)
                 if (
                     request_id

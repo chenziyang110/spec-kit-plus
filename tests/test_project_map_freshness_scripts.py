@@ -134,6 +134,43 @@ def _run_bash_cognition(repo: Path, *args: str, project_cognition_bin: Path) -> 
     return json.loads(result.stdout)
 
 
+def _run_bash_cognition_from_project_launcher(
+    repo: Path,
+    *args: str,
+    project_cognition_bin: Path,
+) -> dict:
+    if not shutil.which("bash"):
+        pytest.skip("bash not available")
+    scripts_dir = repo / "scripts" / "bash"
+    scripts_dir.mkdir(parents=True, exist_ok=True)
+    shutil.copy(BASH_COMMON, scripts_dir / "common.sh")
+    shutil.copy(BASH_COGNITION_HELPER, scripts_dir / "project-cognition-freshness.sh")
+    config = repo / ".specify" / "config.json"
+    config.parent.mkdir(parents=True, exist_ok=True)
+    config.write_text(
+        json.dumps(
+            {
+                "project_cognition_launcher": {
+                    "command": project_cognition_bin.as_posix(),
+                    "argv": [project_cognition_bin.relative_to(repo).as_posix()],
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    result = subprocess.run(
+        ["bash", "scripts/bash/project-cognition-freshness.sh", ".", *args],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        env={key: value for key, value in os.environ.items() if key != "PROJECT_COGNITION_BIN"},
+    )
+    return json.loads(result.stdout)
+
+
 def _write_bash_fake_project_cognition(repo: Path) -> Path | None:
     if not shutil.which("bash"):
         return None
@@ -215,6 +252,53 @@ def _run_powershell_cognition(repo: Path, *args: str, project_cognition_bin: Pat
         capture_output=True,
         text=True,
         env={**os.environ, "PYTHONPATH": str(PROJECT_ROOT / "src"), "PROJECT_COGNITION_BIN": str(project_cognition_bin)},
+    )
+    return json.loads(result.stdout)
+
+
+def _run_powershell_cognition_from_project_launcher(
+    repo: Path,
+    *args: str,
+    project_cognition_bin: Path,
+) -> dict:
+    shell = shutil.which("pwsh") or shutil.which("powershell")
+    if not shell:
+        pytest.skip("PowerShell not available")
+    scripts_dir = repo / "scripts" / "powershell"
+    scripts_dir.mkdir(parents=True, exist_ok=True)
+    shutil.copy(PS_COMMON, scripts_dir / "common.ps1")
+    shutil.copy(PS_COGNITION_HELPER, scripts_dir / "project-cognition-freshness.ps1")
+    config = repo / ".specify" / "config.json"
+    config.parent.mkdir(parents=True, exist_ok=True)
+    config.write_text(
+        json.dumps(
+            {
+                "project_cognition_launcher": {
+                    "command": str(project_cognition_bin),
+                    "argv": [str(project_cognition_bin)],
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    result = subprocess.run(
+        [
+            shell,
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            "scripts/powershell/project-cognition-freshness.ps1",
+            "-RepoRoot",
+            str(repo),
+            "-Command",
+            *args,
+        ],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+        text=True,
+        env={key: value for key, value in os.environ.items() if key != "PROJECT_COGNITION_BIN"},
     )
     return json.loads(result.stdout)
 
@@ -507,6 +591,77 @@ def test_bash_project_cognition_helper_uses_project_cognition_bin_without_wrappe
     assert not (git_repo / ".specify" / "project-map").exists()
 
 
+def test_bash_project_cognition_helper_uses_project_pinned_launcher(git_repo: Path):
+    project_cognition_bin = _write_bash_fake_project_cognition(git_repo)
+    if project_cognition_bin is None:
+        pytest.skip("bash not available")
+
+    payload = _run_bash_cognition_from_project_launcher(
+        git_repo,
+        "mark-dirty",
+        "workflow contract changed",
+        project_cognition_bin=project_cognition_bin,
+    )
+
+    assert payload["dirty"] is True
+    assert payload["dirty_reasons"] == ["workflow_contract_changed"]
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX PATH isolation test")
+def test_bash_project_cognition_helper_reads_launcher_without_python(tmp_path: Path):
+    bash = shutil.which("bash")
+    required_tools = {
+        name: shutil.which(name) for name in ("dirname", "awk", "sed")
+    }
+    if bash is None or any(path is None for path in required_tools.values()):
+        pytest.skip("bash/coreutils not available")
+
+    repo = tmp_path / "project"
+    scripts_dir = repo / "scripts" / "bash"
+    scripts_dir.mkdir(parents=True)
+    shutil.copy(BASH_COMMON, scripts_dir / "common.sh")
+    shutil.copy(BASH_COGNITION_HELPER, scripts_dir / "project-cognition-freshness.sh")
+    binary = repo / ".specify" / "bin" / "project-cognition"
+    binary.parent.mkdir(parents=True)
+    binary.write_text(
+        "#!/bin/sh\nprintf '{\"launcher\":\"awk-fallback\"}\\n'\n",
+        encoding="utf-8",
+    )
+    binary.chmod(0o755)
+    (repo / ".specify" / "config.json").write_text(
+        json.dumps(
+            {
+                "project_cognition_launcher": {
+                    "command": ".specify/bin/project-cognition",
+                    "argv": [".specify/bin/project-cognition"],
+                }
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    tools_dir = tmp_path / "tools"
+    tools_dir.mkdir()
+    for name, source in required_tools.items():
+        (tools_dir / name).symlink_to(source)
+
+    result = subprocess.run(
+        [
+            bash,
+            str(scripts_dir / "project-cognition-freshness.sh"),
+            str(repo),
+            "status",
+        ],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+        text=True,
+        env={**os.environ, "PATH": str(tools_dir)},
+    )
+
+    assert json.loads(result.stdout) == {"launcher": "awk-fallback"}
+
+
 def test_powershell_project_cognition_helper_uses_project_cognition_bin_without_wrapper(git_repo: Path):
     project_cognition_bin = _write_powershell_fake_project_cognition(git_repo)
     if project_cognition_bin is None:
@@ -524,6 +679,22 @@ def test_powershell_project_cognition_helper_uses_project_cognition_bin_without_
     assert payload["status_path"].replace("\\", "/").endswith(".specify/project-cognition/status.json")
     assert _project_cognition_status_path(git_repo).exists()
     assert not (git_repo / ".specify" / "project-map").exists()
+
+
+def test_powershell_project_cognition_helper_uses_project_pinned_launcher(git_repo: Path):
+    project_cognition_bin = _write_powershell_fake_project_cognition(git_repo)
+    if project_cognition_bin is None:
+        pytest.skip("PowerShell not available")
+
+    payload = _run_powershell_cognition_from_project_launcher(
+        git_repo,
+        "mark-dirty",
+        "workflow contract changed",
+        project_cognition_bin=project_cognition_bin,
+    )
+
+    assert payload["dirty"] is True
+    assert payload["dirty_reasons"] == ["workflow_contract_changed"]
 
 
 def test_bash_check_reads_legacy_project_map_status(git_repo: Path):

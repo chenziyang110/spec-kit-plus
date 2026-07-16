@@ -92,3 +92,25 @@ def test_write_normalized_result_handoff_rejects_pending_template_payload(
             quick_workspace=project_root / ".planning" / "quick" / "001-fix",
             lane_id="lane-a",
         )
+
+
+def test_write_normalized_result_handoff_rejects_obsolete_ui_fields(
+    tmp_path: Path,
+) -> None:
+    target = tmp_path / ".planning" / "quick" / "001-fix"
+
+    with pytest.raises(ValueError, match="ui_fidelity_evidence"):
+        write_normalized_result_handoff(
+            tmp_path,
+            command_name="quick",
+            integration_key="cursor-agent",
+            raw_result={
+                "task_id": "lane-a",
+                "status": "success",
+                "ui_fidelity_evidence": [],
+            },
+            quick_workspace=target,
+            lane_id="lane-a",
+        )
+
+    assert not (target / "worker-results" / "lane-a.json").exists()

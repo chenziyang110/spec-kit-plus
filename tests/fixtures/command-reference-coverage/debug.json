@@ -1,0 +1,56 @@
+{
+  "workflow": "debug",
+  "source": "templates/commands/debug.md",
+  "entries": [
+    {
+      "kind": "mode",
+      "source_excerpt": "Complexity-Based Debug Execution",
+      "target": "templates/command-references/debug/intake-and-debug-checkpoint.md"
+    },
+    {
+      "kind": "checkpoint",
+      "source_excerpt": "Debug Understanding Checkpoint",
+      "target": "templates/command-references/debug/intake-and-debug-checkpoint.md"
+    },
+    {
+      "kind": "checkpoint",
+      "source_excerpt": "understanding_confirmed: false",
+      "target": "templates/command-references/debug/intake-and-debug-checkpoint.md"
+    },
+    {
+      "kind": "evidence",
+      "source_excerpt": "Investigation Protocol",
+      "target": "templates/command-references/debug/reproduction-and-evidence.md"
+    },
+    {
+      "kind": "evidence",
+      "source_excerpt": "Mandatory Intake Contract",
+      "target": "templates/command-references/debug/reproduction-and-evidence.md"
+    },
+    {
+      "kind": "hypothesis",
+      "source_excerpt": "One active hypothesis at a time",
+      "target": "templates/command-references/debug/intake-and-debug-checkpoint.md"
+    },
+    {
+      "kind": "hypothesis",
+      "source_excerpt": "root cause",
+      "target": "templates/command-references/debug/hypothesis-and-root-cause.md"
+    },
+    {
+      "kind": "fix",
+      "source_excerpt": "Fix and Verify Protocol",
+      "target": "templates/command-references/debug/fix-gate.md"
+    },
+    {
+      "kind": "state",
+      "source_excerpt": "Debug File Protocol",
+      "target": "templates/command-references/debug/debug-state.md"
+    },
+    {
+      "kind": "closeout",
+      "source_excerpt": "Checkpoint Protocol",
+      "target": "templates/command-references/debug/regression-validation-and-closeout.md"
+    }
+  ]
+}

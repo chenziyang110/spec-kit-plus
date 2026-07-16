@@ -1,5 +1,7 @@
 import json
 
+import pytest
+
 from specify_cli.execution.result_normalizer import normalize_worker_task_result_payload
 
 
@@ -45,6 +47,78 @@ def test_normalize_worker_task_result_payload_preserves_consequence_evidence() -
             "outcome": "recovery path validated",
         }
     ]
+
+
+def test_normalize_worker_task_result_payload_rejects_obsolete_ui_evidence() -> None:
+    with pytest.raises(ValueError, match="uiFidelityEvidence"):
+        normalize_worker_task_result_payload(
+            {
+                "task_id": "T105",
+                "status": "success",
+                "summary": "validated UI fidelity",
+                "uiFidelityEvidence": [
+                    {
+                        "kind": "visual_comparison",
+                        "artifact": "artifacts/auth-flow-diff.png",
+                    }
+                ],
+            }
+        )
+
+
+def test_normalize_worker_task_result_payload_preserves_ui_fields() -> None:
+    result = normalize_worker_task_result_payload(
+        {
+            "task_id": "T105",
+            "status": "success",
+            "summary": "validated UI fidelity",
+            "ui_evidence": [
+                {
+                    "kind": "visual_capture",
+                    "ref": "artifacts/ui/desktop-1440.png",
+                    "viewport": "1440",
+                }
+            ],
+            "ui_verification": {
+                "contract_check": "pass",
+                "runtime_evidence": "pass",
+                "visual_comparison": "unavailable",
+                "fidelity_status": "pending-human-review",
+                "reviewer": "agent",
+            },
+        }
+    )
+
+    assert result.ui_evidence == [
+        {
+            "kind": "visual_capture",
+            "ref": "artifacts/ui/desktop-1440.png",
+            "viewport": "1440",
+        }
+    ]
+    assert result.ui_verification.fidelity_status == "pending-human-review"
+
+
+def test_normalize_worker_task_result_payload_rejects_camel_case_ui_evidence() -> None:
+    with pytest.raises(ValueError, match="uiEvidence"):
+        normalize_worker_task_result_payload(
+            {
+                "taskId": "T106",
+                "status": "success",
+                "summary": "validated UI fidelity",
+                "uiEvidence": [
+                    {
+                        "kind": "screenshot",
+                        "path": "artifacts/ui/mobile-390.png",
+                        "viewport": "390",
+                    }
+                ],
+                "uiVerification": {
+                    "fidelityStatus": "pending-human-review",
+                    "visualComparison": "unavailable",
+                },
+            }
+        )
 
 
 def test_normalize_worker_task_result_payload_maps_done_with_concerns_to_success() -> None:

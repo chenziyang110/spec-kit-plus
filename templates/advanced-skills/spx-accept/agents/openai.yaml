@@ -1,0 +1,7 @@
+interface:
+  display_name: "SPX Accept"
+  short_description: "Guide a human through product acceptance"
+  default_prompt: "Use $spx-accept to guide me through accepting the completed feature."
+
+policy:
+  allow_implicit_invocation: false

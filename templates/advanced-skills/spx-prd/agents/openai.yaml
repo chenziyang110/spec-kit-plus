@@ -1,0 +1,7 @@
+interface:
+  display_name: "SPX PRD"
+  short_description: "Deprecated PRD compatibility route"
+  default_prompt: "Use $spx-prd to route this legacy request into the canonical PRD scan/build flow."
+
+policy:
+  allow_implicit_invocation: false

@@ -7,6 +7,16 @@ workflow_contract:
   default_handoff: Return to the blocked workflow once the affected query scope is green or yellow.
 ---
 
+[AGENT] For project-cognition-backed semantic intake, routing, audit, resume, or final-claim gates, read `references/semantic-work-contract.md`.
+
+## Detailed References
+
+Read [Reference index](references/INDEX.md) before applying shared semantic contracts.
+
+- [semantic work contract](references/semantic-work-contract.md)
+
+{{spec-kit-include: ../command-partials/common/learning-layer.md}}
+
 ## Objective
 
 Refresh the existing query-backed project cognition baseline incrementally from diff-driven evidence or explicit user corrections.
@@ -26,7 +36,7 @@ Use `execution_surface: native-subagents`.
 ## Process
 
 - Query the current project cognition baseline and determine the affected closure before editing runtime outputs.
-- Use the shared semantic intake contract when classifying changed paths or user supplements: build `semantic_intake` from the alias catalog, normalized query, `intent_facets`, `negative_constraints`, and `alias_interpretations`; preserve facet coverage in `concept_decisions` through `covered_facets`, `missing_facets`, and `match_sources`; write `repository_search_terms` derived from project language before source search. Do not search only the raw user words; include component names, state names, file names, command names, UI labels, and route names from candidates, aliases, matched_terms, colloquial_matches, returned paths, `normalized_query`, and `expanded_queries`. Use these project-language search terms before broad repository search. Do not trust top similarity alone when deciding the affected closure.
+- Use the shared semantic intake contract when classifying changed paths or user supplements: build `semantic_intake` from the alias catalog, normalized query, `intent_facets`, `negative_constraints`, and `alias_interpretations`; preserve facet coverage in `concept_decisions` through `covered_facets`, `missing_facets`, and `match_sources`; write `repository_search_terms` derived from project language before source search. Agent-owned semantic normalization is mandatory: raw lexicon ranking and `agent_normalization` are only bootstrap signals, not route decisions. If `agent_normalization.required=true`, every raw candidate is `score=0`, or the prompt is localized, mixed-language, CJK, colloquial, symptom-first, or mixed-language or CJK text, extract embedded project terms and write `semantic_intake` from the alias catalog before selecting or rejecting concepts (raw lexicon ranking is only a bootstrap; action: write_semantic_intake_from_alias_catalog). If `agent_normalization` is omitted, treat it as `required=false`; omission does not make raw lexical ranking authoritative. CJK or mixed CJK/ASCII input still requires agent normalization even when positive raw lexical matches exist because embedded project tokens do not translate the surrounding user language. The agent still owns translation; `agent_normalization` is advisory guidance, not a route decision. Do not search only the raw user words; include component names, state names, file names, command names, UI labels, and route names from candidates, aliases, matched_terms, colloquial_matches, returned paths, `normalized_query`, and `expanded_queries`. Use these project-language search terms before broad repository search. Do not trust top similarity alone when deciding the affected closure.
 - Prefer the smallest update that can truthfully restore readiness.
 - Treat explicit user corrections and user-supplied scope as first-class routing input; user-supplied scope is authoritative for the touched area unless repository evidence disproves it.
 - Dispatch only validated incremental update lanes with bounded affected scope.
@@ -36,13 +46,15 @@ Use `execution_surface: native-subagents`.
 
 ## Git Delta Intake
 
-- Start from Git, not memory: collect modified, added, deleted, and renamed paths from the current diff, supplied commit range, or explicit changed-path list.
-- Filter changed paths through `.cognitionignore` before querying or patching the runtime. Read root `.cognitionignore` and `.specify/project-cognition/.cognitionignore`; both use gitignore-compatible syntax.
+- Start from Git, not memory: first run `{{specify-subcmd:project-cognition changes --format json}}` unless the caller supplied a narrower explicit changed-path list or commit range. For explicit paths, pass each path with `--changed-path`; for a commit range, pass `--since <base> --head <head>`.
+- Consume `next_action`, `changes[].path`, `ignored_paths`, `unknown_paths`, `baseline_commit`, and `head_commit` from the `changes` payload before querying or patching the runtime. Feed `changes[].path` into the update payload's `changed_paths`; keep `ignored_paths` out of update records, known unknowns, `minimal_live_reads`, graph evidence, and route indexes.
+- Filter changed paths through `.cognitionignore` before querying or patching the runtime. The `changes` helper performs the first filter pass; if the agent adds user-supplied paths later, re-check root `.cognitionignore` and `.specify/project-cognition/.cognitionignore`. Both use gitignore-compatible syntax.
 - User-supplied changed paths that match `.cognitionignore` are scope notes, not update targets. Report them as ignored unless a later `!` rule re-includes the path or the user explicitly changes the ignore rule.
 - Treat user-supplied changed paths, behavior surfaces, and corrections as authoritative scope hints unless repository evidence contradicts them.
 - Query `project-cognition.db` for each changed path before deciding update scope.
 - For every changed path, look up current owner, consumers, lifecycle/state surfaces, shared mutable state, destructive-operation edges, generated-surface propagation, verification routes, conflicts, stale claims, and known unknowns.
 - Expand the update closure through owners, downstream consumers, state surfaces, workflow artifacts, generated surfaces, and verification routes that project cognition already knows.
+- Consume `affected_graph_claims` from structured update output. Changed paths must mark only graph claims linked through affected nodes or claim evidence as `stale`, preserve their prior state in the transition history, and leave unrelated claims unchanged.
 
 Every changed path must be accounted for as one of: updated, provisionally adopted, ignored with reason, partial with `minimal_live_reads`, blocked with recovery condition, or requiring full rebuild for a reserved rebuild reason.
 
@@ -77,8 +89,9 @@ schema failure, `explicit_rebuild_requested`, or `baseline_identity_invalid`.
 - It must update the query-backed cognition runtime incrementally.
 - It must treat `.specify/project-cognition/status.json` plus `.specify/project-cognition/project-cognition.db` as the runtime truth source for post-update readiness.
 - It must not silently escalate to a full rebuild without recording why.
-- When changed paths are missing from `path_index`, classify them before escalating: adoptable paths get provisional `path_index` coverage, uncertain paths return `review` with `minimal_live_reads`, and existing-baseline ordinary gaps stay in `sp-map-update`.
-- Provisional adoption must write valid graph records: an adoption `evidence` row plus a `path_index` row with `relation="provisional_path"` and graph confidence `weak` or `partial`.
+- Generic workflow verification or `result_state=ready` may refresh path coverage but must not re-promote stale or contradicted graph claims. After update returns `affected_graph_claims`, re-promotion is allowed only for an exact stable claim ID backed by decisive claim-specific bounded live evidence. Provide only reconciliation intent: workflow, stable `claim_id`, reason, repository-relative `source_path`, bounded line `span`, `supporting` or `contradicting` role, and optional claim-specific verification. Run `project-cognition claim-reconcile prepare --input <intent.json> --format json`; the runtime owns every integrity field and the prepared packet path. Execute the returned `apply_argv` exactly (`project-cognition claim-reconcile apply --input <prepared_packet_path> --format json`). Leave claims without this evidence stale. On ready, rerun Compass once; on partial or blocked output, preserve the stale/contradicted route and follow `recommended_next_action`.
+- When changed paths are missing from `path_index`, classify them before escalating: adoptable paths get provisional `path_index` and `alias_index` coverage, uncertain paths return `review` with `minimal_live_reads`, and existing-baseline ordinary gaps stay in `sp-map-update`.
+- Provisional adoption must write valid graph records: an adoption `evidence` row, a `path_index` row with `relation="provisional_path"` and graph confidence `weak` or `partial`, and alias rows for the adopted node title, path material, workflow/source terms, and behavior surfaces so future `project-cognition compass` and alias-catalog routing can rediscover the adopted path.
 - It must prefer metadata-only or single-slice updates when those are sufficient.
 - After recording updates, re-evaluate runtime readiness through the shared freshness contract.
 - Before `validate-build` or `complete-refresh`, build a payload or delta session and call:
@@ -87,12 +100,16 @@ schema failure, `explicit_rebuild_requested`, or `baseline_identity_invalid`.
 project-cognition update --payload-file ".specify/project-cognition/updates/<map-update-id>.json" --reason map-update --format json
 ```
 
-Use the returned `result_state` to decide whether to finalize, report `partial_refresh`, route to rebuild, or report blocked state.
+Use the returned `result_state` as the completion gate, not `status=ok` alone. `ready` plus passing `validate-build` may call `complete-refresh`; `no_op` may call `record-refresh` when only freshness metadata needs to be updated; `partial_refresh` must preserve review data and must not call `complete-refresh`; `needs_rebuild` must route to `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; `blocked` must report the blocker and recovery condition.
 
 {{spec-kit-include: ../command-partials/common/inline-project-cognition-update.md}}
 
 - After applying update records, run `{{specify-subcmd:project-cognition validate-build --format json}}`.
-- If the update helper returns `needs_rebuild`, `sp-map-update` must not call `complete-refresh`; report the concrete first/missing/unusable baseline, schema failure, zero active-generation `path_index` rows, `explicit_rebuild_requested`, or `baseline_identity_invalid` condition and route to `{{invoke:map-scan}}`, then `{{invoke:map-build}}`.
+- `sp-map-update` must not call `complete-refresh` when `result_state` is `partial_refresh`, `needs_rebuild`, or `blocked`; those states are useful recorded outcomes, not fresh completed baselines.
+- If the update helper returns `needs_rebuild`, `sp-map-update` must not call `complete-refresh`; report the concrete first/missing/unusable baseline, schema failure, schema v1 or old broad-schema rebuild-required readiness, zero active-generation `path_index` rows, missing or invalid `alias_index`, `explicit_rebuild_requested`, or `baseline_identity_invalid` condition and route to `{{invoke:map-scan}}`, then `{{invoke:map-build}}`.
+- If `validate-build` reports `identity_reconciliation=blocked` but the blocked set is bounded and path-led, `sp-map-update` must run a focused identity-repair pass before offering rebuild. Treat missing or unexpected `coverage_path` identities, renamed paths, deleted paths, ignored paths, stale DB path rows, and path-derived evidence identities as map-update repair work when they can be explained from git delta, file existence, `.cognitionignore`, existing merge records, or explicit row decisions.
+- During the identity-repair pass, classify every blocked identity as one of: adopted with provisional path/evidence, merged to a canonical path, rejected with an explicit row decision, ignored by boundary rules, stale/deleted, or still blocked with a concrete reason. Then rerun `{{specify-subcmd:project-cognition validate-build --format json}}`.
+- Do not ask the user to choose between focused identity repair and full rebuild when the repair set is bounded and no reserved rebuild reason is present; perform the focused repair first and escalate only if the repair cannot safely explain the identities or validation later reports a reserved rebuild condition.
 - If `validate-build` is blocked after update recording, report `partial_refresh` and preserve the validation errors instead of claiming the runtime is fresh.
 - If the re-evaluated runtime is `fresh` with `readiness=ready`, finalize the successful refresh through `{{specify-subcmd:project-cognition complete-refresh --format json}}` so cognition freshness metadata cannot remain stale.
 - If the update helper returns `ready` and `validate-build` passes, but the shared freshness check still sees the same refreshed source paths only because those source changes are not committed yet, report the incremental update as recorded and baseline-finalization pending. Do not tell the user to run `{{invoke:map-scan}}` or `{{invoke:map-build}}` merely because refreshed source changes are not committed yet.
@@ -125,6 +142,7 @@ The canonical outputs for this command are:
 ## Guardrails
 
 - Do not silently escalate to a full rebuild without recording why.
+- Do not present full rebuild as an equal next option for bounded identity reconciliation debt; run the focused repair pass first.
 - Do not refresh unaffected runtime records just because the touched area is ambiguous; record partial or low-confidence closure for the affected records instead.
 - Do not invent closure when changed paths or user supplements do not support the update.
 - Do not re-read or rewrite raw graph JSON artifacts; use the query/update helpers and the smallest affected runtime records that can truthfully restore readiness.
@@ -136,6 +154,7 @@ The canonical outputs for this command are:
 
 - Escalate to `sp-map-scan`, then `sp-map-build` only when no query-backed baseline exists, the current baseline is unusable, DB/status/schema validation fails, zero active-generation `path_index` rows exist, the user explicitly requested a rebuild (`explicit_rebuild_requested`), or the repository architecture changed so broadly that the baseline identity is invalid (`baseline_identity_invalid`).
 - Do not escalate merely because the affected closure is uncertain; record the uncertainty as partial/low-confidence update data with `known_unknowns` and `minimal_live_reads`.
+- Do not escalate merely because `validate-build` reports bounded path identity reconciliation debt; classify and repair those identities inside `sp-map-update` first.
 - Record the exact reason for escalation, including the failed baseline, DB, schema, explicit-request, or architecture-replacement fact.
 
 ## Update Duties
@@ -146,7 +165,8 @@ The canonical outputs for this command are:
 - refresh affected evidence
 - apply updates as a `patch-in-active-generation` operation against the current
   query-backed baseline unless validation proves a rebuild is required
-- invalidate stale claims
+- invalidate affected graph claims with an auditable transition to `stale`; return their stable IDs in `affected_graph_claims`
+- reconcile an affected claim only from claim-specific bounded evidence through `project-cognition claim-reconcile prepare`, then execute its returned `apply_argv` through `project-cognition claim-reconcile apply`; generic verification and `result_state=ready` must not re-promote claims
 - detect and repair stale retrieval signals, including obsolete aliases,
   colloquial user phrases, concept routes, and ownership hints
 - update or create conflicts
@@ -157,6 +177,7 @@ The canonical outputs for this command are:
   or repository evidence show that a plausible alias belongs to the wrong
   domain
 - update affected runtime records with proven facts, low-confidence claims, conflicts, stale markers, known unknowns, and minimal live reads
+- must not re-promote a graph claim from workflow finalization alone
 - produce an incremental update record
 - verify the shared freshness contract after the update record is written
 - run the successful-refresh finalizer when that verification proves the runtime ready

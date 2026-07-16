@@ -1,0 +1,7 @@
+interface:
+  display_name: "SPX PRD Build"
+  short_description: "Build PRD suite from scan evidence"
+  default_prompt: "Use $spx-prd-build to compile a PRD suite from a validated reconstruction scan."
+
+policy:
+  allow_implicit_invocation: false

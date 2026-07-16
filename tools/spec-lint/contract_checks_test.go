@@ -21,6 +21,111 @@ func TestContractChecksPassForCurrentPlanningReadyPackage(t *testing.T) {
 	requireCheckStatus(t, results, "quality-gate-summary", statusPass)
 }
 
+func TestCanonicalSpecContractPassesWithoutLegacyArtifactFanout(t *testing.T) {
+	dir := t.TempDir()
+	writeFileForTest(t, dir, "spec.md", "# Spec\n\n## Need\nA compact canonical specification.\n")
+	contract := map[string]any{
+		"version":                     1,
+		"status":                      "planning-ready",
+		"source_contract":             nil,
+		"source_revision":             nil,
+		"decision_digest_ref":         nil,
+		"target_need":                 "Produce a compact canonical specification.",
+		"scope":                       map[string]any{"in": []any{"canonical contract"}, "out": []any{}, "deferred": []any{}},
+		"constraints":                 []any{"Do not duplicate handoff truth."},
+		"acceptance_criteria":         []any{"Planner can consume spec-contract.json directly."},
+		"decisions":                   []any{},
+		"semantic_delta":              []any{},
+		"capability_operations":       []any{},
+		"must_preserve_refs":          []any{"MP-001"},
+		"consequence_obligation_refs": []any{},
+		"design_contract": map[string]any{
+			"experience_requirements":    []any{},
+			"design_source_refs":         []any{},
+			"design_system_requirements": []any{},
+			"design_system_status":       "not-applicable",
+			"design_risk_level":          "none",
+			"fidelity_refs":              []any{},
+			"required_states":            []any{},
+			"validation_refs":            []any{},
+		},
+		"context_capsule": map[string]any{
+			"boundary_ref":          "repo-root",
+			"evidence_refs":         []any{},
+			"selected_capabilities": []any{},
+			"minimal_live_reads":    []any{},
+			"validation_routes":     []any{"spec-lint"},
+			"stale_if":              []any{},
+		},
+		"open_items": []any{},
+		"artifact_refs": map[string]any{
+			"spec": "spec.md", "alignment": nil, "context": nil, "references": nil,
+		},
+		"transition": map[string]any{
+			"version": 1, "status": "ready", "source_ref": "spec-contract.json",
+			"semantic_delta": []any{}, "required_refs": []any{}, "blockers": []any{},
+			"next_action": "/sp.plan", "recovery": nil,
+		},
+	}
+	data, err := json.MarshalIndent(contract, "", "  ")
+	if err != nil {
+		t.Fatalf("marshal canonical contract: %v", err)
+	}
+	writeFileForTest(t, dir, "spec-contract.json", string(data)+"\n")
+
+	results := runLintForTest(t, dir, "standard")
+	for _, name := range []string{
+		"required-artifacts", "workflow-state-readiness", "handoff-json-schema",
+		"planning-gate-ready", "source-signal-disposition", "must-preserve-coverage",
+		"review-state-approved", "quality-gate-summary", "scout-summary",
+		"capability-triage", "execution-mode", "change-propagation",
+	} {
+		requireCheckStatus(t, results, name, statusPass)
+	}
+}
+
+func TestCanonicalSpecContractRejectsInvalidVersionAndTransition(t *testing.T) {
+	dir := t.TempDir()
+	writeFileForTest(t, dir, "spec.md", "# Spec\n")
+	invalidContract := `{
+  "version": 2,
+  "status": "planning-ready",
+  "source_contract": null,
+  "source_revision": null,
+  "decision_digest_ref": null,
+  "target_need": "Demo need",
+  "scope": {"in": ["demo"], "out": [], "deferred": []},
+  "constraints": [],
+  "acceptance_criteria": ["Demo is verifiable"],
+  "decisions": [],
+  "semantic_delta": [],
+  "capability_operations": [],
+  "must_preserve_refs": [],
+  "consequence_obligation_refs": [],
+  "design_contract": {},
+  "context_capsule": {"evidence_refs": [], "selected_capabilities": [], "minimal_live_reads": [], "validation_routes": [], "stale_if": []},
+  "open_items": [],
+  "artifact_refs": {"spec": "spec.md"},
+  "transition": {"version": 2, "status": "ready", "source_ref": "spec-contract.json", "semantic_delta": [], "required_refs": [], "blockers": [], "next_action": "/sp.plan"}
+}`
+	writeFileForTest(t, dir, "spec-contract.json", invalidContract)
+
+	results := runLintForTest(t, dir, "standard")
+
+	requireCheckStatus(t, results, "handoff-json-schema", statusFail)
+
+	unreviewedDelta := strings.ReplaceAll(invalidContract, `"version": 2`, `"version": 1`)
+	unreviewedDelta = strings.Replace(
+		unreviewedDelta,
+		`"semantic_delta": []`,
+		`"semantic_delta": [{"ref": "DEC-001", "change": "Changed scope"}]`,
+		1,
+	)
+	writeFileForTest(t, dir, "spec-contract.json", unreviewedDelta)
+	results = runLintForTest(t, dir, "standard")
+	requireCheckStatus(t, results, "review-state-approved", statusFail)
+}
+
 func TestContractChecksRejectPlanningBlockers(t *testing.T) {
 	tests := []struct {
 		name      string

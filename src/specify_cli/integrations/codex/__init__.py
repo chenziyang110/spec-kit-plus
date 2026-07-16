@@ -6,10 +6,12 @@ Commands are deprecated; ``--skills`` defaults to ``True``.
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any
 
 from ..base import IntegrationOption, SkillsIntegration
+from ...hook_artifacts import strip_claude_managed_hook_entries
 from ...orchestration import CapabilitySnapshot
 from ...codex_team.installer import restore_codex_team_project_configs
 from .multi_agent import CodexMultiAgentAdapter
@@ -70,6 +72,49 @@ class CodexIntegration(SkillsIntegration):
                 templates.append(template)
         return sorted(templates, key=lambda path: path.name)
 
+    @staticmethod
+    def _remove_misplaced_claude_hook_artifacts(project_root: Path) -> None:
+        """Remove Claude native-hook artifacts that were accidentally placed under .codex."""
+
+        hooks_json = project_root / ".codex" / "hooks.json"
+        if hooks_json.is_file():
+            try:
+                payload = json.loads(hooks_json.read_text(encoding="utf-8"))
+            except (json.JSONDecodeError, OSError):
+                payload = None
+
+            stripped_payload, changed = strip_claude_managed_hook_entries(payload)
+            if changed:
+                if isinstance(stripped_payload, dict) and stripped_payload:
+                    hooks_json.write_text(
+                        json.dumps(stripped_payload, ensure_ascii=False, indent=2) + "\n",
+                        encoding="utf-8",
+                    )
+                else:
+                    hooks_json.unlink(missing_ok=True)
+
+        hooks_dir = project_root / ".codex" / "hooks"
+        if not hooks_dir.is_dir():
+            return
+
+        dispatch_script = hooks_dir / "claude-hook-dispatch.py"
+        if dispatch_script.is_file():
+            dispatch_script.unlink(missing_ok=True)
+
+        readme = hooks_dir / "README.md"
+        if readme.is_file():
+            try:
+                readme_text = readme.read_text(encoding="utf-8")
+            except OSError:
+                readme_text = ""
+            if "Claude Hook Assets" in readme_text or "claude-hook-dispatch.py" in readme_text:
+                readme.unlink(missing_ok=True)
+
+        try:
+            hooks_dir.rmdir()
+        except OSError:
+            pass
+
     def setup(
         self,
         project_root: Path,
@@ -79,6 +124,7 @@ class CodexIntegration(SkillsIntegration):
     ) -> list[Path]:
         # Run base setup which handles the core sp-skill creation and default augmentation
         # for implement, debug, quick, plan, tasks, etc.
+        self._remove_misplaced_claude_hook_artifacts(project_root)
         return super().setup(
             project_root,
             manifest,
@@ -95,6 +141,15 @@ class CodexIntegration(SkillsIntegration):
     ) -> tuple[list[Path], list[Path]]:
         restore_codex_team_project_configs(project_root)
         return super().teardown(project_root, manifest, force=force)
+
+    def repair_runtime_assets(
+        self,
+        project_root: Path,
+        manifest,
+        **opts: Any,
+    ) -> list[Path]:
+        self._remove_misplaced_claude_hook_artifacts(project_root)
+        return super().repair_runtime_assets(project_root, manifest, **opts)
 
     def augment_generated_skills(
         self,
@@ -233,9 +288,9 @@ class CodexIntegration(SkillsIntegration):
                 "- Launch all independent lanes in the current `parallel-subagents` wave before waiting, but only after confirming the refresh is not metadata-only or single-slice.\n"
                 "- Use `leader-inline-fallback` only after recording why Codex native subagents are unavailable or unsafe.\n"
                 "- Leader-inline-fallback for a one-lane update is preferred over forcing extra subagents.\n"
-                "- Suggested bounded update lanes include diff impact closure, affected claim refresh, user supplement normalization, and conflict reconciliation.\n"
+                "- Suggested bounded update lanes include diff impact closure, affected graph and alias refresh, user supplement normalization, and route-pack reconciliation.\n"
                 "- Do not turn a one-slice or metadata-only refresh into scan-style parallel exploration.\n"
-                f"- Use `wait_agent` only at the documented join points before updating graph claims, conflicts, and slices.\n"
+                f"- Use `wait_agent` only at the documented join points before updating graph, path-index, alias-index, and route-pack outputs.\n"
                 f"- Use `close_agent` after integrating finished subagent results.\n"
             ),
         )

@@ -1,5 +1,7 @@
 from pathlib import Path
 
+from .template_utils import read_command_with_references
+
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
@@ -9,7 +11,7 @@ def _read(relative_path: str) -> str:
 
 
 def test_map_build_runtime_outputs_are_project_cognition_database_artifacts() -> None:
-    content = _read("templates/commands/map-build.md")
+    content = read_command_with_references("map-build")
 
     assert ".specify/project-cognition/status.json" in content
     assert ".specify/project-cognition/project-cognition.db" in content
@@ -19,11 +21,77 @@ def test_map_build_runtime_outputs_are_project_cognition_database_artifacts() ->
     assert "runtime handbook output contract" not in content.lower()
 
 
+def test_runtime_docs_explain_alias_index_and_v1_rebuild_contract() -> None:
+    handbook = _read("PROJECT-HANDBOOK.md").lower()
+    readme = _read("README.md").lower()
+    for content in (handbook, readme):
+        assert "alias_index" in content
+        assert "schema v5" in content
+        assert "v1" in content
+        assert "rebuild" in content
+        assert "alias_index" in content
+        assert "alias catalog" in content
+
+
+def test_project_cognition_schema_v5_is_current_only_across_runtime_guidance() -> None:
+    for rel_path in (
+        "AGENTS.md",
+        "README.md",
+        "PROJECT-HANDBOOK.md",
+        "templates/project-handbook-template.md",
+        "templates/commands/map-build.md",
+        "templates/command-partials/common/context-loading-gradient.md",
+        "templates/command-partials/common/planning-context-loading-gradient.md",
+    ):
+        content = " ".join(_read(rel_path).lower().split())
+
+        assert "schema v5 is current-only" in content, rel_path
+        assert "does not migrate schema v4" in content, rel_path
+        assert "does not archive or replace" in content, rel_path
+        assert "remove the incompatible project-cognition.db" in content, rel_path
+
+
+def test_current_query_contract_versions_propagate_to_agent_routing_surfaces() -> None:
+    for rel_path in (
+        "README.md",
+        "PROJECT-HANDBOOK.md",
+        "templates/project-handbook-template.md",
+        "templates/command-partials/common/context-loading-gradient.md",
+        "templates/command-partials/common/planning-context-loading-gradient.md",
+        "templates/passive-skills/spec-kit-project-cognition-gate/SKILL.md",
+        "templates/passive-skills/spec-kit-workflow-routing/SKILL.md",
+    ):
+        content = " ".join(_read(rel_path).lower().split())
+
+        assert "claim_retrieval_contract_version=2" in content, rel_path
+        assert "candidate_universe_version=2" in content, rel_path
+        assert "never parse missing or non-current versions as legacy input" in content, rel_path
+
+    for rel_path in (
+        "templates/command-partials/common/context-loading-gradient.md",
+        "templates/command-partials/common/planning-context-loading-gradient.md",
+    ):
+        assert '"candidate_universe_version": 2' in _read(rel_path), rel_path
+
+
+def test_runtime_docs_describe_debug_understanding_checkpoint() -> None:
+    for rel_path in ("README.md", "PROJECT-HANDBOOK.md"):
+        content = _read(rel_path).lower()
+
+        assert "debug understanding checkpoint" in content
+        assert "before substantive investigation" in content
+        assert "expected behavior" in content
+        assert "investigation boundary" in content
+        assert "fix authority" in content
+        assert "hypotheses and evidence sequencing" in content
+        assert "reconfirmation trigger" in content
+
+
 def test_context_loading_gradient_uses_cognition_runtime_gate() -> None:
     content = _read("templates/command-partials/common/context-loading-gradient.md")
     lowered = content.lower()
 
-    assert "launcher-backed project cognition query planning flow" in lowered
+    assert "default project cognition intake is `project-cognition compass" in lowered
     assert "project-cognition lexicon" in lowered
     assert "alias catalog" in lowered
     assert "semantic_intake" in lowered
@@ -49,7 +117,7 @@ def test_context_loading_gradient_uses_cognition_runtime_gate() -> None:
     assert "atlas.entry" not in content
     assert "root topic document" not in lowered
     assert "module overview document" not in lowered
-    assert "a project-cognition query is not complete when it returns json" in lowered
+    assert "a project-cognition compass intake is not complete when it returns json" in lowered
     assert "readiness drives routing" in lowered
     assert "minimal_live_reads constrains inspection" in lowered
     assert "carry forward the selected concepts" in lowered
@@ -65,7 +133,7 @@ def test_project_cognition_passive_skill_mirrors_query_completion_contract() -> 
         .split()
     )
 
-    assert "a project-cognition query is not complete when it returns json" in content
+    assert "a project-cognition compass intake is not complete when it returns json" in content
     assert "concept_candidates" in content
     assert "selected_concepts" in content
     assert "rejected_concepts" in content
@@ -97,13 +165,15 @@ def test_upstream_workflow_templates_are_query_backed_cognition_first() -> None:
         "templates/commands/plan.md",
         "templates/commands/tasks.md",
     ):
-        content = _read(rel_path)
+        content = read_command_with_references(Path(rel_path).stem)
         lowered = content.lower()
 
-        assert "project-cognition lexicon --intent plan" in content
-        assert "project-cognition query --intent plan" in content
-        assert "--query-plan" in content
+        assert "project-cognition compass --intent plan" in content
+        assert "run at most one `project-cognition compass --intent plan` intake" in content
+        assert content.count("project-cognition compass --intent plan --query=") <= 1
         assert "minimal_live_reads" in content
+        assert "advisory navigation" in lowered
+        assert "do not turn ordinary planning into map maintenance" in lowered
         assert "graph-native" not in lowered
         assert "build-handbook.md" not in lowered
         assert "build-workflow-contract" not in lowered
@@ -112,21 +182,21 @@ def test_upstream_workflow_templates_are_query_backed_cognition_first() -> None:
 
 def test_workflow_templates_carry_project_cognition_facts_forward() -> None:
     expectations = {
-        "templates/commands/specify.md": ("context.md", "ownership", "verification routes"),
+        "templates/commands/specify.md": ("spec-contract.json", "context capsule", "validation routes"),
         "templates/commands/clarify.md": ("clarified spec package", "ownership", "verification"),
         "templates/commands/deep-research.md": ("deep-research.md", "repository facts", "external research"),
-        "templates/commands/plan.md": ("Implementation Constitution", "verification strategy", "plan-contract.json"),
-        "templates/commands/tasks.md": ("tasks.md", "task-index.json", "task packets"),
+        "templates/commands/plan.md": ("Implementation Constitution", "architecture/module decisions", "plan-contract.json"),
+        "templates/commands/tasks.md": ("plan-contract.json", "task-index.json", "just in time"),
         "templates/commands/analyze.md": ("cognition-backed blocker evidence", "clarify", "deep-research"),
-        "templates/commands/implement.md": ("implement-tracker.md", "WorkerTaskPacket", "minimal live reads"),
+        "templates/commands/implement.md": ("task-index.json", "WorkerTaskPacket", "task lifecycle record"),
         "templates/commands/debug.md": ("debug session state", "competing truths", "coverage gaps"),
         "templates/commands/fast.md": ("fast-task state or report", "verification route", "minimal reads"),
         "templates/commands/quick.md": ("STATUS.md", "validation route", "known risk"),
     }
 
     for rel_path, phrases in expectations.items():
-        content = _read(rel_path).lower()
-        assert "project-cognition query" in content, rel_path
+        content = read_command_with_references(Path(rel_path).stem).lower()
+        assert "project-cognition compass" in content, rel_path
         for phrase in phrases:
             assert phrase.lower() in content, f"{rel_path} missing {phrase!r}"
 
@@ -137,8 +207,8 @@ def test_runtime_handbook_docs_are_query_backed() -> None:
 
     assert ".specify/project-cognition/status.json" in content
     assert ".specify/project-cognition/project-cognition.db" in content
-    assert "task-local project cognition query bundle" in lowered
-    assert "agent-planned `project-cognition query`" in lowered
+    assert "task-local `project-cognition compass` packet" in lowered
+    assert "advanced agent-planned `project-cognition lexicon --mode catalog`" in lowered
     assert "project-cognition lexicon" in lowered
     assert "alias catalog" in lowered
     assert "semantic_intake" in lowered
@@ -152,19 +222,48 @@ def test_runtime_handbook_docs_are_query_backed() -> None:
     assert "advisory navigation" in lowered
     assert "live repository evidence" in lowered or "live evidence" in lowered
     assert "workflow-owned mutation closeout is not external map maintenance" in lowered
-    assert "run inline project cognition update" in lowered or "runs inline project cognition update" in lowered
-    assert "project-cognition update --payload-file" in lowered
+    assert "run planner-first project cognition update" in lowered or "runs planner-first project cognition update" in lowered
+    assert "project-cognition closeout-plan --workflow" in lowered
+    assert "unknown_path_dispositions" in lowered
+    assert "update_mode=delta_session" in lowered
+    assert "update_mode=payload_file" in lowered
+    assert "update_argv" in lowered
+    assert "delta_append_draft.argv_prefix" in lowered
+    assert "display-only command templates" in lowered
     assert "result_state" in lowered
     assert "verification_evidence" in lowered
     assert "generated_surface_notes" in lowered
     assert "failed verification evidence" in lowered
+    assert "known_unknowns` only for blockers" in lowered
+    assert "confidence_notes` or `boundary.initial_dirty_paths" in lowered
+    assert "status=ok" in lowered
     assert (
         "sp-map-update remains the external/manual" in lowered
         or "`sp-map-update` remains the external/manual" in lowered
         or "sp-map-update is for manual/external maintenance" in lowered
     )
-    assert "uncertain closure is recorded by inline update or `map-update` as partial/low-confidence facts" in lowered
+    assert "uncertain closure is recorded by planner-first closeout or `map-update` as partial/low-confidence facts" in lowered
+    assert "workflow-appropriate slice" not in lowered
     assert "workflow-appropriate slices" not in lowered
+
+
+def test_handbook_docs_include_project_cognition_changes_command() -> None:
+    required_phrases = (
+        "project-cognition changes --format json",
+        "sp-map-update",
+        "summary.included",
+        "summary.ignored",
+        "summary.known",
+        "summary.unknown",
+        "next_action",
+        "recommended_action",
+    )
+
+    for rel_path in ("README.md", "PROJECT-HANDBOOK.md", "templates/project-handbook-template.md"):
+        content = _read(rel_path).lower()
+
+        for phrase in required_phrases:
+            assert phrase in content, f"{rel_path} missing {phrase!r}"
 
 
 def test_runtime_docs_explain_graph_backed_project_cognition_lexicon() -> None:
@@ -180,6 +279,7 @@ def test_runtime_docs_explain_graph_backed_project_cognition_lexicon() -> None:
         "candidate_universe_version",
         "active_generation_id",
         "project-cognition lexicon",
+        "project-cognition compass",
         "project-cognition query --query-plan",
     )
 
@@ -207,6 +307,9 @@ def test_runtime_docs_explain_project_cognition_ignore_rules() -> None:
         assert "map-build" in lowered
         assert "map-update" in lowered
         assert "excluded paths must not enter project cognition graph evidence" in lowered
+        assert "generate-ignore" in content
+        assert ".specify/project-cognition/.cognitionignore" in content
+        assert "review" in lowered
 
 
 def test_runtime_docs_explain_cross_project_reference_cognition_gate() -> None:

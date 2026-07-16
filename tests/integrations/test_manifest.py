@@ -85,6 +85,120 @@ class TestManifestCheckModified:
         assert m.check_modified() == ["f.txt"]
 
 
+class TestManifestRemoveFileIfUnmodified:
+    def test_preserves_symlink_to_another_tracked_file(self, tmp_path, monkeypatch):
+        manifest = IntegrationManifest("test", tmp_path)
+        current = manifest.record_file("skills/current.md", "current content")
+        stale = manifest.record_file("skills/stale.md", "stale content")
+        real_resolve = Path.resolve
+        real_is_symlink = Path.is_symlink
+
+        def resolve_symlink(path, *args, **kwargs):
+            if path == stale:
+                return current
+            return real_resolve(path, *args, **kwargs)
+
+        def identify_symlink(path):
+            return path == stale or real_is_symlink(path)
+
+        monkeypatch.setattr(Path, "resolve", resolve_symlink)
+        monkeypatch.setattr(Path, "is_symlink", identify_symlink)
+
+        removed = manifest.remove_file_if_unmodified("skills/stale.md")
+
+        assert removed is False
+        assert stale.is_symlink()
+        assert stale.read_text(encoding="utf-8") == "stale content"
+        assert current.read_text(encoding="utf-8") == "current content"
+        assert "skills/current.md" in manifest.files
+        assert "skills/stale.md" in manifest.files
+
+    def test_preserves_file_beneath_symlinked_parent(self, tmp_path, monkeypatch):
+        manifest = IntegrationManifest("test", tmp_path)
+        target = manifest.record_file("real/current.md", "current content")
+        linked_parent = tmp_path / "alias"
+        stale = manifest.record_file("alias/stale.md", "stale content")
+        real_resolve = Path.resolve
+        real_is_symlink = Path.is_symlink
+
+        def resolve_symlink(path, *args, **kwargs):
+            if path == stale:
+                return target
+            return real_resolve(path, *args, **kwargs)
+
+        def identify_symlink(path):
+            return path == linked_parent or real_is_symlink(path)
+
+        monkeypatch.setattr(Path, "resolve", resolve_symlink)
+        monkeypatch.setattr(Path, "is_symlink", identify_symlink)
+
+        removed = manifest.remove_file_if_unmodified("alias/stale.md")
+
+        assert removed is False
+        assert stale.read_text(encoding="utf-8") == "stale content"
+        assert target.read_text(encoding="utf-8") == "current content"
+        assert "real/current.md" in manifest.files
+        assert "alias/stale.md" in manifest.files
+
+    def test_preserves_file_beneath_junction_parent(self, tmp_path, monkeypatch):
+        manifest = IntegrationManifest("test", tmp_path)
+        stale = manifest.record_file("alias/stale.md", "stale content")
+        junction_parent = tmp_path / "alias"
+        real_is_junction = getattr(Path, "is_junction", None)
+
+        def identify_junction(path):
+            if path == junction_parent:
+                return True
+            return bool(real_is_junction and real_is_junction(path))
+
+        monkeypatch.setattr(Path, "is_junction", identify_junction, raising=False)
+
+        removed = manifest.remove_file_if_unmodified("alias/stale.md")
+
+        assert removed is False
+        assert stale.read_text(encoding="utf-8") == "stale content"
+        assert "alias/stale.md" in manifest.files
+
+    @pytest.mark.skipif(os.name != "nt", reason="drive-relative paths are Windows-only")
+    def test_rejects_drive_relative_manifest_path(self, tmp_path):
+        manifest = IntegrationManifest("test", tmp_path)
+        manifest._files["C:escape.txt"] = "0" * 64
+
+        with pytest.raises(ValueError, match="Unsafe manifest path"):
+            manifest.remove_file_if_unmodified("C:escape.txt")
+
+    def test_preserves_symlink_whose_target_is_outside_project(
+        self, tmp_path, monkeypatch
+    ):
+        manifest = IntegrationManifest("test", tmp_path)
+        stale = manifest.record_file("skills/stale.md", "stale content")
+        outside = tmp_path.parent / f"{tmp_path.name}-outside.md"
+        outside.write_text("outside content", encoding="utf-8")
+        real_resolve = Path.resolve
+        real_is_symlink = Path.is_symlink
+
+        def resolve_symlink(path, *args, **kwargs):
+            if path == stale:
+                return outside
+            return real_resolve(path, *args, **kwargs)
+
+        def identify_symlink(path):
+            return path == stale or real_is_symlink(path)
+
+        monkeypatch.setattr(Path, "resolve", resolve_symlink)
+        monkeypatch.setattr(Path, "is_symlink", identify_symlink)
+        try:
+            removed = manifest.remove_file_if_unmodified("skills/stale.md")
+
+            assert removed is False
+            assert stale.is_symlink()
+            assert stale.read_text(encoding="utf-8") == "stale content"
+            assert outside.read_text(encoding="utf-8") == "outside content"
+            assert "skills/stale.md" in manifest.files
+        finally:
+            outside.unlink(missing_ok=True)
+
+
 class TestManifestUninstall:
     def test_removes_unmodified(self, tmp_path):
         m = IntegrationManifest("test", tmp_path)

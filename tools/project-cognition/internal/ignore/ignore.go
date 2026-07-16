@@ -18,8 +18,44 @@ type rule struct {
 	anchored  bool
 }
 
+var defaultIgnorePatterns = []string{
+	".git/",
+	".specify/",
+	"node_modules/",
+	".venv/",
+	"venv/",
+	".tox/",
+	".pytest_cache/",
+	".mypy_cache/",
+	".ruff_cache/",
+	".next/",
+	".nuxt/",
+	".turbo/",
+	".cache/",
+	"__pycache__/",
+	"*.pyc",
+	"*.pyo",
+	"*.log",
+	".DS_Store",
+}
+
+var starterOptionalDirectorySuggestions = []string{
+	"vendor/",
+	"generated/",
+	"dist/",
+	"build/",
+	"coverage/",
+	"fixtures/",
+	"testdata/",
+	"tests/",
+	"docs/",
+	"examples/",
+	"samples/",
+	"benchmarks/",
+}
+
 func Load(root string) Matcher {
-	var rules []rule
+	rules := rulesFromPatterns(defaultIgnorePatterns)
 	for _, ignorePath := range []string{
 		filepath.Join(root, ".cognitionignore"),
 		filepath.Join(root, ".specify", "project-cognition", ".cognitionignore"),
@@ -27,6 +63,146 @@ func Load(root string) Matcher {
 		rules = append(rules, readRules(ignorePath)...)
 	}
 	return Matcher{rules: rules}
+}
+
+func StarterIgnorePath(root string) string {
+	return filepath.Join(root, ".specify", "project-cognition", ".cognitionignore")
+}
+
+func WriteStarterIgnoreFile(root string) (string, bool, error) {
+	path := StarterIgnorePath(root)
+	if _, err := os.Stat(path); err == nil {
+		return path, false, nil
+	} else if err != nil && !os.IsNotExist(err) {
+		return path, false, err
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return path, false, err
+	}
+	if err := os.WriteFile(path, []byte(GenerateStarterIgnoreFile(root)), 0o644); err != nil {
+		return path, false, err
+	}
+	return path, true, nil
+}
+
+func GenerateStarterIgnoreFile(root string) string {
+	gitignoreSuggestions := gitignoreSuggestions(root)
+	optionalSuggestions := optionalDirectorySuggestions(root, gitignoreSuggestions)
+
+	var b strings.Builder
+	b.WriteString("# Project Cognition ignore rules\n")
+	b.WriteString("#\n")
+	b.WriteString("# gitignore-compatible patterns for project cognition only.\n")
+	b.WriteString("# These rules affect sp-map-scan, sp-map-build, and sp-map-update.\n")
+	b.WriteString("# Uncomment suggestions only after confirming they are not useful project evidence.\n")
+	b.WriteString("#\n")
+	b.WriteString("# Built-in defaults are already ignored before this file is loaded: .git/,\n")
+	b.WriteString("# .specify/, node_modules/, common virtualenv/cache directories, Python bytecode,\n")
+	b.WriteString("# logs, and OS metadata.\n")
+
+	if len(gitignoreSuggestions) > 0 {
+		b.WriteString("\n# --- From .gitignore (uncomment to exclude from project cognition) ---\n")
+		for _, suggestion := range gitignoreSuggestions {
+			b.WriteString("# ")
+			b.WriteString(suggestion)
+			b.WriteString("\n")
+		}
+	}
+
+	if len(optionalSuggestions) > 0 {
+		b.WriteString("\n# --- Common low-signal directories found (review before uncommenting) ---\n")
+		for _, suggestion := range optionalSuggestions {
+			b.WriteString("# ")
+			b.WriteString(suggestion)
+			b.WriteString("\n")
+		}
+	}
+
+	return strings.TrimRight(b.String(), "\n") + "\n"
+}
+
+func rulesFromPatterns(patterns []string) []rule {
+	rules := make([]rule, 0, len(patterns))
+	for _, pattern := range patterns {
+		if parsed, ok := parseRule(pattern); ok {
+			rules = append(rules, parsed)
+		}
+	}
+	return rules
+}
+
+func gitignoreSuggestions(root string) []string {
+	data, err := os.ReadFile(filepath.Join(root, ".gitignore"))
+	if err != nil {
+		return nil
+	}
+	defaults := defaultPatternKeys()
+	out := []string{}
+	seen := map[string]bool{}
+	for _, line := range strings.Split(string(data), "\n") {
+		pattern, ok := suggestionPattern(line)
+		if !ok {
+			continue
+		}
+		key := patternKey(pattern)
+		if key == "" || defaults[key] || seen[key] {
+			continue
+		}
+		seen[key] = true
+		out = append(out, pattern)
+	}
+	return out
+}
+
+func optionalDirectorySuggestions(root string, existing []string) []string {
+	defaults := defaultPatternKeys()
+	seen := map[string]bool{}
+	for _, pattern := range existing {
+		seen[patternKey(pattern)] = true
+	}
+	out := []string{}
+	for _, pattern := range starterOptionalDirectorySuggestions {
+		key := patternKey(pattern)
+		if key == "" || defaults[key] || seen[key] {
+			continue
+		}
+		info, err := os.Stat(filepath.Join(root, strings.TrimSuffix(pattern, "/")))
+		if err != nil || !info.IsDir() {
+			continue
+		}
+		seen[key] = true
+		out = append(out, pattern)
+	}
+	return out
+}
+
+func defaultPatternKeys() map[string]bool {
+	keys := map[string]bool{}
+	for _, pattern := range defaultIgnorePatterns {
+		if key := patternKey(pattern); key != "" {
+			keys[key] = true
+		}
+	}
+	return keys
+}
+
+func suggestionPattern(line string) (string, bool) {
+	pattern := filepath.ToSlash(strings.TrimSpace(line))
+	if pattern == "" || strings.HasPrefix(pattern, "#") || strings.HasPrefix(pattern, "!") {
+		return "", false
+	}
+	return pattern, true
+}
+
+func patternKey(pattern string) string {
+	pattern = filepath.ToSlash(strings.TrimSpace(pattern))
+	pattern = strings.TrimPrefix(pattern, "!")
+	pattern = strings.TrimSpace(pattern)
+	for strings.HasPrefix(pattern, "./") {
+		pattern = strings.TrimPrefix(pattern, "./")
+	}
+	pattern = strings.TrimPrefix(pattern, "/")
+	return strings.Trim(pattern, "/")
 }
 
 func readRules(path string) []rule {
@@ -103,6 +279,46 @@ func (m Matcher) Ignored(path string) bool {
 		}
 	}
 	return ignored
+}
+
+func (m Matcher) MayReincludeDescendant(path string) bool {
+	path = normalizePath(path)
+	if path == "" {
+		return true
+	}
+	for _, rule := range m.rules {
+		if rule.negated && ruleMayMatchDescendant(rule, path) {
+			return true
+		}
+	}
+	return false
+}
+
+func ruleMayMatchDescendant(r rule, path string) bool {
+	pattern := normalizePath(r.pattern)
+	if pattern == "" {
+		return false
+	}
+	if r.anchored {
+		return pattern == path || strings.HasPrefix(pattern, path+"/") || strings.HasPrefix(path, pattern+"/")
+	}
+	if !strings.Contains(pattern, "/") {
+		return true
+	}
+	if strings.HasPrefix(pattern, "**/") {
+		pattern = strings.TrimPrefix(pattern, "**/")
+	}
+	if pattern == path || strings.HasPrefix(pattern, path+"/") {
+		return true
+	}
+	parts := strings.Split(path, "/")
+	for i := range parts {
+		suffix := strings.Join(parts[i:], "/")
+		if pattern == suffix || strings.HasPrefix(pattern, suffix+"/") {
+			return true
+		}
+	}
+	return false
 }
 
 func (r rule) matches(path string) bool {

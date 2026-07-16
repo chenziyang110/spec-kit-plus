@@ -1,0 +1,79 @@
+{
+  "version": 4,
+  "handoff_kind": "discussion_requirement_contract",
+  "status": "draft",
+  "entry_source": "sp-discussion",
+  "discussion_slug": null,
+  "source_contract": null,
+  "handoff_goal": null,
+  "agent_requirement_contract": {
+    "target_need": null,
+    "constraints": [],
+    "success_criteria": [],
+    "design_direction": [],
+    "optimal_solution_approach": [],
+    "scope": {"in": [], "out": [], "deferred": []}
+  },
+  "consumer_eligibility": {
+    "sp-specify": {"status": "blocked", "reason": "Handoff has not passed review."},
+    "sp-quick": {"status": "blocked", "reason": "Quick-task boundedness has not been reviewed."}
+  },
+  "recommended_consumer": "continue-discussion",
+  "context_boundary": {
+    "status": "not-started",
+    "current_project_root": null,
+    "current_project_roles": [],
+    "target_project_root": null,
+    "target_project_roles": [],
+    "reference_projects": [],
+    "external_systems": [],
+    "path_status": "unknown",
+    "boundary_confidence": "unknown"
+  },
+  "implementation_target": {
+    "actual_project": null,
+    "target_root": null,
+    "target_paths": [],
+    "required_target_paths_to_verify": []
+  },
+  "source_evidence": [],
+  "blocking_unknowns": [],
+  "soft_unknowns": [],
+  "downstream_instructions": {
+    "settled_decisions": [],
+    "preserved_assumptions": [],
+    "conflicts_requiring_return": [],
+    "capability_map": [],
+    "dependencies": [],
+    "planning_constraints": [],
+    "deferred_scope": [],
+    "reopen_conditions": []
+  },
+  "quality_gate": {
+    "status": "draft",
+    "self_reviewed_at": null,
+    "user_review_required": true,
+    "user_confirmed_at": null,
+    "confirmed_digest": null,
+    "blocked_reasons": []
+  },
+  "discussion_decision_digest": {
+    "locked_direction": [],
+    "rejected_alternatives": [],
+    "accepted_tradeoffs": [],
+    "experience_commitments": [],
+    "design_system_requirements": [],
+    "design_system_status": "not-applicable",
+    "design_risk_level": "none",
+    "review_criteria_carried_forward": [],
+    "must_not_dilute": []
+  },
+  "must_preserve": [],
+  "conflicts": [],
+  "coverage_status": "not_started",
+  "planning_gate_status": "blocked_by_incomplete_coverage",
+  "hard_unknown_count": 0,
+  "open_conflict_count": 0,
+  "review_digest": null,
+  "handoff_integrity": "not-checked"
+}

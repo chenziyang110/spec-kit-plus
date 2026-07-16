@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/claim"
 	rt "github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtime"
 )
 
@@ -21,7 +22,7 @@ type ImportInput struct {
 	Observations []ObservationImport
 	Claims       []ClaimImport
 	PathIndex    []PathIndexImport
-	SliceMembers []SliceMemberImport
+	Aliases      []AliasImport
 	Rejections   []RowDecision
 	MergeRecords []MergeRecord
 }
@@ -65,16 +66,27 @@ type ObservationImport struct {
 }
 
 type ClaimImport struct {
-	ID          string
-	SubjectRef  string
-	Predicate   string
-	ObjectRef   string
-	ObjectText  string
-	TruthLayer  string
-	Confidence  string
-	Status      string
-	EvidenceIDs []string
-	Attrs       map[string]any
+	ID                       string
+	NodeID                   string
+	GraphClaimType           string
+	Summary                  string
+	State                    claim.State
+	PriorState               claim.State
+	Freshness                claim.Freshness
+	StateReason              string
+	SupportingEvidenceIDs    []string
+	ContradictingEvidenceIDs []string
+	Verifications            []ClaimVerificationImport
+	Attrs                    map[string]any
+}
+
+type ClaimVerificationImport struct {
+	ID         string
+	Result     claim.VerificationResult
+	Command    string
+	EvidenceID string
+	ObservedAt string
+	Attrs      map[string]any
 }
 
 type PathIndexImport struct {
@@ -86,13 +98,16 @@ type PathIndexImport struct {
 	EvidenceID string
 }
 
-type SliceMemberImport struct {
-	ID         string
-	SliceID    string
-	ObjectType string
-	ObjectID   string
-	Rank       int
-	Reason     string
+type AliasImport struct {
+	ID              string
+	Alias           string
+	NormalizedAlias string
+	TargetType      string
+	TargetID        string
+	Language        string
+	Source          string
+	Confidence      string
+	EvidenceID      string
 }
 
 type RowDecision struct {
@@ -109,13 +124,17 @@ type MergeRecord struct {
 }
 
 type IdentitySnapshot struct {
-	Evidence      map[string]bool `json:"evidence"`
-	Nodes         map[string]bool `json:"nodes"`
-	Edges         map[string]bool `json:"edges"`
-	Observations  map[string]bool `json:"observations"`
-	CoveragePaths map[string]bool `json:"coverage_paths"`
-	Rejections    []RowDecision   `json:"rejections"`
-	MergeRecords  []MergeRecord   `json:"merge_records"`
+	Evidence                    map[string]bool `json:"evidence"`
+	Nodes                       map[string]bool `json:"nodes"`
+	Edges                       map[string]bool `json:"edges"`
+	Observations                map[string]bool `json:"observations"`
+	Claims                      map[string]bool `json:"claims"`
+	CoveragePaths               map[string]bool `json:"coverage_paths"`
+	WorkflowUpdateEvidence      map[string]bool `json:"workflow_update_evidence"`
+	WorkflowUpdateNodes         map[string]bool `json:"workflow_update_nodes"`
+	WorkflowUpdateCoveragePaths map[string]bool `json:"workflow_update_coverage_paths"`
+	Rejections                  []RowDecision   `json:"rejections"`
+	MergeRecords                []MergeRecord   `json:"merge_records"`
 }
 
 func (s *Store) ImportGeneration(ctx context.Context, input ImportInput) (string, error) {
@@ -182,6 +201,39 @@ func (s *Store) ImportGeneration(ctx context.Context, input ImportInput) (string
 		}
 	}
 
+	for _, graphClaim := range input.Claims {
+		attrs, err := attrsJSONOrEmpty(graphClaim.Attrs)
+		if err != nil {
+			return "", fmt.Errorf("encode claim %s attrs: %w", graphClaim.ID, err)
+		}
+		if _, err := tx.ExecContext(ctx, `INSERT INTO claims(id, generation_id, node_id, graph_claim_type, summary, state, prior_state, freshness, state_reason, attrs_json, created_at, updated_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, graphClaim.ID, input.GenerationID, graphClaim.NodeID, graphClaim.GraphClaimType, graphClaim.Summary, graphClaim.State, graphClaim.PriorState, graphClaim.Freshness, graphClaim.StateReason, attrs, now, now); err != nil {
+			return "", fmt.Errorf("insert claim %s: %w", graphClaim.ID, err)
+		}
+		for _, evidenceID := range graphClaim.SupportingEvidenceIDs {
+			if _, err := tx.ExecContext(ctx, `INSERT INTO claim_evidence(claim_id, evidence_id, role, reconciliation_id, basis_state) VALUES(?, ?, 'supporting', ?, 'current')`, graphClaim.ID, evidenceID, "build:"+input.GenerationID); err != nil {
+				return "", fmt.Errorf("insert supporting claim evidence %s/%s: %w", graphClaim.ID, evidenceID, err)
+			}
+		}
+		for _, evidenceID := range graphClaim.ContradictingEvidenceIDs {
+			if _, err := tx.ExecContext(ctx, `INSERT INTO claim_evidence(claim_id, evidence_id, role, reconciliation_id, basis_state) VALUES(?, ?, 'contradicting', ?, 'current')`, graphClaim.ID, evidenceID, "build:"+input.GenerationID); err != nil {
+				return "", fmt.Errorf("insert contradicting claim evidence %s/%s: %w", graphClaim.ID, evidenceID, err)
+			}
+		}
+		for _, verification := range graphClaim.Verifications {
+			verificationAttrs, err := attrsJSONOrEmpty(verification.Attrs)
+			if err != nil {
+				return "", fmt.Errorf("encode claim verification %s attrs: %w", verification.ID, err)
+			}
+			if _, err := tx.ExecContext(ctx, `INSERT INTO claim_verifications(id, claim_id, generation_id, result, command, evidence_id, observed_at, attrs_json) VALUES(?, ?, ?, ?, ?, ?, ?, ?)`, verification.ID, graphClaim.ID, input.GenerationID, verification.Result, verification.Command, verification.EvidenceID, verification.ObservedAt, verificationAttrs); err != nil {
+				return "", fmt.Errorf("insert claim verification %s: %w", verification.ID, err)
+			}
+		}
+		transitionID := "claim-transition:initial:" + graphClaim.ID
+		if _, err := tx.ExecContext(ctx, `INSERT INTO claim_transitions(id, claim_id, generation_id, from_state, to_state, reason, evidence_id, occurred_at, attrs_json) VALUES(?, ?, ?, '', ?, ?, '', ?, '{}')`, transitionID, graphClaim.ID, input.GenerationID, graphClaim.State, graphClaim.StateReason, now); err != nil {
+			return "", fmt.Errorf("insert initial claim transition %s: %w", graphClaim.ID, err)
+		}
+	}
+
 	for _, edge := range input.Edges {
 		if err := validateEdgeNodes(ctx, tx, input.GenerationID, edge); err != nil {
 			return "", err
@@ -215,33 +267,18 @@ func (s *Store) ImportGeneration(ctx context.Context, input ImportInput) (string
 		}
 	}
 
-	for _, claim := range input.Claims {
-		truthLayer := defaultString(claim.TruthLayer, "observed")
-		status := defaultString(claim.Status, "active")
-		confidence := defaultString(claim.Confidence, "partial")
-		attrs, err := attrsJSONOrEmpty(claim.Attrs)
-		if err != nil {
-			return "", fmt.Errorf("encode claim %s attrs: %w", claim.ID, err)
-		}
-		if _, err := tx.ExecContext(ctx, `INSERT INTO claims(id, generation_id, subject_ref, predicate, object_ref, object_value, truth_layer, confidence, status, last_validated_at, attrs_json) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, claim.ID, input.GenerationID, claim.SubjectRef, claim.Predicate, claim.ObjectRef, claim.ObjectText, truthLayer, confidence, status, now, attrs); err != nil {
-			return "", fmt.Errorf("insert claim %s: %w", claim.ID, err)
-		}
-		for _, evidenceID := range claim.EvidenceIDs {
-			if _, err := tx.ExecContext(ctx, `INSERT INTO claim_evidence(claim_id, evidence_id) VALUES(?, ?)`, claim.ID, evidenceID); err != nil {
-				return "", fmt.Errorf("insert claim evidence %s/%s: %w", claim.ID, evidenceID, err)
-			}
-		}
-	}
-
 	for _, pathIndex := range input.PathIndex {
 		if _, err := tx.ExecContext(ctx, `INSERT INTO path_index(id, generation_id, path, node_id, relation, confidence, evidence_id, updated_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?)`, pathIndex.ID, input.GenerationID, pathIndex.Path, pathIndex.NodeID, pathIndex.Relation, pathIndex.Confidence, pathIndex.EvidenceID, now); err != nil {
 			return "", fmt.Errorf("insert path index %s: %w", pathIndex.ID, err)
 		}
 	}
 
-	for _, member := range input.SliceMembers {
-		if _, err := tx.ExecContext(ctx, `INSERT INTO slice_members(id, generation_id, slice_id, object_type, object_id, rank, reason, updated_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?)`, member.ID, input.GenerationID, member.SliceID, member.ObjectType, member.ObjectID, member.Rank, member.Reason, now); err != nil {
-			return "", fmt.Errorf("insert slice member %s: %w", member.ID, err)
+	for _, alias := range input.Aliases {
+		language := defaultString(alias.Language, "unknown")
+		source := defaultString(alias.Source, "scan_alias")
+		confidence := defaultString(alias.Confidence, "medium")
+		if _, err := tx.ExecContext(ctx, `INSERT INTO alias_index(id, generation_id, alias, normalized_alias, target_type, target_id, language, source, confidence, evidence_id) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, alias.ID, input.GenerationID, alias.Alias, alias.NormalizedAlias, alias.TargetType, alias.TargetID, language, source, confidence, alias.EvidenceID); err != nil {
+			return "", fmt.Errorf("insert alias index %s: %w", alias.ID, err)
 		}
 	}
 
@@ -260,13 +297,17 @@ func (s *Store) ImportGeneration(ctx context.Context, input ImportInput) (string
 
 func (s *Store) ActiveIdentitySnapshot(ctx context.Context) (IdentitySnapshot, error) {
 	snapshot := IdentitySnapshot{
-		Evidence:      map[string]bool{},
-		Nodes:         map[string]bool{},
-		Edges:         map[string]bool{},
-		Observations:  map[string]bool{},
-		CoveragePaths: map[string]bool{},
-		Rejections:    []RowDecision{},
-		MergeRecords:  []MergeRecord{},
+		Evidence:                    map[string]bool{},
+		Nodes:                       map[string]bool{},
+		Edges:                       map[string]bool{},
+		Observations:                map[string]bool{},
+		Claims:                      map[string]bool{},
+		CoveragePaths:               map[string]bool{},
+		WorkflowUpdateEvidence:      map[string]bool{},
+		WorkflowUpdateNodes:         map[string]bool{},
+		WorkflowUpdateCoveragePaths: map[string]bool{},
+		Rejections:                  []RowDecision{},
+		MergeRecords:                []MergeRecord{},
 	}
 	generationID, err := s.ActiveGenerationID(ctx)
 	if err != nil {
@@ -295,10 +336,22 @@ func (s *Store) ActiveIdentitySnapshot(ctx context.Context) (IdentitySnapshot, e
 	}); err != nil {
 		return snapshot, fmt.Errorf("read observation identities: %w", err)
 	}
+	if err := scanSnapshotRows(ctx, s.db, `SELECT id FROM claims WHERE generation_id = ?`, generationID, func(values []string) {
+		snapshot.Claims[values[0]] = true
+	}); err != nil {
+		return snapshot, fmt.Errorf("read claim identities: %w", err)
+	}
 	if err := scanSnapshotRows(ctx, s.db, `SELECT path FROM path_index WHERE generation_id = ?`, generationID, func(values []string) {
 		snapshot.CoveragePaths[values[0]] = true
 	}); err != nil {
 		return snapshot, fmt.Errorf("read coverage identities: %w", err)
+	}
+	if err := scanSnapshotRows(ctx, s.db, `SELECT e.id, e.source_path, e.content_hash, n.id, p.path FROM path_index p JOIN nodes n ON n.generation_id = p.generation_id AND n.id = p.node_id JOIN evidence e ON e.generation_id = p.generation_id AND e.id = p.evidence_id WHERE p.generation_id = ? AND n.type = 'workflow_update' AND e.source_kind = 'workflow_update' AND p.relation = 'provisional_path' AND p.confidence IN ('weak', 'partial')`, generationID, func(values []string) {
+		snapshot.WorkflowUpdateEvidence[values[0]+"|"+values[1]+"|"+values[2]] = true
+		snapshot.WorkflowUpdateNodes[values[3]] = true
+		snapshot.WorkflowUpdateCoveragePaths[values[4]] = true
+	}); err != nil {
+		return snapshot, fmt.Errorf("read workflow update identities: %w", err)
 	}
 
 	attrsJSON := "{}"
@@ -401,10 +454,26 @@ func validateImportReferences(input ImportInput) error {
 			}
 		}
 	}
-	for _, claim := range input.Claims {
-		for _, evidenceID := range claim.EvidenceIDs {
-			if err := validateImportedEvidenceID("claim", claim.ID, evidenceID, evidenceIDs); err != nil {
+	for _, graphClaim := range input.Claims {
+		if !nodeIDs[graphClaim.NodeID] {
+			return fmt.Errorf("claim %s references missing node %s", graphClaim.ID, graphClaim.NodeID)
+		}
+		if strings.TrimSpace(graphClaim.GraphClaimType) == "" {
+			return fmt.Errorf("claim %s graph_claim_type is required", graphClaim.ID)
+		}
+		for _, evidenceID := range append(append([]string{}, graphClaim.SupportingEvidenceIDs...), graphClaim.ContradictingEvidenceIDs...) {
+			if err := validateImportedEvidenceID("claim", graphClaim.ID, evidenceID, evidenceIDs); err != nil {
 				return err
+			}
+		}
+		for _, verification := range graphClaim.Verifications {
+			if strings.TrimSpace(verification.ID) == "" {
+				return fmt.Errorf("claim %s verification id is required", graphClaim.ID)
+			}
+			if verification.EvidenceID != "" {
+				if err := validateImportedEvidenceID("claim verification", verification.ID, verification.EvidenceID, evidenceIDs); err != nil {
+					return err
+				}
 			}
 		}
 	}
@@ -414,6 +483,25 @@ func validateImportReferences(input ImportInput) error {
 		}
 		if pathIndex.EvidenceID != "" {
 			if err := validateImportedEvidenceID("path_index", pathIndex.ID, pathIndex.EvidenceID, evidenceIDs); err != nil {
+				return err
+			}
+		}
+	}
+	for _, alias := range input.Aliases {
+		if strings.TrimSpace(alias.Alias) == "" {
+			return fmt.Errorf("alias_index %s alias is required", alias.ID)
+		}
+		if strings.TrimSpace(alias.NormalizedAlias) == "" {
+			return fmt.Errorf("alias_index %s normalized_alias is required", alias.ID)
+		}
+		if alias.TargetType != "node" {
+			return fmt.Errorf("alias_index %s target_type %q is not supported", alias.ID, alias.TargetType)
+		}
+		if !nodeIDs[alias.TargetID] {
+			return fmt.Errorf("alias_index %s references missing node %s", alias.ID, alias.TargetID)
+		}
+		if alias.EvidenceID != "" {
+			if err := validateImportedEvidenceID("alias_index", alias.ID, alias.EvidenceID, evidenceIDs); err != nil {
 				return err
 			}
 		}
@@ -466,20 +554,15 @@ func supersedeAndDeleteActiveGenerationData(ctx context.Context, tx *sql.Tx, new
 
 func deleteGenerationData(ctx context.Context, tx *sql.Tx, generationID string) error {
 	statements := []string{
+		`DELETE FROM claim_transitions WHERE generation_id = ?`,
+		`DELETE FROM claim_verifications WHERE generation_id = ?`,
+		`DELETE FROM claim_evidence WHERE claim_id IN (SELECT id FROM claims WHERE generation_id = ?)`,
+		`DELETE FROM claims WHERE generation_id = ?`,
 		`DELETE FROM observation_evidence WHERE observation_id IN (SELECT id FROM observations WHERE generation_id = ?)`,
 		`DELETE FROM node_evidence WHERE node_id IN (SELECT id FROM nodes WHERE generation_id = ?)`,
 		`DELETE FROM edge_evidence WHERE edge_id IN (SELECT id FROM edges WHERE generation_id = ?)`,
-		`DELETE FROM claim_evidence WHERE claim_id IN (SELECT id FROM claims WHERE generation_id = ?)`,
-		`DELETE FROM conflict_claims WHERE conflict_id IN (SELECT id FROM conflicts WHERE generation_id = ?)`,
-		`DELETE FROM query_examples WHERE generation_id = ?`,
-		`DELETE FROM slice_members WHERE generation_id = ?`,
-		`DELETE FROM test_index WHERE generation_id = ?`,
-		`DELETE FROM entrypoint_index WHERE generation_id = ?`,
 		`DELETE FROM alias_index WHERE generation_id = ?`,
-		`DELETE FROM symbol_index WHERE generation_id = ?`,
 		`DELETE FROM path_index WHERE generation_id = ?`,
-		`DELETE FROM conflicts WHERE generation_id = ?`,
-		`DELETE FROM claims WHERE generation_id = ?`,
 		`DELETE FROM edges WHERE generation_id = ?`,
 		`DELETE FROM observations WHERE generation_id = ?`,
 		`DELETE FROM nodes WHERE generation_id = ?`,

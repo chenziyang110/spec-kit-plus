@@ -1,6 +1,10 @@
 from pathlib import Path
 
-from .template_utils import read_template
+from .template_utils import (
+    assert_debug_checkpoint_card_shape,
+    read_command_with_references,
+    read_template,
+)
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -22,7 +26,7 @@ def _assert_tier_roles(content: str) -> None:
 
 
 def test_debug_template_documents_map_backed_intake_contract() -> None:
-    content = read_template("templates/commands/debug.md").lower()
+    content = read_command_with_references("debug").lower()
 
     assert "complexity-based debug execution" in content
     assert "execution_model: leader-inline | subagent-assisted | blocked" in content
@@ -53,15 +57,15 @@ def test_debug_template_documents_map_backed_intake_contract() -> None:
     assert "observer_framing_completed" in content
     assert "you may perform focused leader-inline evidence work when the investigation is small and single-lane" in content
     assert "route, integrate, and decide rather than manually performing every lane sequentially" in content
-    assert ".specify/memory/project-rules.md" in content
-    assert ".specify/memory/learnings/index.md" in content
-    assert "linked learning detail docs" in content
-    assert "learning start --command debug --format json" in content
-    assert "manual `learning capture` helper surface" in content
+    assert "learning start --command debug" in content
+    assert "learning show" in content or "show_argv" in content
+    assert ".specify/memory/learnings/index.md" not in content
+    assert "learning capture-auto" in content
     assert "manual `capture-learning` hook surface" not in content
     assert "debug cognition gate" in content
     assert "pass the cognition gate before" in content
-    assert "project-cognition query --intent debug" in content
+    assert "project-cognition compass --intent debug" in content
+    assert "project-cognition query --query-plan" in content
     assert "minimal_live_reads" in content
     assert "debug-handbook.md" not in content
     assert "debug-workflow-contract" not in content
@@ -80,8 +84,10 @@ def test_debug_template_documents_map_backed_intake_contract() -> None:
     assert "derived_issue" in content
     assert "unrelated_issue" in content
     assert "contrarian candidate" in content
-    assert "cognition freshness is `missing`, stop and tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`" in content
-    assert "cognition freshness is `stale`, stop and tell the user to use `{{invoke:map-update}}`" in content
+    assert "if cognition freshness is `missing`, continue with live repository evidence when workflow policy allows" in content
+    assert "recommend `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only as follow-up brownfield first-baseline maintenance" in content
+    assert "if cognition freshness is `stale`, treat map output as advisory" in content
+    assert "recommend `{{invoke:map-update}}` as follow-up maintenance only when the user requested cognition repair" in content
     assert "cognition freshness is `support_drift`" in content
     assert "cognition freshness is `partial_refresh`" in content
     assert "do not reflexively route to `{{invoke:map-update}}`" in content
@@ -91,7 +97,7 @@ def test_debug_template_documents_map_backed_intake_contract() -> None:
     assert "{{invoke:map-update}}" in content
     assert "truth ownership" in content
     assert "use the debug cognition slice to identify likely truth-owning layers" in content
-    assert "tell the user to run `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; wait for that rebuild before root-cause analysis continues" in content
+    assert "recommend `{{invoke:map-scan}}`, then `{{invoke:map-build}}` only as follow-up brownfield first-baseline maintenance" in content
     assert "task-relevant cognition coverage is insufficient" in content
     assert "ownership or placement guidance" in content
     assert "workflow, constraint, integration, or regression-sensitive testing guidance" in content
@@ -152,19 +158,23 @@ def test_debug_template_documents_map_backed_intake_contract() -> None:
     assert "verification_evidence" in content
     assert "project_cognition_refresh" in content
     assert "workflow-owned mutation closeout is not an external map-maintenance handoff" in content
-    assert "project-cognition delta append" in content
-    assert "project-cognition update --delta-session" in content
-    assert "project-cognition update --payload-file" in content
+    assert "project-cognition closeout-plan --workflow" in content
+    assert "update_mode=delta_session" in content
+    assert "update_mode=payload_file" in content
+    assert "update_argv" in content
+    assert "delta_append_draft.argv_prefix" in content
+    assert "unknown_path_dispositions" in content
     assert "clean closeout keys on `result_state`" in content
-    assert "not `update_id`, `last_update_id`, or freshness alone" in content
+    assert "not `status=ok`, `update_id`, `last_update_id`, or freshness alone" in content
     assert "legacy recorded-only output" in content
     assert "sp-map-update is for manual/external maintenance and follow-up repair" in content
     assert "dirty only when inline update" in content
     assert "ordinary uncertain closure" in content
     assert "partial/low-confidence facts, known unknowns, and `minimal_live_reads`" in content
     assert "use map-update for ordinary existing-baseline gaps" in content
-    assert "use map-scan -> map-build only for first/missing/unusable baseline, schema failure, zero active-generation path_index rows, explicit_rebuild_requested, or baseline_identity_invalid" in content
-    assert "returned `project-cognition query` bundle and readiness as the truth source" in content
+    assert "use map-scan -> map-build only for first/missing/unusable baseline, schema failure, schema v1 or old broad-schema rebuild-required readiness, zero active-generation path_index rows, missing or invalid alias_index, explicit_rebuild_requested, or baseline_identity_invalid" in content
+    assert "returned `project-cognition query` bundle and readiness as the truth source" not in content
+    assert "returned project cognition compass packet as the default intake source" in content
     assert "use only returned `minimal_live_reads` when needed" in content
     assert "debug session state" in content
     assert "competing truths" in content
@@ -174,7 +184,7 @@ def test_debug_template_documents_map_backed_intake_contract() -> None:
     assert "project-cognition validate-build --format json" in content
     assert "incremental freshness finalization" in content
     assert "do not run `complete-refresh` as a rebuild finalizer" in content
-    assert "{{specify-subcmd:project-cognition mark-dirty --reason \"<reason>\" --format json}}" in content
+    assert "{{specify-subcmd:project-cognition mark-dirty --reason \"workflow-closeout-failed\" --format json}}" in content
     assert "write the selected capability or symptom, evidence routes" in content
     assert "highest-signal" in content
     assert "write a failing automated repro test before changing production code" in content
@@ -200,8 +210,63 @@ def test_debug_template_documents_map_backed_intake_contract() -> None:
     assert "user can agree or decline" not in content
 
 
+def test_debug_template_requires_understanding_checkpoint_before_investigation() -> None:
+    content = read_command_with_references("debug").lower()
+
+    assert "## debug understanding checkpoint" in content
+    assert_debug_checkpoint_card_shape(content)
+    assert "user-owned facts and authority" in content
+    assert "technical hypotheses belong to the agent" in content
+    assert "for awareness, not as a request to approve a hypothesis" in content
+    assert "first evidence action" in content
+    assert "fix gate" in content
+    assert "progress signal" in content
+    assert "where it appears, why it matters" in content
+    assert "plain text for terminal output" in content
+    assert "do not use html tags or inline line-break markup" in content
+    assert "do not reuse the placeholder text as content" in content
+    assert "<br>" not in content
+    assert "establish the repro or failing signal" not in content
+    assert "concrete failing signals, commands, logs, routes, affected workflows, constraints, and known uncertainty" in content
+    assert "unknown: [why it matters]" in content
+    assert "wait for user confirmation" in content
+    assert "not a fix-plan approval" in content
+    assert "not a root-cause claim" in content
+    assert "understanding_confirmed: false" in content
+    assert "understanding_confirmed: true" in content
+    assert (
+        "before reproduction commands, log review, source-code reads, test inspection, evidence collection, "
+        "instrumentation, code edits, fix work, or validation commands"
+    ) in content
+    assert "blocks evidence investigation on resume" in content
+    assert "only hand off to map maintenance after confirmation" in content
+
+
+def test_debug_session_template_tracks_understanding_checkpoint() -> None:
+    content = (PROJECT_ROOT / "templates" / "debug.md").read_text(encoding="utf-8").lower()
+
+    assert "understanding_confirmed" in content
+    assert "## debug understanding checkpoint" in content
+    assert "checkpoint:" in content
+    assert "issue:" in content
+    assert "issue_detail:" in content
+    assert "expected_or_target:" in content
+    assert "reproduction_or_failing_signal:" in content
+    assert "known_evidence:" in content
+    assert "in_scope:" in content
+    assert "out_of_scope:" in content
+    assert "candidate_focus:" in content
+    assert "investigation_plan:" in content
+    assert "session-specific ordered evidence step" in content
+    assert "ordered evidence step, such as" not in content
+    assert "next_action:" in content
+    assert "fix_gate:" in content
+    assert "done_or_progress_signal:" in content
+    assert "user_corrections:" in content
+
+
 def test_debug_template_preserves_blocked_state_and_subagent_boundaries() -> None:
-    content = read_template("templates/commands/debug.md").lower()
+    content = read_command_with_references("debug").lower()
 
     assert "subagent-blocked" in content
     assert "execution_surface: none" in content
@@ -213,7 +278,7 @@ def test_debug_template_preserves_blocked_state_and_subagent_boundaries() -> Non
 
 
 def test_debug_template_uses_stage_and_protocol_structure() -> None:
-    content = read_template("templates/commands/debug.md").lower()
+    content = read_command_with_references("debug").lower()
 
     assert "## role" in content
     assert "## operating principles" in content

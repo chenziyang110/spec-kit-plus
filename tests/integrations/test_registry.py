@@ -22,10 +22,11 @@ ALL_INTEGRATION_KEYS = [
     "claude", "qwen", "opencode", "junie", "kilocode", "auggie",
     "roo", "codebuddy", "qodercli", "amp", "shai", "bob", "trae",
     "pi", "iflow", "kiro-cli", "windsurf", "vibe", "cursor-agent",
+    "mimo",
     # Stage 4 — TOML integrations
     "gemini", "tabnine",
     # Stage 5 — skills, generic & option-driven integrations
-    "codex", "kimi", "agy", "generic",
+    "codex", "kimi", "agy", "zcode", "generic",
 ]
 
 
@@ -111,6 +112,7 @@ class TestRegistrarKeyAlignment:
             ("junie", ".junie/", "commands", ".junie/commands", ".junie/AGENTS.md"),
             ("kilocode", ".kilocode/", "workflows", ".kilocode/workflows", ".kilocode/rules/specify-rules.md"),
             ("kiro-cli", ".kiro/", "prompts", ".kiro/prompts", "AGENTS.md"),
+            ("mimo", ".mimocode/", "commands", ".mimocode/commands", "AGENTS.md"),
             ("opencode", ".opencode/", "command", ".opencode/command", "AGENTS.md"),
             ("pi", ".pi/", "prompts", ".pi/prompts", "AGENTS.md"),
             ("qodercli", ".qoder/", "commands", ".qoder/commands", "QODER.md"),
@@ -147,6 +149,7 @@ class TestRegistrarKeyAlignment:
             ("kimi", ".kimi/", "skills", ".kimi/skills", "KIMI.md"),
             ("trae", ".trae/", "skills", ".trae/skills", ".trae/rules/project_rules.md"),
             ("vibe", ".vibe/", "skills", ".vibe/skills", "AGENTS.md"),
+            ("zcode", ".zcode/", "skills", ".zcode/skills", "AGENTS.md"),
         ],
     )
     def test_reduced_skills_matrix_preserves_agent_metadata(

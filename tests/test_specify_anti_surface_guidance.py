@@ -1,12 +1,14 @@
 from pathlib import Path
 
-from .template_utils import read_template
+from .template_utils import read_command_with_references, read_template
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 
 def _read(path: str) -> str:
+    if path.startswith("templates/commands/"):
+        return read_command_with_references(Path(path).stem)
     return read_template(path)
 
 

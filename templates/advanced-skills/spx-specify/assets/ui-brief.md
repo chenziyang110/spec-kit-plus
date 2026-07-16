@@ -1,0 +1,35 @@
+# UI Brief: {{feature_name}}
+
+- ui_work_type: existing-pattern | feature-extension | reference-implementation
+- surface_type: landing | product-workspace | hybrid | existing-pattern-maintenance
+- platforms: [web | mobile | desktop | tui | cli]
+- design_readiness: approved | narrow-existing-pattern-exception | blocked
+- design_sources: [DESIGN.md]
+- subject:
+- audience:
+- single_job:
+- visual_thesis:
+- content_thesis:
+- interaction_thesis:
+- signature_element:
+- approved_visual_ref:
+- entry_points:
+- user_job_and_experience_intent:
+- visual_or_interaction_signature:
+- source_refs: []
+- reference_intents: [{ref:, intent: exact | preserve-structure | inspiration | extract-tokens | do-not-copy}]
+- real_content_plan: [{source_ref:, applies_to_states: []}]
+- image_plan: [{ref:, role:, responsive_behavior:}]
+- fidelity_mode: approximate | high | inspiration
+- layout_and_information_hierarchy:
+- tokens_and_components:
+- must_preserve:
+- may_adapt:
+- must_not:
+- required_states:
+- responsive_and_accessibility_constraints:
+- visual_acceptance_matrix: [entry point | viewport | state | expected | evidence]
+- required_evidence: [structure_snapshot, visual_capture, runtime_diagnostics, visual_comparison_or_human_review]
+- difference_inventory:
+- accepted_deviations:
+- pending_human_review:

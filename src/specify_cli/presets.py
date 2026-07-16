@@ -878,6 +878,11 @@ class PresetManager:
                     f"{body}\n"
                 )
                 skill_file.write_text(skill_content, encoding="utf-8")
+                if isinstance(selected_ai, str):
+                    self._restore_core_skill_references_if_missing(
+                        selected_ai=selected_ai,
+                        skill_subdir=skill_subdir,
+                    )
                 continue
 
             extension_restore = extension_restore_index.get(skill_name)
@@ -910,6 +915,39 @@ class PresetManager:
             else:
                 # No core or extension template — remove the skill entirely
                 shutil.rmtree(skill_subdir)
+
+    def _restore_core_skill_references_if_missing(
+        self,
+        *,
+        selected_ai: str,
+        skill_subdir: Path,
+    ) -> None:
+        """Restore missing core workflow skill references after preset removal."""
+        from . import load_init_options
+        from .integrations import get_integration
+        from .integrations.base import SkillsIntegration
+        from .integrations.manifest import IntegrationManifest
+
+        if not skill_subdir.is_dir():
+            return
+
+        integration = get_integration(selected_ai)
+        if not isinstance(integration, SkillsIntegration):
+            return
+
+        try:
+            manifest = IntegrationManifest.load(selected_ai, self.project_root)
+        except FileNotFoundError:
+            return
+
+        init_options = load_init_options(self.project_root)
+        script_type = init_options.get("script", "sh") if isinstance(init_options, dict) else "sh"
+        integration.repair_missing_command_reference_sidecars(
+            self.project_root,
+            manifest,
+            script_type=script_type,
+        )
+        manifest.save()
 
     def install_from_directory(
         self,

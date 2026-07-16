@@ -120,11 +120,16 @@ func filterRequiredBuildErrors(errors []string, greenfieldEmpty bool) []string {
 
 func validateIdentityReconciliation(paths rt.Paths) (map[string]any, []string) {
 	details := map[string]any{
-		"identity_reconciliation": "not_run",
-		"scan_artifact_counts":    identityCounts(scanartifacts.IdentitySet{}),
-		"db_counts":               identitySnapshotCounts(store.IdentitySnapshot{}),
-		"rejections":              []store.RowDecision{},
-		"merge_records":           []store.MergeRecord{},
+		"identity_reconciliation":          "not_run",
+		"scan_artifact_counts":             identityCounts(scanartifacts.IdentitySet{}),
+		"db_counts":                        identitySnapshotCounts(store.IdentitySnapshot{}),
+		"identity_diffs":                   map[string]identityCategoryDiff{},
+		"identity_mismatch_count":          0,
+		"identity_mismatch_categories":     []string{},
+		"identity_repairability":           "not_applicable",
+		"identity_recommended_next_action": "none",
+		"rejections":                       []store.RowDecision{},
+		"merge_records":                    []store.MergeRecord{},
 	}
 	errors := []string{}
 	pkg, result := scanartifacts.Load(paths, scanartifacts.ValidateOptions{RequireStatusJSON: false})
@@ -150,11 +155,28 @@ func validateIdentityReconciliation(paths rt.Paths) (map[string]any, []string) {
 	details["db_counts"] = identitySnapshotCounts(snapshot)
 	details["rejections"] = snapshot.Rejections
 	details["merge_records"] = snapshot.MergeRecords
-	errors = append(errors, compareIdentityCategory("evidence", pkg.Identities.Evidence, snapshot.Evidence, snapshot)...)
-	errors = append(errors, compareIdentityCategory("node", pkg.Identities.Nodes, snapshot.Nodes, snapshot)...)
-	errors = append(errors, compareIdentityCategory("edge", pkg.Identities.Edges, snapshot.Edges, snapshot)...)
-	errors = append(errors, compareIdentityCategory("observation", pkg.Identities.Observations, snapshot.Observations, snapshot)...)
-	errors = append(errors, compareIdentityCategory("coverage_path", pkg.Identities.CoveragePaths, snapshot.CoveragePaths, snapshot)...)
+	identityDiffs := map[string]identityCategoryDiff{}
+	for _, category := range []struct {
+		name     string
+		expected map[string]bool
+		actual   map[string]bool
+	}{
+		{name: "evidence", expected: pkg.Identities.Evidence, actual: snapshot.Evidence},
+		{name: "node", expected: pkg.Identities.Nodes, actual: snapshot.Nodes},
+		{name: "edge", expected: pkg.Identities.Edges, actual: snapshot.Edges},
+		{name: "observation", expected: pkg.Identities.Observations, actual: snapshot.Observations},
+		{name: "coverage_path", expected: pkg.Identities.CoveragePaths, actual: snapshot.CoveragePaths},
+	} {
+		diff, categoryErrors := compareIdentityCategoryDetailed(category.name, category.expected, category.actual, snapshot)
+		identityDiffs[category.name] = diff
+		errors = append(errors, categoryErrors...)
+	}
+	details["identity_diffs"] = identityDiffs
+	details["identity_mismatch_count"] = identityMismatchCount(identityDiffs)
+	details["identity_mismatch_categories"] = identityMismatchCategories(identityDiffs)
+	repairability := classifyIdentityRepairability(identityDiffs)
+	details["identity_repairability"] = repairability
+	details["identity_recommended_next_action"] = identityRecommendedNextAction(repairability)
 	if len(errors) > 0 {
 		details["identity_reconciliation"] = "blocked"
 	} else {
@@ -208,7 +230,18 @@ func identitySnapshotCounts(snapshot store.IdentitySnapshot) map[string]int {
 	}
 }
 
+type identityCategoryDiff struct {
+	MissingScan   []string `json:"missing_scan"`
+	UnexpectedDB  []string `json:"unexpected_db"`
+	MismatchCount int      `json:"mismatch_count"`
+}
+
 func compareIdentityCategory(category string, expected map[string]bool, actual map[string]bool, snapshot store.IdentitySnapshot) []string {
+	_, errors := compareIdentityCategoryDetailed(category, expected, actual, snapshot)
+	return errors
+}
+
+func compareIdentityCategoryDetailed(category string, expected map[string]bool, actual map[string]bool, snapshot store.IdentitySnapshot) (identityCategoryDiff, []string) {
 	missing := []string{}
 	unexpected := []string{}
 	for identity := range expected {
@@ -217,7 +250,7 @@ func compareIdentityCategory(category string, expected map[string]bool, actual m
 		}
 	}
 	for identity := range actual {
-		if !expected[identity] {
+		if !expected[identity] && !identityAllowedAsWorkflowUpdate(category, identity, snapshot) {
 			unexpected = append(unexpected, identity)
 		}
 	}
@@ -230,7 +263,78 @@ func compareIdentityCategory(category string, expected map[string]bool, actual m
 	if len(unexpected) > 0 {
 		errors = append(errors, "unexpected DB "+identityErrorNoun(category)+" identities: "+strings.Join(unexpected, ", "))
 	}
-	return errors
+	return identityCategoryDiff{
+		MissingScan:   missing,
+		UnexpectedDB:  unexpected,
+		MismatchCount: len(missing) + len(unexpected),
+	}, errors
+}
+
+func identityMismatchCount(diffs map[string]identityCategoryDiff) int {
+	total := 0
+	for _, diff := range diffs {
+		total += diff.MismatchCount
+	}
+	return total
+}
+
+func identityMismatchCategories(diffs map[string]identityCategoryDiff) []string {
+	categories := []string{}
+	for category, diff := range diffs {
+		if diff.MismatchCount > 0 {
+			categories = append(categories, category)
+		}
+	}
+	sort.Strings(categories)
+	return categories
+}
+
+func classifyIdentityRepairability(diffs map[string]identityCategoryDiff) string {
+	total := identityMismatchCount(diffs)
+	if total == 0 {
+		return "not_needed"
+	}
+	categories := identityMismatchCategories(diffs)
+	if total <= 10 && len(categories) == 1 && categories[0] == "coverage_path" {
+		return "bounded_path_repair"
+	}
+	if total <= 10 && identityCategoriesArePathLed(categories) {
+		return "bounded_path_identity_review"
+	}
+	return "manual_identity_review"
+}
+
+func identityCategoriesArePathLed(categories []string) bool {
+	for _, category := range categories {
+		if category != "coverage_path" && category != "evidence" {
+			return false
+		}
+	}
+	return len(categories) > 0
+}
+
+func identityRecommendedNextAction(repairability string) string {
+	switch repairability {
+	case "not_needed":
+		return "none"
+	case "bounded_path_repair", "bounded_path_identity_review":
+		return "repair_identity_reconciliation"
+	default:
+		return "review_project_cognition_update"
+	}
+}
+
+func identityAllowedAsWorkflowUpdate(category string, identity string, snapshot store.IdentitySnapshot) bool {
+	switch category {
+	case "evidence":
+		return snapshot.WorkflowUpdateEvidence[identity]
+	case "node":
+		return snapshot.WorkflowUpdateNodes[identity]
+	case "coverage_path":
+		return snapshot.WorkflowUpdateCoveragePaths[identity]
+	default:
+		return false
+	}
 }
 
 func identityCoveredByDecision(category string, identity string, snapshot store.IdentitySnapshot) bool {
@@ -350,6 +454,14 @@ func validateGraphStore(paths rt.Paths, status rt.Status, agreement runtimegate.
 		details["evidence_count"] = evidenceCount
 		greenfieldEmpty := isGreenfieldEmptyBaseline(status, db, activeGenerationID)
 		details["baseline_kind"] = status.BaselineKind
+		aliasDetails, aliasErrors, err := validateAliasIndex(db, activeGenerationID, greenfieldEmpty)
+		if err != nil {
+			errors = append(errors, err.Error())
+		}
+		for key, value := range aliasDetails {
+			details[key] = value
+		}
+		errors = append(errors, aliasErrors...)
 		if nodeCount == 0 && !greenfieldEmpty {
 			errors = append(errors, "active generation has no nodes")
 		}
@@ -405,6 +517,64 @@ func validateGraphStore(paths rt.Paths, status rt.Status, agreement runtimegate.
 		}
 	}
 	return details, errors, warnings
+}
+
+func validateAliasIndex(db *sql.DB, generationID string, greenfieldEmpty bool) (map[string]any, []string, error) {
+	details := map[string]any{}
+	errors := []string{}
+	aliasCount, err := countGenerationRows(db, "alias_index", generationID)
+	if err != nil {
+		return details, errors, err
+	}
+	details["alias_index_count"] = aliasCount
+	if greenfieldEmpty {
+		return details, errors, nil
+	}
+	if aliasCount == 0 {
+		errors = append(errors, "active_generation_has_no_alias_rows")
+	}
+
+	missingAliasNodeIDs, err := stringColumnRows(db, `
+SELECT n.id FROM nodes n WHERE n.generation_id = ? AND NOT EXISTS (
+  SELECT 1 FROM alias_index a
+  WHERE a.generation_id = n.generation_id
+    AND a.target_type = 'node'
+    AND a.target_id = n.id
+    AND TRIM(a.normalized_alias) <> ''
+) ORDER BY n.id`, generationID)
+	if err != nil {
+		return details, errors, err
+	}
+	for _, nodeID := range missingAliasNodeIDs {
+		errors = append(errors, "active_generation_node_missing_aliases:"+nodeID)
+	}
+
+	orphanTargetIDs, err := stringColumnRows(db, `
+SELECT DISTINCT a.target_id
+FROM alias_index a
+LEFT JOIN nodes n ON n.generation_id = a.generation_id AND n.id = a.target_id
+WHERE a.generation_id = ? AND a.target_type = 'node' AND n.id IS NULL
+ORDER BY a.target_id`, generationID)
+	if err != nil {
+		return details, errors, err
+	}
+	for _, targetID := range orphanTargetIDs {
+		errors = append(errors, "alias_index_orphan_target_id:"+targetID)
+	}
+
+	missingEvidenceIDs, err := stringColumnRows(db, `
+SELECT DISTINCT a.evidence_id
+FROM alias_index a
+LEFT JOIN evidence e ON e.generation_id = a.generation_id AND e.id = a.evidence_id
+WHERE a.generation_id = ? AND TRIM(a.evidence_id) <> '' AND e.id IS NULL
+ORDER BY a.evidence_id`, generationID)
+	if err != nil {
+		return details, errors, err
+	}
+	for _, evidenceID := range missingEvidenceIDs {
+		errors = append(errors, "alias_index_missing_evidence_id:"+evidenceID)
+	}
+	return details, errors, nil
 }
 
 func isGreenfieldEmptyBaseline(status rt.Status, db *sql.DB, activeGenerationID string) bool {
@@ -476,9 +646,6 @@ func graphPathTableChecks() []struct {
 	}{
 		{table: "path_index", column: "path"},
 		{table: "evidence", column: "source_path"},
-		{table: "symbol_index", column: "path"},
-		{table: "entrypoint_index", column: "path"},
-		{table: "test_index", column: "test_path"},
 	}
 }
 
@@ -575,4 +742,21 @@ func countGenerationRows(db *sql.DB, table string, generationID string) (int, er
 		return 0, fmt.Errorf("count %s rows: %w", table, err)
 	}
 	return count, nil
+}
+
+func stringColumnRows(db *sql.DB, query string, args ...any) ([]string, error) {
+	rows, err := db.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	values := []string{}
+	for rows.Next() {
+		var value string
+		if err := rows.Scan(&value); err != nil {
+			return nil, err
+		}
+		values = append(values, value)
+	}
+	return values, rows.Err()
 }

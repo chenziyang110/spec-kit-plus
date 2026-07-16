@@ -129,9 +129,78 @@ def test_record_review_round_marks_batch_fix_required_and_join_points_review_pen
     )
 
     updated_batch = json.loads(batch_path.read_text(encoding="utf-8"))
+    embedded_review_path = (
+        codex_team_project_root
+        / "specs"
+        / "001-test-feature"
+        / "implementation-review"
+        / "reviews.ndjson"
+    )
+    embedded_review = json.loads(embedded_review_path.read_text(encoding="utf-8").splitlines()[0])
     assert record["status"] == "fix_required"
+    assert record["implementation_review_path"].endswith("implementation-review/reviews.ndjson")
     assert updated_batch["review_status"] == "fix_required"
     assert updated_batch["review_round"] == 1
     assert updated_batch["status"] == "review_fix_required"
+    assert embedded_review["review_id"] == "batch-1-round-1"
+    assert embedded_review["scope"] == "join-point-drift"
+    assert embedded_review["trigger"] == "codex-team-batch:batch-1"
+    assert embedded_review["decision"] == "repair-and-rerun-current-window"
+    assert embedded_review["reviewed_tasks"] == ["T002", "T003"]
+    assert embedded_review["findings"][0]["finding_id"] == "F-2"
+    assert embedded_review["findings"][0]["finding_type"] == "failed_validation"
     task = get_task(codex_team_project_root, "T002")
     assert task.metadata["join_points"]["Join Point 1.1"]["status"] == "review_pending"
+
+
+def test_record_review_round_adapts_approved_batch_to_embedded_review(codex_team_project_root: Path) -> None:
+    batch_path = batch_record_path(codex_team_project_root, "batch-2")
+    batch_path.parent.mkdir(parents=True, exist_ok=True)
+    batch_path.write_text(
+        json.dumps(
+            batch_record_payload(
+                batch_id="batch-2",
+                batch_name="Parallel Batch 1.2",
+                session_id="default",
+                feature_dir="specs/001-test-feature",
+                task_ids=["T004"],
+                request_ids=["req-4"],
+                status="awaiting_review",
+            )
+            | {
+                "review_required": True,
+                "peer_review_lane_recommended": True,
+                "review_reason": "schema_change",
+                "review_status": "awaiting_review",
+                "review_round": 0,
+                "review_record_ids": [],
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    record = record_review_round(
+        codex_team_project_root,
+        batch_id="batch-2",
+        findings=[],
+        round_number=1,
+    )
+
+    embedded_review_path = (
+        codex_team_project_root
+        / "specs"
+        / "001-test-feature"
+        / "implementation-review"
+        / "reviews.ndjson"
+    )
+    embedded_review = json.loads(embedded_review_path.read_text(encoding="utf-8").splitlines()[0])
+    updated_batch = json.loads(batch_path.read_text(encoding="utf-8"))
+
+    assert record["status"] == "approved"
+    assert updated_batch["status"] == "completed"
+    assert embedded_review["review_id"] == "batch-2-round-1"
+    assert embedded_review["decision"] == "cleared"
+    assert embedded_review["reviewed_tasks"] == ["T004"]
+    assert embedded_review["findings"] == []

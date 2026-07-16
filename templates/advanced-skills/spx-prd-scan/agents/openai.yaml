@@ -1,0 +1,7 @@
+interface:
+  display_name: "SPX PRD Scan"
+  short_description: "Reconstruction-grade repository scan"
+  default_prompt: "Use $spx-prd-scan to collect reconstruction-grade repository evidence."
+
+policy:
+  allow_implicit_invocation: false

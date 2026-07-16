@@ -52,6 +52,8 @@ type Status struct {
 	StaleReasons                 []string `json:"stale_reasons"`
 	LastRefreshReason            string   `json:"last_refresh_reason"`
 	LastRefreshBasis             string   `json:"last_refresh_basis"`
+	LastRefreshGitCommit         string   `json:"last_refresh_git_commit,omitempty"`
+	LastRefreshGitBranch         string   `json:"last_refresh_git_branch,omitempty"`
 	LastRefreshChangedFilesBasis []string `json:"last_refresh_changed_files_basis"`
 	LastUpdateID                 string   `json:"last_update_id"`
 	LastDeltaSessionID           string   `json:"last_delta_session_id"`
@@ -107,10 +109,13 @@ func ReadStatus(paths Paths) (Status, error) {
 	if err := json.Unmarshal(data, &status); err != nil {
 		return Status{}, fmt.Errorf("decode status: %w", err)
 	}
-	status.StatusPath = slash(paths.StatusPath)
-	if status.GraphStorePath == "" {
-		status.GraphStorePath = ".specify/project-cognition/project-cognition.db"
+	if status.RuntimeSchema != RuntimeSchema {
+		return Status{}, ErrUnsupportedLegacy
 	}
+	if status.GraphStorePath == "" {
+		return Status{}, ErrUnsupportedLegacy
+	}
+	status.StatusPath = slash(paths.StatusPath)
 	normalizeStatusSlices(&status)
 	return status, nil
 }

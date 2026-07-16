@@ -14,12 +14,14 @@ import tomllib
 import pytest
 
 from specify_cli.integrations import INTEGRATION_REGISTRY, get_integration
-from specify_cli.integrations.base import TomlIntegration
+from specify_cli.integrations.base import IntegrationBase, TomlIntegration
 from specify_cli.integrations.manifest import IntegrationManifest
+from tests.template_utils import assert_quick_checkpoint_card_shape
 from .test_base import _assert_canonical_cognition_intake_contract
 
 SPEC_KIT_BLOCK_START = "<!-- SPEC-KIT:BEGIN -->"
 SHARED_PRD_HELPER = ".specify/scripts/shared/prd-state.py"
+SHARED_DISCUSSION_HELPER = ".specify/scripts/shared/discussion-state.py"
 STALE_COGNITION_ADDENDUM_PHRASES = (
     "for blocked, stale, missing, or incomplete references",
     "{{invoke:map-scan}} -> {{invoke:map-build}} or "
@@ -30,6 +32,77 @@ STALE_COGNITION_ADDENDUM_PHRASES = (
     "required project cognition status and slice artifacts",
     "graph-native runtime coverage",
 )
+
+
+def _write_command_reference_fixture(tmp_path):
+    commands_dir = tmp_path / "commands"
+    references_dir = tmp_path / "command-references"
+    workflow_references_dir = references_dir / "plan"
+    commands_dir.mkdir()
+    workflow_references_dir.mkdir(parents=True)
+
+    plan = commands_dir / "plan.md"
+    plan.write_text(
+        "---\n"
+        "description: Plan workflow\n"
+        "scripts:\n"
+        "  sh: scripts/bash/setup-plan.sh --json\n"
+        "---\n"
+        "Plan body links to references/INDEX.md.\n"
+        "Packet references/forbidden drift stays prose.\n",
+        encoding="utf-8",
+    )
+    (workflow_references_dir / "INDEX.md").write_text(
+        "# Plan Reference Index\n\n"
+        "See details.md.\n",
+        encoding="utf-8",
+    )
+    (workflow_references_dir / "details.md").write_text(
+        "# Plan Details\n\n"
+        "Run {SCRIPT} with {ARGS} for __AGENT__ before {{invoke:tasks}}.\n",
+        encoding="utf-8",
+    )
+    return plan, references_dir
+
+
+def test_toml_commands_install_triggered_reference_sidecars(tmp_path, monkeypatch):
+    class SingleFileTomlIntegration(TomlIntegration):
+        key = "test-agent"
+        config = {
+            "name": "Test Agent",
+            "folder": ".test/",
+            "commands_subdir": "commands",
+        }
+        registrar_config = {
+            "dir": ".test/commands",
+            "format": "toml",
+            "args": "{{args}}",
+            "extension": ".toml",
+        }
+
+    i = SingleFileTomlIntegration()
+    plan, references_dir = _write_command_reference_fixture(tmp_path)
+    monkeypatch.setattr(i, "list_command_templates", lambda: [plan])
+    monkeypatch.setattr(i, "shared_command_references_dir", lambda: references_dir)
+
+    m = IntegrationManifest(i.key, tmp_path)
+    i.setup(tmp_path, m, script_type="sh")
+
+    generated = (i.commands_dest(tmp_path) / "sp.plan.toml").read_text(encoding="utf-8")
+    parsed = tomllib.loads(generated)
+    prompt = parsed["prompt"]
+
+    references = i.commands_dest(tmp_path) / "references" / "plan"
+    assert "## Reference Contracts" not in prompt
+    assert "references/plan/INDEX.md" in prompt
+    assert "references/forbidden drift" in prompt
+    assert (references / "INDEX.md").is_file()
+    details = (references / "details.md").read_text(encoding="utf-8")
+    assert ".specify/scripts/bash/setup-plan.sh --json" in details
+    assert "{SCRIPT}" not in details
+    assert "{ARGS}" not in details
+    assert "__AGENT__" not in details
+    assert "{{invoke:tasks}}" not in details
 
 
 def _extract_generated_cognition_policy(content: str) -> str:
@@ -60,13 +133,14 @@ def _assert_compact_managed_context(content: str) -> None:
     assert SPEC_KIT_BLOCK_START in content
     assert "[AGENT]" in content
     assert "## Always-On Context" in content
-    assert "project cognition and project memory are always available" in lower
+    assert "project cognition and project learning are always available" in lower
     assert "even without an active `sp-*` workflow" in lower
     assert "when existing-system truth matters" in lower
     assert "before broad source inspection" in lower
     assert "narrow live reads" in lower
-    assert ".specify/memory/project-rules.md" in content
-    assert ".specify/memory/learnings/INDEX.md" in content
+    assert "specify learning start --command <workflow> --format json" in content
+    assert "show_argv" in content
+    assert ".specify/memory/learnings/INDEX.md" not in content
     assert "## Workflow Recommendations" in content
     assert "do not auto-enter an `sp-*` workflow" in lower
     assert "recommend `sp-discussion`" in lower
@@ -78,8 +152,10 @@ def _assert_compact_managed_context(content: str) -> None:
     assert "generated create-feature script" in lower
     assert "## Durable State" in content
     assert "prefer durable workflow state and explicit feature paths" in lower
+    assert "frontstage-only deferred persistence" in lower
+    assert "do not write discussion files, counters, dirty markers, receipts, or status summaries for every user reply" in lower
     assert "project cognition freshness truthful" in lower
-    assert "store reusable lessons in project memory" in lower
+    assert "store reusable lessons through project learning" in lower
 
     assert "## Workflow Activation Discipline" not in content
     assert "1% chance" not in content
@@ -104,29 +180,103 @@ def _assert_discussion_contract(command_content: str) -> None:
     assert "Turn Classifier" in command_content
     assert "Question Evidence Gate" in command_content
     assert "Cognition Advisory, Code Authority" in command_content
-    assert "project-cognition lexicon --intent discussion" in command_content
-    assert "project-cognition query --intent discussion" in command_content
+    assert "project-cognition compass --intent discussion" in command_content
+    assert "project-cognition query --query-plan" in command_content
+    assert "only when `compass_state`, coverage diagnostics, localization, or live evidence requires explicit concept decisions" in command_content
+    assert "--query-plan" in command_content
+    assert "lexicon -> semantic_intake -> query" in command_content
+    assert "semantic_intake" in command_content
+    assert "facet coverage" in command_lower
     assert "project-cognition query --intent plan" not in command_content
     assert "ui-interaction-discussion" in command_content
     assert "optional ui and interaction discussion" in command_lower
     assert "senior ui and interaction designer" in command_lower
     assert "ascii sketches" in command_lower
     assert "ui_sketches_present" in command_content
-    assert "ordinary turns append" in command_lower
+    assert "ordinary turns do not write local files by default" in command_lower
+    assert "a user reply is not itself a save trigger" in command_lower
+    assert "hidden counters" in command_lower
+    assert "per-user-reply or per-tool-use discussion writes" in command_lower
+    assert "deferred persistence" in command_lower
+    assert "compaction preserve" in command_lower
+    assert "user-triggered save" in command_lower
+    assert "turn count alone is never a save trigger" in command_lower
+    assert "semantic checkpoint is a durable meaning change" in command_lower
+    assert "pending truth-pass state" in command_lower
+    assert "persist it to `discussion-state.md` only at semantic checkpoints or save triggers" in command_lower
+    assert "persist them to `open-questions.md` only when they materially change" in command_lower
     assert "semantic checkpoints" in command_lower
-    assert "draft pair" in command_lower
+    assert "agent-only" in command_lower
+    assert "do not write a markdown companion" in command_lower
     assert "Context Boundary Gate" in command_content
     assert "target project root" in command_lower
     assert "adaptive question pack" in command_lower
     assert "primary question" in command_lower
     assert "optional follow-up" in command_lower
     assert "recommended option" in command_lower
+    assert "high-throughput collaborative brief" in command_lower
+    assert "frontstage / backstage separation" in command_lower
+    assert "visible conversation" in command_lower
+    assert "state accounting backstage" in command_lower
+    assert "continue by default" in command_lower
+    assert "do not ask for continuation" in command_lower
+    assert "do not persist every turn" in command_lower
+    assert "checkpoint persistence" in command_lower
+    assert "surface file paths and state updates only" in command_lower
+    assert "adaptive reply contract" in command_lower
+    assert "reply_shape_id" not in command_content
+    assert "unified frontstage contract" in command_lower
+    assert "do not choose among named answer templates" in command_lower
+    assert "agent controls heading names" in command_lower
+    assert "discussion responsibility boundary" in command_lower
+    assert "does not own implementation planning" in command_lower
+    assert "do not split the work into p0/p1/p2" in command_lower
+    assert "migration phases" in command_lower
+    assert "task packets" in command_lower
+    assert "those belong to `sp-plan`, `sp-tasks`, or `sp-implement`" in command_lower
+    assert "no parallel old-backend operation" in command_lower
+    assert "no old-stack cutover fallback" in command_lower
+    assert "no alternate product path" in command_lower
+    assert "database snapshots" in command_lower
+    assert "data-safety mechanisms" in command_lower
+    assert "downstream planning and implementation safety constraints" in command_lower
+    assert "handoff request-changes repair" in command_lower
+    assert "blocked_by_handoff_integrity" in command_content
+    assert "the repair belongs to `sp-discussion`" in command_lower
+    assert "update canonical `handoff-to-specify.json`" in command_lower
+    assert "source_contract" in command_content
+    assert "field-level validation errors" in command_content
+    assert "review_digest" in command_content
+    assert "recommendation-first is not questionless" in command_lower
     assert "one unified" in command_lower or "single unified" in command_lower
-    assert "handoff-to-specify.md" in command_content
+    assert "discussion_requirement_contract" in command_content
+    assert "Agent-Facing Requirement Contract" in command_content
+    assert "consumer_eligibility" in command_content
+    assert "recommended_consumer" in command_content
+    assert "planning_constraints" in command_content
+    assert "quick_task_candidate" not in command_content
+    assert "do not describe current execution or implementation progress" in command_lower
     assert "handoff-to-specify.json" in command_content
+    assert "Human Confirmation" in command_content
+    assert "current digest" in command_lower
     assert "quality_gate" in command_content
     assert "user confirmation" in command_lower
     assert "Must-Preserve Ledger" in command_content
+    assert "discussion_decision_digest" in command_content
+    assert "locked_direction" in command_content
+    assert "rejected_alternatives" in command_content
+    assert "accepted_tradeoffs" in command_content
+    assert "experience_commitments" in command_content
+    assert "review_criteria_carried_forward" in command_content
+    assert "must_not_dilute" in command_content
+    assert "handoff-ready closeout" in command_lower
+    assert "selected direction" in command_lower
+    assert "target boundary" in command_lower
+    assert "Must-Preserve coverage" in command_content
+    assert "package paths" in command_lower
+    assert "next consumption path" in command_lower
+    assert "do not close with only file paths, status counters, or a next command" in command_lower
+    assert "keep ready-summary quality checks internal" in command_lower
     assert "coverage_status" in command_content
     assert "planning_gate_status" in command_content
     assert (
@@ -144,6 +294,56 @@ def _assert_discussion_contract(command_content: str) -> None:
     assert "CAND-001" not in command_content
 
 
+def _assert_ui_reference_guidance(content: str) -> None:
+    assert "choose_ui_reference_lane_dispatch" in content
+    assert "ui-reference-artifact" in content
+    assert "ui-reference-notes.md" in content
+    assert "ui-brief.md" in content
+    assert "Reference-Implementation" in content
+
+
+def _assert_ask_contract(content: str) -> None:
+    lowered = content.lower()
+
+    assert "sp-ask" in content
+    assert "Evidence-Backed Project Q&A" in content
+    assert "project-cognition compass --intent ask" in content
+    assert "project-cognition query --intent ask" in content
+    assert "project cognition provides advisory navigation" in lowered
+    assert "live evidence is authoritative" in lowered
+    assert "do not create `.specify/ask/`" in lowered
+    assert "do not write handoff" in lowered
+    assert "do not edit source files" in lowered
+    assert "do not run tests" in lowered
+    assert "do not run builds" in lowered
+    assert "do not run package managers" in lowered
+    assert "do not execute project cli" in lowered
+    assert "answer first" in lowered
+    assert "next step" in lowered
+    assert "same-topic follow-up" in lowered
+    assert "reuse the previous evidence set" in lowered
+    assert "one-sentence evidence route" in lowered
+    assert "localized, mixed-language, cjk, colloquial, or project-slang" in lowered
+    assert "project-language search terms" in lowered
+    assert "proven from live evidence" in lowered
+    assert "inferred from live evidence" in lowered
+    assert "client fields or callsites" in lowered
+    assert "interface urls or payload/schema names" in lowered
+    assert "whether backend/server/runtime code exists" in lowered
+    assert "discussion-state.md" not in content
+    assert "handoff-to-specify" not in content
+
+
+def _assert_design_contract(content: str) -> None:
+    lowered = content.lower()
+
+    assert "sp-design" in content
+    assert "DESIGN.md" in content
+    assert "specify design lint" in content
+    assert "Forbidden Writes" in content or "forbidden writes" in lowered
+    assert "CSS or theme implementation files" in content
+
+
 def _assert_runtime_cognition_carry_forward(content: str, command_name: str) -> None:
     advisory_index = content.find("project cognition advisory gate")
     assert advisory_index != -1
@@ -155,6 +355,10 @@ def _assert_runtime_cognition_carry_forward(content: str, command_name: str) -> 
     assert "project-cognition delta append" in content
     assert "project-cognition update --delta-session" in content
     assert "project-cognition update --payload-file" in content
+    assert "project-cognition claim-reconcile prepare" in content
+    assert "project-cognition claim-reconcile apply" in content
+    assert "apply_argv" in content
+    assert "expected_content_hash" not in content
     assert "verification_evidence" in content
     assert "generated_surface_notes" in content
     assert "result_state" in content
@@ -182,6 +386,18 @@ def _assert_runtime_cognition_carry_forward(content: str, command_name: str) -> 
         assert "debug session state" in content
 
 
+def _assert_embedded_implement_review_contract(content: str) -> None:
+    lowered = content.lower()
+
+    assert "event-triggered review" in lowered
+    assert "entry revision check" in lowered
+    assert "parallel lanes join" in lowered
+    assert "task lifecycle record" in lowered
+    assert "do not create separate task briefs, review packages, or a duplicate task ledger" in lowered
+    assert "/sp.review" not in content
+    assert "sp-review" not in content
+
+
 
 TOML_INTEGRATION_SAMPLE_KEYS = ("gemini", "tabnine")
 
@@ -197,6 +413,10 @@ def test_collected_toml_integrations_preserve_shared_contracts(tmp_path):
         for path in integration.commands_dest(project).glob("**/*.toml"):
             parsed = tomllib.loads(path.read_text(encoding="utf-8"))
             prompts.append(parsed["prompt"].lower())
+        prompts.extend(
+            path.read_text(encoding="utf-8").lower()
+            for path in integration.commands_dest(project).glob("references/**/*.md")
+        )
         generated = "\n".join(prompts)
 
         assert "senior consequence analysis gate" in generated, integration_key
@@ -206,10 +426,100 @@ def test_collected_toml_integrations_preserve_shared_contracts(tmp_path):
         assert "ca-###" in generated, integration_key
         _assert_canonical_cognition_intake_contract(generated)
 
+        specify_path = integration.commands_dest(project) / integration.command_filename("specify")
+        assert specify_path.exists(), integration_key
+        parsed = tomllib.loads(specify_path.read_text(encoding="utf-8"))
+        _assert_ui_reference_guidance(parsed["prompt"])
+
         discussion_path = integration.commands_dest(project) / integration.command_filename("discussion")
         assert discussion_path.exists(), integration_key
         parsed = tomllib.loads(discussion_path.read_text(encoding="utf-8"))
-        _assert_discussion_contract(parsed["prompt"])
+        discussion_references = "\n".join(
+            path.read_text(encoding="utf-8")
+            for path in sorted(
+                (discussion_path.parent / "references" / "discussion").glob("**/*.md")
+            )
+        )
+        _assert_discussion_contract(parsed["prompt"] + "\n" + discussion_references)
+
+
+def test_collected_toml_integrations_install_triggered_reference_sidecars(tmp_path):
+    for integration_key in TOML_INTEGRATION_SAMPLE_KEYS:
+        project = tmp_path / integration_key
+        integration = get_integration(integration_key)
+        manifest = IntegrationManifest(integration_key, project)
+        integration.setup(project, manifest)
+
+        for workflow in IntegrationBase.COMMAND_REFERENCE_WORKFLOWS:
+            command_path = (
+                integration.commands_dest(project)
+                / integration.command_filename(workflow)
+            )
+            if not command_path.exists():
+                continue
+            parsed = tomllib.loads(command_path.read_text(encoding="utf-8"))
+            prompt = parsed["prompt"]
+            references_dir = command_path.parent / "references" / workflow
+            references = "\n".join(
+                path.read_text(encoding="utf-8")
+                for path in sorted(references_dir.glob("**/*.md"))
+            )
+            assert f"references/{workflow}/INDEX.md" in prompt, (integration_key, workflow)
+            assert "## Reference Contracts" not in prompt, (integration_key, workflow)
+            assert "Trigger:" in references, (integration_key, workflow)
+            assert "Preserved Contract:" in references, (integration_key, workflow)
+            assert "v1.3 verification owner discovery" in references, (
+                integration_key,
+                workflow,
+            )
+
+
+def test_collected_toml_integrations_preserve_ask_contract(tmp_path):
+    for integration_key in INTEGRATION_REGISTRY:
+        integration = get_integration(integration_key)
+        if not isinstance(integration, TomlIntegration):
+            continue
+
+        project = tmp_path / integration_key
+        manifest = IntegrationManifest(integration_key, project)
+        integration.setup(project, manifest)
+
+        ask_path = integration.commands_dest(project) / integration.command_filename("ask")
+        assert ask_path.exists(), integration_key
+        parsed = tomllib.loads(ask_path.read_text(encoding="utf-8"))
+        _assert_ask_contract(parsed["prompt"])
+
+
+def test_collected_toml_integrations_embed_internal_implement_review_loop(tmp_path):
+    for integration_key in TOML_INTEGRATION_SAMPLE_KEYS:
+        project = tmp_path / integration_key
+        integration = get_integration(integration_key)
+        manifest = IntegrationManifest(integration_key, project)
+        integration.setup(project, manifest)
+
+        implement_path = integration.commands_dest(project) / integration.command_filename("implement")
+        assert implement_path.exists(), integration_key
+        parsed = tomllib.loads(implement_path.read_text(encoding="utf-8"))
+        implement_references = "\n".join(
+            path.read_text(encoding="utf-8")
+            for path in sorted(
+                (implement_path.parent / "references" / "implement").glob("**/*.md")
+            )
+        )
+        _assert_embedded_implement_review_contract(parsed["prompt"] + "\n" + implement_references)
+
+
+def test_collected_toml_integrations_generate_design_workflow(tmp_path):
+    for integration_key in TOML_INTEGRATION_SAMPLE_KEYS:
+        project = tmp_path / integration_key
+        integration = get_integration(integration_key)
+        manifest = IntegrationManifest(integration_key, project)
+        integration.setup(project, manifest)
+
+        design_path = integration.commands_dest(project) / integration.command_filename("design")
+        assert design_path.exists(), integration_key
+        parsed = tomllib.loads(design_path.read_text(encoding="utf-8"))
+        _assert_design_contract(parsed["prompt"])
 
 
 class TomlIntegrationTests:
@@ -340,6 +650,12 @@ class TomlIntegrationTests:
         routing_toml = i.commands_dest(tmp_path) / i.command_filename("spec-kit-workflow-routing")
         if routing_toml.exists():
             surfaces.append(routing_toml)
+            routing_content = routing_toml.read_text(encoding="utf-8").lower()
+            assert "high-throughput senior product-engineering advisor" in routing_content
+            assert "frontstage / backstage separation" in routing_content
+            assert "does not persist every turn" in routing_content
+            assert "continues by default" in routing_content
+            assert "does not ask for continuation" in routing_content
 
         for path in surfaces:
             content = path.read_text(encoding="utf-8").lower()
@@ -416,6 +732,16 @@ class TomlIntegrationTests:
         parsed = tomllib.loads(discussion_path.read_text(encoding="utf-8"))
         _assert_discussion_contract(parsed["prompt"])
 
+    def test_ask_command_preserves_read_only_qa_contract(self, tmp_path):
+        i = get_integration(self.KEY)
+        m = IntegrationManifest(self.KEY, tmp_path)
+        i.setup(tmp_path, m)
+
+        ask_path = i.commands_dest(tmp_path) / i.command_filename("ask")
+        assert ask_path.exists()
+        parsed = tomllib.loads(ask_path.read_text(encoding="utf-8"))
+        _assert_ask_contract(parsed["prompt"])
+
     def test_specify_command_reads_discussion_sources_for_signal_disposition(self, tmp_path):
         i = get_integration(self.KEY)
         m = IntegrationManifest(self.KEY, tmp_path)
@@ -425,12 +751,21 @@ class TomlIntegrationTests:
         content = parsed["prompt"]
         lowered = content.lower()
 
-        assert "discussion-log.md" in content
-        assert "requirements.md" in content
-        assert "open-questions.md" in content
-        assert "source_signal_disposition" in content
-        assert "source_files_read" in content
-        assert "not only the handoff summary" in lowered
+        assert "spec-contract.json" in content
+        assert "semantic_delta" in content
+        assert "decision_digest_ref" in content
+        assert "blocked_by_handoff_integrity" in content
+        assert "discussion_decision_digest" in content
+        assert "must_not_dilute" in content
+        assert "named evidence reference" in lowered
+        assert "stale, missing, or contradictory" in lowered
+        assert "source_files_read" not in content
+        assert "do not repeat user review" in lowered
+        assert "choose_ui_reference_lane_dispatch" in content
+        assert "ui-reference-artifact" in content
+        assert "ui-reference-notes.md" in content
+        assert "ui-brief.md" in content
+        assert "Reference-Implementation" in content
         assert "capability-like" in lowered
         assert "handoffs/<candidate_id>" not in content
 
@@ -466,14 +801,21 @@ class TomlIntegrationTests:
         assert len(cmd_files) == 3
         for f in cmd_files:
             content = f.read_text(encoding="utf-8").lower()
-            assert "crucial first step" in content
             command_name = f.stem.split(".")[1]
             _assert_runtime_cognition_carry_forward(content, command_name)
-            if "debug" in f.name:
+            if command_name == "implement":
+                assert "current-task navigation repair" in content
+                assert "only when a required ref is stale, missing, or contradicted by live code" in content
+                assert "project-cognition query --query-plan" not in content
+                assert "current task's required refs" in content
+                assert "minimal_live_reads" in content
+            elif "debug" in f.name:
+                assert "crucial first step" in content
                 assert "runtime handbook contract" in content
                 assert "debug-handbook.md" in content
                 assert "fixed chapter ids required for debug" in content
             else:
+                assert "crucial first step" in content
                 assert "project cognition" in content
                 assert "project-cognition query" in content
                 assert "alias catalog" in content
@@ -582,12 +924,17 @@ class TomlIntegrationTests:
         assert "small focused investigation" in debug_content
         assert "subagent-assisted" in debug_content
         assert "no managed-team or leader-inline fallback" in debug_content
+        assert "<br>" not in debug_content
+        assert "plain text for terminal output" in debug_content
 
         assert f"## {agent_name} Leader Gate".lower() in quick_content
         assert "you are the **leader**, not the concrete implementer" in quick_content
         assert "quick execution routing" in quick_content
         assert "understanding checkpoint" in quick_content
+        assert_quick_checkpoint_card_shape(quick_content)
         assert "understanding_confirmed: true" in quick_content
+        assert "<br>" not in quick_content
+        assert "plain text for terminal output" in quick_content
         assert "dispatch_shape: one-subagent | parallel-subagents" in quick_content
         assert "execution_surface: native-subagents" in quick_content
         assert "validated `workertaskpacket` or equivalent execution contract preserves quality" in quick_content
@@ -604,6 +951,9 @@ class TomlIntegrationTests:
             assert "native structured question tool" in content
             assert "fallback-only guidance" in content
             assert "must use it" in content
+            assert "auto_default_recommendation" in content
+            assert "must auto-resolve" in content
+            assert "do not invoke the native structured question tool" in content
             assert "do not render the textual fallback block" in content
             assert "do not self-authorize textual fallback" in content
             assert (
@@ -859,10 +1209,17 @@ class TomlIntegrationTests:
         i = get_integration(self.KEY)
         cmd_dir = i.registrar_config["dir"]
         files = []
+        files.append("DESIGN.md")
 
         # Command files (.toml)
+        references_root = i.shared_command_references_dir()
         for stem in self._command_stems():
             files.append(f"{cmd_dir}/sp.{stem}.toml")
+            if references_root:
+                files.extend(
+                    f"{cmd_dir}/references/{stem}/{reference.relative_to(references_root / stem).as_posix()}"
+                    for reference in i.list_command_reference_templates(stem)
+                )
 
         # Integration scripts
         files.append(f".specify/integrations/{self.KEY}/scripts/update-context.ps1")
@@ -878,20 +1235,20 @@ class TomlIntegrationTests:
 
         if script_variant == "sh":
             for name in ["check-prerequisites.sh", "common.sh", "create-new-feature.sh",
-                         "prd-state.sh", "project-cognition-freshness.sh", "quick-state.sh", "setup-plan.sh", "sync-ecc-to-codex.sh", "update-agent-context.sh"]:
+                         "discussion-state.sh", "prd-state.sh", "project-cognition-freshness.sh", "quick-state.sh", "setup-plan.sh", "sync-ecc-to-codex.sh", "update-agent-context.sh"]:
                 files.append(f".specify/scripts/bash/{name}")
         else:
             for name in ["check-prerequisites.ps1", "common.ps1", "create-new-feature.ps1",
-                         "prd-state.ps1", "project-cognition-freshness.ps1", "quick-state.ps1", "setup-plan.ps1", "sync-ecc-to-codex.ps1", "update-agent-context.ps1"]:
+                         "discussion-state.ps1", "prd-state.ps1", "project-cognition-freshness.ps1", "quick-state.ps1", "setup-plan.ps1", "sync-ecc-to-codex.ps1", "update-agent-context.ps1"]:
                 files.append(f".specify/scripts/powershell/{name}")
-        files.append(SHARED_PRD_HELPER)
+        files.extend([SHARED_DISCUSSION_HELPER, SHARED_PRD_HELPER])
 
         for name in self._template_files():
             files.append(f".specify/templates/{name}")
 
         files.append(".specify/memory/constitution.md")
         files.append(".specify/memory/learnings/INDEX.md")
-        files.append(".specify/memory/project-learnings.md")
+        files.append(".specify/memory/learnings/confirmed.md")
         files.append(".specify/memory/project-rules.md")
         return sorted(files)
 

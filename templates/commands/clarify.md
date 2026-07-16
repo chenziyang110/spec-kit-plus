@@ -19,6 +19,14 @@ scripts:
 
 {{spec-kit-include: ../command-partials/common/senior-consequence-analysis-gate.md}}
 
+[AGENT] For project-cognition-backed semantic intake, routing, audit, resume, or final-claim gates, read `references/semantic-work-contract.md`.
+
+## Detailed References
+
+Read [Reference index](references/INDEX.md) before applying shared semantic contracts.
+
+- [semantic work contract](references/semantic-work-contract.md)
+
 ## Mandatory Subagent Execution
 
 All substantive tasks in ordinary `sp-*` workflows default to and must use subagents.
@@ -70,15 +78,7 @@ Use `execution_surface: native-subagents`.
 
 Goal: Strengthen an existing spec package after `/sp.specify` by closing planning-critical gaps, correcting misunderstandings, absorbing reference material better, and writing the improved results back into `spec.md`, `alignment.md`, `context.md`, and `references.md`.
 
-## Passive Project Learning Layer
-
-- Run `{{specify-subcmd:learning start --command clarify --format json}}` when available so this repair pass can consume existing project rules and learnings.
-- Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/learnings/INDEX.md` in that order before broader clarification context.
-- Open only learning detail docs linked from clarification-relevant index entries, especially repeated workflow gaps, user preferences, or project constraints for the touched area.
-- Learning Reflex: before final closeout, ask whether a future senior engineer would benefit from seeing this lesson before related work. If yes, update `.specify/memory/learnings/INDEX.md` and the linked detail markdown document without asking for routine permission.
-- When clarification friction exposes user corrections, scope changes, route changes, false starts, hidden dependencies, validation gaps, or reusable constraints, make sure `workflow-state.md` captures that durable context.
-- Prefer `{{specify-subcmd:learning capture-auto --command clarify --feature-dir "$FEATURE_DIR" --format json}}` when `workflow-state.md` already preserves route reasons, false starts, hidden dependencies, or reusable constraints.
-- When the durable state does not capture the reusable lesson cleanly, update `.specify/memory/learnings/INDEX.md` and a linked detail document with the command, type, summary, and evidence.
+{{spec-kit-include: ../command-partials/common/learning-layer.md}}
 
 1. Run `{SCRIPT}` from repo root once (`--json --paths-only` / `-Json -PathsOnly`). Parse:
    - If `FEATURE_DIR` is not already explicit, prefer `{{specify-subcmd:lane resolve --command clarify --ensure-worktree}}` before guessing from branch-only context.
@@ -111,27 +111,23 @@ Goal: Strengthen an existing spec package after `/sp.specify` by closing plannin
    - `FEATURE_DIR/references.md` if present
    - `.specify/memory/constitution.md` if present
    - `.specify/memory/project-rules.md` if present
-   - `.specify/memory/learnings/INDEX.md` if present
-   - relevant linked learning detail docs from the learning index
+   - compact `learning start --command clarify` results and only selected `learning show` records
    - **Project cognition gate:** query the active project's runtime before broad
      repository reads.
 
      Run or emulate:
 
      ```text
-     {{specify-subcmd:project-cognition lexicon --intent plan --query="$ARGUMENTS" --mode catalog --format json}}
-     # Agent: retrieve the alias catalog, write semantic_intake with normalized_query, intent_facets, negative_constraints, and alias_interpretations; include selected_concepts, rejected_concepts, concept_decisions with covered_facets, missing_facets, match_sources, lexicon_generation_id, expanded_queries, repository_search_terms, and justified paths in <query_plan_json>. Candidate selection must satisfy facet coverage; do not trust top similarity alone. Derive project-language search terms from the alias catalog before reading source. Do not search only the raw user words; include component names, state names, file names, command names, UI labels, and route names from candidates, aliases, matched_terms, colloquial_matches, returned paths, normalized_query, and expanded_queries. Use these project-language search terms before broad repository search.
-     {{specify-subcmd:project-cognition query --intent plan --query-plan "<query_plan_json>" --format json}}
+     {{specify-subcmd:project-cognition compass --intent plan --query="$ARGUMENTS" --format json}}
      ```
+
+     After the default compass packet, run the advanced `lexicon -> semantic_intake -> query` path only when `compass_state`, coverage diagnostics, localization, or live evidence requires explicit concept decisions. In that escalation, use `project-cognition lexicon --mode catalog` as the alias catalog, write agent-authored `semantic_intake` and `concept_decisions`, then run `project-cognition query --query-plan "<query_plan_json>"`; include `query_plan`, `semantic_intake`, `concept_decisions`, `covered_facets`, `missing_facets`, `match_sources`, `lexicon_generation_id`, `repository_search_terms`, project-language search terms, and facet coverage; do not search only the raw user words before source search. Agent-owned semantic normalization remains mandatory: `agent_normalization` and raw lexicon ranking are bootstrap signals only; if `agent_normalization` is omitted, treat it as `required=false`; use `write_semantic_intake_from_alias_catalog` when needed. Raw lexicon ranking is only a bootstrap; CJK or mixed CJK/ASCII input still requires agent-owned normalization even when positive raw lexical matches exist. The agent still owns translation. Readiness values are `query_ready`, `review`, `needs_rebuild`, `blocked`, and `unsupported_runtime`.
 
      Use the returned readiness:
 
-     - `ready`: continue with the returned task-local bundle.
-     - `review`: perform only the returned `minimal_live_reads` before continuing.
-     - `ambiguous`: ask the user to select the intended candidate.
-     - `needs_update`: record a planning advisory, perform the returned `minimal_live_reads`, and continue without requiring `{{invoke:map-update}}` during `sp-clarify`; this includes adoptable missing path-index coverage.
-     - `needs_rebuild`: route through `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; this is reserved for first/missing/unusable baseline, schema failure, zero active-generation path_index rows, explicit_rebuild_requested, or baseline_identity_invalid.
-     - `blocked`: stop and report the blocking runtime issue.
+     - `query_ready`: read top-level `minimal_live_reads` first, then use lane-level `first_pass_paths` reasons.
+     - `review`: perform only the returned `minimal_live_reads` before continuing and inspect `coverage_diagnostics`.
+     - `blocked`: report the blocking runtime issue and continue with live evidence only where this workflow allows degraded navigation.
      - **CARRY FORWARD**: Use project-cognition facts to decide whether an
        apparent requirement gap is already answered by repository truth. Preserve
        selected ownership, boundary, ambiguity, and verification facts in the

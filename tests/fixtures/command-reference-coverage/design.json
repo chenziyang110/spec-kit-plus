@@ -1,0 +1,11 @@
+{
+  "workflow": "design",
+  "source": "templates/commands/design.md",
+  "entries": [
+    {
+      "kind": "semantic-contract",
+      "source_excerpt": "{{spec-kit-include: ../../command-partials/common/semantic-work-contract.md}}",
+      "target": "templates/command-references/design/semantic-work-contract.md"
+    }
+  ]
+}

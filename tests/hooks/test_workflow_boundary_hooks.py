@@ -35,6 +35,30 @@ def test_workflow_boundary_allows_tasks_to_implement_mainline(tmp_path: Path):
     assert result.data == {"from_command": "tasks", "to_command": "implement"}
 
 
+def test_workflow_boundary_allows_implement_to_accept(tmp_path: Path):
+    project = _create_project(tmp_path)
+
+    result = run_quality_hook(
+        project,
+        "workflow.boundary.validate",
+        {"from_command": "implement", "to_command": "accept"},
+    )
+
+    assert result.status == "ok"
+
+
+def test_workflow_boundary_allows_acceptance_repair_routes(tmp_path: Path):
+    project = _create_project(tmp_path)
+
+    for target in ("implement", "debug", "clarify", "specify", "integrate"):
+        result = run_quality_hook(
+            project,
+            "workflow.boundary.validate",
+            {"from_command": "accept", "to_command": target},
+        )
+        assert result.status == "ok", target
+
+
 def test_workflow_boundary_keeps_tasks_to_analyze_legacy_route(tmp_path: Path):
     project = _create_project(tmp_path)
 

@@ -48,7 +48,7 @@ specify --help
 
 This shows installed tools and confirms the CLI is working. Do not rely only on
 `specify version` for development builds: multiple commits can report the same
-`0.5.1.dev0` version string. If a command such as `testing` is missing from
+`.dev0` version string. If a command such as `testing` is missing from
 `specify --help`, an old executable is still being used.
 
 ---

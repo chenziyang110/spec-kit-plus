@@ -1,0 +1,12 @@
+{
+  "workflow": "implement",
+  "source": "templates/commands/implement.md",
+  "entries": [
+    {"kind": "intake", "source_excerpt": "Resume Audit", "target": "templates/command-references/implement/task-intake-and-tracker.md"},
+    {"kind": "review", "source_excerpt": "Embedded Event-Triggered Review Loop", "target": "templates/command-references/implement/join-point-review.md"},
+    {"kind": "dispatch", "source_excerpt": "Orchestration Model", "target": "templates/command-references/implement/subagent-worker-contract.md"},
+    {"kind": "validation", "source_excerpt": "Current Task Gate", "target": "templates/command-references/implement/red-first-and-validation.md"},
+    {"kind": "blocker", "source_excerpt": "Actionable Blocker Resolution", "target": "templates/command-references/implement/safe-repair-loop.md"},
+    {"kind": "closeout", "source_excerpt": "Final Reconciliation And Closeout", "target": "templates/command-references/implement/branch-review-and-closeout.md"}
+  ]
+}

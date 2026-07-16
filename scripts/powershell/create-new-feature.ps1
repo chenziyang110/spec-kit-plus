@@ -24,8 +24,8 @@ if ($Help) {
     Write-Host "  -DryRun             Compute branch name and paths without creating branches, directories, or files"
     Write-Host "  -AllowExistingBranch  Switch to branch if it already exists instead of failing"
     Write-Host "  -ShortName <name>   Provide a custom short name (2-4 words) for the branch"
-    Write-Host "  -Number N           Specify branch number manually (overrides auto-detection)"
-    Write-Host "  -Timestamp          Use timestamp prefix (YYYYMMDD-HHMMSS) instead of sequential numbering"
+    Write-Host "  -Number N           Use legacy numeric prefix N; use 0 to auto-detect next number"
+    Write-Host "  -Timestamp          Use timestamp prefix (YYYYMMDD-HHMMSS) instead of the default date prefix"
     Write-Host "  -Help               Show this help message"
     Write-Host ""
     Write-Host "Examples:"
@@ -55,8 +55,8 @@ function Get-HighestNumberFromSpecs {
     [long]$highest = 0
     if (Test-Path $SpecsDir) {
         Get-ChildItem -Path $SpecsDir -Directory | ForEach-Object {
-            # Match sequential prefixes (>=3 digits), but skip timestamp dirs.
-            if ($_.Name -match '^(\d{3,})-' -and $_.Name -notmatch '^\d{8}-\d{6}-') {
+            # Match sequential prefixes (>=3 digits), but skip date/timestamp dirs.
+            if ($_.Name -match '^(\d{3,})-' -and $_.Name -notmatch '^\d{4}-\d{2}-\d{2}-' -and $_.Name -notmatch '^\d{8}-\d{6}-') {
                 [long]$num = 0
                 if ([long]::TryParse($matches[1], [ref]$num) -and $num -gt $highest) {
                     $highest = $num
@@ -74,7 +74,7 @@ function Get-HighestNumberFromNames {
 
     [long]$highest = 0
     foreach ($name in $Names) {
-        if ($name -match '^(\d{3,})-' -and $name -notmatch '^\d{8}-\d{6}-') {
+        if ($name -match '^(\d{3,})-' -and $name -notmatch '^\d{4}-\d{2}-\d{2}-' -and $name -notmatch '^\d{8}-\d{6}-') {
             [long]$num = 0
             if ([long]::TryParse($matches[1], [ref]$num) -and $num -gt $highest) {
                 $highest = $num
@@ -179,6 +179,56 @@ if (-not $DryRun) {
     New-Item -ItemType Directory -Path $featuresDir -Force | Out-Null
 }
 
+function Get-ConfiguredBranchNumbering {
+    param([string]$RepoRoot)
+
+    $configPath = Join-Path $RepoRoot '.specify/init-options.json'
+    $value = ''
+    if (Test-Path -LiteralPath $configPath -PathType Leaf) {
+        try {
+            $payload = Get-Content -LiteralPath $configPath -Raw | ConvertFrom-Json
+            $value = [string]$payload.branch_numbering
+        } catch {
+            $value = ''
+        }
+    }
+
+    switch ($value) {
+        'date' { return 'date' }
+        'sequential' { return 'sequential' }
+        'timestamp' { return 'timestamp' }
+        '' { return 'date' }
+        default {
+            Write-Warning "[specify] Warning: unsupported branch_numbering '$value'; using date"
+            return 'date'
+        }
+    }
+}
+
+function Get-DatePrefix {
+    if ($env:SPECIFY_FEATURE_DATE_PREFIX) {
+        if ($env:SPECIFY_FEATURE_DATE_PREFIX -notmatch '^\d{4}-\d{2}-\d{2}$') {
+            Write-Error "Error: SPECIFY_FEATURE_DATE_PREFIX must match YYYY-MM-DD"
+            exit 1
+        }
+        return $env:SPECIFY_FEATURE_DATE_PREFIX
+    }
+
+    return (Get-Date -Format 'yyyy-MM-dd')
+}
+
+function Get-TimestampPrefix {
+    if ($env:SPECIFY_FEATURE_TIMESTAMP_PREFIX) {
+        if ($env:SPECIFY_FEATURE_TIMESTAMP_PREFIX -notmatch '^\d{8}-\d{6}$') {
+            Write-Error "Error: SPECIFY_FEATURE_TIMESTAMP_PREFIX must match YYYYMMDD-HHMMSS"
+            exit 1
+        }
+        return $env:SPECIFY_FEATURE_TIMESTAMP_PREFIX
+    }
+
+    return (Get-Date -Format 'yyyyMMdd-HHmmss')
+}
+
 # Function to generate branch name with stop word filtering and length filtering
 function Get-BranchName {
     param([string]$Description)
@@ -233,17 +283,23 @@ if ($ShortName) {
     $branchSuffix = Get-BranchName -Description $featureDesc
 }
 
+$numberWasSpecified = $PSBoundParameters.ContainsKey('Number')
+
 # Warn if -Number and -Timestamp are both specified
-if ($Timestamp -and $Number -ne 0) {
+if ($Timestamp -and $numberWasSpecified -and $Number -ne 0) {
     Write-Warning "[specify] Warning: -Number is ignored when -Timestamp is used"
     $Number = 0
 }
 
 # Determine branch prefix
+$branchNumbering = Get-ConfiguredBranchNumbering -RepoRoot $repoRoot
+$featurePrefixKind = 'date'
 if ($Timestamp) {
-    $featureNum = Get-Date -Format 'yyyyMMdd-HHmmss'
+    $featurePrefixKind = 'timestamp'
+    $featureNum = Get-TimestampPrefix
     $branchName = "$featureNum-$branchSuffix"
-} else {
+} elseif ($numberWasSpecified -or $branchNumbering -eq 'sequential') {
+    $featurePrefixKind = 'sequential'
     # Determine branch number
     if ($Number -eq 0) {
         if ($DryRun -and $hasGit) {
@@ -263,6 +319,14 @@ if ($Timestamp) {
 
     $featureNum = ('{0:000}' -f $Number)
     $branchName = "$featureNum-$branchSuffix"
+} elseif ($branchNumbering -eq 'timestamp') {
+    $featurePrefixKind = 'timestamp'
+    $featureNum = Get-TimestampPrefix
+    $branchName = "$featureNum-$branchSuffix"
+} else {
+    $featurePrefixKind = 'date'
+    $featureNum = Get-DatePrefix
+    $branchName = "$featureNum-$branchSuffix"
 }
 
 # GitHub enforces a 244-byte limit on branch names
@@ -270,7 +334,7 @@ if ($Timestamp) {
 $maxBranchLength = 244
 if ($branchName.Length -gt $maxBranchLength) {
     # Calculate how much we need to trim from suffix
-    # Account for prefix length: timestamp (15) + hyphen (1) = 16, or sequential (3) + hyphen (1) = 4
+    # Account for prefix length plus the separator hyphen.
     $prefixLength = $featureNum.Length + 1
     $maxSuffixLength = $maxBranchLength - $prefixLength
 
@@ -337,8 +401,11 @@ if (-not $DryRun) {
                             exit 1
                         }
                     }
-                } elseif ($Timestamp) {
+                } elseif ($featurePrefixKind -eq 'timestamp') {
                     Write-Error "Error: Branch '$branchName' already exists. Rerun to get a new timestamp or use a different -ShortName."
+                    exit 1
+                } elseif ($featurePrefixKind -eq 'date') {
+                    Write-Error "Error: Branch '$branchName' already exists for this date and short name. Use a different -ShortName, -Timestamp, or -Number."
                     exit 1
                 } else {
                     Write-Error "Error: Branch '$branchName' already exists. Please use a different feature name or specify a different number with -Number."

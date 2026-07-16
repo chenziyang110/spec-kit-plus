@@ -23,6 +23,8 @@ from specify_cli.extensions import (
     ExtensionManager,
 )
 from specify_cli import SKILL_DESCRIPTIONS
+from specify_cli.launcher import render_command
+from tests.template_utils import read_skill_with_references
 
 
 # ===== Helpers =====
@@ -274,10 +276,14 @@ class TestBuiltInSkillGeneration:
         assert (skills_dir / "sp-prd" / "SKILL.md").exists()
         assert (project_dir / ".specify" / "templates" / "context-template.md").exists()
         assert (project_dir / ".specify" / "templates" / "project-rules-template.md").exists()
-        assert (project_dir / ".specify" / "templates" / "project-learnings-template.md").exists()
+        assert (project_dir / ".specify" / "templates" / "project-confirmed-learnings-template.md").exists()
         assert (project_dir / ".specify" / "templates" / "project-learnings-index-template.md").exists()
         assert (project_dir / ".specify" / "templates" / "project-learning-detail-template.md").exists()
+        assert (project_dir / ".specify" / "templates" / "project-learning-record-schema.json").exists()
         assert not (project_dir / ".specify" / "templates" / "testing").exists()
+
+        def _skill_body(skill_name: str) -> str:
+            return read_skill_with_references(skills_dir / skill_name / "SKILL.md")
 
         for skill_name in (
             "sp-specify",
@@ -287,26 +293,26 @@ class TestBuiltInSkillGeneration:
             "sp-debug",
             "sp-quick",
         ):
-            body = _body_without_frontmatter(skills_dir / skill_name / "SKILL.md").lower()
-            assert ".specify/memory/project-rules.md" in body
-            assert ".specify/memory/learnings/index.md" in body
-            assert "learning reflex" in body or "future senior engineer" in body
+            body = _skill_body(skill_name).lower()
+            assert "learning start --command " in body
+            assert "--format json" in body
+            assert "--detail-level" not in body
+            assert "show_argv" in body
+            assert ".specify/memory/learnings/index.md" not in body
             assert ".planning/learnings/candidates.md" not in body or "compatibility" in body
             assert "workflow contract summary" in body
             assert "routing metadata only" in body
-        fast_body = _body_without_frontmatter(skills_dir / "sp-fast" / "SKILL.md").lower()
-        assert "skip all learning hooks" in fast_body
-        assert "do not read constitution, project-rules, or project-learnings" in fast_body
-        assert ".specify/memory/learnings/index.md" in fast_body
+        fast_body = _skill_body("sp-fast").lower()
+        assert "do not run learning intake" in fast_body
+        assert ".specify/memory/learnings/index.md" not in fast_body
         assert "workflow contract summary" in fast_body
         assert "routing metadata only" in fast_body
-        constitution_body = _body_without_frontmatter(skills_dir / "sp-constitution" / "SKILL.md").lower()
+        constitution_body = _skill_body("sp-constitution").lower()
         constitution = (project_dir / ".specify" / "memory" / "constitution.md").read_text(encoding="utf-8").lower()
-        assert ".specify/memory/project-rules.md" in constitution_body
-        assert ".specify/memory/learnings/index.md" in constitution_body
-        assert "learning reflex" in constitution_body or "future senior engineer" in constitution_body
-        assert ".planning/learnings/candidates.md" not in constitution_body or "compatibility" in constitution_body
-        assert "specify learning start --command constitution --format json" in constitution_body
+        assert "learning start --command constitution --format json" in constitution_body
+        assert "show_argv" in constitution_body
+        assert ".specify/memory/learnings/index.md" not in constitution_body
+        assert ".planning/learnings/candidates.md" not in constitution_body
         assert ".specify/project-cognition/status.json" in constitution
         assert "workflow-appropriate cognition" in constitution
         assert "advisory project cognition index" in constitution
@@ -321,7 +327,7 @@ class TestBuiltInSkillGeneration:
         assert (project_dir / ".specify" / "templates" / "references-template.md").exists()
         assert "clarify" in result.output.lower()
 
-        explain_body = _body_without_frontmatter(skills_dir / "sp-explain" / "SKILL.md")
+        explain_body = _skill_body("sp-explain")
         explain_tui = _extract_section(explain_body, "TUI Requirements").lower()
         explain_blocks = _bullet_lines(explain_tui)
         _assert_bullet_contains(explain_blocks, "stage header")
@@ -340,7 +346,7 @@ class TestBuiltInSkillGeneration:
         assert "supporting artifact cross-check" in explain_body.lower()
         assert "before rendering the final explanation" in explain_body.lower()
 
-        specify_body = _body_without_frontmatter(skills_dir / "sp-specify" / "SKILL.md")
+        specify_body = _skill_body("sp-specify")
         assert "pre-analysis protocol" in specify_body.lower()
         assert "native structured question tool" in specify_body.lower()
         assert "fallback-only text format guidance" in specify_body.lower()
@@ -359,45 +365,31 @@ class TestBuiltInSkillGeneration:
         assert "fixed heavy discovery lifecycle" in specify_body.lower()
         assert "final-handoff-decision" in specify_body.lower()
         assert "planning-relevant gray areas" in specify_body.lower()
-        assert "project-cognition lexicon --intent plan" in specify_body
-        assert "project-cognition query --intent plan" in specify_body
-        assert "alias catalog" in specify_body.lower()
-        assert "semantic_intake" in specify_body.lower()
-        assert "facet coverage" in specify_body.lower()
-        assert "concept_decisions" in specify_body
-        assert "lexicon_generation_id" in specify_body
+        assert "project-cognition compass --intent plan" in specify_body
+        assert "project-cognition query --intent plan --query-plan" in specify_body
         assert "--query-plan" in specify_body
         assert "minimal_live_reads" in specify_body
+        assert "named evidence reference" in specify_body.lower()
         assert "returned map terms" not in specify_body.lower()
         assert "BUILD-HANDBOOK.md" not in specify_body
         assert "BUILD-WORKFLOW-CONTRACT" not in specify_body
         assert "PRODUCT-AND-CAPABILITY-MAP" not in specify_body
-        assert "coverage-model check" in specify_body
-        assert "truth-owning surfaces" in specify_body
-        assert "change-propagation hotspots" in specify_body
-        assert "verification entry points" in specify_body
-        assert "known unknowns relevant to the request" in specify_body
-        assert "module ownership, reusable components/services/hooks, integration points" in specify_body
+        assert "spec-contract.json" in specify_body
+        assert "compile mode" in specify_body.lower()
+        assert "semantic_delta" in specify_body
+        assert "one bounded `project-cognition compass" in specify_body
+        assert "do not build a second broad repository summary" in specify_body.lower()
         assert "workflow-state.md" in specify_body
-        assert "Read `.specify/templates/workflow-state-template.md`." in specify_body
-        assert "Create or resume `WORKFLOW_STATE_FILE` immediately after `FEATURE_DIR` is known." in specify_body
-        assert "phase_mode: planning-only" in specify_body
+        assert "specify workflow show --feature-dir <feature-dir> --format json" in specify_body
+        assert "specify workflow enter --command specify" in specify_body
+        assert "deterministic runtime owns `workflow-state.md`" in specify_body
+        assert "create or resume sparse `WORKFLOW_STATE_FILE`" not in specify_body
         assert "Do not implement code, edit source files, edit tests, or run implementation-oriented fix loops from `sp-specify`." in specify_body
-        assert "If the topical coverage for the touched area is missing, stale, or too broad" in specify_body
-        assert "Run a codebase scout before clarification." in specify_body
-        assert "Build a concise internal scout summary for the request area" in specify_body
-        assert "truth-owning surfaces and shared coordination surfaces" in specify_body
-        assert "change-propagation hotspots, consumer surfaces, and neighboring surfaces likely to require review" in specify_body
-        assert "verification entry points and regression-sensitive checks" in specify_body
-        assert "known unknowns, stale evidence boundaries, or observability gaps" in specify_body
-        assert "clarify planning-critical ambiguity" in specify_body.lower()
-        assert "decompose the request into capabilities" in specify_body.lower()
-        assert "default minimum depth as: happy path, failure path, compatibility impact, and acceptance proof" in specify_body
+        assert "open live files only for the named gap" in specify_body.lower()
+        assert "clarify only planning-critical ambiguity" in specify_body.lower()
         assert "context.md" in specify_body
-        assert "Write `context.md` to `CONTEXT_FILE`." in specify_body
-        assert "Locked decisions are preserved in context.md" in specify_body
+        assert "independent project-review value" in specify_body.lower()
         assert "/sp.clarify" in specify_body or "{{invoke:clarify}}" in specify_body
-        assert "recommended review follow-up" in specify_body
         assert "final-handoff-decision" in specify_body
         assert "/sp.deep-research" in specify_body or "{{invoke:deep-research}}" in specify_body
         assert "git-baseline freshness" in specify_body.lower()
@@ -405,7 +397,7 @@ class TestBuiltInSkillGeneration:
         assert "manual override/fallback" in specify_body.lower()
         assert "run `/sp-map-scan` followed by `/sp-map-build`" in specify_body
 
-        prd_body = _body_without_frontmatter(skills_dir / "sp-prd" / "SKILL.md")
+        prd_body = _skill_body("sp-prd")
         prd_lower = prd_body.lower()
         assert "deprecated compatibility entrypoint" in prd_lower
         assert "compatibility-only" in prd_lower
@@ -416,60 +408,60 @@ class TestBuiltInSkillGeneration:
         assert "exports/prd.md" in prd_body
         assert "old one-step semantics" in prd_lower
         assert "do not skip `sp-prd-scan` and jump straight to `sp-prd-build`" in prd_lower
-        plan_body = _body_without_frontmatter(skills_dir / "sp-plan" / "SKILL.md")
+        plan_body = _skill_body("sp-plan")
         assert "Add `Implementation Constitution`" in plan_body
-        assert "architecture invariants, boundary ownership, forbidden implementation drift" in plan_body
-        assert "Promote framework and boundary rules from \"technical background\" into explicit implementation constraints" in plan_body
-        assert "no locked planning decision or implementation constitution rule has been silently omitted" in plan_body
-        assert "Promote framework and boundary rules from \"technical background\" into explicit implementation constraints" in plan_body
+        assert "spec-contract.json" in plan_body
+        assert "plan-contract.json" in plan_body
+        assert "architecture/module decisions and interface consumes/produces map" in plan_body
+        assert "implementation target and boundary refs" in plan_body
         assert "Dispatch Compilation Hints" in plan_body
         assert "workflow-state.md" in plan_body
-        assert "phase_mode: design-only" in plan_body
-        assert "Do not implement code, edit source files, edit tests, or treat planning as implicit permission to start execution." in plan_body
+        assert "enter `plan` with the deterministic workflow transition" in plan_body.lower()
+        assert (
+            render_command(("workflow", "transition", "--to", "<this-stage>"))
+            in plan_body
+        )
+        assert "do not edit source/runtime/test files" in plan_body.lower()
+        assert "planning does not grant permission to start execution" in plan_body.lower()
         assert "planning/handoffs/<lane-id>.json" in plan_body
-        assert "planning/evidence-index.json" in plan_body
-        assert "planning/checkpoints.ndjson" in plan_body
-        assert "consume `planning/evidence-index.json` before final synthesis" in plan_body.lower()
+        assert "planning/lane-manifest.json" in plan_body
+        assert "do not create separate evidence-index and checkpoint logs" in plan_body.lower()
         assert "do not synthesize `plan.md`, `research.md`, or `plan-contract.json` from chat-only delegated lane results" in plan_body.lower()
         assert "artifact-writing delegated planning lanes must be dispatched" in plan_body.lower()
         assert "writable, execution-capable native subagent" in plan_body.lower()
         assert "do not dispatch a read-only explorer, reviewer, or diagnostic lane" in plan_body.lower()
         assert "execution_model: adaptive" in plan_body
         assert "execution_mode: light | standard | heavy" in plan_body
-        assert "planning evidence paths when delegated lanes were used" in plan_body
-        assert "delegated_planning_lanes: none" in plan_body
-        assert "recommended follow-up quality check" in plan_body
+        assert "one result per lane" in plan_body.lower()
         assert "git-baseline freshness" in plan_body.lower()
         assert "complete-refresh" in plan_body
         assert "manual override/fallback" in plan_body.lower()
         assert "run `/sp-map-scan` followed by `/sp-map-build`" in plan_body
 
-        clarify_body = _body_without_frontmatter(skills_dir / "sp-clarify" / "SKILL.md")
+        clarify_body = _skill_body("sp-clarify")
         assert "clarification/handoffs/<lane-id>.json" in clarify_body
         assert "clarification/evidence-index.json" in clarify_body
         assert "clarification/checkpoints.ndjson" in clarify_body
         assert "consume `clarification/evidence-index.json` before final artifact updates" in clarify_body.lower()
         assert "do not update `spec.md`, `alignment.md`, `context.md`, or `references.md` from chat-only lane results" in clarify_body.lower()
 
-        tasks_body = _body_without_frontmatter(skills_dir / "sp-tasks" / "SKILL.md")
-        assert "Extract `Locked Planning Decisions`, `Implementation Constitution`" in tasks_body
-        assert "boundary-defining references or forbidden drift" in tasks_body
-        assert "implementation-guardrails phase before setup" in tasks_body
-        assert "locked planning decision or implementation constitution rule" in tasks_body
-        assert "Task Guardrail Index" in tasks_body
+        tasks_body = _skill_body("sp-tasks")
+        assert "plan-contract.json" in tasks_body
+        assert "task-index.json" in tasks_body
+        assert "forbidden drift" in tasks_body.lower()
+        assert "MP-*" in tasks_body
+        assert "CA-###" in tasks_body
         assert "workflow-state.md" in tasks_body
-        assert "phase_mode: task-generation-only" in tasks_body
-        assert "task-generation/handoffs/<lane-id>.json" in tasks_body
-        assert "task-generation/evidence-index.json" in tasks_body
-        assert "task-generation/checkpoints.ndjson" in tasks_body
-        assert "consume `task-generation/evidence-index.json` before final task synthesis" in tasks_body.lower()
-        assert "planning/evidence-index.json and accepted planning/handoffs/*.json" in tasks_body
-        assert "do not synthesize `tasks.md` from chat-only delegated lane results" in tasks_body.lower()
-        assert "Do not implement code, edit source files, edit tests, or treat task generation as permission to start execution." in tasks_body
+        assert "enter `tasks` through the deterministic workflow transition" in tasks_body.lower()
+        assert "the cli owns phase state" in tasks_body.lower()
+        assert "one result per lane under `task-generation/handoffs/`" in tasks_body.lower()
+        assert "task-generation/lane-manifest.json" in tasks_body
+        assert "do not create separate evidence-index and checkpoint logs" in tasks_body.lower()
+        assert "chat-only lane output is not handoff truth" in tasks_body.lower()
+        assert "keep implementation blocked" in tasks_body.lower()
         assert "execution_model: adaptive" in tasks_body
         assert "execution_mode: light | standard | heavy" in tasks_body
-        assert "task-generation evidence paths when delegated lanes were used" in tasks_body
-        assert "delegated_task_generation_lanes: none" in tasks_body
+        assert "compile delegated packets just in time" in tasks_body.lower()
         assert "risk and behavior driven validation" in tasks_body.lower()
         assert "no-new-test rationale" in tasks_body.lower()
         assert "replacement validation" in tasks_body.lower()
@@ -481,25 +473,27 @@ class TestBuiltInSkillGeneration:
         assert "manual override/fallback" in tasks_body.lower()
         assert "run `/sp-map-scan` followed by `/sp-map-build`" in tasks_body
         routing_body = _body_without_frontmatter(PROJECT_ROOT / "templates" / "passive-skills" / "spec-kit-workflow-routing" / "SKILL.md").lower()
-        assert "default generated path is `sp-specify -> sp-plan -> sp-tasks -> sp-implement`" in routing_body
-        assert "use `sp-implement` after `sp-tasks` produces a clean task package and records `/sp.implement`." in routing_body
+        assert "default generated path is `sp-specify -> sp-plan -> sp-tasks -> sp-implement -> sp-accept`" in routing_body
+        assert "use `sp-implement` after `sp-tasks` produces canonical `task-index.json` or a light direct task list and records `/sp.implement`." in routing_body
         assert "use `sp-analyze` only for optional diagnostics, explicit user requests, or persisted legacy `/sp.analyze` state." in routing_body
-        assert "clean completed `sp-tasks` state with `/sp.implement` should route through `sp-auto` to `sp-implement`." in routing_body
+        assert "clean completed `sp-tasks` state with `/sp.implement` routes directly to" in routing_body
+        assert "it does not need an `sp-auto` hop" in routing_body
 
-        implement_body = _body_without_frontmatter(skills_dir / "sp-implement" / "SKILL.md")
-        assert "Extract `Implementation Constitution` from `plan.md`" in implement_body
-        assert "What framework or boundary pattern owns the touched surface?" in implement_body
-        assert "Which files define the existing pattern that must be preserved?" in implement_body
-        assert "What implementation drift is forbidden for this batch?" in implement_body
-        assert "**Boundary-pattern preservation**" in implement_body
-        assert "compile and validate the packet before any subagent work begins" in implement_body
+        implement_body = _skill_body("sp-implement")
+        assert "task-index.json" in implement_body
+        assert "execution_model: adaptive" in implement_body
+        assert "leader-direct" in implement_body
+        assert "forbidden drift" in implement_body.lower()
+        assert "just in time" in implement_body.lower()
+        assert "event-triggered review" in implement_body.lower()
+        assert "task lifecycle record" in implement_body.lower()
         assert "validated `workertaskpacket`" in implement_body.lower()
         assert "dispatch only from validated `workertaskpacket`" in implement_body.lower() or "raw task text alone" in implement_body.lower()
-        assert "write the failing test first for every behavior-changing task, bug fix, or refactor" in implement_body.lower()
-        assert "do not write production code for the batch until the red state is verified" in implement_body.lower()
-        assert "do not self-authorize an `/sp-implement` start from chat memory alone" in implement_body.lower()
+        assert "write or select the smallest failing test or reproducible check first" in implement_body.lower()
+        assert "run it before production edits" in implement_body.lower()
+        assert "rerun the same red gate and require green" in implement_body.lower()
 
-        analyze_body = _body_without_frontmatter(skills_dir / "sp-analyze" / "SKILL.md")
+        analyze_body = _skill_body("sp-analyze")
         assert "Boundary Guardrail Gaps" in analyze_body
         assert "BG1" in analyze_body
         assert "BG2" in analyze_body
@@ -517,14 +511,17 @@ class TestBuiltInSkillGeneration:
         assert "analysis-only" in analyze_body.lower()
         assert "`next_command: /sp.implement`" in analyze_body
         assert "If the highest invalid stage is `clarify`" in analyze_body
-        assert "planning/evidence-index.json" in analyze_body
-        assert "task-generation/evidence-index.json" in analyze_body
+        assert "spec-contract.json" in analyze_body
+        assert "plan-contract.json" in analyze_body
+        assert "task-index.json" in analyze_body
+        assert "planning/lane-manifest.json" in analyze_body
+        assert "task-generation/lane-manifest.json" in analyze_body
         assert "accepted planning handoff with no downstream consumer" in analyze_body.lower()
         assert "accepted task-generation handoff with no downstream consumer" in analyze_body.lower()
         assert "If the remaining issue is execution-only, the re-entry chain MUST begin at" in analyze_body
         assert "exact workflow re-entry path" in analyze_body
 
-        scan_body = _body_without_frontmatter(skills_dir / "sp-map-scan" / "SKILL.md")
+        scan_body = _skill_body("sp-map-scan")
         scan_lower = scan_body.lower()
         assert ".specify/project-cognition/status.json" in scan_body
         assert ".specify/project-cognition/evidence/" in scan_body
@@ -539,7 +536,7 @@ class TestBuiltInSkillGeneration:
         assert "provisional nodes and candidate edges" in scan_lower
         assert "evidence harvested" in scan_lower
 
-        build_body = _body_without_frontmatter(skills_dir / "sp-map-build" / "SKILL.md")
+        build_body = _skill_body("sp-map-build")
         assert ".specify/project-cognition/status.json" in build_body
         assert ".specify/project-cognition/project-cognition.db" in build_body
         assert 'choose_subagent_dispatch(command_name="map-build"' in build_body
@@ -549,18 +546,18 @@ class TestBuiltInSkillGeneration:
         assert "query-ready baseline" in build_body
         assert "Do not publish handbook-first runtime truth" in build_body
         assert "validate scan completeness for graph reconstruction" in build_body
-        assert "synthesize claims from evidence" in build_body
-        assert "create explicit conflict records" in build_body
+        assert "build schema v5 `alias_index` rows" in build_body
+        assert "synthesize `concept_candidates` from graph-backed aliases" in build_body
         assert "status.json` reflects a query-ready baseline" in build_body
 
-        fast_body = _body_without_frontmatter(skills_dir / "sp-fast" / "SKILL.md")
+        fast_body = _skill_body("sp-fast")
         assert "write a failing targeted test or failing repro check before editing production code" in fast_body.lower()
         assert "do not use manual sanity checks as a substitute for red" in fast_body.lower()
         assert "/sp-quick" in fast_body.lower()
         assert "/sp-debug" in fast_body.lower()
         assert "root cause is still unknown" in fast_body.lower() or "root cause is not yet known" in fast_body.lower()
 
-        quick_body = _body_without_frontmatter(skills_dir / "sp-quick" / "SKILL.md")
+        quick_body = _skill_body("sp-quick")
         assert "first executable lane must produce a failing automated test or failing repro check before production edits begin" in quick_body.lower()
         assert "do not write production code until the red state is captured" in quick_body.lower()
         assert "bootstrap the smallest viable test surface first" in quick_body.lower()
@@ -569,17 +566,26 @@ class TestBuiltInSkillGeneration:
         assert "root cause is still unknown" in quick_body.lower() or "root cause is not yet known" in quick_body.lower()
         assert "surface-only" in quick_body.lower() or "symptom-only" in quick_body.lower()
 
-        checklist_body = _body_without_frontmatter(skills_dir / "sp-checklist" / "SKILL.md")
+        checklist_body = _skill_body("sp-checklist")
         checklist_lower = checklist_body.lower()
         assert ".specify/memory/constitution.md" in checklist_lower
-        assert ".specify/memory/project-rules.md" in checklist_lower
-        assert ".specify/memory/learnings/index.md" in checklist_lower
-        assert "learning reflex" in checklist_lower or "future senior engineer" in checklist_lower
-        assert ".planning/learnings/candidates.md" not in checklist_lower or "compatibility" in checklist_lower
-        assert "specify learning start --command checklist --format json" in checklist_lower
-        assert "specify learning capture --command checklist" in checklist_lower
-        assert "project-cognition lexicon --intent plan" in checklist_lower
-        assert "project-cognition query --intent plan" in checklist_lower
+        assert render_command(
+            (
+                "learning",
+                "start",
+                "--command",
+                "<classic-command-name>",
+                "--format",
+                "json",
+            )
+        ).lower() in checklist_lower
+        assert "show_argv" in checklist_lower
+        assert ".specify/memory/learnings/index.md" not in checklist_lower
+        assert ".planning/learnings/candidates.md" not in checklist_lower
+        assert "consume-only" in checklist_lower
+        assert "project-cognition compass --intent plan" in checklist_lower
+        assert "lexicon -> semantic_intake -> query" in checklist_lower
+        assert "query --intent plan --query-plan" in checklist_lower or "query --query-plan" in checklist_lower
         assert "alias catalog" in checklist_lower
         assert "semantic_intake" in checklist_lower
         assert "facet coverage" in checklist_lower
@@ -593,12 +599,12 @@ class TestBuiltInSkillGeneration:
         assert "build-handbook.md" not in checklist_lower
         assert "touched area's owning surfaces" in checklist_lower
         assert "recommended_next_action" in checklist_lower
-        assert "`needs_update`: route through `{{invoke:map-update}}`" in checklist_body or "`needs_update`: route through `/sp-map-update`" in checklist_body
+        assert "route through the returned `recommended_next_action`" in checklist_body
         assert "recommend `/sp-specify`" in checklist_lower or "recommend `/sp.specify`" in checklist_lower
         assert "recommend `/sp-plan`" in checklist_lower
         assert "optional" in checklist_lower
 
-        debug_body = _body_without_frontmatter(skills_dir / "sp-debug" / "SKILL.md")
+        debug_body = _skill_body("sp-debug")
         debug_lower = debug_body.lower()
         assert "observer framing" in debug_lower
         assert "map-backed minimum intake" in debug_lower
@@ -607,6 +613,9 @@ class TestBuiltInSkillGeneration:
         assert "same_issue" in debug_lower
         assert "derived_issue" in debug_lower
         assert "unrelated_issue" in debug_lower
+        assert "debug understanding checkpoint" in debug_lower
+        assert "understanding_confirmed: true" in debug_lower
+        assert "wait for user confirmation" in debug_lower
         assert "contrarian candidate" in debug_lower
         assert "causal_map_completed: true" in debug_lower
         assert "investigation_contract_completed: true" in debug_lower

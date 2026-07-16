@@ -1,82 +1,6 @@
-import { spawnSync } from "node:child_process";
-import { existsSync } from "node:fs";
-import { resolve, join } from "node:path";
-import { packageRoot } from "../utils/paths.js";
+import { SharedHookClient, type SharedQualityHookPayload } from "./shared-hook-client.js";
 
-type HookStatus = "ok" | "warn" | "blocked" | "repaired" | "repairable-block";
-
-export interface SharedQualityHookPayload {
-  event: string;
-  status: HookStatus;
-  severity?: string;
-  actions?: string[];
-  errors?: string[];
-  warnings?: string[];
-  writes?: Record<string, unknown>;
-  data?: Record<string, unknown>;
-}
-
-interface HookInvocationPlan {
-  executable: string;
-  args: string[];
-  env: NodeJS.ProcessEnv;
-  shell?: boolean;
-}
-
-function repoRootFromPackage(): string {
-  return resolve(packageRoot(), "..", "..", "..");
-}
-
-function hasRepoSourceCheckout(): boolean {
-  return existsSync(join(repoRootFromPackage(), "src", "specify_cli", "__init__.py"));
-}
-
-function buildInvocationPlans(
-  hookArgs: string[],
-  cwd: string,
-  env: NodeJS.ProcessEnv = process.env,
-): HookInvocationPlan[] {
-  const plans: HookInvocationPlan[] = [];
-  const seen = new Set<string>();
-  const add = (executable: string, args: string[], extraEnv: NodeJS.ProcessEnv = env, shell = false) => {
-    const key = `${executable}\u0000${args.join("\u0000")}`;
-    if (seen.has(key)) return;
-    seen.add(key);
-    plans.push({ executable, args, env: extraEnv, shell });
-  };
-
-  const explicit = String(env.SPECIFY_HOOK_EXECUTABLE ?? "").trim();
-  if (explicit) {
-    const needsShell = /\.cmd$/i.test(explicit) || /\.bat$/i.test(explicit);
-    add(explicit, ["hook", ...hookArgs], env, needsShell);
-  }
-
-  add("specify", ["hook", ...hookArgs]);
-
-  if (hasRepoSourceCheckout()) {
-    const repoRoot = repoRootFromPackage();
-    const pythonEnv = {
-      ...env,
-      PYTHONPATH: env.PYTHONPATH
-        ? `${join(repoRoot, "src")}${process.platform === "win32" ? ";" : ":"}${env.PYTHONPATH}`
-        : join(repoRoot, "src"),
-    };
-    add("python", ["-m", "specify_cli", "hook", ...hookArgs], pythonEnv);
-    if (process.platform === "win32") {
-      add("py", ["-m", "specify_cli", "hook", ...hookArgs], pythonEnv);
-    } else {
-      add("python3", ["-m", "specify_cli", "hook", ...hookArgs], pythonEnv);
-    }
-  }
-
-  return plans.map((plan) => ({
-    ...plan,
-    env: {
-      ...plan.env,
-      OMX_NATIVE_QUALITY_HOOK_CWD: cwd,
-    },
-  }));
-}
+export type { SharedQualityHookPayload } from "./shared-hook-client.js";
 
 export function invokeSharedQualityHook(
   hookArgs: string[],
@@ -85,29 +9,15 @@ export function invokeSharedQualityHook(
     env?: NodeJS.ProcessEnv;
   },
 ): SharedQualityHookPayload | null {
-  const plans = buildInvocationPlans(hookArgs, options.cwd, options.env ?? process.env);
-  for (const plan of plans) {
-    const result = spawnSync(plan.executable, plan.args, {
-        cwd: options.cwd,
-        encoding: "utf-8",
-        env: plan.env,
-        shell: plan.shell === true,
-      });
-    if (result.error || result.status !== 0) {
-      continue;
-    }
-    const stdout = String(result.stdout ?? "").trim();
-    if (!stdout) continue;
-    try {
-      const parsed = JSON.parse(stdout) as SharedQualityHookPayload;
-      if (parsed && typeof parsed === "object" && typeof parsed.event === "string" && typeof parsed.status === "string") {
-        return parsed;
-      }
-    } catch {
-      continue;
-    }
-  }
-  return null;
+  const client = new SharedHookClient({
+    cwd: options.cwd,
+    env: options.env ?? process.env,
+  });
+  const result = client.invoke(hookArgs, {
+    eventName: "UserPromptSubmit",
+    timeoutMs: Number.MAX_SAFE_INTEGER,
+  });
+  return result.status === "ok" || result.status === "blocked" ? result.payload : null;
 }
 
 export function sharedHookBlockOutput(
@@ -152,7 +62,7 @@ export function appendSharedHookContext(
     const nextAction = phaseState && typeof phaseState["next_action"] === "string"
       ? String(phaseState["next_action"])
       : "";
-    if (nextAction) {
+    if (nextAction && !isEmptyResumeCue(nextAction)) {
       lines.push(`Resume cue: ${nextAction}.`);
     }
   }
@@ -161,6 +71,17 @@ export function appendSharedHookContext(
   }
   if (lines.length === 0) return existing;
   return dedupeOrdered([existing ?? "", ...lines]).filter(Boolean).join(" ");
+}
+
+function isEmptyResumeCue(value: string): boolean {
+  const normalized = value.trim().toLowerCase().replace(/\.$/, "");
+  return (
+    normalized === ""
+    || normalized === "none"
+    || normalized === "n/a"
+    || normalized === "no-op"
+    || normalized === "noop"
+  );
 }
 
 function sharedRecoverySummary(data: Record<string, unknown> | undefined): Record<string, unknown> | null {

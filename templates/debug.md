@@ -11,6 +11,7 @@ Template for `.planning/debug/[slug].md` — active debug session tracking.
 slug: [session slug]
 status: gathering | investigating | fixing | verifying | awaiting_human_verify | resolved
 trigger: "[verbatim user input]"
+understanding_confirmed: [true only after the user confirms the Debug Understanding Checkpoint]
 diagnostic_profile: scheduler-admission | cache-snapshot | ui-projection | general
 causal_map_completed: [true after map-backed minimum intake or the Stage 1A causal map is written]
 investigation_contract_completed: [true after map-backed minimum intake or the Stage 1B contract planner finishes]
@@ -49,6 +50,56 @@ reproduction: [how to trigger]
 reproduction_command: [command or script if available]
 started: [when it broke / always broken]
 reproduction_verified: [true once repro confirmed]
+
+## Debug Understanding Checkpoint
+<!-- OVERWRITE/REFINE before substantive investigation starts -->
+
+checkpoint:
+  issue: [the symptom, regression, or failing signal the reporter confirmed]
+  issue_detail: [where it appears, why it matters, and the nearby issue this session is not debugging]
+  expected_or_target: [what should happen instead, or the confirmed unknown]
+  reproduction_or_failing_signal: [known repro command, manual sequence, failing test, log/error text, or confirmed unknown]
+  known_evidence:
+    - [project cognition route, existing log, prior verification output, report, or artifact already available]
+  in_scope:
+    - [area, workflow, command, state loop, or behavior this session will investigate]
+  out_of_scope:
+    - [nearby issue, enhancement, or unrelated behavior excluded from this session]
+  fix_authority: [diagnose only | diagnose and fix after causal evidence]
+  assumptions_to_correct:
+    - [reporter assumption, uncertain fact, or none]
+  reconfirmation_trigger: [material problem, boundary, authority, compatibility, migration, side-effect, or risk change]
+  confirmation_digest: [digest of the confirmed user-owned decisions]
+  user_corrections:
+    - [user correction, ambiguity, or confirmation timestamp]
+
+ui_confirmation:
+  applicable: [true for visual, interaction, responsive, accessibility, TUI, or CLI presentation behavior]
+  confirmation_purpose: [Debug target baseline]
+  user_and_primary_job: [affected user, context, and single job]
+  design_basis_and_source_material:
+    - [approved design direction, current entry point, or original reference plus intent]
+  target_experience: [expected visual, content, and interaction experience]
+  structure_and_visible_change: [structure and visible behavior to restore or preserve]
+  interaction_states_and_adaptation:
+    - [interaction, state, viewport/window, keyboard, or accessibility expectation]
+  design_boundaries:
+    must_preserve: []
+    may_adapt: []
+    must_not: []
+  acceptance_evidence:
+    - [real-entrypoint state/viewport evidence required after a fix]
+  confirmation_digest: [digest of the confirmed UI target baseline]
+
+agent_investigation_plan:
+  candidate_focus:
+    - [primary suspected truth owner, competing explanation, or candidate family to test first without claiming root cause]
+  investigation_plan:
+    - [session-specific ordered evidence step]
+  next_action: [first reproduction, log, source, test, or instrumentation route after confirmation]
+  fix_gate: [what must be proven before code changes are allowed]
+  done_or_progress_signal:
+    - [evidence that proves the session can move to fix, verification, human verification, or blocked state]
 
 ## Atlas Read Evidence
 

@@ -19,6 +19,14 @@ scripts:
 
 {{spec-kit-include: ../command-partials/common/senior-consequence-analysis-gate.md}}
 
+[AGENT] For project-cognition-backed semantic intake, routing, audit, resume, or final-claim gates, read `references/semantic-work-contract.md`.
+
+## Detailed References
+
+Read [Reference index](references/INDEX.md) before applying shared semantic contracts.
+
+- [semantic work contract](references/semantic-work-contract.md)
+
 ## Mandatory Subagent Execution
 
 All substantive tasks in ordinary `sp-*` workflows default to and must use subagents.
@@ -72,15 +80,7 @@ Use `execution_surface: native-subagents`.
 - Verify the final `deep-research.md` and `workflow-state.md` outputs before handoff instead of relying on chat narration.
 - Update durable state before compaction-risk transitions, prototype-evidence synthesis handoffs, or any stop where resume will depend on more than the visible conversation.
 
-## Passive Project Learning Layer
-
-- [AGENT] Run `{{specify-subcmd:learning start --command deep-research --format json}}` when available so the research pass sees relevant shared project memory.
-- Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/learnings/INDEX.md` in that order before broader command-local context.
-- Open only learning detail docs linked from research-relevant index entries, especially feasibility, hidden dependency, prototype failure, or repeated research-gap lessons.
-- Learning Reflex: before final closeout, ask whether a future senior engineer would benefit from seeing this lesson before related work. If yes, update `.specify/memory/learnings/INDEX.md` and the linked detail markdown document without asking for routine permission.
-- [AGENT] When feasibility friction exposes route changes, false starts, hidden dependencies, command failures, validation gaps, or reusable constraints, make sure `workflow-state.md` captures that durable context.
-- [AGENT] Prefer `{{specify-subcmd:learning capture-auto --command deep-research --feature-dir "$FEATURE_DIR" --format json}}` when `workflow-state.md` already preserves route reasons, false starts, hidden dependencies, or reusable constraints.
-- [AGENT] When the durable state does not capture the reusable lesson cleanly, update `.specify/memory/learnings/INDEX.md` and a linked detail document with the command, type, summary, and evidence.
+{{spec-kit-include: ../command-partials/common/learning-layer.md}}
 
 ## Workflow Phase Lock
 
@@ -230,27 +230,23 @@ Use `execution_surface: native-subagents`.
    - `FEATURE_DIR/deep-research.md` if present
    - `.specify/memory/constitution.md` if present
    - `.specify/memory/project-rules.md` if present
-   - `.specify/memory/learnings/INDEX.md` if present
-   - relevant linked learning detail docs from the learning index
+   - compact `learning start --command deep-research` results and only selected `learning show` records
    - **Project cognition gate:** query the active project's runtime before broad
      repository reads.
 
      Run or emulate:
 
      ```text
-     {{specify-subcmd:project-cognition lexicon --intent research --query="$ARGUMENTS" --mode catalog --format json}}
-     # Agent: retrieve the alias catalog, write semantic_intake with normalized_query, intent_facets, negative_constraints, and alias_interpretations; include selected_concepts, rejected_concepts, concept_decisions with covered_facets, missing_facets, match_sources, lexicon_generation_id, expanded_queries, repository_search_terms, and justified paths in <query_plan_json>. Candidate selection must satisfy facet coverage; do not trust top similarity alone. Derive project-language search terms from the alias catalog before reading source. Do not search only the raw user words; include component names, state names, file names, command names, UI labels, and route names from candidates, aliases, matched_terms, colloquial_matches, returned paths, normalized_query, and expanded_queries. Use these project-language search terms before broad repository search.
-     {{specify-subcmd:project-cognition query --intent research --query-plan "<query_plan_json>" --format json}}
+     {{specify-subcmd:project-cognition compass --intent research --query="$ARGUMENTS" --format json}}
      ```
+
+     After the default compass packet, run the advanced `lexicon -> semantic_intake -> query` path only when `compass_state`, coverage diagnostics, localization, or live evidence requires explicit concept decisions. In that escalation, use `project-cognition lexicon --mode catalog` as the alias catalog, write agent-authored `semantic_intake` and `concept_decisions`, then run `project-cognition query --query-plan "<query_plan_json>"`; include `query_plan`, `semantic_intake`, `concept_decisions`, `covered_facets`, `missing_facets`, `match_sources`, `lexicon_generation_id`, `repository_search_terms`, project-language search terms, and facet coverage; do not search only the raw user words before source search. Agent-owned semantic normalization remains mandatory: `agent_normalization` and raw lexicon ranking are bootstrap signals only; if `agent_normalization` is omitted, treat it as `required=false`; use `write_semantic_intake_from_alias_catalog` when needed. Raw lexicon ranking is only a bootstrap; CJK or mixed CJK/ASCII input still requires agent-owned normalization even when positive raw lexical matches exist. The agent still owns translation. Readiness values are `query_ready`, `review`, `needs_rebuild`, `blocked`, and `unsupported_runtime`.
 
      Use the returned readiness:
 
-     - `ready`: continue with the returned task-local bundle.
-     - `review`: perform only the returned `minimal_live_reads` before continuing.
-     - `ambiguous`: ask the user to select the intended candidate.
-     - `needs_update`: route through `{{invoke:map-update}}`; this includes adoptable missing path-index coverage.
-     - `needs_rebuild`: route through `{{invoke:map-scan}}`, then `{{invoke:map-build}}`; this is reserved for first/missing/unusable baseline, schema failure, zero active-generation path_index rows, explicit_rebuild_requested, or baseline_identity_invalid.
-     - `blocked`: stop and report the blocking runtime issue.
+     - `query_ready`: read top-level `minimal_live_reads` first, then use lane-level `first_pass_paths` reasons.
+     - `review`: perform only the returned `minimal_live_reads` before continuing and inspect `coverage_diagnostics`.
+     - `blocked`: report the blocking runtime issue and continue with live evidence only where this workflow allows degraded navigation.
      - **CARRY FORWARD**: Treat project-cognition results as repository-grounded
        starting context. Preserve cited capabilities, constraints, affected
        surfaces, and verification routes in `deep-research.md`, and distinguish

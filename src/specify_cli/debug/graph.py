@@ -1,7 +1,16 @@
 from pathlib import Path
 import re
+import warnings
 from typing import Union
-from pydantic_graph import BaseNode, Graph, GraphRunContext, End
+
+with warnings.catch_warnings():
+    warnings.filterwarnings(
+        "ignore",
+        message=r"Importing `Graph` from `pydantic_graph` is deprecated\.",
+        category=Warning,
+    )
+    from pydantic_graph import BaseNode, Graph, GraphRunContext, End
+
 from .schema import (
     CandidateStatus,
     CausalMapCandidate,

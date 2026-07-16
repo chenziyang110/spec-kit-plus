@@ -1,0 +1,7 @@
+interface:
+  display_name: "SPX Auto"
+  short_description: "Resume the safest next SPX workflow"
+  default_prompt: "Use $spx-auto to inspect current state and continue with the safest next workflow."
+
+policy:
+  allow_implicit_invocation: false

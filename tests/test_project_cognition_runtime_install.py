@@ -43,12 +43,13 @@ def test_ensure_project_cognition_binary_downloads_release_asset(monkeypatch, tm
     binary = project_cognition_runtime.ensure_binary(version="v1.2.3")
 
     assert binary == tmp_path / "project-cognition"
-    assert downloads == [
-        (
-            "https://github.com/chenziyang110/spec-kit-plus/releases/download/v1.2.3/project-cognition-linux-amd64",
-            tmp_path / "project-cognition",
-        )
-    ]
+    assert len(downloads) == 1
+    assert downloads[0][0] == (
+        "https://github.com/chenziyang110/spec-kit-plus/releases/download/v1.2.3/"
+        "project-cognition-linux-amd64"
+    )
+    assert downloads[0][1].parent == tmp_path
+    assert downloads[0][1].name.startswith(".project-cognition.")
 
 
 def test_ensure_project_cognition_binary_refreshes_cached_binary_without_required_commands(
@@ -84,12 +85,48 @@ def test_ensure_project_cognition_binary_refreshes_cached_binary_without_require
 
     assert binary == cached_binary
     assert cached_binary.read_text(encoding="utf-8") == "new runtime"
-    assert downloads == [
-        (
-            "https://github.com/chenziyang110/spec-kit-plus/releases/download/v1.2.3/project-cognition-linux-amd64",
-            cached_binary,
-        )
-    ]
+    assert len(downloads) == 1
+    assert downloads[0][0] == (
+        "https://github.com/chenziyang110/spec-kit-plus/releases/download/v1.2.3/"
+        "project-cognition-linux-amd64"
+    )
+    assert downloads[0][1] != cached_binary
+
+
+def test_ensure_project_cognition_binary_preserves_cached_binary_when_refresh_fails(
+    monkeypatch, tmp_path: Path
+):
+    cached_binary = tmp_path / "project-cognition"
+    cached_binary.write_text("old runtime", encoding="utf-8")
+
+    monkeypatch.setattr(project_cognition_runtime, "cache_dir", lambda: tmp_path)
+    monkeypatch.setattr(project_cognition_runtime.platform, "system", lambda: "Linux")
+    monkeypatch.setattr(project_cognition_runtime.platform, "machine", lambda: "x86_64")
+    monkeypatch.setattr(
+        project_cognition_runtime,
+        "_binary_supports_required_commands",
+        lambda binary: False,
+    )
+    monkeypatch.setattr(
+        project_cognition_runtime,
+        "urlretrieve",
+        lambda url, dest: (_ for _ in ()).throw(OSError("release unavailable")),
+    )
+    monkeypatch.setattr(
+        project_cognition_runtime,
+        "_bundled_project_cognition_source",
+        lambda: None,
+    )
+
+    try:
+        project_cognition_runtime.ensure_binary(version="v1.2.3")
+    except RuntimeError:
+        pass
+    else:
+        raise AssertionError("ensure_binary unexpectedly succeeded")
+
+    assert cached_binary.read_text(encoding="utf-8") == "old runtime"
+    assert not list(tmp_path.glob(".project-cognition.*.candidate"))
 
 
 def test_ensure_project_cognition_binary_builds_bundled_source_when_release_lacks_required_commands(
@@ -239,12 +276,107 @@ def test_project_cognition_placeholder_uses_persisted_binary(tmp_path: Path):
     assert rendered == f"{binary} status --format json"
 
 
-def test_project_cognition_required_commands_include_init_empty():
+def test_project_cognition_required_commands_include_compass_and_expand():
     assert "build-from-scan" in project_cognition_runtime.REQUIRED_COMMANDS
     assert "init-empty" in project_cognition_runtime.REQUIRED_COMMANDS
+    assert "generate-ignore" in project_cognition_runtime.REQUIRED_COMMANDS
+    assert "scan-set" in project_cognition_runtime.REQUIRED_COMMANDS
+    assert "scan-prepare" in project_cognition_runtime.REQUIRED_COMMANDS
+    assert "scan-accept" in project_cognition_runtime.REQUIRED_COMMANDS
+    assert "changes" in project_cognition_runtime.REQUIRED_COMMANDS
+    assert "closeout-plan" in project_cognition_runtime.REQUIRED_COMMANDS
+    assert "semantic-intake --input" in project_cognition_runtime.REQUIRED_COMMANDS
+    assert "semantic-audit-resume --input" in project_cognition_runtime.REQUIRED_COMMANDS
     assert "lexicon --mode" in project_cognition_runtime.REQUIRED_COMMANDS
+    assert (
+        "compass --semantic-intake-file --query-plan-file"
+        in project_cognition_runtime.REQUIRED_COMMANDS
+    )
+    assert "expand --section" in project_cognition_runtime.REQUIRED_COMMANDS
     assert "update --payload-file --verification" in project_cognition_runtime.REQUIRED_COMMANDS
     assert "delta append --verification --generated-surface" in project_cognition_runtime.REQUIRED_COMMANDS
+
+
+def test_project_cognition_install_scripts_verify_closeout_plan_flags():
+    shell_script = Path("tools/project-cognition/install.sh").read_text(encoding="utf-8")
+    powershell_script = Path("tools/project-cognition/install.ps1").read_text(encoding="utf-8")
+
+    assert "closeout-plan --help" in shell_script
+    assert "-workflow" in shell_script
+    assert "-delta-session" in shell_script
+    assert "semantic-intake --help" in shell_script
+    assert "semantic-intake binary is missing required input flag" in shell_script
+    assert "semantic-audit-resume --help" in shell_script
+    assert "semantic-audit-resume binary is missing required input flag" in shell_script
+    assert "required_command in scan-set scan-prepare scan-accept" in shell_script
+    assert "scan-prepare --help" in shell_script
+    assert "-force" in shell_script
+    assert "scan-accept --help" in shell_script
+    assert "-packet-id" in shell_script
+    assert "project-cognition --help" in shell_script
+    assert '@("closeout-plan", "--help")' in powershell_script
+    assert "-workflow" in powershell_script
+    assert "-delta-session" in powershell_script
+    assert '@("semantic-intake", "--help")' in powershell_script
+    assert "semantic-intake binary is missing required input flag" in powershell_script
+    assert '@("semantic-audit-resume", "--help")' in powershell_script
+    assert "semantic-audit-resume binary is missing required input flag" in powershell_script
+    assert '"scan-set", "scan-prepare", "scan-accept"' in powershell_script
+    assert '@("scan-prepare", "--help")' in powershell_script
+    assert '@("scan-accept", "--help")' in powershell_script
+    assert '@("--help")' in powershell_script
+
+
+def test_project_cognition_binary_support_requires_compass_and_expand(
+    monkeypatch, tmp_path: Path
+):
+    binary = tmp_path / "project-cognition"
+    binary.write_text("binary", encoding="utf-8")
+
+    class RootHelpResult:
+        stdout = (
+            "Commands: status, build-from-scan, init-empty, generate-ignore, scan-set, scan-prepare, scan-accept, changes, "
+            "update, lexicon, delta\n"
+        )
+        stderr = ""
+
+    calls: list[list[str]] = []
+
+    def fake_run(command, **kwargs):
+        calls.append([str(part) for part in command])
+        if command[1:] == ["--help"]:
+            return RootHelpResult()
+        raise AssertionError(f"unexpected command: {command}")
+
+    monkeypatch.setattr(project_cognition_runtime.subprocess, "run", fake_run)
+
+    assert project_cognition_runtime._binary_supports_required_commands(binary) is False
+    assert calls == [[str(binary), "--help"]]
+
+
+def test_project_cognition_binary_support_requires_changes(monkeypatch, tmp_path: Path):
+    binary = tmp_path / "project-cognition"
+    binary.write_text("binary", encoding="utf-8")
+
+    class RootHelpResult:
+        stdout = (
+            "Commands: status, build-from-scan, init-empty, generate-ignore, scan-set, scan-prepare, scan-accept, update, lexicon, compass, "
+            "expand, delta, closeout-plan\n"
+        )
+        stderr = ""
+
+    calls: list[list[str]] = []
+
+    def fake_run(command, **kwargs):
+        calls.append([str(part) for part in command])
+        if command[1:] == ["--help"]:
+            return RootHelpResult()
+        raise AssertionError(f"unexpected command: {command}")
+
+    monkeypatch.setattr(project_cognition_runtime.subprocess, "run", fake_run)
+
+    assert project_cognition_runtime._binary_supports_required_commands(binary) is False
+    assert calls == [[str(binary), "--help"]]
 
 
 def test_project_cognition_binary_support_requires_update_payload_file(monkeypatch, tmp_path: Path):
@@ -252,7 +384,10 @@ def test_project_cognition_binary_support_requires_update_payload_file(monkeypat
     binary.write_text("binary", encoding="utf-8")
 
     class RootHelpResult:
-        stdout = "Commands: status, build-from-scan, init-empty, update, lexicon, delta\n"
+        stdout = (
+            "Commands: status, build-from-scan, init-empty, generate-ignore, scan-set, scan-prepare, scan-accept, changes, update, semantic-intake, semantic-audit-resume, lexicon, compass, "
+            "expand, delta, closeout-plan\n"
+        )
         stderr = ""
 
     class UpdateHelpResult:
@@ -275,6 +410,33 @@ def test_project_cognition_binary_support_requires_update_payload_file(monkeypat
     assert calls == [[str(binary), "--help"], [str(binary), "update", "--help"]]
 
 
+def test_project_cognition_binary_support_requires_closeout_plan_root_command(
+    monkeypatch, tmp_path: Path
+):
+    binary = tmp_path / "project-cognition"
+    binary.write_text("binary", encoding="utf-8")
+
+    class RootHelpResult:
+        stdout = (
+            "Commands: status, build-from-scan, init-empty, generate-ignore, scan-set, scan-prepare, scan-accept, changes, update, semantic-intake, semantic-audit-resume, lexicon, compass, "
+            "expand, delta\n"
+        )
+        stderr = ""
+
+    calls: list[list[str]] = []
+
+    def fake_run(command, **kwargs):
+        calls.append([str(part) for part in command])
+        if command[1:] == ["--help"]:
+            return RootHelpResult()
+        raise AssertionError(f"unexpected command: {command}")
+
+    monkeypatch.setattr(project_cognition_runtime.subprocess, "run", fake_run)
+
+    assert project_cognition_runtime._binary_supports_required_commands(binary) is False
+    assert calls == [[str(binary), "--help"]]
+
+
 def test_project_cognition_binary_support_requires_update_verification_flag(
     monkeypatch, tmp_path: Path
 ):
@@ -282,7 +444,10 @@ def test_project_cognition_binary_support_requires_update_verification_flag(
     binary.write_text("binary", encoding="utf-8")
 
     class RootHelpResult:
-        stdout = "Commands: status, build-from-scan, init-empty, update, lexicon, delta\n"
+        stdout = (
+            "Commands: status, build-from-scan, init-empty, generate-ignore, scan-set, scan-prepare, scan-accept, changes, update, semantic-intake, semantic-audit-resume, lexicon, compass, "
+            "expand, delta, closeout-plan\n"
+        )
         stderr = ""
 
     class UpdateHelpResult:
@@ -308,11 +473,22 @@ def test_project_cognition_binary_support_requires_lexicon_catalog_mode(
     binary.write_text("binary", encoding="utf-8")
 
     class RootHelpResult:
-        stdout = "Commands: status, build-from-scan, init-empty, update, lexicon, delta\n"
+        stdout = (
+            "Commands: status, build-from-scan, init-empty, generate-ignore, scan-set, scan-prepare, scan-accept, changes, update, semantic-intake, semantic-audit-resume, lexicon, compass, "
+            "expand, delta, closeout-plan\n"
+        )
         stderr = ""
 
     class UpdateHelpResult:
         stdout = "Usage of update:\n  -payload-file string\n  -verification value\n"
+        stderr = ""
+
+    class SemanticIntakeHelpResult:
+        stdout = "Usage of semantic-intake:\n  -input string\n"
+        stderr = ""
+
+    class SemanticAuditResumeHelpResult:
+        stdout = "Usage of semantic-audit-resume:\n  -input string\n"
         stderr = ""
 
     class LexiconHelpResult:
@@ -324,8 +500,169 @@ def test_project_cognition_binary_support_requires_lexicon_catalog_mode(
             return RootHelpResult()
         if command[1:] == ["update", "--help"]:
             return UpdateHelpResult()
+        if command[1:] == ["semantic-intake", "--help"]:
+            return SemanticIntakeHelpResult()
+        if command[1:] == ["semantic-audit-resume", "--help"]:
+            return SemanticAuditResumeHelpResult()
         if command[1:] == ["lexicon", "--help"]:
             return LexiconHelpResult()
+        raise AssertionError(f"unexpected command: {command}")
+
+    monkeypatch.setattr(project_cognition_runtime.subprocess, "run", fake_run)
+
+    assert project_cognition_runtime._binary_supports_required_commands(binary) is False
+
+
+def test_project_cognition_binary_support_requires_semantic_intake_input_flag(
+    monkeypatch, tmp_path: Path
+):
+    binary = tmp_path / "project-cognition"
+    binary.write_text("binary", encoding="utf-8")
+
+    class RootHelpResult:
+        stdout = (
+            "Commands: status, build-from-scan, init-empty, generate-ignore, scan-set, scan-prepare, scan-accept, changes, update, "
+            "semantic-intake, semantic-audit-resume, lexicon, compass, expand, delta, closeout-plan\n"
+        )
+        stderr = ""
+
+    class UpdateHelpResult:
+        stdout = "Usage of update:\n  -payload-file string\n  -verification value\n"
+        stderr = ""
+
+    class SemanticIntakeHelpResult:
+        stdout = "Usage of semantic-intake:\n  -format string\n"
+        stderr = ""
+
+    calls: list[list[str]] = []
+
+    def fake_run(command, **kwargs):
+        calls.append([str(part) for part in command])
+        if command[1:] == ["--help"]:
+            return RootHelpResult()
+        if command[1:] == ["update", "--help"]:
+            return UpdateHelpResult()
+        if command[1:] == ["semantic-intake", "--help"]:
+            return SemanticIntakeHelpResult()
+        raise AssertionError(f"unexpected command: {command}")
+
+    monkeypatch.setattr(project_cognition_runtime.subprocess, "run", fake_run)
+
+    assert project_cognition_runtime._binary_supports_required_commands(binary) is False
+    assert calls == [
+        [str(binary), "--help"],
+        [str(binary), "update", "--help"],
+        [str(binary), "semantic-intake", "--help"],
+    ]
+
+
+def test_project_cognition_binary_support_requires_compass_precision_flags(
+    monkeypatch, tmp_path: Path
+):
+    binary = tmp_path / "project-cognition"
+    binary.write_text("binary", encoding="utf-8")
+
+    class RootHelpResult:
+        stdout = (
+            "Commands: status, build-from-scan, init-empty, generate-ignore, scan-set, scan-prepare, scan-accept, changes, update, semantic-intake, semantic-audit-resume, lexicon, compass, "
+            "expand, delta, closeout-plan\n"
+        )
+        stderr = ""
+
+    class UpdateHelpResult:
+        stdout = "Usage of update:\n  -payload-file string\n  -verification value\n"
+        stderr = ""
+
+    class SemanticIntakeHelpResult:
+        stdout = "Usage of semantic-intake:\n  -input string\n"
+        stderr = ""
+
+    class SemanticAuditResumeHelpResult:
+        stdout = "Usage of semantic-audit-resume:\n  -input string\n"
+        stderr = ""
+
+    class LexiconHelpResult:
+        stdout = "Usage of lexicon:\n  -mode string\n"
+        stderr = ""
+
+    class CompassHelpResult:
+        stdout = "Usage of compass:\n  -semantic-intake-file string\n"
+        stderr = ""
+
+    def fake_run(command, **kwargs):
+        if command[1:] == ["--help"]:
+            return RootHelpResult()
+        if command[1:] == ["update", "--help"]:
+            return UpdateHelpResult()
+        if command[1:] == ["semantic-intake", "--help"]:
+            return SemanticIntakeHelpResult()
+        if command[1:] == ["semantic-audit-resume", "--help"]:
+            return SemanticAuditResumeHelpResult()
+        if command[1:] == ["lexicon", "--help"]:
+            return LexiconHelpResult()
+        if command[1:] == ["compass", "--help"]:
+            return CompassHelpResult()
+        raise AssertionError(f"unexpected command: {command}")
+
+    monkeypatch.setattr(project_cognition_runtime.subprocess, "run", fake_run)
+
+    assert project_cognition_runtime._binary_supports_required_commands(binary) is False
+
+
+def test_project_cognition_binary_support_requires_expand_section_flag(
+    monkeypatch, tmp_path: Path
+):
+    binary = tmp_path / "project-cognition"
+    binary.write_text("binary", encoding="utf-8")
+
+    class RootHelpResult:
+        stdout = (
+            "Commands: status, build-from-scan, init-empty, generate-ignore, scan-set, scan-prepare, scan-accept, changes, update, semantic-intake, semantic-audit-resume, lexicon, compass, "
+            "expand, delta, closeout-plan\n"
+        )
+        stderr = ""
+
+    class UpdateHelpResult:
+        stdout = "Usage of update:\n  -payload-file string\n  -verification value\n"
+        stderr = ""
+
+    class SemanticIntakeHelpResult:
+        stdout = "Usage of semantic-intake:\n  -input string\n"
+        stderr = ""
+
+    class SemanticAuditResumeHelpResult:
+        stdout = "Usage of semantic-audit-resume:\n  -input string\n"
+        stderr = ""
+
+    class LexiconHelpResult:
+        stdout = "Usage of lexicon:\n  -mode string\n"
+        stderr = ""
+
+    class CompassHelpResult:
+        stdout = (
+            "Usage of compass:\n  -semantic-intake-file string\n  -query-plan-file string\n"
+        )
+        stderr = ""
+
+    class ExpandHelpResult:
+        stdout = "Usage of expand:\n  -id string\n"
+        stderr = ""
+
+    def fake_run(command, **kwargs):
+        if command[1:] == ["--help"]:
+            return RootHelpResult()
+        if command[1:] == ["update", "--help"]:
+            return UpdateHelpResult()
+        if command[1:] == ["semantic-intake", "--help"]:
+            return SemanticIntakeHelpResult()
+        if command[1:] == ["semantic-audit-resume", "--help"]:
+            return SemanticAuditResumeHelpResult()
+        if command[1:] == ["lexicon", "--help"]:
+            return LexiconHelpResult()
+        if command[1:] == ["compass", "--help"]:
+            return CompassHelpResult()
+        if command[1:] == ["expand", "--help"]:
+            return ExpandHelpResult()
         raise AssertionError(f"unexpected command: {command}")
 
     monkeypatch.setattr(project_cognition_runtime.subprocess, "run", fake_run)
@@ -340,15 +677,36 @@ def test_project_cognition_binary_support_requires_delta_append_verification_fla
     binary.write_text("binary", encoding="utf-8")
 
     class RootHelpResult:
-        stdout = "Commands: status, build-from-scan, init-empty, update, lexicon, delta\n"
+        stdout = (
+            "Commands: status, build-from-scan, init-empty, generate-ignore, scan-set, scan-prepare, scan-accept, changes, update, semantic-intake, semantic-audit-resume, lexicon, compass, "
+            "expand, delta, closeout-plan\n"
+        )
         stderr = ""
 
     class UpdateHelpResult:
         stdout = "Usage of update:\n  -payload-file string\n  -verification value\n"
         stderr = ""
 
+    class SemanticIntakeHelpResult:
+        stdout = "Usage of semantic-intake:\n  -input string\n"
+        stderr = ""
+
+    class SemanticAuditResumeHelpResult:
+        stdout = "Usage of semantic-audit-resume:\n  -input string\n"
+        stderr = ""
+
     class LexiconHelpResult:
         stdout = "Usage of lexicon:\n  -mode string\n"
+        stderr = ""
+
+    class CompassHelpResult:
+        stdout = (
+            "Usage of compass:\n  -semantic-intake-file string\n  -query-plan-file string\n"
+        )
+        stderr = ""
+
+    class ExpandHelpResult:
+        stdout = "Usage of expand:\n  -section string\n"
         stderr = ""
 
     class DeltaAppendHelpResult:
@@ -360,11 +718,148 @@ def test_project_cognition_binary_support_requires_delta_append_verification_fla
             return RootHelpResult()
         if command[1:] == ["update", "--help"]:
             return UpdateHelpResult()
+        if command[1:] == ["semantic-intake", "--help"]:
+            return SemanticIntakeHelpResult()
+        if command[1:] == ["semantic-audit-resume", "--help"]:
+            return SemanticAuditResumeHelpResult()
         if command[1:] == ["lexicon", "--help"]:
             return LexiconHelpResult()
+        if command[1:] == ["compass", "--help"]:
+            return CompassHelpResult()
+        if command[1:] == ["expand", "--help"]:
+            return ExpandHelpResult()
         if command[1:] == ["delta", "append", "--help"]:
             return DeltaAppendHelpResult()
         raise AssertionError(f"unexpected command: {command}")
+
+    monkeypatch.setattr(project_cognition_runtime.subprocess, "run", fake_run)
+
+    assert project_cognition_runtime._binary_supports_required_commands(binary) is False
+
+
+def test_project_cognition_binary_support_requires_closeout_plan_delta_session_flag(
+    monkeypatch, tmp_path: Path
+):
+    binary = tmp_path / "project-cognition"
+    binary.write_text("binary", encoding="utf-8")
+
+    class RootHelpResult:
+        stdout = (
+            "Commands: status, build-from-scan, init-empty, generate-ignore, scan-set, scan-prepare, scan-accept, changes, update, semantic-intake, semantic-audit-resume, lexicon, compass, "
+            "expand, delta, closeout-plan\n"
+        )
+        stderr = ""
+
+    class UpdateHelpResult:
+        stdout = "Usage of update:\n  -payload-file string\n  -verification value\n"
+        stderr = ""
+
+    class SemanticIntakeHelpResult:
+        stdout = "Usage of semantic-intake:\n  -input string\n"
+        stderr = ""
+
+    class SemanticAuditResumeHelpResult:
+        stdout = "Usage of semantic-audit-resume:\n  -input string\n"
+        stderr = ""
+
+    class LexiconHelpResult:
+        stdout = "Usage of lexicon:\n  -mode string\n"
+        stderr = ""
+
+    class CompassHelpResult:
+        stdout = (
+            "Usage of compass:\n  -semantic-intake-file string\n  -query-plan-file string\n"
+        )
+        stderr = ""
+
+    class ExpandHelpResult:
+        stdout = "Usage of expand:\n  -section string\n"
+        stderr = ""
+
+    class DeltaAppendHelpResult:
+        stdout = (
+            "Usage of delta append:\n  -verification value\n  -generated-surface value\n"
+        )
+        stderr = ""
+
+    class CloseoutPlanHelpResult:
+        stdout = "Usage of closeout-plan:\n  -workflow string\n"
+        stderr = ""
+
+    calls: list[list[str]] = []
+
+    def fake_run(command, **kwargs):
+        calls.append([str(part) for part in command])
+        if command[1:] == ["--help"]:
+            return RootHelpResult()
+        if command[1:] == ["update", "--help"]:
+            return UpdateHelpResult()
+        if command[1:] == ["semantic-intake", "--help"]:
+            return SemanticIntakeHelpResult()
+        if command[1:] == ["semantic-audit-resume", "--help"]:
+            return SemanticAuditResumeHelpResult()
+        if command[1:] == ["lexicon", "--help"]:
+            return LexiconHelpResult()
+        if command[1:] == ["compass", "--help"]:
+            return CompassHelpResult()
+        if command[1:] == ["expand", "--help"]:
+            return ExpandHelpResult()
+        if command[1:] == ["delta", "append", "--help"]:
+            return DeltaAppendHelpResult()
+        if command[1:] == ["closeout-plan", "--help"]:
+            return CloseoutPlanHelpResult()
+        raise AssertionError(f"unexpected command: {command}")
+
+    monkeypatch.setattr(project_cognition_runtime.subprocess, "run", fake_run)
+
+    assert project_cognition_runtime._binary_supports_required_commands(binary) is False
+    assert calls == [
+        [str(binary), "--help"],
+        [str(binary), "update", "--help"],
+        [str(binary), "semantic-intake", "--help"],
+        [str(binary), "semantic-audit-resume", "--help"],
+        [str(binary), "lexicon", "--help"],
+        [str(binary), "compass", "--help"],
+        [str(binary), "expand", "--help"],
+        [str(binary), "delta", "append", "--help"],
+        [str(binary), "closeout-plan", "--help"],
+    ]
+
+
+def test_project_cognition_binary_support_requires_scan_workbench_flags(
+    monkeypatch, tmp_path: Path
+):
+    binary = tmp_path / "project-cognition"
+    binary.write_text("binary", encoding="utf-8")
+
+    outputs = {
+        ("--help",): (
+            "build-from-scan init-empty generate-ignore scan-set scan-prepare scan-accept "
+            "changes closeout-plan semantic-intake semantic-audit-resume lexicon compass "
+            "expand update delta"
+        ),
+        ("update", "--help"): "-payload-file -verification",
+        ("semantic-intake", "--help"): "-input",
+        ("semantic-audit-resume", "--help"): "-input",
+        ("lexicon", "--help"): "-mode",
+        ("compass", "--help"): "-semantic-intake-file -query-plan-file",
+        ("expand", "--help"): "-section",
+        ("delta", "append", "--help"): "-verification -generated-surface",
+        ("closeout-plan", "--help"): "-workflow -delta-session",
+        ("scan-prepare", "--help"): "-force",
+    }
+
+    class Result:
+        stderr = ""
+
+        def __init__(self, stdout: str):
+            self.stdout = stdout
+
+    def fake_run(command, **kwargs):
+        args = tuple(str(part) for part in command[1:])
+        if args not in outputs:
+            raise AssertionError(f"unexpected command: {command}")
+        return Result(outputs[args])
 
     monkeypatch.setattr(project_cognition_runtime.subprocess, "run", fake_run)
 
@@ -434,7 +929,8 @@ def test_init_prefetches_project_cognition_runtime(monkeypatch, tmp_path: Path):
     assert load_project_cognition_launcher(tmp_path / "project").argv == (str(binary),)
     implement_skill = tmp_path / "project" / ".claude" / "skills" / "sp-implement" / "SKILL.md"
     content = implement_skill.read_text(encoding="utf-8")
-    assert f"{binary} lexicon --intent implement" in content
+    assert f"{binary} compass --intent implement" in content
+    assert f"{binary} lexicon --intent implement" not in content
 
 
 def test_init_runs_project_cognition_init_empty(monkeypatch, tmp_path: Path):

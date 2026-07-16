@@ -1,5 +1,7 @@
 # Spec Reviewer Worker Prompt
 
+> Legacy compatibility prompt. New `sp-implement` ordinary task reviews use `.specify/templates/worker-prompts/task-reviewer.md`, which returns both `spec_verdict` and `quality_verdict` in one result.
+
 Use this template when the leader needs an independent spec-compliance review after implementation.
 
 ## Review Standard
@@ -22,7 +24,3 @@ Use this template when the leader needs an independent spec-compliance review af
 - Extra behavior
 - Drift from required references or rules
 - File references for each issue
-
-## Inline Project Cognition Handoff
-
-When you changed project-related files, include `changed_paths`, `behavior_surfaces`, `generated_surfaces`, `state_contracts`, `verification`, `known_unknowns`, and `confidence_notes` in the worker result so the parent workflow can build the inline project cognition update payload.

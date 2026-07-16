@@ -1,6 +1,7 @@
 # Project Learning Detail
 
-Reusable engineering lesson detail. One lesson per file.
+Runtime-maintained reusable engineering lesson detail. Agents should expand it
+through `specify learning show --ref <ref>` instead of parsing this file directly.
 
 ---
 
@@ -15,6 +16,10 @@ _No problem recorded yet._
 ## Lesson
 
 _No lesson recorded yet._
+
+## Recommended Action
+
+_No recommended action recorded yet._
 
 ## When To Apply
 
@@ -31,6 +36,10 @@ _No evidence recorded yet._
 ## Prevention Or Recovery
 
 _No prevention or recovery notes recorded yet._
+
+## Success Criteria
+
+_No success criteria recorded yet._
 
 ## Exceptions
 

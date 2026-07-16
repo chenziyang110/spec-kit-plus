@@ -1,0 +1,7 @@
+interface:
+  display_name: "SPX Discussion"
+  short_description: "Resumable product and technical discussion"
+  default_prompt: "Use $spx-discussion to mature this idea before formal specification."
+
+policy:
+  allow_implicit_invocation: false

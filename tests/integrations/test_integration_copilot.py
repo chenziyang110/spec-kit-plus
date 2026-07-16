@@ -30,6 +30,7 @@ def test_copilot_generated_subagent_workflows_include_capability_discovery(tmp_p
     _assert_subagent_using_surfaces_have_discovery((tmp_path / ".github" / "agents").glob("sp.*.agent.md"))
 
 SHARED_PRD_HELPER = ".specify/scripts/shared/prd-state.py"
+SHARED_DISCUSSION_HELPER = ".specify/scripts/shared/discussion-state.py"
 
 
 class TestCopilotIntegration:
@@ -57,17 +58,24 @@ class TestCopilotIntegration:
     @classmethod
     def _expected_inventory(cls, script_variant: str) -> list[str]:
         copilot = get_integration("copilot")
+        references_root = copilot.shared_command_references_dir()
+        assert references_root is not None
         expected = []
 
         for stem in cls._command_stems():
             expected.append(f".github/agents/sp.{stem}.agent.md")
             expected.append(f".github/prompts/sp.{stem}.prompt.md")
+            expected.extend(
+                f".github/agents/references/{stem}/{reference.relative_to(references_root / stem).as_posix()}"
+                for reference in copilot.list_command_reference_templates(stem)
+            )
 
         if copilot.context_file:
             expected.append(copilot.context_file)
 
         expected.extend(
             [
+                "DESIGN.md",
                 ".vscode/settings.json",
                 ".specify/config.json",
                 ".specify/integration.json",
@@ -78,7 +86,7 @@ class TestCopilotIntegration:
                 ".specify/integrations/copilot/scripts/update-context.sh",
                 ".specify/memory/constitution.md",
                 ".specify/memory/learnings/INDEX.md",
-                ".specify/memory/project-learnings.md",
+                ".specify/memory/learnings/confirmed.md",
                 ".specify/memory/project-rules.md",
                 ".specify/project-cognition/project-cognition.db",
                 ".specify/project-cognition/status.json",
@@ -91,6 +99,7 @@ class TestCopilotIntegration:
                     ".specify/scripts/bash/check-prerequisites.sh",
                     ".specify/scripts/bash/common.sh",
                     ".specify/scripts/bash/create-new-feature.sh",
+                    ".specify/scripts/bash/discussion-state.sh",
                     ".specify/scripts/bash/prd-state.sh",
                     ".specify/scripts/bash/project-cognition-freshness.sh",
                     ".specify/scripts/bash/quick-state.sh",
@@ -105,6 +114,7 @@ class TestCopilotIntegration:
                     ".specify/scripts/powershell/check-prerequisites.ps1",
                     ".specify/scripts/powershell/common.ps1",
                     ".specify/scripts/powershell/create-new-feature.ps1",
+                    ".specify/scripts/powershell/discussion-state.ps1",
                     ".specify/scripts/powershell/prd-state.ps1",
                     ".specify/scripts/powershell/project-cognition-freshness.ps1",
                     ".specify/scripts/powershell/quick-state.ps1",
@@ -113,7 +123,7 @@ class TestCopilotIntegration:
                     ".specify/scripts/powershell/update-agent-context.ps1",
                 ]
             )
-        expected.append(SHARED_PRD_HELPER)
+        expected.extend([SHARED_DISCUSSION_HELPER, SHARED_PRD_HELPER])
 
         expected.extend(f".specify/templates/{name}" for name in cls._template_files())
         return sorted(expected)
@@ -142,6 +152,21 @@ class TestCopilotIntegration:
         for f in agent_files:
             assert f.parent == tmp_path / ".github" / "agents"
             assert f.name.endswith(".agent.md")
+
+    def test_discussion_agent_has_reachable_triggered_reference_sidecars(self, tmp_path):
+        from specify_cli.integrations.copilot import CopilotIntegration
+
+        copilot = CopilotIntegration()
+        manifest = IntegrationManifest("copilot", tmp_path)
+        copilot.setup(tmp_path, manifest)
+
+        command = tmp_path / ".github" / "agents" / "sp.discussion.agent.md"
+        content = command.read_text(encoding="utf-8")
+        references = command.parent / "references" / "discussion"
+        assert "references/discussion/INDEX.md" in content
+        assert "## Reference Contracts" not in content
+        assert (references / "INDEX.md").is_file()
+        assert (references / "context-boundary-and-truth.md").is_file()
 
     def test_setup_creates_companion_prompts(self, tmp_path):
         from specify_cli.integrations.copilot import CopilotIntegration
@@ -272,13 +297,18 @@ class TestCopilotIntegration:
             ".github/agents/sp.quick.agent.md",
         ):
             content = (target / rel).read_text(encoding="utf-8").lower()
-            assert "crucial first step" in content
             assert "map-scan" in content
             assert "map-build" in content
-            if "sp.debug" in rel:
+            if "sp.implement" in rel:
+                assert "current-task navigation repair" in content
+                assert "only when a required ref is stale, missing, or contradicted by live code" in content
+                assert "project-cognition query --query-plan" not in content
+            elif "sp.debug" in rel:
+                assert "crucial first step" in content
                 assert "debug-handbook.md" in content
                 assert "debug-workflow-contract" in content
             else:
+                assert "crucial first step" in content
                 assert "build-handbook.md" in content
                 assert "build-workflow-contract" in content
 

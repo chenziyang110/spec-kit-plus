@@ -63,6 +63,36 @@ Constraint / Risk: [constraint or propagation risk]
 - [Decision from `spec.md#decision-capture` that planners and implementers must preserve]
 - [Boundary or dependency rule that must survive into implementation planning]
 
+## Discussion Decision Carry-Forward
+
+Use this section when `entry_source: sp-discussion`.
+
+- **Locked Direction**: [Selected direction and implementation-planning impact]
+- **Rejected Alternatives**: [Rejected option] -> [why planners should not revive it without reopen]
+- **Accepted Tradeoffs**: [Tradeoff] -> [risk/validation implication]
+- **Experience Commitments**: [UI/TUI flow, state, accessibility/copy, or sketch reference planners must preserve]
+- **Review Criteria Carry-Forward**: [Handoff reviewer criterion that still shapes planning readiness]
+- **Must Not Dilute**: [Simplification or substitution that would violate the discussion handoff]
+
+## Design References and Gaps
+
+- design_system_requirements:
+- DESIGN.md references:
+- reference gaps:
+- platform notes:
+
+## UI Reference Inputs
+
+- UI reference notes:
+- UI brief:
+- Visual target:
+- Reference ownership:
+- Fidelity mode:
+- Must preserve:
+- May adapt:
+- Must not:
+- Human review condition:
+
 ## Must-Preserve Carry-Forward
 
 - `MP-###`: [implementation-shaping decision, reference, non-goal, or trade-off]

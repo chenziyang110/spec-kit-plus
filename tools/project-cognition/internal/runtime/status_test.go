@@ -3,6 +3,7 @@ package runtime
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -48,6 +49,63 @@ func TestReadStatusRejectsLegacyRuntime(t *testing.T) {
 	_, err = ReadStatus(paths)
 	if !errors.Is(err, ErrUnsupportedLegacy) {
 		t.Fatalf("expected ErrUnsupportedLegacy, got %v", err)
+	}
+}
+
+func TestReadStatusRejectsNonCurrentRuntimeSchema(t *testing.T) {
+	for _, runtimeSchema := range []int{0, RuntimeSchema + 1} {
+		t.Run(fmt.Sprintf("schema-%d", runtimeSchema), func(t *testing.T) {
+			root := t.TempDir()
+			if err := os.Mkdir(filepath.Join(root, ".specify"), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			paths, err := ResolvePaths(root)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := os.MkdirAll(filepath.Dir(paths.StatusPath), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			status := DefaultStatus(paths)
+			status.RuntimeSchema = runtimeSchema
+			data, err := json.Marshal(status)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(paths.StatusPath, data, 0o644); err != nil {
+				t.Fatal(err)
+			}
+
+			_, err = ReadStatus(paths)
+			if !errors.Is(err, ErrUnsupportedLegacy) {
+				t.Fatalf("ReadStatus(runtime_schema=%d) error = %v, want current-only runtime rejection", runtimeSchema, err)
+			}
+		})
+	}
+}
+
+func TestReadStatusRejectsMissingCurrentGraphStorePath(t *testing.T) {
+	root := t.TempDir()
+	paths, err := ResolvePaths(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(paths.RuntimeDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	status := DefaultStatus(paths)
+	status.GraphStorePath = ""
+	data, err := json.Marshal(status)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(paths.StatusPath, data, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = ReadStatus(paths)
+	if !errors.Is(err, ErrUnsupportedLegacy) {
+		t.Fatalf("ReadStatus(missing graph_store_path) error = %v, want current-only status rejection", err)
 	}
 }
 

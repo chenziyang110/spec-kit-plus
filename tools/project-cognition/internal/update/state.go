@@ -127,10 +127,12 @@ type UpdatePayload struct {
 	ChangedPaths            []string         `json:"changed_paths"`
 	IgnoredPaths            []string         `json:"ignored_paths"`
 	AffectedNodes           []map[string]any `json:"affected_nodes"`
+	AffectedGraphClaims     []string         `json:"affected_graph_claims"`
 	MissingCoverage         []string         `json:"missing_coverage"`
 	AdoptedPaths            []string         `json:"adopted_paths"`
 	ReviewPaths             []string         `json:"review_paths"`
 	UnadoptablePaths        []string         `json:"unadoptable_paths"`
+	PartialRefreshReasons   []string         `json:"partial_refresh_reasons"`
 	KnownUnknowns           []string         `json:"known_unknowns"`
 	MinimalLiveReads        []string         `json:"minimal_live_reads"`
 	PathAdoption            map[string]any   `json:"path_adoption"`
@@ -211,10 +213,25 @@ func RecordRefresh(paths rt.Paths, reason string) (rt.Status, error) {
 	}
 	status.LastRefreshReason = reason
 	status.LastRefreshBasis = "recorded"
+	recordGitRefreshBaseline(paths, &status)
 	if err := rt.WriteStatus(paths, status); err != nil {
 		return rt.Status{}, err
 	}
 	return status, nil
+}
+
+func recordGitRefreshBaseline(paths rt.Paths, status *rt.Status) {
+	if !rt.GitAvailable(paths.Root) {
+		status.LastRefreshGitCommit = ""
+		status.LastRefreshGitBranch = ""
+		return
+	}
+	if commit, err := rt.GitHead(paths.Root); err == nil {
+		status.LastRefreshGitCommit = commit
+	}
+	if branch, err := rt.GitBranch(paths.Root); err == nil {
+		status.LastRefreshGitBranch = branch
+	}
 }
 
 func CompleteRefresh(paths rt.Paths, basis string) (rt.Status, error) {
@@ -245,6 +262,7 @@ func CompleteRefresh(paths rt.Paths, basis string) (rt.Status, error) {
 		basis = "map-build"
 	}
 	status.LastRefreshBasis = basis
+	recordGitRefreshBaseline(paths, &status)
 	if err := rt.WriteStatus(paths, status); err != nil {
 		return rt.Status{}, err
 	}
@@ -297,6 +315,9 @@ func RunUpdate(paths rt.Paths, input UpdateInput) (UpdatePayload, error) {
 	kept, ignored := matcher.Filter(changed)
 	kept = normalizePaths(kept)
 	ignored = normalizePaths(ignored)
+	if err := validateChangedPaths(kept); err != nil {
+		return UpdatePayload{}, err
+	}
 	return runResolvedUpdate(paths, input, kept, ignored, nil)
 }
 
@@ -314,6 +335,9 @@ func agreementAction(agreement runtimegate.Agreement) string {
 func runResolvedUpdate(paths rt.Paths, input UpdateInput, changed []string, ignored []string, boundaryResult *boundary.Result) (UpdatePayload, error) {
 	changed = normalizePaths(changed)
 	ignored = normalizePaths(ignored)
+	if err := validateChangedPaths(changed); err != nil {
+		return UpdatePayload{}, err
+	}
 	updateID := "upd-" + time.Now().UTC().Format("20060102T150405.000000000Z")
 
 	st, err := store.OpenExisting(paths)
@@ -326,15 +350,21 @@ func runResolvedUpdate(paths rt.Paths, input UpdateInput, changed []string, igno
 	}
 	nodes := []map[string]any{}
 	closure := store.AffectedClosure{}
-	resultState := updateResultState(changed, nodes, input)
+	pathNodeIDs := map[string]string{}
+	adoptedPathSet := map[string]bool{}
+	resultState := updateResultState(changed, nodes, input, pathNodeIDs)
 	if st != nil {
 		defer st.Close()
 		closure, err = st.AffectedClosureForPaths(context.Background(), changed)
 		if err != nil {
 			return UpdatePayload{}, err
 		}
-		if len(closure.NodeIDs) == 0 && canAdoptWorkflowPaths(changed, input) {
-			for _, path := range changed {
+		pathNodeIDs, err = st.NodeIDsForExactPaths(context.Background(), changed)
+		if err != nil {
+			return UpdatePayload{}, err
+		}
+		if canAdoptWorkflowPaths(changed, input) {
+			for _, path := range unmappedPaths(changed, pathNodeIDs) {
 				if _, err := st.AdoptWorkflowPath(context.Background(), store.WorkflowPathAdoption{
 					UpdateID:         updateID,
 					Path:             path,
@@ -345,8 +375,13 @@ func runResolvedUpdate(paths rt.Paths, input UpdateInput, changed []string, igno
 				}); err != nil {
 					return UpdatePayload{}, err
 				}
+				adoptedPathSet[path] = true
 			}
 			closure, err = st.AffectedClosureForPaths(context.Background(), changed)
+			if err != nil {
+				return UpdatePayload{}, err
+			}
+			pathNodeIDs, err = st.NodeIDsForExactPaths(context.Background(), changed)
 			if err != nil {
 				return UpdatePayload{}, err
 			}
@@ -355,13 +390,20 @@ func runResolvedUpdate(paths rt.Paths, input UpdateInput, changed []string, igno
 		if err != nil {
 			return UpdatePayload{}, err
 		}
-		resultState = updateResultState(changed, nodes, input)
+		resultState = updateResultState(changed, nodes, input, pathNodeIDs)
 		if resultState == ResultReady && len(closure.NodeIDs) > 0 {
 			for _, path := range changed {
+				if adoptedPathSet[path] {
+					continue
+				}
+				nodeID := pathNodeIDs[path]
+				if nodeID == "" {
+					return UpdatePayload{}, fmt.Errorf("ready update path %s has no exact path_index node", path)
+				}
 				if _, err := st.RefreshPathCoverage(context.Background(), store.PathCoverageRefresh{
 					UpdateID:   updateID,
 					Path:       path,
-					NodeID:     closure.NodeIDs[0],
+					NodeID:     nodeID,
 					Relation:   "owns",
 					Confidence: "verified",
 					Reason:     input.Reason,
@@ -417,6 +459,7 @@ func runResolvedUpdate(paths rt.Paths, input UpdateInput, changed []string, igno
 	if boundaryResult != nil && resultState != ResultReady {
 		reviewPaths = appendUnique(reviewPaths, boundaryResult.AmbiguousPaths...)
 	}
+	partialRefreshReasons := updateResultReasons(resultState, changed, nodes, input, pathNodeIDs, st != nil)
 	knownUnknowns := compactStrings(input.KnownUnknowns)
 	if boundaryResult != nil {
 		knownUnknowns = compactStrings(append(knownUnknowns, boundaryResult.Warnings...))
@@ -426,6 +469,9 @@ func runResolvedUpdate(paths rt.Paths, input UpdateInput, changed []string, igno
 		"ignored":         ignored,
 		"needs_review":    reviewPaths,
 		"path_accounting": pathAccounting,
+	}
+	if len(partialRefreshReasons) > 0 {
+		pathAdoption["partial_refresh_reasons"] = partialRefreshReasons
 	}
 	if boundaryResult != nil {
 		pathAdoption["phase"] = "boundary_resolved"
@@ -441,10 +487,12 @@ func runResolvedUpdate(paths rt.Paths, input UpdateInput, changed []string, igno
 		ChangedPaths:            updatePaths.changed,
 		IgnoredPaths:            ignored,
 		AffectedNodes:           nodes,
+		AffectedGraphClaims:     append([]string{}, closure.ClaimIDs...),
 		MissingCoverage:         []string{},
 		AdoptedPaths:            updatePaths.adopted,
 		ReviewPaths:             reviewPaths,
 		UnadoptablePaths:        []string{},
+		PartialRefreshReasons:   partialRefreshReasons,
 		KnownUnknowns:           knownUnknowns,
 		MinimalLiveReads:        updatePaths.minimalLiveReads,
 		PathAdoption:            pathAdoption,
@@ -467,14 +515,59 @@ func statusUpdateFromStatus(status rt.Status) StatusUpdate {
 	}
 }
 
-func updateResultState(kept []string, nodes []map[string]any, input UpdateInput) string {
+func updateResultState(kept []string, nodes []map[string]any, input UpdateInput, pathNodeIDs map[string]string) string {
 	if len(kept) == 0 {
 		return ResultNoOp
 	}
-	if len(nodes) > 0 && hasPassingVerification(input.Verification) && len(blockingKnownUnknowns(input.KnownUnknowns)) == 0 {
+	if len(nodes) > 0 && allPathsMapped(kept, pathNodeIDs) && hasPassingVerification(input.Verification) && len(blockingKnownUnknowns(input.KnownUnknowns)) == 0 {
 		return ResultReady
 	}
 	return ResultPartialRefresh
+}
+
+func updateResultReasons(resultState string, kept []string, nodes []map[string]any, input UpdateInput, pathNodeIDs map[string]string, hasStore bool) []string {
+	if resultState != ResultPartialRefresh {
+		return []string{}
+	}
+	reasons := []string{}
+	if !hasStore {
+		reasons = append(reasons, "missing_project_cognition_db")
+	}
+	if len(nodes) == 0 {
+		reasons = append(reasons, "no_affected_nodes_for_changed_paths")
+	}
+	if len(kept) > 0 && !allPathsMapped(kept, pathNodeIDs) {
+		reasons = append(reasons, "changed_paths_missing_active_path_index")
+	}
+	if !hasPassingVerification(input.Verification) {
+		reasons = append(reasons, "missing_passing_verification_result")
+	}
+	if len(blockingKnownUnknowns(input.KnownUnknowns)) > 0 {
+		reasons = append(reasons, "blocking_known_unknowns_present")
+	}
+	return compactStrings(reasons)
+}
+
+func allPathsMapped(paths []string, pathNodeIDs map[string]string) bool {
+	if len(paths) == 0 {
+		return false
+	}
+	for _, path := range paths {
+		if pathNodeIDs[path] == "" {
+			return false
+		}
+	}
+	return true
+}
+
+func unmappedPaths(paths []string, pathNodeIDs map[string]string) []string {
+	out := make([]string, 0, len(paths))
+	for _, path := range paths {
+		if pathNodeIDs[path] == "" {
+			out = append(out, path)
+		}
+	}
+	return out
 }
 
 func canAdoptWorkflowPaths(kept []string, input UpdateInput) bool {
@@ -483,11 +576,32 @@ func canAdoptWorkflowPaths(kept []string, input UpdateInput) bool {
 
 func hasPassingVerification(values []VerificationEvidence) bool {
 	for _, value := range values {
-		if strings.EqualFold(strings.TrimSpace(value.Result), "passed") {
+		if verificationResultPassed(value.Result) {
 			return true
 		}
 	}
 	return false
+}
+
+func verificationResultPassed(value string) bool {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "passed", "pass", "success", "succeeded", "ok":
+		return true
+	default:
+		return false
+	}
+}
+
+func normalizeVerificationResult(value string) string {
+	trimmed := strings.TrimSpace(value)
+	switch strings.ToLower(trimmed) {
+	case "passed", "pass", "success", "succeeded", "ok":
+		return "passed"
+	case "failed", "fail", "failure", "error":
+		return "failed"
+	default:
+		return trimmed
+	}
 }
 
 func verificationAttrs(values []VerificationEvidence) []map[string]string {
@@ -615,7 +729,24 @@ func blockingKnownUnknowns(values []string) []string {
 
 func isNonBlockingBoundaryWarning(value string) bool {
 	lower := strings.ToLower(value)
-	return strings.Contains(lower, "auto-commit")
+	return strings.Contains(lower, "auto-commit") || isNonBlockingCloseoutScopeNote(lower)
+}
+
+func isNonBlockingCloseoutScopeNote(lower string) bool {
+	hasExplicitScope := strings.Contains(lower, "explicit path") ||
+		strings.Contains(lower, "workflow-owned") ||
+		strings.Contains(lower, "workflow owned") ||
+		strings.Contains(lower, "explicitly scoped") ||
+		strings.Contains(lower, "显式路径") ||
+		strings.Contains(lower, "工作流拥有")
+	hasUnrelatedDirtyWorkspace := (strings.Contains(lower, "unrelated") &&
+		(strings.Contains(lower, "dirty") || strings.Contains(lower, "working tree") || strings.Contains(lower, "workspace"))) ||
+		(strings.Contains(lower, "无关") && (strings.Contains(lower, "脏") || strings.Contains(lower, "工作区")))
+	hasDisabledBroadScan := strings.Contains(lower, "include-working-tree=false") ||
+		strings.Contains(lower, "include_working_tree=false") ||
+		strings.Contains(lower, "include-untracked=false") ||
+		strings.Contains(lower, "include_untracked=false")
+	return hasExplicitScope && (hasUnrelatedDirtyWorkspace || hasDisabledBroadScan)
 }
 
 func loadPayloadFile(path string) (PayloadFileInput, error) {
@@ -728,6 +859,8 @@ func normalizeVerificationEvidence(values []VerificationEvidence) []Verification
 		}
 		if normalized.Result == "" {
 			normalized.Result = verificationEvidenceFromText(normalized.Command).Result
+		} else {
+			normalized.Result = normalizeVerificationResult(normalized.Result)
 		}
 		key := normalized.Command + "\x00" + normalized.Result + "\x00" + normalized.Artifact
 		if _, ok := seen[key]; ok {
@@ -894,6 +1027,36 @@ func normalizePaths(paths []string) []string {
 	}
 	sort.Strings(out)
 	return out
+}
+
+func validateChangedPaths(paths []string) error {
+	for _, path := range paths {
+		if !validChangedPath(path) {
+			return fmt.Errorf("invalid changed path %q: expected a concrete repository-relative path", path)
+		}
+	}
+	return nil
+}
+
+func validChangedPath(path string) bool {
+	path = filepath.ToSlash(strings.TrimSpace(path))
+	path = strings.TrimPrefix(path, "./")
+	if path == "" || path == "." || filepath.IsAbs(path) || strings.HasPrefix(path, "/") || strings.Contains(path, ":") {
+		return false
+	}
+	if path == ".specify" || strings.HasPrefix(path, ".specify/") {
+		return false
+	}
+	if strings.ContainsAny(path, "*?[]{}") {
+		return false
+	}
+	parts := strings.Split(path, "/")
+	for _, part := range parts {
+		if part == "" || part == "." || part == ".." {
+			return false
+		}
+	}
+	return true
 }
 
 func appendUnique(existing []string, values ...string) []string {

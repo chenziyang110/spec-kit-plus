@@ -92,6 +92,7 @@ class ForgeIntegration(MarkdownIntegration):
                 template_path=src_file,
                 project_root=project_root,
             )
+            processed = self.rewrite_command_reference_links(processed, src_file.stem)
 
             # FORGE-SPECIFIC: Ensure any remaining $ARGUMENTS placeholders are
             # converted to {{parameters}}
@@ -111,6 +112,18 @@ class ForgeIntegration(MarkdownIntegration):
                 processed, dest / dst_name, project_root, manifest
             )
             created.append(dst_file)
+            created.extend(
+                self.install_command_reference_sidecars(
+                    command_name=src_file.stem,
+                    owner_template_raw=raw,
+                    owner_template_path=src_file,
+                    commands_destination=dest,
+                    project_root=project_root,
+                    manifest=manifest,
+                    script_type=script_type,
+                    arg_placeholder=arg_placeholder,
+                )
+            )
 
         # Install integration-specific update-context scripts
         created.extend(self.install_scripts(project_root, manifest))

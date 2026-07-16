@@ -1,0 +1,7 @@
+interface:
+  display_name: "SPX Map Rebuild"
+  short_description: "Rebuild project cognition from evidence"
+  default_prompt: "Use $spx-map-rebuild to rebuild the invalid project-cognition baseline."
+
+policy:
+  allow_implicit_invocation: false

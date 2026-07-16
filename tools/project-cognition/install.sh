@@ -45,7 +45,7 @@ echo "    platform: ${os}/${arch}"
 echo "    install:  ${target}"
 echo ""
 
-tmp="$(mktemp)"
+tmp="$(mktemp "${install_dir}/.${BINARY}.XXXXXX")"
 trap 'rm -f "$tmp"' EXIT
 
 echo "==> Downloading prebuilt release asset..."
@@ -58,28 +58,80 @@ else
   exit 1
 fi
 
-install -m 0755 "$tmp" "$target"
+chmod 0755 "$tmp"
 
 echo "==> Verifying..."
-"$target" --version
-update_help="$("$target" update --help 2>&1 || true)"
+"$tmp" --version
+root_help="$("$tmp" --help 2>&1 || true)"
+for required_command in scan-set scan-prepare scan-accept; do
+  if [[ "$root_help" != *"$required_command"* ]]; then
+    echo "Error: downloaded project-cognition binary is missing required ${required_command} command." >&2
+    echo "Expected 'project-cognition --help' to include ${required_command}." >&2
+    exit 1
+  fi
+done
+scan_prepare_help="$("$tmp" scan-prepare --help 2>&1 || true)"
+if [[ "$scan_prepare_help" != *"-force"* || "$scan_prepare_help" != *"-scan-set"* ]]; then
+  echo "Error: downloaded project-cognition binary is missing required scan-prepare flags." >&2
+  echo "Expected 'project-cognition scan-prepare --help' to include -force and -scan-set." >&2
+  exit 1
+fi
+scan_accept_help="$("$tmp" scan-accept --help 2>&1 || true)"
+if [[ "$scan_accept_help" != *"-packet-id"* || "$scan_accept_help" != *"-result"* ]]; then
+  echo "Error: downloaded project-cognition binary is missing required scan-accept flags." >&2
+  echo "Expected 'project-cognition scan-accept --help' to include -packet-id and -result." >&2
+  exit 1
+fi
+update_help="$("$tmp" update --help 2>&1 || true)"
 if [[ "$update_help" != *"-payload-file"* || "$update_help" != *"-verification"* ]]; then
   echo "Error: downloaded project-cognition binary is missing required update flags." >&2
   echo "Expected 'project-cognition update --help' to include -payload-file and -verification." >&2
   exit 1
 fi
-lexicon_help="$("$target" lexicon --help 2>&1 || true)"
+semantic_intake_help="$("$tmp" semantic-intake --help 2>&1 || true)"
+if [[ "$semantic_intake_help" != *"-input"* ]]; then
+  echo "Error: downloaded project-cognition semantic-intake binary is missing required input flag." >&2
+  echo "Expected 'project-cognition semantic-intake --help' to include -input." >&2
+  exit 1
+fi
+semantic_audit_resume_help="$("$tmp" semantic-audit-resume --help 2>&1 || true)"
+if [[ "$semantic_audit_resume_help" != *"-input"* ]]; then
+  echo "Error: downloaded project-cognition semantic-audit-resume binary is missing required input flag." >&2
+  echo "Expected 'project-cognition semantic-audit-resume --help' to include -input." >&2
+  exit 1
+fi
+lexicon_help="$("$tmp" lexicon --help 2>&1 || true)"
 if [[ "$lexicon_help" != *"-mode"* ]]; then
   echo "Error: downloaded project-cognition binary is missing required lexicon catalog mode." >&2
   echo "Expected 'project-cognition lexicon --help' to include -mode." >&2
   exit 1
 fi
-delta_append_help="$("$target" delta append --help 2>&1 || true)"
+compass_help="$("$tmp" compass --help 2>&1 || true)"
+if [[ "$compass_help" != *"-semantic-intake-file"* || "$compass_help" != *"-query-plan-file"* ]]; then
+  echo "Error: downloaded project-cognition binary is missing required compass flags." >&2
+  echo "Expected 'project-cognition compass --help' to include -semantic-intake-file and -query-plan-file." >&2
+  exit 1
+fi
+expand_help="$("$tmp" expand --help 2>&1 || true)"
+if [[ "$expand_help" != *"-section"* ]]; then
+  echo "Error: downloaded project-cognition binary is missing required expand section flag." >&2
+  echo "Expected 'project-cognition expand --help' to include -section." >&2
+  exit 1
+fi
+delta_append_help="$("$tmp" delta append --help 2>&1 || true)"
 if [[ "$delta_append_help" != *"-verification"* || "$delta_append_help" != *"-generated-surface"* ]]; then
   echo "Error: downloaded project-cognition binary is missing required delta append flags." >&2
   echo "Expected 'project-cognition delta append --help' to include -verification and -generated-surface." >&2
   exit 1
 fi
+closeout_plan_help="$("$tmp" closeout-plan --help 2>&1 || true)"
+if [[ "$closeout_plan_help" != *"-workflow"* || "$closeout_plan_help" != *"-delta-session"* ]]; then
+  echo "Error: downloaded project-cognition binary is missing required closeout-plan flags." >&2
+  echo "Expected 'project-cognition closeout-plan --help' to include -workflow and -delta-session." >&2
+  exit 1
+fi
+
+mv -f "$tmp" "$target"
 
 case ":$PATH:" in
   *":$install_dir:"*) ;;

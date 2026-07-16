@@ -15,7 +15,7 @@ def write_project_cognition_status(project_root: Path, **overrides: object) -> P
     payload: dict[str, object] = {
         "version": 3,
         "runtime_format": "project-cognition-go",
-        "runtime_schema": 1,
+        "runtime_schema": 2,
         "freshness": "missing",
         "state": "missing_baseline",
         "readiness": "blocked",
@@ -46,7 +46,7 @@ def write_fake_project_cognition_script(tmp_path: Path) -> Path:
 
             RUNTIME_DEFAULT = {
                 "runtime_format": "project-cognition-go",
-                "runtime_schema": 1,
+                "runtime_schema": 2,
                 "status_path": ".specify/project-cognition/status.json",
                 "graph_store_path": ".specify/project-cognition/project-cognition.db",
             }
@@ -770,17 +770,8 @@ def write_fake_project_cognition_script(tmp_path: Path) -> Path:
                                 "node_evidence",
                                 "edges",
                                 "edge_evidence",
-                                "claims",
-                                "claim_evidence",
-                                "conflicts",
-                                "conflict_claims",
                                 "path_index",
-                                "symbol_index",
                                 "alias_index",
-                                "entrypoint_index",
-                                "test_index",
-                                "slice_members",
-                                "query_examples",
                                 "updates",
                             }
                             missing_tables = sorted(required - table_names)
@@ -791,6 +782,47 @@ def write_fake_project_cognition_script(tmp_path: Path) -> Path:
                                 )
                             elif "metadata" not in table_names and "generations" not in table_names:
                                 errors.append("project-cognition.db is not query ready")
+                            if "metadata" in table_names:
+                                metadata_columns = {
+                                    row[1]
+                                    for row in conn.execute("PRAGMA table_info(metadata)")
+                                }
+
+                                def metadata_value(key):
+                                    value_columns = [
+                                        column
+                                        for column in ("value_json", "value")
+                                        if column in metadata_columns
+                                    ]
+                                    for column in value_columns:
+                                        row = conn.execute(
+                                            f"SELECT {column} FROM metadata WHERE key = ?",
+                                            (key,),
+                                        ).fetchone()
+                                        if row is None:
+                                            continue
+                                        raw = row[0]
+                                        try:
+                                            parsed = json.loads(str(raw))
+                                        except json.JSONDecodeError:
+                                            parsed = raw
+                                        return str(parsed).strip()
+                                    return ""
+
+                                schema_version = metadata_value("schema_version")
+                                runtime_schema = metadata_value("runtime_schema")
+                                if schema_version != "3":
+                                    errors.append(
+                                        "schema_version must be 3 for query_ready; "
+                                        f"found {schema_version or 'missing'}; "
+                                        "recommended_next_action=run_map_scan_build"
+                                    )
+                                if runtime_schema and runtime_schema != "2":
+                                    errors.append(
+                                        "runtime_schema must be 2 for query_ready; "
+                                        f"found {runtime_schema}; "
+                                        "recommended_next_action=run_map_scan_build"
+                                    )
                             active_generation_id = ""
                             if "generations" in table_names:
                                 row = conn.execute(
@@ -858,6 +890,73 @@ def write_fake_project_cognition_script(tmp_path: Path) -> Path:
                                 ).fetchone()[0]
                                 if int(node_count) == 0:
                                     errors.append("active generation has no nodes")
+                            if active_generation_id and {"nodes", "alias_index"} <= table_names:
+                                nodes_without_aliases = [
+                                    row[0]
+                                    for row in conn.execute(
+                                        """
+                                        SELECT n.id
+                                        FROM nodes n
+                                        LEFT JOIN alias_index a
+                                          ON a.generation_id = n.generation_id
+                                         AND a.target_type = 'node'
+                                         AND a.target_id = n.id
+                                        WHERE n.generation_id = ?
+                                        GROUP BY n.id
+                                        HAVING COUNT(a.id) = 0
+                                        """,
+                                        (active_generation_id,),
+                                    )
+                                ]
+                                if nodes_without_aliases:
+                                    errors.append(
+                                        "active_generation_nodes_missing_alias_index_rows: "
+                                        + ", ".join(str(item) for item in nodes_without_aliases)
+                                    )
+                                missing_targets = [
+                                    row[0]
+                                    for row in conn.execute(
+                                        """
+                                        SELECT a.id
+                                        FROM alias_index a
+                                        LEFT JOIN nodes n
+                                          ON a.target_type = 'node'
+                                         AND n.generation_id = a.generation_id
+                                         AND n.id = a.target_id
+                                        WHERE a.generation_id = ?
+                                          AND a.target_type = 'node'
+                                          AND n.id IS NULL
+                                        """,
+                                        (active_generation_id,),
+                                    )
+                                ]
+                                if missing_targets:
+                                    errors.append(
+                                        "alias_index_orphan_target_id: "
+                                        + ", ".join(str(item) for item in missing_targets)
+                                    )
+                                if "evidence" in table_names:
+                                    missing_evidence = [
+                                        row[0]
+                                        for row in conn.execute(
+                                            """
+                                            SELECT a.id
+                                            FROM alias_index a
+                                            LEFT JOIN evidence e
+                                              ON e.generation_id = a.generation_id
+                                             AND e.id = a.evidence_id
+                                            WHERE a.generation_id = ?
+                                              AND a.evidence_id <> ''
+                                              AND e.id IS NULL
+                                            """,
+                                            (active_generation_id,),
+                                        )
+                                    ]
+                                    if missing_evidence:
+                                        errors.append(
+                                            "alias_index_missing_evidence_id: "
+                                            + ", ".join(str(item) for item in missing_evidence)
+                                        )
                             if active_generation_id and "evidence" in table_names:
                                 evidence_count = conn.execute(
                                     "SELECT COUNT(*) FROM evidence WHERE generation_id = ?",
@@ -875,18 +974,8 @@ def write_fake_project_cognition_script(tmp_path: Path) -> Path:
                                     if str(row[0]).replace("\\\\", "/").startswith(".specify/"):
                                         errors.append(".specify/** must not enter project cognition graph store")
                                         break
-                            if "symbol_index" in table_names:
-                                for row in conn.execute("SELECT path FROM symbol_index"):
-                                    if str(row[0]).replace("\\\\", "/").startswith(".specify/"):
-                                        errors.append(".specify/** must not enter project cognition graph store")
-                                        break
-                            if "entrypoint_index" in table_names:
-                                for row in conn.execute("SELECT path FROM entrypoint_index"):
-                                    if str(row[0]).replace("\\\\", "/").startswith(".specify/"):
-                                        errors.append(".specify/** must not enter project cognition graph store")
-                                        break
-                            if "test_index" in table_names:
-                                for row in conn.execute("SELECT test_path FROM test_index"):
+                            if "alias_index" in table_names:
+                                for row in conn.execute("SELECT target_id FROM alias_index"):
                                     if str(row[0]).replace("\\\\", "/").startswith(".specify/"):
                                         errors.append(".specify/** must not enter project cognition graph store")
                                         break

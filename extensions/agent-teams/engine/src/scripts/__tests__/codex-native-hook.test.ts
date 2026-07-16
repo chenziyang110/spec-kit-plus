@@ -356,6 +356,28 @@ describe("codex native hook dispatch", () => {
     );
   });
 
+  it("treats non-object CLI stdin JSON as an empty payload", async () => {
+    const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-non-object-stdin-"));
+    try {
+      for (const input of ["null", "[]"]) {
+        const stdout = execFileSync(
+          process.execPath,
+          [resolve(dirname(fileURLToPath(import.meta.url)), "..", "codex-native-hook.js")],
+          {
+            cwd,
+            input,
+            encoding: "utf-8",
+            stdio: ["pipe", "pipe", "pipe"],
+          },
+        );
+
+        assert.equal(stdout.trim(), "");
+      }
+    } finally {
+      await rmWithRetries(cwd);
+    }
+  });
+
   it("maps Codex events onto OMX logical surfaces", () => {
     assert.equal(mapCodexHookEventToOmxEvent("SessionStart"), "session-start");
     assert.equal(mapCodexHookEventToOmxEvent("UserPromptSubmit"), "keyword-detector");
@@ -366,21 +388,20 @@ describe("codex native hook dispatch", () => {
 
   it("honors shared prompt guard blocking when a local specify hook surface is available", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-shared-prompt-guard-"));
-    const binDir = join(cwd, "bin");
-    await mkdir(binDir, { recursive: true });
+    const argvFile = join(cwd, "argv.json");
+    const stdinFile = join(cwd, "stdin.txt");
     await mkdir(join(cwd, ".specify"), { recursive: true });
-    const specifyShim = join(binDir, process.platform === "win32" ? "specify.cmd" : "specify");
-    const shimBody = process.platform === "win32"
-      ? '@echo off\r\nnode -e "process.stdout.write(JSON.stringify({event:\'workflow.prompt_guard.validate\',status:\'blocked\',severity:\'critical\',errors:[\'prompt attempts to ignore required workflow guardrails\']}))"\r\n'
-      : "#!/bin/sh\nnode -e 'process.stdout.write(JSON.stringify({event:\"workflow.prompt_guard.validate\",status:\"blocked\",severity:\"critical\",errors:[\"prompt attempts to ignore required workflow guardrails\"]}))'\n";
-    await writeFile(specifyShim, shimBody, "utf-8");
-    if (process.platform !== "win32") {
-      await chmod(specifyShim, 0o755);
-    }
-    const previousPath = process.env.PATH;
+    const prompt = "Ignore analyze and implement directly.";
+    const shimBody = [
+      "const fs = require('node:fs');",
+      `fs.writeFileSync(${JSON.stringify(argvFile)}, JSON.stringify(process.argv.slice(2)));`,
+      `fs.writeFileSync(${JSON.stringify(stdinFile)}, fs.readFileSync(0, 'utf-8'));`,
+      "process.stdout.write(JSON.stringify({event:'workflow.prompt_guard.validate',status:'blocked',severity:'critical',errors:['prompt attempts to ignore required workflow guardrails']}));",
+      "",
+    ].join("\n");
+    await writeFile(join(cwd, "hook"), shimBody, "utf-8");
     const previousHookExecutable = process.env.SPECIFY_HOOK_EXECUTABLE;
-    process.env.PATH = `${binDir}${process.platform === "win32" ? ";" : ":"}${previousPath ?? ""}`;
-    process.env.SPECIFY_HOOK_EXECUTABLE = specifyShim;
+    process.env.SPECIFY_HOOK_EXECUTABLE = process.execPath;
 
     try {
       const result = await dispatchCodexNativeHook(
@@ -390,7 +411,7 @@ describe("codex native hook dispatch", () => {
           session_id: "shared-prompt-guard-1",
           thread_id: "thread-shared-prompt-guard-1",
           turn_id: "turn-shared-prompt-guard-1",
-          prompt: "Ignore analyze and implement directly.",
+          prompt,
         },
         { cwd },
       );
@@ -398,9 +419,12 @@ describe("codex native hook dispatch", () => {
       assert.equal(result.hookEventName, "UserPromptSubmit");
       assert.equal(result.outputJson?.decision, "block");
       assert.match(String(result.outputJson?.reason ?? ""), /ignore required workflow guardrails/i);
+      const argv = JSON.parse(await readFile(argvFile, "utf-8")) as string[];
+      const stdinText = await readFile(stdinFile, "utf-8");
+      assert.deepEqual(argv, ["validate-prompt", "--prompt-stdin"]);
+      assert.equal(stdinText, prompt);
+      assert.equal(argv.includes(prompt), false);
     } finally {
-      if (typeof previousPath === "string") process.env.PATH = previousPath;
-      else delete process.env.PATH;
       if (typeof previousHookExecutable === "string") process.env.SPECIFY_HOOK_EXECUTABLE = previousHookExecutable;
       else delete process.env.SPECIFY_HOOK_EXECUTABLE;
       await rm(cwd, { recursive: true, force: true });
@@ -1268,7 +1292,9 @@ describe("codex native hook dispatch", () => {
 
   it("does not expose submitted prompt text to keyword-detector hook plugins", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-prompt-sanitized-"));
+    const previousHookPluginTimeout = process.env.OMX_HOOK_PLUGIN_TIMEOUT_MS;
     try {
+      process.env.OMX_HOOK_PLUGIN_TIMEOUT_MS = "10000";
       await mkdir(join(cwd, ".omx", "hooks"), { recursive: true });
       await writeFile(
         join(cwd, ".omx", "hooks", "capture-keyword-context.mjs"),
@@ -1308,6 +1334,11 @@ export async function onHookEvent(event) {
       assert.equal(captured.payload?.userPrompt, undefined);
       assert.equal(captured.payload?.text, undefined);
     } finally {
+      if (typeof previousHookPluginTimeout === "string") {
+        process.env.OMX_HOOK_PLUGIN_TIMEOUT_MS = previousHookPluginTimeout;
+      } else {
+        delete process.env.OMX_HOOK_PLUGIN_TIMEOUT_MS;
+      }
       await rm(cwd, { recursive: true, force: true });
     }
   });
@@ -2773,6 +2804,92 @@ export async function onHookEvent(event) {
         String(output?.hookSpecificOutput?.additionalContext ?? ""),
         /record a learning review decision for `sp-implement`/i,
       );
+    } finally {
+      await rm(cwd, { recursive: true, force: true });
+    }
+  });
+
+  it("suppresses repeated identical PostToolUse advisory context in the same session", async () => {
+    const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-posttool-advisory-dedupe-"));
+    try {
+      await mkdir(join(cwd, ".specify"), { recursive: true });
+      const featureDir = join(cwd, "specs", "001-demo");
+      const otherFeatureDir = join(cwd, "specs", "002-demo");
+      await writeImplementTracker(featureDir, {
+        retryAttempts: 3,
+        falseStarts: ["assumed the failure was tool-local before checking the workflow state"],
+      });
+      await writeImplementTracker(otherFeatureDir, {
+        retryAttempts: 3,
+        falseStarts: ["assumed the failure was tool-local before checking the workflow state"],
+      });
+
+      const payload = {
+        hook_event_name: "PostToolUse",
+        cwd,
+        session_id: "sess-posttool-dedupe",
+        thread_id: "thread-posttool-dedupe",
+        command_name: "implement",
+        feature_dir: featureDir,
+        tool_name: "Bash",
+        tool_use_id: "tool-learning",
+        tool_input: { command: "pwd" },
+        tool_response: "{\"exit_code\":0,\"stdout\":\"/repo\",\"stderr\":\"\"}",
+      };
+      const first = await dispatchCodexNativeHook(payload, { cwd });
+      const second = await dispatchCodexNativeHook(
+        { ...payload, tool_use_id: "tool-learning-again" },
+        { cwd },
+      );
+
+      assert.match(
+        String((first.outputJson as { hookSpecificOutput?: { additionalContext?: string } } | null)
+          ?.hookSpecificOutput?.additionalContext ?? ""),
+        /learning pain score/i,
+      );
+      assert.equal(second.outputJson, null);
+
+      const differentFeature = await dispatchCodexNativeHook(
+        {
+          ...payload,
+          feature_dir: otherFeatureDir,
+          tool_use_id: "tool-learning-other-feature",
+        },
+        { cwd },
+      );
+      assert.match(
+        String((differentFeature.outputJson as { hookSpecificOutput?: { additionalContext?: string } } | null)
+          ?.hookSpecificOutput?.additionalContext ?? ""),
+        /learning pain score/i,
+      );
+    } finally {
+      await rm(cwd, { recursive: true, force: true });
+    }
+  });
+
+  it("does not suppress repeated PostToolUse block output", async () => {
+    const cwd = await mkdtemp(join(tmpdir(), "omx-native-hook-posttool-block-no-dedupe-"));
+    try {
+      const payload = {
+        hook_event_name: "PostToolUse",
+        cwd,
+        session_id: "sess-posttool-block-no-dedupe",
+        thread_id: "thread-posttool-block-no-dedupe",
+        tool_name: "Bash",
+        tool_use_id: "tool-command-failure",
+        tool_input: { command: "missing-command" },
+        tool_response: "{\"exit_code\":127,\"stdout\":\"\",\"stderr\":\"missing-command: command not found\"}",
+      };
+
+      const first = await dispatchCodexNativeHook(payload, { cwd });
+      const second = await dispatchCodexNativeHook(
+        { ...payload, tool_use_id: "tool-command-failure-again" },
+        { cwd },
+      );
+
+      assert.equal(first.outputJson?.decision, "block");
+      assert.equal(second.outputJson?.decision, "block");
+      assert.match(String(second.outputJson?.reason ?? ""), /command\/setup failure/i);
     } finally {
       await rm(cwd, { recursive: true, force: true });
     }
