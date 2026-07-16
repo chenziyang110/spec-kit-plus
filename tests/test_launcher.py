@@ -773,6 +773,20 @@ def test_windows_machine_binding_forwards_metacharacters_without_reparse(tmp_pat
     assert "SECOND_COMMAND_RAN" not in result.stdout
 
 
+def test_posix_binding_dispatch_uses_only_shell_builtins_for_its_own_path(
+    monkeypatch,
+):
+    monkeypatch.setattr(launcher_module.os, "name", "posix")
+
+    source = launcher_module._binding_dispatch_source(
+        "python -m specify_cli integration repair"
+    )
+
+    assert "dirname" not in source
+    assert 'script_dir=${script_path%/*}' in source
+    assert 'state_root=$(CDPATH= cd "$script_dir" && pwd -P)' in source
+
+
 def test_normal_init_preserves_modified_project_launcher(monkeypatch, tmp_path):
     state_dir = tmp_path / "bindings"
     monkeypatch.setenv("SPECIFY_PROJECT_LAUNCHER_STATE_DIR", str(state_dir))

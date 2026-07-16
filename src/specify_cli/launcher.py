@@ -596,7 +596,12 @@ if [ "${#binding_id}" -ne 32 ]; then
   exit 2
 fi
 shift
-state_root=$(CDPATH= cd "$(dirname "$0")" && pwd -P)
+script_path=$0
+case "$script_path" in
+  */*) script_dir=${script_path%/*} ;;
+  *) script_dir=. ;;
+esac
+state_root=$(CDPATH= cd "$script_dir" && pwd -P)
 binding="${state_root}/${binding_id}/invoke"
 if [ ! -x "$binding" ]; then
   echo "Spec Kit Plus cannot find this project's machine-local Specify binding." >&2

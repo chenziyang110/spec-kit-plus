@@ -760,7 +760,9 @@ def _read_state(feature_dir: Path) -> dict[str, Any]:
         raise _invalid_runtime_state(
             feature_dir,
             cause=f"workflow runtime at {path} is unreadable or invalid JSON",
-            evidence=[f"read-only parse failed: {type(exc).__name__}"],
+            evidence=[
+                f"read-only parse failed: {type(exc).__name__}: {exc}"
+            ],
             attempted_recovery=[
                 {"action": "Read and parse workflow-runtime.json", "result": "The runtime state is invalid."}
             ],
