@@ -1,0 +1,11 @@
+{
+  "workflow": "deep-research",
+  "source": "templates/commands/deep-research.md",
+  "entries": [
+    {
+      "kind": "semantic-contract",
+      "source_excerpt": "{{spec-kit-include: ../../command-partials/common/semantic-work-contract.md}}",
+      "target": "templates/command-references/deep-research/semantic-work-contract.md"
+    }
+  ]
+}

@@ -47,6 +47,11 @@ jobs:
           echo ""
           echo "=== Built binaries ==="
           ls -lh bin/
+          chmod +x bin/project-cognition-linux-amd64
+          bin/project-cognition-linux-amd64 --help | grep -q "scan-prepare"
+          bin/project-cognition-linux-amd64 --help | grep -q "scan-accept"
+          bin/project-cognition-linux-amd64 scan-prepare --help 2>&1 | grep -q -- "-force"
+          bin/project-cognition-linux-amd64 scan-accept --help 2>&1 | grep -q -- "-packet-id"
 
       - name: Upload binaries to release
         uses: softprops/action-gh-release@v3

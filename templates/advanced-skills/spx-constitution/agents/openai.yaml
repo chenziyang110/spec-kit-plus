@@ -1,0 +1,7 @@
+interface:
+  display_name: "SPX Constitution"
+  short_description: "Project principles and governance"
+  default_prompt: "Use $spx-constitution to create or revise the project constitution."
+
+policy:
+  allow_implicit_invocation: false

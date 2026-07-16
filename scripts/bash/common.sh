@@ -71,6 +71,7 @@ get_current_branch() {
     # For non-git repos, try to find the latest feature directory.
     local latest_feature=""
     local highest=0
+    local latest_date=""
     local latest_timestamp=""
     local specs_dir=""
     while IFS= read -r specs_dir; do
@@ -85,13 +86,20 @@ get_current_branch() {
                         latest_timestamp="$ts"
                         latest_feature=$dirname
                     fi
+                elif [[ "$dirname" =~ ^([0-9]{4}-[0-9]{2}-[0-9]{2})- ]]; then
+                    # Date-based branch: compare lexicographically, but prefer timestamp when present.
+                    local dt="${BASH_REMATCH[1]}"
+                    if [[ -z "$latest_timestamp" ]] && { [[ "$dt" > "$latest_date" ]] || { [[ "$dt" == "$latest_date" ]] && [[ "$dirname" > "$latest_feature" ]]; }; }; then
+                        latest_date="$dt"
+                        latest_feature=$dirname
+                    fi
                 elif [[ "$dirname" =~ ^([0-9]{3,})- ]]; then
                     local number=${BASH_REMATCH[1]}
                     number=$((10#$number))
                     if [[ "$number" -gt "$highest" ]]; then
                         highest=$number
-                        # Only update if no timestamp branch found yet
-                        if [[ -z "$latest_timestamp" ]]; then
+                        # Only update if no timestamp/date branch found yet
+                        if [[ -z "$latest_timestamp" && -z "$latest_date" ]]; then
                             latest_feature=$dirname
                         fi
                     fi
@@ -131,15 +139,24 @@ check_feature_branch() {
         return 0
     fi
 
-    # Accept sequential prefix (3+ digits) but exclude malformed timestamps
+    # Accept date, timestamp, and legacy sequential prefixes.
+    local is_date=false
+    if [[ "$branch" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}- ]]; then
+        is_date=true
+    fi
+
+    # Accept sequential prefix (3+ digits) but exclude date/malformed timestamp forms.
     # Malformed: 7-or-8 digit date + 6-digit time with no trailing slug (e.g. "2026031-143022" or "20260319-143022")
     local is_sequential=false
-    if [[ "$branch" =~ ^[0-9]{3,}- ]] && [[ ! "$branch" =~ ^[0-9]{7}-[0-9]{6}- ]] && [[ ! "$branch" =~ ^[0-9]{7,8}-[0-9]{6}$ ]]; then
+    if [[ "$branch" =~ ^[0-9]{3,}- ]] \
+        && [[ "$is_date" != "true" ]] \
+        && [[ ! "$branch" =~ ^[0-9]{7}-[0-9]{6}- ]] \
+        && [[ ! "$branch" =~ ^[0-9]{7,8}-[0-9]{6}$ ]]; then
         is_sequential=true
     fi
-    if [[ "$is_sequential" != "true" ]] && [[ ! "$branch" =~ ^[0-9]{8}-[0-9]{6}- ]]; then
+    if [[ "$is_date" != "true" ]] && [[ "$is_sequential" != "true" ]] && [[ ! "$branch" =~ ^[0-9]{8}-[0-9]{6}- ]]; then
         echo "ERROR: Not on a feature branch. Current branch: $branch" >&2
-        echo "Feature branches should be named like: 001-feature-name, 1234-feature-name, or 20260319-143022-feature-name" >&2
+        echo "Feature branches should be named like: 2026-06-23-feature-name, 20260319-143022-feature-name, 001-feature-name, or 1234-feature-name" >&2
         return 1
     fi
 
@@ -208,9 +225,23 @@ find_feature_dir_by_prefix() {
     local repo_root="$1"
     local branch_name="$2"
 
-    # Extract prefix from branch (e.g., "004" from "004-whatever" or "20260319-143022" from timestamp branches)
+    # Extract prefix from branch (e.g., "004" from "004-whatever" or "20260319-143022" from timestamp branches).
+    # Date-prefixed branches use the full branch name as the feature identity because
+    # many independent features can share the same YYYY-MM-DD prefix.
     local prefix=""
-    if [[ "$branch_name" =~ ^([0-9]{8}-[0-9]{6})- ]]; then
+    if [[ "$branch_name" =~ ^([0-9]{4}-[0-9]{2}-[0-9]{2})- ]]; then
+        local specs_dir
+        while IFS= read -r specs_dir; do
+            [[ -d "$specs_dir" ]] || continue
+            if [[ -d "$specs_dir/$branch_name" ]]; then
+                echo "$specs_dir/$branch_name"
+                return
+            fi
+        done < <(feature_specs_roots "$repo_root")
+
+        echo "$repo_root/.specify/features/$branch_name"
+        return
+    elif [[ "$branch_name" =~ ^([0-9]{8}-[0-9]{6})- ]]; then
         prefix="${BASH_REMATCH[1]}"
     elif [[ "$branch_name" =~ ^([0-9]{3,})- ]]; then
         prefix="${BASH_REMATCH[1]}"

@@ -11,6 +11,7 @@ from specify_cli.execution.packet_schema import (
     MustPreserveObligation,
     PacketReference,
     PacketScope,
+    UIContract,
     WorkerTaskPacket,
 )
 from specify_cli.execution.packet_validator import (
@@ -200,6 +201,81 @@ def test_validate_worker_task_packet_requires_does_not_remove_guard_for_surface_
 
     assert exc.value.code == "DP1"
     assert "does-not-remove" in exc.value.message
+
+
+def test_validate_worker_task_packet_rejects_incomplete_current_ui_contract(
+    sample_packet: WorkerTaskPacket,
+) -> None:
+    sample_packet.ui_contract = UIContract(fidelity_level="high")
+
+    with pytest.raises(PacketValidationError) as exc:
+        validate_worker_task_packet(sample_packet)
+
+    assert exc.value.code == "DP1"
+    assert "ui contract" in exc.value.message.lower()
+
+
+def test_validate_worker_task_packet_rejects_obsolete_ui_evidence_labels(
+    sample_packet: WorkerTaskPacket,
+) -> None:
+    sample_packet.required_evidence = ["real_entrypoint_ui_evidence"]
+
+    with pytest.raises(PacketValidationError, match="obsolete UI evidence labels"):
+        validate_worker_task_packet(sample_packet)
+
+
+def test_validate_worker_task_packet_rejects_blank_controller_check_entries(
+    sample_packet: WorkerTaskPacket,
+) -> None:
+    sample_packet.controller_checks_required = ["verify screenshot diff", "  "]
+
+    with pytest.raises(PacketValidationError) as exc:
+        validate_worker_task_packet(sample_packet)
+
+    assert exc.value.code == "DP1"
+    assert "controller checks" in exc.value.message.lower()
+
+
+def test_validate_worker_task_packet_requires_complete_current_ui_contract(
+    sample_packet: WorkerTaskPacket,
+) -> None:
+    sample_packet.context_nav = [
+        {"kind": "ui_entrypoint", "value": "/settings", "source": "plan-contract.json"},
+        {"kind": "design_source", "value": "DESIGN.md", "source": "task-index.json"},
+    ]
+    sample_packet.ui_contract = UIContract(
+        fidelity_level="approximate",
+        ui_work_type="feature-extension",
+        surface_type="product-workspace",
+        platforms=["web"],
+        subject="settings",
+        audience="account owners",
+        single_job="update preferences",
+        visual_thesis="compact hierarchy",
+        content_thesis="real preference labels and values",
+        interaction_thesis="immediate local feedback",
+        signature_element="persistent section progress",
+        approved_visual_ref="DESIGN.md#settings",
+        design_sources=["DESIGN.md", "ui-brief.md"],
+        real_content_plan=[{"source_ref": "src/settings/schema.ts"}],
+        required_states=["ready", "error"],
+        required_evidence=[
+            "structure_snapshot",
+            "visual_capture",
+            "runtime_diagnostics",
+            "visual_comparison_or_human_review",
+        ],
+    )
+    assert validate_worker_task_packet(sample_packet) is sample_packet
+
+    sample_packet.ui_contract.fidelity_level = "none"
+    with pytest.raises(PacketValidationError, match="fidelity_level"):
+        validate_worker_task_packet(sample_packet)
+
+    sample_packet.ui_contract.fidelity_level = "approximate"
+    sample_packet.ui_contract.approved_visual_ref = ""
+    with pytest.raises(PacketValidationError, match="approved_visual_ref"):
+        validate_worker_task_packet(sample_packet)
 
 
 def test_compile_worker_task_packet_collects_must_preserve_obligations(

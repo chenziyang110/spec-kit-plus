@@ -7,7 +7,7 @@ import sys
 from specify_cli.agents import CommandRegistrar
 from specify_cli.integrations.base import IntegrationBase
 
-from .template_utils import read_template
+from .template_utils import read_command_with_references, read_skill_with_references, read_template
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
@@ -50,7 +50,7 @@ def test_init_generated_codex_skill_includes_invocation_note_and_projected_hando
         else [str(PROJECT_ROOT / "src")]
     )
 
-    result = subprocess.run(
+    subprocess.run(
         [
             sys.executable,
             "-c",
@@ -72,16 +72,19 @@ def test_init_generated_codex_skill_includes_invocation_note_and_projected_hando
         capture_output=True,
         text=True,
     )
-    content = result.stdout
+    content = read_skill_with_references(
+        target / ".codex" / "skills" / "sp-specify" / "SKILL.md"
+    )
 
     assert "## Invocation Syntax" in content
     assert "`$sp-plan`-style syntax" in content
-    assert "final-handoff-decision" in content
+    assert "semantic_delta" in content
+    assert "spec-contract.json" in content
     assert "/sp.plan" in content
     assert "/sp.clarify" in content
     assert "/sp.deep-research" in content
-    assert "readiness for the next phase (`$sp-plan` for the mainline" in content
-    assert "`next_command: /sp.plan`" in content
+    assert "Choose exactly one next command" in content
+    assert "`next_action`" in content or "next_action" in content
 
     passive = read_template("templates/passive-skills/python-testing/SKILL.md")
     assert "## Invocation Syntax" not in passive
@@ -135,6 +138,16 @@ def test_apply_skill_invocation_conventions_supports_agy_surface():
     assert "- Run $sp-plan next." in agy
 
 
+def test_apply_skill_invocation_conventions_supports_zcode_surface():
+    body = "- Run /sp-plan next.\n- State token remains `next_command: /sp.plan`.\n"
+
+    zcode = CommandRegistrar.apply_skill_invocation_conventions("zcode", body)
+
+    assert "## Invocation Syntax" in zcode
+    assert "- Run $sp-plan next." in zcode
+    assert "`next_command: /sp.plan`" in zcode
+
+
 def test_invoke_placeholder_projects_codex_skill_surface():
     rendered = IntegrationBase.process_template(
         "---\n---\nRun {{invoke:plan}} next.",
@@ -153,6 +166,16 @@ def test_invoke_placeholder_projects_kimi_skill_surface():
     )
 
     assert rendered.endswith("Run /skill:sp-map-scan next.")
+
+
+def test_invoke_placeholder_projects_zcode_skill_surface():
+    rendered = IntegrationBase.process_template(
+        "---\n---\nRun {{invoke:plan}} next.",
+        "zcode",
+        "sh",
+    )
+
+    assert rendered.endswith("Run $sp-plan next.")
 
 
 def test_invoke_placeholder_projects_markdown_command_surface():
@@ -222,7 +245,7 @@ def test_command_surfaces_require_help_verification_and_do_not_invent_feature_co
     surfaces = {
         "README": (PROJECT_ROOT / "README.md").read_text(encoding="utf-8").lower(),
         "quickstart": (PROJECT_ROOT / "docs" / "quickstart.md").read_text(encoding="utf-8").lower(),
-        "specify-template": (PROJECT_ROOT / "templates" / "commands" / "specify.md").read_text(encoding="utf-8").lower(),
+        "specify-template": read_command_with_references("specify").lower(),
         "managed-bash": read_template("scripts/bash/update-agent-context.sh").lower(),
         "managed-powershell": read_template("scripts/powershell/update-agent-context.ps1").lower(),
     }
@@ -260,9 +283,7 @@ def test_upgrade_guide_uses_current_runtime_repair_language() -> None:
 
 
 def test_specify_template_points_feature_creation_to_sp_specify_and_generated_script() -> None:
-    content = (PROJECT_ROOT / "templates" / "commands" / "specify.md").read_text(
-        encoding="utf-8"
-    )
+    content = read_command_with_references("specify")
     lowered = content.lower()
 
     assert "sp-specify" in content
@@ -278,14 +299,80 @@ def test_command_templates_do_not_declare_unused_script_frontmatter() -> None:
 
     for path in sorted(commands_dir.glob("*.md")):
         content = path.read_text(encoding="utf-8")
-        frontmatter, body = CommandRegistrar.parse_frontmatter(content)
+        frontmatter, _ = CommandRegistrar.parse_frontmatter(content)
+        rendered_body = read_command_with_references(path.stem)
         scripts = frontmatter.get("scripts")
         agent_scripts = frontmatter.get("agent_scripts")
 
         if scripts:
-            assert "{SCRIPT}" in body, f"{path.name} declares scripts: but never consumes {{SCRIPT}}"
+            assert "{SCRIPT}" in rendered_body, f"{path.name} declares scripts: but never consumes {{SCRIPT}}"
         if agent_scripts:
-            assert "{AGENT_SCRIPT}" in body, f"{path.name} declares agent_scripts: but never consumes {{AGENT_SCRIPT}}"
+            assert "{AGENT_SCRIPT}" in rendered_body, f"{path.name} declares agent_scripts: but never consumes {{AGENT_SCRIPT}}"
+
+
+def test_ask_surface_is_read_only_stateless_and_has_no_specify_helper() -> None:
+    command = read_template("templates/commands/ask.md")
+    shell = read_template("templates/command-partials/ask/shell.md")
+    cognition_gate = read_template("templates/passive-skills/spec-kit-project-cognition-gate/SKILL.md")
+    combined = "\n".join([command, shell, cognition_gate])
+    lowered = combined.lower()
+
+    assert "read-only" in lowered
+    assert "do not create `.specify/ask/`" in lowered
+    assert "do not write handoff files" in lowered
+    assert "do not run tests" in lowered
+    assert "do not run builds" in lowered
+    assert "do not run package managers" in lowered
+    assert "do not launch apps or servers" in lowered
+    assert "do not execute project cli commands" in lowered
+    assert "do not invoke another `sp-*` workflow automatically" in lowered
+    assert "allowed operations are narrow file reads, `rg`" in lowered
+    assert "project-cognition compass --intent ask" in combined
+    assert "specify ask" not in lowered
+    assert "commits that are already available locally" not in lowered
+    assert "commit history" not in lowered
+    assert "git log" not in lowered
+    assert "git show" not in lowered
+    assert "only after you build a semantic intake or query plan" in lowered
+    assert "compass output or live evidence is ambiguous or has incomplete coverage" in lowered
+    assert "stale or localization-sensitive results are examples" in lowered
+    assert 'project-cognition query --intent ask --query-plan "<query_plan_json>" --format json' in combined
+    assert "project-cognition query --intent ask --query-plan-file <path> --format json" in combined
+    assert "only after the agent builds a semantic\n  intake or query plan" in combined
+    assert "compass output or live evidence is ambiguous\n  or has incomplete coverage" in combined
+    assert "Stale or localization-sensitive cases are examples" in combined
+    assert "still require that ambiguity or incomplete-coverage reason" in combined
+    assert "same-topic follow-up" in lowered
+    assert "reuse the previous evidence set" in lowered
+    assert "one-sentence evidence route" in lowered
+    assert "localized, mixed-language, cjk, colloquial, or project-slang" in lowered
+    assert "project-language search terms" in lowered
+    assert "proven from live evidence" in lowered
+    assert "inferred from live evidence" in lowered
+    assert "client fields or callsites" in lowered
+    assert "interface urls or payload/schema names" in lowered
+    assert "whether backend/server/runtime code exists" in lowered
+
+
+def test_design_command_declares_design_system_workflow_contract() -> None:
+    content = read_template("templates/commands/design.md")
+    raw = (PROJECT_ROOT / "templates" / "commands" / "design.md").read_text(encoding="utf-8")
+
+    assert "description: Use when a project needs a DESIGN.md design-system contract" in content
+    assert "primary_outputs" in content
+    assert "DESIGN.md" in content
+    assert ".specify/design/design-state.md" in content
+    assert "{{spec-kit-include: ../command-partials/design/shell.md}}" in raw
+
+
+def test_templates_include_design_quality_sections() -> None:
+    assert "## Experience Requirements" in read_template("templates/spec-template.md")
+    assert "UI Reference Processing" in read_template("templates/spec-template.md")
+    assert "ui-reference-notes.md" in read_template("templates/spec-template.md")
+    assert "ui-brief.md" in read_template("templates/spec-template.md")
+    assert "## Design System Adoption" in read_template("templates/plan-template.md")
+    assert "Design Quality Coverage" in read_template("templates/tasks-template.md")
+    assert "design-system" in read_template("templates/workflow-state-template.md").lower()
 
 
 def test_generated_codex_sp_specify_skill_exposes_create_feature_command_and_stop_gate(tmp_path: Path):
@@ -297,7 +384,7 @@ def test_generated_codex_sp_specify_skill_exposes_create_feature_command_and_sto
         else [str(PROJECT_ROOT / "src")]
     )
 
-    result = subprocess.run(
+    subprocess.run(
         [
             sys.executable,
             "-c",
@@ -319,7 +406,9 @@ def test_generated_codex_sp_specify_skill_exposes_create_feature_command_and_sto
         capture_output=True,
         text=True,
     )
-    content = result.stdout.lower()
+    content = read_skill_with_references(
+        target / ".codex" / "skills" / "sp-specify" / "SKILL.md"
+    ).lower()
 
     assert ".specify/scripts/bash/create-new-feature.sh" in content
     assert "run `.specify/scripts/bash/create-new-feature.sh \"$arguments\"` from the repo root" in content
@@ -491,7 +580,12 @@ def test_readme_and_quickstart_label_remaining_helper_command_shapes() -> None:
     assert "git diff --stat" in readme
     assert "git diff --name-status" in readme
     assert "command shape:" in readme
+    assert "specify result path --command implement --feature-dir <feature-dir> --task-id <task-id>" in readme
     assert "specify result path --command quick --workspace .planning/quick/<id>-<slug> --lane-id <lane-id>" in readme
+    assert "specify result path --command debug --session-slug <session-slug> --lane-id <lane-id>" in readme
+    assert "specify result path --command <workflow> --request-id <request-id>" in readme
+    assert "sp-teams submit-result --request-id <request-id> --result-file <path>" in readme
+    assert "specify result path` emits json directly and does not accept `--format`" in readme
     assert "result helper command shapes:" in readme
     assert "specify quick status <id>" in readme
     assert "quick-task helper command shapes:" in readme
@@ -508,6 +602,8 @@ def test_readme_and_quickstart_label_remaining_helper_command_shapes() -> None:
     assert "--packet-file <packet-json>" in readme
 
     assert "specify implement closeout --feature-dir <feature-dir> --format json" in quickstart
+    assert "codex runtime-managed result paths require the dispatch request id" in quickstart
+    assert "specify result path` emits json directly and does not accept `--format`" in quickstart
     assert "implementation-summary.md" in quickstart
     assert "implementation_summary" in quickstart
     assert "git diff --stat" in quickstart
@@ -523,25 +619,37 @@ def test_readme_and_quickstart_label_remaining_helper_command_shapes() -> None:
 
 
 def test_discussion_workflow_uses_recommendation_first_decision_progression() -> None:
-    command = read_template("templates/commands/discussion.md").lower()
+    command = read_command_with_references("discussion").lower()
     shell = read_template("templates/command-partials/discussion/shell.md").lower()
     state_template = read_template("templates/discussion-state-template.md").lower()
     readme = read_template("README.md").lower()
     quickstart = read_template("docs/quickstart.md").lower()
     installation = read_template("docs/installation.md").lower()
+    handbook = read_template("PROJECT-HANDBOOK.md").lower()
     handbook_template = read_template("templates/project-handbook-template.md").lower()
 
     assert "recommendation-first decision progression" in command
     assert "recommendation-first decision progression" in shell
+    assert "recommendation-first is not questionless" in command
+    assert "recommendation-first is not questionless" in shell
     assert "do not run `sp-discussion` as a permission-first loop" in command
     assert "do not end a turn with a bare open question" in command
+    assert "ask only when user judgment is genuinely required" in command
+    assert "ask only when user judgment is genuinely required" in shell
+    assert "continue by default" in command
+    assert "continue by default" in shell
+    assert "do not ask for continuation" in command
+    assert "do not ask for continuation" in shell
     assert "after recording a user-confirmed decision" in command
     assert "next useful decision with a recommended default" in command
     assert "decision_advancement_mode: recommendation-first" in state_template
-    assert "recommendation-first decision progression" in readme
-    assert "recommendation-first decision progression" in quickstart
-    assert "recommendation-first decision progression" in installation
-    assert "recommendation-first decision progression" in handbook_template
+    for content in (readme, quickstart, installation, handbook, handbook_template):
+        assert "continue by default" in content
+        assert "do not ask for continuation" in content
+        assert (
+            "ask only when user judgment is genuinely required" in content
+            or "asks only when user judgment is genuinely required" in content
+        )
 
 
 def test_discussion_helper_uses_active_python_interpreter() -> None:
@@ -550,13 +658,15 @@ def test_discussion_helper_uses_active_python_interpreter() -> None:
     powershell = (PROJECT_ROOT / "scripts" / "powershell" / "discussion-state.ps1").read_text(
         encoding="utf-8"
     )
+    pyproject = (PROJECT_ROOT / "pyproject.toml").read_text(encoding="utf-8")
     discussion_helper = cli.split("def _run_discussion_helper", 1)[1].split(
         "def _prd_helper_script", 1
     )[0]
 
     assert 'env.setdefault("SPECIFY_PYTHON", sys.executable)' in discussion_helper
-    assert 'PYTHON_BIN="${SPECIFY_PYTHON:-}"' in bash
-    assert 'command -v python3' in bash
+    assert 'PYTHON_BIN="${SPECIFY_PYTHON:-python}"' in bash
+    assert '"scripts/shared" = "specify_cli/core_pack/scripts/shared"' in pyproject
+    assert 'SHARED_HELPER="$SCRIPT_DIR/../shared/discussion-state.py"' in bash
     assert "$pythonBin = if ($env:SPECIFY_PYTHON)" in powershell
 
 
@@ -569,12 +679,13 @@ def test_update_agent_context_managed_block_uses_refresh_or_dirty_binary_and_mem
     powershell = read_template("scripts/powershell/update-agent-context.ps1").lower()
 
     for content in (bash, powershell):
-        assert "project cognition and project memory are always available" in content
+        assert "project cognition and project learning are always available" in content
         assert "even without an active `sp-*` workflow" in content
         assert "when existing-system truth matters" in content
         assert "before broad source inspection" in content
-        assert ".specify/memory/learnings/index.md" in content
-        assert ".specify/memory/project-rules.md" in content
+        assert "specify learning start --command <workflow> --format json" in content
+        assert "show_argv" in content
+        assert ".specify/memory/learnings/index.md" not in content
         assert "do not auto-enter an `sp-*` workflow" in content
         assert "recommend `sp-discussion`" in content
         assert "`sp-specify` for formal alignment" in content
@@ -582,8 +693,12 @@ def test_update_agent_context_managed_block_uses_refresh_or_dirty_binary_and_mem
         assert "`sp-debug` for root-cause diagnosis" in content
         assert "generated create-feature script" in content
         assert "prefer durable workflow state and explicit feature paths" in content
+        assert "frontstage-only deferred persistence" in content
+        assert "do not write discussion files, counters, dirty markers, receipts, or status summaries for every user reply" in content
+        assert "suggest `checkpoint, continue`" in content
+        assert "prompt does not write files by itself" in content
         assert "project cognition freshness truthful" in content
-        assert "store reusable lessons in project memory" in content
+        assert "store reusable lessons through project learning" in content
         assert "1% chance" not in content
         assert "## workflow activation discipline" not in content
         assert "## workflow routing" not in content
@@ -610,9 +725,10 @@ def test_guidance_docs_document_refresh_readiness_state_vocabulary() -> None:
     handbook = read_template("PROJECT-HANDBOOK.md").lower()
     handbook_template = read_template("templates/project-handbook-template.md").lower()
 
-    assert ".specify/memory/learnings/index.md" in readme
-    assert "one detail markdown document per lesson" in readme
-    assert "learning reflex" in readme
+    assert "learning start" in readme
+    assert "learning list" in readme
+    assert "learning show" in readme
+    assert "reading never auto-promotes" in readme
 
     closed_rebuild_policy = " ".join((
         "first/missing/unusable baseline, schema failure, schema v1 or old "

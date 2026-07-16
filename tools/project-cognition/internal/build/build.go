@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/buildgate"
+	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/compiler"
 	rt "github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtime"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtimegate"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/scanartifacts"
@@ -37,11 +38,11 @@ type Payload struct {
 	IdentityReconciliation map[string]ReconciliationCategory `json:"identity_reconciliation"`
 	Rejections             []store.RowDecision               `json:"rejections"`
 	MergeRecords           []store.MergeRecord               `json:"merge_records"`
+	Compilation            compiler.Result                   `json:"compilation"`
 	RecoveryAction         string                            `json:"recovery_action,omitempty"`
 	StatusPath             string                            `json:"status_path"`
 	GraphStorePath         string                            `json:"graph_store_path"`
 	ActiveGenerationID     string                            `json:"active_generation_id,omitempty"`
-	LegacyRuntimeReplaced  bool                              `json:"legacy_runtime_replaced"`
 }
 
 type ReconciliationCategory struct {
@@ -59,31 +60,20 @@ func Run(paths rt.Paths) (Payload, error) {
 	if len(scanResult.Errors) > 0 {
 		return payload, nil
 	}
+	compiled, compilation := compiler.Compile(compiler.AdaptLegacy(pkg))
+	payload.Compilation = compilation
+	if !compilation.PublicationAllowed {
+		for _, conflict := range compilation.Conflicts {
+			payload.Errors = append(payload.Errors, fmt.Sprintf("proposal compiler %s %s: %s", conflict.Category, conflict.Identity, conflict.Reason))
+		}
+		return payload, nil
+	}
+	pkg = compiled.Package
 
 	_, err := rt.ReadStatus(paths)
-	if errors.Is(err, rt.ErrUnsupportedLegacy) {
-		payload.LegacyRuntimeReplaced = true
-	} else if err != nil {
+	if err != nil {
 		payload.Errors = append(payload.Errors, fmt.Sprintf("read status: %v", err))
 		return payload, err
-	}
-
-	replacedDB, err := store.ReplaceIncompatibleDatabase(paths)
-	if err != nil {
-		payload.Errors = append(payload.Errors, fmt.Sprintf("recover graph store: %v", err))
-		return payload, err
-	}
-	if replacedDB {
-		payload.LegacyRuntimeReplaced = true
-	}
-
-	replacedOutdatedDB, err := store.ReplaceOutdatedDatabase(paths)
-	if err != nil {
-		payload.Errors = append(payload.Errors, fmt.Sprintf("recover outdated graph store: %v", err))
-		return payload, err
-	}
-	if replacedOutdatedDB {
-		payload.LegacyRuntimeReplaced = true
 	}
 
 	st, err := store.Open(paths)
@@ -94,6 +84,8 @@ func Run(paths rt.Paths) (Payload, error) {
 	defer st.Close()
 
 	input := importInputFromPackage(pkg)
+	input.Rejections = append(input.Rejections, compilerRejections(compilation.Rejections)...)
+	input.MergeRecords = compilerMergeRecords(compilation.MergeRecords)
 	generationID, err := st.ImportGeneration(context.Background(), input)
 	if err != nil {
 		payload.Errors = append(payload.Errors, fmt.Sprintf("import generation: %v", err))
@@ -236,14 +228,32 @@ func basePayload(paths rt.Paths) Payload {
 		IdentityReconciliation: emptyReconciliation(),
 		Rejections:             []store.RowDecision{},
 		MergeRecords:           []store.MergeRecord{},
+		Compilation:            compiler.EmptyResult(),
 		StatusPath:             rt.RelativeRuntimePath(paths, paths.StatusPath),
 		GraphStorePath:         graphStorePath,
 	}
 }
 
+func compilerRejections(decisions []compiler.Decision) []store.RowDecision {
+	out := make([]store.RowDecision, 0, len(decisions))
+	for _, decision := range decisions {
+		out = append(out, store.RowDecision{Category: decision.Category, Identity: decision.Identity, Reason: decision.Reason})
+	}
+	return out
+}
+
+func compilerMergeRecords(records []compiler.MergeRecord) []store.MergeRecord {
+	out := make([]store.MergeRecord, 0, len(records))
+	for _, record := range records {
+		out = append(out, store.MergeRecord{
+			Category: record.Category, SourceIdentity: record.SourceIdentity, TargetIdentity: record.TargetIdentity, Reason: record.Reason,
+		})
+	}
+	return out
+}
+
 func importInputFromPackage(pkg scanartifacts.Package) store.ImportInput {
 	generationID := newGenerationID()
-	rejections := coverageRejections(pkg)
 	return store.ImportInput{
 		GenerationID: generationID,
 		Kind:         rt.BaselineKindBrownfieldFull,
@@ -252,9 +262,10 @@ func importInputFromPackage(pkg scanartifacts.Package) store.ImportInput {
 		Nodes:        nodeImports(pkg.Nodes),
 		Edges:        edgeImports(pkg.Edges),
 		Observations: observationImports(pkg.Observations),
+		Claims:       claimImports(pkg.Claims),
 		PathIndex:    pathIndexImports(pkg.Nodes),
 		Aliases:      aliasImports(generationID, pkg),
-		Rejections:   rejections,
+		Rejections:   []store.RowDecision{},
 		MergeRecords: []store.MergeRecord{},
 	}
 }
@@ -321,6 +332,26 @@ func observationImports(rows []scanartifacts.ObservationRow) []store.Observation
 	return out
 }
 
+func claimImports(rows []scanartifacts.ClaimRow) []store.ClaimImport {
+	out := make([]store.ClaimImport, 0, len(rows))
+	for _, row := range rows {
+		verifications := make([]store.ClaimVerificationImport, 0, len(row.Verifications))
+		for _, verification := range row.Verifications {
+			verifications = append(verifications, store.ClaimVerificationImport{
+				ID: verification.ID, Result: verification.Result, Command: verification.Command,
+				EvidenceID: verification.EvidenceID, ObservedAt: verification.ObservedAt, Attrs: verification.Attrs,
+			})
+		}
+		out = append(out, store.ClaimImport{
+			ID: row.ID, NodeID: row.NodeID, GraphClaimType: row.GraphClaimType, Summary: row.Summary,
+			State: row.State, PriorState: row.PriorState, Freshness: row.Freshness, StateReason: row.StateReason,
+			SupportingEvidenceIDs: row.SupportingEvidenceIDs, ContradictingEvidenceIDs: row.ContradictingEvidenceIDs,
+			Verifications: verifications, Attrs: row.Attrs,
+		})
+	}
+	return out
+}
+
 func pathIndexImports(nodes []scanartifacts.NodeRow) []store.PathIndexImport {
 	out := []store.PathIndexImport{}
 	for _, node := range nodes {
@@ -353,32 +384,13 @@ func pathIndexID(path, nodeID string) string {
 	return "PI-" + sanitizeIDPart(normalizedPath) + "-" + sanitizeIDPart(nodeID) + "-" + hex.EncodeToString(hash[:])[:16]
 }
 
-func coverageRejections(pkg scanartifacts.Package) []store.RowDecision {
-	relatedPaths := map[string]bool{}
-	for _, node := range pkg.Nodes {
-		for _, path := range node.Paths {
-			relatedPaths[path] = true
-		}
-	}
-	rejections := []store.RowDecision{}
-	for _, path := range pkg.CoveragePaths {
-		if !relatedPaths[path] {
-			rejections = append(rejections, store.RowDecision{
-				Category: "coverage",
-				Identity: path,
-				Reason:   "no_node_relation",
-			})
-		}
-	}
-	return rejections
-}
-
 func scanCounts(pkg scanartifacts.Package) map[string]int {
 	return map[string]int{
 		"evidence":       len(pkg.Identities.Evidence),
 		"nodes":          len(pkg.Identities.Nodes),
 		"edges":          len(pkg.Identities.Edges),
 		"observations":   len(pkg.Identities.Observations),
+		"claims":         len(pkg.Identities.Claims),
 		"coverage_paths": len(pkg.Identities.CoveragePaths),
 	}
 }
@@ -389,6 +401,7 @@ func dbCounts(snapshot store.IdentitySnapshot) map[string]int {
 		"nodes":          len(snapshot.Nodes),
 		"edges":          len(snapshot.Edges),
 		"observations":   len(snapshot.Observations),
+		"claims":         len(snapshot.Claims),
 		"coverage_paths": len(snapshot.CoveragePaths),
 	}
 }
@@ -399,6 +412,7 @@ func summarizeReconciliation(expected scanartifacts.IdentitySet, actual store.Id
 		"nodes":          compareIdentityMaps(expected.Nodes, actual.Nodes),
 		"edges":          compareIdentityMaps(expected.Edges, actual.Edges),
 		"observations":   compareIdentityMaps(expected.Observations, actual.Observations),
+		"claims":         compareIdentityMaps(expected.Claims, actual.Claims),
 		"coverage_paths": compareIdentityMaps(expected.CoveragePaths, actual.CoveragePaths),
 	}
 }
@@ -487,6 +501,8 @@ func identityErrorNoun(category string) string {
 		return "edge"
 	case "observation":
 		return "observation"
+	case "claim":
+		return "claim"
 	default:
 		return category
 	}
@@ -498,6 +514,7 @@ func emptyCounts() map[string]int {
 		"nodes":          0,
 		"edges":          0,
 		"observations":   0,
+		"claims":         0,
 		"coverage_paths": 0,
 	}
 }
@@ -508,6 +525,7 @@ func emptyReconciliation() map[string]ReconciliationCategory {
 		"nodes":          notRunReconciliation(),
 		"edges":          notRunReconciliation(),
 		"observations":   notRunReconciliation(),
+		"claims":         notRunReconciliation(),
 		"coverage_paths": notRunReconciliation(),
 	}
 }

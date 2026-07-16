@@ -33,6 +33,14 @@ scripts:
 
 {{spec-kit-include: ../command-partials/checklist/shell.md}}
 
+[AGENT] For project-cognition-backed semantic intake, routing, audit, resume, or final-claim gates, read `references/semantic-work-contract.md`.
+
+## Detailed References
+
+Read [Reference index](references/INDEX.md) before applying shared semantic contracts.
+
+- [semantic work contract](references/semantic-work-contract.md)
+
 ## Mandatory Subagent Execution
 
 All substantive tasks in ordinary `sp-*` workflows default to and must use subagents.
@@ -46,18 +54,7 @@ Use `dispatch_shape: one-subagent | parallel-subagents`.
 Use `execution_surface: native-subagents`.
 
 
-## Passive Project Learning Layer
-
-- [AGENT] Run `{{specify-subcmd:learning start --command checklist --format json}}` when available so passive learning files exist and the current checklist run can consume reusable requirement-quality lessons before generating new review items.
-- Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/learnings/INDEX.md` in that order before broader checklist shaping.
-- Open only learning detail docs linked from checklist-relevant index entries, especially repeated requirement gaps, review defaults, or project constraints that should shape the generated checklist.
-- Learning Reflex: before final closeout, ask whether a future senior engineer would benefit from seeing this lesson before related work. If yes, update `.specify/memory/learnings/INDEX.md` and the linked detail markdown document without asking for routine permission.
-- [AGENT] When checklist-shaping friction exposes user corrections, artifact rewrites, scope changes, false starts, hidden dependencies, validation gaps, or reusable constraints, make sure durable state captures that context.
-- [AGENT] Prefer `{{specify-subcmd:learning capture-auto --command checklist --feature-dir "$FEATURE_DIR" --format json}}` when `workflow-state.md` already preserves route reasons, false starts, hidden dependencies, or reusable constraints.
-- [AGENT] When the durable state does not capture the reusable lesson cleanly, update `.specify/memory/learnings/INDEX.md` and a linked detail document with the command, type, summary, and evidence.
-- [AGENT] Before the final report, when the checklist exposes a reusable requirement-quality gap that should influence future workflows and auto-capture did not preserve it, use the manual `learning capture` helper surface.
-  Required options: `--command`, `--type`, `--summary`, `--evidence`
-  Command shape: `{{specify-subcmd:learning capture --command checklist --type <workflow_gap|decision_debt|project_constraint> --summary "<summary>" --evidence "<evidence>"}}`
+{{spec-kit-include: ../command-partials/common/learning-layer.md}}
 
 ## Execution Steps
 

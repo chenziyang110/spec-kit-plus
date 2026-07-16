@@ -1,10 +1,12 @@
 # Code Quality Reviewer Prompt Template
 
-Use this template when dispatching a code quality reviewer subagent.
+Legacy compatibility/helper snippet. Ordinary `sp-implement` task review uses
+`.specify/templates/worker-prompts/task-reviewer.md`, which returns both
+`spec_verdict` and `quality_verdict` in one result. Use this split quality
+reviewer helper only for older downstream workflows or special migration/debug
+scenarios that intentionally do not use the single task reviewer.
 
 **Purpose:** Verify implementation is well-built (clean, tested, maintainable)
-
-**Only dispatch after spec compliance review passes.**
 
 ```
 Task tool (native reviewer subagent):

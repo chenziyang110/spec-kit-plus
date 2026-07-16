@@ -14,7 +14,7 @@ def _seed_learning_templates(project_path: Path) -> None:
     target_root.mkdir(parents=True, exist_ok=True)
     for name in (
         "project-rules-template.md",
-        "project-learnings-template.md",
+        "project-confirmed-learnings-template.md",
         "project-learnings-index-template.md",
         "project-learning-detail-template.md",
     ):

@@ -9,10 +9,13 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/claim"
+	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/query"
 	rt "github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtime"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtimegate"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/store"
@@ -27,6 +30,223 @@ func TestVersionPrintsBinaryName(t *testing.T) {
 	}
 	if strings.TrimSpace(stdout.String()) != "project-cognition v1.2.3" {
 		t.Fatalf("stdout = %q", stdout.String())
+	}
+}
+
+func TestHelpListsClaimReconcileCommands(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"--help"}, &stdout, &stderr, "test")
+	if code != 0 || !strings.Contains(stdout.String(), "claim-reconcile prepare|apply") {
+		t.Fatalf("code=%d stderr=%s help=%s, want prepare and apply commands", code, stderr.String(), stdout.String())
+	}
+}
+
+func TestRebuildReturnsStableBlockedExitCodeWithJSONPayload(t *testing.T) {
+	root := t.TempDir()
+	old, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(root); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(old) })
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"rebuild", "--format", "json"}, &stdout, &stderr, "test")
+	if code != 10 {
+		t.Fatalf("code=%d stderr=%s stdout=%s, want stable blocked exit 10", code, stderr.String(), stdout.String())
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatalf("decode blocked payload: %v stdout=%s", err, stdout.String())
+	}
+	if payload["status"] != "blocked" || payload["recommended_next_action"] != "run_map_scan_build" {
+		t.Fatalf("payload = %#v, want blocked rebuild guidance", payload)
+	}
+}
+
+func TestRebuildTextOutputAlsoReturnsBlockedExitCode(t *testing.T) {
+	root := t.TempDir()
+	old, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(root); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(old) })
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"rebuild"}, &stdout, &stderr, "test")
+	if code != 10 {
+		t.Fatalf("code=%d stderr=%s stdout=%s, want stable blocked exit 10", code, stderr.String(), stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "/sp-map-scan") || !strings.Contains(stdout.String(), "/sp-map-build") {
+		t.Fatalf("stdout=%q, want rebuild recovery guidance", stdout.String())
+	}
+}
+
+func TestClaimReconcilePrepareReturnsStructuredBlockedPayloadForLegacyContract(t *testing.T) {
+	temp := t.TempDir()
+	inputPath := filepath.Join(temp, "prepare.json")
+	if err := os.WriteFile(inputPath, []byte(`{"claim_reconciliation_prepare_contract_version":0}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"claim-reconcile", "prepare", "--input", inputPath, "--format", "json"}, &stdout, &stderr, "test")
+	if code == 0 {
+		t.Fatalf("code=%d stdout=%s, want blocked prepare", code, stdout.String())
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatalf("decode output %q: %v", stdout.String(), err)
+	}
+	if payload["status"] != "error" || payload["result_state"] != "blocked" || payload["claim_reconciliation_prepare_contract_version"] != float64(1) {
+		t.Fatalf("payload = %#v, want current prepare error contract", payload)
+	}
+	if payload["error_code"] != "invalid_claim_reconciliation_prepare" {
+		t.Fatalf("error_code = %#v", payload["error_code"])
+	}
+}
+
+func TestClaimReconcileApplyReturnsStructuredBlockedPayloadForLegacyContract(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, ".specify"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	inputPath := filepath.Join(root, "claim-reconciliation.json")
+	if err := os.WriteFile(inputPath, []byte(`{"claim_reconciliation_contract_version":0}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	old, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(root); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(old) })
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"claim-reconcile", "apply", "--input", inputPath, "--format", "json"}, &stdout, &stderr, "test")
+	if code != 1 {
+		t.Fatalf("code=%d stderr=%s stdout=%s, want blocked exit 1", code, stderr.String(), stdout.String())
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatalf("decode blocked payload: %v stdout=%s", err, stdout.String())
+	}
+	if payload["status"] != "error" || payload["result_state"] != "blocked" || payload["claim_reconciliation_contract_version"] != float64(2) {
+		t.Fatalf("payload = %#v, want current-contract blocked response", payload)
+	}
+	errorsList, _ := payload["errors"].([]any)
+	if !jsonAnySliceContainsSubstring(errorsList, "runtime-prepared") {
+		t.Fatalf("errors = %#v, want runtime-prepared packet boundary", payload["errors"])
+	}
+}
+
+func TestClaimReconcileApplyRequiresPreparedPacketPathInsteadOfStdin(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, ".specify"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	old, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(root); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(old) })
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"claim-reconcile", "apply", "--format", "json"}, &stdout, &stderr, "test")
+	if code != 1 {
+		t.Fatalf("code=%d stderr=%s stdout=%s, want blocked exit 1", code, stderr.String(), stdout.String())
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	errorsList, _ := payload["errors"].([]any)
+	if !jsonAnySliceContainsSubstring(errorsList, "--input") || !jsonAnySliceContainsSubstring(errorsList, "runtime-prepared") {
+		t.Fatalf("errors = %#v, want required runtime-prepared --input", payload["errors"])
+	}
+}
+
+func TestClaimReconcilePrepareApplyArgvWorksFromProjectSubdirectory(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, ".specify"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(root, "src"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "src", "app.go"), []byte("package app\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	paths, err := rt.ResolvePaths(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	st, err := store.Open(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = st.ImportGeneration(context.Background(), store.ImportInput{
+		GenerationID: "GEN-cli-prepare", Kind: "full", SourceCommit: "abc123",
+		Evidence: []store.EvidenceImport{{ID: "E-old", SourceKind: "source", SourcePath: "src/app.go", CommitSHA: "abc123", Extractor: "test", ContentHash: "old"}},
+		Nodes:    []store.NodeImport{{ID: "N-app", Type: "capability", Title: "App", Confidence: "verified", EvidenceIDs: []string{"E-old"}}},
+		Claims: []store.ClaimImport{{
+			ID: "claim:app", NodeID: "N-app", GraphClaimType: "runtime_owner", Summary: "App owns runtime",
+			State: claim.StateStale, Freshness: claim.FreshnessStale, StateReason: "changed", SupportingEvidenceIDs: []string{"E-old"},
+		}},
+	})
+	if err != nil {
+		_ = st.Close()
+		t.Fatal(err)
+	}
+	if err := st.Close(); err != nil {
+		t.Fatal(err)
+	}
+	intentPath := filepath.Join(root, "intent.json")
+	if err := os.WriteFile(intentPath, []byte(`{"claim_reconciliation_prepare_contract_version":1,"workflow":"sp-plan","items":[{"claim_id":"claim:app","reason":"bounded source evidence","evidence":[{"source_path":"src/app.go","span":"L1","role":"supporting"}]}]}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	subdir := filepath.Join(root, "src")
+	old, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(subdir); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(old) })
+
+	var prepareOut, prepareErr bytes.Buffer
+	if code := Run([]string{"claim-reconcile", "prepare", "--input", intentPath, "--format", "json"}, &prepareOut, &prepareErr, "test"); code != 0 {
+		t.Fatalf("prepare code=%d stderr=%s stdout=%s", code, prepareErr.String(), prepareOut.String())
+	}
+	var prepared map[string]any
+	if err := json.Unmarshal(prepareOut.Bytes(), &prepared); err != nil {
+		t.Fatal(err)
+	}
+	packetPath, _ := prepared["prepared_packet_path"].(string)
+	argv, _ := prepared["apply_argv"].([]any)
+	if packetPath == "" || len(argv) != 7 {
+		t.Fatalf("prepared = %#v", prepared)
+	}
+	var applyOut, applyErr bytes.Buffer
+	if code := Run([]string{"claim-reconcile", "apply", "--input", packetPath, "--format", "json"}, &applyOut, &applyErr, "test"); code != 0 {
+		t.Fatalf("apply code=%d stderr=%s stdout=%s", code, applyErr.String(), applyOut.String())
+	}
+	var applied map[string]any
+	if err := json.Unmarshal(applyOut.Bytes(), &applied); err != nil {
+		t.Fatal(err)
+	}
+	if applied["status"] != "ok" || applied["result_state"] != "ready" {
+		t.Fatalf("applied = %#v", applied)
 	}
 }
 
@@ -167,6 +387,553 @@ func TestChangesCommandAppearsInHelp(t *testing.T) {
 	}
 }
 
+func TestRootHelpListsScanSet(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"--help"}, &stdout, &stderr, "test")
+	if code != 0 {
+		t.Fatalf("code = %d stderr=%s", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "generate-ignore, scan-set, scan-prepare, scan-accept, mark-dirty") {
+		t.Fatalf("help does not list scan-set after generate-ignore:\n%s", stdout.String())
+	}
+}
+
+func TestScanSetCommandWritesCompactAgentFacingOutput(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, ".specify", "project-cognition"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(root, "src"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(root, "vendor"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, ".cognitionignore"), []byte("vendor/\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "src", "app.go"), []byte("package app\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "vendor", "lib.go"), []byte("package vendor\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	old, _ := os.Getwd()
+	if err := os.Chdir(root); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(old) })
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"scan-set", "--scope", "src", "--scope", "vendor", "--format", "json"}, &stdout, &stderr, "test")
+	if code != 0 {
+		t.Fatalf("code = %d stderr=%s stdout=%s", code, stderr.String(), stdout.String())
+	}
+	got := strings.TrimSpace(stdout.String())
+	want := `{"files":".specify/project-cognition/tmp/scan-files.json","count":1}`
+	if got != want {
+		t.Fatalf("stdout = %q, want %q", got, want)
+	}
+	if strings.Contains(stdout.String(), "\n  ") {
+		t.Fatalf("stdout should be compact JSON, got:\n%s", stdout.String())
+	}
+	raw, err := os.ReadFile(filepath.Join(root, ".specify", "project-cognition", "tmp", "scan-files.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gotFile, wantFile := strings.TrimSpace(string(raw)), `{"files":["src/app.go"]}`; gotFile != wantFile {
+		t.Fatalf("scan file = %q, want %q", gotFile, wantFile)
+	}
+}
+
+func TestRootHelpListsCloseoutPlan(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"--help"}, &stdout, &stderr, "test")
+	if code != 0 {
+		t.Fatalf("code = %d stderr=%s", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "changes, closeout-plan, update") {
+		t.Fatalf("help does not list closeout-plan after changes:\n%s", stdout.String())
+	}
+}
+
+func TestRootHelpListsSemanticIntake(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"--help"}, &stdout, &stderr, "test")
+	if code != 0 {
+		t.Fatalf("code = %d stderr=%s", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "semantic-intake") {
+		t.Fatalf("help does not list semantic-intake:\n%s", stdout.String())
+	}
+}
+
+func TestRootHelpListsSemanticAudit(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"--help"}, &stdout, &stderr, "test")
+	if code != 0 {
+		t.Fatalf("code = %d stderr=%s", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "semantic-audit") {
+		t.Fatalf("help does not list semantic-audit:\n%s", stdout.String())
+	}
+}
+
+func TestRootHelpListsSemanticAuditResume(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"--help"}, &stdout, &stderr, "test")
+	if code != 0 {
+		t.Fatalf("code = %d stderr=%s", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "semantic-audit-resume") {
+		t.Fatalf("help does not list semantic-audit-resume:\n%s", stdout.String())
+	}
+}
+
+func TestSemanticIntakeCommandReadsInputFile(t *testing.T) {
+	root := setupReadyMinimalCLIRuntime(t)
+	inputPath := filepath.Join(root, "semantic-intake.json")
+	if err := os.WriteFile(inputPath, []byte(`{
+		"version": 1,
+		"raw_request": "App 入口在哪里",
+		"agent_facets": {
+			"goal": {"required": ["find application entrypoint"]},
+			"surface": {"required": ["application entrypoint"]},
+			"behavior": {"required": []},
+			"context": {"required": []},
+			"constraint": {"required": []}
+		},
+		"options": {"max_candidates": 4, "include_contrast": true, "include_rejected": true}
+	}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"semantic-intake", "--input", inputPath, "--format", "json"}, &stdout, &stderr, "test")
+	if code != 0 {
+		t.Fatalf("code = %d stderr=%s stdout=%s", code, stderr.String(), stdout.String())
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload["version"] != float64(1) {
+		t.Fatalf("version = %#v, payload=%#v", payload["version"], payload)
+	}
+	if _, ok := payload["candidate_universe"].(map[string]any); !ok {
+		t.Fatalf("candidate_universe = %#v", payload["candidate_universe"])
+	}
+	permission, ok := payload["permission_hint"].(map[string]any)
+	if !ok {
+		t.Fatalf("permission_hint = %#v", payload["permission_hint"])
+	}
+	if permission["maximum_without_live_evidence"] != "P2" {
+		t.Fatalf("maximum_without_live_evidence = %#v, want P2; payload=%#v", permission["maximum_without_live_evidence"], payload)
+	}
+}
+
+func TestSemanticAuditCommandBuildsAuditArtifact(t *testing.T) {
+	root := t.TempDir()
+	old, _ := os.Getwd()
+	if err := os.Chdir(root); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(old) })
+	auditPath := filepath.Join(root, "semantic-audit.json")
+	if err := os.WriteFile(auditPath, []byte(`{
+		"version": 1,
+		"work_contract": {
+			"id": "wc-h5-env-page",
+			"raw_request": "H5访问环境变量页面会出错",
+			"workflow_intent": "debug",
+			"extracted_facets": ["H5", "environment settings page", "access exception"]
+		},
+		"semantic_intake_input": {
+			"version": 1,
+			"raw_request": "H5访问环境变量页面会出错",
+			"agent_facets": {
+				"surface": {"required": ["H5", "environment settings page"]},
+				"behavior": {"required": ["access exception"]}
+			}
+		},
+		"semantic_intake_output": {
+			"version": 1,
+			"readiness": "query_ready",
+			"candidate_universe": {
+				"primary_candidates": [{
+					"id": "environment-settings-page",
+					"labels": ["Environment Settings Page", "环境变量页面"],
+					"surface_type": "ui_page",
+					"score": 9,
+					"evidence_rank": "E2",
+					"facet_coverage": {"covered": ["H5"], "missing": ["verification path"]},
+					"owner_hints": {
+						"primary_paths": ["desktop/src/pages/EnvironmentSettings.tsx"],
+						"verification_paths": ["desktop/src/pages/EnvironmentSettings.test.tsx"]
+					},
+					"basis": ["surface type ui_page satisfies required surface signals"]
+				}],
+				"contrast_candidates": [{
+					"id": "env-config",
+					"labels": [".env", "environment variables"],
+					"surface_type": "config_surface",
+					"score": 4,
+					"evidence_rank": "E2",
+					"facet_coverage": {},
+					"contrast_reason": "matches environment wording but not page surface"
+				}],
+				"rejected_candidates": [{
+					"id": "workflow-environment",
+					"surface_type": "workflow_surface",
+					"false_match_type": "workflow-shadow",
+					"rejection_reason": "workflow surface is not requested"
+				}]
+			},
+			"permission_hint": {
+				"maximum_without_live_evidence": "P2",
+				"blocked_actions": ["change", "fixed_claim"]
+			},
+			"learning_candidate": {"memory_level": "M1"}
+		},
+		"route_decision": {
+			"selected_candidate_ids": ["environment-settings-page"],
+			"contrast_candidate_ids": ["env-config"],
+			"rejected_candidate_ids": ["workflow-environment"],
+			"selection_reason": "H5 page surface dominates environment config wording"
+		},
+		"permission_decision": {
+			"requested_level": "P3",
+			"evidence_level": "semantic_intake_only",
+			"requested_actions": ["targeted_inspect", "change"]
+		},
+		"live_evidence_capture": [{
+			"step_id": "inspect-01",
+			"read_path": "desktop/src/pages/EnvironmentSettings.tsx",
+			"evidence_need": "exact exception source",
+			"source_kind": "source",
+			"source_ref": "desktop/src/pages/EnvironmentSettings.tsx",
+			"line_refs": ["L42-L57"],
+			"observed_signal": "H5 access exception stack enters EnvironmentSettings route guard",
+			"supports_candidate_id": "environment-settings-page",
+			"supports_candidate": true,
+			"evidence_ref": "read:desktop/src/pages/EnvironmentSettings.tsx#route-guard"
+		}],
+		"verification_results": [{
+			"candidate_id": "environment-settings-page",
+			"verification_path": "desktop/src/pages/EnvironmentSettings.test.tsx",
+			"command": "npm test -- EnvironmentSettings.test.tsx",
+			"status": "passed",
+			"claim_type": "root_cause_claim",
+			"evidence_ref": "test:EnvironmentSettings.test.tsx#passed",
+			"summary": "targeted regression test passed"
+		}],
+		"workflow_authorization": {
+			"workflow_intent": "debug",
+			"status": "authorized",
+			"authorized_claims": ["root_cause_claim"],
+			"authorization_ref": "workflow:debug#root-cause-reviewed",
+			"claim_authorizations": [{
+				"claim_type": "root_cause_claim",
+				"status": "authorized",
+				"authorization_ref": "workflow:debug#root-cause-reviewed",
+				"verification_evidence_refs": ["test:EnvironmentSettings.test.tsx#passed"],
+				"reason": "debug workflow reviewed root-cause verification"
+			}],
+			"reason": "debug workflow reviewed bounded evidence and matching verification"
+		},
+		"action_log": [{
+			"step": "semantic_intake",
+			"input_ref": "semantic_intake_input",
+			"output_ref": "semantic_intake_output",
+			"permission_before": "P0",
+			"permission_after": "P2",
+			"summary": "ranked page surface ahead of config false friend"
+		}]
+	}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"semantic-audit", "--input", auditPath, "--format", "json"}, &stdout, &stderr, "test")
+	if code != 0 {
+		t.Fatalf("semantic-audit code = %d stderr=%s stdout=%s", code, stderr.String(), stdout.String())
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatalf("invalid JSON: %v\n%s", err, stdout.String())
+	}
+	if payload["artifact_type"] != "semantic_routing_audit" {
+		t.Fatalf("payload = %#v", payload)
+	}
+	permission, ok := payload["permission_decision"].(map[string]any)
+	if !ok {
+		t.Fatalf("permission_decision missing from payload = %#v", payload)
+	}
+	if permission["allowed_level"] != "P2" {
+		t.Fatalf("allowed_level = %#v, want P2", permission["allowed_level"])
+	}
+	if !jsonStringSliceContains(permission["blocked_actions"], "change") {
+		t.Fatalf("blocked_actions = %#v, want change", permission["blocked_actions"])
+	}
+	inspectionPlan, ok := payload["inspection_plan"].(map[string]any)
+	if !ok {
+		t.Fatalf("inspection_plan missing from payload = %#v", payload)
+	}
+	if inspectionPlan["max_permission"] != "P2" {
+		t.Fatalf("inspection_plan.max_permission = %#v, want P2", inspectionPlan["max_permission"])
+	}
+	if inspectionPlan["readiness"] != "inspect_ready" {
+		t.Fatalf("inspection_plan.readiness = %#v, want inspect_ready with bounded owner path", inspectionPlan["readiness"])
+	}
+	if !jsonStringSliceContains(inspectionPlan["blocked_actions"], "change") {
+		t.Fatalf("inspection_plan.blocked_actions = %#v, want change", inspectionPlan["blocked_actions"])
+	}
+	liveEvidenceCapture, ok := inspectionPlan["live_evidence_capture"].(map[string]any)
+	if !ok {
+		t.Fatalf("inspection_plan.live_evidence_capture missing from payload = %#v", inspectionPlan)
+	}
+	for _, field := range []string{"source_kind", "read_path", "supports_candidate", "contradicts_candidate", "evidence_ref"} {
+		if !jsonStringSliceContains(liveEvidenceCapture["required_fields"], field) {
+			t.Fatalf("live_evidence_capture.required_fields = %#v, want %s", liveEvidenceCapture["required_fields"], field)
+		}
+	}
+	rerankAssessment, ok := payload["rerank_assessment"].(map[string]any)
+	if !ok {
+		t.Fatalf("rerank_assessment missing from payload = %#v", payload)
+	}
+	if rerankAssessment["status"] != "route_supported" {
+		t.Fatalf("rerank_assessment.status = %#v, want route_supported", rerankAssessment["status"])
+	}
+	promotionCandidate, ok := rerankAssessment["permission_promotion_candidate"].(map[string]any)
+	if !ok {
+		t.Fatalf("permission_promotion_candidate missing from rerank_assessment = %#v", rerankAssessment)
+	}
+	if promotionCandidate["candidate_level"] != "P3" || promotionCandidate["status"] != "candidate_only" || promotionCandidate["granted"] != false {
+		t.Fatalf("permission_promotion_candidate = %#v, want P3 candidate_only not granted", promotionCandidate)
+	}
+	ownerConfidence, ok := payload["owner_bundle_confidence"].(map[string]any)
+	if !ok {
+		t.Fatalf("owner_bundle_confidence missing from payload = %#v", payload)
+	}
+	if ownerConfidence["summary"] != "owner_bundle_medium" {
+		t.Fatalf("owner_bundle_confidence.summary = %#v, want owner_bundle_medium with primary and verification hints", ownerConfidence["summary"])
+	}
+	ownerExpansion, ok := payload["owner_miss_expansion"].(map[string]any)
+	if !ok {
+		t.Fatalf("owner_miss_expansion missing from payload = %#v", payload)
+	}
+	if ownerExpansion["max_radius"] != float64(1) {
+		t.Fatalf("owner_miss_expansion.max_radius = %#v, want 1", ownerExpansion["max_radius"])
+	}
+	verificationDiscovery, ok := payload["verification_owner_discovery"].(map[string]any)
+	if !ok {
+		t.Fatalf("verification_owner_discovery missing from payload = %#v", payload)
+	}
+	if verificationDiscovery["summary"] != "verification_owner_indexed" {
+		t.Fatalf("verification_owner_discovery.summary = %#v, want verification_owner_indexed", verificationDiscovery["summary"])
+	}
+	if verificationDiscovery["promotion_blocked"] != true {
+		t.Fatalf("verification_owner_discovery.promotion_blocked = %#v, want true", verificationDiscovery["promotion_blocked"])
+	}
+	claimReadiness, ok := payload["claim_readiness"].(map[string]any)
+	if !ok {
+		t.Fatalf("claim_readiness missing from payload = %#v", payload)
+	}
+	if claimReadiness["verification_satisfied"] != true {
+		t.Fatalf("claim_readiness.verification_satisfied = %#v, want true", claimReadiness["verification_satisfied"])
+	}
+	if claimReadiness["claim_status"] != "claim_ready" || claimReadiness["claim_ready"] != true {
+		t.Fatalf("claim_readiness = %#v, want claim_ready", claimReadiness)
+	}
+	if claimReadiness["claim_type"] != "root_cause_claim" {
+		t.Fatalf("claim_readiness.claim_type = %#v, want root_cause_claim", claimReadiness["claim_type"])
+	}
+	if !jsonStringSliceContains(claimReadiness["evidence_trail"], "test:EnvironmentSettings.test.tsx#passed") {
+		t.Fatalf("claim_readiness.evidence_trail = %#v, want verification evidence ref", claimReadiness["evidence_trail"])
+	}
+	if !jsonStringSliceContains(claimReadiness["claim_verification_refs"], "test:EnvironmentSettings.test.tsx#passed") {
+		t.Fatalf("claim_readiness.claim_verification_refs = %#v, want verification evidence ref", claimReadiness["claim_verification_refs"])
+	}
+	if !jsonStringSliceContains(claimReadiness["evidence_trail"], "workflow:debug#root-cause-reviewed") {
+		t.Fatalf("claim_readiness.evidence_trail = %#v, want workflow authorization ref", claimReadiness["evidence_trail"])
+	}
+}
+
+func TestSemanticAuditResumeCommandValidatesFreshState(t *testing.T) {
+	root := t.TempDir()
+	old, _ := os.Getwd()
+	if err := os.Chdir(root); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(old) })
+
+	request := cliSampleRootCauseReadyAuditRequest()
+	artifact, err := query.BuildSemanticAudit(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	inputData, err := json.Marshal(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	outputData, err := json.Marshal(artifact)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "semantic-audit-input.json"), inputData, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "semantic-audit-output.json"), outputData, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	resumePath := filepath.Join(root, "semantic-audit-resume.json")
+	resume := map[string]any{
+		"version": 1,
+		"workflow_state": query.SemanticAuditResumeState{
+			SemanticAuditInputPath:        "semantic-audit-input.json",
+			SemanticAuditOutputPath:       "semantic-audit-output.json",
+			SemanticAuditRouteFingerprint: query.SemanticAuditResumeRouteFingerprint([]string{"environment-settings-page"}, "root_cause_claim"),
+			ActiveClaimType:               "root_cause_claim",
+			SelectedCandidateIDs:          []string{"environment-settings-page"},
+			ClaimAuthorizationRefs:        []string{"workflow:debug#root-cause-reviewed"},
+			ClaimVerificationRefs:         []string{"test:EnvironmentSettings.test.tsx#passed"},
+		},
+	}
+	data, err := json.Marshal(resume)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(resumePath, data, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"semantic-audit-resume", "--input", resumePath, "--format", "json"}, &stdout, &stderr, "test")
+	if code != 0 {
+		t.Fatalf("semantic-audit-resume code = %d stderr=%s stdout=%s", code, stderr.String(), stdout.String())
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatalf("invalid JSON: %v\n%s", err, stdout.String())
+	}
+	if payload["semantic_audit_generated_resume_smoke"] != "passed" {
+		t.Fatalf("payload = %#v, want passed smoke", payload)
+	}
+	if payload["semantic_audit_resume_status"] != "fresh" {
+		t.Fatalf("payload = %#v, want fresh resume status", payload)
+	}
+	if payload["validator"] != "semantic-audit-resume" {
+		t.Fatalf("payload = %#v, want semantic-audit-resume validator", payload)
+	}
+	if payload["can_reuse_persisted_claim_readiness"] != true {
+		t.Fatalf("payload = %#v, want reusable persisted claim readiness", payload)
+	}
+	if payload["permission_promotion_granted"] != false {
+		t.Fatalf("payload = %#v, want permission_promotion_granted false", payload)
+	}
+	if payload["grants_permission"] != false {
+		t.Fatalf("payload = %#v, want grants_permission false", payload)
+	}
+	if payload["boundary"] != "comparison_only_no_source_edit_or_claim_authorization" {
+		t.Fatalf("payload = %#v, want comparison-only boundary", payload)
+	}
+}
+
+func TestSemanticAuditResumeCommandReportsMissingAuditFilesAsValidationJSON(t *testing.T) {
+	root := t.TempDir()
+	old, _ := os.Getwd()
+	if err := os.Chdir(root); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(old) })
+
+	resumePath := filepath.Join(root, "semantic-audit-resume.json")
+	resume := map[string]any{
+		"version": 1,
+		"workflow_state": query.SemanticAuditResumeState{
+			SemanticAuditInputPath:        "missing-semantic-audit-input.json",
+			SemanticAuditOutputPath:       "missing-semantic-audit-output.json",
+			SemanticAuditRouteFingerprint: query.SemanticAuditResumeRouteFingerprint([]string{"environment-settings-page"}, "root_cause_claim"),
+			ActiveClaimType:               "root_cause_claim",
+			SelectedCandidateIDs:          []string{"environment-settings-page"},
+			ClaimAuthorizationRefs:        []string{"workflow:debug#root-cause-reviewed"},
+			ClaimVerificationRefs:         []string{"test:EnvironmentSettings.test.tsx#passed"},
+		},
+	}
+	data, err := json.Marshal(resume)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(resumePath, data, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"semantic-audit-resume", "--input", resumePath, "--format", "json"}, &stdout, &stderr, "test")
+	if code != 0 {
+		t.Fatalf("semantic-audit-resume code = %d stderr=%s stdout=%s", code, stderr.String(), stdout.String())
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatalf("invalid JSON: %v\n%s", err, stdout.String())
+	}
+	if payload["semantic_audit_generated_resume_smoke"] != "failed" {
+		t.Fatalf("payload = %#v, want failed smoke", payload)
+	}
+	if payload["semantic_audit_resume_status"] != "needs-rerun" {
+		t.Fatalf("payload = %#v, want needs-rerun resume status", payload)
+	}
+	if payload["can_reuse_persisted_claim_readiness"] != false {
+		t.Fatalf("payload = %#v, want reusable persisted claim readiness false", payload)
+	}
+	if payload["grants_permission"] != false {
+		t.Fatalf("payload = %#v, want grants_permission false", payload)
+	}
+	if !jsonStringSliceContains(payload["semantic_audit_stale_reasons"], "missing-file") {
+		t.Fatalf("semantic_audit_stale_reasons = %#v, want missing-file", payload["semantic_audit_stale_reasons"])
+	}
+}
+
+func TestCompassCommandAcceptsSemanticIntakeCommandOutput(t *testing.T) {
+	root := setupReadyMinimalCLIRuntime(t)
+	inputPath := filepath.Join(root, "semantic-intake-input.json")
+	outputPath := filepath.Join(root, "semantic-intake-output.json")
+	if err := os.WriteFile(inputPath, []byte(`{
+		"version": 1,
+		"raw_request": "App 入口在哪里",
+		"agent_facets": {
+			"goal": {"required": ["find application entrypoint"]},
+			"surface": {"required": ["application entrypoint"]}
+		},
+		"options": {"max_candidates": 4, "include_contrast": true, "include_rejected": true}
+	}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var intakeStdout, intakeStderr bytes.Buffer
+	code := Run([]string{"semantic-intake", "--input", inputPath, "--format", "json"}, &intakeStdout, &intakeStderr, "test")
+	if code != 0 {
+		t.Fatalf("semantic-intake code = %d stderr=%s stdout=%s", code, intakeStderr.String(), intakeStdout.String())
+	}
+	if err := os.WriteFile(outputPath, intakeStdout.Bytes(), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var compassStdout, compassStderr bytes.Buffer
+	code = Run([]string{"compass", "--semantic-intake-file", outputPath, "--format", "json"}, &compassStdout, &compassStderr, "test")
+	if code != 0 {
+		t.Fatalf("compass code = %d stderr=%s stdout=%s", code, compassStderr.String(), compassStdout.String())
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(compassStdout.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload["facet_source"] != "semantic_intake.intent_facets" {
+		t.Fatalf("facet_source = %#v, payload=%#v", payload["facet_source"], payload)
+	}
+}
+
 func TestChangesCommandReturnsWorkingTreeJSON(t *testing.T) {
 	root := setupReadyMinimalCLIRuntime(t)
 	initCLIGit(t, root)
@@ -203,6 +970,148 @@ func TestChangesCommandReturnsWorkingTreeJSON(t *testing.T) {
 	}
 	if change["known_to_runtime"] != true {
 		t.Fatalf("known_to_runtime = %#v", change["known_to_runtime"])
+	}
+}
+
+func TestCloseoutPlanCommandPayloadMode(t *testing.T) {
+	root := setupReadyMinimalCLIRuntime(t)
+	initCLIGit(t, root)
+	if err := os.WriteFile(filepath.Join(root, "src", "app.go"), []byte("package main\n\nfunc App() string { return \"v2\" }\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{
+		"closeout-plan",
+		"--workflow", "implement",
+		"--payload-path", ".specify/project-cognition/updates/cli-test.json",
+		"--format", "json",
+	}, &stdout, &stderr, "test")
+	if code != 0 {
+		t.Fatalf("code = %d stderr=%s stdout=%s", code, stderr.String(), stdout.String())
+	}
+
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload["workflow"] != "sp-implement" {
+		t.Fatalf("workflow = %#v, payload=%#v", payload["workflow"], payload)
+	}
+	if payload["update_mode"] != "payload_file" {
+		t.Fatalf("update_mode = %#v, payload=%#v", payload["update_mode"], payload)
+	}
+	if _, ok := payload["payload_draft"].(map[string]any); !ok {
+		t.Fatalf("payload_draft = %#v, want object", payload["payload_draft"])
+	}
+	updateArgvValue, ok := payload["update_argv"].([]any)
+	if !ok {
+		t.Fatalf("update_argv = %#v, want array", payload["update_argv"])
+	}
+	updateArgv := jsonAnySliceStrings(updateArgvValue)
+	wantUpdateArgv := []string{
+		"project-cognition",
+		"update",
+		"--payload-file",
+		".specify/project-cognition/updates/cli-test.json",
+		"--reason",
+		"workflow-finalize",
+		"--format",
+		"json",
+	}
+	if !reflect.DeepEqual(updateArgv, wantUpdateArgv) {
+		t.Fatalf("update_argv = %#v, want %#v", updateArgv, wantUpdateArgv)
+	}
+	updateCommand, ok := payload["update_command"].(string)
+	if !ok || !strings.Contains(updateCommand, "display only:") {
+		t.Fatalf("update_command = %#v, want display-only placeholder", payload["update_command"])
+	}
+	if strings.Contains(updateCommand, ".specify/project-cognition/updates/cli-test.json") {
+		t.Fatalf("update_command embeds concrete payload path: %q", updateCommand)
+	}
+}
+
+func TestCloseoutPlanCommandDeltaSessionMode(t *testing.T) {
+	root := setupReadyMinimalCLIRuntime(t)
+	initCLIGit(t, root)
+	if err := os.WriteFile(filepath.Join(root, "src", "app.go"), []byte("package main\n\nfunc App() string { return \"delta\" }\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{
+		"closeout-plan",
+		"--workflow", "sp-quick",
+		"--delta-session", "D-cli",
+		"--format", "json",
+	}, &stdout, &stderr, "test")
+	if code != 0 {
+		t.Fatalf("code = %d stderr=%s stdout=%s", code, stderr.String(), stdout.String())
+	}
+
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload["update_mode"] != "delta_session" {
+		t.Fatalf("update_mode = %#v, payload=%#v", payload["update_mode"], payload)
+	}
+	if payload["delta_session_id"] != "D-cli" {
+		t.Fatalf("delta_session_id = %#v, payload=%#v", payload["delta_session_id"], payload)
+	}
+	deltaAppendDraft, ok := payload["delta_append_draft"].(map[string]any)
+	if !ok {
+		t.Fatalf("delta_append_draft = %#v, want object", payload["delta_append_draft"])
+	}
+	updateArgvValue, ok := payload["update_argv"].([]any)
+	if !ok {
+		t.Fatalf("update_argv = %#v, want array", payload["update_argv"])
+	}
+	updateArgv := jsonAnySliceStrings(updateArgvValue)
+	wantUpdateArgv := []string{
+		"project-cognition",
+		"update",
+		"--delta-session",
+		"D-cli",
+		"--reason",
+		"workflow-finalize",
+		"--format",
+		"json",
+	}
+	if !reflect.DeepEqual(updateArgv, wantUpdateArgv) {
+		t.Fatalf("update_argv = %#v, want %#v", updateArgv, wantUpdateArgv)
+	}
+	argvPrefixValue, ok := deltaAppendDraft["argv_prefix"].([]any)
+	if !ok {
+		t.Fatalf("delta_append_draft.argv_prefix = %#v, want array", deltaAppendDraft["argv_prefix"])
+	}
+	argvPrefix := jsonAnySliceStrings(argvPrefixValue)
+	wantPrefix := []string{
+		"project-cognition",
+		"delta",
+		"append",
+		"--session",
+		"D-cli",
+		"--event-type",
+		"workflow_closeout",
+		"--origin-command",
+		"sp-quick",
+		"--phase",
+		"closeout",
+	}
+	if len(argvPrefix) < len(wantPrefix) || !reflect.DeepEqual(argvPrefix[:len(wantPrefix)], wantPrefix) {
+		t.Fatalf("delta_append_draft.argv_prefix = %#v, want prefix %#v", argvPrefix, wantPrefix)
+	}
+	argvPlaceholdersValue, ok := deltaAppendDraft["argv_placeholders"].([]any)
+	if !ok {
+		t.Fatalf("delta_append_draft.argv_placeholders = %#v, want array", deltaAppendDraft["argv_placeholders"])
+	}
+	argvPlaceholders := jsonAnySliceStrings(argvPlaceholdersValue)
+	if !hasString(argvPlaceholders, "<agent-owned passing verification evidence>") {
+		t.Fatalf("delta_append_draft.argv_placeholders = %#v, want verification evidence placeholder", argvPlaceholders)
+	}
+	if !hasString(argvPlaceholders, "--format") || !hasString(argvPlaceholders, "json") {
+		t.Fatalf("delta_append_draft.argv_placeholders = %#v, want --format json", argvPlaceholders)
 	}
 }
 
@@ -530,7 +1439,7 @@ func TestBuildFromScanCommandWritesAliasIndexRows(t *testing.T) {
 	}
 }
 
-func TestBuildFromScanArchivesV1DatabaseBeforeCreatingV2(t *testing.T) {
+func TestBuildFromScanRejectsV1DatabaseWithoutReplacement(t *testing.T) {
 	root := writeMinimalCLIScanPackage(t)
 	paths, err := rt.ResolvePaths(root)
 	if err != nil {
@@ -566,15 +1475,16 @@ func TestBuildFromScanArchivesV1DatabaseBeforeCreatingV2(t *testing.T) {
 
 	var stdout, stderr bytes.Buffer
 	code := Run([]string{"build-from-scan", "--format", "json"}, &stdout, &stderr, "test")
-	if code != 0 {
-		t.Fatalf("code = %d stderr=%s stdout=%s", code, stderr.String(), stdout.String())
+	if code == 0 {
+		t.Fatalf("code = %d, want nonzero current-schema-only rejection; stdout=%s", code, stdout.String())
 	}
 	var payload map[string]any
 	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
 		t.Fatal(err)
 	}
-	if payload["legacy_runtime_replaced"] != true {
-		t.Fatalf("legacy_runtime_replaced = %#v, payload = %#v", payload["legacy_runtime_replaced"], payload)
+	errorsList, ok := payload["errors"].([]any)
+	if !ok || !jsonAnySliceContainsSubstring(errorsList, "schema_version 1") {
+		t.Fatalf("errors = %#v, want explicit schema v1 rejection", payload["errors"])
 	}
 
 	reopened, err := sql.Open("sqlite", paths.DatabasePath)
@@ -582,18 +1492,18 @@ func TestBuildFromScanArchivesV1DatabaseBeforeCreatingV2(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer reopened.Close()
-	if hasTable(t, reopened, "legacy_marker") {
-		t.Fatal("legacy_marker table survived outdated database replacement")
+	if !hasTable(t, reopened, "legacy_marker") {
+		t.Fatal("legacy_marker table missing, want old database left untouched")
 	}
 	var version string
 	if err := reopened.QueryRowContext(context.Background(), `SELECT value_json FROM metadata WHERE key = 'schema_version'`).Scan(&version); err != nil {
 		t.Fatal(err)
 	}
-	if version != "2" {
-		t.Fatalf("schema_version = %q, want 2", version)
+	if version != "1" {
+		t.Fatalf("schema_version = %q, want untouched v1 database", version)
 	}
-	if _, err := os.Stat(paths.DatabasePath + ".legacy"); err != nil {
-		t.Fatalf("legacy archive missing: %v", err)
+	if _, err := os.Stat(paths.DatabasePath + ".legacy"); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("legacy archive stat error = %v, want no implicit archive", err)
 	}
 }
 
@@ -764,8 +1674,8 @@ func TestLexiconCommandEmitsGraphBackedContractFields(t *testing.T) {
 	if !ok || generationID == "" {
 		t.Fatalf("active_generation_id missing from payload = %#v", payload)
 	}
-	if payload["candidate_universe_version"] != float64(1) {
-		t.Fatalf("candidate_universe_version = %#v, want 1; payload = %#v", payload["candidate_universe_version"], payload)
+	if payload["candidate_universe_version"] != float64(2) {
+		t.Fatalf("candidate_universe_version = %#v, want 2; payload = %#v", payload["candidate_universe_version"], payload)
 	}
 	if _, ok := payload["candidate_universe"].(map[string]any); !ok {
 		t.Fatalf("candidate_universe missing from payload = %#v", payload)
@@ -982,6 +1892,26 @@ func TestCompassCommandEmitsCompactPacket(t *testing.T) {
 	}
 }
 
+func TestCompassCommandAcceptsAskIntent(t *testing.T) {
+	setupReadyMinimalCLIRuntime(t)
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"compass", "--intent", "ask", "--query", "Where is project cognition documented?", "--format", "json"}, &stdout, &stderr, "test")
+	if code != 0 {
+		t.Fatalf("code = %d stderr=%s stdout=%s", code, stderr.String(), stdout.String())
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload["mode"] != "compass" {
+		t.Fatalf("mode = %#v, payload = %#v", payload["mode"], payload)
+	}
+	if _, ok := payload["minimal_live_reads"].([]any); !ok {
+		t.Fatalf("minimal_live_reads = %#v, want array", payload["minimal_live_reads"])
+	}
+}
+
 func TestCompassV1DatabaseReturnsBlockedPacketWithRebuildGuidance(t *testing.T) {
 	root := setupReadyMinimalCLIRuntime(t)
 	paths, err := rt.ResolvePaths(root)
@@ -1030,8 +1960,8 @@ func TestCompassV1DatabaseReturnsBlockedPacketWithRebuildGuidance(t *testing.T) 
 		t.Fatalf("errors = %#v, want non-empty array; payload = %#v", payload["errors"], payload)
 	}
 	diagnostic := strings.Join(jsonAnySliceStrings(errors), " ")
-	if !strings.Contains(diagnostic, "schema_version") || !strings.Contains(diagnostic, `expected "2"`) {
-		t.Fatalf("errors = %#v, want schema_version expected version diagnostic", payload["errors"])
+	if !strings.Contains(diagnostic, "schema_version 1") || !strings.Contains(diagnostic, "current runtime requires 5") {
+		t.Fatalf("errors = %#v, want current schema diagnostic", payload["errors"])
 	}
 	if payload["recommended_next_action"] != "run_map_scan_build" {
 		t.Fatalf("recommended_next_action = %#v, payload = %#v", payload["recommended_next_action"], payload)
@@ -1229,8 +2159,9 @@ func TestQueryCommandAcceptsConceptDecisionPlan(t *testing.T) {
 	}
 	conceptID := "concept:" + status.ActiveGenerationID + ":N-app"
 	queryPlan := marshalQueryPlan(t, map[string]any{
-		"lexicon_generation_id": status.ActiveGenerationID,
-		"selected_concepts":     []string{conceptID},
+		"lexicon_generation_id":      status.ActiveGenerationID,
+		"candidate_universe_version": 2,
+		"selected_concepts":          []string{conceptID},
 		"concept_decisions": []map[string]any{{
 			"concept_id":       conceptID,
 			"decision":         "selected",
@@ -1267,16 +2198,58 @@ func TestQueryCommandAcceptsConceptDecisionPlan(t *testing.T) {
 	}
 }
 
+func TestQueryCommandAcceptsAskIntentQueryPlan(t *testing.T) {
+	root := setupReadyMinimalCLIRuntime(t)
+	paths, err := rt.ResolvePaths(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	status, err := rt.ReadStatus(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	conceptID := "concept:" + status.ActiveGenerationID + ":N-app"
+	queryPlan := marshalQueryPlan(t, map[string]any{
+		"lexicon_generation_id":      status.ActiveGenerationID,
+		"candidate_universe_version": 2,
+		"selected_concepts":          []string{conceptID},
+		"concept_decisions": []map[string]any{{
+			"concept_id":       conceptID,
+			"decision":         "selected",
+			"selection_reason": "The ask answer needs the app surface as live evidence.",
+			"confidence":       "high",
+			"paths":            []string{"src/app.go"},
+		}},
+	})
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"query", "--intent", "ask", "--query-plan", queryPlan, "--format", "json"}, &stdout, &stderr, "test")
+	if code != 0 {
+		t.Fatalf("code = %d stderr=%s stdout=%s", code, stderr.String(), stdout.String())
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload["readiness"] != "query_ready" {
+		t.Fatalf("readiness = %#v, payload = %#v", payload["readiness"], payload)
+	}
+	if !jsonStringSliceContains(payload["minimal_live_reads"], "src/app.go") {
+		t.Fatalf("minimal_live_reads = %#v, want src/app.go", payload["minimal_live_reads"])
+	}
+}
+
 func TestQueryCommandEmitsDiagnosticsForCoercedAliasInterpretationsAcrossPlanInputs(t *testing.T) {
 	root := setupReadyMinimalCLIRuntime(t)
 	queryPlan := marshalQueryPlan(t, map[string]any{
-		"raw_query":               "PE程序下驱动下载卡在95",
-		"normalized_query":        "Investigate WinPE driver download progress stalling at 95 percent.",
-		"intent_facets":           []string{"WinPE runtime", "driver download", "95 percent stall"},
-		"alias_interpretations":   []string{"PE程序"},
-		"expanded_queries":        []string{"WinPE driver download progress stall"},
-		"paths":                   []string{"src/app.go"},
-		"open_semantic_questions": []string{},
+		"candidate_universe_version": 2,
+		"raw_query":                  "PE程序下驱动下载卡在95",
+		"normalized_query":           "Investigate WinPE driver download progress stalling at 95 percent.",
+		"intent_facets":              []string{"WinPE runtime", "driver download", "95 percent stall"},
+		"alias_interpretations":      []string{"PE程序"},
+		"expanded_queries":           []string{"WinPE driver download progress stall"},
+		"paths":                      []string{"src/app.go"},
+		"open_semantic_questions":    []string{},
 	})
 	queryPlanFile := filepath.Join(root, "query-plan.json")
 	if err := os.WriteFile(queryPlanFile, []byte(queryPlan), 0o644); err != nil {
@@ -1345,7 +2318,7 @@ func TestQueryCommandEmitsDiagnosticsForCoercedAliasInterpretationsAcrossPlanInp
 
 func TestQueryCommandReturnsStructuredJSONForUnrecoverableQueryPlanShape(t *testing.T) {
 	setupReadyMinimalCLIRuntime(t)
-	queryPlan := `{"semantic_intake":{"alias_interpretations":[{"alias":95}]}}`
+	queryPlan := `{"candidate_universe_version":2,"semantic_intake":{"alias_interpretations":[{"alias":95}]}}`
 
 	var stdout, stderr bytes.Buffer
 	code := Run([]string{"query", "--intent", "debug", "--query-plan", queryPlan, "--format", "json"}, &stdout, &stderr, "test")
@@ -1361,6 +2334,13 @@ func TestQueryCommandReturnsStructuredJSONForUnrecoverableQueryPlanShape(t *test
 	}
 	if payload["status"] != "error" {
 		t.Fatalf("payload = %#v, want status=error", payload)
+	}
+	contract, ok := payload["epistemic_contract"].(map[string]any)
+	if !ok {
+		t.Fatalf("epistemic_contract = %#v, want object", payload["epistemic_contract"])
+	}
+	if contract["graph_role"] != "route_candidate_only" || contract["fact_source_of_truth"] != "live_repository" {
+		t.Fatalf("epistemic_contract = %#v, want route candidate/live repository boundary", contract)
 	}
 	if errors, ok := payload["errors"].([]any); !ok || len(errors) == 0 {
 		t.Fatalf("errors = %#v, want non-empty errors array", payload["errors"])
@@ -1382,8 +2362,9 @@ func TestQueryCommandReturnsStructuredJSONForUnrecoverableQueryPlanShape(t *test
 func TestQueryCommandHandlesGreenfieldEmptyBaseline(t *testing.T) {
 	initEmptyCLIRuntime(t)
 	queryPlan := marshalQueryPlan(t, map[string]any{
-		"raw_query": "build login",
-		"paths":     []string{"docs/login.md"},
+		"candidate_universe_version": 2,
+		"raw_query":                  "build login",
+		"paths":                      []string{"docs/login.md"},
 	})
 
 	var stdout, stderr bytes.Buffer
@@ -1424,8 +2405,9 @@ func TestQueryCommandAcceptsSuffixConceptIDPlan(t *testing.T) {
 	}
 	conceptID := "concept:" + status.ActiveGenerationID + ":N-app:alias:app"
 	queryPlan := marshalQueryPlan(t, map[string]any{
-		"lexicon_generation_id": status.ActiveGenerationID,
-		"selected_concepts":     []string{conceptID},
+		"lexicon_generation_id":      status.ActiveGenerationID,
+		"candidate_universe_version": 2,
+		"selected_concepts":          []string{conceptID},
 	})
 
 	var stdout, stderr bytes.Buffer
@@ -2777,6 +3759,108 @@ func TestUpdateCommandAcceptsVerificationForDirectChangedPaths(t *testing.T) {
 	}
 	if result["readiness"] != rt.ReadyReadiness {
 		t.Fatalf("payload = %#v, want ready readiness", result)
+	}
+}
+
+func cliSampleRootCauseReadyAuditRequest() query.SemanticAuditRequest {
+	return query.SemanticAuditRequest{
+		Version: 1,
+		WorkContract: query.SemanticAuditWorkContract{
+			ID:             "wc-h5-env-page",
+			RawRequest:     "H5访问环境变量页面会出错",
+			WorkflowIntent: "debug",
+			ExtractedFacets: []string{
+				"H5",
+				"environment settings page",
+				"access exception",
+			},
+		},
+		SemanticIntakeInput: query.SemanticIntakeRequest{
+			Version:    1,
+			RawRequest: "H5访问环境变量页面会出错",
+			AgentFacets: query.SemanticIntakeFacetSet{
+				Surface:  query.SemanticIntakeFacetGroup{Required: []string{"H5", "environment settings page"}},
+				Behavior: query.SemanticIntakeFacetGroup{Required: []string{"access exception"}},
+			},
+		},
+		SemanticIntakeOutput: query.SemanticIntakePayload{
+			Version:   1,
+			Readiness: "query_ready",
+			CandidateUniverse: query.SemanticIntakeUniverse{
+				PrimaryCandidates: []query.SemanticIntakeCandidate{{
+					ID:           "environment-settings-page",
+					Labels:       []string{"Environment Settings Page", "环境变量页面"},
+					SurfaceType:  "ui_page",
+					Score:        9,
+					EvidenceRank: "E2",
+					FacetCoverage: query.SemanticIntakeFacetCoverage{
+						Covered: []string{"H5", "environment settings page"},
+						Missing: []string{"verification path"},
+					},
+					OwnerHints: query.SemanticIntakeOwnerHints{
+						PrimaryPaths:      []string{"desktop/src/pages/EnvironmentSettings.tsx"},
+						VerificationPaths: []string{"desktop/src/pages/EnvironmentSettings.test.tsx"},
+					},
+					Basis: []string{"surface type ui_page satisfies required surface signals"},
+				}},
+				ContrastCandidates: []query.SemanticIntakeCandidate{{
+					ID:             "env-config",
+					Labels:         []string{".env", "environment variables"},
+					SurfaceType:    "config_surface",
+					Score:          4,
+					EvidenceRank:   "E2",
+					ContrastReason: "matches environment wording but not page surface",
+				}},
+				RejectedCandidates: []query.SemanticIntakeRejectedCandidate{{
+					ID:              "workflow-environment",
+					Labels:          []string{"workflow environment"},
+					SurfaceType:     "workflow_surface",
+					FalseMatchType:  "workflow-shadow",
+					RejectionReason: "workflow surface is not requested",
+				}},
+			},
+			PermissionHint: query.SemanticIntakePermission{
+				MaximumWithoutLiveEvidence: "P2",
+				BlockedActions:             []string{"change", "fixed_claim"},
+			},
+		},
+		RouteDecision: query.SemanticAuditRouteDecisionInput{
+			SelectedCandidateIDs: []string{"environment-settings-page"},
+			ContrastCandidateIDs: []string{"env-config"},
+			RejectedCandidateIDs: []string{"workflow-environment"},
+			SelectionReason:      "H5 page surface dominates environment config wording",
+		},
+		PermissionDecision: query.SemanticAuditPermissionInput{
+			RequestedLevel:   "P3",
+			EvidenceLevel:    "semantic_intake_only",
+			RequestedActions: []string{"targeted_inspect", "change"},
+		},
+		LiveEvidenceCapture: []query.SemanticAuditCapturedEvidence{{
+			StepID:              "inspect-01",
+			ReadPath:            "desktop/src/pages/EnvironmentSettings.tsx",
+			EvidenceNeed:        "exact exception source",
+			SourceKind:          "source",
+			SourceRef:           "desktop/src/pages/EnvironmentSettings.tsx",
+			ObservedSignal:      "H5 access exception stack enters EnvironmentSettings route guard",
+			SupportsCandidateID: "environment-settings-page",
+			SupportsCandidate:   true,
+			EvidenceRef:         "read:desktop/src/pages/EnvironmentSettings.tsx#route-guard",
+		}},
+		VerificationResults: []query.SemanticAuditVerificationResult{{
+			CandidateID:      "environment-settings-page",
+			VerificationPath: "desktop/src/pages/EnvironmentSettings.test.tsx",
+			Command:          "npm test -- EnvironmentSettings.test.tsx",
+			Status:           "passed",
+			EvidenceRef:      "test:EnvironmentSettings.test.tsx#passed",
+			Summary:          "targeted regression test passed",
+		}},
+		WorkflowAuthorization: query.SemanticAuditWorkflowAuthorization{
+			WorkflowIntent:   "debug",
+			Status:           "authorized",
+			AuthorizedClaims: []string{"root_cause_claim"},
+			AuthorizationRef: "workflow:debug#root-cause-reviewed",
+			Reason:           "debug workflow reviewed bounded evidence and matching verification",
+		},
 	}
 }
 

@@ -1,0 +1,11 @@
+{
+  "workflow": "map-scan",
+  "source": "templates/commands/map-scan.md",
+  "entries": [
+    {
+      "kind": "semantic-contract",
+      "source_excerpt": "{{spec-kit-include: ../../command-partials/common/semantic-work-contract.md}}",
+      "target": "templates/command-references/map-scan/semantic-work-contract.md"
+    }
+  ]
+}

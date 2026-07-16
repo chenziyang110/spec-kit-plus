@@ -1,0 +1,7 @@
+interface:
+  display_name: "SPX Debug"
+  short_description: "Evidence-driven diagnosis and repair"
+  default_prompt: "Use $spx-debug to diagnose and repair this failure from evidence."
+
+policy:
+  allow_implicit_invocation: false

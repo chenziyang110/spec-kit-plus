@@ -41,9 +41,8 @@ handoff mechanism; this command does not apply the follow-up work.
 ## Context
 
 - Primary inputs: the current constitution, the user's requested principle
-  changes, the stable shared memory layer (`project-rules.md`,
-  `learnings/INDEX.md`, and relevant learning detail docs), and the smallest
-  repository context needed to derive missing values.
+  changes, the consume-only Learning CLI intake, and the smallest repository
+  context needed to derive missing values.
 - Constitution amendments may invalidate downstream planning artifacts, active
   workflow state, or lower-order project memory. Treat those as re-entry
   signals to report, not as permission to edit additional files.
@@ -53,12 +52,9 @@ handoff mechanism; this command does not apply the follow-up work.
 ## Process
 
 - Run `{{specify-subcmd:learning start --command constitution --format json}}`
-  when available so passive learning files exist and relevant shared memory is
-  visible before broader context collection.
-- Load the current constitution, then read `.specify/memory/project-rules.md`
-  and `.specify/memory/learnings/INDEX.md` in that order before broader
-  repository context. Open only relevant learning detail docs linked from the
-  index.
+  and expand only selected matching Learning through `show_argv`.
+- Load the current constitution before broader repository context. Do not parse
+  Learning storage files directly.
 - If the repository already has code and repo-derived evidence is needed, read
   `.specify/project-cognition/status.json` plus the smallest relevant
   query-backed cognition artifact first to assess map freshness as advisory
@@ -134,33 +130,13 @@ during project setup. That project-local template may be the default product
 constitution or a built-in profile selected during `{{specify-subcmd:init}}`. If it is
 missing, copy the template first.
 
-## Passive Project Learning Layer
+{{spec-kit-include: ../command-partials/common/learning-layer.md}}
 
-- Run `{{specify-subcmd:learning start --command constitution --format json}}` when
-  available so passive learning files exist before deeper context collection.
-- Read `.specify/memory/constitution.md`,
-  `.specify/memory/project-rules.md`, and
-  `.specify/memory/learnings/INDEX.md` in that order before broader
-  repository context.
-- Open only learning detail docs linked from constitution-relevant index entries,
-  especially repeated workflow gaps, stable user defaults, or lower-order
-  rules that may need promotion or retirement.
-- Learning Reflex: before final closeout, ask whether a future senior engineer
-  would benefit from seeing this lesson before related work. If yes, record the
-  learning need as a pending follow-up in the Sync Impact Report; do not update
-  learning files from this command unless the user explicitly requested it.
-- When constitution work exposes repeated decision debt, rule conflict, route
-  changes, hidden dependencies, or promotion friction, capture the reusable
-  learning pressure in the Sync Impact Report instead of treating it as
-  chat-only discussion.
-- If `workflow-state.md` already preserves route reasons, false starts,
-  hidden dependencies, or reusable constraints that would normally justify
-  `{{specify-subcmd:learning capture-auto --command constitution --feature-dir "$FEATURE_DIR" --format json}}`,
-  report that as a learning follow-up instead of running the mutating command.
-- Do not run learning capture commands that mutate learning files unless the
-  user explicitly requested learning updates in the same request.
-- Treat project rules or learnings that conflict with the amended constitution
-  as pending follow-up work and flag them explicitly in the Sync Impact Report.
+When constitution work exposes a reusable signal, record it as a pending
+Learning follow-up in the Sync Impact Report. This consume-only command must not
+capture or promote lower-order Learning inline.
+Report project rules or learnings that conflict with the amended constitution
+as pending follow-up work with explicit owners.
 
 ## Repository Context and Navigation Freshness
 
@@ -258,10 +234,8 @@ Follow this execution flow:
    - Read each command file in `.specify/templates/commands/*.md` (including
      this one) to verify no outdated references remain when generic guidance is
      required.
-   - Read `.specify/memory/project-rules.md`,
-     `.specify/memory/learnings/INDEX.md`, and relevant learning detail docs
-     and explicitly report any lower-order guidance that now conflicts with the
-     amended constitution.
+   - Use the consume-only Learning CLI intake and selected `show` records to
+     report any lower-order guidance that now conflicts with the amended constitution.
 - If the amendment changes navigation, structure, ownership, workflow,
   testing, integration, or operations expectations, mark the runtime
   handbooks for refresh and include `.specify/project-cognition/status.json`

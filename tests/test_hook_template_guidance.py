@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from .template_utils import read_template
+from .template_utils import read_command_with_references, read_template
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -63,6 +63,12 @@ CORE_WORKFLOW_TEMPLATES = (
     "templates/commands/map-build.md",
 )
 
+PHASE_ARTIFACT_VALIDATION_TEMPLATES = {
+    "templates/commands/specify.md": "specify",
+    "templates/commands/plan.md": "plan",
+    "templates/commands/tasks.md": "tasks",
+}
+
 PLANNING_TEMPLATE_EXPECTED_FRAGMENTS = {
     "templates/commands/specify.md": (
         "workflow-state.md",
@@ -82,28 +88,33 @@ EXECUTION_TEMPLATE_EXPECTED_FRAGMENTS = {
         "WorkerTaskPacket",
         "WorkerTaskResult",
         "structured handoff",
-        "{{specify-subcmd:project-cognition complete-refresh --format json}}",
+        "project-cognition closeout-plan",
+        "result_state",
         '{{specify-subcmd:project-cognition mark-dirty --reason "<reason>" --format json}}',
     ),
     "templates/commands/quick.md": (
         "STATUS.md",
         "WorkerTaskPacket",
         "structured handoff",
-        "{{specify-subcmd:project-cognition complete-refresh --format json}}",
+        "project-cognition closeout-plan",
+        "result_state",
         '{{specify-subcmd:project-cognition mark-dirty --reason "<reason>" --format json}}',
     ),
     "templates/commands/debug.md": (
         "debug session",
         "evidence",
-        "{{specify-subcmd:project-cognition complete-refresh --format json}}",
+        "project-cognition closeout-plan",
+        "result_state",
         '{{specify-subcmd:project-cognition mark-dirty --reason "<reason>" --format json}}',
     ),
 }
 
 
 def _assert_no_routine_hook_choreography(path: str) -> None:
-    content = read_template(path)
+    content = read_command_with_references(Path(path).stem) if path.startswith("templates/commands/") else read_template(path)
     for fragment in ROUTINE_HOOK_FRAGMENTS:
+        if path in PHASE_ARTIFACT_VALIDATION_TEMPLATES and "validate-artifacts" in fragment:
+            continue
         assert fragment not in content, f"{path} still instructs routine hook choreography: {fragment}"
 
 
@@ -112,9 +123,20 @@ def test_command_templates_do_not_instruct_routine_hook_choreography() -> None:
         _assert_no_routine_hook_choreography(path)
 
 
+def test_required_phase_boundaries_use_one_deterministic_artifact_validation() -> None:
+    for path, command in PHASE_ARTIFACT_VALIDATION_TEMPLATES.items():
+        content = read_command_with_references(Path(path).stem)
+        invocation = (
+            "{{specify-subcmd:hook validate-artifacts "
+            f"--command {command} --feature-dir <feature-dir> --format json}}"
+        )
+        assert content.count(invocation) == 1, path
+        assert "fail closed" in content.lower() or "repair or reopen" in content.lower()
+
+
 def test_planning_templates_preserve_state_and_artifact_outcome_requirements() -> None:
     for path, expected_fragments in PLANNING_TEMPLATE_EXPECTED_FRAGMENTS.items():
-        content = read_template(path)
+        content = read_command_with_references(Path(path).stem)
         lowered = content.lower()
 
         for fragment in expected_fragments:
@@ -126,7 +148,7 @@ def test_planning_templates_preserve_state_and_artifact_outcome_requirements() -
 
 def test_execution_templates_preserve_contract_outcomes_without_hook_commands() -> None:
     for path, expected_fragments in EXECUTION_TEMPLATE_EXPECTED_FRAGMENTS.items():
-        content = read_template(path)
+        content = read_command_with_references(Path(path).stem)
 
         for fragment in expected_fragments:
             assert fragment in content, f"{path} must preserve execution contract fragment: {fragment}"

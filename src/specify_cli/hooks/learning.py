@@ -165,6 +165,11 @@ def _pain_score(payload: dict[str, object]) -> tuple[int, dict[str, int]]:
         "hidden_dependencies": len(
             _coerce_str_list(payload.get("hidden_dependencies"))
         ),
+        # An explicit semantic trigger is already a review-worthy event. The
+        # numeric counters above still catch accumulated friction when no
+        # workflow state has classified the signal yet.
+        "trigger_signals": len(_coerce_str_list(payload.get("trigger_signals")))
+        * PAIN_THRESHOLD,
     }
     return sum(factors.values()), factors
 
@@ -183,6 +188,7 @@ def derive_injection_targets(command_name: str, learning_type: str) -> list[str]
         ],
         "verification_gap": [
             "sp-implement",
+            "sp-accept",
             "sp-debug",
             "sp-quick",
         ],
@@ -191,6 +197,7 @@ def derive_injection_targets(command_name: str, learning_type: str) -> list[str]
             "implement-tracker.md",
             "STATUS.md",
             "sp-implement",
+            "sp-accept",
             "sp-quick",
         ],
         "map_coverage_gap": [
@@ -210,7 +217,7 @@ def derive_injection_targets(command_name: str, learning_type: str) -> list[str]
             "ADR",
         ],
         "workflow_gap": ["sp-specify", "sp-deep-research", "sp-plan", "sp-tasks"],
-        "project_constraint": ["project-rules", "project-learnings", command],
+        "project_constraint": ["project-rules", "confirmed-learning", command],
         "recovery_path": ["sp-debug", "sp-implement", "sp-quick"],
         "pitfall": ["sp-debug", "sp-implement", "sp-quick"],
         "user_preference": ["project-rules", "AGENTS.md", command],
@@ -223,6 +230,7 @@ def learning_signal_hook(project_root: Path, payload: dict[str, object]) -> Hook
     score, factors = _pain_score(payload)
     false_starts = _coerce_str_list(payload.get("false_starts"))
     hidden_dependencies = _coerce_str_list(payload.get("hidden_dependencies"))
+    trigger_signals = _coerce_str_list(payload.get("trigger_signals"))
     data = {
         "command": f"sp-{command_name}",
         "pain_score": score,
@@ -230,6 +238,7 @@ def learning_signal_hook(project_root: Path, payload: dict[str, object]) -> Hook
         "threshold": PAIN_THRESHOLD,
         "false_starts": false_starts,
         "hidden_dependencies": hidden_dependencies,
+        "trigger_signals": trigger_signals,
     }
     if score < PAIN_THRESHOLD:
         return HookResult(
@@ -247,6 +256,7 @@ def learning_signal_hook(project_root: Path, payload: dict[str, object]) -> Hook
             "factors": factors,
             "false_starts": false_starts,
             "hidden_dependencies": hidden_dependencies,
+            "trigger_signals": trigger_signals,
             "observed_at": _now_iso(),
         },
     )
@@ -256,7 +266,7 @@ def learning_signal_hook(project_root: Path, payload: dict[str, object]) -> Hook
         severity="warning",
         actions=[
             f"before terminal reporting, record a learning review decision for `sp-{command_name}`: `none`, `captured`, or `deferred`",
-            "if the friction exposed a reusable pitfall, workflow gap, hidden constraint, or tooling trap, capture it in `.specify/memory/learnings/INDEX.md` and one linked detail document with type, summary, and evidence",
+            "if the signal would change a future Agent's action, capture it through `specify learning capture-auto` or `learning capture`; do not edit Learning storage directly",
         ],
         warnings=[
             f"learning pain score {score} crossed threshold {PAIN_THRESHOLD}; this workflow has reusable-learning signal"
@@ -294,7 +304,7 @@ def learning_review_hook(_project_root: Path, payload: dict[str, object]) -> Hoo
             actions=[
                 f"record a learning review decision for `sp-{command_name}` with status `{terminal_status}` before terminal reporting",
                 "when no reusable learning exists, record decision `none` with rationale `no reusable learning`",
-                "when this run exposed reusable friction, capture it in `.specify/memory/learnings/INDEX.md` and one linked detail document with type, summary, and evidence",
+                "when this run exposed reusable friction, capture it through `specify learning capture-auto` or `learning capture`; do not edit Learning storage directly",
             ],
             data={"command": f"sp-{command_name}", "terminal_status": terminal_status},
         )
@@ -341,7 +351,7 @@ def learning_review_hook(_project_root: Path, payload: dict[str, object]) -> Hoo
                     "recent friction signal indicates reusable learning value; `decision=none` is not allowed until the learning is captured or explicitly deferred"
                 ],
                 actions=[
-                    "preserve the reusable lesson in `.specify/memory/learnings/INDEX.md` and one linked detail document with type, summary, and evidence",
+                    "preserve the reusable lesson through `specify learning capture-auto` or `learning capture`; do not edit Learning storage directly",
                     f"or record a deferred learning review for `sp-{command_name}` with status `{terminal_status}` and rationale `capture deferred` when capture must wait",
                 ],
                 data={
@@ -422,6 +432,13 @@ def learning_capture_hook(project_root: Path, payload: dict[str, object]) -> Hoo
         root_cause_family=str(payload.get("root_cause_family") or "").strip(),
         injection_targets=injection_targets,
         promotion_hint=str(payload.get("promotion_hint") or "").strip(),
+        problem=str(payload.get("problem") or "").strip() or None,
+        recommended_action=str(payload.get("recommended_action") or "").strip()
+        or None,
+        avoid=_coerce_str_list(payload.get("avoid")),
+        trigger_signals=_coerce_str_list(payload.get("trigger_signals")),
+        success_criteria=_coerce_str_list(payload.get("success_criteria")),
+        exceptions=_coerce_str_list(payload.get("exceptions")),
     )
     return HookResult(
         event=WORKFLOW_LEARNING_CAPTURE,

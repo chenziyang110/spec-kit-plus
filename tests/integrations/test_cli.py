@@ -9,7 +9,20 @@ import yaml
 from typer.testing import CliRunner
 
 from specify_cli import app
+from specify_cli.launcher import render_command
 from tests.conftest import strip_ansi
+from tests.template_utils import assert_quick_checkpoint_card_shape
+
+
+def _read_skill_with_references(skill_path):
+    parts = [skill_path.read_text(encoding="utf-8")]
+    references_dir = skill_path.parent / "references"
+    if references_dir.is_dir():
+        parts.extend(
+            reference_path.read_text(encoding="utf-8")
+            for reference_path in sorted(references_dir.glob("**/*.md"))
+        )
+    return "\n\n".join(parts)
 
 
 def test_top_level_cli_exposes_discussion_entrypoint():
@@ -67,6 +80,16 @@ class TestInitIntegrationFlag:
         assert (project / ".codex" / "skills" / "sp-teams" / "SKILL.md").exists()
         assert (project / ".specify" / "teams" / "runtime.json").exists()
         assert (project / ".specify" / "templates" / "project-handbook-template.md").exists()
+        lifecycle_template = json.loads(
+            (project / ".specify" / "templates" / "task-lifecycle-template.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        assert (
+            lifecycle_template["blocker_schema_ref"]
+            == ".specify/templates/task-lifecycle-schema.json#/$defs/blocker"
+        )
+        assert (project / ".specify" / "templates" / "task-lifecycle-schema.json").is_file()
         assert (project / ".specify" / "project-cognition").is_dir()
         status = json.loads(
             (project / ".specify" / "project-cognition" / "status.json").read_text(
@@ -153,17 +176,17 @@ class TestInitIntegrationFlag:
 
         implement_skill = project / ".claude" / "skills" / "sp-implement" / "SKILL.md"
         assert implement_skill.exists()
-        content = implement_skill.read_text(encoding="utf-8")
-        assert "execution_model: subagent-mandatory" in content
-        assert "dispatch_shape: one-subagent | parallel-subagents" in content
-        assert "execution_surface: native-subagents" in content
-        assert "compass --intent implement" in content
-        assert "lexicon -> semantic_intake -> query" in content
-        assert "project-cognition query --query-plan" in content
-        assert "--query-plan" in content
-        assert "readiness" in content
-        assert "task-local bundle" in content
-        assert "minimal_live_reads" in content
+        content = _read_skill_with_references(implement_skill)
+        lowered = content.lower()
+        assert "execution_model: adaptive" in lowered
+        assert "leader-direct" in lowered
+        assert "dispatch_shape: one-subagent | parallel-subagents" in lowered
+        assert "managed-team" in lowered
+        assert "compass --intent implement" in lowered
+        assert "only when a required ref is stale, missing, or contradicted by live code" in lowered
+        assert "project-cognition query --query-plan" not in lowered
+        assert "current task's required refs" in lowered
+        assert "minimal_live_reads" in lowered
         assert ".specify/project-cognition/slices/change.json" not in content.lower()
         assert "status and slice artifacts" not in content.lower()
         assert "build-handbook.md" not in content.lower()
@@ -203,20 +226,33 @@ class TestInitIntegrationFlag:
 
         skills_dir = project / ".claude" / "skills"
         assert (skills_dir / "sp-discussion" / "SKILL.md").exists()
-        for skill_name in ("sp-specify", "sp-explain"):
+        for skill_name in ("sp-explain",):
             content = (skills_dir / skill_name / "SKILL.md").read_text(encoding="utf-8").lower()
             assert "execution_model: subagent-mandatory" in content
             assert "dispatch_shape: one-subagent | parallel-subagents" in content
             assert "execution_surface: native-subagents" in content
             assert "specify team" not in content
+        specify_content = _read_skill_with_references(
+            skills_dir / "sp-specify" / "SKILL.md"
+        ).lower()
+        assert "choose_evidence_lane_dispatch" in specify_content
+        assert "lane_mode: read-only-evidence" in specify_content
+        assert "structured_result: evidence_packet" in specify_content
+        assert "dispatch_shape: leader-inline | one-subagent | parallel-subagents | subagent-blocked" in specify_content
+        assert "execution_surface: leader-inline | native-subagents | none" in specify_content
+        assert "specify team" not in specify_content
         for skill_name in ("sp-plan", "sp-tasks"):
-            content = (skills_dir / skill_name / "SKILL.md").read_text(encoding="utf-8").lower()
+            content = _read_skill_with_references(
+                skills_dir / skill_name / "SKILL.md"
+            ).lower()
             assert "execution_model: adaptive" in content
             assert "execution_mode: light | standard | heavy" in content
             assert "workflow_status: ready | blocked" in content
             assert "specify team" not in content
 
-        debug_content = (skills_dir / "sp-debug" / "SKILL.md").read_text(encoding="utf-8").lower()
+        debug_content = _read_skill_with_references(
+            skills_dir / "sp-debug" / "SKILL.md"
+        ).lower()
         assert "execution_model: leader-inline | subagent-assisted | blocked" in debug_content
         assert "dispatch_shape: leader-inline | one-subagent | parallel-subagents | subagent-blocked" in debug_content
         assert "execution_surface: leader-inline | native-subagents | none" in debug_content
@@ -251,12 +287,25 @@ class TestInitIntegrationFlag:
         assert "shared surfaces" in fast_content
         assert "change-propagation hotspot" in fast_content
 
-        quick_content = (skills_dir / "sp-quick" / "SKILL.md").read_text(encoding="utf-8").lower()
+        quick_content = _read_skill_with_references(
+            skills_dir / "sp-quick" / "SKILL.md"
+        ).lower()
         assert ".specify/memory/constitution.md" in quick_content
-        assert ".specify/memory/project-rules.md" in quick_content
-        assert ".specify/memory/learnings/index.md" in quick_content
-        assert "learning reflex" in quick_content
-        assert "future senior engineer" in quick_content
+        assert (
+            render_command(
+                (
+                    "learning",
+                    "start",
+                    "--command",
+                    "<classic-command-name>",
+                    "--format",
+                    "json",
+                )
+            ).lower()
+            in quick_content
+        )
+        assert "show_argv" in quick_content
+        assert ".specify/memory/learnings/index.md" not in quick_content
         assert ".specify/memory/project-learnings.md" not in quick_content
         assert ".planning/learnings/candidates.md" not in quick_content
         assert "compass --intent implement" in quick_content
@@ -269,6 +318,7 @@ class TestInitIntegrationFlag:
         assert "minimal_live_reads" in quick_content
         assert "understanding checkpoint" in quick_content
         assert "understanding_confirmed" in quick_content
+        assert_quick_checkpoint_card_shape(quick_content)
         assert "status and slice artifacts" not in quick_content
         assert ".specify/project-cognition/slices/change.json" not in quick_content
         assert "continue automatically until the quick task is complete or a concrete blocker prevents further safe progress" in quick_content
@@ -992,41 +1042,42 @@ def test_check_reports_workflow_contract_drift(tmp_path):
         for command in ("list", "status", "resume", "close", "archive"):
             assert command in result.output
 
-    def test_init_installs_shared_worker_prompt_templates(self, tmp_path):
-        from typer.testing import CliRunner
-        from specify_cli import app
+def test_init_installs_shared_worker_prompt_templates(tmp_path):
+    from typer.testing import CliRunner
+    from specify_cli import app
 
-        project = tmp_path / "worker-prompt-assets"
-        project.mkdir()
-        runner = CliRunner()
+    project = tmp_path / "worker-prompt-assets"
+    project.mkdir()
+    runner = CliRunner()
 
-        old_cwd = os.getcwd()
-        try:
-            os.chdir(project)
-            result = runner.invoke(
-                app,
-                [
-                    "init",
-                    "--here",
-                    "--ai",
-                    "claude",
-                    "--script",
-                    "sh",
-                    "--no-git",
-                    "--ignore-agent-tools",
-                ],
-                catch_exceptions=False,
-            )
-        finally:
-            os.chdir(old_cwd)
+    old_cwd = os.getcwd()
+    try:
+        os.chdir(project)
+        result = runner.invoke(
+            app,
+            [
+                "init",
+                "--here",
+                "--ai",
+                "claude",
+                "--script",
+                "sh",
+                "--no-git",
+                "--ignore-agent-tools",
+            ],
+            catch_exceptions=False,
+        )
+    finally:
+        os.chdir(old_cwd)
 
-        assert result.exit_code == 0, result.output
-        prompt_dir = project / ".specify" / "templates" / "worker-prompts"
-        assert (prompt_dir / "implementer.md").exists()
-        assert (prompt_dir / "debug-investigator.md").exists()
-        assert (prompt_dir / "quick-worker.md").exists()
-        assert (prompt_dir / "spec-reviewer.md").exists()
-        assert (prompt_dir / "code-quality-reviewer.md").exists()
+    assert result.exit_code == 0, result.output
+    prompt_dir = project / ".specify" / "templates" / "worker-prompts"
+    assert (prompt_dir / "implementer.md").exists()
+    assert (prompt_dir / "debug-investigator.md").exists()
+    assert (prompt_dir / "quick-worker.md").exists()
+    assert (prompt_dir / "task-reviewer.md").exists()
+    assert (prompt_dir / "spec-reviewer.md").exists()
+    assert (prompt_dir / "code-quality-reviewer.md").exists()
 
 def test_install_psmux_for_codex_teams_uses_exact_winget_id(monkeypatch):
     from specify_cli import _install_psmux_for_codex_teams

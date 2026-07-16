@@ -373,8 +373,7 @@ class GeminiIntegration(TomlIntegration):
         manifest: IntegrationManifest,
         **opts: Any,
     ) -> list[Path]:
-        created: list[Path] = []
-        created.extend(self.install_scripts(project_root, manifest))
+        created = super().repair_runtime_assets(project_root, manifest, **opts)
         created.extend(
             self._install_hook_assets(
                 project_root=project_root,

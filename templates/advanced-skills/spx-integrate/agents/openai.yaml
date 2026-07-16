@@ -1,0 +1,7 @@
+interface:
+  display_name: "SPX Integrate"
+  short_description: "Independent feature-lane closeout"
+  default_prompt: "Use $spx-integrate to validate and close completed feature lanes."
+
+policy:
+  allow_implicit_invocation: false

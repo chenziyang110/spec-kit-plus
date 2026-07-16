@@ -9,52 +9,42 @@ Before applying the tiered quality checks, `spec-lint` validates the current
 planning-readiness oriented: it proves the required handoff surfaces exist and
 do not record a planning blocker.
 
-Required artifacts:
+Canonical required artifacts:
 
-- `spec.md`
-- `alignment.md`
-- `context.md`
-- `workflow-state.md`
-- `checklists/requirements.md`
-- `brainstorming/handoff-to-specify.json`
+- `spec-contract.json` as Agent-facing authority
+- `spec.md` as the project-facing rendering
 
-Required `workflow-state.md` readiness signals:
+`alignment.md`, `context.md`, `references.md`, requirements diagnostics, and
+pointer-only compatibility transitions are conditional. They are required only
+when referenced by `spec-contract.json.artifact_refs` or when a legacy package
+does not yet contain `spec-contract.json`.
 
-- `active_command: sp-specify`
-- completed or planning-ready status
-- `last_user_reviewed_artifact_state: requested|approved`
-- `source_signal_disposition_status: complete|not-applicable`
-- `final_handoff_decision: /sp.plan` or a next command resolving to `/sp.plan`
+Required canonical contract signals:
 
-Required handoff JSON fields:
+- `status: planning-ready`
+- non-empty `target_need` and `acceptance_criteria`
+- typed scope, constraints, decisions, semantic delta, capability-operation,
+  obligation-ref, context-capsule, open-item, and artifact-ref fields
+- `transition.status: ready`
+- empty `transition.blockers`
+- `transition.next_action: /sp.plan`
 
-- `status`
-- `entry_source`
-- `source_files_read`
-- `source_signal_disposition`
-- `must_preserve`
-- `coverage_status`
-- `planning_gate_status`
-- `hard_unknown_count`
-- `open_conflict_count`
-- `quality_gate`
+Legacy packages remain supported through the previous alignment/context,
+workflow-state, requirements checklist, and compatibility handoff contract.
 
 Blocking conditions:
 
-- required artifact missing or empty
-- invalid handoff JSON
-- `planning_gate_status` is not `ready`
-- `coverage_status` is incomplete, blocked, or missing
-- `hard_unknown_count` or `open_conflict_count` is greater than zero
-- source signal disposition rows have no recognized disposition, use an
-  unknown disposition, or contain `clarification_blocker`
-- must-preserve rows have no stable trace field or are explicitly unmapped,
-  unresolved, missing, or incomplete
+- canonical required artifact missing or empty
+- invalid or incomplete `spec-contract.json`
+- planning-ready status or ready transition missing
+- transition blockers remain open
+- acceptance criteria are empty
+- must-preserve refs are malformed or unstable
 
 Warning-only conditions:
 
-- user review is recorded as `requested` but not yet `approved`
-- `quality_gate` exists without a readable status or summary
+- semantic delta is non-empty but approved user review is not recorded
+- an optional rendered view referenced by the contract is stale or missing
 
 ## Tier Selection
 
@@ -68,9 +58,13 @@ Choose the tier based on task classification and boundary sensitivity:
 
 ## Gate Items
 
-### 1. Scout Summary (light+, context.md)
+### 1. Context Capsule (light+)
 
-The context file must contain a structured summary covering at least 3 of these 6 topics:
+The canonical context capsule carries only boundary refs, selected capability
+refs, evidence refs, minimal live reads, validation routes, and stale
+conditions. A separate `context.md` is needed only when the evidence has
+independent project-review value. Legacy packages still use the structured
+scout summary topics below:
 
 - **Ownership & truth sources**: which modules own the touched area, where canonical state/behavior lives
 - **Reusable assets**: existing components, services, hooks, or patterns that can be reused
@@ -95,18 +89,13 @@ At least 80% of capabilities must be labeled. Unlabeled capabilities imply incom
 
 **Machine check**: `spec-lint` counts capabilities and verifies label coverage.
 
-### 3. Execution Mode (light+, workflow-state.md or alignment.md)
+### 3. Execution Mode (legacy packages)
 
-The execution model must be explicitly recorded:
+Canonical specification quality is independent of whether discovery ran inline
+or used read-only evidence lanes. Legacy packages may still record an execution
+mode in workflow state or alignment for compatibility.
 
-- `execution_model: subagent-mandatory` — subagents were used for substantive analysis
-- `execution_model: single-agent` — executed without subagents; must include rationale
-
-This preserves traceability of how the spec was produced and whether parallel cross-validation occurred.
-
-**Machine check**: `spec-lint` searches for `execution_model` or `execution_mode` with a valid value.
-
-### 4. Change-Propagation Matrix (standard+, context.md)
+### 4. Change-Propagation Evidence (standard+)
 
 A structured table mapping each change surface to its consumers:
 
@@ -117,7 +106,9 @@ A structured table mapping each change surface to its consumers:
 | Indirect consumers | Modules affected through transitive dependencies |
 | Risk / compatibility | Type of breakage risk (BREAKING, MEDIUM, LOW) |
 
-Must have at least one data row if the change has any consumers.
+When the contract references a separate context view, it must have at least one
+data row if the change has consumers. Otherwise stable evidence refs in the
+context capsule are sufficient and planning resolves the detailed interface map.
 
 **Machine check**: `spec-lint` verifies that a change-propagation or impact section contains a data table.
 
@@ -179,19 +170,20 @@ This enables planners to estimate test effort during task decomposition.
 
 **Machine check**: `spec-lint` checks for test strategy keywords within capability sections.
 
-## Artifact Review Gate (Manual)
+## Artifact Review Gate (Conditional Human Review)
 
-In addition to the mechanical checks above, a human reviewer must confirm:
+When semantic delta is non-empty or a user-owned decision remains unresolved, a human reviewer confirms:
 
 - [ ] Planning Summary states a business outcome, not a documentation deliverable
 - [ ] Gray areas were resolved or explicitly deferred with rationale
 - [ ] Feasibility gate was evaluated per capability (not a blanket "not needed")
-- [ ] The user explicitly reviewed and approved the artifact set
+- [ ] The user explicitly reviewed and approved the changed decision set
 - [ ] The recommended next command matches the actual state of the artifacts
 
 ## Tooling
 
-- `spec-lint -dir <FEATURE_DIR> -tier <tier>` runs the artifact contract gate plus all machine-checkable tiered quality items
-- Exit code 0 = all mechanical checks pass; exit code 1 = failures present
-- Items without the machine-check tag require human judgment
+- `specify lint --dir <FEATURE_DIR> --tier <light|standard|deep>` runs the packaged `spec-lint` artifact gate
+- Agents use `--format json`; compact output omits passing check names unless `--show-passes` is requested
+- Exit code 0 = checks pass, 1 = checks fail or execution fails, 2 = invalid tier/format usage
+- Items without the machine-check tag require human judgment only when their trigger applies
 - The tool has zero runtime dependencies (single Go binary)

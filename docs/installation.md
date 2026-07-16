@@ -24,7 +24,7 @@ specify --help
 
 The uninstall step is intentional. Windows, Conda, and previous pip installs can
 leave an older `specify.exe` earlier on PATH, while development builds may still
-report the same `0.5.1.dev0` version string. `specify --help` should show the
+report the same `.dev0` version string. `specify --help` should show the
 current command surface, including commands such as `testing`.
 
 ### Initialize a New Project
@@ -95,6 +95,13 @@ macOS. `specify init` best-effort downloads the matching release asset into
 `~/.specify/bin/` and pins that executable in the generated project's
 `.specify/config.json`. If automatic download is unavailable, use the
 installers below or set `PROJECT_COGNITION_BIN` to a custom binary path.
+The same binary exposes `semantic-audit-resume` for persisted semantic audit
+state checks. The command compares a saved audit input/output pair against
+workflow state; it does not authorize source changes or final claims, and does not grant P3/P4. Multiple `authorized_claims` require one `active_claim_type`, and failed,
+blocked, skipped, or inconclusive verification results keep claim readiness
+blocked with `verification_result_failed`, `verification_result_blocked`, or
+`verification_result_inconclusive` until a newer matching passed rerun
+supersedes them.
 After the binary is pinned, empty projects initialized by `specify init` run
 `project-cognition init-empty`. When there is no business code yet, that
 bootstrap creates `.specify/project-cognition/status.json` and
@@ -104,15 +111,28 @@ map-scan -> map-build solely because the graph has no paths. Projects with
 existing code still use map-scan -> map-build when a full first brownfield
 cognition baseline is needed for a first/missing/unusable baseline.
 
-Workflow-owned mutation closeout uses the same lower-level update engine as
-`sp-map-update`. Delta-session closeout calls
-`project-cognition update --delta-session "$DELTA_SESSION_ID" --reason workflow-finalize --format json`;
-non-delta closeout writes `.specify/project-cognition/updates/<update-id>.json`
-and calls
-`project-cognition update --payload-file ".specify/project-cognition/updates/<update-id>.json" --reason workflow-finalize --format json`.
-A clean closeout requires `result_state=ready` or `result_state=no_op`;
-`update_id`, `last_update_id`, freshness, and legacy `recorded-only` output are
-not enough.
+Workflow-owned mutation closeout is planner-first: source-changing `sp-*`
+workflows run
+`project-cognition closeout-plan --workflow "$ACTIVE_WORKFLOW" --format json`,
+passing `--delta-session "$DELTA_SESSION_ID"` when a delta session exists. The
+planner returns `update_mode=delta_session` or `update_mode=payload_file`,
+`required_agent_fields`, `unknown_path_dispositions`, display-only command
+templates, and structured execution fields. Agents execute via `update_argv`
+after writing a completed payload, or by completing
+`delta_append_draft.argv_prefix` with agent-owned evidence placeholders before
+running `update_argv`. Verified `adoptable` unknown paths can be recorded
+without becoming blocking `known_unknowns`; only `blocking_known_unknown`
+dispositions become payload or delta known unknowns. Clean closeout gates on
+`result_state=ready` or `result_state=no_op`, not `status=ok`, `update_id`,
+`last_update_id`, freshness, display-only command templates, or legacy
+`recorded-only` output. `sp-map-update` remains manual/external maintenance and
+artifact-only workflows do not write cognition unless they changed
+source/runtime/template/config/test/generated-asset surfaces.
+Closeout agents should use `known_unknowns` only for blockers that make the
+cognition update unsafe to trust. If unrelated dirty or untracked working-tree
+paths were excluded by explicit workflow-owned paths, record that as
+`confidence_notes` or `boundary.initial_dirty_paths`, not as blocking
+`known_unknowns`.
 
 ```bash
 # Linux / macOS
@@ -161,30 +181,31 @@ approaches when scope needs a choice, and forces semantic
 traceability for ambiguous terms such as "capability", "real", "usable", or
 "end-to-end".
 
-When `specify` starts from a `discussion` handoff, it must read the named
-discussion source files, at least `discussion-log.md`, `requirements.md`, and
-`open-questions.md` when present, instead of trusting the handoff summary
-alone. Invoke it with the handoff Markdown path, JSON path, or discussion slug,
-or let it consume the single unconsumed `handoff-ready` discussion when exactly
-one exists. It validates the handoff before feature creation, requires ready
-planning status, user-confirmed quality gate status, zero hard unknowns, zero
-open conflicts, and Markdown/JSON agreement on protected downstream facts, then
-derives the feature description from `handoff_goal` instead of the raw path or
-slug. The compatibility handoff JSON records `source_files_read` and
-`source_signal_disposition`; `alignment.md` carries `Semantic Term Decisions`,
-`Upstream Intent Disposition`, and `Out-Of-Scope Conflicts` so a capability-like
-upstream signal cannot silently disappear before planning.
+Use the canonical `ask` workflow for read-only evidence-backed project Q&A when
+you need a direct answer from project files, templates, docs, state, or memory
+before choosing an action workflow. Project cognition guides the search; live evidence
+proves the answer. Same-topic follow-ups reuse the prior evidence set
+when it still applies; project-slang terms are normalized into project vocabulary,
+and complex answers separate proven facts from
+evidence-derived inferences. `sp-ask` is independent from `sp-discussion`, creates
+no ask state or handoff, makes no source edits, and does not run tests, builds,
+package managers, or project CLI commands by default. There is no `specify ask`
+Typer helper in v1.
+
+When `specify` starts from a `discussion` contract, pass the handoff JSON path or discussion slug, or let it select the single eligible unconsumed ready contract. It validates ready status, consumer eligibility, the confirmed digest, target boundary, protected obligations, and source-contract integrity before feature creation, then derives the feature description from `handoff_goal`. `spec-contract.json` preserves semantic delta, stable evidence refs, and capability operations so upstream signals cannot silently disappear before planning.
 
 Command-surface minimization must not delete capability. If upstream discussion
 or specification text includes a new/create/scaffold/authoring operation,
 downstream planning and task generation must preserve it through an explicit
-public command, TUI route, core API, private helper, or user-confirmed deferral.
+public command, TUI route, core API, private helper, or user-confirmed deferral
+carrying confirmation source, exact excluded behavior, residual risk, reopen or
+stop condition, and downstream artifact.
 Manual copy instructions and template-only docs can support that operation, but
 they do not replace it unless the user chose that narrower entry point.
 
-Before planning, `specify` performs artifact self-review and asks for user review
-against the original wording so unconfirmed scope narrowing is reopened instead
-of passed downstream.
+Before planning, `specify` performs deterministic self-review. A confirmed
+discussion contract does not require another user review unless compilation
+produces a non-empty user-owned semantic delta.
 
 Use the canonical `prd-scan -> prd-build` workflow when an existing repository
 needs a repository-first current-state PRD reconstruction archive. It is the
@@ -195,7 +216,22 @@ compiles from the scan package without a second repository scan. It remains a
 peer workflow path to `specify` and does not automatically hand off to `plan`.
 `prd` remains a deprecated compatibility entrypoint only.
 
-Use the canonical `discussion` workflow for rough ideas that need resumable product/technical discussion before formal specification. `discussion` stores `.specify/discussions/<slug>/` artifacts, uses an Adaptive Question Pack with one required primary question and up to two optional same-topic follow-ups only for local low-risk topics, and runs the Context Boundary Gate before technical options or handoff generation. If the request crosses projects, references another codebase, names an external system, or depends on an existing module, lock the target project root, current project role, reference source, and evidence source before making project-specific claims. It acts as a senior product-engineering advisor: before project-specific technical advice it performs a Truth Pass, records verified project facts, open assumptions, checked evidence, and advice confidence, gives decision-ready judgment with evidence and risk, maintains a Discussion Compass, uses recommendation-first decision progression, and proactively surfaces adjacent implications instead of forcing one-point-at-a-time replies. When the user explicitly asks to hand off, `discussion` writes exactly one single unified handoff: `handoff-to-specify.md` plus `handoff-to-specify.json` only after self-review and user confirmation. Missing JSON is a hard integrity blocker for downstream intake. The Markdown handoff includes a `Handoff Reviewer Guide` with approval and change-request criteria for reviewers who do not know Spec Kit internals. Broad directions stay in `discussion` until they can be expressed as one handoff with a capability map, recommended sequence, dependencies, deferred scope, and reopen conditions. It does not automatically invoke `specify`; after `sp-specify` consumes the handoff, use `specify discussion mark-consumed <slug> --feature-dir <feature-dir>` to record handoff consumption and remove stale `handoff-ready` state from default auto-resume candidates.
+Use `discussion` for rough ideas that need product/technical shaping before formal specification or bounded quick execution. It persists meaning at semantic checkpoints, keeps human replies adaptive, and writes one canonical Agent-only `handoff-to-specify.json` only after explicit request, boundary lock, self-review, and user confirmation. `sp-specify` and `sp-quick` validate that JSON directly; no Markdown companion, reviewer guide, quick-specific handoff, or duplicated confirmation is required.
+
+Continue by default, do not ask for continuation, and ask only when user judgment is genuinely required and no safe default exists.
+
+Current discussion state is Agent-native: `discussion-state.json` is canonical,
+`discussion-state.md` is a derived compatibility view, and
+`discussion-log.jsonl` records semantic checkpoints. The Context Boundary Gate
+locks the target project root before technical claims. Human replies stay
+natural; the handoff is JSON-only and approval/consumption bind to
+`review_digest`.
+
+The discussion output is one canonical Agent-only JSON contract shared by eligible consumers.
+
+Across the full pipeline, the canonical Agent authorities are `handoff-to-specify.json`, `spec-contract.json`, `plan-contract.json`, `task-index.json`, per-task lifecycle records, and post-closeout `human-acceptance.json`. Conditional artifacts are generated only when their trigger is present; delegated packets are compiled just in time. `sp-accept` / `spx-accept` assumes the human returns without chat context, restores the product story, and guides one observable acceptance step at a time before recording the explicit human verdict.
+
+When `sp-specify` consumes the contract, it writes `spec-contract.json` and preserves the decision digest by reference. `sp-quick` reuses the confirmed digest when its own semantic delta is empty.
 
 Discussion sessions remain visible to resume while their status is `active`, `blocked`, or unconsumed `handoff-ready`. After a handoff has been consumed, `specify discussion mark-consumed <slug> --feature-dir <feature-dir>` writes `handoff_consumption_status: consumed`, `consumed_by_feature_dir`, `status: completed`, and `next_command: none`; then `specify discussion archive <slug>` can move it under `.specify/discussions/archive/`. If the user abandons the topic before consumption, use `specify discussion close <slug> --status abandoned` and then archive it.
 

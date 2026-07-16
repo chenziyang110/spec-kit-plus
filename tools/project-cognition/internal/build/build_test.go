@@ -48,6 +48,12 @@ func TestRunCreatesGoRuntimeFromScanPackage(t *testing.T) {
 	if payload.MergeRecords == nil {
 		t.Fatal("MergeRecords is nil, want present empty slice")
 	}
+	if payload.Compilation.ContractVersion != 1 || payload.Compilation.Status != "compiled" || !payload.Compilation.PublicationAllowed {
+		t.Fatalf("Compilation = %#v, want publishable contract v1", payload.Compilation)
+	}
+	if payload.Compilation.ProposalFingerprint == "" || payload.Compilation.CompiledFingerprint == "" {
+		t.Fatalf("Compilation = %#v, want deterministic fingerprints", payload.Compilation)
+	}
 
 	status, err := rt.ReadStatus(paths)
 	if err != nil {
@@ -87,6 +93,118 @@ func TestRunCreatesGoRuntimeFromScanPackage(t *testing.T) {
 	}
 	if !snapshot.CoveragePaths["src/app.go"] {
 		t.Fatalf("snapshot coverage paths = %#v, want src/app.go", snapshot.CoveragePaths)
+	}
+}
+
+func TestRunCompilesAndPublishesOptionalGraphClaims(t *testing.T) {
+	paths := writeMinimalScanPackage(t)
+	writeJSON(t, filepath.Join(paths.RuntimeDir, "provisional", "claims.json"), map[string]any{
+		"claims": []map[string]any{{
+			"id": "claim:app-owner", "node_id": "N-app", "graph_claim_type": "runtime_owner",
+			"summary": "App owns runtime behavior", "requested_state": "verified_in_graph_generation",
+			"supporting_evidence_ids": []string{"E-001"},
+			"verifications": []map[string]any{{
+				"id": "verification:app-owner", "result": "passed", "evidence_id": "E-001", "observed_at": "2026-07-13T10:00:00Z",
+			}},
+		}},
+	})
+
+	payload, err := Run(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if payload.Status != "ok" || payload.ScanArtifactCounts["claims"] != 1 || payload.DBCounts["claims"] != 1 {
+		t.Fatalf("payload = %#v, want one compiled and published claim", payload)
+	}
+	if got := payload.IdentityReconciliation["claims"]; got.Status != "ok" {
+		t.Fatalf("claim reconciliation = %#v, want ok", got)
+	}
+	st, err := store.OpenExisting(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	var state, freshness string
+	if err := st.DB().QueryRowContext(context.Background(), `SELECT state, freshness FROM claims WHERE id = 'claim:app-owner'`).Scan(&state, &freshness); err != nil {
+		t.Fatal(err)
+	}
+	if state != "verified_in_graph_generation" || freshness != "fresh" {
+		t.Fatalf("claim state/freshness = %q/%q, want verified_in_graph_generation/fresh", state, freshness)
+	}
+}
+
+func TestRunBlocksCompilerConflictBeforeCreatingGraphStore(t *testing.T) {
+	paths := writeMinimalScanPackage(t)
+	writeJSON(t, filepath.Join(paths.RuntimeDir, "provisional", "nodes.json"), map[string]any{
+		"nodes": []map[string]any{
+			{
+				"id": "N-app", "type": "capability", "title": "App", "confidence": "high",
+				"paths": []string{"src/app.go"}, "evidence_ids": []string{"E-001"},
+			},
+			{
+				"id": "N-app", "type": "capability", "title": "Conflicting App", "confidence": "high",
+				"paths": []string{"src/app.go"}, "evidence_ids": []string{"E-001"},
+			},
+		},
+	})
+
+	payload, err := Run(paths)
+	if err != nil {
+		t.Fatalf("Run() error = %v; payload=%#v", err, payload)
+	}
+	if payload.Status != "blocked" || payload.Compilation.PublicationAllowed {
+		t.Fatalf("payload = %#v, want compiler-blocked publication", payload)
+	}
+	if payload.ActiveGenerationID != "" {
+		t.Fatalf("ActiveGenerationID = %q, want empty", payload.ActiveGenerationID)
+	}
+	if _, err := os.Stat(paths.DatabasePath); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("graph store stat error = %v, want not exist", err)
+	}
+}
+
+func TestRunCompilerConflictPreservesExistingDatabaseAndStatus(t *testing.T) {
+	paths := writeMinimalScanPackage(t)
+	existingStatus := rt.DefaultStatus(paths)
+	existingStatus.Status = "sentinel"
+	if err := rt.WriteStatus(paths, existingStatus); err != nil {
+		t.Fatal(err)
+	}
+	writeJSON(t, filepath.Join(paths.RuntimeDir, "provisional", "nodes.json"), map[string]any{
+		"nodes": []map[string]any{
+			{"id": "N-app", "type": "capability", "title": "App", "paths": []string{"src/app.go"}, "evidence_ids": []string{"E-001"}},
+			{"id": "N-app", "type": "capability", "title": "Conflict", "paths": []string{"src/app.go"}, "evidence_ids": []string{"E-001"}},
+		},
+	})
+	databaseBefore := []byte("existing-database-sentinel")
+	if err := os.WriteFile(paths.DatabasePath, databaseBefore, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	statusBefore, err := os.ReadFile(paths.StatusPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	payload, err := Run(paths)
+	if err != nil {
+		t.Fatalf("Run() error = %v; payload=%#v", err, payload)
+	}
+	databaseAfter, err := os.ReadFile(paths.DatabasePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	statusAfter, err := os.ReadFile(paths.StatusPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(databaseAfter) != string(databaseBefore) {
+		t.Fatalf("database changed on compiler block: got %q, want %q", databaseAfter, databaseBefore)
+	}
+	if string(statusAfter) != string(statusBefore) {
+		t.Fatal("status changed on compiler block")
+	}
+	if _, err := os.Stat(paths.DatabasePath + ".legacy"); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("legacy archive stat error = %v, want not exist", err)
 	}
 }
 
@@ -387,7 +505,7 @@ func TestReconciliationErrorsRequireExplicitDecisionRecords(t *testing.T) {
 	}
 }
 
-func TestRunReplacesLegacyStatus(t *testing.T) {
+func TestRunRejectsLegacyStatusWithoutReplacement(t *testing.T) {
 	paths := writeMinimalScanPackage(t)
 	data, _ := json.Marshal(map[string]any{"freshness": "fresh", "graph_ready": true})
 	if err := os.WriteFile(paths.StatusPath, data, 0o644); err != nil {
@@ -395,18 +513,18 @@ func TestRunReplacesLegacyStatus(t *testing.T) {
 	}
 
 	payload, err := Run(paths)
-	if err != nil {
-		t.Fatalf("Run() error = %v", err)
+	if !errors.Is(err, rt.ErrUnsupportedLegacy) {
+		t.Fatalf("Run() error = %v, want current-runtime-only rejection", err)
 	}
-	if !payload.LegacyRuntimeReplaced {
-		t.Fatal("LegacyRuntimeReplaced = false, want true")
+	if !strings.Contains(strings.Join(payload.Errors, "\n"), "unsupported legacy project cognition runtime") {
+		t.Fatalf("Errors = %#v, want explicit legacy status rejection", payload.Errors)
 	}
-	status, err := rt.ReadStatus(paths)
+	unchanged, err := os.ReadFile(paths.StatusPath)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if status.RuntimeFormat != rt.RuntimeFormat {
-		t.Fatalf("RuntimeFormat = %q, want %q", status.RuntimeFormat, rt.RuntimeFormat)
+	if string(unchanged) != string(data) {
+		t.Fatalf("legacy status changed: got %s want %s", unchanged, data)
 	}
 }
 
@@ -742,7 +860,7 @@ func TestRunResolvesPathEdgeEndpointsToOwningNodes(t *testing.T) {
 	}
 }
 
-func TestRunImportFailureDoesNotReportIdentityReconciliationOK(t *testing.T) {
+func TestRunCompilerFailureDoesNotReportIdentityReconciliationOK(t *testing.T) {
 	paths := writeMinimalScanPackage(t)
 	writeJSON(t, filepath.Join(paths.RuntimeDir, "provisional", "edges.json"), map[string]any{
 		"edges": []map[string]any{{
@@ -756,15 +874,18 @@ func TestRunImportFailureDoesNotReportIdentityReconciliationOK(t *testing.T) {
 	})
 
 	payload, err := Run(paths)
-	if err == nil {
-		t.Fatal("Run() error = nil, want import failure")
+	if err != nil {
+		t.Fatalf("Run() error = %v, want structured compiler block", err)
+	}
+	if payload.Compilation.PublicationAllowed {
+		t.Fatalf("Compilation = %#v, want blocked orphan edge", payload.Compilation)
 	}
 	if payload.IdentityReconciliation["evidence"].Status != "not_run" {
 		t.Fatalf("evidence reconciliation = %#v, want not_run", payload.IdentityReconciliation["evidence"])
 	}
 }
 
-func TestRunArchivesLegacyThinDatabaseBeforeImport(t *testing.T) {
+func TestRunRejectsLegacyThinDatabaseWithoutReplacement(t *testing.T) {
 	paths := writeMinimalScanPackage(t)
 	if err := os.MkdirAll(paths.RuntimeDir, 0o755); err != nil {
 		t.Fatal(err)
@@ -789,41 +910,30 @@ func TestRunArchivesLegacyThinDatabaseBeforeImport(t *testing.T) {
 	}
 
 	payload, err := Run(paths)
-	if err != nil {
-		t.Fatalf("Run() error = %v; payload=%#v", err, payload)
+	if err == nil {
+		t.Fatalf("Run() error = nil, want current-schema-only rejection; payload=%#v", payload)
 	}
-	if payload.Status != "ok" {
-		t.Fatalf("Status = %q, want ok; errors=%v", payload.Status, payload.Errors)
+	if !strings.Contains(strings.Join(payload.Errors, "\n"), "metadata table has no value_json column") {
+		t.Fatalf("Errors = %#v, want explicit current metadata schema rejection", payload.Errors)
 	}
-	if !payload.LegacyRuntimeReplaced {
-		t.Fatal("LegacyRuntimeReplaced = false, want true")
+	if payload.ActiveGenerationID != "" {
+		t.Fatalf("ActiveGenerationID = %q, want no import", payload.ActiveGenerationID)
 	}
-	if payload.ActiveGenerationID == "" || payload.ActiveGenerationID == "GEN-legacy" {
-		t.Fatalf("ActiveGenerationID = %q, want fresh non-legacy generation", payload.ActiveGenerationID)
-	}
-
-	status, err := rt.ReadStatus(paths)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if status.ActiveGenerationID != payload.ActiveGenerationID || !status.GraphReady {
-		t.Fatalf("status = %#v, want active fresh graph", status)
+	if _, err := os.Stat(paths.DatabasePath + ".legacy"); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("legacy archive stat error = %v, want no implicit archive", err)
 	}
 
-	st, err := store.OpenExisting(paths)
+	reopened, err := sql.Open("sqlite", paths.DatabasePath)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer st.Close()
-	activeID, err := st.ActiveGenerationID(context.Background())
-	if err != nil {
+	defer reopened.Close()
+	var activeID string
+	if err := reopened.QueryRow(`SELECT id FROM generations WHERE state = 'active'`).Scan(&activeID); err != nil {
 		t.Fatal(err)
 	}
-	if activeID != payload.ActiveGenerationID {
-		t.Fatalf("active generation = %q, want payload %q", activeID, payload.ActiveGenerationID)
-	}
-	if _, err := os.Stat(paths.DatabasePath + ".legacy"); err != nil {
-		t.Fatalf("legacy database archive missing: %v", err)
+	if activeID != "GEN-legacy" {
+		t.Fatalf("active generation = %q, want untouched GEN-legacy", activeID)
 	}
 }
 

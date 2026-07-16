@@ -1,0 +1,53 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>UI Target - Feature</title>
+  <style>
+    /* Local CSS only. No external dependencies. This file is a disposable visual target, not production code. */
+    :root {
+      color-scheme: light;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #ffffff;
+      color: #111827;
+    }
+    body {
+      margin: 0;
+      padding: 24px;
+      background: #f6f7f9;
+    }
+    main {
+      display: grid;
+      gap: 24px;
+    }
+    section {
+      border: 1px solid #d8dee8;
+      background: #ffffff;
+      padding: 16px;
+    }
+  </style>
+</head>
+<body>
+  <main data-ui-target="feature-name" data-fidelity="approximate">
+    <section data-viewport="desktop-1440">
+      <h1>Desktop target composition</h1>
+      <p>Preserve layout, density, information hierarchy, and visible data volume.</p>
+    </section>
+
+    <section data-viewport="mobile-390">
+      <h1>Mobile target composition</h1>
+      <p>Preserve priority and interaction intent in the narrow layout.</p>
+    </section>
+
+    <section data-state="empty">
+      <h1>Empty state</h1>
+      <p>Show the empty condition without changing the overall layout pattern.</p>
+    </section>
+
+    <section data-state="error">
+      <h1>Error state</h1>
+      <p>Show the error condition with a clear recovery action.</p>
+    </section>
+  </main>
+</body>
+</html>

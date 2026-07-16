@@ -34,6 +34,33 @@
 - [Deferred enhancement, broader ideal-shape item, or later release work]
 - [Reopen trigger for each deferred item]
 
+## Experience Requirements
+
+- Design-system source:
+- Design-system status:
+- Required platforms:
+- Experience commitments:
+- Design risks:
+
+## UI Reference Processing
+
+Use this section for every substantive UI-bearing feature. External references
+activate the reference lane; UI work without references still requires the UI
+brief and downstream visual acceptance contract.
+
+- ui_applicable: [true | false]
+- ui_work_type: [existing-pattern | feature-extension | reference-implementation | none]
+- real_entry_points: [routes, screens, commands, or output surfaces]
+- ui_reference_processing_status: [not-applicable | subagent-dispatched | completed | blocked | inline-fallback-approved]
+- ui_reference_lane_mode: [none | ui-reference-artifact]
+- ui_fidelity_mode: [none | approximate | high | inspiration]
+- ui_reference_notes: [FEATURE_DIR/ui-reference-notes.md | none]
+- ui_brief: [FEATURE_DIR/ui-brief.md | none]
+- ui_target: [FEATURE_DIR/ui-target.html | none]
+- visual_review_requirement: [not-needed | agent-visual-comparison | pending-human-review]
+- ownership_classification: [user-owned | project-owned | third-party | unknown | mixed]
+- inline_fallback_reason: [none | user-approved-inline-fallback | inspiration-soft-risk]
+
 ## Must-Preserve Discussion Inputs
 
 - **Source**: [Discussion handoff path when `entry_source: sp-discussion`]
@@ -142,6 +169,17 @@ Do not replace a confirmed capability operation with manual copy steps, static t
 
 ## Decision Capture *(mandatory)*
 
+### Discussion Decision Digest
+
+Use this section when `entry_source: sp-discussion`.
+
+- **Selected Direction**: [Locked Direction from the discussion handoff, including source and rationale]
+- **Rejected Alternatives**: [Alternative] -> [why rejected] -> [reopen condition if it could reappear]
+- **Accepted Tradeoffs**: [Tradeoff accepted] -> [risk accepted] -> [confirmation or source]
+- **Experience Commitments**: [UI/TUI shell, key flow shape, user-visible states, accessibility/copy constraints, and sketch reference when present]
+- **Review Criteria Carry-Forward**: [Criteria from the Handoff Reviewer Guide that this spec must still satisfy]
+- **Must Not Dilute**: [Decision or operation downstream must not simplify away]
+
 ### Locked Decisions
 
 - [Decision confirmed strongly enough that planners must preserve it]
@@ -171,6 +209,9 @@ Use this section when the Senior Consequence Analysis Gate triggers.
 ## Fidelity Requirements
 
 Include this section only when the active workflow profile is `Reference-Implementation`.
+UI reference inputs with `approximate` or `high` fidelity activate this section.
+Map `ui-reference-notes.md`, `ui-brief.md`, and optional `ui-target.html`
+into Reference Object, Required Fidelity, and Reference Behavior Inventory.
 
 ### Reference Object
 

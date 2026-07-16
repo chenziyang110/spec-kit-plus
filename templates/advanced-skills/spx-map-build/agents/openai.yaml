@@ -1,0 +1,7 @@
+interface:
+  display_name: "SPX Map Build"
+  short_description: "Deterministic cognition build"
+  default_prompt: "Use $spx-map-build to build project cognition from a validated scan package."
+
+policy:
+  allow_implicit_invocation: false

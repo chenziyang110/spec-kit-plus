@@ -22,7 +22,7 @@ def test_workflow_routing_references_cognition_gate_and_project_learning_roles()
     assert "sp-prd-build" in content
     assert "peer\n  workflow path to `sp-specify`" in content or "peer workflow path to `sp-specify`" in content
     assert "do not automatically hand off to planning" in content
-    assert "default generated path is `sp-specify -> sp-plan -> sp-tasks -> sp-implement`" in content
+    assert "default generated path is `sp-specify -> sp-plan -> sp-tasks -> sp-implement -> sp-accept`" in content
     assert "sp-deep-research" in content
     assert "implementation chain" in content or "implementation-chain" in content
     assert "planning handoff" in content
@@ -31,7 +31,8 @@ def test_workflow_routing_references_cognition_gate_and_project_learning_roles()
     assert "learning-start" in content
     assert "learning-capture" in content
     assert "recommended next step" in content or "continue without naming the exact workflow" in content
-    assert "handoff markdown path, json path, or discussion slug" in content
+    assert "passing the json path or discussion slug" in content
+    assert "handoff-to-specify.json" in content
     assert "exactly one unconsumed `handoff-ready` discussion" in content
     assert "before feature creation" in content
 
@@ -40,12 +41,13 @@ def test_workflow_routing_keeps_review_embedded_in_implement() -> None:
     content = _read("templates/passive-skills/spec-kit-workflow-routing/SKILL.md")
     lowered = content.lower()
 
-    assert "default generated path is `sp-specify -> sp-plan -> sp-tasks -> sp-implement`" in lowered
+    assert "default generated path is `sp-specify -> sp-plan -> sp-tasks -> sp-implement -> sp-accept`" in lowered
     assert "no visible separate review route" in lowered
-    assert "embedded pre-implement review" in lowered
-    assert "join-point drift review" in lowered
-    assert "bounded sequential review windows" in lowered
-    assert "safe task-layer repair loop" in lowered
+    assert "review is embedded and event-triggered" in lowered
+    assert "parallel joins" in lowered
+    assert "validation failure" in lowered
+    assert "review-window" in lowered
+    assert "repair only task-layer defects locally" in lowered
     assert "{{invoke:implement}}" in content
     assert "/sp.review" not in content
     assert "sp-review" not in content
@@ -133,6 +135,69 @@ def test_workflow_routing_uses_prd_scan_then_prd_build_as_canonical_prd_flow() -
     assert "deprecated compatibility alias" in content
 
 
+def test_ui_design_passive_skill_requires_design_md_before_ui_work() -> None:
+    content = _read("templates/passive-skills/spec-kit-ui-design/SKILL.md")
+    lowered = content.lower()
+
+    assert "DESIGN.md" in content
+    assert "design.md" in lowered
+    assert "sp-design" in content
+    assert "web" in lowered
+    assert "mobile" in lowered
+    assert "desktop" in lowered
+    assert "tui" in lowered
+    assert "cli" in lowered
+    assert "platform-appropriate evidence" in lowered
+    assert "generic one-off styling" in lowered
+
+
+def test_ui_design_passive_skill_requires_subagent_for_ui_reference_input() -> None:
+    content = _read("templates/passive-skills/spec-kit-ui-design/SKILL.md")
+    lowered = content.lower()
+
+    assert "ui reference input" in lowered
+    assert "ui-reference-artifact" in content
+    assert "choose_ui_reference_lane_dispatch" in content
+    assert "ui-reference-notes.md" in content
+    assert "ui-brief.md" in content
+    assert "ui-target.html" in content
+    assert "pending-human-review" in content
+    assert "must not claim" in lowered
+
+
+def test_workflow_routing_recommends_design_for_high_risk_ui() -> None:
+    content = _read("templates/passive-skills/spec-kit-workflow-routing/SKILL.md")
+    lowered = content.lower()
+
+    assert "sp-design" in content
+    assert "{{invoke:design}}" in content
+    assert "high-risk ui" in lowered
+    assert "new product ui" in lowered
+    assert "redesign or rebrand" in lowered
+    assert "small ui work" in lowered
+    assert "soft risk" in lowered
+
+
+def test_frontend_design_is_subordinate_to_design_md() -> None:
+    content = _read("templates/passive-skills/frontend-design/SKILL.md")
+    lowered = content.lower()
+
+    assert "design.md" in lowered
+    assert "subordinate" in lowered
+    assert "sp-design" in content
+    assert "do not invent unrelated bold aesthetics" in lowered
+
+
+def test_webapp_testing_requires_visual_evidence() -> None:
+    content = _read("templates/passive-skills/webapp-testing/SKILL.md")
+    lowered = content.lower()
+
+    assert "viewport screenshot" in lowered
+    assert "layout overflow" in lowered
+    assert "visual regression-friendly" in lowered
+    assert "sp-implement" in content
+
+
 def test_workflow_routing_mentions_heavy_prd_reconstruction_contract() -> None:
     content = _read("templates/passive-skills/spec-kit-workflow-routing/SKILL.md")
     lowered = content.lower()
@@ -163,8 +228,9 @@ def test_subagent_driven_development_prefers_native_dispatch_contract() -> None:
     assert "validated `workertaskpacket`" in content
     assert "must not dispatch from raw task text" in content
     assert "structured handoff" in content
-    assert "spec compliance review" in content
-    assert "code quality review" in content
+    assert "single task reviewer" in content
+    assert "event-triggered review" in content
+    assert "task lifecycle record" in content
     assert "`sp-teams` only" in content
     assert "we do not manually dispatch ad-hoc subagents" not in content
 
@@ -225,31 +291,23 @@ def test_project_cognition_gate_references_routing_and_learning_roles() -> None:
 def test_project_learning_focuses_on_memory_triggers_storage_and_promotion() -> None:
     content = _read("templates/passive-skills/spec-kit-project-learning/SKILL.md").lower()
 
-    assert "this skill is about the memory system itself" in content
-    assert "it is not a catalog of `sp-*` workflows" in content
-    assert "the user should not have to" in content
-    assert "manually remind the agent to remember recurring pitfalls" in content
-    assert "what to record" in content
-    assert "what to skip" in content
-    assert ".specify/memory/learnings/index.md" in content
-    assert "learning reflex" in content
-    assert "one detailed markdown document per lesson" in content
-    assert "memory layers" in content
-    assert "learning types" in content
-    assert "required behavior" in content
-    assert "capture heuristics" in content
-    assert "promotion heuristics" in content
-    assert "injection goal" in content
-    assert "learning start --command implement --format json" in content
-    assert "learning capture-auto --command implement --feature-dir" in content
+    assert "only agent-facing read surface" in content
+    assert "do not parse" in content
+    assert "learning start --command <classic-command-name> --format json" in content
+    assert "learning list" in content
+    assert "learning show" in content
+    assert "show_argv" in content
+    assert "user corrects" in content
+    assert "workflow state failed to preserve information" in content
+    assert "cognition coverage" in content
+    assert "consume-only" in content
+    assert "consume-capture" in content
+    assert "reading never changes lifecycle state" in content
+    assert "problem, action, avoid, success criteria, exceptions" in content
     assert "hook review-learning --command <command-name>" not in content
     assert "{{specify-subcmd:hook capture-learning" not in content
-    assert "native hooks are an optional enhancement" in content
-    assert "without native hooks" in content
-    assert "candidate/confirmed" not in content
-    assert "candidate layer" not in content
     assert "testing-state.md" not in content
-    assert "workflow-state.md" in content
+    assert "durable workflow state" in content
 
 
 def test_subagent_implementer_prompt_requires_unconditional_tdd() -> None:

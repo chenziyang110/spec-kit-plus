@@ -7,6 +7,7 @@ from collections.abc import Collection, Mapping
 from .models import (
     BatchExecutionPolicy,
     CapabilitySnapshot,
+    EvidenceLaneDecision,
     ExecutionDecision,
     ReviewGatePolicy,
 )
@@ -15,6 +16,36 @@ _SAFE_SUBAGENT_LANE_COUNT_KEYS = (
     "safe_subagent_lanes",
     "subagent_lane_count",
     "ready_subagent_lanes",
+)
+_SAFE_EVIDENCE_LANE_COUNT_KEYS = (
+    "safe_evidence_lanes",
+    "read_only_evidence_lanes",
+    "evidence_lane_count",
+    "ready_evidence_lanes",
+)
+_EVIDENCE_CONTRACT_READY_KEYS = (
+    "evidence_contract_ready",
+    "evidence_packet_ready",
+    "query_packet_ready",
+    "packet_ready",
+)
+_EVIDENCE_REQUIRED_KEYS = (
+    "evidence_lane_required",
+    "read_only_evidence_required",
+    "delegation_required",
+)
+_SAFE_UI_REFERENCE_LANE_COUNT_KEYS = (
+    "safe_ui_reference_lanes",
+    "ui_reference_lanes",
+    "ui_reference_lane_count",
+)
+_UI_REFERENCE_CONTRACT_READY_KEYS = (
+    "ui_reference_contract_ready",
+    "ui_reference_artifact_contract_ready",
+)
+_UI_REFERENCE_REQUIRED_KEYS = (
+    "ui_reference_required",
+    "ui_reference_input_present",
 )
 _OVERLAPPING_WRITE_SET_KEYS = (
     "overlapping_write_sets",
@@ -299,6 +330,158 @@ def choose_subagent_dispatch(
     return _choose_mandatory_subagent_dispatch(
         command_name=command_name,
         safe_lanes=safe_lanes,
+    )
+
+
+def choose_evidence_lane_dispatch(
+    *,
+    command_name: str,
+    snapshot: CapabilitySnapshot,
+    workload_shape: dict[str, object],
+) -> EvidenceLaneDecision:
+    """Choose optional read-only evidence-lane dispatch for Q&A and discussion workflows."""
+
+    shape = workload_shape if isinstance(workload_shape, Mapping) else {}
+    safe_lanes = _get_shape_int(shape, _SAFE_EVIDENCE_LANE_COUNT_KEYS) or 0
+    contract_ready = _get_shape_flag(shape, _EVIDENCE_CONTRACT_READY_KEYS, default=False)
+    required = _any_shape_flag(shape, _EVIDENCE_REQUIRED_KEYS)
+    leader_inline_allowed = _get_shape_flag(shape, ("leader_inline_allowed",), default=True)
+    native_available = _native_subagents_available(snapshot, shape)
+
+    def _leader_inline(reason: str, *, capability_degraded: bool = False) -> EvidenceLaneDecision:
+        return EvidenceLaneDecision(
+            command_name=command_name,
+            dispatch_shape="leader-inline",
+            reason=reason,
+            execution_surface="leader-inline",
+            capability_degraded=capability_degraded,
+        )
+
+    def _blocked(reason: str) -> EvidenceLaneDecision:
+        return EvidenceLaneDecision(
+            command_name=command_name,
+            dispatch_shape="subagent-blocked",
+            reason="read-only-evidence-subagent-blocked",
+            execution_surface="none",
+            workflow_status="blocked",
+            blocked_reason=reason,
+        )
+
+    if safe_lanes < 1:
+        if required or not leader_inline_allowed:
+            return _blocked("no safe read-only evidence lane is available")
+        return _leader_inline("read-only-evidence-leader-inline-no-safe-lane")
+
+    if not contract_ready:
+        if required or not leader_inline_allowed:
+            return _blocked("read-only evidence lane contract is not ready")
+        return _leader_inline("read-only-evidence-leader-inline-contract-missing")
+
+    if not native_available:
+        if required or not leader_inline_allowed:
+            return _blocked("read-only evidence lanes require native subagents")
+        return _leader_inline(
+            "read-only-evidence-native-unavailable-leader-inline",
+            capability_degraded=True,
+        )
+
+    if safe_lanes > 1:
+        return EvidenceLaneDecision(
+            command_name=command_name,
+            dispatch_shape="parallel-subagents",
+            reason="read-only-evidence-parallel-subagents",
+            execution_surface="native-subagents",
+        )
+
+    return EvidenceLaneDecision(
+        command_name=command_name,
+        dispatch_shape="one-subagent",
+        reason="read-only-evidence-one-subagent",
+        execution_surface="native-subagents",
+    )
+
+
+def choose_ui_reference_lane_dispatch(
+    *,
+    command_name: str,
+    snapshot: CapabilitySnapshot,
+    workload_shape: dict[str, object],
+) -> EvidenceLaneDecision:
+    """Choose the writable UI-reference artifact lane for sp-specify UI reference intake."""
+
+    shape = workload_shape if isinstance(workload_shape, Mapping) else {}
+    safe_lanes = _get_shape_int(shape, _SAFE_UI_REFERENCE_LANE_COUNT_KEYS) or 0
+    contract_ready = _get_shape_flag(shape, _UI_REFERENCE_CONTRACT_READY_KEYS, default=False)
+    required = _any_shape_flag(shape, _UI_REFERENCE_REQUIRED_KEYS)
+    fidelity_value = shape.get("fidelity_mode", "approximate")
+    fidelity_candidate = fidelity_value.strip().lower() if isinstance(fidelity_value, str) else ""
+    fidelity_mode = (
+        fidelity_candidate
+        if fidelity_candidate in {"approximate", "high", "inspiration"}
+        else "approximate"
+    )
+    inline_fallback_approved = _get_shape_flag(
+        shape,
+        ("inline_fallback_approved", "user_approved_inline_fallback"),
+        default=False,
+    )
+    native_available = _native_subagents_available(snapshot, shape)
+    strict_fidelity = fidelity_mode in {"approximate", "high"}
+
+    def _leader_inline(reason: str, *, capability_degraded: bool = False) -> EvidenceLaneDecision:
+        return EvidenceLaneDecision(
+            command_name=command_name,
+            dispatch_shape="leader-inline",
+            reason=reason,
+            execution_surface="leader-inline",
+            capability_degraded=capability_degraded,
+            lane_mode="ui-reference-artifact",
+        )
+
+    def _blocked(reason: str) -> EvidenceLaneDecision:
+        return EvidenceLaneDecision(
+            command_name=command_name,
+            dispatch_shape="subagent-blocked",
+            reason="ui-reference-artifact-subagent-blocked",
+            execution_surface="none",
+            workflow_status="blocked",
+            blocked_reason=reason,
+            lane_mode="ui-reference-artifact",
+        )
+
+    if safe_lanes < 1:
+        if required and not inline_fallback_approved:
+            return _blocked(f"UI reference artifact lane requires a safe lane for {fidelity_mode} fidelity")
+        return _leader_inline("ui-reference-artifact-leader-inline-no-safe-lane")
+
+    if not contract_ready:
+        if required and not inline_fallback_approved:
+            return _blocked("UI reference artifact lane contract is not ready")
+        return _leader_inline("ui-reference-artifact-leader-inline-contract-missing")
+
+    if fidelity_mode == "inspiration" and not native_available:
+        return _leader_inline("ui-reference-artifact-inspiration-inline-soft-risk", capability_degraded=True)
+
+    if not native_available:
+        if strict_fidelity and not inline_fallback_approved:
+            return _blocked(f"UI reference artifact lane requires native subagents for {fidelity_mode} fidelity")
+        return _leader_inline("ui-reference-artifact-native-unavailable-inline-approved", capability_degraded=True)
+
+    if safe_lanes > 1:
+        return EvidenceLaneDecision(
+            command_name=command_name,
+            dispatch_shape="parallel-subagents",
+            reason="ui-reference-artifact-parallel-subagents",
+            execution_surface="native-subagents",
+            lane_mode="ui-reference-artifact",
+        )
+
+    return EvidenceLaneDecision(
+        command_name=command_name,
+        dispatch_shape="one-subagent",
+        reason="ui-reference-artifact-one-subagent",
+        execution_surface="native-subagents",
+        lane_mode="ui-reference-artifact",
     )
 
 

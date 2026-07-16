@@ -25,6 +25,7 @@ EXPECTED_WORKFLOW_STATE = {
     "deep-research": ("sp-deep-research", "research-only"),
     "plan": ("sp-plan", "design-only"),
     "tasks": ("sp-tasks", "task-generation-only"),
+    "accept": ("sp-accept", "acceptance-only"),
     "analyze": ("sp-analyze", "analysis-only"),
     "prd-scan": ("sp-prd-scan", "analysis-only"),
     "prd-build": ("sp-prd-build", "analysis-only"),
@@ -94,6 +95,29 @@ def validate_state_hook(project_root: Path, payload: dict[str, object]) -> HookR
             errors.append("workflow-state is missing authoritative_files")
         if not checkpoint["next_command"]:
             errors.append("workflow-state is missing next_command")
+        acceptance_validation: dict[str, object] | None = None
+        if command_name == "accept":
+            from specify_cli.human_acceptance import validate_human_acceptance
+
+            acceptance_validation = validate_human_acceptance(
+                project_root, feature_dir
+            )
+            acceptance_errors = [
+                str(error) for error in acceptance_validation.get("errors", [])
+            ]
+            if acceptance_errors:
+                return HookResult(
+                    event=WORKFLOW_STATE_VALIDATE,
+                    status="blocked",
+                    severity="critical",
+                    errors=acceptance_errors,
+                    data={
+                        "checkpoint": checkpoint,
+                        "validated_path": str(target.resolve()),
+                        "lane_context": diagnostics,
+                        "human_acceptance": acceptance_validation,
+                    },
+                )
         if errors:
             if autofix:
                 snippet = _autofix_sections_for_command(command_name)
@@ -135,6 +159,11 @@ def validate_state_hook(project_root: Path, payload: dict[str, object]) -> HookR
                 "checkpoint": checkpoint,
                 "validated_path": str(target.resolve()),
                 "lane_context": diagnostics,
+                **(
+                    {"human_acceptance": acceptance_validation}
+                    if acceptance_validation is not None
+                    else {}
+                ),
             },
         )
 
@@ -155,18 +184,20 @@ def validate_state_hook(project_root: Path, payload: dict[str, object]) -> HookR
         if not checkpoint["next_action"]:
             errors.append("implement-tracker is missing next_action")
         if errors:
+            implementation_review = _implementation_review_metadata(feature_dir)
             return HookResult(
                 event=WORKFLOW_STATE_VALIDATE,
                 status="blocked",
                 severity="critical",
                 errors=errors,
-                data={"checkpoint": checkpoint},
+                data={"checkpoint": checkpoint, "implementation_review": implementation_review},
             )
+        implementation_review = _implementation_review_metadata(feature_dir)
         return HookResult(
             event=WORKFLOW_STATE_VALIDATE,
             status="ok",
             severity="info",
-            data={"checkpoint": checkpoint},
+            data={"checkpoint": checkpoint, "implementation_review": implementation_review},
         )
 
     if command_name == "quick":
@@ -228,6 +259,14 @@ def _required_path(project_root: Path, payload: dict[str, object], key: str) -> 
     if not path.is_absolute():
         path = (project_root / path).resolve()
     return path
+
+
+def _implementation_review_metadata(feature_dir: Path) -> dict[str, str]:
+    review_dir = feature_dir / "implementation-review"
+    return {
+        "ledger": str((review_dir / "ledger.json").resolve()),
+        "branch_review": str((review_dir / "branch-review.md").resolve()),
+    }
 
 
 def _autofix_sections_for_command(command_name: str) -> str:
@@ -306,21 +345,14 @@ def _autofix_sections_for_command(command_name: str) -> str:
                 "contracts/",
                 "quickstart.md",
                 "plan-contract.json",
+                "planning/lane-manifest.json",
                 "planning/handoffs/*.json",
-                "planning/evidence-index.json",
-                "planning/checkpoints.ndjson",
                 "workflow-state.md",
             ],
             "forbidden": ["edit source code", "edit tests", "implement behavior", "start execution from plan artifacts"],
             "authoritative": [
-                "spec.md",
-                "alignment.md",
-                "context.md",
-                "plan.md",
-                "research.md",
+                "spec-contract.json",
                 "plan-contract.json",
-                "planning/handoffs/*.json",
-                "planning/evidence-index.json",
             ],
             "next_command": "/sp.tasks",
         },
@@ -329,26 +361,33 @@ def _autofix_sections_for_command(command_name: str) -> str:
                 "tasks.md",
                 "handoff-to-tasks.json",
                 "task-index.json",
-                "task-packets/*.json",
+                "task-generation/lane-manifest.json",
                 "task-generation/handoffs/*.json",
-                "task-generation/evidence-index.json",
-                "task-generation/checkpoints.ndjson",
                 "workflow-state.md",
             ],
             "forbidden": ["edit source code", "edit tests", "implement behavior", "start execution from task-generation artifacts"],
             "authoritative": [
-                "spec.md",
-                "alignment.md",
-                "context.md",
-                "plan.md",
-                "tasks.md",
-                "handoff-to-tasks.json",
+                "plan-contract.json",
                 "task-index.json",
-                "task-packets/*.json",
-                "task-generation/handoffs/*.json",
-                "task-generation/evidence-index.json",
             ],
             "next_command": "/sp.implement",
+        },
+        "accept": {
+            "allowed": ["human-acceptance.json", "workflow-state.md"],
+            "forbidden": [
+                "edit production source code",
+                "edit tests",
+                "edit spec, plan, or task artifacts",
+                "edit implementation lifecycle records",
+                "commit, push, deploy, or perform external writes",
+                "silently run a repair workflow",
+            ],
+            "authoritative": [
+                "implementation-summary.md",
+                "human-acceptance.json",
+                "workflow-state.md",
+            ],
+            "next_command": "/sp.accept",
         },
         "analyze": {
             "allowed": ["workflow-state.md"],

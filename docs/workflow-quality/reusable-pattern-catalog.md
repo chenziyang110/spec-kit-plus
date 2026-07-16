@@ -48,15 +48,15 @@ Each pattern records:
 
 **Behavior it enforces:** Downstream workflows receive bounded, reviewable, and consumable instructions instead of raw context.
 
-**Minimal prompt contract:** Write handoff only when the handoff gate is satisfied. Include goal, boundary, source evidence, blockers, preserved decisions, downstream instructions, quality gate, and reopen conditions. Use Markdown for human review and JSON only when downstream automation consumes it. Do not mark ready until self-review and required user confirmation are recorded.
+**Minimal prompt contract:** Write a canonical Agent-only phase contract only when its gate is satisfied. Carry goal, boundary, evidence refs, blockers, protected decisions/obligations, next action, and recovery. Human review belongs in the visible reply or an independently valuable project view, not a duplicate handoff file.
 
-**Required artifacts:** `handoff-to-specify.md/json`, `plan-contract.json`, `handoff-to-tasks.json`, task packets, or worker result envelopes.
+**Required artifacts:** canonical phase contract (`handoff-to-specify.json`, `spec-contract.json`, `plan-contract.json`, or `task-index.json`) plus a compact transition; delegated task packets are generated just in time.
 
-**Canonical surfaces:** `.specify/discussions/<slug>/handoff-to-specify.{md,json}`, `FEATURE_DIR/brainstorming/handoff-to-specify.json`, `FEATURE_DIR/plan-contract.json`, `FEATURE_DIR/handoff-to-tasks.json`, `FEATURE_DIR/task-packets/*.json`, `FEATURE_DIR/worker-results/*.json`.
+**Canonical surfaces:** `.specify/discussions/<slug>/handoff-to-specify.json`, `FEATURE_DIR/spec-contract.json`, `FEATURE_DIR/plan-contract.json`, `FEATURE_DIR/task-index.json`, and per-task lifecycle records. Pointer-only compatibility transitions may exist but do not copy contract bodies.
 
 **Handoff fields:** goal, boundary, evidence, blockers, preserved decisions, downstream instructions, quality gate, reopen conditions, confirmation state.
 
-**Validation signals:** Downstream artifacts preserve key decisions; Markdown and JSON agree on shared identifiers; hard blockers do not disappear.
+**Validation signals:** Downstream contracts preserve stable decision and obligation refs; semantic deltas are explicit; hard blockers do not disappear.
 
 **Failure modes prevented:** Context dumping, JSON/Markdown drift, unconfirmed handoff, lost MP/CA obligations, downstream guessing.
 
@@ -118,9 +118,9 @@ Each pattern records:
 
 **Minimal prompt contract:** Record only drift-causing decisions as MP items. Each item has id, type, claim, source, downstream requirement, blocking level, owner, latest resolve phase, status, and reopen condition when needed. Map MP items into spec, plan, tasks, validation, or explicit deferral.
 
-**Required artifacts:** MP table, alignment section, plan contract, task packet, validation closeout, or handoff entry.
+**Required artifacts:** Stable MP refs in the current canonical phase contract and task lifecycle evidence when implemented.
 
-**Canonical surfaces:** `.specify/discussions/<slug>/handoff-to-specify.{md,json}`, `FEATURE_DIR/brainstorming/handoff-to-specify.json`, `FEATURE_DIR/plan-contract.json`, `FEATURE_DIR/handoff-to-tasks.json`, `FEATURE_DIR/tasks.md`, `FEATURE_DIR/task-packets/*.json`.
+**Canonical surfaces:** `.specify/discussions/<slug>/handoff-to-specify.json`, `FEATURE_DIR/spec-contract.json`, `FEATURE_DIR/plan-contract.json`, `FEATURE_DIR/task-index.json`, and current delegated packet/lifecycle records.
 
 **Handoff fields:** id, type, claim, source, downstream requirement, blocking level, owner, latest resolve phase, status, reopen condition.
 
@@ -142,9 +142,9 @@ Each pattern records:
 
 **Minimal prompt contract:** When consequence risk triggers, record affected objects, lifecycle states, dependency impact, recovery/validation needs, coverage gaps, and CA obligations. Each CA item has claim, affected objects, owner workflow, latest resolve phase, status, and stop-and-reopen condition. Do not mark ready while triggered obligations are unmapped or unsupported by validation.
 
-**Required artifacts:** CA table, risk section, plan contract, task packet, test plan, or validation closeout.
+**Required artifacts:** Stable CA refs in phase contracts, task mappings, and validation/lifecycle evidence.
 
-**Canonical surfaces:** `FEATURE_DIR/plan-contract.json`, `FEATURE_DIR/handoff-to-tasks.json`, `FEATURE_DIR/tasks.md`, `FEATURE_DIR/task-packets/*.json`, `FEATURE_DIR/workflow-state.md`, `FEATURE_DIR/worker-results/*.json`.
+**Canonical surfaces:** `FEATURE_DIR/spec-contract.json`, `FEATURE_DIR/plan-contract.json`, `FEATURE_DIR/task-index.json`, and current task lifecycle/worker result records.
 
 **Handoff fields:** claim, affected objects, lifecycle state, dependency impact, owner workflow, latest resolve phase, validation need, status, stop-and-reopen condition.
 
@@ -164,11 +164,11 @@ Each pattern records:
 
 **Behavior it enforces:** Parallel work has explicit read/write boundaries, acceptance criteria, and join conditions.
 
-**Minimal prompt contract:** Choose dispatch shape from workload and safety. Each lane has purpose, read scope, write scope, forbidden scope, acceptance, verification, result format, and join condition. Do not dispatch if the work cannot be packetized safely. At join, consume structured results before declaring completion. For adaptive `sp-plan` and `sp-tasks`, persist `execution_model: adaptive`, `execution_mode: light | standard | heavy`, `workflow_status: ready | blocked`, `dispatch_shape: leader-inline | one-subagent | parallel-subagents | subagent-blocked`, `execution_surface: leader-inline | native-subagents | none`, `capability_degraded: false | true`, and `blocked_reason` when blocked; managed-team fallback is not part of adaptive dispatch. For ordinary ready implementation lanes, use `execution_model: subagent-mandatory` and `execution_surface: native-subagents`. Durable or lifecycle implementation coordination may route through explicit `managed-team`, `sp-implement-teams`, or `sp-teams` surfaces. Dispatch-blocking conditions use `subagent-blocked` or the explicit managed-team route when appropriate, never leader-inline fallback. For `sp-debug`, record `execution_model: leader-inline | subagent-assisted | blocked`; blocked records `subagent-blocked`, `execution_surface: none`, and a concrete `blocked_reason`.
+**Minimal prompt contract:** Choose dispatch shape from workload and safety. Each delegated lane has purpose, read/write/forbidden scope, acceptance, verification, result format, and join condition. Do not dispatch if the current lane cannot be packetized safely. At join, consume structured results before declaring completion. `sp-plan`, `sp-tasks`, and `sp-implement` use adaptive routing; implementation adds `leader-direct` for small or tightly coupled work and compiles packets just in time only for delegated lanes. Durable coordination may route through explicit `managed-team`, `sp-implement-teams`, or `sp-teams` surfaces. For `sp-debug`, record `execution_model: leader-inline | subagent-assisted | blocked`.
 
-**Required artifacts:** Lane packet, task packet, worker prompt, result envelope, or join summary.
+**Required artifacts:** Only the artifacts the selected route needs: a compact lane manifest plus one result per delegated planning/task lane, or one just-in-time packet and lifecycle record for delegated implementation.
 
-**Canonical surfaces:** `FEATURE_DIR/planning/handoffs/<lane-id>.json`, `FEATURE_DIR/planning/checkpoints.ndjson`, `FEATURE_DIR/planning/evidence-index.json`, `FEATURE_DIR/task-generation/handoffs/<lane-id>.json`, `FEATURE_DIR/task-generation/checkpoints.ndjson`, `FEATURE_DIR/task-generation/evidence-index.json`, `FEATURE_DIR/workflow-state.md`.
+**Canonical surfaces:** phase contracts (`spec-contract.json`, `plan-contract.json`, `task-index.json`); conditional `planning/lane-manifest.json` or `task-generation/lane-manifest.json` plus lane results; one implementation task lifecycle record per executed task.
 
 **Handoff fields:** purpose, read scope, write scope, forbidden scope, acceptance, verification, result format, join condition, execution model fields, capability degradation, blocked reason.
 
@@ -184,15 +184,15 @@ Each pattern records:
 
 ## Task Packet Pattern
 
-**When to use:** A task needs to be executable by a worker or resumed independently.
+**When to use:** The adaptive route selects a delegated task that must be executable by a worker.
 
 **Behavior it enforces:** Each task is a bounded work order with enough context to execute and verify without expanding scope.
 
-**Minimal prompt contract:** Each task packet includes task id, objective, authoritative inputs, dependencies, read scope, write scope, forbidden scope, acceptance criteria, done condition, verification commands, preserved MP/CA items, result envelope, and escalation path. Validate the `WorkerTaskPacket` or equivalent execution contract before dispatch. Use runtime-managed result channel when available; otherwise declare a filesystem result handoff path. When local CLI is available and no runtime-managed channel exists, use `specify result path` and `specify result submit`. Preserve `reported_status` when normalizing worker language into canonical state. Use batch defaults for repeated fields and per-task deltas for differences.
+**Minimal prompt contract:** Compile the current packet just in time from `task-index.json`, stable contract refs, and live code. Include task id, objective, dependencies, read/write/forbidden scope, acceptance, verification, task-relevant MP/CA refs, result channel, and recovery. Validate before dispatch and preserve `reported_status` when normalizing worker language. Leader-direct tasks do not require packets.
 
-**Required artifacts:** Task packet Markdown/JSON, worker prompt, implementation plan task, or queue item.
+**Required artifacts:** current Agent-only WorkerTaskPacket JSON, worker prompt, canonical task ref, or queue item; do not require a Markdown mirror.
 
-**Canonical surfaces:** `FEATURE_DIR/task-packets/*.json`, `FEATURE_DIR/worker-results/<task-id>.json`, `.planning/quick/<id>-<slug>/worker-results/<lane-id>.json`, `.planning/debug/results/<session-slug>/<lane-id>.json`, `FEATURE_DIR/handoff-to-tasks.json`.
+**Canonical surfaces:** `FEATURE_DIR/task-index.json`, the current in-memory or persisted Agent-only packet, `FEATURE_DIR/worker-results/<task-id>.json` or a runtime-managed result channel, and the task lifecycle record.
 
 **Handoff fields:** task id, objective, authoritative inputs, dependencies, read scope, write scope, forbidden scope, acceptance criteria, done condition, verification commands, MP/CA items, result envelope, result handoff path, `reported_status`, escalation path.
 

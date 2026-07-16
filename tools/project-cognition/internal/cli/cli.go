@@ -17,18 +17,26 @@ import (
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/build"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/buildgate"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/changes"
+	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/closeout"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/delta"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/ignore"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/query"
+	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/reconcile"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/reference"
 	rt "github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtime"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtimegate"
+	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/scanset"
+	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/scanworkbench"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/store"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/update"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/validation"
 )
 
-const deltaGitProbeTimeout = 750 * time.Millisecond
+const (
+	deltaGitProbeTimeout = 750 * time.Millisecond
+	// exitCodeBlocked distinguishes an actionable workflow stop from a runtime failure.
+	exitCodeBlocked = 10
+)
 
 type stringList []string
 
@@ -64,6 +72,12 @@ func Run(args []string, stdout io.Writer, stderr io.Writer, version string) int 
 		return initEmptyCommand(args[1:], stdout, stderr, paths)
 	case "generate-ignore":
 		return generateIgnoreCommand(args[1:], stdout, stderr, paths)
+	case "scan-set":
+		return scanSetCommand(args[1:], stdout, stderr, paths)
+	case "scan-prepare":
+		return scanPrepareCommand(args[1:], stdout, stderr, paths)
+	case "scan-accept":
+		return scanAcceptCommand(args[1:], stdout, stderr, paths)
 	case "mark-dirty":
 		return markDirtyCommand(args[1:], stdout, stderr, paths)
 	case "clear-dirty":
@@ -84,12 +98,22 @@ func Run(args []string, stdout io.Writer, stderr io.Writer, version string) int 
 		return publishMetadataCommand(args[1:], stdout, stderr, paths)
 	case "changes":
 		return changesCommand(args[1:], stdout, stderr, paths)
+	case "closeout-plan":
+		return closeoutPlanCommand(args[1:], stdout, stderr, paths)
 	case "update":
 		return updateCommand(args[1:], stdout, stderr, paths)
+	case "claim-reconcile":
+		return claimReconcileCommand(args[1:], stdout, stderr, paths)
 	case "lexicon":
 		return lexiconCommand(args[1:], stdout, stderr, paths)
 	case "query":
 		return queryCommand(args[1:], stdout, stderr, paths)
+	case "semantic-intake":
+		return semanticIntakeCommand(args[1:], stdout, stderr, paths)
+	case "semantic-audit":
+		return semanticAuditCommand(args[1:], stdout, stderr, paths)
+	case "semantic-audit-resume":
+		return semanticAuditResumeCommand(args[1:], stdout, stderr, paths)
 	case "compass":
 		return compassCommand(args[1:], stdout, stderr, paths)
 	case "expand":
@@ -111,7 +135,117 @@ func Run(args []string, stdout io.Writer, stderr io.Writer, version string) int 
 func printHelp(w io.Writer, version string) {
 	fmt.Fprintf(w, "project-cognition %s\n\n", version)
 	fmt.Fprintln(w, "Usage: project-cognition <command> [options]")
-	fmt.Fprintln(w, "Commands: status, check, init-empty, generate-ignore, mark-dirty, clear-dirty, record-refresh, complete-refresh, refresh-topics, validate-scan, validate-build, build-from-scan, import-scan, rebuild-from-scan, publish-runtime-metadata, changes, update, lexicon, query, compass, expand, discover, read, doctor, rebuild, delta")
+	fmt.Fprintln(w, "Commands: status, check, init-empty, generate-ignore, scan-set, scan-prepare, scan-accept, mark-dirty, clear-dirty, record-refresh, complete-refresh, refresh-topics, validate-scan, validate-build, build-from-scan, import-scan, rebuild-from-scan, publish-runtime-metadata, changes, closeout-plan, update, claim-reconcile prepare|apply, lexicon, query, semantic-intake, semantic-audit, semantic-audit-resume, compass, expand, discover, read, doctor, rebuild, delta")
+}
+
+func claimReconcileCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {
+	if len(args) == 0 {
+		fmt.Fprintln(stderr, "usage: project-cognition claim-reconcile prepare|apply [options]")
+		return 2
+	}
+	switch args[0] {
+	case "prepare":
+		return claimReconcilePrepareCommand(args[1:], stdout, stderr, paths)
+	case "apply":
+		return claimReconcileApplyCommand(args[1:], stdout, stderr, paths)
+	default:
+		fmt.Fprintf(stderr, "unknown claim-reconcile operation: %s\n", args[0])
+		return 2
+	}
+}
+
+func claimReconcilePrepareCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {
+	fs := flag.NewFlagSet("claim-reconcile prepare", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	inputFile := fs.String("input", "", "Claim reconciliation semantic intent JSON file; omit for stdin")
+	format := fs.String("format", "json", "Output format: json")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	if *format != "json" {
+		return writeErrorJSON(stdout, reconcile.PrepareBlockedPayload(fmt.Errorf("claim-reconcile prepare supports only --format json")))
+	}
+	data, err := readInputFileOrStdin(*inputFile)
+	if err != nil {
+		return writeErrorJSON(stdout, reconcile.PrepareBlockedPayload(fmt.Errorf("read claim reconciliation prepare input: %w", err)))
+	}
+	request, err := reconcile.ParsePrepareRequest(data)
+	if err != nil {
+		return writeErrorJSON(stdout, reconcile.PrepareBlockedPayload(err))
+	}
+	payload, err := reconcile.Prepare(paths, request)
+	if err != nil {
+		return writeErrorJSON(stdout, reconcile.PrepareBlockedPayload(err))
+	}
+	return writeCompactJSON(stdout, payload)
+}
+
+func claimReconcileApplyCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {
+	fs := flag.NewFlagSet("claim-reconcile apply", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	inputFile := fs.String("input", "", "Runtime-prepared claim reconciliation packet path")
+	format := fs.String("format", "json", "Output format: json")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	if *format != "json" {
+		return writeErrorJSON(stdout, reconcile.BlockedPayload(fmt.Errorf("claim-reconcile apply supports only --format json")))
+	}
+	data, err := readRuntimePreparedReconciliationPacket(paths, *inputFile)
+	if err != nil {
+		return writeErrorJSON(stdout, reconcile.BlockedPayload(fmt.Errorf("read claim reconciliation input: %w", err)))
+	}
+	packet, err := reconcile.ParsePacket(data)
+	if err != nil {
+		return writeErrorJSON(stdout, reconcile.BlockedPayload(err))
+	}
+	payload, err := reconcile.Run(paths, packet)
+	if err != nil {
+		return writeErrorJSON(stdout, reconcile.BlockedPayload(err))
+	}
+	return writeCompactJSON(stdout, payload)
+}
+
+func readRuntimePreparedReconciliationPacket(paths rt.Paths, inputFile string) ([]byte, error) {
+	inputFile = strings.TrimSpace(inputFile)
+	if inputFile == "" {
+		return nil, fmt.Errorf("--input is required and must name a runtime-prepared claim reconciliation packet")
+	}
+	candidate := inputFile
+	if !filepath.IsAbs(candidate) {
+		candidate = filepath.Join(paths.Root, filepath.FromSlash(candidate))
+	}
+	resolved, err := filepath.EvalSymlinks(candidate)
+	if err != nil {
+		return nil, fmt.Errorf("resolve runtime-prepared claim reconciliation packet: %w", err)
+	}
+	resolved, err = filepath.Abs(resolved)
+	if err != nil {
+		return nil, fmt.Errorf("resolve runtime-prepared claim reconciliation packet: %w", err)
+	}
+	preparedDir, err := filepath.Abs(filepath.Join(paths.RuntimeDir, "claim-reconciliations", "prepared"))
+	if err != nil {
+		return nil, fmt.Errorf("resolve runtime-prepared claim reconciliation directory: %w", err)
+	}
+	relative, err := filepath.Rel(preparedDir, resolved)
+	if err != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) || filepath.IsAbs(relative) {
+		return nil, fmt.Errorf("--input must name a runtime-prepared packet under %s", rt.RelativeRuntimePath(paths, preparedDir))
+	}
+	info, err := os.Stat(resolved)
+	if err != nil {
+		return nil, fmt.Errorf("read runtime-prepared claim reconciliation packet: %w", err)
+	}
+	if !info.Mode().IsRegular() {
+		return nil, fmt.Errorf("runtime-prepared claim reconciliation packet is not a regular file")
+	}
+	return os.ReadFile(resolved)
+}
+
+func readInputFileOrStdin(inputFile string) ([]byte, error) {
+	if strings.TrimSpace(inputFile) != "" {
+		return os.ReadFile(inputFile)
+	}
+	return io.ReadAll(os.Stdin)
 }
 
 func statusCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {
@@ -267,6 +401,79 @@ func generateIgnoreCommand(args []string, stdout io.Writer, stderr io.Writer, pa
 		"errors":          []string{},
 		"warnings":        []string{},
 	})
+}
+
+func scanSetCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {
+	fs := flag.NewFlagSet("scan-set", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	var scopes stringList
+	fs.Var(&scopes, "scope", "Repository-relative file or directory scope")
+	fs.Var(&scopes, "path", "Repository-relative file or directory scope")
+	out := fs.String("out", scanset.DefaultOutputPath, "Repository-relative output file")
+	maxBytes := fs.Int64("max-bytes", 0, "Skip files larger than this many bytes when greater than zero")
+	_ = fs.String("format", "json", "Output format")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	payload, err := scanset.Resolve(paths, scanset.Input{
+		Scopes:   scopes,
+		Out:      *out,
+		MaxBytes: *maxBytes,
+	})
+	if err != nil {
+		fmt.Fprintf(stderr, "project-cognition: %v\n", err)
+		return 1
+	}
+	return writeCompactJSON(stdout, payload)
+}
+
+func scanPrepareCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {
+	fs := flag.NewFlagSet("scan-prepare", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	scanSetPath := fs.String("scan-set", scanset.DefaultOutputPath, "Repository-relative canonical scan-set file")
+	packetSize := fs.Int("packet-size", 0, "Maximum concrete paths per packet; default 25")
+	force := fs.Bool("force", false, "Replace an existing scan workbench and discard its results")
+	format := fs.String("format", "json", "Output format: json")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	if *format != "json" {
+		return writeCompactErrorJSON(stdout, fmt.Errorf("scan-prepare supports only --format json"))
+	}
+	payload, err := scanworkbench.Prepare(paths, scanworkbench.PrepareInput{
+		ScanSetPath: *scanSetPath,
+		PacketSize:  *packetSize,
+		Force:       *force,
+	})
+	if err != nil {
+		return writeCompactErrorJSON(stdout, err)
+	}
+	return writeCompactJSON(stdout, payload)
+}
+
+func scanAcceptCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {
+	fs := flag.NewFlagSet("scan-accept", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	packetID := fs.String("packet-id", "", "Prepared scan packet identifier")
+	resultPath := fs.String("result", "", "Worker result JSON; defaults to the packet pending-results path")
+	format := fs.String("format", "json", "Output format: json")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	if *format != "json" {
+		return writeCompactErrorJSON(stdout, fmt.Errorf("scan-accept supports only --format json"))
+	}
+	if strings.TrimSpace(*packetID) == "" {
+		return writeCompactErrorJSON(stdout, fmt.Errorf("scan-accept requires --packet-id"))
+	}
+	payload, err := scanworkbench.Accept(paths, scanworkbench.AcceptInput{
+		PacketID:   *packetID,
+		ResultPath: *resultPath,
+	})
+	if err != nil {
+		return writeCompactErrorJSON(stdout, err)
+	}
+	return writeCompactJSON(stdout, payload)
 }
 
 func isFilesystemRoot(path string) bool {
@@ -577,6 +784,40 @@ func changesCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.
 	return writeCommandResult(stdout, stderr, paths, payload, err)
 }
 
+func closeoutPlanCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {
+	fs := flag.NewFlagSet("closeout-plan", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	var changed stringList
+	fs.Var(&changed, "changed-path", "Explicit changed path")
+	fs.Var(&changed, "changed-paths", "Explicit changed path")
+	workflow := fs.String("workflow", "", "Workflow name")
+	reason := fs.String("reason", "workflow-finalize", "Closeout reason")
+	intent := fs.String("intent", "", "Agent intent")
+	since := fs.String("since", "", "Baseline commit")
+	head := fs.String("head", "", "Head commit")
+	payloadPath := fs.String("payload-path", "", "Planned update payload path")
+	deltaSession := fs.String("delta-session", "", "Delta session id")
+	includeWorkingTree := fs.Bool("include-working-tree", true, "Include working tree changes")
+	includeUntracked := fs.Bool("include-untracked", true, "Include untracked paths")
+	_ = fs.String("format", "json", "Output format")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	payload, err := closeout.Run(paths, closeout.Input{
+		Workflow:           *workflow,
+		Reason:             *reason,
+		Intent:             *intent,
+		Since:              *since,
+		Head:               *head,
+		IncludeWorkingTree: *includeWorkingTree,
+		IncludeUntracked:   *includeUntracked,
+		ExplicitPaths:      changed,
+		DeltaSessionID:     *deltaSession,
+		PayloadPath:        *payloadPath,
+	})
+	return writeCommandResult(stdout, stderr, paths, payload, err)
+}
+
 func updateCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {
 	fs := flag.NewFlagSet("update", flag.ContinueOnError)
 	fs.SetOutput(stderr)
@@ -687,12 +928,13 @@ func queryCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Pa
 		if errors.As(err, &planErr) {
 			fmt.Fprintf(stderr, "project-cognition: query plan diagnostics require repair\n")
 			return writeErrorJSON(stdout, map[string]any{
-				"status":         "error",
-				"readiness":      rt.BlockedReadiness,
-				"errors":         planErr.Errors,
-				"warnings":       planErr.Warnings,
-				"repair_hints":   planErr.RepairHints,
-				"expected_shape": planErr.ExpectedShape,
+				"epistemic_contract": query.NewEpistemicContract(),
+				"status":             "error",
+				"readiness":          rt.BlockedReadiness,
+				"errors":             planErr.Errors,
+				"warnings":           planErr.Warnings,
+				"repair_hints":       planErr.RepairHints,
+				"expected_shape":     planErr.ExpectedShape,
 			})
 		}
 		fmt.Fprintf(stderr, "project-cognition: %v\n", err)
@@ -700,6 +942,200 @@ func queryCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Pa
 	}
 	payload, err := query.Run(paths, query.QueryInput{Intent: *intent, Query: *text, ExpandedQuery: *expanded, Paths: pathHints, Plan: plan, PlanDiagnostics: diagnostics})
 	return writeCommandResult(stdout, stderr, paths, payload, err)
+}
+
+func semanticIntakeCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {
+	fs := flag.NewFlagSet("semantic-intake", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	inputFile := fs.String("input", "", "Semantic intake JSON input file")
+	_ = fs.String("format", "json", "Output format")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+
+	var data []byte
+	var err error
+	if strings.TrimSpace(*inputFile) != "" {
+		data, err = os.ReadFile(*inputFile)
+		if err != nil {
+			fmt.Fprintf(stderr, "project-cognition: read semantic-intake input: %v\n", err)
+			return 1
+		}
+	} else {
+		data, err = io.ReadAll(os.Stdin)
+		if err != nil {
+			fmt.Fprintf(stderr, "project-cognition: read semantic-intake stdin: %v\n", err)
+			return 1
+		}
+	}
+	request, err := query.ParseSemanticIntakeRequest(data)
+	if err != nil {
+		fmt.Fprintf(stderr, "project-cognition: %v\n", err)
+		return 1
+	}
+	payload, err := query.RunSemanticIntake(paths, request)
+	return writeCommandResult(stdout, stderr, paths, payload, err)
+}
+
+func semanticAuditCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {
+	fs := flag.NewFlagSet("semantic-audit", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	inputFile := fs.String("input", "", "Semantic audit JSON input file")
+	_ = fs.String("format", "json", "Output format")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+
+	var data []byte
+	var err error
+	if strings.TrimSpace(*inputFile) != "" {
+		data, err = os.ReadFile(*inputFile)
+		if err != nil {
+			fmt.Fprintf(stderr, "project-cognition: read semantic-audit input: %v\n", err)
+			return 1
+		}
+	} else {
+		data, err = io.ReadAll(os.Stdin)
+		if err != nil {
+			fmt.Fprintf(stderr, "project-cognition: read semantic-audit stdin: %v\n", err)
+			return 1
+		}
+	}
+	request, err := query.ParseSemanticAuditRequest(data)
+	if err != nil {
+		fmt.Fprintf(stderr, "project-cognition: %v\n", err)
+		return 1
+	}
+	payload, err := query.BuildSemanticAudit(request)
+	return writeCommandResult(stdout, stderr, paths, payload, err)
+}
+
+func semanticAuditResumeCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {
+	fs := flag.NewFlagSet("semantic-audit-resume", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	inputFile := fs.String("input", "", "Semantic audit resume validation JSON input file")
+	_ = fs.String("format", "json", "Output format")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+
+	var data []byte
+	var err error
+	baseDir := "."
+	if strings.TrimSpace(*inputFile) != "" {
+		data, err = os.ReadFile(*inputFile)
+		if err != nil {
+			fmt.Fprintf(stderr, "project-cognition: read semantic-audit-resume input: %v\n", err)
+			return 1
+		}
+		baseDir = filepath.Dir(*inputFile)
+	} else {
+		data, err = io.ReadAll(os.Stdin)
+		if err != nil {
+			fmt.Fprintf(stderr, "project-cognition: read semantic-audit-resume stdin: %v\n", err)
+			return 1
+		}
+	}
+	request, missingFileValidation, err := parseSemanticAuditResumeCLIRequest(data, baseDir)
+	if err != nil {
+		fmt.Fprintf(stderr, "project-cognition: %v\n", err)
+		return 1
+	}
+	if missingFileValidation != nil {
+		return writeJSON(stdout, *missingFileValidation)
+	}
+	payload, err := query.ValidateSemanticAuditResume(request)
+	return writeCommandResult(stdout, stderr, paths, payload, err)
+}
+
+func parseSemanticAuditResumeCLIRequest(data []byte, baseDir string) (query.SemanticAuditResumeRequest, *query.SemanticAuditResumeValidation, error) {
+	if request, err := query.ParseSemanticAuditResumeRequest(data); err == nil {
+		return request, nil, nil
+	}
+	var envelope struct {
+		Version            int                            `json:"version"`
+		WorkflowState      query.SemanticAuditResumeState `json:"workflow_state"`
+		SemanticAuditState query.SemanticAuditResumeState `json:"semantic_audit_state"`
+	}
+	if err := json.Unmarshal(data, &envelope); err != nil {
+		return query.SemanticAuditResumeRequest{}, nil, fmt.Errorf("parse semantic-audit-resume request: %w", err)
+	}
+	state := envelope.SemanticAuditState
+	if state.SemanticAuditInputPath == "" && envelope.WorkflowState.SemanticAuditInputPath != "" {
+		state = envelope.WorkflowState
+	}
+	inputPath, err := resolveSemanticAuditResumePath(baseDir, state.SemanticAuditInputPath)
+	if err != nil {
+		validation := query.BuildSemanticAuditResumeMissingFileValidation(state)
+		return query.SemanticAuditResumeRequest{}, &validation, nil
+	}
+	outputPath, err := resolveSemanticAuditResumePath(baseDir, state.SemanticAuditOutputPath)
+	if err != nil {
+		validation := query.BuildSemanticAuditResumeMissingFileValidation(state)
+		return query.SemanticAuditResumeRequest{}, &validation, nil
+	}
+	inputData, err := os.ReadFile(inputPath)
+	if err != nil {
+		validation := query.BuildSemanticAuditResumeMissingFileValidation(state)
+		return query.SemanticAuditResumeRequest{}, &validation, nil
+	}
+	outputData, err := os.ReadFile(outputPath)
+	if err != nil {
+		validation := query.BuildSemanticAuditResumeMissingFileValidation(state)
+		return query.SemanticAuditResumeRequest{}, &validation, nil
+	}
+	auditInput, err := query.ParseSemanticAuditRequest(inputData)
+	if err != nil {
+		return query.SemanticAuditResumeRequest{}, nil, err
+	}
+	auditOutput, err := parseSemanticAuditOutputArtifact(outputData)
+	if err != nil {
+		return query.SemanticAuditResumeRequest{}, nil, err
+	}
+	version := envelope.Version
+	if version == 0 {
+		version = 1
+	}
+	return query.SemanticAuditResumeRequest{
+		Version:             version,
+		SemanticAuditInput:  auditInput,
+		SemanticAuditOutput: auditOutput,
+		SemanticAuditState:  state,
+	}, nil, nil
+}
+
+func resolveSemanticAuditResumePath(baseDir string, value string) (string, error) {
+	value = strings.TrimSpace(value)
+	if value == "" || strings.EqualFold(value, "none") {
+		return "", fmt.Errorf("semantic-audit-resume path is required")
+	}
+	if filepath.IsAbs(value) {
+		return value, nil
+	}
+	if strings.TrimSpace(baseDir) == "" {
+		baseDir = "."
+	}
+	return filepath.Join(baseDir, filepath.FromSlash(value)), nil
+}
+
+func parseSemanticAuditOutputArtifact(data []byte) (query.SemanticAuditArtifact, error) {
+	var artifact query.SemanticAuditArtifact
+	if err := json.Unmarshal(data, &artifact); err != nil {
+		return query.SemanticAuditArtifact{}, fmt.Errorf("parse semantic-audit output: %w", err)
+	}
+	if artifact.ArtifactType != "" {
+		return artifact, nil
+	}
+	var wrapped struct {
+		SemanticAuditOutput query.SemanticAuditArtifact `json:"semantic_audit_output"`
+	}
+	if err := json.Unmarshal(data, &wrapped); err != nil {
+		return query.SemanticAuditArtifact{}, fmt.Errorf("parse semantic-audit output: %w", err)
+	}
+	if wrapped.SemanticAuditOutput.ArtifactType == "" {
+		return query.SemanticAuditArtifact{}, fmt.Errorf("parse semantic-audit output: artifact_type is required")
+	}
+	return wrapped.SemanticAuditOutput, nil
 }
 
 func compassCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {
@@ -725,12 +1161,13 @@ func compassCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.
 			if errors.As(err, &planErr) {
 				fmt.Fprintf(stderr, "project-cognition: query plan diagnostics require repair\n")
 				return writeErrorJSON(stdout, map[string]any{
-					"status":         "error",
-					"readiness":      rt.BlockedReadiness,
-					"errors":         planErr.Errors,
-					"warnings":       planErr.Warnings,
-					"repair_hints":   planErr.RepairHints,
-					"expected_shape": planErr.ExpectedShape,
+					"epistemic_contract": query.NewEpistemicContract(),
+					"status":             "error",
+					"readiness":          rt.BlockedReadiness,
+					"errors":             planErr.Errors,
+					"warnings":           planErr.Warnings,
+					"repair_hints":       planErr.RepairHints,
+					"expected_shape":     planErr.ExpectedShape,
 				})
 			}
 			fmt.Fprintf(stderr, "project-cognition: %v\n", err)
@@ -822,10 +1259,13 @@ func rebuildCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.
 		"status_path":             paths.StatusPath,
 	}
 	if *format == "json" {
-		return writeJSON(stdout, payload)
+		if code := writeJSON(stdout, payload); code != 0 {
+			return code
+		}
+		return exitCodeBlocked
 	}
 	fmt.Fprintln(stdout, "Run /sp-map-scan, then /sp-map-build to rebuild project cognition.")
-	return 0
+	return exitCodeBlocked
 }
 
 func deltaCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {
@@ -1061,6 +1501,26 @@ func writeJSON(w io.Writer, payload any) int {
 		return 1
 	}
 	return 0
+}
+
+func writeCompactJSON(w io.Writer, payload any) int {
+	encoder := json.NewEncoder(w)
+	if err := encoder.Encode(payload); err != nil {
+		fmt.Fprintf(os.Stderr, "project-cognition: encode json: %v\n", err)
+		return 1
+	}
+	return 0
+}
+
+func writeCompactErrorJSON(w io.Writer, err error) int {
+	if code := writeCompactJSON(w, map[string]any{
+		"status":   "blocked",
+		"errors":   []string{err.Error()},
+		"warnings": []string{},
+	}); code != 0 {
+		return code
+	}
+	return 1
 }
 
 func writeErrorJSON(w io.Writer, payload any) int {

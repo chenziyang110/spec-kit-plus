@@ -1,5 +1,7 @@
 """Tests for IntegrationOption, IntegrationBase, MarkdownIntegration, and primitives."""
 
+from pathlib import Path
+
 import pytest
 
 from specify_cli.integrations.base import (
@@ -14,6 +16,8 @@ from .conftest import StubIntegration
 SUBAGENT_DISPATCH_TRIGGERS = (
     "## mandatory subagent execution",
     "choose_subagent_dispatch",
+    "choose_evidence_lane_dispatch",
+    "choose_ui_reference_lane_dispatch",
     "execution_model: subagent-mandatory",
     "execution model: `subagents-first`",
     "dispatch_shape: one-subagent",
@@ -83,6 +87,11 @@ def _assert_canonical_cognition_intake_contract(content: str) -> None:
         "minimal_live_reads",
         "first_pass_paths",
         "coverage_diagnostics",
+        "claim_refs",
+        "claim_signals",
+        "claim_evidence",
+        "route_confidence",
+        "confidence_scope",
         "repository_search_terms",
         "project-language search terms",
         "do not search only the raw user words",
@@ -93,6 +102,16 @@ def _assert_canonical_cognition_intake_contract(content: str) -> None:
         "expected_shape",
         "readiness",
         "task-local bundle",
+        "semantic_work_contract_begin",
+        "workcontract v1",
+        "semantic-intake",
+        "permissiondecision",
+        "maximum_without_live_evidence",
+        "learningcontract",
+        "single unified entrypoint",
+        "do not choose debug, implement, plan, or research from the user's raw words",
+        "do not claim root cause, fixed, complete, or release-safe",
+        "semantic_work_contract_end",
     ):
         assert required in normalized
 
@@ -146,7 +165,10 @@ class TestIntegrationBase:
         manifest = IntegrationManifest("stub", tmp_path)
         created = i.setup(tmp_path, manifest)
         assert len(created) > 0
-        for f in created:
+        command_dir = tmp_path / ".stub" / "commands"
+        command_files = [f for f in created if f.parent == command_dir]
+        assert command_files
+        for f in command_files:
             assert f.parent == tmp_path / ".stub" / "commands"
             assert f.name.startswith("sp.")
             assert f.name.endswith(".md")
@@ -178,6 +200,7 @@ class TestIntegrationBase:
 
         i = StubIntegration()
         monkeypatch.setattr(type(i), "list_command_templates", lambda self: sorted(tpl.glob("*.md")))
+        monkeypatch.setattr(type(i), "shared_command_references_dir", lambda self: None)
 
         project = tmp_path / "project"
         project.mkdir()
@@ -270,7 +293,9 @@ class TestBasePrimitives:
         m = IntegrationManifest("stub", tmp_path)
         created = i.setup(tmp_path, m)
         assert len(created) > 0
-        for f in created:
+        command_files = [f for f in created if f.parent.name == "commands"]
+        assert command_files
+        for f in command_files:
             assert f.parent.name == "commands"
             assert f.name.startswith("sp.")
             assert f.name.endswith(".md")
@@ -312,6 +337,38 @@ class TestBasePrimitives:
                 first.parent,
             )
 
+    def test_render_template_content_injects_shared_blocker_contract_for_commands(self, tmp_path):
+        templates = tmp_path / "templates"
+        commands = templates / "commands"
+        common = templates / "command-partials" / "common"
+        commands.mkdir(parents=True)
+        common.mkdir(parents=True)
+        template = commands / "plan.md"
+        template.write_text("---\ndescription: Plan\n---\n\nPlan body\n", encoding="utf-8")
+        (common / "blocker-resolution.md").write_text(
+            "## Blocked Exit Contract\n\nDetailed recovery.\n",
+            encoding="utf-8",
+        )
+
+        rendered = IntegrationBase.render_template_content(
+            template.read_text(encoding="utf-8"),
+            template_path=template,
+        )
+
+        assert rendered.count("## Blocked Exit Contract") == 1
+        assert rendered.index("## Blocked Exit Contract") < rendered.index("Plan body")
+
+    def test_every_classic_command_renders_the_shared_blocker_contract(self):
+        commands = Path(__file__).resolve().parents[2] / "templates" / "commands"
+
+        for template in commands.glob("*.md"):
+            rendered = IntegrationBase.render_template_content(
+                template.read_text(encoding="utf-8"),
+                template_path=template,
+            )
+            assert rendered.count("## Blocked Exit Contract") == 1, template.name
+            assert ".specify/templates/workflow-blocker-template.md" in rendered
+
     def test_process_template_renders_workflow_contract_summary_from_frontmatter(self, tmp_path):
         template = tmp_path / "plan.md"
         template.write_text(
@@ -344,3 +401,132 @@ class TestBasePrimitives:
         assert "- **Default handoff**: /sp-tasks after planning is complete." in processed
         assert "routing metadata only" in processed.lower()
         assert processed.index("## Workflow Contract Summary") < processed.index("## Objective")
+
+    def test_command_reference_templates_are_discovered_from_workflow_stem(self, tmp_path, monkeypatch):
+        refs_root: Path = tmp_path / "command-references"
+        workflow_refs = refs_root / "plan"
+        workflow_refs.mkdir(parents=True)
+        (workflow_refs / "INDEX.md").write_text(
+            "# Plan References\n\n- [details](details.md): Trigger: planning detail\n",
+            encoding="utf-8",
+        )
+        (workflow_refs / "details.md").write_text(
+            "Trigger: when planning needs details\n\n"
+            "Purpose: exercise discovery\n\n"
+            "Preserved Contract: keep the plan rules\n",
+            encoding="utf-8",
+        )
+
+        i = StubIntegration()
+        monkeypatch.setattr(type(i), "shared_command_references_dir", lambda self: refs_root, raising=False)
+
+        assert [path.name for path in i.list_command_reference_templates("plan")] == [
+            "INDEX.md",
+            "details.md",
+        ]
+        assert i.list_command_reference_templates("specify") == []
+        assert i.list_command_reference_templates("../plan") == []
+        assert i.list_command_reference_templates("plan/details") == []
+        assert i.list_command_reference_templates(r"plan\details") == []
+
+    def test_render_command_reference_uses_owner_template_context(self, tmp_path):
+        command = tmp_path / "plan.md"
+        command.write_text(
+            "---\n"
+            "description: Plan command\n"
+            "scripts:\n"
+            "  sh: scripts/bash/setup-plan.sh --json\n"
+            "---\n\n"
+            "# Plan\n\n"
+            "Main body for __AGENT__ using {SCRIPT}, {ARGS}, and {{invoke:tasks}}.\n",
+            encoding="utf-8",
+        )
+        reference = tmp_path / "references" / "details.md"
+        reference.parent.mkdir()
+        reference.write_text(
+            "Trigger: when planning detail is needed\n\n"
+            "Purpose: verify owner context\n\n"
+            "Preserved Contract: preserve command substitutions\n\n"
+            "Use {SCRIPT}, {ARGS}, __AGENT__, and {{invoke:tasks}} here.\n",
+            encoding="utf-8",
+        )
+
+        rendered = IntegrationBase.render_command_reference_content(
+            reference.read_text(encoding="utf-8"),
+            owner_template_raw=command.read_text(encoding="utf-8"),
+            owner_template_path=command,
+            reference_path=reference,
+            agent_name="stub",
+            script_type="sh",
+            arg_placeholder="$ARGUMENTS",
+            project_root=tmp_path,
+        )
+
+        assert "scripts/bash/setup-plan.sh --json" in rendered
+        assert "$ARGUMENTS" in rendered
+        assert "/sp.tasks" in rendered
+        assert "Purpose: verify owner context" in rendered
+        assert "Main body for" not in rendered
+        assert "__AGENT__" not in rendered
+        assert "{SCRIPT}" not in rendered
+        assert "{ARGS}" not in rendered
+        assert "{{invoke:tasks}}" not in rendered
+
+    def test_render_command_reference_uses_only_renderer_context_frontmatter(
+        self, tmp_path
+    ):
+        command = tmp_path / "plan.md"
+        command.write_text(
+            "---\n"
+            "description: Plan command should not render in references\n"
+            "workflow_contract:\n"
+            "  when_to_use: UNIQUE WORKFLOW WHEN TEXT\n"
+            "  primary_objective: UNIQUE WORKFLOW OBJECTIVE TEXT\n"
+            "  primary_outputs: UNIQUE WORKFLOW OUTPUT TEXT\n"
+            "  default_handoff: UNIQUE WORKFLOW HANDOFF TEXT\n"
+            "scripts:\n"
+            "  sh: scripts/bash/setup-plan.sh --json\n"
+            "---\n\n"
+            "# Plan\n\n"
+            "Owner body should not render.\n",
+            encoding="utf-8",
+        )
+        reference = tmp_path / "references" / "details.md"
+        reference.parent.mkdir()
+        reference.write_text(
+            "UNIQUE REFERENCE PHRASE uses {SCRIPT}.\n",
+            encoding="utf-8",
+        )
+
+        rendered = IntegrationBase.render_command_reference_content(
+            reference.read_text(encoding="utf-8"),
+            owner_template_raw=command.read_text(encoding="utf-8"),
+            owner_template_path=command,
+            reference_path=reference,
+            agent_name="stub",
+            script_type="sh",
+            arg_placeholder="$ARGUMENTS",
+            project_root=tmp_path,
+        )
+
+        assert "UNIQUE REFERENCE PHRASE" in rendered
+        assert "scripts/bash/setup-plan.sh --json" in rendered
+        assert "## Workflow Contract Summary" not in rendered
+        assert "UNIQUE WORKFLOW WHEN TEXT" not in rendered
+        assert "UNIQUE WORKFLOW OBJECTIVE TEXT" not in rendered
+        assert "UNIQUE WORKFLOW OUTPUT TEXT" not in rendered
+        assert "UNIQUE WORKFLOW HANDOFF TEXT" not in rendered
+
+    def test_validate_no_unresolved_renderer_tokens_reports_path(self, tmp_path):
+        path = tmp_path / "references" / "details.md"
+        path.parent.mkdir()
+        path.write_text("Use {SCRIPT}\n", encoding="utf-8")
+
+        with pytest.raises(ValueError) as exc_info:
+            IntegrationBase.validate_no_unresolved_renderer_tokens(
+                path.read_text(encoding="utf-8"),
+                path,
+            )
+        message = str(exc_info.value)
+        assert "details.md" in message
+        assert "{SCRIPT}" in message

@@ -1,0 +1,7 @@
+interface:
+  display_name: "SPX Design"
+  short_description: "Create or audit the root design system"
+  default_prompt: "Use $spx-design to establish or revise an approved, project-specific DESIGN.md contract."
+
+policy:
+  allow_implicit_invocation: false

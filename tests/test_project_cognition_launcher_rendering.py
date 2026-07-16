@@ -9,14 +9,17 @@ from specify_cli.launcher import (
 )
 
 
-def test_project_cognition_subcommand_renders_to_direct_binary_without_config(tmp_path: Path):
+def test_project_cognition_subcommand_renders_recoverable_marker_without_config(tmp_path: Path):
     rendered = render_project_launcher_placeholders(
         tmp_path,
         "{{specify-subcmd:project-cognition validate-build --format json}}",
     )
 
-    assert rendered.startswith("project-cognition validate-build --format json")
-    assert "PROJECT_COGNITION_BIN" in rendered
+    assert rendered == (
+        "PROJECT_COGNITION_LAUNCHER_UNAVAILABLE:"
+        "project-cognition validate-build --format json"
+    )
+    assert "(" not in rendered
 
 
 def test_non_project_cognition_subcommand_keeps_specify_launcher_behavior(tmp_path: Path):
@@ -48,7 +51,10 @@ def test_project_cognition_subcommand_ignores_persisted_specify_launcher(tmp_pat
         "{{specify-subcmd:project-cognition status --format json}}",
     )
 
-    assert rendered == "project-cognition status --format json"
+    assert rendered == (
+        "PROJECT_COGNITION_LAUNCHER_UNAVAILABLE:"
+        "project-cognition status --format json"
+    )
 
 
 def test_project_cognition_compass_subcommand_uses_persisted_binary(tmp_path: Path):

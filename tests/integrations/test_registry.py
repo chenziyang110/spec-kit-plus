@@ -26,7 +26,7 @@ ALL_INTEGRATION_KEYS = [
     # Stage 4 — TOML integrations
     "gemini", "tabnine",
     # Stage 5 — skills, generic & option-driven integrations
-    "codex", "kimi", "agy", "generic",
+    "codex", "kimi", "agy", "zcode", "generic",
 ]
 
 
@@ -149,6 +149,7 @@ class TestRegistrarKeyAlignment:
             ("kimi", ".kimi/", "skills", ".kimi/skills", "KIMI.md"),
             ("trae", ".trae/", "skills", ".trae/skills", ".trae/rules/project_rules.md"),
             ("vibe", ".vibe/", "skills", ".vibe/skills", "AGENTS.md"),
+            ("zcode", ".zcode/", "skills", ".zcode/skills", "AGENTS.md"),
         ],
     )
     def test_reduced_skills_matrix_preserves_agent_metadata(

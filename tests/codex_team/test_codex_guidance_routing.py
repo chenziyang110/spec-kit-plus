@@ -5,6 +5,7 @@ from pathlib import Path
 from typer.testing import CliRunner
 
 from specify_cli import app
+from tests.template_utils import read_skill_with_references
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -31,7 +32,7 @@ def _init_codex_project(tmp_path: Path) -> Path:
 
 
 def _read_sp_implement(project: Path) -> str:
-    return (project / ".codex" / "skills" / "sp-implement" / "SKILL.md").read_text(encoding="utf-8")
+    return read_skill_with_references(project / ".codex" / "skills" / "sp-implement" / "SKILL.md")
 
 
 def test_codex_guidance_calls_out_routing_choices(tmp_path: Path) -> None:
@@ -40,16 +41,17 @@ def test_codex_guidance_calls_out_routing_choices(tmp_path: Path) -> None:
     content = _read_sp_implement(project)
     lower = content.lower()
 
-    assert "execution_model: subagent-mandatory" in lower
-    assert "dispatch_shape: one-subagent | parallel-subagents" in lower
-    assert "execution_surface: native-subagents" in lower
-    assert "native subagents" in lower
+    assert "execution_model: adaptive" in lower
+    assert "leader-direct" in lower
+    assert "one-subagent" in lower
+    assert "parallel-subagents" in lower
+    assert "native-subagents" in lower
     assert "spawn_agent" in lower
     assert "sp-teams" not in lower
 
 
-def test_sp_implement_includes_native_first_escalation_language(tmp_path: Path) -> None:
-    """The implementation skill should describe native-first subagent dispatch without a local fallback lane."""
+def test_sp_implement_includes_adaptive_native_routing_language(tmp_path: Path) -> None:
+    """The implementation skill should describe safe direct and native delegated routes."""
     project = _init_codex_project(tmp_path)
     content = _read_sp_implement(project)
     lower = content.lower()
@@ -57,7 +59,8 @@ def test_sp_implement_includes_native_first_escalation_language(tmp_path: Path) 
     assert "spawn_agent" in lower
     assert "subagent-blocked" in lower
     assert "leader-inline-fallback" not in lower
-    assert "execution_surface: native-subagents" in lower
+    assert "native-subagents" in lower
+    assert "use leader-direct only if the task independently qualifies" in lower
     assert "sp-teams" not in lower
 
 

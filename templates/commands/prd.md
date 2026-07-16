@@ -17,6 +17,8 @@ This summary is routing metadata only. The full workflow contract is the frontma
 - `sp-prd` is compatibility-only and is no longer the primary reverse-PRD reconstruction workflow.
 - Use `sp-prd-scan` first, then `sp-prd-build`.
 
+{{spec-kit-include: ../command-partials/common/learning-layer.md}}
+
 ## Objective
 
 Route deprecated `sp-prd` invocations into the canonical reconstruction flow

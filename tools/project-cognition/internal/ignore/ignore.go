@@ -281,6 +281,46 @@ func (m Matcher) Ignored(path string) bool {
 	return ignored
 }
 
+func (m Matcher) MayReincludeDescendant(path string) bool {
+	path = normalizePath(path)
+	if path == "" {
+		return true
+	}
+	for _, rule := range m.rules {
+		if rule.negated && ruleMayMatchDescendant(rule, path) {
+			return true
+		}
+	}
+	return false
+}
+
+func ruleMayMatchDescendant(r rule, path string) bool {
+	pattern := normalizePath(r.pattern)
+	if pattern == "" {
+		return false
+	}
+	if r.anchored {
+		return pattern == path || strings.HasPrefix(pattern, path+"/") || strings.HasPrefix(path, pattern+"/")
+	}
+	if !strings.Contains(pattern, "/") {
+		return true
+	}
+	if strings.HasPrefix(pattern, "**/") {
+		pattern = strings.TrimPrefix(pattern, "**/")
+	}
+	if pattern == path || strings.HasPrefix(pattern, path+"/") {
+		return true
+	}
+	parts := strings.Split(path, "/")
+	for i := range parts {
+		suffix := strings.Join(parts[i:], "/")
+		if pattern == suffix || strings.HasPrefix(pattern, suffix+"/") {
+			return true
+		}
+	}
+	return false
+}
+
 func (r rule) matches(path string) bool {
 	if r.directory {
 		return r.matchesDirectory(path)

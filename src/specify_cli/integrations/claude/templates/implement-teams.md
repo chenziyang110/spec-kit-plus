@@ -13,6 +13,14 @@ User-facing workflow skill:
 /sp-implement-teams
 ```
 
+[AGENT] For project-cognition-backed semantic intake, routing, audit, resume, or final-claim gates, read `references/semantic-work-contract.md`.
+
+## Detailed References
+
+Read [Reference index](references/INDEX.md) before applying shared semantic contracts.
+
+- [semantic work contract](references/semantic-work-contract.md)
+
 ## Team Bootstrap Gate
 
 This gate is mandatory and precedes all broad implementation-context recovery.

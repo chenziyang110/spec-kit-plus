@@ -12,7 +12,7 @@ def _seed_learning_templates(project_path: Path) -> None:
     templates_root = Path(__file__).resolve().parents[1] / "templates"
     target_root = project_path / ".specify" / "templates"
     target_root.mkdir(parents=True, exist_ok=True)
-    for name in ("project-rules-template.md", "project-learnings-template.md"):
+    for name in ("project-rules-template.md", "project-confirmed-learnings-template.md"):
         (target_root / name).write_text(
             (templates_root / name).read_text(encoding="utf-8"),
             encoding="utf-8",

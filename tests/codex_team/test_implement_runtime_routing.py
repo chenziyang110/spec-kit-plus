@@ -1,79 +1,72 @@
-"""Runtime routing tests for the implement workflow."""
+"""Runtime routing tests for the adaptive implement workflow."""
 
 from pathlib import Path
+
+from tests.template_utils import read_command_with_references
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 
 def _read_template() -> str:
-    return (PROJECT_ROOT / "templates" / "commands" / "implement.md").read_text(encoding="utf-8")
-
-
-def _step_6_block() -> str:
-    content = _read_template().lower()
-    start = content.find("6. select subagent dispatch for each ready batch before writing code:")
-    assert start != -1
-    end = content.find("\n7. execute implementation following the task plan:", start)
-    assert end != -1
-    return content[start:end]
+    return read_command_with_references("implement")
 
 
 def test_sp_implement_documents_canonical_decision_order() -> None:
-    content = _step_6_block()
+    content = _read_template().lower()
+    start = content.index("route in this order:")
+    route = content[start : start + 700]
 
-    decision_order = content[content.find("decision order (must match policy):") :]
-    one_subagent = decision_order.find("one safe validated packet is ready and native subagents are available")
-    parallel_subagents = decision_order.find("two or more safe validated packets with isolated write sets")
-    blocked = decision_order.find("if overlapping write sets, no safe delegated lane, missing packet, unavailable runtime, or low confidence")
+    leader_direct = route.index("`leader-direct`")
+    one_subagent = route.index("`one-subagent`")
+    parallel_subagents = route.index("`parallel-subagents`")
+    managed_team = route.index("`managed-team`")
+    blocked = route.index("`subagent-blocked`")
 
-    assert one_subagent != -1
-    assert parallel_subagents != -1
-    assert blocked != -1
-    assert blocked < one_subagent < parallel_subagents
+    assert leader_direct < one_subagent < parallel_subagents < managed_team < blocked
 
 
 def test_sp_implement_preserves_join_point_semantics() -> None:
     content = _read_template().lower()
 
-    assert "join-point semantics" in content
-    assert "implement-tracker.md" in content
-    assert "execution-state source of truth" in content
+    assert "explicit join point" in content
+    assert "task-graph revision" in content
+    assert "one task lifecycle record" in content
     assert "user execution notes" in content
     assert "first-class implementation context" in content
-    assert "resume_decision" in content
+    assert "resume-audit" in content
 
 
 def test_sp_implement_distinguishes_execution_modes() -> None:
-    content = _step_6_block()
+    content = _read_template().lower()
 
-    assert "execution_model: subagent-mandatory" in content
+    assert "execution_model: adaptive" in content
+    assert "leader-direct" in content
     assert "dispatch_shape: one-subagent | parallel-subagents" in content
-    assert "execution_surface: native-subagents" in content
-    assert "decision order" in content
-    assert "specify team" not in content
+    assert "managed-team" in content
+    assert "subagent-blocked" in content
+    assert "execution_model: subagent-mandatory" not in content
     assert "auto-dispatch" not in content
 
 
-def test_sp_implement_positions_the_runtime_as_leader_only() -> None:
+def test_sp_implement_positions_the_runtime_as_adaptive_leader() -> None:
     content = _read_template().lower()
 
-    assert "invoking runtime acts as the leader" in content
-    assert "dispatches work instead of performing concrete implementation directly" in content
-    assert "dispatch `one-subagent` when one validated `workertaskpacket` is ready" in content
-    assert "dispatch `parallel-subagents` when multiple validated packets have isolated write sets" in content
+    assert "you are the workflow leader" in content
+    assert "you own routing, execution-state truth, acceptance, and recovery" in content
+    assert "whether work is leader-direct or delegated" in content
+    assert "delegated workers own bounded implementation lanes only" in content
+    assert "compile and validate a `workertaskpacket` just in time only for delegated work" in content
 
 
-def test_sp_implement_documents_milestone_next_step_selection() -> None:
+def test_sp_implement_continues_until_terminal_state() -> None:
     content = _read_template().lower()
 
-    assert "selects the next executable phase and ready batch" in content
-    assert "continues automatically until the milestone is complete or blocked" in content
-    assert "do not stop after a single completed batch" in content
-    assert "shared implement template is the primary source of truth" in content
-    assert "tasks.md` being fully checked off is not sufficient for completion by itself" in _read_template()
-    assert "`plan_gap`" in _read_template()
-    assert "`spec_gap`" in _read_template()
+    assert "continue automatically until complete or genuinely blocked" in content
+    assert "select the smallest ready task/batch whose dependencies are satisfied" in content
+    assert "do not declare completion because tasks look checked off" in content
+    assert "plan_gap" in content
+    assert "spec_gap" in content
 
 
 def test_sp_implement_requires_user_facing_closeout_summary() -> None:
@@ -81,6 +74,6 @@ def test_sp_implement_requires_user_facing_closeout_summary() -> None:
 
     assert "implementation-summary.md" in content
     assert "implementation_summary" in content
-    assert "what changed, how do i verify it, and what differs from the previous version" in content
+    assert "what changed, how to verify it, and what differs from the previous version" in content
     assert "git diff --stat" in content
     assert "git diff --name-status" in content

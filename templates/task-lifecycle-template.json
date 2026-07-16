@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "task_id": null,
+  "task_ref": null,
+  "source_revision": null,
+  "execution_mode": "leader-direct",
+  "packet_ref": null,
+  "status": "pending",
+  "changed_paths": [],
+  "validation": [],
+  "review": null,
+  "ui_verification": {
+    "applicable": false,
+    "evidence_scope": "task",
+    "integration_base_ref": null,
+    "evidence": [],
+    "contract_check": "not-run",
+    "runtime_evidence": "not-run",
+    "visual_comparison": "not-applicable",
+    "fidelity_status": "not-applicable",
+    "reviewer": "agent",
+    "human_review_ref": null
+  },
+  "obligation_evidence": [],
+  "blocker_schema_ref": ".specify/templates/task-lifecycle-schema.json#/$defs/blocker",
+  "blockers": [],
+  "recovery": null
+}

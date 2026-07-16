@@ -1,0 +1,7 @@
+interface:
+  display_name: "SPX Ask"
+  short_description: "Evidence-backed repository questions"
+  default_prompt: "Use $spx-ask to answer this project question from live evidence."
+
+policy:
+  allow_implicit_invocation: false

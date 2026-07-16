@@ -7,7 +7,7 @@ Perform a read-only analysis pass that checks whether the current spec, context,
 ## Context
 
 - Primary inputs: `spec.md`, `context.md`, `plan.md`, `tasks.md`, passive learning files, the task-local project cognition query bundle with readiness and returned `minimal_live_reads`, and the smallest workflow-local state files needed for the touched area.
-- When present, consume the upstream evidence ledgers too: `planning/evidence-index.json`, accepted `planning/handoffs/*.json`, `task-generation/evidence-index.json`, accepted `task-generation/handoffs/*.json`, and `clarification/evidence-index.json` when analyze routes back to clarification.
+- Treat `spec-contract.json`, `plan-contract.json`, and `task-index.json` as the phase authorities. When delegation occurred, inspect the compact `planning/lane-manifest.json` or `task-generation/lane-manifest.json` and only the accepted lane results needed to verify downstream consumption. Read clarification evidence only when analysis routes back to clarification.
 - The constitution remains the highest local authority for this analysis surface.
 - This command produces findings only; it does not rewrite the artifact set.
 
@@ -15,7 +15,7 @@ Perform a read-only analysis pass that checks whether the current spec, context,
 
 - Load the minimum artifact context needed to evaluate the current request.
 - Compare the planning artifacts for drift, ambiguity, missing constraints, and boundary-guardrail gaps.
-- Verify accepted planning and task-generation handoffs were consumed by downstream artifacts rather than only preserved on disk.
+- Verify every accepted delegated lane result named by a compact manifest was consumed into the downstream canonical contract rather than only preserved on disk.
 - Classify findings by severity and report how they should feed back into the workflow.
 
 ## Output Contract

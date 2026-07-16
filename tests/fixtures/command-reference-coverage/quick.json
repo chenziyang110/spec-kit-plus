@@ -1,0 +1,12 @@
+{
+  "workflow": "quick",
+  "source": "templates/commands/quick.md",
+  "entries": [
+    {"kind": "checkpoint", "source_excerpt": "Understanding Checkpoint", "target": "templates/command-references/quick/intake-and-checkpoint.md"},
+    {"kind": "handoff", "source_excerpt": "Resolve Discussion Handoff Intake", "target": "templates/command-references/quick/handoff-consumption.md"},
+    {"kind": "scope", "source_excerpt": "Scope Gate", "target": "templates/command-references/quick/intake-and-checkpoint.md"},
+    {"kind": "workspace", "source_excerpt": "STATUS.md Scaffold", "target": "templates/command-references/quick/workspace-state.md"},
+    {"kind": "packet", "source_excerpt": "WorkerTaskPacket", "target": "templates/command-references/quick/packetized-work.md"},
+    {"kind": "closeout", "source_excerpt": "Completion Standard", "target": "templates/command-references/quick/validation-and-closeout.md"}
+  ]
+}

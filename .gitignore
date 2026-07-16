@@ -60,6 +60,7 @@ docs/dev
 
 # Repo-local generated state
 .specify/
+.superpowers/
 
 # Codex team runtime state
 .specify/runtime/

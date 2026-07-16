@@ -29,6 +29,52 @@ func TestValidateArtifactsDoesNotRequireStatusJSON(t *testing.T) {
 	}
 }
 
+func TestLoadAcceptsOptionalTypedGraphClaims(t *testing.T) {
+	paths := scanArtifactTestPaths(t)
+	writeMinimalScanPackage(t, paths)
+	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "provisional", "claims.json"), []byte(`{
+		"claims": [{
+			"id": "claim:app-owner",
+			"node_id": "N-app",
+			"graph_claim_type": "runtime_owner",
+			"summary": "App owns runtime behavior",
+			"requested_state": "verified_in_graph_generation",
+			"supporting_evidence_ids": ["E-001"],
+			"verifications": [{
+				"id": "verification:app-owner",
+				"result": "passed",
+				"evidence_id": "E-001",
+				"observed_at": "2026-07-13T10:00:00Z"
+			}]
+		}]
+	}`))
+
+	pkg, result := Load(paths, ValidateOptions{RequireStatusJSON: false})
+	if result.Status != "ok" {
+		t.Fatalf("Status = %q, want ok; errors=%#v", result.Status, result.Errors)
+	}
+	if len(pkg.Claims) != 1 {
+		t.Fatalf("Claims = %#v, want one optional graph claim", pkg.Claims)
+	}
+	got := pkg.Claims[0]
+	if got.ID != "claim:app-owner" || got.NodeID != "N-app" || got.GraphClaimType != "runtime_owner" || len(got.Verifications) != 1 {
+		t.Fatalf("claim = %#v, want parsed typed graph claim", got)
+	}
+	if !pkg.Identities.Claims["claim:app-owner"] {
+		t.Fatalf("claim identities = %#v, want claim:app-owner", pkg.Identities.Claims)
+	}
+}
+
+func TestLoadKeepsLegacyScanPackageCompatibleWithoutClaimsFile(t *testing.T) {
+	paths := scanArtifactTestPaths(t)
+	writeMinimalScanPackage(t, paths)
+
+	pkg, result := Load(paths, ValidateOptions{RequireStatusJSON: false})
+	if result.Status != "ok" || len(pkg.Claims) != 0 {
+		t.Fatalf("Load() = status %q claims %#v, want ok with empty optional claims", result.Status, pkg.Claims)
+	}
+}
+
 func TestValidateArtifactsReportsUTF8BOM(t *testing.T) {
 	paths := scanArtifactTestPaths(t)
 	writeMinimalScanPackage(t, paths)
@@ -1314,6 +1360,44 @@ func TestValidateAcceptsBoundaryExcludedPathOutsideCoverage(t *testing.T) {
 
 	if result.Status != "ok" {
 		t.Fatalf("Status = %q, want ok; errors=%#v", result.Status, result.Errors)
+	}
+}
+
+func TestValidateAcceptsRepositoryUniverseDispositionMapAlias(t *testing.T) {
+	for _, tc := range []struct {
+		name             string
+		dispositionsJSON string
+	}{
+		{
+			name:             "aggregate dispositions with alias",
+			dispositionsJSON: `"dispositions":{"deep_read":1},"disposition_map":{"src/app.go":"deep_read"},`,
+		},
+		{
+			name:             "alias without canonical dispositions",
+			dispositionsJSON: `"disposition_map":{"src/app.go":"deep_read"},`,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			paths := scanArtifactTestPaths(t)
+			writeMinimalScanPackage(t, paths)
+			writeFileBytes(t, filepath.Join(paths.RuntimeDir, "workbench", "repository-universe.json"), []byte(`{
+				"schema_version":1,
+				"candidate_universe":["src/app.go"],
+				"included_paths":["src/app.go"],
+				"excluded_paths":[],
+				"ambiguous_paths":[],
+				`+tc.dispositionsJSON+`
+				"criticality":{"src/app.go":"important"},
+				"classification_reasons":{"src/app.go":"source"},
+				"decision_source":{"src/app.go":"git"}
+			}`))
+
+			result := Validate(paths, ValidateOptions{RequireStatusJSON: false})
+
+			if result.Status != "ok" {
+				t.Fatalf("Status = %q, want ok; errors=%#v", result.Status, result.Errors)
+			}
+		})
 	}
 }
 

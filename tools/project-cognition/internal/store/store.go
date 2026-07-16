@@ -19,6 +19,7 @@ import (
 
 	_ "modernc.org/sqlite"
 
+	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/claim"
 	rt "github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtime"
 )
 
@@ -48,6 +49,41 @@ type ConceptAliasRow struct {
 	EvidenceID      string
 }
 
+// GraphClaimEvidence is the storage read model used by claim-aware navigation.
+// RouteConfidence belongs to the owning graph node and must not be interpreted
+// as confidence that the claim is current repository truth.
+type GraphClaimEvidence struct {
+	ID              string
+	NodeID          string
+	GraphClaimType  string
+	Summary         string
+	State           string
+	Freshness       string
+	StateReason     string
+	RouteConfidence string
+	Evidence        []GraphClaimEvidenceRef
+}
+
+type GraphClaimEvidenceRef struct {
+	ID         string
+	Role       string
+	SourceKind string
+	SourcePath string
+	Span       string
+	CommitSHA  string
+}
+
+// GraphClaimLifecycleSummary is a compact, evidence-free aggregate used for
+// complete per-node ranking decisions without expanding claim detail payloads.
+type GraphClaimLifecycleSummary struct {
+	NodeID              string
+	ClaimCount          int
+	ContradictedCount   int
+	StaleCount          int
+	FreshVerifiedCount  int
+	FreshSupportedCount int
+}
+
 type UpdateRecord struct {
 	ID             string
 	Trigger        string
@@ -63,6 +99,13 @@ type AffectedClosure struct {
 	NodeIDs  []string
 	ClaimIDs []string
 	SliceIDs []string
+}
+
+type ClaimTransition struct {
+	ClaimID   string
+	FromState claim.State
+	ToState   claim.State
+	Reason    string
 }
 
 type PathCoverageRefresh struct {
@@ -92,10 +135,7 @@ func Open(paths rt.Paths) (*Store, error) {
 	if err := os.MkdirAll(paths.RuntimeDir, 0o755); err != nil {
 		return nil, fmt.Errorf("create runtime dir: %w", err)
 	}
-	if _, err := ReplaceIncompatibleDatabase(paths); err != nil {
-		return nil, err
-	}
-	if _, err := ReplaceOutdatedDatabase(paths); err != nil {
+	if _, err := requireCurrentDatabase(paths); err != nil {
 		return nil, err
 	}
 	db, err := sql.Open("sqlite", paths.DatabasePath)
@@ -108,64 +148,6 @@ func Open(paths rt.Paths) (*Store, error) {
 		return nil, err
 	}
 	return store, nil
-}
-
-func ReplaceIncompatibleDatabase(paths rt.Paths) (bool, error) {
-	compatible, err := ExistingDatabaseCompatible(paths)
-	if err != nil {
-		return false, err
-	}
-	if compatible {
-		return false, nil
-	}
-	archivePath, err := archiveDatabasePath(paths.DatabasePath)
-	if err != nil {
-		return false, err
-	}
-	if err := os.Rename(paths.DatabasePath, archivePath); err != nil {
-		return false, fmt.Errorf("archive incompatible project-cognition.db: %w", err)
-	}
-	return true, nil
-}
-
-func ExistingDatabaseCompatible(paths rt.Paths) (bool, error) {
-	info, err := os.Stat(paths.DatabasePath)
-	if errors.Is(err, os.ErrNotExist) {
-		return true, nil
-	}
-	if err != nil {
-		return false, fmt.Errorf("stat project-cognition.db: %w", err)
-	}
-	if info.Size() == 0 {
-		return false, nil
-	}
-	db, err := sql.Open("sqlite", paths.DatabasePath)
-	if err != nil {
-		return false, fmt.Errorf("open sqlite for schema compatibility check: %w", err)
-	}
-	defer db.Close()
-	if err := db.PingContext(context.Background()); err != nil {
-		return false, fmt.Errorf("open sqlite for schema compatibility check: %w", err)
-	}
-	return SchemaCompatible(context.Background(), db)
-}
-
-func ReplaceOutdatedDatabase(paths rt.Paths) (bool, error) {
-	version, exists, err := ExistingDatabaseSchemaVersion(paths)
-	if err != nil {
-		return false, err
-	}
-	if !exists || version >= SchemaVersion {
-		return false, nil
-	}
-	archivePath, err := archiveDatabasePath(paths.DatabasePath)
-	if err != nil {
-		return false, err
-	}
-	if err := os.Rename(paths.DatabasePath, archivePath); err != nil {
-		return false, fmt.Errorf("archive outdated project-cognition.db: %w", err)
-	}
-	return true, nil
 }
 
 func ExistingDatabaseSchemaVersion(paths rt.Paths) (int, bool, error) {
@@ -194,6 +176,42 @@ func ExistingDatabaseSchemaVersion(paths rt.Paths) (int, bool, error) {
 	return version, true, nil
 }
 
+func requireCurrentDatabase(paths rt.Paths) (bool, error) {
+	info, err := os.Stat(paths.DatabasePath)
+	if errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("stat project-cognition.db: %w", err)
+	}
+	if info.Size() == 0 {
+		return true, fmt.Errorf("project-cognition.db is empty; current runtime requires schema_version %d; remove the database and run sp-map-scan followed by sp-map-build", SchemaVersion)
+	}
+	version, _, err := ExistingDatabaseSchemaVersion(paths)
+	if err != nil {
+		return true, err
+	}
+	if version != SchemaVersion {
+		return true, fmt.Errorf("project-cognition.db schema_version %d is unsupported; current runtime requires %d; remove the database and run sp-map-scan followed by sp-map-build", version, SchemaVersion)
+	}
+	db, err := sql.Open("sqlite", paths.DatabasePath)
+	if err != nil {
+		return true, fmt.Errorf("open sqlite for current schema check: %w", err)
+	}
+	defer db.Close()
+	if err := db.PingContext(context.Background()); err != nil {
+		return true, fmt.Errorf("open sqlite for current schema check: %w", err)
+	}
+	compatible, err := SchemaCompatible(context.Background(), db)
+	if err != nil {
+		return true, fmt.Errorf("check current sqlite schema: %w", err)
+	}
+	if !compatible {
+		return true, fmt.Errorf("project-cognition.db schema_version %d is structurally incompatible; current runtime requires the complete schema; remove the database and run sp-map-scan followed by sp-map-build", SchemaVersion)
+	}
+	return true, nil
+}
+
 func SchemaCompatible(ctx context.Context, db *sql.DB) (bool, error) {
 	for _, table := range RequiredTables() {
 		exists, err := tableExists(ctx, db, table)
@@ -219,12 +237,12 @@ func SchemaCompatible(ctx context.Context, db *sql.DB) (bool, error) {
 }
 
 func OpenExisting(paths rt.Paths) (*Store, error) {
-	info, err := os.Stat(paths.DatabasePath)
+	exists, err := requireCurrentDatabase(paths)
 	if err != nil {
-		return nil, fmt.Errorf("open sqlite: %w", err)
+		return nil, err
 	}
-	if info.Size() == 0 {
-		return nil, fmt.Errorf("open sqlite: %s must not be empty", paths.DatabasePath)
+	if !exists {
+		return nil, fmt.Errorf("open sqlite: %w", os.ErrNotExist)
 	}
 	db, err := sql.Open("sqlite", paths.DatabasePath)
 	if err != nil {
@@ -233,15 +251,6 @@ func OpenExisting(paths rt.Paths) (*Store, error) {
 	if err := db.PingContext(context.Background()); err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("open sqlite: %w", err)
-	}
-	compatible, err := SchemaCompatible(context.Background(), db)
-	if err != nil {
-		_ = db.Close()
-		return nil, fmt.Errorf("check sqlite schema compatibility: %w", err)
-	}
-	if !compatible {
-		_ = db.Close()
-		return nil, fmt.Errorf("project-cognition.db schema is incompatible; run sp-map-scan followed by sp-map-build")
 	}
 	return &Store{db: db}, nil
 }
@@ -277,28 +286,6 @@ func tableColumns(ctx context.Context, db *sql.DB, table string) (map[string]boo
 		columns[name] = true
 	}
 	return columns, rows.Err()
-}
-
-func archiveDatabasePath(databasePath string) (string, error) {
-	base := databasePath + ".legacy"
-	if _, err := os.Stat(base); errors.Is(err, os.ErrNotExist) {
-		return base, nil
-	} else if err != nil {
-		return "", fmt.Errorf("stat legacy database archive: %w", err)
-	}
-	now := time.Now().UTC().Format("20060102T150405.000000000Z")
-	for i := 0; i < 100; i++ {
-		candidate := filepath.Join(filepath.Dir(databasePath), filepath.Base(databasePath)+".legacy."+now)
-		if i > 0 {
-			candidate = fmt.Sprintf("%s.%02d", candidate, i)
-		}
-		if _, err := os.Stat(candidate); errors.Is(err, os.ErrNotExist) {
-			return candidate, nil
-		} else if err != nil {
-			return "", fmt.Errorf("stat legacy database archive: %w", err)
-		}
-	}
-	return "", fmt.Errorf("could not choose legacy database archive path for %s", databasePath)
 }
 
 func quoteSQLiteIdentifier(identifier string) string {
@@ -387,6 +374,9 @@ func (s *Store) Init(ctx context.Context) error {
 	if _, err := s.db.ExecContext(ctx, schemaSQL); err != nil {
 		return fmt.Errorf("initialize schema: %w", err)
 	}
+	if _, err := s.db.ExecContext(ctx, schemaV5ClaimSQL); err != nil {
+		return fmt.Errorf("initialize claim schema: %w", err)
+	}
 	now := time.Now().UTC().Format(time.RFC3339)
 	pairs := map[string]any{
 		"runtime_format":  rt.RuntimeFormat,
@@ -436,7 +426,6 @@ func metadataValueColumn(ctx context.Context, db *sql.DB) (string, error) {
 	}
 	defer rows.Close()
 	hasValueJSON := false
-	hasValue := false
 	for rows.Next() {
 		var cid int
 		var name, typ string
@@ -449,18 +438,12 @@ func metadataValueColumn(ctx context.Context, db *sql.DB) (string, error) {
 		if name == "value_json" {
 			hasValueJSON = true
 		}
-		if name == "value" {
-			hasValue = true
-		}
 	}
 	if err := rows.Err(); err != nil {
 		return "", err
 	}
 	if hasValueJSON {
 		return "value_json", nil
-	}
-	if hasValue {
-		return "value", nil
 	}
 	return "", fmt.Errorf("metadata table has no value_json column")
 }
@@ -475,7 +458,7 @@ func databaseSchemaVersion(ctx context.Context, db *sql.DB) (int, error) {
 	}
 	valueColumn, err := metadataValueColumn(ctx, db)
 	if err != nil {
-		return 0, nil
+		return 0, err
 	}
 	var value string
 	err = db.QueryRowContext(ctx, `SELECT `+valueColumn+` FROM metadata WHERE key = 'schema_version'`).Scan(&value)
@@ -550,10 +533,27 @@ func (s *Store) RecordStructuredUpdate(ctx context.Context, record UpdateRecord)
 	if err != nil {
 		return fmt.Errorf("encode update attrs: %w", err)
 	}
-	_, err = s.db.ExecContext(ctx, `INSERT INTO updates(id, generation_id, trigger, changed_paths_json, affected_nodes_json, affected_claims_json, affected_slices_json, result_state, completed_at, attrs_json) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, record.ID, generationID, record.Trigger, string(changedJSON), string(nodesJSON), string(claimsJSON), string(slicesJSON), record.ResultState, now, attrs)
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin structured update: %w", err)
+	}
+	committed := false
+	defer func() {
+		if !committed {
+			_ = tx.Rollback()
+		}
+	}()
+	if _, err := markClaimsStaleTx(ctx, tx, generationID, record.AffectedClaims, changedPathReason(record.ChangedPaths), record.ID, now); err != nil {
+		return err
+	}
+	_, err = tx.ExecContext(ctx, `INSERT INTO updates(id, generation_id, trigger, changed_paths_json, affected_nodes_json, affected_claims_json, affected_slices_json, result_state, completed_at, attrs_json) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, record.ID, generationID, record.Trigger, string(changedJSON), string(nodesJSON), string(claimsJSON), string(slicesJSON), record.ResultState, now, attrs)
 	if err != nil {
 		return fmt.Errorf("record structured update: %w", err)
 	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit structured update: %w", err)
+	}
+	committed = true
 	return nil
 }
 
@@ -562,11 +562,273 @@ func (s *Store) AffectedClosureForPaths(ctx context.Context, paths []string) (Af
 	if err != nil {
 		return AffectedClosure{}, err
 	}
+	nodeIDs := uniqueSorted(nodeIDsFromMaps(nodes))
+	claimIDs, err := s.claimIDsForNodesAndPaths(ctx, nodeIDs, paths)
+	if err != nil {
+		return AffectedClosure{}, err
+	}
 	return AffectedClosure{
-		NodeIDs:  uniqueSorted(nodeIDsFromMaps(nodes)),
-		ClaimIDs: []string{},
+		NodeIDs:  nodeIDs,
+		ClaimIDs: claimIDs,
 		SliceIDs: []string{},
 	}, nil
+}
+
+func (s *Store) ClaimsForNodeIDs(ctx context.Context, nodeIDs []string) ([]map[string]any, error) {
+	records, err := s.ClaimEvidenceForNodeIDs(ctx, nodeIDs)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]map[string]any, 0, len(records))
+	for _, record := range records {
+		out = append(out, map[string]any{
+			"id": record.ID, "node_id": record.NodeID, "graph_claim_type": record.GraphClaimType, "summary": record.Summary,
+			"state": record.State, "freshness": record.Freshness, "state_reason": record.StateReason,
+		})
+	}
+	return out, nil
+}
+
+func (s *Store) ClaimLifecycleSummariesForNodeIDs(ctx context.Context, nodeIDs []string) ([]GraphClaimLifecycleSummary, error) {
+	generationID, err := s.ActiveGenerationID(ctx)
+	if err != nil || generationID == "" || len(nodeIDs) == 0 {
+		return []GraphClaimLifecycleSummary{}, err
+	}
+	nodeIDs = uniqueSorted(nodeIDs)
+	placeholders := strings.TrimSuffix(strings.Repeat("?,", len(nodeIDs)), ",")
+	args := make([]any, 0, len(nodeIDs)+1)
+	args = append(args, generationID)
+	for _, nodeID := range nodeIDs {
+		args = append(args, nodeID)
+	}
+	rows, err := s.db.QueryContext(ctx, `SELECT node_id,
+		COUNT(*),
+		COALESCE(SUM(CASE WHEN LOWER(state) = 'contradicted' THEN 1 ELSE 0 END), 0),
+		COALESCE(SUM(CASE WHEN LOWER(state) = 'stale' OR LOWER(freshness) = 'stale' THEN 1 ELSE 0 END), 0),
+		COALESCE(SUM(CASE WHEN LOWER(state) = 'verified_in_graph_generation' AND LOWER(freshness) = 'fresh' THEN 1 ELSE 0 END), 0),
+		COALESCE(SUM(CASE WHEN LOWER(state) = 'supported' AND LOWER(freshness) = 'fresh' THEN 1 ELSE 0 END), 0)
+		FROM claims WHERE generation_id = ? AND node_id IN (`+placeholders+`)
+		GROUP BY node_id ORDER BY node_id`, args...)
+	if err != nil {
+		return nil, fmt.Errorf("read graph claim lifecycle summaries: %w", err)
+	}
+	defer rows.Close()
+	summaries := []GraphClaimLifecycleSummary{}
+	for rows.Next() {
+		var summary GraphClaimLifecycleSummary
+		if err := rows.Scan(
+			&summary.NodeID,
+			&summary.ClaimCount,
+			&summary.ContradictedCount,
+			&summary.StaleCount,
+			&summary.FreshVerifiedCount,
+			&summary.FreshSupportedCount,
+		); err != nil {
+			return nil, fmt.Errorf("scan graph claim lifecycle summary: %w", err)
+		}
+		summaries = append(summaries, summary)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate graph claim lifecycle summaries: %w", err)
+	}
+	return summaries, nil
+}
+
+func (s *Store) ClaimEvidenceForNodeIDs(ctx context.Context, nodeIDs []string) ([]GraphClaimEvidence, error) {
+	generationID, err := s.ActiveGenerationID(ctx)
+	if err != nil || generationID == "" || len(nodeIDs) == 0 {
+		return []GraphClaimEvidence{}, err
+	}
+	nodeIDs = uniqueSorted(nodeIDs)
+	placeholders := strings.TrimSuffix(strings.Repeat("?,", len(nodeIDs)), ",")
+	args := make([]any, 0, len(nodeIDs)+1)
+	args = append(args, generationID)
+	for _, nodeID := range nodeIDs {
+		args = append(args, nodeID)
+	}
+	rows, err := s.db.QueryContext(ctx, `SELECT c.id, c.node_id, c.graph_claim_type, c.summary, c.state, c.freshness, c.state_reason, n.confidence FROM claims c JOIN nodes n ON n.id = c.node_id AND n.generation_id = c.generation_id WHERE c.generation_id = ? AND c.node_id IN (`+placeholders+`) ORDER BY c.id LIMIT 25`, args...)
+	if err != nil {
+		return nil, fmt.Errorf("read graph claim evidence heads: %w", err)
+	}
+	records := []GraphClaimEvidence{}
+	for rows.Next() {
+		var record GraphClaimEvidence
+		if err := rows.Scan(&record.ID, &record.NodeID, &record.GraphClaimType, &record.Summary, &record.State, &record.Freshness, &record.StateReason, &record.RouteConfidence); err != nil {
+			_ = rows.Close()
+			return nil, fmt.Errorf("scan graph claim evidence head: %w", err)
+		}
+		record.Evidence = []GraphClaimEvidenceRef{}
+		records = append(records, record)
+	}
+	if err := rows.Err(); err != nil {
+		_ = rows.Close()
+		return nil, fmt.Errorf("iterate graph claim evidence heads: %w", err)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, fmt.Errorf("close graph claim evidence heads: %w", err)
+	}
+	if len(records) == 0 {
+		return records, nil
+	}
+
+	claimIDs := make([]string, 0, len(records))
+	claimIndex := make(map[string]int, len(records))
+	for index, record := range records {
+		claimIDs = append(claimIDs, record.ID)
+		claimIndex[record.ID] = index
+	}
+	claimPlaceholders := strings.TrimSuffix(strings.Repeat("?,", len(claimIDs)), ",")
+	evidenceArgs := make([]any, 0, len(claimIDs)+1)
+	evidenceArgs = append(evidenceArgs, generationID)
+	for _, claimID := range claimIDs {
+		evidenceArgs = append(evidenceArgs, claimID)
+	}
+	evidenceRows, err := s.db.QueryContext(ctx, `SELECT ce.claim_id, e.id, ce.role, e.source_kind, e.source_path, e.span, e.commit_sha FROM claim_evidence ce JOIN evidence e ON e.id = ce.evidence_id WHERE e.generation_id = ? AND ce.basis_state = 'current' AND ce.claim_id IN (`+claimPlaceholders+`) ORDER BY ce.claim_id, CASE ce.role WHEN 'contradicting' THEN 0 ELSE 1 END, e.id`, evidenceArgs...)
+	if err != nil {
+		return nil, fmt.Errorf("read graph claim evidence refs: %w", err)
+	}
+	defer evidenceRows.Close()
+	for evidenceRows.Next() {
+		var claimID string
+		var ref GraphClaimEvidenceRef
+		if err := evidenceRows.Scan(&claimID, &ref.ID, &ref.Role, &ref.SourceKind, &ref.SourcePath, &ref.Span, &ref.CommitSHA); err != nil {
+			return nil, fmt.Errorf("scan graph claim evidence ref: %w", err)
+		}
+		if index, ok := claimIndex[claimID]; ok {
+			records[index].Evidence = append(records[index].Evidence, ref)
+		}
+	}
+	if err := evidenceRows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate graph claim evidence refs: %w", err)
+	}
+	return records, nil
+}
+
+func (s *Store) MarkClaimsStale(ctx context.Context, claimIDs []string, reason, transitionIDPrefix string) ([]ClaimTransition, error) {
+	generationID, err := s.ActiveGenerationID(ctx)
+	if err != nil || generationID == "" || len(claimIDs) == 0 {
+		return []ClaimTransition{}, err
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, fmt.Errorf("begin claim invalidation: %w", err)
+	}
+	committed := false
+	defer func() {
+		if !committed {
+			_ = tx.Rollback()
+		}
+	}()
+	transitions, err := markClaimsStaleTx(ctx, tx, generationID, claimIDs, reason, transitionIDPrefix, time.Now().UTC().Format(time.RFC3339))
+	if err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("commit claim invalidation: %w", err)
+	}
+	committed = true
+	return transitions, nil
+}
+
+func (s *Store) claimIDsForNodesAndPaths(ctx context.Context, nodeIDs, paths []string) ([]string, error) {
+	generationID, err := s.ActiveGenerationID(ctx)
+	if err != nil || generationID == "" {
+		return []string{}, err
+	}
+	ids := map[string]bool{}
+	if len(nodeIDs) > 0 {
+		placeholders := strings.TrimSuffix(strings.Repeat("?,", len(nodeIDs)), ",")
+		args := make([]any, 0, len(nodeIDs)+1)
+		args = append(args, generationID)
+		for _, nodeID := range nodeIDs {
+			args = append(args, nodeID)
+		}
+		rows, err := s.db.QueryContext(ctx, `SELECT id FROM claims WHERE generation_id = ? AND node_id IN (`+placeholders+`)`, args...)
+		if err != nil {
+			return nil, fmt.Errorf("read claims for affected nodes: %w", err)
+		}
+		for rows.Next() {
+			var id string
+			if err := rows.Scan(&id); err != nil {
+				_ = rows.Close()
+				return nil, err
+			}
+			ids[id] = true
+		}
+		if err := rows.Close(); err != nil {
+			return nil, err
+		}
+	}
+	for _, candidate := range uniqueSorted(paths) {
+		candidate = strings.Trim(strings.TrimSpace(candidate), "/")
+		if candidate == "" {
+			continue
+		}
+		rows, err := s.db.QueryContext(ctx, `SELECT DISTINCT c.id FROM claims c JOIN claim_evidence ce ON ce.claim_id = c.id AND ce.basis_state = 'current' JOIN evidence e ON e.id = ce.evidence_id AND e.generation_id = c.generation_id WHERE c.generation_id = ? AND (e.source_path = ? OR e.source_path LIKE ? OR ? LIKE e.source_path || '/%')`, generationID, candidate, candidate+"/%", candidate)
+		if err != nil {
+			return nil, fmt.Errorf("read claims for affected evidence paths: %w", err)
+		}
+		for rows.Next() {
+			var id string
+			if err := rows.Scan(&id); err != nil {
+				_ = rows.Close()
+				return nil, err
+			}
+			ids[id] = true
+		}
+		if err := rows.Close(); err != nil {
+			return nil, err
+		}
+	}
+	out := make([]string, 0, len(ids))
+	for id := range ids {
+		out = append(out, id)
+	}
+	sort.Strings(out)
+	return out, nil
+}
+
+func markClaimsStaleTx(ctx context.Context, tx *sql.Tx, generationID string, claimIDs []string, reason, transitionIDPrefix, now string) ([]ClaimTransition, error) {
+	reason = defaultString(reason, "affected_dependency_changed")
+	transitionIDPrefix = defaultString(transitionIDPrefix, "manual")
+	transitions := []ClaimTransition{}
+	for _, claimID := range uniqueSorted(claimIDs) {
+		var stateValue string
+		err := tx.QueryRowContext(ctx, `SELECT state FROM claims WHERE generation_id = ? AND id = ?`, generationID, claimID).Scan(&stateValue)
+		if errors.Is(err, sql.ErrNoRows) {
+			continue
+		}
+		if err != nil {
+			return nil, fmt.Errorf("read claim %s before invalidation: %w", claimID, err)
+		}
+		from := claim.State(stateValue)
+		if from == claim.StateStale {
+			continue
+		}
+		if !claim.CanTransition(from, claim.StateStale) {
+			return nil, fmt.Errorf("claim %s cannot transition from %s to stale", claimID, from)
+		}
+		if _, err := tx.ExecContext(ctx, `UPDATE claims SET prior_state = state, state = ?, freshness = ?, state_reason = ?, revision = revision + 1, updated_at = ? WHERE generation_id = ? AND id = ?`, claim.StateStale, claim.FreshnessStale, reason, now, generationID, claimID); err != nil {
+			return nil, fmt.Errorf("mark claim %s stale: %w", claimID, err)
+		}
+		transitionID := "claim-transition:" + stableIDPart(transitionIDPrefix) + ":" + stableIDPart(claimID)
+		if _, err := tx.ExecContext(ctx, `INSERT INTO claim_transitions(id, claim_id, generation_id, from_state, to_state, reason, evidence_id, occurred_at, attrs_json) VALUES(?, ?, ?, ?, ?, ?, '', ?, '{}')`, transitionID, claimID, generationID, from, claim.StateStale, reason, now); err != nil {
+			return nil, fmt.Errorf("record claim %s stale transition: %w", claimID, err)
+		}
+		transitions = append(transitions, ClaimTransition{ClaimID: claimID, FromState: from, ToState: claim.StateStale, Reason: reason})
+	}
+	return transitions, nil
+}
+
+func changedPathReason(paths []string) string {
+	paths = uniqueSorted(paths)
+	if len(paths) == 1 {
+		return "changed_path:" + paths[0]
+	}
+	if len(paths) > 1 {
+		return "changed_paths:" + strings.Join(paths, ",")
+	}
+	return "affected_dependency_changed"
 }
 
 func (s *Store) RefreshPathCoverage(ctx context.Context, refresh PathCoverageRefresh) (PathCoverageRefreshResult, error) {

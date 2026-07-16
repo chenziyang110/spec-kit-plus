@@ -127,10 +127,12 @@ type UpdatePayload struct {
 	ChangedPaths            []string         `json:"changed_paths"`
 	IgnoredPaths            []string         `json:"ignored_paths"`
 	AffectedNodes           []map[string]any `json:"affected_nodes"`
+	AffectedGraphClaims     []string         `json:"affected_graph_claims"`
 	MissingCoverage         []string         `json:"missing_coverage"`
 	AdoptedPaths            []string         `json:"adopted_paths"`
 	ReviewPaths             []string         `json:"review_paths"`
 	UnadoptablePaths        []string         `json:"unadoptable_paths"`
+	PartialRefreshReasons   []string         `json:"partial_refresh_reasons"`
 	KnownUnknowns           []string         `json:"known_unknowns"`
 	MinimalLiveReads        []string         `json:"minimal_live_reads"`
 	PathAdoption            map[string]any   `json:"path_adoption"`
@@ -361,8 +363,8 @@ func runResolvedUpdate(paths rt.Paths, input UpdateInput, changed []string, igno
 		if err != nil {
 			return UpdatePayload{}, err
 		}
-		if len(closure.NodeIDs) == 0 && canAdoptWorkflowPaths(changed, input) {
-			for _, path := range changed {
+		if canAdoptWorkflowPaths(changed, input) {
+			for _, path := range unmappedPaths(changed, pathNodeIDs) {
 				if _, err := st.AdoptWorkflowPath(context.Background(), store.WorkflowPathAdoption{
 					UpdateID:         updateID,
 					Path:             path,
@@ -457,6 +459,7 @@ func runResolvedUpdate(paths rt.Paths, input UpdateInput, changed []string, igno
 	if boundaryResult != nil && resultState != ResultReady {
 		reviewPaths = appendUnique(reviewPaths, boundaryResult.AmbiguousPaths...)
 	}
+	partialRefreshReasons := updateResultReasons(resultState, changed, nodes, input, pathNodeIDs, st != nil)
 	knownUnknowns := compactStrings(input.KnownUnknowns)
 	if boundaryResult != nil {
 		knownUnknowns = compactStrings(append(knownUnknowns, boundaryResult.Warnings...))
@@ -466,6 +469,9 @@ func runResolvedUpdate(paths rt.Paths, input UpdateInput, changed []string, igno
 		"ignored":         ignored,
 		"needs_review":    reviewPaths,
 		"path_accounting": pathAccounting,
+	}
+	if len(partialRefreshReasons) > 0 {
+		pathAdoption["partial_refresh_reasons"] = partialRefreshReasons
 	}
 	if boundaryResult != nil {
 		pathAdoption["phase"] = "boundary_resolved"
@@ -481,10 +487,12 @@ func runResolvedUpdate(paths rt.Paths, input UpdateInput, changed []string, igno
 		ChangedPaths:            updatePaths.changed,
 		IgnoredPaths:            ignored,
 		AffectedNodes:           nodes,
+		AffectedGraphClaims:     append([]string{}, closure.ClaimIDs...),
 		MissingCoverage:         []string{},
 		AdoptedPaths:            updatePaths.adopted,
 		ReviewPaths:             reviewPaths,
 		UnadoptablePaths:        []string{},
+		PartialRefreshReasons:   partialRefreshReasons,
 		KnownUnknowns:           knownUnknowns,
 		MinimalLiveReads:        updatePaths.minimalLiveReads,
 		PathAdoption:            pathAdoption,
@@ -517,6 +525,29 @@ func updateResultState(kept []string, nodes []map[string]any, input UpdateInput,
 	return ResultPartialRefresh
 }
 
+func updateResultReasons(resultState string, kept []string, nodes []map[string]any, input UpdateInput, pathNodeIDs map[string]string, hasStore bool) []string {
+	if resultState != ResultPartialRefresh {
+		return []string{}
+	}
+	reasons := []string{}
+	if !hasStore {
+		reasons = append(reasons, "missing_project_cognition_db")
+	}
+	if len(nodes) == 0 {
+		reasons = append(reasons, "no_affected_nodes_for_changed_paths")
+	}
+	if len(kept) > 0 && !allPathsMapped(kept, pathNodeIDs) {
+		reasons = append(reasons, "changed_paths_missing_active_path_index")
+	}
+	if !hasPassingVerification(input.Verification) {
+		reasons = append(reasons, "missing_passing_verification_result")
+	}
+	if len(blockingKnownUnknowns(input.KnownUnknowns)) > 0 {
+		reasons = append(reasons, "blocking_known_unknowns_present")
+	}
+	return compactStrings(reasons)
+}
+
 func allPathsMapped(paths []string, pathNodeIDs map[string]string) bool {
 	if len(paths) == 0 {
 		return false
@@ -529,17 +560,48 @@ func allPathsMapped(paths []string, pathNodeIDs map[string]string) bool {
 	return true
 }
 
+func unmappedPaths(paths []string, pathNodeIDs map[string]string) []string {
+	out := make([]string, 0, len(paths))
+	for _, path := range paths {
+		if pathNodeIDs[path] == "" {
+			out = append(out, path)
+		}
+	}
+	return out
+}
+
 func canAdoptWorkflowPaths(kept []string, input UpdateInput) bool {
 	return len(kept) > 0 && hasPassingVerification(input.Verification) && len(blockingKnownUnknowns(input.KnownUnknowns)) == 0
 }
 
 func hasPassingVerification(values []VerificationEvidence) bool {
 	for _, value := range values {
-		if strings.EqualFold(strings.TrimSpace(value.Result), "passed") {
+		if verificationResultPassed(value.Result) {
 			return true
 		}
 	}
 	return false
+}
+
+func verificationResultPassed(value string) bool {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "passed", "pass", "success", "succeeded", "ok":
+		return true
+	default:
+		return false
+	}
+}
+
+func normalizeVerificationResult(value string) string {
+	trimmed := strings.TrimSpace(value)
+	switch strings.ToLower(trimmed) {
+	case "passed", "pass", "success", "succeeded", "ok":
+		return "passed"
+	case "failed", "fail", "failure", "error":
+		return "failed"
+	default:
+		return trimmed
+	}
 }
 
 func verificationAttrs(values []VerificationEvidence) []map[string]string {
@@ -667,7 +729,24 @@ func blockingKnownUnknowns(values []string) []string {
 
 func isNonBlockingBoundaryWarning(value string) bool {
 	lower := strings.ToLower(value)
-	return strings.Contains(lower, "auto-commit")
+	return strings.Contains(lower, "auto-commit") || isNonBlockingCloseoutScopeNote(lower)
+}
+
+func isNonBlockingCloseoutScopeNote(lower string) bool {
+	hasExplicitScope := strings.Contains(lower, "explicit path") ||
+		strings.Contains(lower, "workflow-owned") ||
+		strings.Contains(lower, "workflow owned") ||
+		strings.Contains(lower, "explicitly scoped") ||
+		strings.Contains(lower, "显式路径") ||
+		strings.Contains(lower, "工作流拥有")
+	hasUnrelatedDirtyWorkspace := (strings.Contains(lower, "unrelated") &&
+		(strings.Contains(lower, "dirty") || strings.Contains(lower, "working tree") || strings.Contains(lower, "workspace"))) ||
+		(strings.Contains(lower, "无关") && (strings.Contains(lower, "脏") || strings.Contains(lower, "工作区")))
+	hasDisabledBroadScan := strings.Contains(lower, "include-working-tree=false") ||
+		strings.Contains(lower, "include_working_tree=false") ||
+		strings.Contains(lower, "include-untracked=false") ||
+		strings.Contains(lower, "include_untracked=false")
+	return hasExplicitScope && (hasUnrelatedDirtyWorkspace || hasDisabledBroadScan)
 }
 
 func loadPayloadFile(path string) (PayloadFileInput, error) {
@@ -780,6 +859,8 @@ func normalizeVerificationEvidence(values []VerificationEvidence) []Verification
 		}
 		if normalized.Result == "" {
 			normalized.Result = verificationEvidenceFromText(normalized.Command).Result
+		} else {
+			normalized.Result = normalizeVerificationResult(normalized.Result)
 		}
 		key := normalized.Command + "\x00" + normalized.Result + "\x00" + normalized.Artifact
 		if _, ok := seen[key]; ok {

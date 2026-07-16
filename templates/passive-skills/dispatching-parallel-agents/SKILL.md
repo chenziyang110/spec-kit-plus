@@ -14,13 +14,13 @@ user coordination problem when native subagents are available.
 
 Current routing vocabulary:
 
-- Use subagents-first execution for bounded delegated work after the owning
-  workflow selects or permits delegation.
+- Use parallel subagents only after the owning workflow selects delegation and
+  confirms that parallelism materially improves the critical path or evidence quality.
 - Dispatch `one-subagent` when one safe lane is ready.
 - Dispatch `parallel-subagents` when two or more independent lanes can run
   concurrently.
-- Use `leader-inline-fallback` only after recording why delegation is
-  unavailable, unsafe, or not packetized.
+- If delegation becomes unsafe or unavailable, re-evaluate the owning workflow's
+  route instead of treating parallelism as mandatory.
 - Do not use old strategy labels as routing choices.
 
 ## When to Use
@@ -47,8 +47,8 @@ Current routing vocabulary:
 3. **Check conflicts**: Do not dispatch two writers to the same file or shared
    state unless one lane is explicitly read-only or the workflow defines a safe
    join point.
-4. **Packetize**: Use the workflow's validated `WorkerTaskPacket` or equivalent
-   execution packet. Raw task text is not enough.
+4. **Packetize just in time**: Compile validated packets only for the selected
+   current lanes. Raw task text is not enough and future batches stay unexpanded.
 5. **Dispatch native subagents**: Use `parallel-subagents` on the
    `native-subagents` surface first, such as Codex `spawn_agent`/`wait_agent`,
    Claude Task, or the active CLI's equivalent. Keep the leader focused on

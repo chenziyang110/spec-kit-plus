@@ -104,6 +104,45 @@ def test_result_submit_normalizes_and_writes_quick_result(tmp_path: Path):
     assert stored["concerns"] == ["follow-up cleanup remains"]
 
 
+def test_result_submit_rejects_obsolete_ui_result_fields(tmp_path: Path) -> None:
+    project = _create_project(tmp_path, integration="cursor-agent")
+    workspace = project / ".planning" / "quick" / "001-fix"
+    workspace.mkdir(parents=True, exist_ok=True)
+    result_file = project / "worker-result.json"
+    result_file.write_text(
+        json.dumps(
+            {
+                "task_id": "lane-a",
+                "status": "success",
+                "uiEvidence": [
+                    {"kind": "visual_capture", "ref": "evidence/screen.png"}
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = _invoke_in_project(
+        project,
+        [
+            "result",
+            "submit",
+            "--command",
+            "quick",
+            "--workspace",
+            str(workspace),
+            "--lane-id",
+            "lane-a",
+            "--result-file",
+            str(result_file),
+        ],
+    )
+
+    assert result.exit_code != 0
+    assert "uiEvidence" in result.output
+    assert not (workspace / "worker-results" / "lane-a.json").exists()
+
+
 def test_result_submit_rejects_codex_projects_and_redirects_to_team_surface(tmp_path: Path):
     project = _create_project(tmp_path, integration="codex")
     result_file = project / "worker-result.json"
@@ -130,3 +169,47 @@ def test_result_submit_rejects_codex_projects_and_redirects_to_team_surface(tmp_
 
     assert result.exit_code != 0
     assert "sp-teams submit-result" in result.output
+
+
+def test_result_path_for_codex_requires_request_id_without_traceback(tmp_path: Path):
+    project = _create_project(tmp_path, integration="codex")
+
+    result = _invoke_in_project(
+        project,
+        [
+            "result",
+            "path",
+            "--command",
+            "implement",
+            "--feature-dir",
+            "specs/001-feature",
+            "--task-id",
+            "T001",
+        ],
+    )
+
+    assert result.exit_code != 0
+    assert "Codex result handoff paths are runtime-managed" in result.output
+    assert "--request-id <id>" in result.output
+    assert "Traceback" not in result.output
+
+
+def test_result_path_for_codex_request_id_uses_runtime_managed_path(tmp_path: Path):
+    project = _create_project(tmp_path, integration="codex")
+
+    result = _invoke_in_project(
+        project,
+        [
+            "result",
+            "path",
+            "--command",
+            "implement",
+            "--request-id",
+            "req-t001",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output.strip())
+    assert payload["integration"] == "codex"
+    assert payload["path"].replace("\\", "/").endswith(".specify/teams/state/results/req-t001.json")

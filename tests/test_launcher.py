@@ -11,11 +11,13 @@ from specify_cli.launcher import (
     install_shared_hook_launcher_assets,
     SpecifyLauncherSpec,
     load_project_specify_launcher,
+    project_cognition_launcher_is_compatible,
     project_specify_subcommand,
     render_claude_hook_launcher,
     render_hook_launcher_command,
     render_project_launcher_placeholders,
     resolve_hook_runtime_spec,
+    resolve_project_cognition_launcher_argv,
     write_project_specify_launcher_config,
 )
 
@@ -188,8 +190,9 @@ def test_render_project_launcher_placeholders_without_project_launcher_avoids_ba
     )
 
     assert "specify project-cognition query" not in rendered
-    assert "project launcher configured in `.specify/config.json`" in rendered
+    assert "PROJECT_COGNITION_LAUNCHER_UNAVAILABLE:project-cognition" in rendered
     assert "project-cognition query --intent implement" in rendered
+    assert "(requires project-cognition" not in rendered
 
 
 def test_diagnose_project_runtime_compatibility_reports_broken_launcher(tmp_path):
@@ -213,6 +216,138 @@ def test_diagnose_project_runtime_compatibility_reports_broken_launcher(tmp_path
     broken = next(issue for issue in issues if issue["code"] == "broken-project-launcher")
     assert "..." not in broken["repair"]
     assert "<agent>" not in broken["repair"]
+
+
+def test_diagnose_project_runtime_compatibility_reports_missing_cognition_launcher(
+    tmp_path,
+):
+    config_path = tmp_path / ".specify" / "config.json"
+    config_path.parent.mkdir(parents=True)
+    config_path.write_text(
+        json.dumps(
+            {
+                "specify_launcher": {
+                    "command": "python -m specify_cli",
+                    "argv": ["python", "-m", "specify_cli"],
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    issues = diagnose_project_runtime_compatibility(tmp_path)
+
+    missing = next(
+        issue
+        for issue in issues
+        if issue["code"] == "missing-project-cognition-launcher"
+    )
+    assert "integration repair" in missing["repair"]
+    assert "specify cognition" in missing["repair"]
+    assert "do not" in missing["repair"].lower()
+
+
+def test_project_cognition_launcher_resolves_project_relative_binary(
+    monkeypatch,
+    tmp_path,
+):
+    binary_name = "project-cognition.exe" if os.name == "nt" else "project-cognition"
+    binary = tmp_path / ".specify" / "bin" / binary_name
+    binary.parent.mkdir(parents=True)
+    binary.write_text("binary", encoding="utf-8")
+    if os.name != "nt":
+        binary.chmod(binary.stat().st_mode | stat.S_IXUSR)
+    config_path = tmp_path / ".specify" / "config.json"
+    config_path.write_text(
+        json.dumps(
+            {
+                "project_cognition_launcher": {
+                    "command": f".specify/bin/{binary_name}",
+                    "argv": [f".specify/bin/{binary_name}"],
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    captured: dict[str, object] = {}
+
+    def compatible(argv, *, cwd=None):
+        captured["argv"] = argv
+        captured["cwd"] = cwd
+        return True
+
+    monkeypatch.setattr(
+        "specify_cli.project_cognition_runtime.launcher_supports_required_commands",
+        compatible,
+    )
+
+    resolved = resolve_project_cognition_launcher_argv(tmp_path)
+
+    assert resolved == (str(binary),)
+    assert project_cognition_launcher_is_compatible(tmp_path) is True
+    assert captured == {"argv": (str(binary),), "cwd": tmp_path}
+
+
+def test_diagnose_project_runtime_compatibility_rejects_corrupt_cognition_binary(
+    tmp_path,
+):
+    binary_name = "project-cognition.exe" if os.name == "nt" else "project-cognition"
+    binary = tmp_path / ".specify" / "bin" / binary_name
+    binary.parent.mkdir(parents=True)
+    binary.write_text("not an executable", encoding="utf-8")
+    if os.name != "nt":
+        binary.chmod(binary.stat().st_mode | stat.S_IXUSR)
+    (tmp_path / ".specify" / "config.json").write_text(
+        json.dumps(
+            {
+                "project_cognition_launcher": {
+                    "command": str(binary),
+                    "argv": [str(binary)],
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    issues = diagnose_project_runtime_compatibility(tmp_path)
+
+    assert any(
+        issue["code"] == "broken-project-cognition-launcher" for issue in issues
+    )
+
+
+def test_diagnose_project_runtime_compatibility_reports_stale_generated_skill_launcher(tmp_path):
+    config_path = tmp_path / ".specify" / "config.json"
+    config_path.parent.mkdir(parents=True)
+    config_path.write_text(
+        json.dumps(
+            {
+                "specify_launcher": {
+                    "command": "uvx --from git+https://github.com/chenziyang110/spec-kit-plus.git@new456 specify",
+                    "argv": [
+                        "uvx",
+                        "--from",
+                        "git+https://github.com/chenziyang110/spec-kit-plus.git@new456",
+                        "specify",
+                    ],
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    skill_path = tmp_path / ".codex" / "skills" / "sp-debug" / "SKILL.md"
+    skill_path.parent.mkdir(parents=True)
+    skill_path.write_text(
+        "Run `uvx --from git+https://github.com/chenziyang110/spec-kit-plus.git@old123 specify learning start --command debug --format json`.\n",
+        encoding="utf-8",
+    )
+
+    issues = diagnose_project_runtime_compatibility(tmp_path)
+
+    assert any(issue["code"] == "stale-generated-specify-launcher" for issue in issues)
+    stale = next(issue for issue in issues if issue["code"] == "stale-generated-specify-launcher")
+    assert ".codex/skills/sp-debug/SKILL.md" in stale["summary"]
+    assert "integration repair" in stale["repair"]
 
 
 def test_runtime_diagnostics_warn_when_learning_index_missing(tmp_path):
@@ -422,6 +557,32 @@ def test_diagnose_project_runtime_compatibility_accepts_current_claude_node_laun
     issues = diagnose_project_runtime_compatibility(tmp_path)
 
     assert not any(issue["code"] == "stale-claude-managed-hook-command" for issue in issues)
+
+
+def test_diagnose_project_runtime_compatibility_reports_codex_claude_hook_artifacts(tmp_path):
+    hooks_path = tmp_path / ".codex" / "hooks.json"
+    hooks_path.parent.mkdir(parents=True)
+    hooks_path.write_text(
+        json.dumps(
+            {
+                "hooks": {
+                    "PostToolUse": [
+                        {
+                            "matcher": "Bash|Edit|Write|MultiEdit|Task",
+                            "hooks": [
+                                render_claude_hook_launcher("post-tool-session-state")
+                            ],
+                        }
+                    ]
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    issues = diagnose_project_runtime_compatibility(tmp_path)
+
+    assert any(issue["code"] == "codex-claude-hook-artifact" for issue in issues)
 
 
 def test_resolve_hook_runtime_spec_prefers_runtime_command_env(monkeypatch, tmp_path):

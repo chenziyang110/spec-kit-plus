@@ -1,6 +1,6 @@
-## Adaptive Plan/Tasks Execution
+## Adaptive Artifact-Phase Execution
 
-This partial is command-scoped for `sp-plan` and `sp-tasks` only. It does not change the mandatory subagent contract used by implementation, debug, map, PRD, or other workflows.
+This partial governs artifact-producing adaptive phases such as `sp-design`, `sp-plan`, and `sp-tasks`. `sp-implement` has its own task-level adaptive controller; debug, map, PRD, and other workflows keep their command-specific execution contracts.
 
 Select the execution mode before dispatch:
 
@@ -29,6 +29,6 @@ Dispatch rules:
 
 Artifact-writing delegated lanes must use writable, execution-capable native subagents. If the runtime exposes role, sandbox, or permission choices, select a role/sandbox that can write the declared handoff file. Do not dispatch a read-only explorer, reviewer, or diagnostic lane when the lane must write a filesystem handoff; read-only lanes may provide supplemental evidence, but they do not satisfy `one-subagent` or `parallel-subagents` handoff requirements. The lane contract's allowed write scope must include the exact expected handoff path and must forbid unrelated writes unless the command explicitly assigns an additional generated artifact. If a delegated lane returns prose, idle state, or an unwritten handoff, stop or re-dispatch with a writable lane and the valid handoff path.
 
-Delegated lanes still require structured handoffs before synthesis. If delegated lanes were used, consume the evidence index and every accepted handoff before final output. If no lanes were delegated, report the delegated-lane field as `none`.
+Delegated lanes still require structured handoffs before synthesis. If delegated lanes were used, consume the one lane manifest and every accepted lane result before final output; do not duplicate the same events into evidence-index and checkpoint logs. If no lanes were delegated, report the delegated-lane field as `none`.
 
 Managed-team fallback is not part of adaptive plan/tasks dispatch. Do not route blocked adaptive planning or task generation to `sp-teams`, managed-team lifecycle language, or a durable team fallback from this command.

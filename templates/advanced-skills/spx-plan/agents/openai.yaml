@@ -1,0 +1,7 @@
+interface:
+  display_name: "SPX Plan"
+  short_description: "Architecture and verification planning"
+  default_prompt: "Use $spx-plan to produce a repository-grounded implementation plan for this planning-ready feature."
+
+policy:
+  allow_implicit_invocation: false

@@ -60,8 +60,8 @@ while [ $i -le $# ]; do
             echo "  --dry-run           Compute branch name and paths without creating branches, directories, or files"
             echo "  --allow-existing-branch  Switch to branch if it already exists instead of failing"
             echo "  --short-name <name> Provide a custom short name (2-4 words) for the branch"
-            echo "  --number N          Specify branch number manually (overrides auto-detection)"
-            echo "  --timestamp         Use timestamp prefix (YYYYMMDD-HHMMSS) instead of sequential numbering"
+            echo "  --number N          Use legacy numeric prefix N; use 0 to auto-detect next number"
+            echo "  --timestamp         Use timestamp prefix (YYYYMMDD-HHMMSS) instead of the default date prefix"
             echo "  --help, -h          Show this help message"
             echo ""
             echo "Examples:"
@@ -99,8 +99,10 @@ get_highest_from_specs() {
         for dir in "$specs_dir"/*; do
             [ -d "$dir" ] || continue
             dirname=$(basename "$dir")
-            # Match sequential prefixes (>=3 digits), but skip timestamp dirs.
-            if echo "$dirname" | grep -Eq '^[0-9]{3,}-' && ! echo "$dirname" | grep -Eq '^[0-9]{8}-[0-9]{6}-'; then
+            # Match sequential prefixes (>=3 digits), but skip date/timestamp dirs.
+            if echo "$dirname" | grep -Eq '^[0-9]{3,}-' \
+                && ! echo "$dirname" | grep -Eq '^[0-9]{4}-[0-9]{2}-[0-9]{2}-' \
+                && ! echo "$dirname" | grep -Eq '^[0-9]{8}-[0-9]{6}-'; then
                 number=$(echo "$dirname" | grep -Eo '^[0-9]+')
                 number=$((10#$number))
                 if [ "$number" -gt "$highest" ]; then
@@ -124,7 +126,9 @@ _extract_highest_number() {
     local highest=0
     while IFS= read -r name; do
         [ -z "$name" ] && continue
-        if echo "$name" | grep -Eq '^[0-9]{3,}-' && ! echo "$name" | grep -Eq '^[0-9]{8}-[0-9]{6}-'; then
+        if echo "$name" | grep -Eq '^[0-9]{3,}-' \
+            && ! echo "$name" | grep -Eq '^[0-9]{4}-[0-9]{2}-[0-9]{2}-' \
+            && ! echo "$name" | grep -Eq '^[0-9]{8}-[0-9]{6}-'; then
             number=$(echo "$name" | grep -Eo '^[0-9]+' || echo "0")
             number=$((10#$number))
             if [ "$number" -gt "$highest" ]; then
@@ -208,6 +212,54 @@ if [ "$DRY_RUN" != true ]; then
     mkdir -p "$FEATURES_DIR"
 fi
 
+get_configured_branch_numbering() {
+    local config_path="$REPO_ROOT/.specify/init-options.json"
+    local value=""
+
+    if [ -f "$config_path" ]; then
+        value=$(sed -nE 's/.*"branch_numbering"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/p' "$config_path" | head -n1)
+    fi
+
+    case "$value" in
+        date|sequential|timestamp)
+            echo "$value"
+            ;;
+        "")
+            echo "date"
+            ;;
+        *)
+            >&2 echo "[specify] Warning: unsupported branch_numbering '$value'; using date"
+            echo "date"
+            ;;
+    esac
+}
+
+get_date_prefix() {
+    if [ -n "${SPECIFY_FEATURE_DATE_PREFIX:-}" ]; then
+        if ! echo "$SPECIFY_FEATURE_DATE_PREFIX" | grep -Eq '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'; then
+            >&2 echo "Error: SPECIFY_FEATURE_DATE_PREFIX must match YYYY-MM-DD"
+            exit 1
+        fi
+        echo "$SPECIFY_FEATURE_DATE_PREFIX"
+        return
+    fi
+
+    date +%Y-%m-%d
+}
+
+get_timestamp_prefix() {
+    if [ -n "${SPECIFY_FEATURE_TIMESTAMP_PREFIX:-}" ]; then
+        if ! echo "$SPECIFY_FEATURE_TIMESTAMP_PREFIX" | grep -Eq '^[0-9]{8}-[0-9]{6}$'; then
+            >&2 echo "Error: SPECIFY_FEATURE_TIMESTAMP_PREFIX must match YYYYMMDD-HHMMSS"
+            exit 1
+        fi
+        echo "$SPECIFY_FEATURE_TIMESTAMP_PREFIX"
+        return
+    fi
+
+    date +%Y%m%d-%H%M%S
+}
+
 # Function to generate branch name with stop word filtering and length filtering
 generate_branch_name() {
     local description="$1"
@@ -272,12 +324,16 @@ if [ "$USE_TIMESTAMP" = true ] && [ -n "$BRANCH_NUMBER" ]; then
 fi
 
 # Determine branch prefix
+BRANCH_NUMBERING=$(get_configured_branch_numbering)
+FEATURE_PREFIX_KIND="date"
 if [ "$USE_TIMESTAMP" = true ]; then
-    FEATURE_NUM=$(date +%Y%m%d-%H%M%S)
+    FEATURE_PREFIX_KIND="timestamp"
+    FEATURE_NUM=$(get_timestamp_prefix)
     BRANCH_NAME="${FEATURE_NUM}-${BRANCH_SUFFIX}"
-else
+elif [ -n "$BRANCH_NUMBER" ] || [ "$BRANCH_NUMBERING" = "sequential" ]; then
+    FEATURE_PREFIX_KIND="sequential"
     # Determine branch number
-    if [ -z "$BRANCH_NUMBER" ]; then
+    if [ -z "$BRANCH_NUMBER" ] || [ "$BRANCH_NUMBER" = "0" ]; then
         if [ "$DRY_RUN" = true ] && [ "$HAS_GIT" = true ]; then
             # Dry-run: query remotes via ls-remote (side-effect-free, no fetch)
             BRANCH_NUMBER=$(check_existing_branches "$FEATURES_DIR" true)
@@ -298,6 +354,14 @@ else
     # Force base-10 interpretation to prevent octal conversion (e.g., 010 → 8 in octal, but should be 10 in decimal)
     FEATURE_NUM=$(printf "%03d" "$((10#$BRANCH_NUMBER))")
     BRANCH_NAME="${FEATURE_NUM}-${BRANCH_SUFFIX}"
+elif [ "$BRANCH_NUMBERING" = "timestamp" ]; then
+    FEATURE_PREFIX_KIND="timestamp"
+    FEATURE_NUM=$(get_timestamp_prefix)
+    BRANCH_NAME="${FEATURE_NUM}-${BRANCH_SUFFIX}"
+else
+    FEATURE_PREFIX_KIND="date"
+    FEATURE_NUM=$(get_date_prefix)
+    BRANCH_NAME="${FEATURE_NUM}-${BRANCH_SUFFIX}"
 fi
 
 # GitHub enforces a 244-byte limit on branch names
@@ -305,7 +369,7 @@ fi
 MAX_BRANCH_LENGTH=244
 if [ ${#BRANCH_NAME} -gt $MAX_BRANCH_LENGTH ]; then
     # Calculate how much we need to trim from suffix
-    # Account for prefix length: timestamp (15) + hyphen (1) = 16, or sequential (3) + hyphen (1) = 4
+    # Account for prefix length plus the separator hyphen.
     PREFIX_LENGTH=$(( ${#FEATURE_NUM} + 1 ))
     MAX_SUFFIX_LENGTH=$((MAX_BRANCH_LENGTH - PREFIX_LENGTH))
     
@@ -357,8 +421,11 @@ if [ "$DRY_RUN" != true ]; then
                         >&2 echo "Error: Failed to switch to existing branch '$BRANCH_NAME'. Please resolve any local changes or conflicts and try again."
                         exit 1
                     fi
-                elif [ "$USE_TIMESTAMP" = true ]; then
+                elif [ "$FEATURE_PREFIX_KIND" = "timestamp" ]; then
                     >&2 echo "Error: Branch '$BRANCH_NAME' already exists. Rerun to get a new timestamp or use a different --short-name."
+                    exit 1
+                elif [ "$FEATURE_PREFIX_KIND" = "date" ]; then
+                    >&2 echo "Error: Branch '$BRANCH_NAME' already exists for this date and short name. Use a different --short-name, --timestamp, or --number."
                     exit 1
                 else
                     >&2 echo "Error: Branch '$BRANCH_NAME' already exists. Please use a different feature name or specify a different number with --number."

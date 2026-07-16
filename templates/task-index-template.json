@@ -1,23 +1,31 @@
 {
-  "version": 1,
-  "status": "pending",
+  "version": 2,
+  "status": "draft",
+  "source_contract": "plan-contract.json",
+  "source_revision": null,
+  "semantic_delta": [],
+  "confirmed_delivery_scope": [],
+  "policy_refs": ["plan-contract.json#/complete_first_scope_preservation"],
+  "user_confirmed_deferral_refs": [],
+  "implementation_target_ref": null,
+  "acceptance_refs": [],
+  "capability_operation_refs": [],
+  "must_preserve_refs": [],
+  "consequence_obligation_refs": [],
+  "fidelity_refs": [],
+  "ui_contract_schema_ref": ".specify/templates/task-packet-template.json#/ui_contract",
   "tasks": [],
   "parallel_batches": [],
   "join_points": [],
-  "consequence_gate": {
-    "triggered": false,
-    "trigger_reason": null,
-    "status": "not-applicable",
-    "stand_down_reason": null
-  },
-  "consequence_analysis": {
-    "affected_object_map": [],
-    "state_behavior_matrix": [],
-    "dependency_impact": [],
-    "recovery_and_validation": [],
-    "coverage_gaps": []
-  },
-  "consequence_obligations": [],
-  "consequence_task_map": [],
-  "stop_and_reopen_conditions": []
+  "validation": [],
+  "transition": {
+    "version": 1,
+    "status": "blocked",
+    "source_ref": "task-index.json",
+    "semantic_delta": [],
+    "required_refs": [],
+    "blockers": [],
+    "next_action": null,
+    "recovery": null
+  }
 }

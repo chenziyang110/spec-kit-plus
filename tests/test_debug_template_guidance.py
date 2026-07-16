@@ -1,6 +1,10 @@
 from pathlib import Path
 
-from .template_utils import read_template
+from .template_utils import (
+    assert_debug_checkpoint_card_shape,
+    read_command_with_references,
+    read_template,
+)
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -22,7 +26,7 @@ def _assert_tier_roles(content: str) -> None:
 
 
 def test_debug_template_documents_map_backed_intake_contract() -> None:
-    content = read_template("templates/commands/debug.md").lower()
+    content = read_command_with_references("debug").lower()
 
     assert "complexity-based debug execution" in content
     assert "execution_model: leader-inline | subagent-assisted | blocked" in content
@@ -53,11 +57,10 @@ def test_debug_template_documents_map_backed_intake_contract() -> None:
     assert "observer_framing_completed" in content
     assert "you may perform focused leader-inline evidence work when the investigation is small and single-lane" in content
     assert "route, integrate, and decide rather than manually performing every lane sequentially" in content
-    assert ".specify/memory/project-rules.md" in content
-    assert ".specify/memory/learnings/index.md" in content
-    assert "linked learning detail docs" in content
-    assert "learning start --command debug --format json" in content
-    assert "manual `learning capture` helper surface" in content
+    assert "learning start --command debug" in content
+    assert "learning show" in content or "show_argv" in content
+    assert ".specify/memory/learnings/index.md" not in content
+    assert "learning capture-auto" in content
     assert "manual `capture-learning` hook surface" not in content
     assert "debug cognition gate" in content
     assert "pass the cognition gate before" in content
@@ -155,11 +158,14 @@ def test_debug_template_documents_map_backed_intake_contract() -> None:
     assert "verification_evidence" in content
     assert "project_cognition_refresh" in content
     assert "workflow-owned mutation closeout is not an external map-maintenance handoff" in content
-    assert "project-cognition delta append" in content
-    assert "project-cognition update --delta-session" in content
-    assert "project-cognition update --payload-file" in content
+    assert "project-cognition closeout-plan --workflow" in content
+    assert "update_mode=delta_session" in content
+    assert "update_mode=payload_file" in content
+    assert "update_argv" in content
+    assert "delta_append_draft.argv_prefix" in content
+    assert "unknown_path_dispositions" in content
     assert "clean closeout keys on `result_state`" in content
-    assert "not `update_id`, `last_update_id`, or freshness alone" in content
+    assert "not `status=ok`, `update_id`, `last_update_id`, or freshness alone" in content
     assert "legacy recorded-only output" in content
     assert "sp-map-update is for manual/external maintenance and follow-up repair" in content
     assert "dirty only when inline update" in content
@@ -178,7 +184,7 @@ def test_debug_template_documents_map_backed_intake_contract() -> None:
     assert "project-cognition validate-build --format json" in content
     assert "incremental freshness finalization" in content
     assert "do not run `complete-refresh` as a rebuild finalizer" in content
-    assert "{{specify-subcmd:project-cognition mark-dirty --reason \"<reason>\" --format json}}" in content
+    assert "{{specify-subcmd:project-cognition mark-dirty --reason \"workflow-closeout-failed\" --format json}}" in content
     assert "write the selected capability or symptom, evidence routes" in content
     assert "highest-signal" in content
     assert "write a failing automated repro test before changing production code" in content
@@ -205,16 +211,22 @@ def test_debug_template_documents_map_backed_intake_contract() -> None:
 
 
 def test_debug_template_requires_understanding_checkpoint_before_investigation() -> None:
-    content = read_template("templates/commands/debug.md").lower()
+    content = read_command_with_references("debug").lower()
 
     assert "## debug understanding checkpoint" in content
-    assert "## debug checkpoint" in content
-    assert "| item | current understanding |" in content
-    assert "| symptom |" in content
-    assert "expected behavior" in content
-    assert "investigation scope" in content
+    assert_debug_checkpoint_card_shape(content)
+    assert "user-owned facts and authority" in content
+    assert "technical hypotheses belong to the agent" in content
+    assert "for awareness, not as a request to approve a hypothesis" in content
     assert "first evidence action" in content
+    assert "fix gate" in content
     assert "progress signal" in content
+    assert "where it appears, why it matters" in content
+    assert "plain text for terminal output" in content
+    assert "do not use html tags or inline line-break markup" in content
+    assert "do not reuse the placeholder text as content" in content
+    assert "<br>" not in content
+    assert "establish the repro or failing signal" not in content
     assert "concrete failing signals, commands, logs, routes, affected workflows, constraints, and known uncertainty" in content
     assert "unknown: [why it matters]" in content
     assert "wait for user confirmation" in content
@@ -237,16 +249,24 @@ def test_debug_session_template_tracks_understanding_checkpoint() -> None:
     assert "## debug understanding checkpoint" in content
     assert "checkpoint:" in content
     assert "issue:" in content
+    assert "issue_detail:" in content
     assert "expected_or_target:" in content
+    assert "reproduction_or_failing_signal:" in content
+    assert "known_evidence:" in content
     assert "in_scope:" in content
     assert "out_of_scope:" in content
+    assert "candidate_focus:" in content
+    assert "investigation_plan:" in content
+    assert "session-specific ordered evidence step" in content
+    assert "ordered evidence step, such as" not in content
     assert "next_action:" in content
+    assert "fix_gate:" in content
     assert "done_or_progress_signal:" in content
     assert "user_corrections:" in content
 
 
 def test_debug_template_preserves_blocked_state_and_subagent_boundaries() -> None:
-    content = read_template("templates/commands/debug.md").lower()
+    content = read_command_with_references("debug").lower()
 
     assert "subagent-blocked" in content
     assert "execution_surface: none" in content
@@ -258,7 +278,7 @@ def test_debug_template_preserves_blocked_state_and_subagent_boundaries() -> Non
 
 
 def test_debug_template_uses_stage_and_protocol_structure() -> None:
-    content = read_template("templates/commands/debug.md").lower()
+    content = read_command_with_references("debug").lower()
 
     assert "## role" in content
     assert "## operating principles" in content
