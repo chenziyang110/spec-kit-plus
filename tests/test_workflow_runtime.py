@@ -14,6 +14,7 @@ from specify_cli.workflow_runtime import (
     RevisionConflict,
     block_workflow,
     closeout_workflow,
+    complete_workflow_stage,
     enter_workflow,
     next_workflow,
     show_workflow,
@@ -87,13 +88,13 @@ def test_completed_nonterminal_stage_still_hands_off_to_its_required_next_stage(
         )
         revision = result["data"]["revision"]
 
-    state_path = workflow_state_path(feature_dir)
-    state_path.write_text(
-        state_path.read_text(encoding="utf-8").replace(
-            "status: active", "status: completed"
-        ),
-        encoding="utf-8",
+    completed = complete_workflow_stage(
+        feature_dir,
+        expected_revision=revision,
+        summary="Technical implementation closeout completed.",
     )
+    revision = completed["data"]["revision"]
+    assert completed["data"]["status"] == "completed"
 
     upcoming = next_workflow(feature_dir)
     assert upcoming["data"]["stage"] == "implement"
