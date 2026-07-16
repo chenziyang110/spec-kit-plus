@@ -4,10 +4,13 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import subprocess
 from copy import deepcopy
 from pathlib import Path
 from typing import Any
+
+import pathspec
 
 from .atomic_io import atomic_write_text, interprocess_lock
 
@@ -325,12 +328,14 @@ def validate_human_acceptance(
         ):
             errors.append(f"{prefix}.verdict=pass requires every step to pass")
 
+    open_finding_ids: list[str] = []
     for index, raw_finding in enumerate(findings):
         prefix = f"findings[{index}]"
         if not isinstance(raw_finding, dict):
             errors.append(f"{prefix} must be an object")
             continue
-        for key in ("id", "scenario_id", "step_id", "expected", "observed"):
+        finding_id = _required_string(raw_finding, "id", prefix, errors)
+        for key in ("scenario_id", "step_id", "expected", "observed"):
             _required_string(raw_finding, key, prefix, errors)
         if raw_finding.get("scenario_id") not in scenario_ids:
             errors.append(f"{prefix}.scenario_id must reference an existing scenario")
@@ -340,8 +345,11 @@ def validate_human_acceptance(
             errors.append(f"{prefix}.classification is invalid")
         if raw_finding.get("route") not in FINDING_ROUTES:
             errors.append(f"{prefix}.route is invalid")
-        if raw_finding.get("status") not in {"open", "resolved"}:
+        finding_status = raw_finding.get("status")
+        if finding_status not in {"open", "resolved"}:
             errors.append(f"{prefix}.status must be open or resolved")
+        elif finding_status == "open":
+            open_finding_ids.append(finding_id or prefix)
         evidence = raw_finding.get("evidence")
         if not isinstance(evidence, list) or not evidence:
             errors.append(f"{prefix}.evidence must be a non-empty array")
@@ -368,6 +376,11 @@ def validate_human_acceptance(
             errors.append("accepted status requires every required scenario to pass")
         if overall_verdict != "pass":
             errors.append("accepted status requires overall.verdict=pass")
+        if open_finding_ids:
+            errors.append(
+                "accepted status requires every finding to be resolved; "
+                f"open findings: {', '.join(open_finding_ids)}"
+            )
     if status == "rejected" and not any_failed:
         errors.append("rejected status requires a failed step or scenario")
     if status == "rejected" and overall_verdict != "fail":
@@ -606,6 +619,7 @@ def _implementation_snapshot_sha256(
         feature_relative = feature_dir.resolve().relative_to(project_root.resolve())
         feature_pathspec = feature_relative.as_posix().rstrip("/") + "/**"
     except ValueError:
+        feature_relative = None
         feature_pathspec = ""
     exclusions = [
         ":(exclude).specify/runtime/**",
@@ -616,6 +630,7 @@ def _implementation_snapshot_sha256(
 
     head = _run_git_bytes(project_root, ["rev-parse", "HEAD"])
     if head is None:
+        _update_no_git_snapshot(digest, project_root, feature_relative)
         return digest.hexdigest()
     digest.update(b"head:")
     digest.update(head.strip())
@@ -651,6 +666,108 @@ def _implementation_snapshot_sha256(
                 digest.update(target.read_bytes())
             digest.update(b"\0")
     return digest.hexdigest()
+
+
+def _update_no_git_snapshot(
+    digest: Any,
+    project_root: Path,
+    feature_relative: Path | None,
+) -> None:
+    """Hash a deterministic project tree when Git cannot provide a snapshot."""
+
+    root = project_root.resolve(strict=False)
+    ignore_spec = _root_gitignore_spec(root)
+    digest.update(b"tree-fallback:v1\n")
+    pending = [root]
+    while pending:
+        directory = pending.pop()
+        with os.scandir(directory) as iterator:
+            entries = sorted(iterator, key=lambda entry: entry.name)
+        child_directories: list[Path] = []
+        for entry in entries:
+            entry_path = Path(entry.path)
+            relative = entry_path.relative_to(root)
+            is_junction = getattr(entry_path, "is_junction", None)
+            is_link = entry.is_symlink() or (
+                callable(is_junction) and bool(is_junction())
+            )
+            is_directory = not is_link and entry.is_dir(follow_symlinks=False)
+            if _no_git_snapshot_excluded(
+                relative,
+                feature_relative,
+                ignore_spec=ignore_spec,
+                is_directory=is_directory,
+            ):
+                continue
+            if is_link:
+                _update_no_git_snapshot_record(
+                    digest,
+                    "link",
+                    relative,
+                    os.readlink(entry_path),
+                )
+            elif is_directory:
+                child_directories.append(entry_path)
+            elif entry.is_file(follow_symlinks=False):
+                _update_no_git_snapshot_record(
+                    digest,
+                    "file",
+                    relative,
+                    _sha256(entry_path),
+                )
+            else:
+                _update_no_git_snapshot_record(digest, "other", relative, "")
+        pending.extend(reversed(child_directories))
+
+
+def _no_git_snapshot_excluded(
+    relative: Path,
+    feature_relative: Path | None,
+    *,
+    ignore_spec: pathspec.GitIgnoreSpec | None,
+    is_directory: bool,
+) -> bool:
+    if feature_relative is not None and (
+        relative == feature_relative or feature_relative in relative.parents
+    ):
+        return True
+    parts = relative.parts
+    if not parts:
+        return False
+    if parts[0] in {".git", ".planning"}:
+        return True
+    if len(parts) >= 2 and parts[:2] == (".specify", "runtime"):
+        return True
+    if ignore_spec is None:
+        return False
+    normalized = relative.as_posix() + ("/" if is_directory else "")
+    return ignore_spec.match_file(normalized)
+
+
+def _root_gitignore_spec(project_root: Path) -> pathspec.GitIgnoreSpec | None:
+    ignore_path = project_root / ".gitignore"
+    try:
+        lines = ignore_path.read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError:
+        return None
+    if not lines:
+        return None
+    return pathspec.GitIgnoreSpec.from_lines(lines)
+
+
+def _update_no_git_snapshot_record(
+    digest: Any,
+    kind: str,
+    relative: Path,
+    value: str,
+) -> None:
+    record = json.dumps(
+        [kind, relative.as_posix(), value],
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+    digest.update(record.encode("utf-8", errors="surrogateescape"))
+    digest.update(b"\n")
 
 
 def _run_git_bytes(project_root: Path, args: list[str]) -> bytes | None:

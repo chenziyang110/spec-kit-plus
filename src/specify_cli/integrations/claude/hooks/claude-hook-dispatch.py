@@ -16,6 +16,7 @@ import shutil
 import shlex
 import subprocess
 import sys
+import time
 from pathlib import Path
 from typing import Any, Literal, NamedTuple
 
@@ -289,6 +290,7 @@ def _invoke_shared_hook(
     attempted_plans: list[str] = []
     invalid_result: SharedHookResult | None = None
     sensitive_values = _sensitive_hook_values(args, stdin_text)
+    deadline = time.monotonic() + timeout_seconds
     for command in _shared_hook_commands(project_root, args):
         key = tuple(command)
         if key in seen:
@@ -296,6 +298,15 @@ def _invoke_shared_hook(
         seen.add(key)
         attempted_plan = _redacted_invocation_preview(command)
         attempted_plans.append(attempted_plan)
+        remaining_seconds = deadline - time.monotonic()
+        if remaining_seconds <= 0:
+            return SharedHookResult(
+                status="timeout",
+                reason="shared hook event deadline was exhausted",
+                attempted_plans=tuple(attempted_plans),
+                attempted_plan=attempted_plan,
+                timeout_seconds=timeout_seconds,
+            )
         try:
             result = subprocess.run(
                 command,
@@ -306,7 +317,7 @@ def _invoke_shared_hook(
                 errors="replace",
                 capture_output=True,
                 check=False,
-                timeout=timeout_seconds,
+                timeout=remaining_seconds,
             )
         except subprocess.TimeoutExpired:
             return SharedHookResult(

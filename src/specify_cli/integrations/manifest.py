@@ -11,6 +11,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import stat
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -23,6 +24,26 @@ def _sha256(path: Path) -> str:
         for chunk in iter(lambda: fh.read(8192), b""):
             h.update(chunk)
     return h.hexdigest()
+
+
+def _is_link_or_junction(path: Path) -> bool:
+    """Return whether *path* is a link-like redirect without following it."""
+
+    if path.is_symlink():
+        return True
+    try:
+        metadata = path.lstat()
+    except FileNotFoundError:
+        return False
+    except OSError:
+        return True
+    if stat.S_ISLNK(metadata.st_mode):
+        return True
+    is_junction = getattr(path, "is_junction", None)
+    if callable(is_junction) and bool(is_junction()):
+        return True
+    reparse_flag = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0)
+    return bool(getattr(metadata, "st_file_attributes", 0) & reparse_flag)
 
 
 def _validate_rel_path(rel: Path, root: Path) -> Path:
@@ -135,16 +156,25 @@ class IntegrationManifest:
         preserved and remain tracked so a later uninstall can report them.
         """
         rel = Path(rel_path)
-        abs_path = _validate_rel_path(rel, self.project_root)
-        normalized = abs_path.relative_to(self.project_root).as_posix()
+        if rel.is_absolute() or rel.drive or rel == Path(".") or ".." in rel.parts:
+            raise ValueError(f"Unsafe manifest path: {rel}")
+        normalized = rel.as_posix()
         expected_hash = self._files.get(normalized)
         if expected_hash is None:
             return False
-        if not abs_path.exists() and not abs_path.is_symlink():
+        abs_path = self.project_root
+        for part in rel.parts:
+            abs_path /= part
+            # Inspect every lexical component before any resolution or file IO.
+            # A final or parent symlink is user-controlled state and must never
+            # redirect stale-file cleanup to its target.
+            if _is_link_or_junction(abs_path):
+                return False
+        if not abs_path.exists() and not _is_link_or_junction(abs_path):
             self._files.pop(normalized, None)
             return True
         if (
-            abs_path.is_symlink()
+            _is_link_or_junction(abs_path)
             or not abs_path.is_file()
             or _sha256(abs_path) != expected_hash
         ):

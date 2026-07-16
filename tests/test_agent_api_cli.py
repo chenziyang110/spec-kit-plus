@@ -2,6 +2,7 @@ import json
 import os
 from pathlib import Path
 
+import pytest
 from jsonschema import Draft202012Validator
 from typer.testing import CliRunner
 
@@ -193,6 +194,44 @@ def test_agent_api_command_expands_only_one_cli_operation() -> None:
     )
     assert command_option["required"] is True
     assert payload["data"]["machine_output"]["format_option"] == "--format"
+
+
+@pytest.mark.parametrize(
+    ("schema_id", "command_id"),
+    [
+        ("workflow-enter-input", "workflow.enter"),
+        ("workflow-transition-input", "workflow.transition"),
+    ],
+)
+def test_workflow_input_schema_fields_map_to_published_cli_options(
+    schema_id: str,
+    command_id: str,
+) -> None:
+    schema_result = runner.invoke(
+        app,
+        ["api", "schema", schema_id, "--format", "json"],
+        catch_exceptions=False,
+    )
+    command_result = runner.invoke(
+        app,
+        ["api", "command", command_id, "--format", "json"],
+        catch_exceptions=False,
+    )
+
+    assert schema_result.exit_code == 0
+    assert command_result.exit_code == 0
+    schema = json.loads(schema_result.stdout)["data"]["schema"]
+    schema_options = {
+        f"--{field_name.replace('_', '-')}" for field_name in schema["properties"]
+    }
+    command_options = {
+        flag
+        for parameter in json.loads(command_result.stdout)["data"]["parameters"]
+        for flag in parameter["flags"]
+        if flag.startswith("--") and flag != "--format"
+    }
+
+    assert schema_options == command_options
 
 
 def test_agent_api_command_recognizes_boolean_json_output_switches() -> None:

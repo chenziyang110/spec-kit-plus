@@ -2343,6 +2343,18 @@ UI_CONTRACT_LIST_FIELDS = (
     "image_plan",
     "required_evidence",
 )
+UI_SPEC_PLAN_CONTINUITY_LIST_FIELDS = (
+    "entry_points",
+    "required_states",
+    "must_preserve",
+    "may_adapt",
+    "must_not",
+    "visual_acceptance",
+)
+UI_CONTINUITY_LIST_FIELDS = frozenset(
+    (*UI_CONTRACT_LIST_FIELDS, *UI_SPEC_PLAN_CONTINUITY_LIST_FIELDS)
+)
+UI_ACTIVE_FIDELITY_MODES = {"approximate", "high", "inspiration"}
 UI_CONTRACT_SURFACE_TYPES = {
     "landing",
     "product-workspace",
@@ -2368,7 +2380,7 @@ UI_CONTRACT_EVIDENCE = {
 def _canonical_ui_continuity_value(field: str, value: Any) -> Any:
     """Normalize order-insensitive UI collections for continuity checks."""
 
-    if field not in UI_CONTRACT_LIST_FIELDS or not isinstance(value, list):
+    if field not in UI_CONTINUITY_LIST_FIELDS or not isinstance(value, list):
         return value
 
     def canonical(item: Any) -> Any:
@@ -2385,6 +2397,15 @@ def _canonical_ui_continuity_value(field: str, value: Any) -> Any:
 
     normalized = [canonical(item) for item in value]
     return tuple(sorted(normalized, key=repr))
+
+
+def _normalized_ui_string_values(field: str, contract: dict[str, Any]) -> set[str]:
+    value = contract.get(field)
+    if not isinstance(value, list):
+        return set()
+    return {
+        str(item).strip() for item in value if isinstance(item, str) and item.strip()
+    }
 
 
 def _validate_ui_contract_shape(contract: dict[str, Any], label: str) -> list[str]:
@@ -2458,6 +2479,14 @@ def _validate_ui_contract_shape(contract: dict[str, Any], label: str) -> list[st
         errors.append(
             f"{label}.required_evidence must be exactly: "
             + ", ".join(sorted(UI_CONTRACT_EVIDENCE))
+        )
+    fidelity_field = (
+        "fidelity_mode" if "ui_applicable" in contract else "fidelity_level"
+    )
+    fidelity = str(contract.get(fidelity_field) or "none").strip().lower()
+    if fidelity not in UI_ACTIVE_FIDELITY_MODES:
+        errors.append(
+            f"{label}.{fidelity_field} must be approximate, high, or inspiration for active UI work"
         )
     return errors
 
@@ -2571,8 +2600,10 @@ def _validate_plan_ui_contract(feature_dir: Path) -> list[str]:
         for field in (
             "ui_work_type",
             "surface_type",
+            "fidelity_mode",
             *UI_CONTRACT_SCALAR_FIELDS,
             *UI_CONTRACT_LIST_FIELDS,
+            *UI_SPEC_PLAN_CONTINUITY_LIST_FIELDS,
         ):
             if _canonical_ui_continuity_value(
                 field, plan_contract.get(field)
@@ -2636,6 +2667,7 @@ def _validate_tasks_ui_contract(feature_dir: Path) -> list[str]:
             f"tasks.md is missing task-local UI Implementation Contract for UI task {task_id}"
         )
     if plan_applies and isinstance(plan_contract, dict):
+        covered_required_states: set[str] = set()
         for task_id, task_entry in task_index_ui_contracts(feature_dir).items():
             task_contract = task_entry.get("ui_contract")
             if not isinstance(task_contract, dict):
@@ -2677,6 +2709,52 @@ def _validate_tasks_ui_contract(feature_dir: Path) -> list[str]:
                 errors.append(
                     f"task-index.json UI task {task_id} platforms must be a non-empty plan subset"
                 )
+            plan_fidelity = str(plan_contract.get("fidelity_mode") or "none").strip()
+            task_fidelity = str(task_contract.get("fidelity_level") or "none").strip()
+            if task_fidelity != plan_fidelity:
+                errors.append(
+                    f"task-index.json UI task {task_id} fidelity_level must preserve plan fidelity_mode"
+                )
+
+            plan_states = _normalized_ui_string_values("required_states", plan_contract)
+            task_states = _normalized_ui_string_values("required_states", task_contract)
+            covered_required_states.update(task_states)
+            if not task_states <= plan_states:
+                errors.append(
+                    f"task-index.json UI task {task_id} required_states must be a plan subset"
+                )
+
+            plan_preserve = _normalized_ui_string_values("must_preserve", plan_contract)
+            task_preserve = _normalized_ui_string_values("must_preserve", task_contract)
+            if not plan_preserve <= task_preserve:
+                errors.append(
+                    f"task-index.json UI task {task_id} must_preserve must include plan constraints"
+                )
+
+            plan_may_adapt = _normalized_ui_string_values("may_adapt", plan_contract)
+            task_may_adapt = _normalized_ui_string_values("may_adapt", task_contract)
+            if not task_may_adapt <= plan_may_adapt:
+                errors.append(
+                    f"task-index.json UI task {task_id} may_adapt must not exceed plan permissions"
+                )
+
+            plan_must_not = _normalized_ui_string_values("must_not", plan_contract)
+            task_must_not = _normalized_ui_string_values("must_not", task_contract)
+            if not plan_must_not <= task_must_not:
+                errors.append(
+                    f"task-index.json UI task {task_id} must_not must include plan prohibitions"
+                )
+        plan_required_states = {
+            str(item).strip()
+            for item in plan_contract.get("required_states") or []
+            if isinstance(item, str) and item.strip()
+        }
+        missing_states = sorted(plan_required_states - covered_required_states)
+        if missing_states:
+            errors.append(
+                "task-index.json UI tasks must cover plan required_states: "
+                + ", ".join(missing_states)
+            )
     return errors
 
 
@@ -3561,10 +3639,6 @@ def _validate_spec_contract_artifacts(feature_dir: Path) -> list[str]:
                     "spec-contract.json UI work requires design_contract.visual_acceptance"
                 )
             fidelity_mode = str(design_contract.get("fidelity_mode") or "none").strip()
-            if fidelity_mode not in {"none", "approximate", "high", "inspiration"}:
-                errors.append(
-                    "spec-contract.json design_contract.fidelity_mode is invalid"
-                )
             if fidelity_mode in {"approximate", "high"} and not design_contract.get(
                 "original_reference_refs"
             ):

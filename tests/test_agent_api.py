@@ -168,7 +168,7 @@ def test_schema_expands_only_the_requested_machine_contract() -> None:
     schema = payload["data"]["schema"]
     assert schema["$id"] == "specify://schemas/workflow-transition-input/v1"
     assert schema["additionalProperties"] is False
-    assert schema["required"] == ["feature_dir", "target_stage", "expected_revision"]
+    assert schema["required"] == ["feature_dir", "to", "expected_revision"]
     assert payload["show_argv"] == [
         "specify",
         "api",

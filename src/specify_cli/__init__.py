@@ -2639,7 +2639,10 @@ def implement_closeout(
 ):
     """Validate implementation closeout state and auto-capture learnings."""
     from .hooks.engine import run_quality_hook
-    from .human_acceptance import prepare_human_acceptance
+    from .human_acceptance import (
+        acceptance_closeout_blockers,
+        prepare_human_acceptance,
+    )
     from .implement_audit import audit_implement_resume
     from .implementation_summary import (
         build_implementation_summary,
@@ -2724,8 +2727,10 @@ def implement_closeout(
     )
     summary_payload = build_implementation_summary(project_root, resolved_feature_dir)
     acceptance_payload = prepare_human_acceptance(project_root, resolved_feature_dir)
+    acceptance_status = str(acceptance_payload.get("status") or "")
+    acceptance_blocked = acceptance_status in {"blocked", "conflict"}
     payload = {
-        "status": "ok",
+        "status": acceptance_status if acceptance_blocked else "ok",
         "feature_dir": str(resolved_feature_dir),
         "hook_result": hook_result.to_dict(),
         "resume_audit": resume_audit,
@@ -2733,9 +2738,24 @@ def implement_closeout(
         "implementation_summary": summary_payload,
         "human_acceptance": acceptance_payload,
     }
+    if acceptance_blocked:
+        payload["blockers"] = acceptance_closeout_blockers(
+            resolved_feature_dir,
+            acceptance_errors=list(acceptance_payload.get("errors") or []),
+        )
     if output_format.lower() == "json":
         print_json(payload, indent=2)
+        if acceptance_blocked:
+            raise typer.Exit(10)
         return
+
+    if acceptance_blocked:
+        console.print(
+            "[red]Error:[/red] Implement closeout could not prepare human acceptance."
+        )
+        for error in acceptance_payload.get("errors") or []:
+            console.print(f"- {error}")
+        raise typer.Exit(10)
 
     rows = [
         ("Feature Dir", str(resolved_feature_dir)),

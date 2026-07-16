@@ -28,7 +28,7 @@
 | reference_intents | [{{task_reference_ref_and_intent}}] |
 | real_content_plan | [{{task_content_source_and_states}}] |
 | image_plan | [{{task_image_ref_role_and_behavior_or_none}}] |
-| fidelity_level | {{none_or_approximate_or_high_or_inspiration}} |
+| fidelity_level | {{approximate_or_high_or_inspiration}} |
 | must_preserve | [{{task_specific_constraints}}] |
 | may_adapt | [{{allowed_choices}}] |
 | must_not | [{{forbidden_drift}}] |

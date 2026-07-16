@@ -250,6 +250,76 @@ def test_validate_requires_explicit_human_pass_for_every_required_scenario(
     )
 
 
+def test_validate_rejects_accepted_state_with_an_open_finding(tmp_path: Path) -> None:
+    project, feature = _feature(tmp_path)
+    prepare_human_acceptance(project, feature)
+    state_path = feature / "human-acceptance.json"
+    state = _accepted_state(state_path)
+    state["findings"] = [
+        {
+            "id": "HAF-001",
+            "scenario_id": "HA-001",
+            "step_id": "HA-001-S01",
+            "classification": "product-defect",
+            "route": "spx-debug",
+            "expected": "The Demo screen opens.",
+            "observed": "The Demo screen remained closed.",
+            "evidence": ["human: visible failure"],
+            "status": "open",
+        }
+    ]
+    state_path.write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
+
+    validation = validate_human_acceptance(project, feature, require_accepted=True)
+
+    assert validation["valid"] is False
+    assert validation["accepted"] is False
+    assert any("open" in error and "finding" in error for error in validation["errors"])
+
+
+def test_validate_detects_implementation_changes_without_a_git_repository(
+    tmp_path: Path,
+) -> None:
+    project, feature = _feature(tmp_path)
+    source = project / "src" / "demo.txt"
+    source.parent.mkdir()
+    source.write_text("before\n", encoding="utf-8")
+    assert not (project / ".git").exists()
+    prepare_human_acceptance(project, feature)
+    _accepted_state(feature / "human-acceptance.json")
+    assert (
+        validate_human_acceptance(project, feature, require_accepted=True)["valid"]
+        is True
+    )
+
+    source.write_text("after\n", encoding="utf-8")
+    validation = validate_human_acceptance(project, feature, require_accepted=True)
+
+    assert validation["stale"] is True
+    assert validation["valid"] is False
+
+
+def test_no_git_snapshot_ignores_root_gitignore_matches(tmp_path: Path) -> None:
+    project, feature = _feature(tmp_path)
+    (project / ".gitignore").write_text(".cache/\n", encoding="utf-8")
+    cache_file = project / ".cache" / "runtime.bin"
+    cache_file.parent.mkdir()
+    cache_file.write_text("before\n", encoding="utf-8")
+
+    prepare_human_acceptance(project, feature)
+    _accepted_state(feature / "human-acceptance.json")
+    cache_file.write_text("after\n", encoding="utf-8")
+
+    validation = validate_human_acceptance(
+        project,
+        feature,
+        require_accepted=True,
+    )
+
+    assert validation["valid"] is True
+    assert validation["stale"] is False
+
+
 def test_in_progress_state_requires_a_real_resume_cursor(tmp_path: Path) -> None:
     project, feature = _feature(tmp_path)
     prepare_human_acceptance(project, feature)
