@@ -23,6 +23,7 @@ from specify_cli.extensions import (
     ExtensionManager,
 )
 from specify_cli import SKILL_DESCRIPTIONS
+from specify_cli.launcher import render_command
 from tests.template_utils import read_skill_with_references
 
 
@@ -416,7 +417,10 @@ class TestBuiltInSkillGeneration:
         assert "Dispatch Compilation Hints" in plan_body
         assert "workflow-state.md" in plan_body
         assert "enter `plan` with the deterministic workflow transition" in plan_body.lower()
-        assert "workflow transition --to <this-stage>" in plan_body
+        assert (
+            render_command(("workflow", "transition", "--to", "<this-stage>"))
+            in plan_body
+        )
         assert "do not edit source/runtime/test files" in plan_body.lower()
         assert "planning does not grant permission to start execution" in plan_body.lower()
         assert "planning/handoffs/<lane-id>.json" in plan_body
@@ -565,7 +569,16 @@ class TestBuiltInSkillGeneration:
         checklist_body = _skill_body("sp-checklist")
         checklist_lower = checklist_body.lower()
         assert ".specify/memory/constitution.md" in checklist_lower
-        assert "learning start --command <classic-command-name> --format json" in checklist_lower
+        assert render_command(
+            (
+                "learning",
+                "start",
+                "--command",
+                "<classic-command-name>",
+                "--format",
+                "json",
+            )
+        ).lower() in checklist_lower
         assert "show_argv" in checklist_lower
         assert ".specify/memory/learnings/index.md" not in checklist_lower
         assert ".planning/learnings/candidates.md" not in checklist_lower

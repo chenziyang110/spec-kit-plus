@@ -8,6 +8,7 @@ from typing import Any
 
 import click
 import typer
+from typer.core import TyperGroup, TyperOption
 from typer.main import get_command
 
 from .agent_api import AgentApiError, envelope
@@ -132,8 +133,17 @@ _HIGHER_RISK_PREFIXES = (
     "sp-teams",
 )
 
+_COMMAND_GROUP_TYPES = (click.Group, TyperGroup)
+_OPTION_TYPES = (click.Option, TyperOption)
 
-def _summary(command: click.Command) -> str:
+
+def _is_command_group(command: Any) -> bool:
+    """Recognize both upstream Click and Typer's vendored Click groups."""
+
+    return isinstance(command, _COMMAND_GROUP_TYPES)
+
+
+def _summary(command: Any) -> str:
     raw = str(command.help or command.short_help or "").strip()
     if not raw:
         return "No command summary is declared."
@@ -160,24 +170,26 @@ def _mutation_hint(command_id: str) -> str:
 
 
 def _walk_commands(
-    group: click.Group, path: tuple[str, ...] = ()
-) -> Iterator[tuple[tuple[str, ...], click.Command]]:
+    group: Any, path: tuple[str, ...] = ()
+) -> Iterator[tuple[tuple[str, ...], Any]]:
     for name, command in sorted(group.commands.items()):
         if getattr(command, "hidden", False):
             continue
         command_path = (*path, name)
-        if not isinstance(command, click.Group) or command.invoke_without_command:
+        is_group = _is_command_group(command)
+        if not is_group or command.invoke_without_command:
             yield command_path, command
-        if isinstance(command, click.Group):
+        if is_group:
             yield from _walk_commands(command, command_path)
 
 
-def _type_record(parameter: click.Parameter) -> dict[str, Any]:
+def _type_record(parameter: Any) -> dict[str, Any]:
     parameter_type = parameter.type
     record: dict[str, Any] = {"name": parameter_type.name or "value"}
-    if isinstance(parameter_type, click.Choice):
-        record["choices"] = [str(choice) for choice in parameter_type.choices]
-        record["case_sensitive"] = parameter_type.case_sensitive
+    choices = getattr(parameter_type, "choices", None)
+    if choices is not None:
+        record["choices"] = [str(choice) for choice in choices]
+        record["case_sensitive"] = bool(getattr(parameter_type, "case_sensitive", True))
     return record
 
 
@@ -191,10 +203,10 @@ def _safe_default(value: Any) -> Any:
     return None
 
 
-def _parameter_record(parameter: click.Parameter) -> dict[str, Any] | None:
+def _parameter_record(parameter: Any) -> dict[str, Any] | None:
     if getattr(parameter, "hidden", False) or not parameter.expose_value:
         return None
-    if isinstance(parameter, click.Option):
+    if isinstance(parameter, _OPTION_TYPES):
         flags = [*parameter.opts, *parameter.secondary_opts]
         kind = "option"
         repeatable = bool(parameter.multiple or parameter.count)
@@ -258,7 +270,7 @@ def command_catalog(app: typer.Typer) -> tuple[dict[str, Any], ...]:
     """Build the current command inventory from the actual installed app tree."""
 
     root = get_command(app)
-    if not isinstance(root, click.Group):
+    if not _is_command_group(root):
         raise AgentApiError("the Specify root command is not a command group")
     records: list[dict[str, Any]] = []
     for path, command in _walk_commands(root):

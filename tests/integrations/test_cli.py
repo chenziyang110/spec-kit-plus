@@ -9,6 +9,7 @@ import yaml
 from typer.testing import CliRunner
 
 from specify_cli import app
+from specify_cli.launcher import render_command
 from tests.conftest import strip_ansi
 from tests.template_utils import assert_quick_checkpoint_card_shape
 
@@ -290,7 +291,19 @@ class TestInitIntegrationFlag:
             skills_dir / "sp-quick" / "SKILL.md"
         ).lower()
         assert ".specify/memory/constitution.md" in quick_content
-        assert "learning start --command <classic-command-name> --format json" in quick_content
+        assert (
+            render_command(
+                (
+                    "learning",
+                    "start",
+                    "--command",
+                    "<classic-command-name>",
+                    "--format",
+                    "json",
+                )
+            ).lower()
+            in quick_content
+        )
         assert "show_argv" in quick_content
         assert ".specify/memory/learnings/index.md" not in quick_content
         assert ".specify/memory/project-learnings.md" not in quick_content

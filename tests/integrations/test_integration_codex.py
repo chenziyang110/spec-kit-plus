@@ -7,6 +7,8 @@ from pathlib import Path
 
 import pytest
 
+from specify_cli.launcher import render_command
+
 from .test_base import (
     _assert_canonical_cognition_intake_contract,
     _assert_subagent_using_surfaces_have_discovery,
@@ -1788,7 +1790,19 @@ def test_codex_generated_sp_quick_supports_lightweight_tracked_execution(tmp_pat
     content = _read_skill_with_references(skill_path).lower()
 
     assert ".planning/quick/" in content
-    assert "learning start --command <classic-command-name> --format json" in content
+    assert (
+        render_command(
+            (
+                "learning",
+                "start",
+                "--command",
+                "<classic-command-name>",
+                "--format",
+                "json",
+            )
+        ).lower()
+        in content
+    )
     assert "show_argv" in content
     assert ".specify/memory/learnings/index.md" not in content
     assert ".planning/learnings/candidates.md" not in content

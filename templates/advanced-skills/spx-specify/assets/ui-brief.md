@@ -20,7 +20,7 @@
 - reference_intents: [{ref:, intent: exact | preserve-structure | inspiration | extract-tokens | do-not-copy}]
 - real_content_plan: [{source_ref:, applies_to_states: []}]
 - image_plan: [{ref:, role:, responsive_behavior:}]
-- fidelity_mode: none | approximate | high | inspiration
+- fidelity_mode: approximate | high | inspiration
 - layout_and_information_hierarchy:
 - tokens_and_components:
 - must_preserve:

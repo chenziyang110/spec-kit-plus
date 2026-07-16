@@ -67,6 +67,11 @@ def _ui_contract_applies(packet: WorkerTaskPacket) -> bool:
 
 def validate_ui_contract(contract: UIContract) -> None:
     """Validate the one current UI contract shape and values."""
+    if contract.fidelity_level not in {"approximate", "high", "inspiration"}:
+        raise PacketValidationError(
+            "DP1",
+            "active UI contract fidelity_level must be approximate, high, or inspiration",
+        )
     if contract.ui_work_type not in UI_WORK_TYPES:
         raise PacketValidationError(
             "DP1", "UI contract requires a valid ui_work_type"

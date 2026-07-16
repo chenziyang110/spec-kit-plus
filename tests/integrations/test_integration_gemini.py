@@ -4,6 +4,7 @@ import json
 import os
 import subprocess
 import sys
+import time
 import tomllib
 from pathlib import Path
 
@@ -917,6 +918,35 @@ class TestGeminiIntegration:
             )
             is None
         )
+
+    def test_gemini_shared_hook_fallbacks_share_one_event_deadline(
+        self, tmp_path, monkeypatch
+    ):
+        module = _load_gemini_hook_dispatch_module()
+        monkeypatch.setattr(
+            module,
+            "_shared_hook_commands",
+            lambda _project_root, _args: [["launcher-one"], ["launcher-two"]],
+        )
+        observed_timeouts = []
+
+        def fake_run(command, **kwargs):
+            observed_timeouts.append(kwargs["timeout"])
+            time.sleep(0.02)
+            return subprocess.CompletedProcess(command, 1, stdout="", stderr="")
+
+        monkeypatch.setattr(module.subprocess, "run", fake_run)
+
+        result = module._invoke_shared_hook(
+            tmp_path,
+            ["validate-prompt", "--prompt-stdin"],
+            stdin_text="secret prompt",
+            timeout_seconds=0.1,
+        )
+
+        assert result.status == "unavailable"
+        assert len(observed_timeouts) == 2
+        assert observed_timeouts[1] <= observed_timeouts[0] - 0.01
 
     def test_gemini_shared_hook_client_maps_blocked_payload(
         self, tmp_path, monkeypatch
