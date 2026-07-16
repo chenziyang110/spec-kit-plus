@@ -1,27 +1,123 @@
 import json
 import os
+from pathlib import Path
 import shutil
 import stat
 import subprocess
+import sys
 
 import pytest
 
 import specify_cli
+from specify_cli.integrations import get_integration
+from specify_cli.integrations.manifest import IntegrationManifest
 from specify_cli.launcher import (
+    bind_project_launcher_payload,
     HookRuntimeSpec,
+    SPECIFY_PROJECT_LAUNCHER_POSIX,
+    SPECIFY_PROJECT_LAUNCHER_WINDOWS,
+    SPECIFY_RUNTIME_ID,
+    current_environment_specify_launcher_spec,
     diagnose_project_runtime_compatibility,
     install_shared_hook_launcher_assets,
     SpecifyLauncherSpec,
     load_project_specify_launcher,
     project_cognition_launcher_is_compatible,
     project_specify_subcommand,
+    rebind_unbound_project_cognition_runtime_calls,
+    rebind_source_bound_specify_launchers,
+    rebind_unbound_specify_runtime_calls,
     render_claude_hook_launcher,
     render_hook_launcher_command,
+    render_command,
     render_project_launcher_placeholders,
+    resolve_specify_launcher_spec,
     resolve_hook_runtime_spec,
     resolve_project_cognition_launcher_argv,
     write_project_specify_launcher_config,
 )
+from specify_cli import launcher as launcher_module
+
+
+def _write_pinned_launcher_config(project_root):
+    pinned_command = (
+        "uvx --from "
+        "git+https://github.com/chenziyang110/spec-kit-plus.git@abc123 specify"
+    )
+    config_path = project_root / ".specify" / "config.json"
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    config_path.write_text(
+        json.dumps(
+            {
+                "specify_launcher": {
+                    "command": pinned_command,
+                    "argv": [
+                        "uvx",
+                        "--from",
+                        "git+https://github.com/chenziyang110/spec-kit-plus.git@abc123",
+                        "specify",
+                    ],
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    return pinned_command
+
+
+def test_agent_payload_argv_and_derived_commands_bind_from_nested_cwd(tmp_path):
+    project = tmp_path / "project 项目 & $literal"
+    nested = project / "nested" / "work"
+    nested.mkdir(parents=True)
+    _write_pinned_launcher_config(project)
+    feature = project / ".specify" / "features" / "001 space 项目&$"
+    original_argv = [
+        "specify",
+        "workflow",
+        "transition",
+        "--feature-dir",
+        str(feature),
+        "--to",
+        "accept",
+    ]
+    original_command = render_command(tuple(original_argv))
+    payload = {
+        "next_argv": original_argv,
+        "resume": {
+            "argv": list(original_argv),
+            "command": original_command,
+            "instruction": f"Run the exact resume command: {original_command}",
+        },
+        "metadata": {"command": ["specify", "workflow", "transition"]},
+    }
+
+    bound = bind_project_launcher_payload(payload, nested)
+
+    launcher = load_project_specify_launcher(project)
+    assert launcher is not None
+    expected_argv = [*launcher.argv, *original_argv[1:]]
+    expected_command = render_command(tuple(expected_argv))
+    assert bound["next_argv"] == expected_argv
+    assert bound["resume"]["argv"] == expected_argv
+    assert bound["resume"]["command"] == expected_command
+    assert bound["resume"]["instruction"] == (
+        f"Run the exact resume command: {expected_command}"
+    )
+    assert bound["metadata"]["command"] == ["specify", "workflow", "transition"]
+
+
+def test_agent_payload_binding_stops_at_an_unconfigured_nested_project(tmp_path):
+    outer = tmp_path / "outer"
+    inner = outer / "examples" / "inner"
+    nested = inner / "src"
+    nested.mkdir(parents=True)
+    _write_pinned_launcher_config(outer)
+    (inner / ".specify").mkdir()
+    payload = {"next_argv": ["specify", "workflow", "show"]}
+
+    bound = bind_project_launcher_payload(payload, nested)
+
+    assert bound == payload
 
 
 def test_write_project_specify_launcher_config_preserves_existing_keys(tmp_path):
@@ -61,6 +157,473 @@ def test_write_project_specify_launcher_config_skips_unbound_path_launcher(tmp_p
 
     assert written is None
     assert not (tmp_path / ".specify" / "config.json").exists()
+
+
+def test_resolve_specify_launcher_binds_normal_install_to_current_interpreter(
+    monkeypatch,
+):
+    class _InstalledDistribution:
+        @staticmethod
+        def read_text(filename):
+            assert filename == "direct_url.json"
+            return None
+
+    monkeypatch.setattr(
+        "specify_cli.launcher.importlib_metadata.distribution",
+        lambda name: _InstalledDistribution(),
+    )
+    monkeypatch.setattr(
+        "specify_cli.launcher.sys.executable",
+        "C:/current-specify-env/python.exe",
+    )
+
+    launcher = resolve_specify_launcher_spec()
+
+    assert launcher.argv == (
+        "C:/current-specify-env/python.exe",
+        "-m",
+        "specify_cli",
+    )
+    assert "specify" not in launcher.argv[:1]
+
+
+def test_resolve_specify_launcher_never_persists_authenticated_direct_url(
+    monkeypatch,
+):
+    secret = "REVIEW_SECRET_DO_NOT_PERSIST"
+
+    class _InstalledDistribution:
+        @staticmethod
+        def read_text(filename):
+            assert filename == "direct_url.json"
+            return json.dumps(
+                {
+                    "url": f"https://oauth2:{secret}@example.invalid/spec-kit-plus.git",
+                    "vcs_info": {"vcs": "git", "commit_id": "abc123"},
+                }
+            )
+
+    monkeypatch.setattr(
+        "specify_cli.launcher.importlib_metadata.distribution",
+        lambda name: _InstalledDistribution(),
+    )
+    monkeypatch.setattr(
+        "specify_cli.launcher.sys.executable",
+        "C:/current-specify-env/python.exe",
+    )
+    monkeypatch.setattr("specify_cli.launcher.shutil.which", lambda name: "C:/uvx.exe")
+
+    launcher = resolve_specify_launcher_spec()
+
+    assert launcher.kind == "local_environment"
+    assert secret not in launcher.command
+    assert all(secret not in item for item in launcher.argv)
+
+
+@pytest.mark.parametrize(
+    ("url", "commit_id"),
+    (
+        ("https://example.invalid/spec-kit-plus&calc.git", "a" * 40),
+        ("https://[malformed/spec-kit-plus.git", "a" * 40),
+        ("https://example.invalid/spec-kit-plus.git", "abc123&calc"),
+        ("https://example.invalid/spec-kit-plus.git?token=secret", "a" * 40),
+    ),
+)
+def test_resolve_specify_launcher_rejects_unsafe_source_metadata(
+    monkeypatch,
+    url,
+    commit_id,
+):
+    class _InstalledDistribution:
+        @staticmethod
+        def read_text(filename):
+            assert filename == "direct_url.json"
+            return json.dumps(
+                {
+                    "url": url,
+                    "vcs_info": {"vcs": "git", "commit_id": commit_id},
+                }
+            )
+
+    monkeypatch.setattr(
+        "specify_cli.launcher.importlib_metadata.distribution",
+        lambda name: _InstalledDistribution(),
+    )
+    monkeypatch.setattr("specify_cli.launcher.shutil.which", lambda name: "C:/uvx.exe")
+
+    launcher = resolve_specify_launcher_spec()
+
+    assert launcher.kind == "local_environment"
+    assert "uvx" not in launcher.argv
+
+
+def test_resolve_specify_launcher_accepts_clean_commit_pinned_source(monkeypatch):
+    commit_id = "a" * 40
+
+    class _InstalledDistribution:
+        @staticmethod
+        def read_text(filename):
+            assert filename == "direct_url.json"
+            return json.dumps(
+                {
+                    "url": "https://github.com/chenziyang110/spec-kit-plus.git",
+                    "vcs_info": {"vcs": "git", "commit_id": commit_id},
+                }
+            )
+
+    monkeypatch.setattr(
+        "specify_cli.launcher.importlib_metadata.distribution",
+        lambda name: _InstalledDistribution(),
+    )
+    monkeypatch.setattr("specify_cli.launcher.shutil.which", lambda name: "C:/uvx.exe")
+
+    launcher = resolve_specify_launcher_spec()
+
+    assert launcher.kind == "source_bound"
+    assert launcher.argv == (
+        "uvx",
+        "--from",
+        f"git+https://github.com/chenziyang110/spec-kit-plus.git@{commit_id}",
+        "specify",
+    )
+
+
+def test_normal_install_persists_portable_wrapper_and_local_binding(
+    monkeypatch,
+    tmp_path,
+):
+    project = tmp_path / "project"
+    state_dir = tmp_path / "local-bindings"
+    project.mkdir()
+    monkeypatch.setenv("SPECIFY_PROJECT_LAUNCHER_STATE_DIR", str(state_dir))
+    local_launcher = current_environment_specify_launcher_spec()
+
+    written = write_project_specify_launcher_config(project, local_launcher)
+
+    assert written == project / ".specify" / "config.json"
+    config_text = written.read_text(encoding="utf-8")
+    config = json.loads(config_text)
+    binding_id = config["specify_launcher"]["binding_id"]
+    persisted_argv = config["specify_launcher"]["argv"]
+    if os.name == "nt":
+        assert persisted_argv[1:7] == [
+            "-NoLogo",
+            "-NoProfile",
+            "-NonInteractive",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+        ]
+        assert Path(persisted_argv[0]).name.lower() == "powershell.exe"
+        assert Path(persisted_argv[-2]) == state_dir / "dispatch.ps1"
+        assert persisted_argv[-1] == binding_id
+        wrapper_relative = SPECIFY_PROJECT_LAUNCHER_WINDOWS
+    else:
+        assert persisted_argv == [str(state_dir / "dispatch"), binding_id]
+        wrapper_relative = SPECIFY_PROJECT_LAUNCHER_POSIX
+    assert sys.executable not in config_text
+    assert config["specify_launcher"]["runtime_id"] == SPECIFY_RUNTIME_ID
+    wrapper = project / wrapper_relative
+    assert wrapper.is_file()
+    assert sys.executable not in wrapper.read_text(encoding="utf-8")
+    rendered = render_project_launcher_placeholders(
+        project,
+        "Run `{{specify-subcmd:learning start --command ask --format json}}`.",
+    )
+    assert f'{config["specify_launcher"]["command"]} learning start ' in rendered
+    assert sys.executable not in rendered
+
+    binding_dir = state_dir / binding_id
+    binding_path = binding_dir / "binding.json"
+    binding = json.loads(binding_path.read_text(encoding="utf-8"))
+    assert binding["runtime_id"] == SPECIFY_RUNTIME_ID
+    assert Path(binding["entry_argv"][0]) == Path(sys.executable).resolve()
+
+    execution_env = {
+        **os.environ,
+        "PATH": "",
+        "SPECIFY_PROJECT_LAUNCHER_STATE_DIR": str(state_dir),
+    }
+    result = subprocess.run(
+        [*persisted_argv, "--runtime-id"],
+        cwd=project,
+        env=execution_env,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="strict",
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == SPECIFY_RUNTIME_ID
+
+    moved_project = tmp_path / "moved project 项目"
+    shutil.move(project, moved_project)
+    nested = moved_project / "nested" / "working-directory"
+    nested.mkdir(parents=True)
+    moved_result = subprocess.run(
+        [*persisted_argv, "--runtime-id"],
+        cwd=nested,
+        env=execution_env,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="strict",
+        check=False,
+    )
+    assert moved_result.returncode == 0, moved_result.stderr
+    assert moved_result.stdout.strip() == SPECIFY_RUNTIME_ID
+
+    shutil.rmtree(binding_dir)
+    issue_codes = {
+        issue["code"] for issue in diagnose_project_runtime_compatibility(moved_project)
+    }
+    assert "broken-project-launcher" in issue_codes
+    missing_result = subprocess.run(
+        [*persisted_argv, "--runtime-id"],
+        cwd=moved_project,
+        env=execution_env,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="strict",
+        check=False,
+    )
+    assert missing_result.returncode == 2
+    assert "specify integration repair" in missing_result.stderr
+
+
+def test_relative_binding_state_override_is_frozen_for_nested_cwd(
+    monkeypatch,
+    tmp_path,
+):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("SPECIFY_PROJECT_LAUNCHER_STATE_DIR", "relative-bindings")
+    project = tmp_path / "project"
+    nested = project / "nested" / "cwd"
+    nested.mkdir(parents=True)
+
+    config_path = write_project_specify_launcher_config(
+        project,
+        current_environment_specify_launcher_spec(),
+    )
+    assert config_path is not None
+    launcher = load_project_specify_launcher(project)
+    assert launcher is not None
+    dispatch = Path(launcher.argv[-2] if os.name == "nt" else launcher.argv[0])
+    assert dispatch.is_absolute()
+    assert dispatch.parent == (tmp_path / "relative-bindings").resolve()
+
+    result = subprocess.run(
+        [*launcher.argv, "--runtime-id"],
+        cwd=nested,
+        env={
+            **os.environ,
+            "SPECIFY_PROJECT_LAUNCHER_STATE_DIR": "different-relative-value",
+        },
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="strict",
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == SPECIFY_RUNTIME_ID
+
+
+@pytest.mark.skipif(os.name != "nt", reason="PowerShell command rendering contract")
+def test_windows_rendered_launcher_quotes_shell_metacharacters_in_state_path(
+    monkeypatch,
+    tmp_path,
+):
+    state_dir = tmp_path / "bindings&$literal"
+    monkeypatch.setenv("SPECIFY_PROJECT_LAUNCHER_STATE_DIR", str(state_dir))
+    project = tmp_path / "project"
+
+    config_path = write_project_specify_launcher_config(
+        project,
+        current_environment_specify_launcher_spec(),
+    )
+    assert config_path is not None
+    launcher = load_project_specify_launcher(project)
+    assert launcher is not None
+    assert f"'{state_dir.resolve()}\\dispatch.ps1'" in launcher.command
+
+    result = subprocess.run(
+        [
+            launcher_module._windows_powershell_executable(),
+            "-NoLogo",
+            "-NoProfile",
+            "-NonInteractive",
+            "-Command",
+            f"{launcher.command} --runtime-id",
+        ],
+        cwd=project,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="strict",
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == SPECIFY_RUNTIME_ID
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows PowerShell forwarding contract")
+def test_windows_machine_binding_forwards_metacharacters_without_reparse(tmp_path):
+    binding_id = "a" * 32
+    state_dir = tmp_path / "bindings"
+    binding_dir = state_dir / binding_id
+    binding_dir.mkdir(parents=True)
+    capture = tmp_path / "capture.py"
+    capture.write_text(
+        "import json, sys\nprint(json.dumps(sys.argv[1:], ensure_ascii=False))\n",
+        encoding="utf-8",
+    )
+    invoke = binding_dir / "invoke.ps1"
+    invoke.write_text(
+        launcher_module._binding_invoke_source(sys.executable, capture),
+        encoding="utf-8",
+    )
+    dispatch = state_dir / "dispatch.ps1"
+    dispatch.write_text(
+        launcher_module._binding_dispatch_source(),
+        encoding="utf-8",
+    )
+    secret_name = "SPX_REVIEW_SECRET"
+    literal_secret = f"%{secret_name}%"
+    forwarded = (literal_secret, "safe&ver", "space value", "项目")
+    env = {
+        **os.environ,
+        secret_name: "EXPANDED & Write-Output SECOND_COMMAND_RAN",
+        "SPECIFY_PROJECT_LAUNCHER_STATE_DIR": str(state_dir),
+    }
+
+    result = subprocess.run(
+        [
+            launcher_module._windows_powershell_executable(),
+            "-NoLogo",
+            "-NoProfile",
+            "-NonInteractive",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            str(dispatch),
+            binding_id,
+            *forwarded,
+        ],
+        cwd=tmp_path,
+        env=env,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="strict",
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout) == list(forwarded)
+    assert "SECOND_COMMAND_RAN" not in result.stdout
+
+
+def test_normal_init_preserves_modified_project_launcher(monkeypatch, tmp_path):
+    state_dir = tmp_path / "bindings"
+    monkeypatch.setenv("SPECIFY_PROJECT_LAUNCHER_STATE_DIR", str(state_dir))
+    write_project_specify_launcher_config(tmp_path, current_environment_specify_launcher_spec())
+    launcher = load_project_specify_launcher(tmp_path)
+    assert launcher is not None
+    wrapper_relative = (
+        SPECIFY_PROJECT_LAUNCHER_WINDOWS
+        if os.name == "nt"
+        else SPECIFY_PROJECT_LAUNCHER_POSIX
+    )
+    wrapper = tmp_path / wrapper_relative
+    wrapper.write_text("user modification\n", encoding="utf-8")
+
+    with pytest.raises(RuntimeError, match="preserved"):
+        write_project_specify_launcher_config(
+            tmp_path,
+            current_environment_specify_launcher_spec(),
+        )
+
+    assert wrapper.read_text(encoding="utf-8") == "user modification\n"
+    assert load_project_specify_launcher(tmp_path) == launcher
+
+
+def test_machine_binding_identity_mismatch_fails_closed_with_recovery(
+    monkeypatch,
+    tmp_path,
+):
+    state_dir = tmp_path / "bindings"
+    monkeypatch.setenv("SPECIFY_PROJECT_LAUNCHER_STATE_DIR", str(state_dir))
+    config_path = write_project_specify_launcher_config(
+        tmp_path,
+        current_environment_specify_launcher_spec(),
+    )
+    assert config_path is not None
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+    binding_id = config["specify_launcher"]["binding_id"]
+    entry = state_dir / binding_id / "binding-entry.py"
+    content = entry.read_text(encoding="utf-8").replace(
+        f"EXPECTED_RUNTIME_ID = {SPECIFY_RUNTIME_ID!r}",
+        "EXPECTED_RUNTIME_ID = 'wrong/runtime'",
+    )
+    entry.write_text(content, encoding="utf-8")
+
+    launcher = load_project_specify_launcher(tmp_path)
+    assert launcher is not None
+    assert any(
+        issue["code"] == "broken-project-launcher"
+        for issue in diagnose_project_runtime_compatibility(tmp_path)
+    )
+    result = subprocess.run(
+        [*launcher.argv, "--runtime-id"],
+        cwd=tmp_path,
+        env={
+            **os.environ,
+            "PATH": "",
+            "SPECIFY_PROJECT_LAUNCHER_STATE_DIR": str(state_dir),
+        },
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="strict",
+        check=False,
+    )
+    assert result.returncode == 2
+    assert "incompatible" in result.stderr
+    assert "specify integration repair" in result.stderr
+
+
+def test_machine_binding_probe_rejects_tampered_dispatch(monkeypatch, tmp_path):
+    state_dir = tmp_path / "bindings"
+    monkeypatch.setenv("SPECIFY_PROJECT_LAUNCHER_STATE_DIR", str(state_dir))
+    config_path = write_project_specify_launcher_config(
+        tmp_path,
+        current_environment_specify_launcher_spec(),
+    )
+    assert config_path is not None
+    launcher = load_project_specify_launcher(tmp_path)
+    assert launcher is not None
+    binding = json.loads(
+        (state_dir / launcher.binding_id / "binding.json").read_text(encoding="utf-8")
+    )
+    invoke = Path(binding["invoke_path"])
+    invoke.write_text(
+        "Write-Output 'TAMPERED_DISPATCH'\n" if os.name == "nt" else "#!/bin/sh\necho TAMPERED_DISPATCH\n",
+        encoding="utf-8",
+    )
+
+    assert not launcher_module.project_specify_launcher_is_available(
+        tmp_path,
+        launcher,
+    )
+    assert any(
+        issue["code"] == "broken-project-launcher"
+        for issue in diagnose_project_runtime_compatibility(tmp_path)
+    )
 
 
 def test_shared_infra_writes_source_bound_launcher_config(monkeypatch, tmp_path):
@@ -183,6 +746,32 @@ def test_render_project_launcher_placeholders_expands_cli_and_subcommand(tmp_pat
         "`uvx --from git+https://github.com/chenziyang110/spec-kit-plus.git specify hook validate-state --command plan`"
         in rendered
     )
+
+
+def test_render_project_launcher_rebinds_bare_project_cognition_calls(tmp_path):
+    config_dir = tmp_path / ".specify"
+    config_dir.mkdir(parents=True)
+    (config_dir / "config.json").write_text(
+        json.dumps(
+            {
+                "project_cognition_launcher": {
+                    "command": "C:/trusted/project-cognition.exe",
+                    "argv": ["C:/trusted/project-cognition.exe"],
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    rendered = render_project_launcher_placeholders(
+        tmp_path,
+        "Run `project-cognition generate-ignore --format json`.\n\n"
+        "```bash\nproject-cognition scan-set --format json\n```\n",
+    )
+
+    assert "`C:/trusted/project-cognition.exe generate-ignore --format json`" in rendered
+    assert "C:/trusted/project-cognition.exe scan-set --format json" in rendered
+    assert "`project-cognition generate-ignore" not in rendered
 
 
 def test_render_project_launcher_placeholders_without_project_launcher_avoids_bare_cognition_command(tmp_path):
@@ -451,6 +1040,235 @@ def test_diagnose_project_runtime_compatibility_ignores_non_executable_specify_m
 
     codes = {issue["code"] for issue in issues}
     assert "unbound-generated-specify-launcher" not in codes
+
+
+@pytest.mark.parametrize(
+    "guidance_root",
+    (".claude/skills", ".mimocode/commands"),
+)
+def test_runtime_diagnostics_inspect_all_supported_generated_guidance_roots(
+    tmp_path,
+    guidance_root,
+):
+    _write_pinned_launcher_config(tmp_path)
+    command_path = tmp_path / guidance_root / "spx-discussion.md"
+    command_path.parent.mkdir(parents=True)
+    command_path.write_text(
+        "Run `specify discussion list --json`.\n",
+        encoding="utf-8",
+    )
+
+    issues = diagnose_project_runtime_compatibility(tmp_path)
+
+    issue = next(
+        item
+        for item in issues
+        if item["code"] == "unbound-generated-specify-launcher"
+    )
+    assert f"{guidance_root}/spx-discussion.md" in issue["summary"]
+
+
+@pytest.mark.parametrize("integration_key", ("claude", "cursor-agent", "copilot"))
+def test_real_integration_addenda_do_not_emit_bare_specify_commands(
+    tmp_path,
+    integration_key,
+):
+    project = tmp_path / integration_key
+    pinned = _write_pinned_launcher_config(project)
+    integration = get_integration(integration_key)
+    assert integration is not None
+    manifest = IntegrationManifest(integration_key, project)
+    integration.setup(
+        project,
+        manifest,
+        parsed_options={"workflow_profile": "classic"},
+        script_type="sh",
+    )
+
+    issues = diagnose_project_runtime_compatibility(project)
+
+    assert not any(
+        issue["code"] == "unbound-generated-specify-launcher"
+        for issue in issues
+    ), (integration_key, pinned, issues)
+    unresolved = [
+        path.relative_to(project).as_posix()
+        for path in project.rglob("*")
+        if path.is_file()
+        and path.suffix.lower() in {".md", ".toml"}
+        and (
+            "{{specify-subcmd:" in path.read_text(encoding="utf-8")
+            or "{{specify-cli}}" in path.read_text(encoding="utf-8")
+        )
+    ]
+    assert unresolved == [], (integration_key, unresolved)
+
+
+def test_runtime_diagnostics_ignore_documentation_only_shell_fence(tmp_path):
+    _write_pinned_launcher_config(tmp_path)
+    skill_path = tmp_path / ".codex" / "skills" / "spx-discussion" / "SKILL.md"
+    skill_path.parent.mkdir(parents=True)
+    skill_path.write_text(
+        "Documentation-only example:\n"
+        "```bash\n"
+        "specify discussion list --json\n"
+        "```\n",
+        encoding="utf-8",
+    )
+
+    issues = diagnose_project_runtime_compatibility(tmp_path)
+
+    assert not any(
+        issue["code"] == "unbound-generated-specify-launcher"
+        for issue in issues
+    )
+
+
+def test_runtime_diagnostics_do_not_leak_negative_context_across_paragraphs(tmp_path):
+    _write_pinned_launcher_config(tmp_path)
+    skill_path = tmp_path / ".codex" / "skills" / "spx-discussion" / "SKILL.md"
+    skill_path.parent.mkdir(parents=True)
+    skill_path.write_text(
+        "Do not run an unpinned Specify command during discovery.\n\n"
+        "Run `specify discussion list --json` to resume.\n",
+        encoding="utf-8",
+    )
+
+    issues = diagnose_project_runtime_compatibility(tmp_path)
+
+    assert any(
+        issue["code"] == "unbound-generated-specify-launcher"
+        for issue in issues
+    )
+
+
+def test_launcher_rebinding_scopes_negative_language_to_each_inline_command():
+    pinned = "uvx --from git+https://example.test/spec-kit-plus.git@new specify"
+    content = (
+        "Verify with `specify --help`, then continue; "
+        "do not call `specify lane register`.\n"
+    )
+
+    rebound, count = rebind_unbound_specify_runtime_calls(content, pinned)
+
+    assert count == 1
+    assert f"`{pinned} --help`" in rebound
+    assert "do not call `specify lane register`" in rebound
+
+
+def test_project_cognition_rebinding_covers_inline_and_shell_fence_calls():
+    pinned = "C:/trusted/project-cognition.exe"
+    content = (
+        "Run `project-cognition generate-ignore --format json`.\n\n"
+        "```bash\n"
+        "project-cognition scan-set --format json\n"
+        "```\n\n"
+        "Do not run `project-cognition mark-dirty`.\n"
+    )
+
+    rebound, count = rebind_unbound_project_cognition_runtime_calls(
+        content,
+        pinned,
+    )
+
+    assert count == 2
+    assert f"`{pinned} generate-ignore --format json`" in rebound
+    assert f"{pinned} scan-set --format json" in rebound
+    assert "Do not run `project-cognition mark-dirty`" in rebound
+
+
+def test_runtime_diagnostics_ignore_workflow_arrow_notation(tmp_path):
+    _write_pinned_launcher_config(tmp_path)
+    skill_path = tmp_path / ".codex" / "skills" / "workflow" / "SKILL.md"
+    skill_path.parent.mkdir(parents=True)
+    skill_path.write_text(
+        "The feature workflow is `specify -> plan -> tasks -> implement`.\n",
+        encoding="utf-8",
+    )
+
+    issues = diagnose_project_runtime_compatibility(tmp_path)
+
+    assert not any(
+        issue["code"] == "unbound-generated-specify-launcher"
+        for issue in issues
+    )
+
+
+def test_launcher_rebinding_uses_same_executable_detection_contract():
+    pinned = SpecifyLauncherSpec(
+        command="uvx --from git+https://example.test/spec-kit-plus.git@new specify",
+        argv=(
+            "uvx",
+            "--from",
+            "git+https://example.test/spec-kit-plus.git@new",
+            "specify",
+        ),
+    )
+    content = (
+        "Run `specify discussion list --json`.\n\n"
+        "Documentation-only example:\n"
+        "```bash\n"
+        "specify check\n"
+        "```\n\n"
+        "```bash\n"
+        "specify learning list --format json\n"
+        "```\n\n"
+        "The workflow is `specify -> plan`.\n"
+        "Run `uvx --from git+https://example.test/spec-kit-plus.git@old specify check`.\n"
+    )
+
+    rebound, source_count = rebind_source_bound_specify_launchers(content, pinned)
+    rebound, bare_count = rebind_unbound_specify_runtime_calls(
+        rebound,
+        pinned.command,
+    )
+
+    assert source_count == 1
+    assert bare_count == 2
+    assert f"`{pinned.command} discussion list --json`" in rebound
+    assert f"{pinned.command} learning list --format json" in rebound
+    assert "Documentation-only example:\n```bash\nspecify check" in rebound
+    assert "`specify -> plan`" in rebound
+    assert "@old" not in rebound
+
+
+def test_runtime_diagnostics_inspect_root_context_managed_block(tmp_path):
+    _write_pinned_launcher_config(tmp_path)
+    (tmp_path / "AGENTS.md").write_text(
+        "# User rules\n\n"
+        "<!-- SPEC-KIT:BEGIN -->\n"
+        "Run `specify learning start --command ask --format json`.\n"
+        "<!-- SPEC-KIT:END -->\n",
+        encoding="utf-8",
+    )
+
+    issues = diagnose_project_runtime_compatibility(tmp_path)
+
+    issue = next(
+        item
+        for item in issues
+        if item["code"] == "unbound-generated-specify-launcher"
+    )
+    assert "AGENTS.md" in issue["summary"]
+
+
+def test_runtime_diagnostics_ignore_user_commands_outside_managed_block(tmp_path):
+    pinned_command = _write_pinned_launcher_config(tmp_path)
+    (tmp_path / "AGENTS.md").write_text(
+        "# User rules\n\n"
+        "Run `specify check` for my custom PATH workflow.\n\n"
+        "<!-- SPEC-KIT:BEGIN -->\n"
+        f"Run `{pinned_command} learning start --command ask --format json`.\n"
+        "<!-- SPEC-KIT:END -->\n",
+        encoding="utf-8",
+    )
+
+    issues = diagnose_project_runtime_compatibility(tmp_path)
+
+    assert not any(
+        issue["code"] == "unbound-generated-specify-launcher"
+        for issue in issues
+    )
 
 
 def test_runtime_diagnostics_warn_when_learning_index_missing(tmp_path):

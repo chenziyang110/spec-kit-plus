@@ -110,6 +110,7 @@ def test_agent_api_handshake_is_compact_and_machine_readable() -> None:
     assert payload["data"]["missing_capabilities"] == []
     assert "learning.start" in payload["data"]["capability_ids"]
     assert "workflow.enter" in payload["data"]["capability_ids"]
+    assert "accept.route-repair" in payload["data"]["capability_ids"]
 
 
 def test_agent_api_list_uses_progressive_disclosure() -> None:

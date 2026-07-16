@@ -20,9 +20,11 @@ from specify_cli.debug.schema import (
 from specify_cli.learnings import (
     build_learning_paths,
     capture_learning,
+    list_learning_summaries,
     normalize_command_name,
     read_learning_entries,
 )
+from specify_cli.launcher import SpecifyLauncherSpec, render_command, write_project_specify_launcher_config
 
 
 runner = CliRunner()
@@ -1786,6 +1788,49 @@ def test_learning_start_returns_relevant_cards_with_show_argv(tmp_path: Path) ->
     ]
     assert payload["items"][0]["show_argv"][1:3] == ["learning", "show"]
     assert "evidence" not in payload["items"][0]
+
+
+def test_learning_summary_argv_uses_the_persisted_project_launcher(tmp_path: Path) -> None:
+    project = tmp_path / "learning project 项目"
+    project.mkdir()
+    _seed_learning_templates(project)
+    launcher_argv = (
+        "uvx",
+        "--from",
+        "git+https://github.com/chenziyang110/spec-kit-plus.git@abc1234",
+        "specify",
+    )
+    write_project_specify_launcher_config(
+        project,
+        SpecifyLauncherSpec(
+            command=render_command(launcher_argv),
+            argv=launcher_argv,
+            source="test",
+            kind="source_bound",
+        ),
+    )
+    for index in range(2):
+        capture_learning(
+            project,
+            command_name="implement",
+            learning_type="pitfall",
+            summary=f"Bound launcher learning {index}",
+            evidence=f"Evidence {index}",
+            recurrence_key=f"launcher.bound-{index}",
+        )
+
+    payload = list_learning_summaries(
+        project,
+        command_name="implement",
+        limit=1,
+    )
+
+    assert payload["items"][0]["show_argv"][: len(launcher_argv)] == list(
+        launcher_argv
+    )
+    assert payload["pagination"]["next_argv"][: len(launcher_argv)] == list(
+        launcher_argv
+    )
 
 
 def test_learning_start_surfaces_repeated_medium_candidate_without_promoting(

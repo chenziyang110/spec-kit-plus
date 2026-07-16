@@ -4,10 +4,12 @@ import json
 import subprocess
 from pathlib import Path
 
+import pytest
 from jsonschema import Draft202012Validator
 from typer.testing import CliRunner
 
 from specify_cli import app
+from specify_cli import human_acceptance as human_acceptance_module
 from specify_cli.human_acceptance import (
     acceptance_closeout_blockers,
     new_human_acceptance_state,
@@ -282,6 +284,127 @@ def test_rejected_acceptance_routes_through_repair_and_returns_to_accept(
     )
     assert returned["data"]["stage"] == "accept"
     assert show_workflow(feature)["data"]["status"] == "active"
+
+
+def test_acceptance_repair_rejects_a_route_that_does_not_match_the_finding(
+    tmp_path: Path,
+) -> None:
+    project, feature = _feature(tmp_path)
+    entered = enter_workflow(feature, stage="specify", expected_revision=0)
+    revision = entered["data"]["revision"]
+    for target in ("plan", "tasks", "implement", "accept"):
+        transitioned = transition_workflow(
+            feature,
+            target_stage=target,
+            expected_revision=revision,
+        )
+        revision = transitioned["data"]["revision"]
+    prepare_human_acceptance(project, feature)
+    state_path = feature / "human-acceptance.json"
+    _rejected_state(state_path)
+    workflow_before = (feature / "workflow-state.md").read_bytes()
+    acceptance_before = state_path.read_bytes()
+
+    with pytest.raises(ValueError, match="routes to spx-implement"):
+        route_human_acceptance_repair(
+            project,
+            feature,
+            route="spx-debug",
+            finding_id="HAF-001",
+            expected_revision=revision,
+            evidence=["Human observed a visible product failure."],
+        )
+
+    assert (feature / "workflow-state.md").read_bytes() == workflow_before
+    assert state_path.read_bytes() == acceptance_before
+
+
+def test_accept_route_repair_cli_returns_the_deterministic_resume_argv(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    project, feature = _feature(tmp_path)
+    entered = enter_workflow(feature, stage="specify", expected_revision=0)
+    revision = entered["data"]["revision"]
+    for target in ("plan", "tasks", "implement", "accept"):
+        transitioned = transition_workflow(
+            feature,
+            target_stage=target,
+            expected_revision=revision,
+        )
+        revision = transitioned["data"]["revision"]
+    prepare_human_acceptance(project, feature)
+    _rejected_state(feature / "human-acceptance.json")
+    monkeypatch.chdir(project)
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "accept",
+            "route-repair",
+            "--feature-dir",
+            str(feature),
+            "--finding-id",
+            "HAF-001",
+            "--route",
+            "spx-implement",
+            "--expected-revision",
+            str(revision),
+            "--evidence",
+            "Human observed the required screen did not open.",
+            "--format",
+            "json",
+        ],
+        catch_exceptions=False,
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["data"]["repair_route"] == "spx-implement"
+    assert payload["data"]["resume_after_repair_argv"][:3] == [
+        "specify",
+        "accept",
+        "prepare",
+    ]
+
+
+def test_acceptance_write_failure_cannot_leave_workflow_reopened(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    project, feature = _feature(tmp_path)
+    entered = enter_workflow(feature, stage="specify", expected_revision=0)
+    revision = entered["data"]["revision"]
+    for target in ("plan", "tasks", "implement", "accept"):
+        transitioned = transition_workflow(
+            feature,
+            target_stage=target,
+            expected_revision=revision,
+        )
+        revision = transitioned["data"]["revision"]
+    prepare_human_acceptance(project, feature)
+    state_path = feature / "human-acceptance.json"
+    _rejected_state(state_path)
+    workflow_before = (feature / "workflow-state.md").read_bytes()
+    acceptance_before = state_path.read_bytes()
+
+    def fail_acceptance_write(_path: Path, _state: dict[str, object]) -> None:
+        raise OSError("simulated read-only acceptance state")
+
+    monkeypatch.setattr(human_acceptance_module, "_write_state", fail_acceptance_write)
+
+    with pytest.raises(OSError, match="read-only"):
+        route_human_acceptance_repair(
+            project,
+            feature,
+            route="spx-implement",
+            finding_id="HAF-001",
+            expected_revision=revision,
+            evidence=["Human observed a visible product failure."],
+        )
+
+    assert (feature / "workflow-state.md").read_bytes() == workflow_before
+    assert state_path.read_bytes() == acceptance_before
 
 
 def test_prepare_marks_source_change_after_closeout_stale(tmp_path: Path) -> None:
