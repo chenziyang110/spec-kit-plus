@@ -12,7 +12,13 @@ from specify_cli.human_acceptance import (
     acceptance_closeout_blockers,
     new_human_acceptance_state,
     prepare_human_acceptance,
+    route_human_acceptance_repair,
     validate_human_acceptance,
+)
+from specify_cli.workflow_runtime import (
+    enter_workflow,
+    show_workflow,
+    transition_workflow,
 )
 
 
@@ -73,6 +79,36 @@ def _accepted_state(state_path: Path) -> dict[str, object]:
         json.dumps(state, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
     return state
+
+
+def _rejected_state(state_path: Path, *, route: str = "spx-implement") -> None:
+    state = _accepted_state(state_path)
+    state["status"] = "rejected"
+    state["scenarios"][0]["verdict"] = "fail"
+    state["scenarios"][0]["steps"][0]["result"] = "fail"
+    state["scenarios"][0]["steps"][0]["observed_result"] = (
+        "The Demo screen remained closed."
+    )
+    state["findings"] = [
+        {
+            "id": "HAF-001",
+            "scenario_id": "HA-001",
+            "step_id": "HA-001-S01",
+            "classification": "product-defect",
+            "route": route,
+            "expected": "The Demo screen opens.",
+            "observed": "The Demo screen remained closed.",
+            "evidence": ["human: visible failure"],
+            "status": "open",
+        }
+    ]
+    state["cursor"] = {"scenario_id": "HA-001", "step_id": "HA-001-S01"}
+    state["overall"] = {
+        "verdict": "fail",
+        "summary": "The required demo scenario failed.",
+        "next_command": route,
+    }
+    state_path.write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
 
 
 def test_template_matches_runtime_empty_state() -> None:
@@ -192,6 +228,60 @@ def test_prepare_creates_fingerprinted_state_and_marks_changed_summary_stale(
     assert stale["status"] == "stale"
     assert state["status"] == "stale"
     assert state["source"]["prepared_from_sha256"] != state["source"]["current_sha256"]
+
+
+def test_rejected_acceptance_routes_through_repair_and_returns_to_accept(
+    tmp_path: Path,
+) -> None:
+    project, feature = _feature(tmp_path)
+    entered = enter_workflow(feature, stage="specify", expected_revision=0)
+    revision = entered["data"]["revision"]
+    for target in ("plan", "tasks", "implement", "accept"):
+        transitioned = transition_workflow(
+            feature,
+            target_stage=target,
+            expected_revision=revision,
+        )
+        revision = transitioned["data"]["revision"]
+    prepare_human_acceptance(project, feature)
+    state_path = feature / "human-acceptance.json"
+    _rejected_state(state_path)
+
+    routed = route_human_acceptance_repair(
+        project,
+        feature,
+        route="spx-implement",
+        finding_id="HAF-001",
+        expected_revision=revision,
+        evidence=["Human observed the required screen did not open."],
+    )
+
+    assert routed["status"] == "ok"
+    assert routed["data"]["stage"] == "implement"
+    assert routed["data"]["repair_route"] == "spx-implement"
+    reopened = json.loads(state_path.read_text(encoding="utf-8"))
+    assert reopened["status"] == "draft"
+    assert reopened["source"]["prepared_from_sha256"] == ""
+    assert reopened["cursor"] == {
+        "scenario_id": "HA-001",
+        "step_id": "HA-001-S01",
+    }
+    assert reopened["scenarios"][0]["verdict"] == "pending"
+    assert reopened["scenarios"][0]["steps"][0]["result"] == "pending"
+    assert reopened["findings"][0]["status"] == "open"
+
+    (feature / "implementation-summary.md").write_text(
+        "# Implementation Summary\n\nDemo repair complete.\n", encoding="utf-8"
+    )
+    prepared = prepare_human_acceptance(project, feature)
+    assert prepared["status"] == "draft"
+    returned = transition_workflow(
+        feature,
+        target_stage="accept",
+        expected_revision=routed["data"]["revision"],
+    )
+    assert returned["data"]["stage"] == "accept"
+    assert show_workflow(feature)["data"]["status"] == "active"
 
 
 def test_prepare_marks_source_change_after_closeout_stale(tmp_path: Path) -> None:

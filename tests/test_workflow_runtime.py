@@ -73,6 +73,43 @@ def test_discussion_is_optional_but_every_required_stage_is_sequential(
     assert revision == 6
 
 
+def test_completed_nonterminal_stage_still_hands_off_to_its_required_next_stage(
+    tmp_path: Path,
+) -> None:
+    feature_dir = _feature(tmp_path)
+    entered = enter_workflow(feature_dir, stage="specify", expected_revision=0)
+    revision = entered["data"]["revision"]
+    for target in ("plan", "tasks", "implement"):
+        result = transition_workflow(
+            feature_dir,
+            target_stage=target,
+            expected_revision=revision,
+        )
+        revision = result["data"]["revision"]
+
+    state_path = workflow_state_path(feature_dir)
+    state_path.write_text(
+        state_path.read_text(encoding="utf-8").replace(
+            "status: active", "status: completed"
+        ),
+        encoding="utf-8",
+    )
+
+    upcoming = next_workflow(feature_dir)
+    assert upcoming["data"]["stage"] == "implement"
+    assert upcoming["data"]["status"] == "completed"
+    assert upcoming["data"]["next_stage"] == "accept"
+    assert upcoming["next_argv"][upcoming["next_argv"].index("--to") + 1] == "accept"
+
+    accepted = transition_workflow(
+        feature_dir,
+        target_stage="accept",
+        expected_revision=revision,
+    )
+    assert accepted["data"]["stage"] == "accept"
+    assert accepted["data"]["status"] == "active"
+
+
 def test_generated_planning_stages_pass_the_existing_state_validator(
     tmp_path: Path,
 ) -> None:
