@@ -51,15 +51,34 @@ cognition_facts:
 <!-- agent-fill:understanding_checkpoint -->
 
 checkpoint:
-  issue: ""
-  issue_detail: ""
-  expected_or_target: ""
-  known_facts: []
-  unknowns_or_risks: []
-  will_change: []
-  will_not_change: []
-  in_scope: []
-  out_of_scope: []
+  request_and_outcome: ""
+  user_visible_result: ""
+  scope:
+    include: []
+    exclude: []
+  recommended_approach: ""
+  assumptions_and_risks: []
+  completion_evidence: []
+  reconfirmation_trigger: ""
+  confirmation_digest: ""
+  user_corrections: []
+
+ui_confirmation:
+  applicable: false
+  confirmation_purpose: ""
+  user_and_primary_job: ""
+  design_basis_and_source_material: []
+  target_experience: ""
+  structure_and_visible_change: ""
+  interaction_states_and_adaptation: []
+  design_boundaries:
+    must_preserve: []
+    may_adapt: []
+    must_not: []
+  acceptance_evidence: []
+  confirmation_digest: ""
+
+agent_execution_plan:
   affected_surfaces: []
   execution_approach: ""
   implementation_plan: []
@@ -67,7 +86,6 @@ checkpoint:
   validation_evidence: []
   stop_condition: ""
   done_or_progress_signal: ""
-  user_corrections: []
 
 ## Execution
 <!-- agent-fill:execution -->

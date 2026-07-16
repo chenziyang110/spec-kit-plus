@@ -14,6 +14,14 @@ SHARED_COGNITION_GUIDANCE_SURFACES = (
     "templates/passive-skills/spec-kit-project-cognition-gate/SKILL.md",
     "templates/passive-skills/spec-kit-workflow-routing/SKILL.md",
 )
+EPISTEMIC_CONTRACT_TERMS = (
+    "epistemic_contract",
+    "route_candidate_only",
+    "fact_source_of_truth=live_repository",
+    "live_verification_required=true",
+    "graph_only_claims_allowed=false",
+    "unverified_claim_action=withhold",
+)
 SEMANTIC_WORK_CONTRACT_PARTIAL = (
     "templates/command-partials/common/semantic-work-contract.md"
 )
@@ -336,6 +344,287 @@ def test_shared_project_cognition_partials_require_semantic_intake_contract() ->
         content = _read(path).lower()
         for term in required_terms:
             assert term in content, f"{path} missing shared semantic intake term: {term}"
+
+
+def test_project_cognition_consumers_enforce_machine_readable_epistemic_contract() -> None:
+    contract_surfaces = (
+        *SHARED_COGNITION_GUIDANCE_SURFACES,
+        "templates/command-partials/common/planning-cognition.md",
+        "templates/command-partials/common/semantic-work-contract.md",
+        "templates/command-partials/ask/shell.md",
+    )
+    for path in contract_surfaces:
+        content = _compact(_read(path).lower())
+        for term in EPISTEMIC_CONTRACT_TERMS:
+            assert term in content, f"{path} missing epistemic contract term: {term}"
+        assert "cannot authorize source changes" in content
+        assert "cannot prove current behavior" in content
+
+    integration_source = _compact(_read("src/specify_cli/integrations/base.py").lower())
+    for term in EPISTEMIC_CONTRACT_TERMS:
+        assert term in integration_source
+    assert "carry `epistemic_contract`" in integration_source
+
+    for path in (
+        "README.md",
+        "PROJECT-HANDBOOK.md",
+        "templates/project-handbook-template.md",
+    ):
+        content = _compact(_read(path).lower())
+        for term in EPISTEMIC_CONTRACT_TERMS:
+            assert term in content, f"{path} missing epistemic contract term: {term}"
+
+
+def test_claim_aware_retrieval_contract_propagates_to_agent_consumers() -> None:
+    runtime_source = _compact(
+        (
+            _read("tools/project-cognition/internal/query/query.go")
+            + _read("tools/project-cognition/internal/query/compass.go")
+            + _read("tools/project-cognition/internal/query/claim_signal.go")
+        ).lower()
+    )
+    for term in (
+        'json:"claim_signals,omitempty"',
+        'json:"claim_refs,omitempty"',
+        '"claim_evidence"',
+        'json:"route_confidence"',
+        'json:"confidence_scope"',
+        'json:"evidence_refs"',
+        'json:"live_verification_required"',
+    ):
+        assert term in runtime_source
+
+    for path in (
+        *SHARED_COGNITION_GUIDANCE_SURFACES,
+        "templates/command-partials/common/planning-cognition.md",
+        "templates/commands/map-build.md",
+    ):
+        content = _compact(_read(path).lower())
+        for term in (
+            "claim_refs",
+            "claim_signals",
+            "claim_evidence",
+            "route_confidence",
+            "confidence_scope",
+        ):
+            assert term in content, f"{path} missing claim-aware retrieval term: {term}"
+        assert "route candidate" in content
+        assert "live verification" in content
+
+    for path in (
+        "README.md",
+        "PROJECT-HANDBOOK.md",
+        "templates/project-handbook-template.md",
+    ):
+        content = _compact(_read(path).lower())
+        for term in (
+            "claim_refs",
+            "claim_signals",
+            "claim_evidence",
+            "route_confidence",
+            "confidence_scope=route_candidate",
+        ):
+            assert term in content, f"{path} missing claim-aware retrieval term: {term}"
+        assert "source_path" in content and "span" in content
+        assert "cannot prove current repository truth" in content
+
+
+def test_claim_aware_ranking_and_reconciliation_contract_propagates_to_agents() -> None:
+    runtime_source = _compact(
+        (
+            _read("tools/project-cognition/internal/query/compass.go")
+            + _read("tools/project-cognition/internal/query/claim_signal.go")
+        ).lower()
+    )
+    for term in (
+        'json:"claim_ranking,omitempty"',
+        'json:"adjustment"',
+        '"match_score"',
+        '"contradicted_claim_signal"',
+        '"stale_claim_signal"',
+        '"reconcile_claims_with_minimal_live_reads"',
+    ):
+        assert term in runtime_source
+
+    for path in (
+        *SHARED_COGNITION_GUIDANCE_SURFACES,
+        "templates/command-partials/common/planning-cognition.md",
+        "templates/commands/map-build.md",
+    ):
+        content = _compact(_read(path).lower())
+        for term in (
+            "claim_ranking",
+            "match_score",
+            "bounded rerank",
+            "contradicted_claim_signal",
+            "stale_claim_signal",
+            "reconcile_claims_with_minimal_live_reads",
+        ):
+            assert term in content, f"{path} missing claim ranking term: {term}"
+        assert "cannot create candidates" in content
+        assert "live verification" in content
+
+    for path in (
+        "README.md",
+        "PROJECT-HANDBOOK.md",
+        "templates/project-handbook-template.md",
+    ):
+        content = _compact(_read(path).lower())
+        for term in (
+            "claim_ranking",
+            "match_score",
+            "bounded rerank",
+            "contradicted_claim_signal",
+            "stale_claim_signal",
+            "reconcile_claims_with_minimal_live_reads",
+        ):
+            assert term in content, f"{path} missing claim ranking term: {term}"
+        assert "cannot create candidates" in content
+        assert "cannot replace live verification" in content
+
+
+def test_typed_graph_claim_lifecycle_is_separate_from_workflow_final_claims() -> None:
+    scan = _compact(_read("templates/commands/map-scan.md").lower())
+    for term in (
+        "provisional/claims.json",
+        "graph_claim_type",
+        "requested_state",
+        "supporting_evidence_ids",
+        "contradicting_evidence_ids",
+        "verifications",
+    ):
+        assert term in scan
+    assert "optional" in scan
+
+    build = _compact(_read("templates/commands/map-build.md").lower())
+    for term in (
+        "schema v5 runtime contract",
+        "claims",
+        "claim_evidence",
+        "claim_verifications",
+        "claim_transitions",
+        "verified_in_graph_generation",
+    ):
+        assert term in build
+    assert "future semantic tables such as claims" not in build
+
+    update = _compact(_read("templates/commands/map-update.md").lower())
+    assert "affected_graph_claims" in update
+    assert "changed paths" in update
+    assert "mark" in update and "stale" in update
+    assert "must not re-promote" in update
+
+    semantic_contract = _compact(_read(SEMANTIC_WORK_CONTRACT_PARTIAL).lower())
+    for term in (
+        "graph claim namespace",
+        "graph_claim_type",
+        "verified_in_graph_generation",
+        "workflow final claim namespace",
+        "claim_readiness.claim_type",
+        "cannot set workflow `claim_ready=true`",
+        "must not populate `claim_verification_refs`",
+    ):
+        assert term in semantic_contract
+
+    shared_surfaces = (
+        *SHARED_COGNITION_GUIDANCE_SURFACES,
+        "templates/command-partials/common/planning-cognition.md",
+        "src/specify_cli/integrations/base.py",
+        "README.md",
+        "PROJECT-HANDBOOK.md",
+        "templates/project-handbook-template.md",
+    )
+    for path in shared_surfaces:
+        content = _compact(_read(path).lower())
+        assert "graph claims are indexed assertions" in content, path
+        assert "verified_in_graph_generation" in content, path
+        assert "cannot set workflow `claim_ready=true`" in content, path
+
+
+def test_live_claim_reconciliation_contract_propagates_without_authorization_leakage() -> None:
+    runtime = _compact(
+        (
+            _read("tools/project-cognition/internal/reconcile/prepare.go")
+            + _read("tools/project-cognition/internal/reconcile/reconcile.go")
+            + _read("tools/project-cognition/internal/store/schema.go")
+            + _read("tools/project-cognition/internal/query/epistemic_contract.go")
+        ).lower()
+    )
+    for term in (
+        "currentpreparecontractversion = 1",
+        "currentcontractversion = 2",
+        "claim_reconciliation_contract_version",
+        "claim_reconciliation_prepare_contract_version",
+        "expected_generation_id",
+        "expected_state",
+        "expected_revision",
+        "expected_content_hash",
+        "packet_hash",
+        "expires_at",
+        "apply_argv",
+        "schemaversion = 5",
+        "route_candidate_only",
+        "rerun_compass_once",
+    ):
+        assert term in runtime
+
+    guidance_surfaces = (
+        *SHARED_COGNITION_GUIDANCE_SURFACES,
+        "templates/command-partials/common/planning-cognition.md",
+        "templates/command-partials/common/inline-project-cognition-update.md",
+        "templates/commands/map-update.md",
+    )
+    for path in guidance_surfaces:
+        content = _compact(_read(path).lower())
+        for term in (
+            "project-cognition claim-reconcile prepare",
+            "project-cognition claim-reconcile apply",
+            "apply_argv",
+            "runtime owns",
+            "claim-specific",
+        ):
+            assert term in content, f"{path} missing claim reconciliation term: {term}"
+        assert "rerun compass" in content
+        for forbidden in (
+            "write a current-only packet",
+            "create a current-only",
+            "rfc3339 `observed_at`",
+            "`expected_generation_id`",
+            "`expected_state`",
+            "`expected_content_hash`",
+        ):
+            assert forbidden not in content, f"{path} still asks the agent to author {forbidden}"
+
+    for path in (
+        "templates/command-partials/common/inline-project-cognition-update.md",
+        "templates/commands/map-update.md",
+    ):
+        content = _compact(_read(path).lower())
+        assert "affected_graph_claims" in content
+        assert "generic" in content and "result_state=ready" in content
+        assert "must not" in content and "re-promote" in content
+
+    semantic = _compact(_read(SEMANTIC_WORK_CONTRACT_PARTIAL).lower())
+    assert "project-cognition claim-reconcile prepare" in semantic
+    assert "project-cognition claim-reconcile apply" in semantic
+    assert "runtime owns" in semantic
+    assert "does not populate" in semantic
+    assert "claim_verification_refs" in semantic
+    assert "workflow_authorization" in semantic
+
+    for path in ("README.md", "PROJECT-HANDBOOK.md", "templates/project-handbook-template.md"):
+        content = _compact(_read(path).lower())
+        for term in (
+            "schema v5",
+            "project-cognition claim-reconcile prepare",
+            "project-cognition claim-reconcile apply",
+            "runtime owns",
+            "apply_argv",
+            "current evidence basis",
+            "schema v4",
+        ):
+            assert term in content, f"{path} missing current claim reconciliation documentation: {term}"
+        assert "does not migrate schema v4" in content
 
 
 def test_shared_semantic_work_contract_partial_defines_permission_and_learning_gates() -> None:
@@ -813,14 +1102,22 @@ def test_shared_readiness_review_guidance_uses_minimal_live_reads() -> None:
 
 
 def test_learning_start_hardening_scope_matches_command_templates() -> None:
-    commands_with_learning_start: set[str] = set()
-    for path in (PROJECT_ROOT / "templates" / "commands").glob("*.md"):
-        content = _read_command(path.name)
-        for match in re.finditer(r"learning start --command ([a-z-]+) --format json", content):
-            commands_with_learning_start.add(match.group(1))
-
-    assert {"debug", "constitution", "map-scan", "map-build"} <= commands_with_learning_start
-    assert {"plan", "implement"}.isdisjoint(commands_with_learning_start)
+    for command in ("debug", "constitution", "map-scan", "map-build", "plan", "implement"):
+        content = _read_command(f"{command}.md")
+        assert "learning start --command" in content, command
+        assert (
+            "select summaries by applicability and triggers" in content.lower()
+            or "learning start --command <classic-command-name> -> list -> show" in content
+        ), command
+        assert (
+            "only to filter or page" in content.lower()
+            or "run selected `show_argv` only" in content
+        ), command
+        assert "learning show" in content or "show_argv" in content, command
+        assert (
+            "do not parse learning storage" in content.lower()
+            or "never parse learning storage" in content.lower()
+        ), command
     assert "context capsule" in _read_command("plan.md").lower()
     assert "current task's required refs" in _read_command("implement.md").lower()
 

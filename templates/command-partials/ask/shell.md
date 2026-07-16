@@ -8,6 +8,7 @@ Answer project questions with evidence-backed, read-only project Q&A.
 
 - Primary inputs: the user's project question, project memory, generated state, docs, templates, live files, and project-cognition navigation output.
 - Project cognition provides advisory navigation. Live evidence is authoritative.
+- Read and carry `epistemic_contract`; require `graph_role=route_candidate_only`, `fact_source_of_truth=live_repository`, `live_verification_required=true`, `graph_only_claims_allowed=false`, and `unverified_claim_action=withhold`. It cannot authorize source changes and cannot prove current behavior.
 - This workflow answers questions only; it does not create implementation, discussion, debug, or planning state.
 
 ## Process

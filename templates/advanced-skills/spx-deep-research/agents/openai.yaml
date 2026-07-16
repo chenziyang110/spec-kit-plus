@@ -1,0 +1,7 @@
+interface:
+  display_name: "SPX Deep Research"
+  short_description: "Pre-plan feasibility evidence"
+  default_prompt: "Use $spx-deep-research to resolve planning-critical feasibility risk."
+
+policy:
+  allow_implicit_invocation: false

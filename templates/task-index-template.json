@@ -13,6 +13,7 @@
   "must_preserve_refs": [],
   "consequence_obligation_refs": [],
   "fidelity_refs": [],
+  "ui_contract_schema_ref": ".specify/templates/task-packet-template.json#/ui_contract",
   "tasks": [],
   "parallel_batches": [],
   "join_points": [],

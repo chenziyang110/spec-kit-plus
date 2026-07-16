@@ -14,6 +14,10 @@ def test_release_workflow_uploads_project_cognition_binaries():
     assert "dist/release-tools/*" in content
     assert "Smoke-test project-cognition release binary" in content
     assert './dist/release-tools/project-cognition-linux-amd64 --help | grep -q "scan-set"' in content
+    assert './dist/release-tools/project-cognition-linux-amd64 --help | grep -q "scan-prepare"' in content
+    assert './dist/release-tools/project-cognition-linux-amd64 --help | grep -q "scan-accept"' in content
+    assert 'scan-prepare --help 2>&1 | grep -q -- "-force"' in content
+    assert 'scan-accept --help 2>&1 | grep -q -- "-packet-id"' in content
     assert "./dist/release-tools/project-cognition-linux-amd64 semantic-intake --help" in content
     assert "./dist/release-tools/project-cognition-linux-amd64 semantic-audit-resume --help" in content
     assert "templates/examples/semantic-audit-resume" in content
@@ -24,8 +28,15 @@ def test_release_workflow_uploads_project_cognition_binaries():
     assert "grep -q -- \"-input\"" in content
     assert "PROJECT_COGNITION_VERSION=${VERSION}" in content
     assert "gh release create" in content
+    assert "gh release upload \"$VERSION\" dist/release-tools/* --clobber" in content
+    assert "--json isDraft,assets" in content
+    assert ".size > 0" in content
+    assert "gh release edit \"$VERSION\" --draft=false" in content
+    assert "already exists after a concurrent release run; treating as success" not in content
     assert r"standalone \`project-cognition\` binary" in content
     assert r"\`scan-set\`" in content
+    assert r"\`scan-prepare\`" in content
+    assert r"\`scan-accept\`" in content
     assert r"prefer \`PROJECT_COGNITION_BIN\`" in content
     assert r"\`semantic-audit-resume\`" in content
     assert "semantic-audit-resume example matrix" in content
@@ -36,6 +47,17 @@ def test_project_handbook_project_cognition_regression_includes_runtime_install_
 
     assert "Focused project cognition regression:" in content
     assert "tests/test_project_cognition_runtime_install.py" in content
+
+
+def test_project_cognition_fallback_release_smokes_advanced_scan_commands():
+    content = (ROOT / ".github" / "workflows" / "release-project-cognition.yml").read_text(
+        encoding="utf-8"
+    )
+
+    assert 'bin/project-cognition-linux-amd64 --help | grep -q "scan-prepare"' in content
+    assert 'bin/project-cognition-linux-amd64 --help | grep -q "scan-accept"' in content
+    assert 'scan-prepare --help 2>&1 | grep -q -- "-force"' in content
+    assert 'scan-accept --help 2>&1 | grep -q -- "-packet-id"' in content
 
 
 def test_release_trigger_has_token_fallback_and_dispatches_release_workflow():

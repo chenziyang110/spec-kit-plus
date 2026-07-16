@@ -8,7 +8,7 @@ Use this for small fixes that are faster to execute than to plan: typo fixes, ti
 
 ## Context
 
-- Primary inputs: the user's request, the smallest relevant local files, passive learning files, and the project cognition safety gate.
+- Primary inputs: the user's request, the smallest relevant local files, and the project cognition safety gate. Fast skips Learning unless it escalates.
 - This path exists only for truly local work; the moment that assumption breaks, the task must leave the fast lane.
 - Fast-path output is intentionally small and should not spawn planning artifacts.
 - Fast-path source/runtime/template/config/test/generated-asset changes follow the shared inline closeout contract:

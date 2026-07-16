@@ -36,6 +36,7 @@ import json5
 import stat
 import yaml
 from datetime import date
+from enum import Enum
 from pathlib import Path
 from typing import Any, Optional, Tuple
 
@@ -83,6 +84,16 @@ from specify_cli.codex_team.runtime_bridge import (
     submit_runtime_result,
 )
 from specify_cli.cli_output import print_json
+from specify_cli.agent_api import (
+    AgentApiError,
+    capabilities_handshake,
+    capability_schema,
+    classify_exit,
+    envelope as agent_envelope,
+    list_capabilities,
+    show_capability,
+)
+from specify_cli.command_catalog import list_command_catalog, show_catalog_command
 from specify_cli.design import (
     DesignDiagnostic,
     DesignLintError,
@@ -90,7 +101,10 @@ from specify_cli.design import (
     import_design_reference,
     lint_design_file,
 )
-from specify_cli.project_cognition_tool import ProjectCognitionToolError, run_project_cognition
+from specify_cli.project_cognition_tool import (
+    ProjectCognitionToolError,
+    run_project_cognition,
+)
 from specify_cli.execution import (
     build_result_handoff_path,
     write_normalized_result_handoff,
@@ -107,7 +121,9 @@ from specify_cli.learnings import (
     ensure_learning_files,
     ensure_learning_memory_from_templates,
     learning_status_payload,
+    list_learning_summaries,
     promote_learning,
+    show_learning_detail,
     start_learning_session,
 )
 from specify_cli.lanes import (
@@ -124,15 +140,27 @@ from specify_cli.lanes import (
     resolve_lane_for_command,
     write_lane_record,
 )
+from specify_cli.workflow_runtime import (
+    WorkflowRuntimeError,
+    block_workflow,
+    closeout_workflow,
+    enter_workflow,
+    next_workflow,
+    show_workflow,
+    transition_workflow,
+)
+
 
 def _build_agent_config() -> dict[str, dict[str, Any]]:
     """Derive AGENT_CONFIG from INTEGRATION_REGISTRY."""
     from .integrations import INTEGRATION_REGISTRY
+
     config: dict[str, dict[str, Any]] = {}
     for key, integration in INTEGRATION_REGISTRY.items():
         if integration.config:
             config[key] = dict(integration.config)
     return config
+
 
 AGENT_CONFIG = _build_agent_config()
 
@@ -142,6 +170,7 @@ AI_ASSISTANT_ALIASES = {
 
 # Agents that use TOML command format (others use Markdown)
 _TOML_AGENTS = frozenset({"gemini", "tabnine"})
+
 
 def _build_ai_assistant_help() -> str:
     """Build the --ai help text from AGENT_CONFIG so it stays in sync with runtime config."""
@@ -162,9 +191,11 @@ def _build_ai_assistant_help() -> str:
     if len(alias_phrases) == 1:
         aliases_text = alias_phrases[0]
     else:
-        aliases_text = ', '.join(alias_phrases[:-1]) + ' and ' + alias_phrases[-1]
+        aliases_text = ", ".join(alias_phrases[:-1]) + " and " + alias_phrases[-1]
 
     return base_help + " Use " + aliases_text + "."
+
+
 AI_ASSISTANT_HELP = _build_ai_assistant_help()
 
 SCRIPT_TYPE_CHOICES = {"sh": "POSIX Shell (bash/zsh)", "ps": "PowerShell"}
@@ -179,7 +210,9 @@ CONSTITUTION_PROFILE_ALIASES = {
 }
 
 CLAUDE_LOCAL_PATH = Path.home() / ".claude" / "local" / "claude"
-CLAUDE_NPM_LOCAL_PATH = Path.home() / ".claude" / "local" / "node_modules" / ".bin" / "claude"
+CLAUDE_NPM_LOCAL_PATH = (
+    Path.home() / ".claude" / "local" / "node_modules" / ".bin" / "claude"
+)
 
 BANNER = """
 ███████╗██████╗ ███████╗ ██████╗██╗███████╗██╗   ██╗
@@ -197,7 +230,9 @@ TAGLINE = "Spec Kit Plus - Spec-Driven Development Toolkit"
 def _require_spec_kit_plus_project(project_root: Path) -> Path:
     specify_dir = project_root / ".specify"
     if not specify_dir.is_dir():
-        console.print("[red]Error:[/red] Not a Spec Kit Plus project (no .specify/ directory)")
+        console.print(
+            "[red]Error:[/red] Not a Spec Kit Plus project (no .specify/ directory)"
+        )
         console.print("Run this command from a Spec Kit Plus project root")
         raise typer.Exit(1)
     return specify_dir
@@ -207,10 +242,17 @@ class StepTracker:
     """Track and render hierarchical steps without emojis, similar to Claude Code tree output.
     Supports live auto-refresh via an attached refresh callback.
     """
+
     def __init__(self, title: str):
         self.title = title
         self.steps = []  # list of dicts: {key, label, status, detail}
-        self.status_order = {"pending": 0, "running": 1, "done": 2, "error": 3, "skipped": 4}
+        self.status_order = {
+            "pending": 0,
+            "running": 1,
+            "done": 2,
+            "error": 3,
+            "skipped": 4,
+        }
         self._refresh_cb = None  # callable to trigger UI refresh
 
     def attach_refresh(self, cb):
@@ -218,7 +260,9 @@ class StepTracker:
 
     def add(self, key: str, label: str):
         if key not in [s["key"] for s in self.steps]:
-            self.steps.append({"key": key, "label": label, "status": "pending", "detail": ""})
+            self.steps.append(
+                {"key": key, "label": label, "status": "pending", "detail": ""}
+            )
             self._maybe_refresh()
 
     def start(self, key: str, detail: str = ""):
@@ -242,7 +286,9 @@ class StepTracker:
                 self._maybe_refresh()
                 return
 
-        self.steps.append({"key": key, "label": key, "status": status, "detail": detail})
+        self.steps.append(
+            {"key": key, "label": key, "status": status, "detail": detail}
+        )
         self._maybe_refresh()
 
     def _maybe_refresh(self):
@@ -275,7 +321,9 @@ class StepTracker:
             if status == "pending":
                 # Entire line light gray (pending)
                 if detail_text:
-                    line = f"{symbol} [bright_black]{label} ({detail_text})[/bright_black]"
+                    line = (
+                        f"{symbol} [bright_black]{label} ({detail_text})[/bright_black]"
+                    )
                 else:
                     line = f"{symbol} [bright_black]{label}[/bright_black]"
             else:
@@ -288,27 +336,31 @@ class StepTracker:
             tree.add(line)
         return tree
 
+
 def get_key():
     """Get a single keypress in a cross-platform way using readchar."""
     key = readchar.readkey()
 
     if key == readchar.key.UP or key == readchar.key.CTRL_P:
-        return 'up'
+        return "up"
     if key == readchar.key.DOWN or key == readchar.key.CTRL_N:
-        return 'down'
+        return "down"
 
     if key == readchar.key.ENTER:
-        return 'enter'
+        return "enter"
 
     if key == readchar.key.ESC:
-        return 'escape'
+        return "escape"
 
     if key == readchar.key.CTRL_C:
         raise KeyboardInterrupt
 
     return key
 
-def select_with_arrows(options: dict, prompt_text: str = "Select an option", default_key: str = None) -> str:
+
+def select_with_arrows(
+    options: dict, prompt_text: str = "Select an option", default_key: str = None
+) -> str:
     """
     Interactive selection using arrow keys with Rich Live display.
 
@@ -341,31 +393,38 @@ def select_with_arrows(options: dict, prompt_text: str = "Select an option", def
                 table.add_row(" ", f"[cyan]{key}[/cyan] [dim]({options[key]})[/dim]")
 
         table.add_row("", "")
-        table.add_row("", "[dim]Use ↑/↓ to navigate, Enter to select, Esc to cancel[/dim]")
+        table.add_row(
+            "", "[dim]Use ↑/↓ to navigate, Enter to select, Esc to cancel[/dim]"
+        )
 
         return Panel(
             table,
             title=f"[bold]{prompt_text}[/bold]",
             border_style="cyan",
-            padding=(1, 2)
+            padding=(1, 2),
         )
 
     console.print()
 
     def run_selection_loop():
         nonlocal selected_key, selected_index
-        with Live(create_selection_panel(), console=console, transient=True, auto_refresh=False) as live:
+        with Live(
+            create_selection_panel(),
+            console=console,
+            transient=True,
+            auto_refresh=False,
+        ) as live:
             while True:
                 try:
                     key = get_key()
-                    if key == 'up':
+                    if key == "up":
                         selected_index = (selected_index - 1) % len(option_keys)
-                    elif key == 'down':
+                    elif key == "down":
                         selected_index = (selected_index + 1) % len(option_keys)
-                    elif key == 'enter':
+                    elif key == "enter":
                         selected_key = option_keys[selected_index]
                         break
-                    elif key == 'escape':
+                    elif key == "escape":
                         console.print("\n[yellow]Selection cancelled[/yellow]")
                         raise typer.Exit(1)
 
@@ -382,6 +441,7 @@ def select_with_arrows(options: dict, prompt_text: str = "Select an option", def
         raise typer.Exit(1)
 
     return selected_key
+
 
 console = Console()
 
@@ -424,6 +484,7 @@ def _command_grid(rows: list[tuple[str, str]]) -> Table:
         table.add_row(label, value)
     return table
 
+
 class BannerGroup(TyperGroup):
     """Custom group that shows banner before help."""
 
@@ -440,6 +501,20 @@ app = typer.Typer(
     invoke_without_command=True,
     cls=BannerGroup,
 )
+
+api_app = typer.Typer(
+    name="api",
+    help="Discover compact, versioned Agent API capabilities and schemas",
+    add_completion=False,
+)
+app.add_typer(api_app, name="api")
+
+workflow_app = typer.Typer(
+    name="workflow",
+    help="Guard and inspect the mandatory SP/SPX feature workflow",
+    add_completion=False,
+)
+app.add_typer(workflow_app, name="workflow")
 
 teams_app = typer.Typer(
     name="sp-teams",
@@ -471,6 +546,13 @@ implement_app = typer.Typer(
     add_completion=False,
 )
 app.add_typer(implement_app, name="implement")
+
+accept_app = typer.Typer(
+    name="accept",
+    help="Prepare, validate, and close resumable human product acceptance",
+    add_completion=False,
+)
+app.add_typer(accept_app, name="accept")
 
 result_app = typer.Typer(
     name="result",
@@ -534,17 +616,557 @@ def _display_path(path: Path) -> str:
     return path.as_posix()
 
 
+AGENT_JSON_FORMAT_OPTION = typer.Option(
+    "json", "--format", help="Machine output format; only json is supported"
+)
+
+
+class TextJsonFormat(str, Enum):
+    text = "text"
+    json = "json"
+
+
+def _emit_agent_payload(payload: dict[str, Any]) -> None:
+    """Emit one compact envelope and preserve stable Agent API exit semantics."""
+
+    print_json(payload)
+    exit_code = classify_exit(payload)
+    if exit_code:
+        raise typer.Exit(exit_code)
+
+
+def _require_agent_json_format(output_format: str) -> None:
+    if str(output_format or "").strip().lower() != "json":
+        _emit_agent_payload(
+            agent_envelope(
+                "invalid",
+                "Agent-facing commands only support --format json.",
+                data={"error_code": "unsupported-output-format"},
+            )
+        )
+
+
+def _run_agent_operation(operation: Any) -> None:
+    try:
+        payload = operation()
+    except WorkflowRuntimeError as exc:
+        payload = exc.to_envelope()
+    except (AgentApiError, ValueError, json.JSONDecodeError) as exc:
+        payload = agent_envelope(
+            "invalid",
+            str(exc),
+            data={"error_code": "invalid-agent-request"},
+        )
+    except OSError as exc:
+        payload = agent_envelope(
+            "error",
+            f"Agent operation failed: {exc}",
+            data={"error_code": "agent-operation-failed"},
+        )
+    _emit_agent_payload(payload)
+
+
+def _resolve_workflow_feature_dir(raw_value: str) -> Path:
+    project_root = Path.cwd().resolve()
+    if not (project_root / ".specify").is_dir():
+        raise AgentApiError(
+            "run workflow commands from a Spec Kit Plus project root containing .specify"
+        )
+    raw_path = Path(str(raw_value or "").strip())
+    if not str(raw_path):
+        raise AgentApiError("feature_dir is required")
+    feature_dir = (
+        raw_path.resolve()
+        if raw_path.is_absolute()
+        else (project_root / raw_path).resolve()
+    )
+    features_root = (project_root / ".specify" / "features").resolve()
+    try:
+        relative = feature_dir.relative_to(features_root)
+    except ValueError as exc:
+        raise AgentApiError(
+            "feature_dir must be inside the current project's .specify/features directory"
+        ) from exc
+    if not relative.parts:
+        raise AgentApiError(
+            "feature_dir must identify one feature below .specify/features"
+        )
+    return feature_dir
+
+
+def _read_agent_input(input_source: str) -> dict[str, Any]:
+    if input_source == "-":
+        raw = sys.stdin.read()
+    else:
+        project_root = Path.cwd().resolve()
+        input_path = Path(input_source)
+        input_path = (
+            input_path.resolve()
+            if input_path.is_absolute()
+            else (project_root / input_path).resolve()
+        )
+        try:
+            input_path.relative_to(project_root)
+        except ValueError as exc:
+            raise AgentApiError("--input must be inside the current project") from exc
+        raw = input_path.read_text(encoding="utf-8")
+    payload = json.loads(raw)
+    if not isinstance(payload, dict):
+        raise AgentApiError("--input must contain one JSON object")
+    return payload
+
+
+def _workflow_artifact_gate(
+    *,
+    feature_dir: Path,
+    current_stage: str,
+    target_stage: str,
+    expected_revision: int,
+    resume_argv: list[str],
+    require_accepted: bool = False,
+) -> dict[str, Any] | None:
+    if current_stage == "discussion":
+        return None
+
+    from .hooks.engine import run_quality_hook
+
+    validation = run_quality_hook(
+        Path.cwd(),
+        "workflow.artifacts.validate",
+        {
+            "command_name": current_stage,
+            "feature_dir": str(feature_dir),
+            "require_accepted": require_accepted,
+        },
+    )
+    if validation.status in {"ok", "warn", "repaired"}:
+        return None
+
+    if validation.status not in {"blocked", "repairable-block"}:
+        return agent_envelope(
+            "error",
+            f"{current_stage} artifact validation failed unexpectedly.",
+            data={
+                "error_code": "artifact-validation-error",
+                "event": validation.event,
+                "stage": current_stage,
+                "target_stage": target_stage,
+                "revision": expected_revision,
+                "errors": list(validation.errors),
+                "warnings": list(validation.warnings),
+            },
+            next_argv=resume_argv,
+        )
+
+    raw = validation.to_dict()
+    blockers = []
+    for item in raw.get("blockers", []):
+        blocker = dict(item)
+        blocker["code"] = "artifact-validation-blocked"
+        resume_command = subprocess.list2cmdline(resume_argv)
+        blocker["resume"] = {
+            "instruction": f"Run the exact resume command: {resume_command}",
+            "command": resume_command,
+            "argv": list(resume_argv),
+        }
+        blockers.append(blocker)
+    return agent_envelope(
+        validation.status,
+        f"{current_stage} artifacts are not ready for {target_stage}.",
+        data={
+            "error_code": "artifact-validation-blocked",
+            "event": validation.event,
+            "stage": current_stage,
+            "target_stage": target_stage,
+            "revision": expected_revision,
+            "errors": list(validation.errors),
+            "warnings": list(validation.warnings),
+        },
+        blockers=blockers,
+        next_argv=resume_argv,
+    )
+
+
+def _workflow_transition_operation(
+    *,
+    feature_dir: Path,
+    target_stage: str,
+    expected_revision: int,
+    summary: str,
+    resolution_evidence: list[str] | None,
+) -> dict[str, Any]:
+    """Validate the completed source stage before performing its guarded handoff."""
+
+    upcoming = next_workflow(feature_dir)
+    current_stage = str(upcoming["data"].get("stage") or "")
+    next_stage = upcoming["data"].get("next_stage")
+    current_revision = upcoming["data"].get("revision")
+
+    # Let the runtime build the canonical transition/revision blocker before
+    # running an artifact gate that cannot change that result.
+    if (
+        str(target_stage or "").strip().lower() != next_stage
+        or expected_revision != current_revision
+        or (upcoming["status"] == "blocked" and not resolution_evidence)
+    ):
+        return transition_workflow(
+            feature_dir,
+            target_stage=target_stage,
+            expected_revision=expected_revision,
+            summary=summary,
+            resolution_evidence=resolution_evidence,
+        )
+
+    resume_argv = [
+        "specify",
+        "workflow",
+        "transition",
+        "--to",
+        str(target_stage),
+        "--feature-dir",
+        str(feature_dir),
+        "--expected-revision",
+        str(expected_revision),
+        "--format",
+        "json",
+    ]
+    for evidence in resolution_evidence or []:
+        resume_argv.extend(["--resolution-evidence", evidence])
+    artifact_block = _workflow_artifact_gate(
+        feature_dir=feature_dir,
+        current_stage=current_stage,
+        target_stage=str(target_stage),
+        expected_revision=expected_revision,
+        resume_argv=resume_argv,
+    )
+    if artifact_block is not None:
+        return artifact_block
+
+    return transition_workflow(
+        feature_dir,
+        target_stage=target_stage,
+        expected_revision=expected_revision,
+        summary=summary,
+        resolution_evidence=resolution_evidence,
+    )
+
+
+def _workflow_closeout_operation(
+    *, feature_dir: Path, expected_revision: int, summary: str
+) -> dict[str, Any]:
+    shown = show_workflow(feature_dir)
+    data = shown["data"]
+    if (
+        data.get("stage") != "accept"
+        or data.get("status") != "active"
+        or data.get("revision") != expected_revision
+    ):
+        return closeout_workflow(
+            feature_dir,
+            expected_revision=expected_revision,
+            summary=summary,
+        )
+    resume_argv = [
+        "specify",
+        "workflow",
+        "closeout",
+        "--feature-dir",
+        str(feature_dir),
+        "--expected-revision",
+        str(expected_revision),
+        "--format",
+        "json",
+    ]
+    artifact_block = _workflow_artifact_gate(
+        feature_dir=feature_dir,
+        current_stage="accept",
+        target_stage="workflow closeout",
+        expected_revision=expected_revision,
+        resume_argv=resume_argv,
+        require_accepted=True,
+    )
+    if artifact_block is not None:
+        return artifact_block
+    return closeout_workflow(
+        feature_dir,
+        expected_revision=expected_revision,
+        summary=summary,
+    )
+
+
+@api_app.command("handshake")
+def api_handshake_command(
+    required: list[str] | None = typer.Option(
+        None,
+        "--require",
+        help="Required capability ID(s); repeat or use comma-separated values",
+    ),
+    output_format: str = AGENT_JSON_FORMAT_OPTION,
+) -> None:
+    """Negotiate Agent API version and required stable capabilities."""
+
+    _require_agent_json_format(output_format)
+    required_ids = [
+        capability.strip()
+        for value in (required or [])
+        for capability in value.split(",")
+        if capability.strip()
+    ]
+    _run_agent_operation(lambda: capabilities_handshake(required=required_ids))
+
+
+@api_app.command("list")
+def api_list_command(
+    cursor: int = typer.Option(0, "--cursor", help="Zero-based result cursor"),
+    limit: int = typer.Option(20, "--limit", help="Maximum summary records"),
+    output_format: str = AGENT_JSON_FORMAT_OPTION,
+) -> None:
+    """List compact capability summaries; expand only the selected record."""
+
+    _require_agent_json_format(output_format)
+    _run_agent_operation(lambda: list_capabilities(cursor=cursor, limit=limit))
+
+
+@api_app.command("show")
+def api_show_command(
+    capability_id: str = typer.Argument(..., help="Stable capability ID"),
+    output_format: str = AGENT_JSON_FORMAT_OPTION,
+) -> None:
+    """Expand one capability record."""
+
+    _require_agent_json_format(output_format)
+    _run_agent_operation(lambda: show_capability(capability_id))
+
+
+@api_app.command("schema")
+def api_schema_command(
+    schema_id: str = typer.Argument(..., help="Schema ID returned by api show"),
+    output_format: str = AGENT_JSON_FORMAT_OPTION,
+) -> None:
+    """Expand one machine-readable JSON schema."""
+
+    _require_agent_json_format(output_format)
+    _run_agent_operation(lambda: capability_schema(schema_id))
+
+
+@api_app.command("commands")
+def api_commands_command(
+    cursor: int = typer.Option(0, "--cursor", help="Zero-based result cursor"),
+    limit: int = typer.Option(20, "--limit", help="Maximum summary records"),
+    query: str = typer.Option("", "--query", help="ID/help substring filter"),
+    output_format: str = AGENT_JSON_FORMAT_OPTION,
+) -> None:
+    """List every installed CLI operation without expanding its parameters."""
+
+    _require_agent_json_format(output_format)
+    _run_agent_operation(
+        lambda: list_command_catalog(
+            app,
+            cursor=cursor,
+            limit=limit,
+            query=query,
+        )
+    )
+
+
+@api_app.command("command")
+def api_command_command(
+    command_id: str = typer.Argument(..., help="Dot-separated CLI operation ID"),
+    output_format: str = AGENT_JSON_FORMAT_OPTION,
+) -> None:
+    """Expand parameters and machine-output metadata for one CLI operation."""
+
+    _require_agent_json_format(output_format)
+    _run_agent_operation(lambda: show_catalog_command(app, command_id))
+
+
+@workflow_app.command("show")
+def workflow_show_command(
+    feature_dir: str = typer.Option(..., "--feature-dir", help="Feature directory"),
+    output_format: str = AGENT_JSON_FORMAT_OPTION,
+) -> None:
+    """Read the current compact workflow state."""
+
+    _require_agent_json_format(output_format)
+    _run_agent_operation(
+        lambda: show_workflow(_resolve_workflow_feature_dir(feature_dir))
+    )
+
+
+@workflow_app.command("enter")
+def workflow_enter_command(
+    command_name: str = typer.Option(
+        "specify", "--command", help="Entry command: discussion or specify"
+    ),
+    feature_dir: str = typer.Option(..., "--feature-dir", help="Feature directory"),
+    expected_revision: int = typer.Option(
+        0, "--expected-revision", help="Expected absent-state revision"
+    ),
+    summary: str = typer.Option("", "--summary", help="Compact stage summary"),
+    output_format: str = AGENT_JSON_FORMAT_OPTION,
+) -> None:
+    """Create guarded workflow state at discussion or specify."""
+
+    _require_agent_json_format(output_format)
+    _run_agent_operation(
+        lambda: enter_workflow(
+            _resolve_workflow_feature_dir(feature_dir),
+            stage=command_name,
+            expected_revision=expected_revision,
+            summary=summary,
+        )
+    )
+
+
+@workflow_app.command("next")
+def workflow_next_command(
+    feature_dir: str = typer.Option(..., "--feature-dir", help="Feature directory"),
+    output_format: str = AGENT_JSON_FORMAT_OPTION,
+) -> None:
+    """Resolve the only legal next stage without mutating state."""
+
+    _require_agent_json_format(output_format)
+    _run_agent_operation(
+        lambda: next_workflow(_resolve_workflow_feature_dir(feature_dir))
+    )
+
+
+@workflow_app.command("transition")
+def workflow_transition_command(
+    target_stage: str = typer.Option(..., "--to", help="Required next stage"),
+    feature_dir: str = typer.Option(..., "--feature-dir", help="Feature directory"),
+    expected_revision: int = typer.Option(
+        ..., "--expected-revision", help="Current workflow revision"
+    ),
+    summary: str = typer.Option("", "--summary", help="Compact target summary"),
+    resolution_evidence: list[str] | None = typer.Option(
+        None,
+        "--resolution-evidence",
+        help="Sanitized evidence resolving a recorded blocker; repeat as needed",
+    ),
+    output_format: str = AGENT_JSON_FORMAT_OPTION,
+) -> None:
+    """Advance exactly one mandatory SP/SPX stage."""
+
+    _require_agent_json_format(output_format)
+    _run_agent_operation(
+        lambda: _workflow_transition_operation(
+            feature_dir=_resolve_workflow_feature_dir(feature_dir),
+            target_stage=target_stage,
+            expected_revision=expected_revision,
+            summary=summary,
+            resolution_evidence=resolution_evidence,
+        )
+    )
+
+
+@workflow_app.command("block")
+def workflow_block_command(
+    input_source: str = typer.Option(
+        "-", "--input", help="Structured blocker JSON file, or - for stdin"
+    ),
+    feature_dir: str | None = typer.Option(
+        None, "--feature-dir", help="Override feature_dir from the JSON input"
+    ),
+    output_format: str = AGENT_JSON_FORMAT_OPTION,
+) -> None:
+    """Persist one detailed blocker and its human-resolution tutorial."""
+
+    _require_agent_json_format(output_format)
+
+    def operation() -> dict[str, Any]:
+        payload = _read_agent_input(input_source)
+        raw_feature_dir = feature_dir or str(payload.pop("feature_dir", ""))
+        expected_revision = payload.pop("expected_revision", None)
+        if isinstance(expected_revision, bool) or not isinstance(
+            expected_revision, int
+        ):
+            raise AgentApiError("expected_revision must be an integer")
+        human_action = payload.pop("human_action", None)
+        if human_action is not None and not isinstance(human_action, dict):
+            raise AgentApiError("human_action must be an object or null")
+        human_action_required = payload.pop("human_action_required", None)
+        if human_action_required is not None and not isinstance(
+            human_action_required, bool
+        ):
+            raise AgentApiError("human_action_required must be a boolean or null")
+        category = payload.pop("category", "")
+        owner = payload.pop("owner", "")
+        cause = payload.pop("cause", "")
+        evidence = payload.pop("evidence", [])
+        attempted_recovery = payload.pop("attempted_recovery", [])
+        affected_scope = payload.pop("affected_scope", [])
+        exact_next_action = payload.pop("exact_next_action", "")
+        unblock_criteria = payload.pop("unblock_criteria", "")
+        resume_argv = payload.pop("resume_argv", [])
+        if payload:
+            unknown = ", ".join(sorted(payload))
+            raise AgentApiError(f"unknown blocker input field(s): {unknown}")
+        return block_workflow(
+            _resolve_workflow_feature_dir(raw_feature_dir),
+            expected_revision=expected_revision,
+            category=category,
+            owner=owner,
+            cause=cause,
+            evidence=evidence,
+            attempted_recovery=attempted_recovery,
+            affected_scope=affected_scope,
+            exact_next_action=exact_next_action,
+            unblock_criteria=unblock_criteria,
+            resume_argv=resume_argv,
+            human_action=human_action,
+            human_action_required=human_action_required,
+        )
+
+    _run_agent_operation(operation)
+
+
+@workflow_app.command("closeout")
+def workflow_closeout_command(
+    feature_dir: str = typer.Option(..., "--feature-dir", help="Feature directory"),
+    expected_revision: int = typer.Option(
+        ..., "--expected-revision", help="Current workflow revision"
+    ),
+    summary: str = typer.Option("", "--summary", help="Acceptance closeout summary"),
+    output_format: str = AGENT_JSON_FORMAT_OPTION,
+) -> None:
+    """Close a workflow only from active human acceptance."""
+
+    _require_agent_json_format(output_format)
+    _run_agent_operation(
+        lambda: _workflow_closeout_operation(
+            feature_dir=_resolve_workflow_feature_dir(feature_dir),
+            expected_revision=expected_revision,
+            summary=summary,
+        )
+    )
+
+
 @design_app.command("lint")
 def design_lint(
     path: Path = typer.Argument(Path("DESIGN.md"), help="Path to DESIGN.md"),
-    output_format: str = typer.Option("text", "--format", help="Output format: text or json"),
+    output_format: TextJsonFormat = typer.Option(
+        TextJsonFormat.text, "--format", help="Output format: text or json"
+    ),
+    level: str = typer.Option(
+        "structural",
+        "--level",
+        help="Validation level: structural or ready",
+    ),
 ) -> None:
+    """Validate DESIGN.md structure or approval readiness."""
+
     output_format = output_format.lower()
     if output_format not in {"text", "json"}:
         console.print(f"[red]Error:[/red] unsupported output format: {output_format}")
         raise typer.Exit(2)
 
-    diagnostics = lint_design_file(path)
+    level = level.lower()
+    if level not in {"structural", "ready"}:
+        console.print(f"[red]Error:[/red] unsupported design lint level: {level}")
+        raise typer.Exit(2)
+
+    diagnostics = lint_design_file(path, level=level)
     if output_format == "json":
         print_json(_diagnostics_payload(diagnostics))
         if diagnostics:
@@ -552,7 +1174,7 @@ def design_lint(
         return
 
     if not diagnostics:
-        console.print(f"{_display_path(path)} is valid")
+        console.print(f"{_display_path(path)} is valid at {level} level")
         return
 
     for diagnostic in diagnostics:
@@ -563,16 +1185,31 @@ def design_lint(
 @design_app.command("export")
 def design_export(
     path: Path = typer.Argument(Path("DESIGN.md"), help="Path to DESIGN.md"),
-    output_format: str = typer.Option("json", "--format", help="Output format: json or tailwind"),
-    out: Optional[Path] = typer.Option(None, "--out", help="Write rendered design system to a file"),
+    output_format: str = typer.Option(
+        "json", "--format", help="Output format: json or tailwind"
+    ),
+    out: Optional[Path] = typer.Option(
+        None, "--out", help="Write rendered design system to a file"
+    ),
+    allow_unapproved: bool = typer.Option(
+        False,
+        "--allow-unapproved",
+        help="Compatibility escape hatch: export a structurally valid legacy design without ready approval",
+    ),
 ) -> None:
+    """Render an approved design system as JSON or Tailwind data."""
+
     output_format = output_format.lower()
     if output_format not in {"json", "tailwind"}:
         print("Error: --format must be json or tailwind")
         raise typer.Exit(2)
 
     try:
-        rendered = export_design_system(path, export_format=output_format)
+        rendered = export_design_system(
+            path,
+            export_format=output_format,
+            require_ready=not allow_unapproved,
+        )
     except DesignLintError as exc:
         console.print(f"[red]Error:[/red] {exc}")
         raise typer.Exit(1)
@@ -589,15 +1226,22 @@ def design_export(
 @design_app.command("import")
 def design_import(
     source: str = typer.Argument(..., help="Design reference source URL or path"),
-    notes: str = typer.Option("", "--notes", help="Notes to store with the imported reference"),
-    out_dir: Path = typer.Option(Path(".specify/design"), "--out-dir", help="Directory for design references"),
+    notes: str = typer.Option(
+        "", "--notes", help="Notes to store with the imported reference"
+    ),
+    out_dir: Path = typer.Option(
+        Path(".specify/design"), "--out-dir", help="Directory for design references"
+    ),
 ) -> None:
+    """Store a design reference URL or path in the project."""
+
     out_path = import_design_reference(source, out_dir=out_dir, notes=notes)
     print(f"Wrote {_display_path(out_path)}")
 
+
 def show_banner():
     """Display the ASCII art banner."""
-    banner_lines = BANNER.strip().split('\n')
+    banner_lines = BANNER.strip().split("\n")
     colors = ["bright_blue", "blue", "cyan", "bright_cyan", "white", "bright_white"]
 
     styled_banner = Text()
@@ -636,15 +1280,28 @@ def _open_block(
 
     return Group(*renderables)
 
+
 @app.callback()
 def callback(ctx: typer.Context):
     """Show banner when no subcommand is provided."""
-    if ctx.invoked_subcommand is None and "--help" not in sys.argv and "-h" not in sys.argv:
+    if (
+        ctx.invoked_subcommand is None
+        and "--help" not in sys.argv
+        and "-h" not in sys.argv
+    ):
         show_banner()
-        console.print(Align.center("[dim]Run 'specify --help' for usage information[/dim]"))
+        console.print(
+            Align.center("[dim]Run 'specify --help' for usage information[/dim]")
+        )
         console.print()
 
-def run_command(cmd: list[str], check_return: bool = True, capture: bool = False, shell: bool = False) -> Optional[str]:
+
+def run_command(
+    cmd: list[str],
+    check_return: bool = True,
+    capture: bool = False,
+    shell: bool = False,
+) -> Optional[str]:
     """Run a shell command and optionally capture output."""
     try:
         if capture:
@@ -665,7 +1322,7 @@ def run_command(cmd: list[str], check_return: bool = True, capture: bool = False
         if check_return:
             console.print(f"[red]Error running command:[/red] {' '.join(cmd)}")
             console.print(f"[red]Exit code:[/red] {e.returncode}")
-            if hasattr(e, 'stderr') and e.stderr:
+            if hasattr(e, "stderr") and e.stderr:
                 console.print(f"[red]Error output:[/red] {e.stderr}")
             raise
         return None
@@ -727,7 +1384,10 @@ def _render_project_map_freshness(result: dict[str, Any]) -> None:
     rows = [
         ("Cognition Freshness", f"[cyan]{result['freshness']}[/cyan]"),
         ("Readiness", f"[cyan]{result.get('readiness', 'unknown')}[/cyan]"),
-        ("Next Action", f"[cyan]{result.get('recommended_next_action', 'unknown')}[/cyan]"),
+        (
+            "Next Action",
+            f"[cyan]{result.get('recommended_next_action', 'unknown')}[/cyan]",
+        ),
         ("Status File", f"[dim]{result['status_path']}[/dim]"),
     ]
     if result.get("head_commit"):
@@ -737,7 +1397,9 @@ def _render_project_map_freshness(result: dict[str, Any]) -> None:
     if result.get("dirty"):
         rows.append(("Dirty", "[yellow]true[/yellow]"))
 
-    console.print(_cli_panel(_labeled_grid(rows), title="Project Cognition", border_style="cyan"))
+    console.print(
+        _cli_panel(_labeled_grid(rows), title="Project Cognition", border_style="cyan")
+    )
 
     reasons = result.get("reasons") or []
     if reasons:
@@ -758,7 +1420,9 @@ def _render_project_map_freshness(result: dict[str, Any]) -> None:
             console.print(f"- {topic}")
 
 
-def _render_project_map_preflight_guidance(result: dict[str, Any], *, command_name: str) -> None:
+def _render_project_map_preflight_guidance(
+    result: dict[str, Any], *, command_name: str
+) -> None:
     state = str(result.get("state", result.get("freshness", ""))).strip().lower()
     console.print(
         f"[yellow]Warning:[/yellow] Project cognition freshness is {state or 'unknown'} for [cyan]{command_name}[/cyan]."
@@ -768,7 +1432,9 @@ def _render_project_map_preflight_guidance(result: dict[str, Any], *, command_na
     )
     recommended_next_action = str(result.get("recommended_next_action", "")).strip()
     if recommended_next_action:
-        console.print(f"[yellow]Recommended next action:[/yellow] {recommended_next_action}")
+        console.print(
+            f"[yellow]Recommended next action:[/yellow] {recommended_next_action}"
+        )
     reasons = result.get("reasons") or []
     if reasons:
         console.print("[bold]Reasons[/bold]")
@@ -786,7 +1452,10 @@ def _render_project_map_preflight_guidance(result: dict[str, Any], *, command_na
         console.print(
             "Refresh data was recorded, but the current map remains partial for the touched area."
         )
-    elif str(result.get("recommended_next_action", "")).strip().lower() == "run_map_scan_build":
+    elif (
+        str(result.get("recommended_next_action", "")).strip().lower()
+        == "run_map_scan_build"
+    ):
         console.print(
             "Run [cyan]/sp-map-scan[/cyan], then [cyan]/sp-map-build[/cyan] only when the project cognition "
             "baseline is missing or unusable, or when freshness reasons include "
@@ -815,7 +1484,9 @@ def _project_map_preflight(
             "state": "missing_baseline",
             "readiness": "blocked",
             "recommended_next_action": "install_project_cognition",
-            "status_path": str(project_root / ".specify" / "project-cognition" / "status.json"),
+            "status_path": str(
+                project_root / ".specify" / "project-cognition" / "status.json"
+            ),
             "reasons": [str(exc)],
         }
     freshness = str(result.get("state", result["freshness"])).strip().lower()
@@ -832,7 +1503,9 @@ def _project_map_preflight(
     return result
 
 
-def _require_fresh_project_map_for_execution(project_root: Path, *, command_name: str) -> dict[str, Any]:
+def _require_fresh_project_map_for_execution(
+    project_root: Path, *, command_name: str
+) -> dict[str, Any]:
     return _project_map_preflight(
         project_root,
         command_name=command_name,
@@ -845,15 +1518,30 @@ def _project_root_from_source() -> Path:
 
 def _quick_helper_script() -> tuple[list[str], Path]:
     project_root = _project_root_from_source()
+    core_pack = _locate_core_pack()
     if os.name == "nt":
-        script_path = project_root / "scripts" / "powershell" / "quick-state.ps1"
+        script_path = (
+            core_pack / "scripts" / "powershell" / "quick-state.ps1"
+            if core_pack is not None
+            else project_root / "scripts" / "powershell" / "quick-state.ps1"
+        )
         if shutil.which("pwsh"):
             return ["pwsh", "-NoProfile", "-File"], script_path
         if shutil.which("powershell"):
-            return ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File"], script_path
+            return [
+                "powershell",
+                "-NoProfile",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-File",
+            ], script_path
         console.print("[red]Error:[/red] Neither 'pwsh' nor 'powershell' is available")
         raise typer.Exit(1)
-    script_path = project_root / "scripts" / "bash" / "quick-state.sh"
+    script_path = (
+        core_pack / "scripts" / "bash" / "quick-state.sh"
+        if core_pack is not None
+        else project_root / "scripts" / "bash" / "quick-state.sh"
+    )
     return ["bash"], script_path
 
 
@@ -887,7 +1575,9 @@ def _run_quick_helper(
         check=False,
     )
     if result.returncode != 0:
-        error_output = (result.stderr or result.stdout or "").strip() or "quick helper failed"
+        error_output = (
+            result.stderr or result.stdout or ""
+        ).strip() or "quick helper failed"
         console.print(f"[red]Error:[/red] {error_output}")
         raise typer.Exit(1)
 
@@ -917,7 +1607,13 @@ def _discussion_helper_script() -> tuple[list[str], Path]:
         if shutil.which("pwsh"):
             return ["pwsh", "-NoProfile", "-File"], script_path
         if shutil.which("powershell"):
-            return ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File"], script_path
+            return [
+                "powershell",
+                "-NoProfile",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-File",
+            ], script_path
         console.print("[red]Error:[/red] Neither 'pwsh' nor 'powershell' is available")
         raise typer.Exit(1)
     script_path = (
@@ -936,7 +1632,9 @@ def _run_discussion_helper(
 ) -> dict[str, Any]:
     interpreter, script_path = _discussion_helper_script()
     if not script_path.exists():
-        console.print(f"[red]Error:[/red] Discussion helper script not found: {script_path}")
+        console.print(
+            f"[red]Error:[/red] Discussion helper script not found: {script_path}"
+        )
         raise typer.Exit(1)
 
     cmd = [
@@ -962,7 +1660,9 @@ def _run_discussion_helper(
         env=env,
     )
     if result.returncode != 0:
-        error_output = (result.stderr or result.stdout or "").strip() or "discussion helper failed"
+        error_output = (
+            result.stderr or result.stdout or ""
+        ).strip() or "discussion helper failed"
         console.print(f"[red]Error:[/red] {error_output}")
         raise typer.Exit(1)
 
@@ -972,7 +1672,9 @@ def _run_discussion_helper(
     try:
         payload = json.loads(raw)
     except json.JSONDecodeError as exc:
-        console.print(f"[red]Error:[/red] Failed to parse discussion helper output: {exc}")
+        console.print(
+            f"[red]Error:[/red] Failed to parse discussion helper output: {exc}"
+        )
         raise typer.Exit(1) from exc
     if not isinstance(payload, dict):
         console.print("[red]Error:[/red] Discussion helper returned an invalid payload")
@@ -992,7 +1694,13 @@ def _prd_helper_script() -> tuple[list[str], Path]:
         if shutil.which("pwsh"):
             return ["pwsh", "-NoProfile", "-File"], script_path
         if shutil.which("powershell"):
-            return ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File"], script_path
+            return [
+                "powershell",
+                "-NoProfile",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-File",
+            ], script_path
         console.print("[red]Error:[/red] Neither 'pwsh' nor 'powershell' is available")
         raise typer.Exit(1)
     script_path = (
@@ -1033,7 +1741,9 @@ def _run_prd_helper(
         env=env,
     )
     if result.returncode != 0:
-        error_output = (result.stderr or result.stdout or "").strip() or "PRD helper failed"
+        error_output = (
+            result.stderr or result.stdout or ""
+        ).strip() or "PRD helper failed"
         console.print(f"[red]Error:[/red] {error_output}")
         raise typer.Exit(1)
 
@@ -1076,9 +1786,9 @@ def _render_spec_kit_managed_block(*, newline: str) -> str:
             "",
             "## Always-On Context",
             "",
-            "- Project cognition and project memory are always available, even without an active `sp-*` workflow.",
+            "- Project cognition and Project Learning are always available, even without an active `sp-*` workflow.",
             "- When existing-system truth matters, use project cognition before broad source inspection and use its results to narrow live reads.",
-            "- Read `.specify/memory/project-rules.md` and `.specify/memory/learnings/INDEX.md` before decisions that depend on local conventions, constraints, or past lessons.",
+            "- Run `specify learning start --command <workflow> --format json` before non-trivial decisions that depend on local conventions, constraints, or past lessons; expand only selected matching Learning through `show_argv`.",
             "",
             "## Workflow Recommendations",
             "",
@@ -1098,7 +1808,7 @@ def _render_spec_kit_managed_block(*, newline: str) -> str:
             "- When resuming generated work, prefer durable workflow state and explicit feature paths over branch name or chat memory.",
             "- For `sp-discussion`, default ordinary replies and acknowledgements to frontstage-only deferred persistence: do not write discussion files, counters, dirty markers, receipts, or status summaries for every user reply; flush only at semantic checkpoints, user-triggered checkpoints/saves, compaction risk, or lifecycle transitions. After several unsaved turns, mention the unsaved turn count and suggest `checkpoint, continue`; the prompt does not write files by itself.",
             "- Keep project cognition freshness truthful after changes to architecture, ownership, workflow names, integration contracts, or verification entry points.",
-            "- Store reusable lessons in project memory, not only in chat or task artifacts.",
+            "- Store reusable lessons through Project Learning, not only in chat or task artifacts.",
             "",
             "- Preserve content outside this managed block.",
             SPEC_KIT_BLOCK_END,
@@ -1259,7 +1969,9 @@ def _render_discussion_table(discussions: list[dict[str, Any]]) -> None:
 def _normalize_prd_payload(payload: dict[str, Any]) -> dict[str, Any]:
     normalized = dict(payload)
     mode = str(payload.get("mode") or "")
-    surfaces = payload.get("surfaces") if isinstance(payload.get("surfaces"), dict) else {}
+    surfaces = (
+        payload.get("surfaces") if isinstance(payload.get("surfaces"), dict) else {}
+    )
     if mode in {"init-scan", "status", "status-scan", "init"}:
         relevant_surfaces = {
             "workflow_state",
@@ -1301,10 +2013,101 @@ def _normalize_prd_payload(payload: dict[str, Any]) -> dict[str, Any]:
     else:
         relevant_surfaces = set(surfaces)
 
-    relevant_present = {name: bool(present) for name, present in surfaces.items() if name in relevant_surfaces}
-    normalized["complete"] = bool(relevant_present) and all(relevant_present.values())
-    normalized["missing"] = sorted(name for name, present in relevant_present.items() if not present)
+    relevant_present = {
+        name: bool(present)
+        for name, present in surfaces.items()
+        if name in relevant_surfaces
+    }
+    surface_complete = bool(relevant_present) and all(relevant_present.values())
+    normalized["surface_complete"] = surface_complete
+    semantic_status = str(normalized.get("status") or "").strip()
+    semantic_readiness = str(normalized.get("readiness") or "").strip()
+    if mode == "status-build" and semantic_status in {"ready", "blocked"}:
+        normalized["complete"] = (
+            surface_complete
+            and semantic_status == "ready"
+            and semantic_readiness == "complete"
+        )
+    else:
+        normalized["complete"] = surface_complete
+    normalized["missing"] = sorted(
+        name for name, present in relevant_present.items() if not present
+    )
     return normalized
+
+
+def _apply_prd_build_semantic_readiness(
+    project_root: Path, payload: dict[str, Any]
+) -> dict[str, Any]:
+    """Attach semantic readiness to the physical PRD build surface status."""
+
+    from .hooks.artifact_validation import (
+        validate_artifacts_hook,
+        validate_prd_build_readiness,
+    )
+
+    normalized = _normalize_prd_payload(payload)
+    run_dir = Path(str(normalized.get("workspace_path") or ""))
+    run_id = str(normalized.get("workspace") or run_dir.name)
+    rerun = f"specify prd-build {run_id} --json"
+    readiness_errors = validate_prd_build_readiness(run_dir)
+
+    enriched = dict(payload)
+    enriched["surface_complete"] = bool(normalized.get("surface_complete"))
+    if readiness_errors:
+        enriched.update(
+            {
+                "status": "blocked",
+                "readiness": "blocked",
+                "errors": readiness_errors,
+                "recovery": {
+                    "stage": "prd-scan",
+                    "action": "repair the reported frozen scan-package gaps",
+                    "rerun": rerun,
+                },
+            }
+        )
+        return enriched
+
+    if not normalized.get("surface_complete"):
+        enriched.update(
+            {
+                "status": "ready",
+                "readiness": "ready-to-build",
+                "errors": [],
+                "recovery": None,
+            }
+        )
+        return enriched
+
+    completion = validate_artifacts_hook(
+        project_root,
+        {"command_name": "prd-build", "feature_dir": str(run_dir)},
+    )
+    if completion.status == "blocked":
+        enriched.update(
+            {
+                "status": "blocked",
+                "readiness": "blocked",
+                "errors": list(completion.errors),
+                "recovery": {
+                    "stage": "prd-build",
+                    "action": "repair the reported export or traceability gaps",
+                    "rerun": rerun,
+                },
+            }
+        )
+        return enriched
+
+    enriched.update(
+        {
+            "status": "ready",
+            "readiness": "complete",
+            "errors": [],
+            "recovery": None,
+        }
+    )
+    return enriched
 
 
 def _render_prd_payload(payload: dict[str, Any], *, json_output: bool = False) -> None:
@@ -1328,9 +2131,19 @@ def _render_prd_payload(payload: dict[str, Any], *, json_output: bool = False) -
         ("Path", str(normalized.get("workspace_path", ""))),
         ("Complete", "yes" if normalized.get("complete") else "no"),
     ]
+    if normalized.get("status"):
+        rows.append(("Status", str(normalized["status"])))
+    if normalized.get("readiness"):
+        rows.append(("Readiness", str(normalized["readiness"])))
     missing = normalized.get("missing")
     if isinstance(missing, list) and missing:
         rows.append(("Missing", ", ".join(str(item) for item in missing)))
+    errors = normalized.get("errors")
+    if isinstance(errors, list) and errors:
+        rows.append(("Errors", "; ".join(str(item) for item in errors)))
+    recovery = normalized.get("recovery")
+    if isinstance(recovery, dict) and recovery.get("action"):
+        rows.append(("Recovery", str(recovery["action"])))
     console.print(_cli_panel(_labeled_grid(rows), title=title, border_style="cyan"))
 
 
@@ -1340,12 +2153,18 @@ def prd_scan_command(
         "prd-run",
         help="Run slug to initialize, or run ID when using --status",
     ),
-    status: bool = typer.Option(False, "--status", help="Show an existing PRD scan run surface status"),
-    json_output: bool = typer.Option(False, "--json", help="Print the helper payload as JSON"),
+    status: bool = typer.Option(
+        False, "--status", help="Show an existing PRD scan run surface status"
+    ),
+    json_output: bool = typer.Option(
+        False, "--json", help="Print the helper payload as JSON"
+    ),
 ):
     """Initialize or inspect a heavy reconstruction PRD scan run with subagent-mandatory L4 Reconstruction-Ready evidence and config-contracts.json."""
     _require_spec_kit_plus_project(Path.cwd())
-    payload = _run_prd_helper("status-scan" if status else "init-scan", run_slug=run_slug)
+    payload = _run_prd_helper(
+        "status-scan" if status else "init-scan", run_slug=run_slug
+    )
     _render_prd_payload(payload, json_output=json_output)
 
 
@@ -1355,11 +2174,15 @@ def prd_build_command(
         ...,
         help="Run ID for an existing PRD scan/build workspace",
     ),
-    json_output: bool = typer.Option(False, "--json", help="Print the helper payload as JSON"),
+    json_output: bool = typer.Option(
+        False, "--json", help="Print the helper payload as JSON"
+    ),
 ):
     """Inspect a validated heavy reconstruction PRD build workspace; compile exports from the scan package without a second repository scan and block when critical-evidence gaps remain."""
-    _require_spec_kit_plus_project(Path.cwd())
+    project_root = Path.cwd()
+    _require_spec_kit_plus_project(project_root)
     payload = _run_prd_helper("status-build", run_slug=run_slug)
+    payload = _apply_prd_build_semantic_readiness(project_root, payload)
     _render_prd_payload(payload, json_output=json_output)
 
 
@@ -1369,8 +2192,12 @@ def prd_command(
         "prd-run",
         help="Compatibility entrypoint for the heavy reconstruction lane: run slug to initialize, or run ID when using --status",
     ),
-    status: bool = typer.Option(False, "--status", help="Show status; requires L4 Reconstruction-Ready."),
-    json_output: bool = typer.Option(False, "--json", help="Print the helper payload as JSON"),
+    status: bool = typer.Option(
+        False, "--status", help="Show status; requires L4 Reconstruction-Ready."
+    ),
+    json_output: bool = typer.Option(
+        False, "--json", help="Print the helper payload as JSON"
+    ),
 ):
     """Deprecated compatibility entrypoint; prefer `prd-scan` then `prd-build` for heavy reconstruction, subagent-mandatory scan evidence, L4 Reconstruction-Ready critical claims, and config-contracts.json."""
     _require_spec_kit_plus_project(Path.cwd())
@@ -1380,8 +2207,12 @@ def prd_command(
 
 @discussion_app.command("list")
 def discussion_list(
-    all_discussions: bool = typer.Option(False, "--all", help="Include closed and archived discussions"),
-    json_output: bool = typer.Option(False, "--json", help="Print discussion records as JSON"),
+    all_discussions: bool = typer.Option(
+        False, "--all", help="Include closed and archived discussions"
+    ),
+    json_output: bool = typer.Option(
+        False, "--json", help="Print discussion records as JSON"
+    ),
 ):
     """List tracked discussion sessions."""
     _require_spec_kit_plus_project(Path.cwd())
@@ -1400,7 +2231,9 @@ def discussion_list(
 def discussion_init(
     topic: str = typer.Argument(..., help="Human-readable discussion topic"),
     slug: str = typer.Option("", "--slug", help="Optional stable discussion slug"),
-    json_output: bool = typer.Option(False, "--json", help="Print initialized state as JSON"),
+    json_output: bool = typer.Option(
+        False, "--json", help="Print initialized state as JSON"
+    ),
 ):
     """Initialize a minimal typed discussion session."""
     _require_spec_kit_plus_project(Path.cwd())
@@ -1418,7 +2251,9 @@ def discussion_init(
 @discussion_app.command("status")
 def discussion_status(
     slug: str = typer.Argument(..., help="Discussion slug or workspace directory name"),
-    json_output: bool = typer.Option(False, "--json", help="Print typed discussion state as JSON"),
+    json_output: bool = typer.Option(
+        False, "--json", help="Print typed discussion state as JSON"
+    ),
 ):
     """Show typed discussion state and its compatibility projection."""
     _require_spec_kit_plus_project(Path.cwd())
@@ -1436,7 +2271,14 @@ def discussion_status(
             ("Slug", str(discussion.get("slug", ""))),
             ("Status", str(discussion.get("status", ""))),
             ("Summary", str(discussion.get("summary", ""))),
-            ("Phase", str(discussion.get("lifecycle_phase", discussion.get("current_stage", "")))),
+            (
+                "Phase",
+                str(
+                    discussion.get(
+                        "lifecycle_phase", discussion.get("current_stage", "")
+                    )
+                ),
+            ),
             ("Next", str(discussion.get("next_command", ""))),
             ("Workspace", str(discussion.get("workspace_path", ""))),
         ]
@@ -1447,7 +2289,9 @@ def discussion_status(
 @discussion_app.command("resume")
 def discussion_resume(
     slug: str = typer.Argument(..., help="Discussion slug or workspace directory name"),
-    json_output: bool = typer.Option(False, "--json", help="Print the compact DiscussionTurnPacket as JSON"),
+    json_output: bool = typer.Option(
+        False, "--json", help="Print the compact DiscussionTurnPacket as JSON"
+    ),
 ):
     """Return compact state and post-checkpoint events for agent resume."""
     _require_spec_kit_plus_project(Path.cwd())
@@ -1471,11 +2315,21 @@ def discussion_resume(
 @discussion_app.command("checkpoint")
 def discussion_checkpoint(
     slug: str = typer.Argument(..., help="Discussion slug"),
-    summary: str = typer.Option(..., "--summary", help="Durable decision-level checkpoint summary"),
-    phase: str = typer.Option("", "--phase", help="Optional lifecycle phase after the checkpoint"),
-    decision: list[str] = typer.Option([], "--decision", help="Confirmed decision; repeat for multiple values"),
-    recommendation: str = typer.Option("", "--recommendation", help="Current recommended direction"),
-    json_output: bool = typer.Option(False, "--json", help="Print checkpoint state as JSON"),
+    summary: str = typer.Option(
+        ..., "--summary", help="Durable decision-level checkpoint summary"
+    ),
+    phase: str = typer.Option(
+        "", "--phase", help="Optional lifecycle phase after the checkpoint"
+    ),
+    decision: list[str] = typer.Option(
+        [], "--decision", help="Confirmed decision; repeat for multiple values"
+    ),
+    recommendation: str = typer.Option(
+        "", "--recommendation", help="Current recommended direction"
+    ),
+    json_output: bool = typer.Option(
+        False, "--json", help="Print checkpoint state as JSON"
+    ),
 ):
     """Persist a compact semantic checkpoint without writing a transcript."""
     _require_spec_kit_plus_project(Path.cwd())
@@ -1493,13 +2347,17 @@ def discussion_checkpoint(
         print_json(payload, indent=2)
         return
     discussion = payload.get("discussion", {})
-    console.print(f"Saved checkpoint for {discussion.get('slug')}: {discussion.get('summary')}")
+    console.print(
+        f"Saved checkpoint for {discussion.get('slug')}: {discussion.get('summary')}"
+    )
 
 
 @discussion_app.command("validate-handoff")
 def discussion_validate_handoff(
     slug: str = typer.Argument(..., help="Discussion slug"),
-    json_output: bool = typer.Option(False, "--json", help="Print field-level validation as JSON"),
+    json_output: bool = typer.Option(
+        False, "--json", help="Print field-level validation as JSON"
+    ),
 ):
     """Validate the canonical discussion handoff without changing lifecycle state."""
     _require_spec_kit_plus_project(Path.cwd())
@@ -1507,7 +2365,9 @@ def discussion_validate_handoff(
     if json_output:
         print_json(payload, indent=2)
     elif payload.get("valid"):
-        console.print(f"Discussion {slug} handoff is valid and ready for the ready transition.")
+        console.print(
+            f"Discussion {slug} handoff is valid and ready for the ready transition."
+        )
     else:
         messages = [
             str(item.get("message", ""))
@@ -1522,8 +2382,12 @@ def discussion_validate_handoff(
 @discussion_app.command("write-handoff")
 def discussion_write_handoff(
     slug: str = typer.Argument(..., help="Discussion slug"),
-    input_path: Path = typer.Option(..., "--input", help="Canonical handoff JSON draft"),
-    json_output: bool = typer.Option(False, "--json", help="Print agent contract path and digest as JSON"),
+    input_path: Path = typer.Option(
+        ..., "--input", help="Canonical handoff JSON draft"
+    ),
+    json_output: bool = typer.Option(
+        False, "--json", help="Print agent contract path and digest as JSON"
+    ),
 ):
     """Write the canonical agent-only discussion contract."""
     _require_spec_kit_plus_project(Path.cwd())
@@ -1567,7 +2431,9 @@ def discussion_close(
         "--status",
         help="Terminal discussion status (completed or abandoned)",
     ),
-    json_output: bool = typer.Option(False, "--json", help="Print closed state as JSON"),
+    json_output: bool = typer.Option(
+        False, "--json", help="Print closed state as JSON"
+    ),
 ):
     """Mark a discussion as closed in discussion-state.md."""
     status_value = status.strip().lower()
@@ -1581,7 +2447,9 @@ def discussion_close(
     if json_output:
         print_json(payload, indent=2)
         return
-    console.print(f"Closed discussion {discussion.get('slug')} with status {discussion.get('status')}.")
+    console.print(
+        f"Closed discussion {discussion.get('slug')} with status {discussion.get('status')}."
+    )
 
 
 @discussion_app.command("mark-consumed")
@@ -1592,8 +2460,12 @@ def discussion_mark_consumed(
         "--feature-dir",
         help="Feature directory that consumed the discussion handoff",
     ),
-    archive: bool = typer.Option(False, "--archive", help="Archive the consumed discussion after closing it"),
-    json_output: bool = typer.Option(False, "--json", help="Print consumption state as JSON"),
+    archive: bool = typer.Option(
+        False, "--archive", help="Archive the consumed discussion after closing it"
+    ),
+    json_output: bool = typer.Option(
+        False, "--json", help="Print consumption state as JSON"
+    ),
 ):
     """Mark a handoff-ready discussion as consumed by a downstream feature."""
     consumed_by = feature_dir.strip()
@@ -1607,6 +2479,9 @@ def discussion_mark_consumed(
     if archive:
         payload = _run_discussion_helper("archive", slug=slug)
         discussion = payload.get("discussion", {})
+        if json_output:
+            print_json(payload, indent=2)
+            return
         console.print(
             f"Marked discussion {discussion.get('slug')} consumed by {consumed_by} and archived it."
         )
@@ -1614,13 +2489,17 @@ def discussion_mark_consumed(
     if json_output:
         print_json(payload, indent=2)
         return
-    console.print(f"Marked discussion {discussion.get('slug')} consumed by {consumed_by}.")
+    console.print(
+        f"Marked discussion {discussion.get('slug')} consumed by {consumed_by}."
+    )
 
 
 @discussion_app.command("archive")
 def discussion_archive(
     slug: str = typer.Argument(..., help="Discussion slug or workspace directory name"),
-    json_output: bool = typer.Option(False, "--json", help="Print archived state as JSON"),
+    json_output: bool = typer.Option(
+        False, "--json", help="Print archived state as JSON"
+    ),
 ):
     """Archive a closed discussion workspace."""
     _require_spec_kit_plus_project(Path.cwd())
@@ -1629,12 +2508,16 @@ def discussion_archive(
     if json_output:
         print_json(payload, indent=2)
         return
-    console.print(f"Archived discussion {discussion.get('slug')} to {discussion.get('workspace_path')}.")
+    console.print(
+        f"Archived discussion {discussion.get('slug')} to {discussion.get('workspace_path')}."
+    )
 
 
 @quick_app.command("list")
 def quick_list(
-    all_tasks: bool = typer.Option(False, "--all", help="Include closed and archived quick tasks"),
+    all_tasks: bool = typer.Option(
+        False, "--all", help="Include closed and archived quick tasks"
+    ),
 ):
     """List tracked quick tasks."""
     _require_spec_kit_plus_project(Path.cwd())
@@ -1648,7 +2531,9 @@ def quick_list(
 
 @quick_app.command("status")
 def quick_status(
-    quick_id: str = typer.Argument(..., help="Quick task ID or workspace directory name"),
+    quick_id: str = typer.Argument(
+        ..., help="Quick task ID or workspace directory name"
+    ),
 ):
     """Show STATUS.md-backed details for a quick task."""
     _require_spec_kit_plus_project(Path.cwd())
@@ -1673,7 +2558,9 @@ def quick_status(
 
 @quick_app.command("resume")
 def quick_resume(
-    quick_id: str = typer.Argument(..., help="Quick task ID or workspace directory name"),
+    quick_id: str = typer.Argument(
+        ..., help="Quick task ID or workspace directory name"
+    ),
 ):
     """Print the current next action for a quick task."""
     _require_spec_kit_plus_project(Path.cwd())
@@ -1689,7 +2576,9 @@ def quick_resume(
 
 @quick_app.command("close")
 def quick_close(
-    quick_id: str = typer.Argument(..., help="Quick task ID or workspace directory name"),
+    quick_id: str = typer.Argument(
+        ..., help="Quick task ID or workspace directory name"
+    ),
     status: str = typer.Option(
         ...,
         "--status",
@@ -1714,68 +2603,122 @@ def quick_close(
             workspace=Path(workspace_path),
         )
         if auto_payload["status"] == "captured":
-            console.print(f"Auto-captured {len(auto_payload['captured'])} quick-task learning candidate(s).")
-    console.print(f"Closed quick task {task.get('id')} with status {task.get('status')}.")
+            console.print(
+                f"Auto-captured {len(auto_payload['captured'])} quick-task learning candidate(s)."
+            )
+    console.print(
+        f"Closed quick task {task.get('id')} with status {task.get('status')}."
+    )
 
 
 @quick_app.command("archive")
 def quick_archive(
-    quick_id: str = typer.Argument(..., help="Quick task ID or workspace directory name"),
+    quick_id: str = typer.Argument(
+        ..., help="Quick task ID or workspace directory name"
+    ),
 ):
     """Archive a closed quick task workspace."""
     _require_spec_kit_plus_project(Path.cwd())
     payload = _run_quick_helper("archive", quick_id=quick_id)
     task = payload.get("task", {})
-    console.print(f"Archived quick task {task.get('id')} to {task.get('workspace_path')}.")
+    console.print(
+        f"Archived quick task {task.get('id')} to {task.get('workspace_path')}."
+    )
 
 
 @implement_app.command("closeout")
 def implement_closeout(
-    feature_dir: str = typer.Option(..., "--feature-dir", help="Feature directory containing workflow-state.md and implement-tracker.md"),
-    output_format: str = typer.Option("text", "--format", help="Output format: text or json"),
+    feature_dir: str = typer.Option(
+        ...,
+        "--feature-dir",
+        help="Feature directory containing workflow-state.md and implement-tracker.md",
+    ),
+    output_format: TextJsonFormat = typer.Option(
+        TextJsonFormat.text, "--format", help="Output format: text or json"
+    ),
 ):
     """Validate implementation closeout state and auto-capture learnings."""
     from .hooks.engine import run_quality_hook
+    from .human_acceptance import (
+        acceptance_closeout_blockers,
+        prepare_human_acceptance,
+    )
     from .implement_audit import audit_implement_resume
-    from .implementation_summary import build_implementation_summary
+    from .implementation_summary import (
+        build_implementation_summary,
+        implementation_closeout_blockers,
+    )
 
     project_root = Path.cwd()
     _require_spec_kit_plus_project(project_root)
-    resolved_feature_dir = Path(feature_dir)
-    if not resolved_feature_dir.is_absolute():
-        resolved_feature_dir = (project_root / resolved_feature_dir).resolve()
+    resolved_feature_dir = _resolve_feature_dir(project_root, feature_dir)
 
     hook_result = run_quality_hook(
         project_root,
         "workflow.session_state.validate",
         {"command_name": "implement", "feature_dir": str(resolved_feature_dir)},
     )
-    if hook_result.status == "blocked":
-        payload = {"status": "blocked", "hook_result": hook_result.to_dict(), "feature_dir": str(resolved_feature_dir)}
+    if hook_result.status in {"blocked", "repairable-block"}:
+        blockers = implementation_closeout_blockers(
+            resolved_feature_dir,
+            hook_errors=list(hook_result.errors),
+        )
+        payload = {
+            "status": hook_result.status,
+            "hook_result": hook_result.to_dict(),
+            "feature_dir": str(resolved_feature_dir),
+            "blockers": blockers,
+        }
         if output_format.lower() == "json":
             print_json(payload, indent=2)
         else:
-            console.print("[red]Error:[/red] Implement closeout blocked by invalid session state.")
+            console.print(
+                "[red]Error:[/red] Implement closeout blocked by invalid session state."
+            )
+            for error in hook_result.errors:
+                console.print(f"- {error}")
+        raise typer.Exit(10)
+    if hook_result.status == "error":
+        payload = {
+            "status": "error",
+            "hook_result": hook_result.to_dict(),
+            "feature_dir": str(resolved_feature_dir),
+        }
+        if output_format.lower() == "json":
+            print_json(payload, indent=2)
+        else:
+            console.print(
+                "[red]Error:[/red] Implement closeout validation failed unexpectedly."
+            )
             for error in hook_result.errors:
                 console.print(f"- {error}")
         raise typer.Exit(1)
 
     resume_audit = audit_implement_resume(project_root, resolved_feature_dir)
-    if resume_audit["status"] in {"fail", "conflict"}:
+    if resume_audit["status"] in {"fail", "conflict"} or not resume_audit.get(
+        "trusted_terminal_state", False
+    ):
+        blockers = implementation_closeout_blockers(
+            resolved_feature_dir,
+            resume_audit=resume_audit,
+        )
         payload = {
             "status": "blocked",
             "feature_dir": str(resolved_feature_dir),
             "hook_result": hook_result.to_dict(),
             "resume_audit": resume_audit,
+            "blockers": blockers,
         }
         if output_format.lower() == "json":
             print_json(payload, indent=2)
         else:
-            console.print("[red]Error:[/red] Implement closeout blocked by resume audit.")
+            console.print(
+                "[red]Error:[/red] Implement closeout blocked by resume audit."
+            )
             console.print(str(resume_audit["recommended_next_action"]))
             for gap in resume_audit.get("open_gaps", []):
                 console.print(f"- {gap}")
-        raise typer.Exit(1)
+        raise typer.Exit(10)
 
     auto_payload = capture_auto_learning(
         project_root,
@@ -1783,50 +2726,245 @@ def implement_closeout(
         feature_dir=resolved_feature_dir,
     )
     summary_payload = build_implementation_summary(project_root, resolved_feature_dir)
+    acceptance_payload = prepare_human_acceptance(project_root, resolved_feature_dir)
+    acceptance_status = str(acceptance_payload.get("status") or "")
+    acceptance_blocked = acceptance_status in {"blocked", "conflict"}
     payload = {
-        "status": "ok",
+        "status": acceptance_status if acceptance_blocked else "ok",
         "feature_dir": str(resolved_feature_dir),
         "hook_result": hook_result.to_dict(),
         "resume_audit": resume_audit,
         "auto_capture": auto_payload,
         "implementation_summary": summary_payload,
+        "human_acceptance": acceptance_payload,
     }
+    if acceptance_blocked:
+        payload["blockers"] = acceptance_closeout_blockers(
+            resolved_feature_dir,
+            acceptance_errors=list(acceptance_payload.get("errors") or []),
+        )
     if output_format.lower() == "json":
         print_json(payload, indent=2)
+        if acceptance_blocked:
+            raise typer.Exit(10)
         return
+
+    if acceptance_blocked:
+        console.print(
+            "[red]Error:[/red] Implement closeout could not prepare human acceptance."
+        )
+        for error in acceptance_payload.get("errors") or []:
+            console.print(f"- {error}")
+        raise typer.Exit(10)
 
     rows = [
         ("Feature Dir", str(resolved_feature_dir)),
         ("Session State", hook_result.status),
         ("Summary Report", str(summary_payload["report_path"])),
+        ("Acceptance State", str(acceptance_payload["state_path"])),
+        ("Next Workflow", str(acceptance_payload["next_command"])),
         ("Auto-Capture", auto_payload["status"]),
         ("Captured", str(len(auto_payload.get("captured", [])))),
     ]
     if auto_payload.get("reason"):
         rows.append(("Reason", str(auto_payload["reason"])))
-    console.print(_cli_panel(_labeled_grid(rows), title="Implement Closeout", border_style="cyan"))
+    console.print(
+        _cli_panel(_labeled_grid(rows), title="Implement Closeout", border_style="cyan")
+    )
+
+
+def _resolve_feature_dir(project_root: Path, feature_dir: str) -> Path:
+    root = project_root.resolve(strict=False)
+    candidate = Path(feature_dir)
+    resolved = (
+        candidate.resolve(strict=False)
+        if candidate.is_absolute()
+        else (root / candidate).resolve(strict=False)
+    )
+    try:
+        relative = resolved.relative_to(root)
+    except ValueError as exc:
+        raise typer.BadParameter(
+            "must stay inside the current project", param_hint="--feature-dir"
+        ) from exc
+    if not relative.parts:
+        raise typer.BadParameter(
+            "must identify a directory below the project root",
+            param_hint="--feature-dir",
+        )
+    return resolved
+
+
+@accept_app.command("prepare")
+def accept_prepare(
+    feature_dir: str = typer.Option(
+        ..., "--feature-dir", help="Completed feature directory"
+    ),
+    output_format: TextJsonFormat = typer.Option(
+        TextJsonFormat.text, "--format", help="Output format: text or json"
+    ),
+):
+    """Create or freshness-check the durable human acceptance state."""
+    from .human_acceptance import (
+        acceptance_closeout_blockers,
+        prepare_human_acceptance,
+    )
+
+    project_root = Path.cwd()
+    _require_spec_kit_plus_project(project_root)
+    resolved_feature_dir = _resolve_feature_dir(project_root, feature_dir)
+    payload = prepare_human_acceptance(project_root, resolved_feature_dir)
+    if payload["status"] in {"blocked", "conflict"}:
+        payload["blockers"] = acceptance_closeout_blockers(
+            resolved_feature_dir,
+            acceptance_errors=list(payload.get("errors") or []),
+        )
+    if output_format.lower() == "json":
+        print_json(payload, indent=2)
+    else:
+        console.print(
+            _cli_panel(
+                _labeled_grid(
+                    [
+                        ("Status", str(payload["status"])),
+                        ("Acceptance State", str(payload["state_path"])),
+                        ("Next Workflow", str(payload["next_command"])),
+                    ]
+                ),
+                title="Human Acceptance",
+                border_style="cyan",
+            )
+        )
+    if payload["status"] in {"blocked", "conflict"}:
+        raise typer.Exit(10)
+
+
+@accept_app.command("validate")
+def accept_validate(
+    feature_dir: str = typer.Option(
+        ..., "--feature-dir", help="Feature directory containing human-acceptance.json"
+    ),
+    output_format: TextJsonFormat = typer.Option(
+        TextJsonFormat.text, "--format", help="Output format: text or json"
+    ),
+):
+    """Validate human acceptance shape, freshness, cursor, and verdict rules."""
+    from .human_acceptance import validate_human_acceptance
+
+    project_root = Path.cwd()
+    _require_spec_kit_plus_project(project_root)
+    payload = validate_human_acceptance(
+        project_root, _resolve_feature_dir(project_root, feature_dir)
+    )
+    if output_format.lower() == "json":
+        print_json(payload, indent=2)
+    elif payload["valid"]:
+        console.print(
+            f"Human acceptance state is valid with status {payload['status']}: "
+            f"{payload['state_path']}"
+        )
+    else:
+        console.print("[red]Human acceptance validation failed:[/red]")
+        for error in payload["errors"]:
+            console.print(f"- {error}")
+    if not payload["valid"]:
+        raise typer.Exit(1)
+
+
+@accept_app.command("closeout")
+def accept_closeout(
+    feature_dir: str = typer.Option(
+        ...,
+        "--feature-dir",
+        help="Feature directory containing accepted human-acceptance.json",
+    ),
+    output_format: TextJsonFormat = typer.Option(
+        TextJsonFormat.text, "--format", help="Output format: text or json"
+    ),
+):
+    """Require explicit, fresh human acceptance and valid acceptance phase state."""
+    from .hooks.engine import run_quality_hook
+    from .human_acceptance import (
+        acceptance_closeout_blockers,
+        validate_human_acceptance,
+    )
+
+    project_root = Path.cwd()
+    _require_spec_kit_plus_project(project_root)
+    resolved_feature_dir = _resolve_feature_dir(project_root, feature_dir)
+    acceptance = validate_human_acceptance(
+        project_root, resolved_feature_dir, require_accepted=True
+    )
+    hook_result = run_quality_hook(
+        project_root,
+        "workflow.state.validate",
+        {"command_name": "accept", "feature_dir": str(resolved_feature_dir)},
+    )
+    hook_passed = hook_result.status in {"ok", "warn", "repaired"}
+    payload = {
+        "status": "accepted" if acceptance["valid"] and hook_passed else "blocked",
+        "feature_dir": str(resolved_feature_dir),
+        "human_acceptance": acceptance,
+        "hook_result": hook_result.to_dict(),
+    }
+    if hook_result.status == "error":
+        payload["status"] = "error"
+    elif payload["status"] == "blocked":
+        payload["blockers"] = acceptance_closeout_blockers(
+            resolved_feature_dir,
+            acceptance_errors=list(acceptance["errors"]),
+            hook_errors=(
+                list(hook_result.errors)
+                if hook_result.status in {"blocked", "repairable-block"}
+                else []
+            ),
+        )
+    if output_format.lower() == "json":
+        print_json(payload, indent=2)
+    elif payload["status"] == "accepted":
+        console.print(
+            f"Human product acceptance is complete: {acceptance['state_path']}"
+        )
+    else:
+        console.print("[red]Human acceptance closeout is blocked.[/red]")
+        for error in [*acceptance["errors"], *hook_result.errors]:
+            console.print(f"- {error}")
+    if payload["status"] == "blocked":
+        raise typer.Exit(10)
+    if payload["status"] == "error":
+        raise typer.Exit(1)
 
 
 @implement_app.command("resume-audit")
 def implement_resume_audit(
-    feature_dir: str = typer.Option(..., "--feature-dir", help="Feature directory containing tasks.md and implement-tracker.md"),
-    output_format: str = typer.Option("text", "--format", help="Output format: text or json"),
+    feature_dir: str = typer.Option(
+        ...,
+        "--feature-dir",
+        help="Feature directory containing tasks.md and implement-tracker.md",
+    ),
+    output_format: TextJsonFormat = typer.Option(
+        TextJsonFormat.text, "--format", help="Output format: text or json"
+    ),
 ):
     """Audit terminal-looking implementation state before trusting resume completion."""
     from .implement_audit import audit_implement_resume
+    from .implementation_summary import implementation_closeout_blockers
 
     project_root = Path.cwd()
     _require_spec_kit_plus_project(project_root)
-    resolved_feature_dir = Path(feature_dir)
-    if not resolved_feature_dir.is_absolute():
-        resolved_feature_dir = (project_root / resolved_feature_dir).resolve()
+    resolved_feature_dir = _resolve_feature_dir(project_root, feature_dir)
 
     payload = audit_implement_resume(project_root, resolved_feature_dir)
     audit_failed = payload["status"] in {"fail", "conflict"}
+    if audit_failed:
+        payload["blockers"] = implementation_closeout_blockers(
+            resolved_feature_dir,
+            resume_audit=payload,
+        )
     if output_format.lower() == "json":
         print_json(payload, indent=2)
         if audit_failed:
-            raise typer.Exit(1)
+            raise typer.Exit(10)
         return
 
     rows = [
@@ -1837,17 +2975,27 @@ def implement_resume_audit(
         ("Recommended Status", str(payload["recommended_tracker_status"])),
         ("Next Action", str(payload["recommended_next_action"])),
     ]
-    console.print(_cli_panel(_labeled_grid(rows), title="Implement Resume Audit", border_style="cyan"))
+    console.print(
+        _cli_panel(
+            _labeled_grid(rows), title="Implement Resume Audit", border_style="cyan"
+        )
+    )
     for gap in payload.get("open_gaps", []):
         console.print(f"- {gap}")
     if audit_failed:
-        raise typer.Exit(1)
+        raise typer.Exit(10)
 
 
 @learning_app.command("ensure")
 def learning_ensure_command(
-    output_format: str = typer.Option("text", "--format", help="Output format: text or json"),
-    include_runtime: bool = typer.Option(True, "--runtime/--no-runtime", help="Also create runtime learning files under .planning/learnings/"),
+    output_format: TextJsonFormat = typer.Option(
+        TextJsonFormat.text, "--format", help="Output format: text or json"
+    ),
+    include_runtime: bool = typer.Option(
+        True,
+        "--runtime/--no-runtime",
+        help="Also create runtime learning files under .planning/learnings/",
+    ),
 ):
     """Ensure passive project learning files exist."""
     project_root = Path.cwd()
@@ -1861,7 +3009,7 @@ def learning_ensure_command(
 
     rows = [
         ("Project Rules", f"[dim]{payload['paths']['project_rules']}[/dim]"),
-        ("Project Learnings", f"[dim]{payload['paths']['project_learnings']}[/dim]"),
+        ("Confirmed Learning", f"[dim]{payload['paths']['confirmed_learnings']}[/dim]"),
         ("Learning Index", f"[dim]{payload['paths']['learning_index']}[/dim]"),
     ]
     if include_runtime:
@@ -1871,12 +3019,18 @@ def learning_ensure_command(
                 ("Review", f"[dim]{payload['paths']['review']}[/dim]"),
             ]
         )
-    console.print(_cli_panel(_labeled_grid(rows), title="Project Learning Files", border_style="cyan"))
+    console.print(
+        _cli_panel(
+            _labeled_grid(rows), title="Project Learning Files", border_style="cyan"
+        )
+    )
 
 
 @learning_app.command("status")
 def learning_status_command(
-    output_format: str = typer.Option("text", "--format", help="Output format: text or json"),
+    output_format: TextJsonFormat = typer.Option(
+        TextJsonFormat.text, "--format", help="Output format: text or json"
+    ),
 ):
     """Inspect passive project learning file state without mutating it."""
     project_root = Path.cwd()
@@ -1887,21 +3041,40 @@ def learning_status_command(
         return
 
     rows = [
-        ("Project Rules", "present" if payload["exists"]["project_rules"] else "missing"),
-        ("Project Learnings", "present" if payload["exists"]["project_learnings"] else "missing"),
-        ("Learning Index", "present" if payload["exists"]["learning_index"] else "missing"),
+        (
+            "Project Rules",
+            "present" if payload["exists"]["project_rules"] else "missing",
+        ),
+        (
+            "Confirmed Learning",
+            "present" if payload["exists"]["confirmed_learnings"] else "missing",
+        ),
+        (
+            "Learning Index",
+            "present" if payload["exists"]["learning_index"] else "missing",
+        ),
         ("Candidates", "present" if payload["exists"]["candidates"] else "missing"),
         ("Review", "present" if payload["exists"]["review"] else "missing"),
     ]
-    console.print(_cli_panel(_labeled_grid(rows), title="Project Learning Status", border_style="cyan"))
+    console.print(
+        _cli_panel(
+            _labeled_grid(rows), title="Project Learning Status", border_style="cyan"
+        )
+    )
 
 
 @learning_app.command("start")
 def learning_start_command(
-    command_name: str = typer.Option(..., "--command", help="Workflow command name, for example specify or sp-implement"),
-    output_format: str = typer.Option("text", "--format", help="Output format: text or json"),
+    command_name: str = typer.Option(
+        ...,
+        "--command",
+        help="Workflow command name, for example specify or sp-implement",
+    ),
+    output_format: TextJsonFormat = typer.Option(
+        TextJsonFormat.text, "--format", help="Output format: text or json"
+    ),
 ):
-    """Prepare passive learning context for a workflow start."""
+    """Read compact relevant Learning context for a workflow start."""
     project_root = Path.cwd()
     _require_spec_kit_plus_project(project_root)
     payload = start_learning_session(project_root, command_name=command_name)
@@ -1911,38 +3084,191 @@ def learning_start_command(
 
     rows = [
         ("Command", payload["command"]),
-        ("Relevant Rules", str(len(payload["relevant_rules"]))),
-        ("Relevant Learnings", str(len(payload["relevant_learnings"]))),
-        ("Relevant Candidates", str(len(payload["relevant_candidates"]))),
-        ("Relevant Index Entries", str(len(payload["relevant_index_entries"]))),
-        ("Recommended Details", str(len(payload["recommended_detail_docs"]))),
-        ("Preflight Warnings", str(len(payload["preflight_warnings"]))),
-        ("Auto Promoted", str(len(payload["auto_promoted"]))),
-        ("Promotable", str(len(payload["promotable_candidates"]))),
-        ("Needs Confirmation", str(len(payload["confirmation_candidates"]))),
+        ("Policy", payload["policy"]),
+        ("Relevant Summaries", str(len(payload["items"]))),
+        ("Promotion Ready", str(len(payload["promotion_ready"]))),
+        ("Needs Confirmation", str(len(payload["needs_confirmation"]))),
     ]
-    console.print(_cli_panel(_labeled_grid(rows), title="Project Learning Start", border_style="cyan"))
+    console.print(
+        _cli_panel(
+            _labeled_grid(rows), title="Project Learning Start", border_style="cyan"
+        )
+    )
+    for item in payload["items"]:
+        console.print(f"- [bold]{item['ref']}[/bold]: {item['summary']}")
+
+
+@learning_app.command("list")
+def learning_list_command(
+    command_name: str | None = typer.Option(
+        None, "--command", help="Optional SP or SPX workflow relevance filter"
+    ),
+    learning_type: str | None = typer.Option(
+        None, "--type", help="Optional learning type filter"
+    ),
+    status: str | None = typer.Option(
+        None, "--status", help="Optional lifecycle status filter"
+    ),
+    query: str | None = typer.Option(
+        None, "--query", help="Optional case-insensitive summary/trigger search"
+    ),
+    cursor: int = typer.Option(
+        0, "--cursor", min=0, help="Zero-based pagination cursor"
+    ),
+    limit: int = typer.Option(
+        50, "--limit", min=1, max=200, help="Maximum compact summaries to return"
+    ),
+    all_items: bool = typer.Option(
+        False, "--all", help="Return all matching summaries without pagination"
+    ),
+    output_format: TextJsonFormat = typer.Option(
+        TextJsonFormat.text, "--format", help="Output format: text or json"
+    ),
+):
+    """List compact Learning summaries; use show to expand one record."""
+    project_root = Path.cwd()
+    _require_spec_kit_plus_project(project_root)
+    try:
+        payload = list_learning_summaries(
+            project_root,
+            command_name=command_name,
+            learning_type=learning_type,
+            status=status,
+            query=query,
+            cursor=cursor,
+            limit=limit,
+            include_all=all_items,
+        )
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+    if output_format.lower() == "json":
+        print_json(payload, indent=2)
+        return
+
+    page = payload["pagination"]
+    rows = [
+        ("Matched", str(page["total"])),
+        ("Returned", str(page["returned"])),
+        ("Next Cursor", str(page["next_cursor"] or "none")),
+    ]
+    if payload.get("command"):
+        rows.insert(0, ("Command", str(payload["command"])))
+    console.print(
+        _cli_panel(
+            _labeled_grid(rows), title="Project Learning Summaries", border_style="cyan"
+        )
+    )
+    for item in payload["items"]:
+        console.print(f"- [bold]{item['ref']}[/bold]: {item['summary']}")
+
+
+@learning_app.command("show")
+def learning_show_command(
+    learning_ref: str = typer.Option(
+        ..., "--ref", help="Learning recurrence key or stable learning id"
+    ),
+    output_format: TextJsonFormat = typer.Option(
+        TextJsonFormat.text, "--format", help="Output format: text or json"
+    ),
+):
+    """Expand one Learning into agent-oriented guidance and evidence."""
+    project_root = Path.cwd()
+    _require_spec_kit_plus_project(project_root)
+    try:
+        payload = show_learning_detail(project_root, learning_ref=learning_ref)
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc), param_hint="--ref") from exc
+    if output_format.lower() == "json":
+        print_json(payload, indent=2)
+        return
+
+    rows = [
+        ("Ref", payload["ref"]),
+        ("Status", payload["status"]),
+        ("Type", payload["type"]),
+        ("Summary", payload["summary"]),
+        ("Action", payload["guidance"]["action"]),
+    ]
+    console.print(
+        _cli_panel(
+            _labeled_grid(rows), title="Project Learning Detail", border_style="cyan"
+        )
+    )
 
 
 @learning_app.command("capture")
 def learning_capture_command(
-    command_name: str = typer.Option(..., "--command", help="Workflow command name, for example specify or sp-implement"),
+    command_name: str = typer.Option(
+        ...,
+        "--command",
+        help="Workflow command name, for example specify or sp-implement",
+    ),
     learning_type: str = typer.Option(..., "--type", help="Learning type"),
     summary: str = typer.Option(..., "--summary", help="One-line learning summary"),
-    evidence: str = typer.Option(..., "--evidence", help="Supporting evidence or context"),
-    recurrence_key: str | None = typer.Option(None, "--recurrence-key", help="Stable deduplication key"),
-    signal_strength: str = typer.Option("medium", "--signal", help="Signal strength: low, medium, or high"),
-    applies_to: list[str] | None = typer.Option(None, "--applies-to", help="Commands this learning should influence"),
-    default_scope: str | None = typer.Option(None, "--scope", help="Default sharing scope label"),
-    confirm: bool = typer.Option(False, "--confirm", help="Promote directly into project learnings instead of leaving as a candidate"),
-    pain_score: int | None = typer.Option(None, "--pain-score", help="Workflow friction score that triggered capture"),
-    false_starts: list[str] | None = typer.Option(None, "--false-start", help="Misleading first attempts or false leads"),
-    rejected_paths: list[str] | None = typer.Option(None, "--rejected-path", help="Rejected diagnosis or implementation paths"),
-    decisive_signal: str | None = typer.Option(None, "--decisive-signal", help="Evidence that made the learning clear"),
-    root_cause_family: str | None = typer.Option(None, "--root-cause-family", help="Stable root-cause family label"),
-    injection_targets: list[str] | None = typer.Option(None, "--injection-target", help="Workflow, document, or rule surface that should receive the learning"),
-    promotion_hint: str | None = typer.Option(None, "--promotion-hint", help="When or how this candidate should be promoted"),
-    output_format: str = typer.Option("text", "--format", help="Output format: text or json"),
+    evidence: str = typer.Option(
+        ..., "--evidence", help="Supporting evidence or context"
+    ),
+    recurrence_key: str | None = typer.Option(
+        None, "--recurrence-key", help="Stable deduplication key"
+    ),
+    signal_strength: str = typer.Option(
+        "medium", "--signal", help="Signal strength: low, medium, or high"
+    ),
+    applies_to: list[str] | None = typer.Option(
+        None, "--applies-to", help="Commands this learning should influence"
+    ),
+    default_scope: str | None = typer.Option(
+        None, "--scope", help="Default sharing scope label"
+    ),
+    confirm: bool = typer.Option(
+        False,
+        "--confirm",
+        help="Promote directly into project learnings instead of leaving as a candidate",
+    ),
+    pain_score: int | None = typer.Option(
+        None, "--pain-score", help="Workflow friction score that triggered capture"
+    ),
+    false_starts: list[str] | None = typer.Option(
+        None, "--false-start", help="Misleading first attempts or false leads"
+    ),
+    rejected_paths: list[str] | None = typer.Option(
+        None, "--rejected-path", help="Rejected diagnosis or implementation paths"
+    ),
+    decisive_signal: str | None = typer.Option(
+        None, "--decisive-signal", help="Evidence that made the learning clear"
+    ),
+    root_cause_family: str | None = typer.Option(
+        None, "--root-cause-family", help="Stable root-cause family label"
+    ),
+    injection_targets: list[str] | None = typer.Option(
+        None,
+        "--injection-target",
+        help="Workflow, document, or rule surface that should receive the learning",
+    ),
+    promotion_hint: str | None = typer.Option(
+        None, "--promotion-hint", help="When or how this candidate should be promoted"
+    ),
+    problem: str | None = typer.Option(
+        None, "--problem", help="Failure mode or situation this learning addresses"
+    ),
+    recommended_action: str | None = typer.Option(
+        None, "--action", help="Imperative action a future agent should take"
+    ),
+    avoid: list[str] | None = typer.Option(
+        None, "--avoid", help="Action or path a future agent should avoid"
+    ),
+    trigger_signals: list[str] | None = typer.Option(
+        None, "--trigger", help="Observable signal that should activate this learning"
+    ),
+    success_criteria: list[str] | None = typer.Option(
+        None, "--success", help="Observable condition proving the guidance worked"
+    ),
+    exceptions: list[str] | None = typer.Option(
+        None, "--exception", help="Condition where this learning should not be applied"
+    ),
+    output_format: TextJsonFormat = typer.Option(
+        TextJsonFormat.text, "--format", help="Output format: text or json"
+    ),
 ):
     """Capture a passive learning observation for the current workflow."""
     project_root = Path.cwd()
@@ -1965,6 +3291,12 @@ def learning_capture_command(
         root_cause_family=root_cause_family,
         injection_targets=injection_targets,
         promotion_hint=promotion_hint,
+        problem=problem,
+        recommended_action=recommended_action,
+        avoid=avoid,
+        trigger_signals=trigger_signals,
+        success_criteria=success_criteria,
+        exceptions=exceptions,
     )
     if output_format.lower() == "json":
         print_json(payload, indent=2)
@@ -1978,7 +3310,11 @@ def learning_capture_command(
         ("Signal", entry["signal_strength"]),
         ("Needs Confirmation", "true" if payload["needs_confirmation"] else "false"),
     ]
-    console.print(_cli_panel(_labeled_grid(rows), title="Project Learning Capture", border_style="cyan"))
+    console.print(
+        _cli_panel(
+            _labeled_grid(rows), title="Project Learning Capture", border_style="cyan"
+        )
+    )
 
 
 def _run_learning_capture_auto(
@@ -2010,15 +3346,35 @@ def _run_learning_capture_auto(
     ]
     if payload.get("reason"):
         rows.append(("Reason", str(payload["reason"])))
-    console.print(_cli_panel(_labeled_grid(rows), title="Project Learning Auto-Capture", border_style="cyan"))
+    console.print(
+        _cli_panel(
+            _labeled_grid(rows),
+            title="Project Learning Auto-Capture",
+            border_style="cyan",
+        )
+    )
 
 
 def learning_capture_auto_cli_command(
-    command_name: str = typer.Option(..., "--command", help="Workflow command name, for example plan, test, implement, quick, or debug"),
-    feature_dir: str | None = typer.Option(None, "--feature-dir", help="Feature directory containing workflow-state.md and/or implement-tracker.md"),
-    workspace: str | None = typer.Option(None, "--workspace", help="Quick-task workspace containing STATUS.md"),
-    session_file: str | None = typer.Option(None, "--session-file", help="Debug session markdown file"),
-    output_format: str = typer.Option("text", "--format", help="Output format: text or json"),
+    command_name: str = typer.Option(
+        ...,
+        "--command",
+        help="Workflow command name, for example plan, test, implement, quick, or debug",
+    ),
+    feature_dir: str | None = typer.Option(
+        None,
+        "--feature-dir",
+        help="Feature directory containing workflow-state.md and/or implement-tracker.md",
+    ),
+    workspace: str | None = typer.Option(
+        None, "--workspace", help="Quick-task workspace containing STATUS.md"
+    ),
+    session_file: str | None = typer.Option(
+        None, "--session-file", help="Debug session markdown file"
+    ),
+    output_format: TextJsonFormat = typer.Option(
+        TextJsonFormat.text, "--format", help="Output format: text or json"
+    ),
 ):
     """Auto-capture learning candidates from workflow state files."""
     _run_learning_capture_auto(
@@ -2035,9 +3391,15 @@ learning_app.command(name="capture-auto")(learning_capture_auto_cli_command)
 
 @learning_app.command("promote")
 def learning_promote_command(
-    recurrence_key: str = typer.Option(..., "--recurrence-key", help="Stable learning recurrence key"),
-    target: str = typer.Option(..., "--target", help="Promotion target: learning or rule"),
-    output_format: str = typer.Option("text", "--format", help="Output format: text or json"),
+    recurrence_key: str = typer.Option(
+        ..., "--recurrence-key", help="Stable learning recurrence key"
+    ),
+    target: str = typer.Option(
+        ..., "--target", help="Promotion target: learning or rule"
+    ),
+    output_format: TextJsonFormat = typer.Option(
+        TextJsonFormat.text, "--format", help="Output format: text or json"
+    ),
 ):
     """Promote a passive learning into shared project memory."""
     project_root = Path.cwd()
@@ -2058,15 +3420,33 @@ def learning_promote_command(
         ("Recurrence Key", entry["recurrence_key"]),
         ("Applies To", ", ".join(entry["applies_to"])),
     ]
-    console.print(_cli_panel(_labeled_grid(rows), title="Project Learning Promotion", border_style="cyan"))
+    console.print(
+        _cli_panel(
+            _labeled_grid(rows), title="Project Learning Promotion", border_style="cyan"
+        )
+    )
 
 
 @learning_app.command("aggregate")
 def learning_aggregate_command(
-    command_name: str | None = typer.Option(None, "--command", help="Optional workflow command filter, for example plan or sp-implement"),
-    output_format: str = typer.Option("text", "--format", help="Output format: text or json"),
-    write_report: bool = typer.Option(False, "--write-report", help="Also write a markdown report under .planning/learnings/reports/"),
-    stale_after_days: int = typer.Option(90, "--stale-after-days", help="Mark inactive patterns as stale after this many days"),
+    command_name: str | None = typer.Option(
+        None,
+        "--command",
+        help="Optional workflow command filter, for example plan or sp-implement",
+    ),
+    output_format: TextJsonFormat = typer.Option(
+        TextJsonFormat.text, "--format", help="Output format: text or json"
+    ),
+    write_report: bool = typer.Option(
+        False,
+        "--write-report",
+        help="Also write a markdown report under .planning/learnings/reports/",
+    ),
+    stale_after_days: int = typer.Option(
+        90,
+        "--stale-after-days",
+        help="Mark inactive patterns as stale after this many days",
+    ),
 ):
     """Aggregate passive project learnings into a promotion-oriented report."""
     project_root = Path.cwd()
@@ -2077,7 +3457,9 @@ def learning_aggregate_command(
         stale_after_days=stale_after_days,
     )
     if write_report:
-        payload["report_path"] = str(write_learning_aggregate_report(project_root, payload))
+        payload["report_path"] = str(
+            write_learning_aggregate_report(project_root, payload)
+        )
     if output_format.lower() == "json":
         print_json(payload, indent=2)
         return
@@ -2090,21 +3472,45 @@ def learning_aggregate_command(
     ]
     if "report_path" in payload:
         rows.append(("Report", f"[dim]{payload['report_path']}[/dim]"))
-    console.print(_cli_panel(_labeled_grid(rows), title="Project Learning Aggregate", border_style="cyan"))
+    console.print(
+        _cli_panel(
+            _labeled_grid(rows), title="Project Learning Aggregate", border_style="cyan"
+        )
+    )
 
 
 @eval_app.command("create")
 def eval_create_command(
-    recurrence_key: str = typer.Option(..., "--recurrence-key", help="Stable recurrence key or eval subject id"),
+    recurrence_key: str = typer.Option(
+        ..., "--recurrence-key", help="Stable recurrence key or eval subject id"
+    ),
     summary: str | None = typer.Option(None, "--summary", help="One-line eval summary"),
-    verification_method: str | None = typer.Option(None, "--verification-method", help="Verification method: file-check, rule-check, grep-check, or command-check"),
-    target: str | None = typer.Option(None, "--target", help="Target file path or glob"),
-    contains: str | None = typer.Option(None, "--contains", help="String that must exist for rule-check"),
-    pattern: str | None = typer.Option(None, "--pattern", help="Regex pattern for grep-check"),
-    command: str | None = typer.Option(None, "--command", help="Command for command-check"),
-    expect: str | None = typer.Option(None, "--expect", help="Expected result such as found, exists, pass, or fail"),
-    recovery_action: str = typer.Option("", "--recovery-action", help="What to do if the eval fails"),
-    output_format: str = typer.Option("text", "--format", help="Output format: text or json"),
+    verification_method: str | None = typer.Option(
+        None,
+        "--verification-method",
+        help="Verification method: file-check, rule-check, grep-check, or command-check",
+    ),
+    target: str | None = typer.Option(
+        None, "--target", help="Target file path or glob"
+    ),
+    contains: str | None = typer.Option(
+        None, "--contains", help="String that must exist for rule-check"
+    ),
+    pattern: str | None = typer.Option(
+        None, "--pattern", help="Regex pattern for grep-check"
+    ),
+    command: str | None = typer.Option(
+        None, "--command", help="Command for command-check"
+    ),
+    expect: str | None = typer.Option(
+        None, "--expect", help="Expected result such as found, exists, pass, or fail"
+    ),
+    recovery_action: str = typer.Option(
+        "", "--recovery-action", help="What to do if the eval fails"
+    ),
+    output_format: TextJsonFormat = typer.Option(
+        TextJsonFormat.text, "--format", help="Output format: text or json"
+    ),
 ):
     """Create a durable eval case under .specify/evals/."""
     project_root = Path.cwd()
@@ -2135,12 +3541,16 @@ def eval_create_command(
         ("Method", response["case"]["verification_method"]),
         ("Case File", f"[dim]{response['case_path']}[/dim]"),
     ]
-    console.print(_cli_panel(_labeled_grid(rows), title="Eval Created", border_style="cyan"))
+    console.print(
+        _cli_panel(_labeled_grid(rows), title="Eval Created", border_style="cyan")
+    )
 
 
 @eval_app.command("status")
 def eval_status_command(
-    output_format: str = typer.Option("text", "--format", help="Output format: text or json"),
+    output_format: TextJsonFormat = typer.Option(
+        TextJsonFormat.text, "--format", help="Output format: text or json"
+    ),
 ):
     """Inspect the durable eval store without mutating it."""
     project_root = Path.cwd()
@@ -2156,13 +3566,19 @@ def eval_status_command(
         ("Skipped", str(payload["counts"]["skipped"])),
         ("Pending", str(payload["counts"]["pending"])),
     ]
-    console.print(_cli_panel(_labeled_grid(rows), title="Eval Status", border_style="cyan"))
+    console.print(
+        _cli_panel(_labeled_grid(rows), title="Eval Status", border_style="cyan")
+    )
 
 
 @eval_app.command("run")
 def eval_run_command(
-    recurrence_key: str | None = typer.Option(None, "--recurrence-key", help="Optional recurrence key filter"),
-    output_format: str = typer.Option("text", "--format", help="Output format: text or json"),
+    recurrence_key: str | None = typer.Option(
+        None, "--recurrence-key", help="Optional recurrence key filter"
+    ),
+    output_format: TextJsonFormat = typer.Option(
+        TextJsonFormat.text, "--format", help="Output format: text or json"
+    ),
 ):
     """Run durable eval cases and update their last_result state."""
     project_root = Path.cwd()
@@ -2177,7 +3593,10 @@ def eval_run_command(
         ("Failed", str(payload["counts"]["failed"])),
         ("Skipped", str(payload["counts"]["skipped"])),
     ]
-    console.print(_cli_panel(_labeled_grid(rows), title="Eval Run", border_style="cyan"))
+    console.print(
+        _cli_panel(_labeled_grid(rows), title="Eval Run", border_style="cyan")
+    )
+
 
 def check_tool(tool: str, tracker: StepTracker = None) -> bool:
     """Check if a tool is installed. Optionally update tracker.
@@ -2217,6 +3636,7 @@ def check_tool(tool: str, tracker: StepTracker = None) -> bool:
 
     return found
 
+
 def is_git_repo(path: Path = None) -> bool:
     """Check if the specified path is inside a git repository."""
     if path is None:
@@ -2237,7 +3657,10 @@ def is_git_repo(path: Path = None) -> bool:
     except (subprocess.CalledProcessError, FileNotFoundError):
         return False
 
-def init_git_repo(project_path: Path, quiet: bool = False) -> Tuple[bool, Optional[str]]:
+
+def init_git_repo(
+    project_path: Path, quiet: bool = False
+) -> Tuple[bool, Optional[str]]:
     """Initialize a git repository in the specified path.
 
     Args:
@@ -2293,12 +3716,16 @@ def init_git_repo(project_path: Path, quiet: bool = False) -> Tuple[bool, Option
     finally:
         os.chdir(original_cwd)
 
-def handle_vscode_settings(sub_item, dest_file, rel_path, verbose=False, tracker=None) -> None:
+
+def handle_vscode_settings(
+    sub_item, dest_file, rel_path, verbose=False, tracker=None
+) -> None:
     """Handle merging or copying of .vscode/settings.json files.
 
     Note: when merge produces changes, rewritten output is normalized JSON and
     existing JSONC comments/trailing commas are not preserved.
     """
+
     def log(message, color="green"):
         if verbose and not tracker:
             console.print(f"[{color}]{message}[/] {rel_path}")
@@ -2308,8 +3735,8 @@ def handle_vscode_settings(sub_item, dest_file, rel_path, verbose=False, tracker
         temp_path: Optional[Path] = None
         try:
             with tempfile.NamedTemporaryFile(
-                mode='w',
-                encoding='utf-8',
+                mode="w",
+                encoding="utf-8",
                 dir=target_file.parent,
                 prefix=f"{target_file.name}.",
                 suffix=".tmp",
@@ -2317,7 +3744,7 @@ def handle_vscode_settings(sub_item, dest_file, rel_path, verbose=False, tracker
             ) as f:
                 temp_path = Path(f.name)
                 json.dump(payload, f, indent=4)
-                f.write('\n')
+                f.write("\n")
 
             if target_file.exists():
                 try:
@@ -2325,7 +3752,9 @@ def handle_vscode_settings(sub_item, dest_file, rel_path, verbose=False, tracker
                     os.chmod(temp_path, stat.S_IMODE(existing_stat.st_mode))
                     if hasattr(os, "chown"):
                         try:
-                            os.chown(temp_path, existing_stat.st_uid, existing_stat.st_gid)
+                            os.chown(
+                                temp_path, existing_stat.st_uid, existing_stat.st_gid
+                            )
                         except PermissionError:
                             # Best-effort owner/group preservation without requiring elevated privileges.
                             pass
@@ -2340,16 +3769,21 @@ def handle_vscode_settings(sub_item, dest_file, rel_path, verbose=False, tracker
             raise
 
     try:
-        with open(sub_item, 'r', encoding='utf-8') as f:
+        with open(sub_item, "r", encoding="utf-8") as f:
             # json5 natively supports comments and trailing commas (JSONC)
             new_settings = json5.load(f)
 
         if dest_file.exists():
-            merged = merge_json_files(dest_file, new_settings, verbose=verbose and not tracker)
+            merged = merge_json_files(
+                dest_file, new_settings, verbose=verbose and not tracker
+            )
             if merged is not None:
                 atomic_write_json(dest_file, merged)
                 log("Merged:", "green")
-                log("Note: comments/trailing commas are normalized when rewritten", "yellow")
+                log(
+                    "Note: comments/trailing commas are normalized when rewritten",
+                    "yellow",
+                )
             else:
                 log("Skipped merge (preserved existing settings)", "yellow")
         else:
@@ -2362,7 +3796,9 @@ def handle_vscode_settings(sub_item, dest_file, rel_path, verbose=False, tracker
             shutil.copy2(sub_item, dest_file)
 
 
-def merge_json_files(existing_path: Path, new_content: Any, verbose: bool = False) -> Optional[dict[str, Any]]:
+def merge_json_files(
+    existing_path: Path, new_content: Any, verbose: bool = False
+) -> Optional[dict[str, Any]]:
     """Merge new JSON content into existing JSON file.
 
     Performs a polite deep merge where:
@@ -2385,7 +3821,7 @@ def merge_json_files(existing_path: Path, new_content: Any, verbose: bool = Fals
 
     if exists:
         try:
-            with open(existing_path, 'r', encoding='utf-8') as f:
+            with open(existing_path, "r", encoding="utf-8") as f:
                 # Handle comments (JSONC) natively with json5
                 # Note: json5 handles BOM automatically
                 existing_content = json5.load(f)
@@ -2394,14 +3830,18 @@ def merge_json_files(existing_path: Path, new_content: Any, verbose: bool = Fals
             exists = False
         except Exception as e:
             if verbose:
-                console.print(f"[yellow]Warning: Could not read or parse existing JSON in {existing_path.name} ({e}).[/yellow]")
+                console.print(
+                    f"[yellow]Warning: Could not read or parse existing JSON in {existing_path.name} ({e}).[/yellow]"
+                )
             # Skip merge to preserve existing file if unparseable or inaccessible (e.g. PermissionError)
             return None
 
     # Validate template content
     if not isinstance(new_content, dict):
         if verbose:
-            console.print(f"[yellow]Warning: Template content for {existing_path.name} is not a dictionary. Preserving existing settings.[/yellow]")
+            console.print(
+                f"[yellow]Warning: Template content for {existing_path.name} is not a dictionary. Preserving existing settings.[/yellow]"
+            )
         return None
 
     if not exists:
@@ -2410,10 +3850,14 @@ def merge_json_files(existing_path: Path, new_content: Any, verbose: bool = Fals
     # If existing content parsed but is not a dict, skip merge to avoid data loss
     if not isinstance(existing_content, dict):
         if verbose:
-            console.print(f"[yellow]Warning: Existing JSON in {existing_path.name} is not an object. Skipping merge to avoid data loss.[/yellow]")
+            console.print(
+                f"[yellow]Warning: Existing JSON in {existing_path.name} is not an object. Skipping merge to avoid data loss.[/yellow]"
+            )
         return None
 
-    def deep_merge_polite(base: dict[str, Any], update: dict[str, Any]) -> dict[str, Any]:
+    def deep_merge_polite(
+        base: dict[str, Any], update: dict[str, Any]
+    ) -> dict[str, Any]:
         """Recursively merge update dict into base dict, preserving base values."""
         result = base.copy()
         for key, value in update.items():
@@ -2440,6 +3884,7 @@ def merge_json_files(existing_path: Path, new_content: Any, verbose: bool = Fals
         console.print(f"[cyan]Merged JSON file:[/cyan] {existing_path.name}")
 
     return merged
+
 
 def _locate_core_pack() -> Path | None:
     """Return the filesystem path to the bundled core_pack directory, or None.
@@ -2504,7 +3949,10 @@ def _locate_bundled_extension_source(extension: str) -> Path | None:
                 manifest = ExtensionManifest(manifest_path)
             except ValidationError:
                 continue
-            if manifest.id == normalized or manifest.name.casefold() == normalized_folded:
+            if (
+                manifest.id == normalized
+                or manifest.name.casefold() == normalized_folded
+            ):
                 return child
     return None
 
@@ -2614,7 +4062,10 @@ def _ensure_codex_teams_bootstrap_excludes(project_root: Path) -> None:
 def _create_codex_teams_initial_commit(project_root: Path) -> tuple[bool, str]:
     """Create the first git commit so teams worktrees can be based on HEAD."""
     if not _git_identity_configured(project_root):
-        return False, "git user.name and user.email must be configured before an automatic bootstrap commit can be created"
+        return (
+            False,
+            "git user.name and user.email must be configured before an automatic bootstrap commit can be created",
+        )
 
     _ensure_codex_teams_bootstrap_excludes(project_root)
 
@@ -2628,7 +4079,9 @@ def _create_codex_teams_initial_commit(project_root: Path) -> tuple[bool, str]:
         check=False,
     )
     if add_result.returncode != 0:
-        detail = (add_result.stderr or add_result.stdout or "").strip() or "git add failed"
+        detail = (
+            add_result.stderr or add_result.stdout or ""
+        ).strip() or "git add failed"
         return False, detail
 
     commit_result = subprocess.run(
@@ -2643,7 +4096,9 @@ def _create_codex_teams_initial_commit(project_root: Path) -> tuple[bool, str]:
     if commit_result.returncode == 0:
         return True, "Created an initial git commit for Codex teams"
 
-    detail = (commit_result.stderr or commit_result.stdout or "").strip() or "git commit failed"
+    detail = (
+        commit_result.stderr or commit_result.stdout or ""
+    ).strip() or "git commit failed"
     return False, detail
 
 
@@ -2663,7 +4118,9 @@ def _maybe_bootstrap_codex_teams_environment(
         and not status["runtime_backend_available"]
         and shutil.which("winget")
     ):
-        if typer.confirm("Install psmux now so Codex teams can run on Windows?", default=True):
+        if typer.confirm(
+            "Install psmux now so Codex teams can run on Windows?", default=True
+        ):
             ok, detail = _install_psmux_for_codex_teams()
             if ok:
                 console.print(f"[green]✓[/green] {detail}")
@@ -2671,10 +4128,7 @@ def _maybe_bootstrap_codex_teams_environment(
                 console.print(f"[yellow]Warning:[/yellow] {detail}")
             status = codex_team_runtime_status(project_root, integration_key="codex")
 
-    if (
-        status["git_repo_detected"]
-        and not status["git_head_available"]
-    ):
+    if status["git_repo_detected"] and not status["git_head_available"]:
         prompt = (
             "Create an initial git commit now so Codex teams can create worker worktrees? "
             "This stages and commits the current working tree."
@@ -2708,7 +4162,9 @@ def _install_shared_infra(
     from .launcher import write_project_specify_launcher_config
 
     core = _locate_core_pack()
-    manifest = IntegrationManifest("speckit", project_path, version=get_speckit_version())
+    manifest = IntegrationManifest(
+        "speckit", project_path, version=get_speckit_version()
+    )
     preexisting_config = project_path / ".specify" / "config.json"
     config_existed = preexisting_config.exists()
 
@@ -2775,7 +4231,9 @@ def _install_shared_infra(
         design_template_src = templates_src / "design-template.md"
         design_file_dst = project_path / "DESIGN.md"
         if design_template_src.exists():
-            if design_file_dst.exists() and not overwrite_existing:
+            # DESIGN.md is project-owned once created. Runtime repair may refresh
+            # generated scripts/templates, but must never replace approved design truth.
+            if design_file_dst.exists():
                 skipped_files.append(str(design_file_dst.relative_to(project_path)))
             else:
                 shutil.copy2(design_template_src, design_file_dst)
@@ -2836,6 +4294,7 @@ def _install_shared_infra(
 
     if skipped_files:
         import logging
+
         logging.getLogger(__name__).warning(
             "The following shared files already exist and were not overwritten:\n%s",
             "\n".join(f"  {f}" for f in skipped_files),
@@ -2861,7 +4320,9 @@ def _generated_script_relative_path(src_path: Path, variant_src: Path) -> Path |
     return rel_path
 
 
-def ensure_executable_scripts(project_path: Path, tracker: StepTracker | None = None) -> None:
+def ensure_executable_scripts(
+    project_path: Path, tracker: StepTracker | None = None
+) -> None:
     """Ensure POSIX .sh scripts under .specify/scripts (recursively) have execute bits (no-op on Windows)."""
     if os.name == "nt":
         return  # Windows: skip silently
@@ -2898,19 +4359,25 @@ def ensure_executable_scripts(project_path: Path, tracker: StepTracker | None = 
         except Exception as e:
             failures.append(f"{script.relative_to(scripts_root)}: {e}")
     if tracker:
-        detail = f"{updated} updated" + (f", {len(failures)} failed" if failures else "")
+        detail = f"{updated} updated" + (
+            f", {len(failures)} failed" if failures else ""
+        )
         tracker.add("chmod", "Set script permissions recursively")
         (tracker.error if failures else tracker.complete)("chmod", detail)
     else:
         if updated:
-            console.print(f"[cyan]Updated execute permissions on {updated} script(s) recursively[/cyan]")
+            console.print(
+                f"[cyan]Updated execute permissions on {updated} script(s) recursively[/cyan]"
+            )
         if failures:
             console.print("[yellow]Some scripts could not be updated:[/yellow]")
             for f in failures:
                 console.print(f"  - {f}")
 
 
-def _run_project_cognition_init_empty(project_path: Path, binary: Path) -> tuple[bool, str]:
+def _run_project_cognition_init_empty(
+    project_path: Path, binary: Path
+) -> tuple[bool, str]:
     try:
         result = subprocess.run(
             [str(binary), "init-empty", "--format", "json"],
@@ -2926,7 +4393,10 @@ def _run_project_cognition_init_empty(project_path: Path, binary: Path) -> tuple
         return False, str(exc)
     if result.returncode != 0:
         detail = (result.stderr or result.stdout).strip()
-        return False, detail or f"project-cognition init-empty exited {result.returncode}"
+        return (
+            False,
+            detail or f"project-cognition init-empty exited {result.returncode}",
+        )
     try:
         payload = json.loads(result.stdout or "{}")
     except json.JSONDecodeError:
@@ -3017,9 +4487,15 @@ def build_constitution_template_for_profile(
 
     replacements = {
         "{{CORE_PRINCIPLES}}": str(profile_data.get("core_principles", "")).strip(),
-        "{{CONDITIONAL_GUIDANCE}}": str(profile_data.get("conditional_guidance", "")).strip(),
-        "{{ENGINEERING_STANDARDS}}": str(profile_data.get("engineering_standards", "")).strip(),
-        "{{WORKFLOW_AND_QUALITY_GATES}}": str(profile_data.get("workflow_and_quality_gates", "")).strip(),
+        "{{CONDITIONAL_GUIDANCE}}": str(
+            profile_data.get("conditional_guidance", "")
+        ).strip(),
+        "{{ENGINEERING_STANDARDS}}": str(
+            profile_data.get("engineering_standards", "")
+        ).strip(),
+        "{{WORKFLOW_AND_QUALITY_GATES}}": str(
+            profile_data.get("workflow_and_quality_gates", "")
+        ).strip(),
     }
 
     rendered = base_template
@@ -3035,7 +4511,9 @@ def _is_builtin_constitution_template(
     project_path: Path | None = None,
 ) -> bool:
     for profile_id in CONSTITUTION_PROFILE_CHOICES:
-        built_text, _ = build_constitution_template_for_profile(profile_id, project_path)
+        built_text, _ = build_constitution_template_for_profile(
+            profile_id, project_path
+        )
         if template_text == built_text:
             return True
     return False
@@ -3045,7 +4523,9 @@ def ensure_constitution_template_for_profile(
     project_path: Path,
     constitution_profile: str = "product",
 ) -> dict[str, Any]:
-    target_template = project_path / ".specify" / "templates" / "constitution-template.md"
+    target_template = (
+        project_path / ".specify" / "templates" / "constitution-template.md"
+    )
     built_text, profile_data = build_constitution_template_for_profile(
         constitution_profile,
         project_path,
@@ -3054,9 +4534,17 @@ def ensure_constitution_template_for_profile(
     if target_template.exists():
         existing_text = target_template.read_text(encoding="utf-8")
         if existing_text == built_text:
-            return {"applied": False, "reason": "already_selected", "profile": profile_data}
+            return {
+                "applied": False,
+                "reason": "already_selected",
+                "profile": profile_data,
+            }
         if not _is_builtin_constitution_template(existing_text, project_path):
-            return {"applied": False, "reason": "custom_template_preserved", "profile": profile_data}
+            return {
+                "applied": False,
+                "reason": "custom_template_preserved",
+                "profile": profile_data,
+            }
 
     target_template.parent.mkdir(parents=True, exist_ok=True)
     target_template.write_text(built_text, encoding="utf-8")
@@ -3070,7 +4558,9 @@ def ensure_constitution_from_template(
 ) -> None:
     """Copy constitution template to memory if it doesn't exist (preserves existing constitution on reinitialization)."""
     memory_constitution = project_path / ".specify" / "memory" / "constitution.md"
-    template_constitution = project_path / ".specify" / "templates" / "constitution-template.md"
+    template_constitution = (
+        project_path / ".specify" / "templates" / "constitution-template.md"
+    )
 
     profile_result = ensure_constitution_template_for_profile(
         project_path,
@@ -3111,13 +4601,17 @@ def ensure_constitution_from_template(
             tracker.add("constitution", "Constitution setup")
             tracker.complete("constitution", "initialized from template defaults")
         else:
-            console.print("[cyan]Initialized constitution from template defaults[/cyan]")
+            console.print(
+                "[cyan]Initialized constitution from template defaults[/cyan]"
+            )
     except Exception as e:
         if tracker:
             tracker.add("constitution", "Constitution setup")
             tracker.error("constitution", str(e))
         else:
-            console.print(f"[yellow]Warning: Could not initialize constitution: {e}[/yellow]")
+            console.print(
+                f"[yellow]Warning: Could not initialize constitution: {e}[/yellow]"
+            )
 
 
 INIT_OPTIONS_FILE = ".specify/init-options.json"
@@ -3190,7 +4684,7 @@ SKILL_DESCRIPTIONS = {
     "constitution": "Use when project principles or development rules need to be created, revised, or realigned before further specification or planning work.",
     "checklist": "Use when you need an optional requirements-quality checklist aid for validating requirements or planning completeness before implementation.",
     "map-scan": "Use when a brownfield workflow needs a fresh graph-native cognition baseline and you must inventory the repository, classify file value, and scan high-value evidence before graph reconstruction.",
-    "map-build": "Use when map-scan has produced a value-weighted evidence baseline and you need to reconstruct the schema v2 project cognition graph, path and alias indexes, and query-backed runtime outputs.",
+    "map-build": "Use when map-scan has produced a value-weighted evidence baseline and you need to reconstruct the schema v5 project cognition graph, typed graph claims, path and alias indexes, and query-backed runtime outputs.",
     "map-update": "Use when a graph-native project cognition baseline exists and diff-based evidence refresh or user-supplied corrections must update the cognition runtime incrementally.",
     "taskstoissues": "Use when tasks.md is ready and you want actionable, dependency-aware GitHub issues generated from it.",
 }
@@ -3249,24 +4743,94 @@ def _install_codex_team_assets_if_needed(
 
 @app.command()
 def init(
-    project_name: str = typer.Argument(None, help="Name for your new project directory (optional if using --here, or use '.' for current directory)"),
+    project_name: str = typer.Argument(
+        None,
+        help="Name for your new project directory (optional if using --here, or use '.' for current directory)",
+    ),
     ai_assistant: str = typer.Option(None, "--ai", help=AI_ASSISTANT_HELP),
-    ai_commands_dir: str = typer.Option(None, "--ai-commands-dir", help="Directory for agent command files (required with --ai generic, e.g. .myagent/commands/)"),
-    script_type: str = typer.Option(None, "--script", help="Script type to use: sh or ps"),
-    constitution_profile: str = typer.Option("product", "--constitution-profile", help="Built-in constitution profile: product, minimal, library, or regulated"),
-    ignore_agent_tools: bool = typer.Option(False, "--ignore-agent-tools", help="Skip checks for AI agent tools like Claude Code"),
-    no_git: bool = typer.Option(False, "--no-git", help="Skip git repository initialization"),
-    here: bool = typer.Option(False, "--here", help="Initialize project in the current directory instead of creating a new one"),
-    force: bool = typer.Option(False, "--force", help="Force merge/overwrite when using --here (skip confirmation)"),
-    skip_tls: bool = typer.Option(False, "--skip-tls", help="Deprecated (no-op). Previously: skip SSL/TLS verification.", hidden=True),
-    debug: bool = typer.Option(False, "--debug", help="Deprecated (no-op). Previously: show verbose diagnostic output.", hidden=True),
-    github_token: str = typer.Option(None, "--github-token", help="Deprecated (no-op). Previously: GitHub token for API requests.", hidden=True),
-    ai_skills: bool = typer.Option(False, "--ai-skills", help="Install Prompt.MD templates as agent skills (requires --ai)"),
-    offline: bool = typer.Option(False, "--offline", help="Deprecated (no-op). All scaffolding now uses bundled assets.", hidden=True),
-    preset: str = typer.Option(None, "--preset", help="Install a preset during initialization (by preset ID)"),
-    branch_numbering: str = typer.Option(None, "--branch-numbering", help="Branch prefix strategy: 'date' (YYYY-MM-DD, default), 'sequential' (001, 002, …, 1000, …), or 'timestamp' (YYYYMMDD-HHMMSS)"),
-    integration: str = typer.Option(None, "--integration", help="Use the new integration system (e.g. --integration copilot). Mutually exclusive with --ai."),
-    integration_options: str = typer.Option(None, "--integration-options", help='Options for the integration (e.g. --integration-options="--commands-dir .myagent/cmds")'),
+    ai_commands_dir: str = typer.Option(
+        None,
+        "--ai-commands-dir",
+        help="Directory for agent command files (required with --ai generic, e.g. .myagent/commands/)",
+    ),
+    script_type: str = typer.Option(
+        None, "--script", help="Script type to use: sh or ps"
+    ),
+    constitution_profile: str = typer.Option(
+        "product",
+        "--constitution-profile",
+        help="Built-in constitution profile: product, minimal, library, or regulated",
+    ),
+    ignore_agent_tools: bool = typer.Option(
+        False,
+        "--ignore-agent-tools",
+        help="Skip checks for AI agent tools like Claude Code",
+    ),
+    no_git: bool = typer.Option(
+        False, "--no-git", help="Skip git repository initialization"
+    ),
+    here: bool = typer.Option(
+        False,
+        "--here",
+        help="Initialize project in the current directory instead of creating a new one",
+    ),
+    force: bool = typer.Option(
+        False,
+        "--force",
+        help="Force merge/overwrite when using --here (skip confirmation)",
+    ),
+    skip_tls: bool = typer.Option(
+        False,
+        "--skip-tls",
+        help="Deprecated (no-op). Previously: skip SSL/TLS verification.",
+        hidden=True,
+    ),
+    debug: bool = typer.Option(
+        False,
+        "--debug",
+        help="Deprecated (no-op). Previously: show verbose diagnostic output.",
+        hidden=True,
+    ),
+    github_token: str = typer.Option(
+        None,
+        "--github-token",
+        help="Deprecated (no-op). Previously: GitHub token for API requests.",
+        hidden=True,
+    ),
+    ai_skills: bool = typer.Option(
+        False,
+        "--ai-skills",
+        help="Install Prompt.MD templates as agent skills (requires --ai)",
+    ),
+    offline: bool = typer.Option(
+        False,
+        "--offline",
+        help="Deprecated (no-op). All scaffolding now uses bundled assets.",
+        hidden=True,
+    ),
+    preset: str = typer.Option(
+        None, "--preset", help="Install a preset during initialization (by preset ID)"
+    ),
+    branch_numbering: str = typer.Option(
+        None,
+        "--branch-numbering",
+        help="Branch prefix strategy: 'date' (YYYY-MM-DD, default), 'sequential' (001, 002, …, 1000, …), or 'timestamp' (YYYYMMDD-HHMMSS)",
+    ),
+    integration: str = typer.Option(
+        None,
+        "--integration",
+        help="Use the new integration system (e.g. --integration copilot). Mutually exclusive with --ai.",
+    ),
+    integration_options: str = typer.Option(
+        None,
+        "--integration-options",
+        help='Options for the integration (e.g. --integration-options="--commands-dir .myagent/cmds")',
+    ),
+    workflow_profile: str = typer.Option(
+        None,
+        "--workflow-profile",
+        help="Workflow prompt profile for skills integrations: classic or advanced",
+    ),
 ):
     """
     Initialize a new Specify project.
@@ -3305,6 +4869,7 @@ def init(
         specify init --here
         specify init --here --force  # Skip confirmation when current directory not empty
         specify init my-project --ai claude   # Claude installs skills by default
+        specify init my-project --ai codex --workflow-profile advanced
         specify init my-project --constitution-profile library
         specify init --here --ai gemini --ai-skills
         specify init my-project --ai generic --ai-commands-dir .myagent/commands/  # Unsupported agent
@@ -3317,15 +4882,25 @@ def init(
     # Detect when option values are likely misinterpreted flags (parameter ordering issue)
     if ai_assistant and ai_assistant.startswith("--"):
         console.print(f"[red]Error:[/red] Invalid value for --ai: '{ai_assistant}'")
-        console.print("[yellow]Hint:[/yellow] Did you forget to provide a value for --ai?")
+        console.print(
+            "[yellow]Hint:[/yellow] Did you forget to provide a value for --ai?"
+        )
         console.print("[yellow]Example:[/yellow] specify init --ai claude --here")
-        console.print(f"[yellow]Available agents:[/yellow] {', '.join(AGENT_CONFIG.keys())}")
+        console.print(
+            f"[yellow]Available agents:[/yellow] {', '.join(AGENT_CONFIG.keys())}"
+        )
         raise typer.Exit(1)
 
     if ai_commands_dir and ai_commands_dir.startswith("--"):
-        console.print(f"[red]Error:[/red] Invalid value for --ai-commands-dir: '{ai_commands_dir}'")
-        console.print("[yellow]Hint:[/yellow] Did you forget to provide a value for --ai-commands-dir?")
-        console.print("[yellow]Example:[/yellow] specify init --ai generic --ai-commands-dir .myagent/commands/")
+        console.print(
+            f"[red]Error:[/red] Invalid value for --ai-commands-dir: '{ai_commands_dir}'"
+        )
+        console.print(
+            "[yellow]Hint:[/yellow] Did you forget to provide a value for --ai-commands-dir?"
+        )
+        console.print(
+            "[yellow]Example:[/yellow] specify init --ai generic --ai-commands-dir .myagent/commands/"
+        )
         raise typer.Exit(1)
 
     try:
@@ -3347,6 +4922,7 @@ def init(
 
     # Resolve the integration — either from --integration or --ai
     from .integrations import INTEGRATION_REGISTRY, get_integration
+
     if integration:
         resolved_integration = get_integration(integration)
         if not resolved_integration:
@@ -3358,7 +4934,9 @@ def init(
     elif ai_assistant:
         resolved_integration = get_integration(ai_assistant)
         if not resolved_integration:
-            console.print(f"[red]Error:[/red] Unknown agent '{ai_assistant}'. Choose from: {', '.join(sorted(INTEGRATION_REGISTRY))}")
+            console.print(
+                f"[red]Error:[/red] Unknown agent '{ai_assistant}'. Choose from: {', '.join(sorted(INTEGRATION_REGISTRY))}"
+            )
             raise typer.Exit(1)
 
     # Deprecation warnings for --ai-skills and --ai-commands-dir (only when
@@ -3366,6 +4944,7 @@ def init(
     if ai_assistant or integration:
         if ai_skills:
             from .integrations.base import SkillsIntegration as _SkillsCheck
+
             if isinstance(resolved_integration, _SkillsCheck):
                 console.print(
                     "[dim]Note: --ai-skills is not needed; "
@@ -3387,21 +4966,29 @@ def init(
         project_name = None  # Clear project_name to use existing validation logic
 
     if here and project_name:
-        console.print("[red]Error:[/red] Cannot specify both project name and --here flag")
+        console.print(
+            "[red]Error:[/red] Cannot specify both project name and --here flag"
+        )
         raise typer.Exit(1)
 
     if not here and not project_name:
-        console.print("[red]Error:[/red] Must specify either a project name, use '.' for current directory, or use --here flag")
+        console.print(
+            "[red]Error:[/red] Must specify either a project name, use '.' for current directory, or use --here flag"
+        )
         raise typer.Exit(1)
 
     if ai_skills and not ai_assistant:
         console.print("[red]Error:[/red] --ai-skills requires --ai to be specified")
-        console.print("[yellow]Usage:[/yellow] specify init <project> --ai <agent> --ai-skills")
+        console.print(
+            "[yellow]Usage:[/yellow] specify init <project> --ai <agent> --ai-skills"
+        )
         raise typer.Exit(1)
 
     BRANCH_NUMBERING_CHOICES = {"date", "sequential", "timestamp"}
     if branch_numbering and branch_numbering not in BRANCH_NUMBERING_CHOICES:
-        console.print(f"[red]Error:[/red] Invalid --branch-numbering value '{branch_numbering}'. Choose from: {', '.join(sorted(BRANCH_NUMBERING_CHOICES))}")
+        console.print(
+            f"[red]Error:[/red] Invalid --branch-numbering value '{branch_numbering}'. Choose from: {', '.join(sorted(BRANCH_NUMBERING_CHOICES))}"
+        )
         raise typer.Exit(1)
 
     if here:
@@ -3410,10 +4997,16 @@ def init(
 
         existing_items = list(project_path.iterdir())
         if existing_items:
-            console.print(f"[yellow]Warning:[/yellow] Current directory is not empty ({len(existing_items)} items)")
-            console.print("[yellow]Template files will be merged with existing content and may overwrite existing files[/yellow]")
+            console.print(
+                f"[yellow]Warning:[/yellow] Current directory is not empty ({len(existing_items)} items)"
+            )
+            console.print(
+                "[yellow]Template files will be merged with existing content and may overwrite existing files[/yellow]"
+            )
             if force:
-                console.print("[cyan]--force supplied: skipping confirmation and proceeding with merge[/cyan]")
+                console.print(
+                    "[cyan]--force supplied: skipping confirmation and proceeding with merge[/cyan]"
+                )
             else:
                 response = typer.confirm("Do you want to continue?")
                 if not response:
@@ -3423,30 +5016,32 @@ def init(
         project_path = Path(project_name).resolve()
         if project_path.exists():
             console.print()
-            console.print(_open_block(
-                "Directory conflict",
-                [
-                    f"Directory '[cyan]{project_name}[/cyan]' already exists",
-                    "Please choose a different project name or remove the existing directory.",
-                    "",
-                    "Next: choose a different project name or remove the existing directory.",
-                ],
-                accent="red",
-            ))
+            console.print(
+                _open_block(
+                    "Directory conflict",
+                    [
+                        f"Directory '[cyan]{project_name}[/cyan]' already exists",
+                        "Please choose a different project name or remove the existing directory.",
+                        "",
+                        "Next: choose a different project name or remove the existing directory.",
+                    ],
+                    accent="red",
+                )
+            )
             raise typer.Exit(1)
 
     if ai_assistant:
         if ai_assistant not in AGENT_CONFIG:
-            console.print(f"[red]Error:[/red] Invalid AI assistant '{ai_assistant}'. Choose from: {', '.join(AGENT_CONFIG.keys())}")
+            console.print(
+                f"[red]Error:[/red] Invalid AI assistant '{ai_assistant}'. Choose from: {', '.join(AGENT_CONFIG.keys())}"
+            )
             raise typer.Exit(1)
         selected_ai = ai_assistant
     else:
         # Create options dict for selection (agent_key: display_name)
         ai_choices = {key: config["name"] for key, config in AGENT_CONFIG.items()}
         selected_ai = select_with_arrows(
-            ai_choices,
-            "Choose your AI assistant:",
-            "copilot"
+            ai_choices, "Choose your AI assistant:", "copilot"
         )
 
     # Auto-promote interactively selected agents to the integration path
@@ -3456,13 +5051,50 @@ def init(
             console.print(f"[red]Error:[/red] Unknown agent '{selected_ai}'")
             raise typer.Exit(1)
 
+    from .integrations.base import SkillsIntegration as _WorkflowProfileSkills
+
+    workflow_profile_choices = {
+        "classic": "Classic - current full Spec Kit workflow skills",
+        "advanced": "Advanced - concise SPX skills for advanced models",
+    }
+    if workflow_profile is not None:
+        workflow_profile = workflow_profile.strip().lower()
+        if workflow_profile not in workflow_profile_choices:
+            console.print(
+                f"[red]Error:[/red] Invalid --workflow-profile value '{workflow_profile}'. "
+                f"Choose from: {', '.join(workflow_profile_choices)}"
+            )
+            raise typer.Exit(1)
+
+    if isinstance(resolved_integration, _WorkflowProfileSkills):
+        if workflow_profile is None:
+            if sys.stdin.isatty():
+                workflow_profile = select_with_arrows(
+                    workflow_profile_choices,
+                    "Choose workflow prompt profile:",
+                    "classic",
+                )
+            else:
+                workflow_profile = "classic"
+    else:
+        if workflow_profile == "advanced":
+            console.print(
+                "[red]Error:[/red] Advanced workflow profile requires a skills-based integration"
+            )
+            raise typer.Exit(1)
+        workflow_profile = "classic"
+
     # Validate --ai-commands-dir usage.
     # Skip validation when --integration-options is provided — the integration
     # will validate its own options in setup().
     if selected_ai == "generic" and not integration_options:
         if not ai_commands_dir:
-            console.print("[red]Error:[/red] --ai-commands-dir is required when using --ai generic or --integration generic")
-            console.print('[dim]Example: specify init my-project --integration generic --integration-options="--commands-dir .myagent/commands/"[/dim]')
+            console.print(
+                "[red]Error:[/red] --ai-commands-dir is required when using --ai generic or --integration generic"
+            )
+            console.print(
+                '[dim]Example: specify init my-project --integration generic --integration-options="--commands-dir .myagent/commands/"[/dim]'
+            )
             raise typer.Exit(1)
 
     current_dir = Path.cwd()
@@ -3471,18 +5103,23 @@ def init(
         f"{'Project':<15} [green]{project_path.name}[/green]",
         f"{'Working Path':<15} [dim]{current_dir}[/dim]",
         f"{'Constitution':<15} [cyan]{constitution_profile}[/cyan]",
+        f"{'Workflow':<15} [cyan]{workflow_profile}[/cyan]",
     ]
 
     if not here:
         setup_lines.append(f"{'Target Path':<15} [dim]{project_path}[/dim]")
 
-    console.print(_open_block("Initialize Spec Kit Plus Project", setup_lines, accent="cyan"))
+    console.print(
+        _open_block("Initialize Spec Kit Plus Project", setup_lines, accent="cyan")
+    )
 
     should_init_git = False
     if not no_git:
         should_init_git = check_tool("git")
         if not should_init_git:
-            console.print("[yellow]Git not found - will skip repository initialization[/yellow]")
+            console.print(
+                "[yellow]Git not found - will skip repository initialization[/yellow]"
+            )
 
     if not ignore_agent_tools:
         agent_config = AGENT_CONFIG.get(selected_ai)
@@ -3490,34 +5127,43 @@ def init(
             install_url = agent_config["install_url"]
             if not check_tool(selected_ai):
                 console.print()
-                console.print(_open_block(
-                    "Agent Detection Error",
-                    [
-                        f"[cyan]{selected_ai}[/cyan] not found",
-                        f"Install from: [cyan]{install_url}[/cyan]",
-                        f"{agent_config['name']} is required to continue with this project type.",
-                        "",
-                        "Tip: Use [cyan]--ignore-agent-tools[/cyan] to skip this check",
-                    ],
-                    accent="red",
-                ))
+                console.print(
+                    _open_block(
+                        "Agent Detection Error",
+                        [
+                            f"[cyan]{selected_ai}[/cyan] not found",
+                            f"Install from: [cyan]{install_url}[/cyan]",
+                            f"{agent_config['name']} is required to continue with this project type.",
+                            "",
+                            "Tip: Use [cyan]--ignore-agent-tools[/cyan] to skip this check",
+                        ],
+                        accent="red",
+                    )
+                )
                 raise typer.Exit(1)
 
     if script_type:
         if script_type not in SCRIPT_TYPE_CHOICES:
-            console.print(f"[red]Error:[/red] Invalid script type '{script_type}'. Choose from: {', '.join(SCRIPT_TYPE_CHOICES.keys())}")
+            console.print(
+                f"[red]Error:[/red] Invalid script type '{script_type}'. Choose from: {', '.join(SCRIPT_TYPE_CHOICES.keys())}"
+            )
             raise typer.Exit(1)
         selected_script = script_type
     else:
         default_script = "ps" if os.name == "nt" else "sh"
 
         if sys.stdin.isatty():
-            selected_script = select_with_arrows(SCRIPT_TYPE_CHOICES, "Choose script type (or press Enter)", default_script)
+            selected_script = select_with_arrows(
+                SCRIPT_TYPE_CHOICES,
+                "Choose script type (or press Enter)",
+                default_script,
+            )
         else:
             selected_script = default_script
 
     console.print(f"[cyan]Selected AI assistant:[/cyan] {selected_ai}")
     console.print(f"[cyan]Selected script type:[/cyan] {selected_script}")
+    console.print(f"[cyan]Selected workflow profile:[/cyan] {workflow_profile}")
 
     tracker = StepTracker("Initialize Spec Kit Plus Project")
 
@@ -3527,6 +5173,8 @@ def init(
     tracker.complete("precheck", "ok")
     tracker.add("ai-select", "Select AI assistant")
     tracker.complete("ai-select", f"{selected_ai}")
+    tracker.add("workflow-profile", "Select workflow prompt profile")
+    tracker.complete("workflow-profile", workflow_profile)
     tracker.add("script-select", "Select script type")
     tracker.complete("script-select", selected_script)
 
@@ -3547,7 +5195,9 @@ def init(
     git_error_message = None
     project_cognition_install_warning = None
     project_cognition_baseline_warning = None
-    with Live(tracker.render(), console=console, refresh_per_second=8, transient=True) as live:
+    with Live(
+        tracker.render(), console=console, refresh_per_second=8, transient=True
+    ) as live:
         tracker.attach_refresh(lambda: live.update(tracker.render()))
         try:
             # Integration-based scaffolding
@@ -3561,7 +5211,9 @@ def init(
                 )
 
                 project_cognition_binary = _ensure_project_cognition()
-                _write_project_cognition_launcher(project_path, project_cognition_binary)
+                _write_project_cognition_launcher(
+                    project_path, project_cognition_binary
+                )
                 init_ok, init_detail = _run_project_cognition_init_empty(
                     project_path, project_cognition_binary
                 )
@@ -3569,7 +5221,9 @@ def init(
                     tracker.complete("project-cognition", init_detail)
                 else:
                     project_cognition_baseline_warning = init_detail
-                    tracker.complete("project-cognition", "available; empty baseline skipped")
+                    tracker.complete(
+                        "project-cognition", "available; empty baseline skipped"
+                    )
             except Exception as exc:
                 project_cognition_install_warning = str(exc)
                 tracker.skip("project-cognition", "download skipped")
@@ -3578,6 +5232,23 @@ def init(
             manifest = IntegrationManifest(
                 resolved_integration.key, project_path, version=get_speckit_version()
             )
+            existing_manifest = manifest.manifest_path.exists()
+            if existing_manifest:
+                manifest = IntegrationManifest.load(
+                    resolved_integration.key,
+                    project_path,
+                )
+                manifest.version = get_speckit_version()
+
+            installed_profiles: list[str] = []
+            if isinstance(resolved_integration, _WorkflowProfileSkills):
+                installed_profiles = _installed_workflow_profiles(
+                    project_path,
+                    integration_key=resolved_integration.key,
+                    default="classic" if existing_manifest else None,
+                )
+                if workflow_profile not in installed_profiles:
+                    installed_profiles.append(workflow_profile)
 
             # Forward all legacy CLI flags to the integration as parsed_options.
             # Integrations receive every option and decide what to use;
@@ -3587,9 +5258,11 @@ def init(
                 integration_parsed_options["commands_dir"] = ai_commands_dir
             if ai_skills:
                 integration_parsed_options["skills"] = True
+            integration_parsed_options["workflow_profile"] = workflow_profile
 
             resolved_integration.setup(
-                project_path, manifest,
+                project_path,
+                manifest,
                 parsed_options=integration_parsed_options or None,
                 script_type=selected_script,
                 raw_options=integration_options,
@@ -3604,9 +5277,17 @@ def init(
                 project_path,
                 resolved_integration.key,
                 selected_script,
+                workflow_profiles=(
+                    installed_profiles
+                    if isinstance(resolved_integration, _WorkflowProfileSkills)
+                    else None
+                ),
             )
 
-            tracker.complete("integration", resolved_integration.config.get("name", resolved_integration.key))
+            tracker.complete(
+                "integration",
+                resolved_integration.config.get("name", resolved_integration.key),
+            )
 
             # Install shared infrastructure (scripts, templates)
             tracker.start("shared-infra")
@@ -3648,6 +5329,7 @@ def init(
             # Persist the CLI options so later operations (e.g. preset add)
             # can adapt their behaviour without re-scanning the filesystem.
             # Must be saved BEFORE preset install so _get_skills_dir() works.
+            previous_init_opts = load_init_options(project_path)
             init_opts = {
                 "ai": selected_ai,
                 "integration": resolved_integration.key,
@@ -3658,17 +5340,38 @@ def init(
                 "speckit_version": get_speckit_version(),
                 "constitution_profile": constitution_profile,
             }
+            previous_profile_map = previous_init_opts.get(
+                "workflow_profiles_by_integration",
+                {},
+            )
+            if isinstance(previous_profile_map, dict) and previous_profile_map:
+                init_opts["workflow_profiles_by_integration"] = dict(
+                    previous_profile_map
+                )
             # Ensure ai_skills is set for SkillsIntegration so downstream
             # tools (extensions, presets) emit SKILL.md overrides correctly.
             from .integrations.base import SkillsIntegration as _SkillsPersist
+
             if isinstance(resolved_integration, _SkillsPersist):
                 init_opts["ai_skills"] = True
+                init_opts["workflow_profile"] = workflow_profile
+                init_opts["installed_workflow_profiles"] = installed_profiles
+                profiles_by_integration = init_opts.get(
+                    "workflow_profiles_by_integration", {}
+                )
+                if not isinstance(profiles_by_integration, dict):
+                    profiles_by_integration = {}
+                else:
+                    profiles_by_integration = dict(profiles_by_integration)
+                profiles_by_integration[resolved_integration.key] = installed_profiles
+                init_opts["workflow_profiles_by_integration"] = profiles_by_integration
             save_init_options(project_path, init_opts)
 
             # Install preset if specified
             if preset:
                 try:
                     from .presets import PresetManager, PresetCatalog, PresetError
+
                     preset_manager = PresetManager(project_path)
                     speckit_ver = get_speckit_version()
 
@@ -3680,7 +5383,9 @@ def init(
                         preset_catalog = PresetCatalog(project_path)
                         pack_info = preset_catalog.get_pack_info(preset)
                         if not pack_info:
-                            console.print(f"[yellow]Warning:[/yellow] Preset '{preset}' not found in catalog. Skipping.")
+                            console.print(
+                                f"[yellow]Warning:[/yellow] Preset '{preset}' not found in catalog. Skipping."
+                            )
                         else:
                             try:
                                 zip_path = preset_catalog.download_pack(preset)
@@ -3692,16 +5397,22 @@ def init(
                                     # Best-effort cleanup; failure to delete is non-fatal
                                     pass
                             except PresetError as preset_err:
-                                console.print(f"[yellow]Warning:[/yellow] Failed to install preset '{preset}': {preset_err}")
+                                console.print(
+                                    f"[yellow]Warning:[/yellow] Failed to install preset '{preset}': {preset_err}"
+                                )
                 except Exception as preset_err:
-                    console.print(f"[yellow]Warning:[/yellow] Failed to install preset: {preset_err}")
+                    console.print(
+                        f"[yellow]Warning:[/yellow] Failed to install preset: {preset_err}"
+                    )
 
             tracker.complete("final", "project ready")
         except (typer.Exit, SystemExit):
             raise
         except Exception as e:
             tracker.error("final", str(e))
-            console.print(_open_block("Failure", [f"Initialization failed: {e}"], accent="red"))
+            console.print(
+                _open_block("Failure", [f"Initialization failed: {e}"], accent="red")
+            )
             if debug:
                 _env_pairs = [
                     ("Python", sys.version.split()[0]),
@@ -3709,8 +5420,13 @@ def init(
                     ("CWD", str(Path.cwd())),
                 ]
                 _label_width = max(len(k) for k, _ in _env_pairs)
-                env_lines = [f"{k.ljust(_label_width)} → [bright_black]{v}[/bright_black]" for k, v in _env_pairs]
-                console.print(_open_block("Debug Environment", env_lines, accent="magenta"))
+                env_lines = [
+                    f"{k.ljust(_label_width)} → [bright_black]{v}[/bright_black]"
+                    for k, v in _env_pairs
+                ]
+                console.print(
+                    _open_block("Debug Environment", env_lines, accent="magenta")
+                )
             if not here and project_path.exists():
                 shutil.rmtree(project_path)
             raise typer.Exit(1)
@@ -3724,74 +5440,87 @@ def init(
     # immediately without a download pause on first use.  Non-fatal.
     try:
         from specify_cli.lint import ensure_binary as _ensure_lint
+
         _ensure_lint()
     except Exception:
         pass  # spec-lint download is best-effort during init
 
     if project_cognition_install_warning:
         console.print()
-        console.print(_open_block(
-            "Project Cognition Runtime",
-            [
-                "[yellow]Warning:[/yellow] project-cognition could not be auto-installed during init.",
-                project_cognition_install_warning,
-                "",
-                "[dim]Install the prebuilt release binary manually:[/dim]",
-                "[cyan]curl -sSL https://raw.githubusercontent.com/chenziyang110/spec-kit-plus/main/tools/project-cognition/install.sh | bash[/cyan]",
-                "[cyan]irm https://raw.githubusercontent.com/chenziyang110/spec-kit-plus/main/tools/project-cognition/install.ps1 | iex[/cyan]",
-                "",
-                "[dim]Or set PROJECT_COGNITION_BIN to an existing binary path.[/dim]",
-            ],
-            accent="yellow",
-        ))
+        console.print(
+            _open_block(
+                "Project Cognition Runtime",
+                [
+                    "[yellow]Warning:[/yellow] project-cognition could not be auto-installed during init.",
+                    project_cognition_install_warning,
+                    "",
+                    "[dim]Install the prebuilt release binary manually:[/dim]",
+                    "[cyan]curl -sSL https://raw.githubusercontent.com/chenziyang110/spec-kit-plus/main/tools/project-cognition/install.sh | bash[/cyan]",
+                    "[cyan]irm https://raw.githubusercontent.com/chenziyang110/spec-kit-plus/main/tools/project-cognition/install.ps1 | iex[/cyan]",
+                    "",
+                    "[dim]Or set PROJECT_COGNITION_BIN to an existing binary path.[/dim]",
+                ],
+                accent="yellow",
+            )
+        )
     if project_cognition_baseline_warning:
         console.print()
-        console.print(_open_block(
-            "Project Cognition Baseline",
-            [
-                "[yellow]Warning:[/yellow] project-cognition runtime is available, but the greenfield empty baseline was not created.",
-                project_cognition_baseline_warning,
-            ],
-            accent="yellow",
-        ))
+        console.print(
+            _open_block(
+                "Project Cognition Baseline",
+                [
+                    "[yellow]Warning:[/yellow] project-cognition runtime is available, but the greenfield empty baseline was not created.",
+                    project_cognition_baseline_warning,
+                ],
+                accent="yellow",
+            )
+        )
 
     # Show git error details if initialization failed
     if git_error_message:
         console.print()
-        console.print(_open_block(
-            "Git Initialization Failed",
-            [
-                "[yellow]Warning:[/yellow] Git repository initialization failed",
-                "",
-                git_error_message,
-                "",
-                "[dim]You can initialize git manually later with:[/dim]",
-                f"[cyan]cd {project_path if not here else '.'}[/cyan]",
-                "[cyan]git init[/cyan]",
-                "[cyan]git add .[/cyan]",
-                "[cyan]git commit -m \"Initial commit\"[/cyan]",
-            ],
-            accent="red",
-        ))
+        console.print(
+            _open_block(
+                "Git Initialization Failed",
+                [
+                    "[yellow]Warning:[/yellow] Git repository initialization failed",
+                    "",
+                    git_error_message,
+                    "",
+                    "[dim]You can initialize git manually later with:[/dim]",
+                    f"[cyan]cd {project_path if not here else '.'}[/cyan]",
+                    "[cyan]git init[/cyan]",
+                    "[cyan]git add .[/cyan]",
+                    '[cyan]git commit -m "Initial commit"[/cyan]',
+                ],
+                accent="red",
+            )
+        )
 
     # Agent folder security notice
     agent_config = AGENT_CONFIG.get(selected_ai)
     if agent_config:
-        agent_folder = ai_commands_dir if selected_ai == "generic" else agent_config["folder"]
+        agent_folder = (
+            ai_commands_dir if selected_ai == "generic" else agent_config["folder"]
+        )
         if agent_folder:
             console.print()
-            console.print(_open_block(
-                "Security note",
-                [
-                    "Some agents may store credentials, auth tokens, or other identifying and private artifacts in the agent folder within your project.",
-                    f"Consider adding [cyan]{agent_folder}[/cyan] (or parts of it) to [cyan].gitignore[/cyan] to prevent accidental credential leakage.",
-                ],
-                accent="yellow",
-            ))
+            console.print(
+                _open_block(
+                    "Security note",
+                    [
+                        "Some agents may store credentials, auth tokens, or other identifying and private artifacts in the agent folder within your project.",
+                        f"Consider adding [cyan]{agent_folder}[/cyan] (or parts of it) to [cyan].gitignore[/cyan] to prevent accidental credential leakage.",
+                    ],
+                    accent="yellow",
+                )
+            )
 
     steps_lines = []
     if not here:
-        steps_lines.append(f"1. Go to the project folder: [cyan]cd {project_name}[/cyan]")
+        steps_lines.append(
+            f"1. Go to the project folder: [cyan]cd {project_name}[/cyan]"
+        )
         step_num = 2
     else:
         steps_lines.append("1. You're already in the project directory!")
@@ -3802,10 +5531,13 @@ def init(
     # render skills-oriented next-step copy, even when their invocation syntax
     # differs across agents.
     from .integrations.base import SkillsIntegration as _SkillsInt
+
     _is_skills_integration = isinstance(resolved_integration, _SkillsInt)
 
     codex_skill_mode = selected_ai == "codex" and (ai_skills or _is_skills_integration)
-    claude_skill_mode = selected_ai == "claude" and (ai_skills or _is_skills_integration)
+    claude_skill_mode = selected_ai == "claude" and (
+        ai_skills or _is_skills_integration
+    )
     kimi_skill_mode = selected_ai == "kimi"
     agy_skill_mode = selected_ai == "agy" and _is_skills_integration
     cursor_agent_skill_mode = selected_ai == "cursor-agent" and _is_skills_integration
@@ -3839,7 +5571,9 @@ def init(
             resolved_integration.config.get("name", selected_ai).strip(),
         )
         skill_folder = resolved_integration.config.get("folder", "").rstrip("/")
-        skill_subdir = resolved_integration.config.get("commands_subdir", "skills").strip("/")
+        skill_subdir = resolved_integration.config.get(
+            "commands_subdir", "skills"
+        ).strip("/")
         skills_path = f"{skill_folder}/{skill_subdir}" if skill_folder else skill_subdir
         steps_lines.append(
             f"{step_num}. Start {agent_label} in this project directory; Spec Kit Plus skills were installed to [cyan]{skills_path}[/cyan]"
@@ -3864,7 +5598,9 @@ def init(
             readiness_lines.append("Next steps")
             readiness_lines.extend(f"- {step}" for step in team_status["next_steps"])
         console.print()
-        console.print(_open_block("Codex Teams Readiness", readiness_lines, accent="cyan"))
+        console.print(
+            _open_block("Codex Teams Readiness", readiness_lines, accent="cyan")
+        )
 
     usage_label = "skills" if native_skill_mode else "slash commands"
 
@@ -3881,45 +5617,157 @@ def init(
             return f"$sp-{name}"
         return f"/sp.{name}"
 
+    if workflow_profile == "advanced":
+
+        def _spx_invocation(name: str) -> str:
+            skill_name = f"spx-{name}"
+            if (
+                codex_skill_mode
+                or agy_skill_mode
+                or trae_skill_mode
+                or zcode_skill_mode
+            ):
+                return f"${skill_name}"
+            if kimi_skill_mode:
+                return f"/skill:{skill_name}"
+            return f"/{skill_name}"
+
+        steps_lines.append(f"{step_num}. Use the independent advanced workflow skills:")
+        for name, purpose in (
+            ("accept", "guided human product acceptance"),
+            ("analyze", "read-only cross-artifact consistency gate"),
+            ("ask", "read-only project questions"),
+            ("auto", "resume the safest next workflow"),
+            ("checklist", "requirements-quality checklist"),
+            ("clarify", "repair an existing specification"),
+            ("constitution", "project principles and governance"),
+            ("debug", "evidence-driven diagnosis and repair"),
+            ("deep-research", "pre-plan feasibility evidence"),
+            ("design", "create or audit the root design system"),
+            ("discussion", "resumable product and technical discussion"),
+            ("explain", "plain-language workflow artifact explanation"),
+            ("fast", "trivial direct changes"),
+            ("implement", "planned implementation"),
+            ("implement-teams", "supported durable-team implementation"),
+            ("integrate", "independent feature-lane closeout"),
+            ("map-build", "build cognition from a validated scan"),
+            ("map-rebuild", "orchestrate a full cognition rebuild"),
+            ("map-scan", "low-cost cognition evidence scan"),
+            ("map-update", "incremental cognition maintenance"),
+            ("plan", "technical design from a ready specification"),
+            ("prd", "legacy PRD compatibility route"),
+            ("prd-build", "compile a PRD suite from scan evidence"),
+            ("prd-scan", "collect reconstruction-grade PRD evidence"),
+            ("quick", "small resumable changes"),
+            ("research", "deep-research compatibility route"),
+            ("specify", "requirements and acceptance"),
+            ("tasks", "dependency-aware execution task graph"),
+            ("taskstoissues", "explicit GitHub issue export"),
+        ):
+            steps_lines.append(f"   [cyan]{_spx_invocation(name)}[/cyan] — {purpose}")
+        if codex_skill_mode:
+            steps_lines.append(
+                f"   [cyan]{_spx_invocation('team')}[/cyan] — inspect and manage the Codex team runtime"
+            )
+            steps_lines.append(
+                "   [cyan]sp-teams[/cyan] — optional durable Codex team runtime for work that must outlive one delegated wave"
+            )
+        steps_lines.append("   ")
+        steps_lines.append(
+            "   Original Classic map companions for lower-cost model execution:"
+        )
+        for name in ("map-scan", "map-build", "map-update"):
+            steps_lines.append(f"   [cyan]{_display_cmd(name)}[/cyan]")
+        console.print()
+        console.print(_open_block("Start Here", steps_lines, accent="cyan"))
+        return
+
     steps_lines.append(f"{step_num}. Start using {usage_label} with your AI agent:")
     steps_lines.append("   ")
     steps_lines.append("   Core workflow skills")
     constitution_review_text = "Review the seeded default constitution and apply project-specific changes when needed"
     if constitution_profile != "product":
-        constitution_review_text = (
-            f"Review the seeded {constitution_profile} constitution profile and apply project-specific changes when needed"
-        )
-    steps_lines.append(f"   {step_num}.1 [cyan]{_display_cmd('constitution')}[/] - {constitution_review_text}")
-    steps_lines.append(f"   {step_num}.2 [cyan]{_display_cmd('specify')}[/] - Create the aligned requirement package")
-    steps_lines.append(f"   {step_num}.3 [cyan]{_display_cmd('plan')}[/] - Generate the implementation design artifacts")
-    steps_lines.append(f"   {step_num}.4 [cyan]{_display_cmd('tasks')}[/] - Generate actionable tasks")
-    steps_lines.append(f"   {step_num}.5 [cyan]{_display_cmd('implement')}[/] - Execute implementation")
+        constitution_review_text = f"Review the seeded {constitution_profile} constitution profile and apply project-specific changes when needed"
+    steps_lines.append(
+        f"   {step_num}.1 [cyan]{_display_cmd('constitution')}[/] - {constitution_review_text}"
+    )
+    steps_lines.append(
+        f"   {step_num}.2 [cyan]{_display_cmd('specify')}[/] - Create the aligned requirement package"
+    )
+    steps_lines.append(
+        f"   {step_num}.3 [cyan]{_display_cmd('plan')}[/] - Generate the implementation design artifacts"
+    )
+    steps_lines.append(
+        f"   {step_num}.4 [cyan]{_display_cmd('tasks')}[/] - Generate actionable tasks"
+    )
+    steps_lines.append(
+        f"   {step_num}.5 [cyan]{_display_cmd('implement')}[/] - Execute implementation"
+    )
+    steps_lines.append(
+        f"   {step_num}.6 [cyan]{_display_cmd('accept')}[/] - Guide a human through product acceptance after technical closeout"
+    )
     steps_lines.append("   ")
     steps_lines.append("   Support skills")
-    steps_lines.append(f"   - [cyan]{_display_cmd('map-scan')}[/] - Inventory the project tree, classify file value, and produce the high-value graph-native evidence baseline for brownfield cognition")
-    steps_lines.append(f"   - [cyan]{_display_cmd('map-build')}[/] - Reconstruct the schema v2 cognition graph, path and alias indexes, and query-backed runtime outputs from the value-weighted scan baseline")
-    steps_lines.append(f"   - [cyan]{_display_cmd('map-update')}[/] - Refresh the cognition runtime incrementally after the baseline exists")
-    steps_lines.append(f"   - [cyan]{_display_cmd('auto')}[/] - Resume the recommended next workflow step from current repository state without naming the exact command manually")
-    steps_lines.append(f"   - [cyan]{_display_cmd('discussion')}[/] - Mature a rough idea through resumable senior product-engineering discussion before formal specification")
-    steps_lines.append(f"   - [cyan]{_display_cmd('prd-scan')}[/] - Produce heavy reconstruction PRD scan outputs with subagent-mandatory L4 Reconstruction-Ready evidence and config-contracts.json")
-    steps_lines.append(f"   - [cyan]{_display_cmd('prd-build')}[/] - Compile the final PRD suite from a validated PRD scan package without a second repository scan")
-    steps_lines.append(f"   - [cyan]{_display_cmd('prd')}[/] - Deprecated compatibility entrypoint; routes older reverse-PRD habits to the scan/build flow")
-    steps_lines.append(f"   - [cyan]{_display_cmd('clarify')}[/] - Deepen an existing spec before planning when analysis or references still need work")
-    steps_lines.append(f"   - [cyan]{_display_cmd('deep-research')}[/] - Coordinate research, evidence packets, and disposable demos into a traceable Planning Handoff before planning")
-    steps_lines.append(f"   - [cyan]{_display_cmd('checklist')}[/] - Optional requirements-quality checklist aid after [cyan]{_display_cmd('plan')}[/]")
-    steps_lines.append(f"   - [cyan]{_display_cmd('analyze')}[/] - Optional read-only diagnostic and legacy revalidation for spec, context, plan, and tasks")
-    steps_lines.append(f"   - [cyan]{_display_cmd('explain')}[/] - Explain the current spec, plan, tasks, implement, or project cognition/runtime state in plain language")
-    steps_lines.append(f"   - [cyan]{_display_cmd('integrate')}[/] - Inspect lane closeout readiness and complete independent feature integration")
+    steps_lines.append(
+        f"   - [cyan]{_display_cmd('map-scan')}[/] - Inventory the project tree, classify file value, and produce the high-value graph-native evidence baseline for brownfield cognition"
+    )
+    steps_lines.append(
+        f"   - [cyan]{_display_cmd('map-build')}[/] - Reconstruct the schema v5 cognition graph, typed graph claims, path and alias indexes, and query-backed runtime outputs from the value-weighted scan baseline"
+    )
+    steps_lines.append(
+        f"   - [cyan]{_display_cmd('map-update')}[/] - Refresh the cognition runtime incrementally after the baseline exists"
+    )
+    steps_lines.append(
+        f"   - [cyan]{_display_cmd('auto')}[/] - Resume the recommended next workflow step from current repository state without naming the exact command manually"
+    )
+    steps_lines.append(
+        f"   - [cyan]{_display_cmd('discussion')}[/] - Mature a rough idea through resumable senior product-engineering discussion before formal specification"
+    )
+    steps_lines.append(
+        f"   - [cyan]{_display_cmd('prd-scan')}[/] - Produce heavy reconstruction PRD scan outputs with subagent-mandatory L4 Reconstruction-Ready evidence and config-contracts.json"
+    )
+    steps_lines.append(
+        f"   - [cyan]{_display_cmd('prd-build')}[/] - Compile the final PRD suite from a validated PRD scan package without a second repository scan"
+    )
+    steps_lines.append(
+        f"   - [cyan]{_display_cmd('prd')}[/] - Deprecated compatibility entrypoint; routes older reverse-PRD habits to the scan/build flow"
+    )
+    steps_lines.append(
+        f"   - [cyan]{_display_cmd('clarify')}[/] - Deepen an existing spec before planning when analysis or references still need work"
+    )
+    steps_lines.append(
+        f"   - [cyan]{_display_cmd('deep-research')}[/] - Coordinate research, evidence packets, and disposable demos into a traceable Planning Handoff before planning"
+    )
+    steps_lines.append(
+        f"   - [cyan]{_display_cmd('checklist')}[/] - Optional requirements-quality checklist aid after [cyan]{_display_cmd('plan')}[/]"
+    )
+    steps_lines.append(
+        f"   - [cyan]{_display_cmd('analyze')}[/] - Optional read-only diagnostic and legacy revalidation for spec, context, plan, and tasks"
+    )
+    steps_lines.append(
+        f"   - [cyan]{_display_cmd('explain')}[/] - Explain the current spec, plan, tasks, implement, or project cognition/runtime state in plain language"
+    )
+    steps_lines.append(
+        f"   - [cyan]{_display_cmd('integrate')}[/] - Inspect lane closeout readiness and complete independent feature integration"
+    )
     if codex_skill_mode:
         steps_lines.append("   ")
         steps_lines.append("   Codex-only runtime")
-        steps_lines.append("   - [cyan]sp-teams[/] - Inspect the official Codex team/runtime surface and environment status")
-        steps_lines.append("   - [cyan]$sp-teams[/] - Reach the same Codex-only runtime surface from the skills layer")
-        steps_lines.append("   - [cyan]$sp-implement-teams[/] - Run implementation through the Codex-only teams execution surface")
+        steps_lines.append(
+            "   - [cyan]sp-teams[/] - Inspect the official Codex team/runtime surface and environment status"
+        )
+        steps_lines.append(
+            "   - [cyan]$sp-teams[/] - Reach the same Codex-only runtime surface from the skills layer"
+        )
+        steps_lines.append(
+            "   - [cyan]$sp-implement-teams[/] - Run implementation through the Codex-only teams execution surface"
+        )
     if claude_skill_mode:
         steps_lines.append("   ")
         steps_lines.append("   Claude Agent Teams")
-        steps_lines.append("   - [cyan]/sp-implement-teams[/] - Run implementation through Claude Code's native Agent Teams surface")
+        steps_lines.append(
+            "   - [cyan]/sp-implement-teams[/] - Run implementation through Claude Code's native Agent Teams surface"
+        )
 
     console.print()
     console.print(_open_block("Start Here", steps_lines, accent="cyan"))
@@ -3937,7 +5785,7 @@ def init(
     enhancement_lines.extend(
         [
             f"○ [cyan]{_display_cmd('map-scan')}[/] [bright_black](required for existing code)[/bright_black] - Inventory the project tree, classify file value, and produce the high-value graph-native evidence baseline before deeper brownfield specification, planning, task generation, or implementation resumes",
-            f"○ [cyan]{_display_cmd('map-build')}[/] [bright_black](after map-scan)[/bright_black] - Reconstruct the schema v2 cognition graph, path and alias indexes, and query-backed runtime outputs from the value-weighted scan baseline",
+            f"○ [cyan]{_display_cmd('map-build')}[/] [bright_black](after map-scan)[/bright_black] - Reconstruct the schema v5 cognition graph, typed graph claims, path and alias indexes, and query-backed runtime outputs from the value-weighted scan baseline",
             f"○ [cyan]{_display_cmd('map-update')}[/] [bright_black](after baseline)[/bright_black] - Refresh the project cognition runtime incrementally when changed areas or user supplements land",
             f"○ [cyan]{_display_cmd('auto')}[/] [bright_black](state-driven resume)[/bright_black] - Continue from the recommended next workflow step already recorded in repository state without renaming the canonical downstream command",
             f"○ [cyan]{_display_cmd('discussion')}[/] [bright_black](pre-spec discussion)[/bright_black] - Preserve senior product-engineering discussion state before explicit handoff to [cyan]{_display_cmd('specify')}[/]",
@@ -3948,12 +5796,13 @@ def init(
             f"○ [cyan]{_display_cmd('deep-research')}[/] [bright_black](optional feasibility and research gate)[/bright_black] - Prove whether a clear requirement can be implemented and hand [cyan]{_display_cmd('plan')}[/] the research findings, demo evidence, constraints, and recommended approach",
             f"○ [cyan]{_display_cmd('analyze')}[/] [bright_black](optional diagnostic / legacy revalidation)[/bright_black] - Cross-artifact consistency & alignment report, including boundary guardrail drift when explicitly requested or recorded in existing state",
             f"○ [cyan]{_display_cmd('explain')}[/] [bright_black](optional)[/bright_black] - Explain the current spec, plan, task, implement, or project cognition/runtime artifact in plain language before moving forward",
-            f"○ [cyan]{_display_cmd('checklist')}[/] [bright_black](optional)[/bright_black] - Generate quality checklists to validate requirements completeness, clarity, and consistency (after [cyan]{_display_cmd('plan')}[/])"
-            ,
-            f"○ [cyan]{_display_cmd('integrate')}[/] [bright_black](post-implement closeout)[/bright_black] - Inspect lane readiness, surface precheck failures, and close completed independent feature lanes before merge"
+            f"○ [cyan]{_display_cmd('checklist')}[/] [bright_black](optional)[/bright_black] - Generate quality checklists to validate requirements completeness, clarity, and consistency (after [cyan]{_display_cmd('plan')}[/])",
+            f"○ [cyan]{_display_cmd('integrate')}[/] [bright_black](post-implement closeout)[/bright_black] - Inspect lane readiness, surface precheck failures, and close completed independent feature lanes before merge",
         ]
     )
-    enhancements_title = "Support and gate skills" if native_skill_mode else "Support and gate commands"
+    enhancements_title = (
+        "Support and gate skills" if native_skill_mode else "Support and gate commands"
+    )
     console.print()
     console.print(_open_block(enhancements_title, enhancement_lines, accent="cyan"))
 
@@ -3963,7 +5812,9 @@ def _require_codex_team_project(project_root: Path) -> str:
     current = _read_integration_json(project_root)
     integration_key = current.get("integration")
     if integration_key != "codex":
-        console.print("[red]Error:[/red] Codex team runtime is only available for Codex integration projects.")
+        console.print(
+            "[red]Error:[/red] Codex team runtime is only available for Codex integration projects."
+        )
         raise typer.Exit(1)
     return integration_key
 
@@ -3973,16 +5824,24 @@ def _require_result_project(project_root: Path) -> str:
     current = _read_integration_json(project_root)
     integration_key = str(current.get("integration") or "").strip()
     if not integration_key:
-        console.print(f"[red]Error:[/red] {INTEGRATION_JSON} is missing the integration key.")
+        console.print(
+            f"[red]Error:[/red] {INTEGRATION_JSON} is missing the integration key."
+        )
         raise typer.Exit(1)
     return integration_key
 
 
-def _run_hook_and_print(project_root: Path, event_name: str, payload: dict[str, Any]) -> None:
+def _run_hook_and_print(
+    project_root: Path, event_name: str, payload: dict[str, Any]
+) -> None:
     from .hooks.engine import run_quality_hook
 
     result = run_quality_hook(project_root, event_name, payload)
     print_json(result.to_dict())
+    if result.status in {"blocked", "repairable-block"}:
+        raise typer.Exit(10)
+    if result.status == "error":
+        raise typer.Exit(1)
 
 
 def _validate_hook_output_format(output_format: str) -> None:
@@ -3995,7 +5854,9 @@ def _validate_hook_output_format(output_format: str) -> None:
 HOOK_JSON_FORMAT_OPTION = typer.Option("json", "--format", help="Output format: json")
 
 
-def _normalize_optional_repo_path(project_root: Path, raw_value: str | None) -> str | None:
+def _normalize_optional_repo_path(
+    project_root: Path, raw_value: str | None
+) -> str | None:
     if not raw_value:
         return None
     path = Path(raw_value)
@@ -4012,7 +5873,9 @@ def _resolve_feature_dir_for_command(
 ) -> Path | None:
     if feature_dir:
         resolved = Path(feature_dir)
-        return resolved if resolved.is_absolute() else (project_root / resolved).resolve()
+        return (
+            resolved if resolved.is_absolute() else (project_root / resolved).resolve()
+        )
 
     lane_result = resolve_lane_for_command(project_root, command_name=command_name)
     if lane_result.mode == "resume" and lane_result.selected_lane_id:
@@ -4038,13 +5901,17 @@ def _print_lane_resolution_json(result: Any) -> None:
                 "recovery_state": candidate.recovery_state,
                 "last_stable_checkpoint": candidate.last_stable_checkpoint,
                 "recovery_reason": candidate.recovery_reason,
-                "verification_status": lane_records[candidate.lane_id].verification_status
+                "verification_status": lane_records[
+                    candidate.lane_id
+                ].verification_status
                 if candidate.lane_id in lane_records
                 else "unknown",
                 "worktree_path": lane_records[candidate.lane_id].worktree_path
                 if candidate.lane_id in lane_records
                 else "",
-                "worktree_exists": (Path.cwd() / lane_records[candidate.lane_id].worktree_path).exists()
+                "worktree_exists": (
+                    Path.cwd() / lane_records[candidate.lane_id].worktree_path
+                ).exists()
                 if candidate.lane_id in lane_records
                 else False,
             }
@@ -4054,7 +5921,9 @@ def _print_lane_resolution_json(result: Any) -> None:
     print_json(payload)
 
 
-def _find_lane_by_feature_dir(project_root: Path, feature_dir: Path) -> LaneRecord | None:
+def _find_lane_by_feature_dir(
+    project_root: Path, feature_dir: Path
+) -> LaneRecord | None:
     resolved_feature_dir = feature_dir.resolve()
     for lane in iter_lane_records(project_root):
         if (project_root / lane.feature_dir).resolve() == resolved_feature_dir:
@@ -4071,7 +5940,10 @@ def _infer_lane_record(
     worktree: Path,
     command_name: str,
 ) -> LaneRecord:
-    from specify_cli.hooks.checkpoint_serializers import serialize_implement_tracker, serialize_workflow_state
+    from specify_cli.hooks.checkpoint_serializers import (
+        serialize_implement_tracker,
+        serialize_workflow_state,
+    )
     from specify_cli.lanes.models import utc_now
 
     normalized_command = command_name.strip().lower()
@@ -4084,10 +5956,16 @@ def _infer_lane_record(
         "implement": "implementing",
         "integrate": "integrating",
     }
-    lifecycle_state = lifecycle_map.get(normalized_command, existing.lifecycle_state if existing else "draft")
+    lifecycle_state = lifecycle_map.get(
+        normalized_command, existing.lifecycle_state if existing else "draft"
+    )
     recovery_state = existing.recovery_state if existing is not None else "blocked"
-    verification_status = existing.verification_status if existing is not None else "unknown"
-    last_stable_checkpoint = existing.last_stable_checkpoint if existing is not None else ""
+    verification_status = (
+        existing.verification_status if existing is not None else "unknown"
+    )
+    last_stable_checkpoint = (
+        existing.last_stable_checkpoint if existing is not None else ""
+    )
 
     workflow_path = feature_dir / "workflow-state.md"
     tracker_path = feature_dir / "implement-tracker.md"
@@ -4095,7 +5973,11 @@ def _infer_lane_record(
     if normalized_command == "implement" and tracker_path.exists():
         tracker = serialize_implement_tracker(tracker_path)
         tracker_status = str(tracker.get("status") or "")
-        last_stable_checkpoint = str(tracker.get("current_batch") or tracker.get("next_action") or last_stable_checkpoint)
+        last_stable_checkpoint = str(
+            tracker.get("current_batch")
+            or tracker.get("next_action")
+            or last_stable_checkpoint
+        )
         if tracker_status == "resolved":
             recovery_state = "completed"
             verification_status = "passed"
@@ -4107,7 +5989,9 @@ def _infer_lane_record(
             verification_status = "unknown"
     elif workflow_path.exists():
         workflow = serialize_workflow_state(workflow_path)
-        last_stable_checkpoint = str(workflow.get("next_action") or last_stable_checkpoint)
+        last_stable_checkpoint = str(
+            workflow.get("next_action") or last_stable_checkpoint
+        )
         recovery_state = "resumable"
     elif normalized_command == "integrate":
         recovery_state = "completed"
@@ -4120,7 +6004,9 @@ def _infer_lane_record(
         feature_id=feature_dir.name,
         feature_dir=feature_dir.relative_to(project_root).as_posix(),
         branch_name=branch,
-        worktree_path=worktree.relative_to(project_root).as_posix() if worktree.is_absolute() else worktree.as_posix(),
+        worktree_path=worktree.relative_to(project_root).as_posix()
+        if worktree.is_absolute()
+        else worktree.as_posix(),
         lifecycle_state=lifecycle_state,
         recovery_state=recovery_state,
         last_command=normalized_command,
@@ -4176,7 +6062,9 @@ def _resolve_result_context(
 
     if normalized_command == "implement":
         if resolved_feature_dir is None or not task_id:
-            console.print("[red]Error:[/red] --feature-dir and --task-id are required for implement result handoff.")
+            console.print(
+                "[red]Error:[/red] --feature-dir and --task-id are required for implement result handoff."
+            )
             raise typer.Exit(1)
         return {
             "request_id": None,
@@ -4189,7 +6077,9 @@ def _resolve_result_context(
 
     if normalized_command == "quick":
         if resolved_workspace is None or not resolved_lane_id:
-            console.print("[red]Error:[/red] --workspace and --lane-id are required for quick result handoff.")
+            console.print(
+                "[red]Error:[/red] --workspace and --lane-id are required for quick result handoff."
+            )
             raise typer.Exit(1)
         return {
             "request_id": None,
@@ -4202,7 +6092,9 @@ def _resolve_result_context(
 
     if normalized_command == "debug":
         if not session_slug or not resolved_lane_id:
-            console.print("[red]Error:[/red] --session-slug and --lane-id are required for debug result handoff.")
+            console.print(
+                "[red]Error:[/red] --session-slug and --lane-id are required for debug result handoff."
+            )
             raise typer.Exit(1)
         return {
             "request_id": None,
@@ -4219,10 +6111,16 @@ def _resolve_result_context(
 
 @lane_app.command("register")
 def lane_register(
-    feature_dir: str = typer.Option(..., "--feature-dir", help="Feature directory for this lane"),
+    feature_dir: str = typer.Option(
+        ..., "--feature-dir", help="Feature directory for this lane"
+    ),
     branch: str = typer.Option(..., "--branch", help="Git branch bound to the lane"),
-    worktree: str = typer.Option(..., "--worktree", help="Worktree path bound to the lane"),
-    command_name: str = typer.Option(..., "--command", help="Workflow command updating the lane"),
+    worktree: str = typer.Option(
+        ..., "--worktree", help="Worktree path bound to the lane"
+    ),
+    command_name: str = typer.Option(
+        ..., "--command", help="Workflow command updating the lane"
+    ),
     lane_id: str = typer.Option(..., "--lane-id", help="Stable lane identifier"),
 ):
     """Register or update a concurrent feature lane."""
@@ -4284,8 +6182,14 @@ def lane_register(
 @lane_app.command("resolve")
 def lane_resolve(
     command_name: str = typer.Option(..., "--command", help="Workflow command name"),
-    feature_dir: str | None = typer.Option(None, "--feature-dir", help="Explicit feature directory override"),
-    ensure_worktree: bool = typer.Option(False, "--ensure-worktree", help="Materialize the selected lane worktree when resolution is unique"),
+    feature_dir: str | None = typer.Option(
+        None, "--feature-dir", help="Explicit feature directory override"
+    ),
+    ensure_worktree: bool = typer.Option(
+        False,
+        "--ensure-worktree",
+        help="Materialize the selected lane worktree when resolution is unique",
+    ),
 ):
     """Resolve the lane for a resumable workflow command."""
 
@@ -4363,8 +6267,12 @@ def lane_resolve(
                         "recovery_state": candidate.recovery_state,
                         "last_stable_checkpoint": candidate.last_stable_checkpoint,
                         "recovery_reason": candidate.recovery_reason,
-                        "verification_status": lane.verification_status if candidate.lane_id == lane.lane_id else "unknown",
-                        "worktree_path": lane.worktree_path if candidate.lane_id == lane.lane_id else "",
+                        "verification_status": lane.verification_status
+                        if candidate.lane_id == lane.lane_id
+                        else "unknown",
+                        "worktree_path": lane.worktree_path
+                        if candidate.lane_id == lane.lane_id
+                        else "",
                         "worktree_exists": (project_root / lane.worktree_path).exists()
                         if candidate.lane_id == lane.lane_id
                         else False,
@@ -4407,7 +6315,8 @@ def lane_status():
                         "ready_for_integrate": (
                             assess_integration_readiness(project_root, lane).ready
                             if lane.last_command in {"implement", "integrate"}
-                            or lane.lifecycle_state in {"implementing", "integrating", "completed"}
+                            or lane.lifecycle_state
+                            in {"implementing", "integrating", "completed"}
                             else None
                         ),
                         "suggested_next_command": (
@@ -4461,13 +6370,27 @@ def lane_materialize_worktree(
 @teams_app.callback(invoke_without_command=True)
 def _team_root(
     ctx: typer.Context,
-    session_id: str = typer.Option("default", "--session-id", help="Runtime session identifier"),
-    bootstrap: bool = typer.Option(False, "--bootstrap", help="Bootstrap a runtime session"),
-    dispatch: str | None = typer.Option(None, "--dispatch", help="Dispatch request identifier"),
-    worker: str = typer.Option("worker-1", "--worker", help="Target worker name for dispatched work"),
-    fail: bool = typer.Option(False, "--fail", help="Mark a dispatched request as failed"),
-    reason: str = typer.Option("synthetic failure", "--reason", help="Failure reason for --fail"),
-    cleanup: bool = typer.Option(False, "--cleanup", help="Clean up the runtime session"),
+    session_id: str = typer.Option(
+        "default", "--session-id", help="Runtime session identifier"
+    ),
+    bootstrap: bool = typer.Option(
+        False, "--bootstrap", help="Bootstrap a runtime session"
+    ),
+    dispatch: str | None = typer.Option(
+        None, "--dispatch", help="Dispatch request identifier"
+    ),
+    worker: str = typer.Option(
+        "worker-1", "--worker", help="Target worker name for dispatched work"
+    ),
+    fail: bool = typer.Option(
+        False, "--fail", help="Mark a dispatched request as failed"
+    ),
+    reason: str = typer.Option(
+        "synthetic failure", "--reason", help="Failure reason for --fail"
+    ),
+    cleanup: bool = typer.Option(
+        False, "--cleanup", help="Clean up the runtime session"
+    ),
 ):
     if ctx.invoked_subcommand is None:
         if bootstrap or dispatch or fail or cleanup:
@@ -4499,18 +6422,24 @@ def _handle_legacy_team_flags(
 
     if bootstrap:
         session = session_ops.bootstrap_session(project_root, session_id=session_id)
-        console.print(f"Bootstrapped session [cyan]{session.session_id}[/cyan] with status [green]{session.status}[/green].")
+        console.print(
+            f"Bootstrapped session [cyan]{session.session_id}[/cyan] with status [green]{session.status}[/green]."
+        )
         return
 
     if dispatch:
-        _require_fresh_project_map_for_execution(project_root, command_name="team dispatch")
+        _require_fresh_project_map_for_execution(
+            project_root, command_name="team dispatch"
+        )
         record = dispatch_runtime_task(
             project_root,
             session_id=session_id,
             request_id=dispatch,
             target_worker=worker,
         )
-        console.print(f"Dispatched [cyan]{record.request_id}[/cyan] to [cyan]{record.target_worker}[/cyan].")
+        console.print(
+            f"Dispatched [cyan]{record.request_id}[/cyan] to [cyan]{record.target_worker}[/cyan]."
+        )
         if fail:
             session, failed_record = mark_runtime_failure(
                 project_root,
@@ -4518,7 +6447,9 @@ def _handle_legacy_team_flags(
                 request_id=dispatch,
                 reason=reason,
             )
-            console.print(f"Marked request [cyan]{failed_record.request_id}[/cyan] failed; session is now [yellow]{session.status}[/yellow].")
+            console.print(
+                f"Marked request [cyan]{failed_record.request_id}[/cyan] failed; session is now [yellow]{session.status}[/yellow]."
+            )
         return
 
     if cleanup:
@@ -4533,7 +6464,9 @@ def _handle_legacy_team_flags(
 
 @teams_app.command("status")
 def team_status(
-    session_id: str = typer.Option("default", "--session-id", help="Runtime session identifier"),
+    session_id: str = typer.Option(
+        "default", "--session-id", help="Runtime session identifier"
+    ),
 ):
     """Inspect the Codex-only team/runtime surface for the current project."""
     project_root = Path.cwd()
@@ -4542,16 +6475,22 @@ def team_status(
     console.print(team_help_text())
     console.print(team_availability_message(integration_key))
 
-    status = codex_team_runtime_status(project_root, integration_key=integration_key, session_id=session_id)
+    status = codex_team_runtime_status(
+        project_root, integration_key=integration_key, session_id=session_id
+    )
     console.print(runtime_state_summary(project_root))
     console.print(f"runtime backend: {status['runtime_backend'] or 'unavailable'}")
     console.print(f"runtime backend available: {status['runtime_backend_available']}")
     console.print(f"runtime backend source: {status['runtime_backend_source']}")
     console.print(f"executor available: {status['executor_available']}")
     console.print(f"executor mode: {status['executor_mode']}")
-    console.print(f"native build shell: {status['native_build_shell']['source']} (ready={status['native_build_shell']['ready']})")
+    console.print(
+        f"native build shell: {status['native_build_shell']['source']} (ready={status['native_build_shell']['ready']})"
+    )
     if status["native_build_shell"].get("target_arch"):
-        console.print(f"native build target arch: {status['native_build_shell']['target_arch']}")
+        console.print(
+            f"native build target arch: {status['native_build_shell']['target_arch']}"
+        )
     console.print(f"baseline build: {status['baseline_build']['status']}")
     if status["baseline_build"].get("reason"):
         console.print(f"baseline build reason: {status['baseline_build']['reason']}")
@@ -4581,10 +6520,16 @@ def team_status(
 
 @teams_app.command("watch")
 def team_watch(
-    session_id: str = typer.Option("default", "--session-id", help="Runtime session identifier"),
-    refresh_interval: float = typer.Option(1.0, "--refresh-interval", help="Refresh interval in seconds"),
+    session_id: str = typer.Option(
+        "default", "--session-id", help="Runtime session identifier"
+    ),
+    refresh_interval: float = typer.Option(
+        1.0, "--refresh-interval", help="Refresh interval in seconds"
+    ),
     focus: str = typer.Option("", "--focus", help="Initial focused worker or leader"),
-    view: str = typer.Option("split", "--view", help="Initial watch view: members, flow, or split"),
+    view: str = typer.Option(
+        "split", "--view", help="Initial watch view: members, flow, or split"
+    ),
 ):
     """Open the full-screen observer over team members and flow."""
     project_root = Path.cwd()
@@ -4609,8 +6554,12 @@ def team_watch(
 
 @teams_app.command("await")
 def team_await(
-    session_id: str = typer.Option("default", "--session-id", help="Runtime session identifier"),
+    session_id: str = typer.Option(
+        "default", "--session-id", help="Runtime session identifier"
+    ),
 ):
+    """Print one non-blocking team monitor snapshot."""
+
     project_root = Path.cwd()
     _require_codex_team_project(project_root)
     snapshot = session_ops.monitor_summary(project_root, session_id=session_id)
@@ -4621,11 +6570,17 @@ def team_await(
 
 @teams_app.command("doctor")
 def team_doctor_command(
-    session_id: str = typer.Option("default", "--session-id", help="Runtime session identifier"),
+    session_id: str = typer.Option(
+        "default", "--session-id", help="Runtime session identifier"
+    ),
 ):
+    """Diagnose team runtime readiness, failures, and recent batches."""
+
     project_root = Path.cwd()
     integration_key = _require_codex_team_project(project_root)
-    report = codex_team_doctor(project_root, session_id=session_id, integration_key=integration_key)
+    report = codex_team_doctor(
+        project_root, session_id=session_id, integration_key=integration_key
+    )
 
     status = report["status"]
     transcript = report["transcript"]
@@ -4637,7 +6592,9 @@ def team_doctor_command(
         f"(ready={report['native_build_shell']['ready']})"
     )
     if report["native_build_shell"].get("target_arch"):
-        console.print(f"native build target arch: {report['native_build_shell']['target_arch']}")
+        console.print(
+            f"native build target arch: {report['native_build_shell']['target_arch']}"
+        )
     console.print(f"baseline build: {report['baseline_build']['status']}")
     if report["baseline_build"].get("reason"):
         console.print(f"baseline build reason: {report['baseline_build']['reason']}")
@@ -4668,7 +6625,9 @@ def team_doctor_command(
         console.print("- none")
     else:
         for item in failed_dispatches:
-            console.print(f"- {item['request_id']} -> {item['target_worker']}: {item['reason']}")
+            console.print(
+                f"- {item['request_id']} -> {item['target_worker']}: {item['reason']}"
+            )
 
     console.print("[bold]Recent Batches[/bold]")
     recent_batches = report["recent_batches"]
@@ -4684,12 +6643,18 @@ def team_doctor_command(
 
 @teams_app.command("live-probe")
 def team_live_probe_command(
-    session_id: str = typer.Option("default", "--session-id", help="Runtime session identifier"),
+    session_id: str = typer.Option(
+        "default", "--session-id", help="Runtime session identifier"
+    ),
 ):
+    """Run a live Codex team dispatch probe and report its evidence."""
+
     project_root = Path.cwd()
     integration_key = _require_codex_team_project(project_root)
     try:
-        payload = codex_team_live_probe(project_root, session_id=session_id, integration_key=integration_key)
+        payload = codex_team_live_probe(
+            project_root, session_id=session_id, integration_key=integration_key
+        )
     except RuntimeEnvironmentError as exc:
         console.print(f"[red]Error:[/red] {exc}")
         raise typer.Exit(1) from exc
@@ -4704,14 +6669,24 @@ def team_live_probe_command(
 
 @teams_app.command("sync-back")
 def team_sync_back(
-    session_id: str = typer.Option("default", "--session-id", help="Runtime session identifier"),
-    dry_run: bool = typer.Option(False, "--dry-run", help="Show candidate files without copying them"),
-    allow_dirty: bool = typer.Option(False, "--allow-dirty", help="Allow sync-back when the main workspace is dirty"),
+    session_id: str = typer.Option(
+        "default", "--session-id", help="Runtime session identifier"
+    ),
+    dry_run: bool = typer.Option(
+        False, "--dry-run", help="Show candidate files without copying them"
+    ),
+    allow_dirty: bool = typer.Option(
+        False, "--allow-dirty", help="Allow sync-back when the main workspace is dirty"
+    ),
 ):
+    """Preview or copy completed worker changes into the leader workspace."""
+
     project_root = Path.cwd()
     _require_codex_team_project(project_root)
     if dry_run:
-        plan = plan_sync_back(project_root, session_id=session_id, allow_dirty=allow_dirty)
+        plan = plan_sync_back(
+            project_root, session_id=session_id, allow_dirty=allow_dirty
+        )
         console.print("[bold]Sync-back candidates[/bold]")
         if not plan["candidates"]:
             console.print("- none")
@@ -4721,7 +6696,9 @@ def team_sync_back(
         return
 
     try:
-        result = apply_sync_back(project_root, session_id=session_id, allow_dirty=allow_dirty)
+        result = apply_sync_back(
+            project_root, session_id=session_id, allow_dirty=allow_dirty
+        )
     except RuntimeError as exc:
         console.print(f"[red]Error:[/red] {exc}")
         raise typer.Exit(1) from exc
@@ -4733,11 +6710,17 @@ def team_sync_back(
 
 @teams_app.command("resume")
 def team_resume(
-    session_id: str = typer.Option("default", "--session-id", help="Runtime session identifier"),
+    session_id: str = typer.Option(
+        "default", "--session-id", help="Runtime session identifier"
+    ),
 ):
+    """Resume an existing team session or bootstrap it when absent."""
+
     project_root = Path.cwd()
     _require_codex_team_project(project_root)
-    session, resumed_existing = session_ops.resume_session(project_root, session_id=session_id)
+    session, resumed_existing = session_ops.resume_session(
+        project_root, session_id=session_id
+    )
     if resumed_existing:
         console.print(
             f"Resumed existing session [cyan]{session.session_id}[/cyan] with status [green]{session.status}[/green]."
@@ -4750,23 +6733,39 @@ def team_resume(
 
 @teams_app.command("shutdown")
 def team_shutdown(
-    session_id: str = typer.Option("default", "--session-id", help="Runtime session identifier"),
-    reason: str | None = typer.Option(None, "--reason", help="Failure reason for shutdown"),
-    requested_by: str | None = typer.Option(None, "--requested-by", help="Identity requesting shutdown"),
-    acknowledge: bool = typer.Option(False, "--acknowledge", help="Acknowledge a pending shutdown"),
-    acknowledged_by: str | None = typer.Option(None, "--acknowledged-by", help="Identity acknowledging shutdown"),
+    session_id: str = typer.Option(
+        "default", "--session-id", help="Runtime session identifier"
+    ),
+    reason: str | None = typer.Option(
+        None, "--reason", help="Failure reason for shutdown"
+    ),
+    requested_by: str | None = typer.Option(
+        None, "--requested-by", help="Identity requesting shutdown"
+    ),
+    acknowledge: bool = typer.Option(
+        False, "--acknowledge", help="Acknowledge a pending shutdown"
+    ),
+    acknowledged_by: str | None = typer.Option(
+        None, "--acknowledged-by", help="Identity acknowledging shutdown"
+    ),
 ):
+    """Request or acknowledge a coordinated team shutdown."""
+
     project_root = Path.cwd()
     _require_codex_team_project(project_root)
     if acknowledge:
         if not acknowledged_by:
             console.print("[red]Error:[/red] --acknowledge requires --acknowledged-by.")
             raise typer.Exit(1)
-        session_ops.acknowledge_shutdown(project_root, session_id=session_id, acknowledged_by=acknowledged_by)
+        session_ops.acknowledge_shutdown(
+            project_root, session_id=session_id, acknowledged_by=acknowledged_by
+        )
         console.print(f"Shutdown acknowledged for session [cyan]{session_id}[/cyan].")
         return
     if not reason or not requested_by:
-        console.print("[red]Error:[/red] --reason and --requested-by are required to request a shutdown.")
+        console.print(
+            "[red]Error:[/red] --reason and --requested-by are required to request a shutdown."
+        )
         raise typer.Exit(1)
     session_ops.request_shutdown(
         project_root,
@@ -4779,8 +6778,12 @@ def team_shutdown(
 
 @teams_app.command("cleanup")
 def team_cleanup(
-    session_id: str = typer.Option("default", "--session-id", help="Runtime session identifier"),
+    session_id: str = typer.Option(
+        "default", "--session-id", help="Runtime session identifier"
+    ),
 ):
+    """Clean up a completed team runtime session."""
+
     project_root = Path.cwd()
     _require_codex_team_project(project_root)
     session = session_ops.cleanup_session(project_root, session_id=session_id)
@@ -4799,17 +6802,28 @@ def team_notify_hook(
         return
 
     from .codex_team.auto_dispatch import run_notify_hook
+
     run_notify_hook(payload)
 
 
 @teams_app.command("auto-dispatch")
 def team_auto_dispatch(
-    feature_dir: str = typer.Option(..., "--feature-dir", help="Feature directory that contains the active implementation state artifacts"),
-    session_id: str = typer.Option("default", "--session-id", help="Runtime session identifier"),
+    feature_dir: str = typer.Option(
+        ...,
+        "--feature-dir",
+        help="Feature directory that contains the active implementation state artifacts",
+    ),
+    session_id: str = typer.Option(
+        "default", "--session-id", help="Runtime session identifier"
+    ),
 ):
+    """Dispatch the next ready parallel implementation batch."""
+
     project_root = Path.cwd()
     _require_codex_team_project(project_root)
-    _require_fresh_project_map_for_execution(project_root, command_name="team auto-dispatch")
+    _require_fresh_project_map_for_execution(
+        project_root, command_name="team auto-dispatch"
+    )
     try:
         result = route_ready_parallel_batch(
             project_root,
@@ -4832,8 +6846,12 @@ def team_auto_dispatch(
 @teams_app.command("complete-batch")
 def team_complete_batch(
     batch_id: str = typer.Option(..., "--batch-id", help="Dispatched batch identifier"),
-    session_id: str = typer.Option("default", "--session-id", help="Runtime session identifier"),
+    session_id: str = typer.Option(
+        "default", "--session-id", help="Runtime session identifier"
+    ),
 ):
+    """Complete a dispatched batch and release its next ready batch."""
+
     project_root = Path.cwd()
     _require_codex_team_project(project_root)
     try:
@@ -4859,11 +6877,21 @@ def team_complete_batch(
 
 @teams_app.command("submit-result")
 def team_submit_result(
-    request_id: str | None = typer.Option(None, "--request-id", help="Dispatch request identifier"),
-    result_file: str | None = typer.Option(None, "--result-file", help="Path to worker result JSON"),
-    session_id: str = typer.Option("default", "--session-id", help="Runtime session identifier"),
-    print_schema: bool = typer.Option(False, "--print-schema", help="Print the worker result schema and exit"),
+    request_id: str | None = typer.Option(
+        None, "--request-id", help="Dispatch request identifier"
+    ),
+    result_file: str | None = typer.Option(
+        None, "--result-file", help="Path to worker result JSON"
+    ),
+    session_id: str = typer.Option(
+        "default", "--session-id", help="Runtime session identifier"
+    ),
+    print_schema: bool = typer.Option(
+        False, "--print-schema", help="Print the worker result schema and exit"
+    ),
 ):
+    """Validate and submit a worker result to its runtime request."""
+
     project_root = Path.cwd()
     _require_codex_team_project(project_root)
 
@@ -4871,10 +6899,14 @@ def team_submit_result(
         console.print(render_schema_help())
         return
     if not request_id:
-        console.print("[red]Error:[/red] --request-id is required unless --print-schema is used.")
+        console.print(
+            "[red]Error:[/red] --request-id is required unless --print-schema is used."
+        )
         raise typer.Exit(1)
     if not result_file:
-        console.print("[red]Error:[/red] --result-file is required unless --print-schema is used.")
+        console.print(
+            "[red]Error:[/red] --result-file is required unless --print-schema is used."
+        )
         raise typer.Exit(1)
 
     result_path = Path(result_file)
@@ -4908,9 +6940,15 @@ def team_submit_result(
 
 @teams_app.command("result-template")
 def team_result_template(
-    request_id: str = typer.Option(..., "--request-id", help="Dispatch request identifier"),
-    output: str | None = typer.Option(None, "--output", help="Optional file path to write the template to"),
+    request_id: str = typer.Option(
+        ..., "--request-id", help="Dispatch request identifier"
+    ),
+    output: str | None = typer.Option(
+        None, "--output", help="Optional file path to write the template to"
+    ),
 ):
+    """Render the canonical result template for a dispatched request."""
+
     project_root = Path.cwd()
     _require_codex_team_project(project_root)
 
@@ -4928,8 +6966,12 @@ def team_result_template(
     if not output_path.is_absolute():
         output_path = (project_root / output_path).resolve()
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
-    console.print(f"Wrote result template for [cyan]{request_id}[/cyan] to [cyan]{output_path}[/cyan].")
+    output_path.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+    console.print(
+        f"Wrote result template for [cyan]{request_id}[/cyan] to [cyan]{output_path}[/cyan]."
+    )
 
 
 @artifact_app.command("audit-fixed-cost")
@@ -4940,7 +6982,9 @@ def artifact_audit_fixed_cost_command(
     project_root = Path.cwd()
     _require_spec_kit_plus_project(project_root)
     if output_format.lower() != "json":
-        console.print("[red]Error:[/red] only --format json is supported for artifact audit")
+        console.print(
+            "[red]Error:[/red] only --format json is supported for artifact audit"
+        )
         raise typer.Exit(1)
 
     from specify_cli.artifacts import audit_fixed_cost
@@ -4951,15 +6995,21 @@ def artifact_audit_fixed_cost_command(
 @artifact_app.command("scaffold")
 def artifact_scaffold_command(
     kind: str = typer.Option(..., "--kind", help="Artifact scaffold kind"),
-    out_path: str = typer.Option(..., "--out", help="Project-relative artifact output path"),
-    vars_json: str = typer.Option("{}", "--vars", help="Compact JSON variables for the scaffold"),
+    out_path: str = typer.Option(
+        ..., "--out", help="Project-relative artifact output path"
+    ),
+    vars_json: str = typer.Option(
+        "{}", "--vars", help="Compact JSON variables for the scaffold"
+    ),
     output_format: str = typer.Option("json", "--format", help="Output format: json"),
 ):
     """Create a fixed workflow artifact scaffold at a safe project-relative path."""
     project_root = Path.cwd()
     _require_spec_kit_plus_project(project_root)
     if output_format.lower() != "json":
-        console.print("[red]Error:[/red] only --format json is supported for artifact scaffold")
+        console.print(
+            "[red]Error:[/red] only --format json is supported for artifact scaffold"
+        )
         raise typer.Exit(1)
     try:
         variables = json.loads(vars_json)
@@ -4987,13 +7037,28 @@ def artifact_scaffold_command(
 
 @teams_app.command("api")
 def team_api(
-    operation: str = typer.Argument(..., help="API operation (status|doctor|live-probe|tasks|auto-dispatch|complete-batch|submit-result)"),
-    feature_dir: str | None = typer.Option(None, "--feature-dir", help="Feature directory for auto-dispatch"),
-    batch_id: str | None = typer.Option(None, "--batch-id", help="Batch identifier for completion"),
-    request_id: str | None = typer.Option(None, "--request-id", help="Dispatch request identifier for result submission"),
-    result_file: str | None = typer.Option(None, "--result-file", help="Path to worker result JSON for result submission"),
-    session_id: str = typer.Option("default", "--session-id", help="Runtime session identifier"),
+    operation: str = typer.Argument(
+        ...,
+        help="API operation (status|doctor|live-probe|tasks|auto-dispatch|complete-batch|submit-result)",
+    ),
+    feature_dir: str | None = typer.Option(
+        None, "--feature-dir", help="Feature directory for auto-dispatch"
+    ),
+    batch_id: str | None = typer.Option(
+        None, "--batch-id", help="Batch identifier for completion"
+    ),
+    request_id: str | None = typer.Option(
+        None, "--request-id", help="Dispatch request identifier for result submission"
+    ),
+    result_file: str | None = typer.Option(
+        None, "--result-file", help="Path to worker result JSON for result submission"
+    ),
+    session_id: str = typer.Option(
+        "default", "--session-id", help="Runtime session identifier"
+    ),
 ):
+    """Run one machine-readable Codex team API operation."""
+
     from specify_cli.codex_team.api_surface import TeamApiError, run_team_api_operation
 
     project_root = Path.cwd()
@@ -5015,12 +7080,24 @@ def team_api(
 
 @result_app.command("path")
 def result_path_command(
-    command_name: str = typer.Option(..., "--command", help="Workflow command (implement|quick|debug)"),
-    request_id: str | None = typer.Option(None, "--request-id", help="Dispatch request id (Codex/runtime-managed paths)"),
-    feature_dir: str | None = typer.Option(None, "--feature-dir", help="Feature directory for implement result handoff"),
-    task_id: str | None = typer.Option(None, "--task-id", help="Task id for implement result handoff"),
-    workspace: str | None = typer.Option(None, "--workspace", help="Quick-task workspace path"),
-    session_slug: str | None = typer.Option(None, "--session-slug", help="Debug session slug"),
+    command_name: str = typer.Option(
+        ..., "--command", help="Workflow command (implement|quick|debug)"
+    ),
+    request_id: str | None = typer.Option(
+        None, "--request-id", help="Dispatch request id (Codex/runtime-managed paths)"
+    ),
+    feature_dir: str | None = typer.Option(
+        None, "--feature-dir", help="Feature directory for implement result handoff"
+    ),
+    task_id: str | None = typer.Option(
+        None, "--task-id", help="Task id for implement result handoff"
+    ),
+    workspace: str | None = typer.Option(
+        None, "--workspace", help="Quick-task workspace path"
+    ),
+    session_slug: str | None = typer.Option(
+        None, "--session-slug", help="Debug session slug"
+    ),
     lane_id: str | None = typer.Option(None, "--lane-id", help="Delegated lane id"),
 ):
     """Print the canonical delegated-result handoff path."""
@@ -5063,20 +7140,36 @@ def result_path_command(
 
 @result_app.command("submit")
 def result_submit_command(
-    command_name: str = typer.Option(..., "--command", help="Workflow command (implement|quick|debug)"),
-    result_file: str = typer.Option(..., "--result-file", help="Path to subagent result JSON"),
-    request_id: str | None = typer.Option(None, "--request-id", help="Dispatch request id (Codex/runtime-managed paths)"),
-    feature_dir: str | None = typer.Option(None, "--feature-dir", help="Feature directory for implement result handoff"),
-    task_id: str | None = typer.Option(None, "--task-id", help="Task id for implement result handoff"),
-    workspace: str | None = typer.Option(None, "--workspace", help="Quick-task workspace path"),
-    session_slug: str | None = typer.Option(None, "--session-slug", help="Debug session slug"),
+    command_name: str = typer.Option(
+        ..., "--command", help="Workflow command (implement|quick|debug)"
+    ),
+    result_file: str = typer.Option(
+        ..., "--result-file", help="Path to subagent result JSON"
+    ),
+    request_id: str | None = typer.Option(
+        None, "--request-id", help="Dispatch request id (Codex/runtime-managed paths)"
+    ),
+    feature_dir: str | None = typer.Option(
+        None, "--feature-dir", help="Feature directory for implement result handoff"
+    ),
+    task_id: str | None = typer.Option(
+        None, "--task-id", help="Task id for implement result handoff"
+    ),
+    workspace: str | None = typer.Option(
+        None, "--workspace", help="Quick-task workspace path"
+    ),
+    session_slug: str | None = typer.Option(
+        None, "--session-slug", help="Debug session slug"
+    ),
     lane_id: str | None = typer.Option(None, "--lane-id", help="Delegated lane id"),
 ):
     """Normalize and write a subagent result to the canonical handoff path."""
     project_root = Path.cwd()
     integration_key = _require_result_project(project_root)
     if integration_key == "codex":
-        console.print("[red]Error:[/red] Codex projects must use `sp-teams submit-result` for runtime-managed result channels.")
+        console.print(
+            "[red]Error:[/red] Codex projects must use `sp-teams submit-result` for runtime-managed result channels."
+        )
         raise typer.Exit(1)
 
     source_path = Path(result_file)
@@ -5128,9 +7221,15 @@ def result_submit_command(
 @hook_app.command("preflight")
 def hook_preflight_command(
     command_name: str = typer.Option(..., "--command", help="Workflow command name"),
-    feature_dir: str | None = typer.Option(None, "--feature-dir", help="Feature directory path"),
-    workspace: str | None = typer.Option(None, "--workspace", help="Quick-task workspace path"),
-    session_file: str | None = typer.Option(None, "--session-file", help="Debug session file path"),
+    feature_dir: str | None = typer.Option(
+        None, "--feature-dir", help="Feature directory path"
+    ),
+    workspace: str | None = typer.Option(
+        None, "--workspace", help="Quick-task workspace path"
+    ),
+    session_file: str | None = typer.Option(
+        None, "--session-file", help="Debug session file path"
+    ),
     output_format: str = HOOK_JSON_FORMAT_OPTION,
 ):
     """Run the shared workflow preflight hook and return JSON."""
@@ -5152,10 +7251,20 @@ def hook_preflight_command(
 @hook_app.command("validate-state")
 def hook_validate_state_command(
     command_name: str = typer.Option(..., "--command", help="Workflow command name"),
-    feature_dir: str | None = typer.Option(None, "--feature-dir", help="Feature directory path"),
-    workspace: str | None = typer.Option(None, "--workspace", help="Quick-task workspace path"),
-    session_file: str | None = typer.Option(None, "--session-file", help="Debug session file path"),
-    autofix: bool = typer.Option(False, "--autofix", help="Append missing required workflow-state contract sections"),
+    feature_dir: str | None = typer.Option(
+        None, "--feature-dir", help="Feature directory path"
+    ),
+    workspace: str | None = typer.Option(
+        None, "--workspace", help="Quick-task workspace path"
+    ),
+    session_file: str | None = typer.Option(
+        None, "--session-file", help="Debug session file path"
+    ),
+    autofix: bool = typer.Option(
+        False,
+        "--autofix",
+        help="Append missing required workflow-state contract sections",
+    ),
     output_format: str = HOOK_JSON_FORMAT_OPTION,
 ):
     """Validate the current workflow source-of-truth state and return JSON."""
@@ -5178,7 +7287,9 @@ def hook_validate_state_command(
 @hook_app.command("validate-artifacts")
 def hook_validate_artifacts_command(
     command_name: str = typer.Option(..., "--command", help="Workflow command name"),
-    feature_dir: str = typer.Option(..., "--feature-dir", help="Feature directory path"),
+    feature_dir: str = typer.Option(
+        ..., "--feature-dir", help="Feature directory path"
+    ),
     output_format: str = HOOK_JSON_FORMAT_OPTION,
 ):
     """Validate required workflow artifacts and return JSON."""
@@ -5198,9 +7309,15 @@ def hook_validate_artifacts_command(
 @hook_app.command("checkpoint")
 def hook_checkpoint_command(
     command_name: str = typer.Option(..., "--command", help="Workflow command name"),
-    feature_dir: str | None = typer.Option(None, "--feature-dir", help="Feature directory path"),
-    workspace: str | None = typer.Option(None, "--workspace", help="Quick-task workspace path"),
-    session_file: str | None = typer.Option(None, "--session-file", help="Debug session file path"),
+    feature_dir: str | None = typer.Option(
+        None, "--feature-dir", help="Feature directory path"
+    ),
+    workspace: str | None = typer.Option(
+        None, "--workspace", help="Quick-task workspace path"
+    ),
+    session_file: str | None = typer.Option(
+        None, "--session-file", help="Debug session file path"
+    ),
     output_format: str = HOOK_JSON_FORMAT_OPTION,
 ):
     """Build a recovery checkpoint payload from the workflow source of truth."""
@@ -5221,7 +7338,9 @@ def hook_checkpoint_command(
 
 @hook_app.command("validate-packet")
 def hook_validate_packet_command(
-    packet_file: str = typer.Option(..., "--packet-file", help="Path to WorkerTaskPacket JSON"),
+    packet_file: str = typer.Option(
+        ..., "--packet-file", help="Path to WorkerTaskPacket JSON"
+    ),
     output_format: str = HOOK_JSON_FORMAT_OPTION,
 ):
     """Validate a subagent execution packet and return JSON."""
@@ -5237,8 +7356,12 @@ def hook_validate_packet_command(
 
 @hook_app.command("validate-result")
 def hook_validate_result_command(
-    packet_file: str = typer.Option(..., "--packet-file", help="Path to WorkerTaskPacket JSON"),
-    result_file: str = typer.Option(..., "--result-file", help="Path to subagent result JSON"),
+    packet_file: str = typer.Option(
+        ..., "--packet-file", help="Path to WorkerTaskPacket JSON"
+    ),
+    result_file: str = typer.Option(
+        ..., "--result-file", help="Path to subagent result JSON"
+    ),
     output_format: str = HOOK_JSON_FORMAT_OPTION,
 ):
     """Validate a subagent result against its packet and return JSON."""
@@ -5258,11 +7381,21 @@ def hook_validate_result_command(
 @hook_app.command("monitor-context")
 def hook_monitor_context_command(
     command_name: str = typer.Option(..., "--command", help="Workflow command name"),
-    feature_dir: str | None = typer.Option(None, "--feature-dir", help="Feature directory path"),
-    workspace: str | None = typer.Option(None, "--workspace", help="Quick-task workspace path"),
-    session_file: str | None = typer.Option(None, "--session-file", help="Debug session file path"),
-    trigger: str = typer.Option("turn-progress", "--trigger", help="Structural context-monitor trigger"),
-    context_usage: int | None = typer.Option(None, "--context-usage", help="Optional context usage percentage"),
+    feature_dir: str | None = typer.Option(
+        None, "--feature-dir", help="Feature directory path"
+    ),
+    workspace: str | None = typer.Option(
+        None, "--workspace", help="Quick-task workspace path"
+    ),
+    session_file: str | None = typer.Option(
+        None, "--session-file", help="Debug session file path"
+    ),
+    trigger: str = typer.Option(
+        "turn-progress", "--trigger", help="Structural context-monitor trigger"
+    ),
+    context_usage: int | None = typer.Option(
+        None, "--context-usage", help="Optional context usage percentage"
+    ),
     output_format: str = HOOK_JSON_FORMAT_OPTION,
 ):
     """Monitor context pressure and emit checkpoint recommendations as JSON."""
@@ -5286,9 +7419,15 @@ def hook_monitor_context_command(
 @hook_app.command("validate-session-state")
 def hook_validate_session_state_command(
     command_name: str = typer.Option(..., "--command", help="Workflow command name"),
-    feature_dir: str | None = typer.Option(None, "--feature-dir", help="Feature directory path"),
-    workspace: str | None = typer.Option(None, "--workspace", help="Quick-task workspace path"),
-    session_file: str | None = typer.Option(None, "--session-file", help="Debug session file path"),
+    feature_dir: str | None = typer.Option(
+        None, "--feature-dir", help="Feature directory path"
+    ),
+    workspace: str | None = typer.Option(
+        None, "--workspace", help="Quick-task workspace path"
+    ),
+    session_file: str | None = typer.Option(
+        None, "--session-file", help="Debug session file path"
+    ),
     output_format: str = HOOK_JSON_FORMAT_OPTION,
 ):
     """Validate cross-file session state consistency and return JSON."""
@@ -5310,9 +7449,15 @@ def hook_validate_session_state_command(
 @hook_app.command("render-statusline")
 def hook_render_statusline_command(
     command_name: str = typer.Option(..., "--command", help="Workflow command name"),
-    feature_dir: str | None = typer.Option(None, "--feature-dir", help="Feature directory path"),
-    workspace: str | None = typer.Option(None, "--workspace", help="Quick-task workspace path"),
-    session_file: str | None = typer.Option(None, "--session-file", help="Debug session file path"),
+    feature_dir: str | None = typer.Option(
+        None, "--feature-dir", help="Feature directory path"
+    ),
+    workspace: str | None = typer.Option(
+        None, "--workspace", help="Quick-task workspace path"
+    ),
+    session_file: str | None = typer.Option(
+        None, "--session-file", help="Debug session file path"
+    ),
     output_format: str = HOOK_JSON_FORMAT_OPTION,
 ):
     """Render a compact workflow statusline summary and return JSON."""
@@ -5333,7 +7478,9 @@ def hook_render_statusline_command(
 
 @hook_app.command("validate-read-path")
 def hook_validate_read_path_command(
-    target_path: str = typer.Option(..., "--target-path", help="Path the workflow wants to read"),
+    target_path: str = typer.Option(
+        ..., "--target-path", help="Path the workflow wants to read"
+    ),
     output_format: str = HOOK_JSON_FORMAT_OPTION,
 ):
     """Validate whether a read target stays inside workflow-safe path boundaries."""
@@ -5349,8 +7496,12 @@ def hook_validate_read_path_command(
 
 @hook_app.command("validate-prompt")
 def hook_validate_prompt_command(
-    prompt_text: str | None = typer.Option(None, "--prompt-text", help="Prompt text to validate"),
-    prompt_stdin: bool = typer.Option(False, "--prompt-stdin", help="Read prompt text from stdin"),
+    prompt_text: str | None = typer.Option(
+        None, "--prompt-text", help="Prompt text to validate"
+    ),
+    prompt_stdin: bool = typer.Option(
+        False, "--prompt-stdin", help="Read prompt text from stdin"
+    ),
     output_format: str = HOOK_JSON_FORMAT_OPTION,
 ):
     """Validate prompt text for explicit workflow-bypass or override language."""
@@ -5362,7 +7513,9 @@ def hook_validate_prompt_command(
     else:
         resolved_prompt_text = prompt_text or ""
     if not resolved_prompt_text.strip():
-        raise typer.BadParameter("prompt text is required; pass --prompt-text or --prompt-stdin")
+        raise typer.BadParameter(
+            "prompt text is required; pass --prompt-text or --prompt-stdin"
+        )
     _run_hook_and_print(
         project_root,
         "workflow.prompt_guard.validate",
@@ -5372,8 +7525,12 @@ def hook_validate_prompt_command(
 
 @hook_app.command("validate-boundary")
 def hook_validate_boundary_command(
-    from_command: str = typer.Option(..., "--from-command", help="Current workflow command"),
-    to_command: str = typer.Option(..., "--to-command", help="Requested next workflow command"),
+    from_command: str = typer.Option(
+        ..., "--from-command", help="Current workflow command"
+    ),
+    to_command: str = typer.Option(
+        ..., "--to-command", help="Requested next workflow command"
+    ),
     output_format: str = HOOK_JSON_FORMAT_OPTION,
 ):
     """Validate whether a workflow command transition is allowed."""
@@ -5389,8 +7546,12 @@ def hook_validate_boundary_command(
 
 @hook_app.command("validate-phase-boundary")
 def hook_validate_phase_boundary_command(
-    from_phase_mode: str = typer.Option(..., "--from-phase-mode", help="Current phase mode"),
-    to_phase_mode: str = typer.Option(..., "--to-phase-mode", help="Requested next phase mode"),
+    from_phase_mode: str = typer.Option(
+        ..., "--from-phase-mode", help="Current phase mode"
+    ),
+    to_phase_mode: str = typer.Option(
+        ..., "--to-phase-mode", help="Requested next phase mode"
+    ),
     output_format: str = HOOK_JSON_FORMAT_OPTION,
 ):
     """Validate whether a workflow phase transition is allowed."""
@@ -5406,11 +7567,20 @@ def hook_validate_phase_boundary_command(
 
 @hook_app.command("validate-commit")
 def hook_validate_commit_command(
-    commit_message: str = typer.Option(..., "--commit-message", help="Commit message to validate"),
-    feature_dir: str | None = typer.Option(None, "--feature-dir", help="Optional feature directory for tracker validation"),
+    commit_message: str = typer.Option(
+        ..., "--commit-message", help="Commit message to validate"
+    ),
+    feature_dir: str | None = typer.Option(
+        None, "--feature-dir", help="Optional feature directory for tracker validation"
+    ),
+    commit_intent: str = typer.Option(
+        "finalize",
+        "--commit-intent",
+        help="Commit intent: finalize or external-evidence-checkpoint",
+    ),
     output_format: str = HOOK_JSON_FORMAT_OPTION,
 ):
-    """Validate commit message and workflow terminal state before commit finalization."""
+    """Validate commit message and workflow state for final or evidence commits."""
     project_root = Path.cwd()
     _require_spec_kit_plus_project(project_root)
     _validate_hook_output_format(output_format)
@@ -5420,6 +7590,7 @@ def hook_validate_commit_command(
         {
             "commit_message": commit_message,
             "feature_dir": _normalize_optional_repo_path(project_root, feature_dir),
+            "commit_intent": commit_intent,
         },
     )
 
@@ -5427,12 +7598,26 @@ def hook_validate_commit_command(
 @hook_app.command("workflow-policy")
 def hook_workflow_policy_command(
     command_name: str = typer.Option(..., "--command", help="Workflow command name"),
-    feature_dir: str | None = typer.Option(None, "--feature-dir", help="Feature directory path"),
-    workspace: str | None = typer.Option(None, "--workspace", help="Quick-task workspace path"),
-    session_file: str | None = typer.Option(None, "--session-file", help="Debug session file path"),
-    trigger: str = typer.Option("manual", "--trigger", help="Native or workflow trigger name"),
-    requested_action: str | None = typer.Option(None, "--requested-action", help="Requested high-level action"),
-    prior_redirect_count: int | None = typer.Option(None, "--prior-redirect-count", help="Number of prior redirect outcomes for this active workflow"),
+    feature_dir: str | None = typer.Option(
+        None, "--feature-dir", help="Feature directory path"
+    ),
+    workspace: str | None = typer.Option(
+        None, "--workspace", help="Quick-task workspace path"
+    ),
+    session_file: str | None = typer.Option(
+        None, "--session-file", help="Debug session file path"
+    ),
+    trigger: str = typer.Option(
+        "manual", "--trigger", help="Native or workflow trigger name"
+    ),
+    requested_action: str | None = typer.Option(
+        None, "--requested-action", help="Requested high-level action"
+    ),
+    prior_redirect_count: int | None = typer.Option(
+        None,
+        "--prior-redirect-count",
+        help="Number of prior redirect outcomes for this active workflow",
+    ),
     output_format: str = HOOK_JSON_FORMAT_OPTION,
 ):
     """Evaluate workflow policy and return normalized enforcement JSON."""
@@ -5459,9 +7644,15 @@ def hook_workflow_policy_command(
 @hook_app.command("build-compaction")
 def hook_build_compaction_command(
     command_name: str = typer.Option(..., "--command", help="Workflow command name"),
-    feature_dir: str | None = typer.Option(None, "--feature-dir", help="Feature directory path"),
-    workspace: str | None = typer.Option(None, "--workspace", help="Quick-task workspace path"),
-    session_file: str | None = typer.Option(None, "--session-file", help="Debug session file path"),
+    feature_dir: str | None = typer.Option(
+        None, "--feature-dir", help="Feature directory path"
+    ),
+    workspace: str | None = typer.Option(
+        None, "--workspace", help="Quick-task workspace path"
+    ),
+    session_file: str | None = typer.Option(
+        None, "--session-file", help="Debug session file path"
+    ),
     trigger: str = typer.Option("manual", "--trigger", help="Compaction trigger name"),
     output_format: str = HOOK_JSON_FORMAT_OPTION,
 ):
@@ -5485,9 +7676,15 @@ def hook_build_compaction_command(
 @hook_app.command("read-compaction")
 def hook_read_compaction_command(
     command_name: str = typer.Option(..., "--command", help="Workflow command name"),
-    feature_dir: str | None = typer.Option(None, "--feature-dir", help="Feature directory path"),
-    workspace: str | None = typer.Option(None, "--workspace", help="Quick-task workspace path"),
-    session_file: str | None = typer.Option(None, "--session-file", help="Debug session file path"),
+    feature_dir: str | None = typer.Option(
+        None, "--feature-dir", help="Feature directory path"
+    ),
+    workspace: str | None = typer.Option(
+        None, "--workspace", help="Quick-task workspace path"
+    ),
+    session_file: str | None = typer.Option(
+        None, "--session-file", help="Debug session file path"
+    ),
     output_format: str = HOOK_JSON_FORMAT_OPTION,
 ):
     """Read the latest structured compaction artifact for a workflow scope."""
@@ -5509,16 +7706,41 @@ def hook_read_compaction_command(
 @hook_app.command("signal-learning")
 def hook_signal_learning_command(
     command_name: str = typer.Option(..., "--command", help="Workflow command name"),
-    retry_attempts: int = typer.Option(0, "--retry-attempts", help="Retry or recovery attempts observed"),
-    hypothesis_changes: int = typer.Option(0, "--hypothesis-changes", help="Major hypothesis changes observed"),
-    validation_failures: int = typer.Option(0, "--validation-failures", help="Validation failures observed"),
-    artifact_rewrites: int = typer.Option(0, "--artifact-rewrites", help="Artifact rewrites observed"),
-    command_failures: int = typer.Option(0, "--command-failures", help="Failed command attempts observed"),
-    user_corrections: int = typer.Option(0, "--user-corrections", help="User corrections observed"),
-    route_changes: int = typer.Option(0, "--route-changes", help="Workflow routing changes observed"),
-    scope_changes: int = typer.Option(0, "--scope-changes", help="Scope changes observed"),
-    false_starts: list[str] | None = typer.Option(None, "--false-start", help="Misleading first attempts or false leads"),
-    hidden_dependencies: list[str] | None = typer.Option(None, "--hidden-dependency", help="Hidden dependencies discovered"),
+    retry_attempts: int = typer.Option(
+        0, "--retry-attempts", help="Retry or recovery attempts observed"
+    ),
+    hypothesis_changes: int = typer.Option(
+        0, "--hypothesis-changes", help="Major hypothesis changes observed"
+    ),
+    validation_failures: int = typer.Option(
+        0, "--validation-failures", help="Validation failures observed"
+    ),
+    artifact_rewrites: int = typer.Option(
+        0, "--artifact-rewrites", help="Artifact rewrites observed"
+    ),
+    command_failures: int = typer.Option(
+        0, "--command-failures", help="Failed command attempts observed"
+    ),
+    user_corrections: int = typer.Option(
+        0, "--user-corrections", help="User corrections observed"
+    ),
+    route_changes: int = typer.Option(
+        0, "--route-changes", help="Workflow routing changes observed"
+    ),
+    scope_changes: int = typer.Option(
+        0, "--scope-changes", help="Scope changes observed"
+    ),
+    false_starts: list[str] | None = typer.Option(
+        None, "--false-start", help="Misleading first attempts or false leads"
+    ),
+    hidden_dependencies: list[str] | None = typer.Option(
+        None, "--hidden-dependency", help="Hidden dependencies discovered"
+    ),
+    trigger_signals: list[str] | None = typer.Option(
+        None,
+        "--trigger-signal",
+        help="Explicit reusable-learning trigger, for example user_correction, blocker_recovery, state_loss, or cognition_gap",
+    ),
     output_format: str = HOOK_JSON_FORMAT_OPTION,
 ):
     """Detect workflow friction that should trigger a learning review."""
@@ -5540,6 +7762,7 @@ def hook_signal_learning_command(
             "scope_changes": scope_changes,
             "false_starts": false_starts or [],
             "hidden_dependencies": hidden_dependencies or [],
+            "trigger_signals": trigger_signals or [],
         },
     )
 
@@ -5547,9 +7770,21 @@ def hook_signal_learning_command(
 @hook_app.command("review-learning")
 def hook_review_learning_command(
     command_name: str = typer.Option(..., "--command", help="Workflow command name"),
-    terminal_status: str = typer.Option(..., "--terminal-status", help="Terminal workflow status, for example resolved or blocked"),
-    decision: str | None = typer.Option(None, "--decision", help="Learning review decision: none, captured, deferred, auto-captured, or manual-capture-needed"),
-    rationale: str | None = typer.Option(None, "--rationale", help="Why no reusable learning exists or why capture was deferred"),
+    terminal_status: str = typer.Option(
+        ...,
+        "--terminal-status",
+        help="Terminal workflow status, for example resolved or blocked",
+    ),
+    decision: str | None = typer.Option(
+        None,
+        "--decision",
+        help="Learning review decision: none, captured, deferred, auto-captured, or manual-capture-needed",
+    ),
+    rationale: str | None = typer.Option(
+        None,
+        "--rationale",
+        help="Why no reusable learning exists or why capture was deferred",
+    ),
     output_format: str = HOOK_JSON_FORMAT_OPTION,
 ):
     """Enforce a learning review before terminal workflow closeout."""
@@ -5575,19 +7810,67 @@ def hook_capture_learning_command(
     command_name: str = typer.Option(..., "--command", help="Workflow command name"),
     learning_type: str = typer.Option(..., "--type", help="Learning type"),
     summary: str = typer.Option(..., "--summary", help="One-line learning summary"),
-    evidence: str = typer.Option(..., "--evidence", help="Supporting evidence or context"),
-    recurrence_key: str | None = typer.Option(None, "--recurrence-key", help="Stable deduplication key"),
-    signal_strength: str = typer.Option("medium", "--signal", help="Signal strength: low, medium, or high"),
-    applies_to: list[str] | None = typer.Option(None, "--applies-to", help="Commands this learning should influence"),
-    default_scope: str | None = typer.Option(None, "--scope", help="Default sharing scope label"),
-    confirm: bool = typer.Option(False, "--confirm", help="Promote directly into project learnings instead of leaving as a candidate"),
-    pain_score: int | None = typer.Option(None, "--pain-score", help="Workflow friction score that triggered capture"),
-    false_starts: list[str] | None = typer.Option(None, "--false-start", help="Misleading first attempts or false leads"),
-    rejected_paths: list[str] | None = typer.Option(None, "--rejected-path", help="Rejected diagnosis or implementation paths"),
-    decisive_signal: str | None = typer.Option(None, "--decisive-signal", help="Evidence that made the learning clear"),
-    root_cause_family: str | None = typer.Option(None, "--root-cause-family", help="Stable root-cause family label"),
-    injection_targets: list[str] | None = typer.Option(None, "--injection-target", help="Workflow, document, or rule surface that should receive the learning"),
-    promotion_hint: str | None = typer.Option(None, "--promotion-hint", help="When or how this candidate should be promoted"),
+    evidence: str = typer.Option(
+        ..., "--evidence", help="Supporting evidence or context"
+    ),
+    recurrence_key: str | None = typer.Option(
+        None, "--recurrence-key", help="Stable deduplication key"
+    ),
+    signal_strength: str = typer.Option(
+        "medium", "--signal", help="Signal strength: low, medium, or high"
+    ),
+    applies_to: list[str] | None = typer.Option(
+        None, "--applies-to", help="Commands this learning should influence"
+    ),
+    default_scope: str | None = typer.Option(
+        None, "--scope", help="Default sharing scope label"
+    ),
+    confirm: bool = typer.Option(
+        False,
+        "--confirm",
+        help="Promote directly into project learnings instead of leaving as a candidate",
+    ),
+    pain_score: int | None = typer.Option(
+        None, "--pain-score", help="Workflow friction score that triggered capture"
+    ),
+    false_starts: list[str] | None = typer.Option(
+        None, "--false-start", help="Misleading first attempts or false leads"
+    ),
+    rejected_paths: list[str] | None = typer.Option(
+        None, "--rejected-path", help="Rejected diagnosis or implementation paths"
+    ),
+    decisive_signal: str | None = typer.Option(
+        None, "--decisive-signal", help="Evidence that made the learning clear"
+    ),
+    root_cause_family: str | None = typer.Option(
+        None, "--root-cause-family", help="Stable root-cause family label"
+    ),
+    injection_targets: list[str] | None = typer.Option(
+        None,
+        "--injection-target",
+        help="Workflow, document, or rule surface that should receive the learning",
+    ),
+    promotion_hint: str | None = typer.Option(
+        None, "--promotion-hint", help="When or how this candidate should be promoted"
+    ),
+    problem: str | None = typer.Option(
+        None, "--problem", help="Failure mode or situation this learning addresses"
+    ),
+    recommended_action: str | None = typer.Option(
+        None, "--action", help="Imperative action a future agent should take"
+    ),
+    avoid: list[str] | None = typer.Option(
+        None, "--avoid", help="Action or path a future agent should avoid"
+    ),
+    trigger_signals: list[str] | None = typer.Option(
+        None, "--trigger", help="Observable signal that should activate this learning"
+    ),
+    success_criteria: list[str] | None = typer.Option(
+        None, "--success", help="Observable condition proving the guidance worked"
+    ),
+    exceptions: list[str] | None = typer.Option(
+        None, "--exception", help="Condition where this learning should not be applied"
+    ),
     output_format: str = HOOK_JSON_FORMAT_OPTION,
 ):
     """Capture a structured learning candidate through the hook surface."""
@@ -5614,6 +7897,12 @@ def hook_capture_learning_command(
             "root_cause_family": root_cause_family,
             "injection_targets": injection_targets or [],
             "promotion_hint": promotion_hint,
+            "problem": problem,
+            "recommended_action": recommended_action,
+            "avoid": avoid or [],
+            "trigger_signals": trigger_signals or [],
+            "success_criteria": success_criteria or [],
+            "exceptions": exceptions or [],
         },
     )
 
@@ -5642,11 +7931,29 @@ def hook_inject_learning_command(
 
 @hook_app.command("mark-dirty")
 def hook_mark_dirty_command(
-    reason: str = typer.Option(..., "--reason", help="Why the current work needs a manual dirty override/fallback"),
-    origin_command: str = typer.Option("", "--origin-command", help="Optional workflow command that created the dirty fallback"),
-    origin_feature_dir: str = typer.Option("", "--origin-feature-dir", help="Optional feature directory that created the dirty fallback"),
-    origin_lane_id: str = typer.Option("", "--origin-lane-id", help="Optional lane id that created the dirty fallback"),
-    packet_file: str = typer.Option("", "--packet-file", help="Optional WorkerTaskPacket JSON used to derive dirty scope paths"),
+    reason: str = typer.Option(
+        ...,
+        "--reason",
+        help="Why the current work needs a manual dirty override/fallback",
+    ),
+    origin_command: str = typer.Option(
+        "",
+        "--origin-command",
+        help="Optional workflow command that created the dirty fallback",
+    ),
+    origin_feature_dir: str = typer.Option(
+        "",
+        "--origin-feature-dir",
+        help="Optional feature directory that created the dirty fallback",
+    ),
+    origin_lane_id: str = typer.Option(
+        "", "--origin-lane-id", help="Optional lane id that created the dirty fallback"
+    ),
+    packet_file: str = typer.Option(
+        "",
+        "--packet-file",
+        help="Optional WorkerTaskPacket JSON used to derive dirty scope paths",
+    ),
     output_format: str = HOOK_JSON_FORMAT_OPTION,
 ):
     """Mark the project map dirty as the shared manual override/fallback."""
@@ -5723,13 +8030,21 @@ def check():
         rows = [("Active", f"[dim]{_current_specify_entrypoint()}[/dim]")]
         rows.append(("Module", f"[dim]{Path(__file__).resolve()}[/dim]"))
         if len(specify_candidates) > 1:
-            rows.append(("PATH Entries", f"[yellow]{len(specify_candidates)} found[/yellow]"))
+            rows.append(
+                ("PATH Entries", f"[yellow]{len(specify_candidates)} found[/yellow]")
+            )
         else:
             rows.append(("PATH Entries", "1 found"))
-        console.print(_cli_panel(_labeled_grid(rows), title="Specify CLI Path", border_style="cyan"))
+        console.print(
+            _cli_panel(
+                _labeled_grid(rows), title="Specify CLI Path", border_style="cyan"
+            )
+        )
 
         if len(specify_candidates) > 1:
-            console.print("[yellow]Warning:[/yellow] Multiple `specify` executables are on PATH. A stale copy can shadow the latest install.")
+            console.print(
+                "[yellow]Warning:[/yellow] Multiple `specify` executables are on PATH. A stale copy can shadow the latest install."
+            )
             for candidate in specify_candidates:
                 console.print(f"- [dim]{candidate}[/dim]")
             console.print(
@@ -5745,7 +8060,9 @@ def check():
             loaded = None
 
         console.print()
-        if isinstance(loaded, dict) and isinstance(loaded.get("specify_launcher"), dict):
+        if isinstance(loaded, dict) and isinstance(
+            loaded.get("specify_launcher"), dict
+        ):
             launcher = loaded["specify_launcher"]
             argv = launcher.get("argv")
             command = launcher.get("command")
@@ -5756,15 +8073,25 @@ def check():
             if isinstance(command, str) and command.strip():
                 rows.append(("Command", f"[dim]{command}[/dim]"))
             elif isinstance(argv, list) and argv:
-                rows.append(("Command", f"[dim]{' '.join(str(item) for item in argv)}[/dim]"))
-            console.print(_cli_panel(_labeled_grid(rows), title="Project Launcher", border_style="green"))
+                rows.append(
+                    ("Command", f"[dim]{' '.join(str(item) for item in argv)}[/dim]")
+                )
+            console.print(
+                _cli_panel(
+                    _labeled_grid(rows), title="Project Launcher", border_style="green"
+                )
+            )
         else:
             rows = [
                 ("Project", f"[dim]{project_root}[/dim]"),
                 ("Launcher", "[yellow]missing[/yellow]"),
                 ("Mode", "[yellow]compatibility mode[/yellow]"),
             ]
-            console.print(_cli_panel(_labeled_grid(rows), title="Project Launcher", border_style="yellow"))
+            console.print(
+                _cli_panel(
+                    _labeled_grid(rows), title="Project Launcher", border_style="yellow"
+                )
+            )
             console.print(
                 "[yellow]Warning:[/yellow] This project has Spec Kit state but no persisted project launcher. "
                 "Runtime helper commands may fall back to PATH `specify` compatibility mode."
@@ -5783,7 +8110,13 @@ def check():
                 ("Project", f"[dim]{project_root}[/dim]"),
                 ("Issues", f"[yellow]{len(compatibility_issues)} detected[/yellow]"),
             ]
-            console.print(_cli_panel(_labeled_grid(rows), title="Project Compatibility", border_style="yellow"))
+            console.print(
+                _cli_panel(
+                    _labeled_grid(rows),
+                    title="Project Compatibility",
+                    border_style="yellow",
+                )
+            )
             for issue in compatibility_issues:
                 console.print(f"- [yellow]{issue['summary']}[/yellow]")
                 console.print(f"  [dim]{issue['repair']}[/dim]")
@@ -5795,6 +8128,7 @@ def check():
 
     if not any(agent_results.values()):
         console.print("[dim]Tip: Install an AI assistant for the best experience[/dim]")
+
 
 @app.command()
 def version():
@@ -5812,6 +8146,7 @@ def version():
         # Fallback: try reading from pyproject.toml if running from source
         try:
             import tomllib
+
             pyproject_path = Path(__file__).parent.parent.parent / "pyproject.toml"
             if pyproject_path.exists():
                 with open(pyproject_path, "rb") as f:
@@ -5842,12 +8177,14 @@ def version():
         info_table,
         title="[bold cyan]Specify CLI Information[/bold cyan]",
         border_style="cyan",
-        padding=(1, 2)
+        padding=(1, 2),
     )
 
     console.print(panel)
     if len(specify_candidates) > 1:
-        console.print("[yellow]Warning:[/yellow] Multiple `specify` executables are on PATH:")
+        console.print(
+            "[yellow]Warning:[/yellow] Multiple `specify` executables are on PATH:"
+        )
         for candidate in specify_candidates:
             console.print(f"- [dim]{candidate}[/dim]")
         console.print(
@@ -5858,8 +8195,14 @@ def version():
 
 @app.command("integrate")
 def integrate(
-    feature_dir: str | None = typer.Option(None, "--feature-dir", help="Feature directory to close out"),
-    close: bool = typer.Option(False, "--close", help="Mark the targeted lane integrated after readiness passes"),
+    feature_dir: str | None = typer.Option(
+        None, "--feature-dir", help="Feature directory to close out"
+    ),
+    close: bool = typer.Option(
+        False,
+        "--close",
+        help="Mark the targeted lane integrated after readiness passes",
+    ),
 ):
     """Inspect candidate lanes for closeout through the integrate workflow."""
 
@@ -5887,8 +8230,13 @@ def integrate(
             )
             if lane_record is None:
                 for record in rebuild_lane_index(project_root).get("lanes", []):
-                    if isinstance(record, dict) and record.get("feature_dir") == relative_feature_dir:
-                        lane_record = read_lane_record(project_root, str(record["lane_id"]))
+                    if (
+                        isinstance(record, dict)
+                        and record.get("feature_dir") == relative_feature_dir
+                    ):
+                        lane_record = read_lane_record(
+                            project_root, str(record["lane_id"])
+                        )
                         if lane_record is not None:
                             break
             if lane_record is not None:
@@ -5900,7 +8248,8 @@ def integrate(
         print_json(
             {
                 "status": "ok"
-                if lane_record is not None and (readiness is None or readiness.ready or not close)
+                if lane_record is not None
+                and (readiness is None or readiness.ready or not close)
                 else "blocked",
                 "mode": "targeted",
                 "feature_dir": str(resolved) if resolved is not None else None,
@@ -5927,7 +8276,9 @@ def integrate(
                         "recovery_state": readiness.lane.recovery_state,
                         "verification_status": readiness.lane.verification_status,
                         "ready": readiness.ready,
-                        "recommended_action": "close" if readiness.ready else "fix-prechecks",
+                        "recommended_action": "close"
+                        if readiness.ready
+                        else "fix-prechecks",
                         "checks": readiness.checks,
                     }
                 )(assess_integration_readiness(project_root, lane))
@@ -5937,12 +8288,38 @@ def integrate(
     )
 
 
+class LintTier(str, Enum):
+    light = "light"
+    standard = "standard"
+    deep = "deep"
+
+
 @app.command()
 def lint(
-    dir: str = typer.Option(".", "--dir", help="Feature directory path (containing spec.md, alignment.md, etc.)"),
-    tier: str = typer.Option("standard", "--tier", help="Check tier: light, standard, deep"),
-    show_version: bool = typer.Option(False, "--version", help="Print spec-lint version and exit"),
-    force_download: bool = typer.Option(False, "--force-download", help="Re-download spec-lint binary even if cached"),
+    dir: str = typer.Option(
+        ".",
+        "--dir",
+        help="Feature directory path (containing spec.md, alignment.md, etc.)",
+    ),
+    tier: LintTier = typer.Option(
+        LintTier.standard, "--tier", help="Check tier: light, standard, deep"
+    ),
+    output_format: TextJsonFormat = typer.Option(
+        TextJsonFormat.text,
+        "--format",
+        help="Output format: text for humans, compact JSON for agents",
+    ),
+    show_passes: bool = typer.Option(
+        False,
+        "--show-passes",
+        help="Include passing check names in JSON output",
+    ),
+    show_version: bool = typer.Option(
+        False, "--version", help="Print spec-lint version and exit"
+    ),
+    force_download: bool = typer.Option(
+        False, "--force-download", help="Re-download spec-lint binary even if cached"
+    ),
 ):
     """Run spec quality gate checks on a feature directory.
 
@@ -5954,7 +8331,9 @@ def lint(
     if show_version:
         args.append("--version")
     else:
-        args.extend(["-dir", dir, "-tier", tier])
+        args.extend(["-dir", dir, "-tier", tier.value, "-format", output_format.value])
+        if show_passes:
+            args.append("-show-passes")
 
     ec = run_lint(args, force=force_download)
     raise typer.Exit(code=ec)
@@ -5994,12 +8373,14 @@ preset_app.add_typer(preset_catalog_app, name="catalog")
 def get_speckit_version() -> str:
     """Get current spec-kit version."""
     import importlib.metadata
+
     try:
         return importlib.metadata.version("specify-cli")
     except Exception:
         # Fallback: try reading from pyproject.toml
         try:
             import tomllib
+
             pyproject_path = Path(__file__).parent.parent.parent / "pyproject.toml"
             if pyproject_path.exists():
                 with open(pyproject_path, "rb") as f:
@@ -6045,12 +8426,61 @@ except ModuleNotFoundError as exc:
         )
         raise typer.Exit(1)
 
+
 app.add_typer(debug_app, name="debug")
 # Register sp-debug as an alias per TOL-03
 app.add_typer(debug_app, name="sp-debug")
 
 
 INTEGRATION_JSON = ".specify/integration.json"
+WORKFLOW_PROFILE_CHOICES = frozenset({"classic", "advanced"})
+
+
+def _installed_workflow_profiles(
+    project_root: Path,
+    *,
+    integration_key: str | None = None,
+    default: str | None = "classic",
+) -> list[str]:
+    """Return valid profiles owned by one integration in install order."""
+    opts = load_init_options(project_root)
+    profiles: list[str] = []
+    profiles_by_integration = opts.get("workflow_profiles_by_integration")
+    raw_profiles: Any = None
+    if integration_key and isinstance(profiles_by_integration, dict):
+        raw_profiles = profiles_by_integration.get(integration_key)
+
+    legacy_owner = opts.get("integration") or opts.get("ai")
+    may_read_legacy = integration_key is None or legacy_owner in {None, integration_key}
+    if raw_profiles is None and may_read_legacy:
+        raw_profiles = opts.get("installed_workflow_profiles")
+    if isinstance(raw_profiles, list):
+        for profile in raw_profiles:
+            if profile in WORKFLOW_PROFILE_CHOICES and profile not in profiles:
+                profiles.append(profile)
+
+    if may_read_legacy:
+        current = opts.get("workflow_profile")
+        if current in WORKFLOW_PROFILE_CHOICES and current not in profiles:
+            profiles.append(current)
+    if not profiles and default in WORKFLOW_PROFILE_CHOICES:
+        profiles.append(default)
+    return profiles
+
+
+def _remove_workflow_profile_ownership(
+    opts: dict[str, Any],
+    integration_key: str,
+) -> None:
+    """Remove one integration's profile history without erasing other owners."""
+    profiles_by_integration = opts.get("workflow_profiles_by_integration")
+    if isinstance(profiles_by_integration, dict):
+        updated = dict(profiles_by_integration)
+        updated.pop(integration_key, None)
+        if updated:
+            opts["workflow_profiles_by_integration"] = updated
+        else:
+            opts.pop("workflow_profiles_by_integration", None)
 
 
 def _read_integration_json(project_root: Path) -> dict[str, Any]:
@@ -6067,11 +8497,15 @@ def _read_integration_json(project_root: Path) -> dict[str, Any]:
         raise typer.Exit(1)
     except OSError as exc:
         console.print(f"[red]Error:[/red] Could not read {path}.")
-        console.print(f"Please fix file permissions or delete {INTEGRATION_JSON} and retry.")
+        console.print(
+            f"Please fix file permissions or delete {INTEGRATION_JSON} and retry."
+        )
         console.print(f"[dim]Details:[/dim] {exc}")
         raise typer.Exit(1)
     if not isinstance(data, dict):
-        console.print(f"[red]Error:[/red] {path} must contain a JSON object, got {type(data).__name__}.")
+        console.print(
+            f"[red]Error:[/red] {path} must contain a JSON object, got {type(data).__name__}."
+        )
         console.print(f"Please fix or delete {INTEGRATION_JSON} and retry.")
         raise typer.Exit(1)
     return data
@@ -6081,6 +8515,7 @@ def _write_integration_json(
     project_root: Path,
     integration_key: str,
     script_type: str,
+    workflow_profiles: list[str] | None = None,
 ) -> None:
     """Write ``.specify/integration.json`` for *integration_key*."""
     script_ext = "sh" if script_type == "sh" else "ps1"
@@ -6093,6 +8528,13 @@ def _write_integration_json(
             "update-context": f".specify/integrations/{integration_key}/scripts/update-context.{script_ext}",
         },
     }
+    valid_profiles = [
+        profile
+        for profile in dict.fromkeys(workflow_profiles or [])
+        if profile in WORKFLOW_PROFILE_CHOICES
+    ]
+    if workflow_profiles is not None:
+        payload["workflow_profiles"] = valid_profiles
     if integration_key == "codex":
         payload["team"] = {
             "surface": "sp-teams",
@@ -6169,14 +8611,24 @@ def integration_list():
         console.print(f"\n[dim]Current integration:[/dim] [cyan]{installed_key}[/cyan]")
     else:
         console.print("\n[yellow]No integration currently installed.[/yellow]")
-        console.print("Install one with: [cyan]specify integration install <key>[/cyan]")
+        console.print(
+            "Install one with: [cyan]specify integration install <key>[/cyan]"
+        )
 
 
 @integration_app.command("install")
 def integration_install(
     key: str = typer.Argument(help="Integration key to install (e.g. claude, copilot)"),
-    script: str | None = typer.Option(None, "--script", help="Script type: sh or ps (default: from init-options.json or platform default)"),
-    integration_options: str | None = typer.Option(None, "--integration-options", help='Options for the integration (e.g. --integration-options="--commands-dir .myagent/cmds")'),
+    script: str | None = typer.Option(
+        None,
+        "--script",
+        help="Script type: sh or ps (default: from init-options.json or platform default)",
+    ),
+    integration_options: str | None = typer.Option(
+        None,
+        "--integration-options",
+        help='Options for the integration (e.g. --integration-options="--commands-dir .myagent/cmds")',
+    ),
 ):
     """Install an integration into an existing project."""
     from .integrations import INTEGRATION_REGISTRY, get_integration
@@ -6198,12 +8650,18 @@ def integration_install(
 
     if installed_key and installed_key == key:
         console.print(f"[yellow]Integration '{key}' is already installed.[/yellow]")
-        console.print("Run [cyan]specify integration uninstall[/cyan] first, then reinstall.")
+        console.print(
+            "Run [cyan]specify integration uninstall[/cyan] first, then reinstall."
+        )
         raise typer.Exit(0)
 
     if installed_key:
-        console.print(f"[red]Error:[/red] Integration '{installed_key}' is already installed.")
-        console.print(f"Run [cyan]specify integration uninstall[/cyan] first, or use [cyan]specify integration switch {key}[/cyan].")
+        console.print(
+            f"[red]Error:[/red] Integration '{installed_key}' is already installed."
+        )
+        console.print(
+            f"Run [cyan]specify integration uninstall[/cyan] first, or use [cyan]specify integration switch {key}[/cyan]."
+        )
         raise typer.Exit(1)
 
     selected_script = _resolve_script_type(project_root, script)
@@ -6225,7 +8683,8 @@ def integration_install(
 
     try:
         integration.setup(
-            project_root, manifest,
+            project_root,
+            manifest,
             parsed_options=parsed_options,
             script_type=selected_script,
             raw_options=integration_options,
@@ -6243,7 +8702,9 @@ def integration_install(
         integration.post_init_bootstrap(project_root, manifest)
         manifest.save()
         _write_integration_json(project_root, integration.key, selected_script)
-        _update_init_options_for_integration(project_root, integration, script_type=selected_script)
+        _update_init_options_for_integration(
+            project_root, integration, script_type=selected_script
+        )
 
     except Exception as e:
         # Attempt rollback of any files written by setup
@@ -6251,7 +8712,9 @@ def integration_install(
             integration.teardown(project_root, manifest, force=True)
         except Exception as rollback_err:
             # Suppress so the original setup error remains the primary failure
-            console.print(f"[yellow]Warning:[/yellow] Failed to roll back integration changes: {rollback_err}")
+            console.print(
+                f"[yellow]Warning:[/yellow] Failed to roll back integration changes: {rollback_err}"
+            )
         _remove_integration_json(project_root)
         console.print(f"[red]Error:[/red] Failed to install integration: {e}")
         raise typer.Exit(1)
@@ -6260,12 +8723,15 @@ def integration_install(
     console.print(f"\n[green]✓[/green] Integration '{name}' installed successfully")
 
 
-def _parse_integration_options(integration: Any, raw_options: str) -> dict[str, Any] | None:
+def _parse_integration_options(
+    integration: Any, raw_options: str
+) -> dict[str, Any] | None:
     """Parse --integration-options string into a dict matching the integration's declared options.
 
     Returns ``None`` when no options are provided.
     """
     import shlex
+
     parsed: dict[str, Any] = {}
     tokens = shlex.split(raw_options)
     declared_options = list(integration.options())
@@ -6275,7 +8741,9 @@ def _parse_integration_options(integration: Any, raw_options: str) -> dict[str, 
     while i < len(tokens):
         token = tokens[i]
         if not token.startswith("-"):
-            console.print(f"[red]Error:[/red] Unexpected integration option value '{token}'.")
+            console.print(
+                f"[red]Error:[/red] Unexpected integration option value '{token}'."
+            )
             if allowed:
                 console.print(f"Allowed options: {allowed}")
             raise typer.Exit(1)
@@ -6293,7 +8761,9 @@ def _parse_integration_options(integration: Any, raw_options: str) -> dict[str, 
         key = name.replace("-", "_")
         if opt.is_flag:
             if value is not None:
-                console.print(f"[red]Error:[/red] Option '{opt.name}' is a flag and does not accept a value.")
+                console.print(
+                    f"[red]Error:[/red] Option '{opt.name}' is a flag and does not accept a value."
+                )
                 raise typer.Exit(1)
             parsed[key] = True
             i += 1
@@ -6316,6 +8786,7 @@ def _update_init_options_for_integration(
 ) -> None:
     """Update ``init-options.json`` to reflect *integration* as the active one."""
     from .integrations.base import SkillsIntegration
+
     opts = load_init_options(project_root)
     opts["integration"] = integration.key
     opts["ai"] = integration.key
@@ -6323,8 +8794,23 @@ def _update_init_options_for_integration(
         opts["script"] = script_type
     if isinstance(integration, SkillsIntegration):
         opts["ai_skills"] = True
+        profiles = _installed_workflow_profiles(
+            project_root,
+            integration_key=integration.key,
+        )
+        opts["workflow_profile"] = profiles[-1]
+        opts["installed_workflow_profiles"] = profiles
+        profiles_by_integration = opts.get("workflow_profiles_by_integration", {})
+        if not isinstance(profiles_by_integration, dict):
+            profiles_by_integration = {}
+        else:
+            profiles_by_integration = dict(profiles_by_integration)
+        profiles_by_integration[integration.key] = profiles
+        opts["workflow_profiles_by_integration"] = profiles_by_integration
     else:
         opts.pop("ai_skills", None)
+        opts.pop("workflow_profile", None)
+        opts.pop("installed_workflow_profiles", None)
     save_init_options(project_root, opts)
 
 
@@ -6340,9 +8826,31 @@ def _repair_active_integration_runtime_assets(
     """
     from .integrations import get_integration
     from .integrations.manifest import IntegrationManifest
+    from .launcher import (
+        load_project_cognition_launcher,
+        project_cognition_launcher_is_compatible,
+    )
+    from .project_cognition_runtime import (
+        ensure_binary as ensure_project_cognition_binary,
+        write_project_launcher_config as write_project_cognition_launcher,
+    )
 
     current = _read_integration_json(project_root)
     installed_key = current.get("integration")
+
+    cognition_launcher = load_project_cognition_launcher(project_root)
+    cognition_available = project_cognition_launcher_is_compatible(
+        project_root,
+        cognition_launcher,
+    )
+    if not cognition_available:
+        cognition_binary = ensure_project_cognition_binary()
+        written = write_project_cognition_launcher(project_root, cognition_binary)
+        if written is None:
+            raise RuntimeError(
+                "project-cognition runtime was recovered, but `.specify/config.json` "
+                "could not be updated with the project-pinned launcher"
+            )
 
     _install_shared_infra(project_root, script_type, overwrite_existing=True)
     if os.name != "nt":
@@ -6368,20 +8876,39 @@ def _repair_active_integration_runtime_assets(
         manifest,
         script_type=script_type,
     )
+    from .integrations.base import SkillsIntegration
+
+    workflow_profiles = (
+        _installed_workflow_profiles(
+            project_root,
+            integration_key=integration.key,
+        )
+        if isinstance(integration, SkillsIntegration)
+        else None
+    )
     _install_codex_team_assets_if_needed(
         project_root,
         manifest,
         integration.key,
     )
     manifest.save()
-    _write_integration_json(project_root, integration.key, script_type)
-    _update_init_options_for_integration(project_root, integration, script_type=script_type)
+    _write_integration_json(
+        project_root,
+        integration.key,
+        script_type,
+        workflow_profiles=workflow_profiles,
+    )
+    _update_init_options_for_integration(
+        project_root, integration, script_type=script_type
+    )
     return integration.key, len(manifest.files)
 
 
 @integration_app.command("uninstall")
 def integration_uninstall(
-    key: str = typer.Argument(None, help="Integration key to uninstall (default: current integration)"),
+    key: str = typer.Argument(
+        None, help="Integration key to uninstall (default: current integration)"
+    ),
     force: bool = typer.Option(False, "--force", help="Remove files even if modified"),
 ):
     """Uninstall an integration, safely preserving modified files."""
@@ -6402,14 +8929,18 @@ def integration_uninstall(
         key = installed_key
 
     if installed_key and installed_key != key:
-        console.print(f"[red]Error:[/red] Integration '{key}' is not the currently installed integration ('{installed_key}').")
+        console.print(
+            f"[red]Error:[/red] Integration '{key}' is not the currently installed integration ('{installed_key}')."
+        )
         raise typer.Exit(1)
 
     integration = get_integration(key)
 
     manifest_path = project_root / ".specify" / "integrations" / f"{key}.manifest.json"
     if not manifest_path.exists():
-        console.print(f"[yellow]No manifest found for integration '{key}'. Nothing to uninstall.[/yellow]")
+        console.print(
+            f"[yellow]No manifest found for integration '{key}'. Nothing to uninstall.[/yellow]"
+        )
         _remove_integration_json(project_root)
         # Clear integration-related keys from init-options.json
         opts = load_init_options(project_root)
@@ -6417,13 +8948,18 @@ def integration_uninstall(
             opts.pop("integration", None)
             opts.pop("ai", None)
             opts.pop("ai_skills", None)
+            opts.pop("workflow_profile", None)
+            opts.pop("installed_workflow_profiles", None)
+            _remove_workflow_profile_ownership(opts, key)
             save_init_options(project_root, opts)
         raise typer.Exit(0)
 
     try:
         manifest = IntegrationManifest.load(key, project_root)
     except (ValueError, FileNotFoundError) as exc:
-        console.print(f"[red]Error:[/red] Integration manifest for '{key}' is unreadable.")
+        console.print(
+            f"[red]Error:[/red] Integration manifest for '{key}' is unreadable."
+        )
         console.print(f"Manifest: {manifest_path}")
         console.print(
             f"To recover, delete the unreadable manifest, run "
@@ -6446,6 +8982,9 @@ def integration_uninstall(
         opts.pop("integration", None)
         opts.pop("ai", None)
         opts.pop("ai_skills", None)
+        opts.pop("workflow_profile", None)
+        opts.pop("installed_workflow_profiles", None)
+        _remove_workflow_profile_ownership(opts, key)
         save_init_options(project_root, opts)
 
     name = (integration.config or {}).get("name", key) if integration else key
@@ -6453,7 +8992,9 @@ def integration_uninstall(
     if removed:
         console.print(f"  Removed {len(removed)} file(s)")
     if skipped:
-        console.print(f"\n[yellow]⚠[/yellow]  {len(skipped)} modified file(s) were preserved:")
+        console.print(
+            f"\n[yellow]⚠[/yellow]  {len(skipped)} modified file(s) were preserved:"
+        )
         for path in skipped:
             rel = path.relative_to(project_root) if path.is_absolute() else path
             console.print(f"    {rel}")
@@ -6462,9 +9003,17 @@ def integration_uninstall(
 @integration_app.command("switch")
 def integration_switch(
     target: str = typer.Argument(help="Integration key to switch to"),
-    script: str | None = typer.Option(None, "--script", help="Script type: sh or ps (default: from init-options.json or platform default)"),
-    force: bool = typer.Option(False, "--force", help="Force removal of modified files during uninstall"),
-    integration_options: str | None = typer.Option(None, "--integration-options", help='Options for the target integration'),
+    script: str | None = typer.Option(
+        None,
+        "--script",
+        help="Script type: sh or ps (default: from init-options.json or platform default)",
+    ),
+    force: bool = typer.Option(
+        False, "--force", help="Force removal of modified files during uninstall"
+    ),
+    integration_options: str | None = typer.Option(
+        None, "--integration-options", help="Options for the target integration"
+    ),
 ):
     """Switch from the current integration to a different one."""
     from .integrations import INTEGRATION_REGISTRY, get_integration
@@ -6485,7 +9034,9 @@ def integration_switch(
     installed_key = current.get("integration")
 
     if installed_key == target:
-        console.print(f"[yellow]Integration '{target}' is already installed. Nothing to switch.[/yellow]")
+        console.print(
+            f"[yellow]Integration '{target}' is already installed. Nothing to switch.[/yellow]"
+        )
         raise typer.Exit(0)
 
     selected_script = _resolve_script_type(project_root, script)
@@ -6493,39 +9044,60 @@ def integration_switch(
     # Phase 1: Uninstall current integration (if any)
     if installed_key:
         current_integration = get_integration(installed_key)
-        manifest_path = project_root / ".specify" / "integrations" / f"{installed_key}.manifest.json"
+        manifest_path = (
+            project_root
+            / ".specify"
+            / "integrations"
+            / f"{installed_key}.manifest.json"
+        )
 
         if current_integration and manifest_path.exists():
-            console.print(f"Uninstalling current integration: [cyan]{installed_key}[/cyan]")
+            console.print(
+                f"Uninstalling current integration: [cyan]{installed_key}[/cyan]"
+            )
             try:
                 old_manifest = IntegrationManifest.load(installed_key, project_root)
             except (ValueError, FileNotFoundError) as exc:
-                console.print(f"[red]Error:[/red] Could not read integration manifest for '{installed_key}': {manifest_path}")
+                console.print(
+                    f"[red]Error:[/red] Could not read integration manifest for '{installed_key}': {manifest_path}"
+                )
                 console.print(f"[dim]{exc}[/dim]")
                 console.print(
                     f"To recover, delete the unreadable manifest at {manifest_path}, "
                     f"run [cyan]specify integration uninstall {installed_key}[/cyan], then retry."
                 )
                 raise typer.Exit(1)
-            removed, skipped = current_integration.uninstall(project_root, old_manifest, force=force)
+            removed, skipped = current_integration.uninstall(
+                project_root, old_manifest, force=force
+            )
             if removed:
                 console.print(f"  Removed {len(removed)} file(s)")
             if skipped:
-                console.print(f"  [yellow]⚠[/yellow]  {len(skipped)} modified file(s) preserved")
+                console.print(
+                    f"  [yellow]⚠[/yellow]  {len(skipped)} modified file(s) preserved"
+                )
         elif not current_integration and manifest_path.exists():
             # Integration removed from registry but manifest exists — use manifest-only uninstall
-            console.print(f"Uninstalling unknown integration '{installed_key}' via manifest")
+            console.print(
+                f"Uninstalling unknown integration '{installed_key}' via manifest"
+            )
             try:
                 old_manifest = IntegrationManifest.load(installed_key, project_root)
                 removed, skipped = old_manifest.uninstall(project_root, force=force)
                 if removed:
                     console.print(f"  Removed {len(removed)} file(s)")
                 if skipped:
-                    console.print(f"  [yellow]⚠[/yellow]  {len(skipped)} modified file(s) preserved")
+                    console.print(
+                        f"  [yellow]⚠[/yellow]  {len(skipped)} modified file(s) preserved"
+                    )
             except (ValueError, FileNotFoundError) as exc:
-                console.print(f"[yellow]Warning:[/yellow] Could not read manifest for '{installed_key}': {exc}")
+                console.print(
+                    f"[yellow]Warning:[/yellow] Could not read manifest for '{installed_key}': {exc}"
+                )
         else:
-            console.print(f"[red]Error:[/red] Integration '{installed_key}' is installed but has no manifest.")
+            console.print(
+                f"[red]Error:[/red] Integration '{installed_key}' is installed but has no manifest."
+            )
             console.print(
                 f"Run [cyan]specify integration uninstall {installed_key}[/cyan] to clear metadata, "
                 f"then retry [cyan]specify integration switch {target}[/cyan]."
@@ -6538,6 +9110,9 @@ def integration_switch(
         opts.pop("integration", None)
         opts.pop("ai", None)
         opts.pop("ai_skills", None)
+        opts.pop("workflow_profile", None)
+        opts.pop("installed_workflow_profiles", None)
+        _remove_workflow_profile_ownership(opts, installed_key)
         save_init_options(project_root, opts)
 
     # Ensure shared infrastructure is present (safe to run unconditionally;
@@ -6554,11 +9129,14 @@ def integration_switch(
 
     parsed_options: dict[str, Any] | None = None
     if integration_options:
-        parsed_options = _parse_integration_options(target_integration, integration_options)
+        parsed_options = _parse_integration_options(
+            target_integration, integration_options
+        )
 
     try:
         target_integration.setup(
-            project_root, manifest,
+            project_root,
+            manifest,
             parsed_options=parsed_options,
             script_type=selected_script,
             raw_options=integration_options,
@@ -6576,7 +9154,9 @@ def integration_switch(
         target_integration.post_init_bootstrap(project_root, manifest)
         manifest.save()
         _write_integration_json(project_root, target_integration.key, selected_script)
-        _update_init_options_for_integration(project_root, target_integration, script_type=selected_script)
+        _update_init_options_for_integration(
+            project_root, target_integration, script_type=selected_script
+        )
 
     except Exception as e:
         # Attempt rollback of any files written by setup
@@ -6584,9 +9164,13 @@ def integration_switch(
             target_integration.teardown(project_root, manifest, force=True)
         except Exception as rollback_err:
             # Suppress so the original setup error remains the primary failure
-            console.print(f"[yellow]Warning:[/yellow] Failed to roll back integration '{target}': {rollback_err}")
+            console.print(
+                f"[yellow]Warning:[/yellow] Failed to roll back integration '{target}': {rollback_err}"
+            )
         _remove_integration_json(project_root)
-        console.print(f"[red]Error:[/red] Failed to install integration '{target}': {e}")
+        console.print(
+            f"[red]Error:[/red] Failed to install integration '{target}': {e}"
+        )
         raise typer.Exit(1)
 
     name = (target_integration.config or {}).get("name", target)
@@ -6595,7 +9179,11 @@ def integration_switch(
 
 @integration_app.command("repair")
 def integration_repair(
-    script: str | None = typer.Option(None, "--script", help="Script type: sh or ps (default: from init-options.json or platform default)"),
+    script: str | None = typer.Option(
+        None,
+        "--script",
+        help="Script type: sh or ps (default: from init-options.json or platform default)",
+    ),
 ):
     """Refresh shared/runtime integration assets for the current project."""
     project_root = Path.cwd()
@@ -6615,7 +9203,9 @@ def integration_repair(
         )
         console.print(f"[dim]Tracked files refreshed: {tracked_files}[/dim]")
     else:
-        console.print("[green]OK[/green] Refreshed shared project assets. No active integration was installed.")
+        console.print(
+            "[green]OK[/green] Refreshed shared project assets. No active integration was installed."
+        )
 
 
 # ===== Preset Commands =====
@@ -6641,9 +9231,15 @@ def preset_list():
 
     console.print("\n[bold cyan]Installed Presets:[/bold cyan]\n")
     for pack in installed:
-        status = "[green]enabled[/green]" if pack.get("enabled", True) else "[red]disabled[/red]"
-        pri = pack.get('priority', 10)
-        console.print(f"  [bold]{pack['name']}[/bold] ({pack['id']}) v{pack['version']} — {status} — priority {pri}")
+        status = (
+            "[green]enabled[/green]"
+            if pack.get("enabled", True)
+            else "[red]disabled[/red]"
+        )
+        pri = pack.get("priority", 10)
+        console.print(
+            f"  [bold]{pack['name']}[/bold] ({pack['id']}) v{pack['version']} — {status} — priority {pri}"
+        )
         console.print(f"    {pack['description']}")
         if pack.get("tags"):
             tags_str = ", ".join(pack["tags"])
@@ -6656,8 +9252,14 @@ def preset_list():
 def preset_add(
     pack_id: str = typer.Argument(None, help="Preset ID to install from catalog"),
     from_url: str = typer.Option(None, "--from", help="Install from a URL (ZIP file)"),
-    dev: str = typer.Option(None, "--dev", help="Install from local directory (development mode)"),
-    priority: int = typer.Option(10, "--priority", help="Resolution priority (lower = higher precedence, default 10)"),
+    dev: str = typer.Option(
+        None, "--dev", help="Install from local directory (development mode)"
+    ),
+    priority: int = typer.Option(
+        10,
+        "--priority",
+        help="Resolution priority (lower = higher precedence, default 10)",
+    ),
 ):
     """Install a preset."""
     from .presets import (
@@ -6674,7 +9276,9 @@ def preset_add(
 
     # Validate priority
     if priority < 1:
-        console.print("[red]Error:[/red] Priority must be a positive integer (1 or higher)")
+        console.print(
+            "[red]Error:[/red] Priority must be a positive integer (1 or higher)"
+        )
         raise typer.Exit(1)
 
     manager = PresetManager(project_root)
@@ -6688,16 +9292,25 @@ def preset_add(
                 raise typer.Exit(1)
 
             console.print(f"Installing preset from [cyan]{dev_path}[/cyan]...")
-            manifest = manager.install_from_directory(dev_path, speckit_version, priority)
-            console.print(f"[green]✓[/green] Preset '{manifest.name}' v{manifest.version} installed (priority {priority})")
+            manifest = manager.install_from_directory(
+                dev_path, speckit_version, priority
+            )
+            console.print(
+                f"[green]✓[/green] Preset '{manifest.name}' v{manifest.version} installed (priority {priority})"
+            )
 
         elif from_url:
             # Validate URL scheme before downloading
             from urllib.parse import urlparse as _urlparse
+
             _parsed = _urlparse(from_url)
             _is_localhost = _parsed.hostname in ("localhost", "127.0.0.1", "::1")
-            if _parsed.scheme != "https" and not (_parsed.scheme == "http" and _is_localhost):
-                console.print(f"[red]Error:[/red] URL must use HTTPS (got {_parsed.scheme}://). HTTP is only allowed for localhost.")
+            if _parsed.scheme != "https" and not (
+                _parsed.scheme == "http" and _is_localhost
+            ):
+                console.print(
+                    f"[red]Error:[/red] URL must use HTTPS (got {_parsed.scheme}://). HTTP is only allowed for localhost."
+                )
                 raise typer.Exit(1)
 
             console.print(f"Installing preset from [cyan]{from_url}[/cyan]...")
@@ -6716,33 +9329,47 @@ def preset_add(
 
                 manifest = manager.install_from_zip(zip_path, speckit_version, priority)
 
-            console.print(f"[green]✓[/green] Preset '{manifest.name}' v{manifest.version} installed (priority {priority})")
+            console.print(
+                f"[green]✓[/green] Preset '{manifest.name}' v{manifest.version} installed (priority {priority})"
+            )
 
         elif pack_id:
             catalog = PresetCatalog(project_root)
             pack_info = catalog.get_pack_info(pack_id)
 
             if not pack_info:
-                console.print(f"[red]Error:[/red] Preset '{pack_id}' not found in catalog")
+                console.print(
+                    f"[red]Error:[/red] Preset '{pack_id}' not found in catalog"
+                )
                 raise typer.Exit(1)
 
             if not pack_info.get("_install_allowed", True):
                 catalog_name = pack_info.get("_catalog_name", "unknown")
-                console.print(f"[red]Error:[/red] Preset '{pack_id}' is from the '{catalog_name}' catalog which is discovery-only (install not allowed).")
-                console.print("Add the catalog with --install-allowed or install from the preset's repository directly with --from.")
+                console.print(
+                    f"[red]Error:[/red] Preset '{pack_id}' is from the '{catalog_name}' catalog which is discovery-only (install not allowed)."
+                )
+                console.print(
+                    "Add the catalog with --install-allowed or install from the preset's repository directly with --from."
+                )
                 raise typer.Exit(1)
 
-            console.print(f"Installing preset [cyan]{pack_info.get('name', pack_id)}[/cyan]...")
+            console.print(
+                f"Installing preset [cyan]{pack_info.get('name', pack_id)}[/cyan]..."
+            )
 
             try:
                 zip_path = catalog.download_pack(pack_id)
                 manifest = manager.install_from_zip(zip_path, speckit_version, priority)
-                console.print(f"[green]✓[/green] Preset '{manifest.name}' v{manifest.version} installed (priority {priority})")
+                console.print(
+                    f"[green]✓[/green] Preset '{manifest.name}' v{manifest.version} installed (priority {priority})"
+                )
             finally:
-                if 'zip_path' in locals() and zip_path.exists():
+                if "zip_path" in locals() and zip_path.exists():
                     zip_path.unlink(missing_ok=True)
         else:
-            console.print("[red]Error:[/red] Specify a preset ID, --from URL, or --dev path")
+            console.print(
+                "[red]Error:[/red] Specify a preset ID, --from URL, or --dev path"
+            )
             raise typer.Exit(1)
 
     except PresetCompatibilityError as e:
@@ -6807,7 +9434,9 @@ def preset_search(
 
     console.print(f"\n[bold cyan]Presets ({len(results)} found):[/bold cyan]\n")
     for pack in results:
-        console.print(f"  [bold]{pack.get('name', pack['id'])}[/bold] ({pack['id']}) v{pack.get('version', '?')}")
+        console.print(
+            f"  [bold]{pack.get('name', pack['id'])}[/bold] ({pack['id']}) v{pack.get('version', '?')}"
+        )
         console.print(f"    {pack.get('description', '')}")
         if pack.get("tags"):
             tags_str = ", ".join(pack["tags"])
@@ -6817,7 +9446,9 @@ def preset_search(
 
 @preset_app.command("resolve")
 def preset_resolve(
-    template_name: str = typer.Argument(..., help="Template name to resolve (e.g., spec-template)"),
+    template_name: str = typer.Argument(
+        ..., help="Template name to resolve (e.g., spec-template)"
+    ),
 ):
     """Show which template will be resolved for a given name."""
     from .presets import PresetResolver
@@ -6834,7 +9465,9 @@ def preset_resolve(
         console.print(f"    [dim](from: {result['source']})[/dim]")
     else:
         console.print(f"  [yellow]{template_name}[/yellow]: not found")
-        console.print("    [dim]No template with this name exists in the resolution stack[/dim]")
+        console.print(
+            "    [dim]No template with this name exists in the resolution stack[/dim]"
+        )
 
 
 @preset_app.command("info")
@@ -6864,7 +9497,9 @@ def preset_info(
             console.print(f"  Tags:        {', '.join(local_pack.tags)}")
         console.print(f"  Templates:   {len(local_pack.templates)}")
         for tmpl in local_pack.templates:
-            console.print(f"    - {tmpl['name']} ({tmpl['type']}): {tmpl.get('description', '')}")
+            console.print(
+                f"    - {tmpl['name']} ({tmpl['type']}): {tmpl.get('description', '')}"
+            )
         repo = local_pack.data.get("preset", {}).get("repository")
         if repo:
             console.print(f"  Repository:  {repo}")
@@ -6874,7 +9509,9 @@ def preset_info(
         console.print("\n  [green]Status: installed[/green]")
         # Get priority from registry
         pack_metadata = manager.registry.get(pack_id)
-        priority = normalize_priority(pack_metadata.get("priority") if isinstance(pack_metadata, dict) else None)
+        priority = normalize_priority(
+            pack_metadata.get("priority") if isinstance(pack_metadata, dict) else None
+        )
         console.print(f"  [dim]Priority:[/dim] {priority}")
         console.print()
         return
@@ -6887,10 +9524,14 @@ def preset_info(
         pack_info = None
 
     if not pack_info:
-        console.print(f"[red]Error:[/red] Preset '{pack_id}' not found (not installed and not in catalog)")
+        console.print(
+            f"[red]Error:[/red] Preset '{pack_id}' not found (not installed and not in catalog)"
+        )
         raise typer.Exit(1)
 
-    console.print(f"\n[bold cyan]Preset: {pack_info.get('name', pack_id)}[/bold cyan]\n")
+    console.print(
+        f"\n[bold cyan]Preset: {pack_info.get('name', pack_id)}[/bold cyan]\n"
+    )
     console.print(f"  ID:          {pack_info['id']}")
     console.print(f"  Version:     {pack_info.get('version', '?')}")
     console.print(f"  Description: {pack_info.get('description', '')}")
@@ -6922,7 +9563,9 @@ def preset_set_priority(
 
     # Validate priority
     if priority < 1:
-        console.print("[red]Error:[/red] Priority must be a positive integer (1 or higher)")
+        console.print(
+            "[red]Error:[/red] Priority must be a positive integer (1 or higher)"
+        )
         raise typer.Exit(1)
 
     manager = PresetManager(project_root)
@@ -6935,15 +9578,20 @@ def preset_set_priority(
     # Get current metadata
     metadata = manager.registry.get(pack_id)
     if metadata is None or not isinstance(metadata, dict):
-        console.print(f"[red]Error:[/red] Preset '{pack_id}' not found in registry (corrupted state)")
+        console.print(
+            f"[red]Error:[/red] Preset '{pack_id}' not found in registry (corrupted state)"
+        )
         raise typer.Exit(1)
 
     from .extensions import normalize_priority
+
     raw_priority = metadata.get("priority")
     # Only skip if the stored value is already a valid int equal to requested priority
     # This ensures corrupted values (e.g., "high") get repaired even when setting to default (10)
     if isinstance(raw_priority, int) and raw_priority == priority:
-        console.print(f"[yellow]Preset '{pack_id}' already has priority {priority}[/yellow]")
+        console.print(
+            f"[yellow]Preset '{pack_id}' already has priority {priority}[/yellow]"
+        )
         raise typer.Exit(0)
 
     old_priority = normalize_priority(raw_priority)
@@ -6951,8 +9599,12 @@ def preset_set_priority(
     # Update priority
     manager.registry.update(pack_id, {"priority": priority})
 
-    console.print(f"[green]✓[/green] Preset '{pack_id}' priority changed: {old_priority} → {priority}")
-    console.print("\n[dim]Lower priority = higher precedence in template resolution[/dim]")
+    console.print(
+        f"[green]✓[/green] Preset '{pack_id}' priority changed: {old_priority} → {priority}"
+    )
+    console.print(
+        "\n[dim]Lower priority = higher precedence in template resolution[/dim]"
+    )
 
 
 @preset_app.command("enable")
@@ -6977,7 +9629,9 @@ def preset_enable(
     # Get current metadata
     metadata = manager.registry.get(pack_id)
     if metadata is None or not isinstance(metadata, dict):
-        console.print(f"[red]Error:[/red] Preset '{pack_id}' not found in registry (corrupted state)")
+        console.print(
+            f"[red]Error:[/red] Preset '{pack_id}' not found in registry (corrupted state)"
+        )
         raise typer.Exit(1)
 
     if metadata.get("enabled", True):
@@ -6989,7 +9643,9 @@ def preset_enable(
 
     console.print(f"[green]✓[/green] Preset '{pack_id}' enabled")
     console.print("\nTemplates from this preset will now be included in resolution.")
-    console.print("[dim]Note: Previously registered commands/skills remain active.[/dim]")
+    console.print(
+        "[dim]Note: Previously registered commands/skills remain active.[/dim]"
+    )
 
 
 @preset_app.command("disable")
@@ -7014,7 +9670,9 @@ def preset_disable(
     # Get current metadata
     metadata = manager.registry.get(pack_id)
     if metadata is None or not isinstance(metadata, dict):
-        console.print(f"[red]Error:[/red] Preset '{pack_id}' not found in registry (corrupted state)")
+        console.print(
+            f"[red]Error:[/red] Preset '{pack_id}' not found in registry (corrupted state)"
+        )
         raise typer.Exit(1)
 
     if not metadata.get("enabled", True):
@@ -7026,7 +9684,9 @@ def preset_disable(
 
     console.print(f"[green]✓[/green] Preset '{pack_id}' disabled")
     console.print("\nTemplates from this preset will be skipped during resolution.")
-    console.print("[dim]Note: Previously registered commands/skills remain active until preset removal.[/dim]")
+    console.print(
+        "[dim]Note: Previously registered commands/skills remain active until preset removal.[/dim]"
+    )
     console.print(f"To re-enable: specify preset enable {pack_id}")
 
 
@@ -7067,17 +9727,25 @@ def preset_catalog_list():
     config_path = project_root / ".specify" / "preset-catalogs.yml"
     user_config_path = Path.home() / ".specify" / "preset-catalogs.yml"
     if os.environ.get("SPECKIT_PRESET_CATALOG_URL"):
-        console.print("[dim]Catalog configured via SPECKIT_PRESET_CATALOG_URL environment variable.[/dim]")
+        console.print(
+            "[dim]Catalog configured via SPECKIT_PRESET_CATALOG_URL environment variable.[/dim]"
+        )
     else:
         try:
-            proj_loaded = config_path.exists() and catalog._load_catalog_config(config_path) is not None
+            proj_loaded = (
+                config_path.exists()
+                and catalog._load_catalog_config(config_path) is not None
+            )
         except PresetValidationError:
             proj_loaded = False
         if proj_loaded:
             console.print(f"[dim]Config: {config_path.relative_to(project_root)}[/dim]")
         else:
             try:
-                user_loaded = user_config_path.exists() and catalog._load_catalog_config(user_config_path) is not None
+                user_loaded = (
+                    user_config_path.exists()
+                    and catalog._load_catalog_config(user_config_path) is not None
+                )
             except PresetValidationError:
                 user_loaded = False
             if user_loaded:
@@ -7093,12 +9761,17 @@ def preset_catalog_list():
 def preset_catalog_add(
     url: str = typer.Argument(help="Catalog URL (must use HTTPS)"),
     name: str = typer.Option(..., "--name", help="Catalog name"),
-    priority: int = typer.Option(10, "--priority", help="Priority (lower = higher priority)"),
+    priority: int = typer.Option(
+        10, "--priority", help="Priority (lower = higher priority)"
+    ),
     install_allowed: bool = typer.Option(
-        False, "--install-allowed/--no-install-allowed",
+        False,
+        "--install-allowed/--no-install-allowed",
         help="Allow presets from this catalog to be installed",
     ),
-    description: str = typer.Option("", "--description", help="Description of the catalog"),
+    description: str = typer.Option(
+        "", "--description", help="Description of the catalog"
+    ),
 ):
     """Add a catalog to .specify/preset-catalogs.yml."""
     from .presets import PresetCatalog, PresetValidationError
@@ -7129,29 +9802,44 @@ def preset_catalog_add(
 
     catalogs = config.get("catalogs", [])
     if not isinstance(catalogs, list):
-        console.print("[red]Error:[/red] Invalid catalog config: 'catalogs' must be a list.")
+        console.print(
+            "[red]Error:[/red] Invalid catalog config: 'catalogs' must be a list."
+        )
         raise typer.Exit(1)
 
     # Check for duplicate name
     for existing in catalogs:
         if isinstance(existing, dict) and existing.get("name") == name:
-            console.print(f"[yellow]Warning:[/yellow] A catalog named '{name}' already exists.")
-            console.print("Use 'specify preset catalog remove' first, or choose a different name.")
+            console.print(
+                f"[yellow]Warning:[/yellow] A catalog named '{name}' already exists."
+            )
+            console.print(
+                "Use 'specify preset catalog remove' first, or choose a different name."
+            )
             raise typer.Exit(1)
 
-    catalogs.append({
-        "name": name,
-        "url": url,
-        "priority": priority,
-        "install_allowed": install_allowed,
-        "description": description,
-    })
+    catalogs.append(
+        {
+            "name": name,
+            "url": url,
+            "priority": priority,
+            "install_allowed": install_allowed,
+            "description": description,
+        }
+    )
 
     config["catalogs"] = catalogs
-    config_path.write_text(yaml.dump(config, default_flow_style=False, sort_keys=False, allow_unicode=True), encoding="utf-8")
+    config_path.write_text(
+        yaml.dump(
+            config, default_flow_style=False, sort_keys=False, allow_unicode=True
+        ),
+        encoding="utf-8",
+    )
 
     install_label = "install allowed" if install_allowed else "discovery only"
-    console.print(f"\n[green]✓[/green] Added catalog '[bold]{name}[/bold]' ({install_label})")
+    console.print(
+        f"\n[green]✓[/green] Added catalog '[bold]{name}[/bold]' ({install_label})"
+    )
     console.print(f"  URL: {url}")
     console.print(f"  Priority: {priority}")
     console.print(f"\nConfig saved to {config_path.relative_to(project_root)}")
@@ -7168,7 +9856,9 @@ def preset_catalog_remove(
 
     config_path = specify_dir / "preset-catalogs.yml"
     if not config_path.exists():
-        console.print("[red]Error:[/red] No preset catalog config found. Nothing to remove.")
+        console.print(
+            "[red]Error:[/red] No preset catalog config found. Nothing to remove."
+        )
         raise typer.Exit(1)
 
     try:
@@ -7179,7 +9869,9 @@ def preset_catalog_remove(
 
     catalogs = config.get("catalogs", [])
     if not isinstance(catalogs, list):
-        console.print("[red]Error:[/red] Invalid catalog config: 'catalogs' must be a list.")
+        console.print(
+            "[red]Error:[/red] Invalid catalog config: 'catalogs' must be a list."
+        )
         raise typer.Exit(1)
     original_count = len(catalogs)
     catalogs = [c for c in catalogs if isinstance(c, dict) and c.get("name") != name]
@@ -7189,11 +9881,18 @@ def preset_catalog_remove(
         raise typer.Exit(1)
 
     config["catalogs"] = catalogs
-    config_path.write_text(yaml.dump(config, default_flow_style=False, sort_keys=False, allow_unicode=True), encoding="utf-8")
+    config_path.write_text(
+        yaml.dump(
+            config, default_flow_style=False, sort_keys=False, allow_unicode=True
+        ),
+        encoding="utf-8",
+    )
 
     console.print(f"[green]✓[/green] Removed catalog '{name}'")
     if not catalogs:
-        console.print("\n[dim]No catalogs remain in config. Built-in defaults will be used.[/dim]")
+        console.print(
+            "\n[dim]No catalogs remain in config. Built-in defaults will be used.[/dim]"
+        )
 
 
 # ===== Extension Commands =====
@@ -7227,7 +9926,9 @@ def _resolve_installed_extension(
             return (ext["id"], ext["name"])
 
     # If not found by ID, try display name match
-    name_matches = [ext for ext in installed_extensions if ext["name"].lower() == argument.lower()]
+    name_matches = [
+        ext for ext in installed_extensions if ext["name"].lower() == argument.lower()
+    ]
 
     if len(name_matches) == 1:
         # Unique display-name match
@@ -7243,7 +9944,9 @@ def _resolve_installed_extension(
         table.add_column("Name", style="white")
         table.add_column("Version", style="green")
         for ext in name_matches:
-            table.add_row(ext.get("id", ""), ext.get("name", ""), str(ext.get("version", "")))
+            table.add_row(
+                ext.get("id", ""), ext.get("name", ""), str(ext.get("version", ""))
+            )
         console.print(table)
         console.print("\nPlease rerun using the extension ID:")
         console.print(f"  [bold]specify extension {command_name} <extension-id>[/bold]")
@@ -7285,7 +9988,9 @@ def _resolve_catalog_extension(
 
         # Try by display name - search using argument as query, then filter for exact match
         search_results = catalog.search(query=argument)
-        name_matches = [ext for ext in search_results if ext["name"].lower() == argument.lower()]
+        name_matches = [
+            ext for ext in search_results if ext["name"].lower() == argument.lower()
+        ]
 
         if len(name_matches) == 1:
             return (name_matches[0], None)
@@ -7309,7 +10014,9 @@ def _resolve_catalog_extension(
                 )
             console.print(table)
             console.print("\nPlease rerun using the extension ID:")
-            console.print(f"  [bold]specify extension {command_name} <extension-id>[/bold]")
+            console.print(
+                f"  [bold]specify extension {command_name} <extension-id>[/bold]"
+            )
             raise typer.Exit(1)
 
         # Not found
@@ -7321,8 +10028,12 @@ def _resolve_catalog_extension(
 
 @extension_app.command("list")
 def extension_list(
-    available: bool = typer.Option(False, "--available", help="Show available extensions from catalog"),
-    all_extensions: bool = typer.Option(False, "--all", help="Show both installed and available"),
+    available: bool = typer.Option(
+        False, "--available", help="Show available extensions from catalog"
+    ),
+    all_extensions: bool = typer.Option(
+        False, "--all", help="Show both installed and available"
+    ),
 ):
     """List installed extensions."""
     from .extensions import ExtensionManager
@@ -7348,10 +10059,14 @@ def extension_list(
             status_icon = "✓" if ext["enabled"] else "✗"
             status_color = "green" if ext["enabled"] else "red"
 
-            console.print(f"  [{status_color}]{status_icon}[/{status_color}] [bold]{ext['name']}[/bold] (v{ext['version']})")
+            console.print(
+                f"  [{status_color}]{status_icon}[/{status_color}] [bold]{ext['name']}[/bold] (v{ext['version']})"
+            )
             console.print(f"     [dim]{ext['id']}[/dim]")
             console.print(f"     {ext['description']}")
-            console.print(f"     Commands: {ext['command_count']} | Hooks: {ext['hook_count']} | Priority: {ext['priority']} | Status: {'Enabled' if ext['enabled'] else 'Disabled'}")
+            console.print(
+                f"     Commands: {ext['command_count']} | Hooks: {ext['hook_count']} | Priority: {ext['priority']} | Status: {'Enabled' if ext['enabled'] else 'Disabled'}"
+            )
             console.print()
 
     if available or all_extensions:
@@ -7393,17 +10108,25 @@ def catalog_list():
     config_path = project_root / ".specify" / "extension-catalogs.yml"
     user_config_path = Path.home() / ".specify" / "extension-catalogs.yml"
     if os.environ.get("SPECKIT_CATALOG_URL"):
-        console.print("[dim]Catalog configured via SPECKIT_CATALOG_URL environment variable.[/dim]")
+        console.print(
+            "[dim]Catalog configured via SPECKIT_CATALOG_URL environment variable.[/dim]"
+        )
     else:
         try:
-            proj_loaded = config_path.exists() and catalog._load_catalog_config(config_path) is not None
+            proj_loaded = (
+                config_path.exists()
+                and catalog._load_catalog_config(config_path) is not None
+            )
         except ValidationError:
             proj_loaded = False
         if proj_loaded:
             console.print(f"[dim]Config: {config_path.relative_to(project_root)}[/dim]")
         else:
             try:
-                user_loaded = user_config_path.exists() and catalog._load_catalog_config(user_config_path) is not None
+                user_loaded = (
+                    user_config_path.exists()
+                    and catalog._load_catalog_config(user_config_path) is not None
+                )
             except ValidationError:
                 user_loaded = False
             if user_loaded:
@@ -7419,12 +10142,17 @@ def catalog_list():
 def catalog_add(
     url: str = typer.Argument(help="Catalog URL (must use HTTPS)"),
     name: str = typer.Option(..., "--name", help="Catalog name"),
-    priority: int = typer.Option(10, "--priority", help="Priority (lower = higher priority)"),
+    priority: int = typer.Option(
+        10, "--priority", help="Priority (lower = higher priority)"
+    ),
     install_allowed: bool = typer.Option(
-        False, "--install-allowed/--no-install-allowed",
+        False,
+        "--install-allowed/--no-install-allowed",
         help="Allow extensions from this catalog to be installed",
     ),
-    description: str = typer.Option("", "--description", help="Description of the catalog"),
+    description: str = typer.Option(
+        "", "--description", help="Description of the catalog"
+    ),
 ):
     """Add a catalog to .specify/extension-catalogs.yml."""
     from .extensions import ExtensionCatalog, ValidationError
@@ -7455,29 +10183,44 @@ def catalog_add(
 
     catalogs = config.get("catalogs", [])
     if not isinstance(catalogs, list):
-        console.print("[red]Error:[/red] Invalid catalog config: 'catalogs' must be a list.")
+        console.print(
+            "[red]Error:[/red] Invalid catalog config: 'catalogs' must be a list."
+        )
         raise typer.Exit(1)
 
     # Check for duplicate name
     for existing in catalogs:
         if isinstance(existing, dict) and existing.get("name") == name:
-            console.print(f"[yellow]Warning:[/yellow] A catalog named '{name}' already exists.")
-            console.print("Use 'specify extension catalog remove' first, or choose a different name.")
+            console.print(
+                f"[yellow]Warning:[/yellow] A catalog named '{name}' already exists."
+            )
+            console.print(
+                "Use 'specify extension catalog remove' first, or choose a different name."
+            )
             raise typer.Exit(1)
 
-    catalogs.append({
-        "name": name,
-        "url": url,
-        "priority": priority,
-        "install_allowed": install_allowed,
-        "description": description,
-    })
+    catalogs.append(
+        {
+            "name": name,
+            "url": url,
+            "priority": priority,
+            "install_allowed": install_allowed,
+            "description": description,
+        }
+    )
 
     config["catalogs"] = catalogs
-    config_path.write_text(yaml.dump(config, default_flow_style=False, sort_keys=False, allow_unicode=True), encoding="utf-8")
+    config_path.write_text(
+        yaml.dump(
+            config, default_flow_style=False, sort_keys=False, allow_unicode=True
+        ),
+        encoding="utf-8",
+    )
 
     install_label = "install allowed" if install_allowed else "discovery only"
-    console.print(f"\n[green]✓[/green] Added catalog '[bold]{name}[/bold]' ({install_label})")
+    console.print(
+        f"\n[green]✓[/green] Added catalog '[bold]{name}[/bold]' ({install_label})"
+    )
     console.print(f"  URL: {url}")
     console.print(f"  Priority: {priority}")
     console.print(f"\nConfig saved to {config_path.relative_to(project_root)}")
@@ -7505,7 +10248,9 @@ def catalog_remove(
 
     catalogs = config.get("catalogs", [])
     if not isinstance(catalogs, list):
-        console.print("[red]Error:[/red] Invalid catalog config: 'catalogs' must be a list.")
+        console.print(
+            "[red]Error:[/red] Invalid catalog config: 'catalogs' must be a list."
+        )
         raise typer.Exit(1)
     original_count = len(catalogs)
     catalogs = [c for c in catalogs if isinstance(c, dict) and c.get("name") != name]
@@ -7515,22 +10260,41 @@ def catalog_remove(
         raise typer.Exit(1)
 
     config["catalogs"] = catalogs
-    config_path.write_text(yaml.dump(config, default_flow_style=False, sort_keys=False, allow_unicode=True), encoding="utf-8")
+    config_path.write_text(
+        yaml.dump(
+            config, default_flow_style=False, sort_keys=False, allow_unicode=True
+        ),
+        encoding="utf-8",
+    )
 
     console.print(f"[green]✓[/green] Removed catalog '{name}'")
     if not catalogs:
-        console.print("\n[dim]No catalogs remain in config. Built-in defaults will be used.[/dim]")
+        console.print(
+            "\n[dim]No catalogs remain in config. Built-in defaults will be used.[/dim]"
+        )
 
 
 @extension_app.command("add")
 def extension_add(
     extension: str = typer.Argument(help="Extension name or path"),
     dev: bool = typer.Option(False, "--dev", help="Install from local directory"),
-    from_url: Optional[str] = typer.Option(None, "--from", help="Install from custom URL"),
-    priority: int = typer.Option(10, "--priority", help="Resolution priority (lower = higher precedence, default 10)"),
+    from_url: Optional[str] = typer.Option(
+        None, "--from", help="Install from custom URL"
+    ),
+    priority: int = typer.Option(
+        10,
+        "--priority",
+        help="Resolution priority (lower = higher precedence, default 10)",
+    ),
 ):
     """Install an extension."""
-    from .extensions import ExtensionManager, ExtensionCatalog, ExtensionError, ValidationError, CompatibilityError
+    from .extensions import (
+        ExtensionManager,
+        ExtensionCatalog,
+        ExtensionError,
+        ValidationError,
+        CompatibilityError,
+    )
 
     project_root = Path.cwd()
 
@@ -7539,7 +10303,9 @@ def extension_add(
 
     # Validate priority
     if priority < 1:
-        console.print("[red]Error:[/red] Priority must be a positive integer (1 or higher)")
+        console.print(
+            "[red]Error:[/red] Priority must be a positive integer (1 or higher)"
+        )
         raise typer.Exit(1)
 
     manager = ExtensionManager(project_root)
@@ -7551,14 +10317,20 @@ def extension_add(
                 # Install from local directory
                 source_path = Path(extension).expanduser().resolve()
                 if not source_path.exists():
-                    console.print(f"[red]Error:[/red] Directory not found: {source_path}")
+                    console.print(
+                        f"[red]Error:[/red] Directory not found: {source_path}"
+                    )
                     raise typer.Exit(1)
 
                 if not (source_path / "extension.yml").exists():
-                    console.print(f"[red]Error:[/red] No extension.yml found in {source_path}")
+                    console.print(
+                        f"[red]Error:[/red] No extension.yml found in {source_path}"
+                    )
                     raise typer.Exit(1)
 
-                manifest = manager.install_from_directory(source_path, speckit_version, priority=priority)
+                manifest = manager.install_from_directory(
+                    source_path, speckit_version, priority=priority
+                )
 
             elif from_url:
                 # Install from URL (ZIP file)
@@ -7570,7 +10342,9 @@ def extension_add(
                 parsed = urlparse(from_url)
                 is_localhost = parsed.hostname in ("localhost", "127.0.0.1", "::1")
 
-                if parsed.scheme != "https" and not (parsed.scheme == "http" and is_localhost):
+                if parsed.scheme != "https" and not (
+                    parsed.scheme == "http" and is_localhost
+                ):
                     console.print("[red]Error:[/red] URL must use HTTPS for security.")
                     console.print("HTTP is only allowed for localhost URLs.")
                     raise typer.Exit(1)
@@ -7581,7 +10355,9 @@ def extension_add(
                 console.print(f"Downloading from {from_url}...")
 
                 # Download ZIP to temp location
-                download_dir = project_root / ".specify" / "extensions" / ".cache" / "downloads"
+                download_dir = (
+                    project_root / ".specify" / "extensions" / ".cache" / "downloads"
+                )
                 download_dir.mkdir(parents=True, exist_ok=True)
                 zip_path = download_dir / f"{extension}-url-download.zip"
 
@@ -7591,9 +10367,13 @@ def extension_add(
                     zip_path.write_bytes(zip_data)
 
                     # Install from downloaded ZIP
-                    manifest = manager.install_from_zip(zip_path, speckit_version, priority=priority)
+                    manifest = manager.install_from_zip(
+                        zip_path, speckit_version, priority=priority
+                    )
                 except urllib.error.URLError as e:
-                    console.print(f"[red]Error:[/red] Failed to download from {from_url}: {e}")
+                    console.print(
+                        f"[red]Error:[/red] Failed to download from {from_url}: {e}"
+                    )
                     raise typer.Exit(1)
                 finally:
                     # Clean up downloaded ZIP
@@ -7612,12 +10392,18 @@ def extension_add(
                     catalog = ExtensionCatalog(project_root)
 
                     # Check if extension exists in catalog (supports both ID and display name)
-                    ext_info, catalog_error = _resolve_catalog_extension(extension, catalog, "add")
+                    ext_info, catalog_error = _resolve_catalog_extension(
+                        extension, catalog, "add"
+                    )
                     if catalog_error:
-                        console.print(f"[red]Error:[/red] Could not query extension catalog: {catalog_error}")
+                        console.print(
+                            f"[red]Error:[/red] Could not query extension catalog: {catalog_error}"
+                        )
                         raise typer.Exit(1)
                     if not ext_info:
-                        console.print(f"[red]Error:[/red] Extension '{extension}' not found in catalog")
+                        console.print(
+                            f"[red]Error:[/red] Extension '{extension}' not found in catalog"
+                        )
                         console.print("\nSearch available extensions:")
                         console.print("  specify extension search")
                         raise typer.Exit(1)
@@ -7636,13 +10422,17 @@ def extension_add(
                         raise typer.Exit(1)
 
                     # Download extension ZIP (use resolved ID, not original argument which may be display name)
-                    extension_id = ext_info['id']
-                    console.print(f"Downloading {ext_info['name']} v{ext_info.get('version', 'unknown')}...")
+                    extension_id = ext_info["id"]
+                    console.print(
+                        f"Downloading {ext_info['name']} v{ext_info.get('version', 'unknown')}..."
+                    )
                     zip_path = catalog.download_extension(extension_id)
 
                     try:
                         # Install from downloaded ZIP
-                        manifest = manager.install_from_zip(zip_path, speckit_version, priority=priority)
+                        manifest = manager.install_from_zip(
+                            zip_path, speckit_version, priority=priority
+                        )
                     finally:
                         # Clean up downloaded ZIP
                         if zip_path.exists():
@@ -7662,7 +10452,9 @@ def extension_add(
         if not isinstance(reg_skills, list):
             reg_skills = []
         if reg_skills:
-            console.print(f"\n[green]✓[/green] {len(reg_skills)} agent skill(s) auto-registered")
+            console.print(
+                f"\n[green]✓[/green] {len(reg_skills)} agent skill(s) auto-registered"
+            )
 
         console.print("\n[yellow]⚠[/yellow]  Configuration may be required")
         console.print(f"   Check: .specify/extensions/{manifest.id}/")
@@ -7681,7 +10473,9 @@ def extension_add(
 @extension_app.command("remove")
 def extension_remove(
     extension: str = typer.Argument(help="Extension ID or name to remove"),
-    keep_config: bool = typer.Option(False, "--keep-config", help="Don't remove config files"),
+    keep_config: bool = typer.Option(
+        False, "--keep-config", help="Don't remove config files"
+    ),
     force: bool = typer.Option(False, "--force", help="Skip confirmation"),
 ):
     """Uninstall an extension."""
@@ -7696,7 +10490,9 @@ def extension_remove(
 
     # Resolve extension ID from argument (handles ambiguous names)
     installed = manager.list_installed()
-    extension_id, display_name = _resolve_installed_extension(extension, installed, "remove")
+    extension_id, display_name = _resolve_installed_extension(
+        extension, installed, "remove"
+    )
 
     # Get extension info for command and skill counts
     ext_manifest = manager.get_extension(extension_id)
@@ -7725,11 +10521,17 @@ def extension_remove(
     success = manager.remove(extension_id, keep_config=keep_config)
 
     if success:
-        console.print(f"\n[green]✓[/green] Extension '{display_name}' removed successfully")
+        console.print(
+            f"\n[green]✓[/green] Extension '{display_name}' removed successfully"
+        )
         if keep_config:
-            console.print(f"\nConfig files preserved in .specify/extensions/{extension_id}/")
+            console.print(
+                f"\nConfig files preserved in .specify/extensions/{extension_id}/"
+            )
         else:
-            console.print(f"\nConfig files backed up to .specify/extensions/.backup/{extension_id}/")
+            console.print(
+                f"\nConfig files backed up to .specify/extensions/.backup/{extension_id}/"
+            )
         console.print(f"\nTo reinstall: specify extension add {extension_id}")
     else:
         console.print("[red]Error:[/red] Failed to remove extension")
@@ -7741,7 +10543,9 @@ def extension_search(
     query: str = typer.Argument(None, help="Search query (optional)"),
     tag: Optional[str] = typer.Option(None, "--tag", help="Filter by tag"),
     author: Optional[str] = typer.Option(None, "--author", help="Filter by author"),
-    verified: bool = typer.Option(False, "--verified", help="Show only verified extensions"),
+    verified: bool = typer.Option(
+        False, "--verified", help="Show only verified extensions"
+    ),
 ):
     """Search for available extensions in catalog."""
     from .extensions import ExtensionCatalog, ExtensionError
@@ -7755,7 +10559,9 @@ def extension_search(
 
     try:
         console.print("🔍 Searching extension catalog...")
-        results = catalog.search(query=query, tag=tag, author=author, verified_only=verified)
+        results = catalog.search(
+            query=query, tag=tag, author=author, verified_only=verified
+        )
 
         if not results:
             console.print("\n[yellow]No extensions found matching criteria[/yellow]")
@@ -7771,13 +10577,15 @@ def extension_search(
         for ext in results:
             # Extension header
             verified_badge = " [green]✓ Verified[/green]" if ext.get("verified") else ""
-            console.print(f"[bold]{ext['name']}[/bold] (v{ext['version']}){verified_badge}")
+            console.print(
+                f"[bold]{ext['name']}[/bold] (v{ext['version']}){verified_badge}"
+            )
             console.print(f"  {ext['description']}")
 
             # Metadata
             console.print(f"\n  [dim]Author:[/dim] {ext.get('author', 'Unknown')}")
-            if ext.get('tags'):
-                tags_str = ", ".join(ext['tags'])
+            if ext.get("tags"):
+                tags_str = ", ".join(ext["tags"])
                 console.print(f"  [dim]Tags:[/dim] {tags_str}")
 
             # Source catalog
@@ -7787,26 +10595,32 @@ def extension_search(
                 if install_allowed:
                     console.print(f"  [dim]Catalog:[/dim] {catalog_name}")
                 else:
-                    console.print(f"  [dim]Catalog:[/dim] {catalog_name} [yellow](discovery only — not installable)[/yellow]")
+                    console.print(
+                        f"  [dim]Catalog:[/dim] {catalog_name} [yellow](discovery only — not installable)[/yellow]"
+                    )
 
             # Stats
             stats = []
-            if ext.get('downloads') is not None:
+            if ext.get("downloads") is not None:
                 stats.append(f"Downloads: {ext['downloads']:,}")
-            if ext.get('stars') is not None:
+            if ext.get("stars") is not None:
                 stats.append(f"Stars: {ext['stars']}")
             if stats:
                 console.print(f"  [dim]{' | '.join(stats)}[/dim]")
 
             # Links
-            if ext.get('repository'):
+            if ext.get("repository"):
                 console.print(f"  [dim]Repository:[/dim] {ext['repository']}")
 
             # Install command (show warning if not installable)
             if install_allowed:
-                console.print(f"\n  [cyan]Install:[/cyan] specify extension add {ext['id']}")
+                console.print(
+                    f"\n  [cyan]Install:[/cyan] specify extension add {ext['id']}"
+                )
             else:
-                console.print(f"\n  [yellow]⚠[/yellow]  Not directly installable from '{catalog_name}'.")
+                console.print(
+                    f"\n  [yellow]⚠[/yellow]  Not directly installable from '{catalog_name}'."
+                )
                 console.print(
                     f"  Add to an approved catalog with install_allowed: true, "
                     f"or install from a ZIP URL: specify extension add {ext['id']} --from <zip-url>"
@@ -7815,7 +10629,9 @@ def extension_search(
 
     except ExtensionError as e:
         console.print(f"\n[red]Error:[/red] {e}")
-        console.print("\nTip: The catalog may be temporarily unavailable. Try again later.")
+        console.print(
+            "\nTip: The catalog may be temporarily unavailable. Try again later."
+        )
         raise typer.Exit(1)
 
 
@@ -7887,20 +10703,28 @@ def extension_info(
         # Show catalog status
         if catalog_error:
             console.print(f"[yellow]Catalog unavailable:[/yellow] {catalog_error}")
-            console.print("[dim]Note: Using locally installed extension; catalog info could not be verified.[/dim]")
+            console.print(
+                "[dim]Note: Using locally installed extension; catalog info could not be verified.[/dim]"
+            )
         else:
-            console.print("[yellow]Note:[/yellow] Not found in catalog (custom/local extension)")
+            console.print(
+                "[yellow]Note:[/yellow] Not found in catalog (custom/local extension)"
+            )
 
         console.print()
         console.print("[green]✓ Installed[/green]")
-        priority = normalize_priority(metadata.get("priority") if metadata_is_dict else None)
+        priority = normalize_priority(
+            metadata.get("priority") if metadata_is_dict else None
+        )
         console.print(f"[dim]Priority:[/dim] {priority}")
         console.print(f"\nTo remove: specify extension remove {resolved_installed_id}")
         return
 
     # Case 3: Not found anywhere
     if catalog_error:
-        console.print(f"[red]Error:[/red] Could not query extension catalog: {catalog_error}")
+        console.print(
+            f"[red]Error:[/red] Could not query extension catalog: {catalog_error}"
+        )
         console.print("\nTry again when online, or use the extension ID directly.")
     else:
         console.print(f"[red]Error:[/red] Extension '{extension}' not found")
@@ -7914,7 +10738,9 @@ def _print_extension_info(ext_info: dict, manager):
 
     # Header
     verified_badge = " [green]✓ Verified[/green]" if ext_info.get("verified") else ""
-    console.print(f"\n[bold]{ext_info['name']}[/bold] (v{ext_info['version']}){verified_badge}")
+    console.print(
+        f"\n[bold]{ext_info['name']}[/bold] (v{ext_info['version']}){verified_badge}"
+    )
     console.print(f"ID: {ext_info['id']}")
     console.print()
 
@@ -7930,44 +10756,46 @@ def _print_extension_info(ext_info: dict, manager):
     if ext_info.get("_catalog_name"):
         install_allowed = ext_info.get("_install_allowed", True)
         install_note = "" if install_allowed else " [yellow](discovery only)[/yellow]"
-        console.print(f"[dim]Source catalog:[/dim] {ext_info['_catalog_name']}{install_note}")
+        console.print(
+            f"[dim]Source catalog:[/dim] {ext_info['_catalog_name']}{install_note}"
+        )
     console.print()
 
     # Requirements
-    if ext_info.get('requires'):
+    if ext_info.get("requires"):
         console.print("[bold]Requirements:[/bold]")
-        reqs = ext_info['requires']
-        if reqs.get('speckit_version'):
+        reqs = ext_info["requires"]
+        if reqs.get("speckit_version"):
             console.print(f"  • Spec Kit: {reqs['speckit_version']}")
-        if reqs.get('tools'):
-            for tool in reqs['tools']:
-                tool_name = tool['name']
-                tool_version = tool.get('version', 'any')
-                required = " (required)" if tool.get('required') else " (optional)"
+        if reqs.get("tools"):
+            for tool in reqs["tools"]:
+                tool_name = tool["name"]
+                tool_version = tool.get("version", "any")
+                required = " (required)" if tool.get("required") else " (optional)"
                 console.print(f"  • {tool_name}: {tool_version}{required}")
         console.print()
 
     # Provides
-    if ext_info.get('provides'):
+    if ext_info.get("provides"):
         console.print("[bold]Provides:[/bold]")
-        provides = ext_info['provides']
-        if provides.get('commands'):
+        provides = ext_info["provides"]
+        if provides.get("commands"):
             console.print(f"  • Commands: {provides['commands']}")
-        if provides.get('hooks'):
+        if provides.get("hooks"):
             console.print(f"  • Hooks: {provides['hooks']}")
         console.print()
 
     # Tags
-    if ext_info.get('tags'):
-        tags_str = ", ".join(ext_info['tags'])
+    if ext_info.get("tags"):
+        tags_str = ", ".join(ext_info["tags"])
         console.print(f"[bold]Tags:[/bold] {tags_str}")
         console.print()
 
     # Statistics
     stats = []
-    if ext_info.get('downloads') is not None:
+    if ext_info.get("downloads") is not None:
         stats.append(f"Downloads: {ext_info['downloads']:,}")
-    if ext_info.get('stars') is not None:
+    if ext_info.get("stars") is not None:
         stats.append(f"Stars: {ext_info['stars']}")
     if stats:
         console.print(f"[bold]Statistics:[/bold] {' | '.join(stats)}")
@@ -7975,23 +10803,25 @@ def _print_extension_info(ext_info: dict, manager):
 
     # Links
     console.print("[bold]Links:[/bold]")
-    if ext_info.get('repository'):
+    if ext_info.get("repository"):
         console.print(f"  • Repository: {ext_info['repository']}")
-    if ext_info.get('homepage'):
+    if ext_info.get("homepage"):
         console.print(f"  • Homepage: {ext_info['homepage']}")
-    if ext_info.get('documentation'):
+    if ext_info.get("documentation"):
         console.print(f"  • Documentation: {ext_info['documentation']}")
-    if ext_info.get('changelog'):
+    if ext_info.get("changelog"):
         console.print(f"  • Changelog: {ext_info['changelog']}")
     console.print()
 
     # Installation status and command
-    is_installed = manager.registry.is_installed(ext_info['id'])
+    is_installed = manager.registry.is_installed(ext_info["id"])
     install_allowed = ext_info.get("_install_allowed", True)
     if is_installed:
         console.print("[green]✓ Installed[/green]")
-        metadata = manager.registry.get(ext_info['id'])
-        priority = normalize_priority(metadata.get("priority") if isinstance(metadata, dict) else None)
+        metadata = manager.registry.get(ext_info["id"])
+        priority = normalize_priority(
+            metadata.get("priority") if isinstance(metadata, dict) else None
+        )
         console.print(f"[dim]Priority:[/dim] {priority}")
         console.print(f"\nTo remove: specify extension remove {ext_info['id']}")
     elif install_allowed:
@@ -8009,7 +10839,9 @@ def _print_extension_info(ext_info: dict, manager):
 
 @extension_app.command("update")
 def extension_update(
-    extension: str = typer.Argument(None, help="Extension ID or name to update (or all)"),
+    extension: str = typer.Argument(
+        None, help="Extension ID or name to update (or all)"
+    ),
 ):
     """Update extension(s) to latest version."""
     from .extensions import (
@@ -8038,7 +10870,9 @@ def extension_update(
         installed = manager.list_installed()
         if extension:
             # Update specific extension - resolve ID from argument (handles ambiguous names)
-            extension_id, _ = _resolve_installed_extension(extension, installed, "update")
+            extension_id, _ = _resolve_installed_extension(
+                extension, installed, "update"
+            )
             extensions_to_update = [extension_id]
         else:
             # Update all extensions
@@ -8055,8 +10889,14 @@ def extension_update(
         for ext_id in extensions_to_update:
             # Get installed version
             metadata = manager.registry.get(ext_id)
-            if metadata is None or not isinstance(metadata, dict) or "version" not in metadata:
-                console.print(f"⚠  {ext_id}: Registry entry corrupted or missing (skipping)")
+            if (
+                metadata is None
+                or not isinstance(metadata, dict)
+                or "version" not in metadata
+            ):
+                console.print(
+                    f"⚠  {ext_id}: Registry entry corrupted or missing (skipping)"
+                )
                 continue
             try:
                 installed_version = pkg_version.Version(metadata["version"])
@@ -8074,7 +10914,9 @@ def extension_update(
 
             # Check if installation is allowed from this catalog
             if not ext_info.get("_install_allowed", True):
-                console.print(f"⚠  {ext_id}: Updates not allowed from '{ext_info.get('_catalog_name', 'catalog')}' (skipping)")
+                console.print(
+                    f"⚠  {ext_id}: Updates not allowed from '{ext_info.get('_catalog_name', 'catalog')}' (skipping)"
+                )
                 continue
 
             try:
@@ -8089,7 +10931,9 @@ def extension_update(
                 updates_available.append(
                     {
                         "id": ext_id,
-                        "name": ext_info.get("name", ext_id),  # Display name for status messages
+                        "name": ext_info.get(
+                            "name", ext_id
+                        ),  # Display name for status messages
                         "installed": str(installed_version),
                         "available": str(catalog_version),
                         "download_url": ext_info.get("download_url"),
@@ -8135,7 +10979,9 @@ def extension_update(
 
             # Store backup state
             backup_registry_entry = None
-            backup_hooks = None  # None means no hooks key in config; {} means hooks key existed
+            backup_hooks = (
+                None  # None means no hooks key in config; {} means hooks key existed
+            )
             backed_up_command_files = {}
 
             try:
@@ -8161,7 +11007,10 @@ def extension_update(
 
                 # 3. Backup command files for all agents
                 from .agents import CommandRegistrar as _AgentReg
-                registered_commands = backup_registry_entry.get("registered_commands", {})
+
+                registered_commands = backup_registry_entry.get(
+                    "registered_commands", {}
+                )
                 for agent_name, cmd_names in registered_commands.items():
                     if agent_name not in registrar.AGENT_CONFIGS:
                         continue
@@ -8169,22 +11018,43 @@ def extension_update(
                     commands_dir = project_root / agent_config["dir"]
 
                     for cmd_name in cmd_names:
-                        output_name = _AgentReg._compute_output_name(agent_name, cmd_name, agent_config)
-                        cmd_file = commands_dir / f"{output_name}{agent_config['extension']}"
+                        output_name = _AgentReg._compute_output_name(
+                            agent_name, cmd_name, agent_config
+                        )
+                        cmd_file = (
+                            commands_dir / f"{output_name}{agent_config['extension']}"
+                        )
                         if cmd_file.exists():
-                            backup_cmd_path = backup_commands_dir / agent_name / cmd_file.name
+                            backup_cmd_path = (
+                                backup_commands_dir / agent_name / cmd_file.name
+                            )
                             backup_cmd_path.parent.mkdir(parents=True, exist_ok=True)
                             shutil.copy2(cmd_file, backup_cmd_path)
-                            backed_up_command_files[str(cmd_file)] = str(backup_cmd_path)
+                            backed_up_command_files[str(cmd_file)] = str(
+                                backup_cmd_path
+                            )
 
                         # Also backup copilot prompt files
                         if agent_name == "copilot":
-                            prompt_file = project_root / ".github" / "prompts" / f"{cmd_name}.prompt.md"
+                            prompt_file = (
+                                project_root
+                                / ".github"
+                                / "prompts"
+                                / f"{cmd_name}.prompt.md"
+                            )
                             if prompt_file.exists():
-                                backup_prompt_path = backup_commands_dir / "copilot-prompts" / prompt_file.name
-                                backup_prompt_path.parent.mkdir(parents=True, exist_ok=True)
+                                backup_prompt_path = (
+                                    backup_commands_dir
+                                    / "copilot-prompts"
+                                    / prompt_file.name
+                                )
+                                backup_prompt_path.parent.mkdir(
+                                    parents=True, exist_ok=True
+                                )
                                 shutil.copy2(prompt_file, backup_prompt_path)
-                                backed_up_command_files[str(prompt_file)] = str(backup_prompt_path)
+                                backed_up_command_files[str(prompt_file)] = str(
+                                    backup_prompt_path
+                                )
 
                 # 4. Backup hooks from extensions.yml
                 # Use backup_hooks=None to indicate config had no "hooks" key (don't create on restore)
@@ -8193,7 +11063,9 @@ def extension_update(
                 if "hooks" in config:
                     backup_hooks = {}  # Config has hooks key - preserve this fact
                     for hook_name, hook_list in config["hooks"].items():
-                        ext_hooks = [h for h in hook_list if h.get("extension") == extension_id]
+                        ext_hooks = [
+                            h for h in hook_list if h.get("extension") == extension_id
+                        ]
                         if ext_hooks:
                             backup_hooks[hook_name] = ext_hooks
 
@@ -8204,6 +11076,7 @@ def extension_update(
                     # Handle both root-level and nested extension.yml (GitHub auto-generated ZIPs)
                     with zipfile.ZipFile(zip_path, "r") as zf:
                         import yaml
+
                         manifest_data = None
                         namelist = zf.namelist()
 
@@ -8214,13 +11087,19 @@ def extension_update(
                         else:
                             # Look for extension.yml in a single top-level subdirectory
                             # (e.g., "repo-name-branch/extension.yml")
-                            manifest_paths = [n for n in namelist if n.endswith("/extension.yml") and n.count("/") == 1]
+                            manifest_paths = [
+                                n
+                                for n in namelist
+                                if n.endswith("/extension.yml") and n.count("/") == 1
+                            ]
                             if len(manifest_paths) == 1:
                                 with zf.open(manifest_paths[0]) as f:
                                     manifest_data = yaml.safe_load(f) or {}
 
                         if manifest_data is None:
-                            raise ValueError("Downloaded extension archive is missing 'extension.yml'")
+                            raise ValueError(
+                                "Downloaded extension archive is missing 'extension.yml'"
+                            )
 
                     zip_extension_id = manifest_data.get("extension", {}).get("id")
                     if zip_extension_id != extension_id:
@@ -8239,14 +11118,20 @@ def extension_update(
                     if backup_config_dir.exists() and new_extension_dir.exists():
                         for cfg_file in backup_config_dir.iterdir():
                             if cfg_file.is_file():
-                                shutil.copy2(cfg_file, new_extension_dir / cfg_file.name)
+                                shutil.copy2(
+                                    cfg_file, new_extension_dir / cfg_file.name
+                                )
 
                     # 9. Restore metadata from backup (installed_at, enabled state)
-                    if backup_registry_entry and isinstance(backup_registry_entry, dict):
+                    if backup_registry_entry and isinstance(
+                        backup_registry_entry, dict
+                    ):
                         # Copy current registry entry to avoid mutating internal
                         # registry state before explicit restore().
                         current_metadata = manager.registry.get(extension_id)
-                        if current_metadata is None or not isinstance(current_metadata, dict):
+                        if current_metadata is None or not isinstance(
+                            current_metadata, dict
+                        ):
                             raise RuntimeError(
                                 f"Registry entry for '{extension_id}' missing or corrupted after install — update incomplete"
                             )
@@ -8254,11 +11139,15 @@ def extension_update(
 
                         # Preserve the original installation timestamp
                         if "installed_at" in backup_registry_entry:
-                            new_metadata["installed_at"] = backup_registry_entry["installed_at"]
+                            new_metadata["installed_at"] = backup_registry_entry[
+                                "installed_at"
+                            ]
 
                         # Preserve the original priority (normalized to handle corruption)
                         if "priority" in backup_registry_entry:
-                            new_metadata["priority"] = normalize_priority(backup_registry_entry["priority"])
+                            new_metadata["priority"] = normalize_priority(
+                                backup_registry_entry["priority"]
+                            )
 
                         # If extension was disabled before update, disable it again
                         if not backup_registry_entry.get("enabled", True):
@@ -8313,10 +11202,14 @@ def extension_update(
                     # (files that weren't in the original backup)
                     try:
                         new_registry_entry = manager.registry.get(extension_id)
-                        if new_registry_entry is None or not isinstance(new_registry_entry, dict):
+                        if new_registry_entry is None or not isinstance(
+                            new_registry_entry, dict
+                        ):
                             new_registered_commands = {}
                         else:
-                            new_registered_commands = new_registry_entry.get("registered_commands", {})
+                            new_registered_commands = new_registry_entry.get(
+                                "registered_commands", {}
+                            )
                         for agent_name, cmd_names in new_registered_commands.items():
                             if agent_name not in registrar.AGENT_CONFIGS:
                                 continue
@@ -8324,16 +11217,33 @@ def extension_update(
                             commands_dir = project_root / agent_config["dir"]
 
                             for cmd_name in cmd_names:
-                                output_name = _AgentReg._compute_output_name(agent_name, cmd_name, agent_config)
-                                cmd_file = commands_dir / f"{output_name}{agent_config['extension']}"
+                                output_name = _AgentReg._compute_output_name(
+                                    agent_name, cmd_name, agent_config
+                                )
+                                cmd_file = (
+                                    commands_dir
+                                    / f"{output_name}{agent_config['extension']}"
+                                )
                                 # Delete if it exists and wasn't in our backup
-                                if cmd_file.exists() and str(cmd_file) not in backed_up_command_files:
+                                if (
+                                    cmd_file.exists()
+                                    and str(cmd_file) not in backed_up_command_files
+                                ):
                                     cmd_file.unlink()
 
                                 # Also handle copilot prompt files
                                 if agent_name == "copilot":
-                                    prompt_file = project_root / ".github" / "prompts" / f"{cmd_name}.prompt.md"
-                                    if prompt_file.exists() and str(prompt_file) not in backed_up_command_files:
+                                    prompt_file = (
+                                        project_root
+                                        / ".github"
+                                        / "prompts"
+                                        / f"{cmd_name}.prompt.md"
+                                    )
+                                    if (
+                                        prompt_file.exists()
+                                        and str(prompt_file)
+                                        not in backed_up_command_files
+                                    ):
                                         prompt_file.unlink()
                     except KeyError:
                         pass  # No new registry entry exists, nothing to clean up
@@ -8362,7 +11272,8 @@ def extension_update(
                             for hook_name, hooks_list in config["hooks"].items():
                                 original_len = len(hooks_list)
                                 config["hooks"][hook_name] = [
-                                    h for h in hooks_list
+                                    h
+                                    for h in hooks_list
                                     if h.get("extension") != extension_id
                                 ]
                                 if len(config["hooks"][hook_name]) != original_len:
@@ -8394,9 +11305,13 @@ def extension_update(
         # Summary
         console.print()
         if updated_extensions:
-            console.print(f"[green]✓[/green] Successfully updated {len(updated_extensions)} extension(s)")
+            console.print(
+                f"[green]✓[/green] Successfully updated {len(updated_extensions)} extension(s)"
+            )
         if failed_updates:
-            console.print(f"[red]✗[/red] Failed to update {len(failed_updates)} extension(s):")
+            console.print(
+                f"[red]✗[/red] Failed to update {len(failed_updates)} extension(s):"
+            )
             for ext_name, error in failed_updates:
                 console.print(f"   • {ext_name}: {error}")
             raise typer.Exit(1)
@@ -8426,12 +11341,16 @@ def extension_enable(
 
     # Resolve extension ID from argument (handles ambiguous names)
     installed = manager.list_installed()
-    extension_id, display_name = _resolve_installed_extension(extension, installed, "enable")
+    extension_id, display_name = _resolve_installed_extension(
+        extension, installed, "enable"
+    )
 
     # Update registry
     metadata = manager.registry.get(extension_id)
     if metadata is None or not isinstance(metadata, dict):
-        console.print(f"[red]Error:[/red] Extension '{extension_id}' not found in registry (corrupted state)")
+        console.print(
+            f"[red]Error:[/red] Extension '{extension_id}' not found in registry (corrupted state)"
+        )
         raise typer.Exit(1)
 
     if metadata.get("enabled", True):
@@ -8469,16 +11388,22 @@ def extension_disable(
 
     # Resolve extension ID from argument (handles ambiguous names)
     installed = manager.list_installed()
-    extension_id, display_name = _resolve_installed_extension(extension, installed, "disable")
+    extension_id, display_name = _resolve_installed_extension(
+        extension, installed, "disable"
+    )
 
     # Update registry
     metadata = manager.registry.get(extension_id)
     if metadata is None or not isinstance(metadata, dict):
-        console.print(f"[red]Error:[/red] Extension '{extension_id}' not found in registry (corrupted state)")
+        console.print(
+            f"[red]Error:[/red] Extension '{extension_id}' not found in registry (corrupted state)"
+        )
         raise typer.Exit(1)
 
     if not metadata.get("enabled", True):
-        console.print(f"[yellow]Extension '{display_name}' is already disabled[/yellow]")
+        console.print(
+            f"[yellow]Extension '{display_name}' is already disabled[/yellow]"
+        )
         raise typer.Exit(0)
 
     manager.registry.update(extension_id, {"enabled": False})
@@ -8512,27 +11437,36 @@ def extension_set_priority(
 
     # Validate priority
     if priority < 1:
-        console.print("[red]Error:[/red] Priority must be a positive integer (1 or higher)")
+        console.print(
+            "[red]Error:[/red] Priority must be a positive integer (1 or higher)"
+        )
         raise typer.Exit(1)
 
     manager = ExtensionManager(project_root)
 
     # Resolve extension ID from argument (handles ambiguous names)
     installed = manager.list_installed()
-    extension_id, display_name = _resolve_installed_extension(extension, installed, "set-priority")
+    extension_id, display_name = _resolve_installed_extension(
+        extension, installed, "set-priority"
+    )
 
     # Get current metadata
     metadata = manager.registry.get(extension_id)
     if metadata is None or not isinstance(metadata, dict):
-        console.print(f"[red]Error:[/red] Extension '{extension_id}' not found in registry (corrupted state)")
+        console.print(
+            f"[red]Error:[/red] Extension '{extension_id}' not found in registry (corrupted state)"
+        )
         raise typer.Exit(1)
 
     from .extensions import normalize_priority
+
     raw_priority = metadata.get("priority")
     # Only skip if the stored value is already a valid int equal to requested priority
     # This ensures corrupted values (e.g., "high") get repaired even when setting to default (10)
     if isinstance(raw_priority, int) and raw_priority == priority:
-        console.print(f"[yellow]Extension '{display_name}' already has priority {priority}[/yellow]")
+        console.print(
+            f"[yellow]Extension '{display_name}' already has priority {priority}[/yellow]"
+        )
         raise typer.Exit(0)
 
     old_priority = normalize_priority(raw_priority)
@@ -8540,12 +11474,17 @@ def extension_set_priority(
     # Update priority
     manager.registry.update(extension_id, {"priority": priority})
 
-    console.print(f"[green]✓[/green] Extension '{display_name}' priority changed: {old_priority} → {priority}")
-    console.print("\n[dim]Lower priority = higher precedence in template resolution[/dim]")
+    console.print(
+        f"[green]✓[/green] Extension '{display_name}' priority changed: {old_priority} → {priority}"
+    )
+    console.print(
+        "\n[dim]Lower priority = higher precedence in template resolution[/dim]"
+    )
 
 
 def main():
     app()
+
 
 if __name__ == "__main__":
     main()

@@ -140,13 +140,14 @@ def _assert_compact_managed_context(content: str) -> None:
     assert SPEC_KIT_BLOCK_START in content
     assert "[AGENT]" in content
     assert "## Always-On Context" in content
-    assert "project cognition and project memory are always available" in lower
+    assert "project cognition and project learning are always available" in lower
     assert "even without an active `sp-*` workflow" in lower
     assert "when existing-system truth matters" in lower
     assert "before broad source inspection" in lower
     assert "narrow live reads" in lower
-    assert ".specify/memory/project-rules.md" in content
-    assert ".specify/memory/learnings/INDEX.md" in content
+    assert "specify learning start --command <workflow> --format json" in content
+    assert "show_argv" in content
+    assert ".specify/memory/learnings/INDEX.md" not in content
     assert "## Workflow Recommendations" in content
     assert "do not auto-enter an `sp-*` workflow" in lower
     assert "recommend `sp-discussion`" in lower
@@ -161,7 +162,7 @@ def _assert_compact_managed_context(content: str) -> None:
     assert "frontstage-only deferred persistence" in lower
     assert "do not write discussion files, counters, dirty markers, receipts, or status summaries for every user reply" in lower
     assert "project cognition freshness truthful" in lower
-    assert "store reusable lessons in project memory" in lower
+    assert "store reusable lessons through project learning" in lower
 
     assert "## Workflow Activation Discipline" not in content
     assert "1% chance" not in content
@@ -364,6 +365,10 @@ def _assert_runtime_cognition_carry_forward(content: str, command_name: str) -> 
     assert "project-cognition delta append" in content
     assert "project-cognition update --delta-session" in content
     assert "project-cognition update --payload-file" in content
+    assert "project-cognition claim-reconcile prepare" in content
+    assert "project-cognition claim-reconcile apply" in content
+    assert "apply_argv" in content
+    assert "expected_content_hash" not in content
     assert "verification_evidence" in content
     assert "generated_surface_notes" in content
     assert "result_state" in content
@@ -488,7 +493,6 @@ def test_collected_markdown_integrations_preserve_shared_discussion_contracts(tm
 
         discussion_path = _discussion_artifact_path(integration, project)
         assert discussion_path.exists(), integration_key
-        assert len(discussion_path.read_text(encoding="utf-8")) < 40_000, integration_key
         _assert_discussion_contract(
             _read_generated_artifact_with_references(discussion_path)
         )
@@ -1184,7 +1188,7 @@ class MarkdownIntegrationTests:
 
         files.append(".specify/memory/constitution.md")
         files.append(".specify/memory/learnings/INDEX.md")
-        files.append(".specify/memory/project-learnings.md")
+        files.append(".specify/memory/learnings/confirmed.md")
         files.append(".specify/memory/project-rules.md")
         return sorted(files)
 

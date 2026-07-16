@@ -11,7 +11,9 @@ WORD_RE = re.compile(r"[A-Za-z0-9_]+|[\u4e00-\u9fff]")
 PROMPT_GLOBS = (
     "templates/commands/*.md",
     "templates/command-partials/**/*.md",
-    "templates/passive-skills/**/SKILL.md",
+    "templates/command-references/**/*.md",
+    "templates/passive-skills/**/*.md",
+    "templates/advanced-skills/**/*.md",
     "templates/worker-prompts/*.md",
 )
 
@@ -69,7 +71,12 @@ def iter_matches(root: Path, globs: Iterable[str]) -> Iterable[Path]:
             yield path
 
 
-def summarize(metrics: list[FileMetric]) -> dict[str, object]:
+def summarize(
+    metrics: list[FileMetric],
+    *,
+    include_files: bool = True,
+    top: int | None = None,
+) -> dict[str, object]:
     totals: dict[str, dict[str, int]] = {}
     for metric in metrics:
         total = totals.setdefault(
@@ -81,12 +88,15 @@ def summarize(metrics: list[FileMetric]) -> dict[str, object]:
         total["words"] += metric.words
         total["bytes"] += metric.bytes
 
-    return {
-        "totals": totals,
-        "files": [
-            asdict(metric) for metric in sorted(metrics, key=lambda item: item.path)
-        ],
-    }
+    result: dict[str, object] = {"totals": totals}
+    if include_files:
+        ordered = (
+            sorted(metrics, key=lambda item: (-item.bytes, item.path))[:top]
+            if top is not None
+            else sorted(metrics, key=lambda item: item.path)
+        )
+        result["files"] = [asdict(metric) for metric in ordered]
+    return result
 
 
 def parse_args() -> argparse.Namespace:
@@ -105,7 +115,20 @@ def parse_args() -> argparse.Namespace:
         default="json",
         help="Output format.",
     )
-    return parser.parse_args()
+    parser.add_argument(
+        "--summary-only",
+        action="store_true",
+        help="Omit per-file records and return only aggregate totals.",
+    )
+    parser.add_argument(
+        "--top",
+        type=int,
+        help="Return only the N largest per-file records.",
+    )
+    args = parser.parse_args()
+    if args.top is not None and args.top < 1:
+        parser.error("--top must be greater than zero")
+    return args
 
 
 def render_markdown(summary: dict[str, object]) -> str:
@@ -153,11 +176,22 @@ def main() -> int:
             for path in iter_matches(root, ARTIFACT_GLOBS)
         )
 
-    summary = summarize(metrics)
+    summary = summarize(
+        metrics,
+        include_files=not args.summary_only,
+        top=args.top,
+    )
     if args.format == "markdown":
         print(render_markdown(summary), end="")
     else:
-        print(json.dumps(summary, indent=2, ensure_ascii=False))
+        print(
+            json.dumps(
+                summary,
+                indent=None if args.summary_only else 2,
+                separators=(",", ":") if args.summary_only else None,
+                ensure_ascii=False,
+            )
+        )
     return 0
 
 

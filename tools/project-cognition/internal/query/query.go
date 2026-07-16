@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	rt "github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtime"
@@ -14,7 +15,10 @@ import (
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/store"
 )
 
-const CandidateUniverseVersion = 1
+const (
+	CandidateUniverseVersion      = 2
+	ClaimRetrievalContractVersion = 2
+)
 
 type conceptRef struct {
 	GenerationID   string
@@ -50,24 +54,25 @@ type SemanticIntake struct {
 }
 
 type Plan struct {
-	RawQuery              string                `json:"raw_query,omitempty"`
-	SemanticIntake        SemanticIntake        `json:"semantic_intake,omitempty"`
-	WorkflowIntent        string                `json:"workflow_intent,omitempty"`
-	NormalizedQuery       string                `json:"normalized_query,omitempty"`
-	IntentFacets          []string              `json:"intent_facets,omitempty"`
-	NegativeConstraints   []string              `json:"negative_constraints,omitempty"`
-	AliasInterpretations  []AliasInterpretation `json:"alias_interpretations,omitempty"`
-	OpenSemanticQuestions []string              `json:"open_semantic_questions,omitempty"`
-	ExpandedQueries       []string              `json:"expanded_queries,omitempty"`
-	RepositorySearchTerms []string              `json:"repository_search_terms,omitempty"`
-	Paths                 []string              `json:"paths,omitempty"`
-	PathHints             []string              `json:"path_hints,omitempty"`
-	SelectedConcepts      []string              `json:"selected_concepts,omitempty"`
-	RejectedConcepts      []string              `json:"rejected_concepts,omitempty"`
-	ConceptDecisions      []ConceptDecision     `json:"concept_decisions,omitempty"`
-	LexiconGenerationID   string                `json:"lexicon_generation_id,omitempty"`
-	SelectionReason       string                `json:"selection_reason,omitempty"`
-	Reason                string                `json:"reason,omitempty"`
+	RawQuery                 string                `json:"raw_query,omitempty"`
+	SemanticIntake           SemanticIntake        `json:"semantic_intake,omitempty"`
+	WorkflowIntent           string                `json:"workflow_intent,omitempty"`
+	NormalizedQuery          string                `json:"normalized_query,omitempty"`
+	IntentFacets             []string              `json:"intent_facets,omitempty"`
+	NegativeConstraints      []string              `json:"negative_constraints,omitempty"`
+	AliasInterpretations     []AliasInterpretation `json:"alias_interpretations,omitempty"`
+	OpenSemanticQuestions    []string              `json:"open_semantic_questions,omitempty"`
+	ExpandedQueries          []string              `json:"expanded_queries,omitempty"`
+	RepositorySearchTerms    []string              `json:"repository_search_terms,omitempty"`
+	Paths                    []string              `json:"paths,omitempty"`
+	PathHints                []string              `json:"path_hints,omitempty"`
+	SelectedConcepts         []string              `json:"selected_concepts,omitempty"`
+	RejectedConcepts         []string              `json:"rejected_concepts,omitempty"`
+	ConceptDecisions         []ConceptDecision     `json:"concept_decisions,omitempty"`
+	LexiconGenerationID      string                `json:"lexicon_generation_id,omitempty"`
+	CandidateUniverseVersion int                   `json:"candidate_universe_version,omitempty"`
+	SelectionReason          string                `json:"selection_reason,omitempty"`
+	Reason                   string                `json:"reason,omitempty"`
 }
 
 type QueryInput struct {
@@ -80,28 +85,32 @@ type QueryInput struct {
 }
 
 type QueryPayload struct {
-	BaselineHealth        map[string]any   `json:"baseline_health"`
-	QueryCoverage         map[string]any   `json:"query_coverage"`
-	WorkflowRequirement   string           `json:"workflow_requirement"`
-	PathAdoption          map[string]any   `json:"path_adoption"`
-	Readiness             string           `json:"readiness"`
-	RecommendedNextAction string           `json:"recommended_next_action"`
-	BaselineKind          string           `json:"baseline_kind,omitempty"`
-	Intent                string           `json:"intent"`
-	Query                 string           `json:"query"`
-	QueryPlan             Plan             `json:"query_plan"`
-	SelectedConcepts      []string         `json:"selected_concepts"`
-	RejectedConcepts      []string         `json:"rejected_concepts"`
-	SelectionReason       string           `json:"selection_reason"`
-	CapabilityCandidates  []map[string]any `json:"capability_candidates"`
-	SymptomCandidates     []map[string]any `json:"symptom_candidates"`
-	AffectedNodes         []map[string]any `json:"affected_nodes"`
-	MinimalLiveReads      []string         `json:"minimal_live_reads"`
-	MissingCoverage       []string         `json:"missing_coverage"`
-	RoutePack             map[string]any   `json:"route_pack"`
-	Subgraph              map[string]any   `json:"subgraph"`
-	Warnings              []string         `json:"warnings,omitempty"`
-	RepairHints           []string         `json:"repair_hints,omitempty"`
+	EpistemicContract             EpistemicContract `json:"epistemic_contract"`
+	ClaimRetrievalContractVersion int               `json:"claim_retrieval_contract_version"`
+	CandidateUniverseVersion      int               `json:"candidate_universe_version"`
+	BaselineHealth                map[string]any    `json:"baseline_health"`
+	QueryCoverage                 map[string]any    `json:"query_coverage"`
+	WorkflowRequirement           string            `json:"workflow_requirement"`
+	PathAdoption                  map[string]any    `json:"path_adoption"`
+	Readiness                     string            `json:"readiness"`
+	RecommendedNextAction         string            `json:"recommended_next_action"`
+	BaselineKind                  string            `json:"baseline_kind,omitempty"`
+	Intent                        string            `json:"intent"`
+	Query                         string            `json:"query"`
+	QueryPlan                     Plan              `json:"query_plan"`
+	SelectedConcepts              []string          `json:"selected_concepts"`
+	RejectedConcepts              []string          `json:"rejected_concepts"`
+	SelectionReason               string            `json:"selection_reason"`
+	CapabilityCandidates          []map[string]any  `json:"capability_candidates"`
+	SymptomCandidates             []map[string]any  `json:"symptom_candidates"`
+	AffectedNodes                 []map[string]any  `json:"affected_nodes"`
+	MinimalLiveReads              []string          `json:"minimal_live_reads"`
+	MissingCoverage               []string          `json:"missing_coverage"`
+	RoutePack                     map[string]any    `json:"route_pack"`
+	Subgraph                      map[string]any    `json:"subgraph"`
+	ClaimSignals                  []ClaimSignal     `json:"claim_signals,omitempty"`
+	Warnings                      []string          `json:"warnings,omitempty"`
+	RepairHints                   []string          `json:"repair_hints,omitempty"`
 }
 
 type PlanDiagnostics struct {
@@ -215,6 +224,14 @@ func normalizePlanJSON(data []byte) ([]byte, PlanDiagnostics, error) {
 	if generationID, ok := payload["lexicon_generation_id"].(string); !ok || strings.TrimSpace(generationID) == "" {
 		appendDiagnostic(&diagnostics.Warnings, "query_plan_missing_lexicon_generation_id")
 		appendDiagnostic(&diagnostics.RepairHints, "Carry lexicon_generation_id from the project-cognition lexicon payload into the query_plan.")
+	}
+	version, ok := payload["candidate_universe_version"].(float64)
+	if !ok || version != float64(CandidateUniverseVersion) {
+		return nil, diagnostics, planParseError(
+			[]string{fmt.Sprintf("candidate_universe_version must be the current version %d", CandidateUniverseVersion)},
+			diagnostics.Warnings,
+			append(diagnostics.RepairHints, "Carry candidate_universe_version from the current project-cognition lexicon payload into the query_plan."),
+		)
 	}
 	normalized, err := json.Marshal(payload)
 	if err != nil {
@@ -373,6 +390,9 @@ func Run(paths rt.Paths, input QueryInput) (QueryPayload, error) {
 		readCandidates = append(readCandidates, plan.PathHints...)
 		reads := normalizePaths(readCandidates)
 		return QueryPayload{
+			EpistemicContract:             NewEpistemicContract(),
+			ClaimRetrievalContractVersion: ClaimRetrievalContractVersion,
+			CandidateUniverseVersion:      CandidateUniverseVersion,
 			BaselineHealth: map[string]any{
 				"freshness":     status.Freshness,
 				"readiness":     status.Readiness,
@@ -479,19 +499,34 @@ func Run(paths rt.Paths, input QueryInput) (QueryPayload, error) {
 		readiness = "review"
 		recommendedNextAction = "use_minimal_live_reads_and_review_missing_coverage"
 	}
+	claims := []map[string]any{}
+	claimSignalPackets := []ClaimSignal{}
+	if st != nil {
+		claimRecords, readErr := st.ClaimEvidenceForNodeIDs(context.Background(), nodeIDListFromNodes(nodes))
+		err = readErr
+		if err != nil {
+			return QueryPayload{}, err
+		}
+		claims = compactGraphClaims(claimRecords)
+		claimSignalPackets = claimSignals(claimRecords, maxQueryClaimSignals, maxQueryClaimEvidenceRefs)
+	}
 	routePack := map[string]any{
 		"items":              nodes,
 		"routes":             plan.Paths,
 		"minimal_live_reads": reads,
+		"claims":             claims,
 		"why_these_reads":    "Selected from query plan paths and active project cognition graph metadata.",
 	}
 	subgraph := map[string]any{
 		"nodes":     nodes,
 		"edges":     []map[string]any{},
-		"claims":    []map[string]any{},
+		"claims":    claims,
 		"conflicts": []map[string]any{},
 	}
 	return QueryPayload{
+		EpistemicContract:             NewEpistemicContract(),
+		ClaimRetrievalContractVersion: ClaimRetrievalContractVersion,
+		CandidateUniverseVersion:      CandidateUniverseVersion,
 		BaselineHealth: map[string]any{
 			"freshness":     status.Freshness,
 			"readiness":     status.Readiness,
@@ -521,6 +556,7 @@ func Run(paths rt.Paths, input QueryInput) (QueryPayload, error) {
 		MissingCoverage:       missingCoverage,
 		RoutePack:             routePack,
 		Subgraph:              subgraph,
+		ClaimSignals:          claimSignalPackets,
 		Warnings:              input.PlanDiagnostics.Warnings,
 		RepairHints:           input.PlanDiagnostics.RepairHints,
 	}, nil
@@ -735,6 +771,16 @@ func nodeIDsFromNodes(nodes []map[string]any) map[string]bool {
 	return ids
 }
 
+func nodeIDListFromNodes(nodes []map[string]any) []string {
+	ids := nodeIDsFromNodes(nodes)
+	out := make([]string, 0, len(ids))
+	for id := range ids {
+		out = append(out, id)
+	}
+	sort.Strings(out)
+	return out
+}
+
 func appendMissingCoverage(values []string, value string) []string {
 	for _, existing := range values {
 		if existing == value {
@@ -766,6 +812,9 @@ func shouldReviewMissingCoverage(missingCoverage []string) bool {
 func generationMismatchPayload(status rt.Status, input QueryInput, plan Plan, activeGenerationID string) QueryPayload {
 	reads := []string{".specify/project-cognition/status.json", ".specify/project-cognition/project-cognition.db"}
 	return QueryPayload{
+		EpistemicContract:             NewEpistemicContract(),
+		ClaimRetrievalContractVersion: ClaimRetrievalContractVersion,
+		CandidateUniverseVersion:      CandidateUniverseVersion,
 		BaselineHealth: map[string]any{
 			"freshness":             status.Freshness,
 			"readiness":             status.Readiness,

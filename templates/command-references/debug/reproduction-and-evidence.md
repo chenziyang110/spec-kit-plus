@@ -19,10 +19,13 @@ Preserved Contract: debug must prove reproduction and evidence before forming or
 - Treat task-relevant cognition coverage as insufficient when the failing area is named only vaguely, lacks ownership or placement guidance, or lacks workflow, constraint, integration, or regression-sensitive testing guidance.
 - [AGENT] If task-relevant cognition coverage is insufficient for the failing area, continue with live repository evidence when workflow policy allows and record whether follow-up `{{invoke:map-update}}` with changed paths or affected surfaces is needed. Use map-update for ordinary existing-baseline gaps. Use map-scan -> map-build only for first/missing/unusable baseline, schema failure, schema v1 or old broad-schema rebuild-required readiness, zero active-generation path_index rows, missing or invalid alias_index, explicit_rebuild_requested, or baseline_identity_invalid; block only when the user requested cognition repair or the investigation truly cannot proceed without refreshed coverage.
 - Use the debug cognition slice to identify likely truth-owning layers, adjacent workflows, and observability entry points before forming a hypothesis.
+- When `ui_confirmation.applicable` is true, use the confirmed UI target
+  baseline only as the observation standard: preserve its original references
+  and intents, reproduce the real entry point at the confirmed viewport/window
+  and state, and capture pre-fix structure, visual, and runtime evidence. Do not
+  turn that baseline into a repair design before causal evidence supports one.
 - Read `.specify/memory/constitution.md` if present before forming or validating a fix so the investigation honors project-level MUST/SHOULD constraints.
-- Read `.specify/memory/project-rules.md` if present before forming or validating a fix.
-- Read `.specify/memory/learnings/INDEX.md` if present before forming or validating a fix.
-- Open only linked learning detail docs relevant to the failing area so repeated pitfalls, recovery paths, and project constraints are not rediscovered from scratch.
+- Consume project rules and Learning through `learning start --command debug`; expand only selected records whose triggers match the failing area.
 - The causal map is produced by a **think subagent** (dispatched automatically by the graph engine at Stage 1A). The constraints below apply to that subagent, not to the leader.
 - During observer framing, the think subagent must not read source files, test files, log files, or feature-specific planning artifacts such as `spec.md`, `plan.md`, `tasks.md`, or `context.md`.
 - The think subagent must not read test files or test outputs; save those for the investigator phase.

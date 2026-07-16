@@ -88,8 +88,7 @@ def test_fast_template_exists_and_defines_scope_gate() -> None:
     assert "incremental freshness finalization" in content
     assert "do not run `complete-refresh` as a rebuild finalizer" in content
     assert "{{specify-subcmd:project-cognition mark-dirty --reason \"workflow-closeout-failed\" --format json}}" in content
-    assert "skip all learning hooks" in content
-    assert "skip all learning hooks" in content
+    assert "do not run learning intake, hooks, capture, or promotion" in content
     assert "default compass packet" in content
     assert "returned `minimal_live_reads`" in content
     assert "fast-task state or report" in content
@@ -149,10 +148,9 @@ def test_fast_template_routes_consequence_triggers_out_of_fast_path() -> None:
 def test_fast_template_marks_learning_and_fail_closed_routing_gates_with_agent_marker() -> None:
     content = read_template("templates/commands/fast.md").lower()
 
-    assert "skip all learning hooks" in content
-    assert "do not run learning start, signal, review, or capture" in content
+    assert "do not run learning intake, hooks, capture, or promotion" in content
+    assert "if reusable friction appears, upgrade out of fast" in content
     assert "learning capture --command fast" not in content
-    assert "skip all learning hooks" in content
 
 
 def test_fast_template_requires_tdd_gate_for_behavior_changes() -> None:

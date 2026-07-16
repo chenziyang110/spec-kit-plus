@@ -63,6 +63,12 @@ CORE_WORKFLOW_TEMPLATES = (
     "templates/commands/map-build.md",
 )
 
+PHASE_ARTIFACT_VALIDATION_TEMPLATES = {
+    "templates/commands/specify.md": "specify",
+    "templates/commands/plan.md": "plan",
+    "templates/commands/tasks.md": "tasks",
+}
+
 PLANNING_TEMPLATE_EXPECTED_FRAGMENTS = {
     "templates/commands/specify.md": (
         "workflow-state.md",
@@ -107,12 +113,25 @@ EXECUTION_TEMPLATE_EXPECTED_FRAGMENTS = {
 def _assert_no_routine_hook_choreography(path: str) -> None:
     content = read_command_with_references(Path(path).stem) if path.startswith("templates/commands/") else read_template(path)
     for fragment in ROUTINE_HOOK_FRAGMENTS:
+        if path in PHASE_ARTIFACT_VALIDATION_TEMPLATES and "validate-artifacts" in fragment:
+            continue
         assert fragment not in content, f"{path} still instructs routine hook choreography: {fragment}"
 
 
 def test_command_templates_do_not_instruct_routine_hook_choreography() -> None:
     for path in CORE_WORKFLOW_TEMPLATES:
         _assert_no_routine_hook_choreography(path)
+
+
+def test_required_phase_boundaries_use_one_deterministic_artifact_validation() -> None:
+    for path, command in PHASE_ARTIFACT_VALIDATION_TEMPLATES.items():
+        content = read_command_with_references(Path(path).stem)
+        invocation = (
+            "{{specify-subcmd:hook validate-artifacts "
+            f"--command {command} --feature-dir <feature-dir> --format json}}"
+        )
+        assert content.count(invocation) == 1, path
+        assert "fail closed" in content.lower() or "repair or reopen" in content.lower()
 
 
 def test_planning_templates_preserve_state_and_artifact_outcome_requirements() -> None:

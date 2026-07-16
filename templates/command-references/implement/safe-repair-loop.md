@@ -26,3 +26,18 @@ Preserved Contract: repair stays evidence-bound and routes unresolved defects to
   summary: [what is still not true]
   source: [task id, validation check, or user-visible outcome]
   next_action: [specific next step]
+
+## Protected CI checkpoint
+
+When a commit is technically required to obtain protected-CI evidence that is
+`mandatory_for_completion`, keep the task unchecked and its task lifecycle
+blocked with the Actionable Blocker Resolution fields above. Validate the
+non-final commit with `specify hook validate-commit --commit-message <message>
+--feature-dir <feature-dir> --commit-intent external-evidence-checkpoint`.
+On Claude or Gemini native hooks, carry the explicit intent on the actual
+commit with `git -c specify.commitIntent=external-evidence-checkpoint commit -m
+"<message>"`; the hook binds it to the active feature and repeats the shared
+validation.
+Passing that gate permits only the local checkpoint: it does not mark the task
+or tracker `resolved`, authorize a push/CI trigger, or weaken the ordinary final
+commit and implementation closeout gates.

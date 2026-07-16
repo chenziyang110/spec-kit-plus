@@ -23,14 +23,21 @@ judgment in an established Spec Kit Plus repository:
 
 - Default project cognition intake is `project-cognition compass --intent <intent> --query="$ARGUMENTS" --format json`.
   Consume the packet in this order:
-  1. Read top-level `minimal_live_reads` first and use those files as the bounded first live evidence route.
-  2. Then use lane-level `first_pass_paths` for reasons, evidence hints, verification hints, follow-up surfaces, and `before_fix_claim` checks.
-  3. Treat `coverage_diagnostics` as confidence and closeout signals, never as route candidates.
-  4. Treat `expansion_ref` as a normal continuation path. Run `project-cognition expand --id <id> --section <section> --format json` only when coverage state or live evidence requires more map detail.
-  5. Do not infer final edit scope from `minimal_live_reads` or `first_pass_paths`.
+  1. Read top-level `epistemic_contract` first. Require `graph_role=route_candidate_only`, `fact_source_of_truth=live_repository`, `live_verification_required=true`, `graph_only_claims_allowed=false`, and `unverified_claim_action=withhold`.
+  2. Read top-level `minimal_live_reads` and use those files as the bounded first live evidence route.
+  3. Then use lane-level `first_pass_paths` for reasons, evidence hints, verification hints, follow-up surfaces, and `before_fix_claim` checks.
+  4. Read lane-level `claim_refs` only as compact route candidates. `route_confidence` is scoped by `confidence_scope=route_candidate`; inspect `state`, `freshness`, and `stale`, and require live verification before using a claim as repository truth.
+  5. Treat `coverage_diagnostics` as confidence and closeout signals, never as route candidates.
+  6. Treat `expansion_ref` as a normal continuation path. Run `project-cognition expand --id <id> --section claim_evidence --format json` when an active claim needs bounded `source_path`/`span` evidence; advanced `project-cognition query` may also return top-level `claim_signals` with bounded evidence refs.
+  7. Do not infer final edit scope from `minimal_live_reads`, `first_pass_paths`, `claim_refs`, `claim_signals`, or `claim_evidence`.
+  Compass applies graph claims only as a bounded rerank after repository-backed route eligibility is established. `match_score` remains the eligibility score; lane `claim_ranking.adjustment` may only move an already-matched candidate by `+1` for fresh `supported`/`verified_in_graph_generation`, `-1` for stale, or `-2` for contradicted. Claims cannot create candidates and cannot replace live verification. When `coverage_diagnostics` contains `stale_claim_signal` or `contradicted_claim_signal`, treat the packet as `usable_with_review`, follow `reconcile_claims_with_minimal_live_reads`, and complete the lane-specific refresh or reconciliation action against the live repository.
+  For decisive claim-specific evidence, provide only reconciliation intent: workflow, stable `claim_id`, reason, repository-relative `source_path`, bounded line `span`, `supporting` or `contradicting` role, and optional claim-specific verification. Run `project-cognition claim-reconcile prepare --input <intent.json> --format json`; the runtime owns every integrity field and the prepared packet path. Execute the returned `apply_argv` exactly (`project-cognition claim-reconcile apply --input <prepared_packet_path> --format json`). Generic workflow verification is insufficient. On ready, rerun Compass once; on partial or blocked, withhold the claim.
+  The `epistemic_contract` cannot authorize source changes and cannot prove current behavior. Carry `epistemic_contract` forward, withhold unverified claims, and let contradictory live evidence override the route candidate.
+  Graph claims are indexed assertions. Even `verified_in_graph_generation` is only an active graph-generation state, not current repository truth; graph claims cannot authorize source changes and cannot set workflow `claim_ready=true`. Treat `candidate` and `supported` as navigation hypotheses, and `contradicted` or `stale` as negative-route or historical context until bounded live evidence is checked.
   Readiness values are `query_ready`, `review`, `needs_rebuild`, `blocked`, and `unsupported_runtime`. Compass-specific advice is in `compass_state` and `recommended_next_action`.
   When `compass_state=needs_semantic_intake`, the agent writes `semantic_intake` from project vocabulary and reruns compass with `--semantic-intake-file`, or uses the advanced `lexicon -> semantic_intake -> query` path when explicit concept decisions are needed.
   Advanced routing remains available as `project-cognition lexicon --mode catalog`, agent-authored `semantic_intake` and `concept_decisions`, then `project-cognition query --query-plan`. Use it when the first compass packet is too draft-like, a workflow needs explicit concept decisions, or coverage cannot be resolved from the default packet.
+  The current query contract is `claim_retrieval_contract_version=2` and `candidate_universe_version=2`; carry the latter from lexicon into every explicit query plan. Never parse missing or non-current versions as legacy input; rerun lexicon or compass with the current binary and repair the install if needed.
   The advanced path still requires `normalized_query`, `intent_facets`, `negative_constraints`, `alias_interpretations`, `selected_concepts`, `rejected_concepts`, `concept_decisions`, `covered_facets`, `missing_facets`, `match_sources`, `lexicon_generation_id`, `expanded_queries`, `repository_search_terms`, and facet coverage; do not trust top similarity alone.
   If the query command reports query-plan diagnostics, preserve its `warnings`, `repair_hints`, normalized `query_plan`, structured `errors`, and `expected_shape` so the workflow can repair the plan instead of ending on a raw parser exception.
   Agent-owned semantic normalization is mandatory for the advanced path. The raw lexicon ranking and `agent_normalization` are only bootstrap signals for retrieving the alias catalog and candidate universe; they are not route decisions. Raw lexicon ranking is only a bootstrap. Treat `agent_normalization.required=true` as a non-intelligent CLI reminder to write `semantic_intake` from the alias catalog (action: write_semantic_intake_from_alias_catalog). If `agent_normalization` is omitted, `omitted => required=false`: treat it as `required=false`; omission does not make raw lexical ranking authoritative. If raw `concept_candidates` are all `score=0`, or the prompt is localized, mixed-language, CJK, colloquial, symptom-first, or mixed-language or CJK text, do not stop at the raw score. CJK or mixed CJK/ASCII input still requires agent normalization even when positive raw lexical matches exist because embedded project tokens do not translate the surrounding user language. Extract embedded project terms such as command names, UI labels, file stems, state names, adapter names, and skill or package identifiers from the user's wording and the alias catalog. The agent still owns translation; `agent_normalization` is advisory guidance, not a route decision. Put those translated terms into `normalized_query`, `alias_interpretations`, `intent_facets`, `expanded_queries`, and `repository_search_terms`, then select or reject concepts by facet coverage.
@@ -105,8 +112,7 @@ judgment in an established Spec Kit Plus repository:
   `minimal_live_reads`, `first_pass_paths`, `coverage_diagnostics`, missing coverage, evidence traces, verification routes,
   ambiguity, conflicts, and weak coverage.
 - Treat project cognition under `.specify/project-cognition/` as an advisory navigation surface. Legacy project-map exports are not evidence for current project behavior and `templates/project-map/**` is historical compatibility/export only.
-- Read `.specify/memory/project-rules.md` and `.specify/memory/project-learnings.md`
-  when they exist.
+- Consume project rules and reusable Learning through `specify learning start -> list -> show`; do not parse Learning storage as part of cognition intake.
 
 ## Cross-Project Reference Directories
 
@@ -143,6 +149,19 @@ judgment in an established Spec Kit Plus repository:
 - Before suggesting or running a `specify <subcommand>` invocation while satisfying this gate, verify that it exists in `specify --help` or `specify <subcommand> --help`.
 - Do not invent, paraphrase, or "normalize" unsupported CLI names such as `specify create-feature`.
 - Feature creation remains `{{invoke:specify}}` plus the generated create-feature script at `.specify/scripts/bash/create-new-feature.sh` or `.specify/scripts/powershell/create-new-feature.ps1`, not a separate branch-creation command. Default feature workspace names use `YYYY-MM-DD-<slug>`; numeric prefixes are legacy and require the script's explicit numeric option.
+
+## Missing Runtime Launcher Recovery
+
+- If an installed cognition command begins with the all-caps
+  `PROJECT_COGNITION_LAUNCHER_UNAVAILABLE` marker, treat the complete marked
+  command as non-executable. The suffix only preserves the intended cognition
+  subcommand so managed guidance can be rebound after repair.
+- Do not probe `specify cognition` or `specify project-cognition`. Run
+  `{{specify-subcmd:check}}` for project-pinned diagnostics, then run
+  `{{specify-subcmd:integration repair}}` as the deterministic recovery entry.
+  Re-open the active installed skill after repair; if the marker remains,
+  report cognition unavailable and continue from live repository evidence only
+  where the workflow's safety boundary permits degraded advisory navigation.
 
 ## Freshness State Guidance
 
@@ -188,9 +207,9 @@ judgment in an established Spec Kit Plus repository:
   or old broad-schema rebuild-required readiness, zero active-generation
   path_index rows outside `greenfield_empty`, missing or invalid `alias_index`,
   `explicit_rebuild_requested`, or `baseline_identity_invalid`.
-  Schema v2 brownfield readiness also requires `alias_index`; schema v1 or old
-  broad-schema baselines must be rebuilt through `sp-map-scan -> sp-map-build`
-  before their alias catalog is treated as usable navigation.
+  Schema v5 is current-only. The runtime does not migrate schema v4 or older
+  databases and does not archive or replace them. Remove the incompatible project-cognition.db
+  explicitly before `sp-map-scan -> sp-map-build` with the current binary.
   Uncertain closure can be recorded by `sp-map-update` as partial/low-confidence
   facts, known unknowns, and `minimal_live_reads`.
 - Entry-time stale or weak cognition is still an advisory navigation concern unless the user explicitly requested map maintenance. A workflow may continue from live evidence when entry guidance allows it. That entry routing rule does not waive closeout ownership.

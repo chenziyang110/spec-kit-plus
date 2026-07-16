@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/claim"
 	rt "github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtime"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/store"
 )
@@ -58,8 +59,24 @@ func TestCompassQueryDraftReturnsCompactPacketAndTopLevelMinimalReads(t *testing
 	if payload.QueryFingerprint == "" {
 		t.Fatalf("QueryFingerprint is empty")
 	}
+	if payload.ClaimRetrievalContractVersion != 2 {
+		t.Fatalf("ClaimRetrievalContractVersion = %d, want 2", payload.ClaimRetrievalContractVersion)
+	}
 	if !compassCoveredFacetHasFirstPassRisk(payload.IntentFacets) {
 		t.Fatalf("IntentFacets = %#v, want covered facet risk to guard first-pass scope", payload.IntentFacets)
+	}
+	providerLane := compassLaneByTitle(payload.EvidenceLanes, "Provider Runtime Override")
+	if providerLane == nil || len(providerLane.ClaimRefs) != 1 {
+		t.Fatalf("provider lane claim refs = %#v, want one compact claim ref", providerLane)
+	}
+	if providerLane.ClaimRefs[0].ID != "claim:provider-runtime-owner" {
+		t.Fatalf("provider claim id = %q", providerLane.ClaimRefs[0].ID)
+	}
+	if providerLane.ClaimRefs[0].RouteConfidence != "verified" || providerLane.ClaimRefs[0].ConfidenceScope != "route_candidate" {
+		t.Fatalf("provider claim ref contract = %#v", providerLane.ClaimRefs[0])
+	}
+	if providerLane.ClaimRefs[0].Freshness != "fresh" || providerLane.ClaimRefs[0].Stale {
+		t.Fatalf("provider claim freshness = %#v", providerLane.ClaimRefs[0])
 	}
 	data, err := json.Marshal(payload)
 	if err != nil {
@@ -562,6 +579,171 @@ func TestIsBroadFallbackCandidateSuppressesBooleanAttr(t *testing.T) {
 	}
 }
 
+func TestCompassClaimsRerankOnlyPositiveMatchedCandidates(t *testing.T) {
+	rows := []store.ConceptCandidateRow{
+		compassRankingRow("N-supported", "A Supported Route", "routing target"),
+		compassRankingRow("N-verified", "B Verified Route", "routing target"),
+		compassRankingRow("N-neutral", "C Neutral Route", "routing target"),
+		compassRankingRow("N-stale", "D Stale Route", "routing target"),
+		compassRankingRow("N-contradicted", "E Contradicted Route", "routing target"),
+		compassRankingRow("N-claim-only", "F Claim Only Route", "unrelated surface"),
+	}
+	candidates := compassCandidates(rows, []string{"routing"}, false, compassConceptFilter{})
+	summaries := []store.GraphClaimLifecycleSummary{
+		{NodeID: "N-supported", ClaimCount: 20, FreshSupportedCount: 20},
+		{NodeID: "N-verified", ClaimCount: 1, FreshVerifiedCount: 1},
+		{NodeID: "N-stale", ClaimCount: 1, StaleCount: 1},
+		{NodeID: "N-contradicted", ClaimCount: 1, ContradictedCount: 1},
+		{NodeID: "N-claim-only", ClaimCount: 1, FreshVerifiedCount: 1},
+	}
+
+	candidates = applyClaimRanking(candidates, summaries)
+
+	if got := len(candidates); got != 5 {
+		t.Fatalf("candidate count = %d, want five base matches and no claim-only match", got)
+	}
+	wantOrder := []string{"N-supported", "N-verified", "N-neutral", "N-stale", "N-contradicted"}
+	for index, wantNodeID := range wantOrder {
+		if got := candidates[index].ranked.row.NodeID; got != wantNodeID {
+			t.Fatalf("candidate[%d].node_id = %q, want %q; candidates=%#v", index, got, wantNodeID, candidates)
+		}
+	}
+	wantScores := map[string]struct {
+		adjustment int
+		score      int
+		state      string
+	}{
+		"N-supported":    {adjustment: 1, score: 11, state: "supported"},
+		"N-verified":     {adjustment: 1, score: 11, state: "verified_in_graph_generation"},
+		"N-neutral":      {adjustment: 0, score: 10, state: "none"},
+		"N-stale":        {adjustment: -1, score: 9, state: "stale"},
+		"N-contradicted": {adjustment: -2, score: 8, state: "contradicted"},
+	}
+	for _, candidate := range candidates {
+		want := wantScores[candidate.ranked.row.NodeID]
+		if candidate.matchScore != 10 || candidate.ranked.score != want.score {
+			t.Fatalf("%s scores = match:%d final:%d, want match:10 final:%d", candidate.ranked.row.NodeID, candidate.matchScore, candidate.ranked.score, want.score)
+		}
+		if candidate.claimRanking.State != want.state || candidate.claimRanking.Adjustment != want.adjustment {
+			t.Fatalf("%s claim ranking = %#v, want state=%q adjustment=%d", candidate.ranked.row.NodeID, candidate.claimRanking, want.state, want.adjustment)
+		}
+		if want.state != "none" && !candidate.claimRanking.LiveVerificationRequired {
+			t.Fatalf("%s claim ranking removed live verification: %#v", candidate.ranked.row.NodeID, candidate.claimRanking)
+		}
+	}
+	raw := candidatesForExpansion(candidates)
+	if raw[0]["match_score"] != 10 || raw[0]["score"] != 11 {
+		t.Fatalf("raw candidate scores = %#v, want transparent match/final scores", raw[0])
+	}
+}
+
+func TestCompassClaimBoostCannotOvertakeStrongMatch(t *testing.T) {
+	rows := []store.ConceptCandidateRow{
+		compassRankingRow("N-strong", "Strong Match", "over"),
+		compassRankingRow("N-weak", "Weak Match", "override setting"),
+	}
+	candidates := compassCandidates(rows, []string{"over"}, false, compassConceptFilter{})
+	candidates = applyClaimRanking(candidates, []store.GraphClaimLifecycleSummary{{
+		NodeID: "N-weak", ClaimCount: 100, FreshSupportedCount: 100,
+	}})
+
+	if got := candidates[0].ranked.row.NodeID; got != "N-strong" {
+		t.Fatalf("top candidate = %q, want stronger lexical match; candidates=%#v", got, candidates)
+	}
+	if candidates[1].claimRanking.Adjustment != 1 {
+		t.Fatalf("weak claim adjustment = %d, want bounded +1", candidates[1].claimRanking.Adjustment)
+	}
+}
+
+func TestCompassUnsafeClaimStatesRequireLiveReconciliation(t *testing.T) {
+	tests := []struct {
+		name               string
+		state              claim.State
+		freshness          claim.Freshness
+		wantDiagnosticKind string
+		wantAction         string
+	}{
+		{
+			name: "contradicted", state: claim.StateContradicted, freshness: claim.FreshnessFresh,
+			wantDiagnosticKind: "contradicted_claim_signal", wantAction: "reconcile_contradicted_claim_with_live_repository",
+		},
+		{
+			name: "stale", state: claim.StateStale, freshness: claim.FreshnessStale,
+			wantDiagnosticKind: "stale_claim_signal", wantAction: "refresh_claim_evidence_then_verify_live_repository",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			paths := queryTestPaths(t)
+			seedCompassUnsafeClaimGraph(t, paths, tt.state, tt.freshness)
+
+			payload, err := Compass(paths, CompassInput{
+				Intent: "debug", Query: "runtime route", InputMode: compassInputModeSemanticIntake,
+				Plan: Plan{SemanticIntake: SemanticIntake{
+					NormalizedQuery: "runtime route", IntentFacets: []string{"runtime route"},
+				}},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if payload.CompassState != compassStateUsableWithReview {
+				t.Fatalf("CompassState = %q, want %q", payload.CompassState, compassStateUsableWithReview)
+			}
+			if !compassDiagnosticsContain(payload.CoverageDiagnostics, tt.wantDiagnosticKind) {
+				t.Fatalf("CoverageDiagnostics = %#v, want %q", payload.CoverageDiagnostics, tt.wantDiagnosticKind)
+			}
+			if payload.RecommendedNextAction != compassRecommendedActionReconcileClaims {
+				t.Fatalf("RecommendedNextAction = %q, want %q", payload.RecommendedNextAction, compassRecommendedActionReconcileClaims)
+			}
+			if len(payload.EvidenceLanes) != 1 || payload.EvidenceLanes[0].ClaimRanking == nil {
+				t.Fatalf("EvidenceLanes = %#v, want one claim-ranked lane", payload.EvidenceLanes)
+			}
+			ranking := payload.EvidenceLanes[0].ClaimRanking
+			if !ranking.ReconciliationRequired || !ranking.LiveVerificationRequired || ranking.ReconciliationAction != tt.wantAction {
+				t.Fatalf("ClaimRanking = %#v, want live reconciliation action %q", ranking, tt.wantAction)
+			}
+			if len(payload.EvidenceLanes[0].ClaimRefs) != 1 || !payload.EvidenceLanes[0].ClaimRefs[0].LiveVerificationRequired {
+				t.Fatalf("ClaimRefs = %#v, want explicit live verification gate", payload.EvidenceLanes[0].ClaimRefs)
+			}
+		})
+	}
+}
+
+func compassRankingRow(nodeID, title, alias string) store.ConceptCandidateRow {
+	return store.ConceptCandidateRow{
+		GenerationID: "GEN-ranking", NodeID: nodeID, NodeType: "capability", Title: title,
+		Confidence: "verified", Paths: []string{"src/" + nodeID + ".go"},
+		Aliases: []store.ConceptAliasRow{{Alias: alias, NormalizedAlias: strings.ToLower(alias)}},
+	}
+}
+
+func seedCompassUnsafeClaimGraph(t *testing.T, paths rt.Paths, state claim.State, freshness claim.Freshness) {
+	t.Helper()
+	seedReadyGraph(t, paths, store.ImportInput{
+		GenerationID: "GEN-unsafe-claim-" + string(state),
+		Kind:         "full",
+		SourceCommit: "abc123",
+		Evidence: []store.EvidenceImport{{
+			ID: "E-route", SourceKind: "source", SourcePath: "src/runtime/route.go",
+			CommitSHA: "abc123", Extractor: "test", ContentHash: "hash-route",
+		}},
+		Nodes: []store.NodeImport{{
+			ID: "N-route", Type: "capability", Title: "Runtime Route", Confidence: "verified",
+			EvidenceIDs: []string{"E-route"}, Attrs: map[string]any{"aliases": []any{"runtime route"}},
+		}},
+		Claims: []store.ClaimImport{{
+			ID: "claim:runtime-route", NodeID: "N-route", GraphClaimType: "runtime_owner",
+			Summary: "Runtime route owns dispatch", State: state, Freshness: freshness,
+			StateReason: "test_unsafe_claim", SupportingEvidenceIDs: []string{"E-route"},
+		}},
+		PathIndex: []store.PathIndexImport{{
+			ID: "P-route", Path: "src/runtime/route.go", NodeID: "N-route",
+			Relation: "owns", Confidence: "verified", EvidenceID: "E-route",
+		}},
+	})
+}
+
 func seedCompassModelSwitchGraph(t *testing.T, paths rt.Paths) {
 	t.Helper()
 	seedReadyGraph(t, paths, store.ImportInput{
@@ -569,7 +751,7 @@ func seedCompassModelSwitchGraph(t *testing.T, paths rt.Paths) {
 		Kind:         "full",
 		SourceCommit: "abc123",
 		Evidence: []store.EvidenceImport{
-			{ID: "E-model-selector", SourceKind: "source", SourcePath: "desktop/src/components/controls/ModelSelector.tsx", CommitSHA: "abc123", Extractor: "test", ContentHash: "hash-model"},
+			{ID: "E-model-selector", SourceKind: "source", SourcePath: "desktop/src/components/controls/ModelSelector.tsx", CommitSHA: "abc123", Span: "18:1-44:2", Extractor: "test", ContentHash: "hash-model"},
 			{ID: "E-ws-handler", SourceKind: "source", SourcePath: "src/server/ws/handler.ts", CommitSHA: "abc123", Extractor: "test", ContentHash: "hash-ws"},
 			{ID: "E-fonts", SourceKind: "source", SourcePath: "desktop/src/styles/global.css", CommitSHA: "abc123", Extractor: "test", ContentHash: "hash-fonts"},
 			{ID: "E-window", SourceKind: "source", SourcePath: "desktop/src-tauri/tauri.conf.json", CommitSHA: "abc123", Extractor: "test", ContentHash: "hash-window"},
@@ -612,6 +794,10 @@ func seedCompassModelSwitchGraph(t *testing.T, paths rt.Paths) {
 					"coverage_fallback": true,
 				},
 			},
+		},
+		Claims: []store.ClaimImport{
+			{ID: "claim:provider-runtime-owner", NodeID: "N-provider-runtime", GraphClaimType: "runtime_owner", Summary: "Provider runtime owns model override behavior", State: "supported", Freshness: "fresh", StateReason: "supporting_evidence", SupportingEvidenceIDs: []string{"E-model-selector"}},
+			{ID: "claim:ui-readability-owner", NodeID: "N-ui-readability", GraphClaimType: "ui_owner", Summary: "Desktop shell owns readability behavior", State: "supported", Freshness: "fresh", StateReason: "supporting_evidence", SupportingEvidenceIDs: []string{"E-fonts"}},
 		},
 		PathIndex: []store.PathIndexImport{
 			{ID: "P-model-selector", Path: "desktop/src/components/controls/ModelSelector.tsx", NodeID: "N-provider-runtime", Relation: "owns", Confidence: "verified", EvidenceID: "E-model-selector"},
@@ -728,6 +914,15 @@ func compassLaneTitleContains(lanes []EvidenceLane, title string) bool {
 		}
 	}
 	return false
+}
+
+func compassLaneByTitle(lanes []EvidenceLane, title string) *EvidenceLane {
+	for index := range lanes {
+		if lanes[index].Title == title {
+			return &lanes[index]
+		}
+	}
+	return nil
 }
 
 func compassLanePathCount(lanes []EvidenceLane) int {

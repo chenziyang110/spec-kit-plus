@@ -301,7 +301,7 @@ Use support skills when they solve a specific gap:
 - `discussion` continues by default, uses recommendation-first progression, and runs the Context Boundary Gate before project-specific claims. Project cognition is advisory navigation; live evidence proves current facts.
 - Continue by default, do not ask for continuation, and ask only when user judgment is genuinely required and no safe default exists.
 - `sp-specify` compiles a confirmed discussion contract into `spec-contract.json`; `sp-quick` consumes the same JSON only when eligible and reuses `review_digest` when no quick-stage semantic delta exists.
-- The main feature pipeline passes `handoff-to-specify.json` -> `spec-contract.json` -> `plan-contract.json` -> `task-index.json` -> per-task lifecycle records. Optional research/design/lane artifacts are trigger-driven, WorkerTaskPackets are just-in-time, and implementation reviews are event-triggered.
+- The main feature pipeline passes `handoff-to-specify.json` -> `spec-contract.json` -> `plan-contract.json` -> `task-index.json` -> per-task lifecycle records -> `human-acceptance.json`. Optional research/design/lane artifacts are trigger-driven, WorkerTaskPackets are just-in-time, implementation reviews are event-triggered, and human product acceptance is a separate context-restoring stage after technical closeout.
 - `prd-scan` followed by `prd-build` as the existing-project reverse PRD lane when you need repository-first current-state product documentation; it is the heavy reconstruction workflow, substantive scans are subagent-mandatory, critical claims target `L4 Reconstruction-Ready`, `config-contracts.json` is part of the scan contract surface, `prd-build` must not perform a second repository scan, it writes `.specify/prd-runs/<run-id>/`, and it does not automatically hand off to `plan`. `prd` remains a deprecated compatibility entrypoint that should route into the same pair
 - Treat the project cognition runtime as an advisory brownfield navigation index that gives agents dependency, claim, conflict, ownership, and change-impact context before deeper brownfield work starts.
 - `specify`, `clarify`, `deep-research`, `plan`, and `tasks` should not directly rewrite cognition content for artifact-only work. When they actually change source/runtime/template/config/test/generated-asset surfaces, they run planner-first project cognition update during closeout; recommend `map-update` only for external/manual changed-path map maintenance, ordinary existing-baseline gaps, and separate map-maintenance passes. Use map-scan -> map-build only for first/missing/unusable baseline, schema failure, zero active-generation path_index rows, `explicit_rebuild_requested`, or `baseline_identity_invalid`
@@ -353,30 +353,39 @@ Required action markers:
 - Existing `AGENTS.md` files are extended through a managed `SPEC-KIT` block instead of full-file replacement.
 - `fast`, `quick`, `map-scan`, and `map-build` are the first-wave `[AGENT]` workflows, and the shared `specify`, `plan`, `tasks`, `implement`, and `debug` workflows now use the same marker for advisory navigation.
 
-Passive project learning layer:
+Project Learning lifecycle:
 
-- Generated projects now include `.specify/memory/project-rules.md` and `.specify/memory/project-learnings.md` as stable shared project memory below the constitution.
-- This shared project memory is available across later work in the repository, not just when a `sp-*` workflow is active.
-- Runtime candidate learnings live under `.planning/learnings/candidates.md`, with `.planning/learnings/review.md` tracking passive promotion notes.
-- The major workflow templates read this passive project learning layer before deeper command-local context so recurring pitfalls, constraints, and user defaults can influence later runs.
-- The passive start step can auto-promote repeated candidates into shared learnings before the command does deeper local analysis, including repeated high-signal candidates that should no longer stay stuck in the candidate layer.
-- Low-level helper commands exist for the passive lifecycle:
+- Agents read Learning through CLI progressive disclosure, not by parsing confirmed, index, detail, or candidate files.
+- `learning start` gives the current workflow a compact relevant intake; `learning list` filters/pages summaries; `learning show` expands one selected record. All three are read-only.
+- `learning capture` and `capture-auto` produce or merge candidates. `learning promote` performs explicit lifecycle changes; workflow start never silently promotes.
+- Reusable corrections, retries, route changes, blockers/recovery, false leads, hidden dependencies, verification gaps, tooling traps, state loss, cognition gaps, constraints, and near misses trigger review. Routine one-off output does not.
+- An owning workflow can persist a semantic signal under `## Learning Triggers` as `kind: compact evidence`; `capture-auto` maps it into a typed candidate.
+- Low-level helper commands:
   - `specify learning ensure --format json`
   - `specify learning status --format json`
   - `specify learning start`
     - Command shape: `specify learning start --command <workflow> --format json`
+  - `specify learning list`
+    - Command shape: `specify learning list --command <workflow> --format json`
+    - Use `--all` for all matching summaries or execute `pagination.next_argv` to continue a page at a time.
+  - `specify learning show`
+    - Command shape: `specify learning show --ref <recurrence-key-or-id> --format json`
   - `specify learning capture`
     - Required options: `--command`, `--type`, `--summary`, `--evidence`
+    - Agent guidance options: `--problem`, `--action`, `--trigger`, `--success`, `--avoid`, `--exception`
   - `specify learning capture-auto`
-    - Command shape: `specify learning capture-auto --command <workflow> --format json`
+    - Command shape: `specify learning capture-auto --command <workflow> (--feature-dir <dir> | --workspace <dir> | --session-file <file>) --format json`
   - `specify implement closeout`
     - Command shape: `specify implement closeout --feature-dir <feature-dir> --format json`
-    - Writes `FEATURE_DIR/implementation-summary.md` and returns `implementation_summary` with completed work, changed paths, behavior surfaces, verification evidence, and baseline comparison commands (`git status --short`, `git diff --stat HEAD`, `git diff --name-status HEAD`).
+    - Writes `FEATURE_DIR/implementation-summary.md`, prepares fingerprinted `FEATURE_DIR/human-acceptance.json`, and returns `implementation_summary` plus the default `sp-accept` / `spx-accept` handoff. Baseline comparison commands remain `git diff --stat HEAD` and `git diff --name-status HEAD`.
+  - `specify accept prepare|validate|closeout`
+    - Command shape: `specify accept validate --feature-dir <feature-dir> --format json`
+    - Keeps contextless-human orientation, one-step scenarios, resume cursor, observations, findings, source freshness, and explicit human verdict mechanically checkable.
   - `specify learning aggregate --format json`
   - `specify learning promote`
     - Command shape: `specify learning promote --recurrence-key <key> --target learning|rule`
-- `specify learning aggregate --format json` groups repeated patterns so operators can decide what to promote into shared learnings or rules.
-- Treat this as an internal/runtime helper surface, not as a separate daily slash workflow. Direct learning-memory commands preserve structured path-learning fields such as pain score, false starts, decisive signal, root-cause family, injection target, and promotion hint.
+- `specify learning aggregate --format json` groups repeated patterns so operators can decide what to promote into confirmed Learning or project rules.
+- Treat this as a passive internal/runtime lifecycle, not as a separate daily slash workflow.
 - Durable eval helpers exist once a rule should become executable proof instead of only remembered guidance:
   - `specify eval create`
     - Command shape: `specify eval create --recurrence-key <key> --summary "<summary>"`
@@ -386,7 +395,7 @@ Passive project learning layer:
 Hook runtime and diagnostics:
 
 - `specify hook ...` is kept for compatibility, diagnostics, tests, and native adapters. Normal `sp-*` workflow steps should not call `specify hook ...`.
-- Use durable workflow state, artifact checks, packet/result contracts, verification output, and direct project learning memory during normal work.
+- Use durable workflow state, artifact checks, packet/result contracts, verification output, and CLI-selected project Learning during normal work.
 - Diagnostic command shapes:
   - `specify hook validate-state --command <workflow> --feature-dir <dir>`
   - `specify hook validate-session-state --command <workflow> --feature-dir <dir>`

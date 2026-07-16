@@ -1,0 +1,7 @@
+interface:
+  display_name: "SPX Explain"
+  short_description: "Plain-language artifact explanation"
+  default_prompt: "Use $spx-explain to explain the current workflow artifact from disk."
+
+policy:
+  allow_implicit_invocation: false

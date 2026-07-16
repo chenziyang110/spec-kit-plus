@@ -19,6 +19,9 @@ TUI, or CLI output quality affects the outcome.
 - If `DESIGN.md` is present, implementation must follow it for layout,
   component usage, color, typography, motion, density, interaction states,
   accessibility expectations, and evidence requirements.
+- A `DESIGN.md` with `design_system.status: bootstrap` is only an initialized
+  seed. Do not let its generic tokens suppress project-specific design work or
+  treat it as an approved product direction.
 - If `DESIGN.md` is missing, contradictory, or too thin for high-risk UI work,
   recommend `sp-design` and the projected invocation `{{invoke:design}}` before
   implementation. Do not let implementation invent a substitute visual system.
@@ -29,6 +32,11 @@ TUI, or CLI output quality affects the outcome.
 
 ## UI Reference Input Gate
 
+- UI quality applies to every changed user-visible screen, component, layout,
+  interaction, responsive state, TUI layout, or CLI presentation—not only work
+  with an external screenshot. Substantive UI work needs a feature
+  `ui-brief.md`; narrow existing-pattern fixes may record a compact inline
+  contract instead.
 - Treat screenshots, HTML/CSS mockups, UI framework snippets, Figma exports,
   reference URLs, existing pages, and "make it like this" language as UI
   reference input.
@@ -87,3 +95,6 @@ TUI, or CLI output quality affects the outcome.
 - Evidence should be visual regression-friendly where screenshots are available:
   use stable paths, deterministic state, and names that describe viewport,
   route, and scenario.
+- Before closeout, iterate through real entry point -> capture -> visual inspect
+  -> repair -> recapture. Do not equate automated behavior checks with visual
+  or interaction acceptance.

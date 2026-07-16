@@ -3,8 +3,18 @@ from pathlib import Path
 
 import pytest
 
-from specify_cli.execution.packet_compiler import compile_worker_task_packet
+from specify_cli.execution.packet_compiler import (
+    _ui_contract_from_task_entry,
+    compile_worker_task_packet,
+)
 from specify_cli.execution.packet_validator import PacketValidationError
+from specify_cli.execution.result_schema import (
+    RuleAcknowledgement,
+    UIVerification,
+    ValidationResult,
+    WorkerTaskResult,
+)
+from specify_cli.execution.result_validator import validate_worker_task_result
 
 
 def test_compile_worker_task_packet_prefers_canonical_task_index_for_jit_packet(
@@ -60,6 +70,189 @@ def test_compile_worker_task_packet_prefers_canonical_task_index_for_jit_packet(
     assert packet.required_evidence == ["real_entrypoint_evidence"]
     assert [item.id for item in packet.must_preserve_obligations] == ["MP-001"]
     assert [item.obligation_id for item in packet.consequence_obligations] == ["CA-001"]
+
+
+def test_compile_worker_task_packet_prefers_structured_task_index_ui_contract(
+    tmp_path: Path,
+) -> None:
+    project_root = tmp_path / "project"
+    feature_dir = project_root / "specs" / "001-ui-feature"
+    feature_dir.mkdir(parents=True)
+    memory_dir = project_root / ".specify" / "memory"
+    memory_dir.mkdir(parents=True)
+    (memory_dir / "constitution.md").write_text(
+        "# Constitution\n\n- Preserve the approved UI contract.\n",
+        encoding="utf-8",
+    )
+    (feature_dir / "plan-contract.json").write_text(
+        json.dumps(
+            {
+                "ui_design_contract": {
+                    "ui_applicable": True,
+                    "entry_points": ["/settings"],
+                    "token_strategy": ["reuse settings tokens"],
+                    "component_strategy": ["reuse settings form controls"],
+                },
+                "context_capsule": {
+                    "minimal_live_reads": ["src/ui/theme.ts"],
+                    "validation_routes": ["tests/e2e/settings.spec.ts"],
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    (feature_dir / "task-index.json").write_text(
+        json.dumps(
+            {
+                "version": 2,
+                "status": "ready",
+                "tasks": [
+                    {
+                        "id": "T021",
+                        "objective": "Implement the responsive settings surface",
+                        "expected_write_scope": ["src/ui/settings.tsx"],
+                        "verification": ["npm test -- settings-ui"],
+                        "acceptance": ["Desktop and mobile states match the UI brief"],
+                        "ui_contract": {
+                            "ui_work_type": "feature-extension",
+                            "surface_type": "product-workspace",
+                            "platforms": ["web"],
+                            "subject": "account settings",
+                            "audience": "signed-in account owners",
+                            "single_job": "review and update account preferences",
+                            "visual_thesis": "compact hierarchy keeps settings scannable",
+                            "content_thesis": "render real preference labels and saved values",
+                            "interaction_thesis": "changes provide immediate local feedback",
+                            "signature_element": "persistent section progress rail",
+                            "approved_visual_ref": "DESIGN.md#settings-direction",
+                            "design_sources": [
+                                "DESIGN.md",
+                                "specs/001-ui-feature/ui-brief.md",
+                            ],
+                            "reference_notes": "specs/001-ui-feature/ui-reference-notes.md",
+                            "visual_target": "specs/001-ui-feature/ui-target.html",
+                            "reference_intents": [
+                                {
+                                    "ref": "specs/001-ui-feature/ui-target.html",
+                                    "intent": "preserve-structure",
+                                }
+                            ],
+                            "real_content_plan": [
+                                {
+                                    "source_ref": "src/settings/schema.ts",
+                                    "applies_to_states": ["ready", "error"],
+                                }
+                            ],
+                            "image_plan": [],
+                            "fidelity_level": "high",
+                            "must_preserve": ["compact two-column hierarchy"],
+                            "may_adapt": ["framework markup"],
+                            "must_not": ["collapse settings into cards"],
+                            "required_states": ["loading", "error", "success"],
+                            "required_evidence": [
+                                "structure_snapshot",
+                                "visual_capture",
+                                "runtime_diagnostics",
+                                "visual_comparison_or_human_review",
+                            ],
+                        },
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    (feature_dir / "tasks.md").write_text(
+        "# Tasks\n\n- [ ] T021 Implement UI without duplicated markdown contract\n",
+        encoding="utf-8",
+    )
+
+    packet = compile_worker_task_packet(
+        project_root=project_root,
+        feature_dir=feature_dir,
+        task_id="T021",
+    )
+
+    assert packet.ui_contract.fidelity_level == "high"
+    assert packet.ui_contract.surface_type == "product-workspace"
+    assert packet.ui_contract.approved_visual_ref == "DESIGN.md#settings-direction"
+    assert packet.ui_contract.reference_intents[0]["intent"] == "preserve-structure"
+    assert (
+        packet.ui_contract.real_content_plan[0]["source_ref"]
+        == "src/settings/schema.ts"
+    )
+    assert packet.ui_contract.required_states == ["loading", "error", "success"]
+    assert packet.ui_contract.must_not == ["collapse settings into cards"]
+    assert packet.ui_contract.required_evidence == [
+        "structure_snapshot",
+        "visual_capture",
+        "runtime_diagnostics",
+        "visual_comparison_or_human_review",
+    ]
+    assert {item["kind"] for item in packet.context_nav} >= {
+        "ui_entrypoint",
+        "design_source",
+        "minimal_live_read",
+        "visual_test_route",
+    }
+    assert "src/ui/theme.ts" in {item.path for item in packet.context_bundle}
+    reference_paths = [item.path for item in packet.required_references]
+    assert "DESIGN.md" in reference_paths
+    assert "specs/001-ui-feature/ui-brief.md" in reference_paths
+
+    documented_result = WorkerTaskResult(
+        task_id="T021",
+        status="success",
+        changed_files=["src/ui/settings.tsx"],
+        validation_results=[
+            ValidationResult(
+                command="npm test -- settings-ui",
+                status="passed",
+                output="settings UI tests passed",
+            )
+        ],
+        ui_evidence=[
+            {
+                "kind": "structure_snapshot",
+                "ref": "artifacts/ui/settings-structure.json",
+            },
+            {
+                "kind": "visual_capture",
+                "ref": "artifacts/ui/settings.png",
+            },
+            {
+                "kind": "runtime_diagnostics",
+                "ref": "artifacts/ui/settings-runtime.txt",
+            },
+        ],
+        ui_verification=UIVerification(
+            contract_check="pass",
+            runtime_evidence="pass",
+            visual_comparison="passed",
+            fidelity_status="passed",
+        ),
+        summary="Implemented and visually verified the settings surface.",
+        rule_acknowledgement=RuleAcknowledgement(
+            required_references_read=True,
+            forbidden_drift_respected=True,
+            context_bundle_read=True,
+            paths_read=[
+                item.path for item in packet.context_bundle if item.must_read
+            ],
+        ),
+    )
+
+    assert validate_worker_task_result(documented_result, packet) is documented_result
+
+
+def test_current_ui_contract_rejects_obsolete_version_and_duplicate_payload() -> None:
+    with pytest.raises(PacketValidationError, match="contract_version"):
+        _ui_contract_from_task_entry({"ui_contract": {"contract_version": 2}})
+
+    with pytest.raises(PacketValidationError, match="ui_fidelity_requirements"):
+        _ui_contract_from_task_entry(
+            {"ui_contract": {"fidelity_level": "high"}, "ui_fidelity_requirements": {}}
+        )
 
 
 def test_compile_worker_task_packet_rejects_malformed_canonical_task_index(
@@ -413,9 +606,6 @@ def test_compile_worker_task_packet_compiles_review_contract_fields(
                 "| produces | [settings_panel_events, responsive_settings_markup] |",
                 "| review_inputs | [DESIGN.md, screenshots/settings-panel.png] |",
                 "| review_risks | [Keyboard shortcuts may regress] |",
-                "| ui_fidelity_level | [HIGH] |",
-                "| design_inputs | [DESIGN.md#settings-panel] |",
-                "| ui_required_evidence | [desktop_screenshot, mobile_screenshot] |",
                 "| controller_checks_required | [keyboard_navigation_check, state_persistence_check] |",
                 "| global_constraints | [Do not introduce a new state store] |",
                 "",
@@ -434,7 +624,6 @@ def test_compile_worker_task_packet_compiles_review_contract_fields(
     reference_paths = [ref.path for ref in packet.required_references]
     assert reference_paths == [
         "DESIGN.md",
-        "DESIGN.md#settings-panel",
         "screenshots/settings-panel.png",
     ]
     assert packet.forbidden_drift == ["Do not change generated settings routes"]
@@ -456,85 +645,14 @@ def test_compile_worker_task_packet_compiles_review_contract_fields(
         "Screenshot drift can hide responsive regressions",
         "Keyboard shortcuts may regress",
     ]
-    assert packet.ui_fidelity_requirements.applicable is True
-    assert packet.ui_fidelity_requirements.level == "high"
-    assert packet.ui_fidelity_requirements.design_inputs == ["DESIGN.md#settings-panel"]
-    assert packet.ui_fidelity_requirements.required_evidence == [
-        "desktop_screenshot",
-        "mobile_screenshot",
-    ]
     assert packet.controller_checks_required == [
         "keyboard_navigation_check",
         "state_persistence_check",
     ]
-    assert "DESIGN.md#settings-panel" in packet.scope.read_scope
     assert "screenshots/settings-panel.png" in packet.scope.read_scope
 
 
-def test_compile_worker_task_packet_rejects_invalid_ui_fidelity_level(
-    tmp_path: Path,
-) -> None:
-    project_root = tmp_path / "project"
-    feature_dir = project_root / "specs" / "001-test-feature"
-    feature_dir.mkdir(parents=True)
-    (project_root / ".specify" / "memory").mkdir(parents=True)
-    (project_root / ".specify" / "project-cognition").mkdir(parents=True)
-    (project_root / ".specify" / "project-cognition" / "status.json").write_text(
-        '{"version": 1, "graph_ready": true}\n',
-        encoding="utf-8",
-    )
-    (project_root / ".specify" / "project-cognition" / "project-cognition.db").write_bytes(
-        b"SQLite test database marker"
-    )
-    (project_root / ".specify" / "memory" / "constitution.md").write_text(
-        "# Constitution\n\n- MUST add tests for public behavior\n",
-        encoding="utf-8",
-    )
-    (feature_dir / "plan.md").write_text(
-        "\n".join(
-            [
-                "## Required Implementation References",
-                "",
-                "- `DESIGN.md`",
-            ]
-        ),
-        encoding="utf-8",
-    )
-    (feature_dir / "tasks.md").write_text(
-        "\n".join(
-            [
-                "## Validation Gates",
-                "",
-                "- npm test -- tests/settings-panel.test.ts",
-                "",
-                "## T022: Build settings panel",
-                "",
-                "### Scope Boundaries",
-                "| Field | Value |",
-                "|-------|-------|",
-                "| write_scope | [src/ui/settings-panel.tsx] |",
-                "| ui_fidelity_level | [hihg] |",
-                "| design_inputs | [DESIGN.md#settings-panel] |",
-                "| ui_required_evidence | [desktop_screenshot] |",
-                "",
-                "- [ ] T022 [US2] Build settings panel",
-            ]
-        ),
-        encoding="utf-8",
-    )
-
-    with pytest.raises(PacketValidationError) as exc:
-        compile_worker_task_packet(
-            project_root=project_root,
-            feature_dir=feature_dir,
-            task_id="T022",
-        )
-
-    assert exc.value.code == "DP1"
-    assert "ui fidelity level" in exc.value.message
-
-
-def test_compile_worker_task_packet_extracts_ui_contract(tmp_path: Path) -> None:
+def test_compile_worker_task_packet_rejects_markdown_only_ui_contract(tmp_path: Path) -> None:
     project_root = tmp_path / "project"
     feature_dir = project_root / "specs" / "001-ui-feature"
     feature_dir.mkdir(parents=True)
@@ -583,25 +701,12 @@ def test_compile_worker_task_packet_extracts_ui_contract(tmp_path: Path) -> None
         encoding="utf-8",
     )
 
-    packet = compile_worker_task_packet(
-        project_root=project_root,
-        feature_dir=feature_dir,
-        task_id="T021",
-    )
-
-    assert packet.ui_contract.fidelity_level == "approximate"
-    assert packet.ui_contract.reference_notes == "specs/001-ui-feature/ui-reference-notes.md"
-    assert packet.ui_contract.visual_target == "specs/001-ui-feature/ui-target.html"
-    assert "three-column layout" in packet.ui_contract.must_preserve
-    assert "turn table into cards" in packet.ui_contract.must_not
-    assert "visual_comparison_or_human_review" in packet.required_evidence
-    reference_paths = [reference.path for reference in packet.required_references]
-    assert reference_paths.count("DESIGN.md") == 1
-    assert "specs/001-ui-feature/ui-brief.md" in reference_paths
-    assert "specs/001-ui-feature/ui-reference-notes.md" in reference_paths
-    assert "specs/001-ui-feature/ui-target.html" in reference_paths
-
-
+    with pytest.raises(PacketValidationError, match="no canonical task-index ui_contract"):
+        compile_worker_task_packet(
+            project_root=project_root,
+            feature_dir=feature_dir,
+            task_id="T021",
+        )
 def test_compile_worker_task_packet_accepts_materialized_task_input(
     tmp_path: Path,
 ) -> None:

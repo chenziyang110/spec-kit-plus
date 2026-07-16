@@ -72,10 +72,15 @@ def test_cursor_generated_sp_quick_confirms_understanding_before_execution(tmp_p
     assert "understanding checkpoint" in content
     assert "understanding_confirmed: true" in content
     assert_quick_checkpoint_card_shape(content)
-    assert "known facts / assumptions" in content
-    assert "implementation plan" in content
-    assert "validation evidence" in content
-    assert "stop condition" in content
+    assert "request and outcome" in content
+    assert "user-visible result" in content
+    assert "recommended approach" in content
+    assert "assumptions and risks" in content
+    assert "completion evidence" in content
+    assert "reconfirmation trigger" in content
+    assert "technical execution belongs to the agent" in content
+    assert "## ui confirmation" in content
+    assert "single confirmation covers both" in content
     assert "dispatch_shape: one-subagent | parallel-subagents" in content
     assert "execution_surface: native-subagents" in content
     assert "cursor leader gate" in content

@@ -41,6 +41,25 @@ Use `sp-fast` only when ALL of:
 If any check fails → upgrade to `/sp-quick`.
 If scope >10 files or crosses module boundary → upgrade to `/sp-specify`.
 
+## UI Fast Gate
+
+- A user-visible UI change is fast-eligible only when it is a narrow adjustment
+  to an approved existing pattern, introduces no new visual/product decision,
+  affects a bounded state, and can be run and visually checked at the real
+  entry point.
+- `DESIGN.md` with `design_system.status: bootstrap`, a new surface, supplied
+  fidelity target, responsive multi-state work, or a shared component/token
+  change leaves fast: route a new direction to `/sp-design`, bounded tracked UI
+  to `/sp-quick`, and feature-level acceptance to `/sp-specify`.
+- Eligible UI fast work still requires a representative visual capture and
+  runtime diagnostics plus visual inspection against the governing design/live
+  pattern; add a structure snapshot whenever semantics, hierarchy, focus, or
+  interaction changes.
+- `representative screenshot or platform` output remains a compatibility name
+  for the required visual capture; it does not replace runtime or structure
+  evidence when those are triggered.
+  Code, unit, or style tests alone do not close visible UI behavior.
+
 ## Fast Path Consequence Routing
 
 The fast path may continue only when the Senior Consequence Analysis Gate does not trigger, or when it stands down with a recorded stand-down reason. If the gate triggers, upgrade out of `sp-fast` instead of adding planning artifacts to satisfy this gate on the fast path.
@@ -70,7 +89,7 @@ Upgrade to `/sp-specify` immediately if:
 
 Fast path does not load the full passive learning layer.
 
-**This command tier: trivial.** Skip all learning hooks. Do not read constitution, project-rules, or project-learnings. Do not run learning start, signal, review, or capture. Learning Reflex is acknowledged but not executed on the fast path; leave `.specify/memory/learnings/INDEX.md` and any linked detail document untouched unless the task is upgraded out of the fast path.
+**This command tier: trivial.** Do not run Learning intake, hooks, capture, or promotion and do not parse Learning storage. If reusable friction appears, upgrade out of fast before consuming or producing Learning.
 
 ## Process
 

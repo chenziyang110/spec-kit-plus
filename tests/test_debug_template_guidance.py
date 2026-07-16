@@ -1,6 +1,10 @@
 from pathlib import Path
 
-from .template_utils import read_command_with_references, read_template
+from .template_utils import (
+    assert_debug_checkpoint_card_shape,
+    read_command_with_references,
+    read_template,
+)
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -53,11 +57,10 @@ def test_debug_template_documents_map_backed_intake_contract() -> None:
     assert "observer_framing_completed" in content
     assert "you may perform focused leader-inline evidence work when the investigation is small and single-lane" in content
     assert "route, integrate, and decide rather than manually performing every lane sequentially" in content
-    assert ".specify/memory/project-rules.md" in content
-    assert ".specify/memory/learnings/index.md" in content
-    assert "linked learning detail docs" in content
-    assert "learning start --command debug --format json" in content
-    assert "manual `learning capture` helper surface" in content
+    assert "learning start --command debug" in content
+    assert "learning show" in content or "show_argv" in content
+    assert ".specify/memory/learnings/index.md" not in content
+    assert "learning capture-auto" in content
     assert "manual `capture-learning` hook surface" not in content
     assert "debug cognition gate" in content
     assert "pass the cognition gate before" in content
@@ -211,27 +214,18 @@ def test_debug_template_requires_understanding_checkpoint_before_investigation()
     content = read_command_with_references("debug").lower()
 
     assert "## debug understanding checkpoint" in content
-    assert "## debug checkpoint" in content
-    assert "| item | current understanding |" in content
-    assert "| symptom |" in content
-    assert "expected behavior" in content
-    assert "reproduction / failing signal" in content
-    assert "known evidence" in content
-    assert "investigation boundary" in content
-    assert "candidate focus" in content
-    assert "investigation plan" in content
+    assert_debug_checkpoint_card_shape(content)
+    assert "user-owned facts and authority" in content
+    assert "technical hypotheses belong to the agent" in content
+    assert "for awareness, not as a request to approve a hypothesis" in content
     assert "first evidence action" in content
     assert "fix gate" in content
     assert "progress signal" in content
     assert "where it appears, why it matters" in content
-    assert "ordered evidence path" in content
     assert "plain text for terminal output" in content
     assert "do not use html tags or inline line-break markup" in content
-    assert "semicolon-separated numbered clauses" in content
     assert "do not reuse the placeholder text as content" in content
-    assert "1. [session-specific first evidence step]; 2." in content
     assert "<br>" not in content
-    assert "session-specific fix-gate or blocked-state decision" in content
     assert "establish the repro or failing signal" not in content
     assert "concrete failing signals, commands, logs, routes, affected workflows, constraints, and known uncertainty" in content
     assert "unknown: [why it matters]" in content

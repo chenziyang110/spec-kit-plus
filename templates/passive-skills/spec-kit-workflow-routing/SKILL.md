@@ -17,7 +17,7 @@ assuming one universal slash-style syntax.
 
 Do not auto-enter an `sp-*` workflow unless the user invokes it. For ordinary
 natural-language tasks, answer or work in the current mode while using always-on
-project cognition and project memory when they matter. You may recommend a
+project cognition and Project Learning when they matter. You may recommend a
 workflow when it would materially improve the outcome.
 
 If the user already invoked an `sp-*` workflow, treat the routing check as
@@ -66,17 +66,19 @@ explicit numeric option.
 
 ## Recommendation Rules
 
-- The default generated path is `sp-specify -> sp-plan -> sp-tasks -> sp-implement`. `sp-checklist` and `sp-analyze` remain visible optional diagnostics, but they are not default quality nets for clean workflow progress. There is no visible separate review route between `sp-tasks` and `sp-implement`; implementation review is embedded in `sp-implement`.
+- The default generated path is `sp-specify -> sp-plan -> sp-tasks -> sp-implement -> sp-accept`. `sp-checklist` and `sp-analyze` remain visible optional diagnostics, but they are not default quality nets for clean workflow progress. There is no visible separate review route between `sp-tasks` and `sp-implement`; implementation review is embedded in `sp-implement`. `sp-accept` is a separate human product-acceptance stage after technical closeout, not a code-review route.
 - Use `sp-fast` for trivial, local, low-risk fixes that touch at most 3 files and do
   not cross a shared surface.
 - Use `sp-quick` for bounded work that is still small, but no longer trivial.
 - `sp-quick` performs one Understanding Checkpoint before substantive execution for a raw quick request. A user-confirmed discussion contract with no quick-stage `semantic_delta` reuses its confirmed digest instead of asking again. When a checkpoint is needed:
   render the fixed Quick Checkpoint Markdown table with
-  `| Item | Current understanding |` and rows for issue, target outcome,
-  boundaries, known facts/assumptions, affected surfaces, implementation plan,
-  next action, validation evidence, and stop condition before code edits, broad
-  repo analysis, delegation, or validation commands continue. Freeform prose or
-  bullet-only confirmations do not satisfy this gate.
+  `| Decision to confirm | Current understanding |` and user-owned rows for
+  request/outcome, visible result, scope, recommended approach,
+  assumptions/risks, completion evidence, and reconfirmation trigger. Keep
+  technical execution agent-owned. For applicable UI work, append the
+  independent UI Confirmation proposal and ask once for both decisions before
+  code edits, broad repo analysis, delegation, or validation commands continue.
+  Freeform prose or bullet-only confirmations do not satisfy this gate.
 - Use `sp-auto` when repository state already records the recommended next step
   and the user wants to continue without naming the exact workflow manually.
 - In `sp-auto` routed mode, safe bounded questions and confirmations with one
@@ -126,6 +128,7 @@ explicit numeric option.
 - Use `sp-tasks` only after planning artifacts are ready.
 - Use `sp-implement` after `sp-tasks` produces canonical `task-index.json` or a light direct task list and records `/sp.implement`. `sp-implement` selects leader-direct or delegated execution per task, compiles delegated packets just in time, runs event-triggered review, and records result/validation/review/recovery once in the task lifecycle record. Product goal, scope, architecture, required evidence, `MP-*`, `CA-###`, and feasibility conflicts route back to their upstream owner.
 - Route planned implementation to `sp-implement`; review is embedded and event-triggered by drift, parallel joins, validation failure, obligation conflicts, or the review-window threshold. Repair only task-layer defects locally and route upstream truth defects to their owner. Do not route to a separate public review command or require task briefs, review packages, a duplicate ledger, and branch review for every task.
+- Use `sp-accept` after successful implementation closeout. It assumes the human remembers nothing, restores product context, guides one real-entrypoint step at a time, persists explicit human observations, and never edits source. A failed observation routes to implement/debug or upstream requirements; technical checks and silence never count as human PASS.
 - Use `sp-debug` for regressions, bugs, broken behavior, or incident-style recovery.
 - `sp-debug` is complexity-based: small focused investigations may stay
   leader-inline, while broad, independent, or parallel evidence lanes use
@@ -140,9 +143,9 @@ explicit numeric option.
   or old broad-schema rebuild-required readiness, zero active-generation
   path_index rows outside `greenfield_empty`, missing or invalid `alias_index`,
   `explicit_rebuild_requested`, or `baseline_identity_invalid`.
-  Schema v2 brownfield readiness also requires `alias_index`; schema v1 or old
-  broad-schema baselines must rebuild through `sp-map-scan -> sp-map-build`
-  before their alias catalog is usable navigation.
+  Schema v5 is current-only. The runtime does not migrate schema v4 or older
+  databases and does not archive or replace them. Remove the incompatible project-cognition.db
+  explicitly before `sp-map-scan -> sp-map-build` with the current binary.
 - `sp-map-update` is for manual/external maintenance as the external/manual maintenance entrypoint for user edits, interrupted workflow repair, explicit map maintenance, and follow-up repair. A source-changing `sp-*` workflow does not hand off its own verified changes to `sp-map-update`; it runs inline project cognition update during closeout from its workflow-owned changed paths, affected surfaces, and verification evidence. In shared routing summaries, sp-map-update is for manual/external maintenance.
 - Workflow-owned mutation closeout is not an external map-maintenance handoff. If the active workflow changed project-related source, runtime, templates, generated assets, config, tests, state contracts, or behavior-bearing docs, closeout must run `project-cognition closeout-plan --workflow "$ACTIVE_WORKFLOW" --format json` before recording inline project cognition update data.
 - When `DELTA_SESSION_ID` exists, pass `--delta-session "$DELTA_SESSION_ID"` to `closeout-plan`. Fill fields listed in `required_agent_fields` from live evidence; optional payload/delta fields such as `known_unknowns` and `boundary` are populated only when evidence supports them. Follow `update_mode=delta_session` by completing `delta_append_draft.argv_prefix` with evidence placeholders, appending the workflow closeout delta event, then running structured `update_argv`. Follow `update_mode=payload_file` by writing the completed `payload_draft`, then running structured `update_argv`. The display-only `update_command` and display-only `delta_append_command` placeholders are not execution strings.
@@ -157,14 +160,21 @@ explicit numeric option.
   symptom route exists; do not jump straight to broad repository search.
 - Default project cognition intake is `project-cognition compass --intent <intent> --query="$ARGUMENTS" --format json`.
   Consume the packet in this order:
-  1. Read top-level `minimal_live_reads` first and use those files as the bounded first live evidence route.
-  2. Then use lane-level `first_pass_paths` for reasons, evidence hints, verification hints, follow-up surfaces, and `before_fix_claim` checks.
-  3. Treat `coverage_diagnostics` as confidence and closeout signals, never as route candidates.
-  4. Treat `expansion_ref` as a normal continuation path. Run `project-cognition expand --id <id> --section <section> --format json` only when coverage state or live evidence requires more map detail.
-  5. Do not infer final edit scope from `minimal_live_reads` or `first_pass_paths`.
+  1. Read top-level `epistemic_contract` first. Require `graph_role=route_candidate_only`, `fact_source_of_truth=live_repository`, `live_verification_required=true`, `graph_only_claims_allowed=false`, and `unverified_claim_action=withhold`.
+  2. Read top-level `minimal_live_reads` and use those files as the bounded first live evidence route.
+  3. Then use lane-level `first_pass_paths` for reasons, evidence hints, verification hints, follow-up surfaces, and `before_fix_claim` checks.
+  4. Read lane-level `claim_refs` only as compact route candidates. `route_confidence` is scoped by `confidence_scope=route_candidate`; inspect `state`, `freshness`, and `stale`, and require live verification before using a claim as repository truth.
+  5. Treat `coverage_diagnostics` as confidence and closeout signals, never as route candidates.
+  6. Treat `expansion_ref` as a normal continuation path. Run `project-cognition expand --id <id> --section claim_evidence --format json` when an active claim needs bounded `source_path`/`span` evidence; advanced `project-cognition query` may also return top-level `claim_signals` with bounded evidence refs.
+  7. Do not infer final edit scope from `minimal_live_reads`, `first_pass_paths`, `claim_refs`, `claim_signals`, or `claim_evidence`.
+  Compass applies graph claims only as a bounded rerank after repository-backed route eligibility is established. `match_score` remains the eligibility score; lane `claim_ranking.adjustment` may only move an already-matched candidate by `+1` for fresh `supported`/`verified_in_graph_generation`, `-1` for stale, or `-2` for contradicted. Claims cannot create candidates and cannot replace live verification. When `coverage_diagnostics` contains `stale_claim_signal` or `contradicted_claim_signal`, treat the packet as `usable_with_review`, follow `reconcile_claims_with_minimal_live_reads`, and complete the lane-specific refresh or reconciliation action against the live repository.
+  For decisive claim-specific evidence, provide only reconciliation intent: workflow, stable `claim_id`, reason, repository-relative `source_path`, bounded line `span`, `supporting` or `contradicting` role, and optional claim-specific verification. Run `project-cognition claim-reconcile prepare --input <intent.json> --format json`; the runtime owns every integrity field and the prepared packet path. Execute the returned `apply_argv` exactly (`project-cognition claim-reconcile apply --input <prepared_packet_path> --format json`). Generic workflow verification is insufficient. On ready, rerun Compass once; on partial or blocked, withhold the claim.
+  The `epistemic_contract` cannot authorize source changes and cannot prove current behavior. Carry `epistemic_contract` into the selected workflow, withhold unverified claims, and let contradictory live evidence override the route candidate.
+  Graph claims are indexed assertions. Even `verified_in_graph_generation` is only an active graph-generation state, not current repository truth; graph claims cannot authorize source changes and cannot set workflow `claim_ready=true`. Route with them, but require bounded live evidence and the separate workflow final-claim gate before any root-cause, fixed, completed, or release-safe claim.
   Readiness values are `query_ready`, `review`, `needs_rebuild`, `blocked`, and `unsupported_runtime`. Compass-specific advice is in `compass_state` and `recommended_next_action`.
   When `compass_state=needs_semantic_intake`, the agent writes `semantic_intake` from project vocabulary and reruns compass with `--semantic-intake-file`, or uses the advanced `lexicon -> semantic_intake -> query` path when explicit concept decisions are needed.
   Advanced routing remains available as `project-cognition lexicon --mode catalog`, agent-authored `semantic_intake` and `concept_decisions`, then `project-cognition query --query-plan`. Use it when the first compass packet is too draft-like, a workflow needs explicit concept decisions, or coverage cannot be resolved from the default packet.
+  The current query contract is `claim_retrieval_contract_version=2` and `candidate_universe_version=2`; carry the latter from lexicon into every explicit query plan. Never parse missing or non-current versions as legacy input; rerun lexicon or compass with the current binary and repair the install if needed.
   The advanced path still requires `normalized_query`, `intent_facets`, `negative_constraints`, `alias_interpretations`, `selected_concepts`, `rejected_concepts`, `concept_decisions`, `covered_facets`, `missing_facets`, `match_sources`, `lexicon_generation_id`, `expanded_queries`, `repository_search_terms`, and facet coverage; do not trust top similarity alone.
   If the query command reports query-plan diagnostics, preserve its `warnings`, `repair_hints`, normalized `query_plan`, structured `errors`, and `expected_shape` so the workflow can repair the plan instead of ending on a raw parser exception.
   Agent-owned semantic normalization is mandatory for the advanced path. The raw lexicon ranking and `agent_normalization` are only bootstrap signals for retrieving the alias catalog and candidate universe; they are not route decisions. Raw lexicon ranking is only a bootstrap. Treat `agent_normalization.required=true` as a non-intelligent CLI reminder to write `semantic_intake` from the alias catalog (action: write_semantic_intake_from_alias_catalog). If `agent_normalization` is omitted, `omitted => required=false`: treat it as `required=false`; omission does not make raw lexical ranking authoritative. If raw `concept_candidates` are all `score=0`, or the prompt is localized, mixed-language, CJK, colloquial, symptom-first, or mixed-language or CJK text, do not stop at the raw score. CJK or mixed CJK/ASCII input still requires agent normalization even when positive raw lexical matches exist because embedded project tokens do not translate the surrounding user language. Extract embedded project terms such as command names, UI labels, file stems, state names, adapter names, and skill or package identifiers from the user's wording and the alias catalog. The agent still owns translation; `agent_normalization` is advisory guidance, not a route decision. Put those translated terms into `normalized_query`, `alias_interpretations`, `intent_facets`, `expanded_queries`, and `repository_search_terms`, then select or reject concepts by facet coverage.

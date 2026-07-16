@@ -33,6 +33,7 @@ REDIRECTABLE_WORKFLOW_COMMANDS = {
     "plan",
     "tasks",
     "analyze",
+    "accept",
     "prd",
 }
 

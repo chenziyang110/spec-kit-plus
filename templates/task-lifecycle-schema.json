@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "task-lifecycle-schema.json",
+  "title": "Task lifecycle contracts",
+  "$defs": {
+    "blocker": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "classification",
+        "owner",
+        "evidence",
+        "exact_next_action",
+        "approval_question",
+        "unblock_criteria",
+        "implementation_can_continue",
+        "completion_impact"
+      ],
+      "properties": {
+        "classification": {
+          "enum": [
+            "technical",
+            "external",
+            "human-action",
+            "verification_policy",
+            "project_cognition_readiness",
+            "baseline_timeout"
+          ]
+        },
+        "owner": {
+          "enum": ["agent", "user", "maintainer", "external-system"]
+        },
+        "evidence": {
+          "oneOf": [
+            {"type": "string", "minLength": 1},
+            {
+              "type": "array",
+              "minItems": 1,
+              "items": {"type": "string", "minLength": 1}
+            }
+          ]
+        },
+        "exact_next_action": {"type": "string", "minLength": 1},
+        "approval_question": {"type": ["string", "null"]},
+        "unblock_criteria": {"type": "string", "minLength": 1},
+        "implementation_can_continue": {"type": "boolean"},
+        "completion_impact": {
+          "enum": [
+            "mandatory_for_completion",
+            "optional_cleanup",
+            "external_baseline_maintenance",
+            "follow_up_risk"
+          ]
+        }
+      }
+    }
+  }
+}

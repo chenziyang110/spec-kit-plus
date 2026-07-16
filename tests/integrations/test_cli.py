@@ -9,6 +9,7 @@ import yaml
 from typer.testing import CliRunner
 
 from specify_cli import app
+from specify_cli.launcher import render_command
 from tests.conftest import strip_ansi
 from tests.template_utils import assert_quick_checkpoint_card_shape
 
@@ -79,6 +80,16 @@ class TestInitIntegrationFlag:
         assert (project / ".codex" / "skills" / "sp-teams" / "SKILL.md").exists()
         assert (project / ".specify" / "teams" / "runtime.json").exists()
         assert (project / ".specify" / "templates" / "project-handbook-template.md").exists()
+        lifecycle_template = json.loads(
+            (project / ".specify" / "templates" / "task-lifecycle-template.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        assert (
+            lifecycle_template["blocker_schema_ref"]
+            == ".specify/templates/task-lifecycle-schema.json#/$defs/blocker"
+        )
+        assert (project / ".specify" / "templates" / "task-lifecycle-schema.json").is_file()
         assert (project / ".specify" / "project-cognition").is_dir()
         status = json.loads(
             (project / ".specify" / "project-cognition" / "status.json").read_text(
@@ -280,10 +291,21 @@ class TestInitIntegrationFlag:
             skills_dir / "sp-quick" / "SKILL.md"
         ).lower()
         assert ".specify/memory/constitution.md" in quick_content
-        assert ".specify/memory/project-rules.md" in quick_content
-        assert ".specify/memory/learnings/index.md" in quick_content
-        assert "learning reflex" in quick_content
-        assert "future senior engineer" in quick_content
+        assert (
+            render_command(
+                (
+                    "learning",
+                    "start",
+                    "--command",
+                    "<classic-command-name>",
+                    "--format",
+                    "json",
+                )
+            ).lower()
+            in quick_content
+        )
+        assert "show_argv" in quick_content
+        assert ".specify/memory/learnings/index.md" not in quick_content
         assert ".specify/memory/project-learnings.md" not in quick_content
         assert ".planning/learnings/candidates.md" not in quick_content
         assert "compass --intent implement" in quick_content

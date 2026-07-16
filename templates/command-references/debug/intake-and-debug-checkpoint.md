@@ -1,4 +1,4 @@
-Trigger: before reproduction, log review, source reads, evidence collection, code edits, or validation.
+Trigger: before reproduction, log review, source reads, evidence collection, code edits, or validation, and whenever evidence may materially change the confirmed debug boundary or authority.
 
 Purpose: preserve debug execution mode, role, operating principles, learning intake, quality requirements, lifecycle, cognition gate, and checkpoints.
 
@@ -61,15 +61,7 @@ You are the debug session leader. Investigate a bug using a persistent, resumabl
 - **Related-risk review is part of closeout**: Do not close the session until nearest-neighbor related risk targets have been reviewed.
 - **Execution intent stays explicit**: Record the current verification outcome, active constraints, and required success evidence in the session file before and during verification so resume decisions do not depend on chat memory.
 
-## Passive Project Learning Layer
-
-- [AGENT] Run `{{specify-subcmd:learning start --command debug --format json}}` when available so passive learning files exist and the current debug run sees relevant shared project memory.
-- Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/learnings/INDEX.md` in that order before broader command-local context.
-- Open only learning detail docs linked from debug-relevant index entries, especially repeated pitfalls, recovery paths, or project constraints for the failing area.
-- Learning Reflex: before final closeout, ask whether a future senior engineer would benefit from seeing this lesson before related work. If yes, update `.specify/memory/learnings/INDEX.md` and the linked detail markdown document without asking for routine permission.
-- [AGENT] When investigation friction exposes retries, hypothesis changes, validation failures, false starts, hidden dependencies, rejected paths, decisive signals, root-cause families, or reusable constraints, make sure the debug session captures that durable context.
-- [AGENT] For structured path learning not already captured in durable state, update `.specify/memory/learnings/INDEX.md` and a linked detail document with the command, type, summary, and evidence.
-- Treat this as passive shared memory, not as a separate user-visible debug workflow.
+{{spec-kit-include: ../../command-partials/common/learning-layer.md}}
 
 ## Workflow Quality Requirements
 
@@ -82,9 +74,8 @@ You are the debug session leader. Investigate a bug using a persistent, resumabl
 ### Required Context Inputs
 
 - `.specify/memory/constitution.md`
-- `.specify/memory/project-rules.md`
-- `.specify/memory/learnings/INDEX.md`
-- Relevant linked learning detail docs
+- compact `learning start --command debug` results
+- selected `learning show` records whose triggers match the failure
 - the active feature's `spec.md`, `plan.md`, and `tasks.md`
 - if `context.md` exists for the active feature, read it before proposing a fix
 
@@ -165,30 +156,67 @@ Use the returned readiness:
 
 After session initialization, passive memory intake, the project cognition query, and only the bounded session, memory, or project-cognition context reads needed to frame the reported problem, present one concise user-facing checkpoint card. Use the user's language for the card content and confirmation prompt when practical. Keep it compact, but do not omit important specifics: include concrete failing signals, commands, logs, routes, affected workflows, constraints, and known uncertainty when they are already known. If a row is genuinely unknown, write `Unknown: [why it matters]` instead of leaving it vague.
 
-Use this shape. The row labels should be localized to the user's language when practical; keep the meaning of the canonical fields. The checkpoint should make the investigation feel controlled: `Symptom` must explain the failure in user-visible terms, and `Investigation plan` must name the ordered evidence path before any fix is attempted. Keep the checkpoint plain text for terminal output: do not use HTML tags or inline line-break markup. Format multi-step plans as semicolon-separated numbered clauses inside the table cell; if the plan is too long to read cleanly, put a short summary in the cell and add a normal Markdown numbered list immediately below the table. Do not reuse the placeholder text as content; replace each bracketed item with session-specific evidence steps.
+Use the fixed card below. The main table contains only user-owned facts and
+authority: the reported problem, expected behavior, occurrence conditions,
+investigation boundary, whether authority is diagnose only or diagnose and
+fix, assumptions to correct, and the reconfirmation trigger. Technical
+hypotheses belong to the agent. Present the first evidence action, fix gate,
+and progress signal in a compact investigation summary for awareness, not as a
+request to approve a hypothesis. Keep the checkpoint plain text for terminal
+output: do not use HTML tags or inline line-break markup. Do not reuse the
+placeholder text as content; replace each bracketed item with session-specific
+facts.
 
-```markdown
+When the symptom is UI-related, append the UI Confirmation card as the target
+baseline for the affected experience. It confirms what should be restored or
+preserved and must not approve a proposed fix before evidence identifies the
+failure mechanism. Ask once after both cards.
 
-## Debug Checkpoint
-
-| Item | Current understanding |
-| --- | --- |
-| Symptom | [2-4 concrete sentences: the failure/regression in user-visible terms, where it appears, why it matters, and what nearby issue is not being debugged] |
-| Expected behavior | [what should happen instead, or the confirmed unknown] |
-| Reproduction / failing signal | [known repro command, manual sequence, failing test, log/error text, or Unknown with why it matters] |
-| Known evidence | [project cognition route, existing logs, prior verification output, relevant reports, or other evidence already available] |
-| Investigation boundary | Include: [specific area, workflow, command, state loop, or behavior]. Exclude: [nearby issue or non-goal]. Escalate if: [condition that changes the debug session boundary]. |
-| Candidate focus | [primary suspected truth owner, competing explanation, or candidate family to test first without claiming root cause] |
-| Investigation plan | 1. [session-specific first evidence step]; 2. [session-specific second evidence step]; 3. [session-specific third evidence step]; 4. [session-specific boundary or alternative check, if needed]; 5. [session-specific fix-gate or blocked-state decision] |
-| First evidence action | [the first reproduction, log, source, test, or instrumentation route after confirmation, plus why it is first] |
-| Fix gate | [what must be proven before code changes are allowed] |
-| Progress signal | [evidence that is enough to move to fixing, verification, human verification, or a blocked state] |
-
-Reply with `confirm`/`确认` to continue, or `revise: ...`/`修改：...` with corrections.
-```
+{{spec-kit-include: ../../command-partials/debug/checkpoint-card.md}}
 
 Wait for user confirmation before reproduction commands, log review, source-code reads, test inspection, evidence collection, instrumentation, code edits, fix work, or validation commands. If the user corrects the understanding, revise the checkpoint once with the corrected direction and ask for confirmation again.
 
 Create or update `.planning/debug/[slug].md` with `understanding_confirmed: false` before reproduction commands, log review, source-code reads, test inspection, evidence collection, subagent dispatch, instrumentation, code edits, fix work, or validation commands. Record the confirmed checkpoint in the debug session file and set `understanding_confirmed: true` before substantive investigation continues. `understanding_confirmed: false` blocks evidence investigation on resume. While it is false, only read the minimal session, memory, or project-cognition context needed to reconstruct or revise the checkpoint; you must not proceed to reproduction, log review, source/test reads, evidence collection, subagent dispatch, instrumentation, code edits, fixing, validation, `{{invoke:map-update}}`, `{{invoke:map-scan}}`, or `{{invoke:map-build}}` until the checkpoint is confirmed and the debug session is updated.
 
 If project cognition readiness requires `{{invoke:map-update}}`, `{{invoke:map-scan}}`, or `{{invoke:map-build}}`, record that requirement in the debug session while `understanding_confirmed: false`, present the Debug Understanding Checkpoint, and only hand off to map maintenance after confirmation.
+
+## Debug Checkpoint Amendments
+
+Debugging normally changes hypotheses and expands the evidence path. Do not
+reopen confirmation merely because the active hypothesis changes, new
+reproduction, log, source, or test routes become relevant, or the minimum
+coherent fix reaches additional tightly coupled files inside the same causal
+chain and the confirmed symptom, boundary, risk, and authority remain intact.
+Update the debug session and continue.
+
+Reopen confirmation only when evidence materially changes the problem
+definition or expected outcome, introduces a separate or derived defect,
+crosses the confirmed investigation boundary, requires new fix authority such
+as moving from diagnosis-only work to source edits, changes migration,
+compatibility, public-interface, external-side-effect, or material risk
+semantics, or hits an explicit stop condition. Set
+`understanding_confirmed: false` and pause substantive investigation or fixing
+before requesting the new decision.
+
+Before presenting the amendment, explain in user-facing prose:
+
+- the decisive evidence and the exact boundary or authority change;
+- why the previous confirmation no longer covers the proposed investigation or
+  fix;
+- the consequence of omitting the newly discovered work;
+- the current mutation state, including what has and has not changed and the
+  safe pause point; and
+- the incremental decision the user owns and why the evidence cannot resolve
+  it.
+
+Only after that explanation, present `## Debug Checkpoint Amendment`. Include
+only the changed rows or decisions plus one concise `Unchanged` statement; do
+not repeat the full initial Debug Checkpoint. Ask the user to confirm or revise
+that delta, then persist the amendment and confirmation before resuming. If the
+user already explicitly approved the exact delta, record it instead of asking
+again.
+
+When the material delta is UI-only, keep the
+`## Debug Checkpoint Amendment` heading. Include only the changed UI Confirmation rows.
+State that the main checkpoint is unchanged. The reason-first explanation still
+comes before this delta; do not replay either complete initial table.

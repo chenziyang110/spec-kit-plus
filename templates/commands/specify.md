@@ -33,13 +33,26 @@ scripts:
 ## Main Flow
 
 1. Resolve discussion handoff intake before feature creation; require canonical agent-only `handoff-to-specify.json`, verify `handoff-ready`, `quality_gate.status: user_confirmed`, and `planning_gate_status: ready`, derive the feature description, and do not pass the raw contract path as the feature description. Do not use `specification-input.md`, `discussion-state.md`, or other discussion source files as a substitute.
-2. Verify the installed command surface with `specify --help`, then run `{SCRIPT}` from the repo root as the generated create-feature script; generated projects resolve this to `.specify/scripts/bash/create-new-feature.sh "$ARGUMENTS"` or `.specify/scripts/powershell/create-new-feature.ps1 "$ARGUMENTS"`. If the feature-creation script exits non-zero, stop with its evidence; do not call `specify lane register` or invent a feature-creation CLI command.
+2. Verify the installed command surface with `specify --help`, then run `{SCRIPT}` from the repo root as the generated create-feature script; generated projects resolve this to `.specify/scripts/bash/create-new-feature.sh "$ARGUMENTS"` or `.specify/scripts/powershell/create-new-feature.ps1 "$ARGUMENTS"`. If the feature-creation script exits non-zero, stop with its evidence; do not call `specify lane register` or invent a feature-creation CLI command. After it returns `FEATURE_DIR`, enter or resume `specify` through the deterministic workflow runtime before writing any feature artifact.
 3. Explore project context with project cognition as advisory navigation, then prove current facts from live files and record source evidence.
 4. Select discovery mode for a raw request or compile mode for a confirmed discussion contract. In compile mode, compute `semantic_delta`, ask only about a planning-critical delta, and do not repeat user review when `semantic_delta` is empty.
 5. Decompose semantic terms into explicit decisions and capability operations in `spec-contract.json`; present two or three approaches only when behavior, boundary, compatibility, or acceptance proof changes.
 6. Preserve the discussion contract by reference. Read discussion source files only when a named evidence reference is stale, missing, or contradictory; carry its existing decision digest instead of rebuilding it.
-7. For UI-facing work, read selected `DESIGN.md` and UI refs; compile `Experience Requirements`, design-system readiness (`design_system_status`, `design_risk_level`), and `ui-brief.md`/`Reference-Implementation` fidelity evidence. Treat a missing required system as a strong blocker and a non-blocking adoption gap as a soft risk. Handle raw UI reference input through `choose_ui_reference_lane_dispatch` and `ui-reference-artifact`.
-8. Write `spec-contract.json`, render or update project-facing artifacts, and run deterministic completeness, traceability, and contradiction checks. Request user review only for non-empty semantic delta or a real unresolved decision, then recommend exactly one next command: `/sp.plan`, `/sp.clarify`, or `/sp.deep-research`.
+7. For UI-facing work—with or without supplied screenshots—read selected
+   `DESIGN.md` and live UI evidence; compile `Experience Requirements`,
+   design-system readiness (`design_system_status`, `design_risk_level`), and a
+   feature `ui-brief.md` plus the complete current `design_contract` for
+   substantive UI changes. Separately record work type, surface type, platform,
+   subject, audience, single job, visual/content/interaction theses, signature,
+   approved visual ref, reference intents, real content/image plans, and the
+   structure/visual/runtime evidence triad. Treat a bootstrap or
+   missing required system as a strong blocker and a non-blocking adoption gap
+   as a soft risk. When raw UI references exist, additionally use
+   `choose_ui_reference_lane_dispatch`, `ui-reference-artifact`, and
+   `Reference-Implementation` fidelity evidence.
+8. Write `spec-contract.json`, render or update specification-owned project-facing artifacts, and run deterministic completeness, traceability, and contradiction checks. Run `{{specify-subcmd:hook validate-artifacts --command specify --feature-dir <feature-dir> --format json}}` and fail closed if the specification package is incomplete. Request user review only for non-empty semantic delta or a real unresolved decision, then recommend exactly one next command: `/sp.plan`, `/sp.clarify`, or `/sp.deep-research`.
+
+Create only specification-stage outputs. Do not create `plan-contract.json`, `plan.md`, research/design-plan artifacts, `tasks.md`, or `task-index.json`; the separately invoked planning and task workflows own them. Do not edit production source, tests, migrations, or runtime configuration.
 
 ## Detailed References
 

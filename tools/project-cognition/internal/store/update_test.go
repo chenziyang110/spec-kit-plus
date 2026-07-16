@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"testing"
+
+	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/claim"
 )
 
 func TestRecordStructuredUpdatePersistsAffectedFields(t *testing.T) {
@@ -51,11 +53,17 @@ func TestRecordStructuredUpdatePersistsAffectedFields(t *testing.T) {
 	}
 }
 
-func TestAffectedClosureForPathsReturnsNodesOnlyInSchemaV2(t *testing.T) {
+func TestAffectedClosureForPathsReturnsRelatedTypedClaims(t *testing.T) {
 	st := openImportTestStore(t)
 	defer st.Close()
 	ctx := context.Background()
-	if _, err := st.ImportGeneration(ctx, validImportInput("GEN-closure")); err != nil {
+	input := validImportInput("GEN-closure")
+	input.Claims = []ClaimImport{{
+		ID: "claim:app-owner", NodeID: "N-app", GraphClaimType: "runtime_owner", Summary: "App owns runtime behavior",
+		State: claim.StateSupported, Freshness: claim.FreshnessFresh, StateReason: "supporting_evidence",
+		SupportingEvidenceIDs: []string{"E-001"},
+	}}
+	if _, err := st.ImportGeneration(ctx, input); err != nil {
 		t.Fatal(err)
 	}
 
@@ -66,11 +74,41 @@ func TestAffectedClosureForPathsReturnsNodesOnlyInSchemaV2(t *testing.T) {
 	if !containsString(closure.NodeIDs, "N-app") {
 		t.Fatalf("closure = %#v, want N-app", closure)
 	}
-	if len(closure.ClaimIDs) != 0 {
-		t.Fatalf("closure.ClaimIDs = %#v, want empty until claim tables return", closure.ClaimIDs)
+	if !containsString(closure.ClaimIDs, "claim:app-owner") {
+		t.Fatalf("closure.ClaimIDs = %#v, want claim:app-owner", closure.ClaimIDs)
 	}
 	if len(closure.SliceIDs) != 0 {
 		t.Fatalf("closure.SliceIDs = %#v, want empty until slice tables return", closure.SliceIDs)
+	}
+}
+
+func TestMarkClaimsStaleRecordsAuditableTransition(t *testing.T) {
+	st := openImportTestStore(t)
+	defer st.Close()
+	ctx := context.Background()
+	input := validImportInput("GEN-stale-claim")
+	input.Claims = []ClaimImport{{
+		ID: "claim:app-owner", NodeID: "N-app", GraphClaimType: "runtime_owner", Summary: "App owns runtime behavior",
+		State: claim.StateSupported, Freshness: claim.FreshnessFresh, StateReason: "supporting_evidence",
+		SupportingEvidenceIDs: []string{"E-001"},
+	}}
+	if _, err := st.ImportGeneration(ctx, input); err != nil {
+		t.Fatal(err)
+	}
+
+	transitions, err := st.MarkClaimsStale(ctx, []string{"claim:app-owner"}, "changed_path:src/app.go", "update:test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(transitions) != 1 || transitions[0].FromState != claim.StateSupported || transitions[0].ToState != claim.StateStale {
+		t.Fatalf("transitions = %#v, want supported -> stale", transitions)
+	}
+	var state, priorState, freshness, reason string
+	if err := st.DB().QueryRowContext(ctx, `SELECT state, prior_state, freshness, state_reason FROM claims WHERE id = 'claim:app-owner'`).Scan(&state, &priorState, &freshness, &reason); err != nil {
+		t.Fatal(err)
+	}
+	if state != string(claim.StateStale) || priorState != string(claim.StateSupported) || freshness != string(claim.FreshnessStale) || reason != "changed_path:src/app.go" {
+		t.Fatalf("claim lifecycle = %q/%q/%q/%q, want stale/supported/stale/changed_path", state, priorState, freshness, reason)
 	}
 }
 

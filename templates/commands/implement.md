@@ -4,7 +4,7 @@ workflow_contract:
   when_to_use: '`tasks.md` is ready and the feature should move from planning into tracked execution batches.'
   primary_objective: Execute the ready batches while preserving tracker state, subagent contracts, verification discipline, and resumability.
   primary_outputs: Verified code, test, and documentation changes plus compact execution state, one task lifecycle record per executed task, conditional drift/repair records, and `implementation-summary.md` for the active feature.
-  default_handoff: Continue with the next ready batch, route blockers into /sp-debug, or report completion only when the implementation contract is actually satisfied.
+  default_handoff: Continue with the next ready batch, route blockers into /sp-debug, or after technical closeout hand human product acceptance to /sp.accept and stop.
 scripts:
   sh: scripts/bash/check-prerequisites.sh --json --require-tasks --include-tasks
   ps: scripts/powershell/check-prerequisites.ps1 -Json -RequireTasks -IncludeTasks
@@ -25,7 +25,15 @@ scripts:
 3. Use `choose_subagent_dispatch(command_name="implement", snapshot, workload_shape)` for safe worker lanes, use the current integration's native subagent lifecycle where available, and keep leader ownership of tracker state.
 4. Execute the current task or ready batch, update tracker fields, resolve blockers through bounded repair, and route unknown root cause to `{{invoke:debug}}`.
 5. Run event-triggered review for repository drift, parallel joins, write-scope drift, validation failure, worker concerns, obligation conflicts, or sequential change-window limits. Maintain one task lifecycle record containing packet/ref, result, validation, review verdict, and recovery; report completion only when changed paths, validation evidence, review status, and mutation closeout are complete.
-6. For UI work, record `ui_verification`; use `pending-human-review` only when objective visual evidence cannot close the criterion, and route an invalid or missing design source to `sp-design` instead of inventing one.
+6. For UI work, record task-lifecycle `ui_verification` with concrete evidence
+   refs after the real-entrypoint visual convergence loop. Set
+   `evidence_scope: task` and persist typed `structure_snapshot`,
+   `visual_capture`, and `runtime_diagnostics` evidence plus passing runtime
+   status. Use
+   `pending-human-review` only when objective visual evidence cannot close the
+   criterion; it blocks accepted closeout until resolved. Route an invalid,
+   bootstrap, or missing design source to `sp-design` instead of inventing one.
+7. After successful technical closeout, ensure `human-acceptance.json` was prepared from the fresh `implementation-summary.md`, recommend `{{invoke:accept}}`, and stop. Do not claim that automated verification or implementation completion equals human product acceptance.
 
 {{spec-kit-include: ../command-partials/common/inline-project-cognition-update.md}}
 

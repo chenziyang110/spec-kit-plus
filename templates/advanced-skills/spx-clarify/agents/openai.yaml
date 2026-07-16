@@ -1,0 +1,7 @@
+interface:
+  display_name: "SPX Clarify"
+  short_description: "Repair planning-blocking spec gaps"
+  default_prompt: "Use $spx-clarify to strengthen the existing specification package."
+
+policy:
+  allow_implicit_invocation: false

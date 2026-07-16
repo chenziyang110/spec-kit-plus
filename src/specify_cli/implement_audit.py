@@ -23,11 +23,21 @@ from specify_cli.execution.implementation_review import (
     load_task_ledger,
     task_review_is_accepted,
 )
+from specify_cli.execution.ui_validation import (
+    invalid_task_ui_contracts,
+    obsolete_task_ui_contract_fields,
+    ui_task_ids,
+    validate_lifecycle_ui_verification,
+)
 from specify_cli.hooks.checkpoint_serializers import serialize_implement_tracker
 
 
-TASK_RE = re.compile(r"(?m)^\s*-\s\[(?P<checked>[ xX])\]\s+(?P<task_id>T\d+)\b(?P<body>.*)$")
-TASK_DETAIL_RE = re.compile(r"(?ms)^##\s+(?P<task_id>T\d+)\b[^\n]*\n(?P<body>.*?)(?=^##\s+|\Z)")
+TASK_RE = re.compile(
+    r"(?m)^\s*-\s\[(?P<checked>[ xX])\]\s+(?P<task_id>T\d+)\b(?P<body>.*)$"
+)
+TASK_DETAIL_RE = re.compile(
+    r"(?ms)^##\s+(?P<task_id>T\d+)\b[^\n]*\n(?P<body>.*?)(?=^##\s+|\Z)"
+)
 CONSUMER_KEYWORDS = (
     "component",
     "form",
@@ -62,6 +72,25 @@ TASK_REVIEW_FINDING_DISPOSITIONS = frozenset(
     {"open", "fixed", "accepted_residual_risk", "follow_up"}
 )
 TASK_REVIEW_FINDING_SOURCES = frozenset({"findings", "plan_mandated_defects"})
+TASK_BLOCKER_CLASSIFICATIONS = frozenset(
+    {
+        "technical",
+        "external",
+        "human-action",
+        "verification_policy",
+        "project_cognition_readiness",
+        "baseline_timeout",
+    }
+)
+TASK_BLOCKER_OWNERS = frozenset({"agent", "user", "maintainer", "external-system"})
+TASK_BLOCKER_COMPLETION_IMPACTS = frozenset(
+    {
+        "mandatory_for_completion",
+        "optional_cleanup",
+        "external_baseline_maintenance",
+        "follow_up_risk",
+    }
+)
 
 
 def _read_text(path: Path) -> str:
@@ -81,7 +110,9 @@ def _parse_tasks(tasks_path: Path) -> list[dict[str, Any]]:
                 "checked": match.group("checked").lower() == "x",
                 "body": body,
                 "consumer_facing": _looks_consumer_facing(body),
-                "requires_real_entrypoint": _requires_real_entrypoint_evidence(body, detail),
+                "requires_real_entrypoint": _requires_real_entrypoint_evidence(
+                    body, detail
+                ),
             }
         )
     return tasks
@@ -110,11 +141,15 @@ def _load_worker_result(
     task_id: str,
 ) -> tuple[dict[str, Any] | None, list[str]]:
     gaps: list[str] = []
-    ledger_reference, ledger_gaps = _ledger_worker_result_reference(feature_dir, task_id)
+    ledger_reference, ledger_gaps = _ledger_worker_result_reference(
+        feature_dir, task_id
+    )
     gaps.extend(ledger_gaps)
     if ledger_reference:
         try:
-            candidate = _safe_worker_result_path(project_root, feature_dir, ledger_reference)
+            candidate = _safe_worker_result_path(
+                project_root, feature_dir, ledger_reference
+            )
         except ValueError as exc:
             gaps.append(f"unsafe worker_result {ledger_reference}: {exc}")
         else:
@@ -145,7 +180,11 @@ def _read_worker_result(path: Path, task_id: str) -> dict[str, Any]:
         if isinstance((value := payload.get(key)), str) and value.strip()
     ]
     if not result_task_ids:
-        return {"task_id": task_id, "status": "worker result missing task_id", "path": str(path)}
+        return {
+            "task_id": task_id,
+            "status": "worker result missing task_id",
+            "path": str(path),
+        }
     mismatched_task_ids = [
         result_task_id
         for result_task_id in result_task_ids
@@ -162,7 +201,9 @@ def _read_worker_result(path: Path, task_id: str) -> dict[str, Any]:
     return payload
 
 
-def _ledger_worker_result_reference(feature_dir: Path, task_id: str) -> tuple[str, list[str]]:
+def _ledger_worker_result_reference(
+    feature_dir: Path, task_id: str
+) -> tuple[str, list[str]]:
     review_ledger_path = ledger_path(feature_dir)
     if not review_ledger_path.is_file():
         return "", []
@@ -172,7 +213,10 @@ def _ledger_worker_result_reference(feature_dir: Path, task_id: str) -> tuple[st
     except (json.JSONDecodeError, TypeError, ValueError) as exc:
         return "", [f"{ledger_relative} is malformed for worker_result lookup: {exc}"]
     for entry in ledger_entries:
-        if not isinstance(entry.task_id, str) or entry.task_id.upper() != task_id.upper():
+        if (
+            not isinstance(entry.task_id, str)
+            or entry.task_id.upper() != task_id.upper()
+        ):
             continue
         if not isinstance(entry.worker_result, str):
             return "", [f"{task_id} in {ledger_relative} has malformed worker_result"]
@@ -182,7 +226,9 @@ def _ledger_worker_result_reference(feature_dir: Path, task_id: str) -> tuple[st
     return "", []
 
 
-def _safe_worker_result_path(project_root: Path, feature_dir: Path, result_relative: str) -> Path:
+def _safe_worker_result_path(
+    project_root: Path, feature_dir: Path, result_relative: str
+) -> Path:
     if result_relative != result_relative.strip():
         raise ValueError("leading or trailing whitespace is not allowed")
     if "\\" in result_relative:
@@ -204,7 +250,11 @@ def _safe_worker_result_path(project_root: Path, feature_dir: Path, result_relat
         raise ValueError("dot path segments are not allowed")
 
     parts = posix_source.parts
-    if len(parts) == 2 and parts[0] == "worker-results" and posix_source.suffix == ".json":
+    if (
+        len(parts) == 2
+        and parts[0] == "worker-results"
+        and posix_source.suffix == ".json"
+    ):
         root = feature_dir.resolve(strict=False)
         candidate = (feature_dir / Path(*parts)).resolve(strict=False)
     elif (
@@ -228,7 +278,9 @@ def _safe_worker_result_path(project_root: Path, feature_dir: Path, result_relat
 
 
 def _result_has_passed_validation(result: dict[str, Any]) -> bool:
-    validations = result.get("validation_results") or result.get("validationResults") or []
+    validations = (
+        result.get("validation_results") or result.get("validationResults") or []
+    )
     if not isinstance(validations, list) or not validations:
         return False
     statuses = [
@@ -264,6 +316,107 @@ def _tracker_has_open_gaps(feature_dir: Path) -> bool:
     return any(line.startswith("-") or line.startswith("type:") for line in meaningful)
 
 
+def _has_nonempty_blocker_evidence(value: object) -> bool:
+    if isinstance(value, str):
+        return bool(value.strip())
+    if isinstance(value, list):
+        return bool(value) and all(
+            isinstance(item, str) and item.strip() for item in value
+        )
+    return False
+
+
+def _task_lifecycle_blocker_gaps(feature_dir: Path) -> list[str]:
+    """Validate and surface open task-local blockers, including active tasks."""
+
+    lifecycle_dir = feature_dir / "implementation-review" / "tasks"
+    if not lifecycle_dir.is_dir():
+        return []
+
+    gaps: list[str] = []
+    required_fields = (
+        "classification",
+        "owner",
+        "evidence",
+        "exact_next_action",
+        "approval_question",
+        "unblock_criteria",
+        "implementation_can_continue",
+        "completion_impact",
+    )
+    for lifecycle_path in sorted(lifecycle_dir.glob("*.json")):
+        relative = lifecycle_path.relative_to(feature_dir).as_posix()
+        try:
+            payload = json.loads(lifecycle_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            gaps.append(f"{relative} is malformed: {exc}")
+            continue
+        if not isinstance(payload, dict):
+            gaps.append(f"{relative} must contain a top-level object")
+            continue
+        task_id = str(payload.get("task_id") or lifecycle_path.stem).upper()
+        blockers = payload.get("blockers")
+        if blockers is None:
+            if str(payload.get("status") or "").lower() == "blocked":
+                gaps.append(f"{relative} blocked task {task_id} must record blockers")
+            continue
+        if not isinstance(blockers, list):
+            gaps.append(f"{relative} blockers must be a list")
+            continue
+        if str(payload.get("status") or "").lower() == "blocked" and not blockers:
+            gaps.append(f"{relative} blocked task {task_id} must record blockers")
+            continue
+        for index, blocker in enumerate(blockers, start=1):
+            label = f"{relative} blocker {index}"
+            if not isinstance(blocker, dict):
+                gaps.append(f"{label} must be an object")
+                continue
+            missing = [field for field in required_fields if field not in blocker]
+            if missing:
+                gaps.append(f"{label} is missing required fields: {', '.join(missing)}")
+                continue
+
+            classification = str(blocker.get("classification") or "").strip()
+            owner = str(blocker.get("owner") or "").strip()
+            completion_impact = str(blocker.get("completion_impact") or "").strip()
+            if classification not in TASK_BLOCKER_CLASSIFICATIONS:
+                gaps.append(
+                    f"{label} has invalid classification: {classification or 'empty'}"
+                )
+            if owner not in TASK_BLOCKER_OWNERS:
+                gaps.append(f"{label} has invalid owner: {owner or 'empty'}")
+            if completion_impact not in TASK_BLOCKER_COMPLETION_IMPACTS:
+                gaps.append(
+                    f"{label} has invalid completion_impact: {completion_impact or 'empty'}"
+                )
+            if not _has_nonempty_blocker_evidence(blocker.get("evidence")):
+                gaps.append(
+                    f"{label} evidence must be a non-empty string or string list"
+                )
+            for field in ("exact_next_action", "unblock_criteria"):
+                if (
+                    not isinstance(blocker.get(field), str)
+                    or not str(blocker[field]).strip()
+                ):
+                    gaps.append(f"{label} {field} must be a non-empty string")
+            if not isinstance(blocker.get("implementation_can_continue"), bool):
+                gaps.append(f"{label} implementation_can_continue must be a boolean")
+            approval_question = blocker.get("approval_question")
+            if approval_question is not None and not isinstance(approval_question, str):
+                gaps.append(f"{label} approval_question must be a string or null")
+            if (
+                owner in {"user", "maintainer"}
+                and not str(approval_question or "").strip()
+            ):
+                gaps.append(f"{label} approval_question is required for owner {owner}")
+
+            gaps.append(
+                f"{task_id}: unresolved {classification or 'unknown'} blocker owned by "
+                f"{owner or 'unknown'} ({completion_impact or 'unknown'})"
+            )
+    return gaps
+
+
 def _packetized_task_ids(feature_dir: Path) -> tuple[list[str], list[str]]:
     task_packets_dir = feature_dir / "task-packets"
     if not task_packets_dir.is_dir():
@@ -280,7 +433,9 @@ def _packetized_task_ids(feature_dir: Path) -> tuple[list[str], list[str]]:
             gaps.append(f"{packet_relative} has malformed packet JSON: {exc}")
             continue
         if not isinstance(payload, dict):
-            gaps.append(f"{packet_relative} has malformed packet: packet must be a JSON object")
+            gaps.append(
+                f"{packet_relative} has malformed packet: packet must be a JSON object"
+            )
             continue
         packet_task_id = payload.get("task_id")
         if not isinstance(packet_task_id, str) or not packet_task_id.strip():
@@ -319,8 +474,21 @@ def _packetized_review_gaps(
 ) -> list[str]:
     checked_task_ids = {str(task["task_id"]).upper() for task in checked_tasks}
     lifecycle_dir = feature_dir / "implementation-review" / "tasks"
+    obsolete_ui_fields = obsolete_task_ui_contract_fields(feature_dir)
+    ui_tasks = ui_task_ids(feature_dir)
+    contract_gaps = [
+        "task-index.json task "
+        f"{task_id} uses obsolete UI fields ({', '.join(fields)}); "
+        "regenerate it with the current UI contract"
+        for task_id, fields in sorted(obsolete_ui_fields.items())
+    ]
+    contract_gaps.extend(
+        "task-index.json task "
+        f"{task_id} has an invalid current UI contract: {', '.join(errors)}"
+        for task_id, errors in sorted(invalid_task_ui_contracts(feature_dir).items())
+    )
     if lifecycle_dir.is_dir() or _uses_agent_native_task_lifecycle(feature_dir):
-        gaps: list[str] = []
+        gaps = list(contract_gaps)
         for task_id in sorted(checked_task_ids):
             relative = f"implementation-review/tasks/{task_id}.json"
             lifecycle_path = lifecycle_dir / f"{task_id}.json"
@@ -352,11 +520,21 @@ def _packetized_review_gaps(
                 or not str(review.get("trigger") or "").strip()
                 or not str(review.get("verdict") or "").strip()
             ):
-                gaps.append(f"{relative} review must contain trigger and verdict when present")
+                gaps.append(
+                    f"{relative} review must contain trigger and verdict when present"
+                )
+            if task_id in ui_tasks:
+                gaps.extend(
+                    validate_lifecycle_ui_verification(
+                        feature_dir,
+                        payload,
+                        relative,
+                    )
+                )
         return gaps
 
     packet_task_ids, packet_gaps = _packetized_task_ids(feature_dir)
-    gaps: list[str] = []
+    gaps = list(contract_gaps)
     gaps.extend(packet_gaps)
     if not packet_task_ids:
         return gaps
@@ -364,9 +542,17 @@ def _packetized_review_gaps(
     if terminal:
         for packet_task_id in packet_task_ids:
             if packet_task_id not in checked_task_ids:
-                task_known = any(str(task["task_id"]).upper() == packet_task_id for task in tasks)
-                reason = "unchecked in tasks.md" if task_known else "missing checked task in tasks.md"
-                gaps.append(f"{packet_task_id} packetized task is not checked: {reason}")
+                task_known = any(
+                    str(task["task_id"]).upper() == packet_task_id for task in tasks
+                )
+                reason = (
+                    "unchecked in tasks.md"
+                    if task_known
+                    else "missing checked task in tasks.md"
+                )
+                gaps.append(
+                    f"{packet_task_id} packetized task is not checked: {reason}"
+                )
 
     checked_packet_task_ids = sorted(checked_task_ids & set(packet_task_ids))
     if not terminal and not checked_packet_task_ids:
@@ -380,7 +566,9 @@ def _packetized_review_gaps(
             gaps.append(f"{ledger_relative} is missing for packetized terminal state")
         else:
             task_list = ", ".join(checked_packet_task_ids)
-            gaps.append(f"{ledger_relative} is missing for checked packetized tasks: {task_list}")
+            gaps.append(
+                f"{ledger_relative} is missing for checked packetized tasks: {task_list}"
+            )
     else:
         try:
             ledger_entries = load_task_ledger(feature_dir)
@@ -398,14 +586,18 @@ def _packetized_review_gaps(
             if entry is None:
                 gaps.append(f"{task_id} is missing from {ledger_relative}")
             elif entry.status != "accepted":
-                gaps.append(f"{task_id} in {ledger_relative} is not accepted: {entry.status}")
+                gaps.append(
+                    f"{task_id} in {ledger_relative} is not accepted: {entry.status}"
+                )
             else:
-                task_brief_reference, task_brief_gap = _accepted_ledger_artifact_reference(
-                    ledger_relative,
-                    task_id,
-                    "task_brief",
-                    entry.task_brief,
-                    f"implementation-review/task-briefs/{task_id}.md",
+                task_brief_reference, task_brief_gap = (
+                    _accepted_ledger_artifact_reference(
+                        ledger_relative,
+                        task_id,
+                        "task_brief",
+                        entry.task_brief,
+                        f"implementation-review/task-briefs/{task_id}.md",
+                    )
                 )
                 if task_brief_gap:
                     gaps.append(task_brief_gap)
@@ -416,12 +608,14 @@ def _packetized_review_gaps(
                         )
                     )
 
-                review_package_reference, review_package_gap = _accepted_ledger_artifact_reference(
-                    ledger_relative,
-                    task_id,
-                    "review_package",
-                    entry.review_package,
-                    f"implementation-review/review-packages/{task_id}.md",
+                review_package_reference, review_package_gap = (
+                    _accepted_ledger_artifact_reference(
+                        ledger_relative,
+                        task_id,
+                        "review_package",
+                        entry.review_package,
+                        f"implementation-review/review-packages/{task_id}.md",
+                    )
                 )
                 if review_package_gap:
                     gaps.append(review_package_gap)
@@ -435,16 +629,22 @@ def _packetized_review_gaps(
                         )
                     )
 
-                task_review_reference, task_review_gap = _accepted_ledger_task_review_reference(
-                    ledger_relative, task_id, entry.task_review
+                task_review_reference, task_review_gap = (
+                    _accepted_ledger_task_review_reference(
+                        ledger_relative, task_id, entry.task_review
+                    )
                 )
                 if task_review_gap:
                     gaps.append(task_review_gap)
                 else:
-                    gaps.extend(_task_review_gaps(feature_dir, task_id, task_review_reference))
+                    gaps.extend(
+                        _task_review_gaps(feature_dir, task_id, task_review_reference)
+                    )
 
     if terminal and not branch_review_path(feature_dir).is_file():
-        gaps.append(f"{branch_review_relative} is missing for packetized terminal state")
+        gaps.append(
+            f"{branch_review_relative} is missing for packetized terminal state"
+        )
 
     return gaps
 
@@ -494,7 +694,9 @@ def _ledger_artifact_file_gaps(
     return []
 
 
-def _task_review_gaps(feature_dir: Path, task_id: str, ledger_task_review: object) -> list[str]:
+def _task_review_gaps(
+    feature_dir: Path, task_id: str, ledger_task_review: object
+) -> list[str]:
     if isinstance(ledger_task_review, str) and ledger_task_review.strip():
         review_relative = ledger_task_review.strip()
     else:
@@ -518,7 +720,9 @@ def _task_review_gaps(feature_dir: Path, task_id: str, ledger_task_review: objec
 
     try:
         if not isinstance(record.task_id, str) or record.task_id.upper() != task_id:
-            return [f"{task_id} task review has mismatched task_id at {review_relative}"]
+            return [
+                f"{task_id} task review has mismatched task_id at {review_relative}"
+            ]
         review_accepted = task_review_is_accepted(record)
     except (AttributeError, TypeError, ValueError) as exc:
         return [f"{task_id} task review is malformed at {review_relative}: {exc}"]
@@ -528,7 +732,9 @@ def _task_review_gaps(feature_dir: Path, task_id: str, ledger_task_review: objec
     return []
 
 
-def _safe_task_review_path(feature_dir: Path, task_id: str, review_relative: str) -> Path:
+def _safe_task_review_path(
+    feature_dir: Path, task_id: str, review_relative: str
+) -> Path:
     windows_source = PureWindowsPath(review_relative)
     normalized_review_relative = review_relative.replace("\\", "/")
     posix_source = PurePosixPath(normalized_review_relative)
@@ -578,7 +784,9 @@ def _task_review_record_from_payload(payload: dict[str, Any]) -> TaskReviewRecor
             "accepted_residual_risks": _accepted_residual_risks_from_payload(
                 payload.get("accepted_residual_risks", [])
             ),
-            "follow_up_work": _follow_up_work_from_payload(payload.get("follow_up_work", [])),
+            "follow_up_work": _follow_up_work_from_payload(
+                payload.get("follow_up_work", [])
+            ),
             "ui_fidelity_result": _optional_choice(
                 payload,
                 "ui_fidelity_result",
@@ -749,10 +957,16 @@ def audit_implement_resume(project_root: Path, feature_dir: Path) -> dict[str, A
 
     resolved_project_root = project_root.resolve(strict=False)
     resolved_feature_dir = (
-        feature_dir
+        feature_dir.resolve(strict=False)
         if feature_dir.is_absolute()
         else (resolved_project_root / feature_dir).resolve(strict=False)
     )
+    try:
+        relative = resolved_feature_dir.relative_to(resolved_project_root)
+    except ValueError as exc:
+        raise ValueError("feature_dir must stay inside the current project") from exc
+    if not relative.parts:
+        raise ValueError("feature_dir must identify a directory below the project root")
     tracker_path = resolved_feature_dir / "implement-tracker.md"
     tasks_path = resolved_feature_dir / "tasks.md"
 
@@ -802,14 +1016,17 @@ def audit_implement_resume(project_root: Path, feature_dir: Path) -> dict[str, A
             else:
                 if not _result_has_passed_validation(result):
                     missing.append("missing passed validation evidence")
-                if task["requires_real_entrypoint"] and not _result_has_consumer_evidence(result):
+                if task[
+                    "requires_real_entrypoint"
+                ] and not _result_has_consumer_evidence(result):
                     missing.append("missing consumer evidence")
-                elif (
-                    task["requires_real_entrypoint"]
-                    and not _result_has_real_entrypoint_consumer_evidence(result)
-                ):
+                elif task[
+                    "requires_real_entrypoint"
+                ] and not _result_has_real_entrypoint_consumer_evidence(result):
                     missing.append("missing real-entrypoint consumer evidence")
-                elif task["consumer_facing"] and not _result_has_consumer_evidence(result):
+                elif task["consumer_facing"] and not _result_has_consumer_evidence(
+                    result
+                ):
                     missing.append("missing consumer evidence")
 
         if missing:
@@ -819,13 +1036,16 @@ def audit_implement_resume(project_root: Path, feature_dir: Path) -> dict[str, A
                 "task_id": task["task_id"],
                 "checked": task["checked"],
                 "consumer_facing": task["consumer_facing"],
-                "result_path": result.get("path", "") if isinstance(result, dict) else "",
+                "result_path": result.get("path", "")
+                if isinstance(result, dict)
+                else "",
                 "missing_evidence": "; ".join(missing),
             }
         )
 
     if _tracker_has_open_gaps(resolved_feature_dir):
         evidence_gaps.append("implement-tracker.md has unresolved open_gaps")
+    evidence_gaps.extend(_task_lifecycle_blocker_gaps(resolved_feature_dir))
     evidence_gaps.extend(
         _packetized_review_gaps(
             resolved_feature_dir,
@@ -866,7 +1086,9 @@ def audit_implement_resume(project_root: Path, feature_dir: Path) -> dict[str, A
         classification=classification,
         trusted=False,
         recommended_status=tracker_status or "executing",
-        next_action=str(tracker.get("next_action") or "Resume the recorded implementation batch."),
+        next_action=str(
+            tracker.get("next_action") or "Resume the recorded implementation batch."
+        ),
         task_findings=task_findings,
         open_gaps=evidence_gaps,
     )

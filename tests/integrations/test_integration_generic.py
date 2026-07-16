@@ -60,7 +60,7 @@ class TestGenericIntegration:
             ".specify/integrations/speckit.manifest.json",
             ".specify/memory/constitution.md",
             ".specify/memory/learnings/INDEX.md",
-            ".specify/memory/project-learnings.md",
+            ".specify/memory/learnings/confirmed.md",
             ".specify/memory/project-rules.md",
             ".specify/project-cognition/project-cognition.db",
             ".specify/project-cognition/status.json",

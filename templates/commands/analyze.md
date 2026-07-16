@@ -94,13 +94,8 @@ When recommending manual implementation resumption to the user, tell them to run
 - Keep `workflow-state.md` current as the durable gate-state source of truth for whether implementation may proceed, which stage must reopen, and what evidence supports the decision.
 - Verify the analysis report, cleared or blocked gate result, and any durable artifact outcomes before final reporting instead of relying on chat narration.
 - Update durable analysis state before compaction-risk transitions, large findings synthesis, remediation handoffs, or any stop where resume will depend on more than the visible conversation.
-- Run `{{specify-subcmd:learning start --command analyze --format json}}` when available so passive learning files exist and the current analysis sees relevant shared project memory.
-- Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/learnings/INDEX.md` in that order before broader analysis context.
-- Open only learning detail docs linked from analysis-relevant index entries.
-- Learning Reflex: before final closeout, ask whether a future senior engineer would benefit from seeing this lesson before related work. If yes, update `.specify/memory/learnings/INDEX.md` and the linked detail markdown document without asking for routine permission.
-- When analysis friction exposes repeated artifact rewrites, route changes, false starts, hidden dependencies, validation gaps, or reusable constraints, make sure `workflow-state.md` captures that durable context.
-- Prefer `{{specify-subcmd:learning capture-auto --command analyze --feature-dir "$FEATURE_DIR" --format json}}` when `workflow-state.md` already preserves route reasons, false starts, hidden dependencies, or reusable constraints.
-- When durable state does not capture the reusable lesson cleanly, update `.specify/memory/learnings/INDEX.md` and a linked detail document with the command, type, summary, and evidence.
+
+{{spec-kit-include: ../command-partials/common/learning-layer.md}}
 
 ## Execution Steps
 
@@ -223,7 +218,7 @@ Create internal representations (do not include raw artifacts in output):
 
 ### 5. Detection Passes (Token-Efficient Analysis)
 
-Focus on high-signal findings in the report body. Limit the visible findings table to 50 rows for readability, but do not omit blockers from the durable gate result: `Blocker Bundle` and `workflow-state.md` MUST enumerate every blocking finding. Overflow summaries may cover only non-blocking findings.
+Focus on high-signal findings in the report body and include every unique actionable finding. Repetitive non-blocking observations may be grouped only when the group preserves their evidence, owner, and repair route. Never omit blockers from the durable gate result: `Blocker Bundle` and `workflow-state.md` MUST enumerate every blocking finding.
 
 #### A. Duplication Detection
 
@@ -326,7 +321,7 @@ Output a Markdown report (no file writes) with the following structure:
 
 **Blocker Bundle:**
 
-The `Blocker Bundle` MUST enumerate every blocking finding even when the visible findings table is capped at 50 rows. Do not place blocking findings only in overflow summaries.
+The `Blocker Bundle` MUST enumerate every blocking finding. Do not hide blocking findings inside grouped summaries.
 
 | Invalid Stage | Blocking Finding IDs | Required Re-entry | Notes |
 |---------------|----------------------|-------------------|-------|
@@ -441,7 +436,7 @@ Ask the user: "Would you like me to draft concrete remediation edits and the exa
 
 - **Minimal high-signal tokens**: Focus on actionable findings, not exhaustive documentation
 - **Progressive disclosure**: Load artifacts incrementally; don't dump all content into analysis
-- **Token-efficient output**: Limit findings table to 50 rows; summarize overflow
+- **Signal-efficient output**: Include every unique actionable finding; group only genuinely repetitive non-blocking observations without losing evidence, ownership, or repair routes
 - **Deterministic results**: Rerunning without changes should produce consistent IDs and counts
 
 ### Analysis Guidelines

@@ -1,0 +1,7 @@
+interface:
+  display_name: "SPX Implement"
+  short_description: "Execute planned work with verification"
+  default_prompt: "Use $spx-implement to complete the ready implementation tasks."
+
+policy:
+  allow_implicit_invocation: false

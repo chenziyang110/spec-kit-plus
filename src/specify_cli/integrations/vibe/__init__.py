@@ -92,7 +92,10 @@ class VibeIntegration(SkillsIntegration):
                 path.resolve().relative_to(skills_dir)
             except ValueError:
                 continue
-            if path.name != "SKILL.md" or not path.parent.name.startswith("sp-"):
+            if path.name != "SKILL.md" or not (
+                path.parent.name.startswith("sp-")
+                or path.parent.name.startswith("spx-")
+            ):
                 continue
 
             content = path.read_text(encoding="utf-8")

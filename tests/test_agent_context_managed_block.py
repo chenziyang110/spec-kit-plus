@@ -144,13 +144,14 @@ def _assert_managed_block_is_compact_always_on_context(content: str) -> None:
     lower = content.lower()
 
     assert "## always-on context" in lower
-    assert "project cognition and project memory are always available" in lower
+    assert "project cognition and project learning are always available" in lower
     assert "even without an active `sp-*` workflow" in lower
     assert "when existing-system truth matters" in lower
     assert "before broad source inspection" in lower
     assert "narrow live reads" in lower
-    assert ".specify/memory/project-rules.md" in content
-    assert ".specify/memory/learnings/INDEX.md" in content
+    assert "specify learning start --command <workflow> --format json" in content
+    assert "show_argv" in content
+    assert ".specify/memory/learnings/INDEX.md" not in content
     assert "## workflow recommendations" in lower
     assert "do not auto-enter an `sp-*` workflow" in lower
     assert "unless the user invokes it" in lower
@@ -170,7 +171,7 @@ def _assert_managed_block_is_compact_always_on_context(content: str) -> None:
     assert "suggest `checkpoint, continue`" in lower
     assert "prompt does not write files by itself" in lower
     assert "project cognition freshness truthful" in lower
-    assert "store reusable lessons in project memory" in lower
+    assert "store reusable lessons through project learning" in lower
 
     assert "## workflow activation discipline" not in lower
     assert "1% chance" not in lower

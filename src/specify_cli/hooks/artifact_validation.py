@@ -8,10 +8,29 @@ from pathlib import Path
 from typing import Any
 
 from specify_cli.execution.implementation_review import task_review_is_accepted
-from specify_cli.implement_audit import _packetized_task_ids, _task_review_record_from_payload
-from specify_cli.project_cognition_tool import ProjectCognitionToolError, run_project_cognition
+from specify_cli.execution.packet_schema import UI_CONTRACT_FIELDS
+from specify_cli.execution.ui_validation import (
+    markdown_ui_task_ids,
+    resolve_feature_artifact_ref,
+    task_index_ui_contracts,
+    ui_task_ids,
+    validate_accepted_task_lifecycle,
+    validate_lifecycle_ui_verification,
+)
+from specify_cli.implement_audit import (
+    _packetized_task_ids,
+    _task_review_record_from_payload,
+)
+from specify_cli.project_cognition_tool import (
+    ProjectCognitionToolError,
+    run_project_cognition,
+)
 
-from .checkpoint_serializers import extract_field, normalize_command_name
+from .checkpoint_serializers import (
+    extract_field,
+    normalize_command_name,
+    serialize_workflow_state,
+)
 from .events import WORKFLOW_ARTIFACTS_VALIDATE
 from .types import HookResult, QualityHookError
 
@@ -42,6 +61,11 @@ FILE_REQUIRED_ARTIFACTS = {
     ),
     "analyze": ("workflow-state.md",),
     "implement": ("implement-tracker.md",),
+    "accept": (
+        "implementation-summary.md",
+        "human-acceptance.json",
+        "workflow-state.md",
+    ),
     "map-scan": (
         "status.json",
         "coverage.json",
@@ -97,6 +121,7 @@ DIRECTORY_REQUIRED_ARTIFACTS = {
     "clarify": ("clarification/handoffs",),
     "plan": (),
     "tasks": (),
+    "accept": (),
     "map-scan": ("evidence",),
     "prd-scan": ("scan-packets", "evidence", "worker-results"),
     "prd-build": ("scan-packets", "evidence", "worker-results"),
@@ -143,6 +168,11 @@ REQUIRED_ARTIFACTS = {
     ),
     "analyze": ("workflow-state.md",),
     "implement": ("implement-tracker.md",),
+    "accept": (
+        "implementation-summary.md",
+        "human-acceptance.json",
+        "workflow-state.md",
+    ),
     "map-scan": (
         "status.json",
         "coverage.json",
@@ -271,6 +301,14 @@ PRD_BUILD_REQUIRED_HEAVY_EXPORTS = (
     "exports/reconstruction-risks.md",
 )
 
+PRD_BUILD_OUTPUT_ARTIFACTS = (
+    "master/master-pack.md",
+    "exports/README.md",
+    "exports/prd.md",
+    *PRD_BUILD_REQUIRED_EXPORTS,
+    *PRD_BUILD_REQUIRED_HEAVY_EXPORTS,
+)
+
 PRD_HEAVY_SCAN_JSON_ARTIFACTS = {
     "entrypoint-ledger.json": "entrypoints",
     "config-contracts.json": "configs",
@@ -391,6 +429,16 @@ PRD_EXPORT_REQUIRED_SECTIONS = (
     "## Unknowns and Evidence Confidence",
 )
 
+
+def _has_nonempty_prd_evidence(value: object) -> bool:
+    if isinstance(value, str):
+        return bool(value.strip())
+    if isinstance(value, list):
+        return bool(value) and all(
+            isinstance(item, str) and item.strip() for item in value
+        )
+    return False
+
 REFERENCE_IMPLEMENTATION_PROFILE = "reference-implementation"
 
 REFERENCE_IMPLEMENTATION_SPEC_REQUIRED_SECTIONS = (
@@ -491,7 +539,9 @@ PRD_OPTIONAL_CONTROL_ARTIFACTS: dict[str, tuple[Path, tuple[str, ...]]] = {
 DEEP_RESEARCH_NOT_NEEDED_STATUS_RE = re.compile(
     r"(?im)^\*\*Status\*\*:\s*(?:\[)?Not needed(?:\])?\s*$"
 )
-IMPLEMENT_TASK_RE = re.compile(r"(?m)^\s*-\s\[(?P<checked>[ xX])\]\s+(?P<task_id>T\d+)\b")
+IMPLEMENT_TASK_RE = re.compile(
+    r"(?m)^\s*-\s\[(?P<checked>[ xX])\]\s+(?P<task_id>T\d+)\b"
+)
 
 
 def _extract_markdown_section(content: str, heading: str) -> str:
@@ -506,19 +556,29 @@ def _extract_markdown_section(content: str, heading: str) -> str:
     return section_body
 
 
-def _validate_markdown_contains(path: Path, required_items: tuple[str, ...], label: str) -> list[str]:
+def _validate_markdown_contains(
+    path: Path, required_items: tuple[str, ...], label: str
+) -> list[str]:
     content = path.read_text(encoding="utf-8", errors="replace")
-    return [f"{label} is missing required section: {item}" for item in required_items if item not in content]
+    return [
+        f"{label} is missing required section: {item}"
+        for item in required_items
+        if item not in content
+    ]
 
 
-def _validate_markdown_headings(path: Path, required_headings: tuple[str, ...], label: str) -> list[str]:
+def _validate_markdown_headings(
+    path: Path, required_headings: tuple[str, ...], label: str
+) -> list[str]:
     if path.exists() and path.is_dir():
         return [f"{label} must be a file, not a directory"]
     try:
         content = path.read_text(encoding="utf-8", errors="replace")
     except OSError as exc:
         return [f"{label} could not be read: {exc}"]
-    present_headings = {match.group(0).strip() for match in re.finditer(r"(?m)^#{1,6}\s+.+$", content)}
+    present_headings = {
+        match.group(0).strip() for match in re.finditer(r"(?m)^#{1,6}\s+.+$", content)
+    }
     return [
         f"{label} is missing required heading: {heading}"
         for heading in required_headings
@@ -550,7 +610,9 @@ def _read_json_artifact(path: Path, label: str) -> tuple[Any | None, list[str]]:
         return None, [f"{label} is not valid JSON: {exc}"]
 
 
-def _validate_json_object_with_array_key(feature_dir: Path, filename: str, array_key: str) -> list[str]:
+def _validate_json_object_with_array_key(
+    feature_dir: Path, filename: str, array_key: str
+) -> list[str]:
     payload, read_errors = _read_json_artifact(feature_dir / filename, filename)
     if read_errors:
         return read_errors
@@ -570,7 +632,14 @@ def _validate_unknown_objects(payload: Any, label: str) -> list[str]:
     if not isinstance(unknowns, list):
         return [f"{label} unknowns must be a list"]
     errors: list[str] = []
-    required_keys = ("field", "question", "blocking_level", "resolver", "latest_resolve_phase", "status")
+    required_keys = (
+        "field",
+        "question",
+        "blocking_level",
+        "resolver",
+        "latest_resolve_phase",
+        "status",
+    )
     for index, item in enumerate(unknowns):
         if not isinstance(item, dict):
             errors.append(f"{label} unknowns[{index}] must be an object")
@@ -600,10 +669,14 @@ def _all_implement_task_ids(feature_dir: Path) -> set[str]:
     if not tasks_path.is_file():
         return set()
     content = tasks_path.read_text(encoding="utf-8", errors="replace")
-    return {match.group("task_id").upper() for match in IMPLEMENT_TASK_RE.finditer(content)}
+    return {
+        match.group("task_id").upper() for match in IMPLEMENT_TASK_RE.finditer(content)
+    }
 
 
-def _validate_accepted_task_review(feature_dir: Path, task_id: str, review_relative: str) -> list[str]:
+def _validate_accepted_task_review(
+    feature_dir: Path, task_id: str, review_relative: str
+) -> list[str]:
     review_path = feature_dir / review_relative
     if not review_path.is_file():
         return [f"{review_relative} is missing for accepted packetized task {task_id}"]
@@ -613,7 +686,9 @@ def _validate_accepted_task_review(feature_dir: Path, task_id: str, review_relat
             raise ValueError("task review must contain a JSON object")
         record = _task_review_record_from_payload(payload)
         if not isinstance(record.task_id, str) or record.task_id.upper() != task_id:
-            return [f"{task_id} task review has mismatched task_id at {review_relative}"]
+            return [
+                f"{task_id} task review has mismatched task_id at {review_relative}"
+            ]
         if not task_review_is_accepted(record):
             return [f"{task_id} task review is not accepted at {review_relative}"]
     except (json.JSONDecodeError, TypeError, ValueError) as exc:
@@ -633,7 +708,9 @@ def _validate_accepted_ledger_artifact_reference(
     if value != expected_relative:
         return [f"{task_id} in {ledger_relative} must reference {expected_relative}"]
     if not (feature_dir / expected_relative).is_file():
-        return [f"{expected_relative} is missing for accepted packetized task {task_id}"]
+        return [
+            f"{expected_relative} is missing for accepted packetized task {task_id}"
+        ]
     return []
 
 
@@ -643,6 +720,7 @@ def _validate_task_lifecycle_records(
 ) -> list[str]:
     errors: list[str] = []
     lifecycle_dir = feature_dir / "implementation-review" / "tasks"
+    ui_tasks = ui_task_ids(feature_dir)
     for task_id in task_ids:
         relative = f"implementation-review/tasks/{task_id}.json"
         payload, read_errors = _read_json_artifact(
@@ -654,24 +732,11 @@ def _validate_task_lifecycle_records(
         if not isinstance(payload, dict):
             errors.append(f"{relative} must contain a top-level object")
             continue
-        if str(payload.get("task_id") or "").upper() != task_id:
-            errors.append(f"{relative} has mismatched task_id")
-        if payload.get("status") != "accepted":
-            errors.append(f"{relative} status must be accepted")
-        if not isinstance(payload.get("changed_paths"), list):
-            errors.append(f"{relative} changed_paths must be a list")
-        validation = payload.get("validation")
-        if not isinstance(validation, list) or not validation:
-            errors.append(f"{relative} validation must be a non-empty list")
-        if not isinstance(payload.get("blockers"), list):
-            errors.append(f"{relative} blockers must be a list")
-        review = payload.get("review")
-        if review is not None and (
-            not isinstance(review, dict)
-            or not str(review.get("trigger") or "").strip()
-            or not str(review.get("verdict") or "").strip()
-        ):
-            errors.append(f"{relative} review must contain trigger and verdict when present")
+        errors.extend(validate_accepted_task_lifecycle(payload, relative, task_id))
+        if task_id in ui_tasks:
+            errors.extend(
+                validate_lifecycle_ui_verification(feature_dir, payload, relative)
+            )
     return errors
 
 
@@ -705,7 +770,11 @@ def _validate_packetized_implement_review_artifacts(feature_dir: Path) -> list[s
     errors.extend(packet_errors)
     all_task_ids = _all_implement_task_ids(feature_dir)
     for packet_task_id in sorted(packet_task_ids - checked_task_id_set):
-        reason = "unchecked in tasks.md" if packet_task_id in all_task_ids else "missing checked task in tasks.md"
+        reason = (
+            "unchecked in tasks.md"
+            if packet_task_id in all_task_ids
+            else "missing checked task in tasks.md"
+        )
         errors.append(f"{packet_task_id} packetized task is not checked: {reason}")
 
     if not checked_task_ids:
@@ -715,7 +784,9 @@ def _validate_packetized_implement_review_artifacts(feature_dir: Path) -> list[s
     branch_review_relative = "implementation-review/branch-review.md"
     ledger_path = feature_dir / ledger_relative
     if not ledger_path.is_file():
-        errors.append(f"{ledger_relative} is missing for packetized checked implement tasks")
+        errors.append(
+            f"{ledger_relative} is missing for packetized checked implement tasks"
+        )
         return errors
 
     payload, read_errors = _read_json_artifact(ledger_path, ledger_relative)
@@ -756,7 +827,12 @@ def _validate_packetized_implement_review_artifacts(feature_dir: Path) -> list[s
             feature_dir, ledger_relative, task_id, entry, "task_brief", expected_brief
         )
         package_errors = _validate_accepted_ledger_artifact_reference(
-            feature_dir, ledger_relative, task_id, entry, "review_package", expected_package
+            feature_dir,
+            ledger_relative,
+            task_id,
+            entry,
+            "review_package",
+            expected_package,
         )
         review_errors = _validate_accepted_ledger_artifact_reference(
             feature_dir, ledger_relative, task_id, entry, "task_review", expected_review
@@ -765,10 +841,14 @@ def _validate_packetized_implement_review_artifacts(feature_dir: Path) -> list[s
         errors.extend(package_errors)
         errors.extend(review_errors)
         if not review_errors:
-            errors.extend(_validate_accepted_task_review(feature_dir, task_id, expected_review))
+            errors.extend(
+                _validate_accepted_task_review(feature_dir, task_id, expected_review)
+            )
 
     if not (feature_dir / branch_review_relative).is_file():
-        errors.append(f"{branch_review_relative} is missing for packetized checked implement tasks")
+        errors.append(
+            f"{branch_review_relative} is missing for packetized checked implement tasks"
+        )
     return errors
 
 
@@ -788,7 +868,9 @@ def _validate_must_preserve_items(payload: dict[str, Any], label: str) -> list[s
             continue
         mp_id = str(item.get("id") or f"item {index}").strip()
         missing = sorted(
-            key for key in MP_REQUIRED_KEYS if key != "mapped_to" and not str(item.get(key, "")).strip()
+            key
+            for key in MP_REQUIRED_KEYS
+            if key != "mapped_to" and not str(item.get(key, "")).strip()
         )
         for key in missing:
             errors.append(f"{item_label} {mp_id} missing {key}")
@@ -803,23 +885,45 @@ def _validate_must_preserve_items(payload: dict[str, Any], label: str) -> list[s
         if not isinstance(mapped_to, list):
             errors.append(f"{item_label} {mp_id} mapped_to must be a list")
             mapped_to = []
-        if coverage_status == "complete" and status in MP_ACTIVE_STATUSES and not mapped_to:
-            errors.append(f"{item_label} {mp_id} is active but missing mapped_to coverage")
+        if (
+            coverage_status == "complete"
+            and status in MP_ACTIVE_STATUSES
+            and not mapped_to
+        ):
+            errors.append(
+                f"{item_label} {mp_id} is active but missing mapped_to coverage"
+            )
         if status == "deferred":
-            for key in ("deferred_to", "owner", "latest_resolve_phase", "stop_and_reopen_condition"):
+            for key in (
+                "deferred_to",
+                "owner",
+                "latest_resolve_phase",
+                "stop_and_reopen_condition",
+            ):
                 if not str(item.get(key, "")).strip():
                     errors.append(f"{item_label} {mp_id} deferred item missing {key}")
             if not str(item.get("approved_risk_contract") or "").strip():
-                errors.append(f"{item_label} {mp_id} deferred item missing approved_risk_contract")
+                errors.append(
+                    f"{item_label} {mp_id} deferred item missing approved_risk_contract"
+                )
         if status == "superseded" and not str(item.get("superseded_by") or "").strip():
             errors.append(f"{item_label} {mp_id} superseded item missing superseded_by")
-        if status == "resolved" and not str(item.get("resolution_evidence") or "").strip():
-            errors.append(f"{item_label} {mp_id} resolved item missing resolution_evidence")
+        if (
+            status == "resolved"
+            and not str(item.get("resolution_evidence") or "").strip()
+        ):
+            errors.append(
+                f"{item_label} {mp_id} resolved item missing resolution_evidence"
+            )
         if status == "dropped":
             if not str(item.get("user_decision_source") or "").strip():
-                errors.append(f"{item_label} {mp_id} dropped item missing user_decision_source")
+                errors.append(
+                    f"{item_label} {mp_id} dropped item missing user_decision_source"
+                )
             if not str(item.get("approved_risk_contract") or "").strip():
-                errors.append(f"{item_label} {mp_id} dropped item missing approved_risk_contract")
+                errors.append(
+                    f"{item_label} {mp_id} dropped item missing approved_risk_contract"
+                )
     return errors
 
 
@@ -846,11 +950,23 @@ def _validate_conflict_records(payload: dict[str, Any], label: str) -> list[str]
             if resolution == "none":
                 errors.append(f"{conflict_label} closed conflict missing resolution")
             if not str(item.get("user_decision_source") or "").strip():
-                errors.append(f"{conflict_label} closed conflict missing user_decision_source")
-            if resolution == "revise" and not str(item.get("superseded_by") or "").strip():
-                errors.append(f"{conflict_label} revise resolution missing superseded_by")
-            if resolution in {"drop", "defer"} and not str(item.get("approved_risk_contract") or "").strip():
-                errors.append(f"{conflict_label} {resolution} resolution missing approved_risk_contract")
+                errors.append(
+                    f"{conflict_label} closed conflict missing user_decision_source"
+                )
+            if (
+                resolution == "revise"
+                and not str(item.get("superseded_by") or "").strip()
+            ):
+                errors.append(
+                    f"{conflict_label} revise resolution missing superseded_by"
+                )
+            if (
+                resolution in {"drop", "defer"}
+                and not str(item.get("approved_risk_contract") or "").strip()
+            ):
+                errors.append(
+                    f"{conflict_label} {resolution} resolution missing approved_risk_contract"
+                )
     return errors
 
 
@@ -879,14 +995,11 @@ def _validate_source_evidence_entries(payload: dict[str, Any], label: str) -> li
     status = str(payload.get("status") or "").strip()
     coverage_status = str(payload.get("coverage_status") or "").strip()
     planning_gate_status = str(payload.get("planning_gate_status") or "").strip()
-    if (
-        not source_evidence
-        and (
-            status in {"ready", "user-confirmed"}
-            or (version == 2 and coverage_status == "complete")
-            or (version == 2 and planning_gate_status == "ready")
-            or (version == 2 and payload.get("compile_ready") is True)
-        )
+    if not source_evidence and (
+        status in {"ready", "user-confirmed"}
+        or (version == 2 and coverage_status == "complete")
+        or (version == 2 and planning_gate_status == "ready")
+        or (version == 2 and payload.get("compile_ready") is True)
     ):
         errors.append(f"{label} source_evidence must include at least one entry")
 
@@ -919,7 +1032,9 @@ def _validate_source_evidence_entries(payload: dict[str, Any], label: str) -> li
                 isinstance(value, list)
                 and all(isinstance(entry, str) and entry.strip() for entry in value)
             ):
-                errors.append(f"{item_label}.{field} must be an array of non-empty strings")
+                errors.append(
+                    f"{item_label}.{field} must be an array of non-empty strings"
+                )
 
         needs_refresh = item.get("needs_refresh")
         if needs_refresh is not None and not isinstance(needs_refresh, bool):
@@ -999,7 +1114,10 @@ def _validate_handoff_to_specify_payload(payload: Any, label: str) -> list[str]:
     planning_gate_status = str(payload.get("planning_gate_status") or "").strip()
     if coverage_status and coverage_status not in MP_VALID_COVERAGE_STATUSES:
         errors.append(f"{label} has invalid coverage_status")
-    if planning_gate_status and planning_gate_status not in MP_VALID_PLANNING_GATE_STATUSES:
+    if (
+        planning_gate_status
+        and planning_gate_status not in MP_VALID_PLANNING_GATE_STATUSES
+    ):
         errors.append(f"{label} has invalid planning_gate_status")
 
     errors.extend(_validate_must_preserve_items(payload, label))
@@ -1011,40 +1129,63 @@ def _validate_handoff_to_specify_payload(payload: Any, label: str) -> list[str]:
     open_conflict_count = payload.get("open_conflict_count", 0)
     derived_hard_unknown_count = _derived_hard_unknown_count(payload)
     derived_open_conflict_count = _derived_open_conflict_count(payload)
-    if isinstance(hard_unknown_count, int) and hard_unknown_count != derived_hard_unknown_count:
+    if (
+        isinstance(hard_unknown_count, int)
+        and hard_unknown_count != derived_hard_unknown_count
+    ):
         errors.append(
             f"{label} hard_unknown_count does not match open hard unknowns ({derived_hard_unknown_count})"
         )
-    if isinstance(open_conflict_count, int) and open_conflict_count != derived_open_conflict_count:
+    if (
+        isinstance(open_conflict_count, int)
+        and open_conflict_count != derived_open_conflict_count
+    ):
         errors.append(
             f"{label} open_conflict_count does not match open conflicts ({derived_open_conflict_count})"
         )
     if planning_gate_status == "ready":
         if isinstance(hard_unknown_count, int) and hard_unknown_count > 0:
-            errors.append(f"{label} planning_gate_status ready is invalid with open hard unknowns")
+            errors.append(
+                f"{label} planning_gate_status ready is invalid with open hard unknowns"
+            )
         if derived_hard_unknown_count > 0:
-            errors.append(f"{label} planning_gate_status ready is invalid with open hard unknowns")
+            errors.append(
+                f"{label} planning_gate_status ready is invalid with open hard unknowns"
+            )
         if isinstance(open_conflict_count, int) and open_conflict_count > 0:
-            errors.append(f"{label} planning_gate_status ready is invalid with open conflicts")
+            errors.append(
+                f"{label} planning_gate_status ready is invalid with open conflicts"
+            )
         if derived_open_conflict_count > 0:
-            errors.append(f"{label} planning_gate_status ready is invalid with open conflicts")
+            errors.append(
+                f"{label} planning_gate_status ready is invalid with open conflicts"
+            )
         if coverage_status != "complete":
-            errors.append(f"{label} planning_gate_status ready requires coverage_status complete")
-    if coverage_status == "blocked_by_handoff_integrity" and planning_gate_status != "blocked_by_handoff_integrity":
+            errors.append(
+                f"{label} planning_gate_status ready requires coverage_status complete"
+            )
+    if (
+        coverage_status == "blocked_by_handoff_integrity"
+        and planning_gate_status != "blocked_by_handoff_integrity"
+    ):
         errors.append(
             f"{label} handoff integrity blocks must also set planning_gate_status blocked_by_handoff_integrity"
         )
     return errors
 
 
-def _validate_source_signal_disposition(payload: dict[str, Any], label: str) -> list[str]:
+def _validate_source_signal_disposition(
+    payload: dict[str, Any], label: str
+) -> list[str]:
     errors: list[str] = []
     source_files_read = payload.get("source_files_read", [])
     if source_files_read is None:
         source_files_read = []
     if not isinstance(source_files_read, list):
         errors.append(f"{label} source_files_read must be a list")
-    elif any(not isinstance(item, str) or not item.strip() for item in source_files_read):
+    elif any(
+        not isinstance(item, str) or not item.strip() for item in source_files_read
+    ):
         errors.append(f"{label} source_files_read must contain only non-empty strings")
 
     dispositions = payload.get("source_signal_disposition", [])
@@ -1059,12 +1200,23 @@ def _validate_source_signal_disposition(payload: dict[str, Any], label: str) -> 
     source_handoff_json = str(payload.get("source_handoff_json") or "").strip()
     if entry_source == "sp-discussion" or source_handoff or source_handoff_json:
         if not source_files_read:
-            errors.append(f"{label} source_files_read is required for discussion-originated specify handoff")
+            errors.append(
+                f"{label} source_files_read is required for discussion-originated specify handoff"
+            )
         if not dispositions:
-            errors.append(f"{label} source_signal_disposition is required for discussion-originated specify handoff")
+            errors.append(
+                f"{label} source_signal_disposition is required for discussion-originated specify handoff"
+            )
 
     allowed = {"preserved", "in_scope", "deferred", "dropped", "clarification_blocker"}
-    required = ("signal", "source", "disposition", "artifact_location", "user_confirmed", "reopen_trigger")
+    required = (
+        "signal",
+        "source",
+        "disposition",
+        "artifact_location",
+        "user_confirmed",
+        "reopen_trigger",
+    )
     for index, item in enumerate(dispositions):
         item_label = f"{label} source_signal_disposition[{index}]"
         if not isinstance(item, dict):
@@ -1102,16 +1254,22 @@ def _validate_consequence_json_payload(payload: Any, label: str) -> list[str]:
     errors: list[str] = []
     analysis = payload.get("consequence_analysis")
     if not isinstance(analysis, dict):
-        return [f"{label} consequence_analysis must be an object when consequence_gate.triggered is true"]
+        return [
+            f"{label} consequence_analysis must be an object when consequence_gate.triggered is true"
+        ]
 
     for key in CONSEQUENCE_ANALYSIS_REQUIRED_KEYS:
         value = analysis.get(key)
         if not isinstance(value, list) or not value:
-            errors.append(f"{label} consequence_analysis.{key} must be a non-empty array when the gate is triggered")
+            errors.append(
+                f"{label} consequence_analysis.{key} must be a non-empty array when the gate is triggered"
+            )
 
     obligations = payload.get("consequence_obligations")
     if not isinstance(obligations, list) or not obligations:
-        errors.append(f"{label} consequence_obligations must be a non-empty array when the gate is triggered")
+        errors.append(
+            f"{label} consequence_obligations must be a non-empty array when the gate is triggered"
+        )
         return errors
 
     for index, obligation in enumerate(obligations):
@@ -1122,9 +1280,13 @@ def _validate_consequence_json_payload(payload: Any, label: str) -> list[str]:
             value = obligation.get(key)
             if isinstance(value, list):
                 if not value:
-                    errors.append(f"{label} consequence_obligations[{index}].{key} must not be empty")
+                    errors.append(
+                        f"{label} consequence_obligations[{index}].{key} must not be empty"
+                    )
             elif not str(value or "").strip():
-                errors.append(f"{label} consequence_obligations[{index}].{key} must not be empty")
+                errors.append(
+                    f"{label} consequence_obligations[{index}].{key} must not be empty"
+                )
 
     return errors
 
@@ -1158,14 +1320,20 @@ def _decision_consequence_obligation_ids(decision: Any) -> set[str]:
         ids.add(raw_id.strip())
     raw_ids = decision.get("consequence_obligation_ids")
     if isinstance(raw_ids, list):
-        ids.update(item.strip() for item in raw_ids if isinstance(item, str) and item.strip())
+        ids.update(
+            item.strip() for item in raw_ids if isinstance(item, str) and item.strip()
+        )
     elif isinstance(raw_ids, str) and raw_ids.strip():
         ids.add(raw_ids.strip())
     return ids
 
 
-def _validate_brainstorming_json_artifact(feature_dir: Path, relative_path: str, *, validate_unknowns: bool) -> list[str]:
-    payload, read_errors = _read_json_artifact(feature_dir / relative_path, relative_path)
+def _validate_brainstorming_json_artifact(
+    feature_dir: Path, relative_path: str, *, validate_unknowns: bool
+) -> list[str]:
+    payload, read_errors = _read_json_artifact(
+        feature_dir / relative_path, relative_path
+    )
     if read_errors:
         return read_errors
     if validate_unknowns:
@@ -1183,17 +1351,27 @@ def _has_any_non_empty_key(payload: dict[str, Any], keys: tuple[str, ...]) -> bo
     return any(_is_non_empty_text(payload.get(key)) for key in keys)
 
 
-def _require_payload_keys(payload: dict[str, Any], label: str, keys: tuple[str, ...]) -> list[str]:
-    return [f"{label} payload missing {key}" for key in keys if not _is_non_empty_text(payload.get(key))]
+def _require_payload_keys(
+    payload: dict[str, Any], label: str, keys: tuple[str, ...]
+) -> list[str]:
+    return [
+        f"{label} payload missing {key}"
+        for key in keys
+        if not _is_non_empty_text(payload.get(key))
+    ]
 
 
-def _require_payload_any_key(payload: dict[str, Any], label: str, keys: tuple[str, ...], description: str) -> list[str]:
+def _require_payload_any_key(
+    payload: dict[str, Any], label: str, keys: tuple[str, ...], description: str
+) -> list[str]:
     if _has_any_non_empty_key(payload, keys):
         return []
     return [f"{label} payload missing {description}"]
 
 
-def _require_payload_basis_or_evidence_ids(payload: dict[str, Any], label: str) -> list[str]:
+def _require_payload_basis_or_evidence_ids(
+    payload: dict[str, Any], label: str
+) -> list[str]:
     if _is_non_empty_text(payload.get("basis")):
         return []
     evidence_ids = payload.get("evidence_ids")
@@ -1206,7 +1384,9 @@ def _require_payload_basis_or_evidence_ids(payload: dict[str, Any], label: str) 
     return [f"{label} payload missing basis or non-empty evidence_ids"]
 
 
-def _validate_journal_event_payload(event: dict[str, Any], line_label: str) -> list[str]:
+def _validate_journal_event_payload(
+    event: dict[str, Any], line_label: str
+) -> list[str]:
     event_type = str(event.get("type") or "").strip()
     payload = event.get("payload")
     if not isinstance(payload, dict):
@@ -1214,62 +1394,226 @@ def _validate_journal_event_payload(event: dict[str, Any], line_label: str) -> l
 
     errors: list[str] = []
     payload_label = f"{line_label} {event_type}"
-    if event_type in {"session_started", "feature_workspace_created", "reopen_requested"}:
+    if event_type in {
+        "session_started",
+        "feature_workspace_created",
+        "reopen_requested",
+    }:
         return errors
     if event_type == "user_input_captured":
-        errors.extend(_require_payload_any_key(payload, payload_label, ("raw_excerpt", "excerpt"), "raw excerpt"))
+        errors.extend(
+            _require_payload_any_key(
+                payload, payload_label, ("raw_excerpt", "excerpt"), "raw excerpt"
+            )
+        )
         errors.extend(_require_payload_keys(payload, payload_label, ("content_hash",)))
-        errors.extend(_require_payload_any_key(payload, payload_label, ("input_role", "role"), "input role"))
+        errors.extend(
+            _require_payload_any_key(
+                payload, payload_label, ("input_role", "role"), "input role"
+            )
+        )
     elif event_type == "question_asked":
-        errors.extend(_require_payload_keys(payload, payload_label, ("question_id", "domain", "blocking_level")))
-        errors.extend(_require_payload_any_key(payload, payload_label, ("field", "unknown_id"), "field or unknown_id"))
+        errors.extend(
+            _require_payload_keys(
+                payload, payload_label, ("question_id", "domain", "blocking_level")
+            )
+        )
+        errors.extend(
+            _require_payload_any_key(
+                payload, payload_label, ("field", "unknown_id"), "field or unknown_id"
+            )
+        )
     elif event_type == "answer_recorded":
-        errors.extend(_require_payload_keys(payload, payload_label, ("question_id", "content_hash", "interpretation_summary", "confidence")))
-        errors.extend(_require_payload_any_key(payload, payload_label, ("answer_excerpt", "excerpt"), "answer excerpt"))
+        errors.extend(
+            _require_payload_keys(
+                payload,
+                payload_label,
+                ("question_id", "content_hash", "interpretation_summary", "confidence"),
+            )
+        )
+        errors.extend(
+            _require_payload_any_key(
+                payload, payload_label, ("answer_excerpt", "excerpt"), "answer excerpt"
+            )
+        )
     elif event_type == "repo_evidence_captured":
-        errors.extend(_require_payload_keys(payload, payload_label, ("evidence_id", "relevance", "claim")))
-        errors.extend(_require_payload_any_key(payload, payload_label, ("source_path", "path"), "source path"))
-        errors.extend(_require_payload_any_key(payload, payload_label, ("excerpt_hash", "content_hash"), "excerpt or content hash"))
+        errors.extend(
+            _require_payload_keys(
+                payload, payload_label, ("evidence_id", "relevance", "claim")
+            )
+        )
+        errors.extend(
+            _require_payload_any_key(
+                payload, payload_label, ("source_path", "path"), "source path"
+            )
+        )
+        errors.extend(
+            _require_payload_any_key(
+                payload,
+                payload_label,
+                ("excerpt_hash", "content_hash"),
+                "excerpt or content hash",
+            )
+        )
     elif event_type == "research_evidence_captured":
-        errors.extend(_require_payload_keys(payload, payload_label, ("evidence_id", "confidence")))
-        errors.extend(_require_payload_any_key(payload, payload_label, ("source_url", "url", "source_path", "spike_path"), "source url/path/spike path"))
-        errors.extend(_require_payload_any_key(payload, payload_label, ("excerpt_hash", "content_hash"), "excerpt or content hash"))
-        errors.extend(_require_payload_any_key(payload, payload_label, ("relevance", "claim"), "relevance or claim"))
+        errors.extend(
+            _require_payload_keys(payload, payload_label, ("evidence_id", "confidence"))
+        )
+        errors.extend(
+            _require_payload_any_key(
+                payload,
+                payload_label,
+                ("source_url", "url", "source_path", "spike_path"),
+                "source url/path/spike path",
+            )
+        )
+        errors.extend(
+            _require_payload_any_key(
+                payload,
+                payload_label,
+                ("excerpt_hash", "content_hash"),
+                "excerpt or content hash",
+            )
+        )
+        errors.extend(
+            _require_payload_any_key(
+                payload, payload_label, ("relevance", "claim"), "relevance or claim"
+            )
+        )
     elif event_type == "unknown_opened":
         errors.extend(_require_payload_keys(payload, payload_label, ("unknown_id",)))
-        errors.extend(_require_payload_any_key(payload, payload_label, ("field", "domain", "question"), "field, domain, or question"))
+        errors.extend(
+            _require_payload_any_key(
+                payload,
+                payload_label,
+                ("field", "domain", "question"),
+                "field, domain, or question",
+            )
+        )
     elif event_type == "unknown_resolved":
         errors.extend(_require_payload_keys(payload, payload_label, ("unknown_id",)))
-        errors.extend(_require_payload_any_key(payload, payload_label, ("resolution", "resolved_value", "disposition"), "resolution"))
+        errors.extend(
+            _require_payload_any_key(
+                payload,
+                payload_label,
+                ("resolution", "resolved_value", "disposition"),
+                "resolution",
+            )
+        )
     elif event_type == "unknown_deferred":
         errors.extend(_require_payload_keys(payload, payload_label, ("unknown_id",)))
-        errors.extend(_require_payload_any_key(payload, payload_label, ("deferred_to", "owner", "disposition"), "defer disposition"))
+        errors.extend(
+            _require_payload_any_key(
+                payload,
+                payload_label,
+                ("deferred_to", "owner", "disposition"),
+                "defer disposition",
+            )
+        )
     elif event_type == "unknown_waived":
         errors.extend(_require_payload_keys(payload, payload_label, ("unknown_id",)))
-        errors.extend(_require_payload_any_key(payload, payload_label, ("waiver_reason", "risk_acceptance", "disposition"), "waiver disposition"))
+        errors.extend(
+            _require_payload_any_key(
+                payload,
+                payload_label,
+                ("waiver_reason", "risk_acceptance", "disposition"),
+                "waiver disposition",
+            )
+        )
     elif event_type == "decision_locked":
-        errors.extend(_require_payload_any_key(payload, payload_label, ("decision_id", "stable_id"), "stable decision ID"))
-        errors.extend(_require_payload_any_key(payload, payload_label, ("locked_value", "selected_value", "decision"), "locked value"))
+        errors.extend(
+            _require_payload_any_key(
+                payload,
+                payload_label,
+                ("decision_id", "stable_id"),
+                "stable decision ID",
+            )
+        )
+        errors.extend(
+            _require_payload_any_key(
+                payload,
+                payload_label,
+                ("locked_value", "selected_value", "decision"),
+                "locked value",
+            )
+        )
         errors.extend(_require_payload_basis_or_evidence_ids(payload, payload_label))
     elif event_type == "route_selected":
-        errors.extend(_require_payload_any_key(payload, payload_label, ("route_id", "stable_id"), "stable route ID"))
-        errors.extend(_require_payload_any_key(payload, payload_label, ("selected_route", "selected_value", "route"), "selected route"))
+        errors.extend(
+            _require_payload_any_key(
+                payload, payload_label, ("route_id", "stable_id"), "stable route ID"
+            )
+        )
+        errors.extend(
+            _require_payload_any_key(
+                payload,
+                payload_label,
+                ("selected_route", "selected_value", "route"),
+                "selected route",
+            )
+        )
         errors.extend(_require_payload_basis_or_evidence_ids(payload, payload_label))
     elif event_type == "complexity_selected":
-        errors.extend(_require_payload_any_key(payload, payload_label, ("complexity_id", "stable_id"), "stable complexity ID"))
-        errors.extend(_require_payload_any_key(payload, payload_label, ("selected_complexity", "complexity_level", "selected_value"), "selected complexity"))
+        errors.extend(
+            _require_payload_any_key(
+                payload,
+                payload_label,
+                ("complexity_id", "stable_id"),
+                "stable complexity ID",
+            )
+        )
+        errors.extend(
+            _require_payload_any_key(
+                payload,
+                payload_label,
+                ("selected_complexity", "complexity_level", "selected_value"),
+                "selected complexity",
+            )
+        )
         errors.extend(_require_payload_basis_or_evidence_ids(payload, payload_label))
     elif event_type == "stage_artifact_compiled":
-        errors.extend(_require_payload_keys(payload, payload_label, ("artifact_path", "stage", "output_hash")))
-        errors.extend(_validate_event_reference_list(payload.get("input_event_range"), f"{payload_label} payload.input_event_range", None, exact_len=2))
-        errors.extend(_validate_event_reference_list(payload.get("key_event_ids"), f"{payload_label} payload.key_event_ids", None))
+        errors.extend(
+            _require_payload_keys(
+                payload, payload_label, ("artifact_path", "stage", "output_hash")
+            )
+        )
+        errors.extend(
+            _validate_event_reference_list(
+                payload.get("input_event_range"),
+                f"{payload_label} payload.input_event_range",
+                None,
+                exact_len=2,
+            )
+        )
+        errors.extend(
+            _validate_event_reference_list(
+                payload.get("key_event_ids"),
+                f"{payload_label} payload.key_event_ids",
+                None,
+            )
+        )
         if not isinstance(payload.get("evidence_ids"), list):
             errors.append(f"{payload_label} payload.evidence_ids must be a list")
     elif event_type == "artifact_compiled":
-        errors.extend(_require_payload_keys(payload, payload_label, ("artifact_path", "output_hash", "source_map_reference")))
+        errors.extend(
+            _require_payload_keys(
+                payload,
+                payload_label,
+                ("artifact_path", "output_hash", "source_map_reference"),
+            )
+        )
         if not isinstance(payload.get("input_stage_artifacts"), list):
-            errors.append(f"{payload_label} payload.input_stage_artifacts must be a list")
-        errors.extend(_validate_event_reference_list(payload.get("input_event_range"), f"{payload_label} payload.input_event_range", None, exact_len=2))
+            errors.append(
+                f"{payload_label} payload.input_stage_artifacts must be a list"
+            )
+        errors.extend(
+            _validate_event_reference_list(
+                payload.get("input_event_range"),
+                f"{payload_label} payload.input_event_range",
+                None,
+                exact_len=2,
+            )
+        )
     elif event_type == "checkpoint_written":
         required = (
             "checkpoint_event_id",
@@ -1283,17 +1627,33 @@ def _validate_journal_event_payload(event: dict[str, Any], line_label: str) -> l
         checkpoint_event_id = str(payload.get("checkpoint_event_id") or "").strip()
         event_id = str(event.get("event_id") or "").strip()
         if checkpoint_event_id and checkpoint_event_id != event_id:
-            errors.append(f"{payload_label} payload.checkpoint_event_id must equal event_id")
+            errors.append(
+                f"{payload_label} payload.checkpoint_event_id must equal event_id"
+            )
     elif event_type == "legacy_state_imported":
-        if not isinstance(payload.get("legacy_source_files"), list) or not payload.get("legacy_source_files"):
-            errors.append(f"{payload_label} payload.legacy_source_files must be a non-empty list")
-        if not isinstance(payload.get("imported_artifact_hashes"), dict) or not payload.get("imported_artifact_hashes"):
-            errors.append(f"{payload_label} payload.imported_artifact_hashes must be a non-empty object")
-        errors.extend(_require_payload_keys(payload, payload_label, ("reconstruction_limits", "warning")))
+        if not isinstance(payload.get("legacy_source_files"), list) or not payload.get(
+            "legacy_source_files"
+        ):
+            errors.append(
+                f"{payload_label} payload.legacy_source_files must be a non-empty list"
+            )
+        if not isinstance(
+            payload.get("imported_artifact_hashes"), dict
+        ) or not payload.get("imported_artifact_hashes"):
+            errors.append(
+                f"{payload_label} payload.imported_artifact_hashes must be a non-empty object"
+            )
+        errors.extend(
+            _require_payload_keys(
+                payload, payload_label, ("reconstruction_limits", "warning")
+            )
+        )
     return errors
 
 
-def _validate_journal_event_payload_references(event: dict[str, Any], line_label: str, event_ids: set[str]) -> list[str]:
+def _validate_journal_event_payload_references(
+    event: dict[str, Any], line_label: str, event_ids: set[str]
+) -> list[str]:
     event_type = str(event.get("type") or "").strip()
     payload = event.get("payload")
     if not isinstance(payload, dict):
@@ -1308,7 +1668,11 @@ def _validate_journal_event_payload_references(event: dict[str, Any], line_label
                 event_ids,
                 exact_len=2,
             ),
-            *_validate_event_reference_list(payload.get("key_event_ids"), f"{payload_label} payload.key_event_ids", event_ids),
+            *_validate_event_reference_list(
+                payload.get("key_event_ids"),
+                f"{payload_label} payload.key_event_ids",
+                event_ids,
+            ),
         ]
     if event_type == "artifact_compiled":
         return _validate_event_reference_list(
@@ -1335,10 +1699,14 @@ def _read_journal_events(feature_dir: Path) -> tuple[list[dict[str, Any]], list[
         try:
             event = json.loads(line)
         except json.JSONDecodeError as exc:
-            errors.append(f"brainstorming/journal.ndjson line {index} is invalid JSON: {exc.msg}")
+            errors.append(
+                f"brainstorming/journal.ndjson line {index} is invalid JSON: {exc.msg}"
+            )
             continue
         if not isinstance(event, dict):
-            errors.append(f"brainstorming/journal.ndjson line {index} must be an object")
+            errors.append(
+                f"brainstorming/journal.ndjson line {index} must be an object"
+            )
             continue
 
         event_id = str(event.get("event_id") or "").strip()
@@ -1349,32 +1717,54 @@ def _read_journal_events(feature_dir: Path) -> tuple[list[dict[str, Any]], list[
         if not event_type:
             errors.append(f"brainstorming/journal.ndjson line {index} missing type")
         elif event_type not in LOSSLESS_SPECIFY_EVENT_TYPES:
-            errors.append(f"brainstorming/journal.ndjson line {index} unknown event type: {event_type}")
+            errors.append(
+                f"brainstorming/journal.ndjson line {index} unknown event type: {event_type}"
+            )
         if type(event.get("schema_version")) is not int:
-            errors.append(f"brainstorming/journal.ndjson line {index} schema_version must be an integer")
+            errors.append(
+                f"brainstorming/journal.ndjson line {index} schema_version must be an integer"
+            )
         if not _is_non_empty_text(event.get("created_at")):
-            errors.append(f"brainstorming/journal.ndjson line {index} missing created_at")
+            errors.append(
+                f"brainstorming/journal.ndjson line {index} missing created_at"
+            )
         if not stage:
             errors.append(f"brainstorming/journal.ndjson line {index} missing stage")
         if stage and stage not in LOSSLESS_SPECIFY_STAGES:
-            errors.append(f"brainstorming/journal.ndjson line {index} uses non-canonical stage: {stage}")
+            errors.append(
+                f"brainstorming/journal.ndjson line {index} uses non-canonical stage: {stage}"
+            )
         if not isinstance(event.get("source"), dict):
-            errors.append(f"brainstorming/journal.ndjson line {index} source must be an object")
+            errors.append(
+                f"brainstorming/journal.ndjson line {index} source must be an object"
+            )
         if not isinstance(event.get("payload"), dict):
-            errors.append(f"brainstorming/journal.ndjson line {index} payload must be an object")
+            errors.append(
+                f"brainstorming/journal.ndjson line {index} payload must be an object"
+            )
         if not isinstance(event.get("writes"), list):
-            errors.append(f"brainstorming/journal.ndjson line {index} writes must be a list")
+            errors.append(
+                f"brainstorming/journal.ndjson line {index} writes must be a list"
+            )
         supersedes_event_id = event.get("supersedes_event_id")
         if supersedes_event_id is not None and not isinstance(supersedes_event_id, str):
-            errors.append(f"brainstorming/journal.ndjson line {index} supersedes_event_id must be null or string")
+            errors.append(
+                f"brainstorming/journal.ndjson line {index} supersedes_event_id must be null or string"
+            )
         if event_type in LOSSLESS_SPECIFY_EVENT_TYPES:
-            errors.extend(_validate_journal_event_payload(event, f"brainstorming/journal.ndjson line {index}"))
+            errors.extend(
+                _validate_journal_event_payload(
+                    event, f"brainstorming/journal.ndjson line {index}"
+                )
+            )
         events.append(event)
 
     return events, errors
 
 
-def _validate_journal_event_references(events: list[dict[str, Any]], event_ids: set[str]) -> list[str]:
+def _validate_journal_event_references(
+    events: list[dict[str, Any]], event_ids: set[str]
+) -> list[str]:
     errors: list[str] = []
     for index, event in enumerate(events, start=1):
         if str(event.get("type") or "").strip() in LOSSLESS_SPECIFY_EVENT_TYPES:
@@ -1399,24 +1789,35 @@ def _validate_event_reference_list(
         return [f"{label} must be a list"]
     errors: list[str] = []
     if exact_len is not None and value and len(value) != exact_len:
-        errors.append(f"{label} must contain exactly {exact_len} event IDs when non-empty")
+        errors.append(
+            f"{label} must contain exactly {exact_len} event IDs when non-empty"
+        )
     for index, item in enumerate(value):
         if not _is_non_empty_text(item):
             errors.append(f"{label}[{index}] must be a non-empty event ID")
             continue
         if event_ids is not None and item.strip() not in event_ids:
-            errors.append(f"{label}[{index}] references unknown journal event: {item.strip()}")
+            errors.append(
+                f"{label}[{index}] references unknown journal event: {item.strip()}"
+            )
     return errors
 
 
-def _validate_compiled_from(payload: dict[str, Any], label: str, event_ids: set[str]) -> list[str]:
+def _validate_compiled_from(
+    payload: dict[str, Any], label: str, event_ids: set[str]
+) -> list[str]:
     compiled_from = payload.get("compiled_from")
     if not isinstance(compiled_from, dict):
         return [f"{label} missing compiled_from"]
 
     errors: list[str] = []
-    if str(compiled_from.get("journal") or "").strip() != "brainstorming/journal.ndjson":
-        errors.append(f"{label} compiled_from.journal must be brainstorming/journal.ndjson")
+    if (
+        str(compiled_from.get("journal") or "").strip()
+        != "brainstorming/journal.ndjson"
+    ):
+        errors.append(
+            f"{label} compiled_from.journal must be brainstorming/journal.ndjson"
+        )
     errors.extend(
         _validate_event_reference_list(
             compiled_from.get("event_range"),
@@ -1425,7 +1826,13 @@ def _validate_compiled_from(payload: dict[str, Any], label: str, event_ids: set[
             exact_len=2,
         )
     )
-    errors.extend(_validate_event_reference_list(compiled_from.get("key_events"), f"{label} compiled_from.key_events", event_ids))
+    errors.extend(
+        _validate_event_reference_list(
+            compiled_from.get("key_events"),
+            f"{label} compiled_from.key_events",
+            event_ids,
+        )
+    )
     if not isinstance(compiled_from.get("evidence_ids"), list):
         errors.append(f"{label} compiled_from.evidence_ids must be a list")
     return errors
@@ -1439,7 +1846,9 @@ def _validate_lossless_resume_state(
 ) -> list[str]:
     workflow_state_path = feature_dir / "workflow-state.md"
     try:
-        workflow_state_content = workflow_state_path.read_text(encoding="utf-8", errors="replace")
+        workflow_state_content = workflow_state_path.read_text(
+            encoding="utf-8", errors="replace"
+        )
     except OSError as exc:
         return [f"workflow-state.md could not be read: {exc}"]
     section = _extract_markdown_section(workflow_state_content, "Lossless Resume State")
@@ -1459,14 +1868,26 @@ def _validate_lossless_resume_state(
     }
     for field, value in required_fields.items():
         if not value.strip():
-            errors.append(f"workflow-state.md Lossless Resume State {field} is required")
+            errors.append(
+                f"workflow-state.md Lossless Resume State {field} is required"
+            )
     if journal_file != "brainstorming/journal.ndjson":
-        errors.append("workflow-state.md Lossless Resume State journal_file must be brainstorming/journal.ndjson")
+        errors.append(
+            "workflow-state.md Lossless Resume State journal_file must be brainstorming/journal.ndjson"
+        )
     if stage_manifest != "brainstorming/stage-manifest.json":
-        errors.append("workflow-state.md Lossless Resume State stage_manifest must be brainstorming/stage-manifest.json")
+        errors.append(
+            "workflow-state.md Lossless Resume State stage_manifest must be brainstorming/stage-manifest.json"
+        )
     if last_event_id and last_event_id != "none" and last_event_id not in event_ids:
-        errors.append(f"workflow-state.md Lossless Resume State last_event_id not found in journal: {last_event_id}")
-    if last_checkpoint_id and last_checkpoint_id != "none" and last_checkpoint_id not in checkpoint_ids:
+        errors.append(
+            f"workflow-state.md Lossless Resume State last_event_id not found in journal: {last_event_id}"
+        )
+    if (
+        last_checkpoint_id
+        and last_checkpoint_id != "none"
+        and last_checkpoint_id not in checkpoint_ids
+    ):
         errors.append(
             "workflow-state.md Lossless Resume State last_checkpoint_id not found as checkpoint_written "
             f"event in journal: {last_checkpoint_id}"
@@ -1489,7 +1910,11 @@ def _validate_lossless_specify_state(feature_dir: Path) -> list[str]:
     errors: list[str] = []
     events, journal_errors = _read_journal_events(feature_dir)
     errors.extend(journal_errors)
-    event_ids = {str(event.get("event_id") or "").strip() for event in events if str(event.get("event_id") or "").strip()}
+    event_ids = {
+        str(event.get("event_id") or "").strip()
+        for event in events
+        if str(event.get("event_id") or "").strip()
+    }
     errors.extend(_validate_journal_event_references(events, event_ids))
     checkpoint_ids = {
         str(event.get("event_id") or "").strip()
@@ -1506,7 +1931,9 @@ def _validate_lossless_specify_state(feature_dir: Path) -> list[str]:
     if manifest_errors:
         return errors
     if not isinstance(manifest, dict):
-        errors.append("brainstorming/stage-manifest.json must contain a top-level object")
+        errors.append(
+            "brainstorming/stage-manifest.json must contain a top-level object"
+        )
         return errors
 
     stages = manifest.get("stages")
@@ -1522,11 +1949,15 @@ def _validate_lossless_specify_state(feature_dir: Path) -> list[str]:
             )
         for stage in stages:
             if stage not in LOSSLESS_SPECIFY_STAGES:
-                errors.append(f"brainstorming/stage-manifest.json uses non-canonical stage: {stage}")
+                errors.append(
+                    f"brainstorming/stage-manifest.json uses non-canonical stage: {stage}"
+                )
                 continue
             entry = stages[stage]
             if not isinstance(entry, dict):
-                errors.append(f"brainstorming/stage-manifest.json stages.{stage} must be an object")
+                errors.append(
+                    f"brainstorming/stage-manifest.json stages.{stage} must be an object"
+                )
                 continue
             expected_artifact = LOSSLESS_SPECIFY_STAGE_ARTIFACTS[stage]
             actual_artifact = str(entry.get("artifact") or "").strip()
@@ -1536,7 +1967,9 @@ def _validate_lossless_specify_state(feature_dir: Path) -> list[str]:
                     f"{expected_artifact}, found {actual_artifact or 'missing'}"
                 )
             if "event_range" not in entry:
-                errors.append(f"brainstorming/stage-manifest.json stages.{stage}.event_range is required")
+                errors.append(
+                    f"brainstorming/stage-manifest.json stages.{stage}.event_range is required"
+                )
             else:
                 errors.extend(
                     _validate_event_reference_list(
@@ -1547,9 +1980,13 @@ def _validate_lossless_specify_state(feature_dir: Path) -> list[str]:
                     )
                 )
             if "last_compiled_event_id" not in entry:
-                errors.append(f"brainstorming/stage-manifest.json stages.{stage}.last_compiled_event_id is required")
+                errors.append(
+                    f"brainstorming/stage-manifest.json stages.{stage}.last_compiled_event_id is required"
+                )
             elif entry.get("last_compiled_event_id") is not None:
-                last_compiled_event_id = str(entry.get("last_compiled_event_id") or "").strip()
+                last_compiled_event_id = str(
+                    entry.get("last_compiled_event_id") or ""
+                ).strip()
                 if not last_compiled_event_id:
                     errors.append(
                         f"brainstorming/stage-manifest.json stages.{stage}.last_compiled_event_id "
@@ -1561,19 +1998,29 @@ def _validate_lossless_specify_state(feature_dir: Path) -> list[str]:
                         f"references unknown journal event: {last_compiled_event_id}"
                     )
             if "artifact_hash" not in entry:
-                errors.append(f"brainstorming/stage-manifest.json stages.{stage}.artifact_hash is required")
-            elif entry.get("artifact_hash") is not None and not isinstance(entry.get("artifact_hash"), str):
-                errors.append(f"brainstorming/stage-manifest.json stages.{stage}.artifact_hash must be a string or null")
+                errors.append(
+                    f"brainstorming/stage-manifest.json stages.{stage}.artifact_hash is required"
+                )
+            elif entry.get("artifact_hash") is not None and not isinstance(
+                entry.get("artifact_hash"), str
+            ):
+                errors.append(
+                    f"brainstorming/stage-manifest.json stages.{stage}.artifact_hash must be a string or null"
+                )
 
     canonical_stage_enum = manifest.get("canonical_stage_enum")
     if not isinstance(canonical_stage_enum, list):
-        errors.append("brainstorming/stage-manifest.json canonical_stage_enum must be a list")
+        errors.append(
+            "brainstorming/stage-manifest.json canonical_stage_enum must be a list"
+        )
     else:
         canonical_stage_set = {str(item) for item in canonical_stage_enum}
         missing = sorted(LOSSLESS_SPECIFY_STAGES - canonical_stage_set)
         extra = sorted(canonical_stage_set - LOSSLESS_SPECIFY_STAGES)
         if missing:
-            errors.append(f"brainstorming/stage-manifest.json canonical_stage_enum missing: {', '.join(missing)}")
+            errors.append(
+                f"brainstorming/stage-manifest.json canonical_stage_enum missing: {', '.join(missing)}"
+            )
         if extra:
             errors.append(
                 "brainstorming/stage-manifest.json canonical_stage_enum has unknown stages: "
@@ -1589,13 +2036,19 @@ def _validate_lossless_specify_state(feature_dir: Path) -> list[str]:
         last_checkpoint_id = str(journal.get("last_checkpoint_id") or "").strip()
         manifest_last_checkpoint_id = last_checkpoint_id
         if last_event_id and last_event_id not in event_ids:
-            errors.append(f"brainstorming/stage-manifest.json last_event_id not found in journal: {last_event_id}")
+            errors.append(
+                f"brainstorming/stage-manifest.json last_event_id not found in journal: {last_event_id}"
+            )
         if last_checkpoint_id and last_checkpoint_id not in checkpoint_ids:
             errors.append(
                 "brainstorming/stage-manifest.json last_checkpoint_id not found as checkpoint_written "
                 f"event in journal: {last_checkpoint_id}"
             )
-    errors.extend(_validate_lossless_resume_state(feature_dir, event_ids, checkpoint_ids, manifest_last_checkpoint_id))
+    errors.extend(
+        _validate_lossless_resume_state(
+            feature_dir, event_ids, checkpoint_ids, manifest_last_checkpoint_id
+        )
+    )
 
     for relative_path in (
         "brainstorming/facts.json",
@@ -1606,7 +2059,9 @@ def _validate_lossless_specify_state(feature_dir: Path) -> list[str]:
         "brainstorming/evidence-index.json",
         "brainstorming/handoff-to-specify.json",
     ):
-        payload, read_errors = _read_json_artifact(feature_dir / relative_path, relative_path)
+        payload, read_errors = _read_json_artifact(
+            feature_dir / relative_path, relative_path
+        )
         errors.extend(read_errors)
         if read_errors:
             continue
@@ -1627,7 +2082,9 @@ def _validate_lossless_specify_state(feature_dir: Path) -> list[str]:
 
 
 def _validate_capability_ledger(feature_dir: Path) -> list[str]:
-    payload, read_errors = _read_json_artifact(feature_dir / "capability-ledger.json", "capability-ledger.json")
+    payload, read_errors = _read_json_artifact(
+        feature_dir / "capability-ledger.json", "capability-ledger.json"
+    )
     if read_errors:
         return read_errors
     if not isinstance(payload, dict):
@@ -1638,7 +2095,9 @@ def _validate_capability_ledger(feature_dir: Path) -> list[str]:
 
 
 def _validate_control_ledger(feature_dir: Path) -> list[str]:
-    payload, read_errors = _read_json_artifact(feature_dir / "control-ledger.json", "control-ledger.json")
+    payload, read_errors = _read_json_artifact(
+        feature_dir / "control-ledger.json", "control-ledger.json"
+    )
     if read_errors:
         return read_errors
     if not isinstance(payload, dict):
@@ -1677,27 +2136,41 @@ def _validate_deep_research_not_needed_artifact(content: str) -> list[str]:
 
     for section in DEEP_RESEARCH_NOT_NEEDED_REQUIRED_SECTIONS:
         if section not in content:
-            errors.append(f"deep-research.md not-needed output is missing required section: {section}")
+            errors.append(
+                f"deep-research.md not-needed output is missing required section: {section}"
+            )
 
     feasibility_section = _extract_markdown_section(content, "Feasibility Decision")
     handoff_section = _extract_markdown_section(content, "Planning Handoff")
     next_command_section = _extract_markdown_section(content, "Next Command")
 
     if "**Recommendation**" not in feasibility_section:
-        errors.append("deep-research.md not-needed Feasibility Decision is missing **Recommendation**")
+        errors.append(
+            "deep-research.md not-needed Feasibility Decision is missing **Recommendation**"
+        )
     elif "/sp.plan" not in feasibility_section:
-        errors.append("deep-research.md not-needed Feasibility Decision must recommend `/sp.plan`")
+        errors.append(
+            "deep-research.md not-needed Feasibility Decision must recommend `/sp.plan`"
+        )
 
     if "**Reason**" not in feasibility_section:
-        errors.append("deep-research.md not-needed Feasibility Decision is missing **Reason**")
+        errors.append(
+            "deep-research.md not-needed Feasibility Decision is missing **Reason**"
+        )
 
     if "**Handoff IDs**" not in handoff_section:
-        errors.append("deep-research.md not-needed Planning Handoff is missing **Handoff IDs**")
+        errors.append(
+            "deep-research.md not-needed Planning Handoff is missing **Handoff IDs**"
+        )
     elif "not needed" not in handoff_section.lower():
-        errors.append("deep-research.md not-needed Planning Handoff must mark handoff IDs as Not needed")
+        errors.append(
+            "deep-research.md not-needed Planning Handoff must mark handoff IDs as Not needed"
+        )
 
     if "**Recommended approach**" not in handoff_section:
-        errors.append("deep-research.md not-needed Planning Handoff is missing **Recommended approach**")
+        errors.append(
+            "deep-research.md not-needed Planning Handoff is missing **Recommended approach**"
+        )
     if "**Constraints `/sp.plan` must preserve**" not in handoff_section:
         errors.append(
             "deep-research.md not-needed Planning Handoff is missing **Constraints `/sp.plan` must preserve**"
@@ -1728,14 +2201,20 @@ def _validate_deep_research_artifact(feature_dir: Path) -> list[str]:
 
     for field in DEEP_RESEARCH_HANDOFF_FIELDS:
         if field not in handoff_section:
-            errors.append(f"deep-research.md Planning Handoff is missing field: {field}")
+            errors.append(
+                f"deep-research.md Planning Handoff is missing field: {field}"
+            )
 
     if "CAP-" not in content:
-        errors.append("deep-research.md is missing capability traceability IDs such as CAP-001")
+        errors.append(
+            "deep-research.md is missing capability traceability IDs such as CAP-001"
+        )
     if "TRK-" not in content:
         errors.append("deep-research.md is missing research track IDs such as TRK-001")
     if "EVD-" not in content and "SPK-" not in content:
-        errors.append("deep-research.md is missing evidence or spike IDs such as EVD-001 or SPK-001")
+        errors.append(
+            "deep-research.md is missing evidence or spike IDs such as EVD-001 or SPK-001"
+        )
     if "PH-" not in handoff_section and "not needed" not in handoff_section.lower():
         errors.append("deep-research.md is missing Planning Handoff IDs such as PH-001")
 
@@ -1748,8 +2227,12 @@ def _validate_plan_consumes_deep_research(feature_dir: Path) -> list[str]:
     if not deep_research_path.exists() or not plan_path.exists():
         return []
 
-    deep_research_content = deep_research_path.read_text(encoding="utf-8", errors="replace")
-    handoff_section = _extract_markdown_section(deep_research_content, "Planning Handoff")
+    deep_research_content = deep_research_path.read_text(
+        encoding="utf-8", errors="replace"
+    )
+    handoff_section = _extract_markdown_section(
+        deep_research_content, "Planning Handoff"
+    )
     handoff_ids = _extract_handoff_ids(handoff_section)
     if not handoff_ids:
         return []
@@ -1758,23 +2241,39 @@ def _validate_plan_consumes_deep_research(feature_dir: Path) -> list[str]:
     errors: list[str] = []
 
     if "Deep Research Traceability Matrix" not in plan_content:
-        errors.append("plan.md is missing Deep Research Traceability Matrix for deep-research handoff IDs")
+        errors.append(
+            "plan.md is missing Deep Research Traceability Matrix for deep-research handoff IDs"
+        )
 
-    traceability_section = _extract_markdown_section(plan_content, "Deep Research Traceability Matrix")
+    traceability_section = _extract_markdown_section(
+        plan_content, "Deep Research Traceability Matrix"
+    )
     if not traceability_section and "Deep Research Traceability Matrix" in plan_content:
-        errors.append("plan.md Deep Research Traceability Matrix must be a level-2 markdown section")
+        errors.append(
+            "plan.md Deep Research Traceability Matrix must be a level-2 markdown section"
+        )
 
     missing_columns = [
-        column for column in PLAN_DEEP_RESEARCH_TRACEABILITY_COLUMNS if column not in traceability_section
+        column
+        for column in PLAN_DEEP_RESEARCH_TRACEABILITY_COLUMNS
+        if column not in traceability_section
     ]
     if missing_columns:
         joined = ", ".join(missing_columns)
-        errors.append(f"plan.md Deep Research Traceability Matrix is missing required columns: {joined}")
+        errors.append(
+            f"plan.md Deep Research Traceability Matrix is missing required columns: {joined}"
+        )
 
-    missing_ids = sorted(handoff_id for handoff_id in handoff_ids if handoff_id not in traceability_section)
+    missing_ids = sorted(
+        handoff_id
+        for handoff_id in handoff_ids
+        if handoff_id not in traceability_section
+    )
     if missing_ids:
         joined = ", ".join(missing_ids)
-        errors.append(f"plan.md does not consume deep-research Planning Handoff IDs: {joined}")
+        errors.append(
+            f"plan.md does not consume deep-research Planning Handoff IDs: {joined}"
+        )
 
     return errors
 
@@ -1802,9 +2301,15 @@ def _validate_plan_consequence_contract(feature_dir: Path) -> list[str]:
         required_ids = _consequence_obligation_ids(payload)
         ids = ", ".join(sorted(required_ids)) or "triggered consequence obligations"
         if CONSEQUENCE_OPERATIONAL_REQUIRED_SECTION not in plan_content:
-            errors.append(f"plan.md is missing {CONSEQUENCE_OPERATIONAL_REQUIRED_SECTION} for {ids}")
+            errors.append(
+                f"plan.md is missing {CONSEQUENCE_OPERATIONAL_REQUIRED_SECTION} for {ids}"
+            )
 
-        operational_decisions = payload.get("operational_consequence_decisions") if isinstance(payload, dict) else None
+        operational_decisions = (
+            payload.get("operational_consequence_decisions")
+            if isinstance(payload, dict)
+            else None
+        )
         if not isinstance(operational_decisions, list) or not operational_decisions:
             errors.append(f"{label} operational_consequence_decisions must map {ids}")
             continue
@@ -1818,6 +2323,438 @@ def _validate_plan_consequence_contract(feature_dir: Path) -> list[str]:
                 + ", ".join(missing_ids)
             )
 
+    return errors
+
+
+UI_CONTRACT_SCALAR_FIELDS = (
+    "subject",
+    "audience",
+    "single_job",
+    "visual_thesis",
+    "content_thesis",
+    "interaction_thesis",
+    "signature_element",
+    "approved_visual_ref",
+)
+UI_CONTRACT_LIST_FIELDS = (
+    "platforms",
+    "reference_intents",
+    "real_content_plan",
+    "image_plan",
+    "required_evidence",
+)
+UI_SPEC_PLAN_CONTINUITY_LIST_FIELDS = (
+    "entry_points",
+    "required_states",
+    "must_preserve",
+    "may_adapt",
+    "must_not",
+    "visual_acceptance",
+)
+UI_CONTINUITY_LIST_FIELDS = frozenset(
+    (*UI_CONTRACT_LIST_FIELDS, *UI_SPEC_PLAN_CONTINUITY_LIST_FIELDS)
+)
+UI_ACTIVE_FIDELITY_MODES = {"approximate", "high", "inspiration"}
+UI_CONTRACT_SURFACE_TYPES = {
+    "landing",
+    "product-workspace",
+    "hybrid",
+    "existing-pattern-maintenance",
+}
+UI_CONTRACT_PLATFORMS = {"web", "mobile", "desktop", "tui", "cli"}
+UI_CONTRACT_REFERENCE_INTENTS = {
+    "exact",
+    "preserve-structure",
+    "inspiration",
+    "extract-tokens",
+    "do-not-copy",
+}
+UI_CONTRACT_EVIDENCE = {
+    "structure_snapshot",
+    "visual_capture",
+    "runtime_diagnostics",
+    "visual_comparison_or_human_review",
+}
+
+
+def _canonical_ui_continuity_value(field: str, value: Any) -> Any:
+    """Normalize order-insensitive UI collections for continuity checks."""
+
+    if field not in UI_CONTINUITY_LIST_FIELDS or not isinstance(value, list):
+        return value
+
+    def canonical(item: Any) -> Any:
+        if isinstance(item, dict):
+            return tuple(
+                sorted((str(key), canonical(nested)) for key, nested in item.items())
+            )
+        if isinstance(item, list):
+            normalized = [canonical(nested) for nested in item]
+            return tuple(sorted(normalized, key=repr))
+        if isinstance(item, str):
+            return item.strip()
+        return item
+
+    normalized = [canonical(item) for item in value]
+    return tuple(sorted(normalized, key=repr))
+
+
+def _normalized_ui_string_values(field: str, contract: dict[str, Any]) -> set[str]:
+    value = contract.get(field)
+    if not isinstance(value, list):
+        return set()
+    return {
+        str(item).strip() for item in value if isinstance(item, str) and item.strip()
+    }
+
+
+def _validate_ui_contract_shape(contract: dict[str, Any], label: str) -> list[str]:
+    errors: list[str] = []
+    obsolete_fields = {"ui_contract_version", "contract_version"} & set(contract)
+    if obsolete_fields:
+        errors.append(
+            f"{label} contains obsolete UI fields: {', '.join(sorted(obsolete_fields))}"
+        )
+    if str(contract.get("ui_work_type") or "").strip() not in {
+        "existing-pattern",
+        "feature-extension",
+        "reference-implementation",
+    }:
+        errors.append(f"{label}.ui_work_type must be valid")
+    if str(contract.get("surface_type") or "").strip() not in UI_CONTRACT_SURFACE_TYPES:
+        errors.append(f"{label}.surface_type must be a supported UI surface type")
+    platforms = contract.get("platforms")
+    if (
+        not isinstance(platforms, list)
+        or not platforms
+        or any(str(item).strip() not in UI_CONTRACT_PLATFORMS for item in platforms)
+    ):
+        errors.append(f"{label}.platforms must contain supported UI platforms")
+    for field in UI_CONTRACT_SCALAR_FIELDS:
+        if not str(contract.get(field) or "").strip():
+            errors.append(f"{label}.{field} must be non-empty")
+    for field in UI_CONTRACT_LIST_FIELDS:
+        if not isinstance(contract.get(field), list):
+            errors.append(f"{label}.{field} must be a list")
+    reference_intents = contract.get("reference_intents")
+    if isinstance(reference_intents, list):
+        for item in reference_intents:
+            if (
+                not isinstance(item, dict)
+                or not str(item.get("ref") or "").strip()
+                or str(item.get("intent") or "").strip()
+                not in UI_CONTRACT_REFERENCE_INTENTS
+            ):
+                errors.append(
+                    f"{label}.reference_intents entries require ref and valid intent"
+                )
+                break
+    real_content_plan = contract.get("real_content_plan")
+    if not isinstance(real_content_plan, list) or not real_content_plan:
+        errors.append(f"{label}.real_content_plan must be non-empty")
+    elif any(
+        not isinstance(item, dict) or not str(item.get("source_ref") or "").strip()
+        for item in real_content_plan
+    ):
+        errors.append(f"{label}.real_content_plan entries require source_ref")
+    image_plan = contract.get("image_plan")
+    if isinstance(image_plan, list) and any(
+        not isinstance(item, dict)
+        or not str(item.get("ref") or "").strip()
+        or not str(item.get("role") or "").strip()
+        for item in image_plan
+    ):
+        errors.append(f"{label}.image_plan entries require ref and role")
+    required_evidence = contract.get("required_evidence")
+    evidence = (
+        {
+            str(item).strip()
+            for item in required_evidence
+            if isinstance(item, str) and item.strip()
+        }
+        if isinstance(required_evidence, list)
+        else set()
+    )
+    if evidence != UI_CONTRACT_EVIDENCE:
+        errors.append(
+            f"{label}.required_evidence must be exactly: "
+            + ", ".join(sorted(UI_CONTRACT_EVIDENCE))
+        )
+    fidelity_field = (
+        "fidelity_mode" if "ui_applicable" in contract else "fidelity_level"
+    )
+    fidelity = str(contract.get(fidelity_field) or "none").strip().lower()
+    if fidelity not in UI_ACTIVE_FIDELITY_MODES:
+        errors.append(
+            f"{label}.{fidelity_field} must be approximate, high, or inspiration for active UI work"
+        )
+    return errors
+
+
+def _spec_ui_design_contract(feature_dir: Path) -> dict[str, Any] | None:
+    path = feature_dir / "spec-contract.json"
+    if not path.is_file():
+        return None
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    contract = payload.get("design_contract") if isinstance(payload, dict) else None
+    return contract if isinstance(contract, dict) else None
+
+
+def _plan_ui_design_contract(feature_dir: Path) -> tuple[dict[str, Any] | None, str]:
+    for contract_path, label in _consequence_contract_paths(feature_dir):
+        if not contract_path.is_file():
+            continue
+        try:
+            payload = json.loads(contract_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return None, label
+        contract = (
+            payload.get("ui_design_contract") if isinstance(payload, dict) else None
+        )
+        return (contract if isinstance(contract, dict) else None), label
+    return None, "plan-contract.json"
+
+
+def _validate_plan_ui_contract(feature_dir: Path) -> list[str]:
+    errors: list[str] = []
+    spec_contract = _spec_ui_design_contract(feature_dir)
+    plan_contract, label = _plan_ui_design_contract(feature_dir)
+    spec_applies = (
+        isinstance(spec_contract, dict) and spec_contract.get("ui_applicable") is True
+    )
+    plan_applies = (
+        isinstance(plan_contract, dict) and plan_contract.get("ui_applicable") is True
+    )
+
+    if spec_applies and not plan_applies:
+        errors.append(
+            f"{label} must set ui_design_contract.ui_applicable true because spec-contract.json is UI-bearing"
+        )
+        return errors
+    if not plan_applies:
+        return errors
+
+    assert isinstance(plan_contract, dict)
+    errors.extend(
+        _validate_ui_contract_shape(plan_contract, f"{label} ui_design_contract")
+    )
+    ui_brief_ref = str(plan_contract.get("ui_brief_ref") or "").strip()
+    if not ui_brief_ref:
+        errors.append(f"{label} UI work requires ui_design_contract.ui_brief_ref")
+    elif resolve_feature_artifact_ref(feature_dir, ui_brief_ref) is None:
+        errors.append(
+            f"{label} ui_design_contract.ui_brief_ref must reference an existing feature artifact"
+        )
+
+    readiness = str(plan_contract.get("design_readiness") or "").strip()
+    if readiness not in {"approved", "narrow-existing-pattern-exception"}:
+        errors.append(
+            f"{label} UI work requires approved or narrow-existing-pattern-exception design_readiness"
+        )
+
+    list_fields = (
+        "source_refs",
+        "design_system_adoption",
+        "token_strategy",
+        "component_strategy",
+        "entry_points",
+        "required_states",
+        "fidelity_refs",
+        "must_preserve",
+        "may_adapt",
+        "must_not",
+        "validation_refs",
+        "visual_acceptance",
+        "human_review_conditions",
+    )
+    for field in list_fields:
+        if not isinstance(plan_contract.get(field), list):
+            errors.append(f"{label} ui_design_contract.{field} must be a list")
+    for field in (
+        "source_refs",
+        "entry_points",
+        "required_states",
+        "validation_refs",
+        "visual_acceptance",
+    ):
+        value = plan_contract.get(field)
+        if not isinstance(value, list) or not any(
+            isinstance(item, str) and item.strip() for item in value
+        ):
+            errors.append(
+                f"{label} UI work requires non-empty ui_design_contract.{field}"
+            )
+
+    if spec_applies and isinstance(spec_contract, dict):
+        spec_brief_ref = str(spec_contract.get("ui_brief_ref") or "").strip()
+        if spec_brief_ref and ui_brief_ref and spec_brief_ref != ui_brief_ref:
+            spec_path = resolve_feature_artifact_ref(feature_dir, spec_brief_ref)
+            plan_path = resolve_feature_artifact_ref(feature_dir, ui_brief_ref)
+            if spec_path is None or plan_path is None or spec_path != plan_path:
+                errors.append(
+                    f"{label} ui_design_contract.ui_brief_ref must preserve the specification UI brief"
+                )
+        for field in (
+            "ui_work_type",
+            "surface_type",
+            "fidelity_mode",
+            *UI_CONTRACT_SCALAR_FIELDS,
+            *UI_CONTRACT_LIST_FIELDS,
+            *UI_SPEC_PLAN_CONTINUITY_LIST_FIELDS,
+        ):
+            if _canonical_ui_continuity_value(
+                field, plan_contract.get(field)
+            ) != _canonical_ui_continuity_value(field, spec_contract.get(field)):
+                errors.append(
+                    f"{label} ui_design_contract.{field} must preserve the specification UI contract"
+                )
+    return errors
+
+
+def _validate_tasks_ui_contract(feature_dir: Path) -> list[str]:
+    errors: list[str] = []
+    plan_contract, label = _plan_ui_design_contract(feature_dir)
+    plan_applies = (
+        isinstance(plan_contract, dict) and plan_contract.get("ui_applicable") is True
+    )
+    plan_declares_not_ui = (
+        isinstance(plan_contract, dict) and plan_contract.get("ui_applicable") is False
+    )
+    markdown_ids = markdown_ui_task_ids(feature_dir)
+    indexed_ids = set(task_index_ui_contracts(feature_dir))
+    task_index_payload, _ = _read_json_artifact(
+        feature_dir / "task-index.json", "task-index.json"
+    )
+    raw_tasks = (
+        task_index_payload.get("tasks")
+        if isinstance(task_index_payload, dict)
+        else None
+    )
+    if isinstance(raw_tasks, list):
+        for task_entry in raw_tasks:
+            if (
+                not isinstance(task_entry, dict)
+                or "ui_fidelity_requirements" not in task_entry
+            ):
+                continue
+            task_id = str(
+                task_entry.get("id") or task_entry.get("task_id") or "<unknown>"
+            )
+            errors.append(
+                f"task-index.json task {task_id} contains obsolete ui_fidelity_requirements"
+            )
+    if markdown_ids and plan_declares_not_ui:
+        errors.append(
+            f"tasks.md contains UI tasks but {label} ui_design_contract.ui_applicable is false"
+        )
+    if plan_applies and not indexed_ids:
+        errors.append(
+            "task-index.json must carry at least one structured ui_contract for a UI-bearing plan"
+        )
+    if plan_applies and not markdown_ids:
+        errors.append(
+            "tasks.md must render a task-local UI Implementation Contract for a UI-bearing plan"
+        )
+    for task_id in sorted(markdown_ids - indexed_ids):
+        errors.append(
+            f"task-index.json is missing structured ui_contract for UI task {task_id}"
+        )
+    for task_id in sorted(indexed_ids - markdown_ids):
+        errors.append(
+            f"tasks.md is missing task-local UI Implementation Contract for UI task {task_id}"
+        )
+    if plan_applies and isinstance(plan_contract, dict):
+        covered_required_states: set[str] = set()
+        for task_id, task_entry in task_index_ui_contracts(feature_dir).items():
+            task_contract = task_entry.get("ui_contract")
+            if not isinstance(task_contract, dict):
+                continue
+            missing_fields = UI_CONTRACT_FIELDS - set(task_contract)
+            unsupported_fields = set(task_contract) - UI_CONTRACT_FIELDS
+            if missing_fields:
+                errors.append(
+                    f"task-index.json UI task {task_id} ui_contract is missing current fields: "
+                    + ", ".join(sorted(missing_fields))
+                )
+            if unsupported_fields:
+                errors.append(
+                    f"task-index.json UI task {task_id} ui_contract contains unsupported fields: "
+                    + ", ".join(sorted(unsupported_fields))
+                )
+            errors.extend(
+                _validate_ui_contract_shape(
+                    task_contract,
+                    f"task-index.json UI task {task_id} ui_contract",
+                )
+            )
+            for field in ("design_sources", "required_states"):
+                value = task_contract.get(field)
+                if not isinstance(value, list) or not any(
+                    isinstance(item, str) and item.strip() for item in value
+                ):
+                    errors.append(
+                        f"task-index.json UI task {task_id} ui_contract.{field} must be non-empty"
+                    )
+            for field in ("ui_work_type", "surface_type", *UI_CONTRACT_SCALAR_FIELDS):
+                if task_contract.get(field) != plan_contract.get(field):
+                    errors.append(
+                        f"task-index.json UI task {task_id} must preserve plan {field}"
+                    )
+            task_platforms = set(task_contract.get("platforms") or [])
+            plan_platforms = set(plan_contract.get("platforms") or [])
+            if not task_platforms or not task_platforms <= plan_platforms:
+                errors.append(
+                    f"task-index.json UI task {task_id} platforms must be a non-empty plan subset"
+                )
+            plan_fidelity = str(plan_contract.get("fidelity_mode") or "none").strip()
+            task_fidelity = str(task_contract.get("fidelity_level") or "none").strip()
+            if task_fidelity != plan_fidelity:
+                errors.append(
+                    f"task-index.json UI task {task_id} fidelity_level must preserve plan fidelity_mode"
+                )
+
+            plan_states = _normalized_ui_string_values("required_states", plan_contract)
+            task_states = _normalized_ui_string_values("required_states", task_contract)
+            covered_required_states.update(task_states)
+            if not task_states <= plan_states:
+                errors.append(
+                    f"task-index.json UI task {task_id} required_states must be a plan subset"
+                )
+
+            plan_preserve = _normalized_ui_string_values("must_preserve", plan_contract)
+            task_preserve = _normalized_ui_string_values("must_preserve", task_contract)
+            if not plan_preserve <= task_preserve:
+                errors.append(
+                    f"task-index.json UI task {task_id} must_preserve must include plan constraints"
+                )
+
+            plan_may_adapt = _normalized_ui_string_values("may_adapt", plan_contract)
+            task_may_adapt = _normalized_ui_string_values("may_adapt", task_contract)
+            if not task_may_adapt <= plan_may_adapt:
+                errors.append(
+                    f"task-index.json UI task {task_id} may_adapt must not exceed plan permissions"
+                )
+
+            plan_must_not = _normalized_ui_string_values("must_not", plan_contract)
+            task_must_not = _normalized_ui_string_values("must_not", task_contract)
+            if not plan_must_not <= task_must_not:
+                errors.append(
+                    f"task-index.json UI task {task_id} must_not must include plan prohibitions"
+                )
+        plan_required_states = {
+            str(item).strip()
+            for item in plan_contract.get("required_states") or []
+            if isinstance(item, str) and item.strip()
+        }
+        missing_states = sorted(plan_required_states - covered_required_states)
+        if missing_states:
+            errors.append(
+                "task-index.json UI tasks must cover plan required_states: "
+                + ", ".join(missing_states)
+            )
     return errors
 
 
@@ -1837,13 +2774,18 @@ def _task_index_consequence_ids(payload: Any) -> set[str]:
     return ids
 
 
-def _triggered_task_consequence_sources(feature_dir: Path) -> tuple[tuple[tuple[Any, str], ...], list[str]]:
+def _triggered_task_consequence_sources(
+    feature_dir: Path,
+) -> tuple[tuple[tuple[Any, str], ...], list[str]]:
     sources: list[tuple[Any, str]] = []
     errors: list[str] = []
     for source_path, label in (
         (feature_dir / "handoff-to-tasks.json", "handoff-to-tasks.json"),
         *(_consequence_contract_paths(feature_dir)),
-        (feature_dir / "brainstorming" / "handoff-to-tasks.json", "brainstorming/handoff-to-tasks.json"),
+        (
+            feature_dir / "brainstorming" / "handoff-to-tasks.json",
+            "brainstorming/handoff-to-tasks.json",
+        ),
     ):
         if not source_path.exists():
             continue
@@ -1871,10 +2813,14 @@ def _validate_tasks_consequence_contract(feature_dir: Path) -> list[str]:
 
     task_index_path = feature_dir / "task-index.json"
     if not task_index_path.exists():
-        errors.append("task-index.json is required when upstream artifacts carry triggered consequence obligations")
+        errors.append(
+            "task-index.json is required when upstream artifacts carry triggered consequence obligations"
+        )
         return errors
 
-    task_index_payload, task_index_errors = _read_json_artifact(task_index_path, "task-index.json")
+    task_index_payload, task_index_errors = _read_json_artifact(
+        task_index_path, "task-index.json"
+    )
     if task_index_errors:
         errors.extend(task_index_errors)
         return errors
@@ -1882,23 +2828,34 @@ def _validate_tasks_consequence_contract(feature_dir: Path) -> list[str]:
     mapped_ids = _task_index_consequence_ids(task_index_payload)
     missing_ids = sorted(required_ids - mapped_ids)
     if missing_ids:
-        errors.append("task-index.json is missing consequence mapping for: " + ", ".join(missing_ids))
+        errors.append(
+            "task-index.json is missing consequence mapping for: "
+            + ", ".join(missing_ids)
+        )
 
-    tasks_content = (feature_dir / "tasks.md").read_text(encoding="utf-8", errors="replace")
+    tasks_content = (feature_dir / "tasks.md").read_text(
+        encoding="utf-8", errors="replace"
+    )
     if CONSEQUENCE_TASK_MAPPING_REQUIRED_SECTION not in tasks_content:
-        errors.append(f"tasks.md is missing {CONSEQUENCE_TASK_MAPPING_REQUIRED_SECTION}")
+        errors.append(
+            f"tasks.md is missing {CONSEQUENCE_TASK_MAPPING_REQUIRED_SECTION}"
+        )
 
     return errors
 
 
-def _validate_prd_scan_artifacts(feature_dir: Path, *, require_heavy_scan_json: bool = False) -> list[str]:
+def _validate_prd_scan_artifacts(
+    feature_dir: Path, *, require_heavy_scan_json: bool = False
+) -> list[str]:
     errors: list[str] = []
     for directory_name in ("scan-packets", "evidence", "worker-results"):
         target = feature_dir / directory_name
         if target.exists() and not target.is_dir():
             errors.append(f"{directory_name} must be a directory")
 
-    coverage_payload, coverage_errors = _read_json_artifact(feature_dir / "coverage-ledger.json", "coverage-ledger.json")
+    coverage_payload, coverage_errors = _read_json_artifact(
+        feature_dir / "coverage-ledger.json", "coverage-ledger.json"
+    )
     if coverage_errors:
         errors.extend(coverage_errors)
         return errors
@@ -1916,9 +2873,13 @@ def _validate_prd_scan_artifacts(feature_dir: Path, *, require_heavy_scan_json: 
     if not isinstance(capability_payload, dict):
         errors.append("capability-ledger.json must contain a top-level JSON object")
     elif not isinstance(capability_payload.get("capabilities"), list):
-        errors.append("capability-ledger.json must define a top-level capabilities array")
+        errors.append(
+            "capability-ledger.json must define a top-level capabilities array"
+        )
 
-    artifact_payload, artifact_errors = _read_json_artifact(feature_dir / "artifact-contracts.json", "artifact-contracts.json")
+    artifact_payload, artifact_errors = _read_json_artifact(
+        feature_dir / "artifact-contracts.json", "artifact-contracts.json"
+    )
     if artifact_errors:
         errors.extend(artifact_errors)
         return errors
@@ -1934,13 +2895,19 @@ def _validate_prd_scan_artifacts(feature_dir: Path, *, require_heavy_scan_json: 
         errors.extend(checklist_errors)
         return errors
     if not isinstance(checklist_payload, dict):
-        errors.append("reconstruction-checklist.json must contain a top-level JSON object")
+        errors.append(
+            "reconstruction-checklist.json must contain a top-level JSON object"
+        )
     elif not isinstance(checklist_payload.get("checks"), list):
-        errors.append("reconstruction-checklist.json must define a top-level checks array")
+        errors.append(
+            "reconstruction-checklist.json must define a top-level checks array"
+        )
 
     if require_heavy_scan_json:
         for filename, array_key in PRD_HEAVY_SCAN_JSON_ARTIFACTS.items():
-            errors.extend(_validate_json_object_with_array_key(feature_dir, filename, array_key))
+            errors.extend(
+                _validate_json_object_with_array_key(feature_dir, filename, array_key)
+            )
 
     return errors
 
@@ -1951,7 +2918,13 @@ def _validate_prd_worker_results(feature_dir: Path) -> list[str]:
     if not worker_results_dir.is_dir():
         return errors
 
-    for result_path in sorted(path for path in worker_results_dir.iterdir() if path.suffix == ".json"):
+    result_paths = sorted(
+        path for path in worker_results_dir.iterdir() if path.suffix == ".json"
+    )
+    if not result_paths:
+        return ["worker-results must contain at least one JSON result file"]
+
+    for result_path in result_paths:
         relative_label = result_path.relative_to(feature_dir).as_posix()
         payload, read_errors = _read_json_artifact(result_path, relative_label)
         if read_errors:
@@ -1962,13 +2935,29 @@ def _validate_prd_worker_results(feature_dir: Path) -> list[str]:
             continue
 
         for key in sorted(PRD_WORKER_RESULT_REQUIRED_KEYS - payload.keys()):
-            errors.append(f"{relative_label} is missing required worker result key: {key}")
+            errors.append(
+                f"{relative_label} is missing required worker result key: {key}"
+            )
+        paths_read = payload.get("paths_read")
+        if not isinstance(paths_read, list) or not paths_read or not all(
+            isinstance(item, str) and item.strip() for item in paths_read
+        ):
+            errors.append(f"{relative_label} paths_read must be a non-empty string array")
+        for key in ("unknowns", "recommended_ledger_updates"):
+            if key in payload and not isinstance(payload.get(key), list):
+                errors.append(f"{relative_label} {key} must be an array")
+        if "confidence" in payload and not str(payload.get("confidence") or "").strip():
+            errors.append(f"{relative_label} confidence must be non-empty")
 
     return errors
 
 
-def _validate_graph_artifact(feature_dir: Path, relative_path: str, required_keys: frozenset[str]) -> list[str]:
-    payload, read_errors = _read_json_artifact(feature_dir / relative_path, relative_path)
+def _validate_graph_artifact(
+    feature_dir: Path, relative_path: str, required_keys: frozenset[str]
+) -> list[str]:
+    payload, read_errors = _read_json_artifact(
+        feature_dir / relative_path, relative_path
+    )
     if read_errors:
         return read_errors
     if not isinstance(payload, dict):
@@ -1983,7 +2972,9 @@ def _validate_graph_artifact(feature_dir: Path, relative_path: str, required_key
 
 
 def _validate_cognition_status_artifact(feature_dir: Path) -> list[str]:
-    payload, read_errors = _read_json_artifact(feature_dir / "status.json", "status.json")
+    payload, read_errors = _read_json_artifact(
+        feature_dir / "status.json", "status.json"
+    )
     if read_errors:
         return read_errors
     if not isinstance(payload, dict):
@@ -2000,7 +2991,10 @@ def _validate_cognition_database_artifact(feature_dir: Path) -> list[str]:
 
 
 def _project_root_from_cognition_dir(feature_dir: Path) -> Path:
-    if feature_dir.name == "project-cognition" and feature_dir.parent.name == ".specify":
+    if (
+        feature_dir.name == "project-cognition"
+        and feature_dir.parent.name == ".specify"
+    ):
         return feature_dir.parent.parent
     return feature_dir
 
@@ -2022,7 +3016,9 @@ def _validate_map_scan_artifacts(feature_dir: Path) -> list[str]:
     return [str(message) for message in validation.get("errors", [])]
 
 
-def _run_project_cognition_validation(project_root: Path, command: str) -> dict[str, object]:
+def _run_project_cognition_validation(
+    project_root: Path, command: str
+) -> dict[str, object]:
     try:
         return run_project_cognition([command, "--format", "json"], cwd=project_root)
     except ProjectCognitionToolError as exc:
@@ -2042,14 +3038,18 @@ def _validate_map_build_artifacts(feature_dir: Path) -> list[str]:
 
 def _validate_map_update_artifacts(feature_dir: Path) -> list[str]:
     errors = _validate_map_build_artifacts(feature_dir)
-    payload, read_errors = _read_json_artifact(feature_dir / "status.json", "status.json")
+    payload, read_errors = _read_json_artifact(
+        feature_dir / "status.json", "status.json"
+    )
     if read_errors:
         errors.extend(read_errors)
         return errors
     if not isinstance(payload, dict):
         errors.append("status.json must contain a top-level JSON object")
         return errors
-    result_state = str(payload.get("last_update_outcome") or payload.get("result_state") or "").strip()
+    result_state = str(
+        payload.get("last_update_outcome") or payload.get("result_state") or ""
+    ).strip()
     freshness = str(payload.get("freshness") or "").strip()
     readiness = str(payload.get("readiness") or "").strip()
     recommended = str(payload.get("recommended_next_action") or "").strip()
@@ -2059,17 +3059,22 @@ def _validate_map_update_artifacts(feature_dir: Path) -> list[str]:
             "status.json must record last_update_outcome/result_state as ready, no_op, partial_refresh, needs_rebuild, or blocked"
         )
         return errors
-    if (
-        result_state == "ready"
-        and (freshness != "fresh" or readiness != "query_ready" or recommended != "use_project_cognition")
+    if result_state == "ready" and (
+        freshness != "fresh"
+        or readiness != "query_ready"
+        or recommended != "use_project_cognition"
     ):
         errors.append(
             "ready map-update result_state requires freshness=fresh, readiness=query_ready, and recommended_next_action=use_project_cognition"
         )
     if result_state == "partial_refresh" and freshness != "partial_refresh":
-        errors.append("partial_refresh map-update result_state requires freshness=partial_refresh")
+        errors.append(
+            "partial_refresh map-update result_state requires freshness=partial_refresh"
+        )
     if result_state == "needs_rebuild" and readiness != "needs_rebuild":
-        errors.append("needs_rebuild map-update result_state requires readiness=needs_rebuild")
+        errors.append(
+            "needs_rebuild map-update result_state requires readiness=needs_rebuild"
+        )
     if result_state == "blocked" and readiness != "blocked":
         errors.append("blocked map-update result_state requires readiness=blocked")
     if result_state == "no_op" and not payload.get("last_update_id"):
@@ -2086,14 +3091,22 @@ def _capability_diagram_fields(capability: dict[str, object]) -> tuple[str, ...]
 
 
 def _capability_deep_workflow_page(capability: dict[str, object]) -> str:
-    for key in ("deep_workflow_path", "deep_workflow_page", "deep_workflow", "page", "path"):
+    for key in (
+        "deep_workflow_path",
+        "deep_workflow_page",
+        "deep_workflow",
+        "page",
+        "path",
+    ):
         value = capability.get(key)
         if isinstance(value, str) and value.strip():
             return value.strip()
     return ""
 
 
-def _resolve_map_build_page_path(feature_dir: Path, page: str) -> tuple[Path | None, str | None]:
+def _resolve_map_build_page_path(
+    feature_dir: Path, page: str
+) -> tuple[Path | None, str | None]:
     page_path = Path(page)
     if page_path.is_absolute():
         return None, "absolute deep workflow page paths are not allowed"
@@ -2121,21 +3134,30 @@ def _extract_mermaid_blocks(content: str) -> list[str]:
     ]
 
 
-def _missing_rendered_mermaid_fields(content: str, capability: dict[str, object]) -> list[str]:
-    normalized_blocks = [_normalize_mermaid_content(block) for block in _extract_mermaid_blocks(content)]
+def _missing_rendered_mermaid_fields(
+    content: str, capability: dict[str, object]
+) -> list[str]:
+    normalized_blocks = [
+        _normalize_mermaid_content(block) for block in _extract_mermaid_blocks(content)
+    ]
     missing: list[str] = []
     for field in ("lifecycle_mermaid", "flow_mermaid"):
         value = capability.get(field)
         if not isinstance(value, str) or not value.strip():
             continue
         normalized_value = _normalize_mermaid_content(value)
-        if not any(normalized_value and normalized_value in block for block in normalized_blocks):
+        if not any(
+            normalized_value and normalized_value in block
+            for block in normalized_blocks
+        ):
             missing.append(field)
     return missing
 
 
 def _validate_map_build_capability_diagrams(feature_dir: Path) -> list[str]:
-    payload, read_errors = _read_json_artifact(feature_dir / "index" / "capabilities.json", "index/capabilities.json")
+    payload, read_errors = _read_json_artifact(
+        feature_dir / "index" / "capabilities.json", "index/capabilities.json"
+    )
     if read_errors:
         return read_errors
     if not isinstance(payload, dict):
@@ -2188,26 +3210,47 @@ def _validate_map_build_capability_diagrams(feature_dir: Path) -> list[str]:
     return errors
 
 
-def _validate_prd_build_artifacts(feature_dir: Path) -> list[str]:
+def _validate_prd_build_input_contracts(feature_dir: Path) -> list[str]:
     errors: list[str] = []
-    missing_exports = [
-        relative_path
-        for relative_path in PRD_BUILD_REQUIRED_HEAVY_EXPORTS
-        if not (feature_dir / relative_path).exists()
-    ]
-    errors.extend(f"missing required artifact: {relative_path}" for relative_path in missing_exports)
-    for relative_path in PRD_BUILD_REQUIRED_HEAVY_EXPORTS:
-        target = feature_dir / relative_path
-        if target.exists() and not target.is_file():
-            errors.append(f"required artifact must be a file: {relative_path}")
-
-    coverage_payload, coverage_errors = _read_json_artifact(feature_dir / "coverage-ledger.json", "coverage-ledger.json")
+    coverage_payload, coverage_errors = _read_json_artifact(
+        feature_dir / "coverage-ledger.json", "coverage-ledger.json"
+    )
     if coverage_errors:
         return coverage_errors
     if not isinstance(coverage_payload, dict):
         return ["coverage-ledger.json must contain a top-level JSON object"]
-    if not isinstance(coverage_payload.get("rows"), list):
+    coverage_rows = coverage_payload.get("rows")
+    if not isinstance(coverage_rows, list):
         return ["coverage-ledger.json must define a top-level rows array"]
+    if not coverage_rows:
+        errors.append(
+            "coverage-ledger.json must include at least one substantive coverage row"
+        )
+    for index, row in enumerate(coverage_rows, start=1):
+        label = f"coverage-ledger.json row {index}"
+        if not isinstance(row, dict):
+            errors.append(f"{label} must be an object")
+            continue
+        subject = next(
+            (
+                str(row.get(key) or "").strip()
+                for key in ("id", "surface", "path", "capability_id", "capability_ref")
+                if str(row.get(key) or "").strip()
+            ),
+            "",
+        )
+        status = str(row.get("status") or row.get("coverage_state") or "").strip()
+        evidence = row.get("evidence")
+        reason = str(row.get("reason") or row.get("notes") or "").strip()
+        if not subject:
+            errors.append(f"{label} must identify a surface, path, or capability")
+        if not status:
+            errors.append(f"{label} must record status or coverage_state")
+        if status.lower() in {"n/a", "na", "not-applicable", "not_applicable"}:
+            if not reason and not _has_nonempty_prd_evidence(evidence):
+                errors.append(f"{label} not-applicable status requires evidence or a reason")
+        elif not _has_nonempty_prd_evidence(evidence):
+            errors.append(f"{label} must record non-empty evidence")
 
     capability_payload, capability_errors = _read_json_artifact(
         feature_dir / "capability-ledger.json", "capability-ledger.json"
@@ -2221,14 +3264,21 @@ def _validate_prd_build_artifacts(feature_dir: Path) -> list[str]:
     if not isinstance(capabilities, list):
         return ["capability-ledger.json must define a top-level capabilities array"]
 
-    critical_capabilities = [item for item in capabilities if isinstance(item, dict) and item.get("tier") == "critical"]
+    critical_capabilities = [
+        item
+        for item in capabilities
+        if isinstance(item, dict) and item.get("tier") == "critical"
+    ]
     if not critical_capabilities:
-        errors.append("capability-ledger.json must include at least one critical capability before prd-build can pass")
+        errors.append(
+            "capability-ledger.json must include at least one critical capability before prd-build can pass"
+        )
     else:
         non_ready = [
             str(item.get("status") or "").strip() or "missing"
             for item in critical_capabilities
-            if str(item.get("status") or "").strip().lower() not in PRD_RECONSTRUCTION_READY_STATUSES
+            if str(item.get("status") or "").strip().lower()
+            not in PRD_RECONSTRUCTION_READY_STATUSES
         ]
         if non_ready:
             joined = ", ".join(sorted(set(non_ready)))
@@ -2237,7 +3287,9 @@ def _validate_prd_build_artifacts(feature_dir: Path) -> list[str]:
                 f"found: {joined}"
             )
 
-    artifact_payload, artifact_errors = _read_json_artifact(feature_dir / "artifact-contracts.json", "artifact-contracts.json")
+    artifact_payload, artifact_errors = _read_json_artifact(
+        feature_dir / "artifact-contracts.json", "artifact-contracts.json"
+    )
     if artifact_errors:
         errors.extend(artifact_errors)
         return errors
@@ -2249,7 +3301,19 @@ def _validate_prd_build_artifacts(feature_dir: Path) -> list[str]:
     if not isinstance(artifacts, list):
         errors.append("artifact-contracts.json must define a top-level artifacts array")
     elif not artifacts:
-        errors.append("artifact-contracts.json must include at least one artifact before prd-build can pass")
+        errors.append(
+            "artifact-contracts.json must include at least one artifact before prd-build can pass"
+        )
+    else:
+        for index, artifact in enumerate(artifacts, start=1):
+            if not isinstance(artifact, dict):
+                errors.append(f"artifact-contracts.json artifact {index} must be an object")
+                continue
+            for field in ("id", "status"):
+                if not str(artifact.get(field) or "").strip():
+                    errors.append(
+                        f"artifact-contracts.json artifact {index} must define non-empty {field}"
+                    )
 
     checklist_payload, checklist_errors = _read_json_artifact(
         feature_dir / "reconstruction-checklist.json", "reconstruction-checklist.json"
@@ -2258,42 +3322,128 @@ def _validate_prd_build_artifacts(feature_dir: Path) -> list[str]:
         errors.extend(checklist_errors)
         return errors
     if not isinstance(checklist_payload, dict):
-        errors.append("reconstruction-checklist.json must contain a top-level JSON object")
+        errors.append(
+            "reconstruction-checklist.json must contain a top-level JSON object"
+        )
         return errors
     checks = checklist_payload.get("checks")
     if not isinstance(checks, list):
-        errors.append("reconstruction-checklist.json must define a top-level checks array")
+        errors.append(
+            "reconstruction-checklist.json must define a top-level checks array"
+        )
     elif not checks:
-        errors.append("reconstruction-checklist.json must include at least one check before prd-build can pass")
+        errors.append(
+            "reconstruction-checklist.json must include at least one check before prd-build can pass"
+        )
+    else:
+        for index, check in enumerate(checks, start=1):
+            if not isinstance(check, dict):
+                errors.append(
+                    f"reconstruction-checklist.json check {index} must be an object"
+                )
+                continue
+            for field in ("id", "status"):
+                if not str(check.get(field) or "").strip():
+                    errors.append(
+                        f"reconstruction-checklist.json check {index} must define non-empty {field}"
+                    )
 
     scan_packets_dir = feature_dir / "scan-packets"
     if not scan_packets_dir.is_dir():
         errors.append("scan-packets must be a directory")
-    elif not any(scan_packets_dir.iterdir()):
-        errors.append("scan-packets must contain at least one packet file before prd-build can pass")
+    elif not any(
+        path.is_file() and path.stat().st_size > 0
+        for path in scan_packets_dir.rglob("*")
+    ):
+        errors.append(
+            "scan-packets must contain at least one packet file before prd-build can pass"
+        )
 
     worker_results_dir = feature_dir / "worker-results"
     if not worker_results_dir.is_dir():
         errors.append("worker-results must be a directory")
     elif not any(worker_results_dir.iterdir()):
-        errors.append("worker-results must contain at least one result file before prd-build can pass")
+        errors.append(
+            "worker-results must contain at least one result file before prd-build can pass"
+        )
     else:
         errors.extend(_validate_prd_worker_results(feature_dir))
 
     evidence_dir = feature_dir / "evidence"
     if not evidence_dir.is_dir():
         errors.append("evidence must be a directory")
-    elif not any(evidence_dir.iterdir()):
-        errors.append("evidence must contain at least one file or subdirectory entry before prd-build can pass")
+    elif not any(
+        path.is_file() and path.stat().st_size > 0 for path in evidence_dir.rglob("*")
+    ):
+        errors.append(
+            "evidence must contain at least one file or subdirectory entry before prd-build can pass"
+        )
 
+    return errors
+
+
+def _validate_prd_build_artifacts(feature_dir: Path) -> list[str]:
+    errors: list[str] = []
+    missing_exports = [
+        relative_path
+        for relative_path in PRD_BUILD_REQUIRED_HEAVY_EXPORTS
+        if not (feature_dir / relative_path).exists()
+    ]
+    errors.extend(
+        f"missing required artifact: {relative_path}"
+        for relative_path in missing_exports
+    )
+    for relative_path in PRD_BUILD_REQUIRED_HEAVY_EXPORTS:
+        target = feature_dir / relative_path
+        if target.exists() and not target.is_file():
+            errors.append(f"required artifact must be a file: {relative_path}")
+    for relative_path in PRD_BUILD_OUTPUT_ARTIFACTS:
+        target = feature_dir / relative_path
+        if not target.is_file():
+            continue
+        content = target.read_text(encoding="utf-8", errors="replace")
+        substantive_lines = [
+            line.strip()
+            for line in content.splitlines()
+            if line.strip()
+            and not line.lstrip().startswith("#")
+            and not line.lstrip().startswith("<!--")
+        ]
+        if not substantive_lines:
+            errors.append(
+                f"required build output must contain substantive content beyond headings: {relative_path}"
+            )
+
+    prd_path = feature_dir / "exports" / "prd.md"
+    if prd_path.is_file():
+        errors.extend(
+            _validate_markdown_contains(
+                prd_path,
+                PRD_EXPORT_REQUIRED_SECTIONS,
+                "exports/prd.md",
+            )
+        )
+
+    workflow_state_path = feature_dir / "workflow-state.md"
+    if workflow_state_path.is_file():
+        checkpoint = serialize_workflow_state(workflow_state_path)
+        workflow_content = workflow_state_path.read_text(
+            encoding="utf-8", errors="replace"
+        )
+        if str(checkpoint.get("active_command") or "").strip().lower() != "sp-prd-build":
+            errors.append("workflow-state.md active_command must be sp-prd-build at completion")
+        if str(checkpoint.get("status") or "").strip().lower() != "complete":
+            errors.append("workflow-state.md status must be complete at prd-build completion")
+        if extract_field(workflow_content, "build_status").strip().lower() != "complete":
+            errors.append("workflow-state.md build_status must be complete at prd-build completion")
+    errors.extend(_validate_prd_build_input_contracts(feature_dir))
     return errors
 
 
 def _is_legacy_specify_package(feature_dir: Path, workflow_state_content: str) -> bool:
     return (
-        (feature_dir / "brainstorming" / "legacy-state.json").exists()
-        or "## Fixed Lifecycle State" in workflow_state_content
-    )
+        feature_dir / "brainstorming" / "legacy-state.json"
+    ).exists() or "## Fixed Lifecycle State" in workflow_state_content
 
 
 def _validate_agent_transition(payload: Any, label: str) -> list[str]:
@@ -2323,9 +3473,7 @@ def _validate_agent_transition(payload: Any, label: str) -> list[str]:
             errors.append(f"{label} {field} must be a list")
     if payload.get("status") == "ready":
         if not str(payload.get("next_action") or "").strip():
-            errors.append(
-                f"{label} next_action must be a non-empty string when ready"
-            )
+            errors.append(f"{label} next_action must be a non-empty string when ready")
         blockers = payload.get("blockers")
         if isinstance(blockers, list) and blockers:
             errors.append(f"{label} blockers must be empty when ready")
@@ -2401,7 +3549,10 @@ def _validate_spec_contract_artifacts(feature_dir: Path) -> list[str]:
             else ""
         )
         review_state = _extract_markdown_section(workflow_state, "Review State")
-        if extract_field(review_state, "last_user_reviewed_artifact_state") != "approved":
+        if (
+            extract_field(review_state, "last_user_reviewed_artifact_state")
+            != "approved"
+        ):
             errors.append(
                 "spec-contract.json non-empty semantic_delta requires approved user review"
             )
@@ -2421,6 +3572,79 @@ def _validate_spec_contract_artifacts(feature_dir: Path) -> list[str]:
                 errors.append(
                     f"spec-contract.json design_contract.{field} must be a list"
                 )
+        ui_applicable = design_contract.get("ui_applicable")
+        if ui_applicable is not None and not isinstance(ui_applicable, bool):
+            errors.append(
+                "spec-contract.json design_contract.ui_applicable must be a boolean"
+            )
+        ui_brief_ref = str(design_contract.get("ui_brief_ref") or "").strip()
+        ui_brief_signaled = (
+            bool(ui_brief_ref) or (feature_dir / "ui-brief.md").is_file()
+        )
+        for field in ("design_source_refs", "fidelity_refs", "validation_refs"):
+            value = design_contract.get(field)
+            if isinstance(value, list) and any(
+                isinstance(item, str) and "ui-brief.md" in item for item in value
+            ):
+                ui_brief_signaled = True
+        if ui_brief_signaled and ui_applicable is not True:
+            errors.append(
+                "spec-contract.json carries ui-brief.md but design_contract.ui_applicable is not true"
+            )
+        if ui_applicable is True:
+            errors.extend(
+                _validate_ui_contract_shape(
+                    design_contract,
+                    "spec-contract.json design_contract",
+                )
+            )
+            if not ui_brief_ref:
+                errors.append(
+                    "spec-contract.json UI work requires design_contract.ui_brief_ref"
+                )
+            elif resolve_feature_artifact_ref(feature_dir, ui_brief_ref) is None:
+                errors.append(
+                    "spec-contract.json design_contract.ui_brief_ref must reference an existing feature artifact"
+                )
+            if str(design_contract.get("ui_work_type") or "").strip() not in {
+                "existing-pattern",
+                "feature-extension",
+                "reference-implementation",
+            }:
+                errors.append(
+                    "spec-contract.json UI work requires a valid design_contract.ui_work_type"
+                )
+            for field in (
+                "entry_points",
+                "must_preserve",
+                "may_adapt",
+                "must_not",
+                "visual_acceptance",
+            ):
+                value = design_contract.get(field)
+                if not isinstance(value, list):
+                    errors.append(
+                        f"spec-contract.json design_contract.{field} must be a list for UI work"
+                    )
+            if not isinstance(
+                design_contract.get("entry_points"), list
+            ) or not design_contract.get("entry_points"):
+                errors.append(
+                    "spec-contract.json UI work requires design_contract.entry_points"
+                )
+            if not isinstance(
+                design_contract.get("visual_acceptance"), list
+            ) or not design_contract.get("visual_acceptance"):
+                errors.append(
+                    "spec-contract.json UI work requires design_contract.visual_acceptance"
+                )
+            fidelity_mode = str(design_contract.get("fidelity_mode") or "none").strip()
+            if fidelity_mode in {"approximate", "high"} and not design_contract.get(
+                "original_reference_refs"
+            ):
+                errors.append(
+                    "spec-contract.json approximate/high UI fidelity requires original_reference_refs"
+                )
     context_capsule = payload.get("context_capsule")
     if not isinstance(context_capsule, dict):
         errors.append("spec-contract.json context_capsule must be an object")
@@ -2436,7 +3660,11 @@ def _validate_spec_contract_artifacts(feature_dir: Path) -> list[str]:
                 errors.append(
                     f"spec-contract.json context_capsule.{field} must be a list"
                 )
-    errors.extend(_validate_agent_transition(payload.get("transition"), "spec-contract.json transition"))
+    errors.extend(
+        _validate_agent_transition(
+            payload.get("transition"), "spec-contract.json transition"
+        )
+    )
     transition = payload.get("transition")
     if isinstance(transition, dict) and transition.get("status") == "ready":
         if transition.get("next_action") != "/sp.plan":
@@ -2449,10 +3677,14 @@ def _validate_spec_contract_artifacts(feature_dir: Path) -> list[str]:
         for name, relative_path in artifact_refs.items():
             if relative_path is None:
                 if name == "spec":
-                    errors.append("spec-contract.json artifact_refs.spec must not be null")
+                    errors.append(
+                        "spec-contract.json artifact_refs.spec must not be null"
+                    )
                 continue
             if not isinstance(relative_path, str) or not relative_path.strip():
-                errors.append(f"spec-contract.json artifact_refs.{name} must be a path or null")
+                errors.append(
+                    f"spec-contract.json artifact_refs.{name} must be a path or null"
+                )
                 continue
             candidate = Path(relative_path)
             try:
@@ -2477,22 +3709,42 @@ def _validate_spec_contract_artifacts(feature_dir: Path) -> list[str]:
     return errors
 
 
-def _validate_specify_draft_artifacts(feature_dir: Path, *, validate_lossless_state: bool = True) -> list[str]:
+def _validate_specify_draft_artifacts(
+    feature_dir: Path, *, validate_lossless_state: bool = True
+) -> list[str]:
     errors: list[str] = []
     if (feature_dir / "spec-contract.json").is_file():
         return _validate_spec_contract_artifacts(feature_dir)
     alignment_path = feature_dir / "alignment.md"
     context_path = feature_dir / "context.md"
     workflow_state_path = feature_dir / "workflow-state.md"
-    workflow_state_content = workflow_state_path.read_text(encoding="utf-8", errors="replace")
+    workflow_state_content = workflow_state_path.read_text(
+        encoding="utf-8", errors="replace"
+    )
 
     if _is_legacy_specify_package(feature_dir, workflow_state_content):
         draft_path = feature_dir / "specify-draft.md"
-        errors.extend(_validate_markdown_headings(draft_path, SPECIFY_LEGACY_DRAFT_REQUIRED_HEADINGS, "specify-draft.md"))
-        errors.extend(_validate_markdown_headings(alignment_path, SPECIFY_LEGACY_ALIGNMENT_REQUIRED_HEADINGS, "alignment.md"))
-        errors.extend(_validate_markdown_headings(context_path, SPECIFY_LEGACY_CONTEXT_REQUIRED_HEADINGS, "context.md"))
+        errors.extend(
+            _validate_markdown_headings(
+                draft_path, SPECIFY_LEGACY_DRAFT_REQUIRED_HEADINGS, "specify-draft.md"
+            )
+        )
+        errors.extend(
+            _validate_markdown_headings(
+                alignment_path,
+                SPECIFY_LEGACY_ALIGNMENT_REQUIRED_HEADINGS,
+                "alignment.md",
+            )
+        )
+        errors.extend(
+            _validate_markdown_headings(
+                context_path, SPECIFY_LEGACY_CONTEXT_REQUIRED_HEADINGS, "context.md"
+            )
+        )
 
-        fixed_lifecycle_state = _extract_markdown_section(workflow_state_content, "Fixed Lifecycle State")
+        fixed_lifecycle_state = _extract_markdown_section(
+            workflow_state_content, "Fixed Lifecycle State"
+        )
         required_state_fields = (
             "current_stage",
             "current_domain",
@@ -2503,17 +3755,46 @@ def _validate_specify_draft_artifacts(feature_dir: Path, *, validate_lossless_st
         for field in required_state_fields:
             value = extract_field(fixed_lifecycle_state, field)
             if not value.strip():
-                errors.append(f"workflow-state.md is missing Fixed Lifecycle State field: {field}")
+                errors.append(
+                    f"workflow-state.md is missing Fixed Lifecycle State field: {field}"
+                )
 
-        for legacy_field in ("coverage_mode", "observer_status", "last_observer_pass", "draft_file"):
-            if re.search(rf"(?im)^\s*-\s*{re.escape(legacy_field)}\s*:", workflow_state_content):
-                errors.append(f"workflow-state.md still uses legacy sp-specify state field: {legacy_field}")
+        for legacy_field in (
+            "coverage_mode",
+            "observer_status",
+            "last_observer_pass",
+            "draft_file",
+        ):
+            if re.search(
+                rf"(?im)^\s*-\s*{re.escape(legacy_field)}\s*:", workflow_state_content
+            ):
+                errors.append(
+                    f"workflow-state.md still uses legacy sp-specify state field: {legacy_field}"
+                )
 
         if validate_lossless_state:
-            errors.extend(_validate_brainstorming_json_artifact(feature_dir, "brainstorming/facts.json", validate_unknowns=True))
-            errors.extend(_validate_brainstorming_json_artifact(feature_dir, "brainstorming/route.json", validate_unknowns=False))
-            errors.extend(_validate_brainstorming_json_artifact(feature_dir, "brainstorming/intent.json", validate_unknowns=False))
-            errors.extend(_validate_brainstorming_json_artifact(feature_dir, "brainstorming/complexity.json", validate_unknowns=False))
+            errors.extend(
+                _validate_brainstorming_json_artifact(
+                    feature_dir, "brainstorming/facts.json", validate_unknowns=True
+                )
+            )
+            errors.extend(
+                _validate_brainstorming_json_artifact(
+                    feature_dir, "brainstorming/route.json", validate_unknowns=False
+                )
+            )
+            errors.extend(
+                _validate_brainstorming_json_artifact(
+                    feature_dir, "brainstorming/intent.json", validate_unknowns=False
+                )
+            )
+            errors.extend(
+                _validate_brainstorming_json_artifact(
+                    feature_dir,
+                    "brainstorming/complexity.json",
+                    validate_unknowns=False,
+                )
+            )
             errors.extend(_validate_lossless_specify_state(feature_dir))
 
         handoff_payload, handoff_errors = _read_json_artifact(
@@ -2523,12 +3804,28 @@ def _validate_specify_draft_artifacts(feature_dir: Path, *, validate_lossless_st
         if handoff_errors:
             errors.extend(handoff_errors)
         else:
-            errors.extend(_validate_handoff_to_specify_payload(handoff_payload, "brainstorming/handoff-to-specify.json"))
-            errors.extend(_validate_consequence_json_payload(handoff_payload, "brainstorming/handoff-to-specify.json"))
+            errors.extend(
+                _validate_handoff_to_specify_payload(
+                    handoff_payload, "brainstorming/handoff-to-specify.json"
+                )
+            )
+            errors.extend(
+                _validate_consequence_json_payload(
+                    handoff_payload, "brainstorming/handoff-to-specify.json"
+                )
+            )
         return errors
 
-    errors.extend(_validate_markdown_headings(alignment_path, SPECIFY_ALIGNMENT_REQUIRED_HEADINGS, "alignment.md"))
-    errors.extend(_validate_markdown_headings(context_path, SPECIFY_CONTEXT_REQUIRED_HEADINGS, "context.md"))
+    errors.extend(
+        _validate_markdown_headings(
+            alignment_path, SPECIFY_ALIGNMENT_REQUIRED_HEADINGS, "alignment.md"
+        )
+    )
+    errors.extend(
+        _validate_markdown_headings(
+            context_path, SPECIFY_CONTEXT_REQUIRED_HEADINGS, "context.md"
+        )
+    )
 
     stage_state = _extract_markdown_section(workflow_state_content, "Stage State")
     review_state = _extract_markdown_section(workflow_state_content, "Review State")
@@ -2542,14 +3839,27 @@ def _validate_specify_draft_artifacts(feature_dir: Path, *, validate_lossless_st
         value = extract_field(stage_state, field)
         if not value.strip():
             errors.append(f"workflow-state.md is missing Stage State field: {field}")
-    for field in ("last_user_reviewed_artifact_state", "source_files_read", "source_signal_disposition_status"):
+    for field in (
+        "last_user_reviewed_artifact_state",
+        "source_files_read",
+        "source_signal_disposition_status",
+    ):
         value = extract_field(review_state, field)
         if not value.strip():
             errors.append(f"workflow-state.md is missing Review State field: {field}")
 
-    for legacy_field in ("coverage_mode", "observer_status", "last_observer_pass", "draft_file"):
-        if re.search(rf"(?im)^\s*-\s*{re.escape(legacy_field)}\s*:", workflow_state_content):
-            errors.append(f"workflow-state.md still uses legacy sp-specify state field: {legacy_field}")
+    for legacy_field in (
+        "coverage_mode",
+        "observer_status",
+        "last_observer_pass",
+        "draft_file",
+    ):
+        if re.search(
+            rf"(?im)^\s*-\s*{re.escape(legacy_field)}\s*:", workflow_state_content
+        ):
+            errors.append(
+                f"workflow-state.md still uses legacy sp-specify state field: {legacy_field}"
+            )
 
     handoff_payload, handoff_errors = _read_json_artifact(
         feature_dir / "brainstorming" / "handoff-to-specify.json",
@@ -2558,8 +3868,16 @@ def _validate_specify_draft_artifacts(feature_dir: Path, *, validate_lossless_st
     if handoff_errors:
         errors.extend(handoff_errors)
     else:
-        errors.extend(_validate_handoff_to_specify_payload(handoff_payload, "brainstorming/handoff-to-specify.json"))
-        errors.extend(_validate_consequence_json_payload(handoff_payload, "brainstorming/handoff-to-specify.json"))
+        errors.extend(
+            _validate_handoff_to_specify_payload(
+                handoff_payload, "brainstorming/handoff-to-specify.json"
+            )
+        )
+        errors.extend(
+            _validate_consequence_json_payload(
+                handoff_payload, "brainstorming/handoff-to-specify.json"
+            )
+        )
 
     if validate_lossless_state:
         legacy_paths = (
@@ -2570,7 +3888,9 @@ def _validate_specify_draft_artifacts(feature_dir: Path, *, validate_lossless_st
             "brainstorming/intent.json",
             "brainstorming/complexity.json",
         )
-        if any((feature_dir / relative_path).exists() for relative_path in legacy_paths):
+        if any(
+            (feature_dir / relative_path).exists() for relative_path in legacy_paths
+        ):
             errors.extend(_validate_lossless_specify_state(feature_dir))
 
     return errors
@@ -2580,8 +3900,12 @@ def _workflow_state_active_profile(feature_dir: Path) -> str:
     workflow_state_path = feature_dir / "workflow-state.md"
     if not workflow_state_path.exists() or not workflow_state_path.is_file():
         return ""
-    workflow_state_content = workflow_state_path.read_text(encoding="utf-8", errors="replace")
-    match = re.search(r"(?im)^\s*-\s*active_profile\s*:\s*`?([^`\r\n]+)`?\s*$", workflow_state_content)
+    workflow_state_content = workflow_state_path.read_text(
+        encoding="utf-8", errors="replace"
+    )
+    match = re.search(
+        r"(?im)^\s*-\s*active_profile\s*:\s*`?([^`\r\n]+)`?\s*$", workflow_state_content
+    )
     if not match:
         return ""
     return match.group(1).strip().lower()
@@ -2603,10 +3927,14 @@ def _validate_reference_implementation_spec(feature_dir: Path) -> list[str]:
     )
 
 
-def validate_artifacts_hook(project_root: Path, payload: dict[str, object]) -> HookResult:
+def validate_artifacts_hook(
+    project_root: Path, payload: dict[str, object]
+) -> HookResult:
     command_name = normalize_command_name(str(payload.get("command_name") or ""))
     if command_name not in REQUIRED_ARTIFACTS:
-        raise QualityHookError(f"unsupported command_name '{command_name}' for workflow.artifacts.validate")
+        raise QualityHookError(
+            f"unsupported command_name '{command_name}' for workflow.artifacts.validate"
+        )
 
     raw = str(payload.get("feature_dir") or "").strip()
     if not raw:
@@ -2665,7 +3993,9 @@ def validate_artifacts_hook(project_root: Path, payload: dict[str, object]) -> H
     for relative_path in DIRECTORY_REQUIRED_ARTIFACTS.get(command_name, ()):
         target = feature_dir / relative_path
         if target.exists() and not target.is_dir():
-            type_errors.append(f"required artifact must be a directory: {relative_path}")
+            type_errors.append(
+                f"required artifact must be a directory: {relative_path}"
+            )
     if command_name == "constitution":
         constitution_path = project_root / ".specify" / "memory" / "constitution.md"
         if not constitution_path.exists():
@@ -2675,7 +4005,10 @@ def validate_artifacts_hook(project_root: Path, payload: dict[str, object]) -> H
         and (feature_dir / "brainstorming" / "legacy-state.json").exists()
         and not missing
         and not type_errors
-        and any(not (feature_dir / name).exists() for name in SPECIFY_LOSSLESS_REQUIRED_ARTIFACTS)
+        and any(
+            not (feature_dir / name).exists()
+            for name in SPECIFY_LOSSLESS_REQUIRED_ARTIFACTS
+        )
     )
     if missing or type_errors:
         if not legacy_lossless_missing:
@@ -2683,13 +4016,18 @@ def validate_artifacts_hook(project_root: Path, payload: dict[str, object]) -> H
                 event=WORKFLOW_ARTIFACTS_VALIDATE,
                 status="blocked",
                 severity="critical",
-                errors=[*([f"missing required artifact: {name}" for name in missing]), *type_errors],
+                errors=[
+                    *([f"missing required artifact: {name}" for name in missing]),
+                    *type_errors,
+                ],
                 data={"feature_dir": str(feature_dir)},
             )
     validation_errors: list[str] = []
     if command_name == "specify":
         validation_errors.extend(
-            _validate_specify_draft_artifacts(feature_dir, validate_lossless_state=not legacy_lossless_missing)
+            _validate_specify_draft_artifacts(
+                feature_dir, validate_lossless_state=not legacy_lossless_missing
+            )
         )
         validation_errors.extend(_validate_reference_implementation_spec(feature_dir))
     if command_name == "deep-research":
@@ -2697,10 +4035,23 @@ def validate_artifacts_hook(project_root: Path, payload: dict[str, object]) -> H
     if command_name == "plan":
         validation_errors.extend(_validate_plan_consumes_deep_research(feature_dir))
         validation_errors.extend(_validate_plan_consequence_contract(feature_dir))
+        validation_errors.extend(_validate_plan_ui_contract(feature_dir))
     if command_name == "tasks":
         validation_errors.extend(_validate_tasks_consequence_contract(feature_dir))
+        validation_errors.extend(_validate_tasks_ui_contract(feature_dir))
     if command_name == "implement":
-        validation_errors.extend(_validate_packetized_implement_review_artifacts(feature_dir))
+        validation_errors.extend(
+            _validate_packetized_implement_review_artifacts(feature_dir)
+        )
+    if command_name == "accept":
+        from specify_cli.human_acceptance import validate_human_acceptance
+
+        acceptance = validate_human_acceptance(
+            project_root,
+            feature_dir,
+            require_accepted=bool(payload.get("require_accepted", False)),
+        )
+        validation_errors.extend(str(error) for error in acceptance["errors"])
     if command_name == "map-scan":
         validation_errors.extend(_validate_map_scan_artifacts(feature_dir))
     if command_name == "map-build":
@@ -2711,7 +4062,9 @@ def validate_artifacts_hook(project_root: Path, payload: dict[str, object]) -> H
         validation_errors.extend(
             _validate_prd_scan_artifacts(
                 feature_dir,
-                require_heavy_scan_json=_workflow_state_mentions_heavy_prd_scan(feature_dir),
+                require_heavy_scan_json=_workflow_state_mentions_heavy_prd_scan(
+                    feature_dir
+                ),
             )
         )
     if command_name == "prd-build":
@@ -2743,3 +4096,15 @@ def validate_artifacts_hook(project_root: Path, payload: dict[str, object]) -> H
         severity="info",
         data={"feature_dir": str(feature_dir)},
     )
+
+
+def validate_prd_build_readiness(run_dir: Path) -> list[str]:
+    """Return semantic scan-package blockers before PRD export synthesis."""
+
+    scan_errors = _validate_prd_scan_artifacts(
+        run_dir,
+        require_heavy_scan_json=True,
+    )
+    if scan_errors:
+        return scan_errors
+    return _validate_prd_build_input_contracts(run_dir)

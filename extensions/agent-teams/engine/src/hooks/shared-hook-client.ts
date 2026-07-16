@@ -80,6 +80,9 @@ const VALID_HOOK_STATUSES: ReadonlySet<string> = new Set([
   "repairable-block",
 ]);
 
+const SHARED_HOOK_SUCCESS_EXIT_CODE = 0;
+const SHARED_HOOK_BLOCKED_EXIT_CODE = 10;
+
 const SENSITIVE_FREE_TEXT_FLAGS: ReadonlySet<string> = new Set([
   "--prompt-text",
   "--free-text",
@@ -305,9 +308,24 @@ export class SharedHookClient {
       if (result.timedOut) {
         return { status: "timeout", timeoutMs, attemptedPlan: preview, durationMs };
       }
-      if (result.status !== 0) continue;
+      if (
+        result.status !== SHARED_HOOK_SUCCESS_EXIT_CODE
+        && result.status !== SHARED_HOOK_BLOCKED_EXIT_CODE
+      ) {
+        continue;
+      }
       const payload = parseSharedPayload(result.stdout);
       if (!payload) {
+        firstInvalidAttempt ??= {
+          attemptedPlan: preview,
+          stdoutPreview: stdoutPreview(result.stdout, sensitiveValues),
+        };
+        continue;
+      }
+      if (
+        result.status === SHARED_HOOK_BLOCKED_EXIT_CODE
+        && !isBlockedPayload(payload)
+      ) {
         firstInvalidAttempt ??= {
           attemptedPlan: preview,
           stdoutPreview: stdoutPreview(result.stdout, sensitiveValues),

@@ -7,15 +7,36 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 
 QUICK_CHECKPOINT_CARD_ROWS = (
-    "| issue |",
-    "| target outcome |",
-    "| boundaries |",
-    "| known facts / assumptions |",
-    "| affected surfaces |",
-    "| implementation plan |",
-    "| next action |",
-    "| validation evidence |",
-    "| stop condition |",
+    "| request and outcome |",
+    "| user-visible result |",
+    "| scope |",
+    "| recommended approach |",
+    "| assumptions and risks |",
+    "| completion evidence |",
+    "| reconfirmation trigger |",
+)
+
+
+DEBUG_CHECKPOINT_CARD_ROWS = (
+    "| reported problem |",
+    "| expected behavior |",
+    "| occurrence conditions |",
+    "| investigation boundary |",
+    "| fix authority |",
+    "| assumptions to correct |",
+    "| reconfirmation trigger |",
+)
+
+
+UI_CONFIRMATION_CARD_ROWS = (
+    "| confirmation purpose |",
+    "| user and primary job |",
+    "| design basis and source material |",
+    "| target experience |",
+    "| structure and visible change |",
+    "| interaction, states, and adaptation |",
+    "| design boundaries |",
+    "| acceptance evidence |",
 )
 
 
@@ -23,7 +44,7 @@ def assert_quick_checkpoint_card_shape(content: str) -> None:
     lowered = content.lower()
 
     assert "## quick checkpoint" in lowered
-    assert "| item | current understanding |" in lowered
+    assert "| decision to confirm | current understanding |" in lowered
     for row in QUICK_CHECKPOINT_CARD_ROWS:
         assert row in lowered
     assert "reply with `confirm`/`确认`" in lowered
@@ -32,6 +53,26 @@ def assert_quick_checkpoint_card_shape(content: str) -> None:
         or "prose bullets or partial field lists are not sufficient" in lowered
         or "bullet-only confirmations do not satisfy this gate" in lowered
     )
+
+
+def assert_debug_checkpoint_card_shape(content: str) -> None:
+    lowered = content.lower()
+
+    assert "## debug checkpoint" in lowered
+    assert "| decision to confirm | current understanding |" in lowered
+    for row in DEBUG_CHECKPOINT_CARD_ROWS:
+        assert row in lowered
+    assert "reply with `confirm`/`确认`" in lowered
+
+
+def assert_ui_confirmation_card_shape(content: str) -> None:
+    lowered = content.lower()
+
+    assert "## ui confirmation" in lowered
+    assert "| decision to confirm | ui proposal or target baseline |" in lowered
+    for row in UI_CONFIRMATION_CARD_ROWS:
+        assert row in lowered
+    assert "single confirmation covers both" in lowered
 
 
 def read_template(path: str) -> str:

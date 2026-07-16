@@ -6,7 +6,7 @@ description: "Task list template for feature implementation"
 # Tasks: [FEATURE NAME]
 
 **Input**: Canonical `plan-contract.json` plus only the project-facing or conditional artifacts named by its required refs.
-**Output authority**: `task-index.json` for standard/heavy work; this Markdown is the project-facing view. Light leader-direct work may use this file alone.
+**Output authority**: `task-index.json` for standard/heavy and all UI-bearing work; this Markdown is the project-facing view. Light non-UI leader-direct work may use this file alone.
 
 **Tests**: The examples below include test tasks. Tests are expected by default for affected behavior changes and bug fixes. Only omit them when the plan explicitly justifies the omission.
 
@@ -88,11 +88,51 @@ description: "Task list template for feature implementation"
 | Surface | UI Brief | Fidelity | Must Preserve | May Adapt | Must Not | Required Evidence | Task IDs |
 |---------|----------|----------|---------------|-----------|----------|-------------------|----------|
 
-- Every UI-bearing task derived from `ui-brief.md` must include `ui_contract` packet fields.
-- If fidelity is `approximate` or `high`, include `required_evidence` with `reference_source_evidence`, `ui_fidelity_criteria`, `real_entrypoint_ui_evidence`, and `visual_comparison_or_human_review`.
-- If fidelity is `high`, include `deviation_log`.
-- In task packets only, `reference_source_evidence`, `ui_fidelity_criteria`, `real_entrypoint_ui_evidence`, `visual_comparison_or_human_review`, and `deviation_log` are UI packet shorthand aliases. Persisted `workflow-state.md` and `Reference-Implementation` `required_evidence` MUST remain canonical: reference source evidence, fidelity criteria, verification entry points, difference inventory, and accepted deviations.
+- Every UI-bearing task derived from `ui-brief.md` must materialize
+  the complete current contract at
+  `task-index.json#/tasks/<task-id>/ui_contract`.
+- Resolve the exact object shape from
+  `.specify/templates/task-index-template.json#/ui_contract_schema_ref`, which
+  points to `.specify/templates/task-packet-template.json#/ui_contract`. Copy
+  that deterministic shape and fill it from the approved plan; do not reconstruct
+  the schema from prose or from this human projection.
+- Preserve the exact work/surface/platform axes, subject/audience/single job,
+  three theses, signature element, approved visual ref, and task-relevant
+  `reference_intents`, `real_content_plan`, and `image_plan`.
+- Required evidence is the typed triad `structure_snapshot`,
+  `visual_capture`, and `runtime_diagnostics`, plus
+  `visual_comparison_or_human_review` as a verification status. Preserve
+  `fidelity_level`, difference inventory, accepted deviations, and
+  `real_entrypoint_evidence` when applicable.
 - Do not pass raw "make it like this" wording to a worker without the compiled UI contract.
+- Do not stop at the coverage table. Under every UI-bearing `## T###` task,
+  render this compact machine-readable projection of the canonical task-index
+  object so just-in-time packet compilation cannot silently downgrade UI work to
+  `not_applicable`:
+
+```markdown
+### Scope Boundaries
+| Field | Value |
+| --- | --- |
+| read_scope | [DESIGN.md, FEATURE_DIR/ui-brief.md] |
+| write_scope | [task-owned implementation paths] |
+
+### UI Implementation Contract
+| Field | Value |
+| --- | --- |
+| ui_contract_ref | task-index.json#/tasks/T###/ui_contract |
+| schema_ref | .specify/templates/task-packet-template.json#/ui_contract |
+| direction_core | [ui_work_type; surface_type; platforms; subject; audience; single_job] |
+| approved_direction | [visual_thesis; content_thesis; interaction_thesis; signature_element; approved_visual_ref] |
+| task_inputs | [design_sources; reference_intents; real_content_plan; image_plan] |
+| fidelity_level | [approximate | high | inspiration] |
+| adaptation_rules | [must_preserve; may_adapt; must_not] |
+| required_states | [loading, empty, error, selected, disabled, permission-limited as applicable] |
+| required_evidence | [structure_snapshot; visual_capture; runtime_diagnostics; visual_comparison_or_human_review] |
+```
+
+Carry `real_entrypoint_evidence` separately in the task's root consumer-evidence
+requirements when the implemented surface must be wired into a real entry point.
 
 ## Implementation Target Boundary
 
@@ -125,7 +165,7 @@ description: "Task list template for feature implementation"
 
 | Task ID | Review Risks | UI Fidelity Requirements | Controller Checks Required |
 | --- | --- | --- | --- |
-| T### | [manual check, quality tradeoff, reference fidelity risk] | [none | approximate | high] | [command, screenshot, or human review when needed] |
+| T### | [manual check, quality tradeoff, reference fidelity risk] | [none | approximate | high | inspiration] | [command, screenshot, or human review when needed] |
 
 ## Consequence Obligation Mapping
 
@@ -487,8 +527,10 @@ With multiple developers:
 
 ## Canonical Agent Shapes
 
-- `task-index.json` owns task graph, mappings, batches, joins, and transition state.
-- `templates/task-packet-template.json` owns delegated WorkerTaskPacket shape; `sp-implement` renders only the current packet.
+- `templates/task-index-template.json` owns the task graph envelope, mappings,
+  batches, joins, transition state, and the `ui_contract_schema_ref` pointer.
+- `templates/task-packet-template.json#/ui_contract` owns the exact Classic and
+  Advanced UI task contract shape; `sp-implement` renders only the current packet.
 - `templates/task-lifecycle-template.json` owns execution result, validation, review, and recovery state.
 - Do not reproduce those schemas as long Markdown examples here.
 

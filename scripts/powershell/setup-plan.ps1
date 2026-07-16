@@ -33,19 +33,28 @@ if (-not $FeatureDir -and -not (Test-FeatureBranch -Branch $paths.CURRENT_BRANCH
 # Ensure the feature directory exists
 New-Item -ItemType Directory -Path $paths.FEATURE_DIR -Force | Out-Null
 
-# Copy plan template if it exists, otherwise note it or create empty file
-$template = Resolve-Template -TemplateName 'plan-template' -RepoRoot $paths.REPO_ROOT
-if ($template -and (Test-Path $template)) { 
-    Copy-Item $template $paths.IMPL_PLAN -Force
+# Create a plan only when one does not already exist. Re-running setup must not
+# destroy work completed after the initial scaffold.
+$planStatus = "noop"
+if (Test-Path -LiteralPath $paths.IMPL_PLAN) {
     if (-not $Json) {
-        Write-Output "Copied plan template to $($paths.IMPL_PLAN)"
+        Write-Output "Plan already exists; left unchanged at $($paths.IMPL_PLAN)"
     }
 } else {
-    if (-not $Json) {
-        Write-Warning "Plan template not found"
+    $planStatus = "created"
+    $template = Resolve-Template -TemplateName 'plan-template' -RepoRoot $paths.REPO_ROOT
+    if ($template -and (Test-Path $template)) {
+        Copy-Item $template $paths.IMPL_PLAN
+        if (-not $Json) {
+            Write-Output "Copied plan template to $($paths.IMPL_PLAN)"
+        }
+    } else {
+        if (-not $Json) {
+            Write-Warning "Plan template not found"
+        }
+        # Create a basic plan file if template doesn't exist
+        New-Item -ItemType File -Path $paths.IMPL_PLAN | Out-Null
     }
-    # Create a basic plan file if template doesn't exist
-    New-Item -ItemType File -Path $paths.IMPL_PLAN -Force | Out-Null
 }
 
 # Output results
@@ -58,6 +67,7 @@ if ($Json) {
         SPECS_DIR = $paths.FEATURE_DIR
         BRANCH = $paths.CURRENT_BRANCH
         HAS_GIT = $paths.HAS_GIT
+        STATUS = $planStatus
     }
     $result | ConvertTo-Json -Compress
 } else {

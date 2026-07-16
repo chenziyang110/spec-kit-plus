@@ -111,7 +111,8 @@ def test_tasks_command_consumes_upstream_planning_evidence():
 def test_tasks_command_makes_packet_outputs_mode_sensitive():
     content = _read("templates/commands/tasks.md")
 
-    assert "Light: compact `tasks.md`" in content
+    assert "Light non-UI: compact `tasks.md`" in content
     assert "Standard/heavy: canonical `task-index.json` plus rendered `tasks.md`" in content
+    assert "Any UI-bearing work: minimal canonical `task-index.json`" in content
     assert "renders and validates only the current packet" in content
     assert "do not copy the schema into `tasks.md` or pre-generate all packets" in content

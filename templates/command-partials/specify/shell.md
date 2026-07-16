@@ -27,6 +27,19 @@ Turn a new or changed feature request into a reviewed, planning-ready specificat
 
 ## UI Reference Input
 
+- First classify UI applicability independently of whether the user supplied a
+  screenshot. New or changed user-visible screens, components, layouts,
+  navigation, interaction flows, responsive behavior, visual states, TUI
+  layouts, or CLI presentation are UI-bearing work.
+- For substantive UI-bearing work, require `ui-brief.md` even when there is no
+  external reference. The leader may compile that brief from approved
+  `DESIGN.md`, existing product surfaces, and confirmed experience requirements.
+  A narrow copy-only or existing-pattern state fix may record why a separate
+  brief adds no decision value and use a precise `spec.md#...` design-contract
+  reference as `design_contract.ui_brief_ref`; the UI contract is never omitted.
+- Treat `DESIGN.md` with `design_system.status: bootstrap` as not ready for a
+  new direction. Route product-wide or high-visibility design decisions to
+  `sp-design`; do not inherit its generic starter tokens as product intent.
 - Detect screenshots, HTML/CSS mockups, Tailwind/shadcn/React/Vue/Svelte snippets, Figma exports, reference URLs, existing product pages, or matching-language such as "make it like this", "basically the same", "copy this layout", or "use this as the design".
 - When UI reference input exists, ask for the fidelity mode unless the user already stated it:
   - `approximate` by default: preserve layout, density, hierarchy, visual rhythm, component structure, and primary interactions.
@@ -47,7 +60,9 @@ Turn a new or changed feature request into a reviewed, planning-ready specificat
 
 - Write or update canonical `spec-contract.json` using `templates/spec-contract-template.json`, then render `spec.md`. Write `alignment.md`, `context.md`, `references.md`, and requirements diagnostics only when their triggered content cannot be represented by a stable reference in the contract.
 - When compatibility requires `brainstorming/handoff-to-specify.json`, generate it as a pointer-only agent transition with `source_contract`, `review_digest`, `semantic_delta`, `required_refs`, blockers, and next action; do not copy the requirement contract.
-- When UI reference input exists, require `ui-reference-notes.md`; when the feature has a concrete UI surface, require `ui-brief.md`; create `ui-target.html` only when a disposable visual target materially reduces ambiguity.
+- When UI reference input exists, require `ui-reference-notes.md`; for every
+  substantive concrete UI surface, require `ui-brief.md` whether or not a
+  reference was supplied; create `ui-target.html` only when a disposable visual target materially reduces ambiguity.
 - For `approximate` and `high` UI reference fidelity, activate `Reference-Implementation`, populate `Fidelity Requirements`, persist canonical Reference-Implementation `required_evidence`, and record UI-specific labels only as aliases/mapping notes.
 - `alignment.md` must record `Semantic Term Decisions`, `Upstream Intent Disposition`, and `Out-Of-Scope Conflicts` when relevant.
 - Do not recommend `/sp.plan` while a capability-like upstream signal lacks disposition, an ambiguous high-impact term lacks confirmation, or an out-of-scope conflict lacks user confirmation.

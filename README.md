@@ -13,6 +13,12 @@ This repository contains:
 - agent integrations for tools such as Codex, Claude, Gemini, Copilot, Cursor, Windsurf, Kimi, MiMo Code, Forge, and others
 - the bundled scripts and assets used by `specify init`
 
+Project cognition navigation responses expose a machine-readable `epistemic_contract` with `graph_role=route_candidate_only`, `fact_source_of_truth=live_repository`, `live_verification_required=true`, `graph_only_claims_allowed=false`, and `unverified_claim_action=withhold`. The graph narrows evidence reads; it cannot authorize source changes or prove current behavior, and contradictory live evidence overrides the route candidate.
+
+Graph claims are indexed assertions. Their lifecycle is `candidate`, `supported`, `verified_in_graph_generation`, `contradicted`, or `stale`; even `verified_in_graph_generation` is scoped to the active graph generation and is not current repository truth. Graph claims cannot authorize source changes and cannot set workflow `claim_ready=true`; bounded live evidence, matching workflow verification, and explicit final-claim authorization remain separate requirements.
+
+Schema v5 adds revision-bound, expiring reconciliation to the auditable live feedback loop and current evidence basis while retaining superseded claim evidence as history. When claim-specific bounded reads settle a stale or contradicted route, provide semantic intent only and run `project-cognition claim-reconcile prepare --input <intent.json> --format json`; the runtime owns every integrity field and returns the prepared packet path plus structured `apply_argv`. Execute that argv through `project-cognition claim-reconcile apply --input <prepared_packet_path> --format json`, then rerun Compass once on ready. Reconciliation remains route-candidate evidence and never grants workflow final-claim authorization. Schema v5 is current-only and does not migrate schema v4 or older databases.
+
 ## Install
 
 ### Persistent install from this fork
@@ -79,6 +85,21 @@ Create a new project:
 ```bash
 specify init my-project --ai codex
 ```
+
+Skills-based integrations offer one workflow prompt profile per init run:
+
+```bash
+# Current full workflow skill set (default for non-interactive compatibility)
+specify init my-project --ai codex --workflow-profile classic
+
+# Concise, independent SPX skills for advanced models
+specify init my-project --ai codex --workflow-profile advanced
+```
+
+Interactive init asks which profile to install. One run installs exactly one
+profile. To keep both in the same project, run init again with `--here --force`
+and select the other profile; the second run adds it without removing the first.
+The advanced profile is available only for skills-based integrations.
 
 Use a non-default built-in constitution profile when the repo needs a different
 governance default:
@@ -191,19 +212,148 @@ specify init my-project --ai codex --ignore-agent-tools
 
 ## Workflow
 
-After `specify init`, use the generated workflow commands in your agent:
+After a classic-profile `specify init`, use the generated workflow commands in
+your agent:
 
 1. `constitution` to establish or revise project principles when the seeded default constitution needs project-specific changes
 2. `specify` to produce a planning-ready, analysis-first feature spec
 3. `plan` to define implementation design
 4. `tasks` to break work into executable tasks
 5. `implement` to execute the task plan
-6. `auto` to resume the recommended next workflow step from current repository state when you do not want to name the exact command yourself
-7. `integrate` to close out completed independent feature lanes before mainline merge
+6. `accept` to restore a human's context and guide explicit product acceptance one real step at a time
+7. `auto` to resume the recommended next workflow step from current repository state when you do not want to name the exact command yourself
+8. `integrate` to close out accepted independent feature lanes before mainline merge
 
-- `design` / `sp-design` creates, synthesizes, refines, or audits the root `DESIGN.md` design-system contract before UI work proceeds. Use it for new product UI, redesigns, rebrands, core workflow experience, multi-platform interface decisions, and high-visibility customer-facing surfaces.
+After an advanced-profile init, use independent, discoverable SPX skills:
 
-Feature UI references are handled during `sp-specify`. When a feature request includes screenshots, HTML/CSS mockups, UI framework snippets, design exports, URLs, existing pages, or "make it like this" language, `sp-specify` asks for a fidelity mode and defaults to `approximate`. It uses the writable `ui-reference-artifact` lane to produce `ui-reference-notes.md` and `ui-brief.md`, plus optional `ui-target.html`. Approximate and high-fidelity references activate the existing `Reference-Implementation` profile and carry UI-specific evidence requirements through plan, tasks, and implementation. If agent visual comparison is unavailable, visual fidelity remains `pending-human-review` instead of being claimed as complete.
+```text
+$spx-accept               $spx-analyze              $spx-ask
+$spx-auto                 $spx-checklist            $spx-clarify
+$spx-constitution         $spx-debug                $spx-deep-research
+$spx-design               $spx-discussion           $spx-explain
+$spx-fast                 $spx-implement            $spx-implement-teams
+$spx-integrate            $spx-map-build            $spx-map-rebuild
+$spx-map-scan             $spx-map-update           $spx-plan
+$spx-prd                  $spx-prd-build            $spx-prd-scan
+$spx-quick                $spx-research             $spx-specify
+$spx-tasks                $spx-taskstoissues        $spx-team
+```
+
+Advanced installs also include the unchanged Classic map companions:
+
+```text
+$sp-map-scan              $sp-map-build             $sp-map-update
+```
+
+Use the concise `spx-map-*` skills when an advanced model owns the map
+workflow. Use the original `sp-map-*` skills when a lower-cost model should run
+the established, more explicit scan/build/update contract. These companions are
+generated from the same Classic command templates; they are not SPX rewrites.
+
+Invocation punctuation depends on the agent (`$spx-plan`, `/spx-plan`, or
+`/skill:spx-plan`). Each skill is a native catalog entry and loads only its own
+compact owning prompt plus triggered advanced references. SPX has no hard word
+or token ceiling: prompt optimization removes repetition, tutorials, and stable
+boilerplate only after preserving every Classic stage input, triggered output,
+state owner, resume transition, blocker/recovery rule, side-effect gate, and
+final-claim gate. The advanced profile is command-equivalent and
+prompt-optimized: every Classic command keeps an independent SPX entrypoint,
+state owner, write boundary, resumable stop point, and explicit side-effect
+gate. The normal feature path is
+`spx-specify -> spx-plan -> spx-tasks -> spx-implement -> spx-accept`; clarification,
+discussion (including an optional confirmed handoff into `spx-specify`),
+research, analysis, checklists, issue export, team execution,
+integration, PRD reconstruction, and map phases remain separately invocable
+instead of being hidden inside that path. `spx-fast` is for trivial direct
+changes; `spx-quick` provides lightweight resumable state for bounded but
+non-trivial work.
+
+`sp-accept` / `spx-accept` is deliberately separate from implementation's
+internal code review. Successful technical closeout prepares a fingerprinted
+`human-acceptance.json`; the acceptance agent assumes the human remembers
+nothing, explains what changed and why it matters, then leads one real product
+step at a time with an expected visible result and safe failure branch. Human
+PASS is required for every mandatory scenario. Failures preserve evidence and
+return to implement/debug or upstream requirements instead of being silently
+fixed inside acceptance.
+
+Classic and Advanced also share one blocked-exit contract. A blocked workflow
+must identify the exact stage, cause, owner, sanitized evidence, recovery
+already attempted, affected scope, smallest next action, observable unblock
+criteria, and exact resume point; an error list or “ask a human” is not a valid
+blocked result. Ordinary repository repair and available fallbacks stay
+agent-owned. When credentials, protected external systems, external-write
+approval, subjective product/visual decisions, or physical access genuinely
+require a person, the response expands into a step-by-step Human Action Guide
+with prerequisites, safety notes, exact clicks or commands, expected results,
+failure branches, verification, sanitized evidence to return, and the resume
+command. Protected CI guidance must bind the repository, branch, commit,
+pipeline/job, authorization boundary, and returned pipeline URL or ID rather
+than merely saying that CI remains to be run.
+
+SPX references are profile-local under `templates/advanced-skills/` and never
+copy or include classic `templates/command-references/`. The three separately
+installed Classic map companions retain their original command-reference
+sidecars. A dedicated SPX reference is added only when another execution tier
+needs a stable contract, such as the low-cost scan worker; deterministic
+artifact schemas remain in the runtime or renderer instead of being repeated as
+prompt prose. Compact advanced Markdown views live beside each skill, while
+canonical JSON schemas, validators, state machines, and project-cognition remain
+shared single sources of truth.
+`templates/advanced-skills/_shared/surface-map.json` records the deterministic
+one-to-one Classic-to-Advanced command mapping and guards against accidental
+omissions.
+The classic passive-skill prompt bundle is not copied into an advanced install;
+essential TDD, verification, security/consequence, delegation, and map gates are
+compiled into the relevant hot path or loaded as a triggered advanced reference.
+
+Project cognition is the advanced profile's default navigation data plane.
+SPX uses Compass to select minimal live reads and verification routes, then
+proves claims from the live repository. Writing workflows update cognition
+after verified source/runtime changes; the map skills are reserved for explicit
+maintenance or a genuinely rebuild-required baseline. SPX reuses existing
+`.specify` scripts, artifacts, and canonical `/sp.*` state identifiers rather
+than introducing another runtime format.
+
+Map reconstruction also preserves independent commands. `spx-map-scan` resolves
+the canonical boundary, creates strict packets of at most 25 concrete paths by
+default, routes bulk reads to the lowest-cost capable worker model, accepts each
+packet, and stops after scan validation. `spx-map-build` consumes only that
+frozen evidence and runs deterministic `build-from-scan` plus build validation;
+it is not a second model-driven repository scan. `spx-map-rebuild` is only the
+optional convenience orchestrator for those two skills.
+For a lower-cost model, invoke the additionally installed original
+`sp-map-scan -> sp-map-build` workflow and use `sp-map-update` for incremental
+maintenance; those skills remain byte-equivalent to a Classic-profile install
+in the same project.
+
+Advanced optimization removes repeated cognition tutorials, fixed role chains,
+mandatory delegation where leader-direct work is safer, long examples, and
+model-authored copies of stable schemas or boilerplate. It does not remove
+independent commands, lifecycle boundaries, read-only gates, external-write
+authorization, scan/build isolation, or recoverable state. Codex and Claude use
+their respective durable-team backends for `spx-implement-teams`; unsupported
+integrations refuse that backend explicitly. `spx-team` remains the Codex-only
+runtime operations entrypoint. Classic assets and behavior remain unchanged
+when the `classic` profile is selected.
+
+- `design` / `sp-design` and Advanced `$spx-design` create, synthesize, refine,
+  or audit the root `DESIGN.md` design-system contract before UI work proceeds.
+  Init's generic `status: bootstrap` file is a structural seed, not approved
+  product direction. Use the design workflow for new product UI, redesigns,
+  rebrands, core workflow experience, multi-platform interface decisions, and
+  high-visibility customer-facing surfaces.
+
+Substantive feature UI is handled during `sp-specify`/`$spx-specify` even when
+no screenshot is supplied: it produces a feature `ui-brief.md` that carries
+experience intent, hierarchy, states, responsive/accessibility behavior, and
+visual acceptance through plan, task, and implementation contracts. When a
+request includes screenshots, mockups, design exports, URLs, existing pages, or
+"make it like this" language, Classic additionally uses the writable
+`ui-reference-artifact` lane and defaults fidelity to `approximate`.
+Implementation closes with a real-entrypoint capture, visual inspection,
+repair, and recapture loop. If comparison is unavailable, fidelity remains
+`pending-human-review` instead of being claimed as complete.
 
 Use `ask` for read-only evidence-backed project Q&A when you need a direct answer from project files, templates, docs, state, or memory before choosing an action workflow. Project cognition guides the search; live evidence proves the answer. Same-topic follow-ups reuse the prior evidence set when it still applies, localized or project-slang terms are normalized into project vocabulary, and complex answers separate proven facts from evidence-derived inferences. In v1, `sp-ask` is independent from `sp-discussion`, creates no state or handoff, makes no source edits, and does not run tests, builds, package managers, or project CLI commands by default. There is no `specify ask` Typer helper in v1.
 
@@ -215,7 +365,7 @@ The discussion output is one canonical Agent-only JSON contract shared by eligib
 
 The discussion workflow must continue by default, do not ask for continuation, and ask only when user judgment is genuinely required and no safe default exists.
 
-The main pipeline now uses one authority per phase: `handoff-to-specify.json` -> `spec-contract.json` -> `plan-contract.json` -> `task-index.json` -> per-task lifecycle records. Project-facing Markdown is rendered only when it has independent human/repository value. Research, data model, API contracts, quickstart, lane manifests, and task packets are conditional; delegated packets are compiled just in time, and implementation review runs on evidence-triggered events rather than every phase or batch.
+The main pipeline now uses one authority per phase: `handoff-to-specify.json` -> `spec-contract.json` -> `plan-contract.json` -> `task-index.json` -> per-task lifecycle records -> `human-acceptance.json`. Project-facing Markdown is rendered only when it has independent human/repository value. Research, data model, API contracts, quickstart, lane manifests, and task packets are conditional; delegated packets are compiled just in time, implementation review runs on evidence-triggered events, and post-closeout acceptance restores human context before collecting an explicit product verdict.
 
 When a discussion direction is locked but the topic is not handoff-ready or downstream-ready, `sp-discussion` should use the same unified frontstage contract to include the locked direction, reason, blocked decisions, evidence gaps, downstream planning inputs to preserve, default discussion action, and override path instead of returning only state updates or waiting for the user to ask for "next". It must not split the work into P0/P1/P2, migration phases, release batches, task packets, or ordered implementation steps; those belong to `sp-plan`, `sp-tasks`, or `sp-implement`.
 
@@ -235,7 +385,9 @@ When `sp-specify` consumes a confirmed discussion contract, it preserves the dec
 
 Generated workflows preserve the user's complete user-confirmed scope. Scope reduction requires user confirmation: agents should not steer a requirement toward an MVP, pilot, prototype, first-story release, future-work delivery slice, agent-invented `v1/v2`, agent-invented `P0/P1`, or smaller validation build unless the user asked for that shape, the request already defines that boundary, or a named constraint makes reduced scope a decision the user confirms. Complexity alone is not a valid reason to shrink, defer, or block ordinary work; `sp-plan` and `sp-tasks` should use sequencing, dependencies, batches, join points, refinement checkpoints, and validation paths. Runtime capability limits are blockers only under the adaptive execution policy for heavy, safety-critical, or unpacketizable work, and they do not reduce scope.
 
-`implement` validates the task-graph revision before starting and runs review only on repository/task drift, parallel joins, write-scope drift, validation failure, worker concern, obligation conflict, real-entrypoint gaps, or review-window limits. It records the result in one task lifecycle record instead of separate briefs, review packages, and ledgers. Product goal, scope, architecture, required evidence, `MP-*`, `CA-###`, and feasibility conflicts still route back to the owning upstream workflow.
+`implement` validates the task-graph revision before starting and runs review only on repository/task drift, parallel joins, write-scope drift, validation failure, worker concern, obligation conflict, real-entrypoint gaps, or review-window limits. It records the result in one task lifecycle record instead of separate briefs, review packages, and ledgers. A mandatory protected-CI, remote-system, or human evidence gap stays as a structured blocked task; when a local commit is required only to obtain that evidence, `external-evidence-checkpoint` permits a non-final checkpoint without accepting the task, resolving the tracker, authorizing push/CI, or weakening final closeout. Product goal, scope, architecture, required evidence, `MP-*`, `CA-###`, and feasibility conflicts still route back to the owning upstream workflow.
+
+After technical closeout, `accept` is the default human-facing stage. It reads the fingerprinted implementation summary, assumes the human has no prior context, explains the delivered outcome and exact entrypoint, and leads one required scenario step at a time. It writes only `human-acceptance.json` plus acceptance-owned workflow state. An explicit human PASS is required; defects and requirement gaps are recorded and handed back to their owning workflow.
 
 Command-surface minimization must not delete capability. If upstream discussion or specification text includes a new/create/scaffold/authoring operation, later workflows must preserve it through an explicit public command, TUI route, core API, private helper, or user-confirmed deferral carrying confirmation source, exact excluded behavior, residual risk, reopen or stop condition, and downstream artifact. Static templates, manual copy steps, and template-only docs are supporting assets, not a substitute for the confirmed operation unless the user explicitly chose that narrower entry point.
 
@@ -303,6 +455,25 @@ surface. Before suggesting or running a `specify <subcommand>` invocation,
 verify it exists in `specify --help` or `specify <subcommand> --help`, and do
 not invent unsupported names such as `specify create-feature`.
 
+### Agent-facing CLI discovery and workflow guard
+
+Agents should start with `specify api handshake --format json`; add repeated or
+comma-separated `--require` capability IDs when a workflow depends on a stable
+surface. `specify api list` lists the compact optimized Agent API, while
+`specify api commands --format json` inventories every live CLI operation as
+summary cards. Expand only a selected operation with
+`specify api command <dot-separated-id> --format json`, or expand one stable
+capability/schema with `specify api show` and `specify api schema`. This keeps
+help text and parameters out of context until they are needed.
+
+Feature stages use `specify workflow show|enter|next|transition|block|closeout`.
+The destination stage runs `specify workflow transition --to <stage>` with the
+current revision; the CLI validates the completed source-stage artifacts and
+refuses skips or stale writes without mutation. Exit code `10` means a durable,
+resumable business blocker, `2` means invalid usage, `1` means execution
+failure, and `0` means success. Human-owned blockers include exact steps,
+expected results, safe failure branches, evidence to return, and resume argv.
+
 Optional feasibility branch when `sp-specify` finds an unproven implementation chain:
 
 ```text
@@ -349,14 +520,15 @@ Conditional gates and follow-up commands:
 - `project-cognition semantic-intake --input <work-contract-input.json> --format json` is the WorkContract v1 unified semantic candidate entrypoint for colloquial, localized, symptom-first, or mixed-language requests. It maps the agent's normalized facets to project-backed candidates, rejected false friends, permission hints, and learning hints; semantic-intake alone cannot authorize source changes, root-cause claims, fixed claims, complete claims, or release-safe claims.
 - When semantic-intake escalation influences routing, workflows may record a v1.1 audit artifact as a replayable WorkContract artifact. `project-cognition semantic-audit --input <semantic-audit-input.json> --format json`, when available, captures the semantic-intake input/output snapshot, selected/rejected basis, permission upgrade/downgrade reason, and action log for replay, debugging, and false-match learning; the audit artifact does not authorize source changes or replace live-evidence verification.
 - Persisted claim readiness is reusable only after resume validation. `project-cognition semantic-audit-resume --input <resume-validation.json> --format json`, when available, compares the persisted audit input/output pair against workflow state; it does not authorize source changes or final claims, and does not grant P3/P4. Multiple `authorized_claims` require a single `active_claim_type`, and failed, blocked, skipped, or inconclusive verification results keep claim readiness blocked with `verification_result_failed`, `verification_result_blocked`, or `verification_result_inconclusive` until a newer matching passed rerun supersedes them.
-- Agents read top-level `minimal_live_reads` first, then use lane-level `first_pass_paths` reasons and `before_fix_claim` checks to prove or reject the route from live repository evidence. These paths are first evidence, not final edit scope.
+- Agents read top-level `minimal_live_reads` first, then lane-level `first_pass_paths` reasons and compact `claim_refs`. A claim's `route_confidence` is valid only within `confidence_scope=route_candidate`; `state`, `freshness`, and `stale` describe graph lifecycle, not current truth. Advanced `project-cognition query` returns bounded top-level `claim_signals`, and `project-cognition expand --section claim_evidence` returns bounded evidence refs with `source_path` and `span`. All require live verification and cannot prove current repository truth or final edit scope.
+- Compass claim-aware ranking is a bounded rerank after repository-backed matching: `match_score` establishes candidate eligibility, while `claim_ranking.adjustment` is capped at `+1` for fresh supported or graph-generation-verified claims, `-1` for stale, and `-2` for contradicted. Claims cannot create candidates and cannot replace live verification. Selected lanes with `stale_claim_signal` or `contradicted_claim_signal` remain `usable_with_review` and return `reconcile_claims_with_minimal_live_reads` plus a lane-specific live repository action.
 - When the compass packet is draft-like, localized, missing coverage, or needs explicit concept decisions, the advanced path remains `project-cognition lexicon --mode catalog` -> agent-authored `semantic_intake` and `concept_decisions` -> `project-cognition query --query-plan`. In short: `lexicon -> semantic_intake -> query`. The lexicon command exposes the alias catalog and candidate universe; facet coverage gates selection through `covered_facets`, `missing_facets`, `match_sources`, `lexicon_generation_id`, `candidate_universe_version`, and `active_generation_id`. Top lexical or vector similarity alone is not route truth. Map points, code proves: navigation terms are route vocabulary, not evidence by themselves. CJK or mixed CJK/ASCII prompts still require agent-owned translation when using the advanced path. The advanced CLI tool's `agent_normalization` field remains agent semantic guidance, not a route decision. `templates/project-map/**` remains a historical compatibility/export surface for handbook generation, but new workflows should not read or require `.specify/project-map/**`.
 - Releases publish prebuilt `project-cognition` binaries for Windows, Linux, and macOS. `specify init` best-effort downloads and pins the matching binary in `.specify/config.json`; if that cannot happen, install via `tools/project-cognition/install.sh` or `tools/project-cognition/install.ps1`, or set `PROJECT_COGNITION_BIN` to a custom binary path.
 - See [Project Cognition Runtime](#project-cognition-runtime) for empty-project bootstrap behavior and brownfield first-baseline routing.
 - Workflow-owned mutation closeout is planner-first: source-changing `sp-*` workflows run `project-cognition closeout-plan --workflow "$ACTIVE_WORKFLOW" --format json`, passing `--delta-session "$DELTA_SESSION_ID"` when a delta session exists. The planner returns `update_mode=delta_session` or `update_mode=payload_file`, `required_agent_fields`, `unknown_path_dispositions`, display-only command templates, and structured execution fields. Agents execute via `update_argv` after writing a completed payload, or by completing `delta_append_draft.argv_prefix` with agent-owned evidence placeholders before running `update_argv`. Verified `adoptable` unknown paths can be recorded without becoming blocking `known_unknowns`; only `blocking_known_unknown` dispositions become payload or delta known unknowns. Payload files accept `verification` plus the compatibility alias `verification_evidence`, and `generated_surfaces` plus the compatibility alias `generated_surface_notes`. Clean closeout gates on `result_state=ready` or `result_state=no_op`, not `status=ok`, `update_id`, `last_update_id`, freshness, display-only command templates, legacy `recorded-only` output, or failed verification evidence. `sp-map-update` remains the external/manual maintenance workflow for user edits, interrupted workflow repair, explicit map maintenance, and follow-up repair.
 - Closeout agents should use `known_unknowns` only for blockers that make the cognition update unsafe to trust. If unrelated dirty or untracked working-tree paths were excluded by explicit workflow-owned paths, record that as `confidence_notes` or `boundary.initial_dirty_paths`, not as blocking `known_unknowns`.
 - Use `map-update` for localized stale cognition refresh recommendations, external/manual changed-path map maintenance, and ordinary existing-baseline gaps; use `map-scan` followed by `map-build` only for first/missing/unusable baseline, schema failure, schema v1 or old broad-schema rebuild-required readiness, zero active-generation `path_index` rows, missing or invalid `alias_index`, `explicit_rebuild_requested`, or `baseline_identity_invalid`.
-- For the first brownfield cognition baseline, run `sp-map-scan` followed by `sp-map-build` when you want a map baseline. That pair is map-maintenance complete only when scan acceptance and build acceptance pass: `project-cognition validate-scan --format json` and `project-cognition validate-build --format json`. Ordinary workflows may continue from live repository evidence when the map is missing, stale, or blocked.
+- For the first brownfield cognition baseline, run `sp-map-scan` followed by `sp-map-build` when you want a map baseline. `build-from-scan` adapts the accepted legacy-compatible scan package into a versioned proposal and runs the deterministic cognition proposal compiler before SQLite publication; conflicts block before graph-store mutation. Compilation proves structural publication safety, not repository behavior, so compiled graph rows remain advisory route candidates. The pair is map-maintenance complete only when scan acceptance and build acceptance pass: `project-cognition validate-scan --format json` and `project-cognition validate-build --format json`. Ordinary workflows may continue from live repository evidence when the map is missing, stale, or blocked.
 - `sp-map-scan` scan artifacts should emit canonical fields (`id`, `type`, `title`, `paths`, `source_id`, `target_id`, `attrs`, and coverage `rows`). The runtime accepts compatibility aliases such as `node_id`, `kind`, `label`, `source_node_id`, `target_node_id`, `attrs_json`, and coverage `coverage`, but `sp-map-build` creates `path_index` rows from `nodes[].paths`; `coverage.json` is coverage accounting, not a path-index source. Coverage or coverage-ledger rows do not prove a path was scanned unless a concrete scan packet assigned the path and that packet's worker result reported packet-local coverage.
 - After a successful `sp-map-update`, committing the refreshed source changes does not require a full rebuild by itself; update the git-baseline freshness metadata with `project-cognition record-refresh` or `project-cognition complete-refresh` unless validation reports `needs_rebuild`.
 - Recorded refresh and ready refresh are different outcomes: refresh commands may write update metadata, then still report `partial_refresh` when the shared freshness contract says runtime readiness remains blocked.
@@ -377,7 +549,7 @@ Conditional gates and follow-up commands:
   baseline, schema failure, schema v1 or old broad-schema rebuild-required
   readiness, zero active-generation `path_index` rows, missing or invalid
   `alias_index`, `explicit_rebuild_requested`, or `baseline_identity_invalid`.
-  `build-from-scan` archives a v1 DB and rebuilds a clean schema v2 database.
+  Schema v5 is current-only. The current runtime does not migrate schema v4 or older databases and does not archive or replace them. Remove the incompatible project-cognition.db explicitly, then run `sp-map-scan -> sp-map-build` with the current binary to publish schema v5 with revisioned typed graph-claim lifecycle and reconciliation tables.
 - Support drift is not runtime-truth staleness. When `freshness` is `support_drift`, resolve or ignore the support-surface change instead of reflexively routing to `map-update`.
 - Map points, code proves: technical claims must be backed by live code, tests, scripts, configuration, or authoritative docs.
 - `specify`, `clarify`, `deep-research`, `plan`, and `tasks` stay artifact-only unless they actually change source/runtime/template/config/test/generated-asset surfaces. When they do make those changes, closeout uses the same planner-first project cognition update path from workflow-owned changed paths and affected surfaces; `sp-map-update` remains the external/manual maintenance workflow for user edits, interrupted workflow repair, explicit map maintenance, and follow-up repair.
@@ -399,7 +571,7 @@ Conditional gates and follow-up commands:
 - `analyze` should also surface delegated-execution packet gaps through `DP1` (missing compiled hard rules), `DP2` (missing required references or forbidden drift), and `DP3` (missing subagent validation evidence)
 - `implement` owns event-triggered review for clean task packages. It validates the entry revision, then reviews drift, parallel joins, write-scope changes, validation failures, worker concerns, obligation conflicts, real-entrypoint gaps, and review-window limits. One task lifecycle record carries result, validation, review verdict, blockers, and recovery; upstream truth changes still route to the owning phase.
 
-Already have code? Resolve `.specify/project-cognition/status.json` and use `project-cognition compass --intent <intent> --query "$ARGUMENTS" --format json` as the default brownfield navigation intake and advisory navigation inputs. The packet returns readiness, `compass_state`, top-level `minimal_live_reads`, lane-level `first_pass_paths` with reasons, `coverage_diagnostics`, and `expansion_ref`. Read top-level `minimal_live_reads` first, then use lane-level `first_pass_paths` reasons and `before_fix_claim` checks to prove or reject the route from live repository evidence; these paths are first evidence, not final edit scope. When the compass packet is draft-like, localized, missing coverage, or needs explicit concept decisions, the advanced path remains `project-cognition lexicon --mode catalog` -> agent-authored `semantic_intake` and `concept_decisions` -> `project-cognition query --query-plan` (`lexicon -> semantic_intake -> query`). When a full first brownfield cognition baseline is intentionally needed or map maintenance is chosen, run `sp-map-scan` followed by `sp-map-build` and require `project-cognition validate-scan --format json` plus `project-cognition validate-build --format json` to pass for that map-maintenance workflow. Ordinary workflows may continue from live repository evidence when the map is missing, stale, or blocked. If validation reports schema v1, old broad-schema rebuild-required readiness, missing or invalid `alias_index`, or another unusable baseline, `build-from-scan` archives the v1 DB and rebuilds a clean schema v2 database. After that, source-changing `sp-*` workflows run planner-first project cognition update for their own changed paths and affected surfaces during closeout. Use `map-update` for external/manual localized stale cognition maintenance and ordinary existing-baseline gaps. Use map-scan -> map-build only for first/missing/unusable baseline, schema failure, schema v1 or old broad-schema rebuild-required readiness, zero active-generation path_index rows, missing or invalid alias_index, `explicit_rebuild_requested`, or `baseline_identity_invalid`.
+Already have code? Resolve `.specify/project-cognition/status.json` and use `project-cognition compass --intent <intent> --query "$ARGUMENTS" --format json` as the default brownfield navigation intake and advisory navigation inputs. The packet returns readiness, `compass_state`, top-level `minimal_live_reads`, lane-level `first_pass_paths` with reasons, `coverage_diagnostics`, and `expansion_ref`. Read top-level `minimal_live_reads` first, then use lane-level `first_pass_paths` reasons and `before_fix_claim` checks to prove or reject the route from live repository evidence; these paths are first evidence, not final edit scope. When the compass packet is draft-like, localized, missing coverage, or needs explicit concept decisions, the advanced path remains `project-cognition lexicon --mode catalog` -> agent-authored `semantic_intake` and `concept_decisions` -> `project-cognition query --query-plan` (`lexicon -> semantic_intake -> query`). The current query contract is `claim_retrieval_contract_version=2` and `candidate_universe_version=2`; carry the latter from lexicon into every explicit query plan. Never parse missing or non-current versions as legacy input; rerun lexicon or compass with the current binary and repair the install if needed. When a full first brownfield cognition baseline is intentionally needed or map maintenance is chosen, run `sp-map-scan` followed by `sp-map-build` and require `project-cognition validate-scan --format json` plus `project-cognition validate-build --format json` to pass for that map-maintenance workflow. Ordinary workflows may continue from live repository evidence when the map is missing, stale, or blocked. Schema v5 is current-only: the runtime does not migrate schema v4 or older databases and does not archive or replace them. Remove the incompatible project-cognition.db explicitly before running `sp-map-scan -> sp-map-build` with the current binary. After that, source-changing `sp-*` workflows run planner-first project cognition update for their own changed paths and affected surfaces during closeout. Use `map-update` for external/manual localized stale cognition maintenance and ordinary existing-baseline gaps. Use map-scan -> map-build only for first/missing/unusable baseline, schema failure, an older schema or old broad-schema rebuild-required readiness, zero active-generation path_index rows, missing or invalid alias_index, `explicit_rebuild_requested`, or `baseline_identity_invalid`.
 Generated projects track cognition freshness in `.specify/project-cognition/status.json`, so brownfield workflows can decide whether the current cognition baseline is `fresh`, `missing`, `stale`, `support_drift`, `partial_refresh`, or `possibly_stale` before proceeding. Ordinary `sp-*` workflows treat cognition freshness as advisory navigation, continue with live repository evidence, and apply the map-update-first routing policy while using `recommended_next_action` for public state guidance.
 
 ## Senior Consequence Analysis Gate
@@ -423,11 +595,11 @@ Routing guide for lightweight work:
 - `sp-fast` is only for trivial local fixes. Stay on that path only when the change is obvious, touches at most 3 files, and does not touch a shared surface.
 - Move from `sp-fast` to `sp-quick` as soon as the work expands to more than 3 files, touches a shared surface, or needs research or clarification.
 - `sp-quick` is for small but non-trivial work that still fits one bounded quick-task workspace.
-- `sp-quick` performs one Understanding Checkpoint before substantive execution. The agent presents the fixed plain-text Quick Checkpoint Markdown table with `| Item | Current understanding |` and rows for issue, target outcome, boundaries, known facts/assumptions, affected surfaces, concrete implementation plan, next action, validation evidence, and stop condition with concrete details, then waits for confirmation before continuing. Freeform prose or bullet-only confirmations do not satisfy this gate. Checkpoint cards must not use HTML tags or inline line-break markup in terminal output.
-- Both `sp-fast` and `sp-quick` still pass the project cognition gate first: run `project-cognition compass --intent implement --query "$ARGUMENTS" --format json` as the default brownfield navigation intake. Continue from the returned readiness, `compass_state`, top-level `minimal_live_reads`, lane-level `first_pass_paths` with reasons, `coverage_diagnostics`, and `expansion_ref`; read top-level `minimal_live_reads` first, then use lane-level `first_pass_paths` reasons and `before_fix_claim` checks to prove or reject the route from live repository evidence. These paths are first evidence, not final edit scope. When the compass packet is draft-like, localized, missing coverage, or needs explicit concept decisions, use the advanced `project-cognition lexicon --mode catalog` -> agent-authored `semantic_intake` and `concept_decisions` -> `project-cognition query --query-plan` path (`lexicon -> semantic_intake -> query`). Generated projects require `PROJECT_COGNITION_BIN` or `project-cognition` on PATH for these helpers; helper scripts prefer `PROJECT_COGNITION_BIN` when set and otherwise call `project-cognition` from PATH.
+- `sp-quick` performs one Understanding Checkpoint before substantive execution. The fixed plain-text Quick table asks the user to confirm only the request/outcome, visible result, scope, recommended approach, assumptions/risks, completion evidence, and reconfirmation trigger; implementation sequencing remains agent-owned. For applicable UI work, an independent UI Confirmation proposal follows the main table and one reply confirms both. Freeform prose or bullet-only confirmations do not satisfy this gate. Checkpoint cards must not use HTML tags or inline line-break markup in terminal output.
+- Both `sp-fast` and `sp-quick` still pass the project cognition gate first: run `project-cognition compass --intent implement --query "$ARGUMENTS" --format json` as the default brownfield navigation intake. Continue from the returned readiness, `compass_state`, top-level `minimal_live_reads`, lane-level `first_pass_paths` with reasons, `coverage_diagnostics`, and `expansion_ref`; read top-level `minimal_live_reads` first, then use lane-level `first_pass_paths` reasons and `before_fix_claim` checks to prove or reject the route from live repository evidence. These paths are first evidence, not final edit scope. When the compass packet is draft-like, localized, missing coverage, or needs explicit concept decisions, use the advanced `project-cognition lexicon --mode catalog` -> agent-authored `semantic_intake` and `concept_decisions` -> `project-cognition query --query-plan` path (`lexicon -> semantic_intake -> query`). Generated projects require the pinned `project_cognition_launcher`, `PROJECT_COGNITION_BIN`, or `project-cognition` on PATH for these helpers; helper scripts prefer `PROJECT_COGNITION_BIN` when set, then `.specify/config.json`'s `project_cognition_launcher`, and finally `project-cognition` from PATH.
 - On shells or native command launchers that strip nested JSON quotes, write the planned object to a file and call `project-cognition query --intent <intent> --query-plan-file <path> --format json`; `path_hints`/`reason` are accepted aliases for `paths`/`selection_reason`.
 - If the work is a bug fix or regression and the root cause is still unknown, use `sp-debug` instead of treating `sp-quick` as a symptom-fix lane.
-- `sp-debug` performs one Debug Understanding Checkpoint before substantive investigation. The agent presents a plain-text Debug Checkpoint card covering symptom, expected behavior, reproduction or failing signal, known evidence, investigation boundary, candidate focus, ordered investigation plan, first evidence action, fix gate, and progress signal with concrete details, then waits for confirmation before reproduction, logs, source/test reads, evidence collection, fixes, or validation. Checkpoint cards must not use HTML tags or inline line-break markup in terminal output.
+- `sp-debug` performs one Debug Understanding Checkpoint before substantive investigation. The fixed plain-text Debug table asks the reporter to confirm the problem, expected behavior, occurrence conditions, investigation boundary, fix authority, assumptions to correct, and reconfirmation trigger; hypotheses and evidence sequencing remain agent-owned. For applicable UI symptoms, an independent UI Confirmation target baseline follows the main table without pre-approving a repair, and one reply confirms both. Checkpoint cards must not use HTML tags or inline line-break markup in terminal output.
 - `sp-debug` is complexity-based: small focused investigations may run leader-inline, while broad or independent evidence lanes use one or more subagents. Unsafe or unavailable dispatch remains `subagent-blocked` with `execution_surface: none`.
 - Behavior-changing work across `sp-fast`, `sp-quick`, `sp-implement`, and `sp-debug` follows a failing test first rule. Capture a RED state before production edits; if the touched area lacks a viable automated test surface, add the smallest safe bootstrap in the owning workflow or escalate to `sp-quick`/`sp-specify`.
 - UI/TUI/CLI/API/runtime-visible implementation tasks generated by `sp-tasks` should carry real-entrypoint evidence requirements. Component, reducer, helper, or hand-built state tests can support the change, but `sp-implement` must reject synthetic-only consumer proof when `required_evidence` includes `real_entrypoint_evidence`.
@@ -461,31 +633,41 @@ Required action markers:
 - Existing `AGENTS.md` files are extended through a managed `SPEC-KIT` block instead of full-file append or replacement.
 - First-wave `[AGENT]` coverage started with `sp-fast`, `sp-quick`, `sp-map-scan`, and `sp-map-build`; the shared `specify`, `plan`, `tasks`, `implement`, and `debug` workflows now use the same marker for hard gates and required state updates.
 
-Passive project learning layer:
+Project Learning lifecycle:
 
-- Generated projects include `.specify/memory/learnings/INDEX.md` as the thin first-read learning layer.
-- Each reusable lesson may link to one detail markdown document per lesson under `.specify/memory/learnings/`.
-- `project-learnings.md` remains a compatibility summary; new captures write index/detail memory first.
-- Learning Reflex: before final closeout, ask whether a future senior engineer would benefit from seeing this lesson before related work.
-- This shared project memory is available across later work in the repository, not just when a `sp-*` workflow is active.
-- The major workflow templates now read the passive project learning layer before deeper command-local context so recurring pitfalls, constraints, and user defaults can influence later runs.
-- Low-level helper commands exist for the passive learning lifecycle:
+- Agents consume Learning only through the CLI. Storage files under `.specify/memory/learnings/` and `.planning/learnings/` are runtime implementation details, not normal agent read surfaces.
+- Consumption is progressive and read-only: `learning start` returns task-relevant summary cards, `learning list` filters or pages compact summaries, and `learning show` expands exactly one selected record.
+- A summary card carries `ref`, summary, recommended action, type, status, signal, occurrences, applicability, trigger signals, and `show_argv`. Full detail groups guidance, applicability, evidence, provenance, and lifecycle fields.
+- Production remains explicit: `capture` and `capture-auto` create or merge candidates; `promote` confirms a learning or promotes a stable recurring learning into project rules. Reading never auto-promotes.
+- Trigger review covers user corrections, repeated attempts, route changes, blockers/recovery, false leads, decisive signals, hidden dependencies, validation gaps, tooling traps, state loss, cognition gaps, reusable constraints, and near misses. Routine output and one-off facts are skipped.
+- Owning workflows record explicit semantic signals in `workflow-state.md` under `## Learning Triggers` as `kind: compact evidence`; `capture-auto` deterministically maps canonical kinds to Learning types and agent guidance.
+- Classic commands use the shared Learning partial/passive skill. Every SPX skill receives the independent Advanced `project-learning.md` reference; both profiles share one Classic command namespace in the runtime.
+- CLI surfaces:
 - `specify learning ensure --format json`
 - `specify learning status --format json`
 - `specify learning start`
   - Command shape: `specify learning start --command <workflow> --format json`
+- `specify learning list`
+  - Command shape: `specify learning list --command <workflow> --query "<signal>" --format json`
+  - Use `--all` for the complete matching summary catalog; otherwise follow `pagination.next_argv`.
+- `specify learning show`
+  - Command shape: `specify learning show --ref <recurrence-key-or-id> --format json`
 - `specify learning capture`
   - Required options: `--command`, `--type`, `--summary`, `--evidence`
+  - Agent guidance fields: `--problem`, `--action`, `--trigger`, `--success`, `--avoid`, and `--exception`
 - `specify learning capture-auto`
-  - Command shape: `specify learning capture-auto --command <workflow> --format json`
+  - Command shape: `specify learning capture-auto --command <workflow> (--feature-dir <dir> | --workspace <dir> | --session-file <file>) --format json`
 - `specify implement closeout`
   - Command shape: `specify implement closeout --feature-dir <feature-dir> --format json`
-  - Writes `FEATURE_DIR/implementation-summary.md` and returns `implementation_summary` with completed work, changed paths, behavior surfaces, verification evidence, and baseline comparison commands (`git status --short`, `git diff --stat HEAD`, `git diff --name-status HEAD`).
+  - Writes `FEATURE_DIR/implementation-summary.md`, prepares fingerprinted `FEATURE_DIR/human-acceptance.json`, and returns both `implementation_summary` and `human_acceptance`. The summary retains baseline comparison commands such as `git diff --stat HEAD` and `git diff --name-status HEAD`. The next workflow is `sp-accept` / `spx-accept`, which restores context and collects the human product verdict.
+- `specify accept prepare|validate|closeout`
+  - Command shape: `specify accept prepare --feature-dir <feature-dir> --format json`
+  - Prepares or freshness-checks the resumable acceptance state, validates its scenarios/cursor/verdict, and closes only a fresh explicit human acceptance.
 - `specify learning aggregate --format json`
 - `specify learning promote`
   - Command shape: `specify learning promote --recurrence-key <key> --target learning|rule`
-- Use `specify learning aggregate` when you want a grouped, promotion-oriented summary of candidate, confirmed, and promoted learning patterns before deciding what should become a shared learning or rule.
-- This is an internal/runtime helper surface, not a new daily `sp-` workflow. The intent is passive reuse across every `sp-*` workflow, with direct learning-memory commands preserving structured path-learning fields such as pain score, false starts, decisive signal, root-cause family, injection target, and promotion hint.
+- Use `specify learning aggregate` for a promotion-oriented view across candidate, confirmed, and promoted patterns.
+- Learning remains a passive lifecycle rather than a new daily `sp-*` workflow. `fast` skips it unless work escalates; read-only/orchestrator workflows consume without capture; other non-trivial workflows consume before deeper work and capture at owning closeout only when a reusable signal exists.
 - Durable eval helpers turn promoted rules into local regression checks:
   - `specify eval create`
     - Command shape: `specify eval create --recurrence-key <key> --summary "<summary>"`
@@ -623,6 +805,13 @@ Skills-based projects now install two layers into the same skills directory:
 
 `sp-*` remains the primary user-facing workflow surface. Passive skills keep their template names and exist to improve automatic routing, guardrails, and bundled capabilities inside Spec Kit Plus repositories, not to replace the explicit workflow commands.
 
+The advanced workflow profile installs the independent `spx-*` skills from
+`templates/advanced-skills/` plus exactly the unchanged Classic map companions
+`sp-map-scan`, `sp-map-build`, and `sp-map-update`. It does not install any
+other Classic workflow skill or the Classic passive-skill layer during that
+init run. Running init again with the classic profile adds those layers
+alongside the SPX skills.
+
 ## Multi-CLI Orchestration
 
 Current orchestration status in this fork:
@@ -727,11 +916,22 @@ Maintainer note:
 
 ### Design System Helpers
 
-- `specify design lint` checks whether `DESIGN.md` is complete enough for agents to use.
-- `specify design export --format json` exports normalized design tokens and component token references.
-- `specify design export --format tailwind` exports supported token categories into Tailwind theme fields.
+- `specify design lint --level structural` checks schema and reference shape;
+  `specify design lint --level ready` additionally requires an approved,
+  project-specific direction with provenance and applicable components.
+- `specify design export --format json` exports normalized design tokens and component token references after ready validation.
+- `specify design export --format tailwind` exports supported token categories into Tailwind theme fields after ready validation.
+- Existing projects can use `--allow-unapproved` as a temporary structural-compatibility export while `sp-design`/`spx-design` records project-specific approval and provenance.
 - `specify design import SOURCE_REFERENCE` writes `.specify/design/references.md` as input for `sp-design`; it does not overwrite `DESIGN.md`.
-- Feature UI references are handled during `sp-specify`: screenshots, HTML/CSS mockups, UI framework snippets, design exports, URLs, existing pages, or "make it like this" language route through the writable `ui-reference-artifact` lane, which produces `ui-reference-notes.md`, `ui-brief.md`, and optional `ui-target.html`.
+- Substantive UI changes always produce or preserve `ui-brief.md`; supplied
+  screenshots, mockups, code references, design exports, URLs, existing pages,
+  or "make it like this" language additionally route through Classic's writable
+  `ui-reference-artifact` lane, which produces `ui-reference-notes.md` and
+  optional `ui-target.html`.
+- Classic and Advanced use one current structured UI contract from spec through
+  lifecycle evidence. Older UI version fields, duplicate fidelity payloads,
+  untyped lifecycle evidence refs, and evidence-kind aliases are rejected;
+  regenerate stale UI artifacts before continuing.
 
 Result helper command shapes:
 
@@ -811,10 +1011,11 @@ Navigation and technical truth are now cognition-first:
 - `sp-map-scan` still performs diff-based scope selection when entered, but the refresh workbench remains internal to `map-scan` / `map-build`.
 - Ordinary runtime consumption should prefer `debug-handbook.md` or `build-handbook.md` plus the workflow's fixed chapter set only as compatibility/export views.
 - Generated workflows use `project-cognition compass --intent <intent> --query "$ARGUMENTS" --format json` as the default brownfield navigation intake and advisory navigation inputs. The packet returns readiness, `compass_state`, top-level `minimal_live_reads`, lane-level `first_pass_paths` with reasons, `coverage_diagnostics`, and `expansion_ref`.
-- Agents read top-level `minimal_live_reads` first, then use lane-level `first_pass_paths` reasons and `before_fix_claim` checks to prove or reject the route from live repository evidence. These paths are first evidence, not final edit scope.
+- Agents read top-level `minimal_live_reads` first, then lane-level `first_pass_paths` reasons and compact `claim_refs`. A claim's `route_confidence` is valid only within `confidence_scope=route_candidate`; `state`, `freshness`, and `stale` describe graph lifecycle, not current truth. Advanced `project-cognition query` returns bounded top-level `claim_signals`, and `project-cognition expand --section claim_evidence` returns bounded evidence refs with `source_path` and `span`. All require live verification and cannot prove current repository truth or final edit scope.
+- Compass claim-aware ranking is a bounded rerank after repository-backed matching: `match_score` establishes candidate eligibility, while `claim_ranking.adjustment` is capped at `+1` for fresh supported or graph-generation-verified claims, `-1` for stale, and `-2` for contradicted. Claims cannot create candidates and cannot replace live verification. Selected lanes with `stale_claim_signal` or `contradicted_claim_signal` remain `usable_with_review` and return `reconcile_claims_with_minimal_live_reads` plus a lane-specific live repository action.
 - When the compass packet is draft-like, localized, missing coverage, or needs explicit concept decisions, the advanced path remains `project-cognition lexicon --mode catalog` -> agent-authored `semantic_intake` and `concept_decisions` -> `project-cognition query --query-plan`. In short: `lexicon -> semantic_intake -> query`. Facet coverage gates selection; top lexical or vector similarity alone is not route truth. Map points, code proves: navigation terms are route vocabulary, not evidence by themselves. CJK or mixed CJK/ASCII prompts still require agent-owned translation when using the advanced path. The advanced CLI tool's `agent_normalization` field remains agent semantic guidance, not a route decision. `templates/project-map/**` remains a historical compatibility/export surface for handbook generation, but new workflows should not read or require `.specify/project-map/**`.
 - Releases publish prebuilt `project-cognition` binaries for Windows, Linux, and macOS. `specify init` best-effort downloads and pins the matching binary in `.specify/config.json`; if that cannot happen, install via `tools/project-cognition/install.sh` or `tools/project-cognition/install.ps1`, or set `PROJECT_COGNITION_BIN` to a custom binary path.
-- Empty projects initialized by `specify init` run `project-cognition init-empty` after pinning the binary. When there is no business code yet, this creates `.specify/project-cognition/status.json` and `.specify/project-cognition/project-cognition.db` with baseline kind `baseline_kind=greenfield_empty`; greenfield flows do not require map-scan -> map-build solely because the graph has no paths. Projects with existing code still use map-scan -> map-build when a full first brownfield cognition baseline is needed for a first/missing/unusable baseline, schema failure, schema v1 or old broad-schema rebuild-required readiness, zero active-generation `path_index` rows, missing or invalid `alias_index`, `explicit_rebuild_requested`, or `baseline_identity_invalid`; `build-from-scan` archives a v1 DB and rebuilds a clean schema v2 database.
+- Empty projects initialized by `specify init` run `project-cognition init-empty` after pinning the binary. When there is no business code yet, this creates `.specify/project-cognition/status.json` and `.specify/project-cognition/project-cognition.db` with baseline kind `baseline_kind=greenfield_empty`; greenfield flows do not require map-scan -> map-build solely because the graph has no paths. Projects with existing code still use map-scan -> map-build when a full first brownfield cognition baseline is needed for a first/missing/unusable baseline, schema failure, an older schema or old broad-schema rebuild-required readiness, zero active-generation `path_index` rows, missing or invalid alias_index, `explicit_rebuild_requested`, or `baseline_identity_invalid`. Schema v5 is current-only: the runtime does not migrate schema v4 or older databases and does not archive or replace them. Remove the incompatible project-cognition.db explicitly before running the current `sp-map-scan -> sp-map-build` path.
 - Workflow-owned mutation closeout is planner-first: source-changing `sp-*` workflows run `project-cognition closeout-plan --workflow "$ACTIVE_WORKFLOW" --format json`, passing `--delta-session "$DELTA_SESSION_ID"` when a delta session exists. The planner returns `update_mode=delta_session` or `update_mode=payload_file`, `required_agent_fields`, `unknown_path_dispositions`, display-only command templates, and structured execution fields. Agents execute via `update_argv` after writing a completed payload, or by completing `delta_append_draft.argv_prefix` with agent-owned evidence placeholders before running `update_argv`. Verified `adoptable` unknown paths can be recorded without becoming blocking `known_unknowns`; only `blocking_known_unknown` dispositions become payload or delta known unknowns. Payload files accept `verification` plus the compatibility alias `verification_evidence`, and `generated_surfaces` plus the compatibility alias `generated_surface_notes`. Clean closeout gates on `result_state=ready` or `result_state=no_op`, not `status=ok`, `update_id`, `last_update_id`, freshness, display-only command templates, legacy `recorded-only` output, or failed verification evidence. `sp-map-update` remains the external/manual maintenance workflow for user edits, interrupted workflow repair, explicit map maintenance, and follow-up repair.
 - Closeout agents should use `known_unknowns` only for blockers that make the cognition update unsafe to trust. If unrelated dirty or untracked working-tree paths were excluded by explicit workflow-owned paths, record that as `confidence_notes` or `boundary.initial_dirty_paths`, not as blocking `known_unknowns`.
 - Use `map-update` for localized stale cognition refresh recommendations, external/manual changed-path map maintenance, and ordinary existing-baseline gaps; use `map-scan` followed by `map-build` only for first/missing/unusable baseline, schema failure, schema v1 or old broad-schema rebuild-required readiness, zero active-generation `path_index` rows, missing or invalid `alias_index`, `explicit_rebuild_requested`, or `baseline_identity_invalid`.
@@ -823,6 +1024,7 @@ Navigation and technical truth are now cognition-first:
 - After a successful `sp-map-update`, committing the refreshed source changes does not require a full rebuild by itself; update the git-baseline freshness metadata with `project-cognition record-refresh` or `project-cognition complete-refresh` unless validation reports `needs_rebuild`.
 - Project cognition ignore rules live in root `.cognitionignore` or `.specify/project-cognition/.cognitionignore`. They use gitignore-compatible patterns and are honored by `map-scan`, `map-build`, and `map-update`; excluded paths must not enter project cognition graph evidence, runtime route indexes, or `minimal_live_reads`. `project-cognition generate-ignore --format json` writes a starter `.specify/project-cognition/.cognitionignore` with `.gitignore`-derived suggestions commented out and never overwrites an existing ignore file.
 - `project-cognition scan-set --out .specify/project-cognition/tmp/scan-files.json --format json` is the runtime scan-set resolution contract for agent-facing scan handoffs. It produces compact stdout with only the temporary file-list path and count; the file list itself contains only `files`.
+- Advanced rebuilds run `project-cognition scan-prepare --scan-set .specify/project-cognition/tmp/scan-files.json --format json` to create the deterministic workbench and disjoint packet queue. Existing workbenches are protected by default; `--force` explicitly discards their accepted and pending results. Low-cost workers write only their declared `pending-results/<packet-id>.json`; the leader runs `project-cognition scan-accept --packet-id <packet-id> --format json` to validate path accounting, packet-local evidence, concrete `nodes[].paths`, and identity safety before merging. Accept is idempotent for the same packet/result so partial filesystem writes can be retried; conflicting content is rejected. Only after every packet is accepted may `validate-scan` and `build-from-scan` run.
 - For cross-project references, run `project-cognition discover --root <path> --format json`
   before broad inspection. Use another project's cognition only when
   `.specify/project-cognition/status.json` and
@@ -830,7 +1032,7 @@ Navigation and technical truth are now cognition-first:
   `reference_readiness` is `ready`, freshness is `fresh`, and `graph_ready` is
   true; do not treat legacy `.specify/project-map/**` outputs as current truth
   when the reference is stale, blocked, or incomplete.
-- Generated projects require the `specify init` pinned `project_cognition_launcher`, `PROJECT_COGNITION_BIN`, or `project-cognition` on PATH before any of these helpers run; helper scripts prefer `PROJECT_COGNITION_BIN` when set and otherwise call `project-cognition` from PATH.
+- Generated projects require the `specify init` pinned `project_cognition_launcher`, `PROJECT_COGNITION_BIN`, or `project-cognition` on PATH before any of these helpers run; helper scripts prefer `PROJECT_COGNITION_BIN` when set, then `.specify/config.json`'s `project_cognition_launcher`, and finally `project-cognition` from PATH.
 - If a first baseline or structural rebuild can be completed now, run `sp-map-scan` followed by `sp-map-build`; `sp-map-build` owns `project-cognition build-from-scan --format json`, then `project-cognition validate-build --format json`, and publishes the query-ready baseline. Use `project-cognition complete-refresh --format json` only for non-build maintenance or incremental freshness flows such as successful `sp-map-update`; otherwise run `project-cognition mark-dirty --reason "<reason>" --format json` as the manual override/fallback.
 - Map points, code proves: technical claims must be backed by live code, tests, scripts, configuration, or authoritative docs.
 - This repository does not treat its own root `.specify/` directory as committed source-of-truth content; repo-local `.specify/` state is disposable and may be regenerated.

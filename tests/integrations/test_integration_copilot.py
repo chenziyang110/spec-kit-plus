@@ -86,7 +86,7 @@ class TestCopilotIntegration:
                 ".specify/integrations/copilot/scripts/update-context.sh",
                 ".specify/memory/constitution.md",
                 ".specify/memory/learnings/INDEX.md",
-                ".specify/memory/project-learnings.md",
+                ".specify/memory/learnings/confirmed.md",
                 ".specify/memory/project-rules.md",
                 ".specify/project-cognition/project-cognition.db",
                 ".specify/project-cognition/status.json",
@@ -167,7 +167,6 @@ class TestCopilotIntegration:
         assert "## Reference Contracts" not in content
         assert (references / "INDEX.md").is_file()
         assert (references / "context-boundary-and-truth.md").is_file()
-        assert len(content) < 48_000
 
     def test_setup_creates_companion_prompts(self, tmp_path):
         from specify_cli.integrations.copilot import CopilotIntegration

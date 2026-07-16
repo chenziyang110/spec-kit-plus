@@ -3,6 +3,7 @@ package query
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -10,12 +11,150 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/claim"
 	rt "github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtime"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/store"
 )
 
+func TestCurrentQueryContractVersions(t *testing.T) {
+	if ClaimRetrievalContractVersion != 2 || CandidateUniverseVersion != 2 {
+		t.Fatalf("query contract versions = claim:%d candidate:%d, want current-only 2/2", ClaimRetrievalContractVersion, CandidateUniverseVersion)
+	}
+}
+
+func TestRunReturnsOnlyRelatedCompactGraphClaims(t *testing.T) {
+	paths := queryTestPaths(t)
+	seedReadyGraph(t, paths, store.ImportInput{
+		GenerationID: "GEN-claims",
+		Kind:         "full",
+		SourceCommit: "abc123",
+		Evidence: []store.EvidenceImport{
+			{ID: "E-app", SourceKind: "source", SourcePath: "src/app.go", CommitSHA: "abc123", Span: "12:1-28:2", Extractor: "test", ContentHash: "hash-app"},
+		},
+		Nodes: []store.NodeImport{
+			{ID: "N-app", Type: "capability", Title: "App", Confidence: "high", EvidenceIDs: []string{"E-app"}},
+		},
+		Claims: []store.ClaimImport{{
+			ID:                    "claim:app-owner",
+			NodeID:                "N-app",
+			GraphClaimType:        "runtime_owner",
+			Summary:               "App owns runtime behavior",
+			State:                 claim.StateSupported,
+			Freshness:             claim.FreshnessFresh,
+			StateReason:           "supporting_evidence",
+			SupportingEvidenceIDs: []string{"E-app"},
+		}},
+		PathIndex: []store.PathIndexImport{
+			{ID: "P-app", Path: "src/app.go", NodeID: "N-app", Relation: "owns", Confidence: "high", EvidenceID: "E-app"},
+		},
+	})
+
+	payload, err := Run(paths, QueryInput{Query: "app", Plan: Plan{Paths: []string{"src/app.go"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if payload.ClaimRetrievalContractVersion != 2 {
+		t.Fatalf("ClaimRetrievalContractVersion = %d, want 2", payload.ClaimRetrievalContractVersion)
+	}
+	var serialized map[string]any
+	data, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(data, &serialized); err != nil {
+		t.Fatal(err)
+	}
+	if serialized["candidate_universe_version"] != float64(2) {
+		t.Fatalf("candidate_universe_version = %#v, want current version 2", serialized["candidate_universe_version"])
+	}
+	claims, ok := payload.Subgraph["claims"].([]map[string]any)
+	if !ok || len(claims) != 1 {
+		t.Fatalf("subgraph.claims = %#v, want one compact graph claim", payload.Subgraph["claims"])
+	}
+	got := claims[0]
+	for _, key := range []string{"id", "node_id", "graph_claim_type", "summary", "state", "freshness", "state_reason"} {
+		if _, exists := got[key]; !exists {
+			t.Errorf("claim = %#v, missing compact field %q", got, key)
+		}
+	}
+	if _, exists := got["verifications"]; exists {
+		t.Fatalf("claim = %#v, default query must not dump verification history", got)
+	}
+	if _, exists := got["evidence"]; exists {
+		t.Fatalf("claim = %#v, existing compact graph claim contract must stay compact", got)
+	}
+	if len(payload.ClaimSignals) != 1 {
+		t.Fatalf("ClaimSignals = %#v, want one related claim signal", payload.ClaimSignals)
+	}
+	signal := payload.ClaimSignals[0]
+	if signal.RouteConfidence != "high" || signal.ConfidenceScope != "route_candidate" {
+		t.Fatalf("claim signal confidence = %#v, want high route_candidate confidence", signal)
+	}
+	if signal.Stale {
+		t.Fatalf("claim signal stale = true, want false")
+	}
+	if !signal.LiveVerificationRequired {
+		t.Fatalf("claim signal live verification = false, want true")
+	}
+	if signal.EvidenceCount != 1 || len(signal.EvidenceRefs) != 1 || signal.EvidenceTruncated {
+		t.Fatalf("claim signal evidence = %#v, want one untruncated evidence ref", signal)
+	}
+	ref := signal.EvidenceRefs[0]
+	if ref.ID != "E-app" || ref.Role != "supporting" || ref.SourceKind != "source" || ref.SourcePath != "src/app.go" || ref.Span != "12:1-28:2" || ref.CommitSHA != "abc123" {
+		t.Errorf("claim evidence ref = %#v, want source identity and exact span", ref)
+	}
+	if payload.EpistemicContract.GraphOnlyClaimsAllowed {
+		t.Fatalf("epistemic contract = %#v, graph claims must not authorize final claims", payload.EpistemicContract)
+	}
+}
+
+func TestRunScopesClaimRouteConfidenceWithoutUpgradingGraphTruth(t *testing.T) {
+	paths := queryTestPaths(t)
+	seedReadyGraph(t, paths, store.ImportInput{
+		GenerationID: "GEN-claim-confidence",
+		Kind:         "full",
+		SourceCommit: "abc123",
+		Evidence: []store.EvidenceImport{
+			{ID: "E-support", SourceKind: "source", SourcePath: "src/app.go", CommitSHA: "abc123", Span: "1:1-8:1", Extractor: "test", ContentHash: "hash-support"},
+			{ID: "E-contradict", SourceKind: "test", SourcePath: "tests/app_test.go", CommitSHA: "abc123", Span: "10:1-22:1", Extractor: "test", ContentHash: "hash-contradict"},
+		},
+		Nodes: []store.NodeImport{{ID: "N-app", Type: "capability", Title: "App", Confidence: "verified", EvidenceIDs: []string{"E-support"}}},
+		Claims: []store.ClaimImport{
+			{ID: "claim:verified", NodeID: "N-app", GraphClaimType: "behavior", Summary: "Verified graph assertion", State: claim.StateVerified, Freshness: claim.FreshnessFresh, StateReason: "supporting_evidence_and_current_verification", SupportingEvidenceIDs: []string{"E-support"}},
+			{ID: "claim:supported", NodeID: "N-app", GraphClaimType: "behavior", Summary: "Supported graph assertion", State: claim.StateSupported, Freshness: claim.FreshnessFresh, StateReason: "supporting_evidence", SupportingEvidenceIDs: []string{"E-support"}},
+			{ID: "claim:candidate", NodeID: "N-app", GraphClaimType: "behavior", Summary: "Candidate graph assertion", State: claim.StateCandidate, Freshness: claim.FreshnessUnknown, StateReason: "evidence_required"},
+			{ID: "claim:contradicted", NodeID: "N-app", GraphClaimType: "behavior", Summary: "Contradicted graph assertion", State: claim.StateContradicted, Freshness: claim.FreshnessFresh, StateReason: "contradicting_evidence", ContradictingEvidenceIDs: []string{"E-contradict"}},
+			{ID: "claim:stale", NodeID: "N-app", GraphClaimType: "behavior", Summary: "Stale graph assertion", State: claim.StateStale, Freshness: claim.FreshnessStale, StateReason: "source_changed", SupportingEvidenceIDs: []string{"E-support"}},
+		},
+		PathIndex: []store.PathIndexImport{{ID: "P-app", Path: "src/app.go", NodeID: "N-app", Relation: "owns", Confidence: "verified", EvidenceID: "E-support"}},
+	})
+
+	payload, err := Run(paths, QueryInput{Query: "app", Plan: Plan{Paths: []string{"src/app.go"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	byID := map[string]ClaimSignal{}
+	for _, signal := range payload.ClaimSignals {
+		byID[signal.ID] = signal
+	}
+	for _, id := range []string{"claim:verified", "claim:supported", "claim:candidate", "claim:contradicted", "claim:stale"} {
+		if byID[id].RouteConfidence != "verified" || byID[id].ConfidenceScope != "route_candidate" {
+			t.Errorf("%s route confidence = %#v, want verified route_candidate scope", id, byID[id])
+		}
+		if !byID[id].LiveVerificationRequired {
+			t.Errorf("%s live verification required = false, want true", id)
+		}
+	}
+	if !byID["claim:stale"].Stale || byID["claim:stale"].Freshness != string(claim.FreshnessStale) {
+		t.Errorf("stale claim signal = %#v, want explicit stale state", byID["claim:stale"])
+	}
+	if byID["claim:contradicted"].Stale || byID["claim:contradicted"].State != string(claim.StateContradicted) {
+		t.Errorf("contradicted claim signal = %#v, want contradicted without conflating staleness", byID["claim:contradicted"])
+	}
+}
+
 func TestParsePlanNormalizesLegacyAliases(t *testing.T) {
-	plan, err := ParsePlan(`{"path_hints":["./src/a.go"],"reason":"because"}`, "")
+	plan, err := ParsePlan(`{"candidate_universe_version":2,"path_hints":["./src/a.go"],"reason":"because"}`, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -27,10 +166,45 @@ func TestParsePlanNormalizesLegacyAliases(t *testing.T) {
 	}
 }
 
+func TestParsePlanRequiresCurrentCandidateUniverseVersion(t *testing.T) {
+	for name, document := range map[string]string{
+		"missing": `{"lexicon_generation_id":"GEN-current"}`,
+		"old":     `{"lexicon_generation_id":"GEN-current","candidate_universe_version":1}`,
+		"future":  `{"lexicon_generation_id":"GEN-current","candidate_universe_version":3}`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, _, err := ParsePlanWithDiagnostics(document, "")
+			if err == nil || !strings.Contains(err.Error(), "candidate_universe_version") {
+				t.Fatalf("ParsePlanWithDiagnostics(%s) error = %v, want current-version-only rejection", name, err)
+			}
+		})
+	}
+
+	plan, diagnostics, err := ParsePlanWithDiagnostics(
+		`{"lexicon_generation_id":"GEN-current","candidate_universe_version":2}`,
+		"",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := json.Marshal(plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var serializedPlan map[string]any
+	if err := json.Unmarshal(data, &serializedPlan); err != nil {
+		t.Fatal(err)
+	}
+	if diagnostics.Warnings != nil || serializedPlan["candidate_universe_version"] != float64(2) {
+		t.Fatalf("plan = %#v diagnostics = %#v, want current candidate contract", plan, diagnostics)
+	}
+}
+
 func TestParsePlanAcceptsConceptDecisionsAndGeneration(t *testing.T) {
 	plan, err := ParsePlan(`{
 		"raw_query": "GUI feels laggy",
 		"lexicon_generation_id": "GEN-ui",
+		"candidate_universe_version": 2,
 		"selected_concepts": ["concept:GEN-ui:N-gui"],
 		"rejected_concepts": ["concept:GEN-ui:N-login"],
 		"concept_decisions": [
@@ -67,6 +241,7 @@ func TestParsePlanAcceptsConceptDecisionsAndGeneration(t *testing.T) {
 func TestParsePlanPreservesRepositorySearchTerms(t *testing.T) {
 	plan, err := ParsePlan(`{
 		"raw_query": "Complete button should live in workflow status",
+		"candidate_universe_version": 2,
 		"repository_search_terms": [
 			"workflow status",
 			"Complete",
@@ -92,6 +267,7 @@ func TestParsePlanPreservesRepositorySearchTerms(t *testing.T) {
 func TestParsePlanAcceptsSemanticIntakeAndFacetCoverageDecisions(t *testing.T) {
 	plan, err := ParsePlan(`{
 		"raw_query": "Token usage today says 230M, is that wrong?",
+		"candidate_universe_version": 2,
 		"semantic_intake": {
 			"workflow_intent": "debug",
 			"normalized_query": "Investigate local CLI session token usage aggregation and daily accounting accuracy.",
@@ -140,6 +316,7 @@ func TestParsePlanAcceptsSemanticIntakeAndFacetCoverageDecisions(t *testing.T) {
 
 func TestParsePlanMergesTopLevelSemanticIntakeAliases(t *testing.T) {
 	plan, err := ParsePlan(`{
+		"candidate_universe_version": 2,
 		"workflow_intent": " debug ",
 		"normalized_query": " token usage accounting ",
 		"intent_facets": ["token accounting", "token accounting", "daily total"],
@@ -171,6 +348,7 @@ func TestParsePlanMergesTopLevelSemanticIntakeAliases(t *testing.T) {
 
 func TestParsePlanWithDiagnosticsCoercesTopLevelStringAliases(t *testing.T) {
 	plan, diagnostics, err := ParsePlanWithDiagnostics(`{
+		"candidate_universe_version": 2,
 		"normalized_query": "WinPE driver download stall",
 		"alias_interpretations": ["PE程序"]
 	}`, "")
@@ -196,6 +374,7 @@ func TestParsePlanWithDiagnosticsCoercesTopLevelStringAliases(t *testing.T) {
 func TestParsePlanWithDiagnosticsCoercesNestedStringAliases(t *testing.T) {
 	plan, diagnostics, err := ParsePlanWithDiagnostics(`{
 		"lexicon_generation_id": "GEN-debug",
+		"candidate_universe_version": 2,
 		"semantic_intake": {
 			"normalized_query": "WinPE driver download stall",
 			"alias_interpretations": ["PE程序"]
@@ -216,6 +395,7 @@ func TestParsePlanWithDiagnosticsCoercesNestedStringAliases(t *testing.T) {
 
 func TestParsePlanKeepsNestedSemanticIntakeOverTopLevelAliases(t *testing.T) {
 	plan, err := ParsePlan(`{
+		"candidate_universe_version": 2,
 		"normalized_query": "top level query",
 		"intent_facets": ["top facet"],
 		"alias_interpretations": [
@@ -248,6 +428,7 @@ func TestParsePlanKeepsNestedSemanticIntakeOverTopLevelAliases(t *testing.T) {
 func TestParsePlanWithDiagnosticsRejectsUnsupportedAliasShape(t *testing.T) {
 	_, _, err := ParsePlanWithDiagnostics(`{
 		"lexicon_generation_id": "GEN-debug",
+		"candidate_universe_version": 2,
 		"semantic_intake": {
 			"alias_interpretations": [{"alias": 95}]
 		}
@@ -342,7 +523,7 @@ func TestNormalizePlanBackfillsMissingLegacyDecisionsForMixedInput(t *testing.T)
 func TestParsePlanSupportsAtFile(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "plan.json")
-	if err := os.WriteFile(path, []byte(`{"paths":["docs/x.md"]}`), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte(`{"candidate_universe_version":2,"paths":["docs/x.md"]}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	plan, err := ParsePlan("@"+path, "")
@@ -1017,10 +1198,13 @@ func TestLexiconPayloadIncludesPlanningContractAndCandidateFields(t *testing.T) 
 		t.Fatal(err)
 	}
 	acceptedFields := payload.QueryPlanningContract["accepted_fields"]
-	for _, want := range []string{"concept_decisions", "lexicon_generation_id"} {
+	for _, want := range []string{"concept_decisions", "lexicon_generation_id", "candidate_universe_version"} {
 		if !mapStringSliceContains(acceptedFields, want) {
 			t.Fatalf("accepted_fields = %#v, want %q", acceptedFields, want)
 		}
+	}
+	if payload.QueryPlanningContract["candidate_universe_version"] != CandidateUniverseVersion {
+		t.Fatalf("query planning candidate version = %#v, want %d", payload.QueryPlanningContract["candidate_universe_version"], CandidateUniverseVersion)
 	}
 	if len(payload.ConceptCandidates) == 0 {
 		t.Fatal("ConceptCandidates is empty")
@@ -1287,8 +1471,8 @@ func TestRunBlocksIncompatibleDatabaseWithoutArchiving(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected incompatible DB agreement error")
 	}
-	if !strings.Contains(err.Error(), "schema is incompatible") {
-		t.Fatalf("error = %q, want incompatible schema", err.Error())
+	if !strings.Contains(err.Error(), "current runtime requires 5") {
+		t.Fatalf("error = %q, want current schema requirement", err.Error())
 	}
 	if _, statErr := os.Stat(paths.DatabasePath + ".legacy"); !os.IsNotExist(statErr) {
 		t.Fatalf("legacy archive stat err = %v, want no archive", statErr)

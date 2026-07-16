@@ -2,7 +2,7 @@
 description: Use when `sp-map-scan` has produced a value-weighted evidence baseline and you need to reconstruct the project cognition SQLite runtime.
 workflow_contract:
   when_to_use: A scan baseline exists and the project cognition runtime must be built or rebuilt from that evidence.
-  primary_objective: Validate value-weighted scan evidence, reconstruct graph nodes, edges, observations, path indexes, and alias indexes from high-value evidence into the schema v2 SQLite cognition database, assign confidence, and publish queryable task-oriented cognition bundles.
+  primary_objective: Validate value-weighted scan evidence, reconstruct graph nodes, edges, observations, typed graph claims, path indexes, and alias indexes from high-value evidence into the schema v5 SQLite cognition database, derive revisioned claim lifecycle state, assign confidence, and publish queryable task-oriented cognition bundles.
   primary_outputs: '`.specify/project-cognition/status.json`, `.specify/project-cognition/project-cognition.db`, and query/update helper readiness metadata.'
   default_handoff: Return to the blocked brownfield workflow once the query-backed cognition baseline is ready.
 ---
@@ -33,14 +33,7 @@ Use `execution_surface: native-subagents`.
 
 Reconstruct or refresh the query-backed project cognition runtime from a completed value-weighted evidence baseline.
 
-## Passive Project Learning Layer
-
-- [AGENT] Run `{{specify-subcmd:learning start --command map-build --format json}}` when available so passive learning files exist and repeated graph-build blind spots can be promoted at start.
-- Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/learnings/INDEX.md` in that order before broader graph-build context.
-- Open only learning detail docs linked from map-build-relevant index entries.
-- Learning Reflex: before final closeout, ask whether a future senior engineer would benefit from seeing this lesson before related work. If yes, update `.specify/memory/learnings/INDEX.md` and the linked detail markdown document without asking for routine permission.
-- [AGENT] When graph reconstruction friction exposes route changes, artifact rewrites, validation gaps, false starts, hidden dependencies, or reusable constraints, make sure `map-state.md` captures that durable context.
-- [AGENT] When durable state does not capture the reusable lesson cleanly, update `.specify/memory/learnings/INDEX.md` and a linked detail document with the command, type, summary, and evidence.
+{{spec-kit-include: ../command-partials/common/learning-layer.md}}
 
 ## Process
 
@@ -54,7 +47,9 @@ Reconstruct or refresh the query-backed project cognition runtime from a complet
 - Dispatch only validated packetized build lanes as `one-subagent` or `parallel-subagents`.
 - If overlap, missing packet data, missing required references, or unsafe acceptance criteria prevent safe dispatch, record `subagent-blocked` and stop for escalation or recovery.
 - Run `{{specify-subcmd:project-cognition validate-scan --format json}}` before graph import.
-- Run `{{specify-subcmd:project-cognition build-from-scan --format json}}` after scan and package validation; this rebuilds the graph store into schema v2 and owns DB import, metadata, status publication, and DB/status agreement.
+- Run `{{specify-subcmd:project-cognition build-from-scan --format json}}` after scan and package validation. It adapts the accepted canonical scan package into a versioned proposal and runs the deterministic cognition proposal compiler before any graph-store mutation, then rebuilds the graph store into schema v5 and owns DB import, metadata, status publication, and DB/status agreement.
+- Treat `compilation.publication_allowed=false` as a hard pre-publication block. Report the bounded compiler conflicts and stop without creating, archiving, replacing, or publishing a graph store.
+- A successful compile means the proposal is structurally safe and deterministic enough to publish as advisory graph material. Compiled nodes, edges, paths, aliases, and graph claims remain route candidates rather than repository facts; even `verified_in_graph_generation` requires bounded live repository evidence before behavioral or workflow final claims.
 - If `build-from-scan` returns `status=blocked`, report its `errors`, identity reconciliation details from `identity_reconciliation`, `rejections`, `merge_records`, and `recovery_action` and do not proceed to build validation.
 - Run `{{specify-subcmd:project-cognition validate-build --format json}}` after `build-from-scan`.
 
@@ -82,7 +77,7 @@ activation. `low_risk_open_gap` may pass only with owner, reason,
 
 - `sp-map-build` is the command that publishes query-backed cognition truth.
 - `sp-map-build` must not fall back to handbook-first runtime output.
-- `sp-map-build` owns schema v2 SQLite runtime publication, confidence assignment, route validation, and alias catalog readiness.
+- `sp-map-build` owns schema v5 SQLite runtime publication, confidence assignment, revisioned typed graph-claim lifecycle derivation, route validation, reconciliation-basis support, and alias catalog readiness.
 - Existing narratives may inform continuity, but final runtime rows must be backed by scan evidence. Map points, code proves: the alias catalog is route vocabulary, not evidence by itself.
 
 ## Required Inputs
@@ -94,6 +89,7 @@ Before writing query-backed truth, read:
 - `.specify/project-cognition/provisional/nodes.json`
 - `.specify/project-cognition/provisional/edges.json`
 - `.specify/project-cognition/provisional/observations.json`
+- optional `.specify/project-cognition/provisional/claims.json`
 - `.specify/project-cognition/coverage.json`
 - `.specify/project-cognition/workbench/repository-universe.json`
 - `.specify/project-cognition/workbench/scan-targets.json`
@@ -123,25 +119,42 @@ If those artifacts are missing, stop and route back to `/sp-map-scan`.
 - Critical and important graph-eligible paths must remain in the sparse path-index denominator unless they are true repository-universe exclusions or explicitly accepted nonblocking gaps.
 - `build-from-scan` must not set `freshness=fresh`, must not set `readiness=query_ready`, and must not set `graph_ready=true` until sparse path-index gates pass.
 
-## Schema V2 Runtime Contract
+## Schema V5 Runtime Contract
 
-`project-cognition build-from-scan --format json` archives schema v1 or old broad
-schema databases and creates a clean schema v2 database. Schema v2 keeps the
+Schema v5 is current-only. `project-cognition build-from-scan --format json`
+creates schema v5 only for a missing database or consumes a complete current
+schema v5 database. The current runtime does not migrate schema v4 or older
+databases and does not archive or replace them. Remove the incompatible project-cognition.db
+explicitly, then run `sp-map-scan -> sp-map-build` with the current binary.
+Schema v5 keeps the
 implemented runtime tables: `metadata`, `generations`, `evidence`, `nodes`,
 `node_evidence`, `edges`, `edge_evidence`, `observations`,
-`observation_evidence`, `path_index`, `alias_index`, and `updates`.
+`observation_evidence`, `path_index`, `alias_index`, `claims`, `claim_evidence`,
+`claim_verifications`, `claim_transitions`, `claim_reconciliations`, and `updates`.
 
-Future semantic tables such as claims, conflicts, symbols, entrypoints, tests, slices, query examples, FTS tables, and compatibility `query_examples` are not current readiness requirements.
+Conflicts, symbols, entrypoints, tests, slices, query examples, FTS tables, and compatibility `query_examples` are not current readiness requirements.
+
+Graph claims use `graph_claim_type` and a compiler-derived lifecycle state:
+`candidate`, `supported`, `verified_in_graph_generation`, `contradicted`, or
+`stale`. `claim_evidence` records supporting and contradicting evidence,
+`claim_verifications` records bounded verification inputs, and
+`claim_transitions` makes lifecycle changes auditable. Schema v5 also records
+`claim_reconciliations`; `claim_evidence.basis_state` distinguishes the current
+evidence basis used for routing from superseded or historical evidence. An Agent-provided
+`requested_state` is never authoritative. `verified_in_graph_generation` means
+only that the active graph generation contains supporting evidence and a current
+passed graph verification; it is not current repository truth and never grants
+workflow authorization or final claim readiness.
 
 For brownfield baselines, `alias_index` is required: every active node must have
 at least one active-generation alias row, no alias may point at a missing node,
-and no alias may reference a missing non-empty evidence id. The schema v2 alias
+and no alias may reference a missing non-empty evidence id. The schema v5 alias
 catalog helps agents normalize user input before query planning; it does not prove behavior
 without live repository evidence.
 
-If validation reports schema v1, an old broad schema, or rebuild-required
-readiness, route the user to `sp-map-scan -> sp-map-build`; build-from-scan
-archives the v1 DB and creates a clean schema v2 database.
+If validation reports schema v1 through schema v4, an old broad schema, or
+rebuild-required readiness, leave the old database untouched and route the user
+to remove it explicitly before `sp-map-scan -> sp-map-build`.
 When writing the recommendation in plain text, use: run sp-map-scan -> sp-map-build.
 
 ## Path Index Source Contract
@@ -210,7 +223,8 @@ Do not publish handbook-first runtime truth from this command. Do not publish ra
 - validate that `scan-targets.json` selects high-value graph evidence and keeps low-value inventory-only surfaces out of graph publication
 - deduplicate provisional nodes into graph nodes
 - convert candidate edges into validated graph edges
-- build schema v2 `alias_index` rows from alias-ready node titles, types, paths, and bounded attrs
+- build schema v5 `alias_index` rows from alias-ready node titles, types, paths, and bounded attrs
+- compile optional graph claim candidates, validate all node/evidence references, derive lifecycle state, and persist claim evidence, verification, and transition rows atomically with the generation
 - assign node, edge, observation, path, and alias confidence
 - publish queryable task-oriented bundles for downstream agent work
 - produce workflow-operational reachability validation
@@ -248,7 +262,7 @@ The resulting query-backed runtime must be able to answer which owners, consumer
 
 ## Required Graph Semantics
 
-Every accepted schema v2 graph build must make room for:
+Every accepted schema v5 graph build must make room for:
 
 - nodes
 - edges
@@ -276,7 +290,8 @@ Before reporting completion:
 - run `{{specify-subcmd:project-cognition build-from-scan --format json}}`; if it returns `status=blocked`, report its `errors`, identity reconciliation details from `identity_reconciliation`, `rejections`, `merge_records`, and `recovery_action`
 - run `{{specify-subcmd:project-cognition validate-build --format json}}` after `build-from-scan`
 - report completion only after `validate-build` returns `status=ok` and `readiness=query_ready`
-- confirm that `.specify/project-cognition/project-cognition.db` was written and can be queried through `{{specify-subcmd:project-cognition compass --intent implement --query="$ARGUMENTS" --format json}}`. Read top-level `minimal_live_reads` first, then use lane-level `first_pass_paths`, `coverage_diagnostics`, and `before_fix_claim`. Do not infer final edit scope from first-pass reads, and use `project-cognition expand` only when the packet's coverage state or live evidence requires more map detail.
+- confirm that `.specify/project-cognition/project-cognition.db` was written and can be queried through `{{specify-subcmd:project-cognition compass --intent implement --query="$ARGUMENTS" --format json}}`. Read top-level `minimal_live_reads` first, then use lane-level `first_pass_paths`, `claim_refs`, `coverage_diagnostics`, and `before_fix_claim`. Treat `route_confidence` only within `confidence_scope=route_candidate`; use top-level advanced-query `claim_signals` or `project-cognition expand --section claim_evidence` for bounded `source_path`/`span` evidence. These signals require live verification and cannot prove current repository truth. Do not infer final edit scope from first-pass reads or graph claims.
+- confirm claim-aware routing preserves the bounded rerank contract: `match_score` alone establishes candidate eligibility; `claim_ranking.adjustment` cannot create candidates and cannot replace live verification. Fresh supported or graph-generation-verified claims add at most `+1`; stale and contradicted claims subtract `-1` and `-2`. `stale_claim_signal` and `contradicted_claim_signal` must keep the packet `usable_with_review` and route through `reconcile_claims_with_minimal_live_reads` plus lane-specific live repository reconciliation.
 - preserve the advanced `lexicon -> semantic_intake -> query` flow for explicit concept decisions or unresolved coverage. In that escalation, write `semantic_intake` from the alias catalog, select candidates by facet coverage, write `concept_decisions` with `covered_facets`, `missing_facets`, and `match_sources`, carry `lexicon_generation_id`, add `repository_search_terms`, and run `{{specify-subcmd:project-cognition query --intent implement --query-plan "<query_plan_json>" --format json}}`. Agent-owned semantic normalization is mandatory: raw lexicon ranking and `agent_normalization` are only bootstrap signals, not route decisions. If `agent_normalization.required=true`, every raw candidate is `score=0`, or the prompt is localized, mixed-language, CJK, colloquial, symptom-first, or mixed-language or CJK text, extract embedded project terms and write `semantic_intake` from the alias catalog before selecting or rejecting concepts. If `agent_normalization` is omitted, treat it as `required=false`; CJK or mixed CJK/ASCII input still requires agent normalization even when positive raw lexical matches exist because embedded project tokens do not translate the surrounding user language. The agent still owns translation; `agent_normalization` is advisory guidance, not a route decision. (raw lexicon ranking is only a bootstrap; action: write_semantic_intake_from_alias_catalog) Derive project-language search terms from the alias catalog before source search. Do not search only the raw user words; include component names, state names, file names, command names, UI labels, and route names from candidates, aliases, matched_terms, colloquial_matches, returned paths, `normalized_query`, and `expanded_queries`. Use these project-language search terms before broad repository search
 - if `validate-build` returns `status=blocked`, report the specific DB, schema, active generation, status, or smoke-query error and do not mark the baseline fresh
 - confirm that `status.json` reflects a query-ready baseline

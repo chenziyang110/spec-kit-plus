@@ -16,6 +16,7 @@ import shutil
 import shlex
 import subprocess
 import sys
+import time
 from pathlib import Path
 from typing import Any, Literal, NamedTuple
 
@@ -28,6 +29,7 @@ WORKFLOW_COMMAND_MAP = {
     "sp-tasks": "tasks",
     "sp-analyze": "analyze",
     "sp-implement": "implement",
+    "sp-accept": "accept",
     "sp-debug": "debug",
     "sp-quick": "quick",
     "sp-fast": "fast",
@@ -37,8 +39,23 @@ WORKFLOW_COMMAND_MAP = {
     "sp-constitution": "constitution",
     "sp-checklist": "checklist",
 }
-ACTIVE_STATE_STATUSES = {"active", "started", "starting", "in_progress", "executing", "execution"}
-TERMINAL_STATE_STATUSES = {"resolved", "complete", "completed", "done", "cancelled", "closed", "blocked", "failed"}
+ACTIVE_STATE_STATUSES = {
+    "active",
+    "started",
+    "starting",
+    "in_progress",
+    "executing",
+    "execution",
+}
+TERMINAL_STATE_STATUSES = {
+    "resolved",
+    "complete",
+    "completed",
+    "done",
+    "cancelled",
+    "closed",
+    "failed",
+}
 TERMINAL_STATE_PREFIXES = ("complete_with_", "completed_with_")
 OPTIONAL_NEXT_ACTION_PREFIXES = (
     "optional follow-up",
@@ -60,7 +77,9 @@ LEARNING_SIGNAL_FIELDS = {
 SHARED_HOOK_TIMEOUT_SECONDS = 5.0
 SHARED_HOOK_PAYLOAD_STATUSES = {"ok", "warn", "blocked", "repaired", "repairable-block"}
 SHARED_HOOK_BLOCKING_PAYLOAD_STATUSES = {"blocked", "repairable-block"}
-SharedHookClientStatus = Literal["ok", "blocked", "unavailable", "timeout", "invalid-output"]
+SharedHookClientStatus = Literal[
+    "ok", "blocked", "unavailable", "timeout", "invalid-output"
+]
 
 
 class SharedHookResult(NamedTuple):
@@ -103,7 +122,11 @@ def _argv_from_env(name: str) -> tuple[str, ...] | None:
             parsed = json.loads(raw_json)
         except json.JSONDecodeError:
             parsed = None
-        if isinstance(parsed, list) and parsed and all(isinstance(item, str) and item for item in parsed):
+        if (
+            isinstance(parsed, list)
+            and parsed
+            and all(isinstance(item, str) and item for item in parsed)
+        ):
             return tuple(parsed)
 
     raw_command = os.environ.get(f"{name}_COMMAND", "").strip()
@@ -131,7 +154,11 @@ def _argv_from_project_config(project_root: Path) -> tuple[str, ...] | None:
     if not isinstance(launcher, dict):
         return None
     argv = launcher.get("argv")
-    if isinstance(argv, list) and argv and all(isinstance(item, str) and item for item in argv):
+    if (
+        isinstance(argv, list)
+        and argv
+        and all(isinstance(item, str) and item for item in argv)
+    ):
         return tuple(argv)
     return None
 
@@ -263,6 +290,7 @@ def _invoke_shared_hook(
     attempted_plans: list[str] = []
     invalid_result: SharedHookResult | None = None
     sensitive_values = _sensitive_hook_values(args, stdin_text)
+    deadline = time.monotonic() + timeout_seconds
     for command in _shared_hook_commands(project_root, args):
         key = tuple(command)
         if key in seen:
@@ -270,6 +298,15 @@ def _invoke_shared_hook(
         seen.add(key)
         attempted_plan = _redacted_invocation_preview(command)
         attempted_plans.append(attempted_plan)
+        remaining_seconds = deadline - time.monotonic()
+        if remaining_seconds <= 0:
+            return SharedHookResult(
+                status="timeout",
+                reason="shared hook event deadline was exhausted",
+                attempted_plans=tuple(attempted_plans),
+                attempted_plan=attempted_plan,
+                timeout_seconds=timeout_seconds,
+            )
         try:
             result = subprocess.run(
                 command,
@@ -280,7 +317,7 @@ def _invoke_shared_hook(
                 errors="replace",
                 capture_output=True,
                 check=False,
-                timeout=timeout_seconds,
+                timeout=remaining_seconds,
             )
         except subprocess.TimeoutExpired:
             return SharedHookResult(
@@ -292,7 +329,9 @@ def _invoke_shared_hook(
             )
         except OSError:
             continue
-        if result.returncode != 0:
+        # Shared hooks use 10 for a valid, resumable business blocker. Their
+        # JSON payload is still authoritative and must reach the native hook.
+        if result.returncode not in {0, 10}:
             continue
         stdout = (result.stdout or "").strip()
         if not stdout:
@@ -325,6 +364,16 @@ def _invoke_shared_hook(
                 invalid_result = SharedHookResult(
                     status="invalid-output",
                     reason="shared hook returned an unknown status",
+                    attempted_plans=tuple(attempted_plans),
+                    attempted_plan=attempted_plan,
+                    stdout_preview=_stdout_preview(stdout, sensitive_values),
+                )
+            continue
+        if result.returncode == 10 and result_status != "blocked":
+            if invalid_result is None:
+                invalid_result = SharedHookResult(
+                    status="invalid-output",
+                    reason="shared hook exit 10 requires a blocking payload status",
                     attempted_plans=tuple(attempted_plans),
                     attempted_plan=attempted_plan,
                     stdout_preview=_stdout_preview(stdout, sensitive_values),
@@ -366,9 +415,84 @@ def _run_shared_hook(
 def _shared_additional_context(shared_payload: dict[str, Any] | None) -> str:
     if not shared_payload:
         return ""
-    warnings = [str(item) for item in shared_payload.get("warnings", []) if str(item).strip()]
-    actions = [str(item) for item in shared_payload.get("actions", []) if str(item).strip()]
+    warnings = [
+        str(item) for item in shared_payload.get("warnings", []) if str(item).strip()
+    ]
+    actions = [
+        str(item) for item in shared_payload.get("actions", []) if str(item).strip()
+    ]
     return " ".join([*warnings, *actions]).strip()
+
+
+def _shared_blocker_detail(shared_payload: dict[str, Any]) -> str:
+    blockers = shared_payload.get("blockers")
+    if (
+        not isinstance(blockers, list)
+        or not blockers
+        or not isinstance(blockers[0], dict)
+    ):
+        return ""
+    blocker = blockers[0]
+    evidence = blocker.get("evidence")
+    if isinstance(evidence, list):
+        evidence_text = "; ".join(str(item) for item in evidence if str(item).strip())
+    else:
+        evidence_text = str(evidence or "").strip()
+    resume = blocker.get("resume")
+    resume_text = ""
+    if isinstance(resume, dict):
+        resume_text = str(
+            resume.get("command") or resume.get("instruction") or ""
+        ).strip()
+    attempted = blocker.get("attempted_recovery")
+    attempted_text = "none recorded"
+    if isinstance(attempted, list) and attempted:
+        attempted_text = (
+            "; ".join(
+                f"{item.get('action')} -> {item.get('result')}"
+                for item in attempted
+                if isinstance(item, dict)
+            )
+            or "none recorded"
+        )
+    affected = blocker.get("affected_scope")
+    affected_text = (
+        "; ".join(str(item) for item in affected if str(item).strip())
+        if isinstance(affected, list)
+        else str(affected or "").strip()
+    )
+    parts = [
+        f"Workflow/stage: {blocker.get('workflow')} / {blocker.get('stage')}",
+        f"Blocked: {blocker.get('summary')}",
+        f"Category/owner: {blocker.get('category')} / {blocker.get('owner')}",
+        f"Why: {blocker.get('details')}",
+        f"Evidence: {evidence_text}" if evidence_text else "",
+        f"Attempted recovery: {attempted_text}",
+        f"Affected scope: {affected_text}" if affected_text else "",
+        f"Next action: {blocker.get('exact_next_action')}",
+        f"Unblock criteria: {blocker.get('unblock_criteria')}",
+        f"Resume: {resume_text}" if resume_text else "",
+    ]
+    guide = blocker.get("human_action_guide")
+    if blocker.get("human_action_required") is True and isinstance(guide, dict):
+        step_text = "; ".join(
+            f"{step.get('order')}. {step.get('title')}: {step.get('action')} "
+            f"[expected: {step.get('expected_result')}; if failed: {step.get('if_failed')}]"
+            for step in guide.get("steps") or []
+            if isinstance(step, dict)
+        )
+        parts.extend(
+            [
+                f"Human goal: {guide.get('goal')}",
+                f"Why human: {guide.get('why_human')}",
+                f"Prerequisites: {'; '.join(str(item) for item in guide.get('prerequisites') or [])}",
+                f"Safety: {'; '.join(str(item) for item in guide.get('safety_notes') or [])}",
+                f"Steps: {step_text}" if step_text else "",
+                f"Return: {'; '.join(str(item) for item in guide.get('evidence_to_return') or [])}",
+                f"Human resume: {guide.get('resume_instruction')}",
+            ]
+        )
+    return " | ".join(part for part in parts if part and not part.endswith(": None"))
 
 
 def _shared_block_to_gemini(
@@ -381,10 +505,16 @@ def _shared_block_to_gemini(
     status = str(shared_payload.get("status") or "").strip().lower()
     if status == "repairable-block":
         autofix_command = str(
-            ((shared_payload.get("data") or {}).get("autofix") or {}).get("command") or ""
+            ((shared_payload.get("data") or {}).get("autofix") or {}).get("command")
+            or ""
         ).strip()
         extra = _shared_additional_context(shared_payload)
-        message = " ".join(part for part in [system_message, extra, autofix_command] if part).strip()
+        blocker_detail = _shared_blocker_detail(shared_payload)
+        message = " ".join(
+            part
+            for part in [system_message, blocker_detail, extra, autofix_command]
+            if part
+        ).strip()
         if message:
             return {
                 "hookSpecificOutput": {
@@ -395,14 +525,26 @@ def _shared_block_to_gemini(
         return {}
     if status != "blocked":
         return None
-    errors = [str(item) for item in shared_payload.get("errors", []) if str(item).strip()]
-    warnings = [str(item) for item in shared_payload.get("warnings", []) if str(item).strip()]
-    actions = [str(item) for item in shared_payload.get("actions", []) if str(item).strip()]
-    reason = errors[0] if errors else (warnings[0] if warnings else "shared quality hook blocked the action")
+    errors = [
+        str(item) for item in shared_payload.get("errors", []) if str(item).strip()
+    ]
+    warnings = [
+        str(item) for item in shared_payload.get("warnings", []) if str(item).strip()
+    ]
+    actions = [
+        str(item) for item in shared_payload.get("actions", []) if str(item).strip()
+    ]
+    reason = (
+        errors[0]
+        if errors
+        else (warnings[0] if warnings else "shared quality hook blocked the action")
+    )
+    blocker_detail = _shared_blocker_detail(shared_payload)
+    detailed_reason = blocker_detail or reason
     extra = " ".join([system_message, *warnings, *actions]).strip()
     output = {
         "decision": "deny",
-        "reason": reason,
+        "reason": detailed_reason,
     }
     if extra:
         output["systemMessage"] = extra
@@ -410,7 +552,10 @@ def _shared_block_to_gemini(
 
 
 def _is_repairable_block(shared_payload: dict[str, Any] | None) -> bool:
-    return str((shared_payload or {}).get("status") or "").strip().lower() == "repairable-block"
+    return (
+        str((shared_payload or {}).get("status") or "").strip().lower()
+        == "repairable-block"
+    )
 
 
 def _normalized_path_for_compare(project_root: Path, raw_path: str) -> str:
@@ -420,11 +565,15 @@ def _normalized_path_for_compare(project_root: Path, raw_path: str) -> str:
     return str(path.resolve()).replace("\\", "/").lower()
 
 
-def _is_state_repair_path(project_root: Path, context: dict[str, str] | None, target_path: str) -> bool:
+def _is_state_repair_path(
+    project_root: Path, context: dict[str, str] | None, target_path: str
+) -> bool:
     state_file = str((context or {}).get("state_file") or "").strip()
     if not state_file or not target_path:
         return False
-    return _normalized_path_for_compare(project_root, target_path) == _normalized_path_for_compare(project_root, state_file)
+    return _normalized_path_for_compare(
+        project_root, target_path
+    ) == _normalized_path_for_compare(project_root, state_file)
 
 
 def _is_validate_state_autofix_command(command: str) -> bool:
@@ -459,7 +608,9 @@ def _normalized_state(value: str) -> str:
 
 def _is_terminal_state_status(value: str) -> bool:
     normalized = _normalized_state(value)
-    return normalized in TERMINAL_STATE_STATUSES or normalized.startswith(TERMINAL_STATE_PREFIXES)
+    return normalized in TERMINAL_STATE_STATUSES or normalized.startswith(
+        TERMINAL_STATE_PREFIXES
+    )
 
 
 def _is_active_state_status(value: str) -> bool:
@@ -523,7 +674,9 @@ def _extract_frontmatter_field(text: str, field_name: str) -> str:
 
 
 def _extract_int_field(text: str, field_name: str) -> int:
-    value = _extract_field(text, field_name) or _extract_frontmatter_field(text, field_name)
+    value = _extract_field(text, field_name) or _extract_frontmatter_field(
+        text, field_name
+    )
     if not value:
         return 0
     try:
@@ -546,12 +699,18 @@ def _extract_list_field(text: str, field_name: str) -> list[str]:
 
 
 def _extract_section_items(text: str, section_name: str) -> list[str]:
-    heading = re.compile(rf"^##+\s+{re.escape(section_name)}\s*$", re.IGNORECASE | re.MULTILINE)
+    heading = re.compile(
+        rf"^##+\s+{re.escape(section_name)}\s*$", re.IGNORECASE | re.MULTILINE
+    )
     match = heading.search(text)
     if not match:
         return []
-    next_heading = re.search(r"^##+\s+", text[match.end():], re.MULTILINE)
-    section = text[match.end(): match.end() + next_heading.start()] if next_heading else text[match.end():]
+    next_heading = re.search(r"^##+\s+", text[match.end() :], re.MULTILINE)
+    section = (
+        text[match.end() : match.end() + next_heading.start()]
+        if next_heading
+        else text[match.end() :]
+    )
     items: list[str] = []
     for raw_line in section.splitlines():
         stripped = raw_line.strip()
@@ -715,7 +874,7 @@ def _extract_read_path(tool_input: dict[str, Any]) -> str:
 
 
 def _extract_commit_message(command: str) -> str:
-    if not re.search(r"(^|\s)git(\.exe)?\s+commit(\s|$)", command):
+    if not re.search(r"(^|\s)git(\.exe)?(?:\s+-c\s+\S+)*\s+commit(\s|$)", command):
         return ""
     patterns = (
         r'-m\s+"([^"]+)"',
@@ -763,7 +922,9 @@ def _compaction_resume_context(
     context = _infer_active_context(project_root)
     if not context:
         return ""
-    shared = _run_shared_hook(project_root, ["read-compaction", *_active_context_args(context)])
+    shared = _run_shared_hook(
+        project_root, ["read-compaction", *_active_context_args(context)]
+    )
     artifact = shared.get("data", {}).get("artifact", {}) if shared else {}
     if build and (not shared or not isinstance(artifact, dict) or not artifact):
         shared = _run_shared_hook(
@@ -789,12 +950,16 @@ def _compaction_resume_context(
     if isinstance(resume_cue, list):
         for item in resume_cue:
             text = str(item or "").strip()
-            if text and not _is_optional_next_action(text.removeprefix("Resume cue:").strip()):
+            if text and not _is_optional_next_action(
+                text.removeprefix("Resume cue:").strip()
+            ):
                 return text
     return ""
 
 
-def _workflow_policy_block(project_root: Path, *, trigger: str, requested_action: str = "") -> dict[str, Any] | None:
+def _workflow_policy_block(
+    project_root: Path, *, trigger: str, requested_action: str = ""
+) -> dict[str, Any] | None:
     if not requested_action:
         return None
     context = _infer_active_context(project_root)
@@ -814,9 +979,19 @@ def _workflow_policy_block(project_root: Path, *, trigger: str, requested_action
         and policy.get("classification") == "redirect"
     ):
         recovery_summary = policy.get("recovery_summary", {})
-        message = _format_recovery_summary(recovery_summary) if isinstance(recovery_summary, dict) else ""
-        warnings = [str(item) for item in shared.get("warnings", []) if str(item).strip()]
-        reason = warnings[0] if warnings else "requested action conflicts with the active workflow phase"
+        message = (
+            _format_recovery_summary(recovery_summary)
+            if isinstance(recovery_summary, dict)
+            else ""
+        )
+        warnings = [
+            str(item) for item in shared.get("warnings", []) if str(item).strip()
+        ]
+        reason = (
+            warnings[0]
+            if warnings
+            else "requested action conflicts with the active workflow phase"
+        )
         output = {"decision": "deny", "reason": reason}
         if message:
             output["systemMessage"] = message
@@ -882,15 +1057,30 @@ def _learning_signal_context(project_root: Path) -> str:
         args.extend(["--hidden-dependency", item])
         has_signal = True
 
+    trigger_signals = _dedupe(
+        [
+            *_extract_list_field(text, "trigger_signal"),
+            *_extract_list_field(text, "trigger_signals"),
+            *_extract_section_items(text, "Learning Triggers"),
+        ]
+    )
+    for item in trigger_signals:
+        args.extend(["--trigger-signal", item])
+        has_signal = True
+
     if not has_signal:
         return ""
     shared = _run_shared_hook(project_root, args)
     return _shared_additional_context(shared)
 
 
-def _handle_session_start(project_root: Path, _payload: dict[str, Any]) -> dict[str, Any]:
+def _handle_session_start(
+    project_root: Path, _payload: dict[str, Any]
+) -> dict[str, Any]:
     statusline = _statusline_context(project_root)
-    resume_context = _compaction_resume_context(project_root, build=True, trigger="session_start")
+    resume_context = _compaction_resume_context(
+        project_root, build=True, trigger="session_start"
+    )
     message = " ".join(part for part in [statusline, resume_context] if part).strip()
     return {"systemMessage": message} if message else {}
 
@@ -898,7 +1088,9 @@ def _handle_session_start(project_root: Path, _payload: dict[str, Any]) -> dict[
 def _handle_before_agent(project_root: Path, payload: dict[str, Any]) -> dict[str, Any]:
     prompt = _extract_prompt_text(payload)
     statusline = _statusline_context(project_root)
-    resume_context = _compaction_resume_context(project_root, build=False, trigger="prompt")
+    resume_context = _compaction_resume_context(
+        project_root, build=False, trigger="prompt"
+    )
     learning_signal = _learning_signal_context(project_root)
     advisory = " ".join([statusline, resume_context, learning_signal]).strip()
 
@@ -917,11 +1109,19 @@ def _handle_before_agent(project_root: Path, payload: dict[str, Any]) -> dict[st
             return repairable
         normalized_prompt = prompt.lower()
         requested_action = ""
-        if "implement directly" in normalized_prompt or "jump to implement" in normalized_prompt:
+        if (
+            "implement directly" in normalized_prompt
+            or "jump to implement" in normalized_prompt
+        ):
             requested_action = "jump_to_implement"
-        elif "start editing code" in normalized_prompt or "start implementation" in normalized_prompt:
+        elif (
+            "start editing code" in normalized_prompt
+            or "start implementation" in normalized_prompt
+        ):
             requested_action = "start_editing_code"
-        policy_block = _workflow_policy_block(project_root, trigger="prompt", requested_action=requested_action)
+        policy_block = _workflow_policy_block(
+            project_root, trigger="prompt", requested_action=requested_action
+        )
         if policy_block:
             if advisory and not policy_block.get("systemMessage"):
                 policy_block["systemMessage"] = advisory
@@ -941,39 +1141,79 @@ def _handle_before_tool(project_root: Path, payload: dict[str, Any]) -> dict[str
     tool_name = _extract_tool_name(payload).lower()
     tool_input = _extract_tool_input(payload)
     context = _infer_active_context(project_root)
-    policy_shared = _workflow_policy_shared(project_root, trigger="pre_tool", context=context)
+    policy_shared = _workflow_policy_shared(
+        project_root, trigger="pre_tool", context=context
+    )
 
     if tool_name in {"read_file", "read", "read-file"}:
         target_path = _extract_read_path(tool_input)
         if not target_path:
             return {}
-        if _is_repairable_block(policy_shared) and _is_state_repair_path(project_root, context, target_path):
+        if _is_repairable_block(policy_shared) and _is_state_repair_path(
+            project_root, context, target_path
+        ):
             return {}
         if _is_repairable_block(policy_shared):
-            return {"decision": "deny", "reason": "workflow-state repair is required before reading other files"}
-        shared = _run_shared_hook(project_root, ["validate-read-path", "--target-path", target_path])
+            return {
+                "decision": "deny",
+                "reason": "workflow-state repair is required before reading other files",
+            }
+        shared = _run_shared_hook(
+            project_root, ["validate-read-path", "--target-path", target_path]
+        )
         return _shared_block_to_gemini(shared) or {}
 
     if tool_name in {"run_shell_command", "bash", "run-shell-command"}:
         command = str(tool_input.get("command") or "").strip()
         if not command:
             return {}
-        if _is_repairable_block(policy_shared) and _is_validate_state_autofix_command(command):
+        if _is_repairable_block(policy_shared) and _is_validate_state_autofix_command(
+            command
+        ):
             return {}
         if _is_repairable_block(policy_shared):
-            return {"decision": "deny", "reason": "workflow-state repair is required before running other shell commands"}
+            return {
+                "decision": "deny",
+                "reason": "workflow-state repair is required before running other shell commands",
+            }
         commit_message = _extract_commit_message(command)
         if not commit_message:
             return {}
-        shared = _run_shared_hook(project_root, ["validate-commit", "--commit-message", commit_message])
+        args = ["validate-commit", "--commit-message", commit_message]
+        if (
+            context
+            and context.get("command_name") == "implement"
+            and context.get("feature_dir")
+        ):
+            args.extend(["--feature-dir", context["feature_dir"]])
+        intent_match = re.search(
+            r"(?:^|\s)-c\s+specify\.commitIntent=(?P<intent>[^\s]+)",
+            command,
+            re.IGNORECASE,
+        )
+        if intent_match:
+            args.extend(["--commit-intent", intent_match.group("intent")])
+        shared = _run_shared_hook(project_root, args)
         return _shared_block_to_gemini(shared) or {}
 
-    if tool_name in {"write_file", "write", "edit_file", "edit", "multi_edit", "multiedit"}:
+    if tool_name in {
+        "write_file",
+        "write",
+        "edit_file",
+        "edit",
+        "multi_edit",
+        "multiedit",
+    }:
         target_path = _extract_read_path(tool_input)
-        if _is_repairable_block(policy_shared) and _is_state_repair_path(project_root, context, target_path):
+        if _is_repairable_block(policy_shared) and _is_state_repair_path(
+            project_root, context, target_path
+        ):
             return {}
         if _is_repairable_block(policy_shared):
-            return {"decision": "deny", "reason": "workflow-state repair is required before writing other files"}
+            return {
+                "decision": "deny",
+                "reason": "workflow-state repair is required before writing other files",
+            }
 
     return {}
 

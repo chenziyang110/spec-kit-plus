@@ -1,124 +1,31 @@
 ---
 design_system:
   schema: spec-kit-design-v1
-  name: project-design-system
+  name: bootstrap-design-seed
   version: 1
+  status: bootstrap
+  approval:
+    status: unapproved
+    direction: null
+    source_refs: []
+    visual_refs: []
+  product_context:
+    subject: null
+    audience: null
+    single_job: null
+  direction_contract:
+    visual_thesis: null
+    content_thesis: null
+    interaction_thesis: null
+    signature_element: null
   platforms:
-    - web
-    - mobile
-    - desktop
-    - tui
-    - cli
+    - select-during-sp-design
   tokens:
-    color:
-      surface.canvas:
-        value: "#ffffff"
-        usage: primary application background
-      surface.panel:
-        value: "#f8fafc"
-        usage: raised panels, grouped controls, secondary surfaces
-      surface.inverse:
-        value: "#111827"
-        usage: inverse headers, terminal panels, high-emphasis surfaces
-      text.primary:
-        value: "#111827"
-        usage: primary readable text
-      text.secondary:
-        value: "#4b5563"
-        usage: secondary text, helper copy, metadata
-      text.inverse:
-        value: "#ffffff"
-        usage: text on inverse surfaces
-      border.subtle:
-        value: "#d1d5db"
-        usage: controls, dividers, quiet card boundaries
-      accent.primary:
-        value: "#2563eb"
-        usage: primary action, selected states, active navigation
-      accent.danger:
-        value: "#dc2626"
-        usage: destructive actions and error states
-      accent.success:
-        value: "#16a34a"
-        usage: success states and positive confirmations
-    spacing:
-      scale.1:
-        value: "4px"
-        usage: icon and label gaps
-      scale.2:
-        value: "8px"
-        usage: compact control padding and tight stack gaps
-      scale.3:
-        value: "12px"
-        usage: form row gaps and compact panel padding
-      scale.4:
-        value: "16px"
-        usage: default section gap and card padding
-      scale.6:
-        value: "24px"
-        usage: page sections and major groups
-      scale.8:
-        value: "32px"
-        usage: screen-level spacing
-    radius:
-      control:
-        value: "6px"
-        usage: buttons, inputs, tabs, compact cards
-      panel:
-        value: "8px"
-        usage: repeated cards, panels, dialogs
-    typography:
-      body.family:
-        value: "system-ui"
-        usage: default interface text
-      body.size:
-        value: "14px"
-        usage: dense application copy
-      heading.family:
-        value: "system-ui"
-        usage: page and section headings
-      heading.weight:
-        value: "650"
-        usage: hierarchy without oversized type
-    shadow:
-      panel:
-        value: "0 1px 2px rgba(15, 23, 42, 0.08)"
-        usage: restrained elevation for overlays and active panels
-  components:
-    button:
-      required_states:
-        - default
-        - hover
-        - focus
-        - disabled
-        - loading
-      token_refs:
-        background: "{color.accent.primary}"
-        text: "{color.text.inverse}"
-        radius: "{radius.control}"
-    input:
-      required_states:
-        - default
-        - hover
-        - focus
-        - disabled
-        - error
-      token_refs:
-        background: "{color.surface.canvas}"
-        text: "{color.text.primary}"
-        border: "{color.border.subtle}"
-        radius: "{radius.control}"
-    card:
-      required_states:
-        - default
-        - hover
-        - selected
-        - loading
-        - empty
-      token_refs:
-        background: "{color.surface.panel}"
-        border: "{color.border.subtle}"
-        radius: "{radius.panel}"
+    color: {}
+    spacing: {}
+    radius: {}
+    typography: {}
+  components: {}
   accessibility:
     contrast_intent: WCAG AA for ordinary text where platform rendering allows
     focus_visible: required
@@ -127,11 +34,21 @@ design_system:
 
 # Project Design System
 
-This file is the project design-system contract. Read it before creating or changing user-facing UI, including web, mobile, desktop, TUI, and CLI output.
+This file is a structurally valid bootstrap seed, not an approved product design.
+Before substantive new UI, run `sp-design`/`spx-design`, select a project-specific
+direction, replace generic starter choices, and set the approval metadata above.
+Downstream agents must not treat `status: bootstrap` as locked visual truth.
 
 ## Product Feel
 
-Use a clear, task-focused interface with restrained visual treatment. Prefer strong information hierarchy, consistent spacing, stable controls, and readable states over decorative styling.
+This seed intentionally contains no palette, type scale, spacing scale, radius,
+or component style to copy. Select them from product context and live evidence.
+
+## Design Direction
+
+Record the subject, audience, single user job, visual/content/interaction
+theses, signature element, and the inspectable visual artifact the user
+approved. A prose label alone is not visual approval.
 
 ## Platforms
 
@@ -159,12 +76,17 @@ Use a clear, task-focused interface with restrained visual treatment. Prefer str
 
 ## UI QA Checklist
 
-- Tokens are used for colors, spacing, radius, typography, and elevation.
+- Approved project tokens are used consistently.
 - Required component states are implemented or explicitly out of scope for the surface.
 - Text fits inside controls and panels at mobile and desktop widths.
 - Keyboard and focus behavior are visible where the platform supports them.
-- Evidence captures the platform: screenshots for graphical UI, representative output for TUI/CLI.
+- Evidence captures structure, visual output, runtime diagnostics, and comparison
+  at real entry points; browser evidence maps these to accessibility snapshots,
+  screenshots, console/runtime output, and visual comparison or human review.
 
 ## Design Change Policy
 
-Update this file through `sp-design` when a change affects product-wide style, brand, density, component rules, token values, or platform-specific interface expectations.
+Promote this seed to `status: approved` only through `sp-design`/`spx-design`
+after a direction is selected from product and repository evidence. Later
+changes to product-wide style, brand, density, component rules, token values,
+or platform expectations must update this file and its approval provenance.

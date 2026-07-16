@@ -15,6 +15,45 @@ function runner(result: HookProcessResult): HookProcessRunner {
 }
 
 describe("SharedHookClient", () => {
+  it("accepts protocol exit 10 for structured blocked payloads", () => {
+    const client = new SharedHookClient({
+      cwd: "/repo",
+      runner: runner({
+        status: 10,
+        stdout: JSON.stringify({
+          event: "workflow.prompt_guard.validate",
+          status: "blocked",
+          severity: "critical",
+          errors: ["prompt attempts to ignore required workflow guardrails"],
+        }),
+        stderr: "",
+      }),
+    });
+
+    const result = client.invoke(["validate-prompt"], { eventName: "UserPromptSubmit" });
+
+    assert.equal(result.status, "blocked");
+    assert.equal(result.payload.status, "blocked");
+  });
+
+  it("rejects protocol exit 10 when the payload is not blocked", () => {
+    const client = new SharedHookClient({
+      cwd: "/repo",
+      runner: runner({
+        status: 10,
+        stdout: JSON.stringify({
+          event: "workflow.prompt_guard.validate",
+          status: "ok",
+        }),
+        stderr: "",
+      }),
+    });
+
+    const result = client.invoke(["validate-prompt"], { eventName: "UserPromptSubmit" });
+
+    assert.equal(result.status, "invalid-output");
+  });
+
   it("maps blocked shared hook payloads to blocked results", () => {
     const client = new SharedHookClient({
       cwd: "/repo",

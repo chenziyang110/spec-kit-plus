@@ -7,6 +7,8 @@ from pathlib import Path
 
 import pytest
 
+from specify_cli.launcher import render_command
+
 from .test_base import (
     _assert_canonical_cognition_intake_contract,
     _assert_subagent_using_surfaces_have_discovery,
@@ -546,6 +548,11 @@ class TestCodexAutoPromote:
         assert "workflow-local semantic-audit-output.json" in generated_contract_lower
         assert "Prompt fallback remains valid" in generated_contract
         assert "does not authorize source edits, final claims, or P3/P4 permission" in generated_contract
+        assert "Graph claim namespace" in generated_contract
+        assert "graph_claim_type" in generated_contract
+        assert "verified_in_graph_generation" in generated_contract
+        assert "cannot set workflow `claim_ready=true`" in generated_contract
+        assert "must not populate `claim_verification_refs`" in generated_contract
         assert "Fingerprint mismatches are route-changed" in generated_contract
         assert ".specify/templates/examples/semantic-audit-resume/scenarios.md" in generated_contract
         assert "keep claim_ready false" in generated_contract
@@ -941,7 +948,7 @@ def test_codex_generated_passive_subagent_skills_include_stable_dispatch_contrac
     assert "you may recommend a" in routing
     assert "natural-language tasks" in routing
     assert "always-on" in routing
-    assert "project cognition and project memory" in routing
+    assert "project cognition and project learning" in routing
     assert "red flags" in routing
     assert "high-throughput senior product-engineering advisor" in routing
     assert "frontstage / backstage separation" in routing
@@ -1153,9 +1160,11 @@ def test_codex_generated_shared_workflow_skills_include_native_spawn_agent_guida
         assert "spawn_agent" in content
         assert "wait_agent" in content
         assert ".specify/project-cognition/" in content
-        assert ".specify/memory/project-rules.md" in content
-        assert ".specify/memory/learnings/index.md" in content
-        assert "future senior engineer" in content
+        assert "learning start --command " in content
+        assert "--format json" in content
+        assert "--detail-level" not in content
+        assert "show_argv" in content
+        assert ".specify/memory/learnings/index.md" not in content
         assert "spec-contract.json" in content
         assert "semantic_delta" in content
         assert ".planning/learnings/candidates.md" not in content or "compatibility" in content
@@ -1179,10 +1188,12 @@ def test_codex_generated_shared_workflow_skills_include_native_spawn_agent_guida
         assert "leader-inline-fallback" not in content
         assert "execution model: `subagents-first`" not in content
         assert ".specify/project-cognition/" in content
-        assert ".specify/memory/project-rules.md" in content
-        assert ".specify/memory/learnings/index.md" in content
-        assert "future senior engineer" in content
-        assert ".planning/learnings/candidates.md" not in content or "compatibility" in content
+        assert "learning start --command " in content
+        assert "--format json" in content
+        assert "--detail-level" not in content
+        assert "show_argv" in content
+        assert ".specify/memory/learnings/index.md" not in content
+        assert ".planning/learnings/candidates.md" not in content
         assert "if collaboration is justified" not in content
         assert "would benefit from them" not in content
         assert "make the next path explicit" not in content
@@ -1236,11 +1247,10 @@ def test_codex_generated_shared_workflow_skills_include_native_spawn_agent_guida
 
     constitution_content = (skills_dir / "sp-constitution" / "SKILL.md").read_text(encoding="utf-8").lower()
     constitution_normalized = " ".join(constitution_content.split())
-    assert ".specify/memory/project-rules.md" in constitution_content
-    assert ".specify/memory/learnings/index.md" in constitution_content
-    assert "future senior engineer" in constitution_content
-    assert ".planning/learnings/candidates.md" not in constitution_content or "compatibility" in constitution_content
     assert "learning start --command constitution --format json" in constitution_content
+    assert "show_argv" in constitution_content
+    assert ".specify/memory/learnings/index.md" not in constitution_content
+    assert ".planning/learnings/candidates.md" not in constitution_content
     assert "this workflow writes only `.specify/memory/constitution.md`." in constitution_content
     assert "do not modify templates, command files, docs, project rules, learning files" in constitution_content
     assert "report the highest affected downstream stage instead of editing those artifacts" in constitution_normalized
@@ -1537,9 +1547,9 @@ def test_codex_generated_sp_debug_includes_leader_led_native_investigation_guida
     skill_path = target / ".codex" / "skills" / "sp-debug" / "SKILL.md"
     content = _read_skill_with_references(skill_path).lower()
 
-    assert ".specify/memory/project-rules.md" in content
-    assert ".specify/memory/learnings/index.md" in content
-    assert "future senior engineer" in content
+    assert "learning start --command debug" in content
+    assert "learning show" in content or "show_argv" in content
+    assert ".specify/memory/learnings/index.md" not in content
     assert ".planning/learnings/candidates.md" not in content or "compatibility" in content
     assert "codex subagent evidence collection" in content
     assert "compass --intent debug" in content
@@ -1729,10 +1739,9 @@ def test_codex_generated_sp_fast_stays_inline_and_lightweight(tmp_path):
     content = _read_skill_with_references(skill_path).lower()
 
     assert "scope gate" in content
-    assert "skip all learning hooks" in content
-    assert "do not read constitution, project-rules, or project-learnings" in content
-    assert "leave `.specify/memory/learnings/index.md`" in content
-    assert ".planning/learnings/candidates.md" not in content or "compatibility" in content
+    assert "do not run learning intake, hooks, capture, or promotion" in content
+    assert "do not parse learning storage" in content
+    assert ".specify/memory/learnings/index.md" not in content
     assert "compass --intent implement" in content
     assert "query --query-plan" in content
     assert "only when `compass_state`, coverage diagnostics, localization, or live evidence requires explicit concept decisions" in content
@@ -1781,10 +1790,22 @@ def test_codex_generated_sp_quick_supports_lightweight_tracked_execution(tmp_pat
     content = _read_skill_with_references(skill_path).lower()
 
     assert ".planning/quick/" in content
-    assert ".specify/memory/project-rules.md" in content
-    assert ".specify/memory/learnings/index.md" in content
-    assert "future senior engineer" in content
-    assert ".planning/learnings/candidates.md" not in content or "compatibility" in content
+    assert (
+        render_command(
+            (
+                "learning",
+                "start",
+                "--command",
+                "<classic-command-name>",
+                "--format",
+                "json",
+            )
+        ).lower()
+        in content
+    )
+    assert "show_argv" in content
+    assert ".specify/memory/learnings/index.md" not in content
+    assert ".planning/learnings/candidates.md" not in content
     assert "compass --intent implement" in content
     assert "query --intent implement" in content
     assert "alias catalog" in content
@@ -1815,11 +1836,15 @@ def test_codex_generated_sp_quick_supports_lightweight_tracked_execution(tmp_pat
     assert_quick_checkpoint_card_shape(content)
     assert "<br>" not in content
     assert "plain text for terminal output" in content
-    assert "target outcome" in content
-    assert "known facts / assumptions" in content
-    assert "implementation plan" in content
-    assert "validation evidence" in content
-    assert "stop condition" in content
+    assert "request and outcome" in content
+    assert "user-visible result" in content
+    assert "recommended approach" in content
+    assert "assumptions and risks" in content
+    assert "completion evidence" in content
+    assert "reconfirmation trigger" in content
+    assert "technical execution belongs to the agent" in content
+    assert "## ui confirmation" in content
+    assert "single confirmation covers both" in content
     assert "done_or_progress_signal" in content
     assert "dispatch_shape: one-subagent | parallel-subagents" in content
     assert "execution_surface: native-subagents" in content

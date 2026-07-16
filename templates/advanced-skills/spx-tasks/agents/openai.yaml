@@ -1,0 +1,7 @@
+interface:
+  display_name: "SPX Tasks"
+  short_description: "Dependency-aware execution tasks"
+  default_prompt: "Use $spx-tasks to turn the ready plan into an executable task graph."
+
+policy:
+  allow_implicit_invocation: false
