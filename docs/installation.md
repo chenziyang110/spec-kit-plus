@@ -183,39 +183,29 @@ traceability for ambiguous terms such as "capability", "real", "usable", or
 
 Use the canonical `ask` workflow for read-only evidence-backed project Q&A when
 you need a direct answer from project files, templates, docs, state, or memory
-before choosing an action workflow. Project cognition guides the search; live
-evidence proves the answer. Same-topic follow-ups reuse the prior evidence set
-when it still applies, localized or project-slang terms are normalized into
-project vocabulary, and complex answers separate proven facts from
+before choosing an action workflow. Project cognition guides the search; live evidence
+proves the answer. Same-topic follow-ups reuse the prior evidence set
+when it still applies; project-slang terms are normalized into project vocabulary,
+and complex answers separate proven facts from
 evidence-derived inferences. `sp-ask` is independent from `sp-discussion`, creates
 no ask state or handoff, makes no source edits, and does not run tests, builds,
 package managers, or project CLI commands by default. There is no `specify ask`
 Typer helper in v1.
 
-When `specify` starts from a `discussion` handoff, it must read the named
-discussion source files, at least `discussion-log.md`, `requirements.md`, and
-`open-questions.md` when present, instead of trusting the handoff summary
-alone. Invoke it with the handoff Markdown path, JSON path, or discussion slug,
-or let it consume the single unconsumed `handoff-ready` discussion when exactly
-one exists. It validates the handoff before feature creation, requires ready
-planning status, user-confirmed quality gate status, zero hard unknowns, zero
-open conflicts, and Markdown/JSON agreement on protected downstream facts, then
-derives the feature description from `handoff_goal` instead of the raw path or
-slug. The compatibility handoff JSON records `source_files_read` and
-`source_signal_disposition`; `alignment.md` carries `Semantic Term Decisions`,
-`Upstream Intent Disposition`, and `Out-Of-Scope Conflicts` so a capability-like
-upstream signal cannot silently disappear before planning.
+When `specify` starts from a `discussion` contract, pass the handoff JSON path or discussion slug, or let it select the single eligible unconsumed ready contract. It validates ready status, consumer eligibility, the confirmed digest, target boundary, protected obligations, and source-contract integrity before feature creation, then derives the feature description from `handoff_goal`. `spec-contract.json` preserves semantic delta, stable evidence refs, and capability operations so upstream signals cannot silently disappear before planning.
 
 Command-surface minimization must not delete capability. If upstream discussion
 or specification text includes a new/create/scaffold/authoring operation,
 downstream planning and task generation must preserve it through an explicit
-public command, TUI route, core API, private helper, or user-confirmed deferral.
+public command, TUI route, core API, private helper, or user-confirmed deferral
+carrying confirmation source, exact excluded behavior, residual risk, reopen or
+stop condition, and downstream artifact.
 Manual copy instructions and template-only docs can support that operation, but
 they do not replace it unless the user chose that narrower entry point.
 
-Before planning, `specify` performs artifact self-review and asks for user review
-against the original wording so unconfirmed scope narrowing is reopened instead
-of passed downstream.
+Before planning, `specify` performs deterministic self-review. A confirmed
+discussion contract does not require another user review unless compilation
+produces a non-empty user-owned semantic delta.
 
 Use the canonical `prd-scan -> prd-build` workflow when an existing repository
 needs a repository-first current-state PRD reconstruction archive. It is the
@@ -226,11 +216,22 @@ compiles from the scan package without a second repository scan. It remains a
 peer workflow path to `specify` and does not automatically hand off to `plan`.
 `prd` remains a deprecated compatibility entrypoint only.
 
-Use the canonical `discussion` workflow for rough ideas that need resumable product/technical discussion before formal specification or bounded quick execution. `discussion` stores `.specify/discussions/<slug>/` artifacts and runs as a high-throughput senior product-engineering advisor: the visible conversation gives the recommended direction, plain-language reason, usable draft or next design step, default next step, and override path, while frontstage / backstage separation keeps state accounting backstage. It uses checkpoint persistence: do not persist every turn, flush durable meaning at semantic checkpoints or lifecycle triggers, continue by default, and do not ask for continuation when a safe default exists. It still uses an Adaptive Question Pack with one required primary question and up to two optional same-topic follow-ups only for local low-risk topics, and it asks only when user judgment is genuinely required. It runs the Context Boundary Gate before technical options or handoff generation. If the request crosses projects, references another codebase, names an external system, or depends on an existing module, lock the target project root, current project role, reference source, and evidence source before making project-specific claims. It uses project cognition as advisory navigation while proving claims from live evidence. Before project-specific technical advice it performs a Truth Pass, records verified project facts, open assumptions, checked evidence, and advice confidence, and maintains a Discussion Compass. When the user explicitly asks to hand off, `discussion` writes exactly one single unified `discussion_requirement_contract` handoff: `handoff-to-specify.md` plus `handoff-to-specify.json` only after self-review and user confirmation. These are compatibility filenames for one agent-facing requirement contract with `consumer_eligibility` for `sp-specify` and `sp-quick`, `recommended_consumer`, and `quick_task_candidate`; do not create a second quick-specific handoff. Missing JSON is a hard integrity blocker for downstream intake. The handoff includes `handoff_goal`, `context_boundary`, `implementation_target`, `source_evidence`, `blocking_unknowns`, `downstream_instructions`, `quality_gate`, and a Must-Preserve Ledger. The Markdown handoff includes a `Handoff Reviewer Guide` with approval and change-request criteria for reviewers who do not know Spec Kit internals. Skills-based projects include `spec-kit-discussion-handoff-review`, which gives reviewers fixed verdicts and applies a ready summary quality check so the final handoff-ready closeout reads like a concise handoff card, not only updated paths and counters. Broad directions stay in `discussion` until they can be expressed as one handoff with a capability map, recommended sequence, dependencies, deferred scope, and reopen conditions. It does not automatically invoke `specify` or `quick`; `sp-specify` validates the ready/user-confirmed handoff before feature creation, while `sp-quick` validates `consumer_eligibility.sp-quick` and still requires the Quick Checkpoint. After an eligible consumer consumes the handoff, use `specify discussion mark-consumed <slug> --feature-dir <feature-dir>` to record handoff consumption and remove stale `handoff-ready` state from default auto-resume candidates.
+Use `discussion` for rough ideas that need product/technical shaping before formal specification or bounded quick execution. It persists meaning at semantic checkpoints, keeps human replies adaptive, and writes one canonical Agent-only `handoff-to-specify.json` only after explicit request, boundary lock, self-review, and user confirmation. `sp-specify` and `sp-quick` validate that JSON directly; no Markdown companion, reviewer guide, quick-specific handoff, or duplicated confirmation is required.
 
-The discussion output is a single unified handoff pair, not separate specify and quick payloads.
+Continue by default, do not ask for continuation, and ask only when user judgment is genuinely required and no safe default exists.
 
-When `sp-specify` consumes that handoff, it turns selected direction, rejected alternatives, accepted tradeoffs, experience commitments, review criteria, and must-not-dilute constraints into a `Discussion Decision Digest` carried through spec, alignment, context, and compatibility JSON. When `sp-quick` consumes the same handoff, it validates `consumer_eligibility.sp-quick`, carries the digest and Must-Preserve items into quick `STATUS.md`, and still presents the Quick Checkpoint before execution.
+Current discussion state is Agent-native: `discussion-state.json` is canonical,
+`discussion-state.md` is a derived compatibility view, and
+`discussion-log.jsonl` records semantic checkpoints. The Context Boundary Gate
+locks the target project root before technical claims. Human replies stay
+natural; the handoff is JSON-only and approval/consumption bind to
+`review_digest`.
+
+The discussion output is one canonical Agent-only JSON contract shared by eligible consumers.
+
+Across the full pipeline, the canonical Agent authorities are `handoff-to-specify.json`, `spec-contract.json`, `plan-contract.json`, `task-index.json`, per-task lifecycle records, and post-closeout `human-acceptance.json`. Conditional artifacts are generated only when their trigger is present; delegated packets are compiled just in time. `sp-accept` / `spx-accept` assumes the human returns without chat context, restores the product story, and guides one observable acceptance step at a time before recording the explicit human verdict.
+
+When `sp-specify` consumes the contract, it writes `spec-contract.json` and preserves the decision digest by reference. `sp-quick` reuses the confirmed digest when its own semantic delta is empty.
 
 Discussion sessions remain visible to resume while their status is `active`, `blocked`, or unconsumed `handoff-ready`. After a handoff has been consumed, `specify discussion mark-consumed <slug> --feature-dir <feature-dir>` writes `handoff_consumption_status: consumed`, `consumed_by_feature_dir`, `status: completed`, and `next_command: none`; then `specify discussion archive <slug>` can move it under `.specify/discussions/archive/`. If the user abandons the topic before consumption, use `specify discussion close <slug> --status abandoned` and then archive it.
 

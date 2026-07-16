@@ -12,6 +12,8 @@ workflow_contract:
 Use `sp-integrate` to discover completed lanes, run integration prechecks,
 surface drift or overlap risk, and close the lane cleanly.
 
+{{spec-kit-include: ../command-partials/common/learning-layer.md}}
+
 ## Context
 
 - Primary inputs: completed lane state, verification evidence, lane closeout metadata, and the smallest relevant project cognition query bundle or handbook guidance for merge-sensitive shared surfaces.
@@ -23,6 +25,13 @@ surface drift or overlap risk, and close the lane cleanly.
 2. Check shared-surface overlap, merge sequencing risk, and required closeout evidence.
 3. Surface any unresolved integration blockers instead of hiding them behind a generic "done" status.
 4. Produce explicit closeout guidance for merge or PR follow-through.
+5. For every UI-bearing lane, treat isolated screenshots as input only. After
+   the integrated tree exists, run the real entry points and recapture the
+   required viewport/state matrix with typed structure, visual, and runtime
+   evidence. Update lifecycle `evidence_scope: integrated` and
+   `integration_base_ref`, compare against the approved direction and task
+   contracts, repair drift, and recapture. The close helper must remain blocked
+   while only task-scope evidence exists or human review is unresolved.
 
 ## Output Contract
 

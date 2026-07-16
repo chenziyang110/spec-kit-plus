@@ -23,7 +23,7 @@ from .models import (
     utc_now,
     utc_now_iso,
 )
-from .policy import choose_evidence_lane_dispatch, choose_subagent_dispatch
+from .policy import choose_evidence_lane_dispatch, choose_subagent_dispatch, choose_ui_reference_lane_dispatch
 from .state_store import (
     batch_path,
     decision_path,
@@ -70,6 +70,7 @@ __all__ = [
     "task_path",
     "choose_evidence_lane_dispatch",
     "choose_subagent_dispatch",
+    "choose_ui_reference_lane_dispatch",
     "utc_now",
     "utc_now_iso",
     "write_json",

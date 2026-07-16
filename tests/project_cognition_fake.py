@@ -811,9 +811,9 @@ def write_fake_project_cognition_script(tmp_path: Path) -> Path:
 
                                 schema_version = metadata_value("schema_version")
                                 runtime_schema = metadata_value("runtime_schema")
-                                if schema_version != "2":
+                                if schema_version != "3":
                                     errors.append(
-                                        "schema_version must be 2 for query_ready; "
+                                        "schema_version must be 3 for query_ready; "
                                         f"found {schema_version or 'missing'}; "
                                         "recommended_next_action=run_map_scan_build"
                                     )

@@ -132,6 +132,7 @@ class GenericIntegration(MarkdownIntegration):
                 template_path=src_file,
                 project_root=project_root,
             )
+            processed = self.rewrite_command_reference_links(processed, src_file.stem)
             processed = self._append_map_subagent_capability_discovery(
                 content=processed,
                 agent_name=agent_name,
@@ -143,6 +144,18 @@ class GenericIntegration(MarkdownIntegration):
                 processed, dest / dst_name, project_root, manifest
             )
             created.append(dst_file)
+            created.extend(
+                self.install_command_reference_sidecars(
+                    command_name=src_file.stem,
+                    owner_template_raw=raw,
+                    owner_template_path=src_file,
+                    commands_destination=dest,
+                    project_root=project_root,
+                    manifest=manifest,
+                    script_type=script_type,
+                    arg_placeholder=arg_placeholder,
+                )
+            )
 
         created.extend(self.install_scripts(project_root, manifest))
         return created

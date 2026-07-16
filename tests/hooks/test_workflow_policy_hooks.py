@@ -19,6 +19,53 @@ def test_hook_result_supports_repairable_block_status():
     )
     payload = result.to_dict()
     assert payload["status"] == "repairable-block"
+    blocker = payload["blockers"][0]
+    assert blocker["workflow"] == "shared-hook-runtime"
+    assert blocker["stage"] == "workflow.policy.evaluate"
+    assert blocker["owner"] == "agent"
+    assert blocker["human_action_required"] is False
+    assert blocker["unblock_criteria"]
+    assert blocker["resume"]["instruction"]
+
+
+def test_hook_result_preserves_explicit_human_blocker_tutorial():
+    blocker = {
+        "version": 1,
+        "blocker_id": "ci-approval",
+        "workflow": "spx-implement",
+        "stage": "protected-ci",
+        "category": "external-system",
+        "owner": "maintainer",
+        "summary": "Protected CI approval is required",
+        "details": "The manual job is organization-controlled.",
+        "evidence": ["pipeline 42 is waiting"],
+        "attempted_recovery": [],
+        "exact_next_action": "Approve the verify job",
+        "approval_question": "Approve verify?",
+        "unblock_criteria": "verify passes",
+        "affected_scope": ["implementation closeout"],
+        "can_continue": False,
+        "human_action_required": True,
+        "human_action_guide": {
+            "goal": "Run verify",
+            "why_human": "Protected authority",
+            "prerequisites": ["Maintainer access"],
+            "safety_notes": ["Do not share tokens"],
+            "steps": [{"order": 1, "title": "Approve", "action": "Click verify", "command": None, "expected_result": "passed", "if_failed": "return the job log"}],
+            "verification": ["verify passes"],
+            "evidence_to_return": ["pipeline URL"],
+            "resume_instruction": "Resume spx-implement",
+        },
+        "resume": {"instruction": "Resume implementation", "command": "spx-implement"},
+    }
+    result = HookResult(
+        event="workflow.commit.validate",
+        status="blocked",
+        severity="critical",
+        blockers=[blocker],
+    )
+
+    assert result.to_dict()["blockers"] == [blocker]
 
 
 def test_hook_result_round_trips_policy_metadata():

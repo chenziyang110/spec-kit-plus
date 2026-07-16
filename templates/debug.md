@@ -65,6 +65,33 @@ checkpoint:
     - [area, workflow, command, state loop, or behavior this session will investigate]
   out_of_scope:
     - [nearby issue, enhancement, or unrelated behavior excluded from this session]
+  fix_authority: [diagnose only | diagnose and fix after causal evidence]
+  assumptions_to_correct:
+    - [reporter assumption, uncertain fact, or none]
+  reconfirmation_trigger: [material problem, boundary, authority, compatibility, migration, side-effect, or risk change]
+  confirmation_digest: [digest of the confirmed user-owned decisions]
+  user_corrections:
+    - [user correction, ambiguity, or confirmation timestamp]
+
+ui_confirmation:
+  applicable: [true for visual, interaction, responsive, accessibility, TUI, or CLI presentation behavior]
+  confirmation_purpose: [Debug target baseline]
+  user_and_primary_job: [affected user, context, and single job]
+  design_basis_and_source_material:
+    - [approved design direction, current entry point, or original reference plus intent]
+  target_experience: [expected visual, content, and interaction experience]
+  structure_and_visible_change: [structure and visible behavior to restore or preserve]
+  interaction_states_and_adaptation:
+    - [interaction, state, viewport/window, keyboard, or accessibility expectation]
+  design_boundaries:
+    must_preserve: []
+    may_adapt: []
+    must_not: []
+  acceptance_evidence:
+    - [real-entrypoint state/viewport evidence required after a fix]
+  confirmation_digest: [digest of the confirmed UI target baseline]
+
+agent_investigation_plan:
   candidate_focus:
     - [primary suspected truth owner, competing explanation, or candidate family to test first without claiming root cause]
   investigation_plan:
@@ -73,8 +100,6 @@ checkpoint:
   fix_gate: [what must be proven before code changes are allowed]
   done_or_progress_signal:
     - [evidence that proves the session can move to fix, verification, human verification, or blocked state]
-  user_corrections:
-    - [user correction, ambiguity, or confirmation timestamp]
 
 ## Atlas Read Evidence
 

@@ -24,6 +24,7 @@ class TestAgentConfigConsistency:
         assert _get_skills_dir(tmp_path, "cursor-agent") == tmp_path / ".cursor" / "skills"
         assert _get_skills_dir(tmp_path, "trae") == tmp_path / ".trae" / "skills"
         assert _get_skills_dir(tmp_path, "vibe") == tmp_path / ".vibe" / "skills"
+        assert _get_skills_dir(tmp_path, "zcode") == tmp_path / ".zcode" / "skills"
         assert _get_skills_dir(tmp_path, "codex") == tmp_path / ".codex" / "skills"
 
     def test_runtime_config_paths_for_nonstandard_agents(self):
@@ -34,6 +35,7 @@ class TestAgentConfigConsistency:
             "agy": (".agents/", "skills"),
             "cursor-agent": (".cursor/", "skills"),
             "vibe": (".vibe/", "skills"),
+            "zcode": (".zcode/", "skills"),
             "tabnine": (".tabnine/agent/", "commands"),
             "kimi": (".kimi/", "skills"),
             "trae": (".trae/", "skills"),
@@ -56,6 +58,8 @@ class TestAgentConfigConsistency:
         assert AGENT_CONFIG["iflow"]["requires_cli"] is True
         assert AGENT_CONFIG["mimo"]["requires_cli"] is True
         assert AGENT_CONFIG["mimo"]["install_url"] == "https://mimo.xiaomi.com/mimocode/start"
+        assert AGENT_CONFIG["zcode"]["requires_cli"] is False
+        assert AGENT_CONFIG["zcode"]["install_url"] == "https://zcode.z.ai/en/docs/install"
 
     def test_extension_registrar_configs_for_nonstandard_agents(self):
         """Extension command registrar should target each agent's command surface."""
@@ -65,6 +69,7 @@ class TestAgentConfigConsistency:
             "agy": {"dir": ".agents/skills", "extension": "/SKILL.md"},
             "cursor-agent": {"dir": ".cursor/skills", "extension": "/SKILL.md"},
             "vibe": {"dir": ".vibe/skills", "extension": "/SKILL.md"},
+            "zcode": {"dir": ".zcode/skills", "extension": "/SKILL.md"},
             "tabnine": {"dir": ".tabnine/agent/commands", "format": "toml", "args": "{{args}}", "extension": ".toml"},
             "kimi": {"dir": ".kimi/skills", "extension": "/SKILL.md"},
             "trae": {"dir": ".trae/skills", "format": "markdown", "args": "$ARGUMENTS", "extension": "/SKILL.md"},
@@ -99,6 +104,26 @@ class TestAgentConfigConsistency:
         assert "AGENTS.md" in pwsh_wrapper
         assert ".vibe/agents/specify-agents.md" not in bash_wrapper
         assert ".vibe/agents/specify-agents.md" not in pwsh_wrapper
+
+    def test_zcode_agent_context_scripts_use_root_agents_file(self):
+        """ZCode context updates should target root AGENTS.md while skills live under .zcode."""
+        bash_text = (REPO_ROOT / "scripts" / "bash" / "update-agent-context.sh").read_text(encoding="utf-8")
+        pwsh_text = (REPO_ROOT / "scripts" / "powershell" / "update-agent-context.ps1").read_text(encoding="utf-8")
+        bash_wrapper = (
+            REPO_ROOT / "src" / "specify_cli" / "integrations" / "zcode" / "scripts" / "update-context.sh"
+        ).read_text(encoding="utf-8")
+        pwsh_wrapper = (
+            REPO_ROOT / "src" / "specify_cli" / "integrations" / "zcode" / "scripts" / "update-context.ps1"
+        ).read_text(encoding="utf-8")
+
+        assert 'ZCODE_FILE="$AGENTS_FILE"' in _compact_assignment_text(bash_text)
+        assert "$ZCODE_FILE=Join-Path$REPO_ROOT'AGENTS.md'" in _compact_assignment_text(pwsh_text)
+        assert "ZCode" in bash_text
+        assert "ZCode" in pwsh_text
+        assert "AGENTS.md" in bash_wrapper
+        assert "AGENTS.md" in pwsh_wrapper
+        assert "zcode" in bash_wrapper
+        assert "zcode" in pwsh_wrapper
 
     def test_codex_includes_team_template_but_claude_does_not(self):
         """The Codex-only team surface should not leak into non-Codex template lists."""
@@ -169,7 +194,7 @@ class TestAgentConfigConsistency:
         assert validate_set_match is not None
         validate_set_values = re.findall(r"'([^']+)'", validate_set_match.group(1))
 
-        for agent_key in ("kimi", "trae", "pi"):
+        for agent_key in ("kimi", "trae", "pi", "zcode"):
             assert agent_key in validate_set_values
 
     def test_agent_context_scripts_include_simple_nonstandard_agents(self):
@@ -193,8 +218,12 @@ class TestAgentConfigConsistency:
         assert "MiMo Code" in bash_text
         assert "mimo" in pwsh_text
         assert "MiMo Code" in pwsh_text
+        assert "zcode" in bash_text
+        assert "ZCODE_FILE" in bash_text
+        assert "zcode" in pwsh_text
+        assert "ZCODE_FILE" in pwsh_text
 
     def test_ai_help_includes_nonstandard_agents(self):
         """CLI help text for --ai should include nonstandard agent keys."""
-        for agent_key in ("tabnine", "kimi", "trae", "pi", "iflow", "mimo"):
+        for agent_key in ("tabnine", "kimi", "trae", "pi", "iflow", "mimo", "zcode"):
             assert agent_key in AI_ASSISTANT_HELP

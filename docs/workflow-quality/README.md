@@ -26,7 +26,7 @@ Shorter is not automatically better. A change is accepted only when it reduces w
 | Layer | Examples | Required Question |
 | --- | --- | --- |
 | Prompt | command templates, partials, passive skills | Does this text cause a concrete behavior? |
-| Handoff | handoff Markdown/JSON, plan contract, task handoff | Can the next workflow consume this quickly and safely? |
+| Handoff | canonical Agent JSON contract plus compact transition refs | Can the next workflow act without rediscovery or duplicated prose? |
 | Planning artifacts | spec, alignment, context, plan, tasks, task packets | Did upstream intent become executable and verifiable work? |
 | Execution evidence | quick/debug state, worker results, validation closeout | Did completion evidence prove acceptance and preserve residual risk? |
 

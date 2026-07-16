@@ -1,6 +1,8 @@
 import re
 from pathlib import Path
 
+from .template_utils import read_command_with_references
+
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 TEMPLATE_DIR = PROJECT_ROOT / "templates" / "commands"
@@ -11,6 +13,8 @@ ASCII_CARD_FOOTER_RE = re.compile(r"(?m)^\s*\+-{10,}\+?\s*$")
 
 
 def _read_template(name: str) -> str:
+    if name == "specify":
+        return read_command_with_references(name)
     return (TEMPLATE_DIR / f"{name}.md").read_text(encoding="utf-8")
 
 

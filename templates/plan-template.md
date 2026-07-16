@@ -21,6 +21,33 @@
 - [Compatibility, workflow, rollout, or validation decision that cannot be silently dropped]
 
 
+## Complete-First Delivery Scope
+
+<!--
+  Complete-first scope preservation:
+  Restate the complete user-confirmed scope that this plan must preserve.
+  Execution order, dependency order, and validation order may vary, but planning
+  must not reduce delivery scope unless a user-confirmed deferral is recorded in
+  the deferral contract below.
+-->
+
+- **Scope source files**: `spec.md`, `alignment.md`, `context.md`, `plan-contract.json`, and approved handoff files
+- **Delivery rule**: Plan and task the complete confirmed scope; do not shrink scope because the work is complex
+- **Complexity rule**: Complexity alone is not a valid reason to split, defer, block, or return upstream
+- **Execution phases**: Execution phases are ordering, not delivery deferral
+- **Forbidden reductions**: MVP by default, pilot by default, prototype by default, first-release slice, agent-invented `v1/v2`, agent-invented `P0/P1`, or future-work delivery slice
+- **Priority labels**: User story priorities such as `P1`, `P2`, and `P3` are ordering labels, not delivery-scope buckets
+- **Adaptive blocker carve-out**: Runtime capability limits are blockers only under the adaptive execution policy for heavy, safety-critical, or unpacketizable work, and do not reduce scope
+
+## User-Confirmed Deferral Contract
+
+| Confirmation Source | Exact Excluded Behavior | Residual Risk | Reopen Or Stop Condition | Downstream Artifact |
+| --- | --- | --- | --- | --- |
+| None | None | None | None | None |
+
+- If the user did not confirm the deferral, keep the behavior in scope through design,
+  create a refinement or validation checkpoint, or identify a named valid blocker.
+
 ## Must-Preserve Carry-Forward
 
 <!--
@@ -46,15 +73,17 @@
   Command-surface minimization may remap where the user invokes the capability,
   but it must not delete capability. If the public command surface stays small,
   preserve the operation through an explicit TUI route, core API, public CLI
-  command, private helper, or user-confirmed deferral.
+  command, private helper, refinement checkpoint, valid blocker, or
+  user-confirmed deferral carrying confirmation source, exact excluded behavior,
+  residual risk, reopen or stop condition, and downstream artifact.
 -->
 
 | Capability Operation | Upstream Source | Selected Entry Point | Owning Surface | Required Implementation | Acceptance Proof | Reopen Or Conflict Condition |
 | --- | --- | --- | --- | --- | --- | --- |
-| [create/scaffold operation] | [spec/alignment/handoff source] | [TUI route | core API | public CLI | private helper | deferred] | [module, route, command, or contract] | [buildable behavior, not just templates/docs] | [test, quickstart, contract, or manual check] | [condition, conflict decision, or none] |
+| [create/scaffold operation] | [spec/alignment/handoff source] | [TUI route | core API | public CLI | private helper | user-confirmed deferral] | [module, route, command, contract, or five-field deferral contract row] | [buildable behavior, not just templates/docs, unless valid blocker] | [test, quickstart, contract, manual check, or valid blocker] | [confirmation source, exact excluded behavior, residual risk, reopen or stop condition, and downstream artifact] |
 
 - A static template directory, manual copy docs, or authoring guide may support this plan, but it does not satisfy a confirmed scaffold operation unless manual copy was explicitly selected as the user-facing entry point.
-- If this plan removes, narrows, or defers an upstream create/scaffold operation, record user confirmation here before task generation proceeds.
+- If this plan removes, narrows, or defers an upstream create/scaffold operation, record the user-confirmed deferral with confirmation source, exact excluded behavior, residual risk, reopen or stop condition, and downstream artifact before task generation proceeds.
 
 ## Implementation Target Boundary
 
@@ -83,7 +112,7 @@
 
 ### Behavior-Level Fidelity Inventory
 
-- [Behavior ID] [Preserved / redesigned / deferred behavior] -> [Where the plan preserves or handles it]
+- [Behavior ID] [Preserved / redesigned / user-confirmed deferral] -> [Where the plan preserves it, redesigns it, or records confirmation source, exact excluded behavior, residual risk, reopen or stop condition, and downstream artifact]
 - [Behavior ID] [Boundary, lifecycle, failure-path, or compatibility behavior] -> [Where the plan preserves or handles it]
 
 ## Scenario Profile Inputs
@@ -110,6 +139,32 @@
 
 - [Profile obligation that MUST change implementation shape, task sequencing, validation evidence, or completion criteria]
 - [Reference fidelity contract, required evidence, or deviation rule that downstream tasks and implementation MUST preserve]
+
+## Design System Adoption
+
+- Source and status:
+- Token strategy:
+- Component reuse and extension policy:
+- Platform adaptation strategy:
+- Accessibility requirements:
+- Evidence strategy:
+- Forbidden styling drift:
+
+## Feature UI Brief Adoption
+
+- UI brief source:
+- UI work type and real entry points:
+- Experience intent and visual/interaction signature:
+- UI reference notes:
+- Visual target:
+- Fidelity mode:
+- Reference-Implementation profile:
+- Required evidence:
+- Must preserve:
+- May adapt:
+- Must not:
+- Required states and viewport matrix:
+- Visual verification strategy:
 
 ## Technical Context
 
@@ -305,9 +360,11 @@ directories captured above]
 
 <!--
   Before finalizing the plan, verify that every locked planning decision is
-  represented in the plan summary, technical context, design artifacts, or
-  explicit follow-up work. If something is intentionally deferred, say so here
-  instead of silently dropping it.
+  represented in the plan summary, technical context, design artifacts,
+  refinement checkpoint, valid blocker, or user-confirmed deferral contract.
+  If something is covered by a user-confirmed deferral, record confirmation
+  source, exact excluded behavior, residual risk, reopen or stop condition, and
+  downstream artifact instead of silently dropping it.
 -->
 
 - [Locked decision] -> [Where it appears in the plan]

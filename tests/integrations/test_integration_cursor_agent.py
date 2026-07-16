@@ -1,5 +1,18 @@
 """Tests for CursorAgentIntegration."""
 
+from tests.template_utils import assert_quick_checkpoint_card_shape
+
+
+def _read_skill_with_references(skill_path):
+    parts = [skill_path.read_text(encoding="utf-8")]
+    references_dir = skill_path.parent / "references"
+    if references_dir.is_dir():
+        parts.extend(
+            reference_path.read_text(encoding="utf-8")
+            for reference_path in sorted(references_dir.glob("**/*.md"))
+        )
+    return "\n\n".join(parts)
+
 
 def test_cursor_skills_init_installs_command_and_passive_skills(tmp_path):
     from typer.testing import CliRunner
@@ -53,16 +66,21 @@ def test_cursor_generated_sp_quick_confirms_understanding_before_execution(tmp_p
     assert result.exit_code == 0, f"init --ai cursor-agent failed: {result.output}"
 
     skill_path = target / ".cursor" / "skills" / "sp-quick" / "SKILL.md"
-    content = skill_path.read_text(encoding="utf-8").lower()
+    content = _read_skill_with_references(skill_path).lower()
 
     assert ".specify/memory/constitution.md" in content
     assert "understanding checkpoint" in content
     assert "understanding_confirmed: true" in content
-    assert "quick checkpoint" in content
-    assert "known facts / assumptions" in content
-    assert "implementation plan" in content
-    assert "validation evidence" in content
-    assert "stop condition" in content
+    assert_quick_checkpoint_card_shape(content)
+    assert "request and outcome" in content
+    assert "user-visible result" in content
+    assert "recommended approach" in content
+    assert "assumptions and risks" in content
+    assert "completion evidence" in content
+    assert "reconfirmation trigger" in content
+    assert "technical execution belongs to the agent" in content
+    assert "## ui confirmation" in content
+    assert "single confirmation covers both" in content
     assert "dispatch_shape: one-subagent | parallel-subagents" in content
     assert "execution_surface: native-subagents" in content
     assert "cursor leader gate" in content
@@ -113,7 +131,7 @@ def test_cursor_runtime_skills_hard_gate_project_cognition_reads(tmp_path):
         ".cursor/skills/sp-debug/SKILL.md",
         ".cursor/skills/sp-quick/SKILL.md",
     ):
-        content = (target / rel).read_text(encoding="utf-8").lower()
+        content = _read_skill_with_references(target / rel).lower()
         assert "map-scan" in content
         assert "map-build" in content
         for stale_phrase in (
@@ -165,15 +183,24 @@ def test_cursor_runtime_skills_hard_gate_project_cognition_reads(tmp_path):
         assert "recorded-only output" in content
         assert "project-cognition update --changed-path" not in content
         assert "sp-map-update is for manual/external maintenance" in content
-        assert "crucial first step" in content
+        if "sp-implement" in rel:
+            assert "current-task navigation repair" in content
+            assert "only when a required ref is stale, missing, or contradicted by live code" in content
+            assert "project-cognition query --query-plan" not in content
+        else:
+            assert "crucial first step" in content
         if "sp-debug" in rel:
             assert "query --intent debug" in content
             assert "debug session state" in content
             assert "debug-handbook.md" not in content
             assert "debug-workflow-contract" not in content
+        elif "sp-implement" in rel:
+            assert "compass --intent implement" in content
+            assert "current task's required refs" in content
+            assert "minimal_live_reads" in content
         else:
             assert "query --intent implement" in content
-            assert "task-local bundle" in content
+            assert "minimal_live_reads" in content
             assert "minimal_live_reads" in content
             assert "build-handbook.md" not in content
             assert "build-workflow-contract" not in content

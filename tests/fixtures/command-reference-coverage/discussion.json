@@ -1,0 +1,16 @@
+{
+  "workflow": "discussion",
+  "source": "templates/commands/discussion.md",
+  "entries": [
+    {"kind": "boundary", "source_excerpt": "Context Boundary Gate", "target": "templates/commands/discussion.md"},
+    {"kind": "evidence", "source_excerpt": "verified_project_facts", "target": "templates/command-references/discussion/context-boundary-and-truth.md"},
+    {"kind": "question", "source_excerpt": "Question Evidence Gate", "target": "templates/command-references/discussion/question-and-advice-contract.md"},
+    {"kind": "persistence", "source_excerpt": "semantic checkpoints", "target": "templates/command-references/discussion/frontstage-backstage-persistence.md"},
+    {"kind": "contract", "source_excerpt": "Agent-Facing Requirement Contract", "target": "templates/command-references/discussion/handoff-contract.md"},
+    {"kind": "contract", "source_excerpt": "discussion_requirement_contract", "target": "templates/command-references/discussion/handoff-contract.md"},
+    {"kind": "review", "source_excerpt": "Deterministic Self-Review", "target": "templates/command-references/discussion/handoff-review-and-repair.md"},
+    {"kind": "repair", "source_excerpt": "blocked_by_handoff_integrity", "target": "templates/command-references/discussion/handoff-review-and-repair.md"},
+    {"kind": "downstream", "source_excerpt": "not fallback handoffs", "target": "templates/command-references/discussion/downstream-consumption.md"},
+    {"kind": "closeout", "source_excerpt": "Handoff-ready closeout", "target": "templates/command-references/discussion/quality-and-closeout.md"}
+  ]
+}

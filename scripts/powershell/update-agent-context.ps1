@@ -9,7 +9,7 @@ Mirrors the behavior of scripts/bash/update-agent-context.sh:
  2. Plan Data Extraction
  3. Agent File Management (create from template or update existing)
  4. Content Generation (technology stack, recent changes, timestamp)
- 5. Multi-Agent Support (claude, gemini, copilot, cursor-agent, qwen, opencode, codex, windsurf, junie, kilocode, auggie, roo, codebuddy, amp, shai, tabnine, kiro-cli, agy, bob, vibe, qodercli, kimi, trae, pi, iflow, mimo, forge, generic)
+ 5. Multi-Agent Support (claude, gemini, copilot, cursor-agent, qwen, opencode, codex, windsurf, junie, kilocode, auggie, roo, codebuddy, amp, shai, tabnine, kiro-cli, agy, bob, vibe, zcode, qodercli, kimi, trae, pi, iflow, mimo, forge, generic)
 
 .PARAMETER AgentType
 Optional agent key to update a single agent. If omitted, updates all existing agent files (creating a default Claude file if none exist).
@@ -25,7 +25,7 @@ Relies on common helper functions in common.ps1
 #>
 param(
     [Parameter(Position=0)]
-    [ValidateSet('claude','gemini','copilot','cursor-agent','qwen','opencode','codex','windsurf','junie','kilocode','auggie','roo','codebuddy','amp','shai','tabnine','kiro-cli','agy','bob','vibe','qodercli','kimi','trae','pi','iflow','mimo','forge','generic')]
+    [ValidateSet('claude','gemini','copilot','cursor-agent','qwen','opencode','codex','windsurf','junie','kilocode','auggie','roo','codebuddy','amp','shai','tabnine','kiro-cli','agy','bob','vibe','zcode','qodercli','kimi','trae','pi','iflow','mimo','forge','generic')]
     [string]$AgentType
 )
 
@@ -57,7 +57,7 @@ $AUGGIE_FILE   = Join-Path $REPO_ROOT '.augment/rules/specify-rules.md'
 $ROO_FILE      = Join-Path $REPO_ROOT '.roo/rules/specify-rules.md'
 $CODEBUDDY_FILE = Join-Path $REPO_ROOT 'CODEBUDDY.md'
 $QODER_FILE    = Join-Path $REPO_ROOT 'QODER.md'
-# Codex, opencode, Amp, Kiro CLI, Antigravity, IBM Bob, Mistral Vibe, MiMo Code, Pi, and Forge
+# Codex, opencode, Amp, Kiro CLI, Antigravity, IBM Bob, Mistral Vibe, ZCode, MiMo Code, Pi, and Forge
 # all share root AGENTS.md.
 $AMP_FILE      = Join-Path $REPO_ROOT 'AGENTS.md'
 $SHAI_FILE     = Join-Path $REPO_ROOT 'SHAI.md'
@@ -66,6 +66,7 @@ $KIRO_FILE     = Join-Path $REPO_ROOT 'AGENTS.md'
 $AGY_FILE      = Join-Path $REPO_ROOT 'AGENTS.md'
 $BOB_FILE      = Join-Path $REPO_ROOT 'AGENTS.md'
 $VIBE_FILE     = Join-Path $REPO_ROOT 'AGENTS.md'
+$ZCODE_FILE    = Join-Path $REPO_ROOT 'AGENTS.md'
 $VIBE_LEGACY_FILE = Join-Path $REPO_ROOT '.vibe/agents/specify-agents.md'
 $KIMI_FILE     = Join-Path $REPO_ROOT 'KIMI.md'
 $TRAE_FILE     = Join-Path $REPO_ROOT '.trae/rules/project_rules.md'
@@ -141,9 +142,9 @@ function Get-SpecKitManagedBlock {
             ''
             '## Always-On Context'
             ''
-            '- Project cognition and project memory are always available, even without an active `sp-*` workflow.'
+            '- Project cognition and Project Learning are always available, even without an active `sp-*` workflow.'
             '- When existing-system truth matters, use project cognition before broad source inspection and use its results to narrow live reads.'
-            '- Read `.specify/memory/project-rules.md` and `.specify/memory/learnings/INDEX.md` before decisions that depend on local conventions, constraints, or past lessons.'
+            '- Run `specify learning start --command <workflow> --format json` before non-trivial decisions that depend on local conventions, constraints, or past lessons; expand only selected matching Learning through `show_argv`.'
             ''
             '## Workflow Recommendations'
             ''
@@ -161,8 +162,9 @@ function Get-SpecKitManagedBlock {
             '## Durable State'
             ''
             '- When resuming generated work, prefer durable workflow state and explicit feature paths over branch name or chat memory.'
+            '- For `sp-discussion`, default ordinary replies and acknowledgements to frontstage-only deferred persistence: do not write discussion files, counters, dirty markers, receipts, or status summaries for every user reply; flush only at semantic checkpoints, user-triggered checkpoints/saves, compaction risk, or lifecycle transitions. After several unsaved turns, mention the unsaved turn count and suggest `checkpoint, continue`; the prompt does not write files by itself.'
             '- Keep project cognition freshness truthful after changes to architecture, ownership, workflow names, integration contracts, or verification entry points.'
-            '- Store reusable lessons in project memory, not only in chat or task artifacts.'
+            '- Store reusable lessons through Project Learning, not only in chat or task artifacts.'
             ''
             '- Preserve content outside this managed block.'
             '<!-- SPEC-KIT:END -->'
@@ -604,6 +606,7 @@ function Update-SpecificAgent {
         'agy'      { Update-AgentFile -TargetFile $AGY_FILE      -AgentName 'Antigravity' }
         'bob'      { Update-AgentFile -TargetFile $BOB_FILE      -AgentName 'IBM Bob' }
         'vibe'     { Update-AgentFile -TargetFile $VIBE_FILE     -AgentName 'Mistral Vibe' }
+        'zcode'    { Update-AgentFile -TargetFile $ZCODE_FILE    -AgentName 'ZCode' }
         'kimi'     { Update-AgentFile -TargetFile $KIMI_FILE     -AgentName 'Kimi Code' }
         'trae'     { Update-AgentFile -TargetFile $TRAE_FILE     -AgentName 'Trae' }
         'pi'       { Update-AgentFile -TargetFile $AGENTS_FILE   -AgentName 'Pi Coding Agent' }
@@ -611,7 +614,7 @@ function Update-SpecificAgent {
         'mimo'     { Update-AgentFile -TargetFile $MIMO_FILE     -AgentName 'MiMo Code' }
         'forge'    { Update-AgentFile -TargetFile $FORGE_FILE    -AgentName 'Forge' }
         'generic'  { Write-Info 'Generic agent: no predefined context file. Use the agent-specific update script for your agent.' }
-        default { Write-Err "Unknown agent type '$Type'"; Write-Err 'Expected: claude|gemini|copilot|cursor-agent|qwen|opencode|codex|windsurf|junie|kilocode|auggie|roo|codebuddy|amp|shai|tabnine|kiro-cli|agy|bob|vibe|qodercli|kimi|trae|pi|iflow|mimo|forge|generic'; return $false }
+        default { Write-Err "Unknown agent type '$Type'"; Write-Err 'Expected: claude|gemini|copilot|cursor-agent|qwen|opencode|codex|windsurf|junie|kilocode|auggie|roo|codebuddy|amp|shai|tabnine|kiro-cli|agy|bob|vibe|zcode|qodercli|kimi|trae|pi|iflow|mimo|forge|generic'; return $false }
     }
 }
 
@@ -653,7 +656,7 @@ function Update-AllExistingAgents {
     if (-not (Update-IfNew -FilePath $COPILOT_FILE  -AgentName 'GitHub Copilot')) { $ok = $false }
     if (-not (Update-IfNew -FilePath $CURSOR_FILE   -AgentName 'Cursor IDE')) { $ok = $false }
     if (-not (Update-IfNew -FilePath $QWEN_FILE     -AgentName 'Qwen Code')) { $ok = $false }
-    if (-not (Update-IfNew -FilePath $AGENTS_FILE   -AgentName 'Codex/opencode/Amp/Kiro/Antigravity/Bob/Mistral Vibe/MiMo Code/Pi/Forge')) { $ok = $false }
+    if (-not (Update-IfNew -FilePath $AGENTS_FILE   -AgentName 'Codex/opencode/Amp/Kiro/Antigravity/Bob/Mistral Vibe/ZCode/MiMo Code/Pi/Forge')) { $ok = $false }
     if (-not (Update-IfNew -FilePath $WINDSURF_FILE -AgentName 'Windsurf')) { $ok = $false }
     if (-not (Update-IfNew -FilePath $JUNIE_FILE    -AgentName 'Junie')) { $ok = $false }
     if (-not (Update-IfNew -FilePath $KILOCODE_FILE -AgentName 'Kilo Code')) { $ok = $false }
@@ -688,7 +691,7 @@ function Print-Summary {
     if ($NEW_FRAMEWORK) { Write-Host "  - Added framework: $NEW_FRAMEWORK" }
     if ($NEW_DB -and $NEW_DB -ne 'N/A') { Write-Host "  - Added database: $NEW_DB" }
     Write-Host ''
-    Write-Info 'Usage: ./update-agent-context.ps1 [-AgentType claude|gemini|copilot|cursor-agent|qwen|opencode|codex|windsurf|junie|kilocode|auggie|roo|codebuddy|amp|shai|tabnine|kiro-cli|agy|bob|vibe|qodercli|kimi|trae|pi|iflow|mimo|forge|generic]'
+    Write-Info 'Usage: ./update-agent-context.ps1 [-AgentType claude|gemini|copilot|cursor-agent|qwen|opencode|codex|windsurf|junie|kilocode|auggie|roo|codebuddy|amp|shai|tabnine|kiro-cli|agy|bob|vibe|zcode|qodercli|kimi|trae|pi|iflow|mimo|forge|generic]'
 }
 
 function Main {

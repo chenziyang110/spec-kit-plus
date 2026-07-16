@@ -1,0 +1,276 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spec-kit-plus.local/schemas/workflow-blocker-schema.json",
+  "title": "Workflow blocker",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "blocker_id",
+    "workflow",
+    "stage",
+    "category",
+    "owner",
+    "summary",
+    "details",
+    "evidence",
+    "attempted_recovery",
+    "exact_next_action",
+    "unblock_criteria",
+    "affected_scope",
+    "can_continue",
+    "human_action_required",
+    "resume"
+  ],
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "blocker_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "code": {
+      "type": "string",
+      "minLength": 1
+    },
+    "workflow": {
+      "type": "string",
+      "minLength": 1
+    },
+    "stage": {
+      "type": "string",
+      "minLength": 1
+    },
+    "category": {
+      "enum": [
+        "workflow-validation",
+        "artifact-or-state",
+        "technical-failure",
+        "dependency-or-service",
+        "delegation",
+        "project-cognition",
+        "credentials-or-permission",
+        "external-system",
+        "external-write-authorization",
+        "human-decision",
+        "human-review",
+        "timeout",
+        "conflict-or-drift"
+      ]
+    },
+    "owner": {
+      "enum": [
+        "agent",
+        "user",
+        "maintainer",
+        "external-system"
+      ]
+    },
+    "summary": {
+      "type": "string",
+      "minLength": 1
+    },
+    "details": {
+      "type": "string",
+      "minLength": 1
+    },
+    "evidence": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "attempted_recovery": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["action", "result"],
+        "properties": {
+          "action": {
+            "type": "string",
+            "minLength": 1
+          },
+          "result": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "exact_next_action": {
+      "type": "string",
+      "minLength": 1
+    },
+    "approval_question": {
+      "type": ["string", "null"]
+    },
+    "unblock_criteria": {
+      "type": "string",
+      "minLength": 1
+    },
+    "affected_scope": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "can_continue": {
+      "type": "boolean"
+    },
+    "human_action_required": {
+      "type": "boolean"
+    },
+    "human_action_guide": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/humanActionGuide"
+        }
+      ]
+    },
+    "resume": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["instruction", "command"],
+      "properties": {
+        "instruction": {
+          "type": "string",
+          "minLength": 1
+        },
+        "command": {
+          "type": ["string", "null"]
+        },
+        "argv": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "human_action_required": {
+            "const": true
+          }
+        },
+        "required": ["human_action_required"]
+      },
+      "then": {
+        "required": ["human_action_guide"],
+        "properties": {
+          "human_action_guide": {
+            "$ref": "#/$defs/humanActionGuide"
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "humanActionGuide": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "goal",
+        "why_human",
+        "prerequisites",
+        "safety_notes",
+        "steps",
+        "verification",
+        "evidence_to_return",
+        "resume_instruction"
+      ],
+      "properties": {
+        "goal": {
+          "type": "string",
+          "minLength": 1
+        },
+        "why_human": {
+          "type": "string",
+          "minLength": 1
+        },
+        "prerequisites": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "safety_notes": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "steps": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["order", "title", "action", "expected_result", "if_failed"],
+            "properties": {
+              "order": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "title": {
+                "type": "string",
+                "minLength": 1
+              },
+              "action": {
+                "type": "string",
+                "minLength": 1
+              },
+              "command": {
+                "type": ["string", "null"]
+              },
+              "expected_result": {
+                "type": "string",
+                "minLength": 1
+              },
+              "if_failed": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        },
+        "verification": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "evidence_to_return": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "resume_instruction": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  }
+}

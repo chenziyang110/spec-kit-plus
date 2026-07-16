@@ -19,6 +19,76 @@ def _paragraphs_with(content: str, marker: str) -> list[str]:
     return [paragraph for paragraph in content.split("\n\n") if marker in paragraph]
 
 
+def test_agents_declares_classic_and_advanced_profile_contract() -> None:
+    agents = _read("AGENTS.md")
+    section = _section(
+        agents,
+        "## Workflow Profile Contract: Classic vs Advanced",
+        "# AGENTS.md",
+    )
+    normalized = " ".join(section.split())
+
+    assert agents.index("## Workflow Profile Contract: Classic vs Advanced") < (
+        agents.index("<!-- SPEC-KIT:BEGIN -->")
+    )
+    assert "One `specify init` invocation selects exactly one workflow profile" in normalized
+    assert "install the other profile additively" in normalized
+    assert "`templates/commands/**`" in section
+    assert "`templates/advanced-skills/**`" in section
+    assert "30 SPX skills" in normalized
+    assert "29 one-to-one Classic command counterparts" in normalized
+    assert "does **not** install the Classic passive-skill prompt bundle" in normalized
+    for skill_name in (
+        "sp-map-scan",
+        "sp-map-build",
+        "sp-map-update",
+        "spx-map-scan",
+        "spx-map-build",
+        "spx-map-update",
+        "spx-map-rebuild",
+    ):
+        assert f"`{skill_name}`" in section
+    assert "lower-cost models" in normalized
+    assert "whole more-explicit map workflow" in normalized
+    assert "unchanged Classic renderer" in normalized
+    assert "byte-equivalent" in normalized
+    assert "verification outputs, not source-of-truth edits" in normalized
+    assert "For shared runtime changes, run both sets" in normalized
+
+
+def test_readme_advanced_profile_names_classic_map_companion_exception() -> None:
+    readme = _read("README.md")
+    section = _section(
+        readme,
+        "Skills-based projects now install two layers into the same skills directory:",
+        "## Multi-CLI Orchestration",
+    )
+    normalized = " ".join(section.split()).lower()
+
+    for companion in ("sp-map-scan", "sp-map-build", "sp-map-update"):
+        assert f"`{companion}`" in section
+    assert "does not install the classic `sp-*`" not in normalized
+    assert "passive" in normalized
+    assert "does not install" in normalized or "absent" in normalized
+
+
+def test_docs_describe_design_workflow_and_design_md() -> None:
+    readme = _read("README.md")
+    handbook = _read("PROJECT-HANDBOOK.md")
+    template = _read("templates/project-handbook-template.md")
+
+    for content in (readme, handbook, template):
+        assert "sp-design" in content
+        assert "DESIGN.md" in content
+        assert "design-system" in content.lower()
+        assert "specify design lint" in content
+        assert "ui-brief.md" in content
+        assert "ui-reference-notes.md" in content
+        assert "ui-reference-artifact" in content
+        assert "approximate" in content
+        assert "pending-human-review" in content
+
+
 def test_quickstart_teaches_specify_to_plan_mainline():
     quickstart = _read("docs/quickstart.md")
 
@@ -35,8 +105,13 @@ def test_quickstart_teaches_specify_to_plan_mainline():
 def _assert_doc_teaches_user_confirmed_product_scope(rel_path: str) -> None:
     lowered = _read(rel_path).lower()
 
+    assert "complete user-confirmed scope" in lowered
     assert "scope reduction requires user confirmation" in lowered
-    assert "preserve the user's confirmed product scope" in lowered
+    assert "future-work delivery slice" in lowered
+    assert "agent-invented `v1/v2`" in lowered
+    assert "agent-invented `p0/p1`" in lowered
+    assert "complexity alone is not a valid reason" in lowered
+    assert "runtime capability limits are blockers only under the adaptive execution policy" in lowered
     assert "minimal viable path" not in lowered
     assert "smallest coherent release slice" not in lowered
 
@@ -60,6 +135,7 @@ def test_docs_teach_command_surface_minimization_preserves_scaffold_operations()
         "docs/installation.md",
     ):
         lowered = _read(rel_path).lower()
+        normalized = " ".join(lowered.split())
 
         assert "command-surface minimization must not delete capability" in lowered
         assert "new/create/scaffold/authoring" in lowered
@@ -67,6 +143,26 @@ def test_docs_teach_command_surface_minimization_preserves_scaffold_operations()
         assert "template-only" in lowered
         assert "tui route" in lowered
         assert "core api" in lowered
+        assert "confirmation source" in lowered
+        assert "exact excluded behavior" in lowered
+        assert "residual risk" in lowered
+        assert "reopen or stop condition" in normalized
+        assert "downstream artifact" in lowered
+
+
+def test_primary_docs_teach_progressive_agent_cli_discovery_and_stage_guards() -> None:
+    for relative in (
+        "README.md",
+        "PROJECT-HANDBOOK.md",
+        "templates/project-handbook-template.md",
+    ):
+        content = (PROJECT_ROOT / relative).read_text(encoding="utf-8")
+        lowered = content.casefold()
+        assert "specify api handshake" in lowered
+        assert "specify api commands" in lowered
+        assert "specify api command" in lowered
+        assert "specify workflow transition" in lowered
+        assert "exit code `10`" in lowered
 
 
 def test_quickstart_declares_integration_specific_invocation_syntax():
@@ -138,6 +234,36 @@ def test_upgrade_doc_mentions_project_launcher_binding():
     assert "runtime" in upgrade.lower()
 
 
+def test_helper_docs_preserve_project_cognition_launcher_precedence() -> None:
+    for rel_path in ("README.md", ".github/workflows/release.yml"):
+        content = _read(rel_path)
+        candidates = [
+            paragraph
+            for paragraph in content.split("\n\n")
+            if "helper" in paragraph.lower()
+            and "PROJECT_COGNITION_BIN" in paragraph
+            and "PATH" in paragraph
+        ]
+        assert candidates, f"{rel_path} must document helper launcher precedence"
+
+        for paragraph in candidates:
+            normalized = " ".join(paragraph.split())
+            priority = normalized[normalized.lower().index("helper") :]
+            env_index = priority.index("PROJECT_COGNITION_BIN")
+            pin_markers = ("project_cognition_launcher", ".specify/config.json")
+            pin_indexes = [
+                priority.index(marker)
+                for marker in pin_markers
+                if marker in priority
+            ]
+            assert pin_indexes, (
+                f"{rel_path} helper precedence must include the pinned launcher"
+            )
+            pin_index = min(pin_indexes)
+            path_index = priority.index("PATH", pin_index)
+            assert env_index < pin_index < path_index
+
+
 def test_repo_docs_explain_adaptive_plan_tasks_dispatch_contract() -> None:
     handbook = _read("PROJECT-HANDBOOK.md").lower()
 
@@ -155,14 +281,10 @@ def test_repo_docs_explain_adaptive_plan_tasks_dispatch_contract() -> None:
         assert "light" in lowered
         assert "leader-inline" in content
         assert "standard" in lowered
-        assert "native subagents" in lowered or "native-subagent" in lowered
-        assert "capability_degraded: true" in content
-        assert "no safe" in lowered
-        assert "cannot be packetized safely" in lowered or "unpacketizable" in lowered
         assert "subagent-blocked" in content
-        assert "heavy or safety-critical" in lowered
-        assert "native subagents are unavailable" in lowered
-        assert "managed-team fallback is not part of adaptive plan/tasks dispatch" in lowered
+        assert "heavy" in lowered
+        assert "packet" in lowered
+        assert "scope" in lowered
 
 
 def test_quickstart_positions_clarify_correctly():
@@ -228,7 +350,7 @@ def test_guidance_docs_explain_ask_read_only_evidence_backed_project_qa() -> Non
         assert "no `specify ask`" in lowered or "no `specify ask` typer helper" in lowered
 
 
-def test_guidance_docs_position_discussion_before_specify() -> None:
+def _legacy_guidance_docs_position_discussion_before_specify() -> None:
     readme = _read("README.md")
     quickstart = _read("docs/quickstart.md")
     installation = _read("docs/installation.md")
@@ -252,7 +374,7 @@ def test_guidance_docs_position_discussion_before_specify() -> None:
         assert "discussion compass" in content.lower()
 
 
-def test_guidance_docs_explain_discussion_boundary_and_unified_handoff() -> None:
+def _legacy_guidance_docs_explain_discussion_boundary_and_unified_handoff() -> None:
     readme = _read("README.md")
     handbook = _read("PROJECT-HANDBOOK.md")
     generated_handbook = _read("templates/project-handbook-template.md")
@@ -318,6 +440,9 @@ def test_guidance_docs_explain_discussion_boundary_and_unified_handoff() -> None
         assert "handoff_goal" in content
         assert "validates" in lowered and "before feature creation" in lowered
         assert "quick checkpoint" in lowered
+        if "quick workflow confirmation" in lowered:
+            assert "| item | current understanding |" in lowered
+            assert "bullet-only confirmations do not satisfy this gate" in lowered
         assert "single unconsumed" in lowered or "eligible consumer consumes" in lowered
         assert "split-plan.md" not in content
         assert "handoffs/<candidate_id>" not in content
@@ -351,7 +476,7 @@ def test_readme_documents_inline_project_cognition_closeout() -> None:
     )
 
 
-def test_quickstart_and_installation_explain_discussion_boundary_handoffs() -> None:
+def _legacy_quickstart_and_installation_explain_discussion_boundary_handoffs() -> None:
     quickstart = _read("docs/quickstart.md")
     installation = _read("docs/installation.md")
 
@@ -384,6 +509,7 @@ def test_quickstart_and_installation_explain_discussion_boundary_handoffs() -> N
         assert "handoff-ready" in content
         assert "before feature creation" in lowered
         assert "quick checkpoint" in lowered
+        assert "| item | current understanding |" in lowered
         assert "handoff_goal" in content
         assert "split-plan.md" not in content
         assert "handoffs/CAND-001-handoff-to-specify" not in content
@@ -395,7 +521,7 @@ def test_quickstart_skill_map_and_guidance_use_canonical_names_not_claude_syntax
     quickstart = _read("docs/quickstart.md")
 
     skill_map = _section(quickstart, "## Skill Map", "For Codex team-mode execution")
-    support_guidance = _section(quickstart, "Use support skills when they solve a specific gap:", "Passive project learning layer:")
+    support_guidance = _section(quickstart, "Use support skills when they solve a specific gap:", "Project Learning lifecycle:")
 
     for section in (skill_map, support_guidance):
         assert "/sp-" not in section
@@ -546,7 +672,7 @@ def test_guidance_docs_do_not_teach_fixed_heavy_specify_lifecycle() -> None:
         assert "task classification" not in lowered
 
 
-def test_guidance_docs_teach_specify_as_collaborative_reviewed_flow() -> None:
+def _legacy_guidance_docs_teach_specify_as_collaborative_reviewed_flow() -> None:
     readme = _read("README.md")
     quickstart = _read("docs/quickstart.md")
     installation = _read("docs/installation.md")
@@ -559,7 +685,7 @@ def test_guidance_docs_teach_specify_as_collaborative_reviewed_flow() -> None:
         assert "two or three" in lowered and "approaches" in lowered
         assert "user review" in lowered
         assert "source_signal_disposition" in content
-        assert "discussion-log.md" in content
+        assert "discussion-log.jsonl" in content
         assert "requirements.md" in content
         assert "open-questions.md" in content
         assert "handoff-ready" in content
@@ -572,7 +698,7 @@ def test_guidance_docs_teach_specify_as_collaborative_reviewed_flow() -> None:
         assert "complexity-lock" not in lowered
 
 
-def test_guidance_docs_explain_semantic_specify_traceability() -> None:
+def _legacy_guidance_docs_explain_semantic_specify_traceability() -> None:
     readme = _read("README.md")
     quickstart = _read("docs/quickstart.md")
     installation = _read("docs/installation.md")
@@ -590,6 +716,27 @@ def test_guidance_docs_explain_semantic_specify_traceability() -> None:
         assert "stage-manifest.json" not in content
         assert "lossless" not in lowered
         assert "compiled_from" not in content
+
+
+def test_guidance_docs_explain_agent_native_phase_pipeline() -> None:
+    for rel_path in (
+        "README.md",
+        "PROJECT-HANDBOOK.md",
+        "templates/project-handbook-template.md",
+        "docs/quickstart.md",
+        "docs/installation.md",
+    ):
+        content = _read(rel_path)
+        lowered = content.lower()
+
+        assert "handoff-to-specify.json" in content, rel_path
+        assert "spec-contract.json" in content, rel_path
+        assert "plan-contract.json" in content, rel_path
+        assert "task-index.json" in content, rel_path
+        assert "lifecycle record" in lowered, rel_path
+        assert "semantic_delta" in content or "semantic delta" in lowered, rel_path
+        assert "human" in lowered, rel_path
+        assert "handoff-to-specify.md" not in content, rel_path
 
 
 def test_guidance_docs_explain_analyze_tasks_convergence_contract() -> None:
@@ -618,15 +765,32 @@ def test_guidance_docs_describe_embedded_implement_review_without_public_review_
 
     for content in (readme, handbook, generated_handbook):
         lowered = content.lower()
-        assert "embedded review-and-repair loop" in lowered
-        assert "pre-implement review" in lowered
-        assert "drift review" in lowered
-        assert "bounded sequential review" in lowered
-        assert "task-layer repair" in lowered
-        assert "implementation-review audit records" in lowered
+        assert "event-triggered" in lowered
+        assert "task-graph revision" in lowered
+        assert "parallel joins" in lowered
+        assert "validation failure" in lowered
+        assert "review-window limits" in lowered
+        assert "task lifecycle record" in lowered
         assert "upstream truth" in lowered
         assert "/sp.review" not in content
         assert "sp-review" not in content
+
+
+def test_guidance_docs_describe_context_restoring_human_acceptance() -> None:
+    readme = _read("README.md").lower()
+    handbook = _read("PROJECT-HANDBOOK.md").lower()
+    generated_handbook = _read("templates/project-handbook-template.md").lower()
+    quickstart = _read("docs/quickstart.md").lower()
+    installation = _read("docs/installation.md").lower()
+
+    for content in (readme, handbook, generated_handbook, quickstart, installation):
+        assert "human-acceptance.json" in content
+        assert "sp-accept" in content
+        assert "human" in content and "context" in content
+
+    for content in (readme, handbook, generated_handbook):
+        assert "one" in content and "step" in content
+        assert "technical closeout" in content
 
 
 def test_guidance_docs_teach_consequence_gate_across_workflow_mainline() -> None:

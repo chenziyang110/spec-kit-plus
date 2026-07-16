@@ -180,7 +180,7 @@ def aggregate_learning_state(
     ensure_learning_files(project_root)
     paths = build_learning_paths(project_root)
     _candidate_preamble, candidate_entries = read_learning_entries(paths.candidates)
-    _learning_preamble, confirmed_entries = read_learning_entries(paths.project_learnings)
+    _learning_preamble, confirmed_entries = read_learning_entries(paths.confirmed_learnings)
     _rule_preamble, rule_entries = read_learning_entries(paths.project_rules)
     _index_preamble, learning_index_entries = (
         read_learning_index_entries(paths.learning_index) if paths.learning_index.exists() else ("", [])

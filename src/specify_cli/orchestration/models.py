@@ -20,7 +20,52 @@ DispatchShape = Literal[
 ExecutionSurface = Literal["native-subagents", "leader-inline", "none"]
 NativeWorkerSurface = Literal["unknown", "none", "native-cli", "spawn_agent"]
 DelegationConfidence = Literal["low", "medium", "high"]
-EvidenceLaneMode = Literal["read-only-evidence"]
+EvidenceLaneMode = Literal["read-only-evidence", "ui-reference-artifact"]
+READ_ONLY_EVIDENCE_ALLOWED_OPERATIONS: tuple[str, ...] = (
+    "file-read",
+    "rg",
+    "project-cognition",
+    "memory-read",
+    "state-read",
+    "docs-read",
+    "template-read",
+)
+READ_ONLY_EVIDENCE_FORBIDDEN_OPERATIONS: tuple[str, ...] = (
+    "file-write",
+    "state-write",
+    "handoff-write",
+    "tests",
+    "builds",
+    "package-managers",
+    "project-cli",
+    "app-server",
+)
+UI_REFERENCE_ALLOWED_OPERATIONS: tuple[str, ...] = (
+    "file-read",
+    "rg",
+    "project-cognition",
+    "memory-read",
+    "state-read",
+    "docs-read",
+    "template-read",
+    "reference-input-read",
+    "ui-reference-notes-write",
+    "ui-brief-write",
+    "ui-target-html-write",
+)
+UI_REFERENCE_FORBIDDEN_OPERATIONS: tuple[str, ...] = (
+    "source-code-write",
+    "test-write",
+    "app-style-write",
+    "component-implementation-write",
+    "broad-state-write",
+    "handoff-readiness-write",
+    "tests",
+    "builds",
+    "package-managers",
+    "project-cli",
+    "app-server",
+)
 _CANONICAL_DISPATCH_SHAPES = frozenset(
     {
         "one-subagent",
@@ -176,27 +221,15 @@ class EvidenceLaneDecision:
     capability_degraded: bool = False
     lane_mode: EvidenceLaneMode = "read-only-evidence"
     structured_result: str = "evidence_packet"
-    allowed_operations: tuple[str, ...] = (
-        "file-read",
-        "rg",
-        "project-cognition",
-        "memory-read",
-        "state-read",
-        "docs-read",
-        "template-read",
-    )
-    forbidden_operations: tuple[str, ...] = (
-        "file-write",
-        "state-write",
-        "handoff-write",
-        "tests",
-        "builds",
-        "package-managers",
-        "project-cli",
-        "app-server",
-    )
+    allowed_operations: tuple[str, ...] = READ_ONLY_EVIDENCE_ALLOWED_OPERATIONS
+    forbidden_operations: tuple[str, ...] = READ_ONLY_EVIDENCE_FORBIDDEN_OPERATIONS
 
     def __post_init__(self) -> None:
+        if self.lane_mode == "ui-reference-artifact":
+            if self.structured_result == "evidence_packet":
+                object.__setattr__(self, "structured_result", "ui_reference_artifacts")
+            object.__setattr__(self, "allowed_operations", UI_REFERENCE_ALLOWED_OPERATIONS)
+            object.__setattr__(self, "forbidden_operations", UI_REFERENCE_FORBIDDEN_OPERATIONS)
         object.__setattr__(
             self,
             "dispatch_shape",

@@ -234,8 +234,8 @@ func TestValidateBuildBlocksLegacyThinSchema(t *testing.T) {
 	if payload.Status != "blocked" {
 		t.Fatalf("Status = %q, want blocked; errors=%#v", payload.Status, payload.Errors)
 	}
-	if !hasValidationError(payload.Errors, "missing required query columns") {
-		t.Fatalf("Errors = %#v, want missing query schema columns error", payload.Errors)
+	if !hasValidationError(payload.Errors, "missing required query tables") {
+		t.Fatalf("Errors = %#v, want missing query schema tables error", payload.Errors)
 	}
 }
 

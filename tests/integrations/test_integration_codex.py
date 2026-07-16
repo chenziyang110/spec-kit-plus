@@ -7,6 +7,8 @@ from pathlib import Path
 
 import pytest
 
+from specify_cli.launcher import render_command
+
 from .test_base import (
     _assert_canonical_cognition_intake_contract,
     _assert_subagent_using_surfaces_have_discovery,
@@ -15,6 +17,7 @@ from .test_integration_base_skills import (
     _assert_compact_managed_context,
     _extract_generated_cognition_policy,
 )
+from tests.template_utils import assert_quick_checkpoint_card_shape
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -42,6 +45,17 @@ STALE_COGNITION_ADDENDUM_PHRASES = (
     "path-index " + "incomplete",
     "unadoptable " + "coverage gaps",
 )
+
+
+def _read_skill_with_references(skill_path: Path) -> str:
+    parts = [skill_path.read_text(encoding="utf-8")]
+    references_dir = skill_path.parent / "references"
+    if references_dir.is_dir():
+        parts.extend(
+            path.read_text(encoding="utf-8")
+            for path in sorted(references_dir.glob("**/*.md"))
+        )
+    return "\n\n".join(parts)
 
 
 def _assert_stable_subagent_contract(content: str) -> None:
@@ -258,7 +272,10 @@ class TestCodexIntegration:
         integration.setup(tmp_path, manifest)
 
         skills_dir = tmp_path / ".codex" / "skills"
-        generated = "\n".join(path.read_text(encoding="utf-8").lower() for path in skills_dir.glob("**/SKILL.md"))
+        generated = "\n".join(
+            _read_skill_with_references(path).lower()
+            for path in skills_dir.glob("**/SKILL.md")
+        )
         cognition_policy = "\n".join(
             _extract_generated_cognition_policy(path.read_text(encoding="utf-8"))
             for path in skills_dir.glob("**/SKILL.md")
@@ -384,6 +401,37 @@ class TestCodexAutoPromote:
         assert "discussion-state.md" not in partial_content
         assert "handoff-to-specify" not in partial_content
 
+    def test_codex_init_generates_sp_design_workflow_contract(self, tmp_path):
+        from typer.testing import CliRunner
+        from specify_cli import app
+
+        runner = CliRunner()
+        target = tmp_path / "codex-design-contract"
+        result = runner.invoke(
+            app,
+            ["init", str(target), "--ai", "codex", "--no-git", "--ignore-agent-tools", "--script", "sh"],
+        )
+
+        assert result.exit_code == 0, f"init --ai codex failed: {result.output}"
+
+        skill_path = target / ".codex" / "skills" / "sp-design" / "SKILL.md"
+        template_path = target / ".specify" / "templates" / "commands" / "design.md"
+        partial_path = target / ".specify" / "templates" / "command-partials" / "design" / "shell.md"
+        assert skill_path.exists()
+        assert template_path.exists()
+        assert partial_path.exists()
+
+        skill_content = skill_path.read_text(encoding="utf-8")
+        skill_lower = skill_content.lower()
+
+        assert "DESIGN.md" in skill_content
+        assert "specify design lint" in skill_content
+        assert "Forbidden Writes" in skill_content
+        assert "CSS or theme implementation files" in skill_content
+        assert "active_command: sp-design" in skill_content
+        assert "phase_mode: design-only" in skill_content
+        assert "source code" in skill_lower
+
     def test_codex_init_generates_semantic_resume_smoke_contract(self, tmp_path):
         from typer.testing import CliRunner
         from specify_cli import app
@@ -397,8 +445,8 @@ class TestCodexAutoPromote:
 
         assert result.exit_code == 0, f"init --ai codex failed: {result.output}"
 
-        generated_skill = (target / ".codex" / "skills" / "sp-debug" / "SKILL.md").read_text(
-            encoding="utf-8"
+        generated_skill = _read_skill_with_references(
+            target / ".codex" / "skills" / "sp-debug" / "SKILL.md"
         )
         generated_command_template = (
             target / ".specify" / "templates" / "commands" / "debug.md"
@@ -500,6 +548,11 @@ class TestCodexAutoPromote:
         assert "workflow-local semantic-audit-output.json" in generated_contract_lower
         assert "Prompt fallback remains valid" in generated_contract
         assert "does not authorize source edits, final claims, or P3/P4 permission" in generated_contract
+        assert "Graph claim namespace" in generated_contract
+        assert "graph_claim_type" in generated_contract
+        assert "verified_in_graph_generation" in generated_contract
+        assert "cannot set workflow `claim_ready=true`" in generated_contract
+        assert "must not populate `claim_verification_refs`" in generated_contract
         assert "Fingerprint mismatches are route-changed" in generated_contract
         assert ".specify/templates/examples/semantic-audit-resume/scenarios.md" in generated_contract
         assert "keep claim_ready false" in generated_contract
@@ -632,8 +685,8 @@ class TestCodexAutoPromote:
 
         assert result.exit_code == 0, f"init --ai codex failed: {result.output}"
 
-        skill_content = (target / ".codex" / "skills" / "sp-discussion" / "SKILL.md").read_text(
-            encoding="utf-8"
+        skill_content = _read_skill_with_references(
+            target / ".codex" / "skills" / "sp-discussion" / "SKILL.md"
         )
         command_template = (target / ".specify" / "templates" / "commands" / "discussion.md").read_text(
             encoding="utf-8"
@@ -664,7 +717,7 @@ class TestCodexAutoPromote:
         assert "deferred persistence" in generated_lower
         assert "compaction preserve" in generated_lower
         assert "user-triggered save" in generated_lower
-        assert "five-turn" in generated_lower
+        assert "turn count alone is never a save trigger" in generated_lower
         assert "semantic checkpoints" in generated_lower
         assert "adaptive question pack" in generated_lower
         assert "primary question" in generated_lower
@@ -684,9 +737,7 @@ class TestCodexAutoPromote:
         assert "unified frontstage contract" in generated_lower
         assert "do not choose among named answer templates" in generated_lower
         assert "agent controls heading names" in generated_lower
-        assert "readiness-summary" in generated_discussion
-        assert "handoff-preview" in generated_discussion
-        assert "handoff-review" in generated_discussion
+        assert "`explore -> ground -> decide -> prepare -> review -> ready -> consumed | closed`" in generated_discussion
         assert "discussion responsibility boundary" in generated_lower
         assert "does not own implementation planning" in generated_lower
         assert "do not split the work into p0/p1/p2" in generated_lower
@@ -701,10 +752,10 @@ class TestCodexAutoPromote:
         assert "handoff request-changes repair" in generated_lower
         assert "blocked_by_handoff_integrity" in generated_discussion
         assert "the repair belongs to `sp-discussion`" in generated_lower
-        assert "refresh `handoff-to-specify.md` and `handoff-to-specify.json` together" in generated_lower
-        assert "source_handoff_json" in generated_discussion
-        assert "source_files_read" in generated_discussion
-        assert "handoff_status" in generated_discussion
+        assert "update canonical `handoff-to-specify.json`" in generated_lower
+        assert "source_contract" in generated_discussion
+        assert "field-level validation errors" in generated_discussion
+        assert "review_digest" in generated_discussion
         assert "safe default discussion action" in generated_lower
         assert "next-step content rule" in generated_lower
         assert "first-pass content" in generated_lower
@@ -720,8 +771,9 @@ class TestCodexAutoPromote:
         assert "Agent-Facing Requirement Contract" in generated_discussion
         assert "consumer_eligibility" in generated_discussion
         assert "recommended_consumer" in generated_discussion
-        assert "quick_task_candidate" in generated_discussion
-        assert "Do not describe current execution or implementation progress" in generated_discussion
+        assert "planning_constraints" in generated_discussion
+        assert "quick_task_candidate" not in generated_discussion
+        assert "do not describe current execution or implementation progress" in generated_lower
         assert "locked_direction" in generated_discussion
         assert "rejected_alternatives" in generated_discussion
         assert "accepted_tradeoffs" in generated_discussion
@@ -736,14 +788,14 @@ class TestCodexAutoPromote:
         assert "next consumption path" in generated_lower
         assert "do not close with only file paths, status counters, or a next command" in generated_lower
         assert "keep ready-summary quality checks internal" in generated_lower
-        assert "draft handoff package can be produced" in generated_lower
-        assert "complete handoff package can be produced" not in generated_lower
+        assert "`ready-for-handoff` or `continue-discussion`" in generated_lower
+        assert "canonical json payload" in generated_lower
         assert "confirmed unified handoff pair" not in generated_lower
 
         assert "latest_event_checkpoint:" in state_template
         assert "ordinary_turn_write_policy: deferred-checkpoint" in state_template
         assert "save_trigger_policy:" in state_template
-        assert "unsaved_turn_count:" in state_template
+        assert "checkpoint_value_policy:" in state_template
         assert "pending_context_summary:" in state_template
         assert "compaction_preserve_items:" in state_template
         assert "latest_cognition_readiness:" in state_template
@@ -754,31 +806,30 @@ class TestCodexAutoPromote:
         assert "question_pack_mode: single-question | adaptive-pack | none" in state_template
         assert "reply_shape_id:" not in state_template
         assert "frontstage_reply_contract: unified" in state_template
-        assert "readiness-summary" in state_template
-        assert "handoff-preview" in state_template
-        assert "handoff-review" in state_template
-        assert "review-summary" in state_template
+        assert "lifecycle_phase: explore | ground | decide | prepare | review | ready | consumed | closed" in state_template
         assert "primary_question:" in state_template
         assert "optional_followups:" in state_template
         assert "recommendation_required_for_choices: true" in state_template
-        assert "handoff-to-specify.md draft after explicit user request and boundary lock" in state_template
+        assert "handoff-to-specify.json draft after explicit user request and boundary lock" in state_template
         assert "handoff_kind: discussion_requirement_contract" in state_template
         assert "consumer_eligibility:" in state_template
         assert "recommended_consumer:" in state_template
-        assert "quick_task_candidate_status:" in state_template
+        assert "quick_task_candidate_status:" not in state_template
 
-        source_contract = handoff_template["source_evidence_contract"]
-        assert source_contract["required_fields"] == [
-            "source_type",
-            "evidence_status",
-            "source",
-            "claim",
-        ]
-        assert "project_cognition_route" in source_contract["optional_fields"]
-        assert "live_code_evidence" in source_contract["optional_fields"]
-        assert source_contract["authority_rule"] == (
-            "Project cognition navigates; live repository evidence proves current behavior."
-        )
+        assert handoff_template == {
+            "version": 3,
+            "status": "pending",
+            "entry_source": None,
+            "discussion_slug": None,
+            "source_contract": None,
+            "review_digest": None,
+            "semantic_delta": [],
+            "required_refs": [],
+            "blockers": [],
+            "next_action": None,
+            "recovery": None,
+        }
+        assert "source_evidence_contract" not in handoff_template
 
 
 def test_codex_team_template_comes_from_shared_commands_dir(monkeypatch, tmp_path):
@@ -816,7 +867,7 @@ def test_codex_generated_sp_implement_teams_skill_exists_and_is_codex_only(tmp_p
     skill_path = target / ".codex" / "skills" / "sp-implement-teams" / "SKILL.md"
     assert skill_path.exists()
 
-    content = skill_path.read_text(encoding="utf-8")
+    content = _read_skill_with_references(skill_path)
     lower = content.lower()
     assert "codex-only" in lower
     assert "psmux" in lower
@@ -827,8 +878,10 @@ def test_codex_generated_sp_implement_teams_skill_exists_and_is_codex_only(tmp_p
     assert "specify extension add agent-teams" not in lower
     assert "shared contract with `sp-implement`" in lower
     assert "canonical implementation workflow" in lower
+    assert "task-index.json" in lower
+    assert "lifecycle record" in lower
     assert "implement-tracker.md" in lower
-    assert "execution-state source of truth" in lower
+    assert "compatibility state only" in lower
     assert "workertaskpacket" in lower
     assert "sp-teams doctor" in lower
     assert "sp-teams live-probe" in lower
@@ -895,7 +948,7 @@ def test_codex_generated_passive_subagent_skills_include_stable_dispatch_contrac
     assert "you may recommend a" in routing
     assert "natural-language tasks" in routing
     assert "always-on" in routing
-    assert "project cognition and project memory" in routing
+    assert "project cognition and project learning" in routing
     assert "red flags" in routing
     assert "high-throughput senior product-engineering advisor" in routing
     assert "frontstage / backstage separation" in routing
@@ -906,8 +959,9 @@ def test_codex_generated_passive_subagent_skills_include_stable_dispatch_contrac
     assert "native subagents" in subagent
     assert "validated `workertaskpacket`" in subagent
     assert "must not dispatch from raw task text" in subagent
-    assert "spec compliance review" in subagent
-    assert "code quality review" in subagent
+    assert "review on triggers" in subagent
+    assert "single task reviewer" in subagent
+    assert "task lifecycle record" in subagent
     assert "`sp-teams` only" in subagent
 
     assert "2+ independent lanes" in parallel
@@ -935,8 +989,12 @@ def test_codex_generated_skills_render_launcher_backed_runtime_commands(tmp_path
 
     constitution_content = (target / ".codex" / "skills" / "sp-constitution" / "SKILL.md").read_text(encoding="utf-8")
     constitution_normalized = " ".join(constitution_content.split())
-    implement_content = (target / ".codex" / "skills" / "sp-implement" / "SKILL.md").read_text(encoding="utf-8")
-    quick_content = (target / ".codex" / "skills" / "sp-quick" / "SKILL.md").read_text(encoding="utf-8")
+    implement_content = _read_skill_with_references(
+        target / ".codex" / "skills" / "sp-implement" / "SKILL.md"
+    )
+    quick_content = _read_skill_with_references(
+        target / ".codex" / "skills" / "sp-quick" / "SKILL.md"
+    )
 
     assert "learning start --command constitution --format json" in constitution_content
     assert "This workflow writes only `.specify/memory/constitution.md`." in constitution_content
@@ -1003,82 +1061,69 @@ def test_codex_generated_sp_implement_includes_native_spawn_agent_routing(tmp_pa
     assert result.exit_code == 0, f"init --ai codex failed: {result.output}"
 
     skill_path = target / ".codex" / "skills" / "sp-implement" / "SKILL.md"
-    content = skill_path.read_text(encoding="utf-8")
-    leader_gate_idx = content.find("## Codex Leader Gate")
-    outline_idx = content.find("## Outline")
-    auto_parallel_idx = content.find("## Codex Subagents-First Execution")
+    raw_content = skill_path.read_text(encoding="utf-8")
+    content = _read_skill_with_references(skill_path)
+    leader_gate_idx = raw_content.find("## Codex Leader Gate")
+    main_flow_idx = raw_content.find("## Main Flow")
+    auto_parallel_idx = raw_content.find("## Codex Subagents-First Execution")
 
-    assert leader_gate_idx != -1 or "## Orchestration Model" in content
-    assert outline_idx != -1
-    assert auto_parallel_idx == -1 or leader_gate_idx < outline_idx < auto_parallel_idx
-    assert "feature_dir/implement-tracker.md" in content.lower()
-    assert "execution-state source of truth" in content.lower()
+    assert leader_gate_idx != -1 or "## Orchestration Model" in raw_content
+    assert main_flow_idx != -1
+    assert auto_parallel_idx == -1 or leader_gate_idx < auto_parallel_idx
+    assert "task-index.json" in content.lower()
+    assert "compact execution state" in content.lower()
     assert "compass --intent implement" in content.lower()
-    assert "query --intent implement" in content.lower()
-    assert "--query-plan" in content.lower()
+    assert "current-task navigation repair" in content.lower()
+    assert "only when a required ref is stale, missing, or contradicted by live code" in content.lower()
+    assert "query --intent implement" not in content.lower()
     assert "minimal_live_reads" in content.lower()
     assert "build-handbook.md" not in content.lower()
     assert "build-workflow-contract" not in content.lower()
     assert "product-and-capability-map" not in content.lower()
     assert "change-entrypoints" not in content.lower()
     assert "first-class implementation context" in content.lower()
-    assert "user execution notes" in content.lower()
-    assert "resume_decision" in content.lower()
-    assert "leader and orchestrator" in content.lower()
+    assert "task-graph revision" in content.lower()
+    assert "workflow leader" in content.lower()
     assert "spawn_agent" in content
     assert "wait_agent" in content
     assert "close_agent" in content
     assert "specify result path --command implement --request-id <request-id>" in content
     assert "active runtime-managed result channel for that request id" in content.lower()
     assert "does not accept `--format`" in content.lower()
-    assert "execution_model: subagent-mandatory" in content or "execution model: `subagents-first`" in content
-    assert "dispatch_shape: one-subagent | parallel-subagents" in content
-    assert "execution_surface: native-subagents" in content
-    assert "invoking runtime acts as the leader" in content
-    assert "Dispatch `one-subagent` when one validated `WorkerTaskPacket` is ready" in content
-    assert "dispatch `parallel-subagents` when multiple validated packets have isolated write sets" in content
-    assert "selects the next executable phase and ready batch" in content
+    assert "execution_model: adaptive" in content or "execution model: `adaptive`" in content
+    assert "one-subagent" in content and "parallel-subagents" in content
+    assert "native-subagents" in content
+    assert "leader-direct" in content
+    assert "one-subagent" in content
+    assert "parallel-subagents" in content
+    assert "current ready batch" in content.lower()
+    assert "just in time" in content.lower()
     assert "map-update" in content.lower()
     assert "workflow-owned mutation closeout is not an external map-maintenance handoff" in content.lower()
     assert "project-cognition update --delta-session" in content.lower()
     assert "sp-map-update is for manual/external maintenance and follow-up repair" in content.lower()
-    assert "completion claim must be backed by live code, tests, scripts, configuration, or authoritative docs" in content.lower()
-    assert "project cognition can support route selection but cannot be the sole evidence for completion" in content.lower()
-    assert "unresolved `open_gaps`" in content.lower()
-    assert "shared implement template is the primary source of truth" in content
+    assert "do not claim completion from chat narration" in content.lower()
+    assert "validation evidence" in content.lower()
+    assert "mutation closeout" in content.lower()
     assert "join point" in content.lower()
-    assert "retry-pending" in content.lower() or "retry pending" in content.lower()
+    assert "event-triggered review" in content.lower()
+    assert "task lifecycle record" in content.lower()
+    assert "do not create separate task briefs, review packages, or a duplicate task ledger" in content.lower()
     assert "blocker" in content.lower()
-    assert "once one safe lane clears the subagent-readiness bar" in content.lower()
-    assert "tasks.md` being fully checked off is not sufficient for completion by itself" in content
-    assert "`research_gap`" in content
-    assert "`plan_gap`" in content
-    assert "`spec_gap`" in content
+    assert "recovery" in content.lower()
+    assert "stop/reopen" in content.lower() or "stop-and-reopen" in content.lower()
     assert "subagent execution" in content.lower()
     assert "prefer `execution_surface: native-subagents`" in content or "spawn_agent" in content
     assert "sp-teams" not in content.lower()
-    assert "must not edit implementation files directly while subagent execution is active" in content.lower()
+    assert "must not edit a delegated lane's write scope while that subagent is active" in content.lower()
     assert "wait for every subagent's structured handoff" in content.lower()
     assert "do not treat an idle subagent as done work" in content.lower()
-    assert "Mark `subagent-blocked` and stop if any dispatch-blocking runtime condition is present" in content
-    assert "Do not use leader-inline execution as a fallback for any dispatch-blocking condition." in content
-    assert "A lane is dispatch-ready only if its validated `WorkerTaskPacket` includes" in content
-    assert "If any required packet field is missing, do not dispatch and do not execute inline." in content
-    assert "The only legal action is to repair the packet or stop as `subagent-blocked`." in content
-    assert "Dispatch failure is not permission to continue locally." in content
-    assert "Do not persist native subagent dispatch failures" in content
-    assert "without writing a durable fallback decision to `implement-tracker.md`" in content
+    assert "do not dispatch a subagent when required packet fields or required references are missing" in content.lower()
+    assert "use leader-direct only if the task independently qualifies" in content.lower()
     assert "Dispatch Fallback" not in content
-    assert "actual_surface: leader-inline" not in content
     assert "max_parallel_subagents = 4" in content
-    assert "implement-slot-1" in content
-    assert "current selected wave" in content
     assert "at most four validated isolated lanes" in content
-    assert "more than four dispatch-ready isolated lanes" in content
-    assert "execute multiple waves" in content
-    assert "launch all selected lanes in the current `parallel-subagents` wave before waiting" in content
-    assert "whole ready parallel batch" in content
-    assert "current batch, `wait_agent` to join them" not in content
+    assert "launch the selected parallel wave before waiting" in content.lower()
 
 
 def test_codex_generated_shared_workflow_skills_include_native_spawn_agent_guidance(tmp_path):
@@ -1097,27 +1142,39 @@ def test_codex_generated_shared_workflow_skills_include_native_spawn_agent_guida
 
     skills_dir = target / ".codex" / "skills"
     for skill_name in ("sp-specify",):
-        content = (skills_dir / skill_name / "SKILL.md").read_text(encoding="utf-8").lower()
+        skill_content = _read_skill_with_references(skills_dir / skill_name / "SKILL.md")
+        content = skill_content.lower()
         assert (
             "execution_model: subagent-mandatory" in content
             or "execution model: `subagents-first`" in content
             or "lane_mode: read-only-evidence" in content
         )
         assert "choose_evidence_lane_dispatch" in content
+        assert "choose_ui_reference_lane_dispatch" in content
+        assert "ui-reference-artifact" in content
+        assert "ui-reference-notes.md" in content
+        assert "ui-brief.md" in content
+        assert "Reference-Implementation" in skill_content
         assert "dispatch_shape: one-subagent | parallel-subagents" in content
         assert "execution_surface: native-subagents" in content
         assert "spawn_agent" in content
         assert "wait_agent" in content
         assert ".specify/project-cognition/" in content
-        assert ".specify/memory/project-rules.md" in content
-        assert ".specify/memory/learnings/index.md" in content
-        assert "future senior engineer" in content
+        assert "learning start --command " in content
+        assert "--format json" in content
+        assert "--detail-level" not in content
+        assert "show_argv" in content
+        assert ".specify/memory/learnings/index.md" not in content
+        assert "spec-contract.json" in content
+        assert "semantic_delta" in content
         assert ".planning/learnings/candidates.md" not in content or "compatibility" in content
         assert "if collaboration is justified" not in content
         assert "would benefit from them" not in content
         assert "make the next path explicit" not in content
     for skill_name in ("sp-plan", "sp-tasks"):
-        content = (skills_dir / skill_name / "SKILL.md").read_text(encoding="utf-8").lower()
+        content = _read_skill_with_references(
+            skills_dir / skill_name / "SKILL.md"
+        ).lower()
         assert "execution_model: adaptive" in content
         assert "execution_mode: light | standard | heavy" in content
         assert "workflow_status: ready | blocked" in content
@@ -1131,30 +1188,42 @@ def test_codex_generated_shared_workflow_skills_include_native_spawn_agent_guida
         assert "leader-inline-fallback" not in content
         assert "execution model: `subagents-first`" not in content
         assert ".specify/project-cognition/" in content
-        assert ".specify/memory/project-rules.md" in content
-        assert ".specify/memory/learnings/index.md" in content
-        assert "future senior engineer" in content
-        assert ".planning/learnings/candidates.md" not in content or "compatibility" in content
+        assert "learning start --command " in content
+        assert "--format json" in content
+        assert "--detail-level" not in content
+        assert "show_argv" in content
+        assert ".specify/memory/learnings/index.md" not in content
+        assert ".planning/learnings/candidates.md" not in content
         assert "if collaboration is justified" not in content
         assert "would benefit from them" not in content
         assert "make the next path explicit" not in content
 
-    implement_content = (skills_dir / "sp-implement" / "SKILL.md").read_text(encoding="utf-8").lower()
-    assert "execution_model: subagent-mandatory" in implement_content or "execution model: `subagents-first`" in implement_content
-    assert "dispatch_shape: one-subagent | parallel-subagents" in implement_content
-    assert "execution_surface: native-subagents" in implement_content
+    implement_content = _read_skill_with_references(
+        skills_dir / "sp-implement" / "SKILL.md"
+    ).lower()
+    assert "execution_model: adaptive" in implement_content or "execution model: `adaptive`" in implement_content
+    assert "leader-direct" in implement_content
+    assert "one-subagent" in implement_content and "parallel-subagents" in implement_content
+    assert "native-subagents" in implement_content
     assert "spawn_agent" in implement_content
     assert "wait_agent" in implement_content
     assert "close_agent" in implement_content
+    assert "task-index.json" in implement_content
+    assert "just in time" in implement_content
+    assert "event-triggered review" in implement_content
+    assert "task lifecycle record" in implement_content
     assert "sp-teams" not in implement_content
 
     shared_skills = ("sp-specify", "sp-plan", "sp-tasks")
     for skill_name in shared_skills:
-        content = (skills_dir / skill_name / "SKILL.md").read_text(encoding="utf-8").lower()
+        content = _read_skill_with_references(
+            skills_dir / skill_name / "SKILL.md"
+        ).lower()
         assert "specify team" not in content
         assert "workflow-state.md" in content
-        assert "workflow_state_file" in content
-        assert "re-read `workflow_state_file`" in content or "re-read `workflow-state-file`" in content
+        assert "resume state" in content
+        assert "canonical" in content
+        assert "-contract.json" in content
 
     assert not (skills_dir / "sp-test-scan" / "SKILL.md").exists()
     assert not (skills_dir / "sp-test-build" / "SKILL.md").exists()
@@ -1178,11 +1247,10 @@ def test_codex_generated_shared_workflow_skills_include_native_spawn_agent_guida
 
     constitution_content = (skills_dir / "sp-constitution" / "SKILL.md").read_text(encoding="utf-8").lower()
     constitution_normalized = " ".join(constitution_content.split())
-    assert ".specify/memory/project-rules.md" in constitution_content
-    assert ".specify/memory/learnings/index.md" in constitution_content
-    assert "future senior engineer" in constitution_content
-    assert ".planning/learnings/candidates.md" not in constitution_content or "compatibility" in constitution_content
     assert "learning start --command constitution --format json" in constitution_content
+    assert "show_argv" in constitution_content
+    assert ".specify/memory/learnings/index.md" not in constitution_content
+    assert ".planning/learnings/candidates.md" not in constitution_content
     assert "this workflow writes only `.specify/memory/constitution.md`." in constitution_content
     assert "do not modify templates, command files, docs, project rules, learning files" in constitution_content
     assert "report the highest affected downstream stage instead of editing those artifacts" in constitution_normalized
@@ -1237,14 +1305,19 @@ def test_codex_question_driven_skills_prefer_request_user_input_with_fallback(tm
         assert "recommended option first" in lower
         assert "fall back immediately" in lower or "fall back to the" in lower
 
-    quick_content = (target / ".codex" / "skills" / "sp-quick" / "SKILL.md").read_text(encoding="utf-8").lower()
+    quick_content = _read_skill_with_references(
+        target / ".codex" / "skills" / "sp-quick" / "SKILL.md"
+    ).lower()
     assert "--discuss" in quick_content
     assert "multiple unfinished quick tasks exist" in quick_content
     assert "resolve discussion handoff intake before quick-task execution" in quick_content
     assert "discussion_requirement_contract" in quick_content
     assert "consumer_eligibility.sp-quick.status" in quick_content
-    assert "quick_task_candidate" in quick_content
-    assert "do not skip the understanding checkpoint" in quick_content
+    assert "planning constraints" in quick_content
+    assert "review_digest" in quick_content
+    assert "quick_task_candidate" not in quick_content
+    assert "do not repeat user confirmation" in quick_content
+    assert_quick_checkpoint_card_shape(quick_content)
 
 
 def test_codex_generated_skills_preserve_agent_required_marker_lines(tmp_path):
@@ -1285,18 +1358,16 @@ def test_codex_generated_plan_tasks_implement_skills_preserve_boundary_guardrail
 
     skills_dir = target / ".codex" / "skills"
 
-    plan_content = (skills_dir / "sp-plan" / "SKILL.md").read_text(encoding="utf-8")
+    plan_content = _read_skill_with_references(skills_dir / "sp-plan" / "SKILL.md")
+    assert "spec-contract.json" in plan_content
+    assert "plan-contract.json" in plan_content
     assert "Add `Implementation Constitution`" in plan_content
-    assert "`Implementation Constitution` MUST be added if any one of the following conditions is true" in plan_content
-    assert "architecture invariants, boundary ownership, forbidden implementation drift" in plan_content
-    assert "Promote framework and boundary rules from \"technical background\" into explicit implementation constraints" in plan_content
+    assert "architecture/module decisions and interface consumes/produces map" in plan_content
+    assert "implementation target and boundary refs" in plan_content
+    assert "scope preservation, interface completeness, target boundary" in plan_content
     assert "Dispatch Compilation Hints" in plan_content
-    assert "planning/handoffs/<lane-id>.json" in plan_content
-    assert "planning/evidence-index.json" in plan_content
-    assert "planning/checkpoints.ndjson" in plan_content
-    assert "planning evidence paths when delegated lanes were used" in plan_content
-    assert "delegated_planning_lanes: none" in plan_content
-    assert "Consume `planning/evidence-index.json` before final synthesis" in plan_content
+    assert "planning/lane-manifest.json" in plan_content
+    assert "separate evidence-index and checkpoint logs" in plan_content
     assert "Do not synthesize `plan.md`, `research.md`, or `plan-contract.json` from chat-only delegated lane results" in plan_content
     assert "artifact-writing delegated lanes must use writable" in plan_content.lower()
     assert "execution-capable native subagents" in plan_content.lower()
@@ -1310,30 +1381,28 @@ def test_codex_generated_plan_tasks_implement_skills_preserve_boundary_guardrail
     assert "consume `clarification/evidence-index.json` before final artifact updates" in clarify_content.lower()
     assert "do not update `spec.md`, `alignment.md`, `context.md`, or `references.md` from chat-only lane results" in clarify_content.lower()
 
-    tasks_content = (skills_dir / "sp-tasks" / "SKILL.md").read_text(encoding="utf-8")
-    assert "Extract `Locked Planning Decisions`, `Implementation Constitution`" in tasks_content
-    assert "implementation-guardrails phase before setup" in tasks_content
-    assert "locked planning decision or implementation constitution rule" in tasks_content
-    assert "Task Guardrail Index" in tasks_content
-    assert "task-generation/handoffs/<lane-id>.json" in tasks_content
-    assert "task-generation/evidence-index.json" in tasks_content
-    assert "task-generation/checkpoints.ndjson" in tasks_content
-    assert "task-generation evidence paths when delegated lanes were used" in tasks_content
-    assert "delegated_task_generation_lanes: none" in tasks_content
-    assert "Consume `task-generation/evidence-index.json` before final task synthesis" in tasks_content
-    assert "planning/evidence-index.json and accepted planning/handoffs/*.json" in tasks_content
-    assert "Do not synthesize `tasks.md` from chat-only delegated lane results" in tasks_content
+    tasks_content = _read_skill_with_references(skills_dir / "sp-tasks" / "SKILL.md")
+    assert "plan-contract.json" in tasks_content
+    assert "task-index.json" in tasks_content
+    assert "MP-*" in tasks_content
+    assert "CA-###" in tasks_content
+    assert "capability operation" in tasks_content.lower()
+    assert "real-entrypoint" in tasks_content.lower()
+    assert "join point" in tasks_content.lower()
+    assert "compile delegated packets just in time" in tasks_content.lower()
+    assert "task-generation/lane-manifest.json" in tasks_content
+    assert "chat-only lane output is not handoff truth" in tasks_content.lower()
     assert "artifact-writing delegated lanes must use writable" in tasks_content.lower()
     assert "execution-capable native subagents" in tasks_content.lower()
     assert "read-only explorer, reviewer, or diagnostic lane" in tasks_content.lower()
 
-    implement_content = (skills_dir / "sp-implement" / "SKILL.md").read_text(encoding="utf-8")
-    assert "Extract `Implementation Constitution` from `plan.md`" in implement_content
-    assert "What framework or boundary pattern owns the touched surface?" in implement_content
-    assert "Which files define the existing pattern that must be preserved?" in implement_content
-    assert "What implementation drift is forbidden for this batch?" in implement_content
-    assert "Boundary-pattern preservation" in implement_content
-    assert "compile and validate the packet before any subagent work begins" in implement_content
+    implement_content = _read_skill_with_references(
+        skills_dir / "sp-implement" / "SKILL.md"
+    )
+    assert "task-index.json" in implement_content
+    assert "forbidden drift" in implement_content.lower()
+    assert "event-triggered review" in implement_content.lower()
+    assert "task lifecycle record" in implement_content.lower()
     assert "validated `WorkerTaskPacket`" in implement_content
     assert "dispatch only from validated `workertaskpacket`" in implement_content.lower() or "raw task text alone" in implement_content.lower()
 
@@ -1357,8 +1426,8 @@ def test_codex_generated_plan_tasks_implement_skills_preserve_boundary_guardrail
     assert "analysis-only" in analyze_content.lower()
     assert "`next_command: /sp.implement`" in analyze_content
     assert "If the highest invalid stage is `clarify`" in analyze_content
-    assert "planning/evidence-index.json" in analyze_content
-    assert "task-generation/evidence-index.json" in analyze_content
+    assert "planning/lane-manifest.json" in analyze_content
+    assert "task-generation/lane-manifest.json" in analyze_content
     assert "accepted planning handoff with no downstream consumer" in analyze_content.lower()
     assert "accepted task-generation handoff with no downstream consumer" in analyze_content.lower()
     assert "non-destructive cross-artifact consistency and boundary-guardrail analysis" in analyze_content.lower()
@@ -1476,11 +1545,11 @@ def test_codex_generated_sp_debug_includes_leader_led_native_investigation_guida
     assert result.exit_code == 0, f"init --ai codex failed: {result.output}"
 
     skill_path = target / ".codex" / "skills" / "sp-debug" / "SKILL.md"
-    content = skill_path.read_text(encoding="utf-8").lower()
+    content = _read_skill_with_references(skill_path).lower()
 
-    assert ".specify/memory/project-rules.md" in content
-    assert ".specify/memory/learnings/index.md" in content
-    assert "future senior engineer" in content
+    assert "learning start --command debug" in content
+    assert "learning show" in content or "show_argv" in content
+    assert ".specify/memory/learnings/index.md" not in content
     assert ".planning/learnings/candidates.md" not in content or "compatibility" in content
     assert "codex subagent evidence collection" in content
     assert "compass --intent debug" in content
@@ -1539,7 +1608,7 @@ def test_codex_generated_sp_debug_includes_leader_led_native_investigation_guida
     assert "sp-map-update is for manual/external maintenance and follow-up repair" in content
 
 
-def test_codex_generated_specify_skill_mentions_source_sweep_and_reopen(tmp_path):
+def test_codex_generated_specify_skill_uses_compact_contract_and_reopen(tmp_path):
     from specify_cli.integrations.codex import CodexIntegration
     from specify_cli.integrations.manifest import IntegrationManifest
 
@@ -1547,16 +1616,18 @@ def test_codex_generated_specify_skill_mentions_source_sweep_and_reopen(tmp_path
     integration = CodexIntegration()
     manifest = IntegrationManifest("codex", target)
     integration.setup(target, manifest)
-    content = (target / ".codex" / "skills" / "sp-specify" / "SKILL.md").read_text(encoding="utf-8").lower()
-    assert "source_signal_disposition" in content
-    assert "discussion decision digest" in content
+    content = _read_skill_with_references(
+        target / ".codex" / "skills" / "sp-specify" / "SKILL.md"
+    ).lower()
+    assert "spec-contract.json" in content
+    assert "semantic_delta" in content
     assert "discussion_decision_digest" in content
-    assert "review_criteria_carried_forward" in content
+    assert "decision_digest_ref" in content
     assert "must_not_dilute" in content
-    assert "source_files_read" in content
-    assert "discussion-log.md" in content
-    assert "requirements.md" in content
-    assert "open-questions.md" in content
+    assert "named evidence reference" in content
+    assert "stale, missing, or contradictory" in content
+    assert "source_files_read" not in content
+    assert "do not repeat user review" in content
     assert "reopen" in content
     assert "brainstorming kernel" not in content
     assert "facts-lock" not in content
@@ -1579,17 +1650,19 @@ def test_codex_generated_sp_specify_uses_simplified_flow_wording(tmp_path):
 
     assert result.exit_code == 0, f"init --ai codex failed: {result.output}"
 
-    content = (target / ".codex" / "skills" / "sp-specify" / "SKILL.md").read_text(encoding="utf-8")
+    content = _read_skill_with_references(
+        target / ".codex" / "skills" / "sp-specify" / "SKILL.md"
+    )
     lowered = content.lower()
 
     assert "explore project context" in lowered
     assert "one high-impact question at a time" in lowered
     assert "two or three approaches" in lowered or "2-3 approaches" in lowered
     assert "semantic term" in lowered
-    assert "source_signal_disposition" in content
-    assert "discussion-log.md" in content
-    assert "requirements.md" in content
-    assert "open-questions.md" in content
+    assert "spec-contract.json" in content
+    assert "semantic_delta" in content
+    assert "compile mode" in lowered
+    assert "do not repeat user review" in lowered
     assert "reopen" in lowered
     assert "brainstorming kernel" not in lowered
     assert "facts-lock" not in content
@@ -1603,7 +1676,7 @@ def test_codex_generated_sp_specify_uses_simplified_flow_wording(tmp_path):
     assert "leader-inline-fallback" not in lowered
 
 
-def test_codex_generated_implement_skill_mentions_optimization_scope_and_reopen(tmp_path):
+def test_codex_generated_implement_skill_mentions_task_contract_and_reopen(tmp_path):
     from specify_cli.integrations.codex import CodexIntegration
     from specify_cli.integrations.manifest import IntegrationManifest
 
@@ -1611,10 +1684,14 @@ def test_codex_generated_implement_skill_mentions_optimization_scope_and_reopen(
     integration = CodexIntegration()
     manifest = IntegrationManifest("codex", target)
     integration.setup(target, manifest)
-    content = (target / ".codex" / "skills" / "sp-implement" / "SKILL.md").read_text(encoding="utf-8").lower()
+    content = _read_skill_with_references(
+        target / ".codex" / "skills" / "sp-implement" / "SKILL.md"
+    ).lower()
 
-    assert "allowed optimization scope" in content
-    assert "must-preserve invariants" in content
+    assert "task-index.json" in content
+    assert "forbidden drift" in content
+    assert "task lifecycle record" in content
+    assert "event-triggered review" in content
     assert "reopen" in content
 
 
@@ -1632,7 +1709,9 @@ def test_codex_debug_skill_prefers_request_user_input_with_fallback(tmp_path):
 
     assert result.exit_code == 0, f"init --ai codex failed: {result.output}"
 
-    content = (target / ".codex" / "skills" / "sp-debug" / "SKILL.md").read_text(encoding="utf-8").lower()
+    content = _read_skill_with_references(
+        target / ".codex" / "skills" / "sp-debug" / "SKILL.md"
+    ).lower()
     assert "request_user_input" in content
     assert "native structured question tool" in content
     assert "missing-information question" in content or "plain-text clarification" in content
@@ -1657,13 +1736,12 @@ def test_codex_generated_sp_fast_stays_inline_and_lightweight(tmp_path):
     assert result.exit_code == 0, f"init --ai codex failed: {result.output}"
 
     skill_path = target / ".codex" / "skills" / "sp-fast" / "SKILL.md"
-    content = skill_path.read_text(encoding="utf-8").lower()
+    content = _read_skill_with_references(skill_path).lower()
 
     assert "scope gate" in content
-    assert "skip all learning hooks" in content
-    assert "do not read constitution, project-rules, or project-learnings" in content
-    assert "leave `.specify/memory/learnings/index.md`" in content
-    assert ".planning/learnings/candidates.md" not in content or "compatibility" in content
+    assert "do not run learning intake, hooks, capture, or promotion" in content
+    assert "do not parse learning storage" in content
+    assert ".specify/memory/learnings/index.md" not in content
     assert "compass --intent implement" in content
     assert "query --query-plan" in content
     assert "only when `compass_state`, coverage diagnostics, localization, or live evidence requires explicit concept decisions" in content
@@ -1709,13 +1787,25 @@ def test_codex_generated_sp_quick_supports_lightweight_tracked_execution(tmp_pat
     assert result.exit_code == 0, f"init --ai codex failed: {result.output}"
 
     skill_path = target / ".codex" / "skills" / "sp-quick" / "SKILL.md"
-    content = skill_path.read_text(encoding="utf-8").lower()
+    content = _read_skill_with_references(skill_path).lower()
 
     assert ".planning/quick/" in content
-    assert ".specify/memory/project-rules.md" in content
-    assert ".specify/memory/learnings/index.md" in content
-    assert "future senior engineer" in content
-    assert ".planning/learnings/candidates.md" not in content or "compatibility" in content
+    assert (
+        render_command(
+            (
+                "learning",
+                "start",
+                "--command",
+                "<classic-command-name>",
+                "--format",
+                "json",
+            )
+        ).lower()
+        in content
+    )
+    assert "show_argv" in content
+    assert ".specify/memory/learnings/index.md" not in content
+    assert ".planning/learnings/candidates.md" not in content
     assert "compass --intent implement" in content
     assert "query --intent implement" in content
     assert "alias catalog" in content
@@ -1743,14 +1833,18 @@ def test_codex_generated_sp_quick_supports_lightweight_tracked_execution(tmp_pat
     assert "managed-team" in content
     assert "understanding checkpoint" in content
     assert "understanding_confirmed: true" in content
-    assert "quick checkpoint" in content
+    assert_quick_checkpoint_card_shape(content)
     assert "<br>" not in content
     assert "plain text for terminal output" in content
-    assert "target outcome" in content
-    assert "known facts / assumptions" in content
-    assert "implementation plan" in content
-    assert "validation evidence" in content
-    assert "stop condition" in content
+    assert "request and outcome" in content
+    assert "user-visible result" in content
+    assert "recommended approach" in content
+    assert "assumptions and risks" in content
+    assert "completion evidence" in content
+    assert "reconfirmation trigger" in content
+    assert "technical execution belongs to the agent" in content
+    assert "## ui confirmation" in content
+    assert "single confirmation covers both" in content
     assert "done_or_progress_signal" in content
     assert "dispatch_shape: one-subagent | parallel-subagents" in content
     assert "execution_surface: native-subagents" in content

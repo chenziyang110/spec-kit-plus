@@ -1,36 +1,26 @@
-## Passive Project Learning Layer
+## Project Learning
 
-Learning capture is proportional to command complexity:
+The CLI is the only agent-facing Learning read surface:
 
-| Tier | Learning Behavior |
-|------|-------------------|
-| trivial | Skip learning unless the task escalates or exposes reusable project memory. |
-| light | Read the learning index and auto-capture from durable state on resolution when useful. |
-| heavy | Full learning: start -> read index -> track reusable friction in durable state -> closeout capture into index/detail. |
+1. Run `{{specify-subcmd:learning start --command <classic-command-name> --format json}}` before deeper non-trivial work.
+2. Select summaries by applicability and triggers; use `{{specify-subcmd:learning list --command <classic-command-name> --format json}}` only to filter or page.
+3. Execute one matching card's `show_argv`. Do not parse Learning storage.
 
-### Learning Reflex
+`start`, `list`, and `show` are read-only. Current repository evidence,
+`.specify/memory/constitution.md`, and explicit user direction override stale or
+candidate Learning.
 
-Before final closeout, ask whether a future senior engineer would benefit from
-seeing this lesson before related work. If yes, update the learning index and
-detail document. Do not ask the user for routine permission to record low-risk
-project memory. Do not bury reusable lessons only in chat, task files, or
-workflow-state.
+At closeout, corrections, retries, route changes, recovery, false leads, hidden
+dependencies, validation/tooling/state/cognition gaps, constraints, and near
+misses are capture signals. Prefer `{{specify-subcmd:learning capture-auto}}`
+from owning state; manual capture includes summary, problem, action, triggers,
+success criteria, avoid items, exceptions, and evidence.
 
-### Tier: trivial
-- Do not run `{{specify-subcmd:learning start}}` unless the task escalates.
-- Do not invoke learning hooks for ordinary one-off edits.
+- `fast`: skip unless the task escalates.
+- `accept`, `analyze`, `ask`, `auto`, `constitution`, `explain`,
+  `implement-teams`, `taskstoissues`, and `team`: consume-only; do not violate
+  their write boundaries to capture.
+- Other non-trivial workflows: consume before deeper work; capture reusable
+  signals at closeout or record a no-learning decision.
 
-### Tier: light
-- Run `{{specify-subcmd:learning start}}` with the current command name when available.
-- Read `.specify/memory/project-rules.md` and `.specify/memory/learnings/INDEX.md` before local context.
-- Open only detail docs linked from relevant index entries.
-- On resolution, prefer `{{specify-subcmd:learning capture-auto}}` when durable state contains reusable friction.
-
-### Tier: heavy
-- Run `{{specify-subcmd:learning start}}` with the current command name so shared memory and relevant detail refs are visible.
-- Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/learnings/INDEX.md` in that order before broader command-local context.
-- Open only linked detail docs whose `applies_to` or `trigger_signals` match the current work.
-- Before final completion or blocked reporting, perform learning closeout: capture or merge an index/detail lesson when future reuse is plausible, or explicitly decide the run was one-off.
-- Prefer `{{specify-subcmd:learning capture-auto}}` when durable state already preserves route reasons, false starts, hidden dependencies, validation gaps, or reusable constraints.
-- Use manual memory edits only when durable state does not capture the lesson cleanly: update `.specify/memory/learnings/INDEX.md` and one linked detail markdown document.
-- Promote to `project-rules.md` or constitution only after recurrence, explicit user confirmation, or stable cross-workflow governance value.
+The `policy` returned by the CLI is authoritative when prompt wording drifts.

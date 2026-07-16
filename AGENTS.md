@@ -20,11 +20,21 @@ For AI CLI workflows in this repository:
 - Prefer compact structured data with only fields the next agent step needs. Omit explanatory prose, duplicated data, timestamps, hashes, version metadata, exclusion details, and other audit/debug fields unless they are required for the active workflow.
 - Put expanded diagnostics behind explicit debug, verbose, explain, or human-readable modes instead of including them in default agent-facing output.
 
-## Project Memory
+## Template Artifact Generation
 
-- Generated projects use `.specify/memory/project-rules.md` for local rules and `.specify/memory/learnings/INDEX.md` plus linked detail documents as the first-read reusable learning layer. `.specify/memory/project-learnings.md` remains a compatibility summary; new durable lessons should write the index/detail memory first.
+- For template-like artifacts, prefer deterministic scripts, renderers, or CLI helpers over asking an agent to manually emit large Markdown, JSON, TOML, YAML, or code blocks from prose instructions.
+- If an artifact has a stable schema, repeated structure, compatibility filename, managed block, or cross-integration copy, encode that structure in `scripts/`, `src/specify_cli/**`, or a packaged template plus renderer, then have the agent invoke or update that mechanism.
+- Agent prompts may explain when and why to generate the artifact, but the exact shape should live in code or templates whenever practical. Do not rely on an agent repeatedly reconstructing long boilerplate by following an example in a prompt.
+- When introducing or changing a scripted/template generator, add or update tests that assert the rendered output and the source-of-truth surfaces stay in sync.
+- Existing examples of this direction include `src/specify_cli/agents.py` command/skill rendering and the shared `scripts/bash/update-agent-context.sh` plus `scripts/powershell/update-agent-context.ps1` managed-block renderers.
+
+## Project Learning
+
+- Generated projects store Learning under `.specify/memory/**` and runtime candidates under `.planning/learnings/**`, but agents consume it through `specify learning start -> list -> show`, not by parsing storage files. Summary intake is compact; `show` expands one selected record.
+- Learning reads are read-only. Production uses `learning capture` / `capture-auto`; confirmation and project-rule promotion use explicit `learning promote`. Never auto-promote during workflow start.
+- Classic commands use the shared Learning partial/passive skill. Advanced skills use `_shared/project-learning.md`; SPX command names normalize to the same Classic runtime namespace.
 - This repository itself does not treat its root `.specify/` directory as committed source-of-truth content; local `.specify/` state here is disposable and may be regenerated.
-- Shared project memory is always available to later work in this repository, not just when a `sp-*` workflow is active.
+- Project Learning is available to later work in this repository, not just when a `sp-*` workflow is active.
 
 ## Cross-CLI Improvement Policy
 
@@ -46,6 +56,162 @@ For AI CLI workflows in this repository:
   - or auditing the prompt/runtime product itself.
 - For normal maintenance of `spec-kit-plus`, follow the repository's actual source-of-truth surfaces: `AGENTS.md`, `PROJECT-HANDBOOK.md`, `templates/project-map/**`, `templates/project-handbook-template.md`, `tools/project-cognition/**`, `tools/spec-lint/**`, relevant source code under `src/specify_cli/**`, scripts, tests, and release/config files.
 - If a generated workflow says to read or write downstream project artifacts under `.specify/features/**`, legacy `.specify/specs/**`, `specs/**`, feature-local `workflow-state.md`, or similar generated-project state, do not treat that as this repository's required execution path unless the current task is explicitly to test or simulate downstream generated-project behavior.
+
+## Workflow Profile Contract: Classic vs Advanced
+
+`classic` and `advanced` are separate prompt products over shared Specify
+runtime contracts. Treat the selected profile as an explicit maintenance
+boundary; do not infer it from whichever generated directory happens to be
+present in a test project.
+
+### Installation and Naming
+
+- One `specify init` invocation selects exactly one workflow profile. A user may
+  rerun init for the same integration to install the other profile additively;
+  this is supported and must preserve both installed profile records.
+- **Classic** generates the agent-native `sp-*` command or skill surfaces from
+  `templates/commands/**`, `templates/command-partials/**`,
+  `templates/command-references/**`, `templates/passive-skills/**`, and
+  `templates/worker-prompts/**`. It is the explicit, broadly compatible prompt
+  path and retains the full Classic workflow guidance.
+- **Advanced** is supported by skills-based integrations and generates the
+  independent `spx-*` catalog from `templates/advanced-skills/**`. It is
+  command-equivalent and prompt-optimized for advanced models: every Classic
+  command has an independent SPX counterpart, while `spx-map-rebuild` is an
+  additional convenience orchestrator. The current topology is 30 SPX skills:
+  29 one-to-one Classic command counterparts plus `spx-map-rebuild`. Advanced
+  keeps command ownership, read/write boundaries, resumable stops, and
+  external-side-effect gates; it removes repeated tutorials, fixed role chains,
+  unnecessary mandatory delegation, long examples, and model-authored stable
+  boilerplate.
+- Advanced prompt optimization has no hard word or token ceiling. Optimize
+  expression, not workflow semantics: every Classic stage input, triggered
+  output, state owner, resume transition, blocker/recovery rule, side-effect
+  gate, and final-claim gate must remain in the owning SPX skill, a triggered
+  Advanced reference, or shared deterministic runtime. Leave implementation
+  strategy and judgment to the advanced model only after those contracts are
+  preserved.
+- Classic and Advanced share one blocked-exit semantic contract. Every blocked
+  stop must identify workflow/stage, category, owner, exact cause, sanitized
+  evidence, attempted recovery, affected scope, next action, observable unblock
+  criteria, and exact resume point. Keep agent-capable repair agent-owned. When
+  a genuine human boundary exists, provide a self-contained tutorial with
+  prerequisites, safety warnings, numbered UI/command steps, expected result
+  and failure branch per step, independent verification, sanitized evidence to
+  return, and the exact resume action. Protected CI and pending visual review
+  must name their concrete repository/branch/commit/job or real-entrypoint/
+  viewport/state/reference targets; “run CI” or “ask a human” is insufficient.
+- Advanced does **not** install the Classic passive-skill prompt bundle.
+  Essential safety and execution gates belong in the owning SPX skill, a
+  profile-local Advanced reference, or shared deterministic runtime.
+- **Intentional map exception:** every Advanced install also generates the
+  original Classic `sp-map-scan`, `sp-map-build`, and `sp-map-update` skills,
+  including their Classic command-reference sidecars, through the unchanged
+  Classic renderer. These coexist with `spx-map-scan`, `spx-map-build`,
+  `spx-map-update`, and `spx-map-rebuild` so lower-cost models can run the
+  explicit Classic map workflow. Do not treat these three `sp-*` directories as
+  accidental profile leakage, and do not copy their prompts into
+  `templates/advanced-skills/**`.
+- Use `spx-map-*` when an advanced leader owns boundaries, acceptance, and
+  escalation while delegating bounded scan packets to lower-cost workers. Use
+  the installed Classic `sp-map-*` companions when a lower-cost model should
+  run the whole more-explicit map workflow.
+
+### Source-of-Truth and Change Routing
+
+- A Classic prompt change starts in the Classic surfaces. An Advanced prompt
+  change starts in `templates/advanced-skills/**`, including the owning
+  `SKILL.md`, triggered `references/**`, deterministic `assets/**`,
+  `agents/openai.yaml`, and `_shared/surface-map.json` when topology or ownership
+  changes.
+- Never implement an Advanced optimization by shortening or weakening Classic.
+  Never implement a Classic compatibility fix by pasting the full Classic
+  prompt into SPX. Preserve two prompt profiles and one shared runtime wherever
+  possible.
+- Shared CLI commands, schemas, state machines, validators, launchers, artifact
+  formats, project-cognition behavior, and installation semantics are not
+  profile forks. Evaluate changes to those surfaces against both profiles and
+  all supported integrations.
+- Classic `map-scan`, `map-build`, or `map-update` changes automatically affect
+  the three Advanced-installed Classic companions because they use the same
+  renderer. Separately assess the corresponding `spx-map-*` skill for semantic
+  alignment; SPX wording may stay shorter, but scan/build/update ownership and
+  runtime contracts must not drift.
+- Generated downstream paths such as `.codex/skills/**`, `.claude/skills/**`,
+  or `.agents/skills/**` are verification outputs, not source-of-truth edits.
+  Fix generators/templates here, then regenerate the downstream fixture or
+  test project.
+
+### UI Workflow Contract Across Profiles
+
+- The product goal is better implemented UI, not merely more UI documentation.
+  Both profiles must preserve this executable chain for substantive UI work:
+  `approved DESIGN.md + original references -> feature ui-brief.md -> plan
+  ui_design_contract -> per-task ui_contract -> real-entrypoint visual evidence`.
+- UI applicability is broader than reference-image intake. New or changed
+  screens, components, layouts, navigation/interaction flows, responsive
+  behavior, visual states, desktop/mobile surfaces, TUI layouts, and CLI
+  presentation can all trigger the UI contract.
+- The `DESIGN.md` copied by init is a structurally valid bootstrap seed. It is
+  not an approved product direction and must not anchor an advanced model to its
+  generic starter palette, typography, density, or component choices. New or
+  high-visibility UI requires a project-specific approved design contract;
+  narrow existing-pattern fixes may record a bounded exception.
+- Classic keeps the explicit UI lane, full command references, passive
+  `spec-kit-ui-design`/`frontend-design` guidance, worker prompts, and verbose
+  evidence mapping. Advanced must not install that passive bundle; its essential
+  equivalent lives in `_shared/ui-quality-gate.md`, owning SPX references,
+  compact deterministic assets, and shared runtime schemas/validators.
+- Do not treat a top-level UI coverage table as sufficient. Every UI-bearing
+  task must carry structured task-local design sources, fidelity, states,
+  must-preserve/may-adapt/must-not rules, and required visual evidence so the
+  worker packet cannot silently downgrade UI work to `not_applicable`.
+- The single current UI contract separates work type, surface type, and platform. It preserves
+  subject, audience, single job, visual/content/interaction theses, a signature
+  element, an inspectable approved visual reference, per-reference use intent,
+  and task-relevant real-content/image plans through the Classic and Advanced
+  artifact chain. Do not collapse those dimensions into one enum or prose.
+- UI implementation acceptance requires a real-entrypoint convergence loop:
+  run, capture representative viewport/state evidence, visually inspect against
+  design/brief/reference inputs, repair drift, and recapture. Passing automated
+  tests is separate from visual and interaction acceptance; unavailable visual
+  comparison remains explicit `pending-human-review`.
+- UI task lifecycles use only typed `structure_snapshot`, `visual_capture`, and
+  `runtime_diagnostics` evidence plus visual comparison or human review. Web
+  maps those kinds to accessibility/DOM structure, viewport screenshots, and
+  console/runtime output. Integrated lanes must recapture them with
+  `evidence_scope: integrated`; isolated task evidence cannot close the lane.
+- UI contract versions are not a compatibility surface. Do not emit or accept
+  `ui_contract_version`, `contract_version`, `ui_fidelity_requirements`,
+  `ui_fidelity_evidence`, lifecycle `evidence_refs`, or legacy evidence-kind
+  aliases. Regenerate stale UI artifacts into the single current contract.
+- A UI workflow change must evaluate `templates/design-template.md`, design CLI
+  readiness, Classic command/partial/passive/worker surfaces, Advanced shared
+  and owning skill references/assets, spec/plan/task machine contracts,
+  `execution/packet_compiler.py`, lifecycle closeout, integration rendering,
+  and cross-profile tests. Keyword-presence tests alone do not prove UI contract
+  continuity; include at least one structured task-index-to-worker-packet test.
+
+### Required Regression Shape
+
+- For a skills-based integration, Classic-only init installs the expected
+  Classic `sp-*` surfaces and passive skills; no `spx-*` skills are installed.
+- For a skills-based integration, Advanced-only init installs the complete
+  `spx-*` catalog plus exactly the three Classic map companions; unrelated
+  Classic `sp-*` workflow skills and the Classic passive bundle are absent.
+- Dual install: running init twice with different profiles preserves both
+  catalogs, manifests, and profile metadata without overwriting user-modified
+  files.
+- The three Advanced-installed Classic map companions must remain byte-equivalent
+  to the same integration's Classic-profile generation in the same project.
+- For Advanced changes, run `tests/test_spx_skill.py`, the relevant
+  `tests/integrations/**` suites, packaging/manifest tests, and the
+  `skill-creator` validator for every SPX skill. For Classic changes, run the
+  affected command/partial/reference, integration-rendering, hook, and artifact
+  contract suites. For shared runtime changes, run both sets.
+- Keep `README.md`, `PROJECT-HANDBOOK.md`, init's `Start Here` output, and this
+  profile contract synchronized whenever profile membership, invocation names,
+  or routing guidance changes.
 
 # AGENTS.md
 
@@ -113,6 +279,7 @@ Specify supports multiple AI agents by generating agent-specific command files a
 | **Trae**                   | `.trae/skills/`        | Markdown | N/A (IDE-based) | Trae IDE                    |
 | **Antigravity**            | `.agents/skills/`      | Markdown | N/A (IDE-based) | Antigravity IDE (`--ai agy --ai-skills`) |
 | **Mistral Vibe**           | `.vibe/skills/`        | Markdown | `vibe`          | Mistral Vibe CLI            |
+| **ZCode**                  | `.zcode/skills/`       | Markdown | N/A (desktop app) | ZCode Agent skills        |
 | **Generic**                | User-specified via `--ai-commands-dir` | Markdown | N/A | Bring your own agent        |
 
 ### Step-by-Step Integration Guide
@@ -373,12 +540,13 @@ Work within integrated development environments:
 - **IBM Bob**: Built into IBM Bob IDE
 - **Trae**: Built into Trae IDE
 - **Antigravity**: Built into Antigravity IDE (`--ai agy --ai-skills`)
+- **ZCode**: Built into the ZCode desktop app (`--ai zcode`)
 
 ## Command File Formats
 
 ### Markdown Format
 
-Used by: Claude, Cursor, GitHub Copilot, opencode, Windsurf, Junie, Kiro CLI, Amp, SHAI, IBM Bob, Kimi Code, Qwen, Pi, Codex, Auggie, CodeBuddy, Qoder, Roo Code, Kilo Code, Trae, Antigravity, Mistral Vibe, iFlow, Forge
+Used by: Claude, Cursor, GitHub Copilot, opencode, Windsurf, Junie, Kiro CLI, Amp, SHAI, IBM Bob, Kimi Code, Qwen, Pi, Codex, Auggie, CodeBuddy, Qoder, Roo Code, Kilo Code, Trae, Antigravity, Mistral Vibe, ZCode, iFlow, Forge
 
 **Standard format:**
 
@@ -430,6 +598,7 @@ Command content with {SCRIPT} and {{args}} placeholders.
 - Kimi Code: `.kimi/skills/` (skills; explicit workflow skills use `/skill:sp-<command>`, passive bundled skills keep their template directory names such as `spec-kit-*`, `tdd-workflow`, or `frontend-design`)
 - Trae: `.trae/skills/` (skills; explicit workflow skills use `sp-*` and the Trae rules directory remains the home for project context files such as `project_rules.md`)
 - Mistral Vibe: `.vibe/skills/` (skills; generated workflow skills install as `sp-*/SKILL.md`)
+- ZCode: `.zcode/skills/` (skills; explicit workflow skills use `$sp-<command>`, root `AGENTS.md` remains the context file, and `.agents/skills/` is left for cross-tool shared skills)
 - **Shared rule for skills-based integrations**:
 - When an integration installs into a `skills/` directory, explicit workflow skills use the `sp-*` namespace and passive bundled skills keep the directory names defined under `templates/passive-skills/`.
 - **Prompt-based exceptions**:
@@ -562,12 +731,13 @@ managed `<!-- SPEC-KIT:BEGIN -->` block because
 - `project-cognition scan-set` is the runtime-owned scan-set resolution contract for agent-facing file-list handoffs; do not replace it with prompt-only guidance that asks agents to freely decide which files to skip.
 - When changing project-cognition command names, flags, binary names, release assets, or install behavior, update `src/specify_cli/project_cognition_runtime.py`, `src/specify_cli/launcher.py`, the install scripts, release workflows, README/docs, and the init/launcher regression tests in the same pass, then publish and verify the release assets in the same workstream.
 
-### Project Cognition Schema v2 Maintenance
+### Project Cognition Schema v5 Maintenance
 
-- Schema v2 runtime readiness is graph-and-alias first. The active runtime tables are `metadata`, `generations`, `evidence`, `nodes`, `node_evidence`, `edges`, `edge_evidence`, `observations`, `observation_evidence`, `path_index`, `alias_index`, and `updates`.
-- Do not reintroduce old broad-schema tables such as `claims`, `claim_evidence`, `conflicts`, `conflict_claims`, `symbol_index`, `entrypoint_index`, `test_index`, `slice_members`, FTS tables, or `query_examples` as readiness requirements unless a deliberate design, runtime implementation, prompt update, and regression suite add them back together.
+- Schema v5 runtime readiness is graph, alias, and revision-bound typed graph-claim reconciliation first. The active runtime tables are `metadata`, `generations`, `evidence`, `nodes`, `node_evidence`, `edges`, `edge_evidence`, `observations`, `observation_evidence`, `path_index`, `alias_index`, `claims`, `claim_evidence`, `claim_verifications`, `claim_transitions`, `claim_reconciliations`, and `updates`.
+- Schema v5 adds claim revisions to the auditable reconciliation record and current/superseded claim-evidence basis. Agents supply semantic reconciliation intent only; the runtime owns contract versions, generation/state/revision preconditions, time bounds, source kinds, hashes, repository snapshots, IDs, prepared packet paths, and `apply_argv`. Do not reintroduce old broad-schema tables such as `conflicts`, `conflict_claims`, `symbol_index`, `entrypoint_index`, `test_index`, `slice_members`, FTS tables, or `query_examples` as readiness requirements unless a deliberate design, runtime implementation, prompt update, and regression suite add them back together.
+- Graph claims are indexed assertions, use `graph_claim_type`, and have compiler-derived `candidate`, `supported`, `verified_in_graph_generation`, `contradicted`, or `stale` states. They never authorize source changes or set workflow `claim_ready=true`.
 - `alias_index` is the route vocabulary. `project-cognition lexicon --mode catalog` lists alias-backed candidates; the agent must normalize the user's prompt into project vocabulary, record `semantic_intake`, carry `lexicon_generation_id`, and call `project-cognition query --query-plan`. Top lexical or vector similarity alone is not route truth; live repository evidence still proves technical claims.
-- v1 and old broad-schema DBs are diagnostic/inspect-only for normal workflows. `lexicon` and `query` require schema v2 readiness, while `build-from-scan` archives or replaces v1/old broad-schema DBs and rebuilds a clean schema v2 database.
+- Schema v5 is current-only. v1 through v4 and old broad-schema DBs are diagnostic/inspect-only for normal workflows; `lexicon`, `query`, `claim-reconcile`, and `build-from-scan` require the complete current schema. The current runtime does not migrate schema v4 or older databases and does not archive or replace them. Remove the incompatible project-cognition.db explicitly, then run `sp-map-scan -> sp-map-build` with the current binary.
 - Alias derivation should stay bounded: titles, types, paths, and bounded attrs/tags are valid sources; raw observation summaries should not become unbounded aliases.
 
 ### Workflow Family Map
@@ -635,9 +805,9 @@ When adding new agents:
 
 ## Always-On Context
 
-- Project cognition and project memory are always available, even without an active `sp-*` workflow.
+- Project cognition and Project Learning are always available, even without an active `sp-*` workflow.
 - When existing-system truth matters, use project cognition before broad source inspection and use its results to narrow live reads.
-- Read `.specify/memory/project-rules.md` and `.specify/memory/learnings/INDEX.md` before decisions that depend on local conventions, constraints, or past lessons.
+- Run `specify learning start --command <workflow> --format json` before non-trivial decisions that depend on local conventions, constraints, or past lessons; expand only selected matching Learning through `show_argv`.
 
 ## Workflow Recommendations
 
@@ -650,13 +820,14 @@ When adding new agents:
 - Treat live `specify --help` output as the authoritative CLI surface.
 - Before suggesting or running a `specify <subcommand>` invocation, verify that help exposes it.
 - Do not invent unsupported CLI names such as `specify create-feature`.
-- Feature creation uses the generated create-feature script at `.specify/scripts/bash/create-new-feature.sh` or `.specify/scripts/powershell/create-new-feature.ps1`.
+- Feature creation uses the generated create-feature script at `.specify/scripts/bash/create-new-feature.sh` or `.specify/scripts/powershell/create-new-feature.ps1`; default feature workspace names use `YYYY-MM-DD-<slug>`.
 
 ## Durable State
 
 - When resuming generated work, prefer durable workflow state and explicit feature paths over branch name or chat memory.
+- For `sp-discussion`, default ordinary replies and acknowledgements to frontstage-only deferred persistence: do not write discussion files, counters, dirty markers, receipts, or status summaries for every user reply; flush only at semantic checkpoints, user-triggered checkpoints/saves, compaction risk, or lifecycle transitions. After several unsaved turns, mention the unsaved turn count and suggest `checkpoint, continue`; the prompt does not write files by itself.
 - Keep project cognition freshness truthful after changes to architecture, ownership, workflow names, integration contracts, or verification entry points.
-- Store reusable lessons in project memory, not only in chat or task artifacts.
+- Store reusable lessons through Project Learning, not only in chat or task artifacts.
 
 - Preserve content outside this managed block.
 <!-- SPEC-KIT:END -->

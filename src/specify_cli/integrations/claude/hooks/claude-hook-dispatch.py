@@ -16,6 +16,7 @@ import shutil
 import shlex
 import subprocess
 import sys
+import time
 from pathlib import Path
 from typing import Any, Literal, NamedTuple
 
@@ -28,6 +29,7 @@ WORKFLOW_COMMAND_MAP = {
     "sp-tasks": "tasks",
     "sp-analyze": "analyze",
     "sp-implement": "implement",
+    "sp-accept": "accept",
     "sp-debug": "debug",
     "sp-quick": "quick",
     "sp-fast": "fast",
@@ -37,8 +39,23 @@ WORKFLOW_COMMAND_MAP = {
     "sp-constitution": "constitution",
     "sp-checklist": "checklist",
 }
-ACTIVE_STATE_STATUSES = {"active", "started", "starting", "in_progress", "executing", "execution"}
-TERMINAL_STATE_STATUSES = {"resolved", "complete", "completed", "done", "cancelled", "closed", "blocked", "failed"}
+ACTIVE_STATE_STATUSES = {
+    "active",
+    "started",
+    "starting",
+    "in_progress",
+    "executing",
+    "execution",
+}
+TERMINAL_STATE_STATUSES = {
+    "resolved",
+    "complete",
+    "completed",
+    "done",
+    "cancelled",
+    "closed",
+    "failed",
+}
 TERMINAL_STATE_PREFIXES = ("complete_with_", "completed_with_")
 OPTIONAL_NEXT_ACTION_PREFIXES = (
     "optional follow-up",
@@ -60,7 +77,9 @@ LEARNING_SIGNAL_FIELDS = {
 SHARED_HOOK_TIMEOUT_SECONDS = 5.0
 SHARED_HOOK_PAYLOAD_STATUSES = {"ok", "warn", "blocked", "repaired", "repairable-block"}
 SHARED_HOOK_BLOCKING_PAYLOAD_STATUSES = {"blocked", "repairable-block"}
-SharedHookClientStatus = Literal["ok", "blocked", "unavailable", "timeout", "invalid-output"]
+SharedHookClientStatus = Literal[
+    "ok", "blocked", "unavailable", "timeout", "invalid-output"
+]
 
 
 class SharedHookResult(NamedTuple):
@@ -103,7 +122,11 @@ def _argv_from_env(name: str) -> tuple[str, ...] | None:
             parsed = json.loads(raw_json)
         except json.JSONDecodeError:
             parsed = None
-        if isinstance(parsed, list) and parsed and all(isinstance(item, str) and item for item in parsed):
+        if (
+            isinstance(parsed, list)
+            and parsed
+            and all(isinstance(item, str) and item for item in parsed)
+        ):
             return tuple(parsed)
 
     raw_command = os.environ.get(f"{name}_COMMAND", "").strip()
@@ -131,7 +154,11 @@ def _argv_from_project_config(project_root: Path) -> tuple[str, ...] | None:
     if not isinstance(launcher, dict):
         return None
     argv = launcher.get("argv")
-    if isinstance(argv, list) and argv and all(isinstance(item, str) and item for item in argv):
+    if (
+        isinstance(argv, list)
+        and argv
+        and all(isinstance(item, str) and item for item in argv)
+    ):
         return tuple(argv)
     return None
 
@@ -263,6 +290,7 @@ def _invoke_shared_hook(
     attempted_plans: list[str] = []
     invalid_result: SharedHookResult | None = None
     sensitive_values = _sensitive_hook_values(args, stdin_text)
+    deadline = time.monotonic() + timeout_seconds
     for command in _shared_hook_commands(project_root, args):
         key = tuple(command)
         if key in seen:
@@ -270,6 +298,15 @@ def _invoke_shared_hook(
         seen.add(key)
         attempted_plan = _redacted_invocation_preview(command)
         attempted_plans.append(attempted_plan)
+        remaining_seconds = deadline - time.monotonic()
+        if remaining_seconds <= 0:
+            return SharedHookResult(
+                status="timeout",
+                reason="shared hook event deadline was exhausted",
+                attempted_plans=tuple(attempted_plans),
+                attempted_plan=attempted_plan,
+                timeout_seconds=timeout_seconds,
+            )
         try:
             result = subprocess.run(
                 command,
@@ -280,7 +317,7 @@ def _invoke_shared_hook(
                 errors="replace",
                 capture_output=True,
                 check=False,
-                timeout=timeout_seconds,
+                timeout=remaining_seconds,
             )
         except subprocess.TimeoutExpired:
             return SharedHookResult(
@@ -292,7 +329,9 @@ def _invoke_shared_hook(
             )
         except OSError:
             continue
-        if result.returncode != 0:
+        # Shared hooks use 10 for a valid, resumable business blocker. Their
+        # JSON payload is still authoritative and must reach the native hook.
+        if result.returncode not in {0, 10}:
             continue
         stdout = (result.stdout or "").strip()
         if not stdout:
@@ -325,6 +364,16 @@ def _invoke_shared_hook(
                 invalid_result = SharedHookResult(
                     status="invalid-output",
                     reason="shared hook returned an unknown status",
+                    attempted_plans=tuple(attempted_plans),
+                    attempted_plan=attempted_plan,
+                    stdout_preview=_stdout_preview(stdout, sensitive_values),
+                )
+            continue
+        if result.returncode == 10 and result_status != "blocked":
+            if invalid_result is None:
+                invalid_result = SharedHookResult(
+                    status="invalid-output",
+                    reason="shared hook exit 10 requires a blocking payload status",
                     attempted_plans=tuple(attempted_plans),
                     attempted_plan=attempted_plan,
                     stdout_preview=_stdout_preview(stdout, sensitive_values),
@@ -363,6 +412,77 @@ def _run_shared_hook(
     return None
 
 
+def _shared_blocker_detail(shared_payload: dict[str, Any]) -> str:
+    blockers = shared_payload.get("blockers")
+    if (
+        not isinstance(blockers, list)
+        or not blockers
+        or not isinstance(blockers[0], dict)
+    ):
+        return ""
+    blocker = blockers[0]
+    evidence = blocker.get("evidence")
+    if isinstance(evidence, list):
+        evidence_text = "; ".join(str(item) for item in evidence if str(item).strip())
+    else:
+        evidence_text = str(evidence or "").strip()
+    resume = blocker.get("resume")
+    resume_text = ""
+    if isinstance(resume, dict):
+        resume_text = str(
+            resume.get("command") or resume.get("instruction") or ""
+        ).strip()
+    attempted = blocker.get("attempted_recovery")
+    attempted_text = "none recorded"
+    if isinstance(attempted, list) and attempted:
+        attempted_text = (
+            "; ".join(
+                f"{item.get('action')} -> {item.get('result')}"
+                for item in attempted
+                if isinstance(item, dict)
+            )
+            or "none recorded"
+        )
+    affected = blocker.get("affected_scope")
+    affected_text = (
+        "; ".join(str(item) for item in affected if str(item).strip())
+        if isinstance(affected, list)
+        else str(affected or "").strip()
+    )
+    parts = [
+        f"Workflow/stage: {blocker.get('workflow')} / {blocker.get('stage')}",
+        f"Blocked: {blocker.get('summary')}",
+        f"Category/owner: {blocker.get('category')} / {blocker.get('owner')}",
+        f"Why: {blocker.get('details')}",
+        f"Evidence: {evidence_text}" if evidence_text else "",
+        f"Attempted recovery: {attempted_text}",
+        f"Affected scope: {affected_text}" if affected_text else "",
+        f"Next action: {blocker.get('exact_next_action')}",
+        f"Unblock criteria: {blocker.get('unblock_criteria')}",
+        f"Resume: {resume_text}" if resume_text else "",
+    ]
+    guide = blocker.get("human_action_guide")
+    if blocker.get("human_action_required") is True and isinstance(guide, dict):
+        step_text = "; ".join(
+            f"{step.get('order')}. {step.get('title')}: {step.get('action')} "
+            f"[expected: {step.get('expected_result')}; if failed: {step.get('if_failed')}]"
+            for step in guide.get("steps") or []
+            if isinstance(step, dict)
+        )
+        parts.extend(
+            [
+                f"Human goal: {guide.get('goal')}",
+                f"Why human: {guide.get('why_human')}",
+                f"Prerequisites: {'; '.join(str(item) for item in guide.get('prerequisites') or [])}",
+                f"Safety: {'; '.join(str(item) for item in guide.get('safety_notes') or [])}",
+                f"Steps: {step_text}" if step_text else "",
+                f"Return: {'; '.join(str(item) for item in guide.get('evidence_to_return') or [])}",
+                f"Human resume: {guide.get('resume_instruction')}",
+            ]
+        )
+    return " | ".join(part for part in parts if part and not part.endswith(": None"))
+
+
 def _shared_to_claude_output(
     *,
     hook_event_name: str,
@@ -372,20 +492,49 @@ def _shared_to_claude_output(
         return None
 
     status = str(shared_payload.get("status") or "").strip().lower()
-    errors = [str(item) for item in shared_payload.get("errors", []) if str(item).strip()]
-    warnings = [str(item) for item in shared_payload.get("warnings", []) if str(item).strip()]
-    actions = [str(item) for item in shared_payload.get("actions", []) if str(item).strip()]
-    system_message = str(shared_payload.get("systemMessage") or shared_payload.get("system_message") or "").strip()
+    errors = [
+        str(item) for item in shared_payload.get("errors", []) if str(item).strip()
+    ]
+    warnings = [
+        str(item) for item in shared_payload.get("warnings", []) if str(item).strip()
+    ]
+    actions = [
+        str(item) for item in shared_payload.get("actions", []) if str(item).strip()
+    ]
+    system_message = str(
+        shared_payload.get("systemMessage")
+        or shared_payload.get("system_message")
+        or ""
+    ).strip()
     advisory = " ".join([*warnings, *actions]).strip()
     autofix_command = str(
         ((shared_payload.get("data") or {}).get("autofix") or {}).get("command") or ""
     ).strip()
+    blocker_detail = _shared_blocker_detail(shared_payload)
 
     if status == "repairable-block":
-        reason = errors[0] if errors else (warnings[0] if warnings else "shared quality hook requires repair before continuing")
+        reason = (
+            errors[0]
+            if errors
+            else (
+                warnings[0]
+                if warnings
+                else "shared quality hook requires repair before continuing"
+            )
+        )
         if hook_event_name == "UserPromptSubmit":
             output: dict[str, Any] = {}
-            message = " ".join(part for part in [system_message, advisory, autofix_command, reason] if part).strip()
+            message = " ".join(
+                part
+                for part in [
+                    system_message,
+                    blocker_detail,
+                    advisory,
+                    autofix_command,
+                    reason,
+                ]
+                if part
+            ).strip()
             if message:
                 output["systemMessage"] = message
             return output or None
@@ -394,17 +543,22 @@ def _shared_to_claude_output(
         return None
 
     if status == "blocked":
-        reason = errors[0] if errors else (warnings[0] if warnings else "shared quality hook blocked the action")
+        reason = (
+            errors[0]
+            if errors
+            else (warnings[0] if warnings else "shared quality hook blocked the action")
+        )
+        detailed_reason = blocker_detail or reason
         if hook_event_name == "PreToolUse":
             return {
                 "hookSpecificOutput": {
                     "hookEventName": hook_event_name,
                     "permissionDecision": "deny",
-                    "permissionDecisionReason": reason,
+                    "permissionDecisionReason": detailed_reason,
                 }
             }
         if hook_event_name == "UserPromptSubmit":
-            output = {"decision": "block", "reason": reason}
+            output = {"decision": "block", "reason": detailed_reason}
             if system_message:
                 output["systemMessage"] = system_message
                 return output
@@ -415,10 +569,10 @@ def _shared_to_claude_output(
             return {
                 "hookSpecificOutput": {
                     "hookEventName": hook_event_name,
-                    "additionalContext": " ".join([reason, advisory]).strip(),
+                    "additionalContext": " ".join([detailed_reason, advisory]).strip(),
                 }
             }
-        return {"decision": "block", "reason": reason}
+        return {"decision": "block", "reason": detailed_reason}
 
     if status == "warn" and system_message and hook_event_name == "UserPromptSubmit":
         return {"systemMessage": system_message}
@@ -459,7 +613,9 @@ def _normalized_state(value: str) -> str:
 
 def _is_terminal_state_status(value: str) -> bool:
     normalized = _normalized_state(value)
-    return normalized in TERMINAL_STATE_STATUSES or normalized.startswith(TERMINAL_STATE_PREFIXES)
+    return normalized in TERMINAL_STATE_STATUSES or normalized.startswith(
+        TERMINAL_STATE_PREFIXES
+    )
 
 
 def _is_active_state_status(value: str) -> bool:
@@ -484,7 +640,9 @@ def _artifact_resume_cue(artifact: dict[str, Any]) -> str:
     if isinstance(resume_cue, list):
         for item in resume_cue:
             text = str(item or "").strip()
-            if text and not _is_optional_next_action(text.removeprefix("Resume cue:").strip()):
+            if text and not _is_optional_next_action(
+                text.removeprefix("Resume cue:").strip()
+            ):
                 return text
     return ""
 
@@ -539,7 +697,9 @@ def _extract_frontmatter_field(text: str, field_name: str) -> str:
 
 
 def _extract_int_field(text: str, field_name: str) -> int:
-    value = _extract_field(text, field_name) or _extract_frontmatter_field(text, field_name)
+    value = _extract_field(text, field_name) or _extract_frontmatter_field(
+        text, field_name
+    )
     if not value:
         return 0
     try:
@@ -562,12 +722,18 @@ def _extract_list_field(text: str, field_name: str) -> list[str]:
 
 
 def _extract_section_items(text: str, section_name: str) -> list[str]:
-    heading = re.compile(rf"^##+\s+{re.escape(section_name)}\s*$", re.IGNORECASE | re.MULTILINE)
+    heading = re.compile(
+        rf"^##+\s+{re.escape(section_name)}\s*$", re.IGNORECASE | re.MULTILINE
+    )
     match = heading.search(text)
     if not match:
         return []
-    next_heading = re.search(r"^##+\s+", text[match.end():], re.MULTILINE)
-    section = text[match.end(): match.end() + next_heading.start()] if next_heading else text[match.end():]
+    next_heading = re.search(r"^##+\s+", text[match.end() :], re.MULTILINE)
+    section = (
+        text[match.end() : match.end() + next_heading.start()]
+        if next_heading
+        else text[match.end() :]
+    )
     items: list[str] = []
     for raw_line in section.splitlines():
         stripped = raw_line.strip()
@@ -720,7 +886,7 @@ def _extract_write_path(tool_input: dict[str, Any]) -> str:
 
 
 def _extract_commit_message(command: str) -> str:
-    if not re.search(r"(^|\s)git(\.exe)?\s+commit(\s|$)", command):
+    if not re.search(r"(^|\s)git(\.exe)?(?:\s+-c\s+\S+)*\s+commit(\s|$)", command):
         return ""
 
     patterns = (
@@ -735,7 +901,10 @@ def _extract_commit_message(command: str) -> str:
 
 
 def _is_repairable_block(shared_payload: dict[str, Any] | None) -> bool:
-    return str((shared_payload or {}).get("status") or "").strip().lower() == "repairable-block"
+    return (
+        str((shared_payload or {}).get("status") or "").strip().lower()
+        == "repairable-block"
+    )
 
 
 def _normalized_path_for_compare(project_root: Path, raw_path: str) -> str:
@@ -745,11 +914,15 @@ def _normalized_path_for_compare(project_root: Path, raw_path: str) -> str:
     return str(path.resolve()).replace("\\", "/").lower()
 
 
-def _is_state_repair_path(project_root: Path, context: dict[str, str] | None, target_path: str) -> bool:
+def _is_state_repair_path(
+    project_root: Path, context: dict[str, str] | None, target_path: str
+) -> bool:
     state_file = str((context or {}).get("state_file") or "").strip()
     if not state_file or not target_path:
         return False
-    return _normalized_path_for_compare(project_root, target_path) == _normalized_path_for_compare(project_root, state_file)
+    return _normalized_path_for_compare(
+        project_root, target_path
+    ) == _normalized_path_for_compare(project_root, state_file)
 
 
 def _is_validate_state_autofix_command(command: str) -> bool:
@@ -802,21 +975,40 @@ def _learning_signal_args(context: dict[str, str]) -> list[str] | None:
         args.extend(["--hidden-dependency", item])
         has_signal = True
 
+    trigger_signals = _dedupe(
+        [
+            *_extract_list_field(text, "trigger_signal"),
+            *_extract_list_field(text, "trigger_signals"),
+            *_extract_section_items(text, "Learning Triggers"),
+        ]
+    )
+    for item in trigger_signals:
+        args.extend(["--trigger-signal", item])
+        has_signal = True
+
     return args if has_signal else None
 
 
-def _learning_signal_context(project_root: Path, context: dict[str, str], hook_event_name: str) -> str:
+def _learning_signal_context(
+    project_root: Path, context: dict[str, str], hook_event_name: str
+) -> str:
     args = _learning_signal_args(context)
     if not args:
         return ""
     shared = _run_shared_hook(project_root, args)
-    output = _shared_to_claude_output(hook_event_name=hook_event_name, shared_payload=shared)
+    output = _shared_to_claude_output(
+        hook_event_name=hook_event_name, shared_payload=shared
+    )
     if not output:
         return ""
-    return str(output.get("hookSpecificOutput", {}).get("additionalContext") or "").strip()
+    return str(
+        output.get("hookSpecificOutput", {}).get("additionalContext") or ""
+    ).strip()
 
 
-def _active_context_args(context: dict[str, str], *, include_command: bool = True) -> list[str]:
+def _active_context_args(
+    context: dict[str, str], *, include_command: bool = True
+) -> list[str]:
     args: list[str] = []
     if include_command:
         args.extend(["--command", context["command_name"]])
@@ -843,7 +1035,9 @@ def _workflow_policy_output(
     if requested_action:
         args.extend(["--requested-action", requested_action])
     shared = _run_shared_hook(project_root, args)
-    return _shared_to_claude_output(hook_event_name=hook_event_name, shared_payload=shared)
+    return _shared_to_claude_output(
+        hook_event_name=hook_event_name, shared_payload=shared
+    )
 
 
 def _workflow_policy_shared(
@@ -876,11 +1070,18 @@ def _compaction_resume_context(
     artifact: dict[str, Any] | Any = {}
 
     if read_first or not build:
-        shared = _run_shared_hook(project_root, ["read-compaction", *_active_context_args(context)])
+        shared = _run_shared_hook(
+            project_root, ["read-compaction", *_active_context_args(context)]
+        )
         artifact = shared.get("data", {}).get("artifact", {}) if shared else {}
 
     if build and (not shared or not isinstance(artifact, dict) or not artifact):
-        args = ["build-compaction", *_active_context_args(context), "--trigger", trigger]
+        args = [
+            "build-compaction",
+            *_active_context_args(context),
+            "--trigger",
+            trigger,
+        ]
         shared = _run_shared_hook(project_root, args)
         artifact = shared.get("data", {}).get("artifact", {}) if shared else {}
 
@@ -904,7 +1105,9 @@ def _stop_system_message(message: str) -> dict[str, Any] | None:
     return {"systemMessage": message}
 
 
-def _handle_user_prompt_submit(project_root: Path, payload: dict[str, Any]) -> dict[str, Any] | None:
+def _handle_user_prompt_submit(
+    project_root: Path, payload: dict[str, Any]
+) -> dict[str, Any] | None:
     prompt = _extract_prompt_text(payload)
     if not prompt:
         return None
@@ -914,7 +1117,9 @@ def _handle_user_prompt_submit(project_root: Path, payload: dict[str, Any]) -> d
         ["validate-prompt", "--prompt-stdin"],
         stdin_text=prompt,
     )
-    output = _shared_to_claude_output(hook_event_name="UserPromptSubmit", shared_payload=shared)
+    output = _shared_to_claude_output(
+        hook_event_name="UserPromptSubmit", shared_payload=shared
+    )
     if output:
         return output
     policy_output = _workflow_policy_output(
@@ -928,16 +1133,22 @@ def _handle_user_prompt_submit(project_root: Path, payload: dict[str, Any]) -> d
     return None
 
 
-def _handle_pre_tool_read(project_root: Path, payload: dict[str, Any]) -> dict[str, Any] | None:
+def _handle_pre_tool_read(
+    project_root: Path, payload: dict[str, Any]
+) -> dict[str, Any] | None:
     if _extract_tool_name(payload) != "Read":
         return None
     context = _infer_active_context(project_root)
     policy_shared = _workflow_policy_shared(project_root, context, trigger="pre_tool")
-    policy_output = _shared_to_claude_output(hook_event_name="PreToolUse", shared_payload=policy_shared)
+    policy_output = _shared_to_claude_output(
+        hook_event_name="PreToolUse", shared_payload=policy_shared
+    )
     target_path = _extract_read_path(_extract_tool_input(payload))
     if not target_path:
         return policy_output
-    if _is_repairable_block(policy_shared) and not _is_state_repair_path(project_root, context, target_path):
+    if _is_repairable_block(policy_shared) and not _is_state_repair_path(
+        project_root, context, target_path
+    ):
         return {
             "hookSpecificOutput": {
                 "hookEventName": "PreToolUse",
@@ -947,14 +1158,23 @@ def _handle_pre_tool_read(project_root: Path, payload: dict[str, Any]) -> dict[s
         }
     if policy_output and "hookSpecificOutput" in policy_output:
         hook_specific = policy_output.get("hookSpecificOutput", {})
-        if isinstance(hook_specific, dict) and hook_specific.get("permissionDecision") == "deny":
+        if (
+            isinstance(hook_specific, dict)
+            and hook_specific.get("permissionDecision") == "deny"
+        ):
             return policy_output
-    shared = _run_shared_hook(project_root, ["validate-read-path", "--target-path", target_path])
-    output = _shared_to_claude_output(hook_event_name="PreToolUse", shared_payload=shared)
+    shared = _run_shared_hook(
+        project_root, ["validate-read-path", "--target-path", target_path]
+    )
+    output = _shared_to_claude_output(
+        hook_event_name="PreToolUse", shared_payload=shared
+    )
     return output or policy_output
 
 
-def _handle_pre_tool_write(project_root: Path, payload: dict[str, Any]) -> dict[str, Any] | None:
+def _handle_pre_tool_write(
+    project_root: Path, payload: dict[str, Any]
+) -> dict[str, Any] | None:
     if _extract_tool_name(payload) not in {"Write", "Edit", "MultiEdit"}:
         return None
     context = _infer_active_context(project_root)
@@ -975,16 +1195,22 @@ def _handle_pre_tool_write(project_root: Path, payload: dict[str, Any]) -> dict[
     return None
 
 
-def _handle_pre_tool_bash(project_root: Path, payload: dict[str, Any]) -> dict[str, Any] | None:
+def _handle_pre_tool_bash(
+    project_root: Path, payload: dict[str, Any]
+) -> dict[str, Any] | None:
     if _extract_tool_name(payload) != "Bash":
         return None
     context = _infer_active_context(project_root)
     command = str(_extract_tool_input(payload).get("command") or "").strip()
     policy_shared = _workflow_policy_shared(project_root, context, trigger="pre_tool")
-    policy_output = _shared_to_claude_output(hook_event_name="PreToolUse", shared_payload=policy_shared)
+    policy_output = _shared_to_claude_output(
+        hook_event_name="PreToolUse", shared_payload=policy_shared
+    )
     if not command:
         return policy_output
-    if _is_repairable_block(policy_shared) and not _is_validate_state_autofix_command(command):
+    if _is_repairable_block(policy_shared) and not _is_validate_state_autofix_command(
+        command
+    ):
         return {
             "hookSpecificOutput": {
                 "hookEventName": "PreToolUse",
@@ -994,17 +1220,38 @@ def _handle_pre_tool_bash(project_root: Path, payload: dict[str, Any]) -> dict[s
         }
     if policy_output and "hookSpecificOutput" in policy_output:
         hook_specific = policy_output.get("hookSpecificOutput", {})
-        if isinstance(hook_specific, dict) and hook_specific.get("permissionDecision") == "deny":
+        if (
+            isinstance(hook_specific, dict)
+            and hook_specific.get("permissionDecision") == "deny"
+        ):
             return policy_output
     commit_message = _extract_commit_message(command)
     if not commit_message:
         return policy_output
-    shared = _run_shared_hook(project_root, ["validate-commit", "--commit-message", commit_message])
-    output = _shared_to_claude_output(hook_event_name="PreToolUse", shared_payload=shared)
+    args = ["validate-commit", "--commit-message", commit_message]
+    if (
+        context
+        and context.get("command_name") == "implement"
+        and context.get("feature_dir")
+    ):
+        args.extend(["--feature-dir", context["feature_dir"]])
+    intent_match = re.search(
+        r"(?:^|\s)-c\s+specify\.commitIntent=(?P<intent>[^\s]+)",
+        command,
+        re.IGNORECASE,
+    )
+    if intent_match:
+        args.extend(["--commit-intent", intent_match.group("intent")])
+    shared = _run_shared_hook(project_root, args)
+    output = _shared_to_claude_output(
+        hook_event_name="PreToolUse", shared_payload=shared
+    )
     return output or policy_output
 
 
-def _handle_session_start(project_root: Path, _payload: dict[str, Any]) -> dict[str, Any] | None:
+def _handle_session_start(
+    project_root: Path, _payload: dict[str, Any]
+) -> dict[str, Any] | None:
     context = _infer_active_context(project_root)
     if not context:
         return None
@@ -1029,7 +1276,9 @@ def _handle_session_start(project_root: Path, _payload: dict[str, Any]) -> dict[
         trigger="session_start",
         prefer_summary=True,
     )
-    additional_context = " ".join(part for part in [statusline, resume_context] if part).strip()
+    additional_context = " ".join(
+        part for part in [statusline, resume_context] if part
+    ).strip()
     if not additional_context:
         return None
     return {
@@ -1040,7 +1289,9 @@ def _handle_session_start(project_root: Path, _payload: dict[str, Any]) -> dict[
     }
 
 
-def _handle_post_tool_session_state(project_root: Path, _payload: dict[str, Any]) -> dict[str, Any] | None:
+def _handle_post_tool_session_state(
+    project_root: Path, _payload: dict[str, Any]
+) -> dict[str, Any] | None:
     context = _infer_active_context(project_root)
     if not context:
         return None
@@ -1067,7 +1318,9 @@ def _handle_post_tool_session_state(project_root: Path, _payload: dict[str, Any]
         args.extend(["--session-file", context["session_file"]])
 
     shared = _run_shared_hook(project_root, args)
-    shared_output = _shared_to_claude_output(hook_event_name="PostToolUse", shared_payload=shared)
+    shared_output = _shared_to_claude_output(
+        hook_event_name="PostToolUse", shared_payload=shared
+    )
     if shared_output:
         # PostToolUse should stay advisory; never emit a permission decision here.
         hook_specific = shared_output.get("hookSpecificOutput", {})
@@ -1100,12 +1353,20 @@ def _handle_post_tool_session_state(project_root: Path, _payload: dict[str, Any]
     return None
 
 
-def _handle_stop_monitor(project_root: Path, _payload: dict[str, Any]) -> dict[str, Any] | None:
+def _handle_stop_monitor(
+    project_root: Path, _payload: dict[str, Any]
+) -> dict[str, Any] | None:
     context = _infer_active_context(project_root)
     if not context:
         return None
 
-    args = ["monitor-context", "--command", context["command_name"], "--trigger", "before_stop"]
+    args = [
+        "monitor-context",
+        "--command",
+        context["command_name"],
+        "--trigger",
+        "before_stop",
+    ]
     if "feature_dir" in context:
         args.extend(["--feature-dir", context["feature_dir"]])
     if "workspace" in context:
@@ -1125,7 +1386,9 @@ def _handle_stop_monitor(project_root: Path, _payload: dict[str, Any]) -> dict[s
     if status == "blocked":
         output = {
             "decision": "block",
-            "reason": errors[0] if errors else "shared context monitor blocked stop until resume state is repaired",
+            "reason": errors[0]
+            if errors
+            else "shared context monitor blocked stop until resume state is repaired",
         }
         extra = " ".join([*warnings, *actions]).strip()
         if extra:

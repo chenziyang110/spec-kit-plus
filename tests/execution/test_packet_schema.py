@@ -1,23 +1,58 @@
+import json
+
+import pytest
+
 from specify_cli.execution.packet_schema import (
     ConsequenceObligation,
     ContextBundleItem,
     DispatchPolicy,
     ExecutionIntent,
     MustPreserveObligation,
+    PacketInterfaces,
     PacketReference,
     PacketScope,
+    UIContract,
     WorkerTaskPacket,
     worker_task_packet_from_json,
     worker_task_packet_payload,
 )
 from specify_cli.execution.result_schema import (
     RuleAcknowledgement,
+    UIVerification,
     ValidationResult,
     WorkerTaskResult,
     worker_task_result_from_json,
     worker_task_result_payload,
 )
-import json
+
+
+def test_current_ui_packet_and_result_parsers_reject_obsolete_fields() -> None:
+    with pytest.raises(ValueError, match="ui_fidelity_requirements"):
+        worker_task_packet_from_json(json.dumps({"ui_fidelity_requirements": {}}))
+
+    with pytest.raises(ValueError, match="contract_version"):
+        worker_task_packet_from_json(
+            json.dumps({"ui_contract": {"contract_version": 2}})
+        )
+
+    with pytest.raises(ValueError, match="ui_fidelity_evidence"):
+        worker_task_result_from_json(json.dumps({"ui_fidelity_evidence": []}))
+
+    with pytest.raises(ValueError, match="uiVerification"):
+        worker_task_result_from_json(json.dumps({"uiVerification": {}}))
+
+    with pytest.raises(ValueError, match="unsupported kind"):
+        worker_task_result_from_json(
+            json.dumps(
+                {
+                    "task_id": "T001",
+                    "status": "blocked",
+                    "ui_evidence": [
+                        {"kind": "desktop_screenshot", "ref": "evidence/ui.png"}
+                    ],
+                }
+            )
+        )
 
 
 def test_worker_task_packet_captures_required_execution_contract() -> None:
@@ -89,6 +124,108 @@ def test_worker_task_packet_captures_required_execution_contract() -> None:
     assert packet.platform_guardrails == ["supported_platforms: windows, linux"]
     assert packet.consequence_obligations[0].obligation_id == "CA-001"
     assert packet.consequence_obligations[0].affected_objects == ["team", "worker"]
+
+
+def test_worker_task_packet_captures_ui_contract_and_result_verification() -> None:
+    packet = WorkerTaskPacket(
+        feature_id="001-feature",
+        task_id="T021",
+        story_id="US1",
+        objective="Implement exception panel UI",
+        intent=ExecutionIntent(outcome="Implement UI from ui-brief.md"),
+        scope=PacketScope(write_scope=["src/app/exceptions/page.tsx"]),
+        context_bundle=[],
+        required_references=[
+            PacketReference(path="DESIGN.md", reason="root design contract"),
+            PacketReference(
+                path="specs/001-feature/ui-brief.md", reason="feature UI contract"
+            ),
+        ],
+        hard_rules=["Follow ui_contract"],
+        forbidden_drift=["Do not replace dense table with cards"],
+        validation_gates=["npm test -- exceptions"],
+        done_criteria=["UI evidence returned"],
+        handoff_requirements=["return ui_evidence and ui_verification"],
+        ui_contract=UIContract(
+            ui_work_type="feature-extension",
+            surface_type="product-workspace",
+            platforms=["web"],
+            subject="exception management",
+            audience="operations staff",
+            single_job="resolve one exception safely",
+            visual_thesis="dense but calm operational hierarchy",
+            content_thesis="show real exception data and recovery context",
+            interaction_thesis="keep triage actions local and reversible",
+            signature_element="persistent exception context rail",
+            approved_visual_ref="DESIGN.md#exception-direction",
+            design_sources=["DESIGN.md", "specs/001-feature/ui-brief.md"],
+            reference_notes="specs/001-feature/ui-reference-notes.md",
+            visual_target="specs/001-feature/ui-target.html",
+            reference_intents=[
+                {
+                    "ref": "specs/001-feature/ui-target.html",
+                    "intent": "preserve-structure",
+                }
+            ],
+            real_content_plan=[
+                {
+                    "source_ref": "src/exceptions/schema.py",
+                    "applies_to_states": ["ready"],
+                }
+            ],
+            image_plan=[],
+            fidelity_level="approximate",
+            must_preserve=["three-column layout", "compact table density"],
+            may_adapt=["icons", "minor spacing"],
+            must_not=["copy third-party source", "turn table into cards"],
+            required_states=["loading", "empty", "error"],
+            required_evidence=[
+                "structure_snapshot",
+                "visual_capture",
+                "runtime_diagnostics",
+                "visual_comparison_or_human_review",
+            ],
+        ),
+    )
+
+    payload = worker_task_packet_payload(packet)
+    round_tripped = worker_task_packet_from_json(json.dumps(payload))
+
+    assert round_tripped.ui_contract.fidelity_level == "approximate"
+    assert round_tripped.ui_contract.surface_type == "product-workspace"
+    assert (
+        round_tripped.ui_contract.reference_intents[0]["intent"] == "preserve-structure"
+    )
+    assert (
+        round_tripped.ui_contract.real_content_plan[0]["source_ref"]
+        == "src/exceptions/schema.py"
+    )
+    assert "compact table density" in round_tripped.ui_contract.must_preserve
+    assert "visual_capture" in round_tripped.ui_contract.required_evidence
+
+    result = WorkerTaskResult(
+        task_id="T021",
+        status="success",
+        ui_evidence=[
+            {
+                "kind": "visual_capture",
+                "ref": "artifacts/ui/desktop-1440.png",
+                "viewport": "1440",
+            }
+        ],
+        ui_verification=UIVerification(
+            contract_check="pass",
+            runtime_evidence="pass",
+            visual_comparison="unavailable",
+            fidelity_status="pending-human-review",
+            reviewer="agent",
+        ),
+    )
+    result_payload = worker_task_result_payload(result)
+    parsed_result = worker_task_result_from_json(json.dumps(result_payload))
+
+    assert parsed_result.ui_evidence[0]["kind"] == "visual_capture"
+    assert parsed_result.ui_verification.fidelity_status == "pending-human-review"
 
 
 def test_worker_task_result_requires_validation_records() -> None:
@@ -186,6 +323,81 @@ def test_worker_task_packet_round_trips_through_json() -> None:
     assert restored.capability_operations == ["implements check command", "does not own scaffold operation"]
     assert restored.consequence_obligations[0].obligation_id == "CA-001"
     assert restored.consequence_obligations[0].claim == "Running workers drain before close completes"
+
+
+def test_worker_task_packet_round_trips_review_and_ui_contract_fields() -> None:
+    packet = WorkerTaskPacket(
+        feature_id="001-feature",
+        task_id="T017",
+        story_id="US1",
+        objective="Implement auth flow",
+        intent=ExecutionIntent(
+            outcome="Implement auth flow without changing the public contract shape",
+            constraints=["Do not create a parallel auth stack"],
+            success_signals=["login/logout behavior implemented"],
+        ),
+        scope=PacketScope(
+            write_scope=["src/services/auth_service.py"],
+            read_scope=["src/contracts/auth.py"],
+        ),
+        context_bundle=[
+            ContextBundleItem(
+                path=".specify/project-cognition/status.json",
+                kind="project_cognition",
+                purpose="Project cognition freshness entrypoint",
+                required_for=["workflow_boundary"],
+                read_order=1,
+                must_read=True,
+                selection_reason="required runtime readiness source",
+            )
+        ],
+        required_references=[
+            PacketReference(
+                path="src/contracts/auth.py",
+                reason="public contract compatibility must be preserved",
+            )
+        ],
+        hard_rules=["Every public function changed must have tests"],
+        forbidden_drift=["Do not create a parallel auth stack"],
+        validation_gates=["pytest tests/unit/test_auth_service.py -q"],
+        done_criteria=["login/logout behavior implemented"],
+        handoff_requirements=["return changed files"],
+        global_constraints=["do not edit generated hooks"],
+        interfaces=PacketInterfaces(
+            consumes=["auth contract"],
+            produces=["auth service"],
+        ),
+        review_inputs=["design-review.md"],
+        review_risks=["layout regression"],
+        ui_contract=UIContract(
+            fidelity_level="high",
+            design_sources=["designs/auth-flow.png"],
+            required_evidence=[
+                "structure_snapshot",
+                "visual_capture",
+                "runtime_diagnostics",
+                "visual_comparison_or_human_review",
+            ],
+        ),
+        controller_checks_required=["verify screenshot diff"],
+    )
+
+    restored = worker_task_packet_from_json(json.dumps(worker_task_packet_payload(packet)))
+
+    assert restored.global_constraints == ["do not edit generated hooks"]
+    assert restored.interfaces.consumes == ["auth contract"]
+    assert restored.interfaces.produces == ["auth service"]
+    assert restored.review_inputs == ["design-review.md"]
+    assert restored.review_risks == ["layout regression"]
+    assert restored.ui_contract.fidelity_level == "high"
+    assert restored.ui_contract.design_sources == ["designs/auth-flow.png"]
+    assert restored.ui_contract.required_evidence == [
+        "structure_snapshot",
+        "visual_capture",
+        "runtime_diagnostics",
+        "visual_comparison_or_human_review",
+    ]
+    assert restored.controller_checks_required == ["verify screenshot diff"]
 
 
 def test_worker_task_packet_preserves_must_preserve_obligations() -> None:

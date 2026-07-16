@@ -1,0 +1,7 @@
+interface:
+  display_name: "SPX Tasks to Issues"
+  short_description: "Publish validated tasks as issues"
+  default_prompt: "Use $spx-taskstoissues to publish the validated task graph as GitHub issues."
+
+policy:
+  allow_implicit_invocation: false

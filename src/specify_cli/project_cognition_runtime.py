@@ -6,7 +6,9 @@ import os
 import platform
 import shutil
 import subprocess
+import tempfile
 from pathlib import Path
+from typing import Sequence
 from urllib.request import urlretrieve
 
 from specify_cli.launcher import write_project_cognition_launcher_config
@@ -18,6 +20,8 @@ REQUIRED_COMMANDS = (
     "init-empty",
     "generate-ignore",
     "scan-set",
+    "scan-prepare",
+    "scan-accept",
     "changes",
     "closeout-plan",
     "semantic-intake --input",
@@ -76,10 +80,10 @@ def download_url(version: str = DEFAULT_VERSION) -> str:
     return f"https://github.com/{REPO}/releases/download/{version}/{filename}"
 
 
-def download(version: str = DEFAULT_VERSION) -> Path:
+def download(version: str = DEFAULT_VERSION, destination: Path | None = None) -> Path:
     cache = cache_dir()
     cache.mkdir(parents=True, exist_ok=True)
-    dest = cached_executable()
+    dest = destination or cached_executable()
     url = download_url(version)
     print(f"  Downloading project-cognition {version} from release asset {binary_filename()}...")
     urlretrieve(url, dest)
@@ -88,158 +92,63 @@ def download(version: str = DEFAULT_VERSION) -> Path:
     return dest
 
 
+def _launcher_help_output(
+    argv: Sequence[str],
+    *command: str,
+    cwd: Path | None = None,
+) -> str | None:
+    try:
+        result = subprocess.run(
+            [*argv, *command, "--help"],
+            cwd=cwd,
+            capture_output=True,
+            check=False,
+            encoding="utf-8",
+            errors="replace",
+            text=True,
+            timeout=10,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return f"{result.stdout}\n{result.stderr}"
+
+
+def launcher_supports_required_commands(
+    argv: Sequence[str],
+    *,
+    cwd: Path | None = None,
+) -> bool:
+    """Return whether a launcher prefix exposes the required cognition surface."""
+
+    if not argv:
+        return False
+    root_output = _launcher_help_output(argv, cwd=cwd)
+    if root_output is None or not all(
+        command.split()[0] in root_output for command in REQUIRED_COMMANDS
+    ):
+        return False
+
+    required_help_flags: tuple[tuple[tuple[str, ...], tuple[str, ...]], ...] = (
+        (("update",), ("-payload-file", "-verification")),
+        (("semantic-intake",), ("-input",)),
+        (("semantic-audit-resume",), ("-input",)),
+        (("lexicon",), ("-mode",)),
+        (("compass",), ("-semantic-intake-file", "-query-plan-file")),
+        (("expand",), ("-section",)),
+        (("delta", "append"), ("-verification", "-generated-surface")),
+        (("closeout-plan",), ("-workflow", "-delta-session")),
+        (("scan-prepare",), ("-force", "-scan-set")),
+        (("scan-accept",), ("-packet-id", "-result")),
+    )
+    for command, flags in required_help_flags:
+        output = _launcher_help_output(argv, *command, cwd=cwd)
+        if output is None or any(flag not in output for flag in flags):
+            return False
+    return True
+
+
 def _binary_supports_required_commands(binary: Path) -> bool:
-    try:
-        root_result = subprocess.run(
-            [str(binary), "--help"],
-            capture_output=True,
-            check=False,
-            encoding="utf-8",
-            errors="replace",
-            text=True,
-            timeout=10,
-        )
-    except (OSError, subprocess.SubprocessError):
-        return False
-
-    root_output = f"{root_result.stdout}\n{root_result.stderr}"
-    if not all(command.split()[0] in root_output for command in REQUIRED_COMMANDS):
-        return False
-
-    try:
-        update_result = subprocess.run(
-            [str(binary), "update", "--help"],
-            capture_output=True,
-            check=False,
-            encoding="utf-8",
-            errors="replace",
-            text=True,
-            timeout=10,
-        )
-    except (OSError, subprocess.SubprocessError):
-        return False
-
-    update_output = f"{update_result.stdout}\n{update_result.stderr}"
-    if "-payload-file" not in update_output or "-verification" not in update_output:
-        return False
-
-    try:
-        semantic_intake_result = subprocess.run(
-            [str(binary), "semantic-intake", "--help"],
-            capture_output=True,
-            check=False,
-            encoding="utf-8",
-            errors="replace",
-            text=True,
-            timeout=10,
-        )
-    except (OSError, subprocess.SubprocessError):
-        return False
-
-    semantic_intake_output = f"{semantic_intake_result.stdout}\n{semantic_intake_result.stderr}"
-    if "-input" not in semantic_intake_output:
-        return False
-
-    try:
-        semantic_audit_resume_result = subprocess.run(
-            [str(binary), "semantic-audit-resume", "--help"],
-            capture_output=True,
-            check=False,
-            encoding="utf-8",
-            errors="replace",
-            text=True,
-            timeout=10,
-        )
-    except (OSError, subprocess.SubprocessError):
-        return False
-
-    semantic_audit_resume_output = f"{semantic_audit_resume_result.stdout}\n{semantic_audit_resume_result.stderr}"
-    if "-input" not in semantic_audit_resume_output:
-        return False
-
-    try:
-        lexicon_result = subprocess.run(
-            [str(binary), "lexicon", "--help"],
-            capture_output=True,
-            check=False,
-            encoding="utf-8",
-            errors="replace",
-            text=True,
-            timeout=10,
-        )
-    except (OSError, subprocess.SubprocessError):
-        return False
-
-    lexicon_output = f"{lexicon_result.stdout}\n{lexicon_result.stderr}"
-    if "-mode" not in lexicon_output:
-        return False
-
-    try:
-        compass_result = subprocess.run(
-            [str(binary), "compass", "--help"],
-            capture_output=True,
-            check=False,
-            encoding="utf-8",
-            errors="replace",
-            text=True,
-            timeout=10,
-        )
-    except (OSError, subprocess.SubprocessError):
-        return False
-
-    compass_output = f"{compass_result.stdout}\n{compass_result.stderr}"
-    if "-semantic-intake-file" not in compass_output or "-query-plan-file" not in compass_output:
-        return False
-
-    try:
-        expand_result = subprocess.run(
-            [str(binary), "expand", "--help"],
-            capture_output=True,
-            check=False,
-            encoding="utf-8",
-            errors="replace",
-            text=True,
-            timeout=10,
-        )
-    except (OSError, subprocess.SubprocessError):
-        return False
-
-    expand_output = f"{expand_result.stdout}\n{expand_result.stderr}"
-    if "-section" not in expand_output:
-        return False
-
-    try:
-        delta_append_result = subprocess.run(
-            [str(binary), "delta", "append", "--help"],
-            capture_output=True,
-            check=False,
-            encoding="utf-8",
-            errors="replace",
-            text=True,
-            timeout=10,
-        )
-    except (OSError, subprocess.SubprocessError):
-        return False
-
-    delta_append_output = f"{delta_append_result.stdout}\n{delta_append_result.stderr}"
-    if "-verification" not in delta_append_output or "-generated-surface" not in delta_append_output:
-        return False
-
-    try:
-        closeout_result = subprocess.run(
-            [str(binary), "closeout-plan", "--help"],
-            capture_output=True,
-            check=False,
-            encoding="utf-8",
-            errors="replace",
-            text=True,
-            timeout=10,
-        )
-    except (OSError, subprocess.SubprocessError):
-        return False
-
-    closeout_output = f"{closeout_result.stdout}\n{closeout_result.stderr}"
-    return "-workflow" in closeout_output and "-delta-session" in closeout_output
+    return launcher_supports_required_commands((str(binary),))
 
 
 def _bundled_project_cognition_source() -> Path | None:
@@ -330,17 +239,30 @@ def ensure_binary(version: str = DEFAULT_VERSION, force: bool = False) -> Path:
         if _binary_supports_required_commands(dest):
             return dest
         print("  Cached project-cognition is missing required commands; refreshing runtime...")
-    if force and dest.exists():
-        dest.unlink()
+
+    cache = cache_dir()
+    cache.mkdir(parents=True, exist_ok=True)
+    candidate_fd, candidate_name = tempfile.mkstemp(
+        prefix=f".{dest.name}.", suffix=".candidate", dir=cache
+    )
+    os.close(candidate_fd)
+    candidate = Path(candidate_name)
     try:
-        binary = download(version)
-    except Exception as exc:
-        return _build_supported_binary_from_source(
-            dest,
-            version,
-            f"release asset download failed ({exc})",
-        )
-    return _ensure_supported_binary(binary, version)
+        try:
+            binary = download(version, candidate)
+        except Exception as exc:
+            binary = _build_supported_binary_from_source(
+                candidate,
+                version,
+                f"release asset download failed ({exc})",
+            )
+        binary = _ensure_supported_binary(binary, version)
+        os.replace(binary, dest)
+        if platform.system().lower() != "windows":
+            os.chmod(dest, 0o755)
+        return dest
+    finally:
+        candidate.unlink(missing_ok=True)
 
 
 def write_project_launcher_config(project_root: Path, binary: Path) -> Path | None:

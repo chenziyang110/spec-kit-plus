@@ -32,6 +32,19 @@ User task → Is it static HTML?
             4. Execute actions with discovered selectors
 ```
 
+## Spec Kit Plus UI Evidence
+
+For UI-affecting `sp-implement` work, browser verification must produce visual
+evidence as well as functional assertions. Capture at least one viewport screenshot
+for each affected route/state, and include desktop and mobile viewports when
+responsive behavior can change.
+
+Use visual regression-friendly screenshot paths that encode route, viewport, and
+scenario, with deterministic data and stable UI state. Check browser console
+errors, accessibility checks for interactive surfaces, and layout overflow checks
+for clipped content, horizontal scrolling, text overflow, and broken responsive
+wrapping. Include these artifacts or their paths in closeout evidence.
+
 ## Example: Using with_server.py
 
 To start a server, run `--help` first, then use the helper:

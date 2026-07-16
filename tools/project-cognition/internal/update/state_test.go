@@ -10,12 +10,79 @@ import (
 	"testing"
 
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/boundary"
+	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/claim"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/delta"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/query"
 	rt "github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtime"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/store"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/validation"
 )
+
+func TestRunUpdateInvalidatesOnlyAffectedGraphClaimsAndReportsIDs(t *testing.T) {
+	paths := testPaths(t)
+	seedReadyRuntime(t, paths)
+	st, err := store.OpenExisting(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.DB().ExecContext(context.Background(), `INSERT INTO claims(id, generation_id, node_id, graph_claim_type, summary, state, prior_state, freshness, state_reason, attrs_json, created_at, updated_at) VALUES('claim:app-owner', 'GEN-db', 'N-app', 'runtime_owner', 'App owns runtime behavior', ?, '', ?, 'supporting_evidence', '{}', '2026-07-13T00:00:00Z', '2026-07-13T00:00:00Z')`, claim.StateSupported, claim.FreshnessFresh); err != nil {
+		_ = st.Close()
+		t.Fatal(err)
+	}
+	if _, err := st.DB().ExecContext(context.Background(), `INSERT INTO claim_evidence(claim_id, evidence_id, role) VALUES('claim:app-owner', 'E-app', 'supporting')`); err != nil {
+		_ = st.Close()
+		t.Fatal(err)
+	}
+	if _, err := st.DB().ExecContext(context.Background(), `INSERT INTO evidence(id, generation_id, source_kind, source_path, commit_sha, span, extractor, content_hash, captured_at, attrs_json) VALUES('E-other', 'GEN-db', 'source', 'src/other.go', 'abc123', '', 'test', 'hash-other', '2026-07-13T00:00:00Z', '{}')`); err != nil {
+		_ = st.Close()
+		t.Fatal(err)
+	}
+	if _, err := st.DB().ExecContext(context.Background(), `INSERT INTO nodes(id, generation_id, type, title, confidence, attrs_json, created_at, updated_at) VALUES('N-other', 'GEN-db', 'capability', 'Other', 'high', '{}', '2026-07-13T00:00:00Z', '2026-07-13T00:00:00Z')`); err != nil {
+		_ = st.Close()
+		t.Fatal(err)
+	}
+	if _, err := st.DB().ExecContext(context.Background(), `INSERT INTO path_index(id, generation_id, path, node_id, relation, confidence, evidence_id, updated_at) VALUES('P-other', 'GEN-db', 'src/other.go', 'N-other', 'owns', 'high', 'E-other', '2026-07-13T00:00:00Z')`); err != nil {
+		_ = st.Close()
+		t.Fatal(err)
+	}
+	if _, err := st.DB().ExecContext(context.Background(), `INSERT INTO claims(id, generation_id, node_id, graph_claim_type, summary, state, prior_state, freshness, state_reason, attrs_json, created_at, updated_at) VALUES('claim:other-owner', 'GEN-db', 'N-other', 'runtime_owner', 'Other owns unrelated behavior', ?, '', ?, 'supporting_evidence', '{}', '2026-07-13T00:00:00Z', '2026-07-13T00:00:00Z')`, claim.StateSupported, claim.FreshnessFresh); err != nil {
+		_ = st.Close()
+		t.Fatal(err)
+	}
+	if _, err := st.DB().ExecContext(context.Background(), `INSERT INTO claim_evidence(claim_id, evidence_id, role) VALUES('claim:other-owner', 'E-other', 'supporting')`); err != nil {
+		_ = st.Close()
+		t.Fatal(err)
+	}
+	if err := st.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	payload, err := RunUpdate(paths, UpdateInput{ChangedPaths: []string{"src/app.go"}, Reason: "manual"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(payload.AffectedGraphClaims) != 1 || payload.AffectedGraphClaims[0] != "claim:app-owner" {
+		t.Fatalf("AffectedGraphClaims = %#v, want claim:app-owner", payload.AffectedGraphClaims)
+	}
+	st, err = store.OpenExisting(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	var state, priorState, freshness string
+	if err := st.DB().QueryRowContext(context.Background(), `SELECT state, prior_state, freshness FROM claims WHERE id = 'claim:app-owner'`).Scan(&state, &priorState, &freshness); err != nil {
+		t.Fatal(err)
+	}
+	if state != string(claim.StateStale) || priorState != string(claim.StateSupported) || freshness != string(claim.FreshnessStale) {
+		t.Fatalf("claim lifecycle = %q/%q/%q, want stale/supported/stale", state, priorState, freshness)
+	}
+	if err := st.DB().QueryRowContext(context.Background(), `SELECT state, freshness FROM claims WHERE id = 'claim:other-owner'`).Scan(&state, &freshness); err != nil {
+		t.Fatal(err)
+	}
+	if state != string(claim.StateSupported) || freshness != string(claim.FreshnessFresh) {
+		t.Fatalf("unrelated claim lifecycle = %q/%q, want supported/fresh", state, freshness)
+	}
+}
 
 func testPaths(t *testing.T) rt.Paths {
 	t.Helper()
@@ -368,6 +435,19 @@ func TestRunUpdatePathOnlyUnknownCoverageReturnsPartialRefresh(t *testing.T) {
 	if !containsString(payload.MinimalLiveReads, "src/new-feature.go") {
 		t.Fatalf("MinimalLiveReads = %#v, want changed path", payload.MinimalLiveReads)
 	}
+	if !containsString(payload.PartialRefreshReasons, "changed_paths_missing_active_path_index") {
+		t.Fatalf("PartialRefreshReasons = %#v, want missing path_index diagnostic", payload.PartialRefreshReasons)
+	}
+	if !containsString(payload.PartialRefreshReasons, "missing_passing_verification_result") {
+		t.Fatalf("PartialRefreshReasons = %#v, want missing verification diagnostic", payload.PartialRefreshReasons)
+	}
+	reasons, ok := payload.PathAdoption["partial_refresh_reasons"].([]string)
+	if !ok {
+		t.Fatalf("path adoption partial_refresh_reasons = %#v, want []string", payload.PathAdoption["partial_refresh_reasons"])
+	}
+	if !containsString(reasons, "missing_passing_verification_result") {
+		t.Fatalf("path adoption partial_refresh_reasons = %#v, want missing verification", reasons)
+	}
 	status, err := rt.ReadStatus(paths)
 	if err != nil {
 		t.Fatal(err)
@@ -554,6 +634,55 @@ func TestRunUpdatePayloadFileAcceptsVerificationEvidenceAlias(t *testing.T) {
 	}
 	if !containsString(payload.AdoptedPaths, "src/new-feature.go") {
 		t.Fatalf("AdoptedPaths = %#v, want payload alias path adoption", payload.AdoptedPaths)
+	}
+}
+
+func TestRunUpdatePayloadFileNormalizesPassedVerificationAliases(t *testing.T) {
+	paths := testPaths(t)
+	seedReadyRuntime(t, paths)
+	payloadPath := filepath.Join(paths.RuntimeDir, "updates", "workflow-finalize.json")
+	if err := os.MkdirAll(filepath.Dir(payloadPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	data := []byte(`{
+  "workflow": "sp-implement",
+  "reason": "workflow-finalize",
+  "changed_paths": ["src/pass-alias.go"],
+  "behavior_surfaces": ["pass alias entrypoint"],
+  "verification": [
+    {"command": "go test ./...", "result": "pass"}
+  ],
+  "known_unknowns": []
+}`)
+	if err := os.WriteFile(payloadPath, data, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	payload, err := RunUpdate(paths, UpdateInput{
+		PayloadFile: payloadPath,
+		Reason:      "workflow-finalize",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if payload.ResultState != ResultReady {
+		t.Fatalf("ResultState = %q, payload=%#v", payload.ResultState, payload)
+	}
+	if !containsString(payload.AdoptedPaths, "src/pass-alias.go") {
+		t.Fatalf("AdoptedPaths = %#v, want pass-alias adoption", payload.AdoptedPaths)
+	}
+
+	st, err := store.OpenExisting(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	var attrsJSON string
+	if err := st.DB().QueryRowContext(context.Background(), `SELECT attrs_json FROM updates WHERE id = ?`, payload.UpdateID).Scan(&attrsJSON); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(attrsJSON, `"result":"passed"`) {
+		t.Fatalf("attrs_json = %s, want normalized passed result", attrsJSON)
 	}
 }
 

@@ -1,10 +1,15 @@
 # Discussion State: [TOPIC]
 
+> Derived compatibility view. Canonical authority is `discussion-state.json`
+> conforming to `discussion-state-schema.json`; the shared discussion runtime
+> renders this Markdown and agents must not update it independently.
+
 ## Current Command
 
 - active_command: sp-discussion
 - state_surface: discussion-state
 - status: active | blocked | handoff-ready | completed | abandoned
+- lifecycle_phase: explore | ground | decide | prepare | review | ready | consumed | closed
 - slug: [normalized-slug]
 - updated_at: [ISO-8601 timestamp]
 - closed_at: [ISO-8601 timestamp or none]
@@ -17,7 +22,7 @@
 
 ## Session Routing
 
-- current_stage: context-intake | product-framing | context-grounding | question-loop | technical-options | readiness-summary | ui-interaction-discussion | handoff-preview | handoff-assessment | handoff-draft | handoff-self-review | handoff-review | handoff-ready
+- current_stage: compatibility projection of lifecycle_phase; UI interaction and blocker state are orthogonal, not additional lifecycle phases
 - current_topic: [Short topic label]
 - frontstage_reply_contract: unified
 - visible_reply_mode: short | standard | complex | readiness-summary | review-summary | blocked
@@ -30,6 +35,25 @@
 - blocker_reason: none
 - readiness_note: [why the discussion is or is not ready for explicit handoff]
 - ui_discussion_status: not_applicable | offered | accepted | skipped | completed | deferred
+
+## DiscussionTurnPacket
+
+- user_goal: [what the human is trying to decide or define]
+- current_decision_frame: [current decision boundary]
+- confirmed_decisions: []
+- context_boundary: {}
+- open_questions: []
+- current_recommendation: [recommended direction]
+- allowed_actions: []
+- persistence_mode: frontstage-only | durable-checkpoint | evidence-handoff | lifecycle-transition
+- next_gate: [next meaningful decision or validation gate]
+
+## Design Carry-Forward
+
+- experience_commitments: []
+- design_system_requirements: []
+- design_system_status: [unknown | ready | soft-risk | blocked | not-applicable]
+- design_risk_level: [none | low | medium | high]
 
 ## Advisor Contract
 
@@ -46,15 +70,16 @@
 
 ## Lightweight Recovery
 
-- latest_event_checkpoint: [discussion-log.md event timestamp or none]
+- latest_event_checkpoint: [discussion-log.jsonl event timestamp or none]
 - last_compaction_checkpoint: [ISO-8601 timestamp or none]
 - compact_summary_status: current | stale | missing
 - ordinary_turn_write_policy: deferred-checkpoint
-- ordinary_turn_write_gate: suppress local writes until save trigger; do not update persisted counters for every user reply
+- ordinary_turn_persistence_mode: frontstage-only by default; durable-checkpoint, evidence-handoff, and lifecycle-transition only when their trigger fires
+- ordinary_turn_write_gate: suppress local writes until save trigger; do not update persisted counters for every user reply or plain acknowledgement
 - structured_refresh_policy: semantic-checkpoint-only
-- save_trigger_policy: semantic-checkpoint | user-triggered-save | five-turn-cadence | compaction-risk | durable-lifecycle-transition
-- unsaved_turn_count: 0
-- unsaved_turn_count_policy: memory-only between save triggers; persist only when flushing a batched event or semantic checkpoint
+- save_trigger_policy: semantic-checkpoint | user-triggered-checkpoint-or-save | evidence-handoff | compaction-risk | durable-lifecycle-transition
+- checkpoint_value_policy: suggest a checkpoint only when semantic recovery value or compaction risk justifies it; do not maintain a hidden turn counter
+- checkpoint_continue_policy: user-triggered checkpoint writes one compact JSONL event and typed state update first, refreshes only changed optional artifacts, then continues in the same reply
 - pending_context_summary: []
 - compaction_preserve_items: []
 - hook_persistence_policy: hooks may remind on resume or compaction, but must not create per-user-reply discussion writes
@@ -91,7 +116,7 @@
 
 ## Handoff Assessment
 
-- handoff_assessment_status: not-run | ready-for-specify | continue-discussion
+- handoff_assessment_status: not-run | ready-for-handoff | continue-discussion
 - handoff_assessment_path: handoff-assessment.md | none
 - handoff_assessment_decided_at: [ISO-8601 timestamp or none]
 - handoff_scope_shape: unified | blocked
@@ -108,14 +133,14 @@
 
 ## Allowed Artifact Writes
 
-- discussion-state.md
-- discussion-log.md
+- discussion-state.json through the shared runtime
+- discussion-state.md only as a runtime-rendered compatibility view
+- discussion-log.jsonl through compact checkpoint events
 - requirements.md
 - technical-options.md
 - project-context.md
 - open-questions.md
 - handoff-assessment.md only after explicit user request
-- handoff-to-specify.md draft after explicit user request and boundary lock; mark handoff-ready only after self-review pass and user confirmation
 - handoff-to-specify.json draft after explicit user request and boundary lock; mark handoff-ready only after self-review pass and user confirmation
 
 ## Forbidden Actions
@@ -133,20 +158,19 @@
 - add, recommend, or route to sp-split
 - write separate split planning artifacts
 - write candidate-specific handoff Markdown or JSON
-- write pointer-only handoff-to-specify.md or handoff-to-specify.json
+- write pointer-only handoff-to-specify.json
 - use current project cognition to prove another project's implementation facts
 
 ## Authoritative Files
 
-- discussion-state.md
-- discussion-log.md
+- discussion-state.json
+- discussion-log.jsonl
 - requirements.md
 - technical-options.md
 - project-context.md
 - open-questions.md
 - handoff-assessment.md when present
-- handoff-to-specify.md when draft or user-confirmed, according to handoff_review_status
-- handoff-to-specify.json when draft or user-confirmed, according to handoff_review_status
+- handoff-to-specify.json as the canonical agent-only handoff contract
 
 ## Senior Consequence Analysis
 
@@ -159,13 +183,11 @@
 
 ## Handoff
 
-- handoff_to_specify: none
-- handoff_to_specify_json: none
+- handoff_contract: none
 - handoff_kind: discussion_requirement_contract | legacy_specify_handoff | none
 - handoff_goal: none
 - consumer_eligibility: sp-specify=blocked; sp-quick=blocked
 - recommended_consumer: continue-discussion | sp-specify | sp-quick
-- quick_task_candidate_status: not-evaluated | ready | blocked | requires-spec-first
 - quality_gate_status: draft | self_review_passed | user_confirmed | blocked
 - handoff_requested_by_user: false
 - next_command: none

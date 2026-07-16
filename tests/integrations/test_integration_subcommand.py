@@ -648,6 +648,63 @@ class TestIntegrationRepair:
         assert result.exit_code == 0, result.output
         assert skill_path.read_text(encoding="utf-8") == original
 
+    def test_repair_restores_missing_manifest_owned_reference_sidecar(self, tmp_path):
+        project = _init_project(tmp_path, "claude")
+
+        reference = (
+            project
+            / ".claude"
+            / "skills"
+            / "sp-plan"
+            / "references"
+            / "INDEX.md"
+        )
+        assert reference.exists()
+        reference.unlink()
+
+        old_cwd = os.getcwd()
+        try:
+            os.chdir(project)
+            result = runner.invoke(
+                app,
+                ["integration", "repair", "--script", "sh"],
+                catch_exceptions=False,
+            )
+        finally:
+            os.chdir(old_cwd)
+
+        assert result.exit_code == 0, result.output
+        assert reference.exists()
+        assert "Plan Reference Index" in reference.read_text(encoding="utf-8")
+
+    def test_repair_preserves_user_modified_reference_sidecar(self, tmp_path):
+        project = _init_project(tmp_path, "claude")
+
+        reference = (
+            project
+            / ".claude"
+            / "skills"
+            / "sp-plan"
+            / "references"
+            / "INDEX.md"
+        )
+        original = "# user-modified reference index\n"
+        reference.write_text(original, encoding="utf-8")
+
+        old_cwd = os.getcwd()
+        try:
+            os.chdir(project)
+            result = runner.invoke(
+                app,
+                ["integration", "repair", "--script", "sh"],
+                catch_exceptions=False,
+            )
+        finally:
+            os.chdir(old_cwd)
+
+        assert result.exit_code == 0, result.output
+        assert reference.read_text(encoding="utf-8") == original
+
     def test_repair_codex_removes_misplaced_claude_hook_artifacts(self, tmp_path):
         project = _init_project(tmp_path, "codex")
 

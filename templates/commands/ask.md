@@ -15,4 +15,6 @@ Your job is to answer the user's project question clearly and correctly. You may
 
 Project cognition provides advisory navigation. Live evidence is authoritative.
 
+{{spec-kit-include: ../command-partials/common/learning-layer.md}}
+
 {{spec-kit-include: ../command-partials/ask/shell.md}}

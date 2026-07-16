@@ -1,0 +1,7 @@
+interface:
+  display_name: "SPX Map Scan"
+  short_description: "Low-cost cognition evidence scan"
+  default_prompt: "Use $spx-map-scan to prepare and validate a low-cost project cognition scan."
+
+policy:
+  allow_implicit_invocation: false

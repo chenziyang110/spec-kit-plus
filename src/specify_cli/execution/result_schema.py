@@ -10,6 +10,11 @@ from specify_cli.verification import ValidationResult
 
 
 WorkerStatus = Literal["pending", "success", "blocked", "failed"]
+CURRENT_UI_EVIDENCE_KINDS = {
+    "structure_snapshot",
+    "visual_capture",
+    "runtime_diagnostics",
+}
 
 
 @dataclass(slots=True)
@@ -19,6 +24,15 @@ class RuleAcknowledgement:
     context_bundle_read: bool = False
     paths_read: list[str] = field(default_factory=list)
     critical_notes: list[str] = field(default_factory=list)
+
+
+@dataclass(slots=True)
+class UIVerification:
+    contract_check: str = "not-run"
+    runtime_evidence: str = "not-run"
+    visual_comparison: str = "unavailable"
+    fidelity_status: str = "not-applicable"
+    reviewer: str = "agent"
 
 
 @dataclass(slots=True)
@@ -39,6 +53,8 @@ class WorkerTaskResult:
     manual_evidence: list[dict[str, str]] = field(default_factory=list)
     must_preserve_evidence: list[dict[str, str]] = field(default_factory=list)
     consequence_evidence: list[dict[str, str]] = field(default_factory=list)
+    ui_evidence: list[dict[str, str]] = field(default_factory=list)
+    ui_verification: UIVerification = field(default_factory=UIVerification)
 
 
 def _filter_dataclass_payload(cls: type, payload: dict[str, object]) -> dict[str, object]:
@@ -69,10 +85,53 @@ def _normalize_evidence_items(value: object) -> list[dict[str, str]]:
     return normalized
 
 
+def _validate_current_ui_payload(payload: dict[str, object]) -> None:
+    raw_verification = payload.get("ui_verification")
+    if raw_verification is not None:
+        if not isinstance(raw_verification, dict):
+            raise ValueError("ui_verification must be an object")
+        allowed_verification = {item.name for item in fields(UIVerification)}
+        unknown_verification = set(raw_verification) - allowed_verification
+        if unknown_verification:
+            raise ValueError(
+                "ui_verification contains unsupported fields: "
+                + ", ".join(sorted(unknown_verification))
+            )
+
+    raw_evidence = payload.get("ui_evidence")
+    if raw_evidence is None:
+        return
+    if not isinstance(raw_evidence, list):
+        raise ValueError("ui_evidence must be a list")
+    for index, item in enumerate(raw_evidence):
+        if not isinstance(item, dict):
+            raise ValueError(f"ui_evidence[{index}] must be an object")
+        kind = str(item.get("kind") or "").strip()
+        ref = str(item.get("ref") or "").strip()
+        if kind not in CURRENT_UI_EVIDENCE_KINDS:
+            raise ValueError(
+                f"ui_evidence[{index}] uses unsupported kind: {kind or '<blank>'}"
+            )
+        if not ref:
+            raise ValueError(f"ui_evidence[{index}] requires ref")
+
+
 def worker_task_result_from_json(text: str) -> WorkerTaskResult:
     """Parse a worker result from JSON text."""
 
     payload = json.loads(text)
+    obsolete_ui_fields = {
+        "ui_fidelity_evidence",
+        "uiFidelityEvidence",
+        "uiEvidence",
+        "uiVerification",
+    } & payload.keys()
+    if obsolete_ui_fields:
+        raise ValueError(
+            "obsolete UI result fields are not supported; use ui_evidence: "
+            + ", ".join(sorted(obsolete_ui_fields))
+        )
+    _validate_current_ui_payload(payload)
     validation_results = [
         ValidationResult(**_filter_dataclass_payload(ValidationResult, item))
         for item in payload.get("validation_results", [])
@@ -108,6 +167,12 @@ def worker_task_result_from_json(text: str) -> WorkerTaskResult:
     )
     result_payload["consequence_evidence"] = _normalize_evidence_items(
         result_payload.get("consequence_evidence", [])
+    )
+    result_payload["ui_evidence"] = _normalize_evidence_items(
+        result_payload.get("ui_evidence", [])
+    )
+    result_payload["ui_verification"] = UIVerification(
+        **_filter_dataclass_payload(UIVerification, result_payload.get("ui_verification", {}))
     )
     result_payload["validation_results"] = validation_results
     result_payload["rule_acknowledgement"] = rule_acknowledgement

@@ -415,9 +415,8 @@ def test_validate_state_autofix_tasks_includes_task_generation_surfaces(tmp_path
     assert result.status == "repaired"
     content = (feature_dir / "workflow-state.md").read_text(encoding="utf-8")
     assert "task-generation/handoffs/*.json" in content
-    assert "task-generation/evidence-index.json" in content
-    assert "task-generation/checkpoints.ndjson" in content
-    assert "task-packets/*.json" in content
+    assert "task-generation/lane-manifest.json" in content
+    assert "task-index.json" in content
     assert "- `/sp.implement`" in content
     assert "- `/sp.analyze`" not in content
 
@@ -459,8 +458,7 @@ def test_validate_state_autofix_plan_includes_planning_surfaces(tmp_path: Path):
     assert result.status == "repaired"
     content = (feature_dir / "workflow-state.md").read_text(encoding="utf-8")
     assert "planning/handoffs/*.json" in content
-    assert "planning/evidence-index.json" in content
-    assert "planning/checkpoints.ndjson" in content
+    assert "planning/lane-manifest.json" in content
     assert "plan-contract.json" in content
 
 

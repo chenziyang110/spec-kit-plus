@@ -14,7 +14,13 @@ scripts:
 
 {{spec-kit-include: ../command-partials/common/senior-consequence-analysis-gate.md}}
 
-{{spec-kit-include: ../command-partials/common/semantic-work-contract.md}}
+[AGENT] For project-cognition-backed semantic intake, routing, audit, resume, or final-claim gates, read `references/semantic-work-contract.md`.
+
+## Detailed References
+
+Read [Reference index](references/INDEX.md) before applying shared semantic contracts.
+
+- [semantic work contract](references/semantic-work-contract.md)
 
 ## Mandatory Subagent Execution
 
@@ -88,13 +94,8 @@ When recommending manual implementation resumption to the user, tell them to run
 - Keep `workflow-state.md` current as the durable gate-state source of truth for whether implementation may proceed, which stage must reopen, and what evidence supports the decision.
 - Verify the analysis report, cleared or blocked gate result, and any durable artifact outcomes before final reporting instead of relying on chat narration.
 - Update durable analysis state before compaction-risk transitions, large findings synthesis, remediation handoffs, or any stop where resume will depend on more than the visible conversation.
-- Run `{{specify-subcmd:learning start --command analyze --format json}}` when available so passive learning files exist and the current analysis sees relevant shared project memory.
-- Read `.specify/memory/constitution.md`, `.specify/memory/project-rules.md`, and `.specify/memory/learnings/INDEX.md` in that order before broader analysis context.
-- Open only learning detail docs linked from analysis-relevant index entries.
-- Learning Reflex: before final closeout, ask whether a future senior engineer would benefit from seeing this lesson before related work. If yes, update `.specify/memory/learnings/INDEX.md` and the linked detail markdown document without asking for routine permission.
-- When analysis friction exposes repeated artifact rewrites, route changes, false starts, hidden dependencies, validation gaps, or reusable constraints, make sure `workflow-state.md` captures that durable context.
-- Prefer `{{specify-subcmd:learning capture-auto --command analyze --feature-dir "$FEATURE_DIR" --format json}}` when `workflow-state.md` already preserves route reasons, false starts, hidden dependencies, or reusable constraints.
-- When durable state does not capture the reusable lesson cleanly, update `.specify/memory/learnings/INDEX.md` and a linked detail document with the command, type, summary, and evidence.
+
+{{spec-kit-include: ../command-partials/common/learning-layer.md}}
 
 ## Execution Steps
 
@@ -105,12 +106,11 @@ Run `{SCRIPT}` once from repo root and parse JSON for FEATURE_DIR and AVAILABLE_
 - If `FEATURE_DIR` is not already explicit, prefer `{{specify-subcmd:lane resolve --command analyze --ensure-worktree}}` before guessing from branch-only context.
 - When lane resolution returns a materialized lane worktree, continue analysis from that isolated worktree context so downstream gate decisions stay attached to the same lane boundary.
 
-- SPEC = FEATURE_DIR/spec.md
-- CONTEXT = FEATURE_DIR/context.md
-- PLAN = FEATURE_DIR/plan.md
-- TASKS = FEATURE_DIR/tasks.md
-- PLANNING_EVIDENCE_INDEX = FEATURE_DIR/planning/evidence-index.json when present
-- TASK_GENERATION_EVIDENCE_INDEX = FEATURE_DIR/task-generation/evidence-index.json when present
+- SPEC_CONTRACT = FEATURE_DIR/spec-contract.json
+- PLAN_CONTRACT = FEATURE_DIR/plan-contract.json
+- TASK_INDEX = FEATURE_DIR/task-index.json for standard/heavy work, otherwise TASKS = FEATURE_DIR/tasks.md
+- PLANNING_LANE_MANIFEST = FEATURE_DIR/planning/lane-manifest.json when present
+- TASK_GENERATION_LANE_MANIFEST = FEATURE_DIR/task-generation/lane-manifest.json when present
 
 Abort with an error message if any required file is missing (instruct the user to run missing prerequisite command).
 For single quotes in args like "I'm Groot", use escape syntax: e.g 'I'\''m Groot' (or double-quote if possible: "I'm Groot").
@@ -153,7 +153,7 @@ Load only the minimal necessary context from each artifact:
 - Inspect only returned `minimal_live_reads` when the bundle does not fully cover ownership, propagation, or verification routes.
 - If topical coverage is missing, stale, too broad, or task-relevant coverage is insufficient, use `/sp-map-update` with changed paths or affected surfaces; rebuild through `/sp-map-scan` followed by `/sp-map-build` only for the explicit rebuild conditions above, then inspect the minimum live files still needed to replace guesswork with evidence
 
-**From spec.md:**
+**From spec-contract.json first (open spec.md/context.md only for a named detail or contradiction):**
 
 - Overview/Context
 - Functional Requirements
@@ -161,7 +161,7 @@ Load only the minimal necessary context from each artifact:
 - User Stories
 - Edge Cases (if present)
 
-**From context.md:**
+**From conditional context view when referenced:**
 
 - Locked Decisions
 - Claude Discretion
@@ -170,7 +170,7 @@ Load only the minimal necessary context from each artifact:
 - Specific User Signals
 - Outstanding Questions
 
-**From plan.md:**
+**From plan-contract.json first (open plan.md or conditional design artifacts only for a named detail or contradiction):**
 
 - Architecture/stack choices
 - Locked Planning Decisions
@@ -180,7 +180,7 @@ Load only the minimal necessary context from each artifact:
 - Phases
 - Technical constraints
 
-**From tasks.md:**
+**From task-index.json, or tasks.md for light direct work:**
 
 - Task IDs
 - Descriptions
@@ -188,16 +188,16 @@ Load only the minimal necessary context from each artifact:
 - Parallel markers [P]
 - Referenced file paths
 
-**From planning evidence when present:**
+**From delegated planning lanes when present:**
 
-- Read `planning/evidence-index.json` and accepted `planning/handoffs/*.json`.
-- Verify each accepted planning handoff is consumed by `plan.md`, `research.md`, `quickstart.md`, `data-model.md`, `contracts/`, `plan-contract.json`, or is explicitly deferred or blocked.
+- Read `planning/lane-manifest.json` and only the accepted lane results it names.
+- Verify each accepted result is consumed by `plan-contract.json` or a referenced conditional artifact, or is explicitly deferred or blocked.
 - Treat an accepted planning handoff with no downstream consumer as a plan-layer blocker, not harmless leftover evidence.
 
-**From task-generation evidence when present:**
+**From delegated task-generation lanes when present:**
 
-- Read `task-generation/evidence-index.json` and accepted `task-generation/handoffs/*.json`.
-- Verify each accepted task-generation handoff is consumed by `tasks.md`, `handoff-to-tasks.json`, `task-index.json`, `task-packets/*.json`, or is explicitly deferred, escalated, or blocked.
+- Read `task-generation/lane-manifest.json` and only the accepted lane results it names.
+- Verify each accepted result is consumed by `task-index.json` or the light direct task list, or is explicitly deferred, escalated, or blocked.
 - Treat an accepted task-generation handoff with no downstream consumer as a task-layer blocker before implementation can proceed.
 
 **From constitution:**
@@ -218,7 +218,7 @@ Create internal representations (do not include raw artifacts in output):
 
 ### 5. Detection Passes (Token-Efficient Analysis)
 
-Focus on high-signal findings in the report body. Limit the visible findings table to 50 rows for readability, but do not omit blockers from the durable gate result: `Blocker Bundle` and `workflow-state.md` MUST enumerate every blocking finding. Overflow summaries may cover only non-blocking findings.
+Focus on high-signal findings in the report body and include every unique actionable finding. Repetitive non-blocking observations may be grouped only when the group preserves their evidence, owner, and repair route. Never omit blockers from the durable gate result: `Blocker Bundle` and `workflow-state.md` MUST enumerate every blocking finding.
 
 #### A. Duplication Detection
 
@@ -321,7 +321,7 @@ Output a Markdown report (no file writes) with the following structure:
 
 **Blocker Bundle:**
 
-The `Blocker Bundle` MUST enumerate every blocking finding even when the visible findings table is capped at 50 rows. Do not place blocking findings only in overflow summaries.
+The `Blocker Bundle` MUST enumerate every blocking finding. Do not hide blocking findings inside grouped summaries.
 
 | Invalid Stage | Blocking Finding IDs | Required Re-entry | Notes |
 |---------------|----------------------|-------------------|-------|
@@ -436,7 +436,7 @@ Ask the user: "Would you like me to draft concrete remediation edits and the exa
 
 - **Minimal high-signal tokens**: Focus on actionable findings, not exhaustive documentation
 - **Progressive disclosure**: Load artifacts incrementally; don't dump all content into analysis
-- **Token-efficient output**: Limit findings table to 50 rows; summarize overflow
+- **Signal-efficient output**: Include every unique actionable finding; group only genuinely repetitive non-blocking observations without losing evidence, ownership, or repair routes
 - **Deterministic results**: Rerunning without changes should produce consistent IDs and counts
 
 ### Analysis Guidelines

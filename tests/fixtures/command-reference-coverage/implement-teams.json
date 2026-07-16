@@ -1,0 +1,11 @@
+{
+  "workflow": "implement-teams",
+  "source": "templates/commands/implement-teams.md",
+  "entries": [
+    {
+      "kind": "semantic-contract",
+      "source_excerpt": "{{spec-kit-include: ../../command-partials/common/semantic-work-contract.md}}",
+      "target": "templates/command-references/implement-teams/semantic-work-contract.md"
+    }
+  ]
+}

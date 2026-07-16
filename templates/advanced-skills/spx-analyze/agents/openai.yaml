@@ -1,0 +1,7 @@
+interface:
+  display_name: "SPX Analyze"
+  short_description: "Read-only artifact consistency gate"
+  default_prompt: "Use $spx-analyze to audit the current feature artifacts without rewriting them."
+
+policy:
+  allow_implicit_invocation: false

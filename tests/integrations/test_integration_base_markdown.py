@@ -9,12 +9,14 @@ import os
 
 
 from specify_cli.integrations import INTEGRATION_REGISTRY, get_integration
-from specify_cli.integrations.base import MarkdownIntegration
+from specify_cli.integrations.base import IntegrationBase, MarkdownIntegration
 from specify_cli.integrations.manifest import IntegrationManifest
+from tests.template_utils import assert_quick_checkpoint_card_shape
 from .test_base import _assert_canonical_cognition_intake_contract
 
 SPEC_KIT_BLOCK_START = "<!-- SPEC-KIT:BEGIN -->"
 SHARED_PRD_HELPER = ".specify/scripts/shared/prd-state.py"
+SHARED_DISCUSSION_HELPER = ".specify/scripts/shared/discussion-state.py"
 STALE_COGNITION_ADDENDUM_PHRASES = (
     "for blocked, stale, missing, or incomplete references",
     "{{invoke:map-scan}} -> {{invoke:map-build}} or "
@@ -39,6 +41,75 @@ STALE_COGNITION_ADDENDUM_PHRASES = (
     "path-index " + "incomplete",
     "unadoptable " + "coverage gaps",
 )
+
+
+def _write_command_reference_fixture(tmp_path):
+    commands_dir = tmp_path / "commands"
+    references_dir = tmp_path / "command-references"
+    workflow_references_dir = references_dir / "plan"
+    commands_dir.mkdir()
+    workflow_references_dir.mkdir(parents=True)
+
+    plan = commands_dir / "plan.md"
+    plan.write_text(
+        "---\n"
+        "description: Plan workflow\n"
+        "scripts:\n"
+        "  sh: scripts/bash/setup-plan.sh --json\n"
+        "---\n"
+        "Plan body links to references/INDEX.md.\n"
+        "Packet references/forbidden drift stays prose.\n",
+        encoding="utf-8",
+    )
+    (workflow_references_dir / "INDEX.md").write_text(
+        "# Plan Reference Index\n\n"
+        "See details.md.\n",
+        encoding="utf-8",
+    )
+    (workflow_references_dir / "details.md").write_text(
+        "# Plan Details\n\n"
+        "Run {SCRIPT} with {ARGS} for __AGENT__ before {{invoke:tasks}}.\n",
+        encoding="utf-8",
+    )
+    return plan, references_dir
+
+
+def test_single_file_commands_install_triggered_reference_sidecars(tmp_path, monkeypatch):
+    class SingleFileMarkdownIntegration(MarkdownIntegration):
+        key = "test-agent"
+        config = {
+            "name": "Test Agent",
+            "folder": ".test/",
+            "commands_subdir": "commands",
+        }
+        registrar_config = {
+            "dir": ".test/commands",
+            "format": "markdown",
+            "args": "$ARGUMENTS",
+            "extension": ".md",
+        }
+
+    i = SingleFileMarkdownIntegration()
+    plan, references_dir = _write_command_reference_fixture(tmp_path)
+    monkeypatch.setattr(i, "list_command_templates", lambda: [plan])
+    monkeypatch.setattr(i, "shared_command_references_dir", lambda: references_dir)
+
+    m = IntegrationManifest(i.key, tmp_path)
+    i.setup(tmp_path, m, script_type="sh")
+
+    generated = (i.commands_dest(tmp_path) / "sp.plan.md").read_text(encoding="utf-8")
+
+    references = i.commands_dest(tmp_path) / "references" / "plan"
+    assert "## Reference Contracts" not in generated
+    assert "references/plan/INDEX.md" in generated
+    assert "references/forbidden drift" in generated
+    assert (references / "INDEX.md").is_file()
+    details = (references / "details.md").read_text(encoding="utf-8")
+    assert ".specify/scripts/bash/setup-plan.sh --json" in details
+    assert "{SCRIPT}" not in details
+    assert "{ARGS}" not in details
+    assert "__AGENT__" not in details
+    assert "{{invoke:tasks}}" not in details
 
 
 def _extract_generated_cognition_policy(content: str) -> str:
@@ -69,13 +140,14 @@ def _assert_compact_managed_context(content: str) -> None:
     assert SPEC_KIT_BLOCK_START in content
     assert "[AGENT]" in content
     assert "## Always-On Context" in content
-    assert "project cognition and project memory are always available" in lower
+    assert "project cognition and project learning are always available" in lower
     assert "even without an active `sp-*` workflow" in lower
     assert "when existing-system truth matters" in lower
     assert "before broad source inspection" in lower
     assert "narrow live reads" in lower
-    assert ".specify/memory/project-rules.md" in content
-    assert ".specify/memory/learnings/INDEX.md" in content
+    assert "specify learning start --command <workflow> --format json" in content
+    assert "show_argv" in content
+    assert ".specify/memory/learnings/INDEX.md" not in content
     assert "## Workflow Recommendations" in content
     assert "do not auto-enter an `sp-*` workflow" in lower
     assert "recommend `sp-discussion`" in lower
@@ -87,8 +159,10 @@ def _assert_compact_managed_context(content: str) -> None:
     assert "generated create-feature script" in lower
     assert "## Durable State" in content
     assert "prefer durable workflow state and explicit feature paths" in lower
+    assert "frontstage-only deferred persistence" in lower
+    assert "do not write discussion files, counters, dirty markers, receipts, or status summaries for every user reply" in lower
     assert "project cognition freshness truthful" in lower
-    assert "store reusable lessons in project memory" in lower
+    assert "store reusable lessons through project learning" in lower
 
     assert "## Workflow Activation Discipline" not in content
     assert "1% chance" not in content
@@ -128,13 +202,14 @@ def _assert_discussion_contract(command_content: str) -> None:
     assert "deferred persistence" in command_lower
     assert "compaction preserve" in command_lower
     assert "user-triggered save" in command_lower
-    assert "five-turn" in command_lower
+    assert "turn count alone is never a save trigger" in command_lower
     assert "semantic checkpoint is a durable meaning change" in command_lower
     assert "pending truth-pass state" in command_lower
     assert "persist it to `discussion-state.md` only at semantic checkpoints or save triggers" in command_lower
     assert "persist them to `open-questions.md` only when they materially change" in command_lower
     assert "semantic checkpoints" in command_lower
-    assert "draft pair" in command_lower
+    assert "agent-only" in command_lower
+    assert "do not write a markdown companion" in command_lower
     assert "truth pass" in command_lower
     assert "verified_project_facts" in command_content
     assert "open_assumptions" in command_content
@@ -178,25 +253,22 @@ def _assert_discussion_contract(command_content: str) -> None:
     assert "handoff request-changes repair" in command_lower
     assert "blocked_by_handoff_integrity" in command_content
     assert "the repair belongs to `sp-discussion`" in command_lower
-    assert "refresh `handoff-to-specify.md` and `handoff-to-specify.json` together" in command_lower
-    assert "source_handoff_json" in command_content
-    assert "source_files_read" in command_content
-    assert "handoff_status" in command_content
-    assert "handoff-review" in command_content
+    assert "update canonical `handoff-to-specify.json`" in command_lower
+    assert "source_contract" in command_content
+    assert "field-level validation errors" in command_content
+    assert "review_digest" in command_content
     assert "recommendation-first is not questionless" in command_lower
     assert "one unified" in command_lower or "single unified" in command_lower
     assert "discussion_requirement_contract" in command_content
     assert "Agent-Facing Requirement Contract" in command_content
     assert "consumer_eligibility" in command_content
     assert "recommended_consumer" in command_content
-    assert "quick_task_candidate" in command_content
-    assert "Do not describe current execution or implementation progress" in command_content
-    assert "handoff-to-specify.md" in command_content
+    assert "planning_constraints" in command_content
+    assert "quick_task_candidate" not in command_content
+    assert "do not describe current execution or implementation progress" in command_lower
     assert "handoff-to-specify.json" in command_content
-    assert "Handoff Reviewer Guide" in command_content
-    assert "Approve only if" in command_content
-    assert "Request changes if" in command_content
-    assert "does not know Spec Kit internals" in command_content
+    assert "Human Confirmation" in command_content
+    assert "current digest" in command_lower
     assert "quality_gate" in command_content
     assert "user confirmation" in command_lower
     assert "Must-Preserve Ledger" in command_content
@@ -232,6 +304,14 @@ def _assert_discussion_contract(command_content: str) -> None:
     assert "CAND-001" not in command_content
 
 
+def _assert_ui_reference_guidance(content: str) -> None:
+    assert "choose_ui_reference_lane_dispatch" in content
+    assert "ui-reference-artifact" in content
+    assert "ui-reference-notes.md" in content
+    assert "ui-brief.md" in content
+    assert "Reference-Implementation" in content
+
+
 def _assert_ask_contract(content: str) -> None:
     lowered = content.lower()
 
@@ -264,6 +344,16 @@ def _assert_ask_contract(content: str) -> None:
     assert "handoff-to-specify" not in content
 
 
+def _assert_design_contract(content: str) -> None:
+    lowered = content.lower()
+
+    assert "sp-design" in content
+    assert "DESIGN.md" in content
+    assert "specify design lint" in content
+    assert "Forbidden Writes" in content or "forbidden writes" in lowered
+    assert "CSS or theme implementation files" in content
+
+
 def _assert_runtime_cognition_carry_forward(content: str, command_name: str) -> None:
     advisory_index = content.find("project cognition advisory gate")
     assert advisory_index != -1
@@ -275,6 +365,10 @@ def _assert_runtime_cognition_carry_forward(content: str, command_name: str) -> 
     assert "project-cognition delta append" in content
     assert "project-cognition update --delta-session" in content
     assert "project-cognition update --payload-file" in content
+    assert "project-cognition claim-reconcile prepare" in content
+    assert "project-cognition claim-reconcile apply" in content
+    assert "apply_argv" in content
+    assert "expected_content_hash" not in content
     assert "verification_evidence" in content
     assert "generated_surface_notes" in content
     assert "result_state" in content
@@ -329,6 +423,47 @@ def _discussion_artifact_path(integration, project_root):
     return command_path
 
 
+def _read_generated_artifact_with_references(path):
+    parts = [path.read_text(encoding="utf-8")]
+    if path.name == "SKILL.md":
+        references_dir = path.parent / "references"
+    else:
+        command_name = path.name.removeprefix("sp.").split(".", 1)[0]
+        references_dir = path.parent / "references" / command_name
+    if references_dir.is_dir():
+        parts.extend(
+            ref.read_text(encoding="utf-8")
+            for ref in sorted(references_dir.glob("**/*.md"))
+        )
+    return "\n\n".join(parts)
+
+
+def _specify_artifact_path(integration, project_root):
+    command_path = integration.commands_dest(project_root) / integration.command_filename("specify")
+    if command_path.exists():
+        return command_path
+
+    if hasattr(integration, "skills_dest"):
+        skill_path = integration.skills_dest(project_root) / "sp-specify" / "SKILL.md"
+        if skill_path.exists():
+            return skill_path
+
+    return command_path
+
+
+def _design_artifact_path(integration, project_root):
+    command_path = integration.commands_dest(project_root) / integration.command_filename("design")
+    if command_path.exists():
+        return command_path
+
+    if hasattr(integration, "skills_dest"):
+        skill_path = integration.skills_dest(project_root) / "sp-design" / "SKILL.md"
+        if skill_path.exists():
+            return skill_path
+
+    return command_path
+
+
 
 MARKDOWN_INTEGRATION_SAMPLE_KEYS = ("claude", "opencode", "kiro-cli")
 
@@ -352,9 +487,45 @@ def test_collected_markdown_integrations_preserve_shared_discussion_contracts(tm
         assert "ca-###" in generated, integration_key
         _assert_canonical_cognition_intake_contract(generated)
 
+        specify_path = _specify_artifact_path(integration, project)
+        assert specify_path.exists(), integration_key
+        _assert_ui_reference_guidance(specify_path.read_text(encoding="utf-8"))
+
         discussion_path = _discussion_artifact_path(integration, project)
         assert discussion_path.exists(), integration_key
-        _assert_discussion_contract(discussion_path.read_text(encoding="utf-8"))
+        _assert_discussion_contract(
+            _read_generated_artifact_with_references(discussion_path)
+        )
+
+
+def test_collected_markdown_integrations_install_triggered_reference_sidecars(tmp_path):
+    for integration_key in MARKDOWN_INTEGRATION_SAMPLE_KEYS:
+        project = tmp_path / integration_key
+        integration = get_integration(integration_key)
+        manifest = IntegrationManifest(integration_key, project)
+        integration.setup(project, manifest)
+
+        for workflow in IntegrationBase.COMMAND_REFERENCE_WORKFLOWS:
+            command_path = (
+                integration.commands_dest(project)
+                / integration.command_filename(workflow)
+            )
+            if not command_path.exists():
+                continue
+            content = command_path.read_text(encoding="utf-8")
+            references_dir = command_path.parent / "references" / workflow
+            references = "\n".join(
+                path.read_text(encoding="utf-8")
+                for path in sorted(references_dir.glob("**/*.md"))
+            )
+            assert f"references/{workflow}/INDEX.md" in content, (integration_key, workflow)
+            assert "## Reference Contracts" not in content, (integration_key, workflow)
+            assert "Trigger:" in references, (integration_key, workflow)
+            assert "Preserved Contract:" in references, (integration_key, workflow)
+            assert "v1.3 verification owner discovery" in references, (
+                integration_key,
+                workflow,
+            )
 
 
 def test_collected_markdown_integrations_preserve_ask_contract(tmp_path):
@@ -374,6 +545,18 @@ def test_collected_markdown_integrations_preserve_ask_contract(tmp_path):
             ask_path = integration.commands_dest(project) / integration.command_filename("ask")
         assert ask_path.exists(), integration_key
         _assert_ask_contract(ask_path.read_text(encoding="utf-8"))
+
+
+def test_collected_markdown_integrations_generate_design_workflow(tmp_path):
+    for integration_key in MARKDOWN_INTEGRATION_SAMPLE_KEYS:
+        project = tmp_path / integration_key
+        integration = get_integration(integration_key)
+        manifest = IntegrationManifest(integration_key, project)
+        integration.setup(project, manifest)
+
+        design_path = _design_artifact_path(integration, project)
+        assert design_path.exists(), integration_key
+        _assert_design_contract(design_path.read_text(encoding="utf-8"))
 
 
 class MarkdownIntegrationTests:
@@ -588,6 +771,11 @@ class MarkdownIntegrationTests:
         assert "discussion_decision_digest" in content
         assert "review_criteria_carried_forward" in content
         assert "must_not_dilute" in content
+        assert "choose_ui_reference_lane_dispatch" in content
+        assert "ui-reference-artifact" in content
+        assert "ui-reference-notes.md" in content
+        assert "ui-brief.md" in content
+        assert "Reference-Implementation" in content
         assert "not only the handoff summary" in lowered
         assert "capability-like" in lowered
         assert "handoffs/<candidate_id>" not in content
@@ -624,10 +812,16 @@ class MarkdownIntegrationTests:
         assert len(cmd_files) == 3
         for f in cmd_files:
             content = f.read_text(encoding="utf-8").lower()
-            assert "crucial first step" in content
             command_name = f.stem.removeprefix("sp.")
             _assert_runtime_cognition_carry_forward(content, command_name)
-            if f.name == "sp.debug.md":
+            if command_name == "implement":
+                assert "current-task navigation repair" in content
+                assert "only when a required ref is stale, missing, or contradicted by live code" in content
+                assert "project-cognition query --query-plan" not in content
+                assert "current task's required refs" in content
+                assert "minimal_live_reads" in content
+            elif f.name == "sp.debug.md":
+                assert "crucial first step" in content
                 assert "project cognition" in content
                 assert "project-cognition query --query-plan" in content
                 assert "alias catalog" in content
@@ -640,6 +834,7 @@ class MarkdownIntegrationTests:
                 assert "returned map terms" not in content
                 assert "debug-handbook.md" not in content
             else:
+                assert "crucial first step" in content
                 assert "project cognition" in content
                 assert "project-cognition lexicon" in content
                 assert "project-cognition query" in content
@@ -788,7 +983,7 @@ class MarkdownIntegrationTests:
         assert "you are the **leader**, not the concrete implementer" in quick_content
         assert "quick execution routing" in quick_content
         assert "understanding checkpoint" in quick_content
-        assert "quick checkpoint" in quick_content
+        assert_quick_checkpoint_card_shape(quick_content)
         assert "understanding_confirmed: true" in quick_content
         assert "<br>" not in quick_content
         assert "plain text for terminal output" in quick_content
@@ -954,10 +1149,17 @@ class MarkdownIntegrationTests:
         i = get_integration(self.KEY)
         cmd_dir = i.registrar_config["dir"]
         files = []
+        files.append("DESIGN.md")
 
         # Command files
+        references_root = i.shared_command_references_dir()
         for stem in self._command_stems():
             files.append(f"{cmd_dir}/sp.{stem}.md")
+            if references_root:
+                files.extend(
+                    f"{cmd_dir}/references/{stem}/{reference.relative_to(references_root / stem).as_posix()}"
+                    for reference in i.list_command_reference_templates(stem)
+                )
 
         # Integration scripts
         files.append(f".specify/integrations/{self.KEY}/scripts/update-context.ps1")
@@ -979,14 +1181,14 @@ class MarkdownIntegrationTests:
             for name in ["check-prerequisites.ps1", "common.ps1", "create-new-feature.ps1",
                          "discussion-state.ps1", "prd-state.ps1", "project-cognition-freshness.ps1", "quick-state.ps1", "setup-plan.ps1", "sync-ecc-to-codex.ps1", "update-agent-context.ps1"]:
                 files.append(f".specify/scripts/powershell/{name}")
-        files.append(SHARED_PRD_HELPER)
+        files.extend([SHARED_DISCUSSION_HELPER, SHARED_PRD_HELPER])
 
         for name in self._template_files():
             files.append(f".specify/templates/{name}")
 
         files.append(".specify/memory/constitution.md")
         files.append(".specify/memory/learnings/INDEX.md")
-        files.append(".specify/memory/project-learnings.md")
+        files.append(".specify/memory/learnings/confirmed.md")
         files.append(".specify/memory/project-rules.md")
         return sorted(files)
 

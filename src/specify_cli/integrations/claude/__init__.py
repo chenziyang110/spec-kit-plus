@@ -19,6 +19,8 @@ from .multi_agent import ClaudeMultiAgentAdapter
 # Mapping of command template stem → argument-hint text shown inline
 # when a user invokes the slash command in Claude Code.
 ARGUMENT_HINTS: dict[str, str] = {
+    "accept": "Optional completed feature or acceptance scenario to resume",
+    "design": "Optional design-system mode, reference, or UI readiness concern",
     "specify": "Describe the feature you want to specify",
     "ask": "Ask a read-only project question to answer from live evidence",
     "discussion": "Describe the rough idea or discussion slug to create or resume before specification",
@@ -588,13 +590,6 @@ class ClaudeIntegration(SkillsIntegration):
             return []
 
         raw = template.read_text(encoding="utf-8")
-        semantic_contract = self._shared_semantic_work_contract()
-        if semantic_contract and "SEMANTIC_WORK_CONTRACT_BEGIN" not in raw:
-            raw = raw.replace(
-                "## Team Bootstrap Gate",
-                f"{semantic_contract.rstrip()}\n\n## Team Bootstrap Gate",
-                1,
-            )
         frontmatter = self._parse_skill_frontmatter(raw)
         description = frontmatter.get(
             "description",
@@ -610,7 +605,7 @@ class ClaudeIntegration(SkillsIntegration):
             arg_placeholder=arg_placeholder,
         )
         skill_path = skills_dir / "sp-implement-teams" / "SKILL.md"
-        return [
+        created = [
             self.write_file_and_record(
                 skill_content,
                 skill_path,
@@ -618,22 +613,19 @@ class ClaudeIntegration(SkillsIntegration):
                 manifest,
             )
         ]
-
-    def _shared_semantic_work_contract(self) -> str:
-        commands_dir = self.shared_commands_dir()
-        if not commands_dir:
-            return ""
-
-        partial_path = (
-            commands_dir.parent
-            / "command-partials"
-            / "common"
-            / "semantic-work-contract.md"
+        created.extend(
+            self._copy_command_reference_sidecars(
+                command_name="implement-teams",
+                owner_template_raw=raw,
+                owner_template_path=template,
+                destination_dir=skill_path.parent,
+                project_root=project_root,
+                manifest=manifest,
+                script_type=script_type,
+                arg_placeholder=arg_placeholder,
+            )
         )
-        if not partial_path.is_file():
-            return ""
-
-        return partial_path.read_text(encoding="utf-8")
+        return created
 
     @staticmethod
     def inject_argument_hint(content: str, hint: str) -> str:
@@ -747,11 +739,23 @@ class ClaudeIntegration(SkillsIntegration):
         **opts: Any,
     ) -> list[Path]:
         """Install Claude skills, then inject user-invocable and augment with leader guidance."""
+        workflow_profile = self.workflow_profile(parsed_options)
         # Run base setup which handles the core sp-skill creation and default augmentation
         created = super().setup(project_root, manifest, parsed_options, **opts)
 
         # Post-process generated skill files for Claude-specific flags
         skills_dir = self.skills_dest(project_root).resolve()
+        if workflow_profile == "advanced":
+            for spx_skill in sorted(skills_dir.glob("spx-*/SKILL.md")):
+                if spx_skill not in created or not spx_skill.is_file():
+                    continue
+                content = spx_skill.read_text(encoding="utf-8")
+                updated = self._inject_frontmatter_flag(content, "user-invocable")
+                if updated != content:
+                    spx_skill.write_bytes(updated.encode("utf-8"))
+                    self.record_file_in_manifest(spx_skill, project_root, manifest)
+            return created
+
         script_type = opts.get("script_type", "sh")
         arg_placeholder = (
             self.registrar_config.get("args", "$ARGUMENTS")
@@ -870,8 +874,11 @@ class ClaudeIntegration(SkillsIntegration):
         manifest: IntegrationManifest,
         **opts: Any,
     ) -> list[Path]:
-        created: list[Path] = []
-        created.extend(self.install_scripts(project_root, manifest))
+        created = super().repair_runtime_assets(project_root, manifest, **opts)
+        skills_dir = self.skills_dest(project_root)
+        classic_installed = any(skills_dir.glob("sp-*/SKILL.md"))
+        if not classic_installed:
+            return created
         created.extend(
             self._install_hook_assets(
                 project_root=project_root,

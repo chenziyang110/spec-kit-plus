@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/claim"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/query"
 	rt "github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtime"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtimegate"
@@ -29,6 +30,223 @@ func TestVersionPrintsBinaryName(t *testing.T) {
 	}
 	if strings.TrimSpace(stdout.String()) != "project-cognition v1.2.3" {
 		t.Fatalf("stdout = %q", stdout.String())
+	}
+}
+
+func TestHelpListsClaimReconcileCommands(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"--help"}, &stdout, &stderr, "test")
+	if code != 0 || !strings.Contains(stdout.String(), "claim-reconcile prepare|apply") {
+		t.Fatalf("code=%d stderr=%s help=%s, want prepare and apply commands", code, stderr.String(), stdout.String())
+	}
+}
+
+func TestRebuildReturnsStableBlockedExitCodeWithJSONPayload(t *testing.T) {
+	root := t.TempDir()
+	old, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(root); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(old) })
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"rebuild", "--format", "json"}, &stdout, &stderr, "test")
+	if code != 10 {
+		t.Fatalf("code=%d stderr=%s stdout=%s, want stable blocked exit 10", code, stderr.String(), stdout.String())
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatalf("decode blocked payload: %v stdout=%s", err, stdout.String())
+	}
+	if payload["status"] != "blocked" || payload["recommended_next_action"] != "run_map_scan_build" {
+		t.Fatalf("payload = %#v, want blocked rebuild guidance", payload)
+	}
+}
+
+func TestRebuildTextOutputAlsoReturnsBlockedExitCode(t *testing.T) {
+	root := t.TempDir()
+	old, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(root); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(old) })
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"rebuild"}, &stdout, &stderr, "test")
+	if code != 10 {
+		t.Fatalf("code=%d stderr=%s stdout=%s, want stable blocked exit 10", code, stderr.String(), stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "/sp-map-scan") || !strings.Contains(stdout.String(), "/sp-map-build") {
+		t.Fatalf("stdout=%q, want rebuild recovery guidance", stdout.String())
+	}
+}
+
+func TestClaimReconcilePrepareReturnsStructuredBlockedPayloadForLegacyContract(t *testing.T) {
+	temp := t.TempDir()
+	inputPath := filepath.Join(temp, "prepare.json")
+	if err := os.WriteFile(inputPath, []byte(`{"claim_reconciliation_prepare_contract_version":0}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"claim-reconcile", "prepare", "--input", inputPath, "--format", "json"}, &stdout, &stderr, "test")
+	if code == 0 {
+		t.Fatalf("code=%d stdout=%s, want blocked prepare", code, stdout.String())
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatalf("decode output %q: %v", stdout.String(), err)
+	}
+	if payload["status"] != "error" || payload["result_state"] != "blocked" || payload["claim_reconciliation_prepare_contract_version"] != float64(1) {
+		t.Fatalf("payload = %#v, want current prepare error contract", payload)
+	}
+	if payload["error_code"] != "invalid_claim_reconciliation_prepare" {
+		t.Fatalf("error_code = %#v", payload["error_code"])
+	}
+}
+
+func TestClaimReconcileApplyReturnsStructuredBlockedPayloadForLegacyContract(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, ".specify"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	inputPath := filepath.Join(root, "claim-reconciliation.json")
+	if err := os.WriteFile(inputPath, []byte(`{"claim_reconciliation_contract_version":0}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	old, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(root); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(old) })
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"claim-reconcile", "apply", "--input", inputPath, "--format", "json"}, &stdout, &stderr, "test")
+	if code != 1 {
+		t.Fatalf("code=%d stderr=%s stdout=%s, want blocked exit 1", code, stderr.String(), stdout.String())
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatalf("decode blocked payload: %v stdout=%s", err, stdout.String())
+	}
+	if payload["status"] != "error" || payload["result_state"] != "blocked" || payload["claim_reconciliation_contract_version"] != float64(2) {
+		t.Fatalf("payload = %#v, want current-contract blocked response", payload)
+	}
+	errorsList, _ := payload["errors"].([]any)
+	if !jsonAnySliceContainsSubstring(errorsList, "runtime-prepared") {
+		t.Fatalf("errors = %#v, want runtime-prepared packet boundary", payload["errors"])
+	}
+}
+
+func TestClaimReconcileApplyRequiresPreparedPacketPathInsteadOfStdin(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, ".specify"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	old, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(root); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(old) })
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"claim-reconcile", "apply", "--format", "json"}, &stdout, &stderr, "test")
+	if code != 1 {
+		t.Fatalf("code=%d stderr=%s stdout=%s, want blocked exit 1", code, stderr.String(), stdout.String())
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	errorsList, _ := payload["errors"].([]any)
+	if !jsonAnySliceContainsSubstring(errorsList, "--input") || !jsonAnySliceContainsSubstring(errorsList, "runtime-prepared") {
+		t.Fatalf("errors = %#v, want required runtime-prepared --input", payload["errors"])
+	}
+}
+
+func TestClaimReconcilePrepareApplyArgvWorksFromProjectSubdirectory(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, ".specify"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(root, "src"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "src", "app.go"), []byte("package app\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	paths, err := rt.ResolvePaths(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	st, err := store.Open(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = st.ImportGeneration(context.Background(), store.ImportInput{
+		GenerationID: "GEN-cli-prepare", Kind: "full", SourceCommit: "abc123",
+		Evidence: []store.EvidenceImport{{ID: "E-old", SourceKind: "source", SourcePath: "src/app.go", CommitSHA: "abc123", Extractor: "test", ContentHash: "old"}},
+		Nodes:    []store.NodeImport{{ID: "N-app", Type: "capability", Title: "App", Confidence: "verified", EvidenceIDs: []string{"E-old"}}},
+		Claims: []store.ClaimImport{{
+			ID: "claim:app", NodeID: "N-app", GraphClaimType: "runtime_owner", Summary: "App owns runtime",
+			State: claim.StateStale, Freshness: claim.FreshnessStale, StateReason: "changed", SupportingEvidenceIDs: []string{"E-old"},
+		}},
+	})
+	if err != nil {
+		_ = st.Close()
+		t.Fatal(err)
+	}
+	if err := st.Close(); err != nil {
+		t.Fatal(err)
+	}
+	intentPath := filepath.Join(root, "intent.json")
+	if err := os.WriteFile(intentPath, []byte(`{"claim_reconciliation_prepare_contract_version":1,"workflow":"sp-plan","items":[{"claim_id":"claim:app","reason":"bounded source evidence","evidence":[{"source_path":"src/app.go","span":"L1","role":"supporting"}]}]}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	subdir := filepath.Join(root, "src")
+	old, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(subdir); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(old) })
+
+	var prepareOut, prepareErr bytes.Buffer
+	if code := Run([]string{"claim-reconcile", "prepare", "--input", intentPath, "--format", "json"}, &prepareOut, &prepareErr, "test"); code != 0 {
+		t.Fatalf("prepare code=%d stderr=%s stdout=%s", code, prepareErr.String(), prepareOut.String())
+	}
+	var prepared map[string]any
+	if err := json.Unmarshal(prepareOut.Bytes(), &prepared); err != nil {
+		t.Fatal(err)
+	}
+	packetPath, _ := prepared["prepared_packet_path"].(string)
+	argv, _ := prepared["apply_argv"].([]any)
+	if packetPath == "" || len(argv) != 7 {
+		t.Fatalf("prepared = %#v", prepared)
+	}
+	var applyOut, applyErr bytes.Buffer
+	if code := Run([]string{"claim-reconcile", "apply", "--input", packetPath, "--format", "json"}, &applyOut, &applyErr, "test"); code != 0 {
+		t.Fatalf("apply code=%d stderr=%s stdout=%s", code, applyErr.String(), applyOut.String())
+	}
+	var applied map[string]any
+	if err := json.Unmarshal(applyOut.Bytes(), &applied); err != nil {
+		t.Fatal(err)
+	}
+	if applied["status"] != "ok" || applied["result_state"] != "ready" {
+		t.Fatalf("applied = %#v", applied)
 	}
 }
 
@@ -175,7 +393,7 @@ func TestRootHelpListsScanSet(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("code = %d stderr=%s", code, stderr.String())
 	}
-	if !strings.Contains(stdout.String(), "generate-ignore, scan-set, mark-dirty") {
+	if !strings.Contains(stdout.String(), "generate-ignore, scan-set, scan-prepare, scan-accept, mark-dirty") {
 		t.Fatalf("help does not list scan-set after generate-ignore:\n%s", stdout.String())
 	}
 }
@@ -1221,7 +1439,7 @@ func TestBuildFromScanCommandWritesAliasIndexRows(t *testing.T) {
 	}
 }
 
-func TestBuildFromScanArchivesV1DatabaseBeforeCreatingV2(t *testing.T) {
+func TestBuildFromScanRejectsV1DatabaseWithoutReplacement(t *testing.T) {
 	root := writeMinimalCLIScanPackage(t)
 	paths, err := rt.ResolvePaths(root)
 	if err != nil {
@@ -1257,15 +1475,16 @@ func TestBuildFromScanArchivesV1DatabaseBeforeCreatingV2(t *testing.T) {
 
 	var stdout, stderr bytes.Buffer
 	code := Run([]string{"build-from-scan", "--format", "json"}, &stdout, &stderr, "test")
-	if code != 0 {
-		t.Fatalf("code = %d stderr=%s stdout=%s", code, stderr.String(), stdout.String())
+	if code == 0 {
+		t.Fatalf("code = %d, want nonzero current-schema-only rejection; stdout=%s", code, stdout.String())
 	}
 	var payload map[string]any
 	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
 		t.Fatal(err)
 	}
-	if payload["legacy_runtime_replaced"] != true {
-		t.Fatalf("legacy_runtime_replaced = %#v, payload = %#v", payload["legacy_runtime_replaced"], payload)
+	errorsList, ok := payload["errors"].([]any)
+	if !ok || !jsonAnySliceContainsSubstring(errorsList, "schema_version 1") {
+		t.Fatalf("errors = %#v, want explicit schema v1 rejection", payload["errors"])
 	}
 
 	reopened, err := sql.Open("sqlite", paths.DatabasePath)
@@ -1273,18 +1492,18 @@ func TestBuildFromScanArchivesV1DatabaseBeforeCreatingV2(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer reopened.Close()
-	if hasTable(t, reopened, "legacy_marker") {
-		t.Fatal("legacy_marker table survived outdated database replacement")
+	if !hasTable(t, reopened, "legacy_marker") {
+		t.Fatal("legacy_marker table missing, want old database left untouched")
 	}
 	var version string
 	if err := reopened.QueryRowContext(context.Background(), `SELECT value_json FROM metadata WHERE key = 'schema_version'`).Scan(&version); err != nil {
 		t.Fatal(err)
 	}
-	if version != "2" {
-		t.Fatalf("schema_version = %q, want 2", version)
+	if version != "1" {
+		t.Fatalf("schema_version = %q, want untouched v1 database", version)
 	}
-	if _, err := os.Stat(paths.DatabasePath + ".legacy"); err != nil {
-		t.Fatalf("legacy archive missing: %v", err)
+	if _, err := os.Stat(paths.DatabasePath + ".legacy"); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("legacy archive stat error = %v, want no implicit archive", err)
 	}
 }
 
@@ -1455,8 +1674,8 @@ func TestLexiconCommandEmitsGraphBackedContractFields(t *testing.T) {
 	if !ok || generationID == "" {
 		t.Fatalf("active_generation_id missing from payload = %#v", payload)
 	}
-	if payload["candidate_universe_version"] != float64(1) {
-		t.Fatalf("candidate_universe_version = %#v, want 1; payload = %#v", payload["candidate_universe_version"], payload)
+	if payload["candidate_universe_version"] != float64(2) {
+		t.Fatalf("candidate_universe_version = %#v, want 2; payload = %#v", payload["candidate_universe_version"], payload)
 	}
 	if _, ok := payload["candidate_universe"].(map[string]any); !ok {
 		t.Fatalf("candidate_universe missing from payload = %#v", payload)
@@ -1741,8 +1960,8 @@ func TestCompassV1DatabaseReturnsBlockedPacketWithRebuildGuidance(t *testing.T) 
 		t.Fatalf("errors = %#v, want non-empty array; payload = %#v", payload["errors"], payload)
 	}
 	diagnostic := strings.Join(jsonAnySliceStrings(errors), " ")
-	if !strings.Contains(diagnostic, "schema_version") || !strings.Contains(diagnostic, `expected "2"`) {
-		t.Fatalf("errors = %#v, want schema_version expected version diagnostic", payload["errors"])
+	if !strings.Contains(diagnostic, "schema_version 1") || !strings.Contains(diagnostic, "current runtime requires 5") {
+		t.Fatalf("errors = %#v, want current schema diagnostic", payload["errors"])
 	}
 	if payload["recommended_next_action"] != "run_map_scan_build" {
 		t.Fatalf("recommended_next_action = %#v, payload = %#v", payload["recommended_next_action"], payload)
@@ -1940,8 +2159,9 @@ func TestQueryCommandAcceptsConceptDecisionPlan(t *testing.T) {
 	}
 	conceptID := "concept:" + status.ActiveGenerationID + ":N-app"
 	queryPlan := marshalQueryPlan(t, map[string]any{
-		"lexicon_generation_id": status.ActiveGenerationID,
-		"selected_concepts":     []string{conceptID},
+		"lexicon_generation_id":      status.ActiveGenerationID,
+		"candidate_universe_version": 2,
+		"selected_concepts":          []string{conceptID},
 		"concept_decisions": []map[string]any{{
 			"concept_id":       conceptID,
 			"decision":         "selected",
@@ -1990,8 +2210,9 @@ func TestQueryCommandAcceptsAskIntentQueryPlan(t *testing.T) {
 	}
 	conceptID := "concept:" + status.ActiveGenerationID + ":N-app"
 	queryPlan := marshalQueryPlan(t, map[string]any{
-		"lexicon_generation_id": status.ActiveGenerationID,
-		"selected_concepts":     []string{conceptID},
+		"lexicon_generation_id":      status.ActiveGenerationID,
+		"candidate_universe_version": 2,
+		"selected_concepts":          []string{conceptID},
 		"concept_decisions": []map[string]any{{
 			"concept_id":       conceptID,
 			"decision":         "selected",
@@ -2021,13 +2242,14 @@ func TestQueryCommandAcceptsAskIntentQueryPlan(t *testing.T) {
 func TestQueryCommandEmitsDiagnosticsForCoercedAliasInterpretationsAcrossPlanInputs(t *testing.T) {
 	root := setupReadyMinimalCLIRuntime(t)
 	queryPlan := marshalQueryPlan(t, map[string]any{
-		"raw_query":               "PE程序下驱动下载卡在95",
-		"normalized_query":        "Investigate WinPE driver download progress stalling at 95 percent.",
-		"intent_facets":           []string{"WinPE runtime", "driver download", "95 percent stall"},
-		"alias_interpretations":   []string{"PE程序"},
-		"expanded_queries":        []string{"WinPE driver download progress stall"},
-		"paths":                   []string{"src/app.go"},
-		"open_semantic_questions": []string{},
+		"candidate_universe_version": 2,
+		"raw_query":                  "PE程序下驱动下载卡在95",
+		"normalized_query":           "Investigate WinPE driver download progress stalling at 95 percent.",
+		"intent_facets":              []string{"WinPE runtime", "driver download", "95 percent stall"},
+		"alias_interpretations":      []string{"PE程序"},
+		"expanded_queries":           []string{"WinPE driver download progress stall"},
+		"paths":                      []string{"src/app.go"},
+		"open_semantic_questions":    []string{},
 	})
 	queryPlanFile := filepath.Join(root, "query-plan.json")
 	if err := os.WriteFile(queryPlanFile, []byte(queryPlan), 0o644); err != nil {
@@ -2096,7 +2318,7 @@ func TestQueryCommandEmitsDiagnosticsForCoercedAliasInterpretationsAcrossPlanInp
 
 func TestQueryCommandReturnsStructuredJSONForUnrecoverableQueryPlanShape(t *testing.T) {
 	setupReadyMinimalCLIRuntime(t)
-	queryPlan := `{"semantic_intake":{"alias_interpretations":[{"alias":95}]}}`
+	queryPlan := `{"candidate_universe_version":2,"semantic_intake":{"alias_interpretations":[{"alias":95}]}}`
 
 	var stdout, stderr bytes.Buffer
 	code := Run([]string{"query", "--intent", "debug", "--query-plan", queryPlan, "--format", "json"}, &stdout, &stderr, "test")
@@ -2112,6 +2334,13 @@ func TestQueryCommandReturnsStructuredJSONForUnrecoverableQueryPlanShape(t *test
 	}
 	if payload["status"] != "error" {
 		t.Fatalf("payload = %#v, want status=error", payload)
+	}
+	contract, ok := payload["epistemic_contract"].(map[string]any)
+	if !ok {
+		t.Fatalf("epistemic_contract = %#v, want object", payload["epistemic_contract"])
+	}
+	if contract["graph_role"] != "route_candidate_only" || contract["fact_source_of_truth"] != "live_repository" {
+		t.Fatalf("epistemic_contract = %#v, want route candidate/live repository boundary", contract)
 	}
 	if errors, ok := payload["errors"].([]any); !ok || len(errors) == 0 {
 		t.Fatalf("errors = %#v, want non-empty errors array", payload["errors"])
@@ -2133,8 +2362,9 @@ func TestQueryCommandReturnsStructuredJSONForUnrecoverableQueryPlanShape(t *test
 func TestQueryCommandHandlesGreenfieldEmptyBaseline(t *testing.T) {
 	initEmptyCLIRuntime(t)
 	queryPlan := marshalQueryPlan(t, map[string]any{
-		"raw_query": "build login",
-		"paths":     []string{"docs/login.md"},
+		"candidate_universe_version": 2,
+		"raw_query":                  "build login",
+		"paths":                      []string{"docs/login.md"},
 	})
 
 	var stdout, stderr bytes.Buffer
@@ -2175,8 +2405,9 @@ func TestQueryCommandAcceptsSuffixConceptIDPlan(t *testing.T) {
 	}
 	conceptID := "concept:" + status.ActiveGenerationID + ":N-app:alias:app"
 	queryPlan := marshalQueryPlan(t, map[string]any{
-		"lexicon_generation_id": status.ActiveGenerationID,
-		"selected_concepts":     []string{conceptID},
+		"lexicon_generation_id":      status.ActiveGenerationID,
+		"candidate_universe_version": 2,
+		"selected_concepts":          []string{conceptID},
 	})
 
 	var stdout, stderr bytes.Buffer

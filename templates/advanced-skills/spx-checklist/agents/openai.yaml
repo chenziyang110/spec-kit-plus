@@ -1,0 +1,7 @@
+interface:
+  display_name: "SPX Checklist"
+  short_description: "Requirements-quality checklist"
+  default_prompt: "Use $spx-checklist to generate a focused requirements-quality checklist."
+
+policy:
+  allow_implicit_invocation: false

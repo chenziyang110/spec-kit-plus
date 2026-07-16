@@ -13,6 +13,8 @@ scripts:
 
 {{spec-kit-include: ../command-partials/taskstoissues/shell.md}}
 
+{{spec-kit-include: ../command-partials/common/learning-layer.md}}
+
 ## Mandatory Subagent Execution
 
 All substantive tasks in ordinary `sp-*` workflows default to and must use subagents.

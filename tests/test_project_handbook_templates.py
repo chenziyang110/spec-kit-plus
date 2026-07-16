@@ -40,10 +40,19 @@ def test_project_handbook_template_exists_and_routes_to_project_cognition():
 def test_project_handbook_template_documents_discussion_deferred_persistence():
     content = _read("templates/project-handbook-template.md").lower()
 
-    assert "deferred in-conversation persistence rather than file writes" in content
-    assert "including for counters and dirty markers" in content
+    assert "frontstage-only deferred in-conversation persistence rather than file writes" in content
+    assert "including for counters, receipts, status summaries, and dirty markers" in content
     assert "not a per-user-reply or per-tool-use persistence loop" in content
     assert "only at save triggers, semantic checkpoints, and lifecycle transitions" in content
+
+
+def test_project_handbooks_document_feature_ui_reference_lane():
+    for rel_path in ("templates/project-handbook-template.md", "PROJECT-HANDBOOK.md"):
+        content = _read(rel_path)
+
+        assert "ui-brief.md" in content
+        assert "ui-reference-notes.md" in content
+        assert "UI reference" in content
 
 
 def test_project_map_templates_share_metadata_contract():

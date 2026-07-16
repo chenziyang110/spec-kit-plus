@@ -46,6 +46,12 @@ class PacketScope:
 
 
 @dataclass(slots=True)
+class PacketInterfaces:
+    consumes: list[str] = field(default_factory=list)
+    produces: list[str] = field(default_factory=list)
+
+
+@dataclass(slots=True)
 class ContextBundleItem:
     path: str
     kind: ContextKind = "task_reference"
@@ -71,6 +77,39 @@ class ExecutionIntent:
     outcome: str = ""
     constraints: list[str] = field(default_factory=list)
     success_signals: list[str] = field(default_factory=list)
+
+
+UIFidelityLevel = Literal["none", "approximate", "high", "inspiration"]
+
+
+@dataclass(slots=True)
+class UIContract:
+    ui_work_type: str = ""
+    surface_type: str = ""
+    platforms: list[str] = field(default_factory=list)
+    subject: str = ""
+    audience: str = ""
+    single_job: str = ""
+    visual_thesis: str = ""
+    content_thesis: str = ""
+    interaction_thesis: str = ""
+    signature_element: str = ""
+    approved_visual_ref: str = ""
+    design_sources: list[str] = field(default_factory=list)
+    reference_notes: str = ""
+    visual_target: str = ""
+    reference_intents: list[dict[str, str]] = field(default_factory=list)
+    real_content_plan: list[dict[str, object]] = field(default_factory=list)
+    image_plan: list[dict[str, str]] = field(default_factory=list)
+    fidelity_level: UIFidelityLevel = "none"
+    must_preserve: list[str] = field(default_factory=list)
+    may_adapt: list[str] = field(default_factory=list)
+    must_not: list[str] = field(default_factory=list)
+    required_states: list[str] = field(default_factory=list)
+    required_evidence: list[str] = field(default_factory=list)
+
+
+UI_CONTRACT_FIELDS = frozenset(item.name for item in fields(UIContract))
 
 
 @dataclass(slots=True)
@@ -114,19 +153,31 @@ class WorkerTaskPacket:
     acceptance_criteria: list[str] = field(default_factory=list)
     consumer_surfaces: list[str] = field(default_factory=list)
     required_evidence: list[str] = field(default_factory=list)
-    must_preserve_obligations: list[MustPreserveObligation] = field(default_factory=list)
+    global_constraints: list[str] = field(default_factory=list)
+    interfaces: PacketInterfaces = field(default_factory=PacketInterfaces)
+    review_inputs: list[str] = field(default_factory=list)
+    review_risks: list[str] = field(default_factory=list)
+    controller_checks_required: list[str] = field(default_factory=list)
+    ui_contract: UIContract = field(default_factory=UIContract)
+    must_preserve_obligations: list[MustPreserveObligation] = field(
+        default_factory=list
+    )
     consequence_obligations: list[ConsequenceObligation] = field(default_factory=list)
     escalation_role: str = "debugger"
     retry_max: int = 2
     packet_version: int = 2
 
 
-def _filter_dataclass_payload(cls: type, payload: dict[str, object]) -> dict[str, object]:
+def _filter_dataclass_payload(
+    cls: type, payload: dict[str, object]
+) -> dict[str, object]:
     allowed = {item.name for item in fields(cls)}
     return {key: value for key, value in payload.items() if key in allowed}
 
 
-def _normalize_context_bundle_item_payload(payload: dict[str, object]) -> dict[str, object]:
+def _normalize_context_bundle_item_payload(
+    payload: dict[str, object],
+) -> dict[str, object]:
     item_payload = _filter_dataclass_payload(ContextBundleItem, payload)
     kind = item_payload.get("kind")
     if isinstance(kind, str):
@@ -144,14 +195,37 @@ def worker_task_packet_from_json(text: str) -> WorkerTaskPacket:
     """Parse a worker packet from JSON text."""
 
     payload = json.loads(text)
-    scope = PacketScope(**_filter_dataclass_payload(PacketScope, payload.get("scope", {})))
+    if "ui_fidelity_requirements" in payload:
+        raise ValueError(
+            "ui_fidelity_requirements is not part of the current UI contract"
+        )
+    raw_ui_contract = payload.get("ui_contract", {})
+    if not isinstance(raw_ui_contract, dict):
+        raise ValueError("ui_contract must be an object")
+    unknown_ui_fields = set(raw_ui_contract) - UI_CONTRACT_FIELDS
+    if unknown_ui_fields:
+        raise ValueError(
+            "ui_contract contains unsupported fields: "
+            + ", ".join(sorted(unknown_ui_fields))
+        )
+    missing_ui_fields = UI_CONTRACT_FIELDS - set(raw_ui_contract)
+    if raw_ui_contract and missing_ui_fields:
+        raise ValueError(
+            "ui_contract is missing current fields: "
+            + ", ".join(sorted(missing_ui_fields))
+        )
+    scope = PacketScope(
+        **_filter_dataclass_payload(PacketScope, payload.get("scope", {}))
+    )
     required_references = [
         PacketReference(**_filter_dataclass_payload(PacketReference, item))
         for item in payload.get("required_references", [])
         if isinstance(item, dict)
     ]
     must_preserve_obligations = [
-        MustPreserveObligation(**_filter_dataclass_payload(MustPreserveObligation, item))
+        MustPreserveObligation(
+            **_filter_dataclass_payload(MustPreserveObligation, item)
+        )
         for item in payload.get("must_preserve_obligations", [])
         if isinstance(item, dict)
     ]
@@ -168,15 +242,21 @@ def worker_task_packet_from_json(text: str) -> WorkerTaskPacket:
     intent = ExecutionIntent(
         **_filter_dataclass_payload(ExecutionIntent, payload.get("intent", {}))
     )
+    interfaces = PacketInterfaces(
+        **_filter_dataclass_payload(PacketInterfaces, payload.get("interfaces", {}))
+    )
     dispatch_policy = DispatchPolicy(
         **_filter_dataclass_payload(DispatchPolicy, payload.get("dispatch_policy", {}))
     )
+    ui_contract = UIContract(**_filter_dataclass_payload(UIContract, raw_ui_contract))
     packet_payload = _filter_dataclass_payload(WorkerTaskPacket, payload)
     packet_payload["intent"] = intent
+    packet_payload["interfaces"] = interfaces
     packet_payload["scope"] = scope
     packet_payload["context_bundle"] = context_bundle
     packet_payload["required_references"] = required_references
     packet_payload["must_preserve_obligations"] = must_preserve_obligations
     packet_payload["consequence_obligations"] = consequence_obligations
     packet_payload["dispatch_policy"] = dispatch_policy
+    packet_payload["ui_contract"] = ui_contract
     return WorkerTaskPacket(**packet_payload)

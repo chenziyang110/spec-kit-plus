@@ -2,12 +2,12 @@
 
 ## Current Command
 
-- active_command: [sp-specify | sp-plan | sp-tasks | sp-implement | sp-debug | sp-analyze | sp-deep-research | sp-clarify | sp-constitution | sp-prd | sp-prd-scan | sp-prd-build]
+- active_command: [sp-specify | sp-plan | sp-tasks | sp-implement | sp-accept | sp-debug | sp-analyze | sp-deep-research | sp-clarify | sp-constitution | sp-prd | sp-prd-scan | sp-prd-build]
 - status: [active | completed | blocked]
 
 ## Phase Mode
 
-- phase_mode: [planning-only | design-only | task-generation-only | execution-only | analysis-only | research-only]
+- phase_mode: [planning-only | design-only | task-generation-only | execution-only | acceptance-only | analysis-only | research-only]
 - summary: [Short current-state summary for resume and hook context]
 
 ## Stage State
@@ -23,8 +23,9 @@
 ## Review State
 
 - last_user_reviewed_artifact_state: [not-requested | requested | changes-requested | approved]
-- source_files_read: [none | discussion source files read | repo context read]
-- source_signal_disposition_status: [not-applicable | incomplete | complete]
+- canonical_contract_ref: [handoff-to-specify.json | spec-contract.json | plan-contract.json | task-index.json | none]
+- canonical_contract_revision: [revision or none]
+- semantic_delta: [none | compact changed decision ids]
 
 ## Semantic Audit State
 
@@ -47,6 +48,21 @@
 - hard_unknown_count: [0]
 - soft_unknown_count: [0]
 - next_unknown_to_resolve: [field or none]
+- design-system carry-forward: [status and risk fields below]
+- design_system_status: [not-applicable | ready | soft-risk | blocked]
+- design_risk_level: [none | low | medium | high]
+
+## UI Reference Processing
+
+- ui_reference_processing_status: [not-applicable | subagent-dispatched | completed | blocked | inline-fallback-approved]
+- ui_reference_lane_mode: [none | ui-reference-artifact]
+- ui_fidelity_mode: [none | approximate | high | inspiration]
+- ui_reference_notes: [path or none]
+- ui_brief: [path or none]
+- ui_target: [path or none]
+- ui_reference_ownership: [user-owned | project-owned | third-party | unknown | mixed | none]
+- visual_verification_requirement: [none | agent-visual-comparison | visual-comparison-or-human-review | pending-human-review]
+- required_evidence: [none | reference source evidence, fidelity criteria, verification entry points, difference inventory, accepted deviations]
 
 ## Reopen Contract
 
@@ -68,40 +84,51 @@
   - plan.md: [summary or hash when available]
   - tasks.md: [summary or hash when available]
 
+## Learning Signals
+
+- route_reason: none
+- blocked_reason: none
+
+## Learning Triggers
+
+<!-- Add one bullet per reusable signal. Use `kind: compact evidence`, where kind is user_correction, repeated_attempt, route_change, blocker_recovery, false_lead, decisive_signal, hidden_dependency, validation_gap, tooling_trap, state_loss, cognition_gap, reusable_constraint, or near_miss. Leave this section empty when no signal exists. -->
+
+## False Starts
+
+<!-- Add rejected routes, hypotheses, or implementation paths. Leave empty when none exist. -->
+
+## Hidden Dependencies
+
+<!-- Add dependencies discovered during this workflow. Leave empty when none exist. -->
+
+## Reusable Constraints
+
+<!-- Add stable constraints that later workflows must honor. Leave empty when none exist. -->
+
 ## Embedded Implement Review
 
-- review_gate:
-  - mode: [embedded]
-  - status: [pending | cleared | repaired | blocked]
-  - scope: [pre-implement | join-point-drift | sequential-window]
-  - auto_repair_tasks: [true | false]
-  - last_reviewed_batch: [batch id or none]
-  - latest_review_id: [review id or none]
-  - latest_repair_id: [repair id or none]
-- review_window_policy:
-  - max_completed_tasks_before_review: [5]
-  - max_unreviewed_changed_paths: [8]
-  - max_unreviewed_validation_failures: [0]
-- implementation_review:
-  - reviews: [implementation-review/reviews.ndjson]
-  - repairs: [implementation-review/repairs.ndjson]
-  - snapshots: [implementation-review/snapshots/]
+- current_task_id: [task id or none]
+- current_task_lifecycle_ref: [task lifecycle path or none]
+- review_status: [not-triggered | pending | cleared | repaired | blocked]
+- review_trigger: [none | repository-drift | parallel-join | write-scope-drift | validation-failure | worker-concern | obligation-conflict | real-entrypoint-gap | review-window]
+- latest_review_or_repair_ref: [event path or none; write only when multiple tasks are affected]
 - workflow_state_write_allowlist:
-  - review_gate
-  - review_window_policy
-  - implementation_review
+  - current_task_id
+  - current_task_lifecycle_ref
+  - review_status
+  - review_trigger
+  - latest_review_or_repair_ref
   - next_action
   - blocker_reason
   - blocked_reason
   - next_command
 - workflow_state_protected_fields: [all upstream truth, artifact ownership, evidence, transition, gate, and reopen fields outside the review allowlist]
 
-## Handoff Files
+## Canonical Phase Contract
 
-- handoff_to_specify: [path or none]
-- handoff_to_plan: [path or none]
-- handoff_to_tasks: [path or none]
-- handoff_to_implement: [path or none]
+- contract_ref: [handoff-to-specify.json | spec-contract.json | plan-contract.json | task-index.json | none]
+- contract_revision: [revision or none]
+- transition_status: [ready | blocked | complete | none]
 
 ## Allowed Artifact Writes
 

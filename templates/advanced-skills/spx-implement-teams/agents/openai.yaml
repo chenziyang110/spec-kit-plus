@@ -1,0 +1,7 @@
+interface:
+  display_name: "SPX Implement Teams"
+  short_description: "Durable Codex team implementation"
+  default_prompt: "Use $spx-implement-teams to execute ready work through the integration's supported durable team backend."
+
+policy:
+  allow_implicit_invocation: false

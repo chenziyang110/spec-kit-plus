@@ -35,7 +35,7 @@
 #    - Creates default Claude file if no agent files exist
 #
 # Usage: ./update-agent-context.sh [agent_type]
-# Agent types: claude|gemini|copilot|cursor-agent|qwen|opencode|codex|windsurf|junie|kilocode|auggie|roo|codebuddy|amp|shai|tabnine|kiro-cli|agy|bob|vibe|qodercli|kimi|trae|pi|iflow|mimo|forge|generic
+# Agent types: claude|gemini|copilot|cursor-agent|qwen|opencode|codex|windsurf|junie|kilocode|auggie|roo|codebuddy|amp|shai|tabnine|kiro-cli|agy|bob|vibe|zcode|qodercli|kimi|trae|pi|iflow|mimo|forge|generic
 # Leave empty to update all existing agent files
 
 set -e
@@ -74,7 +74,7 @@ AUGGIE_FILE="$REPO_ROOT/.augment/rules/specify-rules.md"
 ROO_FILE="$REPO_ROOT/.roo/rules/specify-rules.md"
 CODEBUDDY_FILE="$REPO_ROOT/CODEBUDDY.md"
 QODER_FILE="$REPO_ROOT/QODER.md"
-# Codex, opencode, Amp, Kiro CLI, Antigravity, IBM Bob, Mistral Vibe, MiMo Code, Pi, and Forge
+# Codex, opencode, Amp, Kiro CLI, Antigravity, IBM Bob, Mistral Vibe, ZCode, MiMo Code, Pi, and Forge
 # all share AGENTS.md — use AGENTS_FILE to avoid
 # updating the same file multiple times.
 AMP_FILE="$AGENTS_FILE"
@@ -84,6 +84,7 @@ KIRO_FILE="$AGENTS_FILE"
 AGY_FILE="$AGENTS_FILE"
 BOB_FILE="$AGENTS_FILE"
 VIBE_FILE="$AGENTS_FILE"
+ZCODE_FILE="$AGENTS_FILE"
 VIBE_LEGACY_FILE="$REPO_ROOT/.vibe/agents/specify-agents.md"
 KIMI_FILE="$REPO_ROOT/KIMI.md"
 TRAE_FILE="$REPO_ROOT/.trae/rules/project_rules.md"
@@ -152,9 +153,9 @@ render_speckit_managed_block() {
 
 ## Always-On Context
 
-- Project cognition and project memory are always available, even without an active `sp-*` workflow.
+- Project cognition and Project Learning are always available, even without an active `sp-*` workflow.
 - When existing-system truth matters, use project cognition before broad source inspection and use its results to narrow live reads.
-- Read `.specify/memory/project-rules.md` and `.specify/memory/learnings/INDEX.md` before decisions that depend on local conventions, constraints, or past lessons.
+- Run `specify learning start --command <workflow> --format json` before non-trivial decisions that depend on local conventions, constraints, or past lessons; expand only selected matching Learning through `show_argv`.
 
 ## Workflow Recommendations
 
@@ -172,8 +173,9 @@ render_speckit_managed_block() {
 ## Durable State
 
 - When resuming generated work, prefer durable workflow state and explicit feature paths over branch name or chat memory.
+- For `sp-discussion`, default ordinary replies and acknowledgements to frontstage-only deferred persistence: do not write discussion files, counters, dirty markers, receipts, or status summaries for every user reply; flush only at semantic checkpoints, user-triggered checkpoints/saves, compaction risk, or lifecycle transitions. After several unsaved turns, mention the unsaved turn count and suggest `checkpoint, continue`; the prompt does not write files by itself.
 - Keep project cognition freshness truthful after changes to architecture, ownership, workflow names, integration contracts, or verification entry points.
-- Store reusable lessons in project memory, not only in chat or task artifacts.
+- Store reusable lessons through Project Learning, not only in chat or task artifacts.
 
 - Preserve content outside this managed block.
 <!-- SPEC-KIT:END -->
@@ -838,6 +840,9 @@ update_specific_agent() {
         vibe)
             update_agent_file "$VIBE_FILE" "Mistral Vibe" || return 1
             ;;
+        zcode)
+            update_agent_file "$ZCODE_FILE" "ZCode" || return 1
+            ;;
         kimi)
             update_agent_file "$KIMI_FILE" "Kimi Code" || return 1
             ;;
@@ -861,7 +866,7 @@ update_specific_agent() {
             ;;
         *)
             log_error "Unknown agent type '$agent_type'"
-            log_error "Expected: claude|gemini|copilot|cursor-agent|qwen|opencode|codex|windsurf|junie|kilocode|auggie|roo|codebuddy|amp|shai|tabnine|kiro-cli|agy|bob|vibe|qodercli|kimi|trae|pi|iflow|mimo|forge|generic"
+            log_error "Expected: claude|gemini|copilot|cursor-agent|qwen|opencode|codex|windsurf|junie|kilocode|auggie|roo|codebuddy|amp|shai|tabnine|kiro-cli|agy|bob|vibe|zcode|qodercli|kimi|trae|pi|iflow|mimo|forge|generic"
             exit 1
             ;;
     esac
@@ -905,7 +910,7 @@ update_all_existing_agents() {
     _update_if_new "$COPILOT_FILE" "GitHub Copilot"        || _all_ok=false
     _update_if_new "$CURSOR_FILE" "Cursor IDE"             || _all_ok=false
     _update_if_new "$QWEN_FILE" "Qwen Code"                || _all_ok=false
-    _update_if_new "$AGENTS_FILE" "Codex/opencode/Amp/Kiro/Antigravity/Bob/Mistral Vibe/MiMo Code/Pi/Forge" || _all_ok=false
+    _update_if_new "$AGENTS_FILE" "Codex/opencode/Amp/Kiro/Antigravity/Bob/Mistral Vibe/ZCode/MiMo Code/Pi/Forge" || _all_ok=false
     _update_if_new "$WINDSURF_FILE" "Windsurf"             || _all_ok=false
     _update_if_new "$JUNIE_FILE" "Junie"                || _all_ok=false
     _update_if_new "$KILOCODE_FILE" "Kilo Code"            || _all_ok=false
@@ -951,7 +956,7 @@ print_summary() {
     fi
     
     echo
-    log_info "Usage: $0 [claude|gemini|copilot|cursor-agent|qwen|opencode|codex|windsurf|junie|kilocode|auggie|roo|codebuddy|amp|shai|tabnine|kiro-cli|agy|bob|vibe|qodercli|kimi|trae|pi|iflow|mimo|forge|generic]"
+    log_info "Usage: $0 [claude|gemini|copilot|cursor-agent|qwen|opencode|codex|windsurf|junie|kilocode|auggie|roo|codebuddy|amp|shai|tabnine|kiro-cli|agy|bob|vibe|zcode|qodercli|kimi|trae|pi|iflow|mimo|forge|generic]"
 }
 
 #==============================================================================

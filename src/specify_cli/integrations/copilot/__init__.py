@@ -128,6 +128,7 @@ class CopilotIntegration(IntegrationBase):
                 template_path=src_file,
                 project_root=project_root,
             )
+            processed = self.rewrite_command_reference_links(processed, src_file.stem)
             processed = self._append_runtime_project_cognition_gate(
                 content=processed,
                 agent_name="GitHub Copilot",
@@ -144,6 +145,18 @@ class CopilotIntegration(IntegrationBase):
                 processed, dest / dst_name, project_root, manifest
             )
             created.append(dst_file)
+            created.extend(
+                self.install_command_reference_sidecars(
+                    command_name=src_file.stem,
+                    owner_template_raw=raw,
+                    owner_template_path=src_file,
+                    commands_destination=dest,
+                    project_root=project_root,
+                    manifest=manifest,
+                    script_type=script_type,
+                    arg_placeholder=arg_placeholder,
+                )
+            )
 
         # 2. Generate companion .prompt.md files from the templates we just wrote
         prompts_dir = project_root / ".github" / "prompts"

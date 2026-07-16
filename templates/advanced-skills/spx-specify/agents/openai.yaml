@@ -1,0 +1,7 @@
+interface:
+  display_name: "SPX Specify"
+  short_description: "Planning-ready feature requirements"
+  default_prompt: "Use $spx-specify to turn this request into a planning-ready specification."
+
+policy:
+  allow_implicit_invocation: false

@@ -74,6 +74,25 @@ Use this section when `entry_source: sp-discussion`.
 - **Review Criteria Carry-Forward**: [Handoff reviewer criterion that still shapes planning readiness]
 - **Must Not Dilute**: [Simplification or substitution that would violate the discussion handoff]
 
+## Design References and Gaps
+
+- design_system_requirements:
+- DESIGN.md references:
+- reference gaps:
+- platform notes:
+
+## UI Reference Inputs
+
+- UI reference notes:
+- UI brief:
+- Visual target:
+- Reference ownership:
+- Fidelity mode:
+- Must preserve:
+- May adapt:
+- Must not:
+- Human review condition:
+
 ## Must-Preserve Carry-Forward
 
 - `MP-###`: [implementation-shaping decision, reference, non-goal, or trade-off]

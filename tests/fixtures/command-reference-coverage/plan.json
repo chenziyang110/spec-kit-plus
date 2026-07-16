@@ -1,0 +1,13 @@
+{
+  "workflow": "plan",
+  "source": "templates/commands/plan.md",
+  "entries": [
+    {"kind": "intake", "source_excerpt": "spec-contract.json", "target": "templates/command-references/plan/spec-package-intake.md"},
+    {"kind": "scope", "source_excerpt": "Complete-First Scope Preservation", "target": "templates/command-references/plan/research-and-design-lanes.md"},
+    {"kind": "design", "source_excerpt": "Design System Adoption", "target": "templates/command-references/plan/research-and-design-lanes.md"},
+    {"kind": "capability", "source_excerpt": "Capability Preservation", "target": "templates/command-references/plan/research-and-design-lanes.md"},
+    {"kind": "artifact", "source_excerpt": "Conditional Artifacts", "target": "templates/command-references/plan/plan-contract-fields.md"},
+    {"kind": "risk", "source_excerpt": "Input Risks From Alignment", "target": "templates/command-references/plan/constitution-risk-and-complexity.md"},
+    {"kind": "dispatch", "source_excerpt": "Adaptive Planning Lanes", "target": "templates/command-references/plan/research-and-design-lanes.md"}
+  ]
+}

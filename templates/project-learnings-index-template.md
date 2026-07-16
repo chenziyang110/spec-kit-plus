@@ -1,10 +1,9 @@
 # Project Learning Index
 
-Thin first-read index of reusable engineering lessons for later `sp-xxx` workflows.
-
-Read this file after `.specify/memory/project-rules.md` and before command-local
-context. Open only the linked detail documents whose `applies_to` or
-`trigger_signals` match the current work.
+Runtime-maintained compact index behind `specify learning start` and
+`specify learning list`. Agents should use those CLI surfaces and expand one
+selected record with `specify learning show`; do not parse this file directly
+during normal workflow execution.
 
 ---
 

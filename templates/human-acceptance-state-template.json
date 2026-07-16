@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "schema_ref": ".specify/templates/human-acceptance-state-schema.json",
+  "status": "draft",
+  "source": {
+    "implementation_summary": "implementation-summary.md",
+    "implementation_summary_sha256": "",
+    "prepared_from_sha256": "",
+    "current_sha256": ""
+  },
+  "orientation": {
+    "outcome": "",
+    "why_it_matters": "",
+    "user_visible_changes": [],
+    "not_in_scope": [],
+    "prerequisites": [],
+    "start_here": ""
+  },
+  "scenarios": [],
+  "cursor": {
+    "scenario_id": null,
+    "step_id": null
+  },
+  "findings": [],
+  "overall": {
+    "verdict": "pending",
+    "summary": "",
+    "next_command": "sp-accept (Classic) or spx-accept (Advanced)"
+  }
+}

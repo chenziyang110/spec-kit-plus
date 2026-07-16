@@ -11,7 +11,10 @@ from typer.testing import CliRunner
 
 from specify_cli import app
 from specify_cli.hooks import artifact_validation as artifact_validation_mod
-from tests.project_cognition_fake import install_fake_project_cognition, write_project_cognition_status
+from tests.project_cognition_fake import (
+    install_fake_project_cognition,
+    write_project_cognition_status,
+)
 
 HOOK_SUBCOMMANDS = [
     "preflight",
@@ -63,7 +66,9 @@ def _invoke_in_project(project: Path, args: list[str]):
     return result
 
 
-def _run_module_in_project(project: Path, args: list[str], input_text: str | None = None):
+def _run_module_in_project(
+    project: Path, args: list[str], input_text: str | None = None
+):
     repo_root = Path(__file__).resolve().parents[2]
     env = os.environ.copy()
     pythonpath_entries = [str(repo_root / "src")]
@@ -81,41 +86,127 @@ def _run_module_in_project(project: Path, args: list[str], input_text: str | Non
     )
 
 
+def _write_hook_packetized_implement_review_state(
+    feature_dir: Path,
+    *,
+    task_brief: str = "implementation-review/task-briefs/T001.md",
+    review_package: str = "implementation-review/review-packages/T001.md",
+    task_review: str = "implementation-review/task-reviews/T001.json",
+    write_task_brief: bool = True,
+    write_review_package: bool = True,
+    write_task_review: bool = True,
+    branch_review: bool = True,
+) -> None:
+    if write_task_brief:
+        task_brief_path = feature_dir / "implementation-review/task-briefs/T001.md"
+        task_brief_path.parent.mkdir(parents=True, exist_ok=True)
+        task_brief_path.write_text("# T001 Brief\n", encoding="utf-8")
+    if write_review_package:
+        review_package_path = (
+            feature_dir / "implementation-review/review-packages/T001.md"
+        )
+        review_package_path.parent.mkdir(parents=True, exist_ok=True)
+        review_package_path.write_text("# T001 Review Package\n", encoding="utf-8")
+    if write_task_review:
+        task_review_path = feature_dir / "implementation-review/task-reviews/T001.json"
+        task_review_path.parent.mkdir(parents=True, exist_ok=True)
+        task_review_path.write_text(
+            json.dumps(
+                {
+                    "task_id": "T001",
+                    "spec_verdict": "pass",
+                    "quality_verdict": "pass",
+                    "final_assessment": "accepted",
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+    review_dir = feature_dir / "implementation-review"
+    review_dir.mkdir(parents=True, exist_ok=True)
+    (review_dir / "ledger.json").write_text(
+        json.dumps(
+            {
+                "tasks": [
+                    {
+                        "task_id": "T001",
+                        "status": "accepted",
+                        "task_brief": task_brief,
+                        "review_package": review_package,
+                        "task_review": task_review,
+                    }
+                ]
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    if branch_review:
+        (review_dir / "branch-review.md").write_text(
+            "# Branch Review\n\nAccepted.\n", encoding="utf-8"
+        )
+
+
+def _write_hook_packetized_implement_feature(feature_dir: Path) -> None:
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    (feature_dir / "implement-tracker.md").write_text(
+        "# Implement Tracker\n", encoding="utf-8"
+    )
+    (feature_dir / "tasks.md").write_text(
+        "- [X] T001 [US1] Create provider form in apps/web/src/Form.tsx\n",
+        encoding="utf-8",
+    )
+    packets_dir = feature_dir / "task-packets"
+    packets_dir.mkdir()
+    (packets_dir / "T001.json").write_text('{"task_id":"T001"}\n', encoding="utf-8")
+
+
 def test_all_hook_commands_advertise_json_format_alias():
     runner = CliRunner()
     ansi_re = re.compile(r"\x1b\[[0-9;]*m")
 
     for subcommand in HOOK_SUBCOMMANDS:
-        result = runner.invoke(app, ["hook", subcommand, "--help"], catch_exceptions=False)
+        result = runner.invoke(
+            app, ["hook", subcommand, "--help"], catch_exceptions=False
+        )
         clean_output = ansi_re.sub("", result.output)
 
         assert result.exit_code == 0, result.output
-        assert "--format" in clean_output, f"{subcommand} is missing --format in help output"
+        assert "--format" in clean_output, (
+            f"{subcommand} is missing --format in help output"
+        )
 
 
 def _write_prd_build_ready_scan_artifacts(run_dir: Path) -> None:
     for relative, content in {
         "workflow-state.md": "# Workflow State\n",
         "prd-scan.md": "# PRD Scan\n",
-        "coverage-ledger.json": "{\"version\": 1, \"rows\": []}\n",
-        "capability-ledger.json": (
-            "{\"capabilities\": [{\"id\": \"CAP-HEAVY\", \"tier\": \"critical\", "
-            "\"status\": \"reconstruction-ready\"}]}\n"
+        "coverage-ledger.json": (
+            '{"version":1,"rows":[{"surface":"src/app.py","status":"covered",'
+            '"evidence":["evidence/api.md"]}]}\n'
         ),
-        "artifact-contracts.json": "{\"artifacts\": [{\"id\": \"ART-HEAVY\", \"status\": \"landed\"}]}\n",
-        "reconstruction-checklist.json": "{\"checks\": [{\"id\": \"CHK-HEAVY\"}]}\n",
-        "entrypoint-ledger.json": "{\"entrypoints\": []}\n",
-        "config-contracts.json": "{\"configs\": []}\n",
-        "protocol-contracts.json": "{\"protocols\": []}\n",
-        "state-machines.json": "{\"machines\": []}\n",
-        "error-semantics.json": "{\"errors\": []}\n",
-        "verification-surfaces.json": "{\"surfaces\": []}\n",
+        "capability-ledger.json": (
+            '{"capabilities": [{"id": "CAP-HEAVY", "tier": "critical", '
+            '"status": "reconstruction-ready"}]}\n'
+        ),
+        "artifact-contracts.json": '{"artifacts": [{"id": "ART-HEAVY", "status": "landed"}]}\n',
+        "reconstruction-checklist.json": (
+            '{"checks":[{"id":"CHK-HEAVY","status":"pass"}]}\n'
+        ),
+        "entrypoint-ledger.json": '{"entrypoints": []}\n',
+        "config-contracts.json": '{"configs": []}\n',
+        "protocol-contracts.json": '{"protocols": []}\n',
+        "state-machines.json": '{"machines": []}\n',
+        "error-semantics.json": '{"errors": []}\n',
+        "verification-surfaces.json": '{"surfaces": []}\n',
     }.items():
         (run_dir / relative).write_text(content, encoding="utf-8")
     (run_dir / "scan-packets").mkdir()
-    (run_dir / "scan-packets" / "lane-a.md").write_text("# Scan Packet\n", encoding="utf-8")
+    (run_dir / "scan-packets" / "lane-a.md").write_text(
+        "# Scan Packet\n", encoding="utf-8"
+    )
     (run_dir / "evidence").mkdir()
-    (run_dir / "evidence" / "api").mkdir()
+    (run_dir / "evidence" / "api.md").write_text("API evidence\n", encoding="utf-8")
     (run_dir / "worker-results").mkdir()
     (run_dir / "worker-results" / "lane-a.json").write_text(
         json.dumps(
@@ -135,19 +226,42 @@ def _write_prd_build_ready_scan_artifacts(run_dir: Path) -> None:
 def _write_legacy_prd_build_exports(run_dir: Path) -> None:
     master_dir = run_dir / "master"
     master_dir.mkdir(exist_ok=True)
-    (master_dir / "master-pack.md").write_text("# Master Pack\n", encoding="utf-8")
+    (master_dir / "master-pack.md").write_text(
+        "# Master Pack\n\nAccepted capability evidence.\n", encoding="utf-8"
+    )
     exports_dir = run_dir / "exports"
     exports_dir.mkdir(exist_ok=True)
-    (exports_dir / "README.md").write_text("# Export Navigation\n", encoding="utf-8")
-    (exports_dir / "prd.md").write_text("# PRD\n", encoding="utf-8")
-    (exports_dir / "reconstruction-appendix.md").write_text("# Appendix\n", encoding="utf-8")
-    (exports_dir / "data-model.md").write_text("# Data Model\n", encoding="utf-8")
-    (exports_dir / "integration-contracts.md").write_text("# Integration Contracts\n", encoding="utf-8")
-    (exports_dir / "runtime-behaviors.md").write_text("# Runtime Behaviors\n", encoding="utf-8")
+    (exports_dir / "README.md").write_text(
+        "# Export Navigation\n\nSee the PRD suite.\n", encoding="utf-8"
+    )
+    (exports_dir / "prd.md").write_text(
+        "# PRD\n\n## Capability Overview\n\nCore capability.\n\n"
+        "## Critical Capability Notes\n\nEvidence accepted.\n\n"
+        "## Unknowns and Evidence Confidence\n\nNo critical unknowns.\n",
+        encoding="utf-8",
+    )
+    (exports_dir / "reconstruction-appendix.md").write_text(
+        "# Appendix\n\nReconstruction detail.\n", encoding="utf-8"
+    )
+    (exports_dir / "data-model.md").write_text(
+        "# Data Model\n\nEntity contract.\n", encoding="utf-8"
+    )
+    (exports_dir / "integration-contracts.md").write_text(
+        "# Integration Contracts\n\nAPI contract.\n", encoding="utf-8"
+    )
+    (exports_dir / "runtime-behaviors.md").write_text(
+        "# Runtime Behaviors\n\nRuntime behavior.\n", encoding="utf-8"
+    )
 
 
 def _write_heavy_prd_build_exports(run_dir: Path) -> None:
     _write_legacy_prd_build_exports(run_dir)
+    (run_dir / "workflow-state.md").write_text(
+        "# Workflow State\n\n## Current Command\n\n"
+        "- active_command: sp-prd-build\n- status: complete\n"
+        "- build_status: complete\n",
+        encoding="utf-8",
+    )
     for relative, heading in {
         "config-contracts.md": "# Config Contracts\n",
         "protocol-contracts.md": "# Protocol Contracts\n",
@@ -156,7 +270,9 @@ def _write_heavy_prd_build_exports(run_dir: Path) -> None:
         "verification-surface.md": "# Verification Surface\n",
         "reconstruction-risks.md": "# Reconstruction Risks\n",
     }.items():
-        (run_dir / "exports" / relative).write_text(heading, encoding="utf-8")
+        (run_dir / "exports" / relative).write_text(
+            heading + "\nAccepted contract detail.\n", encoding="utf-8"
+        )
 
 
 def _write_project_cognition_runtime(run_dir: Path) -> None:
@@ -180,9 +296,15 @@ def _write_project_cognition_runtime(run_dir: Path) -> None:
             CREATE TABLE IF NOT EXISTS updates(id TEXT PRIMARY KEY, generation_id TEXT NOT NULL, trigger TEXT NOT NULL, changed_paths_json TEXT NOT NULL, affected_nodes_json TEXT NOT NULL, affected_claims_json TEXT NOT NULL, affected_slices_json TEXT NOT NULL, result_state TEXT NOT NULL, completed_at TEXT NOT NULL, attrs_json TEXT NOT NULL DEFAULT '{}');
             """
         )
-        conn.execute("INSERT OR REPLACE INTO metadata(key, value_json, updated_at) VALUES('runtime_format', '\"project-cognition-go\"', '2026-05-23T00:00:00Z')")
-        conn.execute("INSERT OR REPLACE INTO metadata(key, value_json, updated_at) VALUES('runtime_schema', '2', '2026-05-23T00:00:00Z')")
-        conn.execute("INSERT OR REPLACE INTO metadata(key, value_json, updated_at) VALUES('schema_version', '2', '2026-05-23T00:00:00Z')")
+        conn.execute(
+            "INSERT OR REPLACE INTO metadata(key, value_json, updated_at) VALUES('runtime_format', '\"project-cognition-go\"', '2026-05-23T00:00:00Z')"
+        )
+        conn.execute(
+            "INSERT OR REPLACE INTO metadata(key, value_json, updated_at) VALUES('runtime_schema', '2', '2026-05-23T00:00:00Z')"
+        )
+        conn.execute(
+            "INSERT OR REPLACE INTO metadata(key, value_json, updated_at) VALUES('schema_version', '3', '2026-05-23T00:00:00Z')"
+        )
         conn.execute(
             "INSERT OR REPLACE INTO generations(id, sequence, kind, state, source_commit, started_at, published_at, superseded_at, attrs_json) VALUES(?, 1, 'full', 'active', 'abc123', '2026-05-23T00:00:00Z', '2026-05-23T00:00:00Z', '', '{}')",
             (generation_id,),
@@ -208,7 +330,9 @@ def _write_project_cognition_runtime(run_dir: Path) -> None:
     (workbench / "worker-results").mkdir(parents=True, exist_ok=True)
     (workbench / "capability-ledger.json").write_text('{"rows":[]}\n', encoding="utf-8")
     (workbench / "control-ledger.json").write_text('{"rows":[]}\n', encoding="utf-8")
-    (workbench / "coverage-ledger.json").write_text('{"rows":[],"open_gaps":[]}\n', encoding="utf-8")
+    (workbench / "coverage-ledger.json").write_text(
+        '{"rows":[],"open_gaps":[]}\n', encoding="utf-8"
+    )
     write_project_cognition_status(
         project_root,
         status="ok",
@@ -225,27 +349,29 @@ def _write_project_cognition_runtime(run_dir: Path) -> None:
 
 def _write_project_cognition_scan_artifacts(run_dir: Path) -> None:
     (run_dir / "evidence").mkdir(parents=True, exist_ok=True)
-    (run_dir / "evidence" / "E-001.json").write_text('{"id": "E-001"}\n', encoding="utf-8")
+    (run_dir / "evidence" / "E-001.json").write_text(
+        '{"id": "E-001"}\n', encoding="utf-8"
+    )
     for relative, content in {
-        "coverage.json": "{\"rows\": [{\"path\": \"src/auth/login.ts\", \"criticality\": \"critical\"}]}\n",
-        "provisional/nodes.json": "{\"nodes\": [{\"id\": \"capability:auth.login\"}]}\n",
-        "provisional/edges.json": "{\"edges\": []}\n",
-        "provisional/observations.json": "{\"observations\": [{\"id\": \"OBS-001\"}]}\n",
+        "coverage.json": '{"rows": [{"path": "src/auth/login.ts", "criticality": "critical"}]}\n',
+        "provisional/nodes.json": '{"nodes": [{"id": "capability:auth.login"}]}\n',
+        "provisional/edges.json": '{"edges": []}\n',
+        "provisional/observations.json": '{"observations": [{"id": "OBS-001"}]}\n',
         "workbench/coverage-ledger.json": (
-            "{\"rows\": [{\"path\": \"src/auth/login.ts\", \"criticality\": \"critical\", "
-            "\"coverage_state\": \"covered\"}], \"open_gaps\": []}\n"
+            '{"rows": [{"path": "src/auth/login.ts", "criticality": "critical", '
+            '"coverage_state": "covered"}], "open_gaps": []}\n'
         ),
         "workbench/scan-queue.json": (
-            "{\"packets\": [{\"packet_id\": \"core\", \"state\": \"accepted\", "
-            "\"assigned_paths\": [\"src/auth/login.ts\"], "
-            "\"result_handoff_path\": \".specify/project-cognition/workbench/worker-results/core.json\", "
-            "\"next_action\": \"none\"}]}\n"
+            '{"packets": [{"packet_id": "core", "state": "accepted", '
+            '"assigned_paths": ["src/auth/login.ts"], '
+            '"result_handoff_path": ".specify/project-cognition/workbench/worker-results/core.json", '
+            '"next_action": "none"}]}\n'
         ),
         "workbench/handoff-ledger.json": (
-            "{\"events\": ["
-            "{\"event_id\": \"dispatch-core\", \"packet_id\": \"core\", \"event_type\": \"dispatched\"}, "
-            "{\"event_id\": \"return-core\", \"packet_id\": \"core\", \"event_type\": \"returned\", "
-            "\"worker_result_path\": \".specify/project-cognition/workbench/worker-results/core.json\"}"
+            '{"events": ['
+            '{"event_id": "dispatch-core", "packet_id": "core", "event_type": "dispatched"}, '
+            '{"event_id": "return-core", "packet_id": "core", "event_type": "returned", '
+            '"worker_result_path": ".specify/project-cognition/workbench/worker-results/core.json"}'
             "]}\n"
         ),
     }.items():
@@ -299,7 +425,9 @@ def _project_cognition_packet_ledger() -> dict[str, list[object]]:
     }
 
 
-def _write_project_cognition_worker_result(run_dir: Path, payload: dict[str, object]) -> None:
+def _write_project_cognition_worker_result(
+    run_dir: Path, payload: dict[str, object]
+) -> None:
     worker_result_path = run_dir / "workbench" / "worker-results" / "core.json"
     worker_result_path.write_text(json.dumps(payload) + "\n", encoding="utf-8")
 
@@ -307,7 +435,14 @@ def _write_project_cognition_worker_result(run_dir: Path, payload: dict[str, obj
 def _invoke_map_scan_artifact_validation(project: Path, run_dir: Path):
     return _invoke_in_project(
         project,
-        ["hook", "validate-artifacts", "--command", "map-scan", "--feature-dir", str(run_dir)],
+        [
+            "hook",
+            "validate-artifacts",
+            "--command",
+            "map-scan",
+            "--feature-dir",
+            str(run_dir),
+        ],
     )
 
 
@@ -318,7 +453,9 @@ def _update_project_cognition_status(run_dir: Path, **updates: object) -> None:
     status_path.write_text(json.dumps(payload) + "\n", encoding="utf-8")
 
 
-def test_map_build_capability_diagram_validation_accepts_project_map_prefixed_pages(tmp_path: Path):
+def test_map_build_capability_diagram_validation_accepts_project_map_prefixed_pages(
+    tmp_path: Path,
+):
     feature_dir = tmp_path / ".specify" / "project-cognition"
     (feature_dir / "index").mkdir(parents=True, exist_ok=True)
     (feature_dir / "modules").mkdir(parents=True, exist_ok=True)
@@ -342,7 +479,10 @@ def test_map_build_capability_diagram_validation_accepts_project_map_prefixed_pa
         encoding="utf-8",
     )
 
-    assert artifact_validation_mod._validate_map_build_capability_diagrams(feature_dir) == []
+    assert (
+        artifact_validation_mod._validate_map_build_capability_diagrams(feature_dir)
+        == []
+    )
 
 
 def test_hook_validate_state_outputs_parseable_json(tmp_path: Path):
@@ -405,14 +545,19 @@ def test_hook_validate_state_outputs_parseable_json(tmp_path: Path):
     assert payload["status"] == "ok"
     assert payload["data"]["checkpoint"]["current_stage"] == "intent-confirmation"
     assert payload["data"]["checkpoint"]["current_domain"] == "goal-and-users"
-    assert payload["data"]["checkpoint"]["next_action"] == "Confirm the current understanding summary with the user."
+    assert (
+        payload["data"]["checkpoint"]["next_action"]
+        == "Confirm the current understanding summary with the user."
+    )
     assert payload["data"]["checkpoint"]["blocker_reason"] == "none"
     assert payload["data"]["checkpoint"]["final_handoff_decision"] == "pending"
     assert payload["data"]["checkpoint"]["allowed_artifact_writes"] == ["spec.md"]
     assert payload["data"]["checkpoint"]["forbidden_actions"] == ["edit source code"]
 
 
-def test_hook_validate_state_supports_fixed_specify_lifecycle_state_shape(tmp_path: Path):
+def test_hook_validate_state_supports_fixed_specify_lifecycle_state_shape(
+    tmp_path: Path,
+):
     project = _create_project(tmp_path)
     feature_dir = project / "specs" / "001-demo"
     feature_dir.mkdir(parents=True, exist_ok=True)
@@ -481,7 +626,9 @@ def test_hook_validate_state_supports_fixed_specify_lifecycle_state_shape(tmp_pa
 
 
 def test_hook_cli_surface_locks_fixed_specify_template_contract() -> None:
-    template = (Path(__file__).resolve().parents[2] / "templates" / "workflow-state-template.md").read_text(encoding="utf-8")
+    template = (
+        Path(__file__).resolve().parents[2] / "templates" / "workflow-state-template.md"
+    ).read_text(encoding="utf-8")
 
     assert "## Stage State" in template
     assert "## Review State" in template
@@ -667,7 +814,10 @@ def test_hook_validate_state_escapes_unicode_for_non_utf8_stdout(tmp_path: Path)
     assert "\\u2705" in result.stdout
     payload = json.loads(result.stdout.strip())
     assert payload["status"] == "ok"
-    assert payload["data"]["checkpoint"]["next_action"] == "Confirm the current understanding summary with the user ✅."
+    assert (
+        payload["data"]["checkpoint"]["next_action"]
+        == "Confirm the current understanding summary with the user ✅."
+    )
 
 
 def test_hook_validate_state_supports_constitution_command(tmp_path: Path):
@@ -838,7 +988,14 @@ def test_hook_validate_state_supports_prd_scan_command(tmp_path: Path):
 
     result = _invoke_in_project(
         project,
-        ["hook", "validate-state", "--command", "prd-scan", "--feature-dir", str(run_dir)],
+        [
+            "hook",
+            "validate-state",
+            "--command",
+            "prd-scan",
+            "--feature-dir",
+            str(run_dir),
+        ],
     )
 
     payload = json.loads(result.output.strip())
@@ -886,11 +1043,110 @@ def test_hook_preflight_blocks_implement_and_returns_json(tmp_path: Path):
         ],
     )
 
-    assert result.exit_code == 0, result.output
+    assert result.exit_code == 10, result.output
     payload = json.loads(result.output.strip())
     assert payload["event"] == "workflow.preflight"
     assert payload["status"] == "blocked"
     assert any("/sp.analyze" in message for message in payload["errors"])
+
+
+def test_hook_validate_state_implement_json_includes_implementation_review(
+    tmp_path: Path,
+):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    (feature_dir / "implement-tracker.md").write_text(
+        "\n".join(
+            [
+                "---",
+                "status: validating",
+                "feature: 001-demo",
+                "resume_decision: continue",
+                "---",
+                "",
+                "## Current Focus",
+                "current_batch: final",
+                "next_action: review implementation artifacts",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    result = _invoke_in_project(
+        project,
+        [
+            "hook",
+            "validate-state",
+            "--command",
+            "implement",
+            "--feature-dir",
+            str(feature_dir),
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output.strip())
+    assert payload["status"] == "ok"
+    review = payload["data"]["implementation_review"]
+    assert review["ledger"] == str(
+        (feature_dir / "implementation-review" / "ledger.json").resolve()
+    )
+    assert review["branch_review"] == str(
+        (feature_dir / "implementation-review" / "branch-review.md").resolve()
+    )
+
+
+def test_hook_validate_state_implement_blocked_json_includes_implementation_review(
+    tmp_path: Path,
+):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    (feature_dir / "implement-tracker.md").write_text(
+        "\n".join(
+            [
+                "---",
+                "status: validating",
+                "feature: 001-demo",
+                "resume_decision: continue",
+                "---",
+                "",
+                "## Current Focus",
+                "current_batch: final",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    result = _invoke_in_project(
+        project,
+        [
+            "hook",
+            "validate-state",
+            "--command",
+            "implement",
+            "--feature-dir",
+            str(feature_dir),
+        ],
+    )
+
+    assert result.exit_code == 10, result.output
+    payload = json.loads(result.output.strip())
+    assert payload["status"] == "blocked"
+    assert payload["data"]["checkpoint"]["state_kind"] == "implement-tracker"
+    review = payload["data"]["implementation_review"]
+    ledger = Path(review["ledger"])
+    branch_review = Path(review["branch_review"])
+    assert ledger.is_absolute()
+    assert branch_review.is_absolute()
+    assert ledger == (feature_dir / "implementation-review" / "ledger.json").resolve()
+    assert (
+        branch_review
+        == (feature_dir / "implementation-review" / "branch-review.md").resolve()
+    )
 
 
 def test_hook_checkpoint_outputs_resume_payload_json(tmp_path: Path):
@@ -1122,8 +1378,12 @@ def test_hook_validate_artifacts_supports_constitution_command(tmp_path: Path):
     feature_dir.mkdir(parents=True, exist_ok=True)
     memory_dir = project / ".specify" / "memory"
     memory_dir.mkdir(parents=True, exist_ok=True)
-    (memory_dir / "constitution.md").write_text("# Demo Constitution\n", encoding="utf-8")
-    (feature_dir / "workflow-state.md").write_text("# Workflow State\n", encoding="utf-8")
+    (memory_dir / "constitution.md").write_text(
+        "# Demo Constitution\n", encoding="utf-8"
+    )
+    (feature_dir / "workflow-state.md").write_text(
+        "# Workflow State\n", encoding="utf-8"
+    )
 
     result = _invoke_in_project(
         project,
@@ -1143,23 +1403,1265 @@ def test_hook_validate_artifacts_supports_constitution_command(tmp_path: Path):
     assert payload["status"] == "ok"
 
 
-def test_hook_validate_artifacts_blocks_specify_when_semantic_ready_state_is_missing(tmp_path: Path):
+def test_hook_validate_artifacts_blocks_implement_when_tracker_is_missing(
+    tmp_path: Path,
+):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True, exist_ok=True)
+
+    result = _invoke_in_project(
+        project,
+        [
+            "hook",
+            "validate-artifacts",
+            "--command",
+            "implement",
+            "--feature-dir",
+            str(feature_dir),
+        ],
+    )
+
+    assert result.exit_code == 10, result.output
+    payload = json.loads(result.output.strip())
+    assert payload["event"] == "workflow.artifacts.validate"
+    assert payload["status"] == "blocked"
+    assert any("implement-tracker.md" in message for message in payload["errors"])
+
+
+def test_hook_validate_artifacts_blocks_packetized_implement_missing_review_ledger(
+    tmp_path: Path,
+):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    (feature_dir / "implement-tracker.md").write_text(
+        "# Implement Tracker\n", encoding="utf-8"
+    )
+    (feature_dir / "tasks.md").write_text(
+        "- [X] T001 [US1] Create provider form in apps/web/src/Form.tsx\n",
+        encoding="utf-8",
+    )
+    packets_dir = feature_dir / "task-packets"
+    packets_dir.mkdir()
+    (packets_dir / "T001.json").write_text('{"task_id":"T001"}\n', encoding="utf-8")
+
+    result = _invoke_in_project(
+        project,
+        [
+            "hook",
+            "validate-artifacts",
+            "--command",
+            "implement",
+            "--feature-dir",
+            str(feature_dir),
+        ],
+    )
+
+    assert result.exit_code == 10, result.output
+    payload = json.loads(result.output.strip())
+    assert payload["event"] == "workflow.artifacts.validate"
+    assert payload["status"] == "blocked"
+    assert any(
+        "implementation-review/ledger.json" in message for message in payload["errors"]
+    )
+
+
+def test_hook_validate_artifacts_blocks_packetized_implement_malformed_packet_json(
+    tmp_path: Path,
+):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    (feature_dir / "implement-tracker.md").write_text(
+        "# Implement Tracker\n", encoding="utf-8"
+    )
+    (feature_dir / "tasks.md").write_text(
+        "- [X] T001 [US1] Create provider form in apps/web/src/Form.tsx\n",
+        encoding="utf-8",
+    )
+    packets_dir = feature_dir / "task-packets"
+    packets_dir.mkdir()
+    (packets_dir / "T001.json").write_text("{not-json}\n", encoding="utf-8")
+
+    result = _invoke_in_project(
+        project,
+        [
+            "hook",
+            "validate-artifacts",
+            "--command",
+            "implement",
+            "--feature-dir",
+            str(feature_dir),
+        ],
+    )
+
+    assert result.exit_code == 10, result.output
+    payload = json.loads(result.output.strip())
+    assert payload["event"] == "workflow.artifacts.validate"
+    assert payload["status"] == "blocked"
+    assert any(
+        "task-packets/T001.json" in message and "malformed packet JSON" in message
+        for message in payload["errors"]
+    )
+
+
+def test_hook_validate_artifacts_blocks_packetized_implement_non_object_packet(
+    tmp_path: Path,
+):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    (feature_dir / "implement-tracker.md").write_text(
+        "# Implement Tracker\n", encoding="utf-8"
+    )
+    (feature_dir / "tasks.md").write_text(
+        "- [X] T001 [US1] Create provider form in apps/web/src/Form.tsx\n",
+        encoding="utf-8",
+    )
+    packets_dir = feature_dir / "task-packets"
+    packets_dir.mkdir()
+    (packets_dir / "T001.json").write_text('["T001"]\n', encoding="utf-8")
+
+    result = _invoke_in_project(
+        project,
+        [
+            "hook",
+            "validate-artifacts",
+            "--command",
+            "implement",
+            "--feature-dir",
+            str(feature_dir),
+        ],
+    )
+
+    assert result.exit_code == 10, result.output
+    payload = json.loads(result.output.strip())
+    assert payload["event"] == "workflow.artifacts.validate"
+    assert payload["status"] == "blocked"
+    assert any(
+        "task-packets/T001.json" in message
+        and "packet must be a JSON object" in message
+        for message in payload["errors"]
+    )
+
+
+def test_hook_validate_artifacts_blocks_packetized_implement_missing_packet_task_id(
+    tmp_path: Path,
+):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    (feature_dir / "implement-tracker.md").write_text(
+        "# Implement Tracker\n", encoding="utf-8"
+    )
+    (feature_dir / "tasks.md").write_text(
+        "- [X] T001 [US1] Create provider form in apps/web/src/Form.tsx\n",
+        encoding="utf-8",
+    )
+    packets_dir = feature_dir / "task-packets"
+    packets_dir.mkdir()
+    (packets_dir / "T001.json").write_text("{}\n", encoding="utf-8")
+
+    result = _invoke_in_project(
+        project,
+        [
+            "hook",
+            "validate-artifacts",
+            "--command",
+            "implement",
+            "--feature-dir",
+            str(feature_dir),
+        ],
+    )
+
+    assert result.exit_code == 10, result.output
+    payload = json.loads(result.output.strip())
+    assert payload["event"] == "workflow.artifacts.validate"
+    assert payload["status"] == "blocked"
+    assert any(
+        "task-packets/T001.json" in message and "malformed packet task_id" in message
+        for message in payload["errors"]
+    )
+
+
+def test_hook_validate_artifacts_blocks_packetized_implement_non_string_packet_task_id(
+    tmp_path: Path,
+):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    (feature_dir / "implement-tracker.md").write_text(
+        "# Implement Tracker\n", encoding="utf-8"
+    )
+    (feature_dir / "tasks.md").write_text(
+        "- [X] T001 [US1] Create provider form in apps/web/src/Form.tsx\n",
+        encoding="utf-8",
+    )
+    packets_dir = feature_dir / "task-packets"
+    packets_dir.mkdir()
+    (packets_dir / "T001.json").write_text('{"task_id":123}\n', encoding="utf-8")
+
+    result = _invoke_in_project(
+        project,
+        [
+            "hook",
+            "validate-artifacts",
+            "--command",
+            "implement",
+            "--feature-dir",
+            str(feature_dir),
+        ],
+    )
+
+    assert result.exit_code == 10, result.output
+    payload = json.loads(result.output.strip())
+    assert payload["event"] == "workflow.artifacts.validate"
+    assert payload["status"] == "blocked"
+    assert any(
+        "task-packets/T001.json" in message and "malformed packet task_id" in message
+        for message in payload["errors"]
+    )
+
+
+def test_hook_validate_artifacts_blocks_packetized_implement_packet_task_id_mismatch(
+    tmp_path: Path,
+):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    (feature_dir / "implement-tracker.md").write_text(
+        "# Implement Tracker\n", encoding="utf-8"
+    )
+    (feature_dir / "tasks.md").write_text(
+        "- [X] T001 [US1] Create provider form in apps/web/src/Form.tsx\n",
+        encoding="utf-8",
+    )
+    packets_dir = feature_dir / "task-packets"
+    packets_dir.mkdir()
+    (packets_dir / "T001.json").write_text('{"task_id":"T999"}\n', encoding="utf-8")
+
+    result = _invoke_in_project(
+        project,
+        [
+            "hook",
+            "validate-artifacts",
+            "--command",
+            "implement",
+            "--feature-dir",
+            str(feature_dir),
+        ],
+    )
+
+    assert result.exit_code == 10, result.output
+    payload = json.loads(result.output.strip())
+    assert payload["event"] == "workflow.artifacts.validate"
+    assert payload["status"] == "blocked"
+    assert any(
+        "task-packets/T001.json" in message and "task_id mismatch" in message
+        for message in payload["errors"]
+    )
+
+
+def test_hook_validate_artifacts_blocks_packetized_implement_blank_packet_task_id(
+    tmp_path: Path,
+):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    (feature_dir / "implement-tracker.md").write_text(
+        "# Implement Tracker\n", encoding="utf-8"
+    )
+    (feature_dir / "tasks.md").write_text(
+        "- [X] T001 [US1] Create provider form in apps/web/src/Form.tsx\n",
+        encoding="utf-8",
+    )
+    packets_dir = feature_dir / "task-packets"
+    packets_dir.mkdir()
+    (packets_dir / "T001.json").write_text('{"task_id":"   "}\n', encoding="utf-8")
+
+    result = _invoke_in_project(
+        project,
+        [
+            "hook",
+            "validate-artifacts",
+            "--command",
+            "implement",
+            "--feature-dir",
+            str(feature_dir),
+        ],
+    )
+
+    assert result.exit_code == 10, result.output
+    payload = json.loads(result.output.strip())
+    assert payload["event"] == "workflow.artifacts.validate"
+    assert payload["status"] == "blocked"
+    assert any(
+        "task-packets/T001.json" in message and "malformed packet task_id" in message
+        for message in payload["errors"]
+    )
+
+
+def test_hook_validate_artifacts_allows_checked_implement_tasks_without_packets(
+    tmp_path: Path,
+):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    (feature_dir / "implement-tracker.md").write_text(
+        "# Implement Tracker\n", encoding="utf-8"
+    )
+    (feature_dir / "tasks.md").write_text(
+        "\n".join(
+            [
+                "- [X] T001 [US1] Create provider form in apps/web/src/Form.tsx",
+                "- [X] T002 [US1] Wire provider form validation in apps/web/src/Form.tsx",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    result = _invoke_in_project(
+        project,
+        [
+            "hook",
+            "validate-artifacts",
+            "--command",
+            "implement",
+            "--feature-dir",
+            str(feature_dir),
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output.strip())
+    assert payload["event"] == "workflow.artifacts.validate"
+    assert payload["status"] == "ok"
+
+
+def test_hook_validate_artifacts_blocks_extra_unknown_packetized_implement_task(
+    tmp_path: Path,
+):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    (feature_dir / "implement-tracker.md").write_text(
+        "# Implement Tracker\n", encoding="utf-8"
+    )
+    (feature_dir / "tasks.md").write_text(
+        "- [X] T001 [US1] Create provider form in apps/web/src/Form.tsx\n",
+        encoding="utf-8",
+    )
+    packets_dir = feature_dir / "task-packets"
+    packets_dir.mkdir()
+    (packets_dir / "T999.json").write_text('{"task_id":"T999"}\n', encoding="utf-8")
+
+    result = _invoke_in_project(
+        project,
+        [
+            "hook",
+            "validate-artifacts",
+            "--command",
+            "implement",
+            "--feature-dir",
+            str(feature_dir),
+        ],
+    )
+
+    assert result.exit_code == 10, result.output
+    payload = json.loads(result.output.strip())
+    assert payload["event"] == "workflow.artifacts.validate"
+    assert payload["status"] == "blocked"
+    assert any(
+        "T999" in message and "not checked" in message for message in payload["errors"]
+    )
+
+
+def test_hook_validate_artifacts_allows_mixed_implement_tasks_when_only_packetized_task_is_reviewed(
+    tmp_path: Path,
+):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    (feature_dir / "implement-tracker.md").write_text(
+        "# Implement Tracker\n", encoding="utf-8"
+    )
+    (feature_dir / "tasks.md").write_text(
+        "\n".join(
+            [
+                "- [X] T001 [US1] Create provider form in apps/web/src/Form.tsx",
+                "- [X] T002 [US1] Wire provider form validation in apps/web/src/Form.tsx",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    packets_dir = feature_dir / "task-packets"
+    packets_dir.mkdir()
+    (packets_dir / "T001.json").write_text('{"task_id":"T001"}\n', encoding="utf-8")
+    review_dir = feature_dir / "implementation-review"
+    (review_dir / "task-briefs").mkdir(parents=True)
+    (review_dir / "task-briefs" / "T001.md").write_text(
+        "# T001 Brief\n", encoding="utf-8"
+    )
+    (review_dir / "review-packages").mkdir(parents=True)
+    (review_dir / "review-packages" / "T001.md").write_text(
+        "# T001 Review Package\n",
+        encoding="utf-8",
+    )
+    (review_dir / "task-reviews").mkdir(parents=True)
+    (review_dir / "task-reviews" / "T001.json").write_text(
+        json.dumps(
+            {
+                "task_id": "T001",
+                "spec_verdict": "pass",
+                "quality_verdict": "pass",
+                "final_assessment": "accepted",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (review_dir / "ledger.json").write_text(
+        json.dumps(
+            {
+                "tasks": [
+                    {
+                        "task_id": "T001",
+                        "status": "accepted",
+                        "task_brief": "implementation-review/task-briefs/T001.md",
+                        "review_package": "implementation-review/review-packages/T001.md",
+                        "task_review": "implementation-review/task-reviews/T001.json",
+                    }
+                ]
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (review_dir / "branch-review.md").write_text(
+        "# Branch Review\n\nAccepted.\n", encoding="utf-8"
+    )
+
+    result = _invoke_in_project(
+        project,
+        [
+            "hook",
+            "validate-artifacts",
+            "--command",
+            "implement",
+            "--feature-dir",
+            str(feature_dir),
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output.strip())
+    assert payload["event"] == "workflow.artifacts.validate"
+    assert payload["status"] == "ok"
+
+
+def test_hook_validate_artifacts_blocks_unchecked_known_packetized_implement_task(
+    tmp_path: Path,
+):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    (feature_dir / "implement-tracker.md").write_text(
+        "# Implement Tracker\n", encoding="utf-8"
+    )
+    (feature_dir / "tasks.md").write_text(
+        "\n".join(
+            [
+                "- [X] T001 [US1] Create provider form in apps/web/src/Form.tsx",
+                "- [ ] T002 [US1] Wire provider form validation in apps/web/src/Form.tsx",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    packets_dir = feature_dir / "task-packets"
+    packets_dir.mkdir()
+    (packets_dir / "T001.json").write_text('{"task_id":"T001"}\n', encoding="utf-8")
+    (packets_dir / "T002.json").write_text('{"task_id":"T002"}\n', encoding="utf-8")
+    review_dir = feature_dir / "implementation-review"
+    (review_dir / "task-reviews").mkdir(parents=True)
+    (review_dir / "task-reviews" / "T001.json").write_text(
+        json.dumps(
+            {
+                "task_id": "T001",
+                "spec_verdict": "pass",
+                "quality_verdict": "pass",
+                "final_assessment": "accepted",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (review_dir / "ledger.json").write_text(
+        json.dumps(
+            {
+                "tasks": [
+                    {
+                        "task_id": "T001",
+                        "status": "accepted",
+                        "task_review": "implementation-review/task-reviews/T001.json",
+                    }
+                ]
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (review_dir / "branch-review.md").write_text(
+        "# Branch Review\n\nAccepted.\n", encoding="utf-8"
+    )
+
+    result = _invoke_in_project(
+        project,
+        [
+            "hook",
+            "validate-artifacts",
+            "--command",
+            "implement",
+            "--feature-dir",
+            str(feature_dir),
+        ],
+    )
+
+    assert result.exit_code == 10, result.output
+    payload = json.loads(result.output.strip())
+    assert payload["event"] == "workflow.artifacts.validate"
+    assert payload["status"] == "blocked"
+    assert any(
+        "T002" in message and "not checked" in message for message in payload["errors"]
+    )
+
+
+def test_hook_validate_artifacts_blocks_packetized_implement_malformed_review_ledger(
+    tmp_path: Path,
+):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    (feature_dir / "implement-tracker.md").write_text(
+        "# Implement Tracker\n", encoding="utf-8"
+    )
+    (feature_dir / "tasks.md").write_text(
+        "- [X] T001 [US1] Create provider form in apps/web/src/Form.tsx\n",
+        encoding="utf-8",
+    )
+    packets_dir = feature_dir / "task-packets"
+    packets_dir.mkdir()
+    (packets_dir / "T001.json").write_text('{"task_id":"T001"}\n', encoding="utf-8")
+    review_dir = feature_dir / "implementation-review"
+    review_dir.mkdir()
+    (review_dir / "ledger.json").write_text("[]\n", encoding="utf-8")
+
+    result = _invoke_in_project(
+        project,
+        [
+            "hook",
+            "validate-artifacts",
+            "--command",
+            "implement",
+            "--feature-dir",
+            str(feature_dir),
+        ],
+    )
+
+    assert result.exit_code == 10, result.output
+    payload = json.loads(result.output.strip())
+    assert payload["event"] == "workflow.artifacts.validate"
+    assert payload["status"] == "blocked"
+    assert any(
+        "implementation-review/ledger.json" in message for message in payload["errors"]
+    )
+    assert any("top-level JSON object" in message for message in payload["errors"])
+
+
+def test_hook_validate_artifacts_blocks_packetized_implement_ledger_tasks_not_array(
+    tmp_path: Path,
+):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    (feature_dir / "implement-tracker.md").write_text(
+        "# Implement Tracker\n", encoding="utf-8"
+    )
+    (feature_dir / "tasks.md").write_text(
+        "- [X] T001 [US1] Create provider form in apps/web/src/Form.tsx\n",
+        encoding="utf-8",
+    )
+    packets_dir = feature_dir / "task-packets"
+    packets_dir.mkdir()
+    (packets_dir / "T001.json").write_text('{"task_id":"T001"}\n', encoding="utf-8")
+    review_dir = feature_dir / "implementation-review"
+    review_dir.mkdir()
+    (review_dir / "ledger.json").write_text('{"tasks": {}}\n', encoding="utf-8")
+
+    result = _invoke_in_project(
+        project,
+        [
+            "hook",
+            "validate-artifacts",
+            "--command",
+            "implement",
+            "--feature-dir",
+            str(feature_dir),
+        ],
+    )
+
+    assert result.exit_code == 10, result.output
+    payload = json.loads(result.output.strip())
+    assert payload["event"] == "workflow.artifacts.validate"
+    assert payload["status"] == "blocked"
+    assert any(
+        "implementation-review/ledger.json" in message for message in payload["errors"]
+    )
+    assert any("tasks array" in message for message in payload["errors"])
+
+
+def test_hook_validate_artifacts_blocks_packetized_implement_non_accepted_ledger_task(
+    tmp_path: Path,
+):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    (feature_dir / "implement-tracker.md").write_text(
+        "# Implement Tracker\n", encoding="utf-8"
+    )
+    (feature_dir / "tasks.md").write_text(
+        "- [X] T001 [US1] Create provider form in apps/web/src/Form.tsx\n",
+        encoding="utf-8",
+    )
+    packets_dir = feature_dir / "task-packets"
+    packets_dir.mkdir()
+    (packets_dir / "T001.json").write_text('{"task_id":"T001"}\n', encoding="utf-8")
+    review_dir = feature_dir / "implementation-review"
+    review_dir.mkdir()
+    (review_dir / "ledger.json").write_text(
+        json.dumps(
+            {
+                "tasks": [
+                    {
+                        "task_id": "T001",
+                        "status": "review_pending",
+                        "task_review": "implementation-review/task-reviews/T001.json",
+                    }
+                ]
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (review_dir / "branch-review.md").write_text(
+        "# Branch Review\n\nAccepted.\n", encoding="utf-8"
+    )
+
+    result = _invoke_in_project(
+        project,
+        [
+            "hook",
+            "validate-artifacts",
+            "--command",
+            "implement",
+            "--feature-dir",
+            str(feature_dir),
+        ],
+    )
+
+    assert result.exit_code == 10, result.output
+    payload = json.loads(result.output.strip())
+    assert payload["event"] == "workflow.artifacts.validate"
+    assert payload["status"] == "blocked"
+    assert any(
+        "implementation-review/ledger.json" in message for message in payload["errors"]
+    )
+    assert any("status accepted" in message for message in payload["errors"])
+
+
+def test_hook_validate_artifacts_blocks_packetized_implement_missing_task_review_file(
+    tmp_path: Path,
+):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    (feature_dir / "implement-tracker.md").write_text(
+        "# Implement Tracker\n", encoding="utf-8"
+    )
+    (feature_dir / "tasks.md").write_text(
+        "- [X] T001 [US1] Create provider form in apps/web/src/Form.tsx\n",
+        encoding="utf-8",
+    )
+    packets_dir = feature_dir / "task-packets"
+    packets_dir.mkdir()
+    (packets_dir / "T001.json").write_text('{"task_id":"T001"}\n', encoding="utf-8")
+    review_dir = feature_dir / "implementation-review"
+    review_dir.mkdir()
+    (review_dir / "ledger.json").write_text(
+        json.dumps(
+            {
+                "tasks": [
+                    {
+                        "task_id": "T001",
+                        "status": "accepted",
+                        "task_review": "implementation-review/task-reviews/T001.json",
+                    }
+                ]
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (review_dir / "branch-review.md").write_text(
+        "# Branch Review\n\nAccepted.\n", encoding="utf-8"
+    )
+
+    result = _invoke_in_project(
+        project,
+        [
+            "hook",
+            "validate-artifacts",
+            "--command",
+            "implement",
+            "--feature-dir",
+            str(feature_dir),
+        ],
+    )
+
+    assert result.exit_code == 10, result.output
+    payload = json.loads(result.output.strip())
+    assert payload["event"] == "workflow.artifacts.validate"
+    assert payload["status"] == "blocked"
+    assert any(
+        "implementation-review/task-reviews/T001.json" in message
+        for message in payload["errors"]
+    )
+
+
+def test_hook_validate_artifacts_blocks_packetized_implement_missing_task_brief_file(
+    tmp_path: Path,
+):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    _write_hook_packetized_implement_feature(feature_dir)
+    _write_hook_packetized_implement_review_state(feature_dir, write_task_brief=False)
+
+    result = _invoke_in_project(
+        project,
+        [
+            "hook",
+            "validate-artifacts",
+            "--command",
+            "implement",
+            "--feature-dir",
+            str(feature_dir),
+        ],
+    )
+
+    assert result.exit_code == 10, result.output
+    payload = json.loads(result.output.strip())
+    assert payload["event"] == "workflow.artifacts.validate"
+    assert payload["status"] == "blocked"
+    assert any(
+        "implementation-review/task-briefs/T001.md" in message and "missing" in message
+        for message in payload["errors"]
+    )
+
+
+def test_hook_validate_artifacts_blocks_packetized_implement_non_canonical_task_brief_path(
+    tmp_path: Path,
+):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    _write_hook_packetized_implement_feature(feature_dir)
+    _write_hook_packetized_implement_review_state(
+        feature_dir,
+        task_brief="implementation-review/./task-briefs/T001.md",
+    )
+
+    result = _invoke_in_project(
+        project,
+        [
+            "hook",
+            "validate-artifacts",
+            "--command",
+            "implement",
+            "--feature-dir",
+            str(feature_dir),
+        ],
+    )
+
+    assert result.exit_code == 10, result.output
+    payload = json.loads(result.output.strip())
+    assert payload["event"] == "workflow.artifacts.validate"
+    assert payload["status"] == "blocked"
+    assert any(
+        "T001" in message and "implementation-review/task-briefs/T001.md" in message
+        for message in payload["errors"]
+    )
+
+
+def test_hook_validate_artifacts_blocks_packetized_implement_missing_review_package_file(
+    tmp_path: Path,
+):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    _write_hook_packetized_implement_feature(feature_dir)
+    _write_hook_packetized_implement_review_state(
+        feature_dir, write_review_package=False
+    )
+
+    result = _invoke_in_project(
+        project,
+        [
+            "hook",
+            "validate-artifacts",
+            "--command",
+            "implement",
+            "--feature-dir",
+            str(feature_dir),
+        ],
+    )
+
+    assert result.exit_code == 10, result.output
+    payload = json.loads(result.output.strip())
+    assert payload["event"] == "workflow.artifacts.validate"
+    assert payload["status"] == "blocked"
+    assert any(
+        "implementation-review/review-packages/T001.md" in message
+        and "missing" in message
+        for message in payload["errors"]
+    )
+
+
+def test_hook_validate_artifacts_blocks_packetized_implement_non_canonical_review_package_path(
+    tmp_path: Path,
+):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    _write_hook_packetized_implement_feature(feature_dir)
+    _write_hook_packetized_implement_review_state(
+        feature_dir,
+        review_package="implementation-review/review-packages/../review-packages/T001.md",
+    )
+
+    result = _invoke_in_project(
+        project,
+        [
+            "hook",
+            "validate-artifacts",
+            "--command",
+            "implement",
+            "--feature-dir",
+            str(feature_dir),
+        ],
+    )
+
+    assert result.exit_code == 10, result.output
+    payload = json.loads(result.output.strip())
+    assert payload["event"] == "workflow.artifacts.validate"
+    assert payload["status"] == "blocked"
+    assert any(
+        "T001" in message and "implementation-review/review-packages/T001.md" in message
+        for message in payload["errors"]
+    )
+
+
+def test_hook_validate_artifacts_blocks_packetized_implement_rejected_task_review(
+    tmp_path: Path,
+):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    (feature_dir / "implement-tracker.md").write_text(
+        "# Implement Tracker\n", encoding="utf-8"
+    )
+    (feature_dir / "tasks.md").write_text(
+        "- [X] T001 [US1] Create provider form in apps/web/src/Form.tsx\n",
+        encoding="utf-8",
+    )
+    packets_dir = feature_dir / "task-packets"
+    packets_dir.mkdir()
+    (packets_dir / "T001.json").write_text('{"task_id":"T001"}\n', encoding="utf-8")
+    review_dir = feature_dir / "implementation-review"
+    (review_dir / "task-briefs").mkdir(parents=True)
+    (review_dir / "task-briefs" / "T001.md").write_text(
+        "# T001 Brief\n", encoding="utf-8"
+    )
+    (review_dir / "review-packages").mkdir(parents=True)
+    (review_dir / "review-packages" / "T001.md").write_text(
+        "# T001 Review Package\n",
+        encoding="utf-8",
+    )
+    (review_dir / "task-reviews").mkdir(parents=True)
+    (review_dir / "task-reviews" / "T001.json").write_text(
+        json.dumps(
+            {
+                "task_id": "T001",
+                "spec_verdict": "fail",
+                "quality_verdict": "pass",
+                "final_assessment": "accepted",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (review_dir / "ledger.json").write_text(
+        json.dumps(
+            {
+                "tasks": [
+                    {
+                        "task_id": "T001",
+                        "status": "accepted",
+                        "task_review": "implementation-review/task-reviews/T001.json",
+                    }
+                ]
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (review_dir / "branch-review.md").write_text(
+        "# Branch Review\n\nAccepted.\n", encoding="utf-8"
+    )
+
+    result = _invoke_in_project(
+        project,
+        [
+            "hook",
+            "validate-artifacts",
+            "--command",
+            "implement",
+            "--feature-dir",
+            str(feature_dir),
+        ],
+    )
+
+    assert result.exit_code == 10, result.output
+    payload = json.loads(result.output.strip())
+    assert payload["event"] == "workflow.artifacts.validate"
+    assert payload["status"] == "blocked"
+    assert any(
+        "T001" in message
+        and "implementation-review/task-reviews/T001.json" in message
+        and "not accepted" in message
+        for message in payload["errors"]
+    )
+
+
+def test_hook_validate_artifacts_blocks_packetized_implement_malformed_task_review(
+    tmp_path: Path,
+):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    (feature_dir / "implement-tracker.md").write_text(
+        "# Implement Tracker\n", encoding="utf-8"
+    )
+    (feature_dir / "tasks.md").write_text(
+        "- [X] T001 [US1] Create provider form in apps/web/src/Form.tsx\n",
+        encoding="utf-8",
+    )
+    packets_dir = feature_dir / "task-packets"
+    packets_dir.mkdir()
+    (packets_dir / "T001.json").write_text('{"task_id":"T001"}\n', encoding="utf-8")
+    review_dir = feature_dir / "implementation-review"
+    (review_dir / "task-reviews").mkdir(parents=True)
+    (review_dir / "task-reviews" / "T001.json").write_text(
+        '{"task_id":"T001"}\n', encoding="utf-8"
+    )
+    (review_dir / "ledger.json").write_text(
+        json.dumps(
+            {
+                "tasks": [
+                    {
+                        "task_id": "T001",
+                        "status": "accepted",
+                        "task_review": "implementation-review/task-reviews/T001.json",
+                    }
+                ]
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (review_dir / "branch-review.md").write_text(
+        "# Branch Review\n\nAccepted.\n", encoding="utf-8"
+    )
+
+    result = _invoke_in_project(
+        project,
+        [
+            "hook",
+            "validate-artifacts",
+            "--command",
+            "implement",
+            "--feature-dir",
+            str(feature_dir),
+        ],
+    )
+
+    assert result.exit_code == 10, result.output
+    payload = json.loads(result.output.strip())
+    assert payload["event"] == "workflow.artifacts.validate"
+    assert payload["status"] == "blocked"
+    assert any(
+        "T001" in message
+        and "implementation-review/task-reviews/T001.json" in message
+        and "malformed" in message
+        for message in payload["errors"]
+    )
+
+
+def test_hook_validate_artifacts_blocks_packetized_implement_non_canonical_task_review_path(
+    tmp_path: Path,
+):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    (feature_dir / "implement-tracker.md").write_text(
+        "# Implement Tracker\n", encoding="utf-8"
+    )
+    (feature_dir / "tasks.md").write_text(
+        "- [X] T001 [US1] Create provider form in apps/web/src/Form.tsx\n",
+        encoding="utf-8",
+    )
+    packets_dir = feature_dir / "task-packets"
+    packets_dir.mkdir()
+    (packets_dir / "T001.json").write_text('{"task_id":"T001"}\n', encoding="utf-8")
+    review_dir = feature_dir / "implementation-review"
+    (review_dir / "task-reviews").mkdir(parents=True)
+    (review_dir / "task-reviews" / "T001.json").write_text(
+        json.dumps({"task_id": "T001", "final_assessment": "accepted"}) + "\n",
+        encoding="utf-8",
+    )
+    (review_dir / "ledger.json").write_text(
+        json.dumps(
+            {
+                "tasks": [
+                    {
+                        "task_id": "T001",
+                        "status": "accepted",
+                        "task_review": "implementation-review/./task-reviews/T001.json",
+                    }
+                ]
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (review_dir / "branch-review.md").write_text(
+        "# Branch Review\n\nAccepted.\n", encoding="utf-8"
+    )
+
+    result = _invoke_in_project(
+        project,
+        [
+            "hook",
+            "validate-artifacts",
+            "--command",
+            "implement",
+            "--feature-dir",
+            str(feature_dir),
+        ],
+    )
+
+    assert result.exit_code == 10, result.output
+    payload = json.loads(result.output.strip())
+    assert payload["event"] == "workflow.artifacts.validate"
+    assert payload["status"] == "blocked"
+    assert any(
+        "implementation-review/task-reviews/T001.json" in message
+        for message in payload["errors"]
+    )
+
+
+def test_hook_validate_artifacts_blocks_packetized_implement_missing_branch_review(
+    tmp_path: Path,
+):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    (feature_dir / "implement-tracker.md").write_text(
+        "# Implement Tracker\n", encoding="utf-8"
+    )
+    (feature_dir / "tasks.md").write_text(
+        "- [X] T001 [US1] Create provider form in apps/web/src/Form.tsx\n",
+        encoding="utf-8",
+    )
+    packets_dir = feature_dir / "task-packets"
+    packets_dir.mkdir()
+    (packets_dir / "T001.json").write_text('{"task_id":"T001"}\n', encoding="utf-8")
+    review_dir = feature_dir / "implementation-review"
+    (review_dir / "task-briefs").mkdir(parents=True)
+    (review_dir / "task-briefs" / "T001.md").write_text(
+        "# T001 Brief\n", encoding="utf-8"
+    )
+    (review_dir / "review-packages").mkdir(parents=True)
+    (review_dir / "review-packages" / "T001.md").write_text(
+        "# T001 Review Package\n",
+        encoding="utf-8",
+    )
+    (review_dir / "task-reviews").mkdir(parents=True)
+    (review_dir / "task-reviews" / "T001.json").write_text(
+        json.dumps(
+            {
+                "task_id": "T001",
+                "spec_verdict": "pass",
+                "quality_verdict": "pass",
+                "final_assessment": "accepted",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (review_dir / "ledger.json").write_text(
+        json.dumps(
+            {
+                "tasks": [
+                    {
+                        "task_id": "T001",
+                        "status": "accepted",
+                        "task_review": "implementation-review/task-reviews/T001.json",
+                    }
+                ]
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    result = _invoke_in_project(
+        project,
+        [
+            "hook",
+            "validate-artifacts",
+            "--command",
+            "implement",
+            "--feature-dir",
+            str(feature_dir),
+        ],
+    )
+
+    assert result.exit_code == 10, result.output
+    payload = json.loads(result.output.strip())
+    assert payload["event"] == "workflow.artifacts.validate"
+    assert payload["status"] == "blocked"
+    assert any(
+        "implementation-review/branch-review.md" in message
+        for message in payload["errors"]
+    )
+
+
+def test_hook_validate_artifacts_accepts_packetized_implement_with_accepted_reviews(
+    tmp_path: Path,
+):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    (feature_dir / "implement-tracker.md").write_text(
+        "# Implement Tracker\n", encoding="utf-8"
+    )
+    (feature_dir / "tasks.md").write_text(
+        "- [X] T001 [US1] Create provider form in apps/web/src/Form.tsx\n",
+        encoding="utf-8",
+    )
+    packets_dir = feature_dir / "task-packets"
+    packets_dir.mkdir()
+    (packets_dir / "T001.json").write_text('{"task_id":"T001"}\n', encoding="utf-8")
+    review_dir = feature_dir / "implementation-review"
+    (review_dir / "task-briefs").mkdir(parents=True)
+    (review_dir / "task-briefs" / "T001.md").write_text(
+        "# T001 Brief\n", encoding="utf-8"
+    )
+    (review_dir / "review-packages").mkdir(parents=True)
+    (review_dir / "review-packages" / "T001.md").write_text(
+        "# T001 Review Package\n",
+        encoding="utf-8",
+    )
+    (review_dir / "task-reviews").mkdir(parents=True)
+    (review_dir / "task-reviews" / "T001.json").write_text(
+        json.dumps(
+            {
+                "task_id": "T001",
+                "spec_verdict": "pass",
+                "quality_verdict": "pass",
+                "final_assessment": "accepted",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (review_dir / "ledger.json").write_text(
+        json.dumps(
+            {
+                "tasks": [
+                    {
+                        "task_id": "T001",
+                        "status": "accepted",
+                        "task_brief": "implementation-review/task-briefs/T001.md",
+                        "review_package": "implementation-review/review-packages/T001.md",
+                        "task_review": "implementation-review/task-reviews/T001.json",
+                    }
+                ]
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (review_dir / "branch-review.md").write_text(
+        "# Branch Review\n\nAccepted.\n", encoding="utf-8"
+    )
+
+    result = _invoke_in_project(
+        project,
+        [
+            "hook",
+            "validate-artifacts",
+            "--command",
+            "implement",
+            "--feature-dir",
+            str(feature_dir),
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output.strip())
+    assert payload["event"] == "workflow.artifacts.validate"
+    assert payload["status"] == "ok"
+
+
+def test_hook_validate_artifacts_blocks_specify_when_semantic_ready_state_is_missing(
+    tmp_path: Path,
+):
     project = _create_project(tmp_path)
     feature_dir = project / "specs" / "001-demo"
     feature_dir.mkdir(parents=True, exist_ok=True)
     (feature_dir / "spec.md").write_text("# Spec\n", encoding="utf-8")
     (feature_dir / "alignment.md").write_text("# Alignment\n", encoding="utf-8")
     (feature_dir / "context.md").write_text("# Context\n", encoding="utf-8")
-    (feature_dir / "workflow-state.md").write_text("# Workflow State\n", encoding="utf-8")
+    (feature_dir / "workflow-state.md").write_text(
+        "# Workflow State\n", encoding="utf-8"
+    )
 
     result = _invoke_in_project(
         project,
-        ["hook", "validate-artifacts", "--command", "specify", "--feature-dir", str(feature_dir)],
+        [
+            "hook",
+            "validate-artifacts",
+            "--command",
+            "specify",
+            "--feature-dir",
+            str(feature_dir),
+        ],
     )
 
     payload = json.loads(result.output.strip())
     assert payload["status"] == "blocked"
-    assert any("brainstorming/handoff-to-specify.json" in message for message in payload["errors"])
+    assert any("spec-contract.json" in message for message in payload["errors"])
 
 
 def test_hook_validate_artifacts_supports_prd_command(tmp_path: Path):
@@ -1170,10 +2672,10 @@ def test_hook_validate_artifacts_supports_prd_command(tmp_path: Path):
         "workflow-state.md": "# Workflow State\n",
         "prd-scan.md": "# PRD Scan\n",
         "coverage-ledger.md": "# Coverage Ledger\n",
-        "coverage-ledger.json": "{\"version\": 1, \"rows\": []}\n",
-        "capability-ledger.json": "{\"capabilities\": []}\n",
-        "artifact-contracts.json": "{\"artifacts\": []}\n",
-        "reconstruction-checklist.json": "{\"checks\": []}\n",
+        "coverage-ledger.json": '{"version": 1, "rows": []}\n',
+        "capability-ledger.json": '{"capabilities": []}\n',
+        "artifact-contracts.json": '{"artifacts": []}\n',
+        "reconstruction-checklist.json": '{"checks": []}\n',
     }.items():
         (run_dir / relative).write_text(content, encoding="utf-8")
     (run_dir / "scan-packets").mkdir()
@@ -1206,10 +2708,10 @@ def test_hook_validate_artifacts_supports_prd_scan_command(tmp_path: Path):
         "workflow-state.md": "# Workflow State\n",
         "prd-scan.md": "# PRD Scan\n",
         "coverage-ledger.md": "# Coverage Ledger\n",
-        "coverage-ledger.json": "{\"version\": 1, \"rows\": []}\n",
-        "capability-ledger.json": "{\"capabilities\": []}\n",
-        "artifact-contracts.json": "{\"artifacts\": []}\n",
-        "reconstruction-checklist.json": "{\"checks\": []}\n",
+        "coverage-ledger.json": '{"version": 1, "rows": []}\n',
+        "capability-ledger.json": '{"capabilities": []}\n',
+        "artifact-contracts.json": '{"artifacts": []}\n',
+        "reconstruction-checklist.json": '{"checks": []}\n',
     }.items():
         path = run_dir / relative
         path.write_text(content, encoding="utf-8")
@@ -1219,40 +2721,63 @@ def test_hook_validate_artifacts_supports_prd_scan_command(tmp_path: Path):
 
     result = _invoke_in_project(
         project,
-        ["hook", "validate-artifacts", "--command", "prd-scan", "--feature-dir", str(run_dir)],
+        [
+            "hook",
+            "validate-artifacts",
+            "--command",
+            "prd-scan",
+            "--feature-dir",
+            str(run_dir),
+        ],
     )
 
     payload = json.loads(result.output.strip())
     assert payload["status"] == "ok"
 
 
-def test_hook_validate_artifacts_blocks_map_scan_when_graph_baseline_outputs_are_missing(tmp_path: Path):
+def test_hook_validate_artifacts_blocks_map_scan_when_graph_baseline_outputs_are_missing(
+    tmp_path: Path,
+):
     project = _create_project(tmp_path)
     run_dir = project / ".specify" / "project-cognition"
     run_dir.mkdir(parents=True, exist_ok=True)
     for relative, content in {
-        "status.json": "{\"version\": 1, \"graph_ready\": false}\n",
-        "coverage.json": "{\"rows\": []}\n",
+        "status.json": '{"version": 1, "graph_ready": false}\n',
+        "coverage.json": '{"rows": []}\n',
     }.items():
         (run_dir / relative).write_text(content, encoding="utf-8")
     (run_dir / "evidence").mkdir()
 
     result = _invoke_in_project(
         project,
-        ["hook", "validate-artifacts", "--command", "map-scan", "--feature-dir", str(run_dir)],
+        [
+            "hook",
+            "validate-artifacts",
+            "--command",
+            "map-scan",
+            "--feature-dir",
+            str(run_dir),
+        ],
     )
 
     payload = json.loads(result.output.strip())
     assert payload["status"] == "blocked"
-    assert not any(message.startswith("missing required artifact:") for message in payload["errors"])
+    assert not any(
+        message.startswith("missing required artifact:")
+        for message in payload["errors"]
+    )
     assert any("provisional/nodes.json" in message for message in payload["errors"])
     assert any("provisional/edges.json" in message for message in payload["errors"])
-    assert any("provisional/observations.json" in message for message in payload["errors"])
+    assert any(
+        "provisional/observations.json" in message for message in payload["errors"]
+    )
     assert any("scan-queue.json" in message for message in payload["errors"])
     assert any("handoff-ledger.json" in message for message in payload["errors"])
 
 
-def test_hook_validate_artifacts_accepts_map_scan_when_graph_baseline_outputs_exist(tmp_path: Path):
+def test_hook_validate_artifacts_accepts_map_scan_when_graph_baseline_outputs_exist(
+    tmp_path: Path,
+):
     project = _create_project(tmp_path)
     run_dir = project / ".specify" / "project-cognition"
     _write_project_cognition_runtime(run_dir)
@@ -1260,7 +2785,14 @@ def test_hook_validate_artifacts_accepts_map_scan_when_graph_baseline_outputs_ex
 
     result = _invoke_in_project(
         project,
-        ["hook", "validate-artifacts", "--command", "map-scan", "--feature-dir", str(run_dir)],
+        [
+            "hook",
+            "validate-artifacts",
+            "--command",
+            "map-scan",
+            "--feature-dir",
+            str(run_dir),
+        ],
     )
 
     payload = json.loads(result.output.strip())
@@ -1339,7 +2871,9 @@ def test_hook_validate_artifacts_blocks_map_scan_worker_result_invalid_packet_ac
     assert f"packet core has invalid acceptance {acceptance}" in payload["errors"]
 
 
-@pytest.mark.parametrize("acceptance", ["fail_gap", "fail_quality", "fail_contract", "fail_systemic"])
+@pytest.mark.parametrize(
+    "acceptance", ["fail_gap", "fail_quality", "fail_contract", "fail_systemic"]
+)
 def test_hook_validate_artifacts_blocks_map_scan_worker_result_failed_packet_acceptance(
     tmp_path: Path, acceptance: str
 ):
@@ -1363,7 +2897,10 @@ def test_hook_validate_artifacts_blocks_map_scan_worker_result_failed_packet_acc
 
     payload = json.loads(result.output.strip())
     assert payload["status"] == "blocked"
-    assert f"packet core failed acceptance/coverage gate with {acceptance}" in payload["errors"]
+    assert (
+        f"packet core failed acceptance/coverage gate with {acceptance}"
+        in payload["errors"]
+    )
 
 
 def test_hook_validate_artifacts_blocks_map_scan_worker_result_missing_packet_ledger(
@@ -1465,7 +3002,9 @@ def test_hook_validate_artifacts_blocks_map_scan_worker_result_without_matching_
     run_dir = project / ".specify" / "project-cognition"
     _write_project_cognition_runtime(run_dir)
     _write_project_cognition_scan_artifacts(run_dir)
-    (run_dir / "workbench" / "scan-queue.json").write_text('{"packets": []}\n', encoding="utf-8")
+    (run_dir / "workbench" / "scan-queue.json").write_text(
+        '{"packets": []}\n', encoding="utf-8"
+    )
 
     result = _invoke_map_scan_artifact_validation(project, run_dir)
 
@@ -1494,7 +3033,10 @@ def test_hook_validate_artifacts_blocks_map_scan_worker_result_without_matching_
 
     payload = json.loads(result.output.strip())
     assert payload["status"] == "blocked"
-    assert "worker result core has no matching return event in handoff-ledger.json" in payload["errors"]
+    assert (
+        "worker result core has no matching return event in handoff-ledger.json"
+        in payload["errors"]
+    )
 
 
 def test_hook_validate_artifacts_blocks_map_scan_numeric_path_values(
@@ -1559,10 +3101,22 @@ def test_hook_validate_artifacts_blocks_map_scan_numeric_path_values(
 
     payload = json.loads(result.output.strip())
     assert payload["status"] == "blocked"
-    assert any("scan-queue packet core assigned_paths[0] path must be a string" in message for message in payload["errors"])
-    assert any("worker result core assigned_paths[0] path must be a string" in message for message in payload["errors"])
-    assert any("packet core coverage[0].path must be a string" in message for message in payload["errors"])
-    assert any("packet core ledger.done[0] path must be a string" in message for message in payload["errors"])
+    assert any(
+        "scan-queue packet core assigned_paths[0] path must be a string" in message
+        for message in payload["errors"]
+    )
+    assert any(
+        "worker result core assigned_paths[0] path must be a string" in message
+        for message in payload["errors"]
+    )
+    assert any(
+        "packet core coverage[0].path must be a string" in message
+        for message in payload["errors"]
+    )
+    assert any(
+        "packet core ledger.done[0] path must be a string" in message
+        for message in payload["errors"]
+    )
 
 
 def test_hook_validate_artifacts_blocks_map_scan_missing_expected_worker_result(
@@ -1618,9 +3172,18 @@ def test_hook_validate_artifacts_blocks_map_scan_pass_packet_without_assigned_pa
 
     payload = json.loads(result.output.strip())
     assert payload["status"] == "blocked"
-    assert "packet core assigned path src/auth/login.ts has no declared final outcome" in payload["errors"]
-    assert "packet core assigned path src/auth/login.ts is missing from packet-local ledger" in payload["errors"]
-    assert "packet core cannot pass with unresolved path src/auth/login.ts" in payload["errors"]
+    assert (
+        "packet core assigned path src/auth/login.ts has no declared final outcome"
+        in payload["errors"]
+    )
+    assert (
+        "packet core assigned path src/auth/login.ts is missing from packet-local ledger"
+        in payload["errors"]
+    )
+    assert (
+        "packet core cannot pass with unresolved path src/auth/login.ts"
+        in payload["errors"]
+    )
 
 
 def test_hook_validate_artifacts_blocks_map_scan_pass_packet_without_paths_read(
@@ -1654,7 +3217,10 @@ def test_hook_validate_artifacts_blocks_map_scan_pass_packet_without_paths_read(
 
     payload = json.loads(result.output.strip())
     assert payload["status"] == "blocked"
-    assert "packet core pass acceptance must include non-empty paths_read" in payload["errors"]
+    assert (
+        "packet core pass acceptance must include non-empty paths_read"
+        in payload["errors"]
+    )
 
 
 def test_hook_validate_artifacts_blocks_map_scan_leader_only_coverage(
@@ -1665,7 +3231,10 @@ def test_hook_validate_artifacts_blocks_map_scan_leader_only_coverage(
     _write_project_cognition_runtime(run_dir)
     _write_project_cognition_scan_artifacts(run_dir)
     (run_dir / "coverage.json").write_text(
-        json.dumps({"rows": [{"path": "src/auth/login.ts"}, {"path": "src/auth/forgotten.ts"}]}) + "\n",
+        json.dumps(
+            {"rows": [{"path": "src/auth/login.ts"}, {"path": "src/auth/forgotten.ts"}]}
+        )
+        + "\n",
         encoding="utf-8",
     )
     (run_dir / "workbench" / "coverage-ledger.json").write_text(
@@ -1686,8 +3255,16 @@ def test_hook_validate_artifacts_blocks_map_scan_leader_only_coverage(
             {
                 "schema_version": 1,
                 "candidate_universe": [
-                    {"path": "src/auth/login.ts", "disposition": "deep_read", "decision_source": "git"},
-                    {"path": "src/auth/forgotten.ts", "disposition": "deep_read", "decision_source": "git"},
+                    {
+                        "path": "src/auth/login.ts",
+                        "disposition": "deep_read",
+                        "decision_source": "git",
+                    },
+                    {
+                        "path": "src/auth/forgotten.ts",
+                        "disposition": "deep_read",
+                        "decision_source": "git",
+                    },
                 ],
                 "included_paths": ["src/auth/login.ts", "src/auth/forgotten.ts"],
                 "excluded_paths": [],
@@ -1731,8 +3308,12 @@ def test_hook_validate_artifacts_blocks_map_scan_cross_packet_worker_coverage(
     run_dir = project / ".specify" / "project-cognition"
     _write_project_cognition_runtime(run_dir)
     _write_project_cognition_scan_artifacts(run_dir)
-    (run_dir / "workbench" / "scan-packets" / "lane-1.md").write_text("# Lane 1\n", encoding="utf-8")
-    (run_dir / "workbench" / "scan-packets" / "lane-2.md").write_text("# Lane 2\n", encoding="utf-8")
+    (run_dir / "workbench" / "scan-packets" / "lane-1.md").write_text(
+        "# Lane 1\n", encoding="utf-8"
+    )
+    (run_dir / "workbench" / "scan-packets" / "lane-2.md").write_text(
+        "# Lane 2\n", encoding="utf-8"
+    )
     (run_dir / "workbench" / "scan-packets" / "core.md").unlink()
     (run_dir / "workbench" / "scan-queue.json").write_text(
         json.dumps(
@@ -1760,14 +3341,22 @@ def test_hook_validate_artifacts_blocks_map_scan_cross_packet_worker_coverage(
         json.dumps(
             {
                 "events": [
-                    {"event_id": "dispatch-1", "packet_id": "lane-1", "event_type": "dispatched"},
+                    {
+                        "event_id": "dispatch-1",
+                        "packet_id": "lane-1",
+                        "event_type": "dispatched",
+                    },
                     {
                         "event_id": "return-1",
                         "packet_id": "lane-1",
                         "event_type": "returned",
                         "worker_result_path": ".specify/project-cognition/workbench/worker-results/lane-1.json",
                     },
-                    {"event_id": "dispatch-2", "packet_id": "lane-2", "event_type": "dispatched"},
+                    {
+                        "event_id": "dispatch-2",
+                        "packet_id": "lane-2",
+                        "event_type": "dispatched",
+                    },
                     {
                         "event_id": "return-2",
                         "packet_id": "lane-2",
@@ -1859,9 +3448,10 @@ def test_hook_validate_artifacts_blocks_map_scan_queue_continuation_state_withou
 
     payload = json.loads(result.output.strip())
     assert payload["status"] == "blocked"
-    assert f"scan-queue packet core state {state} must have an open coverage gap or child continuation packet" in payload[
-        "errors"
-    ]
+    assert (
+        f"scan-queue packet core state {state} must have an open coverage gap or child continuation packet"
+        in payload["errors"]
+    )
 
 
 def test_hook_validate_artifacts_blocks_map_scan_worker_result_path_level_overflow_without_acceptance(
@@ -1888,7 +3478,9 @@ def test_hook_validate_artifacts_blocks_map_scan_worker_result_path_level_overfl
     assert "packet core must define acceptance" in payload["errors"]
 
 
-def test_hook_validate_artifacts_accepts_map_scan_downstream_compatibility_shapes(tmp_path: Path):
+def test_hook_validate_artifacts_accepts_map_scan_downstream_compatibility_shapes(
+    tmp_path: Path,
+):
     project = _create_project(tmp_path)
     run_dir = project / ".specify" / "project-cognition"
     _write_project_cognition_runtime(run_dir)
@@ -1938,7 +3530,8 @@ def test_hook_validate_artifacts_accepts_map_scan_downstream_compatibility_shape
         encoding="utf-8",
     )
     (run_dir / "provisional" / "observations.json").write_text(
-        json.dumps({"observations": ["Active session page owns session UI state"]}) + "\n",
+        json.dumps({"observations": ["Active session page owns session UI state"]})
+        + "\n",
         encoding="utf-8",
     )
     (run_dir / "coverage.json").write_text(
@@ -1948,14 +3541,23 @@ def test_hook_validate_artifacts_accepts_map_scan_downstream_compatibility_shape
 
     result = _invoke_in_project(
         project,
-        ["hook", "validate-artifacts", "--command", "map-scan", "--feature-dir", str(run_dir)],
+        [
+            "hook",
+            "validate-artifacts",
+            "--command",
+            "map-scan",
+            "--feature-dir",
+            str(run_dir),
+        ],
     )
 
     payload = json.loads(result.output.strip())
     assert payload["status"] == "ok"
 
 
-def test_hook_validate_artifacts_blocks_map_scan_when_specify_paths_enter_graph_evidence(tmp_path: Path):
+def test_hook_validate_artifacts_blocks_map_scan_when_specify_paths_enter_graph_evidence(
+    tmp_path: Path,
+):
     project = _create_project(tmp_path)
     run_dir = project / ".specify" / "project-cognition"
     _write_project_cognition_runtime(run_dir)
@@ -1967,15 +3569,27 @@ def test_hook_validate_artifacts_blocks_map_scan_when_specify_paths_enter_graph_
 
     result = _invoke_in_project(
         project,
-        ["hook", "validate-artifacts", "--command", "map-scan", "--feature-dir", str(run_dir)],
+        [
+            "hook",
+            "validate-artifacts",
+            "--command",
+            "map-scan",
+            "--feature-dir",
+            str(run_dir),
+        ],
     )
 
     payload = json.loads(result.output.strip())
     assert payload["status"] == "blocked"
-    assert any(".specify/** must not enter project cognition graph evidence" in message for message in payload["errors"])
+    assert any(
+        ".specify/** must not enter project cognition graph evidence" in message
+        for message in payload["errors"]
+    )
 
 
-def test_hook_validate_artifacts_blocks_map_scan_when_excluded_paths_enter_coverage(tmp_path: Path):
+def test_hook_validate_artifacts_blocks_map_scan_when_excluded_paths_enter_coverage(
+    tmp_path: Path,
+):
     project = _create_project(tmp_path)
     run_dir = project / ".specify" / "project-cognition"
     _write_project_cognition_runtime(run_dir)
@@ -1985,55 +3599,103 @@ def test_hook_validate_artifacts_blocks_map_scan_when_excluded_paths_enter_cover
             {
                 "schema_version": 1,
                 "candidate_universe": [
-                    {"path": "src/auth/login.ts", "disposition": "deep_read", "decision_source": "git"},
-                    {"path": " ./vendor\\lib.go ", "disposition": "excluded", "decision_source": ".cognitionignore"},
+                    {
+                        "path": "src/auth/login.ts",
+                        "disposition": "deep_read",
+                        "decision_source": "git",
+                    },
+                    {
+                        "path": " ./vendor\\lib.go ",
+                        "disposition": "excluded",
+                        "decision_source": ".cognitionignore",
+                    },
                 ],
                 "included_paths": ["src/auth/login.ts"],
                 "excluded_paths": [
-                    {"path": " ./vendor\\lib.go ", "reason": "vendor", "decision_source": ".cognitionignore"}
+                    {
+                        "path": " ./vendor\\lib.go ",
+                        "reason": "vendor",
+                        "decision_source": ".cognitionignore",
+                    }
                 ],
                 "ambiguous_paths": [],
-                "dispositions": {"src/auth/login.ts": "deep_read", "vendor/lib.go": "excluded"},
-                "classification_reasons": {"src/auth/login.ts": "source", "vendor/lib.go": "vendor"},
-                "decision_source": {"src/auth/login.ts": "git", "vendor/lib.go": ".cognitionignore"},
+                "dispositions": {
+                    "src/auth/login.ts": "deep_read",
+                    "vendor/lib.go": "excluded",
+                },
+                "classification_reasons": {
+                    "src/auth/login.ts": "source",
+                    "vendor/lib.go": "vendor",
+                },
+                "decision_source": {
+                    "src/auth/login.ts": "git",
+                    "vendor/lib.go": ".cognitionignore",
+                },
             }
         )
         + "\n",
         encoding="utf-8",
     )
     (run_dir / "coverage.json").write_text(
-        json.dumps({"rows": [{"path": "vendor/lib.go", "criticality": "excluded"}]}) + "\n",
+        json.dumps({"rows": [{"path": "vendor/lib.go", "criticality": "excluded"}]})
+        + "\n",
         encoding="utf-8",
     )
 
     result = _invoke_in_project(
         project,
-        ["hook", "validate-artifacts", "--command", "map-scan", "--feature-dir", str(run_dir)],
+        [
+            "hook",
+            "validate-artifacts",
+            "--command",
+            "map-scan",
+            "--feature-dir",
+            str(run_dir),
+        ],
     )
 
     payload = json.loads(result.output.strip())
     assert payload["status"] == "blocked"
-    assert any("excluded path vendor/lib.go must not appear in coverage.json" in message for message in payload["errors"])
+    assert any(
+        "excluded path vendor/lib.go must not appear in coverage.json" in message
+        for message in payload["errors"]
+    )
 
 
-def test_hook_validate_artifacts_blocks_map_scan_on_malformed_repository_universe(tmp_path: Path):
+def test_hook_validate_artifacts_blocks_map_scan_on_malformed_repository_universe(
+    tmp_path: Path,
+):
     project = _create_project(tmp_path)
     run_dir = project / ".specify" / "project-cognition"
     _write_project_cognition_runtime(run_dir)
     _write_project_cognition_scan_artifacts(run_dir)
-    (run_dir / "workbench" / "repository-universe.json").write_text("{broken\n", encoding="utf-8")
+    (run_dir / "workbench" / "repository-universe.json").write_text(
+        "{broken\n", encoding="utf-8"
+    )
 
     result = _invoke_in_project(
         project,
-        ["hook", "validate-artifacts", "--command", "map-scan", "--feature-dir", str(run_dir)],
+        [
+            "hook",
+            "validate-artifacts",
+            "--command",
+            "map-scan",
+            "--feature-dir",
+            str(run_dir),
+        ],
     )
 
     payload = json.loads(result.output.strip())
     assert payload["status"] == "blocked"
-    assert ".specify/project-cognition/workbench/repository-universe.json: malformed JSON" in payload["errors"]
+    assert (
+        ".specify/project-cognition/workbench/repository-universe.json: malformed JSON"
+        in payload["errors"]
+    )
 
 
-def test_hook_validate_artifacts_blocks_map_scan_when_specify_paths_enter_evidence_files(tmp_path: Path):
+def test_hook_validate_artifacts_blocks_map_scan_when_specify_paths_enter_evidence_files(
+    tmp_path: Path,
+):
     project = _create_project(tmp_path)
     run_dir = project / ".specify" / "project-cognition"
     _write_project_cognition_runtime(run_dir)
@@ -2045,32 +3707,56 @@ def test_hook_validate_artifacts_blocks_map_scan_when_specify_paths_enter_eviden
 
     result = _invoke_in_project(
         project,
-        ["hook", "validate-artifacts", "--command", "map-scan", "--feature-dir", str(run_dir)],
+        [
+            "hook",
+            "validate-artifacts",
+            "--command",
+            "map-scan",
+            "--feature-dir",
+            str(run_dir),
+        ],
     )
 
     payload = json.loads(result.output.strip())
     assert payload["status"] == "blocked"
-    assert any(".specify/** must not enter project cognition graph evidence" in message for message in payload["errors"])
+    assert any(
+        ".specify/** must not enter project cognition graph evidence" in message
+        for message in payload["errors"]
+    )
 
 
-def test_hook_validate_artifacts_blocks_map_scan_on_malformed_graph_shapes(tmp_path: Path):
+def test_hook_validate_artifacts_blocks_map_scan_on_malformed_graph_shapes(
+    tmp_path: Path,
+):
     project = _create_project(tmp_path)
     run_dir = project / ".specify" / "project-cognition"
     _write_project_cognition_runtime(run_dir)
     _write_project_cognition_scan_artifacts(run_dir)
-    (run_dir / "coverage.json").write_text("{\"version\": 1}\n", encoding="utf-8")
+    (run_dir / "coverage.json").write_text('{"version": 1}\n', encoding="utf-8")
 
     result = _invoke_in_project(
         project,
-        ["hook", "validate-artifacts", "--command", "map-scan", "--feature-dir", str(run_dir)],
+        [
+            "hook",
+            "validate-artifacts",
+            "--command",
+            "map-scan",
+            "--feature-dir",
+            str(run_dir),
+        ],
     )
 
     payload = json.loads(result.output.strip())
     assert payload["status"] == "blocked"
-    assert any("coverage.json" in message and "rows" in message for message in payload["errors"])
+    assert any(
+        "coverage.json" in message and "rows" in message
+        for message in payload["errors"]
+    )
 
 
-def test_hook_validate_artifacts_blocks_map_scan_on_malformed_status_shape(tmp_path: Path):
+def test_hook_validate_artifacts_blocks_map_scan_on_malformed_status_shape(
+    tmp_path: Path,
+):
     project = _create_project(tmp_path)
     run_dir = project / ".specify" / "project-cognition"
     _write_project_cognition_runtime(run_dir)
@@ -2079,12 +3765,22 @@ def test_hook_validate_artifacts_blocks_map_scan_on_malformed_status_shape(tmp_p
 
     result = _invoke_in_project(
         project,
-        ["hook", "validate-artifacts", "--command", "map-scan", "--feature-dir", str(run_dir)],
+        [
+            "hook",
+            "validate-artifacts",
+            "--command",
+            "map-scan",
+            "--feature-dir",
+            str(run_dir),
+        ],
     )
 
     payload = json.loads(result.output.strip())
     assert payload["status"] == "blocked"
-    assert any("status.json" in message and "top-level JSON object" in message for message in payload["errors"])
+    assert any(
+        "status.json" in message and "top-level JSON object" in message
+        for message in payload["errors"]
+    )
 
 
 def test_map_scan_artifact_validation_blocks_subagent_blocked_gap(tmp_path: Path):
@@ -2123,47 +3819,79 @@ def test_map_scan_artifact_validation_blocks_subagent_blocked_gap(tmp_path: Path
 
     result = _invoke_in_project(
         project,
-        ["hook", "validate-artifacts", "--command", "map-scan", "--feature-dir", str(run_dir)],
+        [
+            "hook",
+            "validate-artifacts",
+            "--command",
+            "map-scan",
+            "--feature-dir",
+            str(run_dir),
+        ],
     )
 
-    assert result.exit_code == 0
+    assert result.exit_code == 10
     payload = json.loads(result.output)
     assert payload["status"] == "blocked"
     assert any("subagent_blocked" in message for message in payload["errors"])
 
 
-def test_hook_validate_artifacts_blocks_map_build_when_sqlite_database_is_missing(tmp_path: Path):
+def test_hook_validate_artifacts_blocks_map_build_when_sqlite_database_is_missing(
+    tmp_path: Path,
+):
     project = _create_project(tmp_path)
     run_dir = project / ".specify" / "project-cognition"
     run_dir.mkdir(parents=True, exist_ok=True)
-    (run_dir / "status.json").write_text('{"version": 3, "graph_ready": true}\n', encoding="utf-8")
+    (run_dir / "status.json").write_text(
+        '{"version": 3, "graph_ready": true}\n', encoding="utf-8"
+    )
 
     result = _invoke_in_project(
         project,
-        ["hook", "validate-artifacts", "--command", "map-build", "--feature-dir", str(run_dir)],
+        [
+            "hook",
+            "validate-artifacts",
+            "--command",
+            "map-build",
+            "--feature-dir",
+            str(run_dir),
+        ],
     )
 
     payload = json.loads(result.output.strip())
     assert payload["status"] == "blocked"
-    assert not any(message.startswith("missing required artifact:") for message in payload["errors"])
+    assert not any(
+        message.startswith("missing required artifact:")
+        for message in payload["errors"]
+    )
     assert any("project-cognition.db" in message for message in payload["errors"])
 
 
-def test_hook_validate_artifacts_accepts_map_build_when_sqlite_database_exists(tmp_path: Path):
+def test_hook_validate_artifacts_accepts_map_build_when_sqlite_database_exists(
+    tmp_path: Path,
+):
     project = _create_project(tmp_path)
     run_dir = project / ".specify" / "project-cognition"
     _write_project_cognition_runtime(run_dir)
 
     result = _invoke_in_project(
         project,
-        ["hook", "validate-artifacts", "--command", "map-build", "--feature-dir", str(run_dir)],
+        [
+            "hook",
+            "validate-artifacts",
+            "--command",
+            "map-build",
+            "--feature-dir",
+            str(run_dir),
+        ],
     )
 
     payload = json.loads(result.output.strip())
     assert payload["status"] == "ok"
 
 
-def test_hook_validate_artifacts_blocks_map_build_when_path_index_sparse_for_included_paths(tmp_path: Path):
+def test_hook_validate_artifacts_blocks_map_build_when_path_index_sparse_for_included_paths(
+    tmp_path: Path,
+):
     project = _create_project(tmp_path)
     run_dir = project / ".specify" / "project-cognition"
     _write_project_cognition_runtime(run_dir)
@@ -2185,7 +3913,14 @@ def test_hook_validate_artifacts_blocks_map_build_when_path_index_sparse_for_inc
 
     result = _invoke_in_project(
         project,
-        ["hook", "validate-artifacts", "--command", "map-build", "--feature-dir", str(run_dir)],
+        [
+            "hook",
+            "validate-artifacts",
+            "--command",
+            "map-build",
+            "--feature-dir",
+            str(run_dir),
+        ],
     )
 
     payload = json.loads(result.output.strip())
@@ -2214,7 +3949,11 @@ def test_hook_validate_artifacts_blocks_map_build_when_only_unrelated_extra_rows
         json.dumps(
             {
                 "schema_version": 1,
-                "included_paths": ["src/auth/login.ts", "src/billing.ts", "src/orders.ts"],
+                "included_paths": [
+                    "src/auth/login.ts",
+                    "src/billing.ts",
+                    "src/orders.ts",
+                ],
                 "excluded_paths": [],
             }
         )
@@ -2224,7 +3963,14 @@ def test_hook_validate_artifacts_blocks_map_build_when_only_unrelated_extra_rows
 
     result = _invoke_in_project(
         project,
-        ["hook", "validate-artifacts", "--command", "map-build", "--feature-dir", str(run_dir)],
+        [
+            "hook",
+            "validate-artifacts",
+            "--command",
+            "map-build",
+            "--feature-dir",
+            str(run_dir),
+        ],
     )
 
     payload = json.loads(result.output.strip())
@@ -2253,7 +3999,12 @@ def test_hook_validate_artifacts_blocks_map_build_when_important_path_missing_ev
         json.dumps(
             {
                 "schema_version": 1,
-                "included_paths": ["src/auth/login.ts", "src/billing.ts", "src/orders.ts", "src/reports.ts"],
+                "included_paths": [
+                    "src/auth/login.ts",
+                    "src/billing.ts",
+                    "src/orders.ts",
+                    "src/reports.ts",
+                ],
                 "excluded_paths": [],
                 "criticality": {
                     "src/auth/login.ts": "critical",
@@ -2269,7 +4020,14 @@ def test_hook_validate_artifacts_blocks_map_build_when_important_path_missing_ev
 
     result = _invoke_in_project(
         project,
-        ["hook", "validate-artifacts", "--command", "map-build", "--feature-dir", str(run_dir)],
+        [
+            "hook",
+            "validate-artifacts",
+            "--command",
+            "map-build",
+            "--feature-dir",
+            str(run_dir),
+        ],
     )
 
     payload = json.loads(result.output.strip())
@@ -2323,7 +4081,14 @@ def test_hook_validate_artifacts_excludes_accepted_nonblocking_gaps_from_path_in
 
     result = _invoke_in_project(
         project,
-        ["hook", "validate-artifacts", "--command", "map-build", "--feature-dir", str(run_dir)],
+        [
+            "hook",
+            "validate-artifacts",
+            "--command",
+            "map-build",
+            "--feature-dir",
+            str(run_dir),
+        ],
     )
 
     payload = json.loads(result.output.strip())
@@ -2373,7 +4138,14 @@ def test_hook_validate_artifacts_keeps_loose_accepted_gap_in_path_index_denomina
 
     result = _invoke_in_project(
         project,
-        ["hook", "validate-artifacts", "--command", "map-build", "--feature-dir", str(run_dir)],
+        [
+            "hook",
+            "validate-artifacts",
+            "--command",
+            "map-build",
+            "--feature-dir",
+            str(run_dir),
+        ],
     )
 
     payload = json.loads(result.output.strip())
@@ -2428,7 +4200,14 @@ def test_hook_validate_artifacts_keeps_non_low_risk_accepted_gap_in_path_index_d
 
     result = _invoke_in_project(
         project,
-        ["hook", "validate-artifacts", "--command", "map-build", "--feature-dir", str(run_dir)],
+        [
+            "hook",
+            "validate-artifacts",
+            "--command",
+            "map-build",
+            "--feature-dir",
+            str(run_dir),
+        ],
     )
 
     payload = json.loads(result.output.strip())
@@ -2476,16 +4255,25 @@ def test_map_build_artifact_validation_blocks_subagent_blocked_gap(tmp_path: Pat
 
     result = _invoke_in_project(
         project,
-        ["hook", "validate-artifacts", "--command", "map-build", "--feature-dir", str(run_dir)],
+        [
+            "hook",
+            "validate-artifacts",
+            "--command",
+            "map-build",
+            "--feature-dir",
+            str(run_dir),
+        ],
     )
 
-    assert result.exit_code == 0, result.output
+    assert result.exit_code == 10, result.output
     payload = json.loads(result.output)
     assert payload["status"] == "blocked"
     assert any("subagent_blocked" in message for message in payload["errors"])
 
 
-def test_hook_validate_artifacts_blocks_map_build_when_database_is_not_query_ready(tmp_path: Path):
+def test_hook_validate_artifacts_blocks_map_build_when_database_is_not_query_ready(
+    tmp_path: Path,
+):
     project = _create_project(tmp_path)
     run_dir = project / ".specify" / "project-cognition"
     run_dir.mkdir(parents=True, exist_ok=True)
@@ -2499,7 +4287,14 @@ def test_hook_validate_artifacts_blocks_map_build_when_database_is_not_query_rea
 
     result = _invoke_in_project(
         project,
-        ["hook", "validate-artifacts", "--command", "map-build", "--feature-dir", str(run_dir)],
+        [
+            "hook",
+            "validate-artifacts",
+            "--command",
+            "map-build",
+            "--feature-dir",
+            str(run_dir),
+        ],
     )
 
     payload = json.loads(result.output.strip())
@@ -2507,7 +4302,9 @@ def test_hook_validate_artifacts_blocks_map_build_when_database_is_not_query_rea
     assert any("project-cognition.db" in message for message in payload["errors"])
 
 
-def test_hook_validate_artifacts_blocks_map_build_when_fake_db_is_schema_v1(tmp_path: Path):
+def test_hook_validate_artifacts_blocks_map_build_when_fake_db_is_schema_v1(
+    tmp_path: Path,
+):
     project = _create_project(tmp_path)
     run_dir = project / ".specify" / "project-cognition"
     _write_project_cognition_runtime(run_dir)
@@ -2520,7 +4317,14 @@ def test_hook_validate_artifacts_blocks_map_build_when_fake_db_is_schema_v1(tmp_
 
     result = _invoke_in_project(
         project,
-        ["hook", "validate-artifacts", "--command", "map-build", "--feature-dir", str(run_dir)],
+        [
+            "hook",
+            "validate-artifacts",
+            "--command",
+            "map-build",
+            "--feature-dir",
+            str(run_dir),
+        ],
     )
 
     payload = json.loads(result.output.strip())
@@ -2529,13 +4333,17 @@ def test_hook_validate_artifacts_blocks_map_build_when_fake_db_is_schema_v1(tmp_
     assert any("run_map_scan_build" in message for message in payload["errors"])
 
 
-def test_hook_validate_artifacts_blocks_map_build_when_specify_paths_enter_graph_store(tmp_path: Path):
+def test_hook_validate_artifacts_blocks_map_build_when_specify_paths_enter_graph_store(
+    tmp_path: Path,
+):
     project = _create_project(tmp_path)
     run_dir = project / ".specify" / "project-cognition"
     _write_project_cognition_runtime(run_dir)
 
     with sqlite3.connect(run_dir / "project-cognition.db") as conn:
-        generation_id = conn.execute("SELECT id FROM generations WHERE state = 'active'").fetchone()[0]
+        generation_id = conn.execute(
+            "SELECT id FROM generations WHERE state = 'active'"
+        ).fetchone()[0]
         conn.execute(
             "INSERT OR REPLACE INTO evidence(id, generation_id, source_kind, source_path, commit_sha, span, extractor, content_hash, captured_at, attrs_json) VALUES ('E-specify', ?, 'source', '.specify/memory/project-rules.md', 'abc123', '', 'test', 'hash-specify', '2026-05-23T00:00:00Z', '{}')",
             (generation_id,),
@@ -2548,15 +4356,27 @@ def test_hook_validate_artifacts_blocks_map_build_when_specify_paths_enter_graph
 
     result = _invoke_in_project(
         project,
-        ["hook", "validate-artifacts", "--command", "map-build", "--feature-dir", str(run_dir)],
+        [
+            "hook",
+            "validate-artifacts",
+            "--command",
+            "map-build",
+            "--feature-dir",
+            str(run_dir),
+        ],
     )
 
     payload = json.loads(result.output.strip())
     assert payload["status"] == "blocked"
-    assert any(".specify/** must not enter project cognition graph store" in message for message in payload["errors"])
+    assert any(
+        ".specify/** must not enter project cognition graph store" in message
+        for message in payload["errors"]
+    )
 
 
-def test_hook_validate_artifacts_blocks_map_build_when_sqlite_database_is_empty(tmp_path: Path):
+def test_hook_validate_artifacts_blocks_map_build_when_sqlite_database_is_empty(
+    tmp_path: Path,
+):
     project = _create_project(tmp_path)
     run_dir = project / ".specify" / "project-cognition"
     _write_project_cognition_runtime(run_dir)
@@ -2564,15 +4384,27 @@ def test_hook_validate_artifacts_blocks_map_build_when_sqlite_database_is_empty(
 
     result = _invoke_in_project(
         project,
-        ["hook", "validate-artifacts", "--command", "map-build", "--feature-dir", str(run_dir)],
+        [
+            "hook",
+            "validate-artifacts",
+            "--command",
+            "map-build",
+            "--feature-dir",
+            str(run_dir),
+        ],
     )
 
     payload = json.loads(result.output.strip())
     assert payload["status"] == "blocked"
-    assert any("project-cognition.db" in message and "must not be empty" in message for message in payload["errors"])
+    assert any(
+        "project-cognition.db" in message and "must not be empty" in message
+        for message in payload["errors"]
+    )
 
 
-def test_hook_validate_artifacts_blocks_map_build_on_malformed_status_shape(tmp_path: Path):
+def test_hook_validate_artifacts_blocks_map_build_on_malformed_status_shape(
+    tmp_path: Path,
+):
     project = _create_project(tmp_path)
     run_dir = project / ".specify" / "project-cognition"
     _write_project_cognition_runtime(run_dir)
@@ -2580,23 +4412,44 @@ def test_hook_validate_artifacts_blocks_map_build_on_malformed_status_shape(tmp_
 
     result = _invoke_in_project(
         project,
-        ["hook", "validate-artifacts", "--command", "map-build", "--feature-dir", str(run_dir)],
+        [
+            "hook",
+            "validate-artifacts",
+            "--command",
+            "map-build",
+            "--feature-dir",
+            str(run_dir),
+        ],
     )
 
     payload = json.loads(result.output.strip())
     assert payload["status"] == "blocked"
-    assert any("status.json" in message and "top-level JSON object" in message for message in payload["errors"])
+    assert any(
+        "status.json" in message and "top-level JSON object" in message
+        for message in payload["errors"]
+    )
 
 
-def test_hook_validate_artifacts_blocks_map_update_when_last_update_id_is_missing(tmp_path: Path):
+def test_hook_validate_artifacts_blocks_map_update_when_last_update_id_is_missing(
+    tmp_path: Path,
+):
     project = _create_project(tmp_path)
     run_dir = project / ".specify" / "project-cognition"
     _write_project_cognition_runtime(run_dir)
-    (run_dir / "status.json").write_text("{\"version\": 1, \"graph_ready\": true}\n", encoding="utf-8")
+    (run_dir / "status.json").write_text(
+        '{"version": 1, "graph_ready": true}\n', encoding="utf-8"
+    )
 
     result = _invoke_in_project(
         project,
-        ["hook", "validate-artifacts", "--command", "map-update", "--feature-dir", str(run_dir)],
+        [
+            "hook",
+            "validate-artifacts",
+            "--command",
+            "map-update",
+            "--feature-dir",
+            str(run_dir),
+        ],
     )
 
     payload = json.loads(result.output.strip())
@@ -2611,7 +4464,14 @@ def test_hook_validate_artifacts_rejects_map_update_with_freshness_only(tmp_path
 
     result = _invoke_in_project(
         project,
-        ["hook", "validate-artifacts", "--command", "map-update", "--feature-dir", str(run_dir)],
+        [
+            "hook",
+            "validate-artifacts",
+            "--command",
+            "map-update",
+            "--feature-dir",
+            str(run_dir),
+        ],
     )
 
     payload = json.loads(result.output.strip())
@@ -2619,7 +4479,9 @@ def test_hook_validate_artifacts_rejects_map_update_with_freshness_only(tmp_path
     assert any("result_state" in message for message in payload["errors"])
 
 
-def test_hook_validate_artifacts_accepts_map_update_with_ready_result_state(tmp_path: Path):
+def test_hook_validate_artifacts_accepts_map_update_with_ready_result_state(
+    tmp_path: Path,
+):
     project = _create_project(tmp_path)
     run_dir = project / ".specify" / "project-cognition"
     _write_project_cognition_runtime(run_dir)
@@ -2635,14 +4497,23 @@ def test_hook_validate_artifacts_accepts_map_update_with_ready_result_state(tmp_
 
     result = _invoke_in_project(
         project,
-        ["hook", "validate-artifacts", "--command", "map-update", "--feature-dir", str(run_dir)],
+        [
+            "hook",
+            "validate-artifacts",
+            "--command",
+            "map-update",
+            "--feature-dir",
+            str(run_dir),
+        ],
     )
 
     payload = json.loads(result.output.strip())
     assert payload["status"] == "ok"
 
 
-def test_hook_validate_artifacts_accepts_map_update_when_status_records_partial_refresh(tmp_path: Path):
+def test_hook_validate_artifacts_accepts_map_update_when_status_records_partial_refresh(
+    tmp_path: Path,
+):
     project = _create_project(tmp_path)
     run_dir = project / ".specify" / "project-cognition"
     _write_project_cognition_runtime(run_dir)
@@ -2655,22 +4526,40 @@ def test_hook_validate_artifacts_accepts_map_update_when_status_records_partial_
 
     result = _invoke_in_project(
         project,
-        ["hook", "validate-artifacts", "--command", "map-update", "--feature-dir", str(run_dir)],
+        [
+            "hook",
+            "validate-artifacts",
+            "--command",
+            "map-update",
+            "--feature-dir",
+            str(run_dir),
+        ],
     )
 
     payload = json.loads(result.output.strip())
     assert payload["status"] == "ok"
 
 
-def test_hook_validate_artifacts_rejects_map_update_with_last_update_id_only(tmp_path: Path):
+def test_hook_validate_artifacts_rejects_map_update_with_last_update_id_only(
+    tmp_path: Path,
+):
     project = _create_project(tmp_path)
     run_dir = project / ".specify" / "project-cognition"
     _write_project_cognition_runtime(run_dir)
-    _update_project_cognition_status(run_dir, version=1, last_update_id="UPD-001", stale_paths=["src/app.py"])
+    _update_project_cognition_status(
+        run_dir, version=1, last_update_id="UPD-001", stale_paths=["src/app.py"]
+    )
 
     result = _invoke_in_project(
         project,
-        ["hook", "validate-artifacts", "--command", "map-update", "--feature-dir", str(run_dir)],
+        [
+            "hook",
+            "validate-artifacts",
+            "--command",
+            "map-update",
+            "--feature-dir",
+            str(run_dir),
+        ],
     )
 
     payload = json.loads(result.output.strip())
@@ -2678,22 +4567,35 @@ def test_hook_validate_artifacts_rejects_map_update_with_last_update_id_only(tmp
     assert any("result_state" in message for message in payload["errors"])
 
 
-def test_hook_validate_artifacts_accepts_map_update_without_graph_json_runtime(tmp_path: Path):
+def test_hook_validate_artifacts_accepts_map_update_without_graph_json_runtime(
+    tmp_path: Path,
+):
     project = _create_project(tmp_path)
     run_dir = project / ".specify" / "project-cognition"
     _write_project_cognition_runtime(run_dir)
-    _update_project_cognition_status(run_dir, last_update_id="UPD-001", last_update_outcome="no_op")
+    _update_project_cognition_status(
+        run_dir, last_update_id="UPD-001", last_update_outcome="no_op"
+    )
 
     result = _invoke_in_project(
         project,
-        ["hook", "validate-artifacts", "--command", "map-update", "--feature-dir", str(run_dir)],
+        [
+            "hook",
+            "validate-artifacts",
+            "--command",
+            "map-update",
+            "--feature-dir",
+            str(run_dir),
+        ],
     )
 
     payload = json.loads(result.output.strip())
     assert payload["status"] == "ok"
 
 
-def test_hook_validate_artifacts_blocks_prd_scan_on_malformed_json_shapes(tmp_path: Path):
+def test_hook_validate_artifacts_blocks_prd_scan_on_malformed_json_shapes(
+    tmp_path: Path,
+):
     project = _create_project(tmp_path)
     run_dir = project / ".specify" / "prd-runs" / "260504-demo-prd-scan-bad-shapes"
     run_dir.mkdir(parents=True, exist_ok=True)
@@ -2702,9 +4604,9 @@ def test_hook_validate_artifacts_blocks_prd_scan_on_malformed_json_shapes(tmp_pa
         "prd-scan.md": "# PRD Scan\n",
         "coverage-ledger.md": "# Coverage Ledger\n",
         "coverage-ledger.json": "[]\n",
-        "capability-ledger.json": "{\"capabilities\": {}}\n",
-        "artifact-contracts.json": "{\"artifacts\": {}}\n",
-        "reconstruction-checklist.json": "{\"checks\": {}}\n",
+        "capability-ledger.json": '{"capabilities": {}}\n',
+        "artifact-contracts.json": '{"artifacts": {}}\n',
+        "reconstruction-checklist.json": '{"checks": {}}\n',
     }.items():
         (run_dir / relative).write_text(content, encoding="utf-8")
     (run_dir / "scan-packets").mkdir()
@@ -2713,7 +4615,14 @@ def test_hook_validate_artifacts_blocks_prd_scan_on_malformed_json_shapes(tmp_pa
 
     result = _invoke_in_project(
         project,
-        ["hook", "validate-artifacts", "--command", "prd-scan", "--feature-dir", str(run_dir)],
+        [
+            "hook",
+            "validate-artifacts",
+            "--command",
+            "prd-scan",
+            "--feature-dir",
+            str(run_dir),
+        ],
     )
 
     payload = json.loads(result.output.strip())
@@ -2721,22 +4630,37 @@ def test_hook_validate_artifacts_blocks_prd_scan_on_malformed_json_shapes(tmp_pa
     assert any("coverage-ledger.json" in message for message in payload["errors"])
     assert any("capability-ledger.json" in message for message in payload["errors"])
     assert any("artifact-contracts.json" in message for message in payload["errors"])
-    assert any("reconstruction-checklist.json" in message for message in payload["errors"])
+    assert any(
+        "reconstruction-checklist.json" in message for message in payload["errors"]
+    )
 
 
 def test_hook_validate_artifacts_blocks_shallow_prd_build(tmp_path: Path):
     project = _create_project(tmp_path)
     run_dir = project / ".specify" / "prd-runs" / "260504-demo-prd-build"
     run_dir.mkdir(parents=True, exist_ok=True)
-    (run_dir / "workflow-state.md").write_text("# Workflow State\n", encoding="utf-8")
-    (run_dir / "prd-scan.md").write_text("# PRD Scan\n", encoding="utf-8")
-    (run_dir / "coverage-ledger.json").write_text("{\"version\": 1, \"rows\": []}\n", encoding="utf-8")
-    (run_dir / "capability-ledger.json").write_text(
-        "{\"capabilities\": [{\"id\": \"CAP-001\", \"tier\": \"critical\", \"status\": \"surface-only\"}]}\n",
+    (run_dir / "workflow-state.md").write_text(
+        "# Workflow State\n\n## Current Command\n\n"
+        "- active_command: sp-prd-build\n- status: complete\n"
+        "- build_status: complete\n",
         encoding="utf-8",
     )
-    (run_dir / "artifact-contracts.json").write_text("{\"artifacts\": []}\n", encoding="utf-8")
-    (run_dir / "reconstruction-checklist.json").write_text("{\"checks\": []}\n", encoding="utf-8")
+    (run_dir / "prd-scan.md").write_text("# PRD Scan\n", encoding="utf-8")
+    (run_dir / "coverage-ledger.json").write_text(
+        '{"version":1,"rows":[{"surface":"src/app.py","status":"covered",'
+        '"evidence":["evidence/api.md"]}]}\n',
+        encoding="utf-8",
+    )
+    (run_dir / "capability-ledger.json").write_text(
+        '{"capabilities": [{"id": "CAP-001", "tier": "critical", "status": "surface-only"}]}\n',
+        encoding="utf-8",
+    )
+    (run_dir / "artifact-contracts.json").write_text(
+        '{"artifacts": []}\n', encoding="utf-8"
+    )
+    (run_dir / "reconstruction-checklist.json").write_text(
+        '{"checks": []}\n', encoding="utf-8"
+    )
     (run_dir / "scan-packets").mkdir()
     (run_dir / "evidence").mkdir()
     (run_dir / "worker-results").mkdir()
@@ -2749,24 +4673,38 @@ def test_hook_validate_artifacts_blocks_shallow_prd_build(tmp_path: Path):
 
     result = _invoke_in_project(
         project,
-        ["hook", "validate-artifacts", "--command", "prd-build", "--feature-dir", str(run_dir)],
+        [
+            "hook",
+            "validate-artifacts",
+            "--command",
+            "prd-build",
+            "--feature-dir",
+            str(run_dir),
+        ],
     )
 
     payload = json.loads(result.output.strip())
     assert payload["status"] == "blocked"
-    assert any("critical" in message.lower() or "artifact" in message.lower() for message in payload["errors"])
+    assert any(
+        "critical" in message.lower() or "artifact" in message.lower()
+        for message in payload["errors"]
+    )
 
 
-def test_hook_validate_artifacts_blocks_prd_build_when_scan_package_is_missing(tmp_path: Path):
+def test_hook_validate_artifacts_blocks_prd_build_when_scan_package_is_missing(
+    tmp_path: Path,
+):
     project = _create_project(tmp_path)
     run_dir = project / ".specify" / "prd-runs" / "260504-demo-prd-build-missing-scan"
     run_dir.mkdir(parents=True, exist_ok=True)
     (run_dir / "workflow-state.md").write_text("# Workflow State\n", encoding="utf-8")
     (run_dir / "capability-ledger.json").write_text(
-        "{\"capabilities\": [{\"id\": \"CAP-002\", \"tier\": \"critical\", \"status\": \"reconstruction-ready\"}]}\n",
+        '{"capabilities": [{"id": "CAP-002", "tier": "critical", "status": "reconstruction-ready"}]}\n',
         encoding="utf-8",
     )
-    (run_dir / "artifact-contracts.json").write_text("{\"artifacts\": []}\n", encoding="utf-8")
+    (run_dir / "artifact-contracts.json").write_text(
+        '{"artifacts": []}\n', encoding="utf-8"
+    )
     master_dir = run_dir / "master"
     master_dir.mkdir()
     (master_dir / "master-pack.md").write_text("# Master Pack\n", encoding="utf-8")
@@ -2774,21 +4712,36 @@ def test_hook_validate_artifacts_blocks_prd_build_when_scan_package_is_missing(t
     exports_dir.mkdir()
     (exports_dir / "README.md").write_text("# Export Navigation\n", encoding="utf-8")
     (exports_dir / "prd.md").write_text("# PRD\n", encoding="utf-8")
-    (exports_dir / "reconstruction-appendix.md").write_text("# Appendix\n", encoding="utf-8")
+    (exports_dir / "reconstruction-appendix.md").write_text(
+        "# Appendix\n", encoding="utf-8"
+    )
     (exports_dir / "data-model.md").write_text("# Data Model\n", encoding="utf-8")
-    (exports_dir / "integration-contracts.md").write_text("# Integration Contracts\n", encoding="utf-8")
-    (exports_dir / "runtime-behaviors.md").write_text("# Runtime Behaviors\n", encoding="utf-8")
+    (exports_dir / "integration-contracts.md").write_text(
+        "# Integration Contracts\n", encoding="utf-8"
+    )
+    (exports_dir / "runtime-behaviors.md").write_text(
+        "# Runtime Behaviors\n", encoding="utf-8"
+    )
 
     result = _invoke_in_project(
         project,
-        ["hook", "validate-artifacts", "--command", "prd-build", "--feature-dir", str(run_dir)],
+        [
+            "hook",
+            "validate-artifacts",
+            "--command",
+            "prd-build",
+            "--feature-dir",
+            str(run_dir),
+        ],
     )
 
     payload = json.loads(result.output.strip())
     assert payload["status"] == "blocked"
     assert any("prd-scan.md" in message for message in payload["errors"])
     assert any("coverage-ledger.json" in message for message in payload["errors"])
-    assert any("reconstruction-checklist.json" in message for message in payload["errors"])
+    assert any(
+        "reconstruction-checklist.json" in message for message in payload["errors"]
+    )
     assert any("scan-packets" in message for message in payload["errors"])
     assert any("evidence" in message for message in payload["errors"])
     assert any("worker-results" in message for message in payload["errors"])
@@ -2800,14 +4753,21 @@ def test_hook_validate_artifacts_supports_prd_build_positive_path(tmp_path: Path
     run_dir.mkdir(parents=True, exist_ok=True)
     _write_prd_build_ready_scan_artifacts(run_dir)
     (run_dir / "capability-ledger.json").write_text(
-        "{\"capabilities\": [{\"id\": \"CAP-003\", \"tier\": \"critical\", \"status\": \"L4 Reconstruction-Ready\"}]}\n",
+        '{"capabilities": [{"id": "CAP-003", "tier": "critical", "status": "L4 Reconstruction-Ready"}]}\n',
         encoding="utf-8",
     )
     _write_heavy_prd_build_exports(run_dir)
 
     result = _invoke_in_project(
         project,
-        ["hook", "validate-artifacts", "--command", "prd-build", "--feature-dir", str(run_dir)],
+        [
+            "hook",
+            "validate-artifacts",
+            "--command",
+            "prd-build",
+            "--feature-dir",
+            str(run_dir),
+        ],
     )
 
     payload = json.loads(result.output.strip())
@@ -2815,31 +4775,60 @@ def test_hook_validate_artifacts_supports_prd_build_positive_path(tmp_path: Path
     assert payload["status"] == "ok"
 
 
-def test_hook_validate_artifacts_blocks_prd_build_when_heavy_exports_are_missing(tmp_path: Path):
+def test_hook_validate_artifacts_blocks_prd_build_when_heavy_exports_are_missing(
+    tmp_path: Path,
+):
     project = _create_project(tmp_path)
-    run_dir = project / ".specify" / "prd-runs" / "260504-demo-prd-build-missing-heavy-exports"
+    run_dir = (
+        project
+        / ".specify"
+        / "prd-runs"
+        / "260504-demo-prd-build-missing-heavy-exports"
+    )
     run_dir.mkdir(parents=True, exist_ok=True)
     _write_prd_build_ready_scan_artifacts(run_dir)
     _write_legacy_prd_build_exports(run_dir)
 
     result = _invoke_in_project(
         project,
-        ["hook", "validate-artifacts", "--command", "prd-build", "--feature-dir", str(run_dir)],
+        [
+            "hook",
+            "validate-artifacts",
+            "--command",
+            "prd-build",
+            "--feature-dir",
+            str(run_dir),
+        ],
     )
 
     payload = json.loads(result.output.strip())
     assert payload["status"] == "blocked"
-    assert any("exports/config-contracts.md" in message for message in payload["errors"])
-    assert any("exports/protocol-contracts.md" in message for message in payload["errors"])
+    assert any(
+        "exports/config-contracts.md" in message for message in payload["errors"]
+    )
+    assert any(
+        "exports/protocol-contracts.md" in message for message in payload["errors"]
+    )
     assert any("exports/state-machines.md" in message for message in payload["errors"])
     assert any("exports/error-semantics.md" in message for message in payload["errors"])
-    assert any("exports/verification-surface.md" in message for message in payload["errors"])
-    assert any("exports/reconstruction-risks.md" in message for message in payload["errors"])
+    assert any(
+        "exports/verification-surface.md" in message for message in payload["errors"]
+    )
+    assert any(
+        "exports/reconstruction-risks.md" in message for message in payload["errors"]
+    )
 
 
-def test_hook_validate_artifacts_blocks_prd_build_when_export_navigation_is_missing(tmp_path: Path):
+def test_hook_validate_artifacts_blocks_prd_build_when_export_navigation_is_missing(
+    tmp_path: Path,
+):
     project = _create_project(tmp_path)
-    run_dir = project / ".specify" / "prd-runs" / "260504-demo-prd-build-missing-export-readme"
+    run_dir = (
+        project
+        / ".specify"
+        / "prd-runs"
+        / "260504-demo-prd-build-missing-export-readme"
+    )
     run_dir.mkdir(parents=True, exist_ok=True)
     _write_prd_build_ready_scan_artifacts(run_dir)
     _write_heavy_prd_build_exports(run_dir)
@@ -2847,7 +4836,14 @@ def test_hook_validate_artifacts_blocks_prd_build_when_export_navigation_is_miss
 
     result = _invoke_in_project(
         project,
-        ["hook", "validate-artifacts", "--command", "prd-build", "--feature-dir", str(run_dir)],
+        [
+            "hook",
+            "validate-artifacts",
+            "--command",
+            "prd-build",
+            "--feature-dir",
+            str(run_dir),
+        ],
     )
 
     payload = json.loads(result.output.strip())
@@ -2855,44 +4851,70 @@ def test_hook_validate_artifacts_blocks_prd_build_when_export_navigation_is_miss
     assert any("exports/README.md" in message for message in payload["errors"])
 
 
-def test_hook_validate_artifacts_blocks_prd_build_when_worker_result_lacks_required_fields(tmp_path: Path):
+def test_hook_validate_artifacts_blocks_prd_build_when_worker_result_lacks_required_fields(
+    tmp_path: Path,
+):
     project = _create_project(tmp_path)
-    run_dir = project / ".specify" / "prd-runs" / "260504-demo-prd-build-worker-result-shallow"
+    run_dir = (
+        project
+        / ".specify"
+        / "prd-runs"
+        / "260504-demo-prd-build-worker-result-shallow"
+    )
     run_dir.mkdir(parents=True, exist_ok=True)
     _write_prd_build_ready_scan_artifacts(run_dir)
     _write_legacy_prd_build_exports(run_dir)
     _write_heavy_prd_build_exports(run_dir)
-    (run_dir / "worker-results" / "lane-a.json").write_text("{\"status\": \"ok\"}\n", encoding="utf-8")
+    (run_dir / "worker-results" / "lane-a.json").write_text(
+        '{"status": "ok"}\n', encoding="utf-8"
+    )
 
     result = _invoke_in_project(
         project,
-        ["hook", "validate-artifacts", "--command", "prd-build", "--feature-dir", str(run_dir)],
+        [
+            "hook",
+            "validate-artifacts",
+            "--command",
+            "prd-build",
+            "--feature-dir",
+            str(run_dir),
+        ],
     )
 
     payload = json.loads(result.output.strip())
     assert payload["status"] == "blocked"
     assert any(
-        "worker-results/lane-a.json" in message and "paths_read" in message for message in payload["errors"]
+        "worker-results/lane-a.json" in message and "paths_read" in message
+        for message in payload["errors"]
     )
-    assert any("worker-results/lane-a.json" in message and "unknowns" in message for message in payload["errors"])
+    assert any(
+        "worker-results/lane-a.json" in message and "unknowns" in message
+        for message in payload["errors"]
+    )
 
 
-def test_hook_validate_artifacts_blocks_prd_build_when_scan_directories_are_empty(tmp_path: Path):
+def test_hook_validate_artifacts_blocks_prd_build_when_scan_directories_are_empty(
+    tmp_path: Path,
+):
     project = _create_project(tmp_path)
     run_dir = project / ".specify" / "prd-runs" / "260504-demo-prd-build-empty-dirs"
     run_dir.mkdir(parents=True, exist_ok=True)
     (run_dir / "workflow-state.md").write_text("# Workflow State\n", encoding="utf-8")
     (run_dir / "prd-scan.md").write_text("# PRD Scan\n", encoding="utf-8")
-    (run_dir / "coverage-ledger.json").write_text("{\"version\": 1, \"rows\": []}\n", encoding="utf-8")
+    (run_dir / "coverage-ledger.json").write_text(
+        '{"version": 1, "rows": []}\n', encoding="utf-8"
+    )
     (run_dir / "capability-ledger.json").write_text(
-        "{\"capabilities\": [{\"id\": \"CAP-006\", \"tier\": \"critical\", \"status\": \"reconstruction-ready\"}]}\n",
+        '{"capabilities": [{"id": "CAP-006", "tier": "critical", "status": "reconstruction-ready"}]}\n',
         encoding="utf-8",
     )
     (run_dir / "artifact-contracts.json").write_text(
-        "{\"artifacts\": [{\"id\": \"ART-002\", \"status\": \"landed\"}]}\n",
+        '{"artifacts": [{"id": "ART-002", "status": "landed"}]}\n',
         encoding="utf-8",
     )
-    (run_dir / "reconstruction-checklist.json").write_text("{\"checks\": [{\"id\": \"CHK-002\"}]}\n", encoding="utf-8")
+    (run_dir / "reconstruction-checklist.json").write_text(
+        '{"checks": [{"id": "CHK-002"}]}\n', encoding="utf-8"
+    )
     (run_dir / "scan-packets").mkdir()
     (run_dir / "evidence").mkdir()
     (run_dir / "worker-results").mkdir()
@@ -2903,39 +4925,66 @@ def test_hook_validate_artifacts_blocks_prd_build_when_scan_directories_are_empt
     exports_dir.mkdir()
     (exports_dir / "README.md").write_text("# Export Navigation\n", encoding="utf-8")
     (exports_dir / "prd.md").write_text("# PRD\n", encoding="utf-8")
-    (exports_dir / "reconstruction-appendix.md").write_text("# Appendix\n", encoding="utf-8")
+    (exports_dir / "reconstruction-appendix.md").write_text(
+        "# Appendix\n", encoding="utf-8"
+    )
     (exports_dir / "data-model.md").write_text("# Data Model\n", encoding="utf-8")
-    (exports_dir / "integration-contracts.md").write_text("# Integration Contracts\n", encoding="utf-8")
-    (exports_dir / "runtime-behaviors.md").write_text("# Runtime Behaviors\n", encoding="utf-8")
+    (exports_dir / "integration-contracts.md").write_text(
+        "# Integration Contracts\n", encoding="utf-8"
+    )
+    (exports_dir / "runtime-behaviors.md").write_text(
+        "# Runtime Behaviors\n", encoding="utf-8"
+    )
 
     result = _invoke_in_project(
         project,
-        ["hook", "validate-artifacts", "--command", "prd-build", "--feature-dir", str(run_dir)],
+        [
+            "hook",
+            "validate-artifacts",
+            "--command",
+            "prd-build",
+            "--feature-dir",
+            str(run_dir),
+        ],
     )
 
     payload = json.loads(result.output.strip())
     assert payload["status"] == "blocked"
-    assert any("scan-packets must contain at least one" in message for message in payload["errors"])
-    assert any("worker-results must contain at least one" in message for message in payload["errors"])
-    assert any("evidence must contain at least one" in message for message in payload["errors"])
+    assert any(
+        "scan-packets must contain at least one" in message
+        for message in payload["errors"]
+    )
+    assert any(
+        "worker-results must contain at least one" in message
+        for message in payload["errors"]
+    )
+    assert any(
+        "evidence must contain at least one" in message for message in payload["errors"]
+    )
 
 
-def test_hook_validate_artifacts_blocks_prd_build_when_scan_surfaces_are_files_not_directories(tmp_path: Path):
+def test_hook_validate_artifacts_blocks_prd_build_when_scan_surfaces_are_files_not_directories(
+    tmp_path: Path,
+):
     project = _create_project(tmp_path)
     run_dir = project / ".specify" / "prd-runs" / "260504-demo-prd-build-file-surfaces"
     run_dir.mkdir(parents=True, exist_ok=True)
     (run_dir / "workflow-state.md").write_text("# Workflow State\n", encoding="utf-8")
     (run_dir / "prd-scan.md").write_text("# PRD Scan\n", encoding="utf-8")
-    (run_dir / "coverage-ledger.json").write_text("{\"version\": 1, \"rows\": []}\n", encoding="utf-8")
+    (run_dir / "coverage-ledger.json").write_text(
+        '{"version": 1, "rows": []}\n', encoding="utf-8"
+    )
     (run_dir / "capability-ledger.json").write_text(
-        "{\"capabilities\": [{\"id\": \"CAP-007\", \"tier\": \"critical\", \"status\": \"reconstruction-ready\"}]}\n",
+        '{"capabilities": [{"id": "CAP-007", "tier": "critical", "status": "reconstruction-ready"}]}\n',
         encoding="utf-8",
     )
     (run_dir / "artifact-contracts.json").write_text(
-        "{\"artifacts\": [{\"id\": \"ART-003\", \"status\": \"landed\"}]}\n",
+        '{"artifacts": [{"id": "ART-003", "status": "landed"}]}\n',
         encoding="utf-8",
     )
-    (run_dir / "reconstruction-checklist.json").write_text("{\"checks\": [{\"id\": \"CHK-003\"}]}\n", encoding="utf-8")
+    (run_dir / "reconstruction-checklist.json").write_text(
+        '{"checks": [{"id": "CHK-003"}]}\n', encoding="utf-8"
+    )
     (run_dir / "scan-packets").write_text("not a dir\n", encoding="utf-8")
     (run_dir / "evidence").write_text("not a dir\n", encoding="utf-8")
     (run_dir / "worker-results").write_text("not a dir\n", encoding="utf-8")
@@ -2946,42 +4995,76 @@ def test_hook_validate_artifacts_blocks_prd_build_when_scan_surfaces_are_files_n
     exports_dir.mkdir()
     (exports_dir / "README.md").write_text("# Export Navigation\n", encoding="utf-8")
     (exports_dir / "prd.md").write_text("# PRD\n", encoding="utf-8")
-    (exports_dir / "reconstruction-appendix.md").write_text("# Appendix\n", encoding="utf-8")
+    (exports_dir / "reconstruction-appendix.md").write_text(
+        "# Appendix\n", encoding="utf-8"
+    )
     (exports_dir / "data-model.md").write_text("# Data Model\n", encoding="utf-8")
-    (exports_dir / "integration-contracts.md").write_text("# Integration Contracts\n", encoding="utf-8")
-    (exports_dir / "runtime-behaviors.md").write_text("# Runtime Behaviors\n", encoding="utf-8")
+    (exports_dir / "integration-contracts.md").write_text(
+        "# Integration Contracts\n", encoding="utf-8"
+    )
+    (exports_dir / "runtime-behaviors.md").write_text(
+        "# Runtime Behaviors\n", encoding="utf-8"
+    )
 
     result = _invoke_in_project(
         project,
-        ["hook", "validate-artifacts", "--command", "prd-build", "--feature-dir", str(run_dir)],
+        [
+            "hook",
+            "validate-artifacts",
+            "--command",
+            "prd-build",
+            "--feature-dir",
+            str(run_dir),
+        ],
     )
 
     payload = json.loads(result.output.strip())
     assert payload["status"] == "blocked"
-    assert any("required artifact must be a directory: scan-packets" in message for message in payload["errors"])
-    assert any("required artifact must be a directory: worker-results" in message for message in payload["errors"])
-    assert any("required artifact must be a directory: evidence" in message for message in payload["errors"])
+    assert any(
+        "required artifact must be a directory: scan-packets" in message
+        for message in payload["errors"]
+    )
+    assert any(
+        "required artifact must be a directory: worker-results" in message
+        for message in payload["errors"]
+    )
+    assert any(
+        "required artifact must be a directory: evidence" in message
+        for message in payload["errors"]
+    )
 
 
-def test_hook_validate_artifacts_blocks_prd_build_when_artifacts_and_checks_are_empty_arrays(tmp_path: Path):
+def test_hook_validate_artifacts_blocks_prd_build_when_artifacts_and_checks_are_empty_arrays(
+    tmp_path: Path,
+):
     project = _create_project(tmp_path)
     run_dir = project / ".specify" / "prd-runs" / "260504-demo-prd-build-empty-arrays"
     run_dir.mkdir(parents=True, exist_ok=True)
     (run_dir / "workflow-state.md").write_text("# Workflow State\n", encoding="utf-8")
     (run_dir / "prd-scan.md").write_text("# PRD Scan\n", encoding="utf-8")
-    (run_dir / "coverage-ledger.json").write_text("{\"version\": 1, \"rows\": []}\n", encoding="utf-8")
+    (run_dir / "coverage-ledger.json").write_text(
+        '{"version": 1, "rows": []}\n', encoding="utf-8"
+    )
     (run_dir / "capability-ledger.json").write_text(
-        "{\"capabilities\": [{\"id\": \"CAP-008\", \"tier\": \"critical\", \"status\": \"reconstruction-ready\"}]}\n",
+        '{"capabilities": [{"id": "CAP-008", "tier": "critical", "status": "reconstruction-ready"}]}\n',
         encoding="utf-8",
     )
-    (run_dir / "artifact-contracts.json").write_text("{\"artifacts\": []}\n", encoding="utf-8")
-    (run_dir / "reconstruction-checklist.json").write_text("{\"checks\": []}\n", encoding="utf-8")
+    (run_dir / "artifact-contracts.json").write_text(
+        '{"artifacts": []}\n', encoding="utf-8"
+    )
+    (run_dir / "reconstruction-checklist.json").write_text(
+        '{"checks": []}\n', encoding="utf-8"
+    )
     (run_dir / "scan-packets").mkdir()
-    (run_dir / "scan-packets" / "lane-a.md").write_text("# Scan Packet\n", encoding="utf-8")
+    (run_dir / "scan-packets" / "lane-a.md").write_text(
+        "# Scan Packet\n", encoding="utf-8"
+    )
     (run_dir / "evidence").mkdir()
     (run_dir / "evidence" / "api").mkdir()
     (run_dir / "worker-results").mkdir()
-    (run_dir / "worker-results" / "lane-a.json").write_text("{\"status\": \"ok\"}\n", encoding="utf-8")
+    (run_dir / "worker-results" / "lane-a.json").write_text(
+        '{"status": "ok"}\n', encoding="utf-8"
+    )
     master_dir = run_dir / "master"
     master_dir.mkdir()
     (master_dir / "master-pack.md").write_text("# Master Pack\n", encoding="utf-8")
@@ -2989,65 +5072,110 @@ def test_hook_validate_artifacts_blocks_prd_build_when_artifacts_and_checks_are_
     exports_dir.mkdir()
     (exports_dir / "README.md").write_text("# Export Navigation\n", encoding="utf-8")
     (exports_dir / "prd.md").write_text("# PRD\n", encoding="utf-8")
-    (exports_dir / "reconstruction-appendix.md").write_text("# Appendix\n", encoding="utf-8")
+    (exports_dir / "reconstruction-appendix.md").write_text(
+        "# Appendix\n", encoding="utf-8"
+    )
     (exports_dir / "data-model.md").write_text("# Data Model\n", encoding="utf-8")
-    (exports_dir / "integration-contracts.md").write_text("# Integration Contracts\n", encoding="utf-8")
-    (exports_dir / "runtime-behaviors.md").write_text("# Runtime Behaviors\n", encoding="utf-8")
+    (exports_dir / "integration-contracts.md").write_text(
+        "# Integration Contracts\n", encoding="utf-8"
+    )
+    (exports_dir / "runtime-behaviors.md").write_text(
+        "# Runtime Behaviors\n", encoding="utf-8"
+    )
 
     result = _invoke_in_project(
         project,
-        ["hook", "validate-artifacts", "--command", "prd-build", "--feature-dir", str(run_dir)],
+        [
+            "hook",
+            "validate-artifacts",
+            "--command",
+            "prd-build",
+            "--feature-dir",
+            str(run_dir),
+        ],
     )
 
     payload = json.loads(result.output.strip())
     assert payload["status"] == "blocked"
-    assert any("artifact-contracts.json must include at least one artifact" in message for message in payload["errors"])
-    assert any("reconstruction-checklist.json must include at least one check" in message for message in payload["errors"])
+    assert any(
+        "artifact-contracts.json must include at least one artifact" in message
+        for message in payload["errors"]
+    )
+    assert any(
+        "reconstruction-checklist.json must include at least one check" in message
+        for message in payload["errors"]
+    )
 
 
-def test_hook_validate_artifacts_allows_critical_artifact_entries_without_invented_status_gate(tmp_path: Path):
+def test_hook_validate_artifacts_allows_critical_artifact_entries_without_invented_status_gate(
+    tmp_path: Path,
+):
     project = _create_project(tmp_path)
-    run_dir = project / ".specify" / "prd-runs" / "260504-demo-prd-build-critical-artifact-entry"
+    run_dir = (
+        project
+        / ".specify"
+        / "prd-runs"
+        / "260504-demo-prd-build-critical-artifact-entry"
+    )
     run_dir.mkdir(parents=True, exist_ok=True)
     _write_prd_build_ready_scan_artifacts(run_dir)
     (run_dir / "capability-ledger.json").write_text(
-        "{\"capabilities\": [{\"id\": \"CAP-013\", \"tier\": \"critical\", \"status\": \"L4 Reconstruction-Ready\"}]}\n",
+        '{"capabilities": [{"id": "CAP-013", "tier": "critical", "status": "L4 Reconstruction-Ready"}]}\n',
         encoding="utf-8",
     )
     (run_dir / "artifact-contracts.json").write_text(
-        "{\"artifacts\": [{\"id\": \"ART-009\", \"tier\": \"critical\", \"status\": \"producer-consumer-traced\"}]}\n",
+        '{"artifacts": [{"id": "ART-009", "tier": "critical", "status": "producer-consumer-traced"}]}\n',
         encoding="utf-8",
     )
     _write_heavy_prd_build_exports(run_dir)
 
     result = _invoke_in_project(
         project,
-        ["hook", "validate-artifacts", "--command", "prd-build", "--feature-dir", str(run_dir)],
+        [
+            "hook",
+            "validate-artifacts",
+            "--command",
+            "prd-build",
+            "--feature-dir",
+            str(run_dir),
+        ],
     )
 
     payload = json.loads(result.output.strip())
     assert payload["status"] == "ok"
 
 
-def test_hook_validate_artifacts_blocks_prd_build_when_artifact_contracts_top_level_is_not_object(tmp_path: Path):
+def test_hook_validate_artifacts_blocks_prd_build_when_artifact_contracts_top_level_is_not_object(
+    tmp_path: Path,
+):
     project = _create_project(tmp_path)
-    run_dir = project / ".specify" / "prd-runs" / "260504-demo-prd-build-invalid-json-shape"
+    run_dir = (
+        project / ".specify" / "prd-runs" / "260504-demo-prd-build-invalid-json-shape"
+    )
     run_dir.mkdir(parents=True, exist_ok=True)
     (run_dir / "workflow-state.md").write_text("# Workflow State\n", encoding="utf-8")
     (run_dir / "prd-scan.md").write_text("# PRD Scan\n", encoding="utf-8")
-    (run_dir / "coverage-ledger.json").write_text("{\"version\": 1, \"rows\": []}\n", encoding="utf-8")
+    (run_dir / "coverage-ledger.json").write_text(
+        '{"version": 1, "rows": []}\n', encoding="utf-8"
+    )
     (run_dir / "capability-ledger.json").write_text(
-        "{\"capabilities\": [{\"id\": \"CAP-004\", \"tier\": \"critical\", \"status\": \"reconstruction-ready\"}]}\n",
+        '{"capabilities": [{"id": "CAP-004", "tier": "critical", "status": "reconstruction-ready"}]}\n',
         encoding="utf-8",
     )
     (run_dir / "artifact-contracts.json").write_text("[]\n", encoding="utf-8")
-    (run_dir / "reconstruction-checklist.json").write_text("{\"checks\": []}\n", encoding="utf-8")
+    (run_dir / "reconstruction-checklist.json").write_text(
+        '{"checks": []}\n', encoding="utf-8"
+    )
     (run_dir / "scan-packets").mkdir()
     (run_dir / "evidence").mkdir()
     (run_dir / "worker-results").mkdir()
-    (run_dir / "scan-packets" / "lane-a.md").write_text("# Scan Packet\n", encoding="utf-8")
+    (run_dir / "scan-packets" / "lane-a.md").write_text(
+        "# Scan Packet\n", encoding="utf-8"
+    )
     (run_dir / "evidence" / "api").mkdir()
-    (run_dir / "worker-results" / "lane-a.json").write_text("{\"status\": \"ok\"}\n", encoding="utf-8")
+    (run_dir / "worker-results" / "lane-a.json").write_text(
+        '{"status": "ok"}\n', encoding="utf-8"
+    )
     master_dir = run_dir / "master"
     master_dir.mkdir()
     (master_dir / "master-pack.md").write_text("# Master Pack\n", encoding="utf-8")
@@ -3055,19 +5183,34 @@ def test_hook_validate_artifacts_blocks_prd_build_when_artifact_contracts_top_le
     exports_dir.mkdir()
     (exports_dir / "README.md").write_text("# Export Navigation\n", encoding="utf-8")
     (exports_dir / "prd.md").write_text("# PRD\n", encoding="utf-8")
-    (exports_dir / "reconstruction-appendix.md").write_text("# Appendix\n", encoding="utf-8")
+    (exports_dir / "reconstruction-appendix.md").write_text(
+        "# Appendix\n", encoding="utf-8"
+    )
     (exports_dir / "data-model.md").write_text("# Data Model\n", encoding="utf-8")
-    (exports_dir / "integration-contracts.md").write_text("# Integration Contracts\n", encoding="utf-8")
-    (exports_dir / "runtime-behaviors.md").write_text("# Runtime Behaviors\n", encoding="utf-8")
+    (exports_dir / "integration-contracts.md").write_text(
+        "# Integration Contracts\n", encoding="utf-8"
+    )
+    (exports_dir / "runtime-behaviors.md").write_text(
+        "# Runtime Behaviors\n", encoding="utf-8"
+    )
 
     result = _invoke_in_project(
         project,
-        ["hook", "validate-artifacts", "--command", "prd-build", "--feature-dir", str(run_dir)],
+        [
+            "hook",
+            "validate-artifacts",
+            "--command",
+            "prd-build",
+            "--feature-dir",
+            str(run_dir),
+        ],
     )
 
     payload = json.loads(result.output.strip())
     assert payload["status"] == "blocked"
-    assert any("top-level json object" in message.lower() for message in payload["errors"])
+    assert any(
+        "top-level json object" in message.lower() for message in payload["errors"]
+    )
 
 
 def test_hook_validate_artifacts_blocks_shallow_prd_suite(tmp_path: Path):
@@ -3096,14 +5239,21 @@ def test_hook_validate_artifacts_blocks_shallow_prd_suite(tmp_path: Path):
         ],
     )
 
-    assert result.exit_code == 0, result.output
+    assert result.exit_code == 10, result.output
     payload = json.loads(result.output.strip())
     assert payload["status"] == "blocked"
-    assert any("missing required artifact" in message.lower() for message in payload["errors"])
-    assert any("prd-scan.md" in message or "coverage-ledger.json" in message for message in payload["errors"])
+    assert any(
+        "missing required artifact" in message.lower() for message in payload["errors"]
+    )
+    assert any(
+        "prd-scan.md" in message or "coverage-ledger.json" in message
+        for message in payload["errors"]
+    )
 
 
-def test_hook_validate_artifacts_blocks_prd_scan_when_json_artifact_path_is_directory(tmp_path: Path):
+def test_hook_validate_artifacts_blocks_prd_scan_when_json_artifact_path_is_directory(
+    tmp_path: Path,
+):
     project = _create_project(tmp_path)
     run_dir = project / ".specify" / "prd-runs" / "260504-demo-prd-scan-json-dir"
     run_dir.mkdir(parents=True, exist_ok=True)
@@ -3111,9 +5261,9 @@ def test_hook_validate_artifacts_blocks_prd_scan_when_json_artifact_path_is_dire
         "workflow-state.md": "# Workflow State\n",
         "prd-scan.md": "# PRD Scan\n",
         "coverage-ledger.md": "# Coverage Ledger\n",
-        "capability-ledger.json": "{\"capabilities\": []}\n",
-        "artifact-contracts.json": "{\"artifacts\": []}\n",
-        "reconstruction-checklist.json": "{\"checks\": []}\n",
+        "capability-ledger.json": '{"capabilities": []}\n',
+        "artifact-contracts.json": '{"artifacts": []}\n',
+        "reconstruction-checklist.json": '{"checks": []}\n',
     }.items():
         (run_dir / relative).write_text(content, encoding="utf-8")
     (run_dir / "coverage-ledger.json").mkdir()
@@ -3123,13 +5273,23 @@ def test_hook_validate_artifacts_blocks_prd_scan_when_json_artifact_path_is_dire
 
     result = _invoke_in_project(
         project,
-        ["hook", "validate-artifacts", "--command", "prd-scan", "--feature-dir", str(run_dir)],
+        [
+            "hook",
+            "validate-artifacts",
+            "--command",
+            "prd-scan",
+            "--feature-dir",
+            str(run_dir),
+        ],
     )
 
-    assert result.exit_code == 0, result.output
+    assert result.exit_code == 10, result.output
     payload = json.loads(result.output.strip())
     assert payload["status"] == "blocked"
-    assert any("required artifact must be a file: coverage-ledger.json" in message for message in payload["errors"])
+    assert any(
+        "required artifact must be a file: coverage-ledger.json" in message
+        for message in payload["errors"]
+    )
 
 
 def test_prd_init_workspace_supports_compatibility_artifact_validation(tmp_path: Path):
@@ -3143,7 +5303,14 @@ def test_prd_init_workspace_supports_compatibility_artifact_validation(tmp_path:
 
     validate_result = _invoke_in_project(
         project,
-        ["hook", "validate-artifacts", "--command", "prd", "--feature-dir", str(run_dir)],
+        [
+            "hook",
+            "validate-artifacts",
+            "--command",
+            "prd",
+            "--feature-dir",
+            str(run_dir),
+        ],
     )
 
     assert validate_result.exit_code == 0, validate_result.output
@@ -3169,7 +5336,9 @@ def test_hook_validate_packet_outputs_parseable_json(tmp_path: Path):
         task_id="T001",
         story_id="US1",
         objective="Implement demo behavior",
-        scope=PacketScope(write_scope=["src/demo.py"], read_scope=["PROJECT-HANDBOOK.md"]),
+        scope=PacketScope(
+            write_scope=["src/demo.py"], read_scope=["PROJECT-HANDBOOK.md"]
+        ),
         context_bundle=[
             ContextBundleItem(
                 path="PROJECT-HANDBOOK.md",
@@ -3181,7 +5350,11 @@ def test_hook_validate_packet_outputs_parseable_json(tmp_path: Path):
                 selection_reason="required project navigation",
             )
         ],
-        required_references=[PacketReference(path="src/demo.py", reason="canonical implementation reference")],
+        required_references=[
+            PacketReference(
+                path="src/demo.py", reason="canonical implementation reference"
+            )
+        ],
         hard_rules=["preserve boundary"],
         forbidden_drift=["do not skip tests"],
         validation_gates=["pytest tests/test_demo.py -q"],
@@ -3246,13 +5419,25 @@ def test_implement_resume_audit_cli_blocks_false_resolved_state(tmp_path: Path):
 
     result = _invoke_in_project(
         project,
-        ["implement", "resume-audit", "--feature-dir", str(feature_dir), "--format", "json"],
+        [
+            "implement",
+            "resume-audit",
+            "--feature-dir",
+            str(feature_dir),
+            "--format",
+            "json",
+        ],
     )
 
-    assert result.exit_code == 1
+    assert result.exit_code == 10
     payload = json.loads(result.output)
     assert payload["status"] == "fail"
     assert payload["recommended_tracker_status"] == "validating"
+    assert payload["blockers"][0]["resume"]["argv"][:3] == [
+        "specify",
+        "implement",
+        "resume-audit",
+    ]
 
 
 def test_validate_session_state_surfaces_terminal_audit_required(tmp_path: Path):
@@ -3287,7 +5472,14 @@ def test_validate_session_state_surfaces_terminal_audit_required(tmp_path: Path)
 
     result = _invoke_in_project(
         project,
-        ["hook", "validate-session-state", "--command", "implement", "--feature-dir", str(feature_dir)],
+        [
+            "hook",
+            "validate-session-state",
+            "--command",
+            "implement",
+            "--feature-dir",
+            str(feature_dir),
+        ],
     )
 
     assert result.exit_code == 0
@@ -3317,13 +5509,152 @@ def test_implement_closeout_blocks_false_resolved_state(tmp_path: Path):
 
     result = _invoke_in_project(
         project,
-        ["implement", "closeout", "--feature-dir", str(feature_dir), "--format", "json"],
+        [
+            "implement",
+            "closeout",
+            "--feature-dir",
+            str(feature_dir),
+            "--format",
+            "json",
+        ],
     )
 
-    assert result.exit_code == 1
+    assert result.exit_code == 10
     payload = json.loads(result.output)
     assert payload["status"] == "blocked"
     assert payload["resume_audit"]["trusted_terminal_state"] is False
+    assert payload["blockers"]
+
+
+def test_implement_closeout_blocks_readable_nonterminal_state(tmp_path: Path):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True)
+    (feature_dir / "workflow-state.md").write_text(
+        "# Workflow State\n\n## Next Command\n\n- `/sp.implement`\n",
+        encoding="utf-8",
+    )
+    (feature_dir / "tasks.md").write_text(
+        "- [ ] T001 Validate protected pipeline\n", encoding="utf-8"
+    )
+    (feature_dir / "implement-tracker.md").write_text(
+        "---\nstatus: validating\nfeature: 001-demo\nresume_decision: continue\n---\n\n"
+        "## Current Focus\nnext_action: collect protected pipeline evidence\n",
+        encoding="utf-8",
+    )
+    lifecycle_dir = feature_dir / "implementation-review" / "tasks"
+    lifecycle_dir.mkdir(parents=True)
+    (lifecycle_dir / "T001.json").write_text(
+        json.dumps(
+            {
+                "task_id": "T001",
+                "status": "blocked",
+                "blockers": [
+                    {
+                        "classification": "external",
+                        "owner": "maintainer",
+                        "evidence": [
+                            "protected pipeline is required for commit abc123"
+                        ],
+                        "exact_next_action": "Run the protected verify job for commit abc123",
+                        "approval_question": "May the maintainer trigger the protected verify job?",
+                        "unblock_criteria": "The verify job passes for commit abc123",
+                        "implementation_can_continue": False,
+                        "completion_impact": "mandatory_for_completion",
+                    }
+                ],
+                "ui_verification": {"applicable": False},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = _invoke_in_project(
+        project,
+        [
+            "implement",
+            "closeout",
+            "--feature-dir",
+            str(feature_dir),
+            "--format",
+            "json",
+        ],
+    )
+
+    assert result.exit_code == 10
+    payload = json.loads(result.output)
+    assert payload["status"] == "blocked"
+    assert payload["resume_audit"]["status"] == "pass"
+    assert payload["resume_audit"]["trusted_terminal_state"] is False
+    assert payload["blockers"]
+    ci_blocker = next(
+        blocker
+        for blocker in payload["blockers"]
+        if blocker["blocker_id"] == "T001-B01"
+    )
+    assert ci_blocker["human_action_required"] is True
+    assert ci_blocker["category"] == "external-system"
+    assert ci_blocker["human_action_guide"]["steps"][0]["title"] == (
+        "Confirm the exact revision"
+    )
+
+
+def test_hook_validate_commit_accepts_external_evidence_checkpoint_option(
+    tmp_path: Path,
+):
+    project = _create_project(tmp_path)
+    feature_dir = project / "specs" / "001-demo"
+    feature_dir.mkdir(parents=True)
+    (feature_dir / "implement-tracker.md").write_text(
+        "---\nstatus: validating\nfeature: 001-demo\nresume_decision: continue\n---\n\n"
+        "## Current Focus\nnext_action: run pipeline\n",
+        encoding="utf-8",
+    )
+    (feature_dir / "tasks.md").write_text(
+        "# Tasks\n\n- [ ] T001 Run protected CI\n", encoding="utf-8"
+    )
+    lifecycle_dir = feature_dir / "implementation-review" / "tasks"
+    lifecycle_dir.mkdir(parents=True)
+    (lifecycle_dir / "T001.json").write_text(
+        json.dumps(
+            {
+                "task_id": "T001",
+                "status": "blocked",
+                "blockers": [
+                    {
+                        "classification": "external",
+                        "owner": "external-system",
+                        "evidence": "protected CI requires a commit",
+                        "exact_next_action": "run protected CI",
+                        "approval_question": None,
+                        "unblock_criteria": "protected CI succeeds",
+                        "implementation_can_continue": True,
+                        "completion_impact": "mandatory_for_completion",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = _invoke_in_project(
+        project,
+        [
+            "hook",
+            "validate-commit",
+            "--commit-message",
+            "chore(ci): checkpoint protected pipeline config",
+            "--feature-dir",
+            str(feature_dir),
+            "--commit-intent",
+            "external-evidence-checkpoint",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["status"] == "ok"
+    assert payload["data"]["workflow_finalized"] is False
 
 
 def test_implement_closeout_writes_user_facing_summary(tmp_path: Path):
@@ -3384,26 +5715,123 @@ def test_implement_closeout_writes_user_facing_summary(tmp_path: Path):
 """.strip(),
         encoding="utf-8",
     )
+    packets_dir = feature_dir / "task-packets"
+    packets_dir.mkdir()
+    (packets_dir / "T001.json").write_text('{"task_id":"T001"}\n', encoding="utf-8")
+    review_dir = feature_dir / "implementation-review"
+    (review_dir / "task-briefs").mkdir(parents=True)
+    (review_dir / "task-briefs" / "T001.md").write_text(
+        "# T001 Brief\n", encoding="utf-8"
+    )
+    (review_dir / "review-packages").mkdir(parents=True)
+    (review_dir / "review-packages" / "T001.md").write_text(
+        "# T001 Review Package\n",
+        encoding="utf-8",
+    )
+    (review_dir / "task-reviews").mkdir(parents=True)
+    (review_dir / "task-reviews" / "T001.json").write_text(
+        json.dumps(
+            {
+                "task_id": "T001",
+                "spec_verdict": "pass",
+                "quality_verdict": "pass",
+                "final_assessment": "accepted",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (review_dir / "ledger.json").write_text(
+        json.dumps(
+            {
+                "tasks": [
+                    {
+                        "task_id": "T001",
+                        "status": "accepted",
+                        "task_brief": "implementation-review/task-briefs/T001.md",
+                        "review_package": "implementation-review/review-packages/T001.md",
+                        "task_review": "implementation-review/task-reviews/T001.json",
+                        "worker_result": "worker-results/T001.json",
+                    }
+                ]
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (review_dir / "branch-review.md").write_text(
+        "# Branch Review\n\nAccepted.\n", encoding="utf-8"
+    )
 
     result = _invoke_in_project(
         project,
-        ["implement", "closeout", "--feature-dir", str(feature_dir), "--format", "json"],
+        [
+            "implement",
+            "closeout",
+            "--feature-dir",
+            str(feature_dir),
+            "--format",
+            "json",
+        ],
     )
 
     assert result.exit_code == 0, result.output
     payload = json.loads(result.output)
     summary = payload["implementation_summary"]
     assert summary["status"] == "ok"
-    assert summary["report_path"].endswith(".specify/features/001-demo/implementation-summary.md")
-    assert summary["completed_work"][0]["summary"] == "Wired the demo CLI route and regression coverage"
+    assert summary["report_path"].endswith(
+        ".specify/features/001-demo/implementation-summary.md"
+    )
+    assert (
+        summary["completed_work"][0]["summary"]
+        == "Wired the demo CLI route and regression coverage"
+    )
     assert "src/specify_cli/demo.py" in summary["changed_paths"]["from_worker_results"]
     assert "git diff --stat HEAD" in summary["baseline_comparison"]["commands"]
+    assert summary["review_artifacts"]["ledger"].endswith(
+        ".specify/features/001-demo/implementation-review/ledger.json"
+    )
+    assert summary["review_artifacts"]["branch_review"].endswith(
+        ".specify/features/001-demo/implementation-review/branch-review.md"
+    )
+    assert summary["completed_work"][0]["review_artifacts"]["task_review"].endswith(
+        ".specify/features/001-demo/implementation-review/task-reviews/T001.json"
+    )
+    acceptance = payload["human_acceptance"]
+    assert acceptance["status"] == "draft"
+    assert acceptance["state_path"].endswith(
+        ".specify/features/001-demo/human-acceptance.json"
+    )
+    assert "sp-accept" in acceptance["next_command"]
+    assert (feature_dir / "human-acceptance.json").is_file()
     report_path = feature_dir / "implementation-summary.md"
     assert report_path.is_file()
     report = report_path.read_text(encoding="utf-8")
     assert "## What Changed" in report
     assert "## How To Verify" in report
     assert "## Version Comparison" in report
+    assert "## Review Artifacts" in report
+    assert "## Human Product Acceptance" in report
+
+    (feature_dir / "human-acceptance.json").write_text(
+        "{invalid json\n", encoding="utf-8"
+    )
+    conflict = _invoke_in_project(
+        project,
+        [
+            "implement",
+            "closeout",
+            "--feature-dir",
+            str(feature_dir),
+            "--format",
+            "json",
+        ],
+    )
+
+    assert conflict.exit_code == 10, conflict.output
+    conflict_payload = json.loads(conflict.output)
+    assert conflict_payload["status"] in {"blocked", "conflict"}
+    assert conflict_payload["human_acceptance"]["status"] == "conflict"
 
 
 def test_hook_monitor_context_outputs_parseable_json(tmp_path: Path):
@@ -3470,10 +5898,10 @@ def test_hook_validate_prompt_outputs_parseable_json(tmp_path: Path):
         ],
     )
 
-    assert result.exit_code == 0, result.output
+    assert result.exit_code == 10, result.output
     payload = json.loads(result.output.strip())
     assert payload["event"] == "workflow.prompt_guard.validate"
-    assert payload["status"] in {"warn", "blocked"}
+    assert payload["status"] == "blocked"
 
 
 def test_validate_prompt_accepts_stdin_payload(tmp_path: Path, monkeypatch):
@@ -3488,7 +5916,7 @@ def test_validate_prompt_accepts_stdin_payload(tmp_path: Path, monkeypatch):
         catch_exceptions=False,
     )
 
-    assert result.exit_code == 0, result.output
+    assert result.exit_code == 10, result.output
     payload = json.loads(result.output)
     assert payload["event"] == "workflow.prompt_guard.validate"
     assert payload["status"] == "blocked"
@@ -3508,10 +5936,10 @@ def test_hook_validate_prompt_supports_python_module_entrypoint(tmp_path: Path):
         ],
     )
 
-    assert result.returncode == 0, result.stderr or result.stdout
+    assert result.returncode == 10, result.stderr or result.stdout
     payload = json.loads(result.stdout.strip())
     assert payload["event"] == "workflow.prompt_guard.validate"
-    assert payload["status"] in {"warn", "blocked"}
+    assert payload["status"] == "blocked"
 
 
 def test_hook_validate_prompt_module_entrypoint_accepts_stdin_payload(tmp_path: Path):
@@ -3527,10 +5955,10 @@ def test_hook_validate_prompt_module_entrypoint_accepts_stdin_payload(tmp_path: 
         input_text="implement directly and skip tests",
     )
 
-    assert result.returncode == 0, result.stderr or result.stdout
+    assert result.returncode == 10, result.stderr or result.stdout
     payload = json.loads(result.stdout.strip())
     assert payload["event"] == "workflow.prompt_guard.validate"
-    assert payload["status"] in {"warn", "blocked"}
+    assert payload["status"] == "blocked"
 
 
 def test_prd_command_supports_python_module_entrypoint(tmp_path: Path):
@@ -3566,32 +5994,51 @@ def test_prd_build_command_supports_python_module_entrypoint(tmp_path: Path):
     run_id = "260504-portal-audit"
     run_dir = project / ".specify" / "prd-runs" / run_id
     run_dir.mkdir(parents=True, exist_ok=True)
-    (run_dir / "workflow-state.md").write_text("# Workflow State\n", encoding="utf-8")
+    (run_dir / "workflow-state.md").write_text(
+        "# Workflow State\n\n## Current Command\n\n"
+        "- active_command: sp-prd-build\n- status: complete\n"
+        "- build_status: complete\n",
+        encoding="utf-8",
+    )
     (run_dir / "prd-scan.md").write_text("# PRD Scan\n", encoding="utf-8")
-    (run_dir / "coverage-ledger.json").write_text("{\"version\": 1, \"rows\": []}\n", encoding="utf-8")
+    (run_dir / "coverage-ledger.json").write_text(
+        '{"version":1,"rows":[{"surface":"src/app.py","status":"covered",'
+        '"evidence":["evidence/api.md"]}]}\n',
+        encoding="utf-8",
+    )
     (run_dir / "capability-ledger.json").write_text(
-        "{\"capabilities\": [{\"id\": \"CAP-005\", \"tier\": \"critical\", \"status\": \"reconstruction-ready\"}]}\n",
+        '{"capabilities": [{"id": "CAP-005", "tier": "critical", "status": "reconstruction-ready"}]}\n',
         encoding="utf-8",
     )
     (run_dir / "artifact-contracts.json").write_text(
-        "{\"artifacts\": [{\"id\": \"ART-007\", \"status\": \"landed\"}]}\n",
+        '{"artifacts": [{"id": "ART-007", "status": "landed"}]}\n',
         encoding="utf-8",
     )
     (run_dir / "reconstruction-checklist.json").write_text(
-        "{\"checks\": [{\"id\": \"CHK-007\"}]}\n",
+        '{"checks":[{"id":"CHK-007","status":"pass"}]}\n',
         encoding="utf-8",
     )
-    (run_dir / "entrypoint-ledger.json").write_text("{\"entrypoints\": []}\n", encoding="utf-8")
-    (run_dir / "config-contracts.json").write_text("{\"configs\": []}\n", encoding="utf-8")
-    (run_dir / "protocol-contracts.json").write_text("{\"protocols\": []}\n", encoding="utf-8")
-    (run_dir / "state-machines.json").write_text("{\"machines\": []}\n", encoding="utf-8")
-    (run_dir / "error-semantics.json").write_text("{\"errors\": []}\n", encoding="utf-8")
-    (run_dir / "verification-surfaces.json").write_text("{\"surfaces\": []}\n", encoding="utf-8")
+    (run_dir / "entrypoint-ledger.json").write_text(
+        '{"entrypoints": []}\n', encoding="utf-8"
+    )
+    (run_dir / "config-contracts.json").write_text(
+        '{"configs": []}\n', encoding="utf-8"
+    )
+    (run_dir / "protocol-contracts.json").write_text(
+        '{"protocols": []}\n', encoding="utf-8"
+    )
+    (run_dir / "state-machines.json").write_text('{"machines": []}\n', encoding="utf-8")
+    (run_dir / "error-semantics.json").write_text('{"errors": []}\n', encoding="utf-8")
+    (run_dir / "verification-surfaces.json").write_text(
+        '{"surfaces": []}\n', encoding="utf-8"
+    )
     (run_dir / "scan-packets").mkdir()
     (run_dir / "evidence").mkdir()
     (run_dir / "worker-results").mkdir()
-    (run_dir / "scan-packets" / "lane-a.md").write_text("# Scan Packet\n", encoding="utf-8")
-    (run_dir / "evidence" / "api").mkdir()
+    (run_dir / "scan-packets" / "lane-a.md").write_text(
+        "# Scan Packet\n", encoding="utf-8"
+    )
+    (run_dir / "evidence" / "api.md").write_text("API evidence\n", encoding="utf-8")
     (run_dir / "worker-results" / "lane-a.json").write_text(
         json.dumps(
             {
@@ -3607,21 +6054,35 @@ def test_prd_build_command_supports_python_module_entrypoint(tmp_path: Path):
     )
     master_dir = run_dir / "master"
     master_dir.mkdir()
-    (master_dir / "master-pack.md").write_text("# Master Pack\n", encoding="utf-8")
+    (master_dir / "master-pack.md").write_text(
+        "# Master Pack\n\nAccepted evidence.\n", encoding="utf-8"
+    )
     exports_dir = run_dir / "exports"
     exports_dir.mkdir()
-    (exports_dir / "README.md").write_text("# Export Navigation\n", encoding="utf-8")
-    (exports_dir / "prd.md").write_text("# PRD\n", encoding="utf-8")
-    (exports_dir / "reconstruction-appendix.md").write_text("# Appendix\n", encoding="utf-8")
-    (exports_dir / "data-model.md").write_text("# Data Model\n", encoding="utf-8")
-    (exports_dir / "integration-contracts.md").write_text("# Integration Contracts\n", encoding="utf-8")
-    (exports_dir / "runtime-behaviors.md").write_text("# Runtime Behaviors\n", encoding="utf-8")
-    (exports_dir / "config-contracts.md").write_text("# Config Contracts\n", encoding="utf-8")
-    (exports_dir / "protocol-contracts.md").write_text("# Protocol Contracts\n", encoding="utf-8")
-    (exports_dir / "state-machines.md").write_text("# State Machines\n", encoding="utf-8")
-    (exports_dir / "error-semantics.md").write_text("# Error Semantics\n", encoding="utf-8")
-    (exports_dir / "verification-surface.md").write_text("# Verification Surface\n", encoding="utf-8")
-    (exports_dir / "reconstruction-risks.md").write_text("# Reconstruction Risks\n", encoding="utf-8")
+    (exports_dir / "README.md").write_text(
+        "# Export Navigation\n\nSee package.\n", encoding="utf-8"
+    )
+    (exports_dir / "prd.md").write_text(
+        "# PRD\n\n## Capability Overview\n\nCore capability.\n\n"
+        "## Critical Capability Notes\n\nEvidence accepted.\n\n"
+        "## Unknowns and Evidence Confidence\n\nNo critical unknowns.\n",
+        encoding="utf-8",
+    )
+    for relative, heading in {
+        "reconstruction-appendix.md": "Appendix",
+        "data-model.md": "Data Model",
+        "integration-contracts.md": "Integration Contracts",
+        "runtime-behaviors.md": "Runtime Behaviors",
+        "config-contracts.md": "Config Contracts",
+        "protocol-contracts.md": "Protocol Contracts",
+        "state-machines.md": "State Machines",
+        "error-semantics.md": "Error Semantics",
+        "verification-surface.md": "Verification Surface",
+        "reconstruction-risks.md": "Reconstruction Risks",
+    }.items():
+        (exports_dir / relative).write_text(
+            f"# {heading}\n\nAccepted contract detail.\n", encoding="utf-8"
+        )
 
     result = _run_module_in_project(project, ["prd-build", run_id, "--json"])
 
@@ -3641,25 +6102,31 @@ def test_prd_build_command_json_entrypoint_reports_incomplete_readiness(tmp_path
     run_dir.mkdir(parents=True, exist_ok=True)
     (run_dir / "workflow-state.md").write_text("# Workflow State\n", encoding="utf-8")
     (run_dir / "prd-scan.md").write_text("# PRD Scan\n", encoding="utf-8")
-    (run_dir / "coverage-ledger.json").write_text("{\"version\": 1, \"rows\": []}\n", encoding="utf-8")
+    (run_dir / "coverage-ledger.json").write_text(
+        '{"version": 1, "rows": []}\n', encoding="utf-8"
+    )
     (run_dir / "capability-ledger.json").write_text(
-        "{\"capabilities\": [{\"id\": \"CAP-012\", \"tier\": \"critical\", \"status\": \"reconstruction-ready\"}]}\n",
+        '{"capabilities": [{"id": "CAP-012", "tier": "critical", "status": "reconstruction-ready"}]}\n',
         encoding="utf-8",
     )
     (run_dir / "artifact-contracts.json").write_text(
-        "{\"artifacts\": [{\"id\": \"ART-008\", \"status\": \"landed\"}]}\n",
+        '{"artifacts": [{"id": "ART-008", "status": "landed"}]}\n',
         encoding="utf-8",
     )
     (run_dir / "reconstruction-checklist.json").write_text(
-        "{\"checks\": [{\"id\": \"CHK-008\"}]}\n",
+        '{"checks": [{"id": "CHK-008"}]}\n',
         encoding="utf-8",
     )
     (run_dir / "scan-packets").mkdir()
-    (run_dir / "scan-packets" / "lane-a.md").write_text("# Scan Packet\n", encoding="utf-8")
+    (run_dir / "scan-packets" / "lane-a.md").write_text(
+        "# Scan Packet\n", encoding="utf-8"
+    )
     (run_dir / "evidence").mkdir()
     (run_dir / "evidence" / "api").mkdir()
     (run_dir / "worker-results").mkdir()
-    (run_dir / "worker-results" / "lane-a.json").write_text("{\"status\": \"ok\"}\n", encoding="utf-8")
+    (run_dir / "worker-results" / "lane-a.json").write_text(
+        '{"status": "ok"}\n', encoding="utf-8"
+    )
     master_dir = run_dir / "master"
     master_dir.mkdir()
     (master_dir / "master-pack.md").write_text("# Master Pack\n", encoding="utf-8")
@@ -3700,7 +6167,9 @@ def test_prd_command_help_marks_compatibility_only(tmp_path: Path):
     assert "config-contracts.json" in help_text
 
 
-def test_prd_build_command_help_mentions_build_only_reconstruction_contract(tmp_path: Path):
+def test_prd_build_command_help_mentions_build_only_reconstruction_contract(
+    tmp_path: Path,
+):
     project = _create_project(tmp_path)
 
     result = _run_module_in_project(project, ["prd-build", "--help"])
@@ -3713,30 +6182,46 @@ def test_prd_build_command_help_mentions_build_only_reconstruction_contract(tmp_
     assert "critical evidence" in normalized or "critical-evidence" in normalized
 
 
-def test_hook_validate_artifacts_blocks_prd_build_when_critical_capability_is_not_reconstruction_ready(tmp_path: Path):
+def test_hook_validate_artifacts_blocks_prd_build_when_critical_capability_is_not_reconstruction_ready(
+    tmp_path: Path,
+):
     project = _create_project(tmp_path)
     run_dir = project / ".specify" / "prd-runs" / "260504-demo-prd-build-not-ready"
     run_dir.mkdir(parents=True, exist_ok=True)
     (run_dir / "workflow-state.md").write_text("# Workflow State\n", encoding="utf-8")
     (run_dir / "prd-scan.md").write_text("# PRD Scan\n", encoding="utf-8")
-    (run_dir / "coverage-ledger.json").write_text("{\"version\": 1, \"rows\": []}\n", encoding="utf-8")
+    (run_dir / "coverage-ledger.json").write_text(
+        '{"version": 1, "rows": []}\n', encoding="utf-8"
+    )
     (run_dir / "capability-ledger.json").write_text(
-        "{\"capabilities\": [{\"id\": \"CAP-009\", \"tier\": \"critical\", \"status\": \"depth-qualified\"}]}\n",
+        '{"capabilities": [{"id": "CAP-009", "tier": "critical", "status": "depth-qualified"}]}\n',
         encoding="utf-8",
     )
     (run_dir / "artifact-contracts.json").write_text(
-        "{\"artifacts\": [{\"id\": \"ART-004\", \"status\": \"landed\"}]}\n",
+        '{"artifacts": [{"id": "ART-004", "status": "landed"}]}\n',
         encoding="utf-8",
     )
-    (run_dir / "reconstruction-checklist.json").write_text("{\"checks\": [{\"id\": \"CHK-004\"}]}\n", encoding="utf-8")
-    (run_dir / "entrypoint-ledger.json").write_text("{\"entrypoints\": []}\n", encoding="utf-8")
-    (run_dir / "config-contracts.json").write_text("{\"configs\": []}\n", encoding="utf-8")
-    (run_dir / "protocol-contracts.json").write_text("{\"protocols\": []}\n", encoding="utf-8")
-    (run_dir / "state-machines.json").write_text("{\"machines\": []}\n", encoding="utf-8")
-    (run_dir / "error-semantics.json").write_text("{\"errors\": []}\n", encoding="utf-8")
-    (run_dir / "verification-surfaces.json").write_text("{\"surfaces\": []}\n", encoding="utf-8")
+    (run_dir / "reconstruction-checklist.json").write_text(
+        '{"checks": [{"id": "CHK-004"}]}\n', encoding="utf-8"
+    )
+    (run_dir / "entrypoint-ledger.json").write_text(
+        '{"entrypoints": []}\n', encoding="utf-8"
+    )
+    (run_dir / "config-contracts.json").write_text(
+        '{"configs": []}\n', encoding="utf-8"
+    )
+    (run_dir / "protocol-contracts.json").write_text(
+        '{"protocols": []}\n', encoding="utf-8"
+    )
+    (run_dir / "state-machines.json").write_text('{"machines": []}\n', encoding="utf-8")
+    (run_dir / "error-semantics.json").write_text('{"errors": []}\n', encoding="utf-8")
+    (run_dir / "verification-surfaces.json").write_text(
+        '{"surfaces": []}\n', encoding="utf-8"
+    )
     (run_dir / "scan-packets").mkdir()
-    (run_dir / "scan-packets" / "lane-a.md").write_text("# Scan Packet\n", encoding="utf-8")
+    (run_dir / "scan-packets" / "lane-a.md").write_text(
+        "# Scan Packet\n", encoding="utf-8"
+    )
     (run_dir / "evidence").mkdir()
     (run_dir / "evidence" / "api").mkdir()
     (run_dir / "worker-results").mkdir()
@@ -3760,20 +6245,45 @@ def test_hook_validate_artifacts_blocks_prd_build_when_critical_capability_is_no
     exports_dir.mkdir()
     (exports_dir / "README.md").write_text("# Export Navigation\n", encoding="utf-8")
     (exports_dir / "prd.md").write_text("# PRD\n", encoding="utf-8")
-    (exports_dir / "reconstruction-appendix.md").write_text("# Appendix\n", encoding="utf-8")
+    (exports_dir / "reconstruction-appendix.md").write_text(
+        "# Appendix\n", encoding="utf-8"
+    )
     (exports_dir / "data-model.md").write_text("# Data Model\n", encoding="utf-8")
-    (exports_dir / "integration-contracts.md").write_text("# Integration Contracts\n", encoding="utf-8")
-    (exports_dir / "runtime-behaviors.md").write_text("# Runtime Behaviors\n", encoding="utf-8")
-    (exports_dir / "config-contracts.md").write_text("# Config Contracts\n", encoding="utf-8")
-    (exports_dir / "protocol-contracts.md").write_text("# Protocol Contracts\n", encoding="utf-8")
-    (exports_dir / "state-machines.md").write_text("# State Machines\n", encoding="utf-8")
-    (exports_dir / "error-semantics.md").write_text("# Error Semantics\n", encoding="utf-8")
-    (exports_dir / "verification-surface.md").write_text("# Verification Surface\n", encoding="utf-8")
-    (exports_dir / "reconstruction-risks.md").write_text("# Reconstruction Risks\n", encoding="utf-8")
+    (exports_dir / "integration-contracts.md").write_text(
+        "# Integration Contracts\n", encoding="utf-8"
+    )
+    (exports_dir / "runtime-behaviors.md").write_text(
+        "# Runtime Behaviors\n", encoding="utf-8"
+    )
+    (exports_dir / "config-contracts.md").write_text(
+        "# Config Contracts\n", encoding="utf-8"
+    )
+    (exports_dir / "protocol-contracts.md").write_text(
+        "# Protocol Contracts\n", encoding="utf-8"
+    )
+    (exports_dir / "state-machines.md").write_text(
+        "# State Machines\n", encoding="utf-8"
+    )
+    (exports_dir / "error-semantics.md").write_text(
+        "# Error Semantics\n", encoding="utf-8"
+    )
+    (exports_dir / "verification-surface.md").write_text(
+        "# Verification Surface\n", encoding="utf-8"
+    )
+    (exports_dir / "reconstruction-risks.md").write_text(
+        "# Reconstruction Risks\n", encoding="utf-8"
+    )
 
     result = _invoke_in_project(
         project,
-        ["hook", "validate-artifacts", "--command", "prd-build", "--feature-dir", str(run_dir)],
+        [
+            "hook",
+            "validate-artifacts",
+            "--command",
+            "prd-build",
+            "--feature-dir",
+            str(run_dir),
+        ],
     )
 
     payload = json.loads(result.output.strip())
@@ -3782,72 +6292,116 @@ def test_hook_validate_artifacts_blocks_prd_build_when_critical_capability_is_no
     assert any("depth-qualified" in message for message in payload["errors"])
 
 
-def test_hook_validate_artifacts_blocks_prd_build_when_required_file_artifact_is_directory(tmp_path: Path):
+def test_hook_validate_artifacts_blocks_prd_build_when_required_file_artifact_is_directory(
+    tmp_path: Path,
+):
     project = _create_project(tmp_path)
     run_dir = project / ".specify" / "prd-runs" / "260504-demo-prd-build-file-path-dir"
     run_dir.mkdir(parents=True, exist_ok=True)
     (run_dir / "workflow-state.md").write_text("# Workflow State\n", encoding="utf-8")
     (run_dir / "prd-scan.md").write_text("# PRD Scan\n", encoding="utf-8")
-    (run_dir / "coverage-ledger.json").write_text("{\"version\": 1, \"rows\": []}\n", encoding="utf-8")
+    (run_dir / "coverage-ledger.json").write_text(
+        '{"version": 1, "rows": []}\n', encoding="utf-8"
+    )
     (run_dir / "capability-ledger.json").write_text(
-        "{\"capabilities\": [{\"id\": \"CAP-010\", \"tier\": \"critical\", \"status\": \"reconstruction-ready\"}]}\n",
+        '{"capabilities": [{"id": "CAP-010", "tier": "critical", "status": "reconstruction-ready"}]}\n',
         encoding="utf-8",
     )
     (run_dir / "artifact-contracts.json").write_text(
-        "{\"artifacts\": [{\"id\": \"ART-005\", \"status\": \"landed\"}]}\n",
+        '{"artifacts": [{"id": "ART-005", "status": "landed"}]}\n',
         encoding="utf-8",
     )
-    (run_dir / "reconstruction-checklist.json").write_text("{\"checks\": [{\"id\": \"CHK-005\"}]}\n", encoding="utf-8")
+    (run_dir / "reconstruction-checklist.json").write_text(
+        '{"checks": [{"id": "CHK-005"}]}\n', encoding="utf-8"
+    )
     (run_dir / "scan-packets").mkdir()
-    (run_dir / "scan-packets" / "lane-a.md").write_text("# Scan Packet\n", encoding="utf-8")
+    (run_dir / "scan-packets" / "lane-a.md").write_text(
+        "# Scan Packet\n", encoding="utf-8"
+    )
     (run_dir / "evidence").mkdir()
     (run_dir / "evidence" / "api").mkdir()
     (run_dir / "worker-results").mkdir()
-    (run_dir / "worker-results" / "lane-a.json").write_text("{\"status\": \"ok\"}\n", encoding="utf-8")
+    (run_dir / "worker-results" / "lane-a.json").write_text(
+        '{"status": "ok"}\n', encoding="utf-8"
+    )
     master_dir = run_dir / "master"
     master_dir.mkdir()
     (master_dir / "master-pack.md").mkdir()
     exports_dir = run_dir / "exports"
     exports_dir.mkdir()
     (exports_dir / "prd.md").mkdir()
-    (exports_dir / "reconstruction-appendix.md").write_text("# Appendix\n", encoding="utf-8")
+    (exports_dir / "reconstruction-appendix.md").write_text(
+        "# Appendix\n", encoding="utf-8"
+    )
     (exports_dir / "data-model.md").write_text("# Data Model\n", encoding="utf-8")
-    (exports_dir / "integration-contracts.md").write_text("# Integration Contracts\n", encoding="utf-8")
-    (exports_dir / "runtime-behaviors.md").write_text("# Runtime Behaviors\n", encoding="utf-8")
+    (exports_dir / "integration-contracts.md").write_text(
+        "# Integration Contracts\n", encoding="utf-8"
+    )
+    (exports_dir / "runtime-behaviors.md").write_text(
+        "# Runtime Behaviors\n", encoding="utf-8"
+    )
 
     result = _invoke_in_project(
         project,
-        ["hook", "validate-artifacts", "--command", "prd-build", "--feature-dir", str(run_dir)],
+        [
+            "hook",
+            "validate-artifacts",
+            "--command",
+            "prd-build",
+            "--feature-dir",
+            str(run_dir),
+        ],
     )
 
     payload = json.loads(result.output.strip())
     assert payload["status"] == "blocked"
-    assert any("required artifact must be a file: master/master-pack.md" in message for message in payload["errors"])
-    assert any("required artifact must be a file: exports/prd.md" in message for message in payload["errors"])
+    assert any(
+        "required artifact must be a file: master/master-pack.md" in message
+        for message in payload["errors"]
+    )
+    assert any(
+        "required artifact must be a file: exports/prd.md" in message
+        for message in payload["errors"]
+    )
 
 
-def test_hook_validate_artifacts_blocks_prd_build_when_secondary_export_paths_are_directories(tmp_path: Path):
+def test_hook_validate_artifacts_blocks_prd_build_when_secondary_export_paths_are_directories(
+    tmp_path: Path,
+):
     project = _create_project(tmp_path)
-    run_dir = project / ".specify" / "prd-runs" / "260504-demo-prd-build-secondary-export-dirs"
+    run_dir = (
+        project
+        / ".specify"
+        / "prd-runs"
+        / "260504-demo-prd-build-secondary-export-dirs"
+    )
     run_dir.mkdir(parents=True, exist_ok=True)
     (run_dir / "workflow-state.md").write_text("# Workflow State\n", encoding="utf-8")
     (run_dir / "prd-scan.md").write_text("# PRD Scan\n", encoding="utf-8")
-    (run_dir / "coverage-ledger.json").write_text("{\"version\": 1, \"rows\": []}\n", encoding="utf-8")
+    (run_dir / "coverage-ledger.json").write_text(
+        '{"version": 1, "rows": []}\n', encoding="utf-8"
+    )
     (run_dir / "capability-ledger.json").write_text(
-        "{\"capabilities\": [{\"id\": \"CAP-011\", \"tier\": \"critical\", \"status\": \"reconstruction-ready\"}]}\n",
+        '{"capabilities": [{"id": "CAP-011", "tier": "critical", "status": "reconstruction-ready"}]}\n',
         encoding="utf-8",
     )
     (run_dir / "artifact-contracts.json").write_text(
-        "{\"artifacts\": [{\"id\": \"ART-006\", \"status\": \"landed\"}]}\n",
+        '{"artifacts": [{"id": "ART-006", "status": "landed"}]}\n',
         encoding="utf-8",
     )
-    (run_dir / "reconstruction-checklist.json").write_text("{\"checks\": [{\"id\": \"CHK-006\"}]}\n", encoding="utf-8")
+    (run_dir / "reconstruction-checklist.json").write_text(
+        '{"checks": [{"id": "CHK-006"}]}\n', encoding="utf-8"
+    )
     (run_dir / "scan-packets").mkdir()
-    (run_dir / "scan-packets" / "lane-a.md").write_text("# Scan Packet\n", encoding="utf-8")
+    (run_dir / "scan-packets" / "lane-a.md").write_text(
+        "# Scan Packet\n", encoding="utf-8"
+    )
     (run_dir / "evidence").mkdir()
     (run_dir / "evidence" / "api").mkdir()
     (run_dir / "worker-results").mkdir()
-    (run_dir / "worker-results" / "lane-a.json").write_text("{\"status\": \"ok\"}\n", encoding="utf-8")
+    (run_dir / "worker-results" / "lane-a.json").write_text(
+        '{"status": "ok"}\n', encoding="utf-8"
+    )
     master_dir = run_dir / "master"
     master_dir.mkdir()
     (master_dir / "master-pack.md").write_text("# Master Pack\n", encoding="utf-8")
@@ -3861,21 +6415,45 @@ def test_hook_validate_artifacts_blocks_prd_build_when_secondary_export_paths_ar
 
     result = _invoke_in_project(
         project,
-        ["hook", "validate-artifacts", "--command", "prd-build", "--feature-dir", str(run_dir)],
+        [
+            "hook",
+            "validate-artifacts",
+            "--command",
+            "prd-build",
+            "--feature-dir",
+            str(run_dir),
+        ],
     )
 
     payload = json.loads(result.output.strip())
     assert payload["status"] == "blocked"
-    assert any("required artifact must be a file: exports/reconstruction-appendix.md" in message for message in payload["errors"])
-    assert any("required artifact must be a file: exports/data-model.md" in message for message in payload["errors"])
-    assert any("required artifact must be a file: exports/integration-contracts.md" in message for message in payload["errors"])
-    assert any("required artifact must be a file: exports/runtime-behaviors.md" in message for message in payload["errors"])
+    assert any(
+        "required artifact must be a file: exports/reconstruction-appendix.md"
+        in message
+        for message in payload["errors"]
+    )
+    assert any(
+        "required artifact must be a file: exports/data-model.md" in message
+        for message in payload["errors"]
+    )
+    assert any(
+        "required artifact must be a file: exports/integration-contracts.md" in message
+        for message in payload["errors"]
+    )
+    assert any(
+        "required artifact must be a file: exports/runtime-behaviors.md" in message
+        for message in payload["errors"]
+    )
 
 
-def test_prd_scan_command_json_entrypoint_reports_mode_appropriate_completion(tmp_path: Path):
+def test_prd_scan_command_json_entrypoint_reports_mode_appropriate_completion(
+    tmp_path: Path,
+):
     project = _create_project(tmp_path)
 
-    init_result = _run_module_in_project(project, ["prd-scan", "Portal Audit", "--json"])
+    init_result = _run_module_in_project(
+        project, ["prd-scan", "Portal Audit", "--json"]
+    )
 
     assert init_result.returncode == 0, init_result.stderr or init_result.stdout
     init_payload = json.loads(init_result.stdout.strip())
@@ -3923,7 +6501,7 @@ def test_hook_workflow_policy_outputs_parseable_json(tmp_path: Path):
         ],
     )
 
-    assert result.exit_code == 0, result.output
+    assert result.exit_code == 10, result.output
     payload = json.loads(result.output.strip())
     assert payload["event"] == "workflow.policy.evaluate"
     assert payload["status"] == "repairable-block"
@@ -4079,13 +6657,15 @@ def test_hook_workflow_policy_accepts_prior_redirect_count(tmp_path: Path):
         ],
     )
 
-    assert result.exit_code == 0, result.output
+    assert result.exit_code == 10, result.output
     payload = json.loads(result.output.strip())
     assert payload["event"] == "workflow.policy.evaluate"
     assert payload["status"] == "blocked"
 
 
-def test_hook_workflow_policy_uses_persisted_redirect_count_when_flag_omitted(tmp_path: Path):
+def test_hook_workflow_policy_uses_persisted_redirect_count_when_flag_omitted(
+    tmp_path: Path,
+):
     project = _create_project(tmp_path)
     feature_dir = project / "specs" / "001-demo"
     feature_dir.mkdir(parents=True, exist_ok=True)
@@ -4176,7 +6756,7 @@ def test_hook_workflow_policy_uses_persisted_redirect_count_when_flag_omitted(tm
         ],
     )
 
-    assert second.exit_code == 0, second.output
+    assert second.exit_code == 10, second.output
     second_payload = json.loads(second.output.strip())
     assert second_payload["event"] == "workflow.policy.evaluate"
     assert second_payload["status"] == "blocked"
@@ -4300,7 +6880,7 @@ def test_hook_review_learning_blocks_without_review_payload(tmp_path: Path):
         ],
     )
 
-    assert result.exit_code == 0, result.output
+    assert result.exit_code == 10, result.output
     payload = json.loads(result.output.strip())
     assert payload["event"] == "workflow.learning.review"
     assert payload["status"] == "blocked"
@@ -4323,7 +6903,7 @@ def test_hook_review_learning_accepts_json_format_alias(tmp_path: Path):
         ],
     )
 
-    assert result.exit_code == 0, result.output
+    assert result.exit_code == 10, result.output
     payload = json.loads(result.output.strip())
     assert payload["event"] == "workflow.learning.review"
     assert payload["status"] == "blocked"
@@ -4354,6 +6934,29 @@ def test_hook_signal_learning_outputs_parseable_json(tmp_path: Path):
     assert payload["status"] == "warn"
 
 
+def test_hook_signal_learning_accepts_explicit_semantic_trigger(tmp_path: Path):
+    project = _create_project(tmp_path)
+
+    result = _invoke_in_project(
+        project,
+        [
+            "hook",
+            "signal-learning",
+            "--command",
+            "plan",
+            "--trigger-signal",
+            "user_correction: sp-plan must not create tasks.md",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output.strip())
+    assert payload["status"] == "warn"
+    assert payload["data"]["trigger_signals"] == [
+        "user_correction: sp-plan must not create tasks.md"
+    ]
+
+
 def test_hook_complete_refresh_accepts_json_format_alias(tmp_path: Path):
     project = _create_project(tmp_path)
 
@@ -4367,7 +6970,7 @@ def test_hook_complete_refresh_accepts_json_format_alias(tmp_path: Path):
         ],
     )
 
-    assert result.exit_code == 0, result.output
+    assert result.exit_code == 10, result.output
     payload = json.loads(result.output.strip())
     assert payload["event"] == "project_cognition.complete_refresh"
     assert payload["status"] == "blocked"
@@ -4375,12 +6978,22 @@ def test_hook_complete_refresh_accepts_json_format_alias(tmp_path: Path):
 
 def test_hook_complete_refresh_blocks_without_query_ready_runtime(tmp_path: Path):
     project = _create_project(tmp_path)
-    subprocess.run(["git", "init"], cwd=project, check=True, capture_output=True, text=True)
-    subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=project, check=True)
+    subprocess.run(
+        ["git", "init"], cwd=project, check=True, capture_output=True, text=True
+    )
+    subprocess.run(
+        ["git", "config", "user.email", "test@example.com"], cwd=project, check=True
+    )
     subprocess.run(["git", "config", "user.name", "Test User"], cwd=project, check=True)
     (project / "README.md").write_text("# Test\n", encoding="utf-8")
     subprocess.run(["git", "add", "README.md"], cwd=project, check=True)
-    subprocess.run(["git", "commit", "-m", "Initial test commit"], cwd=project, check=True, capture_output=True, text=True)
+    subprocess.run(
+        ["git", "commit", "-m", "Initial test commit"],
+        cwd=project,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
 
     result = _invoke_in_project(
         project,
@@ -4395,7 +7008,7 @@ def test_hook_complete_refresh_blocks_without_query_ready_runtime(tmp_path: Path
     payload = json.loads(result.output.strip())
     status_path = project / ".specify" / "project-cognition" / "status.json"
     status_payload = json.loads(status_path.read_text(encoding="utf-8"))
-    assert result.exit_code == 0, result.output
+    assert result.exit_code == 10, result.output
     assert payload["event"] == "project_cognition.complete_refresh"
     assert payload["status"] == "blocked"
     assert payload["severity"] == "critical"
@@ -4405,12 +7018,22 @@ def test_hook_complete_refresh_blocks_without_query_ready_runtime(tmp_path: Path
 
 def test_hook_complete_refresh_accepts_query_ready_runtime(tmp_path: Path):
     project = _create_project(tmp_path)
-    subprocess.run(["git", "init"], cwd=project, check=True, capture_output=True, text=True)
-    subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=project, check=True)
+    subprocess.run(
+        ["git", "init"], cwd=project, check=True, capture_output=True, text=True
+    )
+    subprocess.run(
+        ["git", "config", "user.email", "test@example.com"], cwd=project, check=True
+    )
     subprocess.run(["git", "config", "user.name", "Test User"], cwd=project, check=True)
     (project / "README.md").write_text("# Test\n", encoding="utf-8")
     subprocess.run(["git", "add", "README.md"], cwd=project, check=True)
-    subprocess.run(["git", "commit", "-m", "Initial test commit"], cwd=project, check=True, capture_output=True, text=True)
+    subprocess.run(
+        ["git", "commit", "-m", "Initial test commit"],
+        cwd=project,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
     _write_project_cognition_runtime(project / ".specify" / "project-cognition")
 
     result = _invoke_in_project(
@@ -4433,21 +7056,29 @@ def test_hook_complete_refresh_accepts_query_ready_runtime(tmp_path: Path):
     assert status_payload["last_refresh_reason"] == "map-build"
 
 
-def test_project_map_preflight_support_drift_copy_does_not_route_to_map_update(tmp_path: Path, monkeypatch):
+def test_project_map_preflight_support_drift_copy_does_not_route_to_map_update(
+    tmp_path: Path, monkeypatch
+):
     project = _create_project(tmp_path)
     (project / ".specify" / "integration.json").write_text(
         json.dumps({"integration": "codex"}),
         encoding="utf-8",
     )
 
-    def support_drift(_args: list[str], *, cwd: Path, check: bool = True) -> dict[str, object]:
+    def support_drift(
+        _args: list[str], *, cwd: Path, check: bool = True
+    ) -> dict[str, object]:
         return {
             "freshness": "support_drift",
             "state": "support_drift",
             "readiness": "blocked",
             "recommended_next_action": "commit_or_ignore_support_files",
-            "status_path": str(project / ".specify" / "project-map" / "index" / "status.json"),
-            "reasons": ["tool-managed support surface changed: .specify/templates/runtime-config.template.json"],
+            "status_path": str(
+                project / ".specify" / "project-map" / "index" / "status.json"
+            ),
+            "reasons": [
+                "tool-managed support surface changed: .specify/templates/runtime-config.template.json"
+            ],
             "changed_files": [".specify/templates/runtime-config.template.json"],
             "must_refresh_topics": [],
             "review_topics": [],
@@ -4464,21 +7095,29 @@ def test_project_map_preflight_support_drift_copy_does_not_route_to_map_update(t
     assert "sp-map-update" not in result.output.lower()
 
 
-def test_project_map_preflight_partial_refresh_copy_explains_refresh_recorded_but_not_ready(tmp_path: Path, monkeypatch):
+def test_project_map_preflight_partial_refresh_copy_explains_refresh_recorded_but_not_ready(
+    tmp_path: Path, monkeypatch
+):
     project = _create_project(tmp_path)
     (project / ".specify" / "integration.json").write_text(
         json.dumps({"integration": "codex"}),
         encoding="utf-8",
     )
 
-    def partial_refresh(_args: list[str], *, cwd: Path, check: bool = True) -> dict[str, object]:
+    def partial_refresh(
+        _args: list[str], *, cwd: Path, check: bool = True
+    ) -> dict[str, object]:
         return {
             "freshness": "partial_refresh",
             "state": "partial_refresh",
             "readiness": "blocked",
             "recommended_next_action": "run_map_update",
-            "status_path": str(project / ".specify" / "project-map" / "index" / "status.json"),
-            "reasons": ["Project cognition refresh data was recorded, but runtime readiness is still blocked for the touched area."],
+            "status_path": str(
+                project / ".specify" / "project-map" / "index" / "status.json"
+            ),
+            "reasons": [
+                "Project cognition refresh data was recorded, but runtime readiness is still blocked for the touched area."
+            ],
             "changed_files": ["src/routes/api.ts"],
             "must_refresh_topics": ["INTEGRATIONS.md"],
             "review_topics": ["ARCHITECTURE.md"],
@@ -4495,20 +7134,26 @@ def test_project_map_preflight_partial_refresh_copy_explains_refresh_recorded_bu
     assert "remains partial" in result.output.lower()
 
 
-def test_project_map_preflight_path_index_gap_routes_to_map_update(tmp_path: Path, monkeypatch):
+def test_project_map_preflight_path_index_gap_routes_to_map_update(
+    tmp_path: Path, monkeypatch
+):
     project = _create_project(tmp_path)
     (project / ".specify" / "integration.json").write_text(
         json.dumps({"integration": "codex"}),
         encoding="utf-8",
     )
 
-    def stale_path_index_gap(_args: list[str], *, cwd: Path, check: bool = True) -> dict[str, object]:
+    def stale_path_index_gap(
+        _args: list[str], *, cwd: Path, check: bool = True
+    ) -> dict[str, object]:
         return {
             "freshness": "stale",
             "state": "runtime_stale",
             "readiness": "blocked",
             "recommended_next_action": "run_map_update",
-            "status_path": str(project / ".specify" / "project-cognition" / "status.json"),
+            "status_path": str(
+                project / ".specify" / "project-cognition" / "status.json"
+            ),
             "reasons": ["58 changed paths missing from project cognition path_index"],
             "changed_files": [],
             "must_refresh_topics": [],
@@ -4529,20 +7174,26 @@ def test_project_map_preflight_path_index_gap_routes_to_map_update(tmp_path: Pat
     assert "sp-map-build" not in result.output.lower()
 
 
-def test_project_map_preflight_scan_build_copy_names_all_rebuild_reasons(tmp_path: Path, monkeypatch):
+def test_project_map_preflight_scan_build_copy_names_all_rebuild_reasons(
+    tmp_path: Path, monkeypatch
+):
     project = _create_project(tmp_path)
     (project / ".specify" / "integration.json").write_text(
         json.dumps({"integration": "codex"}),
         encoding="utf-8",
     )
 
-    def zero_path_index_rebuild(_args: list[str], *, cwd: Path, check: bool = True) -> dict[str, object]:
+    def zero_path_index_rebuild(
+        _args: list[str], *, cwd: Path, check: bool = True
+    ) -> dict[str, object]:
         return {
             "freshness": "stale",
             "state": "runtime_stale",
             "readiness": "blocked",
             "recommended_next_action": "run_map_scan_build",
-            "status_path": str(project / ".specify" / "project-cognition" / "status.json"),
+            "status_path": str(
+                project / ".specify" / "project-cognition" / "status.json"
+            ),
             "reasons": ["active_generation_has_no_path_index_rows"],
             "changed_files": [],
             "must_refresh_topics": [],
@@ -4587,6 +7238,18 @@ def test_hook_capture_learning_records_candidate(tmp_path: Path):
             "job object cleanup",
             "--injection-target",
             "sp-debug",
+            "--problem",
+            "Generated logs retrigger the watcher.",
+            "--action",
+            "Exclude generated logs before changing process supervision.",
+            "--trigger",
+            "watcher restarts after log writes",
+            "--success",
+            "the watcher stays stable while logs change",
+            "--avoid",
+            "rewriting process cleanup first",
+            "--exception",
+            "the watcher does not observe the log directory",
         ],
     )
 
@@ -4594,4 +7257,10 @@ def test_hook_capture_learning_records_candidate(tmp_path: Path):
     payload = json.loads(result.output.strip())
     assert payload["event"] == "workflow.learning.capture"
     assert payload["status"] == "repaired"
-    assert payload["data"]["capture"]["entry"]["learning_type"] == "tooling_trap"
+    entry = payload["data"]["capture"]["entry"]
+    assert entry["learning_type"] == "tooling_trap"
+    assert (
+        entry["recommended_action"]
+        == "Exclude generated logs before changing process supervision."
+    )
+    assert entry["trigger_signals"] == ["watcher restarts after log writes"]
