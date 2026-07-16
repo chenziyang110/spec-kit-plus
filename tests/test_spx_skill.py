@@ -13,7 +13,10 @@ from specify_cli import app
 from specify_cli.design import lint_design_file
 from specify_cli.integrations import get_integration
 from specify_cli.integrations.manifest import IntegrationManifest
-from specify_cli.launcher import write_project_cognition_launcher_config
+from specify_cli.launcher import (
+    SpecifyLauncherSpec,
+    write_project_cognition_launcher_config,
+)
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -736,6 +739,77 @@ def test_advanced_local_references_use_the_project_pinned_launcher(tmp_path) -> 
         "C:/tools/project-cognition.exe" in cognition
     )
     assert "{{specify-subcmd:" not in execution + teams + cognition
+
+
+def test_fresh_advanced_codex_init_binds_root_discussion_skill_to_source_launcher(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    import importlib
+
+    project = tmp_path / "fresh-advanced-project"
+    project.mkdir()
+    assert not (project / ".specify" / "config.json").exists()
+    pinned_command = (
+        "uvx --from "
+        "git+https://github.com/chenziyang110/spec-kit-plus.git@abc123 specify"
+    )
+    pinned_launcher = SpecifyLauncherSpec(
+        command=pinned_command,
+        argv=(
+            "uvx",
+            "--from",
+            "git+https://github.com/chenziyang110/spec-kit-plus.git@abc123",
+            "specify",
+        ),
+    )
+    monkeypatch.setattr(specify_cli, "check_tool", lambda tool, tracker=None: True)
+    monkeypatch.setattr(
+        "specify_cli.launcher.resolve_specify_launcher_spec",
+        lambda: pinned_launcher,
+    )
+    specify_lint = importlib.import_module("specify_cli.lint")
+    monkeypatch.setattr(specify_lint, "ensure_binary", lambda: tmp_path / "spec-lint")
+    monkeypatch.setattr(
+        "specify_cli.project_cognition_runtime.ensure_binary",
+        lambda: (_ for _ in ()).throw(RuntimeError("offline runtime fixture")),
+    )
+    runner = CliRunner()
+
+    old_cwd = os.getcwd()
+    try:
+        os.chdir(project)
+        initialized = runner.invoke(
+            app,
+            [
+                "init",
+                "--here",
+                "--force",
+                "--ai",
+                "codex",
+                "--workflow-profile",
+                "advanced",
+                "--script",
+                "sh",
+                "--no-git",
+                "--ignore-agent-tools",
+            ],
+            catch_exceptions=False,
+        )
+    finally:
+        os.chdir(old_cwd)
+
+    assert initialized.exit_code == 0, initialized.output
+    config = json.loads(
+        (project / ".specify" / "config.json").read_text(encoding="utf-8")
+    )
+    assert config["specify_launcher"]["argv"] == list(pinned_launcher.argv)
+    discussion = (
+        project / ".codex" / "skills" / "spx-discussion" / "SKILL.md"
+    ).read_text(encoding="utf-8")
+    assert f"{pinned_command} discussion list --json" in discussion
+    assert f"{pinned_command} discussion init <slug> --json" in discussion
+    assert "`specify discussion" not in discussion
 
 
 def test_advanced_local_references_without_cognition_launcher_use_recovery_contract(

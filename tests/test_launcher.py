@@ -350,6 +350,52 @@ def test_diagnose_project_runtime_compatibility_reports_stale_generated_skill_la
     assert "integration repair" in stale["repair"]
 
 
+def test_diagnose_project_runtime_compatibility_reports_bare_generated_skill_launcher(
+    tmp_path,
+):
+    config_path = tmp_path / ".specify" / "config.json"
+    config_path.parent.mkdir(parents=True)
+    pinned_command = (
+        "uvx --from "
+        "git+https://github.com/chenziyang110/spec-kit-plus.git@abc123 specify"
+    )
+    config_path.write_text(
+        json.dumps(
+            {
+                "specify_launcher": {
+                    "command": pinned_command,
+                    "argv": [
+                        "uvx",
+                        "--from",
+                        "git+https://github.com/chenziyang110/spec-kit-plus.git@abc123",
+                        "specify",
+                    ],
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    skill_path = tmp_path / ".codex" / "skills" / "spx-discussion" / "SKILL.md"
+    skill_path.parent.mkdir(parents=True)
+    skill_path.write_text(
+        "Run `specify discussion list --json` and then "
+        "`specify discussion resume <slug> --json`.\n",
+        encoding="utf-8",
+    )
+
+    issues = diagnose_project_runtime_compatibility(tmp_path)
+
+    codes = {issue["code"] for issue in issues}
+    assert "unbound-generated-specify-launcher" in codes
+    misbound = next(
+        issue
+        for issue in issues
+        if issue["code"] == "unbound-generated-specify-launcher"
+    )
+    assert ".codex/skills/spx-discussion/SKILL.md" in misbound["summary"]
+    assert pinned_command in misbound["repair"]
+
+
 def test_runtime_diagnostics_warn_when_learning_index_missing(tmp_path):
     project = tmp_path
     skill_dir = project / ".specify" / "templates" / "passive-skills" / "spec-kit-project-learning"

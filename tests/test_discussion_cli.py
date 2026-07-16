@@ -264,6 +264,30 @@ def test_discussion_list_defaults_to_unclosed_discussions(tmp_path: Path):
     assert "archived-cleanup" not in result.stdout
 
 
+def test_discussion_list_json_preserves_cjk_paths_with_non_utf8_inherited_encoding(
+    tmp_path: Path, monkeypatch
+):
+    project = tmp_path / "PI项目研究"
+    project.mkdir()
+    project, discussion_root = _setup_project(project)
+    workspace = _write_discussion(
+        discussion_root,
+        "cjk-path",
+        status="exploring",
+        summary="CJK path encoding",
+    )
+    monkeypatch.delenv("PYTHONUTF8", raising=False)
+    monkeypatch.setenv("PYTHONIOENCODING", "gbk")
+
+    result = _invoke_in_project(project, ["discussion", "list", "--json"])
+
+    assert result.exit_code == 0, result.stdout
+    payload = json.loads(result.stdout)
+    workspace_path = payload["discussions"][0]["workspace_path"]
+    assert "\ufffd" not in workspace_path
+    assert workspace_path == str(workspace.resolve())
+
+
 def test_discussion_archive_rejects_handoff_ready_until_closed(tmp_path: Path):
     project, discussion_root = _setup_project(tmp_path)
     _write_discussion(
