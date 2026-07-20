@@ -35,7 +35,12 @@ or parse it as its revision authority.
   a strict backward move or reactivation of the same completed non-accept stage,
   including `implement` and `review`; an active same-stage owner simply continues. Honor any
   persisted blocker before retrying. Failed acceptance uses
-  `accept route-repair`, never generic reopen. Clear acceptance defects normally reopen Review so it can repair and rerun the preserved scenario.
+  `accept route-repair`, never generic reopen. Every non-human-access acceptance
+  failure first reopens Review; the Review Leader diagnoses it, dispatches an
+  independent Fix and revalidation cycle, and may reopen an upstream truth
+  owner only after proving that correct implementation is impossible under the
+  current requirement, design, or architecture truth. After any repair, rerun
+  the full frozen Human Acceptance Universe; preserve no stale human PASS.
 - After safe agent recovery is exhausted, persist the blocker through `{{specify-subcmd:workflow block --input <blocker-json-or-> --format json}}`. Obtain its exact input shape with `{{specify-subcmd:api schema workflow-block-input --format json}}`; the runtime rejects replacement of an unresolved blocker and returns the human tutorial, a safe read-only `show_argv`, and a structured `data.resolution_action`. While evidence is missing, `next_argv` is intentionally empty.
 - When the recorded unblock criteria are proven, append each sanitized evidence item to the runtime-returned `resolution_action.base_argv` using its declared `--resolution-evidence` required input, then execute that argv. This invokes `workflow resolve`, preserves the full prior blocker audit, and reactivates the same stage; do not reconstruct other flags or clear blocker state manually.
 - After explicit human acceptance, run the acceptance-owned `accept closeout` command and execute its successful response's `next_argv` verbatim. That revision-bound argv invokes `workflow closeout`; do not reconstruct it from prose or a remembered revision. It validates and snapshots acceptance evidence before marking the feature workflow complete.

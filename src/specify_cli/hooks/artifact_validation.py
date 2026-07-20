@@ -2772,6 +2772,793 @@ def _validate_tasks_ui_contract(feature_dir: Path) -> list[str]:
     return errors
 
 
+def _json_pointer_escape_token(value: object) -> str:
+    """Escape one RFC 6901 JSON Pointer token."""
+
+    return str(value).replace("~", "~0").replace("/", "~1")
+
+
+def _validate_spec_acceptance_coverage(payload: dict[str, Any]) -> list[str]:
+    """Require exact machine-readable closure from Spec requirements to acceptance."""
+
+    errors: list[str] = []
+    requirement_refs: list[str] = []
+
+    scope = payload.get("scope")
+    if not isinstance(scope, dict):
+        errors.append(
+            "spec-contract.json scope must be an object for acceptance_coverage"
+        )
+    else:
+        scope_in = scope.get("in")
+        if not isinstance(scope_in, list):
+            errors.append(
+                "spec-contract.json scope.in must be an array for acceptance_coverage"
+            )
+        else:
+            requirement_refs.extend(
+                f"spec-contract.json#/scope/in/{index}"
+                for index in range(len(scope_in))
+            )
+
+    capability_operations = payload.get("capability_operations")
+    if isinstance(capability_operations, list):
+        requirement_refs.extend(
+            f"spec-contract.json#/capability_operations/{index}"
+            for index in range(len(capability_operations))
+        )
+    elif isinstance(capability_operations, dict):
+        requirement_refs.extend(
+            "spec-contract.json#/capability_operations/"
+            + _json_pointer_escape_token(key)
+            for key in capability_operations
+        )
+    else:
+        errors.append(
+            "spec-contract.json capability_operations must be an array or object "
+            "for acceptance_coverage"
+        )
+
+    acceptance_criteria = payload.get("acceptance_criteria")
+    acceptance_refs = (
+        [
+            f"spec-contract.json#/acceptance_criteria/{index}"
+            for index in range(len(acceptance_criteria))
+        ]
+        if isinstance(acceptance_criteria, list)
+        else []
+    )
+    expected_requirement_refs = set(requirement_refs)
+    expected_acceptance_refs = set(acceptance_refs)
+
+    raw_coverage = payload.get("acceptance_coverage")
+    if not isinstance(raw_coverage, list) or not raw_coverage:
+        errors.append(
+            "spec-contract.json acceptance_coverage must be a non-empty array"
+        )
+        return errors
+
+    coverage_pairs: list[tuple[str, str]] = []
+    for index, value in enumerate(raw_coverage):
+        prefix = f"spec-contract.json acceptance_coverage[{index}]"
+        if not isinstance(value, dict):
+            errors.append(f"{prefix} must be an object")
+            continue
+        requirement_ref = value.get("requirement_ref")
+        acceptance_ref = value.get("acceptance_ref")
+        if not isinstance(requirement_ref, str) or not requirement_ref.strip():
+            errors.append(f"{prefix}.requirement_ref must be a non-empty string")
+            continue
+        if not isinstance(acceptance_ref, str) or not acceptance_ref.strip():
+            errors.append(f"{prefix}.acceptance_ref must be a non-empty string")
+            continue
+        coverage_pairs.append((requirement_ref.strip(), acceptance_ref.strip()))
+
+    duplicate_pairs = sorted(
+        pair for pair in set(coverage_pairs) if coverage_pairs.count(pair) > 1
+    )
+    if duplicate_pairs:
+        errors.append(
+            "spec-contract.json acceptance_coverage must contain unique "
+            "requirement_ref/acceptance_ref pairs: "
+            + ", ".join(
+                f"{requirement_ref} -> {acceptance_ref}"
+                for requirement_ref, acceptance_ref in duplicate_pairs
+            )
+        )
+
+    actual_requirement_refs = {pair[0] for pair in coverage_pairs}
+    actual_acceptance_refs = {pair[1] for pair in coverage_pairs}
+    unknown_requirement_refs = sorted(
+        actual_requirement_refs - expected_requirement_refs
+    )
+    unknown_acceptance_refs = sorted(actual_acceptance_refs - expected_acceptance_refs)
+    if unknown_requirement_refs:
+        errors.append(
+            "spec-contract.json acceptance_coverage contains unknown requirement_ref values: "
+            + ", ".join(unknown_requirement_refs)
+        )
+    if unknown_acceptance_refs:
+        errors.append(
+            "spec-contract.json acceptance_coverage contains unknown acceptance_ref values: "
+            + ", ".join(unknown_acceptance_refs)
+        )
+
+    missing_requirement_refs = sorted(
+        expected_requirement_refs - actual_requirement_refs
+    )
+    missing_acceptance_refs = sorted(expected_acceptance_refs - actual_acceptance_refs)
+    if missing_requirement_refs:
+        errors.append(
+            "spec-contract.json requirements are missing acceptance_coverage: "
+            + ", ".join(missing_requirement_refs)
+        )
+    if missing_acceptance_refs:
+        errors.append(
+            "spec-contract.json acceptance criteria are missing acceptance_coverage: "
+            + ", ".join(missing_acceptance_refs)
+        )
+
+    multiply_mapped_acceptance_refs = sorted(
+        acceptance_ref
+        for acceptance_ref in expected_acceptance_refs
+        if sum(pair[1] == acceptance_ref for pair in coverage_pairs) > 1
+    )
+    if multiply_mapped_acceptance_refs:
+        errors.append(
+            "spec-contract.json each acceptance criterion must map to exactly one "
+            "requirement_ref; multiply mapped acceptance refs: "
+            + ", ".join(multiply_mapped_acceptance_refs)
+        )
+    return errors
+
+
+def _validate_plan_human_acceptance_contract(feature_dir: Path) -> list[str]:
+    """Require Plan to preserve the complete Spec acceptance denominator."""
+
+    spec_path = feature_dir / "spec-contract.json"
+    if not spec_path.is_file():
+        return ["spec-contract.json is required to define the acceptance denominator"]
+    spec_payload, spec_errors = _read_json_artifact(spec_path, "spec-contract.json")
+    if spec_errors:
+        return spec_errors
+    if not isinstance(spec_payload, dict):
+        return ["spec-contract.json must contain a top-level object"]
+    raw_criteria = spec_payload.get("acceptance_criteria")
+    if not isinstance(raw_criteria, list) or not raw_criteria:
+        return ["spec-contract.json acceptance_criteria must be a non-empty array"]
+    errors: list[str] = []
+    for index, criterion in enumerate(raw_criteria):
+        if not isinstance(criterion, str) or not criterion.strip():
+            errors.append(
+                f"spec-contract.json acceptance_criteria[{index}] must be a non-empty string"
+            )
+    errors.extend(_validate_spec_acceptance_coverage(spec_payload))
+
+    plan_path: Path | None = None
+    plan_label = "plan-contract.json"
+    for candidate, label in _consequence_contract_paths(feature_dir):
+        if candidate.is_file():
+            plan_path = candidate
+            plan_label = label
+            break
+    if plan_path is None:
+        return [
+            *errors,
+            "plan-contract.json is required to preserve acceptance criteria",
+        ]
+    plan_payload, plan_errors = _read_json_artifact(plan_path, plan_label)
+    if plan_errors:
+        return plan_errors
+    if not isinstance(plan_payload, dict):
+        return [f"{plan_label} must contain a top-level object"]
+
+    raw_refs = plan_payload.get("acceptance_refs")
+    if not isinstance(raw_refs, list):
+        return [f"{plan_label} acceptance_refs must be an array"]
+    refs: list[str] = []
+    for index, value in enumerate(raw_refs):
+        if not isinstance(value, str) or not value.strip():
+            errors.append(
+                f"{plan_label} acceptance_refs[{index}] must be a non-empty string"
+            )
+            continue
+        refs.append(value.strip())
+    duplicate_refs = sorted(ref for ref in set(refs) if refs.count(ref) > 1)
+    if duplicate_refs:
+        errors.append(
+            f"{plan_label} acceptance_refs must be unique: " + ", ".join(duplicate_refs)
+        )
+    expected_ref_list = [
+        f"spec-contract.json#/acceptance_criteria/{index}"
+        for index in range(len(raw_criteria))
+    ]
+    expected_refs = set(expected_ref_list)
+    actual_refs = set(refs)
+    missing_refs = sorted(expected_refs - actual_refs)
+    unknown_refs = sorted(actual_refs - expected_refs)
+    if missing_refs:
+        errors.append(
+            f"{plan_label} acceptance_refs are missing spec acceptance criteria: "
+            + ", ".join(missing_refs)
+        )
+    if unknown_refs:
+        errors.append(
+            f"{plan_label} acceptance_refs contain unknown spec acceptance criteria: "
+            + ", ".join(unknown_refs)
+        )
+    if not missing_refs and not unknown_refs and refs != expected_ref_list:
+        errors.append(f"{plan_label} acceptance_refs must preserve specification order")
+    return errors
+
+
+def _validate_tasks_human_acceptance_contract(feature_dir: Path) -> list[str]:
+    """Validate the task-owned, executable human acceptance universe."""
+
+    errors: list[str] = _validate_plan_human_acceptance_contract(feature_dir)
+    plan_acceptance_refs: list[str] = []
+    plan_label = "plan-contract.json"
+    for plan_path, plan_label in _consequence_contract_paths(feature_dir):
+        if not plan_path.is_file():
+            continue
+        plan_payload, plan_read_errors = _read_json_artifact(plan_path, plan_label)
+        if plan_read_errors:
+            errors.extend(plan_read_errors)
+            break
+        if isinstance(plan_payload, dict):
+            raw_plan_refs = plan_payload.get("acceptance_refs")
+            if not isinstance(raw_plan_refs, list):
+                errors.append(f"{plan_label} acceptance_refs must be an array")
+            else:
+                for index, value in enumerate(raw_plan_refs):
+                    if not isinstance(value, str) or not value.strip():
+                        errors.append(
+                            f"{plan_label} acceptance_refs[{index}] must be a non-empty string"
+                        )
+                        continue
+                    plan_acceptance_refs.append(value.strip())
+        break
+
+    task_index_path = feature_dir / "task-index.json"
+    if not task_index_path.is_file():
+        if plan_acceptance_refs:
+            errors.append(
+                "task-index.json is required when Plan defines acceptance_refs so "
+                "Tasks can freeze the Human Acceptance Universe"
+            )
+        return errors
+    payload, read_errors = _read_json_artifact(task_index_path, "task-index.json")
+    if read_errors:
+        return [*errors, *read_errors]
+    if not isinstance(payload, dict):
+        return [*errors, "task-index.json must contain a top-level object"]
+    if plan_acceptance_refs and payload.get("version") != 2:
+        errors.append(
+            "task-index.json version must equal 2 when Plan defines acceptance_refs"
+        )
+    if plan_acceptance_refs and payload.get("status") != "ready":
+        errors.append(
+            "task-index.json status must be ready when Plan defines acceptance_refs"
+        )
+
+    raw_acceptance_refs = payload.get("acceptance_refs", [])
+    if not isinstance(raw_acceptance_refs, list):
+        return [*errors, "task-index.json acceptance_refs must be an array"]
+    acceptance_refs: list[str] = []
+    for index, value in enumerate(raw_acceptance_refs):
+        if not isinstance(value, str) or not value.strip():
+            errors.append(
+                f"task-index.json acceptance_refs[{index}] must be a non-empty string"
+            )
+            continue
+        acceptance_refs.append(value.strip())
+    duplicate_acceptance_refs = sorted(
+        ref for ref in set(acceptance_refs) if acceptance_refs.count(ref) > 1
+    )
+    if duplicate_acceptance_refs:
+        errors.append(
+            "task-index.json acceptance_refs must be unique: "
+            + ", ".join(duplicate_acceptance_refs)
+        )
+    if plan_acceptance_refs:
+        expected_task_ref_list = [
+            f"{plan_label}#/acceptance_refs/{index}"
+            for index in range(len(plan_acceptance_refs))
+        ]
+        expected_task_refs = set(expected_task_ref_list)
+        task_ref_set = set(acceptance_refs)
+        missing_plan_refs = sorted(expected_task_refs - task_ref_set)
+        unknown_task_refs = sorted(task_ref_set - expected_task_refs)
+        if missing_plan_refs:
+            errors.append(
+                "task-index.json human acceptance universe is missing plan acceptance_refs: "
+                + ", ".join(missing_plan_refs)
+            )
+        if unknown_task_refs:
+            errors.append(
+                "task-index.json human acceptance universe contains acceptance_refs not present in the plan: "
+                + ", ".join(unknown_task_refs)
+            )
+        if (
+            not missing_plan_refs
+            and not unknown_task_refs
+            and acceptance_refs != expected_task_ref_list
+        ):
+            errors.append("task-index.json acceptance_refs must preserve Plan order")
+    expected_source_refs = set(acceptance_refs)
+
+    raw_obligations = payload.get("human_acceptance_obligations", [])
+    raw_scenarios = payload.get("human_acceptance_scenarios", [])
+    modern_ready = payload.get("version") == 2 and payload.get("status") == "ready"
+    universe_declared = bool(
+        acceptance_refs
+        or plan_acceptance_refs
+        or raw_obligations
+        or raw_scenarios
+        or "human_acceptance_obligations" in payload
+        or "human_acceptance_scenarios" in payload
+        or modern_ready
+    )
+    if not universe_declared:
+        return errors
+    if not isinstance(raw_obligations, list):
+        errors.append("task-index.json human_acceptance_obligations must be an array")
+        raw_obligations = []
+    if not isinstance(raw_scenarios, list):
+        errors.append("task-index.json human_acceptance_scenarios must be an array")
+        raw_scenarios = []
+    if acceptance_refs and not raw_obligations:
+        errors.append(
+            "task-index.json human_acceptance_obligations must be non-empty when acceptance_refs are present"
+        )
+    if acceptance_refs and not raw_scenarios:
+        errors.append(
+            "task-index.json human_acceptance_scenarios must be non-empty when acceptance_refs are present"
+        )
+    if modern_ready and (not raw_obligations or not raw_scenarios):
+        errors.append(
+            "ready task-index.json version 2 requires a non-empty Human Acceptance Universe"
+        )
+
+    official_entrypoints = payload.get("official_entrypoints", [])
+    if not isinstance(official_entrypoints, list):
+        errors.append("task-index.json official_entrypoints must be an array")
+        official_entrypoints = []
+    entrypoints_by_id: dict[str, dict[str, Any]] = {}
+    for index, value in enumerate(official_entrypoints):
+        prefix = f"task-index.json official_entrypoints[{index}]"
+        if not isinstance(value, dict):
+            errors.append(f"{prefix} must be an object")
+            continue
+        entrypoint_id = _required_contract_text(value, "id", prefix, errors)
+        _required_contract_text(value, "command", prefix, errors)
+        _required_contract_text(value, "ready_signal", prefix, errors)
+        if not entrypoint_id:
+            continue
+        if entrypoint_id in entrypoints_by_id:
+            errors.append(
+                f"task-index.json official entrypoint id must be unique: {entrypoint_id}"
+            )
+            continue
+        entrypoints_by_id[entrypoint_id] = value
+
+    system_review_scenarios = payload.get("system_review_scenarios", [])
+    if not isinstance(system_review_scenarios, list):
+        errors.append("task-index.json system_review_scenarios must be an array")
+        system_review_scenarios = []
+    review_scenarios_by_id: dict[str, dict[str, Any]] = {}
+    for index, value in enumerate(system_review_scenarios):
+        prefix = f"task-index.json system_review_scenarios[{index}]"
+        if not isinstance(value, dict):
+            errors.append(f"{prefix} must be an object")
+            continue
+        scenario_id = _required_contract_text(value, "id", prefix, errors)
+        entrypoint_id = _required_contract_text(value, "entrypoint_id", prefix, errors)
+        if not isinstance(value.get("required"), bool):
+            errors.append(f"{prefix}.required must be a boolean")
+        if entrypoint_id and entrypoint_id not in entrypoints_by_id:
+            errors.append(
+                f"{prefix}.entrypoint_id references unknown official entrypoint: {entrypoint_id}"
+            )
+        if not scenario_id:
+            continue
+        if scenario_id in review_scenarios_by_id:
+            errors.append(
+                f"task-index.json system review scenario id must be unique: {scenario_id}"
+            )
+            continue
+        review_scenarios_by_id[scenario_id] = value
+
+    required_review_entrypoint_ids = {
+        str(scenario.get("entrypoint_id") or "").strip()
+        for scenario in review_scenarios_by_id.values()
+        if scenario.get("required") is True
+        and str(scenario.get("entrypoint_id") or "").strip() in entrypoints_by_id
+    }
+    missing_review_entrypoints = sorted(
+        set(entrypoints_by_id) - required_review_entrypoint_ids
+    )
+    if missing_review_entrypoints:
+        errors.append(
+            "task-index.json official entrypoints are missing required system review scenarios: "
+            + ", ".join(missing_review_entrypoints)
+        )
+
+    raw_review_obligations = payload.get("review_obligations", [])
+    if not isinstance(raw_review_obligations, list):
+        errors.append("task-index.json review_obligations must be an array")
+        raw_review_obligations = []
+    review_obligations_by_id: dict[str, dict[str, Any]] = {}
+    required_review_source_refs: set[str] = set()
+    required_review_sources_by_scenario: dict[str, set[str]] = {}
+    for index, value in enumerate(raw_review_obligations):
+        prefix = f"task-index.json review_obligations[{index}]"
+        if not isinstance(value, dict):
+            errors.append(f"{prefix} must be an object")
+            continue
+        obligation_id = _required_contract_text(value, "id", prefix, errors)
+        source_ref = _required_contract_text(value, "source_ref", prefix, errors)
+        required = value.get("required")
+        if not isinstance(required, bool):
+            errors.append(f"{prefix}.required must be a boolean")
+        scenario_ids = _required_contract_string_list(
+            value, "scenario_ids", prefix, errors
+        )
+        unknown_scenario_ids = sorted(
+            scenario_id
+            for scenario_id in scenario_ids
+            if scenario_id not in review_scenarios_by_id
+        )
+        if unknown_scenario_ids:
+            errors.append(
+                f"{prefix} references unknown system review scenarios: "
+                + ", ".join(unknown_scenario_ids)
+            )
+        if obligation_id:
+            if obligation_id in review_obligations_by_id:
+                errors.append(
+                    "task-index.json review obligation id must be unique: "
+                    + obligation_id
+                )
+            else:
+                review_obligations_by_id[obligation_id] = {
+                    **value,
+                    "source_ref": source_ref,
+                    "scenario_ids": scenario_ids,
+                }
+                if required is True and source_ref in expected_source_refs:
+                    required_review_source_refs.add(source_ref)
+                    required_scenario_ids = [
+                        scenario_id
+                        for scenario_id in scenario_ids
+                        if scenario_id in review_scenarios_by_id
+                        and review_scenarios_by_id[scenario_id].get("required") is True
+                    ]
+                    if not required_scenario_ids:
+                        errors.append(
+                            "task-index.json required review obligation "
+                            f"{obligation_id} must map to at least one required "
+                            "system review scenario"
+                        )
+                    for scenario_id in required_scenario_ids:
+                        required_review_sources_by_scenario.setdefault(
+                            scenario_id, set()
+                        ).add(source_ref)
+
+    missing_review_source_refs = sorted(
+        expected_source_refs - required_review_source_refs
+    )
+    if missing_review_source_refs:
+        errors.append(
+            "task-index.json required review_obligations are missing acceptance_refs: "
+            + ", ".join(missing_review_source_refs)
+        )
+    dedicated_review_scenarios_by_source: dict[str, set[str]] = {}
+    for source_ref in sorted(expected_source_refs):
+        dedicated_scenario_ids = {
+            scenario_id
+            for scenario_id, source_refs in required_review_sources_by_scenario.items()
+            if source_refs == {source_ref}
+        }
+        dedicated_review_scenarios_by_source[source_ref] = dedicated_scenario_ids
+        if source_ref in required_review_source_refs and not dedicated_scenario_ids:
+            errors.append(
+                "task-index.json acceptance_ref "
+                f"{source_ref} must map to at least one dedicated required system "
+                "review scenario"
+            )
+
+    obligations_by_id: dict[str, dict[str, Any]] = {}
+    obligation_source_refs: list[str] = []
+    for index, value in enumerate(raw_obligations):
+        prefix = f"task-index.json human_acceptance_obligations[{index}]"
+        if not isinstance(value, dict):
+            errors.append(f"{prefix} must be an object")
+            continue
+        obligation_id = _required_contract_text(value, "id", prefix, errors)
+        source_ref = _required_contract_text(value, "source_ref", prefix, errors)
+        change_kind = _required_contract_text(value, "change_kind", prefix, errors)
+        if change_kind and change_kind not in {"new", "changed"}:
+            errors.append(f"{prefix}.change_kind must be new or changed")
+        _required_contract_text(value, "user_outcome", prefix, errors)
+        if not isinstance(value.get("required"), bool):
+            errors.append(f"{prefix}.required must be a boolean")
+        scenario_ids = _required_contract_string_list(
+            value, "scenario_ids", prefix, errors
+        )
+        if source_ref:
+            obligation_source_refs.append(source_ref)
+        if obligation_id:
+            if obligation_id in obligations_by_id:
+                errors.append(
+                    f"task-index.json human acceptance obligation id must be unique: {obligation_id}"
+                )
+            else:
+                obligations_by_id[obligation_id] = {
+                    **value,
+                    "scenario_ids": scenario_ids,
+                }
+
+    actual_source_refs = set(obligation_source_refs)
+    missing_source_refs = sorted(expected_source_refs - actual_source_refs)
+    unknown_source_refs = sorted(actual_source_refs - expected_source_refs)
+    if missing_source_refs:
+        errors.append(
+            "task-index.json human acceptance obligations are missing acceptance_refs: "
+            + ", ".join(missing_source_refs)
+        )
+    if unknown_source_refs:
+        errors.append(
+            "task-index.json human acceptance obligations contain unknown source_ref values: "
+            + ", ".join(unknown_source_refs)
+        )
+    for source_ref in sorted(expected_source_refs):
+        matching = [
+            obligation
+            for obligation in obligations_by_id.values()
+            if str(obligation.get("source_ref") or "").strip() == source_ref
+        ]
+        if matching and not any(item.get("required") is True for item in matching):
+            errors.append(
+                f"task-index.json acceptance_ref {source_ref} must be covered by at least one required human acceptance obligation"
+            )
+
+    scenarios_by_id: dict[str, dict[str, Any]] = {}
+    step_ids: set[str] = set()
+    for index, value in enumerate(raw_scenarios):
+        prefix = f"task-index.json human_acceptance_scenarios[{index}]"
+        if not isinstance(value, dict):
+            errors.append(f"{prefix} must be an object")
+            continue
+        scenario_id = _required_contract_text(value, "id", prefix, errors)
+        for field in ("title", "user_value", "start_state"):
+            _required_contract_text(value, field, prefix, errors)
+        _required_contract_text(value, "actor", prefix, errors)
+        required = value.get("required")
+        if not isinstance(required, bool):
+            errors.append(f"{prefix}.required must be a boolean")
+        entrypoint_id = _required_contract_text(value, "entrypoint_id", prefix, errors)
+        if entrypoint_id and entrypoint_id not in entrypoints_by_id:
+            errors.append(
+                f"{prefix}.entrypoint_id references unknown official entrypoint: {entrypoint_id}"
+            )
+        obligation_ids = _required_contract_string_list(
+            value, "obligation_ids", prefix, errors
+        )
+        review_scenario_ids = _required_contract_string_list(
+            value, "review_scenario_ids", prefix, errors
+        )
+        steps = value.get("steps")
+        if not isinstance(steps, list) or not steps:
+            errors.append(f"{prefix}.steps must be a non-empty array")
+        else:
+            for step_index, step in enumerate(steps):
+                step_prefix = f"{prefix}.steps[{step_index}]"
+                if not isinstance(step, dict):
+                    errors.append(f"{step_prefix} must be an object")
+                    continue
+                step_id = _required_contract_text(step, "id", step_prefix, errors)
+                for field in (
+                    "action",
+                    "expected_result",
+                    "evidence_requirement",
+                    "risk",
+                ):
+                    _required_contract_text(step, field, step_prefix, errors)
+                risk = str(step.get("risk") or "").strip()
+                if risk and risk not in {"low", "medium", "high"}:
+                    errors.append(f"{step_prefix}.risk must be low, medium, or high")
+                if step_id:
+                    if step_id in step_ids:
+                        errors.append(
+                            f"task-index.json human acceptance step id must be unique: {step_id}"
+                        )
+                    step_ids.add(step_id)
+        if not scenario_id:
+            continue
+        if scenario_id in scenarios_by_id:
+            errors.append(
+                f"task-index.json human acceptance scenario id must be unique: {scenario_id}"
+            )
+            continue
+        scenarios_by_id[scenario_id] = {
+            **value,
+            "obligation_ids": obligation_ids,
+            "review_scenario_ids": review_scenario_ids,
+        }
+
+    for obligation_id, obligation in obligations_by_id.items():
+        scenario_ids = obligation.get("scenario_ids") or []
+        unknown_scenario_ids = sorted(
+            scenario_id
+            for scenario_id in scenario_ids
+            if scenario_id not in scenarios_by_id
+        )
+        if unknown_scenario_ids:
+            errors.append(
+                f"task-index.json human acceptance obligation {obligation_id} references unknown scenarios: "
+                + ", ".join(unknown_scenario_ids)
+            )
+        referenced_scenarios = [
+            scenarios_by_id[scenario_id]
+            for scenario_id in scenario_ids
+            if scenario_id in scenarios_by_id
+        ]
+        if obligation.get("required") is True and not any(
+            scenario.get("required") is True for scenario in referenced_scenarios
+        ):
+            errors.append(
+                f"task-index.json required human acceptance obligation {obligation_id} must map to at least one required scenario"
+            )
+        for scenario in referenced_scenarios:
+            if obligation_id not in scenario.get("obligation_ids", []):
+                errors.append(
+                    f"task-index.json human acceptance obligation {obligation_id} and scenario {scenario.get('id')} must reference each other"
+                )
+
+    required_human_sources_by_scenario: dict[str, set[str]] = {}
+    for scenario_id, scenario in scenarios_by_id.items():
+        obligation_ids = scenario.get("obligation_ids") or []
+        unknown_obligation_ids = sorted(
+            obligation_id
+            for obligation_id in obligation_ids
+            if obligation_id not in obligations_by_id
+        )
+        if unknown_obligation_ids:
+            errors.append(
+                f"task-index.json human acceptance scenario {scenario_id} references unknown obligations: "
+                + ", ".join(unknown_obligation_ids)
+            )
+        for obligation_id in obligation_ids:
+            obligation = obligations_by_id.get(obligation_id)
+            if obligation is not None and scenario_id not in obligation.get(
+                "scenario_ids", []
+            ):
+                errors.append(
+                    f"task-index.json human acceptance scenario {scenario_id} and obligation {obligation_id} must reference each other"
+                )
+
+        scenario_acceptance_refs = {
+            str(obligation.get("source_ref") or "").strip()
+            for obligation_id in obligation_ids
+            if (obligation := obligations_by_id.get(obligation_id)) is not None
+            and obligation.get("required") is True
+            and str(obligation.get("source_ref") or "").strip() in expected_source_refs
+        }
+        if scenario.get("required") is True:
+            required_human_sources_by_scenario[scenario_id] = scenario_acceptance_refs
+            if len(scenario_acceptance_refs) > 1:
+                errors.append(
+                    "task-index.json required human acceptance scenario "
+                    f"{scenario_id} must not span multiple acceptance_refs: "
+                    + ", ".join(sorted(scenario_acceptance_refs))
+                )
+
+        review_scenario_ids = scenario.get("review_scenario_ids") or []
+        unknown_review_ids = sorted(
+            review_id
+            for review_id in review_scenario_ids
+            if review_id not in review_scenarios_by_id
+        )
+        if unknown_review_ids:
+            errors.append(
+                f"task-index.json human acceptance scenario {scenario_id} references unknown system review scenarios: "
+                + ", ".join(unknown_review_ids)
+            )
+        referenced_review_scenarios = [
+            review_scenarios_by_id[review_id]
+            for review_id in review_scenario_ids
+            if review_id in review_scenarios_by_id
+        ]
+        if scenario.get("required") is True and not any(
+            review_scenario.get("required") is True
+            for review_scenario in referenced_review_scenarios
+        ):
+            errors.append(
+                f"task-index.json required human acceptance scenario {scenario_id} must reference at least one required system review scenario"
+            )
+        if scenario.get("required") is True and len(scenario_acceptance_refs) == 1:
+            source_ref = next(iter(scenario_acceptance_refs))
+            if not any(
+                review_scenario.get("required") is True
+                and str(review_scenario.get("id") or "").strip()
+                in dedicated_review_scenarios_by_source.get(source_ref, set())
+                for review_scenario in referenced_review_scenarios
+            ):
+                errors.append(
+                    "task-index.json required human acceptance scenario "
+                    f"{scenario_id} must reference a dedicated required system review "
+                    f"scenario covering the same acceptance_ref: {source_ref}"
+                )
+        entrypoint_id = str(scenario.get("entrypoint_id") or "").strip()
+        mismatched_review_ids = sorted(
+            str(review_scenario.get("id") or "")
+            for review_scenario in referenced_review_scenarios
+            if str(review_scenario.get("entrypoint_id") or "").strip() != entrypoint_id
+        )
+        if mismatched_review_ids:
+            errors.append(
+                f"task-index.json human acceptance scenario {scenario_id} has system review scenarios for a different entrypoint: "
+                + ", ".join(mismatched_review_ids)
+            )
+
+    for source_ref in sorted(expected_source_refs):
+        required_obligations = [
+            obligation
+            for obligation in obligations_by_id.values()
+            if obligation.get("required") is True
+            and str(obligation.get("source_ref") or "").strip() == source_ref
+        ]
+        required_scenario_ids = {
+            scenario_id
+            for obligation in required_obligations
+            for scenario_id in obligation.get("scenario_ids") or []
+            if scenario_id in scenarios_by_id
+            and scenarios_by_id[scenario_id].get("required") is True
+        }
+        if required_obligations and not any(
+            required_human_sources_by_scenario.get(scenario_id) == {source_ref}
+            for scenario_id in required_scenario_ids
+        ):
+            errors.append(
+                "task-index.json acceptance_ref "
+                f"{source_ref} must map to at least one dedicated required human "
+                "acceptance scenario"
+            )
+    return errors
+
+
+def _required_contract_text(
+    payload: dict[str, Any], field: str, prefix: str, errors: list[str]
+) -> str:
+    value = payload.get(field)
+    if not isinstance(value, str) or not value.strip():
+        errors.append(f"{prefix}.{field} must be a non-empty string")
+        return ""
+    return value.strip()
+
+
+def _required_contract_string_list(
+    payload: dict[str, Any], field: str, prefix: str, errors: list[str]
+) -> list[str]:
+    value = payload.get(field)
+    if not isinstance(value, list) or not value:
+        errors.append(f"{prefix}.{field} must be a non-empty string array")
+        return []
+    normalized: list[str] = []
+    for index, item in enumerate(value):
+        if not isinstance(item, str) or not item.strip():
+            errors.append(f"{prefix}.{field}[{index}] must be a non-empty string")
+            continue
+        normalized.append(item.strip())
+    duplicates = sorted(item for item in set(normalized) if normalized.count(item) > 1)
+    if duplicates:
+        errors.append(
+            f"{prefix}.{field} must contain unique values: " + ", ".join(duplicates)
+        )
+    return normalized
+
+
 def _task_index_consequence_ids(payload: Any) -> set[str]:
     if not isinstance(payload, dict):
         return set()
@@ -3512,6 +4299,7 @@ def _validate_spec_contract_artifacts(feature_dir: Path) -> list[str]:
         "scope",
         "constraints",
         "acceptance_criteria",
+        "acceptance_coverage",
         "decisions",
         "semantic_delta",
         "capability_operations",
@@ -3544,16 +4332,26 @@ def _validate_spec_contract_artifacts(feature_dir: Path) -> list[str]:
         "acceptance_criteria",
         "decisions",
         "semantic_delta",
-        "capability_operations",
         "must_preserve_refs",
         "consequence_obligation_refs",
         "open_items",
     ):
         if field in payload and not isinstance(payload.get(field), list):
             errors.append(f"spec-contract.json {field} must be a list")
+    if "capability_operations" in payload and not isinstance(
+        payload.get("capability_operations"), (list, dict)
+    ):
+        errors.append(
+            "spec-contract.json capability_operations must be an array or object"
+        )
     acceptance = payload.get("acceptance_criteria")
     if not isinstance(acceptance, list) or not acceptance:
         errors.append("spec-contract.json acceptance_criteria must be a non-empty list")
+    elif any(not isinstance(item, str) or not item.strip() for item in acceptance):
+        errors.append(
+            "spec-contract.json acceptance_criteria must contain only non-empty strings"
+        )
+    errors.extend(_validate_spec_acceptance_coverage(payload))
     semantic_delta = payload.get("semantic_delta")
     if isinstance(semantic_delta, list) and semantic_delta:
         workflow_state_path = feature_dir / "workflow-state.md"
@@ -4056,10 +4854,24 @@ def validate_artifacts_hook(
         validation_errors.extend(_validate_plan_consumes_deep_research(feature_dir))
         validation_errors.extend(_validate_plan_consequence_contract(feature_dir))
         validation_errors.extend(_validate_plan_ui_contract(feature_dir))
+        validation_errors.extend(_validate_plan_human_acceptance_contract(feature_dir))
     if command_name == "tasks":
         validation_errors.extend(_validate_tasks_consequence_contract(feature_dir))
         validation_errors.extend(_validate_tasks_ui_contract(feature_dir))
+        validation_errors.extend(_validate_tasks_human_acceptance_contract(feature_dir))
     if command_name == "implement":
+        if any(
+            path.is_file()
+            for path in (
+                feature_dir / "spec-contract.json",
+                feature_dir / "plan-contract.json",
+                feature_dir / "plan" / "plan-contract.json",
+                feature_dir / "task-index.json",
+            )
+        ):
+            validation_errors.extend(
+                _validate_tasks_human_acceptance_contract(feature_dir)
+            )
         validation_errors.extend(
             _validate_packetized_implement_review_artifacts(feature_dir)
         )

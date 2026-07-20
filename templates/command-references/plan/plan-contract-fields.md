@@ -14,7 +14,7 @@ Write `plan-contract.json` before rendering `plan.md`. Keep:
 - the single versioned complete-first scope policy and valid deferrals;
 - architecture/module decisions and interface consumes/produces map;
 - global constraints and allowed optimization scope;
-- task-relevant acceptance, `MP-*`, `CA-###`, UI/fidelity, and evidence refs;
+- exact canonical acceptance refs for every specification criterion, followed by task-relevant `MP-*`, `CA-###`, UI/fidelity, and evidence refs;
 - for UI work, the current work/surface/platform types, direction core, approved visual,
   reference intents, real content/image plans, and structure/visual/runtime
   evidence requirements;
@@ -23,6 +23,11 @@ Write `plan-contract.json` before rendering `plan.md`. Keep:
 - review risks, stop/reopen conditions, and compact agent transition to `sp-tasks`.
 
 Do not copy the requirement contract, context capsule prose, evidence bodies, or full consequence analysis. Use stable refs and add only phase-owned decisions.
+
+`acceptance_refs` is a fail-closed denominator, not a selected subset. For a
+ready version-2 contract it must be the complete, unique, ordered list
+`spec-contract.json#/acceptance_criteria/0..N-1`; no specification acceptance
+criterion may be omitted, duplicated, renamed, or replaced with a prose label.
 
 ## Conditional Artifacts
 

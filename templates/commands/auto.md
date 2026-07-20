@@ -95,7 +95,7 @@ Inspect the available state surfaces in this order and prefer the most specific 
 
 4. Post-Review human acceptance state
    - If trusted Review closeout exists and `human-acceptance.json` is `draft`, `ready`, `in_progress`, `blocked`, `rejected`, or `stale`, route to canonical `/sp.accept` before integration or delivery.
-   - Treat `accepted` as complete only when the Review/summary fingerprint is fresh and every required scenario has explicit human PASS.
+   - Treat `accepted` as complete only when the frozen Human Acceptance Universe has zero uncovered required obligations, the approved Review/summary fingerprint and Review-owned runtime-target digest are fresh, every required scenario has structured human PASS evidence against its ready Review-approved runtime target, no acceptance finding is open, and the explicit human decision is accept.
 
 5. Quick-task state
    - Read unfinished `.planning/quick/*/STATUS.md` files.

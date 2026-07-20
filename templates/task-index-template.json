@@ -16,6 +16,12 @@
   "official_entrypoints": [],
   "system_review_scenarios": [],
   "review_obligations": [],
+  "human_acceptance_contract_schema_refs": {
+    "obligations": ".specify/templates/review-state-schema.json#/properties/human_acceptance_obligations",
+    "scenarios": ".specify/templates/review-state-schema.json#/properties/human_acceptance_scenarios"
+  },
+  "human_acceptance_obligations": [],
+  "human_acceptance_scenarios": [],
   "ui_contract_schema_ref": ".specify/templates/task-packet-template.json#/ui_contract",
   "tasks": [],
   "parallel_batches": [],

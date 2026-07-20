@@ -1,10 +1,17 @@
 {
-  "version": 1,
+  "version": 2,
   "schema_ref": ".specify/templates/human-acceptance-state-schema.json",
   "status": "draft",
   "source": {
     "implementation_summary": "implementation-summary.md",
     "implementation_summary_sha256": "",
+    "implementation_handoff": "implementation-handoff.json",
+    "implementation_handoff_sha256": "",
+    "review_state": "review-state.json",
+    "review_state_sha256": "",
+    "reviewed_snapshot_sha256": "",
+    "acceptance_universe_sha256": "",
+    "runtime_targets_sha256": "",
     "prepared_from_sha256": "",
     "current_sha256": ""
   },
@@ -16,15 +23,26 @@
     "prerequisites": [],
     "start_here": ""
   },
+  "acceptance_universe": {
+    "obligations": [],
+    "uncovered_obligation_ids": [],
+    "verdict": "pending"
+  },
+  "runtime_targets": [],
   "scenarios": [],
   "cursor": {
     "scenario_id": null,
     "step_id": null
   },
   "findings": [],
+  "repair_resume": null,
+  "repair_history": [],
   "overall": {
     "verdict": "pending",
     "summary": "",
-    "next_command": "sp-accept (Classic) or spx-accept (Advanced)"
+    "next_command": "sp-accept (Classic) or spx-accept (Advanced)",
+    "human_decision": "pending",
+    "decision_confirmation_id": "",
+    "decision_evidence": []
   }
 }

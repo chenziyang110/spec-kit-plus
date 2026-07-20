@@ -241,7 +241,11 @@ def test_spx_skills_keep_runtime_reuse_and_safety_boundaries() -> None:
     assert "contextless human" in skills["spx-accept"]
     assert "one current scenario step" in skills["spx-accept"]
     assert "human product acceptance, not code review" in skills["spx-accept"]
-    assert "spx-implement" in skills["spx-accept"]
+    assert (
+        "every failed observation first goes to the review leader"
+        in skills["spx-accept"]
+    )
+    assert "accept does not diagnose" in skills["spx-accept"]
     assert "accept closeout" in skills["spx-accept"]
 
     assert "exactly one next spx workflow" in skills["spx-auto"]

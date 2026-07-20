@@ -4,6 +4,21 @@ Tasks express independently verifiable outcomes, not a narrated coding recipe.
 Trace every confirmed requirement, plan decision, must-preserve behavior, and
 triggered consequence obligation to at least one task or explicit deferral.
 
+For a ready version-2 task index, `acceptance_refs` is the complete unique
+ordered pointer list `plan-contract.json#/acceptance_refs/0..N-1`. The Human
+Acceptance Universe is non-empty, every obligation source uses one of those
+pointers, and every scenario declares its human actor, official entrypoint,
+linked required Review scenario, observable steps, and complete obligation
+mapping. Missing files, omitted refs, downgraded obligations, or regenerated
+fallback universes are contract failures.
+
+For each `acceptance_ref`, at least one required `review_obligations` path must
+terminate in a dedicated required `system_review_scenarios` row whose required
+acceptance-source set is exactly that ref. Shared or broad regression scenarios
+may remain as additional coverage but cannot serve as a dedicated witness for
+any ref. Every required human-acceptance scenario must link at least one
+dedicated required Review scenario for its own `acceptance_ref`.
+
 A task is ready when its authoritative inputs and dependencies are stable, its
 write surface is bounded, and a worker can tell completion from failure. Use
 dependency edges for true prerequisites, not display ordering. Two tasks are

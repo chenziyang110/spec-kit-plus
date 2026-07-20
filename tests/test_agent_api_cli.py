@@ -60,6 +60,12 @@ def _write_valid_spec_contract(feature_dir: Path) -> None:
         "scope": {"in": ["Guard the handoff"], "out": [], "deferred": []},
         "constraints": [],
         "acceptance_criteria": ["The next stage is entered exactly once"],
+        "acceptance_coverage": [
+            {
+                "requirement_ref": "spec-contract.json#/scope/in/0",
+                "acceptance_ref": "spec-contract.json#/acceptance_criteria/0",
+            }
+        ],
         "decisions": [],
         "semantic_delta": [],
         "capability_operations": [],

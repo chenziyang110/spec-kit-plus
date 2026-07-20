@@ -45,6 +45,14 @@ understood local failures; hand off unknown root causes to `$spx-debug` and
 stop. Update existing task status and let deterministic closeout create the
 preliminary `implementation-summary.md` and machine-readable
 `implementation-handoff.json` for the later system Review.
+Validate that handoff against the live Spec, Plan, and Tasks. Carry the exact
+complete `acceptance_refs` denominator, `acceptance_denominator_sha256`, frozen
+Human Acceptance Universe (`human_acceptance_obligations`,
+`human_acceptance_scenarios`, and `human_acceptance_contract_sha256`) forward
+unchanged; never omit an item,
+downgrade `required`, or reconstruct the contract from prose. Implement must
+not create, infer, or prefill `reviewed_runtime_targets`; only `$spx-review`
+creates those immutable targets from final integrated evidence.
 When durable Codex team state is explicitly needed,
 hand off to `$spx-implement-teams` and stop. Hand off independent lane closeout
 to `$spx-integrate` and stop; do not switch workflows inline.
@@ -61,5 +69,4 @@ After verified repository changes, close out cognition with canonical workflow
 checks, and residual risk. Ensure closeout prepared a trusted implementation
 handoff, recommend `$spx-review`, and stop. Do not invoke `$spx-accept`
 directly: technical completion is not human product acceptance, and task
-completion is not system Review.
-acceptance. Never claim completion without fresh evidence.
+completion is not system Review. Never claim completion without fresh evidence.

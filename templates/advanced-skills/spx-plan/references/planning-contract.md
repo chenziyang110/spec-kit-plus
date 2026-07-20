@@ -30,6 +30,12 @@ explicit unresolved blocker. Use precise paths when reasonably knowable, but do
 not turn the plan into task-level edit instructions. A planning-ready result has
 no hidden feasibility question capable of changing the chosen architecture.
 
+Treat `acceptance_refs` as the complete fail-closed denominator. For a ready
+version-2 plan it is the unique ordered list
+`spec-contract.json#/acceptance_criteria/0..N-1` covering every specification
+acceptance criterion exactly once; it is never a selected subset or prose
+reconstruction.
+
 When deep research exists, preserve its planning handoff rather than
 reconstructing feasibility. Consume each `PH-###` in a level-2 `## Deep Research
 Traceability Matrix` with the runtime-required columns: `Plan Decision`,

@@ -8,8 +8,8 @@ description: Lean technical-planning workflow for advanced coding models. Use wh
 Read `references/project-learning.md` and apply its consume-capture policy.
 Read `references/workflow-runtime.md` and let its CLI own phase state.
 Read `references/project-cognition.md`, using cognition intent `plan`.
-Read `references/planning-contract.md` and `references/consequence-gate.md` only
-on its triggers.
+Always read `references/planning-contract.md`. Read
+`references/consequence-gate.md` only on its triggers.
 Read `references/ui-quality-gate.md` when the specification is UI-bearing.
 
 Resolve `FEATURE_DIR` without creating `plan.md`, using an explicit feature
@@ -26,6 +26,12 @@ to `sp-plan`, a current source revision, locked target boundary, zero hard
 unknowns, and zero open conflicts. Fail closed to the owning upstream workflow
 when any gate fails. Verify architecture claims against cognition-selected live
 repository paths.
+
+Treat `plan-contract.json#/acceptance_refs` as the exact complete fail-closed
+Spec-to-Plan denominator. For a ready version-2 plan it is the unique ordered
+list `spec-contract.json#/acceptance_criteria/0..N-1`, covering every live
+specification acceptance criterion exactly once; never select a subset,
+reconstruct prose labels, or reorder, duplicate, rename, or omit a criterion.
 
 When `deep-research.md` exists, read and validate it before choosing the design.
 Consume every `PH-###` Planning Handoff item according to its mandatory,

@@ -3381,7 +3381,7 @@ def accept_route_repair(
     route: str = typer.Option(
         ...,
         "--route",
-        help="Recorded repair route, for example spx-review or sp-clarify",
+        help="Recorded Review-first repair route: sp-review or spx-review",
     ),
     expected_revision: int = typer.Option(
         ..., "--expected-revision", help="Current accept workflow revision"

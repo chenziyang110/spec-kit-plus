@@ -15,7 +15,7 @@ Before reporting completion, review canonical `spec-contract.json`, rendered `sp
 - Every discussion-originated capability-like upstream signal has a disposition row.
 - Every deferred or dropped upstream signal has a source, reason, user confirmation status, and reopen trigger.
 - Every out-of-scope conflict with upstream wording is recorded in `Out-Of-Scope Conflicts`.
-- Acceptance proof matches the confirmed scope.
+- Acceptance proof matches the confirmed scope, and `acceptance_coverage` has exact bidirectional closure: every in-scope/capability requirement is covered and every acceptance criterion maps to exactly one requirement.
 - UI/API wording in the spec does not imply deferred capabilities are already real.
 - If the self-review finds planning-critical gaps, update the artifacts and repeat the review before closeout.
 

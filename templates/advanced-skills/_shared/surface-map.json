@@ -36,7 +36,7 @@
       "absorbs": ["accept"],
       "references": ["spx-accept/references/acceptance-contract.md"],
       "assets": [],
-      "optimization": "context-restoring one-step human product acceptance with durable observations and repair routing"
+      "optimization": "context-restoring guided human end-to-end acceptance over a frozen requirement universe and Review-approved runtime targets, with every non-access failure routed first to a fresh Leader-owned Review/Fix/revalidation cycle"
     },
     "spx-analyze": {
       "absorbs": ["analyze"],

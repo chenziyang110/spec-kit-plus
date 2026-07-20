@@ -66,6 +66,117 @@ def _invoke_in_project(project: Path, args: list[str]):
     return result
 
 
+def _write_current_review_handoff_contracts(feature_dir: Path) -> None:
+    (feature_dir / "spec-contract.json").write_text(
+        json.dumps(
+            {
+                "scope": {
+                    "in": ["A human can run the Demo command and see its result."],
+                    "out": [],
+                    "deferred": [],
+                },
+                "acceptance_criteria": [
+                    "A human can run the Demo command and see its result."
+                ],
+                "capability_operations": [],
+                "acceptance_coverage": [
+                    {
+                        "requirement_ref": "spec-contract.json#/scope/in/0",
+                        "acceptance_ref": "spec-contract.json#/acceptance_criteria/0",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    (feature_dir / "plan-contract.json").write_text(
+        json.dumps(
+            {
+                "version": 2,
+                "status": "ready",
+                "acceptance_refs": ["spec-contract.json#/acceptance_criteria/0"],
+            }
+        ),
+        encoding="utf-8",
+    )
+    (feature_dir / "task-index.json").write_text(
+        json.dumps(
+            {
+                "version": 2,
+                "status": "ready",
+                "acceptance_refs": ["plan-contract.json#/acceptance_refs/0"],
+                "official_entrypoints": [
+                    {
+                        "id": "demo-cli",
+                        "command": "specify demo",
+                        "ready_signal": "The command is ready for input.",
+                    }
+                ],
+                "system_review_scenarios": [
+                    {
+                        "id": "SR-DEMO-001",
+                        "kind": "interaction",
+                        "title": "Run the Demo command",
+                        "required": True,
+                        "entrypoint_id": "demo-cli",
+                        "actions": ["Run specify demo."],
+                        "expected_results": ["The Demo result is visible."],
+                        "required_evidence": ["runtime_diagnostics"],
+                    }
+                ],
+                "review_obligations": [
+                    {
+                        "id": "RO-DEMO-001",
+                        "kind": "user-journey",
+                        "source_ref": "plan-contract.json#/acceptance_refs/0",
+                        "surface": "Demo CLI user journey",
+                        "description": "The Demo command works end to end.",
+                        "required": True,
+                        "entrypoint_ids": ["demo-cli"],
+                        "scenario_ids": ["SR-DEMO-001"],
+                    }
+                ],
+                "human_acceptance_obligations": [
+                    {
+                        "id": "HAO-DEMO-001",
+                        "source_ref": "plan-contract.json#/acceptance_refs/0",
+                        "change_kind": "new",
+                        "user_outcome": "A human can use the Demo command.",
+                        "required": True,
+                        "scenario_ids": ["HA-DEMO-001"],
+                    }
+                ],
+                "human_acceptance_scenarios": [
+                    {
+                        "id": "HA-DEMO-001",
+                        "title": "Use the Demo command",
+                        "user_value": "The Demo result is available.",
+                        "actor": "human user",
+                        "required": True,
+                        "obligation_ids": ["HAO-DEMO-001"],
+                        "entrypoint_id": "demo-cli",
+                        "review_scenario_ids": ["SR-DEMO-001"],
+                        "start_state": "The reviewed CLI is installed.",
+                        "steps": [
+                            {
+                                "id": "HA-DEMO-001-S01",
+                                "action": "Run specify demo.",
+                                "expected_result": "The Demo result is visible.",
+                                "evidence_requirement": "Human observation.",
+                                "risk": "low",
+                            }
+                        ],
+                    }
+                ],
+                "tasks": [{"task_id": "T001"}],
+                "parallel_batches": [],
+                "join_points": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
 def _run_module_in_project(
     project: Path, args: list[str], input_text: str | None = None
 ):
@@ -1843,7 +1954,6 @@ def test_hook_validate_artifacts_allows_mixed_implement_tasks_when_only_packetiz
     (review_dir / "branch-review.md").write_text(
         "# Branch Review\n\nAccepted.\n", encoding="utf-8"
     )
-
     result = _invoke_in_project(
         project,
         [
@@ -5764,6 +5874,34 @@ def test_implement_closeout_writes_review_handoff_without_preparing_acceptance(
     (review_dir / "branch-review.md").write_text(
         "# Branch Review\n\nAccepted.\n", encoding="utf-8"
     )
+    _write_current_review_handoff_contracts(feature_dir)
+    lifecycle_dir = review_dir / "tasks"
+    lifecycle_dir.mkdir()
+    (lifecycle_dir / "T001.json").write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "task_id": "T001",
+                "task_ref": "task-index.json#/tasks/T001",
+                "source_revision": "r1",
+                "execution_mode": "leader-direct",
+                "packet_ref": None,
+                "status": "accepted",
+                "changed_paths": [
+                    "src/specify_cli/demo.py",
+                    "tests/test_demo.py",
+                ],
+                "validation": [
+                    {"command": "pytest tests/test_demo.py -q", "status": "passed"}
+                ],
+                "review": None,
+                "obligation_evidence": [],
+                "blockers": [],
+                "recovery": None,
+            }
+        ),
+        encoding="utf-8",
+    )
 
     result = _invoke_in_project(
         project,
@@ -5801,8 +5939,10 @@ def test_implement_closeout_writes_review_handoff_without_preparing_acceptance(
     )
     handoff = payload["implementation_handoff"]
     assert handoff["status"] == "ok"
-    assert handoff["path"].replace("\\", "/").endswith(
-        ".specify/features/001-demo/implementation-handoff.json"
+    assert (
+        handoff["path"]
+        .replace("\\", "/")
+        .endswith(".specify/features/001-demo/implementation-handoff.json")
     )
     assert handoff["official_entrypoints"] == 1
     assert handoff["system_review_scenarios"] == 1

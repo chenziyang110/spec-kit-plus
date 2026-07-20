@@ -1,6 +1,6 @@
 ---
 name: spx-accept
-description: Advanced post-implementation human acceptance workflow. Use after verified closeout to restore a contextless human's understanding, guide one real product step at a time, and persist an explicit pass, fail, or blocked verdict.
+description: Advanced post-Review human acceptance workflow. Use after fresh approved Review closeout to restore a contextless human's understanding, guide one real product step at a time, and persist an explicit pass, fail, or blocked verdict.
 ---
 
 # SPX Accept
@@ -13,7 +13,10 @@ Read `references/project-cognition.md`, using cognition intent `ask`. Read
 
 Resolve exactly one system-reviewed feature and require a trusted
 `review-state.json` with fresh `approved` verdict, its final reviewed
-fingerprint, and the Review-refreshed `implementation-summary.md`. If Review is
+fingerprint, the Review-refreshed `implementation-summary.md`, and a
+Review-to-Accept handoff containing `human_acceptance_obligations`,
+`human_acceptance_scenarios`, non-empty `reviewed_runtime_targets`, and a
+matching target digest. If Review is
 missing, blocked, stale, or not approved, hand off to `$spx-review` and stop;
 do not bypass Review by routing directly to `$spx-implement`. Transition from the validated `review`
 stage into `accept` through the workflow runtime. Only then run
@@ -21,10 +24,25 @@ stage into `accept` through the workflow runtime. Only then run
 to create or freshness-check `human-acceptance.json`.
 
 Treat the human as returning later with no useful chat memory. Read the summary,
-relevant acceptance truth, and real entrypoint evidence, then fill the installed
-human-acceptance template/schema with a plain-language orientation and the
-smallest complete set of user-value scenarios. Do not ask the human to inspect
-source, diffs, test logs, specs, plans, or task state.
+frozen Human Acceptance Universe, and real entrypoint evidence. It covers every
+new or changed requirement selected for human end-to-end verification; require
+zero uncovered required obligations and reject deleted, downgraded, unmapped,
+or source-drifted items. Fill only acceptance-owned progress and orientation in
+the installed template/schema; do not invent a smaller scenario set or ask the
+human to inspect source, diffs, test logs, specs, plans, or task state.
+
+`accept prepare` materializes `runtime_targets` as an exact immutable projection
+of Review's approved `source`, `build`, `deployment`, or `device` targets and
+binds each scenario to its matching official entrypoint. Do not invent or edit
+identity, artifact, deployment, version, configuration, snapshot, ready
+evidence, linked Review scenarios, `identity_evidence_ref`, or
+`identity_evidence_sha256`; preserve both identity-evidence fields read-only
+with the Review target digest. Safely start or health-check that exact
+target, wait for readiness, prepare or reset isolated acceptance data through
+documented reversible paths, and open the exact start when tooling permits.
+Fill only session `acceptance_status`, `acceptance_ready_evidence`, and
+`agent_actions`. Never use production data, deploy without authority, or
+perform an irreversible external side effect.
 
 Validate the acceptance-owned rich resume/evidence state with
 `{{specify-subcmd:hook validate-state --command accept --feature-dir
@@ -36,22 +54,39 @@ Start with a compact context reset: what changed, why it matters, what the human
 will verify, prerequisites, exact entrypoint, and exclusions. Then guide only
 one current scenario step. Give an exact action, visible expected result, safe
 failure branch, and a tiny reply request. Translate natural replies into durable
-step results/evidence and advance the cursor yourself. On resume, continue from
-that cursor without replaying passed steps.
+step results/evidence and advance the cursor yourself. Persist each actual reply
+as a structured human confirmation bound to the runtime-generated confirmation
+id, approved target, and reviewed snapshot; use the separate decision
+confirmation for the final verdict. Never author a human receipt without an
+actual human reply. On an ordinary resume, continue from the cursor.
+
+Do not repeat System Review. Reuse its startup, wiring, automated, diagnostics,
+and broad regression proof. Human performs the frozen new-or-changed requirement
+journey from the real entrypoint; Agent preparation, automation, or inspection
+never counts as human PASS.
 
 This workflow owns human product acceptance, not code review. It may write only
 `human-acceptance.json` and acceptance-owned workflow-state fields. Do not edit
 production source, tests, requirements, planning/task artifacts, or
 implementation lifecycle state; do not commit, push, deploy, or invoke a repair
-workflow inline.
+workflow inline. Safe reversible local/sandbox runtime startup, readiness, and
+isolated-fixture preparation are session operations, not authority to mutate
+production or other workflow artifacts.
 
-PASS requires explicit human passes for every required scenario. On a mismatch,
-record expected versus observed behavior and evidence, then hand off and stop:
-every product/runtime defect goes to `$spx-review`, including an unknown
-mechanism that requires a Review-owned read-only diagnostic packet before its
-Fix packet; changed or missing existing requirements go to `$spx-clarify`, and
-new scope goes to `$spx-specify`. Preserve the failed scenario as the return
-point. Human-owned
+PASS requires zero uncovered required human obligations, structured human
+passes for every required scenario against a ready Review-approved
+`runtime_targets` record bound to the approved reviewed snapshot, zero open
+findings, and a separately confirmed final human decision.
+Accept does not diagnose. Every failed observation first goes to the Review Leader
+through `$spx-review`; this includes apparent requirement gaps,
+unknown mechanisms, clear defects, omissions, regressions, and large repairs.
+Review creates a new cycle, owns diagnosis, dispatches a read-only diagnostic
+packet when the mechanism is unknown, then owns an independent Fix, independent
+revalidation, and any later handoff for a proven upstream truth gap. Preserve
+the failed scenario as the first return point, but after any repair invalidate
+every human result and rerun the full frozen universe; preserve no prior PASS.
+A separately stated new-scope request belongs to a later feature workflow and
+must not bypass or rewrite the failed acceptance route. Human-owned
 environment, permission, protected-system, or physical-device blockers receive
 the full Human Action Guide.
 

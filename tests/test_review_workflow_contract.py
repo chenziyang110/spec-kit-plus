@@ -47,6 +47,30 @@ def _review_profile_contracts() -> tuple[tuple[str, str], ...]:
     )
 
 
+def _implement_profile_contracts() -> tuple[tuple[str, str], ...]:
+    return (
+        (
+            "classic",
+            "\n".join(
+                (
+                    _read("templates/commands/implement.md"),
+                    _read_tree("templates/command-partials/implement"),
+                    _read_tree("templates/command-references/implement"),
+                )
+            ),
+        ),
+        (
+            "advanced",
+            "\n".join(
+                (
+                    _read("templates/advanced-skills/spx-implement/SKILL.md"),
+                    _read_tree("templates/advanced-skills/spx-implement/references"),
+                )
+            ),
+        ),
+    )
+
+
 @pytest.mark.parametrize(
     "relative",
     (
@@ -259,7 +283,9 @@ def test_tasks_freeze_the_requirement_delta_human_acceptance_universe() -> None:
         assert "human_acceptance_scenarios" in content
 
 
-def test_accept_requires_a_fresh_passed_review_and_routes_repairs_back_to_review() -> None:
+def test_accept_requires_a_fresh_passed_review_and_routes_repairs_back_to_review() -> (
+    None
+):
     classic = "\n".join(
         (
             _read("templates/commands/accept.md"),
@@ -277,7 +303,7 @@ def test_accept_requires_a_fresh_passed_review_and_routes_repairs_back_to_review
         (classic, "{{invoke:review}}"),
         (advanced, "$spx-review"),
     ):
-        assert "review" in content and "passed" in content
+        assert "review" in content and ("passed" in content or "approved" in content)
         assert "fingerprint" in content or "fresh" in content
         assert review_route in content
 
@@ -315,12 +341,15 @@ def test_accept_is_agent_assisted_human_e2e_for_the_frozen_requirement_delta() -
         assert "new or changed requirement" in content
         assert "zero uncovered" in content
         assert "runtime identity" in content
-        assert "test data" in content
+        assert "test data" in content or "acceptance data" in content
         assert "agent" in content and "official entrypoint" in content
         assert "human performs" in content
         assert "do not repeat system review" in content
         assert "every failed observation first goes to the review leader" in content
         assert "accept does not diagnose" in content
+        assert "repair_history" in content
+        assert "cli alone" in content
+        assert "resolved" in content
 
 
 def test_review_hands_off_the_frozen_human_acceptance_universe() -> None:
@@ -329,5 +358,176 @@ def test_review_hands_off_the_frozen_human_acceptance_universe() -> None:
         assert "human acceptance universe" in flat
         assert "human_acceptance_obligations" in flat
         assert "human_acceptance_scenarios" in flat
-        assert "runtime identity" in flat
-        assert "does not prefill" in flat and "human" in flat and "pass" in flat
+        assert "reviewed_runtime_targets" in flat
+        assert "immutable" in flat
+        assert (
+            ("does not prefill" in flat or "never prefills" in flat)
+            and "human" in flat
+            and "pass" in flat
+        )
+
+
+@pytest.mark.parametrize("profile", ("classic", "advanced"))
+def test_review_targets_are_bound_to_identity_and_artifact_bytes(profile: str) -> None:
+    flat = _flat(dict(_review_profile_contracts())[profile])
+
+    assert "identity_evidence_ref" in flat
+    assert "identity_evidence_sha256" in flat
+    assert "review-evidence/cycle-<n>/" in flat
+    assert "top-level `version`" in flat and "status" in flat and "ready" in flat
+    for field in (
+        "environment_ref",
+        "instance_ref",
+        "configuration_ref",
+        "reviewed_snapshot_sha256",
+        "review_scenario_ids",
+        "ready_evidence_refs",
+    ):
+        assert field in flat
+    assert "artifact_ref" in flat and "artifact_sha256" in flat
+    assert "build" in flat and "deployment" in flat
+    assert "current bytes" in flat
+    assert "implementation snapshot" in flat
+    assert "review-evidence/" in flat and "review-results/" in flat
+
+
+def test_accept_preserves_review_identity_evidence_fields_read_only() -> None:
+    surfaces = (
+        "\n".join(
+            (
+                _read("templates/commands/accept.md"),
+                _read_tree("templates/command-partials/accept"),
+            )
+        ),
+        "\n".join(
+            (
+                _read("templates/advanced-skills/spx-accept/SKILL.md"),
+                _read_tree("templates/advanced-skills/spx-accept/references"),
+            )
+        ),
+    )
+
+    for content in surfaces:
+        flat = _flat(content)
+        assert "identity_evidence_ref" in flat
+        assert "identity_evidence_sha256" in flat
+        assert "read-only" in flat
+        assert "exact immutable projection" in flat
+
+
+def test_spx_plan_always_loads_and_restates_the_exact_acceptance_denominator() -> None:
+    skill = _flat(_read("templates/advanced-skills/spx-plan/SKILL.md"))
+
+    assert "always read `references/planning-contract.md`" in skill
+    assert (
+        "`references/planning-contract.md` and `references/consequence-gate.md` "
+        "only on its triggers"
+    ) not in skill
+    assert "acceptance_refs" in skill
+    assert "spec-contract.json#/acceptance_criteria/0..n-1" in skill
+    assert "complete" in skill
+    assert "unique ordered" in skill
+    assert "exactly once" in skill
+
+
+@pytest.mark.parametrize("profile", ("classic", "advanced"))
+def test_implement_preserves_the_live_acceptance_contract_for_review(
+    profile: str,
+) -> None:
+    flat = _flat(dict(_implement_profile_contracts())[profile])
+
+    assert "live spec, plan, and tasks" in flat
+    assert "exact complete `acceptance_refs` denominator" in flat
+    assert "acceptance_refs" in flat
+    assert "acceptance_denominator_sha256" in flat
+    assert "frozen human acceptance universe" in flat
+    assert "human_acceptance_obligations" in flat
+    assert "human_acceptance_scenarios" in flat
+    assert "human_acceptance_contract_sha256" in flat
+    assert "unchanged" in flat
+    assert "reviewed_runtime_targets" in flat
+    assert (
+        "only review creates" in flat
+        or "only `sp-review` creates" in flat
+        or "only `$spx-review` creates" in flat
+        or "review exclusively owns" in flat
+    )
+
+
+@pytest.mark.parametrize("profile", ("classic", "advanced"))
+def test_any_fix_requires_fresh_evidence_for_the_full_review_matrix(
+    profile: str,
+) -> None:
+    flat = _flat(dict(_review_profile_contracts())[profile])
+
+    assert "after any fix" in flat
+    assert (
+        "all required review scenarios" in flat
+        or "every required review scenario" in flat
+    )
+    assert "final reviewed snapshot" in flat
+    assert (
+        "recapture all required evidence" in flat
+        or "recapture every required evidence" in flat
+    )
+    assert "no pre-fix scenario evidence can satisfy approval" in flat
+    assert "fix_assignments_sha256" in flat
+    assert "evidence_manifest_ref" in flat
+    assert "scenario_evidence" in flat
+    assert "cycle 1" in flat
+    assert "byte" in flat and "digest" in flat
+
+
+def test_classic_routing_summarizes_the_acceptance_repair_cycle_contract() -> None:
+    routing = _flat(
+        _read("templates/passive-skills/spec-kit-workflow-routing/SKILL.md")
+    )
+
+    assert "new review cycle" in routing
+    assert "reviewed_runtime_targets" in routing and "immutable" in routing
+    assert "structured human confirmation" in routing
+    assert (
+        "reset every frozen human acceptance scenario" in routing
+        or "invalidates every prior human pass and confirmation" in routing
+        or "invalidate every human result" in routing
+    )
+    assert "full frozen human acceptance universe" in routing
+
+
+def test_diagnostic_packets_map_to_the_review_state_scenario_kind() -> None:
+    contracts = (
+        _flat(_read("templates/command-references/review/subagent-review-contract.md")),
+        _flat(
+            _read("templates/advanced-skills/spx-review/references/worker-contract.md")
+        ),
+    )
+    schema = json.loads(_read("templates/review-state-schema.json"))
+    kinds = schema["properties"]["review_assignments"]["items"]["properties"]["kind"][
+        "enum"
+    ]
+
+    for contract in contracts:
+        assert "diagnostic" in contract and "packet" in contract
+        assert "scenario_review" in contract
+        assert "review_assignments" in contract or "review-state" in contract
+    assert "scenario_review" in kinds
+    assert "diagnostic" not in kinds
+
+
+def test_spx_accept_is_discoverable_as_the_post_review_stage() -> None:
+    frontmatter = (
+        (ROOT / "templates/advanced-skills/spx-accept/SKILL.md")
+        .read_text(encoding="utf-8")
+        .split("---", 2)[1]
+        .lower()
+    )
+
+    assert "post-review" in frontmatter
+    assert "post-implementation" not in frontmatter
+
+
+def test_spx_implement_does_not_split_the_system_review_acceptance_sentence() -> None:
+    skill = _flat(_read("templates/advanced-skills/spx-implement/SKILL.md"))
+
+    assert "system review. acceptance." not in skill
+    assert "task completion is not system review. never claim completion" in skill

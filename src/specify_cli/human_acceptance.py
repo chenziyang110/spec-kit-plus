@@ -25,6 +25,8 @@ from .launcher import render_command
 
 ACCEPTANCE_FILENAME = "human-acceptance.json"
 IMPLEMENTATION_SUMMARY_FILENAME = "implementation-summary.md"
+IMPLEMENTATION_HANDOFF_FILENAME = "implementation-handoff.json"
+REVIEW_STATE_FILENAME = "review-state.json"
 ACCEPTANCE_REPAIR_JOURNAL_FILENAME = ".human-acceptance-repair.json"
 ACCEPTANCE_REPAIR_BACKUP_FILENAME = ".human-acceptance-repair-backup.json"
 ACCEPTANCE_SCHEMA_REF = ".specify/templates/human-acceptance-state-schema.json"
@@ -42,60 +44,50 @@ STEP_RESULTS = {"pending", "pass", "fail", "blocked", "not_run"}
 SCENARIO_VERDICTS = {"pending", "pass", "fail", "blocked", "not_run"}
 OVERALL_VERDICTS = {"pending", "pass", "fail", "blocked"}
 FINDING_CLASSIFICATIONS = {
-    "product-defect",
-    "requirement-gap",
+    "observed-mismatch",
     "environment-or-access",
-    "unable-to-verify",
+    "unable-to-observe",
 }
 FINDING_ROUTES = {
     "sp-review",
-    "sp-implement",
-    "sp-debug",
-    "sp-clarify",
-    "sp-specify",
     "spx-review",
-    "spx-implement",
-    "spx-debug",
-    "spx-clarify",
-    "spx-specify",
     "human-action",
 }
 ACCEPTANCE_REPAIR_TARGETS = {
     "sp-review": "review",
-    "sp-implement": "implement",
-    "sp-debug": "implement",
-    "sp-clarify": "specify",
-    "sp-specify": "specify",
     "spx-review": "review",
-    "spx-implement": "implement",
-    "spx-debug": "implement",
-    "spx-clarify": "specify",
-    "spx-specify": "specify",
 }
 ACCEPTANCE_REPAIR_OWNERS = {
     "sp-review": "sp-review",
-    "sp-implement": "sp-implement",
-    "sp-debug": "sp-implement",
-    "sp-clarify": "sp-specify",
-    "sp-specify": "sp-specify",
     "spx-review": "spx-review",
-    "spx-implement": "spx-implement",
-    "spx-debug": "spx-implement",
-    "spx-clarify": "spx-specify",
-    "spx-specify": "spx-specify",
+}
+RUNTIME_TARGET_MODES = {"source", "build", "deployment", "device"}
+RUNTIME_TARGET_STATUSES = {"pending", "ready", "blocked"}
+HUMAN_DECISIONS = {"pending", "accept", "reject"}
+HUMAN_EVIDENCE_SOURCES = {
+    "human-reply",
+    "interactive-input",
+    "attached-evidence",
 }
 
 
 def new_human_acceptance_state() -> dict[str, Any]:
-    """Return the stable empty state copied by implement closeout."""
+    """Return the stable empty state materialized from approved Review output."""
 
     return {
-        "version": 1,
+        "version": 2,
         "schema_ref": ACCEPTANCE_SCHEMA_REF,
         "status": "draft",
         "source": {
             "implementation_summary": IMPLEMENTATION_SUMMARY_FILENAME,
             "implementation_summary_sha256": "",
+            "implementation_handoff": IMPLEMENTATION_HANDOFF_FILENAME,
+            "implementation_handoff_sha256": "",
+            "review_state": REVIEW_STATE_FILENAME,
+            "review_state_sha256": "",
+            "reviewed_snapshot_sha256": "",
+            "acceptance_universe_sha256": "",
+            "runtime_targets_sha256": "",
             "prepared_from_sha256": "",
             "current_sha256": "",
         },
@@ -107,15 +99,342 @@ def new_human_acceptance_state() -> dict[str, Any]:
             "prerequisites": [],
             "start_here": "",
         },
+        "acceptance_universe": {
+            "obligations": [],
+            "uncovered_obligation_ids": [],
+            "verdict": "pending",
+        },
+        "runtime_targets": [],
         "scenarios": [],
         "cursor": {"scenario_id": None, "step_id": None},
         "findings": [],
+        "repair_resume": None,
+        "repair_history": [],
         "overall": {
             "verdict": "pending",
             "summary": "",
             "next_command": ACCEPTANCE_COMMAND,
+            "human_decision": "pending",
+            "decision_confirmation_id": "",
+            "decision_evidence": [],
         },
     }
+
+
+def _canonical_json_sha256(value: object) -> str:
+    encoded = json.dumps(
+        value,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _acceptance_contract_sha256(
+    obligations: list[dict[str, Any]], scenarios: list[dict[str, Any]]
+) -> str:
+    return _canonical_json_sha256(
+        {
+            "human_acceptance_obligations": obligations,
+            "human_acceptance_scenarios": scenarios,
+        }
+    )
+
+
+def _human_confirmation_id(contract_sha256: str, *parts: object) -> str:
+    return (
+        "HC-"
+        + _canonical_json_sha256(
+            {"contract_sha256": contract_sha256, "parts": [str(item) for item in parts]}
+        )[:24]
+    )
+
+
+def _acceptance_finding_sha256(value: Mapping[str, Any]) -> str:
+    return _canonical_json_sha256(
+        {
+            key: deepcopy(value.get(key))
+            for key in (
+                "id",
+                "scenario_id",
+                "step_id",
+                "classification",
+                "expected",
+                "observed",
+                "evidence",
+                "route",
+            )
+        }
+    )
+
+
+def _obligation_contract(value: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        key: deepcopy(value.get(key))
+        for key in (
+            "id",
+            "source_ref",
+            "change_kind",
+            "user_outcome",
+            "required",
+            "scenario_ids",
+        )
+    }
+
+
+def _scenario_contract(value: Mapping[str, Any]) -> dict[str, Any]:
+    steps = value.get("steps")
+    normalized_steps = []
+    if isinstance(steps, list):
+        normalized_steps = [
+            {
+                key: deepcopy(step.get(key))
+                for key in (
+                    "id",
+                    "action",
+                    "expected_result",
+                    "evidence_requirement",
+                    "risk",
+                )
+            }
+            for step in steps
+            if isinstance(step, Mapping)
+        ]
+    return {
+        **{
+            key: deepcopy(value.get(key))
+            for key in (
+                "id",
+                "title",
+                "user_value",
+                "actor",
+                "required",
+                "obligation_ids",
+                "entrypoint_id",
+                "review_scenario_ids",
+                "start_state",
+            )
+        },
+        "steps": normalized_steps,
+    }
+
+
+def _materialize_acceptance_scenario(value: Mapping[str, Any]) -> dict[str, Any]:
+    canonical = _scenario_contract(value)
+    steps: list[dict[str, Any]] = []
+    for step in canonical["steps"]:
+        steps.append(
+            {
+                **step,
+                "if_failed": (
+                    "Stop safely and return the visible result, screenshot, or "
+                    "sanitized error; do not retry a destructive action."
+                ),
+                "response_prompt": (
+                    "Reply `seen` if the expected result is visible; otherwise "
+                    "return what you observed (without secrets)."
+                ),
+                "result": "pending",
+                "observed_result": None,
+                "confirmation_id": "",
+                "evidence": [],
+            }
+        )
+    return {
+        **{key: value for key, value in canonical.items() if key != "steps"},
+        "preconditions": list(value.get("preconditions") or []),
+        "runtime_target_id": None,
+        "steps": steps,
+        "verdict": "pending",
+        "notes": None,
+    }
+
+
+def _materialize_runtime_target(value: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        **deepcopy(dict(value)),
+        "acceptance_status": "pending",
+        "acceptance_ready_evidence": [],
+        "agent_actions": [],
+    }
+
+
+def _runtime_target_id_for_scenario(
+    scenario: Mapping[str, Any],
+    targets: list[Mapping[str, Any]],
+) -> str | None:
+    required_review_ids = set(scenario.get("review_scenario_ids") or [])
+    matching = [
+        str(target.get("id") or "")
+        for target in targets
+        if target.get("entrypoint_id") == scenario.get("entrypoint_id")
+        and required_review_ids.issubset(set(target.get("review_scenario_ids") or []))
+    ]
+    return matching[0] if len(matching) == 1 and matching[0] else None
+
+
+def _review_runtime_target_contract(value: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        key: deepcopy(value.get(key))
+        for key in (
+            "id",
+            "mode",
+            "status",
+            "entrypoint_id",
+            "environment_ref",
+            "instance_ref",
+            "configuration_ref",
+            "reviewed_snapshot_sha256",
+            "artifact_ref",
+            "artifact_sha256",
+            "deployment_id",
+            "observed_version",
+            "test_data_refs",
+            "ready_evidence_refs",
+            "review_scenario_ids",
+            "identity_evidence_ref",
+            "identity_evidence_sha256",
+        )
+    }
+
+
+def _approved_review_acceptance_contract(
+    root: Path, feature_dir: Path
+) -> dict[str, Any]:
+    """Load the immutable human-acceptance contract from a fresh approved Review."""
+
+    from .review_runtime import (
+        _review_runtime_target_contract,
+        _review_runtime_targets_sha256,
+        validate_review,
+    )
+
+    validation = validate_review(root, feature_dir)
+    state = validation.get("state")
+    if not validation.get("valid") or not isinstance(state, dict):
+        detail = "; ".join(str(item) for item in validation.get("errors") or [])
+        raise ValueError(
+            "human acceptance requires a fresh valid Review"
+            + (f": {detail}" if detail else "")
+        )
+    if state.get("status") != "approved":
+        raise ValueError("human acceptance requires review-state.json status=approved")
+
+    handoff_path = feature_dir / IMPLEMENTATION_HANDOFF_FILENAME
+    review_path = feature_dir / REVIEW_STATE_FILENAME
+    handoff = _read_state(handoff_path)
+    if handoff.get("human_acceptance_contract_origin") != "task-index-v2":
+        raise ValueError(
+            "human acceptance requires a task-index-v2 Human Acceptance Universe; "
+            "regenerate Tasks instead of accepting a legacy Review-derived fallback"
+        )
+    obligations = handoff.get("human_acceptance_obligations")
+    scenarios = handoff.get("human_acceptance_scenarios")
+    if not isinstance(obligations, list) or not obligations:
+        raise ValueError(
+            "implementation-handoff.json has no frozen human_acceptance_obligations"
+        )
+    if not isinstance(scenarios, list) or not scenarios:
+        raise ValueError(
+            "implementation-handoff.json has no frozen human_acceptance_scenarios"
+        )
+    canonical_obligations = [
+        _obligation_contract(item) for item in obligations if isinstance(item, Mapping)
+    ]
+    canonical_scenarios = [
+        _scenario_contract(item) for item in scenarios if isinstance(item, Mapping)
+    ]
+    if len(canonical_obligations) != len(obligations) or len(
+        canonical_scenarios
+    ) != len(scenarios):
+        raise ValueError(
+            "the frozen human acceptance contract contains invalid entries"
+        )
+    contract_digest = _acceptance_contract_sha256(
+        canonical_obligations, canonical_scenarios
+    )
+    recorded_contract_digest = str(
+        handoff.get("human_acceptance_contract_sha256") or ""
+    )
+    if recorded_contract_digest != contract_digest:
+        raise ValueError(
+            "implementation-handoff.json human acceptance contract digest is invalid"
+        )
+    if state.get("human_acceptance_obligations") != obligations:
+        raise ValueError("review-state.json human acceptance obligations drifted")
+    if state.get("human_acceptance_scenarios") != scenarios:
+        raise ValueError("review-state.json human acceptance scenarios drifted")
+    final = state.get("final")
+    reviewed_snapshot = (
+        str(final.get("reviewed_snapshot_sha256") or "")
+        if isinstance(final, Mapping)
+        else ""
+    )
+    if not re.fullmatch(r"[0-9a-f]{64}", reviewed_snapshot):
+        raise ValueError("approved Review is missing final reviewed snapshot identity")
+    raw_entrypoints = state.get("entrypoints")
+    entrypoints = raw_entrypoints if isinstance(raw_entrypoints, list) else []
+    entrypoint_ids = {
+        str(item.get("id"))
+        for item in entrypoints
+        if isinstance(item, Mapping) and str(item.get("id") or "").strip()
+    }
+    raw_runtime_targets = state.get("reviewed_runtime_targets")
+    if not isinstance(raw_runtime_targets, list) or not raw_runtime_targets:
+        raise ValueError("approved Review has no reviewed runtime targets")
+    runtime_targets = [
+        _review_runtime_target_contract(item)
+        for item in raw_runtime_targets
+        if isinstance(item, Mapping)
+    ]
+    if len(runtime_targets) != len(raw_runtime_targets):
+        raise ValueError("approved Review runtime target contract is invalid")
+    runtime_targets_sha256 = _review_runtime_targets_sha256(runtime_targets)
+    final_runtime_targets_sha256 = (
+        str(final.get("runtime_targets_sha256") or "")
+        if isinstance(final, Mapping)
+        else ""
+    )
+    if final_runtime_targets_sha256 != runtime_targets_sha256:
+        raise ValueError("approved Review runtime target digest is invalid")
+    return {
+        "handoff": handoff,
+        "review_state": state,
+        "implementation_handoff_sha256": _sha256(handoff_path),
+        "review_state_sha256": _sha256(review_path),
+        "reviewed_snapshot_sha256": reviewed_snapshot,
+        "acceptance_universe_sha256": contract_digest,
+        "runtime_targets_sha256": runtime_targets_sha256,
+        "obligations": canonical_obligations,
+        "scenarios": canonical_scenarios,
+        "entrypoint_ids": entrypoint_ids,
+        "runtime_targets": runtime_targets,
+    }
+
+
+def _required_obligation_ids(obligations: list[dict[str, Any]]) -> list[str]:
+    return sorted(
+        str(item.get("id"))
+        for item in obligations
+        if item.get("required") is True and str(item.get("id") or "").strip()
+    )
+
+
+def _uncovered_obligation_ids(
+    obligations: list[dict[str, Any]], scenarios: list[dict[str, Any]]
+) -> list[str]:
+    passed = {
+        str(obligation_id)
+        for scenario in scenarios
+        if scenario.get("verdict") == "pass"
+        for obligation_id in (scenario.get("obligation_ids") or [])
+    }
+    return sorted(
+        str(item.get("id"))
+        for item in obligations
+        if item.get("required") is True and str(item.get("id")) not in passed
+    )
 
 
 def prepare_human_acceptance(project_root: Path, feature_dir: Path) -> dict[str, Any]:
@@ -188,7 +507,10 @@ def _validated_acceptance_repair_backup(
 ) -> bytes:
     backup_bytes = read_local_state_bytes(backup_path, root=backup_path.parent)
     actual_sha256 = hashlib.sha256(backup_bytes).hexdigest()
-    if not re.fullmatch(r"[0-9a-f]{64}", expected_sha256) or actual_sha256 != expected_sha256:
+    if (
+        not re.fullmatch(r"[0-9a-f]{64}", expected_sha256)
+        or actual_sha256 != expected_sha256
+    ):
         raise ValueError(
             f"backup digest mismatch: expected {expected_sha256 or 'missing'}, "
             f"found {actual_sha256}"
@@ -356,16 +678,14 @@ def _recover_acceptance_repair_transaction(
     if not journal_path.exists():
         return None
     try:
-        journal = json.loads(
-            read_local_state_text(journal_path, root=feature_dir)
-        )
+        journal = json.loads(read_local_state_text(journal_path, root=feature_dir))
     except (OSError, ValueError, json.JSONDecodeError) as exc:
         raise _acceptance_repair_recovery_error(
             root=root,
             feature_dir=feature_dir,
             reason="Acceptance repair journal is unreadable.",
             evidence=[f"read failure: {type(exc).__name__}: {exc}"],
-            route="sp-implement",
+            route="sp-review",
             finding_id="unknown",
             expected_revision=0,
         ) from exc
@@ -375,7 +695,7 @@ def _recover_acceptance_repair_transaction(
             feature_dir=feature_dir,
             reason="Acceptance repair journal is not a JSON object.",
             evidence=["journal shape: non-object"],
-            route="sp-implement",
+            route="sp-review",
             finding_id="unknown",
             expected_revision=0,
         )
@@ -401,7 +721,7 @@ def _recover_acceptance_repair_transaction(
             evidence=[
                 "journal route, target, finding, revision, or state digest failed validation"
             ],
-            route=route or "sp-implement",
+            route=route or "sp-review",
             finding_id=finding_id or "unknown",
             expected_revision=(
                 expected_revision if isinstance(expected_revision, int) else 0
@@ -636,9 +956,23 @@ def route_human_acceptance_repair(
         finding["evidence"] = list(
             dict.fromkeys([*map(str, finding_evidence), *normalized_evidence])
         )
+        finding_contract_sha256 = _acceptance_finding_sha256(finding)
+        affected_obligation_ids = {
+            str(item.get("id") or "")
+            for item in (
+                state.get("acceptance_universe", {}).get("obligations", [])
+                if isinstance(state.get("acceptance_universe"), dict)
+                else []
+            )
+            if isinstance(item, dict) and str(item.get("id") or "").strip()
+        }
+        affected_scenario_ids: list[str] = []
         for scenario in state.get("scenarios", []):
             if not isinstance(scenario, dict):
                 continue
+            scenario_id = str(scenario.get("id") or "")
+            scenario["runtime_target_id"] = None
+            affected_scenario_ids.append(scenario_id)
             scenario["verdict"] = "pending"
             for step in scenario.get("steps", []):
                 if not isinstance(step, dict):
@@ -646,14 +980,47 @@ def route_human_acceptance_repair(
                 step["result"] = "pending"
                 step["observed_result"] = None
                 step["evidence"] = []
+        state["runtime_targets"] = []
         state["status"] = "draft"
         source = state.get("source")
         if isinstance(source, dict):
             source["prepared_from_sha256"] = ""
+            source["current_sha256"] = ""
+        universe = state.get("acceptance_universe")
+        if isinstance(universe, dict):
+            obligations = universe.get("obligations")
+            scenarios = state.get("scenarios")
+            if isinstance(obligations, list) and isinstance(scenarios, list):
+                universe["uncovered_obligation_ids"] = _uncovered_obligation_ids(
+                    obligations, scenarios
+                )
+            universe["verdict"] = "pending"
         state["cursor"] = {
             "scenario_id": finding.get("scenario_id"),
             "step_id": finding.get("step_id"),
         }
+        state["repair_resume"] = {
+            "finding_id": normalized_finding,
+            "finding_contract_sha256": finding_contract_sha256,
+            "previous_review_state_sha256": (
+                str(source.get("review_state_sha256") or "")
+                if isinstance(source, dict)
+                else ""
+            ),
+            "new_review_state_sha256": "",
+            "review_cycle_id": "",
+            "affected_obligation_ids": sorted(affected_obligation_ids),
+            "affected_scenario_ids": affected_scenario_ids,
+            "preserved_scenario_ids": [],
+            "scenario_id": finding.get("scenario_id"),
+            "step_id": finding.get("step_id"),
+        }
+        prior_overall = state.get("overall")
+        decision_confirmation_id = (
+            str(prior_overall.get("decision_confirmation_id") or "")
+            if isinstance(prior_overall, dict)
+            else ""
+        )
         state["overall"] = {
             "verdict": "pending",
             "summary": (
@@ -661,6 +1028,9 @@ def route_human_acceptance_repair(
                 f"{normalized_route}; the prior verdict is no longer valid."
             ),
             "next_command": normalized_route,
+            "human_decision": "pending",
+            "decision_confirmation_id": decision_confirmation_id,
+            "decision_evidence": [],
         }
         journal_path, backup_path = _acceptance_repair_paths(resolved_feature_dir)
         backup_path.unlink(missing_ok=True)
@@ -675,9 +1045,7 @@ def route_human_acceptance_repair(
             "expected_revision": expected_revision,
             "backup_sha256": hashlib.sha256(original_state_bytes).hexdigest(),
             "invalidated_acceptance_sha256": hashlib.sha256(
-                (json.dumps(state, ensure_ascii=False, indent=2) + "\n").encode(
-                    "utf-8"
-                )
+                (json.dumps(state, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
             ).hexdigest(),
             "acceptance_file": ACCEPTANCE_FILENAME,
             "backup_file": ACCEPTANCE_REPAIR_BACKUP_FILENAME,
@@ -791,10 +1159,82 @@ def _prepare_human_acceptance_locked(
             "next_command": "sp-review or spx-review",
         }
 
+    try:
+        review_contract = _approved_review_acceptance_contract(
+            root, resolved_feature_dir
+        )
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        if state_path.is_file():
+            try:
+                existing = _read_state(state_path)
+            except (OSError, ValueError, json.JSONDecodeError):
+                existing = None
+            if isinstance(existing, dict) and existing.get("version") == 2:
+                current_summary_digest = _sha256(summary_path)
+                current_evidence_digest = _implementation_snapshot_sha256(
+                    root, resolved_feature_dir, current_summary_digest
+                )
+                source = existing.get("source")
+                if isinstance(source, dict):
+                    source["current_sha256"] = current_evidence_digest
+                existing["status"] = "stale"
+                overall = existing.get("overall")
+                if isinstance(overall, dict):
+                    overall.update(
+                        {
+                            "verdict": "pending",
+                            "summary": (
+                                "Approved Review is missing or stale. Review must "
+                                "revalidate the current product before acceptance resumes."
+                            ),
+                            "next_command": "sp-review or spx-review",
+                            "human_decision": "pending",
+                            "decision_evidence": [],
+                        }
+                    )
+                _write_state(state_path, existing)
+                return {
+                    "status": "stale",
+                    "error_code": "approved-review-stale",
+                    "required_action_owner": "agent",
+                    "state_path": _display_path(state_path, root),
+                    "prepared_from_sha256": str(
+                        (source or {}).get("prepared_from_sha256") or ""
+                    ),
+                    "current_sha256": current_evidence_digest,
+                    "errors": [str(exc)],
+                    "next_command": "sp-review or spx-review",
+                }
+        return {
+            "status": "blocked",
+            "error_code": "approved-review-required",
+            "required_action_owner": "agent",
+            "state_path": _display_path(state_path, root),
+            "errors": [str(exc)],
+            "next_command": "sp-review or spx-review",
+        }
+
     summary_digest = _sha256(summary_path)
     current_digest = _implementation_snapshot_sha256(
         root, resolved_feature_dir, summary_digest
     )
+    canonical_obligations = review_contract["obligations"]
+    canonical_scenarios = review_contract["scenarios"]
+    source_values = {
+        "implementation_summary": IMPLEMENTATION_SUMMARY_FILENAME,
+        "implementation_summary_sha256": summary_digest,
+        "implementation_handoff": IMPLEMENTATION_HANDOFF_FILENAME,
+        "implementation_handoff_sha256": review_contract[
+            "implementation_handoff_sha256"
+        ],
+        "review_state": REVIEW_STATE_FILENAME,
+        "review_state_sha256": review_contract["review_state_sha256"],
+        "reviewed_snapshot_sha256": review_contract["reviewed_snapshot_sha256"],
+        "acceptance_universe_sha256": review_contract["acceptance_universe_sha256"],
+        "runtime_targets_sha256": review_contract["runtime_targets_sha256"],
+        "prepared_from_sha256": current_digest,
+        "current_sha256": current_digest,
+    }
     if state_path.exists():
         try:
             state = _read_state(state_path)
@@ -804,6 +1244,18 @@ def _prepare_human_acceptance_locked(
                 "state_path": _display_path(state_path, root),
                 "errors": [
                     f"existing acceptance state is unreadable and was preserved: {exc}"
+                ],
+                "next_command": ACCEPTANCE_COMMAND,
+            }
+        if state.get("version") != 2:
+            return {
+                "status": "conflict",
+                "error_code": "acceptance-state-migration-required",
+                "required_action_owner": "agent",
+                "state_path": _display_path(state_path, root),
+                "errors": [
+                    "legacy human acceptance evidence was preserved; rebuild a v2 "
+                    "guide from the frozen Human Acceptance Universe"
                 ],
                 "next_command": ACCEPTANCE_COMMAND,
             }
@@ -817,19 +1269,220 @@ def _prepare_human_acceptance_locked(
                 ],
                 "next_command": ACCEPTANCE_COMMAND,
             }
+
+        universe = state.get("acceptance_universe")
+        actual_obligations = (
+            universe.get("obligations") if isinstance(universe, dict) else None
+        )
+        actual_scenarios = state.get("scenarios")
+        contract_drift = actual_obligations != canonical_obligations
+        if isinstance(actual_scenarios, list):
+            actual_contract_scenarios = [
+                _scenario_contract(item)
+                for item in actual_scenarios
+                if isinstance(item, Mapping)
+            ]
+            contract_drift = contract_drift or (
+                len(actual_contract_scenarios) != len(actual_scenarios)
+                or actual_contract_scenarios != canonical_scenarios
+            )
+        else:
+            contract_drift = True
+        if contract_drift:
+            return {
+                "status": "conflict",
+                "error_code": "human-acceptance-universe-drift",
+                "required_action_owner": "agent",
+                "state_path": _display_path(state_path, root),
+                "errors": [
+                    "human acceptance obligations or canonical scenarios were "
+                    "deleted, downgraded, or rewritten; preserve evidence and rebuild "
+                    "from the approved Review handoff"
+                ],
+                "next_command": ACCEPTANCE_COMMAND,
+            }
+
         prepared_digest = str(source.get("prepared_from_sha256") or "")
-        source["implementation_summary_sha256"] = summary_digest
         source["current_sha256"] = current_digest
-        if prepared_digest and prepared_digest != current_digest:
+        source_drift = any(
+            str(source.get(key) or "") != str(source_values[key])
+            for key in (
+                "implementation_summary_sha256",
+                "implementation_handoff_sha256",
+                "review_state_sha256",
+                "reviewed_snapshot_sha256",
+                "acceptance_universe_sha256",
+                "runtime_targets_sha256",
+            )
+        )
+        repair_resume = state.get("repair_resume")
+        if source_drift and isinstance(repair_resume, dict):
+            previous_review_digest = str(
+                repair_resume.get("previous_review_state_sha256") or ""
+            )
+            if (
+                not previous_review_digest
+                or previous_review_digest == review_contract["review_state_sha256"]
+            ):
+                return {
+                    "status": "blocked",
+                    "error_code": "fresh-review-required-after-acceptance-failure",
+                    "required_action_owner": "agent",
+                    "state_path": _display_path(state_path, root),
+                    "errors": [
+                        "the failed acceptance scenario requires a new approved Review "
+                        "before human acceptance can resume"
+                    ],
+                    "next_command": "sp-review or spx-review",
+                }
+            review_source = review_contract["review_state"].get("source")
+            expected_finding_id = str(repair_resume.get("finding_id") or "")
+            expected_finding_sha256 = str(
+                repair_resume.get("finding_contract_sha256") or ""
+            )
+            current_finding = next(
+                (
+                    item
+                    for item in state.get("findings", [])
+                    if isinstance(item, Mapping)
+                    and item.get("id") == expected_finding_id
+                ),
+                None,
+            )
+            if (
+                not isinstance(review_source, Mapping)
+                or review_source.get("acceptance_finding_id") != expected_finding_id
+                or review_source.get("acceptance_finding_sha256")
+                != expected_finding_sha256
+                or review_source.get("previous_review_state_sha256")
+                != previous_review_digest
+                or not isinstance(current_finding, Mapping)
+                or _acceptance_finding_sha256(current_finding)
+                != expected_finding_sha256
+                or not re.fullmatch(
+                    r"[0-9a-f]{64}",
+                    str(review_source.get("review_cycle_id") or ""),
+                )
+            ):
+                return {
+                    "status": "blocked",
+                    "error_code": "fresh-review-cycle-mismatch",
+                    "required_action_owner": "agent",
+                    "state_path": _display_path(state_path, root),
+                    "errors": [
+                        "the approved Review is not the fresh cycle created for "
+                        f"acceptance finding {expected_finding_id or 'unknown'}"
+                    ],
+                    "next_command": "sp-review or spx-review",
+                }
+            source.update(source_values)
+            repair_resume["new_review_state_sha256"] = review_contract[
+                "review_state_sha256"
+            ]
+            repair_resume["review_cycle_id"] = str(
+                review_source.get("review_cycle_id") or ""
+            )
+            repair_history = state.get("repair_history")
+            if not isinstance(repair_history, list):
+                return {
+                    "status": "conflict",
+                    "error_code": "human-acceptance-repair-history-invalid",
+                    "required_action_owner": "agent",
+                    "state_path": _display_path(state_path, root),
+                    "errors": [
+                        "human acceptance repair history is missing or invalid; "
+                        "preserve the evidence and rebuild from the approved Review"
+                    ],
+                    "next_command": "sp-review or spx-review",
+                }
+            completed_repair = deepcopy(repair_resume)
+            if any(
+                isinstance(item, Mapping)
+                and item.get("finding_id") == expected_finding_id
+                for item in repair_history
+            ):
+                return {
+                    "status": "conflict",
+                    "error_code": "human-acceptance-repair-history-duplicate",
+                    "required_action_owner": "agent",
+                    "state_path": _display_path(state_path, root),
+                    "errors": [
+                        f"acceptance finding {expected_finding_id} already has a "
+                        "completed Review repair record"
+                    ],
+                    "next_command": "sp-review or spx-review",
+                }
+            repair_history.append(completed_repair)
+            state["runtime_targets"] = [
+                _materialize_runtime_target(item)
+                for item in review_contract["runtime_targets"]
+            ]
+            for scenario in state.get("scenarios", []):
+                if isinstance(scenario, dict):
+                    scenario["runtime_target_id"] = _runtime_target_id_for_scenario(
+                        scenario,
+                        state["runtime_targets"],
+                    )
+                    scenario["verdict"] = "pending"
+                    for step in scenario.get("steps", []):
+                        if isinstance(step, dict):
+                            step["result"] = "pending"
+                            step["observed_result"] = None
+                            step["evidence"] = []
+                            step["confirmation_id"] = _human_confirmation_id(
+                                review_contract["acceptance_universe_sha256"],
+                                scenario.get("id"),
+                                step.get("id"),
+                            )
+            for finding in state.get("findings", []):
+                if (
+                    isinstance(finding, dict)
+                    and finding.get("id") == expected_finding_id
+                ):
+                    finding["status"] = "resolved"
+            state["status"] = "draft"
+            state["overall"] = {
+                "verdict": "pending",
+                "summary": (
+                    "A fresh Review approved the repair. Resume from the preserved "
+                    "acceptance cursor on the newly verified runtime instance."
+                ),
+                "next_command": ACCEPTANCE_COMMAND,
+                "human_decision": "pending",
+                "decision_confirmation_id": _human_confirmation_id(
+                    review_contract["acceptance_universe_sha256"],
+                    "overall-decision",
+                ),
+                "decision_evidence": [],
+            }
+            _write_state(state_path, state)
+            return {
+                "status": "draft",
+                "state_path": _display_path(state_path, root),
+                "prepared_from_sha256": current_digest,
+                "current_sha256": current_digest,
+                "required_obligations": sum(
+                    item.get("required") is True for item in canonical_obligations
+                ),
+                "required_scenarios": sum(
+                    item.get("required") is True for item in canonical_scenarios
+                ),
+                "resume_cursor": state.get("cursor"),
+                "next_command": ACCEPTANCE_COMMAND,
+            }
+
+        if source_drift or (prepared_digest and prepared_digest != current_digest):
             state["status"] = "stale"
             overall = state.get("overall")
             if isinstance(overall, dict):
                 overall["verdict"] = "pending"
                 overall["summary"] = (
-                    "Implementation evidence changed after this acceptance guide was prepared. "
-                    "Rebuild the guide before continuing."
+                    "Approved Review, implementation, or acceptance-universe evidence "
+                    "changed after this guide was prepared. Re-run Review before continuing."
                 )
                 overall["next_command"] = ACCEPTANCE_COMMAND
+                overall["human_decision"] = "pending"
+                overall["decision_evidence"] = []
             _write_state(state_path, state)
             return {
                 "status": "stale",
@@ -846,19 +1499,58 @@ def _prepare_human_acceptance_locked(
             "state_path": _display_path(state_path, root),
             "prepared_from_sha256": str(source.get("prepared_from_sha256") or ""),
             "current_sha256": current_digest,
+            "required_obligations": sum(
+                item.get("required") is True for item in canonical_obligations
+            ),
+            "required_scenarios": sum(
+                item.get("required") is True for item in canonical_scenarios
+            ),
             "next_command": ACCEPTANCE_COMMAND,
         }
 
     state = deepcopy(new_human_acceptance_state())
-    state["source"]["implementation_summary_sha256"] = summary_digest
-    state["source"]["prepared_from_sha256"] = current_digest
-    state["source"]["current_sha256"] = current_digest
+    state["source"] = source_values
+    state["acceptance_universe"] = {
+        "obligations": canonical_obligations,
+        "uncovered_obligation_ids": _required_obligation_ids(canonical_obligations),
+        "verdict": "pending",
+    }
+    state["scenarios"] = [
+        _materialize_acceptance_scenario(item) for item in canonical_scenarios
+    ]
+    state["runtime_targets"] = [
+        _materialize_runtime_target(item) for item in review_contract["runtime_targets"]
+    ]
+    contract_sha256 = review_contract["acceptance_universe_sha256"]
+    for scenario in state["scenarios"]:
+        scenario["runtime_target_id"] = _runtime_target_id_for_scenario(
+            scenario,
+            state["runtime_targets"],
+        )
+        for step in scenario["steps"]:
+            step["confirmation_id"] = _human_confirmation_id(
+                contract_sha256, scenario["id"], step["id"]
+            )
+    state["overall"]["decision_confirmation_id"] = _human_confirmation_id(
+        contract_sha256, "overall-decision"
+    )
+    if state["scenarios"]:
+        state["cursor"] = {
+            "scenario_id": state["scenarios"][0]["id"],
+            "step_id": state["scenarios"][0]["steps"][0]["id"],
+        }
     _write_state(state_path, state)
     return {
         "status": "draft",
         "state_path": _display_path(state_path, root),
         "prepared_from_sha256": current_digest,
         "current_sha256": current_digest,
+        "required_obligations": sum(
+            item.get("required") is True for item in canonical_obligations
+        ),
+        "required_scenarios": sum(
+            item.get("required") is True for item in canonical_scenarios
+        ),
         "next_command": ACCEPTANCE_COMMAND,
     }
 
@@ -869,12 +1561,14 @@ def validate_human_acceptance(
     *,
     require_accepted: bool = False,
 ) -> dict[str, Any]:
-    """Validate acceptance shape, freshness, progress, and final verdict rules."""
+    """Validate canonical scope, reviewed runtime identity, human evidence, and verdict."""
 
     root = project_root.resolve()
     resolved_feature_dir = _resolve_feature_dir(root, feature_dir)
     state_path = resolved_feature_dir / ACCEPTANCE_FILENAME
     summary_path = resolved_feature_dir / IMPLEMENTATION_SUMMARY_FILENAME
+    handoff_path = resolved_feature_dir / IMPLEMENTATION_HANDOFF_FILENAME
+    review_path = resolved_feature_dir / REVIEW_STATE_FILENAME
     errors: list[str] = []
     if not state_path.is_file():
         errors.append(f"missing {ACCEPTANCE_FILENAME}")
@@ -886,30 +1580,57 @@ def validate_human_acceptance(
         return _validation_payload(root, state_path, None, errors, stale=False)
 
     status = str(state.get("status") or "")
-    if state.get("version") != 1:
-        errors.append("version must equal 1")
+    if state.get("version") != 2:
+        errors.append(
+            "version must equal 2; preserve legacy evidence and rebuild from approved Review"
+        )
     if state.get("schema_ref") != ACCEPTANCE_SCHEMA_REF:
         errors.append(f"schema_ref must equal {ACCEPTANCE_SCHEMA_REF}")
     if status not in ACCEPTANCE_STATUSES:
         errors.append(f"unsupported acceptance status: {status or 'missing'}")
 
-    source = _object(state, "source", errors)
-    if source.get("implementation_summary") != IMPLEMENTATION_SUMMARY_FILENAME:
-        errors.append(
-            f"source.implementation_summary must equal {IMPLEMENTATION_SUMMARY_FILENAME}"
+    review_contract: dict[str, Any] | None = None
+    try:
+        review_contract = _approved_review_acceptance_contract(
+            root, resolved_feature_dir
         )
-    recorded_summary_digest = _required_string(
-        source, "implementation_summary_sha256", "source", errors
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        errors.append(str(exc))
+
+    source = _object(state, "source", errors)
+    for key, filename in (
+        ("implementation_summary", IMPLEMENTATION_SUMMARY_FILENAME),
+        ("implementation_handoff", IMPLEMENTATION_HANDOFF_FILENAME),
+        ("review_state", REVIEW_STATE_FILENAME),
+    ):
+        if source.get(key) != filename:
+            errors.append(f"source.{key} must equal {filename}")
+    digest_fields = (
+        "implementation_summary_sha256",
+        "implementation_handoff_sha256",
+        "review_state_sha256",
+        "reviewed_snapshot_sha256",
+        "acceptance_universe_sha256",
+        "runtime_targets_sha256",
+        "prepared_from_sha256",
+        "current_sha256",
     )
-    prepared_digest = _required_string(source, "prepared_from_sha256", "source", errors)
-    recorded_current = _required_string(source, "current_sha256", "source", errors)
+    recorded = {
+        key: _required_string(source, key, "source", errors) for key in digest_fields
+    }
+    for key, value in recorded.items():
+        if value and not re.fullmatch(r"[0-9a-f]{64}", value):
+            errors.append(f"source.{key} must be a sha256 digest")
+
     actual_summary_digest = _sha256(summary_path) if summary_path.is_file() else ""
+    actual_handoff_digest = _sha256(handoff_path) if handoff_path.is_file() else ""
+    actual_review_digest = _sha256(review_path) if review_path.is_file() else ""
     if not actual_summary_digest:
         errors.append(f"missing {IMPLEMENTATION_SUMMARY_FILENAME}")
-    elif recorded_summary_digest != actual_summary_digest:
-        errors.append(
-            "source.implementation_summary_sha256 does not match the current implementation summary"
-        )
+    if not actual_handoff_digest:
+        errors.append(f"missing {IMPLEMENTATION_HANDOFF_FILENAME}")
+    if not actual_review_digest:
+        errors.append(f"missing {REVIEW_STATE_FILENAME}")
     actual_digest = (
         _implementation_snapshot_sha256(
             root, resolved_feature_dir, actual_summary_digest
@@ -917,25 +1638,168 @@ def validate_human_acceptance(
         if actual_summary_digest
         else ""
     )
-    stale = bool(actual_digest and prepared_digest and prepared_digest != actual_digest)
-    if actual_digest and recorded_current != actual_digest:
-        errors.append(
-            "source.current_sha256 does not match the current implementation evidence snapshot"
-        )
+    freshness_mismatches: list[str] = []
+    for key, actual in (
+        ("implementation_summary_sha256", actual_summary_digest),
+        ("implementation_handoff_sha256", actual_handoff_digest),
+        ("review_state_sha256", actual_review_digest),
+        ("current_sha256", actual_digest),
+    ):
+        if actual and recorded.get(key) != actual:
+            freshness_mismatches.append(key)
+            errors.append(f"source.{key} does not match current evidence")
+    if actual_digest and recorded.get("prepared_from_sha256") != actual_digest:
+        freshness_mismatches.append("prepared_from_sha256")
+        errors.append("implementation evidence changed after acceptance preparation")
+    if review_contract is not None:
+        for key in (
+            "implementation_handoff_sha256",
+            "review_state_sha256",
+            "reviewed_snapshot_sha256",
+            "acceptance_universe_sha256",
+            "runtime_targets_sha256",
+        ):
+            if recorded.get(key) != str(review_contract.get(key) or ""):
+                freshness_mismatches.append(key)
+                errors.append(f"source.{key} no longer matches approved Review")
+    stale = bool(freshness_mismatches or review_contract is None)
     if stale and status != "stale":
         errors.append(
-            "implementation summary changed; status must be stale until the guide is rebuilt"
+            "Review or implementation evidence changed; status must be stale until Review is rerun"
         )
     if status == "stale" and not stale:
-        errors.append(
-            "status is stale but the prepared and current implementation summary digests match"
-        )
+        errors.append("status is stale but all approved Review source identities match")
 
     orientation = _object(state, "orientation", errors)
+    universe = _object(state, "acceptance_universe", errors)
+    obligations = universe.get("obligations")
+    if not isinstance(obligations, list):
+        errors.append("acceptance_universe.obligations must be an array")
+        obligations = []
+    uncovered_recorded = universe.get("uncovered_obligation_ids")
+    if not isinstance(uncovered_recorded, list) or any(
+        not isinstance(item, str) or not item.strip()
+        for item in (uncovered_recorded if isinstance(uncovered_recorded, list) else [])
+    ):
+        errors.append(
+            "acceptance_universe.uncovered_obligation_ids must be a string array"
+        )
+        uncovered_recorded = []
+    coverage_verdict = str(universe.get("verdict") or "")
+    if coverage_verdict not in {"pending", "pass", "fail"}:
+        errors.append("acceptance_universe.verdict must be pending, pass, or fail")
+
     scenarios = state.get("scenarios")
     if not isinstance(scenarios, list):
         errors.append("scenarios must be an array")
         scenarios = []
+    if review_contract is not None:
+        canonical_obligations = review_contract["obligations"]
+        canonical_scenarios = review_contract["scenarios"]
+        if obligations != canonical_obligations:
+            errors.append(
+                "canonical Human Acceptance Universe obligation contract drift"
+            )
+        actual_scenario_contracts = [
+            _scenario_contract(item) for item in scenarios if isinstance(item, Mapping)
+        ]
+        if (
+            len(actual_scenario_contracts) != len(scenarios)
+            or actual_scenario_contracts != canonical_scenarios
+        ):
+            errors.append("canonical Human Acceptance Universe scenario contract drift")
+        entrypoint_ids = set(review_contract["entrypoint_ids"])
+    else:
+        entrypoint_ids = set()
+
+    runtime_targets = state.get("runtime_targets")
+    if not isinstance(runtime_targets, list):
+        errors.append("runtime_targets must be an array")
+        runtime_targets = []
+    if review_contract is not None:
+        actual_runtime_contracts = [
+            _review_runtime_target_contract(item)
+            for item in runtime_targets
+            if isinstance(item, Mapping)
+        ]
+        if (
+            len(actual_runtime_contracts) != len(runtime_targets)
+            or actual_runtime_contracts != review_contract["runtime_targets"]
+        ):
+            errors.append(
+                "runtime_targets must exactly preserve the approved Review runtime target contract"
+            )
+    runtime_target_by_id: dict[str, dict[str, Any]] = {}
+    for index, raw_target in enumerate(runtime_targets):
+        prefix = f"runtime_targets[{index}]"
+        if not isinstance(raw_target, dict):
+            errors.append(f"{prefix} must be an object")
+            continue
+        target_id = _required_string(raw_target, "id", prefix, errors)
+        if target_id in runtime_target_by_id:
+            errors.append(f"duplicate runtime target id: {target_id}")
+        runtime_target_by_id[target_id] = raw_target
+        mode = str(raw_target.get("mode") or "")
+        target_status = str(raw_target.get("status") or "")
+        acceptance_status = str(raw_target.get("acceptance_status") or "")
+        if mode not in RUNTIME_TARGET_MODES:
+            errors.append(f"{prefix}.mode is invalid")
+        if target_status != "ready":
+            errors.append(f"{prefix}.status must preserve Review status=ready")
+        if acceptance_status not in RUNTIME_TARGET_STATUSES:
+            errors.append(f"{prefix}.acceptance_status is invalid")
+        entrypoint_id = _required_string(raw_target, "entrypoint_id", prefix, errors)
+        if entrypoint_ids and entrypoint_id not in entrypoint_ids:
+            errors.append(f"{prefix}.entrypoint_id is not an official entrypoint")
+        for key in (
+            "environment_ref",
+            "instance_ref",
+            "configuration_ref",
+            "reviewed_snapshot_sha256",
+            "identity_evidence_ref",
+            "identity_evidence_sha256",
+        ):
+            _required_string(raw_target, key, prefix, errors)
+        identity_digest = str(raw_target.get("identity_evidence_sha256") or "")
+        if identity_digest and not re.fullmatch(r"[0-9a-f]{64}", identity_digest):
+            errors.append(f"{prefix}.identity_evidence_sha256 must be a sha256 digest")
+        if (
+            recorded.get("reviewed_snapshot_sha256")
+            and raw_target.get("reviewed_snapshot_sha256")
+            != recorded["reviewed_snapshot_sha256"]
+        ):
+            errors.append(
+                f"{prefix}.reviewed_snapshot_sha256 must match approved Review"
+            )
+        for key in (
+            "test_data_refs",
+            "ready_evidence_refs",
+            "review_scenario_ids",
+            "acceptance_ready_evidence",
+            "agent_actions",
+        ):
+            values = raw_target.get(key)
+            if not isinstance(values, list) or any(
+                not isinstance(item, str) or not item.strip()
+                for item in (values if isinstance(values, list) else [])
+            ):
+                errors.append(f"{prefix}.{key} must be a string array")
+        if acceptance_status == "ready":
+            _nonempty_string_list(
+                raw_target, "acceptance_ready_evidence", prefix, errors
+            )
+            _nonempty_string_list(raw_target, "agent_actions", prefix, errors)
+        if mode in {"build", "deployment"}:
+            _required_string(raw_target, "artifact_ref", prefix, errors)
+            artifact_digest = _required_string(
+                raw_target, "artifact_sha256", prefix, errors
+            )
+            if artifact_digest and not re.fullmatch(r"[0-9a-f]{64}", artifact_digest):
+                errors.append(f"{prefix}.artifact_sha256 must be a sha256 digest")
+        if mode == "deployment":
+            _required_string(raw_target, "deployment_id", prefix, errors)
+            _required_string(raw_target, "observed_version", prefix, errors)
+
     findings = state.get("findings")
     if not isinstance(findings, list):
         errors.append("findings must be an array")
@@ -945,6 +1809,16 @@ def validate_human_acceptance(
     overall_verdict = str(overall.get("verdict") or "")
     if overall_verdict not in OVERALL_VERDICTS:
         errors.append("overall.verdict must be pending, pass, fail, or blocked")
+    human_decision = str(overall.get("human_decision") or "")
+    if human_decision not in HUMAN_DECISIONS:
+        errors.append("overall.human_decision must be pending, accept, or reject")
+    decision_evidence = overall.get("decision_evidence")
+    if not isinstance(decision_evidence, list):
+        errors.append("overall.decision_evidence must be an array")
+        decision_evidence = []
+    decision_confirmation_id = _required_string(
+        overall, "decision_confirmation_id", "overall", errors
+    )
 
     if status not in {"draft", "stale"}:
         for key in ("outcome", "why_it_matters", "start_here"):
@@ -953,9 +1827,7 @@ def validate_human_acceptance(
             orientation, "user_visible_changes", "orientation", errors
         )
         if not scenarios:
-            errors.append(
-                "at least one acceptance scenario is required outside draft/stale state"
-            )
+            errors.append("the frozen Human Acceptance Universe has no scenarios")
 
     scenario_ids: set[str] = set()
     step_ids: set[str] = set()
@@ -971,8 +1843,11 @@ def validate_human_acceptance(
         if scenario_id in scenario_ids:
             errors.append(f"duplicate scenario id: {scenario_id}")
         scenario_ids.add(scenario_id)
-        for key in ("title", "user_value", "start_state"):
+        for key in ("title", "user_value", "entrypoint_id", "start_state"):
             _required_string(raw_scenario, key, prefix, errors)
+        obligation_ids = raw_scenario.get("obligation_ids")
+        if not isinstance(obligation_ids, list) or not obligation_ids:
+            errors.append(f"{prefix}.obligation_ids must be a non-empty array")
         required = raw_scenario.get("required")
         if not isinstance(required, bool):
             errors.append(f"{prefix}.required must be a boolean")
@@ -984,6 +1859,27 @@ def validate_human_acceptance(
             required_verdicts.append(verdict)
         any_failed = any_failed or verdict == "fail"
         any_blocked = any_blocked or verdict == "blocked"
+        runtime_target_id = raw_scenario.get("runtime_target_id")
+        target = (
+            runtime_target_by_id.get(str(runtime_target_id))
+            if runtime_target_id is not None
+            else None
+        )
+        if verdict == "pass" or status in {"ready", "in_progress", "accepted"}:
+            if target is None or target.get("acceptance_status") != "ready":
+                errors.append(
+                    f"{prefix} requires a ready runtime target bound to approved Review"
+                )
+            elif target.get("entrypoint_id") != raw_scenario.get("entrypoint_id"):
+                errors.append(
+                    f"{prefix}.runtime_target_id must use the scenario official entrypoint"
+                )
+            elif not set(raw_scenario.get("review_scenario_ids") or []).issubset(
+                set(target.get("review_scenario_ids") or [])
+            ):
+                errors.append(
+                    f"{prefix}.runtime_target_id must cover the scenario linked Review evidence"
+                )
         steps = raw_scenario.get("steps")
         if not isinstance(steps, list) or not steps:
             errors.append(f"{prefix}.steps must contain at least one step")
@@ -998,7 +1894,14 @@ def validate_human_acceptance(
             if step_id in step_ids:
                 errors.append(f"duplicate step id: {step_id}")
             step_ids.add(step_id)
-            for key in ("action", "expected_result", "if_failed", "response_prompt"):
+            for key in (
+                "action",
+                "expected_result",
+                "evidence_requirement",
+                "risk",
+                "if_failed",
+                "response_prompt",
+            ):
                 _required_string(raw_step, key, step_prefix, errors)
             result = str(raw_step.get("result") or "")
             scenario_step_results.append(result)
@@ -1009,10 +1912,42 @@ def validate_human_acceptance(
             evidence = raw_step.get("evidence")
             if not isinstance(evidence, list):
                 errors.append(f"{step_prefix}.evidence must be an array")
+                evidence = []
+            confirmation_id = _required_string(
+                raw_step, "confirmation_id", step_prefix, errors
+            )
+            if result == "pass":
+                _required_string(raw_step, "observed_result", step_prefix, errors)
+                if not _has_human_evidence(
+                    evidence,
+                    confirmation_id=confirmation_id,
+                    runtime_target_id=str(runtime_target_id or ""),
+                    reviewed_snapshot_sha256=recorded.get(
+                        "reviewed_snapshot_sha256", ""
+                    ),
+                ):
+                    errors.append(
+                        f"{step_prefix}.result=pass requires a structured human confirmation; "
+                        "agent or automated evidence cannot substitute"
+                    )
         if verdict == "pass" and any(
             result != "pass" for result in scenario_step_results
         ):
             errors.append(f"{prefix}.verdict=pass requires every step to pass")
+
+    actual_uncovered = _uncovered_obligation_ids(obligations, scenarios)
+    if sorted(uncovered_recorded) != actual_uncovered:
+        errors.append(
+            "acceptance_universe.uncovered_obligation_ids must exactly match "
+            "required obligation coverage"
+        )
+    if status == "accepted":
+        if actual_uncovered:
+            errors.append(
+                "accepted status requires zero uncovered Human Acceptance obligations"
+            )
+        if coverage_verdict != "pass":
+            errors.append("accepted status requires acceptance_universe.verdict=pass")
 
     open_finding_ids: list[str] = []
     for index, raw_finding in enumerate(findings):
@@ -1027,10 +1962,18 @@ def validate_human_acceptance(
             errors.append(f"{prefix}.scenario_id must reference an existing scenario")
         if raw_finding.get("step_id") not in step_ids:
             errors.append(f"{prefix}.step_id must reference an existing step")
-        if raw_finding.get("classification") not in FINDING_CLASSIFICATIONS:
+        classification = raw_finding.get("classification")
+        route = raw_finding.get("route")
+        if classification not in FINDING_CLASSIFICATIONS:
             errors.append(f"{prefix}.classification is invalid")
-        if raw_finding.get("route") not in FINDING_ROUTES:
+        if route not in FINDING_ROUTES:
             errors.append(f"{prefix}.route is invalid")
+        if route == "human-action" and classification != "environment-or-access":
+            errors.append(
+                f"{prefix}.route=human-action is only valid for environment-or-access"
+            )
+        if route != "human-action" and route not in {"sp-review", "spx-review"}:
+            errors.append(f"{prefix} must route every failed observation to Review")
         finding_status = raw_finding.get("status")
         if finding_status not in {"open", "resolved"}:
             errors.append(f"{prefix}.status must be open or resolved")
@@ -1055,9 +1998,262 @@ def validate_human_acceptance(
                 "cursor must be null or reference an existing scenario and step"
             )
 
+    repair_resume = state.get("repair_resume")
+    if repair_resume is not None and not isinstance(repair_resume, dict):
+        errors.append("repair_resume must be null or an object")
+    elif isinstance(repair_resume, dict):
+        finding_id = _required_string(
+            repair_resume, "finding_id", "repair_resume", errors
+        )
+        finding_contract_sha256 = _required_string(
+            repair_resume,
+            "finding_contract_sha256",
+            "repair_resume",
+            errors,
+        )
+        if finding_contract_sha256 and not re.fullmatch(
+            r"[0-9a-f]{64}", finding_contract_sha256
+        ):
+            errors.append(
+                "repair_resume.finding_contract_sha256 must be a sha256 digest"
+            )
+        previous_review_sha256 = _required_string(
+            repair_resume,
+            "previous_review_state_sha256",
+            "repair_resume",
+            errors,
+        )
+        new_review_sha256 = str(repair_resume.get("new_review_state_sha256") or "")
+        review_cycle_id = str(repair_resume.get("review_cycle_id") or "")
+        if previous_review_sha256 and not re.fullmatch(
+            r"[0-9a-f]{64}", previous_review_sha256
+        ):
+            errors.append(
+                "repair_resume.previous_review_state_sha256 must be a sha256 digest"
+            )
+        for key in (
+            "affected_obligation_ids",
+            "affected_scenario_ids",
+            "preserved_scenario_ids",
+        ):
+            values = repair_resume.get(key)
+            if not isinstance(values, list) or any(
+                not isinstance(item, str) or not item.strip()
+                for item in (values if isinstance(values, list) else [])
+            ):
+                errors.append(f"repair_resume.{key} must be a string array")
+        expected_obligation_ids = sorted(
+            str(item.get("id") or "")
+            for item in obligations
+            if isinstance(item, Mapping) and str(item.get("id") or "").strip()
+        )
+        if sorted(repair_resume.get("affected_obligation_ids") or []) != (
+            expected_obligation_ids
+        ):
+            errors.append(
+                "repair_resume must conservatively retest every human acceptance obligation"
+            )
+        if (
+            sorted(repair_resume.get("affected_scenario_ids") or [])
+            != sorted(scenario_ids)
+            or repair_resume.get("preserved_scenario_ids") != []
+        ):
+            errors.append(
+                "repair_resume must retest every human scenario and preserve no stale PASS"
+            )
+        if repair_resume.get("scenario_id") not in scenario_ids:
+            errors.append("repair_resume.scenario_id must name the failed scenario")
+        if repair_resume.get("step_id") not in step_ids:
+            errors.append("repair_resume.step_id must name the failed step")
+        repair_finding = next(
+            (
+                item
+                for item in findings
+                if isinstance(item, Mapping) and item.get("id") == finding_id
+            ),
+            None,
+        )
+        if not isinstance(repair_finding, Mapping):
+            errors.append(
+                "repair_resume.finding_id must reference an acceptance finding"
+            )
+        elif _acceptance_finding_sha256(repair_finding) != finding_contract_sha256:
+            errors.append(
+                "repair_resume.finding_contract_sha256 must bind the routed acceptance finding"
+            )
+        if new_review_sha256:
+            if new_review_sha256 != recorded.get("review_state_sha256"):
+                errors.append(
+                    "repair_resume.new_review_state_sha256 must match the approved Review"
+                )
+            if not re.fullmatch(r"[0-9a-f]{64}", review_cycle_id):
+                errors.append(
+                    "repair_resume.review_cycle_id must bind the approved repair Review"
+                )
+        elif review_cycle_id:
+            errors.append(
+                "repair_resume.review_cycle_id requires new_review_state_sha256"
+            )
+
+    repair_history = state.get("repair_history")
+    if not isinstance(repair_history, list):
+        errors.append("repair_history must be an array")
+        repair_history = []
+    completed_repair_by_finding: dict[str, list[Mapping[str, Any]]] = {}
+    prior_completed_review_sha256 = ""
+    for index, raw_repair in enumerate(repair_history):
+        prefix = f"repair_history[{index}]"
+        if not isinstance(raw_repair, Mapping):
+            errors.append(f"{prefix} must be an object")
+            continue
+        history_finding_id = _required_string(raw_repair, "finding_id", prefix, errors)
+        history_finding_sha256 = _required_string(
+            raw_repair, "finding_contract_sha256", prefix, errors
+        )
+        previous_review_sha256 = _required_string(
+            raw_repair, "previous_review_state_sha256", prefix, errors
+        )
+        completed_review_sha256 = _required_string(
+            raw_repair, "new_review_state_sha256", prefix, errors
+        )
+        completed_cycle_id = _required_string(
+            raw_repair, "review_cycle_id", prefix, errors
+        )
+        for key, value in (
+            ("finding_contract_sha256", history_finding_sha256),
+            ("previous_review_state_sha256", previous_review_sha256),
+            ("new_review_state_sha256", completed_review_sha256),
+            ("review_cycle_id", completed_cycle_id),
+        ):
+            if value and not re.fullmatch(r"[0-9a-f]{64}", value):
+                errors.append(f"{prefix}.{key} must be a sha256 digest")
+        for key in (
+            "affected_obligation_ids",
+            "affected_scenario_ids",
+            "preserved_scenario_ids",
+        ):
+            values = raw_repair.get(key)
+            if not isinstance(values, list) or any(
+                not isinstance(item, str) or not item.strip()
+                for item in (values if isinstance(values, list) else [])
+            ):
+                errors.append(f"{prefix}.{key} must be a string array")
+        expected_obligation_ids = sorted(
+            str(item.get("id") or "")
+            for item in obligations
+            if isinstance(item, Mapping) and str(item.get("id") or "").strip()
+        )
+        if sorted(raw_repair.get("affected_obligation_ids") or []) != (
+            expected_obligation_ids
+        ):
+            errors.append(f"{prefix} must record every human acceptance obligation")
+        if (
+            sorted(raw_repair.get("affected_scenario_ids") or [])
+            != sorted(scenario_ids)
+            or raw_repair.get("preserved_scenario_ids") != []
+        ):
+            errors.append(
+                f"{prefix} must retest every human scenario and preserve no stale PASS"
+            )
+        if raw_repair.get("scenario_id") not in scenario_ids:
+            errors.append(f"{prefix}.scenario_id must name the failed scenario")
+        if raw_repair.get("step_id") not in step_ids:
+            errors.append(f"{prefix}.step_id must name the failed step")
+        history_finding = next(
+            (
+                item
+                for item in findings
+                if isinstance(item, Mapping) and item.get("id") == history_finding_id
+            ),
+            None,
+        )
+        if not isinstance(history_finding, Mapping):
+            errors.append(f"{prefix}.finding_id must reference an acceptance finding")
+        else:
+            if history_finding.get("route") not in {"sp-review", "spx-review"}:
+                errors.append(f"{prefix} may record only a Review-routed finding")
+            if history_finding.get("status") != "resolved":
+                errors.append(f"{prefix} requires its finding status to be resolved")
+            if _acceptance_finding_sha256(history_finding) != history_finding_sha256:
+                errors.append(
+                    f"{prefix}.finding_contract_sha256 must bind the routed finding"
+                )
+        if index and previous_review_sha256 != prior_completed_review_sha256:
+            errors.append(
+                f"{prefix}.previous_review_state_sha256 must continue the repair history chain"
+            )
+        prior_completed_review_sha256 = completed_review_sha256
+        if history_finding_id:
+            completed_repair_by_finding.setdefault(history_finding_id, []).append(
+                raw_repair
+            )
+
+    review_routed_resolved = [
+        item
+        for item in findings
+        if isinstance(item, Mapping)
+        and item.get("route") in {"sp-review", "spx-review"}
+        and item.get("status") == "resolved"
+    ]
+    for finding in review_routed_resolved:
+        finding_id = str(finding.get("id") or "")
+        matching_repairs = completed_repair_by_finding.get(finding_id, [])
+        if len(matching_repairs) != 1:
+            errors.append(
+                "resolved Review finding requires a completed route-repair cycle: "
+                f"{finding_id or 'missing-finding'}"
+            )
+
+    if repair_history:
+        last_repair = repair_history[-1]
+        if isinstance(last_repair, Mapping):
+            if recorded.get("review_state_sha256") and last_repair.get(
+                "new_review_state_sha256"
+            ) != recorded.get("review_state_sha256"):
+                errors.append(
+                    "the latest repair history entry must bind the current approved Review"
+                )
+            if review_contract is not None:
+                review_state = review_contract.get("review_state")
+                review_source = (
+                    review_state.get("source")
+                    if isinstance(review_state, Mapping)
+                    else None
+                )
+                if not isinstance(review_source, Mapping) or any(
+                    last_repair.get(history_key) != review_source.get(review_key)
+                    for history_key, review_key in (
+                        ("finding_id", "acceptance_finding_id"),
+                        (
+                            "finding_contract_sha256",
+                            "acceptance_finding_sha256",
+                        ),
+                        (
+                            "previous_review_state_sha256",
+                            "previous_review_state_sha256",
+                        ),
+                        ("review_cycle_id", "review_cycle_id"),
+                    )
+                ):
+                    errors.append(
+                        "the latest repair history entry must match the current "
+                        "Review repair source"
+                    )
+        if (
+            isinstance(repair_resume, Mapping)
+            and repair_resume.get("new_review_state_sha256")
+            and repair_resume != repair_history[-1]
+        ):
+            errors.append(
+                "completed repair_resume must equal the latest repair_history entry"
+            )
+    elif isinstance(repair_resume, Mapping) and repair_resume.get(
+        "new_review_state_sha256"
+    ):
+        errors.append("completed repair_resume requires a repair_history entry")
+
     if status in {"draft", "ready", "in_progress"} and overall_verdict != "pending":
         errors.append(f"{status} status requires overall.verdict=pending")
-
     if status == "accepted":
         if not required_verdicts or any(
             verdict != "pass" for verdict in required_verdicts
@@ -1065,6 +2261,15 @@ def validate_human_acceptance(
             errors.append("accepted status requires every required scenario to pass")
         if overall_verdict != "pass":
             errors.append("accepted status requires overall.verdict=pass")
+        if human_decision != "accept" or not _has_human_evidence(
+            decision_evidence,
+            confirmation_id=decision_confirmation_id,
+            runtime_target_id="all-reviewed-targets",
+            reviewed_snapshot_sha256=recorded.get("reviewed_snapshot_sha256", ""),
+        ):
+            errors.append(
+                "accepted status requires an explicit human acceptance decision and evidence"
+            )
         if open_finding_ids:
             errors.append(
                 "accepted status requires every finding to be resolved; "
@@ -1135,15 +2340,12 @@ def acceptance_closeout_blockers(
         "json",
     ]
     errors = [
-        str(item).strip()
-        for item in (context.get("errors") or [])
-        if str(item).strip()
+        str(item).strip() for item in (context.get("errors") or []) if str(item).strip()
     ]
     runtime_error = context.get("runtime_error")
-    if (
-        context.get("error_code") == "workflow-runtime-validation-blocked"
-        and isinstance(runtime_error, Mapping)
-    ):
+    if context.get(
+        "error_code"
+    ) == "workflow-runtime-validation-blocked" and isinstance(runtime_error, Mapping):
         runtime_blockers = runtime_error.get("blockers")
         if isinstance(runtime_blockers, list) and runtime_blockers:
             blockers.extend(
@@ -1211,7 +2413,12 @@ def acceptance_closeout_blockers(
                 summary=summary,
                 evidence=errors,
                 exact_next_action=exact_next_action,
-                unblock_criteria="human-acceptance.json is fresh, schema-valid, and records status=accepted with every required scenario passing.",
+                unblock_criteria=(
+                    "human-acceptance.json is fresh and schema-valid, every required "
+                    "obligation is covered, every required scenario has explicit human "
+                    "PASS evidence against a ready reviewed runtime target, no finding "
+                    "is open, and the human decision is accept."
+                ),
                 resume_argv=resume_argv,
                 human_action_required=needs_human,
             )
@@ -1349,7 +2556,7 @@ def _acceptance_blocker(
                 {
                     "order": 3,
                     "title": "Review the final verdict",
-                    "action": "Accept only when every required scenario passes; otherwise reject or block and confirm the routed findings.",
+                    "action": "Accept only when every required obligation is covered and every required scenario passes against the reviewed runtime; otherwise reject or block and confirm the routed findings.",
                     "command": None,
                     "expected_result": "human-acceptance.json records one explicit, evidence-backed overall verdict.",
                     "if_failed": "Leave the verdict pending and name the unresolved scenario or decision.",
@@ -1364,8 +2571,9 @@ def _acceptance_blocker(
                 },
             ],
             "verification": [
-                "Every required scenario and step passed",
-                "The overall verdict is pass and status is accepted",
+                "Every required obligation is covered and every required scenario and step passed",
+                "Every pass is a human observation against a ready runtime target bound to the reviewed snapshot",
+                "The human decision is accept, the overall verdict is pass, and status is accepted",
                 "No open acceptance finding remains unresolved",
             ],
             "evidence_to_return": [
@@ -1621,6 +2829,27 @@ def _nonempty_string_list(
         errors.append(f"{prefix}.{key} must be a non-empty string array")
 
 
+def _has_human_evidence(
+    values: object,
+    *,
+    confirmation_id: str,
+    runtime_target_id: str,
+    reviewed_snapshot_sha256: str,
+) -> bool:
+    if not isinstance(values, list):
+        return False
+    return any(
+        isinstance(item, Mapping)
+        and item.get("actor") == "human"
+        and item.get("source") in HUMAN_EVIDENCE_SOURCES
+        and str(item.get("statement") or "").strip()
+        and item.get("confirmation_id") == confirmation_id
+        and item.get("runtime_target_id") == runtime_target_id
+        and item.get("reviewed_snapshot_sha256") == reviewed_snapshot_sha256
+        for item in values
+    )
+
+
 def _validation_payload(
     project_root: Path,
     state_path: Path,
@@ -1635,16 +2864,20 @@ def _validation_payload(
         overall.get("next_command") if isinstance(overall, dict) else None
     )
     findings = (state or {}).get("findings")
-    finding_routes = [
-        {
-            "id": str(item.get("id") or ""),
-            "status": str(item.get("status") or ""),
-            "route": str(item.get("route") or ""),
-            "classification": str(item.get("classification") or ""),
-        }
-        for item in findings
-        if isinstance(findings, list) and isinstance(item, dict)
-    ] if isinstance(findings, list) else []
+    finding_routes = (
+        [
+            {
+                "id": str(item.get("id") or ""),
+                "status": str(item.get("status") or ""),
+                "route": str(item.get("route") or ""),
+                "classification": str(item.get("classification") or ""),
+            }
+            for item in findings
+            if isinstance(findings, list) and isinstance(item, dict)
+        ]
+        if isinstance(findings, list)
+        else []
+    )
     return {
         "status": str((state or {}).get("status") or "missing"),
         "valid": not errors,

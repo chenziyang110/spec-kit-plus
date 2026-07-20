@@ -5,7 +5,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-CLASSIC_STAGES = ("specify", "plan", "tasks", "implement", "accept")
+CLASSIC_STAGES = ("specify", "plan", "tasks", "implement", "review", "accept")
 ADVANCED_STAGES = ("discussion", *CLASSIC_STAGES)
 
 
@@ -29,7 +29,9 @@ def test_classic_stage_handoff_uses_the_deterministic_workflow_cli() -> None:
     ):
         assert command in shared
     assert "Do not author or advance `workflow-runtime.json` by hand" in compact_shared
-    assert "`workflow-state.md` remains the rich workflow-owned evidence" in compact_shared
+    assert (
+        "`workflow-state.md` remains the rich workflow-owned evidence" in compact_shared
+    )
     assert "destination command owns the returned transition" in compact_shared
     assert ".specify/templates/workflow-blocker-template.md" in shared
     assert "Human Action Guide" in shared
@@ -90,7 +92,9 @@ def test_runtime_state_is_separate_from_auxiliary_and_learning_state() -> None:
 
 def test_auto_routes_canonical_features_from_structured_runtime_argv_first() -> None:
     classic = _read("templates/commands/auto.md")
-    advanced = _read("templates/advanced-skills/spx-auto/references/routing-contract.md")
+    advanced = _read(
+        "templates/advanced-skills/spx-auto/references/routing-contract.md"
+    )
 
     for content in (classic, advanced):
         lowered = content.lower()
@@ -139,7 +143,9 @@ def test_auxiliary_spx_skills_do_not_call_rich_state_runtime_owned() -> None:
         assert "runtime-owned `workflow-state.md`" not in content
 
 
-def test_auxiliary_workflows_do_not_call_rich_state_the_required_stage_authority() -> None:
+def test_auxiliary_workflows_do_not_call_rich_state_the_required_stage_authority() -> (
+    None
+):
     surfaces = (
         "templates/commands/clarify.md",
         "templates/commands/deep-research.md",
@@ -191,18 +197,25 @@ def test_human_guidance_teaches_complete_then_transition_and_split_state() -> No
         ), relative
 
 
-def test_acceptance_repair_and_implement_closeout_name_the_correct_state_owner() -> None:
+def test_acceptance_repair_and_implement_closeout_name_the_correct_state_owner() -> (
+    None
+):
     accept_surfaces = (
         _read("templates/command-partials/accept/shell.md"),
         _read("templates/advanced-skills/spx-accept/references/acceptance-contract.md"),
     )
     for content in accept_surfaces:
-        assert "clarify" in content.lower()
-        assert "must not write" in content.lower()
+        assert "review leader" in content.lower()
+        assert "accept does not diagnose" in content.lower()
+        assert (
+            "must not write" in content.lower() or "forbidden writes" in content.lower()
+        )
         assert "workflow-runtime.json" in content
         assert "acceptance-owned" in content.lower()
         assert "rich" in content.lower()
-        assert "must not write the canonical feature\n`workflow-state.md`" not in content
+        assert (
+            "must not write the canonical feature\n`workflow-state.md`" not in content
+        )
 
     main_implement = _read("templates/advanced-skills/spx-implement/SKILL.md")
     assert "`workflow-runtime.json`\nis the required phase gate" in main_implement
@@ -211,7 +224,9 @@ def test_acceptance_repair_and_implement_closeout_name_the_correct_state_owner()
 
     implement_surfaces = (
         _read("templates/command-partials/implement/shell.md"),
-        _read("templates/advanced-skills/spx-implement/references/execution-contract.md"),
+        _read(
+            "templates/advanced-skills/spx-implement/references/execution-contract.md"
+        ),
     )
     for content in implement_surfaces:
         assert "complete-stage" in content
@@ -220,7 +235,9 @@ def test_acceptance_repair_and_implement_closeout_name_the_correct_state_owner()
         assert "rich `workflow-state.md`" in content
 
 
-def test_skills_renderer_no_longer_reintroduces_manual_specify_state_authoring() -> None:
+def test_skills_renderer_no_longer_reintroduces_manual_specify_state_authoring() -> (
+    None
+):
     renderer = _read("src/specify_cli/integrations/base.py")
 
     assert "workflow enter --command specify" in renderer
@@ -236,9 +253,9 @@ def test_plan_and_accept_resolve_then_gate_before_their_first_owned_write() -> N
     for content in (classic_plan, advanced_plan):
         assert "Resolve `FEATURE_DIR` without creating `plan.md`" in content
         assert "Only after the transition succeeds" in content
-        assert content.index("Resolve `FEATURE_DIR` without creating `plan.md`") < content.index(
-            "Only after the transition succeeds"
-        )
+        assert content.index(
+            "Resolve `FEATURE_DIR` without creating `plan.md`"
+        ) < content.index("Only after the transition succeeds")
     for content in (classic_accept, advanced_accept):
         assert "Transition from" in content
         assert content.index("Transition from") < content.index("accept prepare")
@@ -266,6 +283,9 @@ def test_classic_preimplementation_stages_forbid_downstream_owned_outputs() -> N
     assert "Do not create `plan-contract.json`, `plan.md`" in specify
     assert "Do not create `tasks.md` or `task-index.json`" in plan
     assert "Do not edit production source or tests" in tasks
-    assert "enter or resume `specify` through the deterministic workflow runtime" in specify
+    assert (
+        "enter or resume `specify` through the deterministic workflow runtime"
+        in specify
+    )
     for stage, content in (("specify", specify), ("plan", plan), ("tasks", tasks)):
         assert f"hook validate-artifacts --command {stage}" in content

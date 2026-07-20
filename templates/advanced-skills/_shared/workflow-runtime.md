@@ -28,8 +28,11 @@ only completed `accept` is terminal. Review owns bounded source/test repair and
 must revalidate the current fingerprint before completion. A failed or blocked
 acceptance must not reverse `workflow transition` or edit phase state. Route its
 recorded finding through `accept route-repair`; that command invalidates the
-prior verdict and performs the only legal backward repair handoff to Review or
-an upstream truth owner.
+prior verdict and performs the only legal backward repair handoff to Review.
+The Review Leader diagnoses the observation and owns an independent Fix and
+revalidation cycle. Only Review may later reopen an upstream truth owner, and
+only after evidence proves that correct implementation is impossible under the
+current requirement, design, or architecture truth.
 
 At the owning stage's closeout, run
 `{{specify-subcmd:workflow complete-stage --feature-dir <feature-dir> --expected-revision <revision> --format json}}`.

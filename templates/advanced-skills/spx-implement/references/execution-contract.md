@@ -65,6 +65,16 @@ or an oversized unreviewed window. This does not replace the mandatory
 post-implementation system Review. Repair only understood local failures;
 reopen planning or debugging when upstream truth or root cause is unknown.
 
+Give every discovered gap an orthogonal classification. `implementation_gap`
+means upstream behavior is clear but code/wiring/tests are wrong;
+`traceability_gap` means supported behavior lacks task/CA/validation mapping;
+`upstream_truth_gap` means user-visible behavior, recovery/retry/cancel,
+interaction escalation, lifecycle, requirement, design, or architecture truth
+is missing or contradictory. Repair implementation gaps locally; repair safe
+task traceability or reopen Tasks/Plan; stop and reopen the owning upstream
+workflow for an upstream truth gap. A new behavior/test with no requirement,
+acceptance, or CA ref is not an implementation-only repair.
+
 Every cross-workflow route is a handoff-and-stop boundary. Hand off unknown root
 causes to `$spx-debug`, missing/invalid design truth to `$spx-design`, durable
 team execution to `$spx-implement-teams`, and independent lane closeout to
@@ -76,7 +86,15 @@ when available.
 
 Successful closeout must return a trusted `implementation_handoff` with its
 source revision, implementation fingerprint, official entrypoints, and required
-system Review scenarios. Hand off to `$spx-review` and stop. Do not route
+system Review scenarios. Revalidate the handoff against the live Spec, Plan,
+and Tasks and preserve their exact complete `acceptance_refs` denominator,
+`acceptance_denominator_sha256`, and frozen Human Acceptance Universe
+(`human_acceptance_obligations`, `human_acceptance_scenarios`, and
+`human_acceptance_contract_sha256`) unchanged;
+never omit an item, downgrade `required`, or reconstruct the contract from
+prose. Implement must not create, infer, or prefill `reviewed_runtime_targets`;
+only `$spx-review` creates those immutable targets after final integrated
+evidence and snapshot validation. Hand off to `$spx-review` and stop. Do not route
 directly to `$spx-accept`; implementation tests, task-level agent review, and
 technical closeout do not substitute for integrated product Review or a later
 human verdict.

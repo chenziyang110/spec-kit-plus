@@ -44,6 +44,11 @@ ImplementationFindingType = Literal[
     "unproven_implementation_chain",
     "user_decision_required",
 ]
+GapClassification = Literal[
+    "implementation_gap",
+    "traceability_gap",
+    "upstream_truth_gap",
+]
 ReviewSeverity = Literal["critical", "high", "medium", "low"]
 RepairOperation = Literal[
     "insert_task",
@@ -64,14 +69,18 @@ TaskReviewFindingCategory = Literal[
     "ui_fidelity",
     "plan_mandated_defect",
 ]
-TaskReviewFindingDisposition = Literal["open", "fixed", "accepted_residual_risk", "follow_up"]
+TaskReviewFindingDisposition = Literal[
+    "open", "fixed", "accepted_residual_risk", "follow_up"
+]
 TaskReviewUiFidelityResult = Literal[
     "not_applicable",
     "pass",
     "fail",
     "needs_visual_or_human_review",
 ]
-TaskReviewFinalAssessment = Literal["accepted", "fixes_required", "controller_check_required"]
+TaskReviewFinalAssessment = Literal[
+    "accepted", "fixes_required", "controller_check_required"
+]
 TaskReviewFindingSource = Literal["findings", "plan_mandated_defects"]
 TaskLedgerStatus = Literal[
     "pending",
@@ -130,6 +139,34 @@ SNAPSHOT_ALLOWED_DIRECTORIES = frozenset(
 TASK_ID_RE = re.compile(r"^T(?P<number>\d+)$")
 SNAPSHOT_TOKEN_RE = re.compile(r"[^A-Za-z0-9_.-]+")
 
+TRACEABILITY_FINDING_TYPES = frozenset(
+    {
+        "missing_task",
+        "stale_task",
+        "wrong_dependency",
+        "missing_validation",
+        "packet_field_gap",
+        "join_point_gap",
+        "task_order_gap",
+        "real_entrypoint_evidence_gap",
+    }
+)
+UPSTREAM_TRUTH_FINDING_TYPES = frozenset(
+    {
+        "spec_goal_conflict",
+        "plan_architecture_conflict",
+        "scope_change_required",
+        "user_decision_required",
+    }
+)
+UPSTREAM_TRUTH_REVIEW_DECISIONS = frozenset(
+    {
+        "blocked-reopen-plan",
+        "blocked-reopen-clarify",
+        "blocked-deep-research",
+    }
+)
+
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -141,11 +178,29 @@ class ImplementationReviewFinding:
     finding_type: ImplementationFindingType
     severity: ReviewSeverity
     summary: str
+    gap_classification: GapClassification | None = None
     affected_artifacts: list[str] = field(default_factory=list)
     task_ids: list[str] = field(default_factory=list)
     repairable_at_task_layer: bool = False
     recommendation: str = ""
     upstream_reentry: str = ""
+
+    def __post_init__(self) -> None:
+        if self.gap_classification is None:
+            if self.finding_type in TRACEABILITY_FINDING_TYPES:
+                self.gap_classification = "traceability_gap"
+            elif self.finding_type in UPSTREAM_TRUTH_FINDING_TYPES:
+                self.gap_classification = "upstream_truth_gap"
+            else:
+                self.gap_classification = "implementation_gap"
+        elif self.gap_classification not in {
+            "implementation_gap",
+            "traceability_gap",
+            "upstream_truth_gap",
+        }:
+            raise ValueError(
+                f"unsupported gap_classification: {self.gap_classification}"
+            )
 
 
 @dataclass(slots=True)
@@ -271,7 +326,9 @@ def task_reviews_dir(feature_dir: Path) -> Path:
 
 def _validate_task_artifact_id(task_id: str) -> str:
     if not TASK_ID_RE.fullmatch(task_id):
-        raise ValueError(f"invalid task_id for implementation review artifact path: {task_id}")
+        raise ValueError(
+            f"invalid task_id for implementation review artifact path: {task_id}"
+        )
     return task_id
 
 
@@ -280,7 +337,9 @@ def task_brief_path(feature_dir: Path, task_id: str) -> Path:
 
 
 def review_package_path(feature_dir: Path, task_id: str) -> Path:
-    return review_packages_dir(feature_dir) / f"{_validate_task_artifact_id(task_id)}.md"
+    return (
+        review_packages_dir(feature_dir) / f"{_validate_task_artifact_id(task_id)}.md"
+    )
 
 
 def task_review_path(feature_dir: Path, task_id: str) -> Path:
@@ -295,11 +354,48 @@ def branch_review_path(feature_dir: Path) -> Path:
     return implementation_review_root(feature_dir) / "branch-review.md"
 
 
-def implementation_review_record_payload(record: ImplementationReviewRecord) -> dict[str, object]:
+def implementation_review_record_payload(
+    record: ImplementationReviewRecord,
+) -> dict[str, object]:
     return asdict(record)
 
 
-def implementation_repair_record_payload(record: ImplementationRepairRecord) -> dict[str, object]:
+def implementation_review_record_errors(
+    record: ImplementationReviewRecord,
+) -> list[str]:
+    errors: list[str] = []
+    for finding in record.findings:
+        if finding.gap_classification == "upstream_truth_gap":
+            if finding.repairable_at_task_layer:
+                errors.append(
+                    f"finding {finding.finding_id} upstream_truth_gap must not be repairable_at_task_layer"
+                )
+            if not finding.upstream_reentry.strip():
+                errors.append(
+                    f"finding {finding.finding_id} upstream_truth_gap requires upstream_reentry"
+                )
+            if record.decision not in UPSTREAM_TRUTH_REVIEW_DECISIONS:
+                errors.append(
+                    f"finding {finding.finding_id} upstream_truth_gap requires a handoff-and-stop decision"
+                )
+        elif (
+            finding.gap_classification
+            in {
+                "implementation_gap",
+                "traceability_gap",
+            }
+            and finding.upstream_reentry.strip()
+        ):
+            errors.append(
+                f"finding {finding.finding_id} {finding.gap_classification} "
+                "must not declare upstream_reentry"
+            )
+    return errors
+
+
+def implementation_repair_record_payload(
+    record: ImplementationRepairRecord,
+) -> dict[str, object]:
     return asdict(record)
 
 
@@ -307,7 +403,9 @@ def task_review_record_payload(record: TaskReviewRecord) -> dict[str, object]:
     return asdict(record)
 
 
-def task_ledger_payload(entries: list[TaskLedgerEntry]) -> dict[str, list[dict[str, object]]]:
+def task_ledger_payload(
+    entries: list[TaskLedgerEntry],
+) -> dict[str, list[dict[str, object]]]:
     return {"tasks": [asdict(entry) for entry in entries]}
 
 
@@ -320,24 +418,35 @@ def _append_json_line(path: Path, payload: dict[str, object]) -> Path:
 
 
 def write_review_record(feature_dir: Path, record: ImplementationReviewRecord) -> Path:
-    return _append_json_line(reviews_path(feature_dir), implementation_review_record_payload(record))
+    errors = implementation_review_record_errors(record)
+    if errors:
+        raise ValueError("; ".join(errors))
+    return _append_json_line(
+        reviews_path(feature_dir), implementation_review_record_payload(record)
+    )
 
 
 def write_repair_record(feature_dir: Path, record: ImplementationRepairRecord) -> Path:
-    return _append_json_line(repairs_path(feature_dir), implementation_repair_record_payload(record))
+    return _append_json_line(
+        repairs_path(feature_dir), implementation_repair_record_payload(record)
+    )
 
 
 def _write_json(path: Path, payload: object) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
-        json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n",
+        json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        + "\n",
         encoding="utf-8",
     )
     return path
 
 
 def write_task_review_record(feature_dir: Path, record: TaskReviewRecord) -> Path:
-    return _write_json(task_review_path(feature_dir, record.task_id), task_review_record_payload(record))
+    return _write_json(
+        task_review_path(feature_dir, record.task_id),
+        task_review_record_payload(record),
+    )
 
 
 def write_task_ledger(feature_dir: Path, entries: list[TaskLedgerEntry]) -> Path:
@@ -350,7 +459,9 @@ def _field_names(dataclass_type: type[object]) -> set[str]:
 
 def _task_ledger_entry_from_payload(payload: dict[str, object]) -> TaskLedgerEntry:
     allowed = _field_names(TaskLedgerEntry)
-    return TaskLedgerEntry(**{key: value for key, value in payload.items() if key in allowed})  # type: ignore[arg-type]
+    return TaskLedgerEntry(
+        **{key: value for key, value in payload.items() if key in allowed}
+    )  # type: ignore[arg-type]
 
 
 def load_task_ledger(feature_dir: Path) -> list[TaskLedgerEntry]:
@@ -379,11 +490,15 @@ def task_review_acceptance_errors(record: TaskReviewRecord) -> list[str]:
         errors.append("quality concerns require findings")
 
     accepted_residual_risk_refs = {
-        (risk.finding_source, risk.finding_index) for risk in record.accepted_residual_risks
+        (risk.finding_source, risk.finding_index)
+        for risk in record.accepted_residual_risks
     }
-    follow_up_refs = {(work.finding_source, work.finding_index) for work in record.follow_up_work}
+    follow_up_refs = {
+        (work.finding_source, work.finding_index) for work in record.follow_up_work
+    }
     review_findings = [
-        ("findings", "finding", index, finding) for index, finding in enumerate(record.findings)
+        ("findings", "finding", index, finding)
+        for index, finding in enumerate(record.findings)
     ]
     review_findings.extend(
         ("plan_mandated_defects", "plan_mandated_defects", index, finding)
@@ -393,7 +508,10 @@ def task_review_acceptance_errors(record: TaskReviewRecord) -> list[str]:
         (source, index): finding for source, _label, index, finding in review_findings
     }
     for source, label, index, finding in review_findings:
-        if source == "plan_mandated_defects" and finding.category != "plan_mandated_defect":
+        if (
+            source == "plan_mandated_defects"
+            and finding.category != "plan_mandated_defect"
+        ):
             errors.append(f"{label} {index} category must be plan_mandated_defect")
         if finding.disposition == "open":
             errors.append(f"{label} {index} is open")
@@ -404,7 +522,9 @@ def task_review_acceptance_errors(record: TaskReviewRecord) -> list[str]:
             errors.append(
                 f"{label} {index} accepted_residual_risk has no matching accepted_residual_risks"
             )
-        elif finding.disposition == "follow_up" and (source, index) not in follow_up_refs:
+        elif (
+            finding.disposition == "follow_up" and (source, index) not in follow_up_refs
+        ):
             errors.append(f"{label} {index} follow_up has no matching follow_up_work")
 
     for risk in record.accepted_residual_risks:
@@ -440,7 +560,9 @@ def task_review_acceptance_errors(record: TaskReviewRecord) -> list[str]:
         if not record.controller_checks:
             errors.append("cannot_verify_from_diff requires controller checks")
         if record.final_assessment != "controller_check_required":
-            errors.append("cannot_verify_from_diff requires final_assessment=controller_check_required")
+            errors.append(
+                "cannot_verify_from_diff requires final_assessment=controller_check_required"
+            )
         if record.final_assessment == "accepted":
             errors.append(
                 "cannot_verify_from_diff cannot be accepted; convert to pass after controller evidence closes"
@@ -453,7 +575,9 @@ def task_review_acceptance_errors(record: TaskReviewRecord) -> list[str]:
 
 
 def task_review_is_accepted(record: TaskReviewRecord) -> bool:
-    return record.final_assessment == "accepted" and not task_review_acceptance_errors(record)
+    return record.final_assessment == "accepted" and not task_review_acceptance_errors(
+        record
+    )
 
 
 def _snapshot_name(relative_path: str, review_id: str) -> str:
@@ -484,7 +608,9 @@ def _safe_snapshot_relative_path(relative_path: str) -> Path | None:
     return None
 
 
-def snapshot_artifacts(feature_dir: Path, *, review_id: str, relative_paths: list[str]) -> list[str]:
+def snapshot_artifacts(
+    feature_dir: Path, *, review_id: str, relative_paths: list[str]
+) -> list[str]:
     output_dir = snapshots_dir(feature_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     output_root = output_dir.resolve(strict=False)
@@ -539,5 +665,7 @@ def validate_workflow_state_review_update(
         elif key == "next_command":
             next_command = after.get(key)
             if next_command not in WORKFLOW_STATE_REVIEW_ALLOWED_NEXT_COMMANDS:
-                errors.append(f"{key} has invalid embedded review route: {next_command}")
+                errors.append(
+                    f"{key} has invalid embedded review route: {next_command}"
+                )
     return errors

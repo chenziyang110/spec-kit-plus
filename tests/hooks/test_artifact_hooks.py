@@ -62,6 +62,150 @@ def _write_minimal_planning_outputs(feature_dir: Path) -> None:
     (planning_dir / "handoffs").mkdir(exist_ok=True)
 
 
+def _write_minimal_acceptance_denominator(
+    feature_dir: Path, *, include_tasks: bool = False
+) -> None:
+    spec_path = feature_dir / "spec-contract.json"
+    if spec_path.is_file():
+        spec_payload = json.loads(spec_path.read_text(encoding="utf-8"))
+    else:
+        spec_payload = {
+            "version": 2,
+            "status": "ready",
+            "acceptance_criteria": ["A human can verify the demo behavior."],
+        }
+    criteria = spec_payload.get("acceptance_criteria")
+    if not isinstance(criteria, list) or not criteria:
+        criteria = ["A human can verify the demo behavior."]
+        spec_payload["acceptance_criteria"] = criteria
+    scope = spec_payload.get("scope")
+    if not isinstance(scope, dict):
+        scope = {"in": [], "out": [], "deferred": []}
+        spec_payload["scope"] = scope
+    scope_in = scope.get("in")
+    if not isinstance(scope_in, list):
+        scope_in = []
+        scope["in"] = scope_in
+    capability_operations = spec_payload.get("capability_operations")
+    if not isinstance(capability_operations, (list, dict)):
+        capability_operations = []
+        spec_payload["capability_operations"] = capability_operations
+    requirement_refs = [
+        f"spec-contract.json#/scope/in/{index}" for index in range(len(scope_in))
+    ]
+    if isinstance(capability_operations, list):
+        requirement_refs.extend(
+            f"spec-contract.json#/capability_operations/{index}"
+            for index in range(len(capability_operations))
+        )
+    else:
+        requirement_refs.extend(
+            "spec-contract.json#/capability_operations/"
+            + str(key).replace("~", "~0").replace("/", "~1")
+            for key in capability_operations
+        )
+    if not requirement_refs:
+        scope_in.extend(
+            f"Fixture requirement {index + 1}" for index in range(len(criteria))
+        )
+        requirement_refs = [
+            f"spec-contract.json#/scope/in/{index}" for index in range(len(scope_in))
+        ]
+    while len(criteria) < len(requirement_refs):
+        criteria.append(f"Fixture requirement {len(criteria) + 1} is verifiable.")
+    spec_payload["acceptance_coverage"] = [
+        {
+            "requirement_ref": requirement_refs[min(index, len(requirement_refs) - 1)],
+            "acceptance_ref": f"spec-contract.json#/acceptance_criteria/{index}",
+        }
+        for index in range(len(criteria))
+    ]
+    spec_path.write_text(json.dumps(spec_payload), encoding="utf-8")
+
+    plan_path = feature_dir / "plan-contract.json"
+    nested_plan_path = feature_dir / "plan" / "plan-contract.json"
+    if not plan_path.is_file() and nested_plan_path.is_file():
+        plan_path = nested_plan_path
+    plan_payload = (
+        json.loads(plan_path.read_text(encoding="utf-8"))
+        if plan_path.is_file()
+        else {"version": 2, "status": "ready"}
+    )
+    plan_payload["acceptance_refs"] = [
+        f"spec-contract.json#/acceptance_criteria/{index}"
+        for index in range(len(criteria))
+    ]
+    plan_path.write_text(json.dumps(plan_payload), encoding="utf-8")
+
+    if not include_tasks:
+        return
+    task_path = feature_dir / "task-index.json"
+    task_payload = (
+        json.loads(task_path.read_text(encoding="utf-8")) if task_path.is_file() else {}
+    )
+    task_payload["version"] = 2
+    task_payload["status"] = "ready"
+    task_payload["acceptance_refs"] = [
+        f"plan-contract.json#/acceptance_refs/{index}" for index in range(len(criteria))
+    ]
+    task_payload.setdefault(
+        "official_entrypoints",
+        [{"id": "EP-001", "command": "python -m app", "ready_signal": "ready"}],
+    )
+    entrypoint_id = task_payload["official_entrypoints"][0]["id"]
+    task_payload.setdefault(
+        "system_review_scenarios",
+        [{"id": "SR-001", "entrypoint_id": entrypoint_id, "required": True}],
+    )
+    review_scenario_id = task_payload["system_review_scenarios"][0]["id"]
+    task_payload["review_obligations"] = [
+        {
+            "id": f"RO-{index + 1:03d}",
+            "kind": "user-journey",
+            "source_ref": acceptance_ref,
+            "surface": f"Outcome {index + 1}",
+            "required": True,
+            "scenario_ids": [review_scenario_id],
+        }
+        for index, acceptance_ref in enumerate(task_payload["acceptance_refs"])
+    ]
+    task_payload["human_acceptance_obligations"] = [
+        {
+            "id": f"HAO-{index + 1:03d}",
+            "source_ref": acceptance_ref,
+            "change_kind": "new",
+            "user_outcome": f"Outcome {index + 1}",
+            "required": True,
+            "scenario_ids": [f"HA-{index + 1:03d}"],
+        }
+        for index, acceptance_ref in enumerate(task_payload["acceptance_refs"])
+    ]
+    task_payload["human_acceptance_scenarios"] = [
+        {
+            "id": f"HA-{index + 1:03d}",
+            "title": f"Verify outcome {index + 1}",
+            "user_value": f"Outcome {index + 1} works.",
+            "actor": "human user",
+            "required": True,
+            "obligation_ids": [f"HAO-{index + 1:03d}"],
+            "entrypoint_id": entrypoint_id,
+            "review_scenario_ids": [review_scenario_id],
+            "start_state": "The reviewed application is ready.",
+            "steps": [
+                {
+                    "id": f"HAS-{index + 1:03d}",
+                    "action": "Perform the changed workflow.",
+                    "expected_result": "The changed outcome is visible.",
+                    "evidence_requirement": "Human observation.",
+                    "risk": "low",
+                }
+            ],
+        }
+        for index, _ in enumerate(task_payload["acceptance_refs"])
+    ]
+    task_path.write_text(json.dumps(task_payload), encoding="utf-8")
+
+
 def _write_minimal_clarification_outputs(feature_dir: Path) -> None:
     for filename in (
         "spec.md",
@@ -248,6 +392,12 @@ def _write_valid_spec_contract(feature_dir: Path) -> None:
         "scope": {"in": ["Demo behavior"], "out": [], "deferred": []},
         "constraints": [],
         "acceptance_criteria": ["Demo behavior is verifiable"],
+        "acceptance_coverage": [
+            {
+                "requirement_ref": "spec-contract.json#/scope/in/0",
+                "acceptance_ref": "spec-contract.json#/acceptance_criteria/0",
+            }
+        ],
         "decisions": [],
         "semantic_delta": [],
         "capability_operations": [],
@@ -768,6 +918,10 @@ def test_specify_artifact_validation_does_not_require_compatibility_handoff(
         (
             lambda payload: payload.pop("capability_operations"),
             "missing capability_operations",
+        ),
+        (
+            lambda payload: payload.pop("acceptance_coverage"),
+            "missing acceptance_coverage",
         ),
         (
             lambda payload: payload["transition"].update({"next_action": None}),
@@ -1325,9 +1479,36 @@ def _write_human_acceptance_universe(
 ) -> None:
     feature_dir.mkdir(parents=True, exist_ok=True)
     plan_refs = [
-        "spec-contract.json#/acceptance/0",
-        "spec-contract.json#/acceptance/1",
+        "spec-contract.json#/acceptance_criteria/0",
+        "spec-contract.json#/acceptance_criteria/1",
     ]
+    (feature_dir / "spec-contract.json").write_text(
+        json.dumps(
+            {
+                "scope": {
+                    "in": ["Outcome 1", "Outcome 2"],
+                    "out": [],
+                    "deferred": [],
+                },
+                "capability_operations": [],
+                "acceptance_criteria": [
+                    "A human can complete outcome 1.",
+                    "A human can complete outcome 2.",
+                ],
+                "acceptance_coverage": [
+                    {
+                        "requirement_ref": "spec-contract.json#/scope/in/0",
+                        "acceptance_ref": "spec-contract.json#/acceptance_criteria/0",
+                    },
+                    {
+                        "requirement_ref": "spec-contract.json#/scope/in/1",
+                        "acceptance_ref": "spec-contract.json#/acceptance_criteria/1",
+                    },
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
     (feature_dir / "plan-contract.json").write_text(
         json.dumps({"version": 2, "status": "ready", "acceptance_refs": plan_refs}),
         encoding="utf-8",
@@ -1343,6 +1524,25 @@ def _write_human_acceptance_universe(
         }
         for index, source_ref in enumerate(task_acceptance_refs)
     ]
+    review_scenarios = [
+        {
+            "id": f"SR-{index + 1:03d}",
+            "entrypoint_id": "EP-001",
+            "required": True,
+        }
+        for index, _ in enumerate(task_acceptance_refs)
+    ]
+    review_obligations = [
+        {
+            "id": f"RO-{index + 1:03d}",
+            "kind": "user-journey",
+            "source_ref": source_ref,
+            "surface": f"Outcome {index + 1}",
+            "required": True,
+            "scenario_ids": [f"SR-{index + 1:03d}"],
+        }
+        for index, source_ref in enumerate(task_acceptance_refs)
+    ]
     scenarios = [
         {
             "id": f"HA-{index + 1:03d}",
@@ -1353,7 +1553,7 @@ def _write_human_acceptance_universe(
             "required": True,
             "entrypoint_id": "EP-001",
             "obligation_ids": [f"HAO-{index + 1:03d}"],
-            "review_scenario_ids": ["SR-001"],
+            "review_scenario_ids": [f"SR-{index + 1:03d}"],
             "steps": [
                 {
                     "id": f"HAS-{index + 1:03d}",
@@ -1379,13 +1579,8 @@ def _write_human_acceptance_universe(
                         "ready_signal": "ready",
                     }
                 ],
-                "system_review_scenarios": [
-                    {
-                        "id": "SR-001",
-                        "entrypoint_id": "EP-001",
-                        "required": True,
-                    }
-                ],
+                "system_review_scenarios": review_scenarios,
+                "review_obligations": review_obligations,
                 "human_acceptance_obligations": obligations,
                 "human_acceptance_scenarios": scenarios,
             }
@@ -1435,10 +1630,26 @@ def test_plan_acceptance_refs_must_cover_every_spec_acceptance_criterion(
     (feature_dir / "spec-contract.json").write_text(
         json.dumps(
             {
+                "scope": {
+                    "in": ["Primary journey", "Terminal result"],
+                    "out": [],
+                    "deferred": [],
+                },
+                "capability_operations": [],
                 "acceptance_criteria": [
                     "A human can complete the new primary journey.",
                     "A human sees the changed terminal result.",
-                ]
+                ],
+                "acceptance_coverage": [
+                    {
+                        "requirement_ref": "spec-contract.json#/scope/in/0",
+                        "acceptance_ref": "spec-contract.json#/acceptance_criteria/0",
+                    },
+                    {
+                        "requirement_ref": "spec-contract.json#/scope/in/1",
+                        "acceptance_ref": "spec-contract.json#/acceptance_criteria/1",
+                    },
+                ],
             }
         ),
         encoding="utf-8",
@@ -1448,9 +1659,7 @@ def test_plan_acceptance_refs_must_cover_every_spec_acceptance_criterion(
             {
                 "version": 2,
                 "status": "ready",
-                "acceptance_refs": [
-                    "spec-contract.json#/acceptance_criteria/0"
-                ],
+                "acceptance_refs": ["spec-contract.json#/acceptance_criteria/0"],
             }
         ),
         encoding="utf-8",
@@ -1465,6 +1674,272 @@ def test_plan_acceptance_refs_must_cover_every_spec_acceptance_criterion(
     )
 
 
+def test_spec_acceptance_coverage_is_required_for_machine_readable_closure(
+    tmp_path: Path,
+) -> None:
+    feature_dir = tmp_path / "specs" / "007b-spec-scope-closure"
+    feature_dir.mkdir(parents=True)
+    (feature_dir / "spec-contract.json").write_text(
+        json.dumps(
+            {
+                "scope": {
+                    "in": ["Export reports", "Import reports"],
+                    "out": [],
+                    "deferred": [],
+                },
+                "capability_operations": [],
+                "acceptance_criteria": ["The reporting feature works."],
+            }
+        ),
+        encoding="utf-8",
+    )
+    (feature_dir / "plan-contract.json").write_text(
+        json.dumps(
+            {
+                "version": 2,
+                "status": "ready",
+                "acceptance_refs": ["spec-contract.json#/acceptance_criteria/0"],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    errors = _validate_plan_human_acceptance_contract(feature_dir)
+
+    assert any(
+        "acceptance_coverage must be a non-empty array" in error for error in errors
+    )
+
+
+def test_spec_acceptance_coverage_rejects_one_criterion_shared_by_multiple_requirements(
+    tmp_path: Path,
+) -> None:
+    feature_dir = tmp_path / "specs" / "007c-spec-duplicate-criteria"
+    feature_dir.mkdir(parents=True)
+    criteria = ["The reporting feature works."]
+    (feature_dir / "spec-contract.json").write_text(
+        json.dumps(
+            {
+                "scope": {
+                    "in": ["Export reports", "Import reports"],
+                    "out": [],
+                    "deferred": [],
+                },
+                "capability_operations": [],
+                "acceptance_criteria": criteria,
+                "acceptance_coverage": [
+                    {
+                        "requirement_ref": "spec-contract.json#/scope/in/0",
+                        "acceptance_ref": "spec-contract.json#/acceptance_criteria/0",
+                    },
+                    {
+                        "requirement_ref": "spec-contract.json#/scope/in/1",
+                        "acceptance_ref": "spec-contract.json#/acceptance_criteria/0",
+                    },
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    (feature_dir / "plan-contract.json").write_text(
+        json.dumps(
+            {
+                "version": 2,
+                "status": "ready",
+                "acceptance_refs": ["spec-contract.json#/acceptance_criteria/0"],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    errors = _validate_plan_human_acceptance_contract(feature_dir)
+
+    assert any(
+        "acceptance criterion must map to exactly one requirement_ref" in error
+        for error in errors
+    )
+
+
+@pytest.mark.parametrize(
+    ("coverage", "expected_error"),
+    (
+        (
+            [
+                {
+                    "requirement_ref": "spec-contract.json#/scope/in/0",
+                    "acceptance_ref": "spec-contract.json#/acceptance_criteria/0",
+                }
+            ],
+            "requirements are missing acceptance_coverage",
+        ),
+        (
+            [
+                {
+                    "requirement_ref": "spec-contract.json#/scope/in/0",
+                    "acceptance_ref": "spec-contract.json#/acceptance_criteria/0",
+                },
+                {
+                    "requirement_ref": "spec-contract.json#/scope/in/1",
+                    "acceptance_ref": "spec-contract.json#/acceptance_criteria/0",
+                },
+            ],
+            "acceptance criteria are missing acceptance_coverage",
+        ),
+        (
+            [
+                {
+                    "requirement_ref": "spec-contract.json#/scope/in/0",
+                    "acceptance_ref": "spec-contract.json#/acceptance_criteria/0",
+                },
+                {
+                    "requirement_ref": "spec-contract.json#/scope/in/1",
+                    "acceptance_ref": "spec-contract.json#/acceptance_criteria/1",
+                },
+                {
+                    "requirement_ref": "spec-contract.json#/scope/in/99",
+                    "acceptance_ref": "spec-contract.json#/acceptance_criteria/1",
+                },
+            ],
+            "unknown requirement_ref values",
+        ),
+    ),
+)
+def test_spec_acceptance_coverage_requires_bidirectional_exact_set_closure(
+    tmp_path: Path,
+    coverage: list[dict[str, str]],
+    expected_error: str,
+) -> None:
+    feature_dir = tmp_path / "specs" / "007d-spec-exact-closure"
+    feature_dir.mkdir(parents=True)
+    (feature_dir / "spec-contract.json").write_text(
+        json.dumps(
+            {
+                "scope": {
+                    "in": ["Export reports", "Import reports"],
+                    "out": [],
+                    "deferred": [],
+                },
+                "capability_operations": [],
+                "acceptance_criteria": [
+                    "A human can export a report.",
+                    "A human can import a report.",
+                ],
+                "acceptance_coverage": coverage,
+            }
+        ),
+        encoding="utf-8",
+    )
+    (feature_dir / "plan-contract.json").write_text(
+        json.dumps(
+            {
+                "version": 2,
+                "status": "ready",
+                "acceptance_refs": [
+                    "spec-contract.json#/acceptance_criteria/0",
+                    "spec-contract.json#/acceptance_criteria/1",
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    errors = _validate_plan_human_acceptance_contract(feature_dir)
+
+    assert any(expected_error in error for error in errors)
+
+
+def test_spec_acceptance_coverage_uses_escaped_canonical_json_pointer_tokens(
+    tmp_path: Path,
+) -> None:
+    feature_dir = tmp_path / "specs" / "007e-spec-pointer-escaping"
+    feature_dir.mkdir(parents=True)
+    (feature_dir / "spec-contract.json").write_text(
+        json.dumps(
+            {
+                "scope": {"in": [], "out": [], "deferred": []},
+                "capability_operations": {
+                    "ops/export~v1": {"id": "CAP-EXPORT", "operation": "export"}
+                },
+                "acceptance_criteria": ["A human can export a report."],
+                "acceptance_coverage": [
+                    {
+                        "requirement_ref": (
+                            "spec-contract.json#/capability_operations/ops~1export~0v1"
+                        ),
+                        "acceptance_ref": "spec-contract.json#/acceptance_criteria/0",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    (feature_dir / "plan-contract.json").write_text(
+        json.dumps(
+            {
+                "version": 2,
+                "status": "ready",
+                "acceptance_refs": ["spec-contract.json#/acceptance_criteria/0"],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    assert _validate_plan_human_acceptance_contract(feature_dir) == []
+
+
+def test_specify_templates_require_exact_acceptance_coverage() -> None:
+    repo_root = Path(__file__).resolve().parents[2]
+    template = json.loads(
+        (repo_root / "templates" / "spec-contract-template.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert template["acceptance_coverage"] == []
+
+    prompt_paths = (
+        repo_root / "templates" / "commands" / "specify.md",
+        repo_root
+        / "templates"
+        / "command-references"
+        / "specify"
+        / "artifact-package.md",
+        repo_root
+        / "templates"
+        / "command-references"
+        / "specify"
+        / "self-review-and-quality-gates.md",
+        repo_root / "templates" / "advanced-skills" / "spx-specify" / "SKILL.md",
+        repo_root
+        / "templates"
+        / "advanced-skills"
+        / "spx-specify"
+        / "references"
+        / "requirements-contract.md",
+    )
+    for path in prompt_paths:
+        content = path.read_text(encoding="utf-8")
+        assert "acceptance_coverage" in content, path
+
+
+def test_tasks_templates_require_dedicated_acceptance_review_scenarios() -> None:
+    repo_root = Path(__file__).resolve().parents[2]
+    prompt_paths = (
+        repo_root / "templates" / "commands" / "tasks.md",
+        repo_root / "templates" / "advanced-skills" / "spx-tasks" / "SKILL.md",
+        repo_root
+        / "templates"
+        / "advanced-skills"
+        / "spx-tasks"
+        / "references"
+        / "task-graph-contract.md",
+    )
+    for path in prompt_paths:
+        content = path.read_text(encoding="utf-8").lower()
+        assert "dedicated required" in content, path
+        assert "broad regression" in content, path
+        assert "own `acceptance_ref`" in content, path
+
+
 @pytest.mark.parametrize("acceptance_refs", ([], [""], [42]))
 def test_plan_acceptance_denominator_fails_closed_when_malformed(
     tmp_path: Path, acceptance_refs: list[object]
@@ -1472,11 +1947,29 @@ def test_plan_acceptance_denominator_fails_closed_when_malformed(
     feature_dir = tmp_path / "specs" / "008-malformed-plan-acceptance"
     feature_dir.mkdir(parents=True)
     (feature_dir / "spec-contract.json").write_text(
-        json.dumps({"acceptance_criteria": ["The changed outcome is visible."]}),
+        json.dumps(
+            {
+                "scope": {
+                    "in": ["Changed outcome"],
+                    "out": [],
+                    "deferred": [],
+                },
+                "capability_operations": [],
+                "acceptance_criteria": ["The changed outcome is visible."],
+                "acceptance_coverage": [
+                    {
+                        "requirement_ref": "spec-contract.json#/scope/in/0",
+                        "acceptance_ref": "spec-contract.json#/acceptance_criteria/0",
+                    }
+                ],
+            }
+        ),
         encoding="utf-8",
     )
     (feature_dir / "plan-contract.json").write_text(
-        json.dumps({"version": 2, "status": "ready", "acceptance_refs": acceptance_refs}),
+        json.dumps(
+            {"version": 2, "status": "ready", "acceptance_refs": acceptance_refs}
+        ),
         encoding="utf-8",
     )
 
@@ -1491,9 +1984,7 @@ def test_tasks_require_task_index_when_plan_has_acceptance_refs(tmp_path: Path) 
             {
                 "version": 2,
                 "status": "ready",
-                "acceptance_refs": [
-                    "spec-contract.json#/acceptance_criteria/0"
-                ],
+                "acceptance_refs": ["spec-contract.json#/acceptance_criteria/0"],
             }
         ),
         encoding="utf-8",
@@ -1525,6 +2016,242 @@ def test_ready_modern_task_index_rejects_empty_human_acceptance_universe(
     errors = _validate_tasks_human_acceptance_contract(feature_dir)
 
     assert any("non-empty Human Acceptance Universe" in error for error in errors)
+
+
+def test_tasks_acceptance_denominator_fails_closed_without_spec_contract(
+    tmp_path: Path,
+) -> None:
+    feature_dir = tmp_path / "specs" / "011-missing-spec-denominator"
+    _write_human_acceptance_universe(
+        feature_dir,
+        task_acceptance_refs=[
+            "plan-contract.json#/acceptance_refs/0",
+            "plan-contract.json#/acceptance_refs/1",
+        ],
+    )
+    (feature_dir / "spec-contract.json").unlink()
+
+    errors = _validate_tasks_human_acceptance_contract(feature_dir)
+
+    assert any("spec-contract.json is required" in error for error in errors)
+
+
+@pytest.mark.parametrize("criterion", (None, "", 42, {}))
+def test_spec_acceptance_denominator_rejects_empty_or_non_string_criteria(
+    tmp_path: Path, criterion: object
+) -> None:
+    feature_dir = tmp_path / "specs" / "012-invalid-spec-denominator"
+    feature_dir.mkdir(parents=True)
+    (feature_dir / "spec-contract.json").write_text(
+        json.dumps(
+            {
+                "scope": {
+                    "in": ["Changed outcome"],
+                    "out": [],
+                    "deferred": [],
+                },
+                "capability_operations": [],
+                "acceptance_criteria": [criterion],
+                "acceptance_coverage": [
+                    {
+                        "requirement_ref": "spec-contract.json#/scope/in/0",
+                        "acceptance_ref": "spec-contract.json#/acceptance_criteria/0",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    (feature_dir / "plan-contract.json").write_text(
+        json.dumps(
+            {
+                "version": 2,
+                "status": "ready",
+                "acceptance_refs": ["spec-contract.json#/acceptance_criteria/0"],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    errors = _validate_plan_human_acceptance_contract(feature_dir)
+
+    assert any("acceptance_criteria[0]" in error for error in errors)
+
+
+def test_tasks_reject_version_downgrade_when_plan_has_acceptance_refs(
+    tmp_path: Path,
+) -> None:
+    feature_dir = tmp_path / "specs" / "013-task-index-version-downgrade"
+    _write_human_acceptance_universe(
+        feature_dir,
+        task_acceptance_refs=[
+            "plan-contract.json#/acceptance_refs/0",
+            "plan-contract.json#/acceptance_refs/1",
+        ],
+    )
+    task_path = feature_dir / "task-index.json"
+    task = json.loads(task_path.read_text(encoding="utf-8"))
+    task["version"] = 1
+    task_path.write_text(json.dumps(task), encoding="utf-8")
+
+    errors = _validate_tasks_human_acceptance_contract(feature_dir)
+
+    assert any("version must equal 2" in error for error in errors)
+
+
+@pytest.mark.parametrize("required", (True, False))
+def test_tasks_require_required_review_obligations_for_every_acceptance_ref(
+    tmp_path: Path, required: bool
+) -> None:
+    feature_dir = tmp_path / "specs" / f"014-review-obligation-{required}"
+    _write_human_acceptance_universe(
+        feature_dir,
+        task_acceptance_refs=[
+            "plan-contract.json#/acceptance_refs/0",
+            "plan-contract.json#/acceptance_refs/1",
+        ],
+    )
+    task_path = feature_dir / "task-index.json"
+    task = json.loads(task_path.read_text(encoding="utf-8"))
+    if required:
+        task["review_obligations"] = task["review_obligations"][:1]
+    else:
+        task["review_obligations"][1]["required"] = False
+    task_path.write_text(json.dumps(task), encoding="utf-8")
+
+    errors = _validate_tasks_human_acceptance_contract(feature_dir)
+
+    assert any(
+        "required review_obligations are missing acceptance_refs" in error
+        and "plan-contract.json#/acceptance_refs/1" in error
+        for error in errors
+    )
+
+
+def test_tasks_require_a_dedicated_required_review_scenario_per_acceptance_ref(
+    tmp_path: Path,
+) -> None:
+    feature_dir = tmp_path / "specs" / "014b-dedicated-review-scenario"
+    _write_human_acceptance_universe(
+        feature_dir,
+        task_acceptance_refs=[
+            "plan-contract.json#/acceptance_refs/0",
+            "plan-contract.json#/acceptance_refs/1",
+        ],
+    )
+    task_path = feature_dir / "task-index.json"
+    task = json.loads(task_path.read_text(encoding="utf-8"))
+    task["system_review_scenarios"] = [
+        {
+            "id": "SR-GENERIC-001",
+            "entrypoint_id": "EP-001",
+            "required": True,
+        }
+    ]
+    for obligation in task["review_obligations"]:
+        obligation["scenario_ids"] = ["SR-GENERIC-001"]
+    for scenario in task["human_acceptance_scenarios"]:
+        scenario["review_scenario_ids"] = ["SR-GENERIC-001"]
+    task_path.write_text(json.dumps(task), encoding="utf-8")
+
+    errors = _validate_tasks_human_acceptance_contract(feature_dir)
+
+    assert any(
+        "must map to at least one dedicated required system review scenario" in error
+        for error in errors
+    )
+    assert any(
+        "must reference a dedicated required system review scenario" in error
+        for error in errors
+    )
+
+
+@pytest.mark.parametrize("scenario_required", (None, False))
+def test_tasks_require_a_required_system_review_scenario_for_every_official_entrypoint(
+    tmp_path: Path, scenario_required: bool | None
+) -> None:
+    feature_dir = tmp_path / "specs" / f"015-entrypoint-review-{scenario_required}"
+    _write_human_acceptance_universe(
+        feature_dir,
+        task_acceptance_refs=[
+            "plan-contract.json#/acceptance_refs/0",
+            "plan-contract.json#/acceptance_refs/1",
+        ],
+    )
+    task_path = feature_dir / "task-index.json"
+    task = json.loads(task_path.read_text(encoding="utf-8"))
+    task["official_entrypoints"].append(
+        {
+            "id": "EP-002",
+            "command": "python -m admin",
+            "ready_signal": "admin ready",
+        }
+    )
+    if scenario_required is not None:
+        task["system_review_scenarios"].append(
+            {
+                "id": "SR-ADMIN-001",
+                "entrypoint_id": "EP-002",
+                "required": scenario_required,
+            }
+        )
+    task_path.write_text(json.dumps(task), encoding="utf-8")
+
+    errors = _validate_tasks_human_acceptance_contract(feature_dir)
+
+    assert any(
+        "official entrypoints are missing required system review scenarios" in error
+        and "EP-002" in error
+        for error in errors
+    )
+
+
+def test_tasks_reject_one_generic_human_scenario_for_multiple_acceptance_refs(
+    tmp_path: Path,
+) -> None:
+    feature_dir = tmp_path / "specs" / "016-generic-human-scenario"
+    _write_human_acceptance_universe(
+        feature_dir,
+        task_acceptance_refs=[
+            "plan-contract.json#/acceptance_refs/0",
+            "plan-contract.json#/acceptance_refs/1",
+        ],
+    )
+    task_path = feature_dir / "task-index.json"
+    task = json.loads(task_path.read_text(encoding="utf-8"))
+    obligation_ids = [item["id"] for item in task["human_acceptance_obligations"]]
+    for obligation in task["human_acceptance_obligations"]:
+        obligation["scenario_ids"] = ["HA-GENERIC-001"]
+    task["human_acceptance_scenarios"] = [
+        {
+            "id": "HA-GENERIC-001",
+            "title": "Verify the feature",
+            "user_value": "Everything works",
+            "actor": "human user",
+            "start_state": "Application ready",
+            "required": True,
+            "entrypoint_id": "EP-001",
+            "obligation_ids": obligation_ids,
+            "review_scenario_ids": ["SR-001", "SR-002"],
+            "steps": [
+                {
+                    "id": "HAS-GENERIC-001",
+                    "action": "Use the feature",
+                    "expected_result": "The feature works",
+                    "evidence_requirement": "human observation",
+                    "risk": "low",
+                }
+            ],
+        }
+    ]
+    task_path.write_text(json.dumps(task), encoding="utf-8")
+
+    errors = _validate_tasks_human_acceptance_contract(feature_dir)
+
+    assert any(
+        "must not span multiple acceptance_refs" in error and "HA-GENERIC-001" in error
+        for error in errors
+    )
 
 
 def test_agent_native_ui_task_lifecycle_blocks_pending_human_review(
@@ -3234,6 +3961,7 @@ def test_validate_artifacts_accepts_tasks_outputs_when_present(tmp_path: Path):
         "# Workflow State\n", encoding="utf-8"
     )
     _write_minimal_task_generation_outputs(feature_dir)
+    _write_minimal_acceptance_denominator(feature_dir, include_tasks=True)
 
     result = run_quality_hook(
         project,
@@ -3255,6 +3983,7 @@ def test_validate_artifacts_accepts_tasks_without_unused_lane_outputs(tmp_path: 
     (feature_dir / "workflow-state.md").write_text(
         "# Workflow State\n", encoding="utf-8"
     )
+    _write_minimal_acceptance_denominator(feature_dir, include_tasks=True)
 
     result = run_quality_hook(
         project,
@@ -3291,6 +4020,7 @@ def test_validate_artifacts_accepts_plan_outputs_when_present(tmp_path: Path):
         "# Workflow State\n", encoding="utf-8"
     )
     _write_minimal_planning_outputs(feature_dir)
+    _write_minimal_acceptance_denominator(feature_dir)
 
     result = run_quality_hook(
         project,
@@ -3315,6 +4045,7 @@ def test_validate_artifacts_accepts_plan_without_unused_lane_outputs(tmp_path: P
     (feature_dir / "plan-contract.json").write_text(
         '{"version": 1, "status": "ready"}\n', encoding="utf-8"
     )
+    _write_minimal_acceptance_denominator(feature_dir)
 
     result = run_quality_hook(
         project,
@@ -3340,6 +4071,7 @@ def test_validate_artifacts_accepts_plan_with_nested_plan_contract(tmp_path: Pat
     (feature_dir / "plan" / "plan-contract.json").write_text(
         '{"version": 1, "status": "ready"}\n', encoding="utf-8"
     )
+    _write_minimal_acceptance_denominator(feature_dir)
 
     result = run_quality_hook(
         project,
@@ -3551,6 +4283,7 @@ def test_validate_artifacts_accepts_plan_consuming_deep_research_handoff(
         "# Workflow State\n", encoding="utf-8"
     )
     _write_minimal_planning_outputs(feature_dir)
+    _write_minimal_acceptance_denominator(feature_dir)
 
     result = run_quality_hook(
         project,
@@ -3625,6 +4358,7 @@ def test_validate_artifacts_ignores_non_handoff_ph_ids_when_validating_plan(
         "# Workflow State\n", encoding="utf-8"
     )
     _write_minimal_planning_outputs(feature_dir)
+    _write_minimal_acceptance_denominator(feature_dir)
 
     result = run_quality_hook(
         project,
@@ -3938,6 +4672,7 @@ def test_validate_artifacts_accepts_plan_when_decision_covers_obligation_id(
         ),
         encoding="utf-8",
     )
+    _write_minimal_acceptance_denominator(feature_dir)
 
     result = run_quality_hook(
         project,
@@ -4355,6 +5090,7 @@ def test_validate_artifacts_accepts_tasks_when_consequence_obligation_is_mapped(
         encoding="utf-8",
     )
     _write_minimal_task_generation_outputs(feature_dir)
+    _write_minimal_acceptance_denominator(feature_dir, include_tasks=True)
 
     result = run_quality_hook(
         project,

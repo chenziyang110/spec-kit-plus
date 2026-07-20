@@ -1680,10 +1680,8 @@ def reopen_acceptance_workflow(
             actual_revision=state["revision"],
         )
     normalized_target = _required_text(target_stage, "target_stage").lower()
-    if normalized_target not in {"specify", "implement", "review"}:
-        raise ValueError(
-            "acceptance repair target_stage must be specify, implement, or review"
-        )
+    if normalized_target != "review":
+        raise ValueError("acceptance repair target_stage must be review")
     normalized_route = _required_text(repair_route, "repair_route")
     normalized_finding = _required_text(finding_id, "finding_id")
     normalized_evidence = _required_string_list(evidence, "evidence")
@@ -1761,6 +1759,8 @@ def reopen_acceptance_workflow(
             "source_stage": "accept",
             "source_status": state["status"],
             "target_stage": normalized_target,
+            "repair_route": normalized_route,
+            "finding_id": normalized_finding,
             "reason": f"Acceptance finding {normalized_finding} routed to {normalized_route}",
             "evidence": normalized_evidence,
             "invalidated_artifacts": [

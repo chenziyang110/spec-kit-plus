@@ -62,6 +62,105 @@ def test_write_review_record_appends_feature_dir_ndjson(tmp_path: Path) -> None:
     payload = json.loads(lines[0])
     assert payload["review_id"] == "pre-implement-r1"
     assert payload["findings"][0]["finding_type"] == "missing_validation"
+    assert payload["findings"][0]["gap_classification"] == "traceability_gap"
+
+
+def test_upstream_truth_gap_requires_handoff_and_stop_route(tmp_path: Path) -> None:
+    feature_dir = tmp_path / "specs" / "001-demo"
+    finding = ImplementationReviewFinding(
+        finding_id="IR-TRUTH-001",
+        finding_type="spec_goal_conflict",
+        gap_classification="upstream_truth_gap",
+        severity="high",
+        summary="A user-visible recovery behavior has no requirement owner.",
+        upstream_reentry="/sp.clarify",
+    )
+    invalid = ImplementationReviewRecord(
+        review_id="truth-gap-invalid",
+        scope="join-point-drift",
+        trigger="unmapped-user-visible-test",
+        decision="repair-and-continue",
+        findings=[finding],
+    )
+
+    with pytest.raises(ValueError, match="upstream_truth_gap.*handoff-and-stop"):
+        write_review_record(feature_dir, invalid)
+
+    valid = ImplementationReviewRecord(
+        review_id="truth-gap-valid",
+        scope="join-point-drift",
+        trigger="unmapped-user-visible-test",
+        decision="blocked-reopen-clarify",
+        findings=[finding],
+        next_action="Reopen requirement truth before implementation resumes.",
+    )
+    payload = json.loads(
+        write_review_record(feature_dir, valid).read_text().splitlines()[0]
+    )
+    assert payload["findings"][0]["gap_classification"] == "upstream_truth_gap"
+
+
+def test_upstream_truth_gap_cannot_be_marked_task_layer_repairable(
+    tmp_path: Path,
+) -> None:
+    feature_dir = tmp_path / "specs" / "001-demo"
+    record = ImplementationReviewRecord(
+        review_id="truth-gap-task-repair",
+        scope="join-point-drift",
+        trigger="new-recovery-path",
+        decision="blocked-reopen-plan",
+        findings=[
+            ImplementationReviewFinding(
+                finding_id="IR-TRUTH-002",
+                finding_type="plan_architecture_conflict",
+                gap_classification="upstream_truth_gap",
+                severity="critical",
+                summary="The recovery state has no architecture owner.",
+                repairable_at_task_layer=True,
+                upstream_reentry="/sp.plan",
+            )
+        ],
+    )
+
+    with pytest.raises(ValueError, match="must not be repairable_at_task_layer"):
+        write_review_record(feature_dir, record)
+
+
+@pytest.mark.parametrize(
+    ("gap_classification", "finding_type"),
+    [
+        ("implementation_gap", "implementation_gap"),
+        ("traceability_gap", "missing_validation"),
+    ],
+)
+def test_local_gap_cannot_declare_upstream_reentry(
+    tmp_path: Path,
+    gap_classification: str,
+    finding_type: str,
+) -> None:
+    feature_dir = tmp_path / "specs" / "001-demo"
+    record = ImplementationReviewRecord(
+        review_id=f"{gap_classification}-invalid-route",
+        scope="join-point-drift",
+        trigger="local-review-gap",
+        decision="repair-and-continue",
+        findings=[
+            ImplementationReviewFinding(
+                finding_id="IR-LOCAL-001",
+                finding_type=finding_type,  # type: ignore[arg-type]
+                gap_classification=gap_classification,  # type: ignore[arg-type]
+                severity="high",
+                summary="The local review gap must stay in the active workflow.",
+                upstream_reentry="/sp.plan",
+            )
+        ],
+    )
+
+    with pytest.raises(
+        ValueError,
+        match=rf"{gap_classification} must not declare upstream_reentry",
+    ):
+        write_review_record(feature_dir, record)
 
 
 def test_write_repair_record_appends_feature_dir_ndjson(tmp_path: Path) -> None:
@@ -74,7 +173,10 @@ def test_write_repair_record_appends_feature_dir_ndjson(tmp_path: Path) -> None:
             ImplementationRepairOperation(
                 operation="insert_task",
                 task_id="T081",
-                details={"repair_for": "T004", "reason": "missing real-entrypoint validation"},
+                details={
+                    "repair_for": "T004",
+                    "reason": "missing real-entrypoint validation",
+                },
             )
         ],
         completed_tasks_preserved=True,
@@ -91,7 +193,9 @@ def test_write_repair_record_appends_feature_dir_ndjson(tmp_path: Path) -> None:
     assert payload["operations"][0]["task_id"] == "T081"
 
 
-def test_task_review_artifact_paths_are_under_implementation_review(tmp_path: Path) -> None:
+def test_task_review_artifact_paths_are_under_implementation_review(
+    tmp_path: Path,
+) -> None:
     feature_dir = tmp_path / "specs" / "001-demo"
 
     assert task_brief_path(feature_dir, "T001") == (
@@ -103,11 +207,18 @@ def test_task_review_artifact_paths_are_under_implementation_review(tmp_path: Pa
     assert task_review_path(feature_dir, "T001") == (
         feature_dir / "implementation-review" / "task-reviews" / "T001.json"
     )
-    assert branch_review_path(feature_dir) == feature_dir / "implementation-review" / "branch-review.md"
+    assert (
+        branch_review_path(feature_dir)
+        == feature_dir / "implementation-review" / "branch-review.md"
+    )
 
 
-@pytest.mark.parametrize("task_id", ["../T001", "..\\T001", "C:/tmp/T001", "/tmp/T001", "T001/extra"])
-@pytest.mark.parametrize("path_helper", [task_brief_path, review_package_path, task_review_path])
+@pytest.mark.parametrize(
+    "task_id", ["../T001", "..\\T001", "C:/tmp/T001", "/tmp/T001", "T001/extra"]
+)
+@pytest.mark.parametrize(
+    "path_helper", [task_brief_path, review_package_path, task_review_path]
+)
 def test_task_review_artifact_paths_reject_unsafe_task_ids(
     tmp_path: Path,
     path_helper,
@@ -169,10 +280,18 @@ def test_task_review_concerns_are_accepted_only_with_mapped_dispositions() -> No
         quality_verdict="concerns",
         findings=findings,
         accepted_residual_risks=[
-            AcceptedResidualRisk(finding_index=1, reason="External service unavailable", owner="maintainer")
+            AcceptedResidualRisk(
+                finding_index=1,
+                reason="External service unavailable",
+                owner="maintainer",
+            )
         ],
         follow_up_work=[
-            FollowUpWork(finding_index=0, description="Deduplicate after release", target="backlog")
+            FollowUpWork(
+                finding_index=0,
+                description="Deduplicate after release",
+                target="backlog",
+            )
         ],
         final_assessment="accepted",
     )
@@ -182,20 +301,27 @@ def test_task_review_concerns_are_accepted_only_with_mapped_dispositions() -> No
         quality_verdict="concerns",
         findings=findings,
         accepted_residual_risks=[
-            AcceptedResidualRisk(finding_index=1, reason="External service unavailable", owner="maintainer")
+            AcceptedResidualRisk(
+                finding_index=1,
+                reason="External service unavailable",
+                owner="maintainer",
+            )
         ],
         final_assessment="accepted",
     )
 
     assert task_review_acceptance_errors(accepted) == []
     assert task_review_is_accepted(accepted)
-    assert "finding 0 follow_up has no matching follow_up_work" in task_review_acceptance_errors(
-        missing_follow_up
+    assert (
+        "finding 0 follow_up has no matching follow_up_work"
+        in task_review_acceptance_errors(missing_follow_up)
     )
     assert not task_review_is_accepted(missing_follow_up)
 
 
-def test_task_review_acceptance_blocks_open_findings_controller_checks_and_ui_review() -> None:
+def test_task_review_acceptance_blocks_open_findings_controller_checks_and_ui_review() -> (
+    None
+):
     open_finding = TaskReviewRecord(
         task_id="T001",
         spec_verdict="pass",
@@ -234,18 +360,22 @@ def test_task_review_acceptance_blocks_open_findings_controller_checks_and_ui_re
     )
 
     assert "finding 0 is open" in task_review_acceptance_errors(open_finding)
-    assert "accepted assessment cannot have open controller checks" in task_review_acceptance_errors(
-        open_controller_check
+    assert (
+        "accepted assessment cannot have open controller checks"
+        in task_review_acceptance_errors(open_controller_check)
     )
-    assert "needs_visual_or_human_review cannot be accepted" in task_review_acceptance_errors(
-        ui_review_required
+    assert (
+        "needs_visual_or_human_review cannot be accepted"
+        in task_review_acceptance_errors(ui_review_required)
     )
     assert not task_review_is_accepted(open_finding)
     assert not task_review_is_accepted(open_controller_check)
     assert not task_review_is_accepted(ui_review_required)
 
 
-def test_task_review_cannot_accept_unverifiable_spec_verdict_without_controller_checks() -> None:
+def test_task_review_cannot_accept_unverifiable_spec_verdict_without_controller_checks() -> (
+    None
+):
     record = TaskReviewRecord(
         task_id="T001",
         spec_verdict="cannot_verify_from_diff",
@@ -264,7 +394,9 @@ def test_task_review_cannot_accept_unverifiable_spec_verdict_without_controller_
     assert not task_review_is_accepted(record)
 
 
-def test_task_review_unverifiable_spec_verdict_requires_controller_check_assessment() -> None:
+def test_task_review_unverifiable_spec_verdict_requires_controller_check_assessment() -> (
+    None
+):
     record = TaskReviewRecord(
         task_id="T001",
         spec_verdict="cannot_verify_from_diff",
@@ -279,8 +411,9 @@ def test_task_review_unverifiable_spec_verdict_requires_controller_check_assessm
         final_assessment="fixes_required",
     )
 
-    assert "cannot_verify_from_diff requires final_assessment=controller_check_required" in (
-        task_review_acceptance_errors(record)
+    assert (
+        "cannot_verify_from_diff requires final_assessment=controller_check_required"
+        in (task_review_acceptance_errors(record))
     )
     assert not task_review_is_accepted(record)
 
@@ -377,7 +510,9 @@ def test_task_review_disposition_references_do_not_cross_finding_sources() -> No
     assert not task_review_is_accepted(record)
 
 
-def test_task_review_disposition_references_accept_plan_mandated_defects_explicitly() -> None:
+def test_task_review_disposition_references_accept_plan_mandated_defects_explicitly() -> (
+    None
+):
     accepted_risk = TaskReviewRecord(
         task_id="T001",
         spec_verdict="pass",
@@ -512,7 +647,9 @@ def test_task_review_rejects_disposition_reference_type_mismatches() -> None:
 
     errors = task_review_acceptance_errors(record)
 
-    assert "accepted_residual_risks references findings 0 with disposition fixed" in errors
+    assert (
+        "accepted_residual_risks references findings 0 with disposition fixed" in errors
+    )
     assert "follow_up_work references findings 1 with disposition fixed" in errors
     assert not task_review_is_accepted(record)
 
@@ -535,10 +672,14 @@ def test_snapshot_artifacts_copies_existing_task_layer_files(tmp_path: Path) -> 
     feature_dir = tmp_path / "specs" / "001-demo"
     feature_dir.mkdir(parents=True)
     (feature_dir / "tasks.md").write_text("# Tasks\n", encoding="utf-8")
-    (feature_dir / "handoff-to-implement.json").write_text('{"status": "ready"}\n', encoding="utf-8")
+    (feature_dir / "handoff-to-implement.json").write_text(
+        '{"status": "ready"}\n', encoding="utf-8"
+    )
     (feature_dir / "workflow-state.md").write_text("# State\n", encoding="utf-8")
     (feature_dir / "task-packets").mkdir()
-    (feature_dir / "task-packets" / "T001.json").write_text('{"task_id": "T001"}\n', encoding="utf-8")
+    (feature_dir / "task-packets" / "T001.json").write_text(
+        '{"task_id": "T001"}\n', encoding="utf-8"
+    )
 
     snapshots = snapshot_artifacts(
         feature_dir,
@@ -562,14 +703,18 @@ def test_snapshot_artifacts_copies_existing_task_layer_files(tmp_path: Path) -> 
         assert (feature_dir / rel_path).exists()
 
 
-def test_snapshot_artifacts_rejects_out_of_feature_and_unapproved_paths(tmp_path: Path) -> None:
+def test_snapshot_artifacts_rejects_out_of_feature_and_unapproved_paths(
+    tmp_path: Path,
+) -> None:
     feature_dir = tmp_path / "specs" / "001-demo"
     feature_dir.mkdir(parents=True)
     outside = tmp_path / "specs" / "plan.md"
     outside.write_text("# Plan\n", encoding="utf-8")
     (feature_dir / "spec.md").write_text("# Spec\n", encoding="utf-8")
     (feature_dir / "task-packets").mkdir()
-    (feature_dir / "task-packets" / "T001.txt").write_text("not json\n", encoding="utf-8")
+    (feature_dir / "task-packets" / "T001.txt").write_text(
+        "not json\n", encoding="utf-8"
+    )
     (feature_dir / "tasks.md").write_text("# Tasks\n", encoding="utf-8")
 
     snapshots = snapshot_artifacts(
@@ -584,7 +729,9 @@ def test_snapshot_artifacts_rejects_out_of_feature_and_unapproved_paths(tmp_path
         ],
     )
 
-    assert snapshots == ["implementation-review/snapshots/tasks.before-pre-implement-r1.md"]
+    assert snapshots == [
+        "implementation-review/snapshots/tasks.before-pre-implement-r1.md"
+    ]
 
 
 def test_snapshot_artifacts_sanitizes_review_id_destination(tmp_path: Path) -> None:
@@ -601,7 +748,9 @@ def test_snapshot_artifacts_sanitizes_review_id_destination(tmp_path: Path) -> N
     assert snapshots == [
         "implementation-review/snapshots/tasks.before-escaped.md",
     ]
-    assert (feature_dir / "implementation-review" / "snapshots" / "tasks.before-escaped.md").exists()
+    assert (
+        feature_dir / "implementation-review" / "snapshots" / "tasks.before-escaped.md"
+    ).exists()
     assert not (tmp_path / "specs" / "escaped.md").exists()
 
 
@@ -643,15 +792,20 @@ def test_validate_workflow_state_review_update_allows_only_review_fields() -> No
     assert "gate_status is protected for embedded review" in errors
 
 
-def test_validate_workflow_state_review_update_rejects_public_or_unknown_review_routes() -> None:
+def test_validate_workflow_state_review_update_rejects_public_or_unknown_review_routes() -> (
+    None
+):
     before = {
         "next_command": "/sp.implement",
     }
 
-    assert validate_workflow_state_review_update(before, {"next_command": "/sp.review"}) == [
-        "next_command has invalid embedded review route: /sp.review"
-    ]
-    assert validate_workflow_state_review_update(before, {"next_command": "sp-review"}) == [
-        "next_command has invalid embedded review route: sp-review"
-    ]
-    assert validate_workflow_state_review_update(before, {"next_command": "/sp.tasks"}) == []
+    assert validate_workflow_state_review_update(
+        before, {"next_command": "/sp.review"}
+    ) == ["next_command has invalid embedded review route: /sp.review"]
+    assert validate_workflow_state_review_update(
+        before, {"next_command": "sp-review"}
+    ) == ["next_command has invalid embedded review route: sp-review"]
+    assert (
+        validate_workflow_state_review_update(before, {"next_command": "/sp.tasks"})
+        == []
+    )

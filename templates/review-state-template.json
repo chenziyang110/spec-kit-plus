@@ -5,11 +5,19 @@
   "source": {
     "workflow_revision": null,
     "implementation_fingerprint": "",
-    "implementation_handoff_sha256": ""
+    "implementation_handoff_sha256": "",
+    "review_cycle": 1,
+    "review_cycle_id": "",
+    "previous_review_state_sha256": "",
+    "acceptance_finding_id": "",
+    "acceptance_finding_sha256": ""
   },
   "entrypoints": [],
   "scenarios": [],
   "obligations": [],
+  "human_acceptance_obligations": [],
+  "human_acceptance_scenarios": [],
+  "reviewed_runtime_targets": [],
   "review_assignments": [],
   "fix_assignments": [],
   "revalidations": [],
@@ -50,6 +58,7 @@
     "integration_verdict": "pending",
     "all_packets_joined": false,
     "reviewed_snapshot_sha256": "",
-    "implementation_summary_sha256": ""
+    "implementation_summary_sha256": "",
+    "runtime_targets_sha256": ""
   }
 }

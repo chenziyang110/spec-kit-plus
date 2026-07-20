@@ -47,7 +47,11 @@ contract with source traceability. Route project-wide principles to
 `$spx-constitution`, exploratory ideas to `$spx-discussion`, existing-spec gaps
 to `$spx-clarify`, and repository reconstruction to `$spx-prd-scan`.
 
-Make requirements and acceptance observable. Resolve contradictions and
+Make requirements and acceptance observable. Populate `acceptance_coverage`
+with unique canonical JSON Pointer pairs from every `scope.in` and
+`capability_operations` requirement to `acceptance_criteria`; every requirement
+must be covered and every criterion must map exactly once, never serving as the
+closure proof for multiple independent requirements. Resolve contradictions and
 planning-blocking unknowns; ask only the smallest decision batch needed. Run the installed artifact validator when
 available and preserve canonical `/sp.*` transition values required by the
 runtime.

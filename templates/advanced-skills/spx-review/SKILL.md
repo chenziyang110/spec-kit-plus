@@ -14,12 +14,14 @@ delegating. Read `references/ui-quality-gate.md` for UI-bearing scenarios and
 
 Resolve exactly one implementation-complete feature. Require a trusted
 `implementation-handoff.json`, current implementation evidence, and the
-official real entrypoint. Transition from the validated `implement` stage into
-`review` through the workflow runtime before editing review state, source, or
-tests. Then run
+official real entrypoint. Initial Review transitions from validated `implement`;
+an acceptance repair arrives through CLI-owned `accept route-repair` with
+`review` already active. Then run
 `{{specify-subcmd:review prepare --feature-dir <feature-dir> --expected-revision <revision> --format json}}`.
 Treat the resulting `review-state.json` as the canonical resumable Review state;
-do not reconstruct its stable schema from prose.
+do not reconstruct its stable schema from prose. An acceptance repair must
+create the next cycle bound to the previous approved Review digest and routed
+finding; never edit or reapprove the old cycle.
 
 On an uncertain or terminal-looking resume, run
 `{{specify-subcmd:review resume-audit --feature-dir <feature-dir> --format json}}`
@@ -47,7 +49,13 @@ affected regression paths. Use independent coverage discovery so an omission
 in the supplied matrix cannot silently narrow Review. The leader orchestrates
 subagents through a read-only Review/Audit wave, joins and reconciles every
 result, then requires zero uncovered obligations and surfaces before approval.
-An audit worker cannot declare coverage complete or edit product code.
+An audit worker cannot declare coverage complete or edit product code. In an
+acceptance repair cycle, an accepted read-only diagnostic Review assignment
+must own the routed observation. Record its packet lane as `diagnostic`, but
+persist the `review-state.json` assignment with `kind: scenario_review` and
+`read_only: true`; `diagnostic` is not a state kind. Store new scenario evidence under
+`review-evidence/cycle-<n>/` and packet/results under
+`review-results/cycle-<n>/`; earlier-cycle evidence cannot close the new cycle.
 
 After the audit join, run an independent Fix wave. The leader gives Fix workers
 accepted finding ids, authoritative expected behavior, bounded non-overlapping
@@ -64,7 +72,13 @@ an independent revalidation wave over the failed journey, dependency paths,
 and credible regression set. A repair author must not verify its own finding;
 the leader or a different read-only subagent performs revalidation. The leader
 owns the running instance, ports, test data, coverage reconciliation, all
-packet joins, repair acceptance, and final verdict.
+packet joins, repair acceptance, and final verdict. The bounded set scopes
+finding-level revalidation only. After any Fix, rerun every required Review
+scenario and recapture all required evidence against the single final reviewed
+snapshot. Persist the complete accepted Fix-set digest and an exact byte-bound
+full-matrix scenario-evidence manifest in the final revalidation; no pre-Fix,
+partial, missing, extra, or relabeled evidence can satisfy approval. Apply path,
+cycle-id, and byte-digest validation to cycle 1 as well as later cycles.
 
 Only a proven upstream truth gap permits a handoff: missing or contradictory
 requirement truth routes to `$spx-specify`, missing or contradictory design
@@ -87,6 +101,35 @@ all Review repairs. Copy validation's `current_fingerprint`
 into `final.reviewed_snapshot_sha256` before setting `status: approved`; never
 invent or reuse that digest. Any later production or configuration
 change makes the verdict stale.
+
+Also reconcile the frozen Human Acceptance Universe against every new or
+changed requirement and require zero uncovered required human obligations.
+Verify `human_acceptance_obligations` and `human_acceptance_scenarios`, then
+create non-empty `reviewed_runtime_targets` covering every required human
+scenario. Bind each target to its official entrypoint, exact
+environment/instance/configuration, final reviewed snapshot, applicable
+artifact/deployment/version identity, linked Review scenarios, and existing
+fresh ready evidence. Write one exact identity JSON projection per target under
+`review-evidence/` and, in repair cycle 2+, under
+`review-evidence/cycle-<n>/`; record its feature-relative
+`identity_evidence_ref` and the SHA-256 of its current bytes as
+`identity_evidence_sha256`. This valid JSON has top-level `version` equal to
+`1`, `status` equal to `"ready"`, and a `target` object containing exactly
+`id`, `mode`, `entrypoint_id`, `environment_ref`, `instance_ref`,
+`configuration_ref`, `reviewed_snapshot_sha256`, `artifact_ref`,
+`artifact_sha256`, `deployment_id`, `observed_version`, `review_scenario_ids`,
+and `ready_evidence_refs`, copied exactly from the reviewed target.
+For `build` and `deployment`, require `artifact_ref` to name an existing
+feature-relative product/build file included in the implementation snapshot,
+never `review-evidence/`, `review-results/`, or another snapshot-excluded path;
+capture it before the final fingerprint and require `artifact_sha256` to match
+its current bytes. Then
+compute `final.runtime_targets_sha256`. The
+Review-to-Accept handoff contains those obligations, scenarios, targets, and
+digest. Accept preserves both identity-evidence fields read-only, may add only
+session readiness/actions, and Review never prefills
+human PASS. After an acceptance repair, every human scenario is reset and must
+be rerun; preserve no earlier PASS.
 
 After verified Review-owned changes, close out cognition with canonical
 workflow `review`, then run

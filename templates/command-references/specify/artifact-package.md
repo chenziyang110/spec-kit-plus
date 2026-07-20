@@ -9,6 +9,7 @@ Preserved Contract: confirmed scope, acceptance proof, decisions, evidence, fide
 Write `spec-contract.json` first from `templates/spec-contract-template.json`.
 
 - Store target need, in/out/deferred scope, constraints, objective acceptance criteria, locked decisions, `semantic_delta`, protected obligation refs, context capsule, unresolved items, artifact refs, and the agent phase transition.
+- Store `acceptance_coverage` as unique one-pair rows from canonical `scope.in` or `capability_operations` JSON Pointers to canonical `acceptance_criteria` JSON Pointers. Every requirement must appear at least once; every criterion must appear exactly once and therefore cannot close multiple independent requirements.
 - Render `spec.md` from the contract as the primary project-facing specification.
 - Write `alignment.md` only when semantic mapping, upstream disposition, conflict, deferral, fidelity, or readiness analysis has content that maintainers need to review independently.
 - Write `context.md` only when repository placement, reuse, integration, propagation, or boundary evidence cannot be represented adequately by stable refs in the context capsule.

@@ -6,7 +6,9 @@ acceptance, zero-uncovered reconciliation, and the final verdict.
 
 Compile each just-in-time `SystemReviewPacket` from the current handoff and
 Review state. Mark its lane `audit`, `diagnostic`, `fix`, or `revalidation`; it
-is a delegation view, not a second source of truth. Include:
+is a delegation view, not a second source of truth. `diagnostic` is a packet
+lane only; persist its read-only `review-state.json` assignment with
+`kind: scenario_review` and `read_only: true`, never `kind: diagnostic`. Include:
 
 - one scenario/lane outcome and authoritative acceptance references;
 - official real entrypoint, ready signal, preconditions, and safe test data;
@@ -31,6 +33,15 @@ uses a read-only diagnostic packet while Review remains the stage owner.
 After all repair joins, run an independent revalidation wave. A repair author
 must not verify its own finding; the leader or a different read-only subagent
 reruns the failed journey and affected scenarios against the repaired snapshot.
+That subset scopes finding-level revalidation only. After any Fix, the leader
+must rerun every required Review scenario and recapture all required evidence
+against the single final reviewed snapshot before approval.
+
+The final revalidation worker returns the complete accepted Fix id set and its
+canonical digest, the exact required-scenario set, and a current-cycle
+`evidence_manifest_ref` whose byte-bound JSON enumerates every required
+scenario/evidence-kind path and artifact digest. Cycle 1 artifacts also require
+their current cycle id, confined Review path, and byte digest.
 
 Require a structured result containing scenario status, actions actually run,
 observed results, evidence refs, findings, changed paths, checks, failed

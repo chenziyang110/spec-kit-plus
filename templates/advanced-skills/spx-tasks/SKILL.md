@@ -35,7 +35,10 @@ complete outcome, dependencies, likely write scope, acceptance, verification,
 and must-preserve obligations. Mark parallel only when inputs are stable and
 writes do not overlap; name the join and combined check.
 
-At the task-index root, compile every official entrypoint record in
+At the task-index root, require `acceptance_refs` to be the complete unique
+ordered list `plan-contract.json#/acceptance_refs/0..N-1`; a ready version-2
+index may not omit the file or carry copied spec refs or a selected subset.
+Compile every official entrypoint record in
 `official_entrypoints`, stable
 `review_obligations`, and the smallest complete `system_review_scenarios`
 matrix that proves startup, every changed
@@ -45,7 +48,23 @@ evidence. Compile obligations from every entrypoint, acceptance/capability,
 must-preserve, consequence, fidelity, consumer-surface, wiring, and required UI
 state source; map every required obligation to one or more scenario ids so
 `$spx-review` can enforce zero uncovered scope instead of reconstructing
-acceptance from prose.
+acceptance from prose. Give every `acceptance_ref` at least one dedicated
+required system-review scenario whose required acceptance-source set is
+exactly that ref. A broad regression scenario may be additional evidence only;
+it cannot serve as a ref's dedicated witness.
+
+Separately freeze a non-empty Human Acceptance Universe in
+`human_acceptance_obligations` and `human_acceptance_scenarios`. Cover every
+new or changed requirement that a human can perform end to end, retaining its
+canonical task-index acceptance ref as the obligation source, a non-empty human
+actor, official entrypoint, starting state, human action, observable terminal
+outcome, required/optional status, Review-scenario linkage, and obligation
+mapping. Every required human scenario links at least one dedicated required
+Review scenario for its own `acceptance_ref`. Require zero uncovered required
+human obligations. Human
+performs these requirement journeys later in `$spx-accept`; do not repeat
+System Review by copying its startup, wiring, diagnostics, or broad regression
+matrix into human acceptance.
 
 Validate requirement/plan coverage, dependency cycles, write-set safety,
 acceptance, and real-entrypoint verification. Generate worker packets later in
