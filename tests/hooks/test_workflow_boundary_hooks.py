@@ -35,22 +35,49 @@ def test_workflow_boundary_allows_tasks_to_implement_mainline(tmp_path: Path):
     assert result.data == {"from_command": "tasks", "to_command": "implement"}
 
 
-def test_workflow_boundary_allows_implement_to_accept(tmp_path: Path):
+def test_workflow_boundary_requires_review_between_implement_and_accept(tmp_path: Path):
     project = _create_project(tmp_path)
 
-    result = run_quality_hook(
+    implement_to_review = run_quality_hook(
+        project,
+        "workflow.boundary.validate",
+        {"from_command": "implement", "to_command": "review"},
+    )
+    review_to_accept = run_quality_hook(
+        project,
+        "workflow.boundary.validate",
+        {"from_command": "review", "to_command": "accept"},
+    )
+    skipped_review = run_quality_hook(
         project,
         "workflow.boundary.validate",
         {"from_command": "implement", "to_command": "accept"},
     )
 
-    assert result.status == "ok"
+    assert implement_to_review.status == "ok"
+    assert review_to_accept.status == "ok"
+    assert skipped_review.status == "blocked"
+    assert skipped_review.errors == [
+        "workflow transition is not allowed: implement -> accept"
+    ]
+
+
+def test_workflow_boundary_allows_review_repair_routes(tmp_path: Path):
+    project = _create_project(tmp_path)
+
+    for target in ("debug", "implement", "tasks", "plan", "clarify", "specify"):
+        result = run_quality_hook(
+            project,
+            "workflow.boundary.validate",
+            {"from_command": "review", "to_command": target},
+        )
+        assert result.status == "ok", target
 
 
 def test_workflow_boundary_allows_acceptance_repair_routes(tmp_path: Path):
     project = _create_project(tmp_path)
 
-    for target in ("implement", "debug", "clarify", "specify", "integrate"):
+    for target in ("review", "debug", "clarify", "specify", "integrate"):
         result = run_quality_hook(
             project,
             "workflow.boundary.validate",

@@ -440,6 +440,45 @@ def test_rejected_acceptance_routes_through_repair_and_returns_to_accept(
     assert show_workflow(feature)["data"]["status"] == "active"
 
 
+@pytest.mark.parametrize("route", ["sp-review", "spx-review"])
+def test_product_defect_acceptance_repair_returns_to_review_by_default(
+    tmp_path: Path,
+    route: str,
+) -> None:
+    project, feature = _feature(tmp_path)
+    entered = enter_workflow(feature, stage="specify", expected_revision=0)
+    revision = entered["data"]["revision"]
+    for target in ("plan", "tasks", "implement", "review", "accept"):
+        transitioned = _complete_then_transition(
+            feature,
+            target_stage=target,
+            revision=revision,
+        )
+        revision = transitioned["data"]["revision"]
+    prepare_human_acceptance(project, feature)
+    state_path = feature / "human-acceptance.json"
+    _rejected_state(state_path, route=route)
+
+    routed = route_human_acceptance_repair(
+        project,
+        feature,
+        route=route,
+        finding_id="HAF-001",
+        expected_revision=revision,
+        evidence=["Human observed the required screen did not open."],
+    )
+
+    assert routed["data"]["stage"] == "review"
+    assert routed["data"]["repair_route"] == route
+    assert routed["data"]["owning_stage_command"] == route
+    assert routed["data"]["acceptance_return_argv"][:3] == [
+        "specify",
+        "accept",
+        "prepare",
+    ]
+    assert json.loads(state_path.read_text(encoding="utf-8"))["status"] == "draft"
+
+
 def test_acceptance_route_repair_cannot_supersede_a_human_blocker(
     tmp_path: Path,
 ) -> None:

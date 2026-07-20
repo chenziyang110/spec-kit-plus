@@ -142,7 +142,7 @@ def test_discussion_is_optional_but_every_required_stage_is_sequential(
     entered = enter_workflow(feature_dir, stage="discussion", expected_revision=0)
 
     revision = entered["data"]["revision"]
-    for target in ("specify", "plan", "tasks", "implement", "accept"):
+    for target in ("specify", "plan", "tasks", "implement", "review", "accept"):
         result = _complete_then_transition(
             feature_dir,
             target_stage=target,
@@ -151,7 +151,7 @@ def test_discussion_is_optional_but_every_required_stage_is_sequential(
         revision = result["data"]["revision"]
         assert result["data"]["stage"] == target
 
-    assert revision == 11
+    assert revision == 13
 
 
 def test_completed_nonterminal_stage_still_hands_off_to_its_required_next_stage(
@@ -179,16 +179,45 @@ def test_completed_nonterminal_stage_still_hands_off_to_its_required_next_stage(
     upcoming = next_workflow(feature_dir)
     assert upcoming["data"]["stage"] == "implement"
     assert upcoming["data"]["status"] == "completed"
-    assert upcoming["data"]["next_stage"] == "accept"
-    assert upcoming["next_argv"][upcoming["next_argv"].index("--to") + 1] == "accept"
+    assert upcoming["data"]["next_stage"] == "review"
+    assert upcoming["next_argv"][upcoming["next_argv"].index("--to") + 1] == "review"
 
-    accepted = transition_workflow(
+    reviewed = transition_workflow(
         feature_dir,
-        target_stage="accept",
+        target_stage="review",
         expected_revision=revision,
     )
-    assert accepted["data"]["stage"] == "accept"
-    assert accepted["data"]["status"] == "active"
+    assert reviewed["data"]["stage"] == "review"
+    assert reviewed["data"]["status"] == "active"
+
+
+def test_completed_implement_cannot_skip_mandatory_review(tmp_path: Path) -> None:
+    feature_dir = _feature(tmp_path)
+    entered = enter_workflow(feature_dir, stage="specify", expected_revision=0)
+    revision = entered["data"]["revision"]
+    for target in ("plan", "tasks", "implement"):
+        advanced = _complete_then_transition(
+            feature_dir,
+            target_stage=target,
+            revision=revision,
+        )
+        revision = advanced["data"]["revision"]
+    completed = complete_workflow_stage(feature_dir, expected_revision=revision)
+
+    with pytest.raises(InvalidTransition, match="expected review") as captured:
+        transition_workflow(
+            feature_dir,
+            target_stage="accept",
+            expected_revision=completed["data"]["revision"],
+        )
+
+    blocker = captured.value.to_envelope()["blockers"][0]
+    assert blocker["code"] == "invalid-transition"
+    assert blocker["exact_next_action"] == (
+        "Complete implement, then transition to review."
+    )
+    assert show_workflow(feature_dir)["data"]["stage"] == "implement"
+    assert show_workflow(feature_dir)["data"]["status"] == "completed"
 
 
 def test_generated_planning_stages_do_not_claim_the_rich_state_validator(
@@ -1222,6 +1251,37 @@ def test_reopen_invalidated_upstream_stage_then_revalidates_forward_order(
             target_stage="tasks",
             expected_revision=revision + 1,
         )
+
+
+@pytest.mark.parametrize("target_stage", ["implement", "tasks", "plan"])
+def test_review_can_reopen_the_owning_upstream_stage(
+    tmp_path: Path,
+    target_stage: str,
+) -> None:
+    feature_dir = _feature(tmp_path)
+    entered = enter_workflow(feature_dir, stage="specify", expected_revision=0)
+    revision = entered["data"]["revision"]
+    for target in ("plan", "tasks", "implement", "review"):
+        advanced = _complete_then_transition(
+            feature_dir,
+            target_stage=target,
+            revision=revision,
+        )
+        revision = advanced["data"]["revision"]
+
+    reopened = reopen_workflow(
+        feature_dir,
+        target_stage=target_stage,
+        expected_revision=revision,
+        reason="System review found an upstream-owned product gap.",
+        evidence=["SR-001: the primary action is unreachable from the real entrypoint"],
+        invalidated_artifacts=["review-state.json", "human-acceptance.json"],
+    )
+
+    assert reopened["data"]["stage"] == target_stage
+    assert reopened["data"]["status"] == "active"
+    assert reopened["data"]["last_reopen"]["source_stage"] == "review"
+    assert reopened["data"]["last_reopen"]["target_stage"] == target_stage
 
 
 @pytest.mark.parametrize("stage", ["tasks", "implement"])

@@ -49,6 +49,7 @@ SPX_SKILLS = {
     "spx-prd-build",
     "spx-prd-scan",
     "spx-quick",
+    "spx-review",
     "spx-research",
     "spx-specify",
     "spx-tasks",
