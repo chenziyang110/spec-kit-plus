@@ -46,7 +46,10 @@ def test_spx_accept_preserves_classic_human_acceptance_boundary() -> None:
         assert "do not edit" in content or "must not edit" in content
         assert "human" in content and "pass" in content
         assert "implement" in content
-        assert "debug" in content
+        assert "review" in content
+        assert "unknown mechanism" in content
+        assert "diagnostic packet" in content
+        assert "debug" not in content
 
     assert "technical completion is not human product acceptance" in _text(
         "spx-implement"

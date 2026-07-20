@@ -41,20 +41,36 @@ must capture fresh integrated `structure_snapshot`, `visual_capture`, and
 unit tests, existing files, synthetic-only checks, or an isolated component do
 not prove the product works.
 
-Use adaptive execution. The leader owns the running instance, ports, test data,
-scenario cursor, findings, repair acceptance, and final verdict. Delegate only
-independent bounded audits or disjoint repair writes through a just-in-time
-`SystemReviewPacket`; a worker cannot declare the whole product passed. Keep
-shared browser, database, account, and runtime-instance journeys serial. After
-all joins, inspect the integrated diff and restart the official entrypoint.
+Compile the Review Universe from authoritative obligations, handoff scenarios,
+changed consumer surfaces, runtime-discovered controls/registrations, and
+affected regression paths. Use independent coverage discovery so an omission
+in the supplied matrix cannot silently narrow Review. The leader orchestrates
+subagents through a read-only Review/Audit wave, joins and reconciles every
+result, then requires zero uncovered obligations and surfaces before approval.
+An audit worker cannot declare coverage complete or edit product code.
 
-Record every failure as a finding. Repair an understood, bounded defect inside
-the approved implementation scope, add or strengthen regression coverage, and
-rerun the exact failed journey plus affected scenarios. Hand off an unknown
-mechanism to `$spx-debug` and stop; after diagnosis, resume this Review at the
-preserved scenario. Reopen `$spx-implement`, `$spx-tasks`, `$spx-plan`,
-`$spx-specify`, or `$spx-design` only when the finding belongs to that upstream
-owner. Do not hide missing implementation by reducing the Review matrix.
+After the audit join, run an independent Fix wave. The leader gives Fix workers
+accepted finding ids, authoritative expected behavior, bounded non-overlapping
+write scopes, forbidden truth artifacts, and exact regression obligations.
+Every approved-scope defect stays inside Review regardless of repair size:
+missing code, a task omission, incomplete tests, broken wiring, and an unknown
+root cause are not reasons to exit. For an unknown root cause, dispatch a
+read-only diagnostic packet; Review remains the stage owner, accepts the
+diagnosis, and directs its own Fix worker. Keep shared browser, database,
+account, registry, and runtime-instance writes serial.
+
+Join and inspect every repair result, restart the integrated product, and run
+an independent revalidation wave over the failed journey, dependency paths,
+and credible regression set. A repair author must not verify its own finding;
+the leader or a different read-only subagent performs revalidation. The leader
+owns the running instance, ports, test data, coverage reconciliation, all
+packet joins, repair acceptance, and final verdict.
+
+Only a proven upstream truth gap permits a handoff: missing or contradictory
+requirement truth routes to `$spx-specify`, missing or contradictory design
+truth routes to `$spx-design`, and architecture truth that must change before
+any conforming fix routes to `$spx-plan`. Missing code is not an upstream truth
+gap. Do not hide omitted implementation by reducing the Review Universe.
 
 Do not push, deploy, trigger protected CI, use production data, or perform an
 external write without explicit authority. Exhaust safe local recovery first;
@@ -64,9 +80,10 @@ structured blocker and exact Review resume point.
 Before approval, run fresh integrated regression from a restarted entrypoint,
 then run
 `{{specify-subcmd:review validate --feature-dir <feature-dir> --format json}}`.
-Approval requires every mandatory scenario passed, zero blocking findings,
-required evidence present, clean blocking diagnostics, and a fresh final source
-fingerprint after all Review repairs. Copy validation's `current_fingerprint`
+Approval requires the Review Universe at zero uncovered, all packets joined,
+every mandatory scenario passed, zero blocking findings, required evidence
+present, clean blocking diagnostics, and a fresh final source fingerprint after
+all Review repairs. Copy validation's `current_fingerprint`
 into `final.reviewed_snapshot_sha256` before setting `status: approved`; never
 invent or reuse that digest. Any later production or configuration
 change makes the verdict stale.

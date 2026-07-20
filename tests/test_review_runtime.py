@@ -146,6 +146,7 @@ def _write_scenario_evidence(
 def _complete_leader_review(
     state: dict[str, object],
     *,
+    feature_dir: Path,
     snapshot_sha256: str = "a" * 64,
 ) -> None:
     obligation_ids = [item["id"] for item in state["obligations"]]
@@ -168,6 +169,10 @@ def _complete_leader_review(
             "leader_verdict": "accepted",
         }
     ]
+    results_dir = feature_dir / "review-results"
+    results_dir.mkdir(parents=True, exist_ok=True)
+    for name in ("RA-COVERAGE-001.packet.json", "RA-COVERAGE-001.json"):
+        (results_dir / name).write_text("{}\n", encoding="utf-8")
     state["coverage"].update(
         {
             "discovery_complete": True,
@@ -195,6 +200,7 @@ def _complete_leader_review(
             "repair_verdict": "pass",
             "integration_verdict": "pass",
             "all_packets_joined": True,
+            "reviewed_snapshot_sha256": snapshot_sha256,
         }
     )
 
@@ -354,7 +360,7 @@ def test_closeout_review_requires_approved_fresh_evidence_and_does_not_advance_w
     state_path = runtime.review_state_path(feature_dir)
     state = json.loads(state_path.read_text(encoding="utf-8"))
     _write_scenario_evidence(feature_dir, state)
-    _complete_leader_review(state)
+    _complete_leader_review(state, feature_dir=feature_dir)
     state["status"] = "approved"
     state["findings"] = []
     state_path.write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
@@ -403,6 +409,26 @@ def test_closeout_review_preserves_state_when_review_is_not_approved(
     assert show_workflow(feature_dir)["data"]["stage"] == "review"
 
 
+def test_approved_review_requires_snapshot_bound_final_claim_and_joined_results(
+    tmp_path: Path,
+) -> None:
+    runtime, project_root, feature_dir, _revision, _prepared = _prepare(tmp_path)
+    state_path = runtime.review_state_path(feature_dir)
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    _write_scenario_evidence(feature_dir, state)
+    _complete_leader_review(state, feature_dir=feature_dir)
+    state["status"] = "approved"
+    state["final"]["reviewed_snapshot_sha256"] = ""
+    (feature_dir / "review-results" / "RA-COVERAGE-001.json").unlink()
+    state_path.write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
+
+    validation = runtime.validate_review(project_root, feature_dir)
+
+    assert validation["valid"] is False
+    assert any("final reviewed snapshot" in error for error in validation["errors"])
+    assert any("result file does not exist" in error for error in validation["errors"])
+
+
 def test_validate_review_requires_independent_fix_and_revalidation_for_every_finding(
     tmp_path: Path,
 ) -> None:
@@ -410,7 +436,7 @@ def test_validate_review_requires_independent_fix_and_revalidation_for_every_fin
     state_path = runtime.review_state_path(feature_dir)
     state = json.loads(state_path.read_text(encoding="utf-8"))
     _write_scenario_evidence(feature_dir, state)
-    _complete_leader_review(state)
+    _complete_leader_review(state, feature_dir=feature_dir)
     state["status"] = "approved"
     state["findings"] = [
         {
@@ -446,7 +472,7 @@ def test_closeout_accepts_review_worker_to_independent_fix_to_revalidation_loop(
     state_path = runtime.review_state_path(feature_dir)
     state = json.loads(state_path.read_text(encoding="utf-8"))
     _write_scenario_evidence(feature_dir, state)
-    _complete_leader_review(state)
+    _complete_leader_review(state, feature_dir=feature_dir)
     state["status"] = "approved"
     state["findings"] = [
         {
@@ -491,6 +517,8 @@ def test_closeout_accepts_review_worker_to_independent_fix_to_revalidation_loop(
             "leader_verdict": "accepted",
         }
     ]
+    for name in ("FX-001.packet.json", "FX-001.json"):
+        (feature_dir / "review-results" / name).write_text("{}\n", encoding="utf-8")
     state_path.write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
 
     closed = runtime.closeout_review(project_root, feature_dir, expected_revision=revision)
@@ -521,7 +549,11 @@ def test_approved_review_becomes_stale_when_live_source_changes(tmp_path: Path) 
         state,
         snapshot_sha256=reviewed_snapshot,
     )
-    _complete_leader_review(state, snapshot_sha256=reviewed_snapshot)
+    _complete_leader_review(
+        state,
+        feature_dir=feature_dir,
+        snapshot_sha256=reviewed_snapshot,
+    )
     state["status"] = "approved"
     state["final"]["reviewed_snapshot_sha256"] = reviewed_snapshot
     state_path.write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")

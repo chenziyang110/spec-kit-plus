@@ -108,6 +108,12 @@ def _normalize_evidence_items(value: object) -> list[dict[str, str]]:
     return normalized
 
 
+def _normalize_review_records(value: object) -> list[dict[str, object]]:
+    if not isinstance(value, list):
+        return []
+    return [dict(item) for item in value if isinstance(item, dict)]
+
+
 def _normalize_rule_acknowledgement(payload: dict[str, Any]) -> RuleAcknowledgement:
     raw = _pick(payload, "rule_acknowledgement", "ruleAcknowledgement")
     if not isinstance(raw, dict):
@@ -229,6 +235,13 @@ def normalize_worker_task_result_payload(payload: WorkerTaskResult | dict[str, A
     return WorkerTaskResult(
         task_id=task_id,
         status=canonical_status,
+        wave=str(_pick(payload, "wave") or "").strip(),
+        packet_id=str(_pick(payload, "packet_id", "packetId") or "").strip(),
+        obligation_ids=_as_str_list(
+            _pick(payload, "obligation_ids", "obligationIds")
+        ),
+        observations=_normalize_review_records(payload.get("observations")),
+        findings=_normalize_review_records(payload.get("findings")),
         changed_files=changed_files,
         validation_results=_normalize_validation_results(payload),
         summary=summary,

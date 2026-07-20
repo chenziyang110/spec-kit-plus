@@ -6,12 +6,19 @@ Purpose: make system usability claims revision-bound and prevent stale or partia
 
 The Leader may issue the final verdict only when all of the following are true:
 
+- the Review Universe reports zero uncovered obligations and surfaces after independent coverage discovery;
+- all packets joined, every result was accepted or explicitly requeued, and no audit, diagnostic, Fix, or revalidation lane remains active;
 - the implementation handoff, implementation fingerprint, source revision, and current reviewed code/config snapshot are fresh;
 - every mandatory scenario passes from its official real entrypoint;
 - every scenario contains its required evidence, with UI evidence captured at integrated scope;
 - no open blocking finding, unresolved mandatory blocker, pending repair, or unvalidated worker result remains;
 - every repaired scenario and affected regression path was rerun after the last relevant change;
+- each repaired finding was checked in an independent revalidation wave by the Leader or a read-only subagent other than its repair author;
 - final runtime diagnostics contain no unexplained blocking error.
+
+Do not claim Review completion from partial coverage, unjoined worker narration,
+the repair author's own assertion, or evidence captured before the final
+integrated fingerprint.
 
 Any production or relevant configuration change after evidence capture makes the affected result stale. Reopen its scenario and recapture evidence; never reuse a prior pass merely because the intended behavior did not change.
 

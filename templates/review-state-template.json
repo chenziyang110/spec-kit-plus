@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "schema_ref": ".specify/templates/review-state-schema.json",
   "status": "gathering",
   "source": {
@@ -9,6 +9,26 @@
   },
   "entrypoints": [],
   "scenarios": [],
+  "obligations": [],
+  "review_assignments": [],
+  "fix_assignments": [],
+  "revalidations": [],
+  "coverage": {
+    "discovery_complete": false,
+    "blind_audit_complete": false,
+    "uncovered_obligation_ids": [],
+    "uncovered_surface_ids": [],
+    "final_gap_scan": "pending"
+  },
+  "leader": {
+    "strategy": "pending",
+    "review_plan_complete": false,
+    "all_review_results_joined": false,
+    "fix_plan_complete": false,
+    "all_fix_results_joined": false,
+    "final_revalidation_complete": false,
+    "verdict": "pending"
+  },
   "rounds": [],
   "findings": [],
   "repair_cycles": [],
@@ -25,6 +45,10 @@
   "blocker": null,
   "final": {
     "verdict": "pending",
+    "coverage_verdict": "pending",
+    "repair_verdict": "pending",
+    "integration_verdict": "pending",
+    "all_packets_joined": false,
     "reviewed_snapshot_sha256": "",
     "implementation_summary_sha256": ""
   }

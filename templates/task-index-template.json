@@ -15,6 +15,7 @@
   "fidelity_refs": [],
   "official_entrypoints": [],
   "system_review_scenarios": [],
+  "review_obligations": [],
   "ui_contract_schema_ref": ".specify/templates/task-packet-template.json#/ui_contract",
   "tasks": [],
   "parallel_batches": [],

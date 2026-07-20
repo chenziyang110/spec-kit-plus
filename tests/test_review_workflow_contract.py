@@ -1,4 +1,5 @@
 from pathlib import Path
+import json
 
 import pytest
 
@@ -230,6 +231,19 @@ def test_implement_hands_off_to_review_instead_of_acceptance() -> None:
     assert "stop" in classic and "stop" in advanced
 
 
+def test_tasks_compile_review_obligations_before_implementation_handoff() -> None:
+    task_index = json.loads(_read("templates/task-index-template.json"))
+    classic = _read("templates/commands/tasks.md")
+    advanced = _read("templates/advanced-skills/spx-tasks/SKILL.md")
+
+    assert "review_obligations" in task_index
+    for content in (classic, advanced):
+        assert "review obligations" in content or "review_obligations" in content
+        assert "acceptance" in content
+        assert "consumer" in content
+        assert "official entrypoint" in content
+
+
 def test_accept_requires_a_fresh_passed_review_and_routes_repairs_back_to_review() -> None:
     classic = "\n".join(
         (
@@ -256,3 +270,8 @@ def test_accept_requires_a_fresh_passed_review_and_routes_repairs_back_to_review
     assert "transition from the validated\n`review`" in advanced or (
         "transition from the validated `review`" in advanced
     )
+    assert "{{invoke:debug}}" not in classic
+    assert "$spx-debug" not in advanced
+    for content in (classic, advanced):
+        assert "unknown mechanism" in content
+        assert "review" in content and "diagnostic packet" in content

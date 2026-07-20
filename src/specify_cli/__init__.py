@@ -6803,6 +6803,21 @@ def _resolve_result_context(
         if not resolved_workspace.is_absolute():
             resolved_workspace = (project_root / resolved_workspace).resolve()
 
+    if normalized_command == "review":
+        if resolved_feature_dir is None or not resolved_lane_id:
+            console.print(
+                "[red]Error:[/red] --feature-dir and --lane-id are required for review result handoff."
+            )
+            raise typer.Exit(1)
+        return {
+            "request_id": None,
+            "feature_dir": resolved_feature_dir,
+            "task_id": None,
+            "quick_workspace": None,
+            "debug_session_slug": None,
+            "lane_id": resolved_lane_id,
+        }
+
     if integration_key == "codex":
         if not request_id:
             console.print(
@@ -7840,13 +7855,15 @@ def team_api(
 @result_app.command("path")
 def result_path_command(
     command_name: str = typer.Option(
-        ..., "--command", help="Workflow command (implement|quick|debug)"
+        ..., "--command", help="Workflow command (implement|review|quick|debug)"
     ),
     request_id: str | None = typer.Option(
         None, "--request-id", help="Dispatch request id (Codex/runtime-managed paths)"
     ),
     feature_dir: str | None = typer.Option(
-        None, "--feature-dir", help="Feature directory for implement result handoff"
+        None,
+        "--feature-dir",
+        help="Feature directory for implement or review result handoff",
     ),
     task_id: str | None = typer.Option(
         None, "--task-id", help="Task id for implement result handoff"
@@ -7900,7 +7917,7 @@ def result_path_command(
 @result_app.command("submit")
 def result_submit_command(
     command_name: str = typer.Option(
-        ..., "--command", help="Workflow command (implement|quick|debug)"
+        ..., "--command", help="Workflow command (implement|review|quick|debug)"
     ),
     result_file: str = typer.Option(
         ..., "--result-file", help="Path to subagent result JSON"
@@ -7909,7 +7926,9 @@ def result_submit_command(
         None, "--request-id", help="Dispatch request id (Codex/runtime-managed paths)"
     ),
     feature_dir: str | None = typer.Option(
-        None, "--feature-dir", help="Feature directory for implement result handoff"
+        None,
+        "--feature-dir",
+        help="Feature directory for implement or review result handoff",
     ),
     task_id: str | None = typer.Option(
         None, "--task-id", help="Task id for implement result handoff"
@@ -7925,7 +7944,7 @@ def result_submit_command(
     """Normalize and write a subagent result to the canonical handoff path."""
     project_root = Path.cwd()
     integration_key = _require_result_project(project_root)
-    if integration_key == "codex":
+    if integration_key == "codex" and command_name.strip().lower() != "review":
         console.print(
             "[red]Error:[/red] Codex projects must use `sp-teams submit-result` for runtime-managed result channels."
         )

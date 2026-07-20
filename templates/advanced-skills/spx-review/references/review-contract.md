@@ -27,8 +27,13 @@ to recover the exact cursor and freshness gaps; do not infer them from prose.
 
 ## Mandatory scenario matrix
 
-Use the deterministic scenarios from the handoff as the minimum, never as a
-reason to ignore an observable gap discovered at the real entrypoint. Cover:
+The leader compiles the Review Universe from authoritative acceptance and
+design/architecture obligations, handoff scenarios, changed consumer surfaces,
+runtime-discovered controls/registrations, and affected shared paths. Use
+independent coverage discovery before reading the supplied matrix when
+practical, then reconcile the two views. The deterministic scenarios from the
+handoff are the minimum, never a reason to ignore an observable gap discovered
+at the real entrypoint. Cover:
 
 - installation/build/startup through each official entrypoint and its ready or
   health signal;
@@ -51,6 +56,10 @@ For UI scenarios, evidence uses only canonical kinds
 Use stable real content and the required viewport/state matrix. Isolated task
 evidence may guide Review but cannot close a system scenario.
 
+Coverage closes only at zero uncovered obligations and surfaces after all
+packets joined. A worker cannot declare coverage complete; the leader owns the
+universe, dispositions, joins, and final coverage verdict.
+
 ## Findings and repair routing
 
 Record a finding with its scenario, classification, severity/blocking status,
@@ -58,35 +67,40 @@ expected and observed results, sanitized evidence, suspected ownership, and
 revalidation scope. Never convert a failed observation into a pass by weakening
 the expectation.
 
-- Clear, bounded defect inside approved scope: repair in Review, add regression
-  protection, restart, and revalidate.
-- Unknown or intermittent mechanism: hand off to `$spx-debug`; retain Review as
-  the owning required stage and resume the exact scenario after diagnosis.
-- Large in-scope omission unsuitable for bounded repair: reopen
-  `$spx-implement` with the finding evidence.
-- Missing executable task graph: reopen `$spx-tasks`.
-- Invalid architecture or implementation chain: reopen `$spx-plan`.
-- Requirement contradiction or missing product truth: reopen `$spx-clarify` or
-  `$spx-specify` as appropriate.
-- Missing or invalid visual direction: reopen `$spx-design`.
+- Every approved-scope defect remains in Review regardless of repair size.
+  Missing code, a task omission, incomplete tests, broken wiring, and
+  registration/configuration defects are not upstream truth gaps; decompose
+  them into bounded Fix packets and add regression protection.
+- An unknown root cause or intermittent mechanism remains in Review. Preserve
+  the failed scenario, dispatch a read-only diagnostic packet, and let the
+  leader accept the diagnosis before compiling the Fix wave. Review remains the
+  stage owner throughout diagnosis, repair, and revalidation.
+- Only a proven upstream truth gap is a handoff-and-stop boundary: missing or
+  contradictory requirement truth routes to `$spx-specify`; missing or
+  contradictory design truth routes to `$spx-design`; architecture truth that
+  must change before any conforming fix routes to `$spx-plan`.
 - Human-only system, account, device, protected CI, or visual judgment: retain a
   blocked Review with the full Human Action Guide and exact resume point.
 
-Use the runtime-provided reopen/repair argv when present. Otherwise use
-`workflow reopen` with current revision, compact reason, sanitized evidence,
-and the complete invalidated-artifact set. Every cross-workflow route is a
-handoff-and-stop boundary. A debug or upstream workflow never declares Review
-passed; return to the reopened Review owner for scenario revalidation.
+For a proven truth gap, use the runtime-provided reopen argv when present.
+Otherwise use `workflow reopen` with current revision, compact reason,
+sanitized evidence, and the complete invalidated-artifact set. The upstream
+workflow never declares Review passed; return to the reopened Review owner for
+scenario revalidation.
 
 ## Revalidation and approval
 
-After each repair, rerun the exact failed step, its complete user journey, every
-scenario sharing the changed dependency, and the smallest credible regression
-set. Recapture stale UI/runtime evidence. After all findings appear resolved,
-restart from a clean supported state and run the final integrated matrix.
+After the audit join, use a separate Fix wave for accepted findings. After each
+repair, run an independent revalidation wave over the exact failed step, its
+complete user journey, every scenario sharing the changed dependency, and the
+smallest credible regression set. A repair author must not verify its own
+finding; use the leader or a different read-only subagent. Recapture stale
+UI/runtime evidence. After all findings appear resolved, restart from a clean
+supported state and run the final integrated matrix.
 
 `review validate` may approve only when:
 
+- the Review Universe has zero uncovered obligations/surfaces and all packets joined;
 - every required scenario is `pass`;
 - no blocking finding remains open or merely asserted resolved;
 - required evidence exists, is integrated, and matches the current snapshot;

@@ -4,6 +4,8 @@ Purpose: prove integrated, user-observable behavior rather than implementation-s
 
 ## Coverage Boundary
 
+Before scenario execution, the Leader compiles the Review Universe from the handoff plus independent coverage discovery of authoritative requirements, design/architecture obligations, changed consumer surfaces, runtime controls and registrations, and affected shared paths. The handoff matrix is a minimum, never the complete universe by assertion. Reconcile each obligation and discovered surface to a required scenario or a specific evidence-backed out-of-scope disposition.
+
 Review always covers:
 
 - installation/build/startup and the ready signal for each applicable official real entrypoint;
@@ -11,6 +13,8 @@ Review always covers:
 - directly affected shared surfaces and the regression paths needed to protect them.
 
 Do not expand into an unbounded audit of unrelated legacy behavior. Do not narrow the active feature to only its easiest happy path.
+
+The coverage gate is zero uncovered: no required obligation, official entrypoint, changed consumer surface, or applicable runtime-discovered control may remain unmapped or unexecuted. All packets joined is a separate gate. A worker cannot declare coverage complete; only the Leader may reconcile the universe after independent audit results have joined.
 
 ## Scenario Requirements
 

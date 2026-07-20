@@ -17,6 +17,7 @@ from .workflow_runtime import show_workflow
 REVIEW_STATE_FILENAME = "review-state.json"
 IMPLEMENTATION_HANDOFF_FILENAME = "implementation-handoff.json"
 REVIEW_SCHEMA_REF = ".specify/templates/review-state-schema.json"
+REVIEW_STATE_VERSION = 2
 REVIEW_STATUSES = frozenset(
     {"gathering", "reviewing", "repairing", "validating", "approved", "blocked", "stale"}
 )
@@ -194,8 +195,10 @@ def build_implementation_handoff(
     )
     raw_entrypoints = task_index.get("official_entrypoints")
     raw_scenarios = task_index.get("system_review_scenarios")
+    raw_obligations = task_index.get("review_obligations")
     entrypoints = list(raw_entrypoints) if isinstance(raw_entrypoints, list) else []
     scenarios = list(raw_scenarios) if isinstance(raw_scenarios, list) else []
+    obligations = list(raw_obligations) if isinstance(raw_obligations, list) else []
     if not entrypoints or not scenarios:
         derived_entrypoints, derived_scenarios = _derive_review_contract(feature)
         entrypoints = entrypoints or derived_entrypoints
@@ -205,6 +208,7 @@ def build_implementation_handoff(
             "implementation closeout could not derive official entrypoints and system review scenarios; "
             "record them in task-index.json"
         )
+    obligations = obligations or _derive_review_obligations(entrypoints, scenarios)
     payload: dict[str, Any] = {
         "version": 1,
         "source_revision": source_revision,
@@ -212,6 +216,7 @@ def build_implementation_handoff(
         "fingerprint_algorithm": "git-working-tree-v1",
         "official_entrypoints": entrypoints,
         "system_review_scenarios": scenarios,
+        "review_obligations": obligations,
     }
     _normalized_handoff(payload, expected_revision=source_revision)
     output_path = implementation_handoff_path(feature)
@@ -226,7 +231,56 @@ def build_implementation_handoff(
         "implementation_fingerprint": payload["implementation_fingerprint"],
         "official_entrypoints": len(entrypoints),
         "system_review_scenarios": len(scenarios),
+        "review_obligations": len(obligations),
     }
+
+
+def _stable_id_fragment(value: object) -> str:
+    fragment = "".join(
+        char if char.isalnum() else "-" for char in str(value or "").upper()
+    )
+    return "-".join(part for part in fragment.split("-") if part) or "UNKNOWN"
+
+
+def _derive_review_obligations(
+    entrypoints: list[dict[str, Any]],
+    scenarios: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Derive a conservative compatibility baseline when Tasks predate obligations."""
+
+    obligations: list[dict[str, Any]] = []
+    scenario_ids_by_entrypoint: dict[str, list[str]] = {}
+    for scenario in scenarios:
+        scenario_id = str(scenario.get("id") or "").strip()
+        entrypoint_id = str(scenario.get("entrypoint_id") or "").strip()
+        if scenario_id and entrypoint_id:
+            scenario_ids_by_entrypoint.setdefault(entrypoint_id, []).append(scenario_id)
+        if scenario_id:
+            obligations.append(
+                {
+                    "id": f"RO-SCENARIO-{_stable_id_fragment(scenario_id)}",
+                    "kind": "scenario",
+                    "source_ref": f"implementation-handoff:system_review_scenarios/{scenario_id}",
+                    "surface": str(scenario.get("title") or scenario_id),
+                    "required": bool(scenario.get("required", True)),
+                    "scenario_ids": [scenario_id],
+                }
+            )
+    for entrypoint in entrypoints:
+        entrypoint_id = str(entrypoint.get("id") or "").strip()
+        scenario_ids = scenario_ids_by_entrypoint.get(entrypoint_id, [])
+        if entrypoint_id and scenario_ids:
+            obligations.append(
+                {
+                    "id": f"RO-ENTRYPOINT-{_stable_id_fragment(entrypoint_id)}",
+                    "kind": "entrypoint",
+                    "source_ref": f"implementation-handoff:official_entrypoints/{entrypoint_id}",
+                    "surface": f"{entrypoint_id} startup and readiness",
+                    "required": True,
+                    "scenario_ids": scenario_ids,
+                }
+            )
+    return obligations
 
 
 def _derive_review_contract(
@@ -346,7 +400,12 @@ def _validate_workflow_owner(feature_dir: Path, expected_revision: int) -> None:
 
 def _normalized_handoff(
     handoff: Mapping[str, Any], *, expected_revision: int
-) -> tuple[str, list[dict[str, Any]], list[dict[str, Any]]]:
+) -> tuple[
+    str,
+    list[dict[str, Any]],
+    list[dict[str, Any]],
+    list[dict[str, Any]],
+]:
     if handoff.get("version") != 1:
         raise ReviewRuntimeError("implementation-handoff.json version must equal 1")
     if handoff.get("source_revision") != expected_revision:
@@ -417,7 +476,52 @@ def _normalized_handoff(
         item["result"] = "pending"
         item["evidence"] = []
         scenarios.append(item)
-    return fingerprint, entrypoints, scenarios
+
+    raw_obligations = handoff.get("review_obligations")
+    obligation_values = (
+        list(raw_obligations)
+        if isinstance(raw_obligations, list) and raw_obligations
+        else _derive_review_obligations(entrypoints, scenarios)
+    )
+    obligations: list[dict[str, Any]] = []
+    obligation_ids: set[str] = set()
+    for index, raw in enumerate(obligation_values):
+        if not isinstance(raw, Mapping):
+            raise ReviewRuntimeError(f"review_obligations[{index}] must be an object")
+        item = dict(raw)
+        obligation_id = _required_text(item.get("id"), f"review_obligations[{index}].id")
+        _required_text(item.get("kind"), f"review_obligations[{index}].kind")
+        _required_text(item.get("source_ref"), f"review_obligations[{index}].source_ref")
+        _required_text(item.get("surface"), f"review_obligations[{index}].surface")
+        if obligation_id in obligation_ids:
+            raise ReviewRuntimeError(f"duplicate review obligation id: {obligation_id}")
+        obligation_ids.add(obligation_id)
+        referenced_scenarios = item.get("scenario_ids")
+        if not isinstance(referenced_scenarios, list) or not referenced_scenarios:
+            raise ReviewRuntimeError(
+                f"review obligation {obligation_id} requires non-empty scenario_ids"
+            )
+        unknown_scenarios = {
+            str(value) for value in referenced_scenarios if str(value) not in scenario_ids
+        }
+        if unknown_scenarios:
+            raise ReviewRuntimeError(
+                f"review obligation {obligation_id} references unknown scenarios: "
+                + ", ".join(sorted(unknown_scenarios))
+            )
+        item["required"] = bool(item.get("required", True))
+        item["scenario_ids"] = [str(value) for value in referenced_scenarios]
+        item["review_assignment_ids"] = []
+        item["status"] = "pending"
+        obligations.append(item)
+
+    obligations_by_scenario: dict[str, list[str]] = {}
+    for obligation in obligations:
+        for scenario_id in obligation["scenario_ids"]:
+            obligations_by_scenario.setdefault(scenario_id, []).append(obligation["id"])
+    for scenario in scenarios:
+        scenario["obligation_ids"] = obligations_by_scenario.get(scenario["id"], [])
+    return fingerprint, entrypoints, scenarios, obligations
 
 
 def prepare_review(
@@ -433,7 +537,7 @@ def prepare_review(
     _validate_workflow_owner(feature, expected_revision)
     handoff_file = implementation_handoff_path(feature)
     handoff = _read_json_object(handoff_file, label=IMPLEMENTATION_HANDOFF_FILENAME)
-    fingerprint, entrypoints, scenarios = _normalized_handoff(
+    fingerprint, entrypoints, scenarios, obligations = _normalized_handoff(
         handoff, expected_revision=expected_revision
     )
     handoff_digest = _sha256(handoff_file)
@@ -458,7 +562,7 @@ def prepare_review(
         (feature / "review-evidence").mkdir(parents=True, exist_ok=True)
         (feature / "review-results").mkdir(parents=True, exist_ok=True)
         state: dict[str, Any] = {
-            "version": 1,
+            "version": REVIEW_STATE_VERSION,
             "schema_ref": REVIEW_SCHEMA_REF,
             "status": "reviewing",
             "source": {
@@ -468,6 +572,28 @@ def prepare_review(
             },
             "entrypoints": entrypoints,
             "scenarios": scenarios,
+            "obligations": obligations,
+            "review_assignments": [],
+            "fix_assignments": [],
+            "revalidations": [],
+            "coverage": {
+                "discovery_complete": False,
+                "blind_audit_complete": False,
+                "uncovered_obligation_ids": [
+                    item["id"] for item in obligations if item["required"]
+                ],
+                "uncovered_surface_ids": [],
+                "final_gap_scan": "pending",
+            },
+            "leader": {
+                "strategy": "pending",
+                "review_plan_complete": False,
+                "all_review_results_joined": False,
+                "fix_plan_complete": False,
+                "all_fix_results_joined": False,
+                "final_revalidation_complete": False,
+                "verdict": "pending",
+            },
             "rounds": [],
             "findings": [],
             "repair_cycles": [],
@@ -484,12 +610,97 @@ def prepare_review(
             "blocker": None,
             "final": {
                 "verdict": "pending",
+                "coverage_verdict": "pending",
+                "repair_verdict": "pending",
+                "integration_verdict": "pending",
+                "all_packets_joined": False,
                 "reviewed_snapshot_sha256": "",
                 "implementation_summary_sha256": "",
             },
         }
         atomic_write_text(state_file, json.dumps(state, ensure_ascii=False, indent=2) + "\n")
     return envelope("ok", "System review state prepared.", data=state)
+
+
+def _scenario_contract(value: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        key: value.get(key)
+        for key in (
+            "id",
+            "kind",
+            "title",
+            "required",
+            "entrypoint_id",
+            "preconditions",
+            "actions",
+            "expected_results",
+            "required_evidence",
+            "obligation_ids",
+        )
+    }
+
+
+def _entrypoint_contract(value: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        key: value.get(key)
+        for key in ("id", "command", "ready_signal")
+    }
+
+
+def _obligation_contract(value: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        key: value.get(key)
+        for key in ("id", "kind", "source_ref", "surface", "required", "scenario_ids")
+    }
+
+
+def _indexed_objects(value: object) -> dict[str, Mapping[str, Any]]:
+    if not isinstance(value, list):
+        return {}
+    return {
+        str(item.get("id")): item
+        for item in value
+        if isinstance(item, Mapping) and str(item.get("id") or "").strip()
+    }
+
+
+def _duplicate_ids(value: object) -> set[str]:
+    if not isinstance(value, list):
+        return set()
+    seen: set[str] = set()
+    duplicates: set[str] = set()
+    for item in value:
+        if not isinstance(item, Mapping):
+            continue
+        item_id = str(item.get("id") or "").strip()
+        if not item_id:
+            continue
+        if item_id in seen:
+            duplicates.add(item_id)
+        seen.add(item_id)
+    return duplicates
+
+
+def _safe_feature_ref(feature_dir: Path, value: object) -> bool:
+    candidate = Path(str(value or ""))
+    if not str(value or "").strip() or candidate.is_absolute():
+        return False
+    resolved = (feature_dir / candidate).resolve(strict=False)
+    try:
+        resolved.relative_to(feature_dir.resolve(strict=False))
+    except ValueError:
+        return False
+    return True
+
+
+def _path_within_any(relative: str, allowed: list[str]) -> bool:
+    candidate = relative.replace("\\", "/").strip("/")
+    return any(
+        candidate == root.replace("\\", "/").strip("/")
+        or candidate.startswith(root.replace("\\", "/").strip("/") + "/")
+        for root in allowed
+        if root.strip("/\\")
+    )
 
 
 def _review_validation_errors(
@@ -501,8 +712,11 @@ def _review_validation_errors(
     live_fingerprint: str | None,
 ) -> tuple[list[str], bool]:
     errors: list[str] = []
-    if state.get("version") != 1:
-        errors.append("review-state.json version must equal 1")
+    if state.get("version") != REVIEW_STATE_VERSION:
+        errors.append(
+            f"review-state.json version must equal {REVIEW_STATE_VERSION}; "
+            "restart Review to migrate legacy evidence"
+        )
     if state.get("schema_ref") != REVIEW_SCHEMA_REF:
         errors.append(f"schema_ref must equal {REVIEW_SCHEMA_REF}")
     status = str(state.get("status") or "")
@@ -523,18 +737,58 @@ def _review_validation_errors(
             errors.append(
                 "review evidence is stale because the implementation handoff changed"
             )
-    if live_fingerprint is not None and status == "approved":
+    expected_snapshot = live_fingerprint or str(
+        handoff.get("implementation_fingerprint") or ""
+    )
+    if status == "approved":
         final = state.get("final")
         reviewed_fingerprint = (
             str(final.get("reviewed_snapshot_sha256") or "")
             if isinstance(final, Mapping)
             else ""
         )
-        if reviewed_fingerprint != live_fingerprint:
+        if reviewed_fingerprint != expected_snapshot:
             fresh = False
             errors.append(
-                "review evidence is stale because approved code/config no longer matches the reviewed snapshot"
+                "final reviewed snapshot must match the current implementation snapshot"
             )
+
+    try:
+        expected_revision = int(handoff.get("source_revision"))
+        _, canonical_entrypoints, canonical_scenarios, canonical_obligations = (
+            _normalized_handoff(handoff, expected_revision=expected_revision)
+        )
+    except (ReviewRuntimeError, TypeError, ValueError) as exc:
+        errors.append(f"invalid canonical review contract: {exc}")
+        canonical_entrypoints = []
+        canonical_scenarios = []
+        canonical_obligations = []
+
+    actual_entrypoints = _indexed_objects(state.get("entrypoints"))
+    for duplicate in sorted(_duplicate_ids(state.get("entrypoints"))):
+        errors.append(f"duplicate review entrypoint id: {duplicate}")
+    for canonical in canonical_entrypoints:
+        actual = actual_entrypoints.get(str(canonical["id"]))
+        if actual is None or _entrypoint_contract(actual) != _entrypoint_contract(canonical):
+            errors.append(
+                f"canonical entrypoint contract drift for {canonical['id']}"
+            )
+
+    actual_scenarios = _indexed_objects(state.get("scenarios"))
+    for duplicate in sorted(_duplicate_ids(state.get("scenarios"))):
+        errors.append(f"duplicate review scenario id: {duplicate}")
+    for canonical in canonical_scenarios:
+        actual = actual_scenarios.get(str(canonical["id"]))
+        if actual is None or _scenario_contract(actual) != _scenario_contract(canonical):
+            errors.append(f"canonical scenario contract drift for {canonical['id']}")
+
+    actual_obligations = _indexed_objects(state.get("obligations"))
+    for duplicate in sorted(_duplicate_ids(state.get("obligations"))):
+        errors.append(f"duplicate review obligation id: {duplicate}")
+    for canonical in canonical_obligations:
+        actual = actual_obligations.get(str(canonical["id"]))
+        if actual is None or _obligation_contract(actual) != _obligation_contract(canonical):
+            errors.append(f"canonical review obligation drift for {canonical['id']}")
 
     scenarios = state.get("scenarios")
     if not isinstance(scenarios, list) or not scenarios:
@@ -589,11 +843,124 @@ def _review_validation_errors(
                 errors.append(
                     f"scenario {scenario_id} {kind} evidence file does not exist: {evidence_path}"
                 )
+            evidence_snapshot = str(item.get("snapshot_sha256") or "")
+            if evidence_snapshot != expected_snapshot:
+                fresh = False
+                errors.append(
+                    f"scenario {scenario_id} {kind} evidence snapshot is stale"
+                )
+
+    review_assignments = _indexed_objects(state.get("review_assignments"))
+    for duplicate in sorted(_duplicate_ids(state.get("review_assignments"))):
+        errors.append(f"duplicate Review assignment id: {duplicate}")
+    accepted_review_assignments: dict[str, Mapping[str, Any]] = {}
+    for assignment_id, assignment in review_assignments.items():
+        if (
+            assignment.get("status") == "accepted"
+            and assignment.get("leader_verdict") == "accepted"
+        ):
+            accepted_review_assignments[assignment_id] = assignment
+        if assignment.get("read_only") is not True:
+            errors.append(f"Review assignment {assignment_id} must be read-only")
+        if not str(assignment.get("worker_id") or "").strip():
+            errors.append(f"Review assignment {assignment_id} requires a subagent worker_id")
+        packet_ref = assignment.get("packet_ref")
+        result_ref = assignment.get("result_ref")
+        if not _safe_feature_ref(feature_dir, packet_ref) or not _safe_feature_ref(
+            feature_dir, result_ref
+        ):
+            errors.append(f"Review assignment {assignment_id} requires packet and result refs")
+        elif assignment.get("status") == "accepted":
+            for label, artifact_ref in (("packet", packet_ref), ("result", result_ref)):
+                artifact_path = (feature_dir / Path(str(artifact_ref))).resolve(strict=False)
+                if not artifact_path.is_file():
+                    errors.append(
+                        f"Review assignment {assignment_id} {label} file does not exist: "
+                        f"{artifact_ref}"
+                    )
+        if assignment.get("status") == "accepted" and str(
+            assignment.get("observed_snapshot_sha256") or ""
+        ) != expected_snapshot:
+            fresh = False
+            errors.append(f"Review assignment {assignment_id} snapshot is stale")
+
+    coverage = state.get("coverage")
+    coverage = coverage if isinstance(coverage, Mapping) else {}
+    coverage_audits = [
+        assignment
+        for assignment in accepted_review_assignments.values()
+        if assignment.get("kind") == "coverage_audit"
+    ]
+    if (
+        not coverage_audits
+        or coverage.get("discovery_complete") is not True
+        or coverage.get("blind_audit_complete") is not True
+        or coverage.get("uncovered_obligation_ids") != []
+        or coverage.get("uncovered_surface_ids") != []
+        or coverage.get("final_gap_scan") != "pass"
+    ):
+        errors.append(
+            "independent subagent coverage audit must finish with zero uncovered obligations and surfaces"
+        )
+
+    for obligation_id, obligation in actual_obligations.items():
+        if not bool(obligation.get("required", True)):
+            continue
+        assignment_ids = obligation.get("review_assignment_ids")
+        assignment_ids = assignment_ids if isinstance(assignment_ids, list) else []
+        scenario_ids = obligation.get("scenario_ids")
+        scenario_ids = scenario_ids if isinstance(scenario_ids, list) else []
+        covered_by_assignment = any(
+            assignment_id in accepted_review_assignments
+            and obligation_id
+            in (accepted_review_assignments[assignment_id].get("obligation_ids") or [])
+            for assignment_id in assignment_ids
+        )
+        covered_by_scenario = bool(scenario_ids) and all(
+            str(actual_scenarios.get(str(scenario_id), {}).get("result") or "") == "pass"
+            for scenario_id in scenario_ids
+        )
+        if (
+            obligation.get("status") != "covered"
+            or not covered_by_assignment
+            or not covered_by_scenario
+        ):
+            errors.append(
+                f"required obligation {obligation_id} needs accepted subagent review and passing scenarios"
+            )
+
+    leader = state.get("leader")
+    leader = leader if isinstance(leader, Mapping) else {}
+    required_leader_values = {
+        "strategy": "leader-plus-subagents",
+        "review_plan_complete": True,
+        "all_review_results_joined": True,
+        "fix_plan_complete": True,
+        "all_fix_results_joined": True,
+        "final_revalidation_complete": True,
+        "verdict": "pass",
+    }
+    if any(leader.get(key) != value for key, value in required_leader_values.items()):
+        errors.append(
+            "Leader must plan, join all Review/Fix subagents, and complete final revalidation"
+        )
 
     findings = state.get("findings")
     if not isinstance(findings, list):
         errors.append("review findings must be an array")
         findings = []
+    fix_assignments = _indexed_objects(state.get("fix_assignments"))
+    revalidations = _indexed_objects(state.get("revalidations"))
+    for duplicate in sorted(_duplicate_ids(state.get("fix_assignments"))):
+        errors.append(f"duplicate Fix assignment id: {duplicate}")
+    for duplicate in sorted(_duplicate_ids(state.get("revalidations"))):
+        errors.append(f"duplicate revalidation id: {duplicate}")
+    for duplicate in sorted(_duplicate_ids(findings)):
+        errors.append(f"duplicate finding id: {duplicate}")
+    review_workers = {
+        assignment_id: str(assignment.get("worker_id") or "")
+        for assignment_id, assignment in review_assignments.items()
+    }
     for raw in findings:
         if not isinstance(raw, Mapping):
             errors.append("review finding must be an object")
@@ -606,6 +973,115 @@ def _review_validation_errors(
             )
         elif finding_status not in {"verified", "accepted_residual_risk"}:
             errors.append(f"finding {finding_id} must be verified before review closeout")
+
+        blocking = bool(raw.get("blocking", True))
+        if finding_status == "accepted_residual_risk" and blocking:
+            errors.append(f"blocking finding {finding_id} cannot be accepted as residual risk")
+
+        discovering_assignment_id = str(
+            raw.get("discovered_by_review_assignment_id") or ""
+        )
+        discovering_worker = review_workers.get(discovering_assignment_id, "")
+        fix_assignment_id = str(raw.get("fix_assignment_id") or "")
+        fix_assignment = fix_assignments.get(fix_assignment_id)
+        valid_fix = fix_assignment is not None
+        if valid_fix:
+            allowed_paths = fix_assignment.get("allowed_write_paths")
+            changed_paths = fix_assignment.get("changed_paths")
+            allowed_paths = allowed_paths if isinstance(allowed_paths, list) else []
+            changed_paths = changed_paths if isinstance(changed_paths, list) else []
+            fix_worker = str(fix_assignment.get("worker_id") or "")
+            valid_fix = (
+                fix_assignment.get("status") == "accepted"
+                and fix_assignment.get("leader_verdict") == "accepted"
+                and finding_id in (fix_assignment.get("finding_ids") or [])
+                and bool(fix_worker)
+                and fix_worker != discovering_worker
+                and bool(allowed_paths)
+                and bool(changed_paths)
+                and all(
+                    isinstance(path, str) and _path_within_any(path, allowed_paths)
+                    for path in changed_paths
+                )
+                and _safe_feature_ref(feature_dir, fix_assignment.get("packet_ref"))
+                and _safe_feature_ref(feature_dir, fix_assignment.get("result_ref"))
+            )
+            if valid_fix:
+                for label, artifact_ref in (
+                    ("packet", fix_assignment.get("packet_ref")),
+                    ("result", fix_assignment.get("result_ref")),
+                ):
+                    artifact_path = (
+                        feature_dir / Path(str(artifact_ref))
+                    ).resolve(strict=False)
+                    if not artifact_path.is_file():
+                        errors.append(
+                            f"Fix assignment {fix_assignment_id} {label} file does not exist: "
+                            f"{artifact_ref}"
+                        )
+                        valid_fix = False
+        if not valid_fix:
+            errors.append(
+                f"finding {finding_id} requires an independent Fix assignment accepted by the Leader"
+            )
+
+        revalidation_ids = raw.get("revalidation_ids")
+        revalidation_ids = revalidation_ids if isinstance(revalidation_ids, list) else []
+        valid_revalidation = False
+        for revalidation_id in revalidation_ids:
+            revalidation = revalidations.get(str(revalidation_id))
+            if revalidation is None or fix_assignment is None:
+                continue
+            revalidation_worker = str(revalidation.get("worker_id") or "")
+            evidence_refs = revalidation.get("evidence_refs")
+            evidence_refs = evidence_refs if isinstance(evidence_refs, list) else []
+            evidence_refs_exist = True
+            for evidence_ref in evidence_refs:
+                candidate = Path(str(evidence_ref))
+                resolved = (feature_dir / candidate).resolve(strict=False)
+                try:
+                    resolved.relative_to(feature_dir.resolve(strict=False))
+                except ValueError:
+                    evidence_refs_exist = False
+                    break
+                if candidate.is_absolute() or not resolved.is_file():
+                    evidence_refs_exist = False
+                    break
+            valid_revalidation = (
+                revalidation.get("result") == "pass"
+                and revalidation.get("leader_verdict") == "accepted"
+                and finding_id in (revalidation.get("finding_ids") or [])
+                and fix_assignment_id
+                in (revalidation.get("fix_assignment_ids") or [])
+                and str(raw.get("scenario_id") or "")
+                in (revalidation.get("scenario_ids") or [])
+                and revalidation_worker
+                not in {discovering_worker, str(fix_assignment.get("worker_id") or "")}
+                and str(revalidation.get("snapshot_sha256") or "")
+                == expected_snapshot
+                and bool(evidence_refs)
+                and evidence_refs_exist
+            )
+            if valid_revalidation:
+                break
+        if not valid_revalidation:
+            errors.append(
+                f"finding {finding_id} requires independent revalidation accepted by the Leader"
+            )
+
+    final = state.get("final")
+    final = final if isinstance(final, Mapping) else {}
+    required_final_values = {
+        "verdict": "pass",
+        "coverage_verdict": "pass",
+        "repair_verdict": "pass",
+        "integration_verdict": "pass",
+        "all_packets_joined": True,
+    }
+    if status == "approved" and any(
+        final.get(key) != value for key, value in required_final_values.items()
+    ):
+        errors.append("final Review verdicts and packet joins must all pass")
     return errors, fresh
 
 

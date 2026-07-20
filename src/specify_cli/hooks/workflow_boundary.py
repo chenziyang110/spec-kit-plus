@@ -23,14 +23,11 @@ ALLOWED_WORKFLOW_TRANSITIONS = {
     ("implement", "review"),
     ("implement", "debug"),
     ("review", "accept"),
-    ("review", "debug"),
-    ("review", "implement"),
-    ("review", "tasks"),
     ("review", "plan"),
     ("review", "clarify"),
     ("review", "specify"),
+    ("review", "design"),
     ("accept", "review"),
-    ("accept", "debug"),
     ("accept", "clarify"),
     ("accept", "specify"),
     ("accept", "integrate"),
@@ -48,8 +45,6 @@ ALLOWED_PHASE_TRANSITIONS = {
     ("analysis-only", "execution-only"),
     ("execution-only", "review-and-repair"),
     ("review-and-repair", "acceptance-only"),
-    ("review-and-repair", "execution-only"),
-    ("review-and-repair", "task-generation-only"),
     ("review-and-repair", "planning-only"),
     ("acceptance-only", "review-and-repair"),
     ("acceptance-only", "planning-only"),
@@ -60,13 +55,32 @@ def workflow_boundary_hook(_project_root, payload: dict[str, object]) -> HookRes
     from_command = normalize_command_name(str(payload.get("from_command") or ""))
     to_command = normalize_command_name(str(payload.get("to_command") or ""))
 
-    if (from_command, to_command) not in ALLOWED_WORKFLOW_TRANSITIONS:
+    transition = (from_command, to_command)
+    if transition not in ALLOWED_WORKFLOW_TRANSITIONS:
         return HookResult(
             event=WORKFLOW_BOUNDARY_VALIDATE,
             status="blocked",
             severity="critical",
             errors=[f"workflow transition is not allowed: {from_command} -> {to_command}"],
         )
+
+    if from_command == "review" and to_command in {
+        "plan",
+        "clarify",
+        "specify",
+        "design",
+    }:
+        reason_category = str(payload.get("reason_category") or "").strip().lower()
+        if reason_category != "upstream_truth_gap":
+            return HookResult(
+                event=WORKFLOW_BOUNDARY_VALIDATE,
+                status="blocked",
+                severity="critical",
+                errors=[
+                    "review keeps diagnosis and approved-scope fixes inside its Fix wave; "
+                    "upstream transitions require reason_category upstream_truth_gap"
+                ],
+            )
 
     return HookResult(
         event=WORKFLOW_BOUNDARY_VALIDATE,
@@ -89,6 +103,18 @@ def phase_boundary_hook(_project_root, payload: dict[str, object]) -> HookResult
             severity="critical",
             errors=[f"phase transition is not allowed: {from_phase} -> {to_phase}"],
         )
+
+    if from_phase == "review-and-repair" and to_phase == "planning-only":
+        reason_category = str(payload.get("reason_category") or "").strip().lower()
+        if reason_category != "upstream_truth_gap":
+            return HookResult(
+                event=WORKFLOW_PHASE_BOUNDARY_VALIDATE,
+                status="blocked",
+                severity="critical",
+                errors=[
+                    "review-and-repair may return to planning only for an upstream_truth_gap"
+                ],
+            )
 
     return HookResult(
         event=WORKFLOW_PHASE_BOUNDARY_VALIDATE,

@@ -39,6 +39,11 @@ class UIVerification:
 class WorkerTaskResult:
     task_id: str
     status: WorkerStatus
+    wave: str = ""
+    packet_id: str = ""
+    obligation_ids: list[str] = field(default_factory=list)
+    observations: list[dict[str, object]] = field(default_factory=list)
+    findings: list[dict[str, object]] = field(default_factory=list)
     changed_files: list[str] = field(default_factory=list)
     validation_results: list[ValidationResult] = field(default_factory=list)
     summary: str = ""
@@ -83,6 +88,12 @@ def _normalize_evidence_items(value: object) -> list[dict[str, str]]:
         if evidence:
             normalized.append(evidence)
     return normalized
+
+
+def _normalize_review_records(value: object) -> list[dict[str, object]]:
+    if not isinstance(value, list):
+        return []
+    return [dict(item) for item in value if isinstance(item, dict)]
 
 
 def _validate_current_ui_payload(payload: dict[str, object]) -> None:
@@ -153,6 +164,21 @@ def worker_task_result_from_json(text: str) -> WorkerTaskResult:
     ]
     rule_acknowledgement = RuleAcknowledgement(**raw_ack)
     result_payload = _filter_dataclass_payload(WorkerTaskResult, payload)
+    result_payload["wave"] = str(result_payload.get("wave") or "").strip()
+    result_payload["packet_id"] = str(
+        result_payload.get("packet_id") or ""
+    ).strip()
+    result_payload["obligation_ids"] = [
+        str(item).strip()
+        for item in result_payload.get("obligation_ids", [])
+        if str(item).strip()
+    ]
+    result_payload["observations"] = _normalize_review_records(
+        result_payload.get("observations", [])
+    )
+    result_payload["findings"] = _normalize_review_records(
+        result_payload.get("findings", [])
+    )
     result_payload["acceptance_evidence"] = _normalize_evidence_items(
         result_payload.get("acceptance_evidence", [])
     )

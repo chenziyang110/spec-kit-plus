@@ -15,21 +15,22 @@ Prove that the integrated implementation is an operable product from its officia
 
 ## System Review Loop
 
-1. Start or restart each applicable official real entrypoint and prove its ready signal without hidden manual setup.
-2. Execute every mandatory scenario as a user journey with explicit preconditions, actions, and observable expected results.
-3. Inspect the actual consumer chain for the current path: button or command, route, handler/controller, provider/factory/service, persistence or external dependency, and visible feedback.
-4. Record sanitized integrated evidence and any finding in Review-owned state.
-5. Repair understood in-scope defects, then restart and rerun the exact failed scenario plus affected regression paths. Never close a finding from source inspection alone.
-6. Repeat until approved or until a structured handoff/blocker is required.
+1. Compile the Review Universe and use independent coverage discovery to reconcile authoritative obligations with actual consumer and runtime surfaces.
+2. Start each official entrypoint, then run a read-only Review/Audit wave whose workers inspect assigned coverage slices and return evidence/findings without edits.
+3. The Leader joins all audit packets, rejects stale or incomplete results, resolves coverage gaps, and freezes the accepted finding set.
+4. Run a separate Fix wave for accepted findings. Fix workers receive isolated write scopes and may change implementation/tests but never upstream truth.
+5. Join and inspect every repair, restart the real product, then run an independent revalidation wave. The repair author must not verify its own finding.
+6. Repeat discovery, repair, and revalidation until the Review Universe has zero uncovered obligations/surfaces and all packets joined.
 
 UI-bearing scenarios require real-entrypoint `structure_snapshot`, `visual_capture`, and `runtime_diagnostics` evidence with `evidence_scope: integrated`. Validate interaction, navigation, loading, empty, error, permission, persistence/reload, responsive, keyboard/focus, console, network, and runtime states when applicable. Automated behavior checks remain distinct from visual and interaction acceptance.
 
 ## Delegation
 
-- Use leader-direct execution for compact, tightly coupled review work. Use subagents for independent read-only wiring audits, isolated user journeys, or non-overlapping repair write sets that materially benefit from isolation or parallelism.
+- The Leader orchestrates subagents across the Review/Audit wave, Fix wave, and independent revalidation wave; direct execution is reserved for compact, tightly coupled steps.
+- Audit workers are read-only. Fix workers receive finding-bound, non-overlapping write scopes. Revalidation workers are read-only and independent from the repair author.
 - Compile each `SystemReviewPacket` just in time from current state and live code. Never dispatch a raw checklist or the entire feature package.
 - Serialize paths sharing one browser session, database state, service instance, port, or write set. Integrate worker results before accepting a repair.
-- A worker result is evidence only. A worker must not declare the whole system approved; the Leader owns the final verdict after an integrated restart and required regression.
+- A worker result is evidence only. A worker cannot declare coverage complete or the whole system approved; the Leader owns all joins, zero-uncovered coverage, repair acceptance, and the final verdict after an integrated restart and required regression.
 
 ## Output Contract
 
@@ -40,7 +41,8 @@ UI-bearing scenarios require real-entrypoint `structure_snapshot`, `visual_captu
 
 ## Guardrails
 
-- `sp-review` is not permission to change approved product scope or upstream truth. Repair clear implementation and wiring defects only.
+- `sp-review` is not permission to change approved product scope or upstream truth. Every approved-scope defect stays in Review regardless of repair size, including missing code, task omission, and unknown root cause; use a diagnostic packet before a Fix packet when needed.
+- Review remains the stage owner through diagnosis, repair, and revalidation. Only a proven requirement truth, design truth, or architecture truth gap may produce an upstream handoff; missing code is not an upstream truth gap.
 - Keep the existing event-triggered task review embedded in `sp-implement`; do not duplicate its task lifecycle ledger here.
 - Do not claim success because the build passes, tasks are checked, files exist, or a worker says PASS.
 - Do not push, deploy, modify protected systems, use real customer data, or perform external writes without explicit authority. Use isolated test data and the shared blocker contract for genuine external boundaries.

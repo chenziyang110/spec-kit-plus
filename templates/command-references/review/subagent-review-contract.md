@@ -2,14 +2,18 @@ Trigger: before delegating review or repair work and before accepting a worker r
 
 Purpose: gain independent inspection and safe parallelism without splitting ownership of runtime truth or the final verdict.
 
-## Dispatch Choice
+## Leader-Orchestrated Waves
 
-Use live workload shape to choose leader-direct, one subagent, or parallel subagents. Parallelize independent read-only wiring audits and isolated user journeys. Serialize lanes that share a browser session, service process, port, database/test data, or overlapping repair write set.
+The Leader orchestrates subagents through three explicit waves and owns the joins between them:
 
-Compile a `SystemReviewPacket` just in time. It contains only the current scenario id, authoritative refs, official real entrypoint, preconditions and safe test data, exact actions, observable expected results, allowed read/write scope, forbidden paths and external effects, required evidence, failure taxonomy, validation commands, done condition, and recovery/return shape.
+1. A read-only Review/Audit wave performs independent coverage discovery across disjoint slices of the Review Universe. An audit worker has no product write scope and cannot declare coverage complete.
+2. After joining and reconciling every audit result, an independent Fix wave assigns accepted findings to Fix workers with bounded, non-overlapping write scopes. Serialize shared registries, generated consumers, browser/database state, or overlapping writes.
+3. After joining and inspecting every repair, an independent revalidation wave assigns the failed journey and affected regression paths to the Leader or a different read-only worker. A repair author must not verify its own finding.
+
+Compile every `SystemReviewPacket` just in time and identify its lane as `audit`, `diagnostic`, `fix`, or `revalidation`. It contains only the assigned obligation/surface/finding ids, current fingerprint, authoritative refs, official real entrypoint, preconditions and safe test data, exact actions, observable expected results, allowed read/write scope, forbidden paths and external effects, required evidence, failure taxonomy, validation commands, done condition, and recovery/return shape. Unknown root cause work uses a read-only diagnostic packet inside Review before the Leader issues any Fix packet.
 
 The result records status, observations, sanitized evidence refs, findings, changed paths, validation and rerun results, concerns, and recovery. The Leader validates live repository state and the packet boundary before accepting it.
 
 ## Authority
 
-Workers never own `review-state.json`, shared runtime instances, ports, test data, cross-lane finding status, or the global claim gate. A worker cannot declare the system approved and must not advance workflow state. The Leader owns the final verdict after integrating results, restarting the actual product, and running the mandatory and affected regression scenarios.
+Workers never own `review-state.json`, the Review Universe, shared runtime instances, ports, test data, cross-lane finding status, joins, or the global claim gate. A worker cannot declare coverage complete or the system approved and must not advance workflow state. The Leader owns zero-uncovered reconciliation, confirms all packets joined, accepts every repair, and owns the final verdict after integrating results, restarting the actual product, and running the mandatory and affected regression scenarios.

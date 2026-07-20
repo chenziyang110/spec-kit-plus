@@ -47,10 +47,11 @@ workflow inline.
 
 PASS requires explicit human passes for every required scenario. On a mismatch,
 record expected versus observed behavior and evidence, then hand off and stop:
-clear product/runtime repair to `$spx-review`, unknown mechanism to
-`$spx-debug` followed by `$spx-review`, changed or missing existing requirements
-to `$spx-clarify`, or new scope to `$spx-specify`. Preserve the failed scenario
-as the return point. Human-owned
+every product/runtime defect goes to `$spx-review`, including an unknown
+mechanism that requires a Review-owned read-only diagnostic packet before its
+Fix packet; changed or missing existing requirements go to `$spx-clarify`, and
+new scope goes to `$spx-specify`. Preserve the failed scenario as the return
+point. Human-owned
 environment, permission, protected-system, or physical-device blockers receive
 the full Human Action Guide.
 

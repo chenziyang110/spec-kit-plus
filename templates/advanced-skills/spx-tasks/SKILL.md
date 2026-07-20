@@ -35,12 +35,17 @@ complete outcome, dependencies, likely write scope, acceptance, verification,
 and must-preserve obligations. Mark parallel only when inputs are stable and
 writes do not overlap; name the join and combined check.
 
-At the task-index root, compile `official_entrypoints` and the smallest complete
-`system_review_scenarios` matrix that proves startup, every changed
+At the task-index root, compile every official entrypoint record in
+`official_entrypoints`, stable
+`review_obligations`, and the smallest complete `system_review_scenarios`
+matrix that proves startup, every changed
 user-observable journey, and affected shared regressions. Each scenario names
 its entrypoint, preconditions, actions, observable results, and required
-evidence so `$spx-review` consumes a deterministic contract instead of
-reconstructing acceptance from prose.
+evidence. Compile obligations from every entrypoint, acceptance/capability,
+must-preserve, consequence, fidelity, consumer-surface, wiring, and required UI
+state source; map every required obligation to one or more scenario ids so
+`$spx-review` can enforce zero uncovered scope instead of reconstructing
+acceptance from prose.
 
 Validate requirement/plan coverage, dependency cycles, write-set safety,
 acceptance, and real-entrypoint verification. Generate worker packets later in

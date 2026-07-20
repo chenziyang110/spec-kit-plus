@@ -10,6 +10,12 @@
     "source",
     "entrypoints",
     "scenarios",
+    "obligations",
+    "review_assignments",
+    "fix_assignments",
+    "revalidations",
+    "coverage",
+    "leader",
     "rounds",
     "findings",
     "repair_cycles",
@@ -18,7 +24,7 @@
     "final"
   ],
   "properties": {
-    "version": { "const": 1 },
+    "version": { "const": 2 },
     "schema_ref": { "const": ".specify/templates/review-state-schema.json" },
     "status": {
       "enum": ["gathering", "reviewing", "repairing", "validating", "approved", "blocked", "stale"]
@@ -52,7 +58,7 @@
       "minItems": 1,
       "items": {
         "type": "object",
-        "required": ["id", "kind", "title", "required", "entrypoint_id", "actions", "expected_results", "required_evidence", "result", "evidence"],
+        "required": ["id", "kind", "title", "required", "entrypoint_id", "actions", "expected_results", "required_evidence", "obligation_ids", "result", "evidence"],
         "properties": {
           "id": { "type": "string", "minLength": 1 },
           "kind": { "enum": ["startup", "wiring", "interaction", "ui", "integration", "regression"] },
@@ -67,16 +73,18 @@
             "minItems": 1,
             "items": { "enum": ["structure_snapshot", "visual_capture", "runtime_diagnostics", "invocation", "side_effect"] }
           },
+          "obligation_ids": { "type": "array", "items": { "type": "string", "minLength": 1 } },
           "result": { "enum": ["pending", "pass", "fail", "blocked", "not_run"] },
           "evidence": {
             "type": "array",
             "items": {
               "type": "object",
-              "required": ["kind", "path", "evidence_scope"],
+              "required": ["kind", "path", "evidence_scope", "snapshot_sha256"],
               "properties": {
                 "kind": { "enum": ["structure_snapshot", "visual_capture", "runtime_diagnostics", "invocation", "side_effect"] },
                 "path": { "type": "string", "minLength": 1 },
-                "evidence_scope": { "const": "integrated" }
+                "evidence_scope": { "const": "integrated" },
+                "snapshot_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
               },
               "additionalProperties": true
             }
@@ -84,6 +92,110 @@
         },
         "additionalProperties": true
       }
+    },
+    "obligations": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "kind", "source_ref", "surface", "required", "scenario_ids", "review_assignment_ids", "status"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "kind": { "type": "string", "minLength": 1 },
+          "source_ref": { "type": "string", "minLength": 1 },
+          "surface": { "type": "string", "minLength": 1 },
+          "required": { "type": "boolean" },
+          "scenario_ids": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+          "review_assignment_ids": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+          "status": { "enum": ["pending", "covered", "blocked"] }
+        },
+        "additionalProperties": true
+      }
+    },
+    "review_assignments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "kind", "worker_id", "obligation_ids", "scenario_ids", "read_only", "packet_ref", "result_ref", "observed_snapshot_sha256", "status", "leader_verdict"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "kind": { "enum": ["coverage_audit", "scenario_review", "wiring_audit"] },
+          "worker_id": { "type": "string", "minLength": 1 },
+          "obligation_ids": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+          "scenario_ids": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+          "read_only": { "const": true },
+          "packet_ref": { "type": "string", "minLength": 1 },
+          "result_ref": { "type": "string", "minLength": 1 },
+          "observed_snapshot_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+          "status": { "enum": ["dispatched", "returned", "accepted", "rejected"] },
+          "leader_verdict": { "enum": ["pending", "accepted", "rejected"] }
+        },
+        "additionalProperties": true
+      }
+    },
+    "fix_assignments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "finding_ids", "worker_id", "allowed_write_paths", "changed_paths", "packet_ref", "result_ref", "status", "leader_verdict"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "finding_ids": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+          "worker_id": { "type": "string", "minLength": 1 },
+          "allowed_write_paths": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+          "changed_paths": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+          "packet_ref": { "type": "string", "minLength": 1 },
+          "result_ref": { "type": "string", "minLength": 1 },
+          "status": { "enum": ["dispatched", "returned", "accepted", "rejected"] },
+          "leader_verdict": { "enum": ["pending", "accepted", "rejected"] }
+        },
+        "additionalProperties": true
+      }
+    },
+    "revalidations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "worker_id", "finding_ids", "fix_assignment_ids", "scenario_ids", "snapshot_sha256", "result", "evidence_refs", "leader_verdict"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "worker_id": { "type": "string", "minLength": 1 },
+          "finding_ids": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+          "fix_assignment_ids": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+          "scenario_ids": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+          "snapshot_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+          "result": { "enum": ["pass", "fail", "blocked"] },
+          "evidence_refs": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+          "leader_verdict": { "enum": ["pending", "accepted", "rejected"] }
+        },
+        "additionalProperties": true
+      }
+    },
+    "coverage": {
+      "type": "object",
+      "required": ["discovery_complete", "blind_audit_complete", "uncovered_obligation_ids", "uncovered_surface_ids", "final_gap_scan"],
+      "properties": {
+        "discovery_complete": { "type": "boolean" },
+        "blind_audit_complete": { "type": "boolean" },
+        "uncovered_obligation_ids": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "uncovered_surface_ids": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "final_gap_scan": { "enum": ["pending", "pass", "fail", "blocked"] }
+      },
+      "additionalProperties": false
+    },
+    "leader": {
+      "type": "object",
+      "required": ["strategy", "review_plan_complete", "all_review_results_joined", "fix_plan_complete", "all_fix_results_joined", "final_revalidation_complete", "verdict"],
+      "properties": {
+        "strategy": { "enum": ["pending", "leader-plus-subagents"] },
+        "review_plan_complete": { "type": "boolean" },
+        "all_review_results_joined": { "type": "boolean" },
+        "fix_plan_complete": { "type": "boolean" },
+        "all_fix_results_joined": { "type": "boolean" },
+        "final_revalidation_complete": { "type": "boolean" },
+        "verdict": { "enum": ["pending", "pass", "fail", "blocked"] }
+      },
+      "additionalProperties": false
     },
     "rounds": { "type": "array", "items": { "type": "object" } },
     "findings": {
@@ -105,7 +217,20 @@
     "validation": { "type": "object" },
     "cursor": { "type": "object" },
     "blocker": { "type": ["object", "null"] },
-    "final": { "type": "object" }
+    "final": {
+      "type": "object",
+      "required": ["verdict", "coverage_verdict", "repair_verdict", "integration_verdict", "all_packets_joined", "reviewed_snapshot_sha256", "implementation_summary_sha256"],
+      "properties": {
+        "verdict": { "enum": ["pending", "pass", "fail", "blocked"] },
+        "coverage_verdict": { "enum": ["pending", "pass", "fail", "blocked"] },
+        "repair_verdict": { "enum": ["pending", "pass", "fail", "blocked"] },
+        "integration_verdict": { "enum": ["pending", "pass", "fail", "blocked"] },
+        "all_packets_joined": { "type": "boolean" },
+        "reviewed_snapshot_sha256": { "type": "string" },
+        "implementation_summary_sha256": { "type": "string" }
+      },
+      "additionalProperties": false
+    }
   },
   "additionalProperties": false
 }

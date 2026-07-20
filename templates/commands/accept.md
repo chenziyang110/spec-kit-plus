@@ -4,7 +4,7 @@ workflow_contract:
   when_to_use: '`review-state.json` is fresh and approved, `implementation-summary.md` exists for the reviewed fingerprint, and a human should be guided through product acceptance before integration or delivery.'
   primary_objective: Restore the human's context, lead one exact product scenario and step at a time, persist observed results, and produce an explicit accepted, rejected, or blocked verdict.
   primary_outputs: A fresh, schema-valid `human-acceptance.json` with zero-context orientation, ordered scenarios, step results, evidence, findings, resume cursor, and overall human verdict.
-  default_handoff: On pass, continue to integration or delivery; on a clear product defect return to /sp.review, on an unknown mechanism use /sp.debug, and on missing or changed requirements return to /sp.clarify or /sp.specify.
+  default_handoff: On pass, continue to integration or delivery; on any product/runtime defect return to /sp.review, including unknown mechanisms that require a Review-owned diagnostic packet, and on missing or changed requirements return to /sp.clarify or /sp.specify.
 scripts:
   sh: scripts/bash/check-prerequisites.sh --json --require-tasks --include-tasks
   ps: scripts/powershell/check-prerequisites.ps1 -Json -RequireTasks -IncludeTasks
@@ -33,7 +33,7 @@ scripts:
 
 ## Failure Routing
 
-- Observed product behavior differs from the approved requirement and the cause is unknown: record evidence, hand to `{{invoke:debug}}`, and stop.
+- Observed product behavior differs from the approved requirement and the cause is unknown: record evidence, hand to `{{invoke:review}}`, and stop. The Review Leader keeps stage ownership and dispatches a read-only diagnostic packet before any Fix packet.
 - The repair is clear and requirements are still correct: record evidence, hand to `{{invoke:review}}`, and stop so Review can repair and revalidate the preserved scenario.
 - The human expects behavior absent from or contradictory to the approved requirement: route to `{{invoke:clarify}}` for an existing feature or `{{invoke:specify}}` for new scope, and stop.
 - Environment, permission, protected service, or physical-device access blocks the next step: preserve the cursor and use the shared Human Action Guide contract.

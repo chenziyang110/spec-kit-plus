@@ -10,7 +10,7 @@ from specify_cli.execution import describe_result_handoff_template
 from .models import CapabilitySnapshot
 
 
-DelegationIntent = Literal["implementation", "evidence"]
+DelegationIntent = Literal["implementation", "evidence", "hybrid"]
 
 
 @dataclass(slots=True, frozen=True)
@@ -33,6 +33,8 @@ class DelegationSurfaceDescriptor:
 
 def _command_intent(command_name: str) -> DelegationIntent:
     normalized = command_name.strip().lower()
+    if normalized == "review":
+        return "hybrid"
     return "evidence" if normalized in {"debug", "map-scan", "map-build", "map-update"} else "implementation"
 
 def describe_delegation_surface(
@@ -44,12 +46,26 @@ def describe_delegation_surface(
 
     normalized_command = command_name.strip().lower()
     intent = _command_intent(command_name)
-    result_contract_hint = (
-        "Fact-only evidence payload: hypothesis tested, commands run, files inspected, observations, confidence, blocker."
-        if intent == "evidence"
-        else "WorkerTaskResult contract with status, changed files, validation evidence, blockers, failed assumptions, and recovery guidance."
-    )
-    structured_results_expected = snapshot.structured_results or intent == "implementation"
+    if intent == "evidence":
+        result_contract_hint = (
+            "Fact-only evidence payload: hypothesis tested, commands run, files "
+            "inspected, observations, confidence, blocker."
+        )
+    elif intent == "hybrid":
+        result_contract_hint = (
+            "Three-wave Review result contract: read-only Review observations and "
+            "findings, bounded Fix changed files and validation, then independent "
+            "revalidation evidence; every result is joined by the Leader."
+        )
+    else:
+        result_contract_hint = (
+            "WorkerTaskResult contract with status, changed files, validation "
+            "evidence, blockers, failed assumptions, and recovery guidance."
+        )
+    structured_results_expected = snapshot.structured_results or intent in {
+        "implementation",
+        "hybrid",
+    }
 
     integration_key = snapshot.integration_key.strip().lower()
     native_discovery_hint = (
@@ -106,11 +122,23 @@ def describe_delegation_surface(
         managed_team_hint = (
             "No in-command team fallback for `sp-implement`; if subagents cannot proceed safely, stay on the leader path and record why."
         )
+    elif normalized_command == "review":
+        managed_team_hint = (
+            "The Review Leader must preserve separate audit, Fix, and independent "
+            "revalidation waves. If no native subagent surface exists, record the "
+            "coverage blocker rather than silently claiming zero uncovered."
+        )
     else:
         managed_team_hint = (
             "Use the managed team workflow when subagents are unavailable, low-confidence, or unsuitable."
             if snapshot.managed_team_supported
             else "No managed team workflow is currently available; use leader-inline fallback only when subagents cannot proceed safely."
+        )
+
+    if normalized_command == "review":
+        native_join_hint = (
+            f"{native_join_hint} The Leader joins every Review, Fix, and independent "
+            "revalidation result before the final verdict."
         )
 
     return DelegationSurfaceDescriptor(

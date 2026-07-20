@@ -79,9 +79,9 @@ verdict rules remain unchanged.
 
 Routes are handoff-and-stop:
 
-- clear product/runtime repair: `spx-review`;
-- unknown mechanism/regression: `spx-debug`, then return to `spx-review` for the
-  preserved scenario;
+- every product/runtime defect, including unknown mechanisms and regressions:
+  `spx-review`; its Leader dispatches a read-only diagnostic packet when the
+  root cause is unknown, then owns the Fix and independent revalidation waves;
 - existing requirement gap or contradiction: `spx-clarify`;
 - genuinely new scope: `spx-specify`;
 - human-only access/authority: retain `spx-accept` with a Human Action Guide.
@@ -89,15 +89,13 @@ Routes are handoff-and-stop:
 For every non-human repair route, first run
 `{{specify-subcmd:accept route-repair --feature-dir <feature-dir> --finding-id <finding-id> --route <recorded-route> --expected-revision <revision> --evidence <sanitized-evidence> --format json}}`.
 The runtime invalidates the prior verdict, preserves the failed scenario as the
-cursor, and reopens `review` for review/debug routes or `specify` for
+cursor, and reopens `review` for product/runtime defects or `specify` for
 clarify/specify routes. Invoke `repair_handoff_command` separately and stop.
-Debug and clarify must not write CLI-owned `workflow-runtime.json`. Clarify may update the feature's rich
-`workflow-state.md` specification resume/evidence sections; debug keeps both
-feature state surfaces read-only and persists its session under
-`.planning/debug/`. When it finishes, separately invoke
-`owning_stage_command` (`spx-review` after debug or `spx-specify` after
-clarify). Review may itself classify a large omission for `$spx-implement` or
-another upstream owner; Acceptance never skips that classification gate. The
+Clarify must not write CLI-owned `workflow-runtime.json`; it may update the
+feature's rich `workflow-state.md` specification resume/evidence sections.
+Review remains the stage owner for missing code, large approved-scope omissions,
+and unknown root causes; only a proven requirement, design, or architecture
+truth gap may leave Review for its upstream owner. The
 owning required stage reads the reopened CLI state, completes it through
 `workflow complete-stage`, and progresses every required stage in order. Only
 after the runtime re-enters active `accept` execute

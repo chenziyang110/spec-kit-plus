@@ -1,11 +1,12 @@
 # System Review worker contract
 
-Delegate only when a bounded lane improves independence, coverage, or repair
-throughput. The leader retains global state, shared runtime resources, finding
-acceptance, integrated revalidation, and the final verdict.
+The leader orchestrates subagents through three explicit waves and retains
+global state, the Review Universe, shared runtime resources, joins, finding
+acceptance, zero-uncovered reconciliation, and the final verdict.
 
 Compile each just-in-time `SystemReviewPacket` from the current handoff and
-Review state. It is a delegation view, not a second source of truth. Include:
+Review state. Mark its lane `audit`, `diagnostic`, `fix`, or `revalidation`; it
+is a delegation view, not a second source of truth. Include:
 
 - one scenario/lane outcome and authoritative acceptance references;
 - official real entrypoint, ready signal, preconditions, and safe test data;
@@ -15,12 +16,21 @@ Review state. It is a delegation view, not a second source of truth. Include:
 - finding/result destination or exact structured return shape;
 - failed-assumption, blocker, and recovery requirements.
 
-Prefer independent read-only lanes for startup/runtime diagnosis, wiring and
-consumer reachability, distinct user journeys, and UI/accessibility inspection.
-Run shared browser sessions, database mutations, common accounts, and one
-runtime instance serially. Separate audit and repair waves; dispatch concurrent
-writes only when their scopes are disjoint and no generated or shared consumer
-overlaps.
+Start with a read-only Review/Audit wave for independent coverage discovery,
+startup/runtime diagnosis, wiring and consumer reachability, distinct user
+journeys, and UI/accessibility inspection. An audit worker has no product write
+scope and cannot declare coverage complete. The leader joins every audit result
+and freezes accepted findings before starting the independent Fix wave.
+
+Fix workers receive accepted finding ids and bounded write scopes. Run shared
+browser sessions, database mutations, common accounts, registries, and one
+runtime instance serially; dispatch concurrent writes only when scopes are
+disjoint and no generated or shared consumer overlaps. Unknown root cause work
+uses a read-only diagnostic packet while Review remains the stage owner.
+
+After all repair joins, run an independent revalidation wave. A repair author
+must not verify its own finding; the leader or a different read-only subagent
+reruns the failed journey and affected scenarios against the repaired snapshot.
 
 Require a structured result containing scenario status, actions actually run,
 observed results, evidence refs, findings, changed paths, checks, failed
@@ -32,4 +42,6 @@ failure with synthetic evidence.
 At every join, validate the result against the packet, inspect all Review-owned
 writes, reconcile duplicate or conflicting findings, and reject evidence from
 the wrong entrypoint or snapshot. After repairs, the leader restarts the real
-product and reruns the affected integrated journeys before any final verdict.
+product and reruns the affected integrated journeys. Approval requires all
+packets joined and the Review Universe at zero uncovered before the leader may
+issue the final verdict.

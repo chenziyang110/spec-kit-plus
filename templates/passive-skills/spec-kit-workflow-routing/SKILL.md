@@ -128,8 +128,8 @@ explicit numeric option.
 - Use `sp-tasks` only after planning artifacts are ready.
 - Use `sp-implement` after `sp-tasks` produces canonical `task-index.json` or a light direct task list and records `/sp.implement`. `sp-implement` selects leader-direct or delegated execution per task, compiles delegated packets just in time, runs event-triggered review, and records result/validation/review/recovery once in the task lifecycle record. Product goal, scope, architecture, required evidence, `MP-*`, `CA-###`, and feasibility conflicts route back to their upstream owner.
 - Route planned implementation to `sp-implement`; its embedded task review is event-triggered by drift, parallel joins, validation failure, obligation conflicts, or the review-window threshold. Repair task-layer defects there and route upstream truth defects to their owner. Do not turn that embedded control into a separate task-review command or require task briefs, review packages, a duplicate ledger, and branch review for every task.
-- Use `sp-review` after successful implementation closeout. It must start the integrated product from official real entrypoints, exercise required user journeys and interaction/consumer wiring, record findings, repair understood bounded defects, and rerun failed plus affected regression scenarios. Independent subagents may inspect isolated lanes, but the Leader owns Review state, shared runtime, and the fresh final verdict. Unknown mechanisms route through `sp-debug` and return to the exact Review scenario; large or upstream gaps reopen their owning workflow.
-- Use `sp-accept` only after fresh approved `sp-review` closeout. It assumes the human remembers nothing, restores product context, guides one real-entrypoint step at a time, persists explicit human observations, and never edits source. A clear failed observation returns to Review for repair and revalidation; unknown mechanisms or upstream requirements route to their owner. Technical checks and silence never count as human PASS.
+- Use `sp-review` after successful implementation closeout. It must start the integrated product from official real entrypoints, exercise required user journeys and interaction/consumer wiring, record findings, repair every approved-scope defect, and rerun failed plus affected regression scenarios. The Leader builds the Review Universe, dispatches independent read-only Audit subagents, joins every packet, dispatches isolated Fix subagents, and assigns independent Revalidation subagents; only the Leader may declare zero uncovered coverage or the final verdict. Unknown mechanisms stay inside Review through read-only diagnostic packets, and repair size or missing code never sends work back to implementation/tasks. Only proven requirement, design, or architecture truth gaps reopen an upstream workflow.
+- Use `sp-accept` only after fresh approved `sp-review` closeout. It assumes the human remembers nothing, restores product context, guides one real-entrypoint step at a time, persists explicit human observations, and never edits source. Every failed product/runtime observation returns to Review for diagnosis, repair, and independent revalidation; only a proven upstream truth gap leaves Review. Technical checks and silence never count as human PASS.
 - Use `sp-debug` for regressions, bugs, broken behavior, or incident-style recovery.
 - `sp-debug` is complexity-based: small focused investigations may stay
   leader-inline, while broad, independent, or parallel evidence lanes use
@@ -222,9 +222,11 @@ user what to type:
 - For `sp-debug`, choose leader-inline for small focused investigations and
   subagent-assisted execution for broad, independent, or parallel evidence
   lanes.
-- For `sp-map-scan`, `sp-map-build`, `sp-implement`, and `sp-review`, leader + subagents is
+- For `sp-map-scan`, `sp-map-build`, and `sp-implement`, leader + subagents is
   the default execution shape for independent bounded lanes when the current
-  runtime supports delegation.
+  runtime supports delegation. For `sp-review`, Leader + Subagents is mandatory:
+  if no safe subagent surface exists, preserve a coverage blocker instead of
+  silently falling back to a Leader-only approval.
 - Use `sp-teams` only when Codex work needs durable team state, explicit join-point
   tracking, or lifecycle control beyond one in-session subagent burst.
 

@@ -68,6 +68,27 @@ def test_describe_delegation_surface_for_claude_debug_uses_evidence_contract() -
     assert descriptor.structured_results_expected is True
 
 
+def test_describe_delegation_surface_for_review_exposes_three_wave_contract() -> None:
+    descriptor = describe_delegation_surface(
+        command_name="review",
+        snapshot=CapabilitySnapshot(
+            integration_key="codex",
+            native_subagents=True,
+            managed_team_supported=True,
+            structured_results=True,
+            native_worker_surface="spawn_agent",
+            delegation_confidence="high",
+        ),
+    )
+
+    assert descriptor.intent == "hybrid"
+    assert "read-only review" in descriptor.result_contract_hint.lower()
+    assert "fix" in descriptor.result_contract_hint.lower()
+    assert "independent revalidation" in descriptor.result_contract_hint.lower()
+    assert "leader" in descriptor.native_join_hint.lower()
+    assert "review-results/<lane-id>.json" in descriptor.result_handoff_hint
+
+
 def test_describe_delegation_surface_for_gemini_explains_no_native_subagent_surface() -> None:
     descriptor = describe_delegation_surface(
         command_name="quick",

@@ -260,7 +260,7 @@ final-claim gate. The advanced profile is command-equivalent and
 prompt-optimized: every Classic command keeps an independent SPX entrypoint,
 state owner, write boundary, resumable stop point, and explicit side-effect
 gate. The normal feature path is
-`spx-specify -> spx-plan -> spx-tasks -> spx-implement -> spx-accept`; clarification,
+`spx-specify -> spx-plan -> spx-tasks -> spx-implement -> spx-review -> spx-accept`; clarification,
 discussion (including an optional confirmed handoff into `spx-specify`),
 research, analysis, checklists, issue export, team execution,
 integration, PRD reconstruction, and map phases remain separately invocable
@@ -365,7 +365,7 @@ The discussion output is one canonical Agent-only JSON contract shared by eligib
 
 The discussion workflow must continue by default, do not ask for continuation, and ask only when user judgment is genuinely required and no safe default exists.
 
-The main pipeline now uses one authority per phase: `handoff-to-specify.json` -> `spec-contract.json` -> `plan-contract.json` -> `task-index.json` -> per-task lifecycle records -> `human-acceptance.json`. Project-facing Markdown is rendered only when it has independent human/repository value. Research, data model, API contracts, quickstart, lane manifests, and task packets are conditional; delegated packets are compiled just in time, implementation review runs on evidence-triggered events, and post-closeout acceptance restores human context before collecting an explicit product verdict.
+The main pipeline now uses one authority per phase: `handoff-to-specify.json` -> `spec-contract.json` -> `plan-contract.json` -> `task-index.json` -> per-task lifecycle records -> `implementation-handoff.json` -> `review-state.json` -> `human-acceptance.json`. Project-facing Markdown is rendered only when it has independent human/repository value. Delegated packets are compiled just in time and task review remains evidence-triggered inside Implement. Mandatory system Review uses a Leader to freeze the Review Universe, join independent Audit results, dispatch isolated Fix subagents, and assign independent Revalidation; approval requires zero uncovered scope and fresh real-entrypoint evidence before human acceptance.
 
 When a discussion direction is locked but the topic is not handoff-ready or downstream-ready, `sp-discussion` should use the same unified frontstage contract to include the locked direction, reason, blocked decisions, evidence gaps, downstream planning inputs to preserve, default discussion action, and override path instead of returning only state updates or waiting for the user to ask for "next". It must not split the work into P0/P1/P2, migration phases, release batches, task packets, or ordered implementation steps; those belong to `sp-plan`, `sp-tasks`, or `sp-implement`.
 
@@ -667,7 +667,7 @@ Project Learning lifecycle:
   - Command shape: `specify learning capture-auto --command <workflow> (--feature-dir <dir> | --workspace <dir> | --session-file <file>) --format json`
 - `specify implement closeout`
   - Command shape: `specify implement closeout --feature-dir <feature-dir> --format json`
-  - Writes `FEATURE_DIR/implementation-summary.md`, prepares fingerprinted `FEATURE_DIR/human-acceptance.json`, and returns both `implementation_summary` and `human_acceptance`. The summary retains baseline comparison commands such as `git diff --stat HEAD` and `git diff --name-status HEAD`. The next workflow is `sp-accept` / `spx-accept`, which restores context and collects the human product verdict.
+  - Uses `git diff --stat` and `git diff --name-status` as part of the recorded implementation baseline. Writes `FEATURE_DIR/implementation-summary.md` plus `FEATURE_DIR/implementation-handoff.json` and hands off to `sp-review` / `spx-review`; the JSON response exposes these as `implementation_summary` and `implementation_handoff`, and it does not prepare human acceptance. Review closeout refreshes the summary, prepares fingerprinted `FEATURE_DIR/human-acceptance.json`, and hands off to `sp-accept` / `spx-accept`.
 - `specify accept prepare|validate|closeout`
   - Command shape: `specify accept prepare --feature-dir <feature-dir> --format json`
   - Prepares or freshness-checks the resumable acceptance state, validates its scenarios/cursor/verdict, and closes only a fresh explicit human acceptance.

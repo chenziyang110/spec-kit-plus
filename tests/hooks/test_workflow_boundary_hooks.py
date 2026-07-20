@@ -101,13 +101,20 @@ def test_workflow_boundary_allows_review_upstream_only_for_truth_gap(tmp_path: P
 def test_workflow_boundary_allows_acceptance_repair_routes(tmp_path: Path):
     project = _create_project(tmp_path)
 
-    for target in ("review", "debug", "clarify", "specify", "integrate"):
+    for target in ("review", "clarify", "specify", "integrate"):
         result = run_quality_hook(
             project,
             "workflow.boundary.validate",
             {"from_command": "accept", "to_command": target},
         )
         assert result.status == "ok", target
+
+    direct_debug = run_quality_hook(
+        project,
+        "workflow.boundary.validate",
+        {"from_command": "accept", "to_command": "debug"},
+    )
+    assert direct_debug.status == "blocked"
 
 
 def test_workflow_boundary_keeps_tasks_to_analyze_legacy_route(tmp_path: Path):
