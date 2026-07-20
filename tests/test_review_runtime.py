@@ -135,6 +135,21 @@ def _write_implementation_handoff(feature_dir: Path, revision: int) -> Path:
         + "\n",
         encoding="utf-8",
     )
+    handoff = json.loads(handoff_path.read_text(encoding="utf-8"))
+    handoff["human_acceptance_scenarios"][0]["actor"] = "human user"
+    contract = {
+        "human_acceptance_obligations": handoff["human_acceptance_obligations"],
+        "human_acceptance_scenarios": handoff["human_acceptance_scenarios"],
+    }
+    handoff["human_acceptance_contract_sha256"] = hashlib.sha256(
+        json.dumps(
+            contract, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+        ).encode("utf-8")
+    ).hexdigest()
+    handoff["human_acceptance_contract_origin"] = "legacy-derived"
+    handoff_path.write_text(
+        json.dumps(handoff, indent=2) + "\n", encoding="utf-8"
+    )
     return handoff_path
 
 
@@ -250,10 +265,21 @@ def test_prepare_review_compiles_handoff_into_resumable_review_state(
     assert state_path == feature_dir / "review-state.json"
     assert state["version"] == 2
     assert state["status"] == "reviewing"
+    handoff_sha256 = hashlib.sha256(handoff_bytes).hexdigest()
     assert state["source"] == {
         "workflow_revision": revision,
         "implementation_fingerprint": "a" * 64,
-        "implementation_handoff_sha256": hashlib.sha256(handoff_bytes).hexdigest(),
+        "implementation_handoff_sha256": handoff_sha256,
+        "review_cycle": 1,
+        "review_cycle_id": runtime._review_cycle_id(
+            workflow_revision=revision,
+            handoff_sha256=handoff_sha256,
+            review_cycle=1,
+            previous_review_state_sha256="",
+            acceptance_finding_id="",
+        ),
+        "previous_review_state_sha256": "",
+        "acceptance_finding_id": "",
     }
     assert [scenario["id"] for scenario in state["scenarios"]] == [
         "SR-START-001",
@@ -288,6 +314,8 @@ def test_build_implementation_handoff_carries_the_human_acceptance_universe(
     feature_dir.mkdir(parents=True)
     task_index = {
         "version": 2,
+        "status": "ready",
+        "acceptance_refs": ["plan-contract.json#/acceptance_refs/0"],
         "official_entrypoints": [
             {
                 "id": "web",
@@ -344,6 +372,18 @@ def test_build_implementation_handoff_carries_the_human_acceptance_universe(
     }
     (feature_dir / "task-index.json").write_text(
         json.dumps(task_index, indent=2) + "\n", encoding="utf-8"
+    )
+    (feature_dir / "plan-contract.json").write_text(
+        json.dumps(
+            {
+                "version": 2,
+                "status": "ready",
+                "acceptance_refs": [
+                    "spec-contract.json#/acceptance_criteria/0"
+                ],
+            }
+        ),
+        encoding="utf-8",
     )
 
     runtime.build_implementation_handoff(
@@ -545,6 +585,43 @@ def test_validate_review_rejects_failed_scenario_and_open_finding(
     assert validation["fresh"] is True
     assert any("SR-START-001" in error for error in validation["errors"])
     assert any("SRF-001" in error for error in validation["errors"])
+
+
+def test_approved_review_requires_a_snapshot_bound_runtime_target(
+    tmp_path: Path,
+) -> None:
+    runtime, project_root, feature_dir, _revision, _prepared = _prepare(tmp_path)
+    state_path = runtime.review_state_path(feature_dir)
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    _write_scenario_evidence(feature_dir, state)
+    _complete_leader_review(state, feature_dir=feature_dir)
+    state["status"] = "approved"
+    state["reviewed_runtime_targets"] = []
+    state["final"]["runtime_targets_sha256"] = ""
+    state_path.write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
+
+    validation = runtime.validate_review(project_root, feature_dir)
+
+    assert validation["valid"] is False
+    assert any("reviewed runtime target" in error for error in validation["errors"])
+
+
+def test_approved_review_rejects_runtime_target_identity_digest_drift(
+    tmp_path: Path,
+) -> None:
+    runtime, project_root, feature_dir, _revision, _prepared = _prepare(tmp_path)
+    state_path = runtime.review_state_path(feature_dir)
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    _write_scenario_evidence(feature_dir, state)
+    _complete_leader_review(state, feature_dir=feature_dir)
+    state["status"] = "approved"
+    state["reviewed_runtime_targets"][0]["instance_ref"] = "old deployment"
+    state_path.write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
+
+    validation = runtime.validate_review(project_root, feature_dir)
+
+    assert validation["valid"] is False
+    assert any("runtime_targets_sha256" in error for error in validation["errors"])
 
 
 def test_validate_review_marks_changed_implementation_handoff_stale(

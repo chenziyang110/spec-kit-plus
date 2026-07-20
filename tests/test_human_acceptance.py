@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import subprocess
 from pathlib import Path
@@ -11,6 +12,7 @@ from typer.testing import CliRunner
 import specify_cli as specify_cli_module
 from specify_cli import app
 from specify_cli import human_acceptance as human_acceptance_module
+from specify_cli import review_runtime as review_runtime_module
 from specify_cli import workflow_runtime as workflow_runtime_module
 from specify_cli.human_acceptance import (
     acceptance_closeout_blockers,
@@ -41,7 +43,220 @@ def _feature(tmp_path: Path) -> tuple[Path, Path]:
     (feature / "implementation-summary.md").write_text(
         "# Implementation Summary\n\nDemo feature complete.\n", encoding="utf-8"
     )
+    _install_approved_review(project, feature)
     return project, feature
+
+
+def _install_approved_review(
+    project: Path, feature: Path, *, source_revision: int = 1
+) -> None:
+    task_index = {
+        "version": 2,
+        "status": "ready",
+        "acceptance_refs": ["plan-contract.json#/acceptance_refs/0"],
+        "official_entrypoints": [
+            {
+                "id": "demo-app",
+                "command": "demo-app start",
+                "ready_signal": "The home screen is visible.",
+            }
+        ],
+        "system_review_scenarios": [
+            {
+                "id": "SR-DEMO-001",
+                "kind": "interaction",
+                "title": "Complete the reviewed Demo path",
+                "required": True,
+                "entrypoint_id": "demo-app",
+                "preconditions": ["The Demo application is installed."],
+                "actions": ["Start Demo.", "Open the Demo screen."],
+                "expected_results": ["The Demo screen opens."],
+                "required_evidence": ["runtime_diagnostics"],
+            }
+        ],
+        "review_obligations": [
+            {
+                "id": "RO-DEMO-001",
+                "kind": "user-journey",
+                "source_ref": "plan-contract.json#/acceptance_refs/0",
+                "surface": "Demo user journey",
+                "required": True,
+                "scenario_ids": ["SR-DEMO-001"],
+            }
+        ],
+        "human_acceptance_obligations": [
+            {
+                "id": "HAO-DEMO-001",
+                "source_ref": "plan-contract.json#/acceptance_refs/0",
+                "change_kind": "new",
+                "user_outcome": "The user can open the Demo experience.",
+                "required": True,
+                "scenario_ids": ["HA-DEMO-001"],
+            }
+        ],
+        "human_acceptance_scenarios": [
+            {
+                "id": "HA-DEMO-001",
+                "title": "Open the Demo experience",
+                "user_value": "The user reaches the new Demo capability.",
+                "actor": "human user",
+                "required": True,
+                "obligation_ids": ["HAO-DEMO-001"],
+                "entrypoint_id": "demo-app",
+                "review_scenario_ids": ["SR-DEMO-001"],
+                "start_state": "The reviewed Demo home screen is visible.",
+                "steps": [
+                    {
+                        "id": "HA-DEMO-001-S01",
+                        "action": "Select Demo.",
+                        "expected_result": "The Demo screen opens.",
+                        "evidence_requirement": "Human-visible Demo screen.",
+                        "risk": "low",
+                    }
+                ],
+            }
+        ],
+    }
+    (feature / "task-index.json").write_text(
+        json.dumps(task_index, indent=2) + "\n", encoding="utf-8"
+    )
+    (feature / "plan-contract.json").write_text(
+        json.dumps(
+            {
+                "version": 2,
+                "status": "ready",
+                "acceptance_refs": [
+                    "spec-contract.json#/acceptance_criteria/0"
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    review_runtime_module.build_implementation_handoff(
+        project, feature, source_revision=source_revision
+    )
+    handoff_path = feature / "implementation-handoff.json"
+    handoff = json.loads(handoff_path.read_text(encoding="utf-8"))
+    (
+        fingerprint,
+        entrypoints,
+        scenarios,
+        obligations,
+        human_obligations,
+        human_scenarios,
+        _contract_digest,
+    ) = review_runtime_module._normalized_handoff(
+        handoff, expected_revision=source_revision
+    )
+
+    for scenario in scenarios:
+        scenario["result"] = "pass"
+        scenario["evidence"] = []
+        for kind in scenario["required_evidence"]:
+            relative = Path("review-evidence") / scenario["id"] / f"{kind}.json"
+            evidence_path = feature / relative
+            evidence_path.parent.mkdir(parents=True, exist_ok=True)
+            evidence_path.write_text("{}\n", encoding="utf-8")
+            scenario["evidence"].append(
+                {
+                    "kind": kind,
+                    "path": relative.as_posix(),
+                    "evidence_scope": "integrated",
+                    "snapshot_sha256": fingerprint,
+                }
+            )
+    for obligation in obligations:
+        obligation["status"] = "covered"
+        obligation["review_assignment_ids"] = ["RA-DEMO-001"]
+    results_dir = feature / "review-results"
+    results_dir.mkdir(parents=True, exist_ok=True)
+    for name in ("RA-DEMO-001.packet.json", "RA-DEMO-001.json"):
+        (results_dir / name).write_text("{}\n", encoding="utf-8")
+    summary_path = feature / "implementation-summary.md"
+    handoff_sha256 = hashlib.sha256(handoff_path.read_bytes()).hexdigest()
+    review_state = {
+        "version": 2,
+        "schema_ref": ".specify/templates/review-state-schema.json",
+        "status": "approved",
+        "source": {
+            "workflow_revision": source_revision,
+            "implementation_fingerprint": fingerprint,
+            "implementation_handoff_sha256": handoff_sha256,
+            "review_cycle": 1,
+            "review_cycle_id": review_runtime_module._review_cycle_id(
+                workflow_revision=source_revision,
+                handoff_sha256=handoff_sha256,
+                review_cycle=1,
+                previous_review_state_sha256="",
+                acceptance_finding_id="",
+            ),
+            "previous_review_state_sha256": "",
+            "acceptance_finding_id": "",
+        },
+        "entrypoints": entrypoints,
+        "scenarios": scenarios,
+        "obligations": obligations,
+        "human_acceptance_obligations": human_obligations,
+        "human_acceptance_scenarios": human_scenarios,
+        "review_assignments": [
+            {
+                "id": "RA-DEMO-001",
+                "kind": "coverage_audit",
+                "worker_id": "coverage-auditor",
+                "obligation_ids": [item["id"] for item in obligations],
+                "scenario_ids": [item["id"] for item in scenarios],
+                "read_only": True,
+                "packet_ref": "review-results/RA-DEMO-001.packet.json",
+                "result_ref": "review-results/RA-DEMO-001.json",
+                "observed_snapshot_sha256": fingerprint,
+                "status": "accepted",
+                "leader_verdict": "accepted",
+            }
+        ],
+        "fix_assignments": [],
+        "revalidations": [],
+        "coverage": {
+            "discovery_complete": True,
+            "blind_audit_complete": True,
+            "uncovered_obligation_ids": [],
+            "uncovered_surface_ids": [],
+            "final_gap_scan": "pass",
+        },
+        "leader": {
+            "strategy": "leader-plus-subagents",
+            "review_plan_complete": True,
+            "all_review_results_joined": True,
+            "fix_plan_complete": True,
+            "all_fix_results_joined": True,
+            "final_revalidation_complete": True,
+            "verdict": "pass",
+        },
+        "rounds": [],
+        "findings": [],
+        "repair_cycles": [],
+        "validation": {
+            "startup": "pass",
+            "real_entrypoint_journeys": "pass",
+            "regression": "pass",
+            "ui_verification": "pass",
+        },
+        "cursor": {"scenario_id": None, "next_action": None},
+        "blocker": None,
+        "final": {
+            "verdict": "pass",
+            "coverage_verdict": "pass",
+            "repair_verdict": "pass",
+            "integration_verdict": "pass",
+            "all_packets_joined": True,
+            "reviewed_snapshot_sha256": fingerprint,
+            "implementation_summary_sha256": hashlib.sha256(
+                summary_path.read_bytes()
+            ).hexdigest(),
+        },
+    }
+    (feature / "review-state.json").write_text(
+        json.dumps(review_state, indent=2) + "\n", encoding="utf-8"
+    )
 
 
 def _complete_then_transition(
@@ -51,11 +266,18 @@ def _complete_then_transition(
     revision: int,
 ) -> dict[str, object]:
     completed = complete_workflow_stage(feature, expected_revision=revision)
-    return transition_workflow(
+    transitioned = transition_workflow(
         feature,
         target_stage=target_stage,
         expected_revision=completed["data"]["revision"],
     )
+    if target_stage == "review":
+        _install_approved_review(
+            feature.parents[2],
+            feature,
+            source_revision=int(transitioned["data"]["revision"]),
+        )
+    return transitioned
 
 
 def _accepted_state(state_path: Path) -> dict[str, object]:
@@ -69,34 +291,45 @@ def _accepted_state(state_path: Path) -> dict[str, object]:
         "prerequisites": ["Open the demo workspace."],
         "start_here": "Open the application and select Demo.",
     }
-    state["scenarios"] = [
+    state["runtime_targets"] = [
         {
-            "id": "HA-001",
-            "title": "Complete the demo flow",
-            "user_value": "The user reaches the expected result.",
-            "required": True,
-            "start_state": "The application is open on the home screen.",
-            "steps": [
-                {
-                    "id": "HA-001-S01",
-                    "action": "Select Demo.",
-                    "expected_result": "The Demo screen opens.",
-                    "if_failed": "Return the visible error or a screenshot.",
-                    "response_prompt": "Reply `seen`; otherwise send the visible error.",
-                    "result": "pass",
-                    "observed_result": "The Demo screen opened.",
-                    "evidence": ["human: seen"],
-                }
+            "id": "RT-DEMO-001",
+            "mode": "source",
+            "status": "ready",
+            "entrypoint_id": "demo-app",
+            "environment_ref": "isolated local acceptance workspace",
+            "instance_ref": "demo-app://local/home",
+            "configuration_ref": "default acceptance configuration",
+            "reviewed_snapshot_sha256": state["source"][
+                "reviewed_snapshot_sha256"
             ],
-            "verdict": "pass",
-            "notes": None,
+            "artifact_ref": None,
+            "artifact_sha256": None,
+            "deployment_id": None,
+            "observed_version": None,
+            "test_data_refs": ["isolated demo fixture"],
+            "ready_evidence": ["agent: Demo home screen ready"],
+            "agent_actions": [
+                "Started the official Demo entrypoint and prepared isolated data."
+            ],
         }
     ]
+    for scenario in state["scenarios"]:
+        scenario["runtime_target_id"] = "RT-DEMO-001"
+        scenario["verdict"] = "pass"
+        for step in scenario["steps"]:
+            step["result"] = "pass"
+            step["observed_result"] = "The Demo screen opened."
+            step["evidence"] = ["human: seen"]
+    state["acceptance_universe"]["uncovered_obligation_ids"] = []
+    state["acceptance_universe"]["verdict"] = "pass"
     state["cursor"] = {"scenario_id": None, "step_id": None}
     state["overall"] = {
         "verdict": "pass",
         "summary": "The human completed the required demo scenario.",
         "next_command": "sp-integrate or spx-integrate",
+        "human_decision": "accept",
+        "decision_evidence": ["human: accepted the completed Demo journey"],
     }
     state_path.write_text(
         json.dumps(state, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
@@ -104,7 +337,7 @@ def _accepted_state(state_path: Path) -> dict[str, object]:
     return state
 
 
-def _rejected_state(state_path: Path, *, route: str = "spx-implement") -> None:
+def _rejected_state(state_path: Path, *, route: str = "spx-review") -> None:
     state = _accepted_state(state_path)
     state["status"] = "rejected"
     state["scenarios"][0]["verdict"] = "fail"
@@ -115,9 +348,13 @@ def _rejected_state(state_path: Path, *, route: str = "spx-implement") -> None:
     state["findings"] = [
         {
             "id": "HAF-001",
-            "scenario_id": "HA-001",
-            "step_id": "HA-001-S01",
-            "classification": "product-defect",
+            "scenario_id": "HA-DEMO-001",
+            "step_id": "HA-DEMO-001-S01",
+            "classification": (
+                "environment-or-access"
+                if route == "human-action"
+                else "observed-mismatch"
+            ),
             "route": route,
             "expected": "The Demo screen opens.",
             "observed": "The Demo screen remained closed.",
@@ -125,11 +362,18 @@ def _rejected_state(state_path: Path, *, route: str = "spx-implement") -> None:
             "status": "open",
         }
     ]
-    state["cursor"] = {"scenario_id": "HA-001", "step_id": "HA-001-S01"}
+    state["acceptance_universe"]["uncovered_obligation_ids"] = ["HAO-DEMO-001"]
+    state["acceptance_universe"]["verdict"] = "fail"
+    state["cursor"] = {
+        "scenario_id": "HA-DEMO-001",
+        "step_id": "HA-DEMO-001-S01",
+    }
     state["overall"] = {
         "verdict": "fail",
         "summary": "The required demo scenario failed.",
         "next_command": route,
+        "human_decision": "reject",
+        "decision_evidence": ["human: the Demo screen remained closed"],
     }
     state_path.write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
 
@@ -138,7 +382,7 @@ def _rejected_acceptance_at_active_accept(
     project: Path,
     feature: Path,
     *,
-    route: str = "spx-implement",
+    route: str = "spx-review",
 ) -> int:
     entered = enter_workflow(feature, stage="specify", expected_revision=0)
     revision = entered["data"]["revision"]
@@ -210,6 +454,35 @@ def test_acceptance_failure_routes_are_review_first_only() -> None:
     }
 
 
+@pytest.mark.parametrize(
+    "legacy_route",
+    (
+        "sp-implement",
+        "sp-debug",
+        "sp-clarify",
+        "sp-specify",
+        "spx-implement",
+        "spx-debug",
+        "spx-clarify",
+        "spx-specify",
+    ),
+)
+def test_legacy_direct_acceptance_repair_routes_are_rejected(
+    tmp_path: Path, legacy_route: str
+) -> None:
+    project, feature = _feature(tmp_path)
+
+    with pytest.raises(ValueError, match="route must be one of"):
+        route_human_acceptance_repair(
+            project,
+            feature,
+            route=legacy_route,
+            finding_id="HAF-001",
+            expected_revision=1,
+            evidence=["human: observed mismatch"],
+        )
+
+
 def test_human_acceptance_schema_is_valid_and_accepts_the_draft_template() -> None:
     schema = json.loads(
         (ROOT / "templates" / "human-acceptance-state-schema.json").read_text(
@@ -222,7 +495,7 @@ def test_human_acceptance_schema_is_valid_and_accepts_the_draft_template() -> No
     assert list(Draft202012Validator(schema).iter_errors(template)) == []
 
 
-def test_advanced_acceptance_finding_routes_validate_in_schema_and_runtime(
+def test_advanced_review_first_finding_route_validates_in_schema_and_runtime(
     tmp_path: Path,
 ) -> None:
     project, feature = _feature(tmp_path)
@@ -232,10 +505,10 @@ def test_advanced_acceptance_finding_routes_validate_in_schema_and_runtime(
     state["findings"] = [
         {
             "id": "HAF-001",
-            "scenario_id": "HA-001",
-            "step_id": "HA-001-S01",
-            "classification": "product-defect",
-            "route": "spx-debug",
+            "scenario_id": "HA-DEMO-001",
+            "step_id": "HA-DEMO-001-S01",
+            "classification": "observed-mismatch",
+            "route": "spx-review",
             "expected": "The Demo screen opens.",
             "observed": "The repaired Demo screen opens.",
             "evidence": ["human: verified repaired behavior"],
@@ -354,7 +627,7 @@ def test_rejected_acceptance_routes_agent_work_without_a_human_tutorial(
 ) -> None:
     project, feature = _feature(tmp_path)
     prepare_human_acceptance(project, feature)
-    _rejected_state(feature / "human-acceptance.json", route="spx-implement")
+    _rejected_state(feature / "human-acceptance.json", route="spx-review")
 
     validation = validate_human_acceptance(
         project,
@@ -367,7 +640,7 @@ def test_rejected_acceptance_routes_agent_work_without_a_human_tutorial(
     )[0]
 
     assert validation["contract_valid"] is True
-    assert validation["finding_routes"][0]["route"] == "spx-implement"
+    assert validation["finding_routes"][0]["route"] == "spx-review"
     assert blocker["owner"] == "agent"
     assert blocker["human_action_required"] is False
     assert "route-repair" in blocker["exact_next_action"]
@@ -417,7 +690,145 @@ def test_prepare_creates_fingerprinted_state_and_marks_changed_summary_stale(
     assert state["source"]["prepared_from_sha256"] != state["source"]["current_sha256"]
 
 
-def test_rejected_acceptance_routes_through_repair_and_returns_to_accept(
+def test_prepare_requires_a_fresh_approved_review(tmp_path: Path) -> None:
+    project, feature = _feature(tmp_path)
+    (feature / "review-state.json").unlink()
+
+    prepared = prepare_human_acceptance(project, feature)
+
+    assert prepared["status"] == "blocked"
+    assert prepared["error_code"] == "approved-review-required"
+    assert not (feature / "human-acceptance.json").exists()
+
+
+def test_prepare_materializes_the_frozen_human_acceptance_universe(
+    tmp_path: Path,
+) -> None:
+    project, feature = _feature(tmp_path)
+
+    prepared = prepare_human_acceptance(project, feature)
+    state = json.loads(
+        (feature / "human-acceptance.json").read_text(encoding="utf-8")
+    )
+
+    assert prepared["required_obligations"] == 1
+    assert prepared["required_scenarios"] == 1
+    assert [item["id"] for item in state["acceptance_universe"]["obligations"]] == [
+        "HAO-DEMO-001"
+    ]
+    assert [item["id"] for item in state["scenarios"]] == ["HA-DEMO-001"]
+    assert state["acceptance_universe"]["uncovered_obligation_ids"] == [
+        "HAO-DEMO-001"
+    ]
+    assert [target["id"] for target in state["runtime_targets"]] == [
+        "RRT-DEMO-001"
+    ]
+    assert state["runtime_targets"][0]["reviewed_snapshot_sha256"] == state[
+        "source"
+    ]["reviewed_snapshot_sha256"]
+    assert state["runtime_targets"][0]["acceptance_status"] == "pending"
+
+
+@pytest.mark.parametrize(
+    "mutate",
+    (
+        lambda state: state["acceptance_universe"]["obligations"].clear(),
+        lambda state: state["scenarios"].clear(),
+        lambda state: state["scenarios"][0].update({"required": False}),
+        lambda state: state["scenarios"][0].update({"obligation_ids": []}),
+    ),
+)
+def test_acceptance_closeout_rejects_universe_deletion_or_downgrade(
+    tmp_path: Path, mutate
+) -> None:
+    project, feature = _feature(tmp_path)
+    prepare_human_acceptance(project, feature)
+    state_path = feature / "human-acceptance.json"
+    state = _accepted_state(state_path)
+    mutate(state)
+    state_path.write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
+
+    validation = validate_human_acceptance(project, feature, require_accepted=True)
+
+    assert validation["valid"] is False
+    assert any(
+        "human acceptance universe" in error.lower()
+        or "obligation_ids" in error
+        for error in validation["errors"]
+    )
+
+
+@pytest.mark.parametrize(
+    "mutate, expected",
+    (
+        (
+            lambda state: state.update({"runtime_targets": []}),
+            "ready runtime target",
+        ),
+        (
+            lambda state: state["scenarios"][0]["steps"][0].update(
+                {"evidence": ["agent: automated check passed"]}
+            ),
+            "explicit human evidence",
+        ),
+        (
+            lambda state: state["overall"].update(
+                {"human_decision": "pending", "decision_evidence": []}
+            ),
+            "explicit human acceptance decision",
+        ),
+    ),
+)
+def test_acceptance_closeout_requires_correct_instance_and_human_authority(
+    tmp_path: Path, mutate, expected: str
+) -> None:
+    project, feature = _feature(tmp_path)
+    prepare_human_acceptance(project, feature)
+    state_path = feature / "human-acceptance.json"
+    state = _accepted_state(state_path)
+    mutate(state)
+    state_path.write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
+
+    validation = validate_human_acceptance(project, feature, require_accepted=True)
+
+    assert validation["valid"] is False
+    assert any(expected in error for error in validation["errors"])
+
+
+def test_acceptance_rejects_runtime_identity_not_approved_by_review(
+    tmp_path: Path,
+) -> None:
+    project, feature = _feature(tmp_path)
+    prepare_human_acceptance(project, feature)
+    state_path = feature / "human-acceptance.json"
+    state = _accepted_state(state_path)
+    state["runtime_targets"][0]["instance_ref"] = "deployment://old-unreviewed"
+    state_path.write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
+
+    validation = validate_human_acceptance(project, feature, require_accepted=True)
+
+    assert validation["valid"] is False
+    assert any("approved Review runtime target" in error for error in validation["errors"])
+
+
+def test_acceptance_rejects_string_prefixed_human_evidence(
+    tmp_path: Path,
+) -> None:
+    project, feature = _feature(tmp_path)
+    prepare_human_acceptance(project, feature)
+    state_path = feature / "human-acceptance.json"
+    state = _accepted_state(state_path)
+    state["scenarios"][0]["steps"][0]["evidence"] = ["human: fabricated"]
+    state["overall"]["decision_evidence"] = ["human: fabricated"]
+    state_path.write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
+
+    validation = validate_human_acceptance(project, feature, require_accepted=True)
+
+    assert validation["valid"] is False
+    assert any("structured human confirmation" in error for error in validation["errors"])
+
+
+def test_rejected_acceptance_routes_through_review_and_returns_to_accept(
     tmp_path: Path,
 ) -> None:
     project, feature = _feature(tmp_path)
@@ -437,21 +848,21 @@ def test_rejected_acceptance_routes_through_repair_and_returns_to_accept(
     routed = route_human_acceptance_repair(
         project,
         feature,
-        route="spx-implement",
+        route="spx-review",
         finding_id="HAF-001",
         expected_revision=revision,
         evidence=["Human observed the required screen did not open."],
     )
 
     assert routed["status"] == "ok"
-    assert routed["data"]["stage"] == "implement"
-    assert routed["data"]["repair_route"] == "spx-implement"
+    assert routed["data"]["stage"] == "review"
+    assert routed["data"]["repair_route"] == "spx-review"
     reopened = json.loads(state_path.read_text(encoding="utf-8"))
     assert reopened["status"] == "draft"
     assert reopened["source"]["prepared_from_sha256"] == ""
     assert reopened["cursor"] == {
-        "scenario_id": "HA-001",
-        "step_id": "HA-001-S01",
+        "scenario_id": "HA-DEMO-001",
+        "step_id": "HA-DEMO-001-S01",
     }
     assert reopened["scenarios"][0]["verdict"] == "pending"
     assert reopened["scenarios"][0]["steps"][0]["result"] == "pending"
@@ -460,20 +871,83 @@ def test_rejected_acceptance_routes_through_repair_and_returns_to_accept(
     (feature / "implementation-summary.md").write_text(
         "# Implementation Summary\n\nDemo repair complete.\n", encoding="utf-8"
     )
-    reviewed = _complete_then_transition(
-        feature,
-        target_stage="review",
-        revision=routed["data"]["revision"],
-    )
+    _install_approved_review(project, feature)
     returned = _complete_then_transition(
         feature,
         target_stage="accept",
-        revision=reviewed["data"]["revision"],
+        revision=routed["data"]["revision"],
     )
     prepared = prepare_human_acceptance(project, feature)
     assert prepared["status"] == "draft"
     assert returned["data"]["stage"] == "accept"
     assert show_workflow(feature)["data"]["status"] == "active"
+
+
+def test_acceptance_repair_prepares_a_new_review_cycle_from_the_old_handoff(
+    tmp_path: Path,
+) -> None:
+    project, feature = _feature(tmp_path)
+    revision = _rejected_acceptance_at_active_accept(project, feature)
+    previous_review_sha256 = hashlib.sha256(
+        (feature / "review-state.json").read_bytes()
+    ).hexdigest()
+
+    routed = route_human_acceptance_repair(
+        project,
+        feature,
+        route="spx-review",
+        finding_id="HAF-001",
+        expected_revision=revision,
+        evidence=["Human observed the required screen did not open."],
+    )
+    prepared = review_runtime_module.prepare_review(
+        project,
+        feature,
+        expected_revision=routed["data"]["revision"],
+    )
+
+    state = prepared["data"]
+    assert state["status"] == "reviewing"
+    assert state["source"]["workflow_revision"] == routed["data"]["revision"]
+    assert state["source"]["review_cycle"] == 2
+    assert state["source"]["previous_review_state_sha256"] == previous_review_sha256
+    assert state["source"]["acceptance_finding_id"] == "HAF-001"
+    assert len(state["source"]["review_cycle_id"]) == 64
+    assert any(
+        finding.get("origin_acceptance_finding_id") == "HAF-001"
+        and finding.get("status") == "open"
+        for finding in state["findings"]
+    )
+
+
+def test_acceptance_repair_cannot_reapprove_by_editing_the_old_review_hash(
+    tmp_path: Path,
+) -> None:
+    project, feature = _feature(tmp_path)
+    revision = _rejected_acceptance_at_active_accept(project, feature)
+    routed = route_human_acceptance_repair(
+        project,
+        feature,
+        route="spx-review",
+        finding_id="HAF-001",
+        expected_revision=revision,
+        evidence=["Human observed the required screen did not open."],
+    )
+    state_path = feature / "review-state.json"
+    stale_approval = json.loads(state_path.read_text(encoding="utf-8"))
+    stale_approval["source"]["workflow_revision"] = routed["data"]["revision"]
+    state_path.write_text(
+        json.dumps(stale_approval, indent=2) + "\n", encoding="utf-8"
+    )
+
+    with pytest.raises(
+        review_runtime_module.ReviewRuntimeError, match="acceptance repair cycle"
+    ):
+        review_runtime_module.closeout_review(
+            project,
+            feature,
+            expected_revision=routed["data"]["revision"],
+        )
 
 
 @pytest.mark.parametrize("route", ["sp-review", "spx-review"])
@@ -522,7 +996,7 @@ def test_acceptance_route_repair_cannot_supersede_a_human_blocker(
     revision = _rejected_acceptance_at_active_accept(
         project,
         feature,
-        route="spx-debug",
+        route="spx-review",
     )
     state_path = feature / "human-acceptance.json"
     state_path.write_bytes(state_path.read_bytes().replace(b"\n", b"\r\n"))
@@ -535,7 +1009,7 @@ def test_acceptance_route_repair_cannot_supersede_a_human_blocker(
         cause="Device approval is still required.",
         evidence=["device D-7 displays approval pending"],
         attempted_recovery=[],
-        affected_scope=["acceptance scenario HA-001"],
+        affected_scope=["acceptance scenario HA-DEMO-001"],
         exact_next_action="Approve device D-7 on its local screen.",
         unblock_criteria="Device D-7 displays approval granted.",
     )
@@ -545,7 +1019,7 @@ def test_acceptance_route_repair_cannot_supersede_a_human_blocker(
         route_human_acceptance_repair(
             project,
             feature,
-            route="spx-debug",
+            route="spx-review",
             finding_id="HAF-001",
             expected_revision=blocked["data"]["revision"],
             evidence=["The acceptance failure remains reproducible."],
@@ -581,11 +1055,11 @@ def test_acceptance_repair_rejects_a_route_that_does_not_match_the_finding(
     workflow_before = workflow_runtime_path(feature).read_bytes()
     acceptance_before = state_path.read_bytes()
 
-    with pytest.raises(ValueError, match="routes to spx-implement"):
+    with pytest.raises(ValueError, match="routes to spx-review"):
         route_human_acceptance_repair(
             project,
             feature,
-            route="spx-debug",
+            route="sp-review",
             finding_id="HAF-001",
             expected_revision=revision,
             evidence=["Human observed a visible product failure."],
@@ -623,7 +1097,7 @@ def test_accept_route_repair_cli_returns_the_deterministic_resume_argv(
             "--finding-id",
             "HAF-001",
             "--route",
-            "spx-implement",
+            "spx-review",
             "--expected-revision",
             str(revision),
             "--evidence",
@@ -636,7 +1110,7 @@ def test_accept_route_repair_cli_returns_the_deterministic_resume_argv(
 
     assert result.exit_code == 0, result.output
     payload = json.loads(result.output)
-    assert payload["data"]["repair_route"] == "spx-implement"
+    assert payload["data"]["repair_route"] == "spx-review"
     assert payload["data"]["acceptance_return_argv"][:3] == [
         "specify",
         "accept",
@@ -673,7 +1147,7 @@ def test_acceptance_write_failure_cannot_leave_workflow_reopened(
         route_human_acceptance_repair(
             project,
             feature,
-            route="spx-implement",
+            route="spx-review",
             finding_id="HAF-001",
             expected_revision=revision,
             evidence=["Human observed a visible product failure."],
@@ -687,15 +1161,7 @@ def test_acceptance_write_failure_cannot_leave_workflow_reopened(
     ("route", "target_stage", "owning_command"),
     (
         ("sp-review", "review", "sp-review"),
-        ("sp-implement", "implement", "sp-implement"),
-        ("sp-debug", "implement", "sp-implement"),
-        ("sp-clarify", "specify", "sp-specify"),
-        ("sp-specify", "specify", "sp-specify"),
         ("spx-review", "review", "spx-review"),
-        ("spx-implement", "implement", "spx-implement"),
-        ("spx-debug", "implement", "spx-implement"),
-        ("spx-clarify", "specify", "spx-specify"),
-        ("spx-specify", "specify", "spx-specify"),
     ),
 )
 def test_every_acceptance_repair_route_returns_through_its_owning_stage(
@@ -728,6 +1194,11 @@ def test_every_acceptance_repair_route_returns_through_its_owning_stage(
         "accept",
         "prepare",
     ]
+    (feature / "implementation-summary.md").write_text(
+        f"# Implementation Summary\n\nRepair through {route} completed.\n",
+        encoding="utf-8",
+    )
+    _install_approved_review(project, feature)
     current_revision = routed["data"]["revision"]
     if target_stage == "review":
         remaining = ("accept",)
@@ -745,10 +1216,6 @@ def test_every_acceptance_repair_route_returns_through_its_owning_stage(
     assert show_workflow(feature)["data"]["stage"] == "accept"
     assert show_workflow(feature)["data"]["status"] == "active"
 
-    (feature / "implementation-summary.md").write_text(
-        f"# Implementation Summary\n\nRepair through {route} completed.\n",
-        encoding="utf-8",
-    )
     prepared = prepare_human_acceptance(project, feature)
     assert prepared["status"] == "draft"
     assert not (feature / ".human-acceptance-repair.json").exists()
@@ -775,7 +1242,7 @@ def test_acceptance_repair_recovers_a_crash_after_acceptance_invalidation(
         route_human_acceptance_repair(
             project,
             feature,
-            route="spx-implement",
+            route="spx-review",
             finding_id="HAF-001",
             expected_revision=revision,
             evidence=["Human observed a visible product failure."],
@@ -792,13 +1259,13 @@ def test_acceptance_repair_recovers_a_crash_after_acceptance_invalidation(
     recovered = route_human_acceptance_repair(
         project,
         feature,
-        route="spx-implement",
+        route="spx-review",
         finding_id="HAF-001",
         expected_revision=revision,
         evidence=["Human observed a visible product failure."],
     )
 
-    assert recovered["data"]["stage"] == "implement"
+    assert recovered["data"]["stage"] == "review"
     assert recovered["data"]["acceptance_return_argv"][:3] == [
         "specify",
         "accept",
@@ -816,7 +1283,7 @@ def test_acceptance_repair_recovers_equivalent_payload_after_workflow_reopen_cra
     revision = _rejected_acceptance_at_active_accept(
         project,
         feature,
-        route="spx-debug",
+        route="spx-review",
     )
     real_write_journal = human_acceptance_module._write_acceptance_repair_journal
 
@@ -834,12 +1301,12 @@ def test_acceptance_repair_recovers_equivalent_payload_after_workflow_reopen_cra
         route_human_acceptance_repair(
             project,
             feature,
-            route="spx-debug",
+            route="spx-review",
             finding_id="HAF-001",
             expected_revision=revision,
             evidence=["Human observed a visible product failure."],
         )
-    assert show_workflow(feature)["data"]["stage"] == "implement"
+    assert show_workflow(feature)["data"]["stage"] == "review"
 
     monkeypatch.setattr(
         human_acceptance_module,
@@ -849,15 +1316,15 @@ def test_acceptance_repair_recovers_equivalent_payload_after_workflow_reopen_cra
     recovered = route_human_acceptance_repair(
         project,
         feature,
-        route="spx-debug",
+        route="spx-review",
         finding_id="HAF-001",
         expected_revision=revision,
         evidence=["Human observed a visible product failure."],
     )
 
     assert recovered["summary"].startswith("Recovered completed")
-    assert recovered["data"]["repair_handoff_command"] == "spx-debug"
-    assert recovered["data"]["owning_stage_command"] == "spx-implement"
+    assert recovered["data"]["repair_handoff_command"] == "spx-review"
+    assert recovered["data"]["owning_stage_command"] == "spx-review"
     assert recovered["data"]["acceptance_return_argv"][:3] == [
         "specify",
         "accept",
@@ -874,7 +1341,7 @@ def test_acceptance_repair_recovers_when_runtime_commits_then_return_raises(
     revision = _rejected_acceptance_at_active_accept(
         project,
         feature,
-        route="spx-debug",
+        route="spx-review",
     )
     real_reopen = workflow_runtime_module.reopen_acceptance_workflow
 
@@ -890,7 +1357,7 @@ def test_acceptance_repair_recovers_when_runtime_commits_then_return_raises(
     recovered = route_human_acceptance_repair(
         project,
         feature,
-        route="spx-debug",
+        route="spx-review",
         finding_id="HAF-001",
         expected_revision=revision,
         evidence=["Human observed a visible product failure."],
@@ -898,14 +1365,14 @@ def test_acceptance_repair_recovers_when_runtime_commits_then_return_raises(
 
     assert recovered["summary"].startswith("Recovered completed")
     shown = show_workflow(feature)["data"]
-    assert shown["stage"] == "implement"
+    assert shown["stage"] == "review"
     assert shown["status"] == "active"
     assert shown["revision"] == revision + 1
     acceptance = json.loads(
         (feature / "human-acceptance.json").read_text(encoding="utf-8")
     )
     assert acceptance["status"] == "draft"
-    assert acceptance["overall"]["next_command"] == "spx-debug"
+    assert acceptance["overall"]["next_command"] == "spx-review"
     assert not (feature / ".human-acceptance-repair.json").exists()
     assert not (feature / ".human-acceptance-repair-backup.json").exists()
 
@@ -926,7 +1393,7 @@ def test_corrupt_acceptance_repair_backup_blocks_without_deleting_recovery_evide
         route_human_acceptance_repair(
             project,
             feature,
-            route="spx-implement",
+            route="spx-review",
             finding_id="HAF-001",
             expected_revision=revision,
             evidence=["Human observed a visible product failure."],
@@ -948,7 +1415,7 @@ def test_corrupt_acceptance_repair_backup_blocks_without_deleting_recovery_evide
         route_human_acceptance_repair(
             project,
             feature,
-            route="spx-implement",
+            route="spx-review",
             finding_id="HAF-001",
             expected_revision=revision,
             evidence=["Human observed a visible product failure."],
@@ -986,7 +1453,7 @@ def test_modified_invalidated_acceptance_blocks_committed_recovery(
         route_human_acceptance_repair(
             project,
             feature,
-            route="spx-implement",
+            route="spx-review",
             finding_id="HAF-001",
             expected_revision=revision,
             evidence=["Human observed a visible product failure."],
@@ -1008,7 +1475,7 @@ def test_modified_invalidated_acceptance_blocks_committed_recovery(
         route_human_acceptance_repair(
             project,
             feature,
-            route="spx-implement",
+            route="spx-review",
             finding_id="HAF-001",
             expected_revision=revision,
             evidence=["Human observed a visible product failure."],
@@ -1042,7 +1509,7 @@ def test_interrupted_backup_cleanup_does_not_turn_success_into_failure(
     routed = route_human_acceptance_repair(
         project,
         feature,
-        route="spx-implement",
+        route="spx-review",
         finding_id="HAF-001",
         expected_revision=revision,
         evidence=["Human observed a visible product failure."],
@@ -1076,6 +1543,7 @@ def test_prepare_marks_source_change_after_closeout_stale(tmp_path: Path) -> Non
         check=True,
         capture_output=True,
     )
+    _install_approved_review(project, feature)
     prepare_human_acceptance(project, feature)
 
     source.write_text("after\n", encoding="utf-8")
@@ -1117,10 +1585,10 @@ def test_validate_rejects_accepted_state_with_an_open_finding(tmp_path: Path) ->
     state["findings"] = [
         {
             "id": "HAF-001",
-            "scenario_id": "HA-001",
-            "step_id": "HA-001-S01",
-            "classification": "product-defect",
-            "route": "spx-debug",
+            "scenario_id": "HA-DEMO-001",
+            "step_id": "HA-DEMO-001-S01",
+            "classification": "observed-mismatch",
+            "route": "spx-review",
             "expected": "The Demo screen opens.",
             "observed": "The Demo screen remained closed.",
             "evidence": ["human: visible failure"],
@@ -1144,6 +1612,7 @@ def test_validate_detects_implementation_changes_without_a_git_repository(
     source.parent.mkdir()
     source.write_text("before\n", encoding="utf-8")
     assert not (project / ".git").exists()
+    _install_approved_review(project, feature)
     prepare_human_acceptance(project, feature)
     _accepted_state(feature / "human-acceptance.json")
     assert (
@@ -1165,6 +1634,7 @@ def test_no_git_snapshot_ignores_root_gitignore_matches(tmp_path: Path) -> None:
     cache_file.parent.mkdir()
     cache_file.write_text("before\n", encoding="utf-8")
 
+    _install_approved_review(project, feature)
     prepare_human_acceptance(project, feature)
     _accepted_state(feature / "human-acceptance.json")
     cache_file.write_text("after\n", encoding="utf-8")
