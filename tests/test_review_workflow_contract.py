@@ -244,6 +244,21 @@ def test_tasks_compile_review_obligations_before_implementation_handoff() -> Non
         assert "official entrypoint" in content
 
 
+def test_tasks_freeze_the_requirement_delta_human_acceptance_universe() -> None:
+    task_index = json.loads(_read("templates/task-index-template.json"))
+    classic = _flat(_read("templates/commands/tasks.md"))
+    advanced = _flat(_read("templates/advanced-skills/spx-tasks/SKILL.md"))
+
+    assert "human_acceptance_obligations" in task_index
+    assert "human_acceptance_scenarios" in task_index
+    for content in (classic, advanced):
+        assert "human acceptance universe" in content
+        assert "new or changed requirement" in content
+        assert "zero uncovered" in content
+        assert "human_acceptance_obligations" in content
+        assert "human_acceptance_scenarios" in content
+
+
 def test_accept_requires_a_fresh_passed_review_and_routes_repairs_back_to_review() -> None:
     classic = "\n".join(
         (
@@ -275,3 +290,44 @@ def test_accept_requires_a_fresh_passed_review_and_routes_repairs_back_to_review
     for content in (classic, advanced):
         assert "unknown mechanism" in content
         assert "review" in content and "diagnostic packet" in content
+
+
+def test_accept_is_agent_assisted_human_e2e_for_the_frozen_requirement_delta() -> None:
+    classic = _flat(
+        "\n".join(
+            (
+                _read("templates/commands/accept.md"),
+                _read_tree("templates/command-partials/accept"),
+            )
+        )
+    )
+    advanced = _flat(
+        "\n".join(
+            (
+                _read("templates/advanced-skills/spx-accept/SKILL.md"),
+                _read_tree("templates/advanced-skills/spx-accept/references"),
+            )
+        )
+    )
+
+    for content in (classic, advanced):
+        assert "human acceptance universe" in content
+        assert "new or changed requirement" in content
+        assert "zero uncovered" in content
+        assert "runtime identity" in content
+        assert "test data" in content
+        assert "agent" in content and "official entrypoint" in content
+        assert "human performs" in content
+        assert "do not repeat system review" in content
+        assert "every failed observation first goes to the review leader" in content
+        assert "accept does not diagnose" in content
+
+
+def test_review_hands_off_the_frozen_human_acceptance_universe() -> None:
+    for _profile, content in _review_profile_contracts():
+        flat = _flat(content)
+        assert "human acceptance universe" in flat
+        assert "human_acceptance_obligations" in flat
+        assert "human_acceptance_scenarios" in flat
+        assert "runtime identity" in flat
+        assert "does not prefill" in flat and "human" in flat and "pass" in flat

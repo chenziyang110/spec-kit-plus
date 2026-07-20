@@ -179,6 +179,37 @@ def test_template_matches_runtime_empty_state() -> None:
     assert template == new_human_acceptance_state()
 
 
+def test_human_acceptance_v2_has_frozen_scope_runtime_identity_and_human_decision() -> None:
+    state = new_human_acceptance_state()
+
+    assert state["version"] == 2
+    assert "implementation_handoff_sha256" in state["source"]
+    assert "review_state_sha256" in state["source"]
+    assert "reviewed_snapshot_sha256" in state["source"]
+    assert "acceptance_universe_sha256" in state["source"]
+    assert state["acceptance_universe"] == {
+        "obligations": [],
+        "uncovered_obligation_ids": [],
+        "verdict": "pending",
+    }
+    assert state["runtime_targets"] == []
+    assert state["repair_resume"] is None
+    assert state["overall"]["human_decision"] == "pending"
+    assert state["overall"]["decision_evidence"] == []
+
+
+def test_acceptance_failure_routes_are_review_first_only() -> None:
+    assert human_acceptance_module.FINDING_ROUTES == {
+        "sp-review",
+        "spx-review",
+        "human-action",
+    }
+    assert human_acceptance_module.ACCEPTANCE_REPAIR_TARGETS == {
+        "sp-review": "review",
+        "spx-review": "review",
+    }
+
+
 def test_human_acceptance_schema_is_valid_and_accepts_the_draft_template() -> None:
     schema = json.loads(
         (ROOT / "templates" / "human-acceptance-state-schema.json").read_text(

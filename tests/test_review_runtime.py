@@ -98,6 +98,37 @@ def _write_implementation_handoff(feature_dir: Path, revision: int) -> Path:
                         "scenario_ids": ["SR-UI-001"],
                     },
                 ],
+                "human_acceptance_obligations": [
+                    {
+                        "id": "HAO-DEMO-001",
+                        "source_ref": "plan-contract.json#/acceptance_refs/0",
+                        "change_kind": "new",
+                        "user_outcome": "A user can open the Demo screen.",
+                        "required": True,
+                        "scenario_ids": ["HA-DEMO-001"],
+                    }
+                ],
+                "human_acceptance_scenarios": [
+                    {
+                        "id": "HA-DEMO-001",
+                        "title": "Open the new Demo experience",
+                        "user_value": "The user can reach the new Demo capability.",
+                        "required": True,
+                        "obligation_ids": ["HAO-DEMO-001"],
+                        "entrypoint_id": "web",
+                        "review_scenario_ids": ["SR-UI-001"],
+                        "start_state": "The reviewed application is ready on its home page.",
+                        "steps": [
+                            {
+                                "id": "HA-DEMO-001-S01",
+                                "action": "Select Demo.",
+                                "expected_result": "The Demo screen opens.",
+                                "evidence_requirement": "Human reports the visible Demo screen.",
+                                "risk": "low",
+                            }
+                        ],
+                    }
+                ],
             },
             indent=2,
         )
@@ -240,6 +271,94 @@ def test_prepare_review_compiles_handoff_into_resumable_review_state(
     assert state["coverage"]["blind_audit_complete"] is False
     assert state["leader"]["strategy"] == "pending"
     assert state["cursor"]["scenario_id"] == "SR-START-001"
+    assert [item["id"] for item in state["human_acceptance_obligations"]] == [
+        "HAO-DEMO-001"
+    ]
+    assert [item["id"] for item in state["human_acceptance_scenarios"]] == [
+        "HA-DEMO-001"
+    ]
+
+
+def test_build_implementation_handoff_carries_the_human_acceptance_universe(
+    tmp_path: Path,
+) -> None:
+    runtime = _review_runtime()
+    project_root = tmp_path / "project"
+    feature_dir = project_root / ".specify" / "features" / "001-demo"
+    feature_dir.mkdir(parents=True)
+    task_index = {
+        "version": 2,
+        "official_entrypoints": [
+            {
+                "id": "web",
+                "command": "npm run dev",
+                "ready_signal": "GET /health returns 200",
+            }
+        ],
+        "system_review_scenarios": [
+            {
+                "id": "SR-DEMO-001",
+                "kind": "interaction",
+                "title": "Open Demo",
+                "required": True,
+                "entrypoint_id": "web",
+                "preconditions": ["The product is ready."],
+                "actions": ["Select Demo."],
+                "expected_results": ["The Demo screen opens."],
+                "required_evidence": ["runtime_diagnostics"],
+            }
+        ],
+        "review_obligations": [],
+        "human_acceptance_obligations": [
+            {
+                "id": "HAO-DEMO-001",
+                "source_ref": "plan-contract.json#/acceptance_refs/0",
+                "change_kind": "changed",
+                "user_outcome": "A user can open Demo.",
+                "required": True,
+                "scenario_ids": ["HA-DEMO-001"],
+            }
+        ],
+        "human_acceptance_scenarios": [
+            {
+                "id": "HA-DEMO-001",
+                "title": "Open Demo",
+                "user_value": "A user reaches Demo.",
+                "required": True,
+                "obligation_ids": ["HAO-DEMO-001"],
+                "entrypoint_id": "web",
+                "review_scenario_ids": ["SR-DEMO-001"],
+                "start_state": "The home page is open.",
+                "steps": [
+                    {
+                        "id": "HA-DEMO-001-S01",
+                        "action": "Select Demo.",
+                        "expected_result": "The Demo screen opens.",
+                        "evidence_requirement": "Human-visible Demo screen.",
+                        "risk": "low",
+                    }
+                ],
+            }
+        ],
+    }
+    (feature_dir / "task-index.json").write_text(
+        json.dumps(task_index, indent=2) + "\n", encoding="utf-8"
+    )
+
+    runtime.build_implementation_handoff(
+        project_root, feature_dir, source_revision=7
+    )
+    handoff = json.loads(
+        (feature_dir / "implementation-handoff.json").read_text(encoding="utf-8")
+    )
+
+    assert handoff["human_acceptance_obligations"] == task_index[
+        "human_acceptance_obligations"
+    ]
+    assert handoff["human_acceptance_scenarios"] == task_index[
+        "human_acceptance_scenarios"
+    ]
+    assert len(handoff["human_acceptance_contract_sha256"]) == 64
 
 
 def test_validate_review_rejects_failed_scenario_and_open_finding(
