@@ -324,6 +324,7 @@ def test_build_implementation_handoff_carries_the_human_acceptance_universe(
                 "id": "HA-DEMO-001",
                 "title": "Open Demo",
                 "user_value": "A user reaches Demo.",
+                "actor": "human user",
                 "required": True,
                 "obligation_ids": ["HAO-DEMO-001"],
                 "entrypoint_id": "web",
@@ -359,6 +360,164 @@ def test_build_implementation_handoff_carries_the_human_acceptance_universe(
         "human_acceptance_scenarios"
     ]
     assert len(handoff["human_acceptance_contract_sha256"]) == 64
+
+
+def test_modern_handoff_rejects_missing_human_acceptance_universe(
+    tmp_path: Path,
+) -> None:
+    runtime = _review_runtime()
+    project_root = tmp_path / "project"
+    feature_dir = project_root / ".specify" / "features" / "001-demo"
+    feature_dir.mkdir(parents=True)
+    (feature_dir / "task-index.json").write_text(
+        json.dumps(
+            {
+                "version": 2,
+                "status": "ready",
+                "acceptance_refs": ["plan-contract.json#/acceptance_refs/0"],
+                "official_entrypoints": [
+                    {
+                        "id": "web",
+                        "command": "npm run dev",
+                        "ready_signal": "ready",
+                    }
+                ],
+                "system_review_scenarios": [
+                    {
+                        "id": "SR-001",
+                        "kind": "interaction",
+                        "title": "Use the changed journey",
+                        "required": True,
+                        "entrypoint_id": "web",
+                        "actions": ["Use it."],
+                        "expected_results": ["It works."],
+                        "required_evidence": ["runtime_diagnostics"],
+                    }
+                ],
+                "human_acceptance_obligations": [],
+                "human_acceptance_scenarios": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(runtime.ReviewRuntimeError, match="Human Acceptance Universe"):
+        runtime.build_implementation_handoff(
+            project_root, feature_dir, source_revision=7
+        )
+
+
+@pytest.mark.parametrize("failure", ("entrypoint", "required-review"))
+def test_handoff_revalidates_human_to_system_review_links(
+    tmp_path: Path, failure: str
+) -> None:
+    runtime = _review_runtime()
+    _project_root, feature_dir, revision = _feature_at_review(tmp_path)
+    handoff_path = _write_implementation_handoff(feature_dir, revision)
+    handoff = json.loads(handoff_path.read_text(encoding="utf-8"))
+    handoff["official_entrypoints"].append(
+        {"id": "mobile", "command": "open app", "ready_signal": "home visible"}
+    )
+    if failure == "entrypoint":
+        handoff["human_acceptance_scenarios"][0]["entrypoint_id"] = "mobile"
+        expected = "different entrypoint"
+    else:
+        handoff["system_review_scenarios"][1]["required"] = False
+        expected = "required Review scenario"
+
+    with pytest.raises(runtime.ReviewRuntimeError, match=expected):
+        runtime._normalized_handoff(handoff, expected_revision=revision)
+
+
+def test_handoff_binds_acceptance_denominator_and_task_contract_digests(
+    tmp_path: Path,
+) -> None:
+    runtime = _review_runtime()
+    project_root = tmp_path / "project"
+    feature_dir = project_root / ".specify" / "features" / "001-demo"
+    feature_dir.mkdir(parents=True)
+    plan_path = feature_dir / "plan-contract.json"
+    plan_path.write_text(
+        json.dumps(
+            {
+                "version": 2,
+                "status": "ready",
+                "acceptance_refs": [
+                    "spec-contract.json#/acceptance_criteria/0"
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    task_index = {
+        "version": 2,
+        "status": "ready",
+        "acceptance_refs": ["plan-contract.json#/acceptance_refs/0"],
+        "official_entrypoints": [
+            {"id": "web", "command": "npm run dev", "ready_signal": "ready"}
+        ],
+        "system_review_scenarios": [
+            {
+                "id": "SR-001",
+                "kind": "interaction",
+                "title": "Use the changed journey",
+                "required": True,
+                "entrypoint_id": "web",
+                "actions": ["Use it."],
+                "expected_results": ["It works."],
+                "required_evidence": ["runtime_diagnostics"],
+            }
+        ],
+        "human_acceptance_obligations": [
+            {
+                "id": "HAO-001",
+                "source_ref": "plan-contract.json#/acceptance_refs/0",
+                "change_kind": "new",
+                "user_outcome": "A human can use the changed journey.",
+                "required": True,
+                "scenario_ids": ["HA-001"],
+            }
+        ],
+        "human_acceptance_scenarios": [
+            {
+                "id": "HA-001",
+                "title": "Use the changed journey",
+                "user_value": "The changed journey works.",
+                "actor": "human user",
+                "required": True,
+                "obligation_ids": ["HAO-001"],
+                "entrypoint_id": "web",
+                "review_scenario_ids": ["SR-001"],
+                "start_state": "The reviewed app is ready.",
+                "steps": [
+                    {
+                        "id": "HA-001-S01",
+                        "action": "Use it.",
+                        "expected_result": "It works.",
+                        "evidence_requirement": "Human observation.",
+                        "risk": "low",
+                    }
+                ],
+            }
+        ],
+    }
+    task_path = feature_dir / "task-index.json"
+    task_path.write_text(json.dumps(task_index), encoding="utf-8")
+
+    runtime.build_implementation_handoff(
+        project_root, feature_dir, source_revision=7
+    )
+    handoff = json.loads(
+        (feature_dir / "implementation-handoff.json").read_text(encoding="utf-8")
+    )
+
+    assert handoff["acceptance_refs"] == task_index["acceptance_refs"]
+    assert handoff["task_index_sha256"] == hashlib.sha256(
+        task_path.read_bytes()
+    ).hexdigest()
+    assert handoff["plan_contract_sha256"] == hashlib.sha256(
+        plan_path.read_bytes()
+    ).hexdigest()
 
 
 def test_validate_review_rejects_failed_scenario_and_open_finding(

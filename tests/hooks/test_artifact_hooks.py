@@ -5,8 +5,10 @@ import pytest
 
 from specify_cli.hooks.engine import run_quality_hook
 from specify_cli.hooks.artifact_validation import (
+    _validate_plan_human_acceptance_contract,
     _validate_plan_ui_contract,
     _validate_task_lifecycle_records,
+    _validate_tasks_human_acceptance_contract,
     _validate_tasks_ui_contract,
 )
 
@@ -1316,6 +1318,213 @@ def test_task_ui_contract_rejects_plan_constraint_drift(
     errors = _validate_tasks_ui_contract(feature_dir)
 
     assert any(field in error for error in errors)
+
+
+def _write_human_acceptance_universe(
+    feature_dir: Path, *, task_acceptance_refs: list[str]
+) -> None:
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    plan_refs = [
+        "spec-contract.json#/acceptance/0",
+        "spec-contract.json#/acceptance/1",
+    ]
+    (feature_dir / "plan-contract.json").write_text(
+        json.dumps({"version": 2, "status": "ready", "acceptance_refs": plan_refs}),
+        encoding="utf-8",
+    )
+    obligations = [
+        {
+            "id": f"HAO-{index + 1:03d}",
+            "source_ref": source_ref,
+            "change_kind": "new",
+            "user_outcome": f"Outcome {index + 1}",
+            "required": True,
+            "scenario_ids": [f"HA-{index + 1:03d}"],
+        }
+        for index, source_ref in enumerate(task_acceptance_refs)
+    ]
+    scenarios = [
+        {
+            "id": f"HA-{index + 1:03d}",
+            "title": f"Journey {index + 1}",
+            "user_value": f"Value {index + 1}",
+            "actor": "human user",
+            "start_state": "Application ready",
+            "required": True,
+            "entrypoint_id": "EP-001",
+            "obligation_ids": [f"HAO-{index + 1:03d}"],
+            "review_scenario_ids": ["SR-001"],
+            "steps": [
+                {
+                    "id": f"HAS-{index + 1:03d}",
+                    "action": "Perform the changed workflow",
+                    "expected_result": "The changed outcome is visible",
+                    "evidence_requirement": "human observation",
+                    "risk": "low",
+                }
+            ],
+        }
+        for index, _ in enumerate(task_acceptance_refs)
+    ]
+    (feature_dir / "task-index.json").write_text(
+        json.dumps(
+            {
+                "version": 2,
+                "status": "ready",
+                "acceptance_refs": task_acceptance_refs,
+                "official_entrypoints": [
+                    {
+                        "id": "EP-001",
+                        "command": "python -m app",
+                        "ready_signal": "ready",
+                    }
+                ],
+                "system_review_scenarios": [
+                    {
+                        "id": "SR-001",
+                        "entrypoint_id": "EP-001",
+                        "required": True,
+                    }
+                ],
+                "human_acceptance_obligations": obligations,
+                "human_acceptance_scenarios": scenarios,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
+def test_human_acceptance_universe_preserves_all_plan_acceptance_refs(
+    tmp_path: Path,
+) -> None:
+    feature_dir = tmp_path / "specs" / "005-human-acceptance"
+    _write_human_acceptance_universe(
+        feature_dir,
+        task_acceptance_refs=[
+            "plan-contract.json#/acceptance_refs/0",
+            "plan-contract.json#/acceptance_refs/1",
+        ],
+    )
+
+    assert _validate_tasks_human_acceptance_contract(feature_dir) == []
+
+
+def test_human_acceptance_universe_rejects_plan_acceptance_ref_omission(
+    tmp_path: Path,
+) -> None:
+    feature_dir = tmp_path / "specs" / "006-human-acceptance-omission"
+    _write_human_acceptance_universe(
+        feature_dir,
+        task_acceptance_refs=["plan-contract.json#/acceptance_refs/0"],
+    )
+
+    errors = _validate_tasks_human_acceptance_contract(feature_dir)
+
+    assert any(
+        "missing plan acceptance_refs" in error
+        and "plan-contract.json#/acceptance_refs/1" in error
+        for error in errors
+    )
+
+
+def test_plan_acceptance_refs_must_cover_every_spec_acceptance_criterion(
+    tmp_path: Path,
+) -> None:
+    feature_dir = tmp_path / "specs" / "007-plan-acceptance-denominator"
+    feature_dir.mkdir(parents=True)
+    (feature_dir / "spec-contract.json").write_text(
+        json.dumps(
+            {
+                "acceptance_criteria": [
+                    "A human can complete the new primary journey.",
+                    "A human sees the changed terminal result.",
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    (feature_dir / "plan-contract.json").write_text(
+        json.dumps(
+            {
+                "version": 2,
+                "status": "ready",
+                "acceptance_refs": [
+                    "spec-contract.json#/acceptance_criteria/0"
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    errors = _validate_plan_human_acceptance_contract(feature_dir)
+
+    assert any(
+        "missing spec acceptance criteria" in error
+        and "spec-contract.json#/acceptance_criteria/1" in error
+        for error in errors
+    )
+
+
+@pytest.mark.parametrize("acceptance_refs", ([], [""], [42]))
+def test_plan_acceptance_denominator_fails_closed_when_malformed(
+    tmp_path: Path, acceptance_refs: list[object]
+) -> None:
+    feature_dir = tmp_path / "specs" / "008-malformed-plan-acceptance"
+    feature_dir.mkdir(parents=True)
+    (feature_dir / "spec-contract.json").write_text(
+        json.dumps({"acceptance_criteria": ["The changed outcome is visible."]}),
+        encoding="utf-8",
+    )
+    (feature_dir / "plan-contract.json").write_text(
+        json.dumps({"version": 2, "status": "ready", "acceptance_refs": acceptance_refs}),
+        encoding="utf-8",
+    )
+
+    assert _validate_plan_human_acceptance_contract(feature_dir)
+
+
+def test_tasks_require_task_index_when_plan_has_acceptance_refs(tmp_path: Path) -> None:
+    feature_dir = tmp_path / "specs" / "009-missing-task-index"
+    feature_dir.mkdir(parents=True)
+    (feature_dir / "plan-contract.json").write_text(
+        json.dumps(
+            {
+                "version": 2,
+                "status": "ready",
+                "acceptance_refs": [
+                    "spec-contract.json#/acceptance_criteria/0"
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    errors = _validate_tasks_human_acceptance_contract(feature_dir)
+
+    assert any("task-index.json is required" in error for error in errors)
+
+
+def test_ready_modern_task_index_rejects_empty_human_acceptance_universe(
+    tmp_path: Path,
+) -> None:
+    feature_dir = tmp_path / "specs" / "010-empty-human-acceptance"
+    feature_dir.mkdir(parents=True)
+    (feature_dir / "task-index.json").write_text(
+        json.dumps(
+            {
+                "version": 2,
+                "status": "ready",
+                "acceptance_refs": [],
+                "human_acceptance_obligations": [],
+                "human_acceptance_scenarios": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    errors = _validate_tasks_human_acceptance_contract(feature_dir)
+
+    assert any("non-empty Human Acceptance Universe" in error for error in errors)
 
 
 def test_agent_native_ui_task_lifecycle_blocks_pending_human_review(
