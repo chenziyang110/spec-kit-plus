@@ -13,7 +13,7 @@
 
 [Document scenario profile routing at the atlas level. Each feature lifecycle
 has one active profile that is selected at workflow entry, preserved in planning
-state, and carried through `sp-specify -> sp-plan -> sp-tasks -> sp-implement -> sp-accept`.
+state, and carried through `sp-specify -> sp-plan -> sp-tasks -> sp-implement -> sp-review -> sp-accept`.
 For first-release support, distinguish `Standard Delivery` from
 `Reference-Implementation`: standard delivery is the default implementation
 path, while reference-implementation is activated only when success depends on

@@ -2588,7 +2588,7 @@ def test_project_map_root_templates_document_scenario_profile_contracts() -> Non
     assert "standard delivery" in workflows
     assert "reference-implementation" in workflows
     assert "profile routing" in workflows
-    assert "sp-specify -> sp-plan -> sp-tasks -> sp-implement -> sp-accept" in workflows
+    assert "sp-specify -> sp-plan -> sp-tasks -> sp-implement -> sp-review -> sp-accept" in workflows
 
     assert "profile-matched evidence" in testing
     assert "reference fidelity" in testing
@@ -2980,7 +2980,7 @@ def _legacy_implement_template_wave_budget_contract():
     assert "implement t012-t021 migrations" in lowered
 
 
-def test_tasks_and_implement_templates_embed_internal_review_loop_without_public_review_command() -> None:
+def test_tasks_and_implement_templates_keep_task_review_and_handoff_system_review() -> None:
     tasks = _read("templates/commands/tasks.md")
     task_template = _read("templates/tasks-template.md")
     implement = _read("templates/commands/implement.md")
@@ -2995,8 +2995,8 @@ def test_tasks_and_implement_templates_embed_internal_review_loop_without_public
     assert "task-briefs" not in combined
     assert "review-packages" not in combined
     assert "implementation-review/ledger.json" not in combined
-    assert "/sp.review" not in combined
-    assert "sp-review" not in combined
+    assert "sp-review" in combined
+    assert "mandatory" in lowered
 
 
 def test_implement_template_preserves_workflow_state_review_allowlist() -> None:

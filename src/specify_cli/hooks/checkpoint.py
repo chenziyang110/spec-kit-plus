@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from specify_cli.lanes.state_store import iter_lane_records
@@ -73,6 +74,24 @@ def checkpoint_hook(project_root: Path, payload: dict[str, object]) -> HookResul
             checkpoint["lane_id"] = lane.lane_id
             checkpoint["lane_recovery_state"] = lane.recovery_state
             checkpoint["lane_verification_status"] = lane.verification_status
+        return HookResult(
+            event=WORKFLOW_CHECKPOINT,
+            status="ok",
+            severity="info",
+            data={"checkpoint": checkpoint},
+        )
+
+    if command_name == "review":
+        feature_dir = _required_path(project_root, payload, "feature_dir")
+        target = feature_dir / "review-state.json"
+        if not target.is_file():
+            return HookResult(
+                event=WORKFLOW_CHECKPOINT,
+                status="blocked",
+                severity="critical",
+                errors=[f"review-state.json is missing at {target}"],
+            )
+        checkpoint = json.loads(target.read_text(encoding="utf-8"))
         return HookResult(
             event=WORKFLOW_CHECKPOINT,
             status="ok",

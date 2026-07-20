@@ -6,7 +6,7 @@ Preserved Contract: implementation review remains embedded, repairs task-layer d
 
 ## Embedded Event-Triggered Review Loop
 
-Do not expose or recommend a separate public review workflow. Review is event-triggered inside `sp-implement`.
+This loop is task-level review embedded in `sp-implement`; do not expose it as a separate public task-review workflow. The mandatory public `sp-review` stage is different: it follows implementation and reviews the integrated product from real entrypoints.
 
 ### Entry Revision Check
 

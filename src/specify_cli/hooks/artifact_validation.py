@@ -61,6 +61,12 @@ FILE_REQUIRED_ARTIFACTS = {
     ),
     "analyze": ("workflow-state.md",),
     "implement": ("implement-tracker.md",),
+    "review": (
+        "review-state.json",
+        "implementation-summary.md",
+        "human-acceptance.json",
+        "workflow-state.md",
+    ),
     "accept": (
         "implementation-summary.md",
         "human-acceptance.json",
@@ -121,6 +127,7 @@ DIRECTORY_REQUIRED_ARTIFACTS = {
     "clarify": ("clarification/handoffs",),
     "plan": (),
     "tasks": (),
+    "review": ("review-evidence",),
     "accept": (),
     "map-scan": ("evidence",),
     "prd-scan": ("scan-packets", "evidence", "worker-results"),
@@ -168,6 +175,13 @@ REQUIRED_ARTIFACTS = {
     ),
     "analyze": ("workflow-state.md",),
     "implement": ("implement-tracker.md",),
+    "review": (
+        "review-state.json",
+        "implementation-summary.md",
+        "human-acceptance.json",
+        "workflow-state.md",
+        "review-evidence",
+    ),
     "accept": (
         "implementation-summary.md",
         "human-acceptance.json",
@@ -3978,6 +3992,12 @@ def validate_artifacts_hook(
         if all((feature_dir / name).exists() for name in legacy_specify_artifacts):
             required_artifacts = legacy_specify_artifacts
     missing = [name for name in required_artifacts if not (feature_dir / name).exists()]
+    if (
+        command_name == "implement"
+        and (feature_dir / "workflow-runtime.json").is_file()
+        and not (feature_dir / "implementation-handoff.json").is_file()
+    ):
+        missing.append("implementation-handoff.json")
     type_errors: list[str] = []
     if command_name == "plan":
         contract_paths = _consequence_contract_paths(feature_dir)
@@ -4043,6 +4063,16 @@ def validate_artifacts_hook(
         validation_errors.extend(
             _validate_packetized_implement_review_artifacts(feature_dir)
         )
+    if command_name == "review":
+        from specify_cli.review_runtime import validate_review
+
+        review = validate_review(project_root, feature_dir)
+        validation_errors.extend(str(error) for error in review["errors"])
+        state = review.get("state")
+        if not isinstance(state, dict) or state.get("status") != "approved":
+            validation_errors.append(
+                "review-state.json status must be approved before stage completion"
+            )
     if command_name == "accept":
         from specify_cli.human_acceptance import validate_human_acceptance
 

@@ -133,6 +133,25 @@ class GenericIntegration(MarkdownIntegration):
                 project_root=project_root,
             )
             processed = self.rewrite_command_reference_links(processed, src_file.stem)
+            if src_file.stem == "review":
+                processed = self._append_runtime_project_cognition_gate(
+                    content=processed,
+                    agent_name=agent_name,
+                    command_name=src_file.stem,
+                )
+                processed = self._append_delegation_surface_contract(
+                    content=processed,
+                    agent_name=agent_name,
+                    command_name=src_file.stem,
+                    snapshot=runtime_snapshot,
+                    heading="Subagent Dispatch Contract",
+                )
+                processed = self._append_runtime_worker_result_contract(
+                    content=processed,
+                    agent_name=agent_name,
+                    command_name=src_file.stem,
+                    snapshot=runtime_snapshot,
+                )
             processed = self._append_map_subagent_capability_discovery(
                 content=processed,
                 agent_name=agent_name,

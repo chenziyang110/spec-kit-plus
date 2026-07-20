@@ -142,7 +142,7 @@ def _rejected_acceptance_at_active_accept(
 ) -> int:
     entered = enter_workflow(feature, stage="specify", expected_revision=0)
     revision = entered["data"]["revision"]
-    for target in ("plan", "tasks", "implement", "accept"):
+    for target in ("plan", "tasks", "implement", "review", "accept"):
         transitioned = _complete_then_transition(
             feature,
             target_stage=target,
@@ -157,7 +157,7 @@ def _rejected_acceptance_at_active_accept(
 def _accepted_acceptance_at_active_accept(project: Path, feature: Path) -> int:
     entered = enter_workflow(feature, stage="specify", expected_revision=0)
     revision = entered["data"]["revision"]
-    for target in ("plan", "tasks", "implement", "accept"):
+    for target in ("plan", "tasks", "implement", "review", "accept"):
         transitioned = _complete_then_transition(
             feature,
             target_stage=target,
@@ -392,7 +392,7 @@ def test_rejected_acceptance_routes_through_repair_and_returns_to_accept(
     project, feature = _feature(tmp_path)
     entered = enter_workflow(feature, stage="specify", expected_revision=0)
     revision = entered["data"]["revision"]
-    for target in ("plan", "tasks", "implement", "accept"):
+    for target in ("plan", "tasks", "implement", "review", "accept"):
         transitioned = _complete_then_transition(
             feature,
             target_stage=target,
@@ -429,13 +429,18 @@ def test_rejected_acceptance_routes_through_repair_and_returns_to_accept(
     (feature / "implementation-summary.md").write_text(
         "# Implementation Summary\n\nDemo repair complete.\n", encoding="utf-8"
     )
-    prepared = prepare_human_acceptance(project, feature)
-    assert prepared["status"] == "draft"
+    reviewed = _complete_then_transition(
+        feature,
+        target_stage="review",
+        revision=routed["data"]["revision"],
+    )
     returned = _complete_then_transition(
         feature,
         target_stage="accept",
-        revision=routed["data"]["revision"],
+        revision=reviewed["data"]["revision"],
     )
+    prepared = prepare_human_acceptance(project, feature)
+    assert prepared["status"] == "draft"
     assert returned["data"]["stage"] == "accept"
     assert show_workflow(feature)["data"]["status"] == "active"
 
@@ -532,7 +537,7 @@ def test_acceptance_repair_rejects_a_route_that_does_not_match_the_finding(
     project, feature = _feature(tmp_path)
     entered = enter_workflow(feature, stage="specify", expected_revision=0)
     revision = entered["data"]["revision"]
-    for target in ("plan", "tasks", "implement", "accept"):
+    for target in ("plan", "tasks", "implement", "review", "accept"):
         transitioned = _complete_then_transition(
             feature,
             target_stage=target,
@@ -566,7 +571,7 @@ def test_accept_route_repair_cli_returns_the_deterministic_resume_argv(
     project, feature = _feature(tmp_path)
     entered = enter_workflow(feature, stage="specify", expected_revision=0)
     revision = entered["data"]["revision"]
-    for target in ("plan", "tasks", "implement", "accept"):
+    for target in ("plan", "tasks", "implement", "review", "accept"):
         transitioned = _complete_then_transition(
             feature,
             target_stage=target,
@@ -615,7 +620,7 @@ def test_acceptance_write_failure_cannot_leave_workflow_reopened(
     project, feature = _feature(tmp_path)
     entered = enter_workflow(feature, stage="specify", expected_revision=0)
     revision = entered["data"]["revision"]
-    for target in ("plan", "tasks", "implement", "accept"):
+    for target in ("plan", "tasks", "implement", "review", "accept"):
         transitioned = _complete_then_transition(
             feature,
             target_stage=target,
@@ -650,10 +655,12 @@ def test_acceptance_write_failure_cannot_leave_workflow_reopened(
 @pytest.mark.parametrize(
     ("route", "target_stage", "owning_command"),
     (
+        ("sp-review", "review", "sp-review"),
         ("sp-implement", "implement", "sp-implement"),
         ("sp-debug", "implement", "sp-implement"),
         ("sp-clarify", "specify", "sp-specify"),
         ("sp-specify", "specify", "sp-specify"),
+        ("spx-review", "review", "spx-review"),
         ("spx-implement", "implement", "spx-implement"),
         ("spx-debug", "implement", "spx-implement"),
         ("spx-clarify", "specify", "spx-specify"),
@@ -691,11 +698,12 @@ def test_every_acceptance_repair_route_returns_through_its_owning_stage(
         "prepare",
     ]
     current_revision = routed["data"]["revision"]
-    remaining = (
-        ("accept",)
-        if target_stage == "implement"
-        else ("plan", "tasks", "implement", "accept")
-    )
+    if target_stage == "review":
+        remaining = ("accept",)
+    elif target_stage == "implement":
+        remaining = ("review", "accept")
+    else:
+        remaining = ("plan", "tasks", "implement", "review", "accept")
     for target in remaining:
         transitioned = _complete_then_transition(
             feature,
@@ -1164,7 +1172,7 @@ def test_accept_cli_closes_only_fresh_explicit_human_acceptance(
     project, feature = _feature(tmp_path)
     entered = enter_workflow(feature, stage="specify", expected_revision=0)
     revision = entered["data"]["revision"]
-    for target in ("plan", "tasks", "implement", "accept"):
+    for target in ("plan", "tasks", "implement", "review", "accept"):
         transitioned = _complete_then_transition(
             feature,
             target_stage=target,
@@ -1240,7 +1248,7 @@ def test_workflow_closeout_revalidates_acceptance_after_the_artifact_gate(
     project, feature = _feature(tmp_path)
     entered = enter_workflow(feature, stage="specify", expected_revision=0)
     revision = entered["data"]["revision"]
-    for target in ("plan", "tasks", "implement", "accept"):
+    for target in ("plan", "tasks", "implement", "review", "accept"):
         transitioned = _complete_then_transition(
             feature,
             target_stage=target,

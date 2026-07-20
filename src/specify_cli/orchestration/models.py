@@ -96,6 +96,7 @@ _ORDINARY_SP_COMMANDS = frozenset(
         "map-update",
         "plan",
         "quick",
+        "review",
         "research",
         "specify",
         "tasks",

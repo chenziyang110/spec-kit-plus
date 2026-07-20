@@ -1,4 +1,4 @@
-"""User-facing closeout summaries for sp-implement runs."""
+"""User-facing closeout summaries for reviewed implementations."""
 
 from __future__ import annotations
 
@@ -68,6 +68,7 @@ def build_implementation_summary(
     )
     behavior_surfaces = _behavior_surfaces(changed_from_results)
     review_artifacts = _review_artifacts(resolved_feature_dir, tasks, root)
+    system_review = _system_review_summary(resolved_feature_dir, root)
     blockers = _implementation_blockers(resolved_feature_dir)
     human_needed_checks = [
         str(item["summary"])
@@ -86,6 +87,7 @@ def build_implementation_summary(
         },
         "changed_behavior_surfaces": behavior_surfaces,
         "review_artifacts": review_artifacts,
+        "system_review": system_review,
         "verification_evidence": verification_evidence,
         "baseline_comparison": {
             "method": "working_tree_vs_head",
@@ -104,8 +106,8 @@ def build_implementation_summary(
             ),
             "next_command": "sp-accept (Classic) or spx-accept (Advanced)",
             "boundary": (
-                "Technical implementation closeout is complete only after its own gates pass; "
-                "human product acceptance is a separate post-implementation workflow."
+                "System review has independently exercised the implementation from real "
+                "entrypoints; human product acceptance remains a separate workflow."
             ),
         },
     }
@@ -770,6 +772,7 @@ def _review_artifacts(
             continue
         if review_path.is_file():
             task_reviews[task_id] = _display_path(review_path, project_root)
+    system_review_path = feature_dir / "review-state.json"
     return {
         "ledger": _display_path(review_ledger_path, project_root)
         if review_ledger_path.is_file()
@@ -778,6 +781,53 @@ def _review_artifacts(
         if review_branch_path.is_file()
         else "",
         "task_reviews": task_reviews,
+        "system_review": _display_path(system_review_path, project_root)
+        if system_review_path.is_file()
+        else "",
+        "system_review_evidence": _display_path(
+            feature_dir / "review-evidence", project_root
+        )
+        if (feature_dir / "review-evidence").is_dir()
+        else "",
+    }
+
+
+def _system_review_summary(feature_dir: Path, project_root: Path) -> dict[str, Any]:
+    state_path = feature_dir / "review-state.json"
+    if not state_path.is_file():
+        return {"status": "missing", "state_path": "", "scenarios": [], "findings": []}
+    try:
+        state = json.loads(state_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {
+            "status": "invalid",
+            "state_path": _display_path(state_path, project_root),
+            "scenarios": [],
+            "findings": [],
+        }
+    scenarios = state.get("scenarios") if isinstance(state, dict) else []
+    findings = state.get("findings") if isinstance(state, dict) else []
+    return {
+        "status": str(state.get("status") or "unknown") if isinstance(state, dict) else "invalid",
+        "state_path": _display_path(state_path, project_root),
+        "scenarios": [
+            {
+                "id": str(item.get("id") or ""),
+                "title": str(item.get("title") or ""),
+                "result": str(item.get("result") or ""),
+            }
+            for item in scenarios or []
+            if isinstance(item, dict)
+        ],
+        "findings": [
+            {
+                "id": str(item.get("id") or ""),
+                "summary": str(item.get("summary") or ""),
+                "status": str(item.get("status") or ""),
+            }
+            for item in findings or []
+            if isinstance(item, dict)
+        ],
     }
 
 
@@ -1021,6 +1071,34 @@ def _render_markdown(payload: dict[str, Any]) -> str:
             lines.append(f"- `{task_id}` task review: `{path}`")
     else:
         lines.append("- Task reviews: None recorded.")
+    if review_artifacts.get("system_review"):
+        lines.append(f"- System review: `{review_artifacts['system_review']}`")
+    if review_artifacts.get("system_review_evidence"):
+        lines.append(
+            f"- Integrated review evidence: `{review_artifacts['system_review_evidence']}`"
+        )
+
+    lines.extend(["", "## System Review", ""])
+    system_review = payload.get("system_review") or {}
+    lines.append(f"- Status: `{system_review.get('status', 'missing')}`")
+    scenarios = system_review.get("scenarios") or []
+    if scenarios:
+        for scenario in scenarios:
+            lines.append(
+                f"- `{scenario.get('id', '')}`: {scenario.get('result', 'pending')} — "
+                f"{scenario.get('title', '')}"
+            )
+    else:
+        lines.append("- Required scenarios: None recorded.")
+    findings = system_review.get("findings") or []
+    if findings:
+        for finding in findings:
+            lines.append(
+                f"- Finding `{finding.get('id', '')}`: {finding.get('status', 'open')} — "
+                f"{finding.get('summary', '')}"
+            )
+    else:
+        lines.append("- Blocking findings: None recorded.")
 
     lines.extend(["", "## How To Verify", ""])
     evidence = payload.get("verification_evidence") or []

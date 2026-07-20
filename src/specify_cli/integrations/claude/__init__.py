@@ -42,6 +42,7 @@ ARGUMENT_HINTS: dict[str, str] = {
     "prd-scan": "Describe the existing project or reverse-PRD scan target to reconstruct into a scan package",
     "prd-build": "Provide the validated PRD run ID or final synthesis target to compile into the PRD suite",
     "implement": "Optional implementation guidance or task filter",
+    "review": "Optional implemented feature or system scenario to review",
     "integrate": "Optional feature lane or closeout focus for integration readiness",
     "implement-teams": "Optional implementation scope or coordination guidance for the Agent Teams run",
     "analyze": "Optional focus areas for analysis, such as boundary guardrail drift (BG1/BG2/BG3)",

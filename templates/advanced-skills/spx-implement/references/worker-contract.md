@@ -1,7 +1,9 @@
 # Implementation worker contract
 
 Delegate only a bounded task with stable inputs and isolated writes. The leader
-retains task graph, join, acceptance, review, and final verification ownership.
+retains task graph, join, task acceptance, task-level review, and final
+implementation verification ownership. The later system Review remains an
+independent workflow.
 
 Provide the worker:
 

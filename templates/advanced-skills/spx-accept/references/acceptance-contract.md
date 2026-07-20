@@ -7,13 +7,14 @@ reconstruction.
 
 ## Readiness and freshness
 
-Acceptance starts only after successful implementation closeout created a
-trusted `implementation-summary.md`. `accept prepare` records the summary digest
-and an implementation evidence snapshot covering current HEAD, tracked diff,
-and untracked implementation files while excluding acceptance-owned state. If
-the current snapshot differs from `prepared_from_sha256`, status is `stale` and
-no prior verdict can close acceptance. Rebuild orientation/scenarios from
-current evidence, update the summary and snapshot digests, and rerun validation.
+Acceptance starts only after successful system Review closeout produced a fresh
+`review-state.json` with `status: approved`, a final reviewed source fingerprint,
+and a trusted `implementation-summary.md`. `accept prepare` records the Review
+digest, summary digest, and reviewed evidence snapshot while excluding
+acceptance-owned state. If the Review verdict is no longer approved or any
+recorded digest/fingerprint differs, status is `stale` and no prior verdict can
+close acceptance. Return to `$spx-review`; only that owner may revalidate the
+product and refresh the acceptance handoff.
 
 Use CLI-owned `workflow-runtime.json` as the required phase lock. Use rich
 `workflow-state.md` only for acceptance-owned resume and evidence state:
@@ -21,8 +22,8 @@ Use CLI-owned `workflow-runtime.json` as the required phase lock. Use rich
 - `active_command: sp-accept`
 - `phase_mode: acceptance-only`
 - allowed writes: `human-acceptance.json` and acceptance-owned workflow state
-- forbidden writes: source, tests, requirements, plan/tasks, implementation
-  records, external systems
+- forbidden writes: source, tests, requirements, plan/tasks, implementation or
+  Review records, external systems
 - current scenario/step, blocker, and exact next route
 
 ## Contextless-human orientation
@@ -78,8 +79,9 @@ verdict rules remain unchanged.
 
 Routes are handoff-and-stop:
 
-- clear implementation repair: `spx-implement`;
-- unknown mechanism/regression: `spx-debug`;
+- clear product/runtime repair: `spx-review`;
+- unknown mechanism/regression: `spx-debug`, then return to `spx-review` for the
+  preserved scenario;
 - existing requirement gap or contradiction: `spx-clarify`;
 - genuinely new scope: `spx-specify`;
 - human-only access/authority: retain `spx-accept` with a Human Action Guide.
@@ -87,16 +89,18 @@ Routes are handoff-and-stop:
 For every non-human repair route, first run
 `{{specify-subcmd:accept route-repair --feature-dir <feature-dir> --finding-id <finding-id> --route <recorded-route> --expected-revision <revision> --evidence <sanitized-evidence> --format json}}`.
 The runtime invalidates the prior verdict, preserves the failed scenario as the
-cursor, and reopens `implement` for implement/debug routes or `specify` for
+cursor, and reopens `review` for review/debug routes or `specify` for
 clarify/specify routes. Invoke `repair_handoff_command` separately and stop.
 Debug and clarify must not write CLI-owned `workflow-runtime.json`. Clarify may update the feature's rich
 `workflow-state.md` specification resume/evidence sections; debug keeps both
 feature state surfaces read-only and persists its session under
 `.planning/debug/`. When it finishes, separately invoke
-`owning_stage_command` (`spx-implement` after debug or `spx-specify` after
-clarify). The owning required stage reads the reopened CLI state, completes it
-through `workflow complete-stage`, and progresses every required stage in
-order. Only after the runtime re-enters active `accept` execute
+`owning_stage_command` (`spx-review` after debug or `spx-specify` after
+clarify). Review may itself classify a large omission for `$spx-implement` or
+another upstream owner; Acceptance never skips that classification gate. The
+owning required stage reads the reopened CLI state, completes it through
+`workflow complete-stage`, and progresses every required stage in order. Only
+after the runtime re-enters active `accept` execute
 `acceptance_return_argv` to rebuild/freshness-check the guide and resume the
 preserved failed scenario. Reuse prior passes only after fresh evidence proves
 their implementation dependencies did not change.

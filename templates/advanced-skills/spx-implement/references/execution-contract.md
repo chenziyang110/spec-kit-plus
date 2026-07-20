@@ -59,10 +59,11 @@ evidence refs, passing runtime evidence, visual comparison, fidelity status,
 reviewer, and human-review ref when relevant.
 `pending-human-review` blocks accepted closeout until that review is resolved.
 
-Review on drift, parallel joins, write-scope changes, validation failure,
-worker concern, obligation conflict, real-entrypoint gaps, or an oversized
-unreviewed window. Repair only understood local failures; reopen planning or
-debugging when upstream truth or root cause is unknown.
+Perform task-level review on drift, parallel joins, write-scope changes,
+validation failure, worker concern, obligation conflict, real-entrypoint gaps,
+or an oversized unreviewed window. This does not replace the mandatory
+post-implementation system Review. Repair only understood local failures;
+reopen planning or debugging when upstream truth or root cause is unknown.
 
 Every cross-workflow route is a handoff-and-stop boundary. Hand off unknown root
 causes to `$spx-debug`, missing/invalid design truth to `$spx-design`, durable
@@ -73,17 +74,18 @@ Before completion, run
 `{{specify-subcmd:implement closeout --feature-dir <feature-dir> --format json}}`
 when available.
 
-Successful closeout must return the prepared `human_acceptance` state and its
-implementation-summary fingerprint. Hand off to `$spx-accept` and stop. The
-acceptance workflow restores a later human's context and owns the explicit
-product verdict; implementation tests, agent review, and technical closeout do
-not substitute for that verdict.
+Successful closeout must return a trusted `implementation_handoff` with its
+source revision, implementation fingerprint, official entrypoints, and required
+system Review scenarios. Hand off to `$spx-review` and stop. Do not route
+directly to `$spx-accept`; implementation tests, task-level agent review, and
+technical closeout do not substitute for integrated product Review or a later
+human verdict.
 
 Before stopping, update owned rich `workflow-state.md` evidence/resume fields
-truthfully, including the acceptance handoff. Then run the workflow runtime
+truthfully, including the Review handoff. Then run the workflow runtime
 `complete-stage` command with the current revision. It records
 `implement/completed` only in CLI-owned `workflow-runtime.json`; it does not update
 rich `workflow-state.md` fields such as `active_command`, `phase_mode`, or
 `next_command`. Do not execute
-the returned transition or set `active_command: sp-accept`; the separately
-invoked acceptance workflow claims that phase only when it actually starts.
+the returned transition or set `active_command: sp-review`; the separately
+invoked Review workflow claims that phase only when it actually starts.

@@ -15,6 +15,8 @@ def describe_result_handoff_template(*, command_name: str, integration_key: str)
     normalized_command = command_name.strip().lower()
     normalized_integration = integration_key.strip().lower()
 
+    if normalized_command == "review":
+        return "FEATURE_DIR/review-results/<lane-id>.json"
     if normalized_integration == "codex":
         return ".specify/teams/state/results/<request-id>.json"
     if normalized_command == "implement":
@@ -42,6 +44,13 @@ def build_result_handoff_path(
 
     normalized_command = command_name.strip().lower()
     normalized_integration = integration_key.strip().lower()
+
+    if normalized_command == "review":
+        if feature_dir is None or not lane_id:
+            raise ValueError(
+                "feature_dir and lane_id are required for review result handoff paths"
+            )
+        return Path(feature_dir) / "review-results" / f"{lane_id}.json"
 
     if normalized_integration == "codex":
         if not request_id:

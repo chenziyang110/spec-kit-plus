@@ -57,10 +57,10 @@ Its job is to read current repository state, identify the recommended next Spec 
 
 ## Guardrails
 
-- `sp-auto` does not replace `sp-specify`, `sp-plan`, `sp-tasks`, `sp-analyze`, `sp-implement`, `sp-accept`, `sp-debug`, `sp-quick`, or `sp-fast`.
+- `sp-auto` does not replace `sp-specify`, `sp-plan`, `sp-tasks`, `sp-analyze`, `sp-implement`, `sp-review`, `sp-accept`, `sp-debug`, `sp-quick`, or `sp-fast`.
 - `sp-auto` must never invent a new phase progression from chat memory when repository state already records the next step.
 - Always obey the recorded upstream gate.
-- Do not rewrite the underlying workflow state to `/sp.auto`; preserve the canonical downstream `next_command` such as `/sp.plan`, `/sp.tasks`, `/sp.implement`, `/sp.accept`, `/sp.debug`, `/sp.quick`, `/sp.fast`, `/sp.clarify`, or `/sp.deep-research`. Preserve `/sp.analyze` only when an existing state file explicitly records that legacy or diagnostic route.
+- Do not rewrite the underlying workflow state to `/sp.auto`; preserve the canonical downstream `next_command` such as `/sp.plan`, `/sp.tasks`, `/sp.implement`, `/sp.review`, `/sp.accept`, `/sp.debug`, `/sp.quick`, `/sp.fast`, `/sp.clarify`, or `/sp.deep-research`. Preserve `/sp.analyze` only when an existing state file explicitly records that legacy or diagnostic route.
 - If state is missing, stale, conflicting, or cannot identify one safe next step, stop in read-only diagnosis and report the exact blocker instead of improvising a route.
 - Do not guess when multiple resumable lanes exist.
 - Never auto-resume an `uncertain` lane.
@@ -86,23 +86,27 @@ Inspect the available state surfaces in this order and prefer the most specific 
 2. Active implementation execution state
    - Read `FEATURE_DIR/implement-tracker.md` together with `workflow-state.md`.
    - If execution is still active and `workflow-state.md` allows `/sp.implement`, resume the canonical `/sp.implement` route.
-   - If trusted execution is completed and `next_command: /sp.accept`, route to canonical `/sp.accept`; do not repeat implementation or skip to integration.
+   - If trusted execution is completed and `next_command: /sp.review`, route to canonical `/sp.review`; do not repeat implementation or skip system Review.
    - If `workflow-state.md` still requires `/sp.analyze`, `/sp.plan`, `/sp.tasks`, `/sp.clarify`, or `/sp.deep-research`, reconcile that gate with the CLI runtime. Execute an evidence-backed `workflow reopen` for a backward move or same-completed-stage reactivation; do not route to an upstream command while the runtime still owns a later stage.
 
-3. Post-implementation human acceptance state
-   - If trusted implementation closeout exists and `human-acceptance.json` is `draft`, `ready`, `in_progress`, `blocked`, `rejected`, or `stale`, route to canonical `/sp.accept` before integration or delivery.
-   - Treat `accepted` as complete only when the summary fingerprint is fresh and every required scenario has explicit human PASS.
+3. Post-implementation system Review state
+   - If trusted implementation closeout exists and `review-state.json` is absent, `reviewing`, `repairing`, `blocked`, failed, or stale, route to canonical `/sp.review` before human acceptance.
+   - Treat Review as approved only when the implementation fingerprint is fresh, every mandatory real-entrypoint scenario passes with required integrated evidence, and no blocking finding remains.
 
-4. Quick-task state
+4. Post-Review human acceptance state
+   - If trusted Review closeout exists and `human-acceptance.json` is `draft`, `ready`, `in_progress`, `blocked`, `rejected`, or `stale`, route to canonical `/sp.accept` before integration or delivery.
+   - Treat `accepted` as complete only when the Review/summary fingerprint is fresh and every required scenario has explicit human PASS.
+
+5. Quick-task state
    - Read unfinished `.planning/quick/*/STATUS.md` files.
    - If one active quick task clearly owns the next action, route to the canonical `/sp.quick` token.
    - If the recorded next command is a bounded local repair lane, canonical `/sp.fast` is allowed only when the state explicitly justifies that smaller route.
 
-5. Debug session state
+6. Debug session state
    - Read active `.planning/debug/*.md` session files.
    - If a live investigation owns the current next action, route to the canonical `/sp.debug` token.
 
-6. Discussion handoff state
+7. Discussion handoff state
    - Read active `.specify/discussions/*/discussion-state.json` files when no higher-authority feature, implementation, quick, or debug state has already selected a unique route; use Markdown only for legacy recovery.
    - Treat `status: handoff-ready` plus `next_command: /sp.specify` or `sp-specify` as a `/sp.specify` candidate only when `handoff_consumption_status` is not `consumed`.
    - If `handoff_consumption_status: consumed`, `status: completed`, `consumed_by_feature_dir` is populated, or `next_command: none`, do not count that discussion as a resumable candidate.
@@ -165,6 +169,8 @@ Typical canonical targets include:
 - `/sp.tasks`
 - `/sp.analyze`
 - `/sp.implement`
+- `/sp.review`
+- `/sp.accept`
 - `/sp.debug`
 - `/sp.quick`
 - `/sp.fast`

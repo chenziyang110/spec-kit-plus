@@ -3,8 +3,8 @@ description: Use when tasks.md exists and the planned work should be executed th
 workflow_contract:
   when_to_use: '`tasks.md` is ready and the feature should move from planning into tracked execution batches.'
   primary_objective: Execute the ready batches while preserving tracker state, subagent contracts, verification discipline, and resumability.
-  primary_outputs: Verified code, test, and documentation changes plus compact execution state, one task lifecycle record per executed task, conditional drift/repair records, and `implementation-summary.md` for the active feature.
-  default_handoff: Continue with the next ready batch, route blockers into /sp-debug, or after technical closeout hand human product acceptance to /sp.accept and stop.
+  primary_outputs: Verified code, test, and documentation changes plus compact execution state, one task lifecycle record per executed task, conditional drift/repair records, and `implementation-handoff.json` for mandatory system review.
+  default_handoff: Continue with the next ready batch, route blockers into /sp-debug, or after technical closeout hand the integrated product to /sp.review and stop.
 scripts:
   sh: scripts/bash/check-prerequisites.sh --json --require-tasks --include-tasks
   ps: scripts/powershell/check-prerequisites.ps1 -Json -RequireTasks -IncludeTasks
@@ -33,7 +33,7 @@ scripts:
    `pending-human-review` only when objective visual evidence cannot close the
    criterion; it blocks accepted closeout until resolved. Route an invalid,
    bootstrap, or missing design source to `sp-design` instead of inventing one.
-7. After successful technical closeout, ensure `human-acceptance.json` was prepared from the fresh `implementation-summary.md`, recommend `{{invoke:accept}}`, and stop. Do not claim that automated verification or implementation completion equals human product acceptance.
+7. After successful technical closeout, require the `implementation_summary` and `implementation_handoff` response fields for the preliminary `implementation-summary.md` and deterministic `implementation-handoff.json`. The summary must explain what changed, how to verify it, and what differs from the previous version using the recorded `git diff --stat` and `git diff --name-status` baseline. Complete only the `implement` stage, recommend `{{invoke:review}}`, and stop. The embedded event-triggered task review remains part of implementation, while `sp-review` independently proves startup, user journeys, interaction, and integrated wiring from real entrypoints. Do not invoke Review inline or claim that task completion equals a usable reviewed product.
 
 {{spec-kit-include: ../command-partials/common/inline-project-cognition-update.md}}
 

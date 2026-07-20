@@ -78,8 +78,8 @@ present in a test project.
   independent `spx-*` catalog from `templates/advanced-skills/**`. It is
   command-equivalent and prompt-optimized for advanced models: every Classic
   command has an independent SPX counterpart, while `spx-map-rebuild` is an
-  additional convenience orchestrator. The current topology is 30 SPX skills:
-  29 one-to-one Classic command counterparts plus `spx-map-rebuild`. Advanced
+  additional convenience orchestrator. The current topology is 31 SPX skills:
+  30 one-to-one Classic command counterparts plus `spx-map-rebuild`. Advanced
   keeps command ownership, read/write boundaries, resumable stops, and
   external-side-effect gates; it removes repeated tutorials, fixed role chains,
   unnecessary mandatory delegation, long examples, and model-authored stable
@@ -171,7 +171,8 @@ present in a test project.
   element, an inspectable approved visual reference, per-reference use intent,
   and task-relevant real-content/image plans through the Classic and Advanced
   artifact chain. Do not collapse those dimensions into one enum or prose.
-- UI implementation acceptance requires a real-entrypoint convergence loop:
+- UI implementation system review requires a real-entrypoint convergence loop
+  before human acceptance:
   run, capture representative viewport/state evidence, visually inspect against
   design/brief/reference inputs, repair drift, and recapture. Passing automated
   tests is separate from visual and interaction acceptance; unavailable visual
@@ -233,6 +234,8 @@ specify -> plan
 
 Treat `CLARIFY` as the optional enhancement path when an existing spec needs deeper analysis before planning.
 Treat `sp-deep-research` as the optional feasibility and planning handoff gate when the requirements are clear but one or more capabilities still need coordinated research, external evidence, an implementation chain proof, or a disposable demo before planning. Its findings and demo evidence must become explicit inputs to `sp-plan`; do not require it for minor adjustments to existing, already-proven capabilities.
+
+After task generation, teach the mandatory delivery chain as `tasks -> implement -> review -> accept`. `sp-review` / `spx-review` starts the integrated product from official entrypoints, repairs bounded implementation and wiring defects, and produces fresh system evidence before human acceptance; do not route ordinary implementation completion directly to accept.
 
 ---
 

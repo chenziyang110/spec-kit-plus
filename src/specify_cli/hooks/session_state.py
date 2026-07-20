@@ -93,6 +93,35 @@ def session_state_hook(project_root: Path, payload: dict[str, object]) -> HookRe
             data={"state_summary": summary},
         )
 
+    if command_name == "review":
+        feature_dir = _required_path(project_root, payload, "feature_dir")
+        from specify_cli.review_runtime import validate_review
+
+        review = validate_review(project_root, feature_dir)
+        if review.get("state") is None:
+            return HookResult(
+                event=WORKFLOW_SESSION_STATE_VALIDATE,
+                status="blocked",
+                severity="critical",
+                errors=list(review.get("errors") or []),
+                data={"review": review},
+            )
+        warnings = list(review.get("errors") or [])
+        return HookResult(
+            event=WORKFLOW_SESSION_STATE_VALIDATE,
+            status="warn" if warnings else "ok",
+            severity="warning" if warnings else "info",
+            warnings=warnings,
+            data={
+                "state_summary": {
+                    "status": review["state"].get("status"),
+                    "cursor": review["state"].get("cursor"),
+                    "fresh": review.get("fresh"),
+                },
+                "review": review,
+            },
+        )
+
     if command_name == "debug":
         session_file = _required_path(project_root, payload, "session_file")
         if not session_file.exists():

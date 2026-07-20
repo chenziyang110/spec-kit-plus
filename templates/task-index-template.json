@@ -13,6 +13,8 @@
   "must_preserve_refs": [],
   "consequence_obligation_refs": [],
   "fidelity_refs": [],
+  "official_entrypoints": [],
+  "system_review_scenarios": [],
   "ui_contract_schema_ref": ".specify/templates/task-packet-template.json#/ui_contract",
   "tasks": [],
   "parallel_batches": [],

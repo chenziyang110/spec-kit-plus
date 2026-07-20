@@ -11,10 +11,12 @@ Read `references/project-cognition.md`, using cognition intent `ask`. Read
 `references/acceptance-contract.md` and `references/blocker-resolution.md`. Read
 `references/ui-quality-gate.md` when any acceptance scenario is UI-bearing.
 
-Resolve exactly one technically completed feature and require trusted
-`implementation-summary.md`; if implementation closeout is absent or blocked,
-hand off to `$spx-implement` and stop. Transition from the validated
-`implement` stage into `accept` through the workflow runtime. Only then run
+Resolve exactly one system-reviewed feature and require a trusted
+`review-state.json` with fresh `approved` verdict, its final reviewed
+fingerprint, and the Review-refreshed `implementation-summary.md`. If Review is
+missing, blocked, stale, or not approved, hand off to `$spx-review` and stop;
+do not bypass Review by routing directly to `$spx-implement`. Transition from the validated `review`
+stage into `accept` through the workflow runtime. Only then run
 `{{specify-subcmd:accept prepare --feature-dir <feature-dir> --format json}}`
 to create or freshness-check `human-acceptance.json`.
 
@@ -26,8 +28,9 @@ source, diffs, test logs, specs, plans, or task state.
 
 Validate the acceptance-owned rich resume/evidence state with
 `{{specify-subcmd:hook validate-state --command accept --feature-dir
-<feature-dir> --format json}}`. A changed implementation-summary fingerprint
-makes the guide stale; rebuild it from current evidence before continuing.
+<feature-dir> --format json}}`. A changed Review digest, final source
+fingerprint, or implementation-summary fingerprint makes the guide stale; hand
+off to `$spx-review` to revalidate current product evidence before continuing.
 
 Start with a compact context reset: what changed, why it matters, what the human
 will verify, prerequisites, exact entrypoint, and exclusions. Then guide only
@@ -44,9 +47,10 @@ workflow inline.
 
 PASS requires explicit human passes for every required scenario. On a mismatch,
 record expected versus observed behavior and evidence, then hand off and stop:
-clear repair to `$spx-implement`, unknown mechanism to `$spx-debug`, changed or
-missing existing requirements to `$spx-clarify`, or new scope to
-`$spx-specify`. Preserve the failed scenario as the return point. Human-owned
+clear product/runtime repair to `$spx-review`, unknown mechanism to
+`$spx-debug` followed by `$spx-review`, changed or missing existing requirements
+to `$spx-clarify`, or new scope to `$spx-specify`. Preserve the failed scenario
+as the return point. Human-owned
 environment, permission, protected-system, or physical-device blockers receive
 the full Human Action Guide.
 

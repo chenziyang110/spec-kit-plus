@@ -1,0 +1,7 @@
+interface:
+  display_name: "SPX Review"
+  short_description: "Validate and repair the runnable product"
+  default_prompt: "Use $spx-review to validate and repair the implemented product from its real entrypoint."
+
+policy:
+  allow_implicit_invocation: false

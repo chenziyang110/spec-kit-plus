@@ -66,7 +66,7 @@ explicit numeric option.
 
 ## Recommendation Rules
 
-- The default generated path is `sp-specify -> sp-plan -> sp-tasks -> sp-implement -> sp-accept`. `sp-checklist` and `sp-analyze` remain visible optional diagnostics, but they are not default quality nets for clean workflow progress. There is no visible separate review route between `sp-tasks` and `sp-implement`; implementation review is embedded in `sp-implement`. `sp-accept` is a separate human product-acceptance stage after technical closeout, not a code-review route.
+- The default generated path is `sp-specify -> sp-plan -> sp-tasks -> sp-implement -> sp-review -> sp-accept`. `sp-checklist` and `sp-analyze` remain visible optional diagnostics, but they are not default quality nets for clean workflow progress. Event-triggered task review remains embedded in `sp-implement`; the mandatory public `sp-review` that follows it is a distinct system-level real-entrypoint, interaction, wiring, repair, and revalidation gate. `sp-accept` remains a separate human product-acceptance stage after approved Review.
 - Use `sp-fast` for trivial, local, low-risk fixes that touch at most 3 files and do
   not cross a shared surface.
 - Use `sp-quick` for bounded work that is still small, but no longer trivial.
@@ -127,8 +127,9 @@ explicit numeric option.
 - Use `sp-plan` only after a valid spec package exists.
 - Use `sp-tasks` only after planning artifacts are ready.
 - Use `sp-implement` after `sp-tasks` produces canonical `task-index.json` or a light direct task list and records `/sp.implement`. `sp-implement` selects leader-direct or delegated execution per task, compiles delegated packets just in time, runs event-triggered review, and records result/validation/review/recovery once in the task lifecycle record. Product goal, scope, architecture, required evidence, `MP-*`, `CA-###`, and feasibility conflicts route back to their upstream owner.
-- Route planned implementation to `sp-implement`; review is embedded and event-triggered by drift, parallel joins, validation failure, obligation conflicts, or the review-window threshold. Repair only task-layer defects locally and route upstream truth defects to their owner. Do not route to a separate public review command or require task briefs, review packages, a duplicate ledger, and branch review for every task.
-- Use `sp-accept` after successful implementation closeout. It assumes the human remembers nothing, restores product context, guides one real-entrypoint step at a time, persists explicit human observations, and never edits source. A failed observation routes to implement/debug or upstream requirements; technical checks and silence never count as human PASS.
+- Route planned implementation to `sp-implement`; its embedded task review is event-triggered by drift, parallel joins, validation failure, obligation conflicts, or the review-window threshold. Repair task-layer defects there and route upstream truth defects to their owner. Do not turn that embedded control into a separate task-review command or require task briefs, review packages, a duplicate ledger, and branch review for every task.
+- Use `sp-review` after successful implementation closeout. It must start the integrated product from official real entrypoints, exercise required user journeys and interaction/consumer wiring, record findings, repair understood bounded defects, and rerun failed plus affected regression scenarios. Independent subagents may inspect isolated lanes, but the Leader owns Review state, shared runtime, and the fresh final verdict. Unknown mechanisms route through `sp-debug` and return to the exact Review scenario; large or upstream gaps reopen their owning workflow.
+- Use `sp-accept` only after fresh approved `sp-review` closeout. It assumes the human remembers nothing, restores product context, guides one real-entrypoint step at a time, persists explicit human observations, and never edits source. A clear failed observation returns to Review for repair and revalidation; unknown mechanisms or upstream requirements route to their owner. Technical checks and silence never count as human PASS.
 - Use `sp-debug` for regressions, bugs, broken behavior, or incident-style recovery.
 - `sp-debug` is complexity-based: small focused investigations may stay
   leader-inline, while broad, independent, or parallel evidence lanes use
@@ -197,6 +198,8 @@ user what to type:
 - Planning handoff: `{{invoke:plan}}`
 - Task generation: `{{invoke:tasks}}`
 - Implementation execution: `{{invoke:implement}}`
+- Integrated system review and repair: `{{invoke:review}}`
+- Human product acceptance: `{{invoke:accept}}`
 - Debugging route: `{{invoke:debug}}`
 - Localized map refresh detour: `{{invoke:map-update}}`
 - Full map rebuild detour: `{{invoke:map-scan}} -> {{invoke:map-build}}`
@@ -219,7 +222,7 @@ user what to type:
 - For `sp-debug`, choose leader-inline for small focused investigations and
   subagent-assisted execution for broad, independent, or parallel evidence
   lanes.
-- For `sp-map-scan`, `sp-map-build`, and `sp-implement`, leader + subagents is
+- For `sp-map-scan`, `sp-map-build`, `sp-implement`, and `sp-review`, leader + subagents is
   the default execution shape for independent bounded lanes when the current
   runtime supports delegation.
 - Use `sp-teams` only when Codex work needs durable team state, explicit join-point

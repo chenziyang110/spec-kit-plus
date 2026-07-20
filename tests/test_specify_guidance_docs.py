@@ -35,8 +35,8 @@ def test_agents_declares_classic_and_advanced_profile_contract() -> None:
     assert "install the other profile additively" in normalized
     assert "`templates/commands/**`" in section
     assert "`templates/advanced-skills/**`" in section
-    assert "30 SPX skills" in normalized
-    assert "29 one-to-one Classic command counterparts" in normalized
+    assert "31 SPX skills" in normalized
+    assert "30 one-to-one Classic command counterparts" in normalized
     assert "does **not** install the Classic passive-skill prompt bundle" in normalized
     for skill_name in (
         "sp-map-scan",
@@ -758,7 +758,7 @@ def test_guidance_docs_explain_analyze_tasks_convergence_contract() -> None:
     assert "`sp-analyze` remains an optional diagnostic and legacy revalidation route only when explicitly invoked or recorded in existing state" in handbook_lower
 
 
-def test_guidance_docs_describe_embedded_implement_review_without_public_review_route() -> None:
+def test_guidance_docs_distinguish_embedded_task_review_and_system_review() -> None:
     readme = _read("README.md")
     handbook = _read("PROJECT-HANDBOOK.md")
     generated_handbook = _read("templates/project-handbook-template.md")
@@ -772,8 +772,8 @@ def test_guidance_docs_describe_embedded_implement_review_without_public_review_
         assert "review-window limits" in lowered
         assert "task lifecycle record" in lowered
         assert "upstream truth" in lowered
-        assert "/sp.review" not in content
-        assert "sp-review" not in content
+        assert "sp-review" in lowered
+        assert "real" in lowered and "entrypoint" in lowered
 
 
 def test_guidance_docs_describe_context_restoring_human_acceptance() -> None:
@@ -790,7 +790,7 @@ def test_guidance_docs_describe_context_restoring_human_acceptance() -> None:
 
     for content in (readme, handbook, generated_handbook):
         assert "one" in content and "step" in content
-        assert "technical closeout" in content
+        assert "system review" in content
 
 
 def test_guidance_docs_teach_consequence_gate_across_workflow_mainline() -> None:

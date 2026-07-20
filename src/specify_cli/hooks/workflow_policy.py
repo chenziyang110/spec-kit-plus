@@ -141,7 +141,7 @@ def workflow_policy_hook(project_root: Path, payload: dict[str, object]) -> Hook
             data={"policy": policy},
         )
 
-    if command_name in {"implement", "quick", "debug"}:
+    if command_name in {"implement", "review", "quick", "debug"}:
         session_result = session_state_hook(project_root, payload)
         if session_result.status == "blocked":
             return HookResult(

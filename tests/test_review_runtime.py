@@ -101,6 +101,24 @@ def _prepare(tmp_path: Path) -> tuple[ModuleType, Path, Path, int, dict[str, obj
     return runtime, project_root, feature_dir, revision, prepared
 
 
+def _write_scenario_evidence(feature_dir: Path, state: dict[str, object]) -> None:
+    for scenario in state["scenarios"]:
+        scenario["result"] = "pass"
+        scenario["evidence"] = []
+        for kind in scenario["required_evidence"]:
+            relative_path = Path("review-evidence") / scenario["id"] / f"{kind}.json"
+            evidence_path = feature_dir / relative_path
+            evidence_path.parent.mkdir(parents=True, exist_ok=True)
+            evidence_path.write_text("{}\n", encoding="utf-8")
+            scenario["evidence"].append(
+                {
+                    "kind": kind,
+                    "path": relative_path.as_posix(),
+                    "evidence_scope": "integrated",
+                }
+            )
+
+
 def test_prepare_review_compiles_handoff_into_resumable_review_state(
     tmp_path: Path,
 ) -> None:
@@ -171,10 +189,10 @@ def test_validate_review_marks_changed_implementation_handoff_stale(
     assert any("stale" in error.lower() for error in validation["errors"])
 
 
-def test_closeout_review_requires_approved_fresh_evidence_and_does_not_advance_workflow(
+def test_validate_review_rejects_declared_evidence_without_a_real_file(
     tmp_path: Path,
 ) -> None:
-    runtime, project_root, feature_dir, revision, _prepared = _prepare(tmp_path)
+    runtime, project_root, feature_dir, _revision, _prepared = _prepare(tmp_path)
     state_path = runtime.review_state_path(feature_dir)
     state = json.loads(state_path.read_text(encoding="utf-8"))
     for scenario in state["scenarios"]:
@@ -187,6 +205,21 @@ def test_closeout_review_requires_approved_fresh_evidence_and_does_not_advance_w
             }
             for kind in scenario["required_evidence"]
         ]
+    state_path.write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
+
+    validation = runtime.validate_review(project_root, feature_dir)
+
+    assert validation["valid"] is False
+    assert any("does not exist" in error for error in validation["errors"])
+
+
+def test_closeout_review_requires_approved_fresh_evidence_and_does_not_advance_workflow(
+    tmp_path: Path,
+) -> None:
+    runtime, project_root, feature_dir, revision, _prepared = _prepare(tmp_path)
+    state_path = runtime.review_state_path(feature_dir)
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    _write_scenario_evidence(feature_dir, state)
     state["status"] = "approved"
     state["findings"] = []
     state_path.write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
@@ -233,3 +266,36 @@ def test_closeout_review_preserves_state_when_review_is_not_approved(
 
     assert state_path.read_bytes() == before
     assert show_workflow(feature_dir)["data"]["stage"] == "review"
+
+
+def test_approved_review_becomes_stale_when_live_source_changes(tmp_path: Path) -> None:
+    runtime = _review_runtime()
+    project_root, feature_dir, revision = _feature_at_review(tmp_path)
+    source_path = project_root / "src" / "app.py"
+    source_path.parent.mkdir(parents=True)
+    source_path.write_text("print('ready')\n", encoding="utf-8")
+    handoff_path = _write_implementation_handoff(feature_dir, revision)
+    handoff = json.loads(handoff_path.read_text(encoding="utf-8"))
+    handoff["fingerprint_algorithm"] = "git-working-tree-v1"
+    handoff["implementation_fingerprint"] = runtime.implementation_snapshot_sha256(
+        project_root, feature_dir
+    )
+    handoff_path.write_text(json.dumps(handoff, indent=2) + "\n", encoding="utf-8")
+    runtime.prepare_review(project_root, feature_dir, expected_revision=revision)
+
+    state_path = runtime.review_state_path(feature_dir)
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    _write_scenario_evidence(feature_dir, state)
+    state["status"] = "approved"
+    state["final"]["reviewed_snapshot_sha256"] = runtime.implementation_snapshot_sha256(
+        project_root, feature_dir
+    )
+    state_path.write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
+    assert runtime.validate_review(project_root, feature_dir)["valid"] is True
+
+    source_path.write_text("print('changed after review')\n", encoding="utf-8")
+
+    validation = runtime.validate_review(project_root, feature_dir)
+    assert validation["valid"] is False
+    assert validation["fresh"] is False
+    assert any("reviewed snapshot" in error for error in validation["errors"])

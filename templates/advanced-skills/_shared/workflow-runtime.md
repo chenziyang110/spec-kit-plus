@@ -1,7 +1,7 @@
 # Workflow runtime
 
 Read this reference only for the feature-bearing
-`$spx-specify -> $spx-plan -> $spx-tasks -> $spx-implement -> $spx-accept`
+`$spx-specify -> $spx-plan -> $spx-tasks -> $spx-implement -> $spx-review -> $spx-accept`
 chain. A pre-feature
 discussion keeps its own discussion session; once `FEATURE_DIR` exists, the
 runtime is authoritative for required phase order in the compact
@@ -24,10 +24,12 @@ revision.
 
 `completed` closes the current stage, not the whole chain. A completed
 non-terminal stage still exposes and permits its one required next transition;
-only completed `accept` is terminal. A failed or blocked acceptance must not
-reverse `workflow transition` or edit phase state. Route its recorded finding
-through `accept route-repair`; that command invalidates the prior verdict and
-performs the only legal backward repair handoff.
+only completed `accept` is terminal. Review owns bounded source/test repair and
+must revalidate the current fingerprint before completion. A failed or blocked
+acceptance must not reverse `workflow transition` or edit phase state. Route its
+recorded finding through `accept route-repair`; that command invalidates the
+prior verdict and performs the only legal backward repair handoff to Review or
+an upstream truth owner.
 
 At the owning stage's closeout, run
 `{{specify-subcmd:workflow complete-stage --feature-dir <feature-dir> --expected-revision <revision> --format json}}`.
@@ -39,10 +41,10 @@ skill owns that transition; recommend it without entering it. Use
 If fresh evidence invalidates an earlier required stage, do not delete stale
 artifacts or hand-edit either state surface. Reopen the highest invalid stage
 through
-`{{specify-subcmd:workflow reopen --to <specify|plan|tasks|implement> --feature-dir <feature-dir> --expected-revision <revision> --reason <compact-reason> --evidence <sanitized-evidence> --invalidated-artifacts <artifact> --format json}}`,
+`{{specify-subcmd:workflow reopen --to <specify|plan|tasks|implement|review> --feature-dir <feature-dir> --expected-revision <revision> --reason <compact-reason> --evidence <sanitized-evidence> --invalidated-artifacts <artifact> --format json}}`,
 repeating evidence and invalidated-artifact flags as needed. Generic reopen is a
 strict backward move or reactivation of the same completed non-accept stage,
-including `implement`; an active same-stage owner simply continues. Resolve
+including `implement` and `review`; an active same-stage owner simply continues. Resolve
 an existing blocker with fresh evidence first. Failed acceptance uses
 `accept route-repair`; a completed acceptance is immutable and new scope starts
 a distinct feature workflow.
@@ -61,7 +63,9 @@ input and execute its `base_argv`; do not reconstruct other flags. This invokes
 `workflow resolve`, preserves the prior blocker audit, and reactivates the same
 stage.
 
-Only `accept` closes the chain. After explicit human acceptance, run the
+Review completion is bound to its fresh approved state and final source
+fingerprint; any later covered source/configuration change makes Review and
+prepared acceptance stale. Only `accept` closes the chain. After explicit human acceptance, run the
 acceptance-owned `accept closeout` command and execute its successful response's
 `next_argv` verbatim. That revision-bound argv invokes `workflow closeout`; do
 not reconstruct it. The runtime validates and snapshots acceptance evidence

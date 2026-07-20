@@ -120,7 +120,7 @@
         "spx-implement/references/worker-contract.md"
       ],
       "assets": ["spx-implement/assets/implementation-summary.md"],
-      "optimization": "adaptive direct or native-subagent execution with evidence-backed closeout"
+      "optimization": "adaptive direct or native-subagent execution with evidence-backed Review handoff"
     },
     "spx-implement-teams": {
       "absorbs": ["implement-teams"],
@@ -199,6 +199,15 @@
         "spx-quick/assets/summary.md"
       ],
       "optimization": "compact resumable state with delegation only when it adds value"
+    },
+    "spx-review": {
+      "absorbs": ["review"],
+      "references": [
+        "spx-review/references/review-contract.md",
+        "spx-review/references/worker-contract.md"
+      ],
+      "assets": [],
+      "optimization": "real-entrypoint system validation with bounded repair, adaptive independent review lanes, and a fresh fingerprint gate"
     },
     "spx-research": {
       "absorbs": ["research"],

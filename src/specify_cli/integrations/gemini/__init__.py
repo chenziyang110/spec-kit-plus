@@ -130,7 +130,7 @@ class GeminiIntegration(TomlIntegration):
         content: str,
         command_name: str,
     ) -> str:
-        if command_name not in {"implement", "debug", "quick"}:
+        if command_name not in {"implement", "review", "debug", "quick"}:
             return content
 
         lowered = content.lower()
@@ -442,7 +442,7 @@ class GeminiIntegration(TomlIntegration):
     ) -> list[Path]:
         updated_files: list[Path] = []
         commands_dir = self.commands_dest(project_root)
-        for stem in ("implement", "debug", "quick"):
+        for stem in ("implement", "review", "debug", "quick"):
             path = commands_dir / self.command_filename(stem)
             if not path.exists():
                 continue

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from specify_cli.lanes.state_store import iter_lane_records
@@ -54,11 +55,49 @@ def statusline_hook(project_root: Path, payload: dict[str, object]) -> HookResul
             part
             for part in [
                 f"implement:{checkpoint.get('status', '')}",
-                f"batch:{checkpoint.get('current_batch', '')}" if checkpoint.get("current_batch") else "",
-                f"retry:{checkpoint.get('retry_attempts', '')}" if checkpoint.get("retry_attempts") else "",
+                f"batch:{checkpoint.get('current_batch', '')}"
+                if checkpoint.get("current_batch")
+                else "",
+                f"retry:{checkpoint.get('retry_attempts', '')}"
+                if checkpoint.get("retry_attempts")
+                else "",
                 f"lane:{lane.lane_id}" if lane is not None else "",
                 f"recovery:{lane.recovery_state}" if lane is not None else "",
-                f"next:{checkpoint.get('next_action', '')}" if checkpoint.get("next_action") else "",
+                f"next:{checkpoint.get('next_action', '')}"
+                if checkpoint.get("next_action")
+                else "",
+            ]
+            if part
+        )
+        return HookResult(
+            event=WORKFLOW_STATUSLINE_RENDER,
+            status="ok",
+            severity="info",
+            data={"statusline": line, "checkpoint": checkpoint},
+        )
+
+    if command_name == "review":
+        feature_dir = _required_path(project_root, payload, "feature_dir")
+        checkpoint = json.loads(
+            (feature_dir / "review-state.json").read_text(encoding="utf-8")
+        )
+        cursor = checkpoint.get("cursor") if isinstance(checkpoint, dict) else {}
+        scenario_id = (
+            str(cursor.get("scenario_id") or "") if isinstance(cursor, dict) else ""
+        )
+        findings = checkpoint.get("findings") if isinstance(checkpoint, dict) else []
+        open_findings = sum(
+            1
+            for finding in findings or []
+            if isinstance(finding, dict)
+            and finding.get("status") not in {"verified", "accepted_residual_risk"}
+        )
+        line = " ".join(
+            part
+            for part in [
+                f"review:{checkpoint.get('status', '')}",
+                f"scenario:{scenario_id}" if scenario_id else "",
+                f"open-findings:{open_findings}",
             ]
             if part
         )

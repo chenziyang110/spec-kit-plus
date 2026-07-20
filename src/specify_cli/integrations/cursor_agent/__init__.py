@@ -101,6 +101,7 @@ class CursorAgentIntegration(SkillsIntegration):
     ) -> None:
         runtime_skills = {
             "implement": skills_dir / "sp-implement" / "SKILL.md",
+            "review": skills_dir / "sp-review" / "SKILL.md",
             "debug": skills_dir / "sp-debug" / "SKILL.md",
             "quick": skills_dir / "sp-quick" / "SKILL.md",
         }
@@ -126,7 +127,7 @@ class CursorAgentIntegration(SkillsIntegration):
     ) -> list[Path]:
         updated_files: list[Path] = []
         skills_dir = self.skills_dest(project_root)
-        for stem in ("implement", "debug", "quick"):
+        for stem in ("implement", "review", "debug", "quick"):
             path = skills_dir / f"sp-{stem}" / "SKILL.md"
             updated = self._append_runtime_handbook_compatibility_to_file(
                 project_root=project_root,

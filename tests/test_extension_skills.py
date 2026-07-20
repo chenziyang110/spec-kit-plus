@@ -476,7 +476,7 @@ class TestBuiltInSkillGeneration:
         assert "manual override/fallback" in tasks_body.lower()
         assert "run `/sp-map-scan` followed by `/sp-map-build`" in tasks_body
         routing_body = _body_without_frontmatter(PROJECT_ROOT / "templates" / "passive-skills" / "spec-kit-workflow-routing" / "SKILL.md").lower()
-        assert "default generated path is `sp-specify -> sp-plan -> sp-tasks -> sp-implement -> sp-accept`" in routing_body
+        assert "default generated path is `sp-specify -> sp-plan -> sp-tasks -> sp-implement -> sp-review -> sp-accept`" in routing_body
         assert "use `sp-implement` after `sp-tasks` produces canonical `task-index.json` or a light direct task list and records `/sp.implement`." in routing_body
         assert "use `sp-analyze` only for optional diagnostics, explicit user requests, or persisted legacy `/sp.analyze` state." in routing_body
         assert "clean completed `sp-tasks` state with `/sp.implement` routes directly to" in routing_body

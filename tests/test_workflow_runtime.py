@@ -690,7 +690,7 @@ def test_resolve_reactivates_blocked_accept_and_preserves_the_full_blocker(
     feature_dir = _feature(tmp_path)
     entered = enter_workflow(feature_dir, stage="specify", expected_revision=0)
     revision = entered["data"]["revision"]
-    for target in ("plan", "tasks", "implement", "accept"):
+    for target in ("plan", "tasks", "implement", "review", "accept"):
         advanced = _complete_then_transition(
             feature_dir,
             target_stage=target,
@@ -895,7 +895,7 @@ def test_closeout_is_only_legal_from_active_accept(tmp_path: Path) -> None:
         )
 
     revision = entered["data"]["revision"]
-    for target in ("plan", "tasks", "implement", "accept"):
+    for target in ("plan", "tasks", "implement", "review", "accept"):
         result = _complete_then_transition(
             feature_dir,
             target_stage=target,
@@ -922,7 +922,7 @@ def test_active_accept_next_routes_to_guarded_closeout_until_terminal(
     feature_dir = _feature(tmp_path)
     entered = enter_workflow(feature_dir, stage="specify", expected_revision=0)
     revision = entered["data"]["revision"]
-    for target in ("plan", "tasks", "implement", "accept"):
+    for target in ("plan", "tasks", "implement", "review", "accept"):
         advanced = _complete_then_transition(
             feature_dir,
             target_stage=target,
@@ -955,7 +955,7 @@ def test_runtime_closeout_requires_a_revision_bound_acceptance_snapshot(
     feature_dir = _feature(tmp_path)
     entered = enter_workflow(feature_dir, stage="specify", expected_revision=0)
     revision = entered["data"]["revision"]
-    for target in ("plan", "tasks", "implement", "accept"):
+    for target in ("plan", "tasks", "implement", "review", "accept"):
         advanced = _complete_then_transition(
             feature_dir,
             target_stage=target,
@@ -986,7 +986,7 @@ def test_completed_accept_reports_unreadable_or_raced_terminal_evidence(
     feature_dir = _feature(tmp_path)
     entered = enter_workflow(feature_dir, stage="specify", expected_revision=0)
     revision = entered["data"]["revision"]
-    for target in ("plan", "tasks", "implement", "accept"):
+    for target in ("plan", "tasks", "implement", "review", "accept"):
         advanced = _complete_then_transition(
             feature_dir,
             target_stage=target,
@@ -1042,7 +1042,7 @@ def test_closeout_converts_acceptance_read_errors_to_a_typed_blocker(
     feature_dir = _feature(tmp_path)
     entered = enter_workflow(feature_dir, stage="specify", expected_revision=0)
     revision = entered["data"]["revision"]
-    for target in ("plan", "tasks", "implement", "accept"):
+    for target in ("plan", "tasks", "implement", "review", "accept"):
         advanced = _complete_then_transition(
             feature_dir,
             target_stage=target,
@@ -1089,7 +1089,7 @@ def test_completed_accept_rejects_equal_content_snapshot_symlink(tmp_path: Path)
     feature_dir = _feature(tmp_path)
     entered = enter_workflow(feature_dir, stage="specify", expected_revision=0)
     revision = entered["data"]["revision"]
-    for target in ("plan", "tasks", "implement", "accept"):
+    for target in ("plan", "tasks", "implement", "review", "accept"):
         advanced = _complete_then_transition(
             feature_dir,
             target_stage=target,
@@ -1121,7 +1121,7 @@ def test_closeout_rejects_preexisting_terminal_snapshot_symlink(tmp_path: Path) 
     feature_dir = _feature(tmp_path)
     entered = enter_workflow(feature_dir, stage="specify", expected_revision=0)
     revision = entered["data"]["revision"]
-    for target in ("plan", "tasks", "implement", "accept"):
+    for target in ("plan", "tasks", "implement", "review", "accept"):
         advanced = _complete_then_transition(
             feature_dir,
             target_stage=target,
@@ -1177,7 +1177,7 @@ def test_runtime_rejects_terminal_accept_without_an_acceptance_snapshot(
     feature_dir = _feature(tmp_path)
     entered = enter_workflow(feature_dir, stage="specify", expected_revision=0)
     revision = entered["data"]["revision"]
-    for target in ("plan", "tasks", "implement", "accept"):
+    for target in ("plan", "tasks", "implement", "review", "accept"):
         advanced = _complete_then_transition(
             feature_dir,
             target_stage=target,
@@ -1398,7 +1398,7 @@ def test_reopen_preserves_a_blocked_accept_human_guide(tmp_path: Path) -> None:
     feature_dir = _feature(tmp_path)
     entered = enter_workflow(feature_dir, stage="specify", expected_revision=0)
     revision = entered["data"]["revision"]
-    for target in ("plan", "tasks", "implement", "accept"):
+    for target in ("plan", "tasks", "implement", "review", "accept"):
         advanced = _complete_then_transition(
             feature_dir,
             target_stage=target,
@@ -1448,7 +1448,7 @@ def test_completed_accept_reopen_reports_terminal_policy_not_route_repair(
     feature_dir = _feature(tmp_path)
     entered = enter_workflow(feature_dir, stage="specify", expected_revision=0)
     revision = entered["data"]["revision"]
-    for target in ("plan", "tasks", "implement", "accept"):
+    for target in ("plan", "tasks", "implement", "review", "accept"):
         advanced = _complete_then_transition(
             feature_dir,
             target_stage=target,

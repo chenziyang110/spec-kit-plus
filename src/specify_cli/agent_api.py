@@ -251,6 +251,7 @@ _SCHEMAS: dict[str, dict[str, Any]] = {
                     "plan",
                     "tasks",
                     "implement",
+                    "review",
                     "accept",
                 ]
             },
@@ -263,7 +264,7 @@ _SCHEMAS: dict[str, dict[str, Any]] = {
         "workflow-reopen-input",
         properties={
             "feature_dir": _PATH,
-            "to": {"enum": ["specify", "plan", "tasks", "implement"]},
+            "to": {"enum": ["specify", "plan", "tasks", "implement", "review"]},
             "expected_revision": _REVISION,
             "reason": _STRING,
             "evidence": {"type": "array", "minItems": 1, "items": _STRING},
@@ -295,6 +296,30 @@ _SCHEMAS: dict[str, dict[str, Any]] = {
             "summary": {"type": "string"},
         },
         required=["feature_dir", "expected_revision"],
+    ),
+    "review-prepare-input": _object_schema(
+        "review-prepare-input",
+        properties={
+            "feature_dir": _PATH,
+            "expected_revision": _REVISION,
+        },
+        required=["feature_dir"],
+    ),
+    "review-validate-input": _object_schema(
+        "review-validate-input",
+        properties={
+            "feature_dir": _PATH,
+            "require_approved": {"type": "boolean", "default": False},
+        },
+        required=["feature_dir"],
+    ),
+    "review-closeout-input": _object_schema(
+        "review-closeout-input",
+        properties={
+            "feature_dir": _PATH,
+            "expected_revision": _REVISION,
+        },
+        required=["feature_dir"],
     ),
     "workflow-resolve-input": _object_schema(
         "workflow-resolve-input",
@@ -355,10 +380,12 @@ _SCHEMAS: dict[str, dict[str, Any]] = {
             "finding_id": _STRING,
             "route": {
                 "enum": [
+                    "sp-review",
                     "sp-implement",
                     "sp-debug",
                     "sp-clarify",
                     "sp-specify",
+                    "spx-review",
                     "spx-implement",
                     "spx-debug",
                     "spx-clarify",
@@ -510,6 +537,27 @@ _CAPABILITIES: tuple[dict[str, Any], ...] = (
         "input_schema": "workflow-resolve-input",
         "side_effect": "writes-workflow-runtime",
         "command": ["specify", "workflow", "resolve"],
+    },
+    {
+        "id": "review.prepare",
+        "summary": "Prepare resumable system-review state from implementation handoff.",
+        "input_schema": "review-prepare-input",
+        "side_effect": "writes-review-state",
+        "command": ["specify", "review", "prepare"],
+    },
+    {
+        "id": "review.validate",
+        "summary": "Validate review freshness, journeys, findings, and integrated evidence.",
+        "input_schema": "review-validate-input",
+        "side_effect": "none",
+        "command": ["specify", "review", "validate"],
+    },
+    {
+        "id": "review.closeout",
+        "summary": "Close approved review evidence and prepare human acceptance.",
+        "input_schema": "review-closeout-input",
+        "side_effect": "writes-review-summary-and-acceptance",
+        "command": ["specify", "review", "closeout"],
     },
     {
         "id": "workflow.block",

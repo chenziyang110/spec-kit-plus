@@ -21,6 +21,7 @@ FIRST_RELEASE_WORKFLOW_COMMANDS = frozenset(
         "plan",
         "tasks",
         "implement",
+        "review",
         "analyze",
         "constitution",
         "checklist",

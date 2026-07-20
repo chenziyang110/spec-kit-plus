@@ -104,7 +104,7 @@
         "expected": {"type": "string", "minLength": 1},
         "observed": {"type": "string", "minLength": 1},
         "evidence": {"type": "array", "minItems": 1, "items": {"type": "string"}},
-        "route": {"enum": ["sp-implement", "sp-debug", "sp-clarify", "sp-specify", "spx-implement", "spx-debug", "spx-clarify", "spx-specify", "human-action"]},
+        "route": {"enum": ["sp-review", "sp-implement", "sp-debug", "sp-clarify", "sp-specify", "spx-review", "spx-implement", "spx-debug", "spx-clarify", "spx-specify", "human-action"]},
         "status": {"enum": ["open", "resolved"]}
       }
     }

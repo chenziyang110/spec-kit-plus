@@ -40,10 +40,12 @@ drift. For behavior changes, establish a failing test or credible baseline when
 practical. Delegate only independent, bounded work that benefits from
 parallelism, isolation, or review; direct execution needs no ceremony.
 
-Run the relevant verification for the changed behavior and risk. Fix understood
-local failures; hand off unknown root causes to `$spx-debug` and stop. Update existing task
-status and create `implementation-summary.md` from this Skill's asset when a
-feature workspace exists. When durable Codex team state is explicitly needed,
+Run the relevant verification for each task's changed behavior and risk. Fix
+understood local failures; hand off unknown root causes to `$spx-debug` and
+stop. Update existing task status and let deterministic closeout create the
+preliminary `implementation-summary.md` and machine-readable
+`implementation-handoff.json` for the later system Review.
+When durable Codex team state is explicitly needed,
 hand off to `$spx-implement-teams` and stop. Hand off independent lane closeout
 to `$spx-integrate` and stop; do not switch workflows inline.
 
@@ -56,7 +58,8 @@ design sources hand off to `$spx-design` and stop; unavailable comparison remain
 
 After verified repository changes, close out cognition with canonical workflow
 `implement`. Report changed files, checks actually run, failures or skipped
-checks, and residual risk. Ensure closeout prepared `human-acceptance.json`,
-recommend `$spx-accept`, and stop. Technical completion is not human product
-acceptance; do not run acceptance inline or pre-fill its verdict. Never claim
-completion without fresh evidence.
+checks, and residual risk. Ensure closeout prepared a trusted implementation
+handoff, recommend `$spx-review`, and stop. Do not invoke `$spx-accept`
+directly: technical completion is not human product acceptance, and task
+completion is not system Review.
+acceptance. Never claim completion without fresh evidence.

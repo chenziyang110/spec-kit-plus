@@ -5657,7 +5657,9 @@ def test_hook_validate_commit_accepts_external_evidence_checkpoint_option(
     assert payload["data"]["workflow_finalized"] is False
 
 
-def test_implement_closeout_writes_user_facing_summary(tmp_path: Path):
+def test_implement_closeout_writes_review_handoff_without_preparing_acceptance(
+    tmp_path: Path,
+):
     project = _create_project(tmp_path)
     feature_dir = project / ".specify" / "features" / "001-demo"
     feature_dir.mkdir(parents=True)
@@ -5797,13 +5799,16 @@ def test_implement_closeout_writes_user_facing_summary(tmp_path: Path):
     assert summary["completed_work"][0]["review_artifacts"]["task_review"].endswith(
         ".specify/features/001-demo/implementation-review/task-reviews/T001.json"
     )
-    acceptance = payload["human_acceptance"]
-    assert acceptance["status"] == "draft"
-    assert acceptance["state_path"].endswith(
-        ".specify/features/001-demo/human-acceptance.json"
+    handoff = payload["implementation_handoff"]
+    assert handoff["status"] == "ok"
+    assert handoff["path"].replace("\\", "/").endswith(
+        ".specify/features/001-demo/implementation-handoff.json"
     )
-    assert "sp-accept" in acceptance["next_command"]
-    assert (feature_dir / "human-acceptance.json").is_file()
+    assert handoff["official_entrypoints"] == 1
+    assert handoff["system_review_scenarios"] == 1
+    assert "sp-review" in payload["next_command"]
+    assert (feature_dir / "implementation-handoff.json").is_file()
+    assert not (feature_dir / "human-acceptance.json").exists()
     report_path = feature_dir / "implementation-summary.md"
     assert report_path.is_file()
     report = report_path.read_text(encoding="utf-8")
@@ -5813,10 +5818,7 @@ def test_implement_closeout_writes_user_facing_summary(tmp_path: Path):
     assert "## Review Artifacts" in report
     assert "## Human Product Acceptance" in report
 
-    (feature_dir / "human-acceptance.json").write_text(
-        "{invalid json\n", encoding="utf-8"
-    )
-    conflict = _invoke_in_project(
+    repeated = _invoke_in_project(
         project,
         [
             "implement",
@@ -5828,10 +5830,9 @@ def test_implement_closeout_writes_user_facing_summary(tmp_path: Path):
         ],
     )
 
-    assert conflict.exit_code == 10, conflict.output
-    conflict_payload = json.loads(conflict.output)
-    assert conflict_payload["status"] in {"blocked", "conflict"}
-    assert conflict_payload["human_acceptance"]["status"] == "conflict"
+    assert repeated.exit_code == 0, repeated.output
+    repeated_payload = json.loads(repeated.output)
+    assert repeated_payload["implementation_handoff"]["status"] == "ok"
 
 
 def test_hook_monitor_context_outputs_parseable_json(tmp_path: Path):

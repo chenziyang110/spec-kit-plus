@@ -10,5 +10,6 @@
 - review_events:
 - residual_risk:
 - recovery_or_follow_up:
-- human_acceptance_state: human-acceptance.json
-- next_workflow: spx-accept
+- system_review_status: pending
+- implementation_handoff: implementation-handoff.json
+- next_workflow: spx-review

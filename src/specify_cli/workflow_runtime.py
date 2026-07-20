@@ -39,6 +39,7 @@ WORKFLOW_STAGES = (
     "plan",
     "tasks",
     "implement",
+    "review",
     "accept",
 )
 _ENTRY_STAGES = frozenset({"discussion", "specify"})
@@ -1068,7 +1069,7 @@ def enter_workflow(
                 f"got {normalized_stage or 'missing'}"
             ),
             evidence=[
-                "required order: discussion(optional) -> specify -> plan -> tasks -> implement -> accept"
+                "required order: discussion(optional) -> specify -> plan -> tasks -> implement -> review -> accept"
             ],
             attempted_recovery=[],
             affected_scope=["workflow entry"],
@@ -1202,7 +1203,7 @@ def _invalid_transition(
             owner="agent",
             cause=cause,
             evidence=[
-                "required order: discussion(optional) -> specify -> plan -> tasks -> implement -> accept"
+                "required order: discussion(optional) -> specify -> plan -> tasks -> implement -> review -> accept"
             ],
             attempted_recovery=[],
             affected_scope=[stage, target_stage],
@@ -1484,6 +1485,7 @@ def reopen_workflow(
         "plan",
         "tasks",
         "implement",
+        "review",
     }
     target_is_earlier = target_is_reopenable and (
         _STAGE_INDEX[normalized_target] < _STAGE_INDEX[source_stage]
@@ -1585,7 +1587,7 @@ def reopen_workflow(
         cause = (
             f"cannot reopen {source_stage} to {normalized_target}; target must be "
             "an earlier required stage, or the same completed stage, among specify, "
-            "plan, tasks, or implement"
+            "plan, tasks, implement, or review"
         )
         blocker = _runtime_blocker(
             stage=source_stage,
@@ -1678,8 +1680,10 @@ def reopen_acceptance_workflow(
             actual_revision=state["revision"],
         )
     normalized_target = _required_text(target_stage, "target_stage").lower()
-    if normalized_target not in {"specify", "implement"}:
-        raise ValueError("acceptance repair target_stage must be specify or implement")
+    if normalized_target not in {"specify", "implement", "review"}:
+        raise ValueError(
+            "acceptance repair target_stage must be specify, implement, or review"
+        )
     normalized_route = _required_text(repair_route, "repair_route")
     normalized_finding = _required_text(finding_id, "finding_id")
     normalized_evidence = _required_string_list(evidence, "evidence")

@@ -9,6 +9,7 @@ Preserved Contract: leader-direct tasks stay compact; delegated packets carry ob
 - When lane resolution returns a materialized lane worktree, record that lane ref in the canonical task graph.
 - Do not run project cognition from packet shaping. Reuse the context capsule and validation routes already stored by planning/task intake.
 - Store only task-shaping fields in task-index.json: objective, dependencies, expected write scope, required refs, acceptance, verification, obligation refs, join point, and packet mode.
+- At the task-index root, store each official executable entrypoint with its command and observable ready signal, plus required system-review scenarios with stable ID, kind, preconditions, actions, expected results, entrypoint ref, and required evidence. This is feature-level Review input, not duplicated per worker packet.
 - Use `packet_mode: leader-direct | delegated | parallel-high-risk`.
 - `leader-direct` tasks do not need a WorkerTaskPacket.
 - For delegated work, `sp-implement` compiles and validates the packet just in time from the current task, live repository state, and stable contract refs.

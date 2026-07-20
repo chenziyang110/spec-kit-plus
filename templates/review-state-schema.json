@@ -1,0 +1,111 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": ".specify/templates/review-state-schema.json",
+  "title": "Spec Kit Plus System Review State",
+  "type": "object",
+  "required": [
+    "version",
+    "schema_ref",
+    "status",
+    "source",
+    "entrypoints",
+    "scenarios",
+    "rounds",
+    "findings",
+    "repair_cycles",
+    "validation",
+    "cursor",
+    "final"
+  ],
+  "properties": {
+    "version": { "const": 1 },
+    "schema_ref": { "const": ".specify/templates/review-state-schema.json" },
+    "status": {
+      "enum": ["gathering", "reviewing", "repairing", "validating", "approved", "blocked", "stale"]
+    },
+    "source": {
+      "type": "object",
+      "required": ["workflow_revision", "implementation_fingerprint", "implementation_handoff_sha256"],
+      "properties": {
+        "workflow_revision": { "type": "integer", "minimum": 0 },
+        "implementation_fingerprint": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "implementation_handoff_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+      },
+      "additionalProperties": false
+    },
+    "entrypoints": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "command", "ready_signal"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "command": { "type": "string", "minLength": 1 },
+          "ready_signal": { "type": "string", "minLength": 1 }
+        },
+        "additionalProperties": true
+      }
+    },
+    "scenarios": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "kind", "title", "required", "entrypoint_id", "actions", "expected_results", "required_evidence", "result", "evidence"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "kind": { "enum": ["startup", "wiring", "interaction", "ui", "integration", "regression"] },
+          "title": { "type": "string", "minLength": 1 },
+          "required": { "type": "boolean" },
+          "entrypoint_id": { "type": "string", "minLength": 1 },
+          "preconditions": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+          "actions": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+          "expected_results": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+          "required_evidence": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "enum": ["structure_snapshot", "visual_capture", "runtime_diagnostics", "invocation", "side_effect"] }
+          },
+          "result": { "enum": ["pending", "pass", "fail", "blocked", "not_run"] },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["kind", "path", "evidence_scope"],
+              "properties": {
+                "kind": { "enum": ["structure_snapshot", "visual_capture", "runtime_diagnostics", "invocation", "side_effect"] },
+                "path": { "type": "string", "minLength": 1 },
+                "evidence_scope": { "const": "integrated" }
+              },
+              "additionalProperties": true
+            }
+          }
+        },
+        "additionalProperties": true
+      }
+    },
+    "rounds": { "type": "array", "items": { "type": "object" } },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "scenario_id", "classification", "summary", "status"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "scenario_id": { "type": "string", "minLength": 1 },
+          "classification": { "enum": ["startup", "runtime", "wiring", "unreachable", "interaction", "data-flow", "ui", "accessibility", "integration", "regression"] },
+          "summary": { "type": "string", "minLength": 1 },
+          "status": { "enum": ["open", "repairing", "fixed", "verified", "accepted_residual_risk"] }
+        },
+        "additionalProperties": true
+      }
+    },
+    "repair_cycles": { "type": "array", "items": { "type": "object" } },
+    "validation": { "type": "object" },
+    "cursor": { "type": "object" },
+    "blocker": { "type": ["object", "null"] },
+    "final": { "type": "object" }
+  },
+  "additionalProperties": false
+}

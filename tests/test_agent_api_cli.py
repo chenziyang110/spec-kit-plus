@@ -815,7 +815,7 @@ def test_workflow_cli_validates_human_acceptance_before_closeout(
     feature_dir.mkdir(parents=True)
     entered = enter_workflow(feature_dir, stage="specify", expected_revision=0)
     revision = entered["data"]["revision"]
-    for stage in ("plan", "tasks", "implement", "accept"):
+    for stage in ("plan", "tasks", "implement", "review", "accept"):
         advanced = _complete_then_transition(
             feature_dir,
             target_stage=stage,
@@ -882,7 +882,7 @@ def test_workflow_closeout_rejects_a_valid_but_unaccepted_draft(
     )
     entered = enter_workflow(feature_dir, stage="specify", expected_revision=0)
     revision = entered["data"]["revision"]
-    for stage in ("plan", "tasks", "implement", "accept"):
+    for stage in ("plan", "tasks", "implement", "review", "accept"):
         advanced = _complete_then_transition(
             feature_dir,
             target_stage=stage,

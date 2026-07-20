@@ -48,10 +48,12 @@ FINDING_CLASSIFICATIONS = {
     "unable-to-verify",
 }
 FINDING_ROUTES = {
+    "sp-review",
     "sp-implement",
     "sp-debug",
     "sp-clarify",
     "sp-specify",
+    "spx-review",
     "spx-implement",
     "spx-debug",
     "spx-clarify",
@@ -59,20 +61,24 @@ FINDING_ROUTES = {
     "human-action",
 }
 ACCEPTANCE_REPAIR_TARGETS = {
+    "sp-review": "review",
     "sp-implement": "implement",
     "sp-debug": "implement",
     "sp-clarify": "specify",
     "sp-specify": "specify",
+    "spx-review": "review",
     "spx-implement": "implement",
     "spx-debug": "implement",
     "spx-clarify": "specify",
     "spx-specify": "specify",
 }
 ACCEPTANCE_REPAIR_OWNERS = {
+    "sp-review": "sp-review",
     "sp-implement": "sp-implement",
     "sp-debug": "sp-implement",
     "sp-clarify": "sp-specify",
     "sp-specify": "sp-specify",
+    "spx-review": "spx-review",
     "spx-implement": "spx-implement",
     "spx-debug": "spx-implement",
     "spx-clarify": "spx-specify",
@@ -782,7 +788,7 @@ def _prepare_human_acceptance_locked(
             "status": "blocked",
             "state_path": _display_path(state_path, root),
             "errors": [f"missing implementation summary: {summary_path}"],
-            "next_command": "sp-implement or spx-implement",
+            "next_command": "sp-review or spx-review",
         }
 
     summary_digest = _sha256(summary_path)

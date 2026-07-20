@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "schema_ref": ".specify/templates/review-state-schema.json",
+  "status": "gathering",
+  "source": {
+    "workflow_revision": null,
+    "implementation_fingerprint": "",
+    "implementation_handoff_sha256": ""
+  },
+  "entrypoints": [],
+  "scenarios": [],
+  "rounds": [],
+  "findings": [],
+  "repair_cycles": [],
+  "validation": {
+    "startup": "pending",
+    "real_entrypoint_journeys": "pending",
+    "regression": "pending",
+    "ui_verification": "pending"
+  },
+  "cursor": {
+    "scenario_id": null,
+    "next_action": null
+  },
+  "blocker": null,
+  "final": {
+    "verdict": "pending",
+    "reviewed_snapshot_sha256": "",
+    "implementation_summary_sha256": ""
+  }
+}

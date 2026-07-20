@@ -406,8 +406,7 @@ def _assert_embedded_implement_review_contract(content: str) -> None:
     assert "review_window_policy" in content
     assert "implementation-review/reviews.ndjson" in content
     assert "implementation-review/repairs.ndjson" in content
-    assert "/sp.review" not in content
-    assert "sp-review" not in content
+    assert "sp-review" in lowered
 
 
 def _discussion_artifact_path(integration, project_root):

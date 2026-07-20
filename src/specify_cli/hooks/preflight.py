@@ -90,6 +90,27 @@ def workflow_preflight_hook(project_root: Path, payload: dict[str, object]) -> H
                     if check["status"] != "pass":
                         errors.append(f"integrate precheck failed: {check['name']} ({check['detail']})")
 
+    if command_name == "review":
+        raw_feature_dir = str(payload.get("feature_dir") or "").strip()
+        if not raw_feature_dir:
+            raise QualityHookError("feature_dir is required for review preflight")
+        feature_dir = Path(raw_feature_dir)
+        if not feature_dir.is_absolute():
+            feature_dir = (project_root / feature_dir).resolve()
+        handoff_path = feature_dir / "implementation-handoff.json"
+        if not handoff_path.is_file():
+            errors.append(f"implementation-handoff.json is missing at {handoff_path}")
+        try:
+            from specify_cli.workflow_runtime import show_workflow
+
+            workflow = show_workflow(feature_dir)["data"]
+            if workflow.get("stage") != "review" or workflow.get("status") != "active":
+                errors.append(
+                    "review preflight requires active workflow stage review after implement completion"
+                )
+        except (OSError, ValueError, KeyError) as exc:
+            errors.append(f"review workflow runtime is unavailable: {exc}")
+
     if errors:
         return HookResult(
             event=WORKFLOW_PREFLIGHT,

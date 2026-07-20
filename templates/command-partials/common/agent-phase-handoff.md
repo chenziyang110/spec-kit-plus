@@ -16,7 +16,7 @@ Phase handoff is an agent-only control surface. Human-facing explanation belongs
 
 ## Deterministic Workflow Runtime
 
-For a feature-bearing `specify -> plan -> tasks -> implement -> accept` stage,
+For a feature-bearing `specify -> plan -> tasks -> implement -> review -> accept` stage,
 the CLI owns phase order in `FEATURE_DIR/workflow-runtime.json`. Do not author
 or advance `workflow-runtime.json` by hand. `workflow-state.md` remains the rich
 workflow-owned evidence and resume surface for Learning, clarification,
@@ -24,18 +24,18 @@ research, analysis, and profile-specific details; the phase runtime must not ove
 or parse it as its revision authority.
 
 - After `FEATURE_DIR` is known, run `{{specify-subcmd:workflow show --feature-dir <feature-dir> --format json}}`. If state is missing at the first feature stage, run `{{specify-subcmd:workflow enter --command specify --feature-dir <feature-dir> --format json}}`.
-- On entry to `plan`, `tasks`, `implement`, or `accept`, use the current revision with `{{specify-subcmd:workflow transition --to <this-stage> --feature-dir <feature-dir> --expected-revision <revision> --format json}}` before writing that stage's artifacts. The command validates the completed source-stage artifacts and refuses skips, stale revisions, or incomplete handoffs with exit `10`.
+- On entry to `plan`, `tasks`, `implement`, `review`, or `accept`, use the current revision with `{{specify-subcmd:workflow transition --to <this-stage> --feature-dir <feature-dir> --expected-revision <revision> --format json}}` before writing that stage's artifacts. The command validates the completed source-stage artifacts and refuses skips, stale revisions, or incomplete handoffs with exit `10`.
 - After the owning stage finishes its artifact closeout, run `{{specify-subcmd:workflow complete-stage --feature-dir <feature-dir> --expected-revision <revision> --format json}}`. The runtime validates the stage artifacts, records non-terminal `status: completed`, and returns the one legal transition argv; do not edit phase state manually.
 - The destination command owns the returned transition. A completed stage recommends the next command but must not execute `workflow transition` to that next stage in the same invocation.
 - Use `{{specify-subcmd:workflow next --feature-dir <feature-dir> --format json}}` for the compact next action. While a stage is active its `next_argv` completes that stage; after completion it transitions to the successor. Execute only structured argv and do not reconstruct flags from prose.
 - When fresh evidence invalidates an earlier required stage, preserve the stale
   artifacts for audit and reopen the highest invalid stage with
-  `{{specify-subcmd:workflow reopen --to <specify|plan|tasks|implement> --feature-dir <feature-dir> --expected-revision <revision> --reason <compact-reason> --evidence <sanitized-evidence> --invalidated-artifacts <artifact> --format json}}`.
+  `{{specify-subcmd:workflow reopen --to <specify|plan|tasks|implement|review> --feature-dir <feature-dir> --expected-revision <revision> --reason <compact-reason> --evidence <sanitized-evidence> --invalidated-artifacts <artifact> --format json}}`.
   Repeat `--evidence` and `--invalidated-artifacts` as needed. The CLI permits
   a strict backward move or reactivation of the same completed non-accept stage,
-  including `implement`; an active same-stage owner simply continues. Honor any
+  including `implement` and `review`; an active same-stage owner simply continues. Honor any
   persisted blocker before retrying. Failed acceptance uses
-  `accept route-repair`, never generic reopen.
+  `accept route-repair`, never generic reopen. Clear acceptance defects normally reopen Review so it can repair and rerun the preserved scenario.
 - After safe agent recovery is exhausted, persist the blocker through `{{specify-subcmd:workflow block --input <blocker-json-or-> --format json}}`. Obtain its exact input shape with `{{specify-subcmd:api schema workflow-block-input --format json}}`; the runtime rejects replacement of an unresolved blocker and returns the human tutorial, a safe read-only `show_argv`, and a structured `data.resolution_action`. While evidence is missing, `next_argv` is intentionally empty.
 - When the recorded unblock criteria are proven, append each sanitized evidence item to the runtime-returned `resolution_action.base_argv` using its declared `--resolution-evidence` required input, then execute that argv. This invokes `workflow resolve`, preserves the full prior blocker audit, and reactivates the same stage; do not reconstruct other flags or clear blocker state manually.
 - After explicit human acceptance, run the acceptance-owned `accept closeout` command and execute its successful response's `next_argv` verbatim. That revision-bound argv invokes `workflow closeout`; do not reconstruct it from prose or a remembered revision. It validates and snapshots acceptance evidence before marking the feature workflow complete.

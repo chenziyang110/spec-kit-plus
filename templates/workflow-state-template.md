@@ -2,17 +2,17 @@
 
 ## Current Command
 
-- active_command: [sp-specify | sp-plan | sp-tasks | sp-implement | sp-accept | sp-debug | sp-analyze | sp-deep-research | sp-clarify | sp-constitution | sp-prd | sp-prd-scan | sp-prd-build]
+- active_command: [sp-specify | sp-plan | sp-tasks | sp-implement | sp-review | sp-accept | sp-debug | sp-analyze | sp-deep-research | sp-clarify | sp-constitution | sp-prd | sp-prd-scan | sp-prd-build]
 - status: [active | completed | blocked]
 
 ## Phase Mode
 
-- phase_mode: [planning-only | design-only | task-generation-only | execution-only | acceptance-only | analysis-only | research-only]
+- phase_mode: [planning-only | design-only | task-generation-only | execution-only | review-and-repair | acceptance-only | analysis-only | research-only]
 - summary: [Short current-state summary for resume and hook context]
 
 ## Stage State
 
-- current_stage: [context-intake | clarification | approach-comparison | section-approval | artifact-writing | artifact-review | user-review | plan-design | task-generation | analysis | implementation | research]
+- current_stage: [context-intake | clarification | approach-comparison | section-approval | artifact-writing | artifact-review | user-review | plan-design | task-generation | analysis | implementation | system-review | research]
 - current_domain: [scope | acceptance | integration | compatibility | security | data-shape | external-dependency | none]
 - next_action: [Smallest next workflow action to take]
 - blocker_reason: [None | Why progress is blocked]
@@ -66,8 +66,8 @@
 
 ## Reopen Contract
 
-- reopen_source: [none | specify | plan | tasks | implement]
-- reopen_target: [none | specify | plan | tasks]
+- reopen_source: [none | specify | plan | tasks | implement | review]
+- reopen_target: [none | specify | plan | tasks | implement | review]
 - reopen_reason: [why a prior artifact must be reopened]
 
 ## Analyze Gate

@@ -105,7 +105,9 @@ class IntegrationBase(ABC):
     ADVANCED_CLASSIC_COMPANION_COMMANDS = frozenset(
         {"map-scan", "map-build", "map-update"}
     )
-    RUNTIME_SUBAGENT_CONTRACT_COMMANDS = frozenset({"implement", "debug", "quick"})
+    RUNTIME_SUBAGENT_CONTRACT_COMMANDS = frozenset(
+        {"implement", "review", "debug", "quick"}
+    )
     SUBAGENT_DISCOVERY_EXCLUDED_COMMANDS = frozenset({"fast"})
     SUBAGENT_DISCOVERY_TRIGGERS = (
         "## mandatory subagent execution",
@@ -140,6 +142,7 @@ class IntegrationBase(ABC):
             "plan",
             "prd-scan",
             "quick",
+            "review",
             "specify",
             "tasks",
         }
@@ -675,7 +678,7 @@ class IntegrationBase(ABC):
     ) -> str:
         """Append a hard project cognition read gate for runtime-facing commands when absent."""
 
-        if command_name not in {"implement", "debug", "quick"}:
+        if command_name not in self.RUNTIME_SUBAGENT_CONTRACT_COMMANDS:
             return content
 
         marker = f"## {agent_name} Project Cognition Advisory Gate"
@@ -684,12 +687,14 @@ class IntegrationBase(ABC):
 
         command_step = {
             "implement": "before any implementation actions",
+            "review": "before any system review, repair, or revalidation actions",
             "debug": "before any investigation or fixes",
             "quick": "before repository analysis or implementation",
         }[command_name]
         query_gate = self._project_cognition_query_gate_line(command_name=command_name, command_step=command_step)
         carry_forward = {
             "implement": "- Carry forward only the current task's selected capability, minimal live reads, boundary constraints, required references, validation route, and evidence gaps into its lifecycle record or just-in-time `WorkerTaskPacket`.\n",
+            "review": "- Carry forward the selected user journeys, official entrypoints, affected runtime surfaces, minimal live reads, validation routes, and evidence gaps into `review-state.json` or the just-in-time review packet.\n",
             "debug": "- Carry forward the selected capability or symptom, evidence routes, minimal reads, competing truths, and unresolved coverage gaps into debug session state before root-cause claims.\n",
             "quick": "- Carry forward the selected capability, minimal reads, validation route, and known risk into quick-task `STATUS.md` before implementation proceeds.\n",
         }[command_name]
@@ -732,6 +737,7 @@ class IntegrationBase(ABC):
         intent = {
             "debug": "debug",
             "implement": "implement",
+            "review": "implement",
             "quick": "implement",
         }.get(command_name, "implement")
         if command_name == "implement":
@@ -2936,22 +2942,17 @@ class SkillsIntegration(IntegrationBase):
                 template_path=src_file,
             )
             agent_name = self.config.get("name", self.key.capitalize()) if self.config else self.key.capitalize()
+            skill_content = self._append_runtime_project_cognition_gate(
+                content=skill_content,
+                agent_name=agent_name.replace(" CLI", ""),
+                command_name=command_name,
+            )
             if command_name == "implement":
-                skill_content = self._append_runtime_project_cognition_gate(
-                    content=skill_content,
-                    agent_name=agent_name.replace(" CLI", ""),
-                    command_name=command_name,
-                )
                 skill_content = self._append_implement_leader_gate(
                     content=skill_content,
                     agent_name=agent_name.replace(" CLI", ""),
                 )
             if command_name == "debug":
-                skill_content = self._append_runtime_project_cognition_gate(
-                    content=skill_content,
-                    agent_name=agent_name.replace(" CLI", ""),
-                    command_name=command_name,
-                )
                 skill_content = self._append_debug_leader_gate(
                     content=skill_content,
                     agent_name=agent_name.replace(" CLI", ""),
@@ -2962,11 +2963,6 @@ class SkillsIntegration(IntegrationBase):
                     snapshot=runtime_snapshot,
                 )
             if command_name == "quick":
-                skill_content = self._append_runtime_project_cognition_gate(
-                    content=skill_content,
-                    agent_name=agent_name.replace(" CLI", ""),
-                    command_name=command_name,
-                )
                 skill_content = self._append_quick_leader_gate(
                     content=skill_content,
                     agent_name=agent_name.replace(" CLI", ""),

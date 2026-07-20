@@ -45,7 +45,7 @@ class CopilotIntegration(IntegrationBase):
         content: str,
         command_name: str,
     ) -> str:
-        if command_name not in {"implement", "debug", "quick"}:
+        if command_name not in {"implement", "review", "debug", "quick"}:
             return content
 
         lowered = content.lower()
@@ -134,6 +134,20 @@ class CopilotIntegration(IntegrationBase):
                 agent_name="GitHub Copilot",
                 command_name=src_file.stem,
             )
+            if src_file.stem == "review":
+                processed = self._append_delegation_surface_contract(
+                    content=processed,
+                    agent_name="GitHub Copilot",
+                    command_name=src_file.stem,
+                    snapshot=runtime_snapshot,
+                    heading="Subagent Dispatch Contract",
+                )
+                processed = self._append_runtime_worker_result_contract(
+                    content=processed,
+                    agent_name="GitHub Copilot",
+                    command_name=src_file.stem,
+                    snapshot=runtime_snapshot,
+                )
             processed = self._append_map_subagent_capability_discovery(
                 content=processed,
                 agent_name="GitHub Copilot",
@@ -203,7 +217,7 @@ class CopilotIntegration(IntegrationBase):
     ) -> list[Path]:
         updated_files: list[Path] = []
         commands_dir = self.commands_dest(project_root)
-        for stem in ("implement", "debug", "quick"):
+        for stem in ("implement", "review", "debug", "quick"):
             path = commands_dir / self.command_filename(stem)
             if not path.exists():
                 continue

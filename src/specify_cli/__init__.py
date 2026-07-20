@@ -559,6 +559,11 @@ implement_app = typer.Typer(
 )
 app.add_typer(implement_app, name="implement")
 
+review_app = typer.Typer(
+    help="Prepare, validate, and close the mandatory post-implementation system review."
+)
+app.add_typer(review_app, name="review")
+
 accept_app = typer.Typer(
     name="accept",
     help="Prepare, validate, and close resumable human product acceptance",
@@ -2942,15 +2947,13 @@ def implement_closeout(
 ):
     """Validate implementation closeout state and auto-capture learnings."""
     from .hooks.engine import run_quality_hook
-    from .human_acceptance import (
-        acceptance_closeout_blockers,
-        prepare_human_acceptance,
-    )
     from .implement_audit import audit_implement_resume
     from .implementation_summary import (
         build_implementation_summary,
         implementation_closeout_blockers,
     )
+    from .review_runtime import build_implementation_handoff
+    from .workflow_runtime import show_workflow
 
     project_root = Path.cwd()
     _require_spec_kit_plus_project(project_root)
@@ -3029,43 +3032,58 @@ def implement_closeout(
         feature_dir=resolved_feature_dir,
     )
     summary_payload = build_implementation_summary(project_root, resolved_feature_dir)
-    acceptance_payload = prepare_human_acceptance(project_root, resolved_feature_dir)
-    acceptance_status = str(acceptance_payload.get("status") or "")
-    acceptance_blocked = acceptance_status in {"blocked", "conflict"}
+    try:
+        workflow = show_workflow(resolved_feature_dir)["data"]
+        workflow_revision = int(workflow["revision"])
+        review_revision = workflow_revision + (
+            2 if workflow.get("stage") == "implement" and workflow.get("status") == "active" else 1
+        )
+    except (OSError, ValueError, KeyError):
+        # Legacy projects without the compact workflow runtime can still create a
+        # handoff; review prepare will bind it when the runtime is installed.
+        review_revision = 0
+    try:
+        handoff_payload = build_implementation_handoff(
+            project_root,
+            resolved_feature_dir,
+            source_revision=review_revision,
+        )
+    except ValueError as exc:
+        payload = {
+            "status": "blocked",
+            "feature_dir": str(resolved_feature_dir),
+            "hook_result": hook_result.to_dict(),
+            "resume_audit": resume_audit,
+            "auto_capture": auto_payload,
+            "implementation_summary": summary_payload,
+            "errors": [str(exc)],
+            "next_command": "sp-tasks or spx-tasks",
+        }
+        if output_format.lower() == "json":
+            print_json(payload, indent=2)
+        else:
+            console.print(f"[red]Error:[/red] {exc}")
+        raise typer.Exit(10)
     payload = {
-        "status": acceptance_status if acceptance_blocked else "ok",
+        "status": "ok",
         "feature_dir": str(resolved_feature_dir),
         "hook_result": hook_result.to_dict(),
         "resume_audit": resume_audit,
         "auto_capture": auto_payload,
         "implementation_summary": summary_payload,
-        "human_acceptance": acceptance_payload,
+        "implementation_handoff": handoff_payload,
+        "next_command": "sp-review (Classic) or spx-review (Advanced)",
     }
-    if acceptance_blocked:
-        payload["blockers"] = acceptance_closeout_blockers(
-            resolved_feature_dir,
-            acceptance=acceptance_payload,
-        )
     if output_format.lower() == "json":
         print_json(payload, indent=2)
-        if acceptance_blocked:
-            raise typer.Exit(10)
         return
-
-    if acceptance_blocked:
-        console.print(
-            "[red]Error:[/red] Implement closeout could not prepare human acceptance."
-        )
-        for error in acceptance_payload.get("errors") or []:
-            console.print(f"- {error}")
-        raise typer.Exit(10)
 
     rows = [
         ("Feature Dir", str(resolved_feature_dir)),
         ("Session State", hook_result.status),
         ("Summary Report", str(summary_payload["report_path"])),
-        ("Acceptance State", str(acceptance_payload["state_path"])),
-        ("Next Workflow", str(acceptance_payload["next_command"])),
+        ("Review Handoff", str(handoff_payload["path"])),
+        ("Next Workflow", str(payload["next_command"])),
         ("Auto-Capture", auto_payload["status"]),
         ("Captured", str(len(auto_payload.get("captured", [])))),
     ]
@@ -3074,6 +3092,218 @@ def implement_closeout(
     console.print(
         _cli_panel(_labeled_grid(rows), title="Implement Closeout", border_style="cyan")
     )
+
+
+def _current_review_revision(feature_dir: Path, expected_revision: int | None) -> int:
+    if expected_revision is not None:
+        return expected_revision
+    from .workflow_runtime import show_workflow
+
+    workflow = show_workflow(feature_dir)["data"]
+    return int(workflow["revision"])
+
+
+@review_app.command("prepare")
+def review_prepare(
+    feature_dir: str = typer.Option(..., "--feature-dir"),
+    expected_revision: int | None = typer.Option(None, "--expected-revision"),
+    output_format: TextJsonFormat = typer.Option(TextJsonFormat.text, "--format"),
+):
+    """Prepare resumable system-review state from the implementation handoff."""
+    from .review_runtime import ReviewRuntimeError, prepare_review
+
+    project_root = Path.cwd()
+    _require_spec_kit_plus_project(project_root)
+    resolved_feature_dir = _resolve_feature_dir(project_root, feature_dir)
+    revision = _current_review_revision(resolved_feature_dir, expected_revision)
+    try:
+        payload = prepare_review(
+            project_root,
+            resolved_feature_dir,
+            expected_revision=revision,
+        )
+    except ReviewRuntimeError as exc:
+        payload = {
+            "status": "blocked",
+            "feature_dir": str(resolved_feature_dir),
+            "errors": [str(exc)],
+        }
+        if output_format.lower() == "json":
+            print_json(payload, indent=2)
+        else:
+            console.print(f"[red]Error:[/red] {exc}")
+        raise typer.Exit(10)
+    if output_format.lower() == "json":
+        print_json(payload, indent=2)
+    else:
+        console.print(
+            _cli_panel(
+                _labeled_grid(
+                    [
+                        ("Feature Dir", str(resolved_feature_dir)),
+                        ("Review State", str(resolved_feature_dir / "review-state.json")),
+                        ("Status", str(payload["data"]["status"])),
+                    ]
+                ),
+                title="System Review Prepared",
+                border_style="cyan",
+            )
+        )
+
+
+@review_app.command("validate")
+def review_validate(
+    feature_dir: str = typer.Option(..., "--feature-dir"),
+    require_approved: bool = typer.Option(False, "--require-approved"),
+    output_format: TextJsonFormat = typer.Option(TextJsonFormat.text, "--format"),
+):
+    """Validate review freshness, required journeys, findings, and evidence."""
+    from .review_runtime import validate_review
+
+    project_root = Path.cwd()
+    _require_spec_kit_plus_project(project_root)
+    resolved_feature_dir = _resolve_feature_dir(project_root, feature_dir)
+    payload = validate_review(project_root, resolved_feature_dir)
+    if require_approved and (
+        not isinstance(payload.get("state"), dict)
+        or payload["state"].get("status") != "approved"
+    ):
+        payload["valid"] = False
+        payload.setdefault("errors", []).append(
+            "review status must be approved before closeout"
+        )
+    payload["status"] = "ok" if payload["valid"] else "blocked"
+    if output_format.lower() == "json":
+        print_json(payload, indent=2)
+    elif payload["valid"]:
+        console.print("[green]System review state is valid and fresh.[/green]")
+    else:
+        console.print("[red]System review validation is blocked.[/red]")
+        for error in payload["errors"]:
+            console.print(f"- {error}")
+    if not payload["valid"]:
+        raise typer.Exit(10)
+
+
+@review_app.command("resume-audit")
+def review_resume_audit(
+    feature_dir: str = typer.Option(..., "--feature-dir"),
+    output_format: TextJsonFormat = typer.Option(TextJsonFormat.text, "--format"),
+):
+    """Report the exact current review cursor and any stale or open gates."""
+    from .review_runtime import validate_review
+
+    project_root = Path.cwd()
+    _require_spec_kit_plus_project(project_root)
+    resolved_feature_dir = _resolve_feature_dir(project_root, feature_dir)
+    payload = validate_review(project_root, resolved_feature_dir)
+    state = payload.get("state") if isinstance(payload.get("state"), dict) else {}
+    result = {
+        "status": "pass" if payload["valid"] else "continue",
+        "feature_dir": str(resolved_feature_dir),
+        "fresh": payload["fresh"],
+        "cursor": state.get("cursor"),
+        "review_status": state.get("status"),
+        "open_gaps": payload["errors"],
+    }
+    if output_format.lower() == "json":
+        print_json(result, indent=2)
+    else:
+        console.print(
+            _cli_panel(
+                _labeled_grid(
+                    [
+                        ("Status", str(result["status"])),
+                        ("Fresh", str(result["fresh"])),
+                        ("Cursor", str(result["cursor"] or "not recorded")),
+                    ]
+                ),
+                title="System Review Resume Audit",
+                border_style="cyan",
+            )
+        )
+
+
+@review_app.command("closeout")
+def review_closeout(
+    feature_dir: str = typer.Option(..., "--feature-dir"),
+    expected_revision: int | None = typer.Option(None, "--expected-revision"),
+    output_format: TextJsonFormat = typer.Option(TextJsonFormat.text, "--format"),
+):
+    """Close fresh approved review evidence and prepare human acceptance."""
+    import hashlib
+    import json
+
+    from .atomic_io import atomic_write_text
+    from .human_acceptance import prepare_human_acceptance
+    from .implementation_summary import build_implementation_summary
+    from .review_runtime import ReviewRuntimeError, closeout_review, review_state_path
+
+    project_root = Path.cwd()
+    _require_spec_kit_plus_project(project_root)
+    resolved_feature_dir = _resolve_feature_dir(project_root, feature_dir)
+    revision = _current_review_revision(resolved_feature_dir, expected_revision)
+    try:
+        runtime_payload = closeout_review(
+            project_root,
+            resolved_feature_dir,
+            expected_revision=revision,
+        )
+    except ReviewRuntimeError as exc:
+        payload = {
+            "status": "blocked",
+            "feature_dir": str(resolved_feature_dir),
+            "errors": [str(exc)],
+        }
+        if output_format.lower() == "json":
+            print_json(payload, indent=2)
+        else:
+            console.print(f"[red]Error:[/red] {exc}")
+        raise typer.Exit(10)
+
+    summary_payload = build_implementation_summary(project_root, resolved_feature_dir)
+    summary_path = resolved_feature_dir / "implementation-summary.md"
+    summary_digest = hashlib.sha256(summary_path.read_bytes()).hexdigest()
+    state_path = review_state_path(resolved_feature_dir)
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    state.setdefault("final", {})["implementation_summary_sha256"] = summary_digest
+    atomic_write_text(state_path, json.dumps(state, ensure_ascii=False, indent=2) + "\n")
+    acceptance_payload = prepare_human_acceptance(project_root, resolved_feature_dir)
+    if acceptance_payload.get("status") in {"blocked", "conflict", "stale"}:
+        payload = {
+            "status": "blocked",
+            "feature_dir": str(resolved_feature_dir),
+            "review": runtime_payload,
+            "implementation_summary": summary_payload,
+            "human_acceptance": acceptance_payload,
+        }
+        if output_format.lower() == "json":
+            print_json(payload, indent=2)
+        else:
+            console.print("[red]Human acceptance preparation is blocked.[/red]")
+        raise typer.Exit(10)
+    payload = {
+        **runtime_payload,
+        "implementation_summary": summary_payload,
+        "human_acceptance": acceptance_payload,
+    }
+    if output_format.lower() == "json":
+        print_json(payload, indent=2)
+    else:
+        console.print(
+            _cli_panel(
+                _labeled_grid(
+                    [
+                        ("Review State", str(state_path)),
+                        ("Summary", str(summary_path)),
+                        ("Acceptance", str(acceptance_payload["state_path"])),
+                        ("Next Workflow", "sp-accept or spx-accept"),
+                    ]
+                ),
+                title="System Review Closeout",
+                border_style="cyan",
+            )
+        )
 
 
 def _resolve_feature_dir(project_root: Path, feature_dir: str) -> Path:
@@ -3151,7 +3381,7 @@ def accept_route_repair(
     route: str = typer.Option(
         ...,
         "--route",
-        help="Recorded repair route, for example spx-implement or sp-clarify",
+        help="Recorded repair route, for example spx-review or sp-clarify",
     ),
     expected_revision: int = typer.Option(
         ..., "--expected-revision", help="Current accept workflow revision"
@@ -5197,6 +5427,7 @@ SKILL_DESCRIPTIONS = {
     "plan": "Use when the current specification package is ready for implementation planning and you need design artifacts before task breakdown or coding.",
     "tasks": "Use when plan artifacts exist and execution needs dependency-aware tasks, guardrails, and parallelization guidance before implementation; clean task packages hand off directly to implement.",
     "implement": "Use when tasks.md exists and workflow state records /sp.implement for the tracked implementation workflow.",
+    "review": "Use when implementation is complete and the real product must be started, exercised, repaired, and proven usable before human acceptance.",
     "analyze": "Use when explicitly requested or legacy state records a need for optional read-only diagnostic and boundary-guardrail analysis across spec, plan, and tasks artifacts.",
     "constitution": "Use when project principles or development rules need to be created, revised, or realigned before further specification or planning work.",
     "checklist": "Use when you need an optional requirements-quality checklist aid for validating requirements or planning completeness before implementation.",
@@ -6172,6 +6403,7 @@ def init(
             ("explain", "plain-language workflow artifact explanation"),
             ("fast", "trivial direct changes"),
             ("implement", "planned implementation"),
+            ("review", "integrated system validation and bounded repair"),
             ("implement-teams", "supported durable-team implementation"),
             ("integrate", "independent feature-lane closeout"),
             ("map-build", "build cognition from a validated scan"),
@@ -6228,7 +6460,10 @@ def init(
         f"   {step_num}.5 [cyan]{_display_cmd('implement')}[/] - Execute implementation"
     )
     steps_lines.append(
-        f"   {step_num}.6 [cyan]{_display_cmd('accept')}[/] - Guide a human through product acceptance after technical closeout"
+        f"   {step_num}.6 [cyan]{_display_cmd('review')}[/] - Start the integrated product, repair broken paths, and prove required user journeys"
+    )
+    steps_lines.append(
+        f"   {step_num}.7 [cyan]{_display_cmd('accept')}[/] - Guide a human through product acceptance after system review"
     )
     steps_lines.append("   ")
     steps_lines.append("   Support skills")

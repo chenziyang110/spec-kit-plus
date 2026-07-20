@@ -394,8 +394,7 @@ def _assert_embedded_implement_review_contract(content: str) -> None:
     assert "parallel lanes join" in lowered
     assert "task lifecycle record" in lowered
     assert "do not create separate task briefs, review packages, or a duplicate task ledger" in lowered
-    assert "/sp.review" not in content
-    assert "sp-review" not in content
+    assert "sp-review" in lowered
 
 
 
