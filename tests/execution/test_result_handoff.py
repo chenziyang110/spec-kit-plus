@@ -12,6 +12,7 @@ from specify_cli.execution.result_handoff import (
 
 def test_describe_result_handoff_template_matches_supported_workflows() -> None:
     assert describe_result_handoff_template(command_name="implement", integration_key="claude") == "FEATURE_DIR/worker-results/<task-id>.json"
+    assert describe_result_handoff_template(command_name="review", integration_key="claude") == "FEATURE_DIR/review-results/<lane-id>.json"
     assert describe_result_handoff_template(command_name="quick", integration_key="cursor-agent") == ".planning/quick/<id>-<slug>/worker-results/<lane-id>.json"
     assert describe_result_handoff_template(command_name="debug", integration_key="claude") == ".planning/debug/results/<session-slug>/<lane-id>.json"
     assert describe_result_handoff_template(command_name="implement", integration_key="codex") == ".specify/teams/state/results/<request-id>.json"
@@ -39,6 +40,26 @@ def test_build_result_handoff_path_for_feature_worker_result(project_root: Path 
     )
 
     assert path == feature_dir / "worker-results" / "T007.json"
+
+
+@pytest.mark.parametrize("integration_key", ["claude", "codex"])
+def test_build_result_handoff_path_for_review_lane_is_feature_owned(
+    integration_key: str,
+    project_root: Path = Path("F:/tmp/project"),
+) -> None:
+    feature_dir = project_root / ".specify" / "features" / "001-feature"
+
+    path = build_result_handoff_path(
+        project_root,
+        command_name="review",
+        integration_key=integration_key,
+        feature_dir=feature_dir,
+        lane_id="audit-primary-journey",
+    )
+
+    assert path == (
+        feature_dir / "review-results" / "audit-primary-journey.json"
+    )
 
 
 def test_build_result_handoff_path_for_quick_workspace(project_root: Path = Path("F:/tmp/project")) -> None:

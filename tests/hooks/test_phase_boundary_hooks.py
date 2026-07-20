@@ -58,6 +58,18 @@ def test_phase_boundary_allows_system_review_to_human_acceptance(tmp_path: Path)
     assert result.status == "ok"
 
 
+def test_phase_boundary_keeps_fix_execution_inside_review_mode(tmp_path: Path):
+    project = _create_project(tmp_path)
+
+    for target in ("execution-only", "task-generation-only"):
+        result = run_quality_hook(
+            project,
+            "workflow.phase_boundary.validate",
+            {"from_phase_mode": "review-and-repair", "to_phase_mode": target},
+        )
+        assert result.status == "blocked", target
+
+
 def test_phase_boundary_allows_acceptance_to_review_repair(tmp_path: Path):
     project = _create_project(tmp_path)
 

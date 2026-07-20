@@ -18,6 +18,34 @@ def _read_tree(relative: str) -> str:
     return "\n".join(path.read_text(encoding="utf-8").lower() for path in files)
 
 
+def _flat(content: str) -> str:
+    return " ".join(content.split())
+
+
+def _review_profile_contracts() -> tuple[tuple[str, str], ...]:
+    return (
+        (
+            "classic",
+            "\n".join(
+                (
+                    _read("templates/commands/review.md"),
+                    _read_tree("templates/command-partials/review"),
+                    _read_tree("templates/command-references/review"),
+                )
+            ),
+        ),
+        (
+            "advanced",
+            "\n".join(
+                (
+                    _read("templates/advanced-skills/spx-review/SKILL.md"),
+                    _read_tree("templates/advanced-skills/spx-review/references"),
+                )
+            ),
+        ),
+    )
+
+
 @pytest.mark.parametrize(
     "relative",
     (
@@ -54,7 +82,7 @@ def test_classic_review_proves_real_product_paths_and_repairs_findings() -> None
     assert "finding" in combined
     assert "repair" in combined
     assert "revalid" in combined or "rerun" in combined or "re-run" in combined
-    assert "sp-debug" in combined
+    assert "diagnos" in combined
 
 
 def test_classic_review_uses_jit_subagent_packets_but_keeps_final_authority() -> None:
@@ -111,8 +139,84 @@ def test_spx_review_preserves_the_system_review_and_repair_contract() -> None:
     assert "leader" in combined and "final verdict" in combined
     assert "blocking finding" in combined or "blocking findings" in combined
     assert "fingerprint" in combined or "source revision" in combined
-    assert "$spx-debug" in combined
     assert "$spx-accept" in combined
+
+
+@pytest.mark.parametrize(("profile", "combined"), _review_profile_contracts())
+def test_review_has_independent_audit_fix_and_revalidation_waves(
+    profile: str,
+    combined: str,
+) -> None:
+    del profile
+    flat = _flat(combined)
+
+    assert "review/audit wave" in flat
+    assert "read-only" in flat and "audit worker" in flat
+    assert "fix wave" in flat and "fix worker" in flat
+    assert "independent revalidation wave" in flat
+    assert "repair author" in flat and (
+        "must not verify" in flat or "cannot verify" in flat
+    )
+    assert "leader orchestrates" in flat and "subagent" in flat
+
+
+@pytest.mark.parametrize(("profile", "combined"), _review_profile_contracts())
+def test_review_leader_owns_zero_uncovered_coverage_and_all_joins(
+    profile: str,
+    combined: str,
+) -> None:
+    del profile
+    flat = _flat(combined)
+
+    assert "review universe" in flat
+    assert "independent coverage discovery" in flat
+    assert "zero uncovered" in flat
+    assert "all packets joined" in flat
+    assert "leader" in flat and "coverage" in flat
+    assert "leader" in flat and "final verdict" in flat
+    assert "worker" in flat and (
+        "cannot declare coverage complete" in flat
+        or "must not declare coverage complete" in flat
+    )
+
+
+@pytest.mark.parametrize(("profile", "combined"), _review_profile_contracts())
+def test_approved_scope_defects_stay_inside_review_fix(
+    profile: str,
+    combined: str,
+) -> None:
+    flat = _flat(combined)
+
+    assert "approved-scope defect" in flat
+    assert "regardless of repair size" in flat
+    assert "task omission" in flat
+    assert "unknown root cause" in flat
+    assert "review remains the stage owner" in flat
+    assert "diagnostic packet" in flat
+
+    if profile == "classic":
+        assert "hand off to `{{invoke:debug}}`" not in flat
+        assert "reopen `sp-implement`" not in flat
+        assert "reopen `sp-tasks`" not in flat
+    else:
+        assert "hand off an unknown mechanism to `$spx-debug`" not in flat
+        assert "reopen `$spx-implement`" not in flat
+        assert "reopen `$spx-tasks`" not in flat
+
+
+@pytest.mark.parametrize(("profile", "combined"), _review_profile_contracts())
+def test_review_only_hands_off_for_upstream_truth_changes(
+    profile: str,
+    combined: str,
+) -> None:
+    del profile
+    flat = _flat(combined)
+
+    assert "only" in flat and "upstream truth" in flat
+    assert "requirement truth" in flat
+    assert "design truth" in flat
+    assert "architecture truth" in flat
+    assert "missing code" in flat and "not an upstream truth gap" in flat
 
 
 def test_implement_hands_off_to_review_instead_of_acceptance() -> None:

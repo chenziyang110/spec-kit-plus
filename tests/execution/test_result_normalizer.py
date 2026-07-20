@@ -49,6 +49,45 @@ def test_normalize_worker_task_result_payload_preserves_consequence_evidence() -
     ]
 
 
+def test_normalize_review_worker_result_preserves_review_contract_fields() -> None:
+    observations = [
+        {
+            "obligation_id": "RO-UI-001",
+            "action": "Select Save from the settings screen.",
+            "observed_result": "The control does not invoke the save handler.",
+            "evidence_ref": "review-evidence/RO-UI-001/runtime.json",
+        }
+    ]
+    findings = [
+        {
+            "id": "RF-001",
+            "obligation_id": "RO-UI-001",
+            "classification": "wiring",
+            "summary": "The Save control is disconnected from its handler.",
+            "status": "open",
+        }
+    ]
+
+    result = normalize_worker_task_result_payload(
+        {
+            "task_id": "review-primary-journey",
+            "status": "success",
+            "wave": "review",
+            "packet_id": "SRP-REVIEW-001",
+            "obligation_ids": ["RO-UI-001", "RO-WIRE-002"],
+            "observations": observations,
+            "findings": findings,
+            "summary": "Reviewed the primary settings journey.",
+        }
+    )
+
+    assert result.wave == "review"
+    assert result.packet_id == "SRP-REVIEW-001"
+    assert result.obligation_ids == ["RO-UI-001", "RO-WIRE-002"]
+    assert result.observations == observations
+    assert result.findings == findings
+
+
 def test_normalize_worker_task_result_payload_rejects_obsolete_ui_evidence() -> None:
     with pytest.raises(ValueError, match="uiFidelityEvidence"):
         normalize_worker_task_result_payload(

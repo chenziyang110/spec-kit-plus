@@ -80,6 +80,24 @@ def _write_implementation_handoff(feature_dir: Path, revision: int) -> Path:
                         ],
                     },
                 ],
+                "review_obligations": [
+                    {
+                        "id": "RO-START-001",
+                        "kind": "entrypoint",
+                        "source_ref": "implementation-handoff:web",
+                        "surface": "web startup and readiness",
+                        "required": True,
+                        "scenario_ids": ["SR-START-001"],
+                    },
+                    {
+                        "id": "RO-UI-001",
+                        "kind": "user-journey",
+                        "source_ref": "acceptance:primary-demo-journey",
+                        "surface": "home to Demo interaction",
+                        "required": True,
+                        "scenario_ids": ["SR-UI-001"],
+                    },
+                ],
             },
             indent=2,
         )
@@ -101,7 +119,12 @@ def _prepare(tmp_path: Path) -> tuple[ModuleType, Path, Path, int, dict[str, obj
     return runtime, project_root, feature_dir, revision, prepared
 
 
-def _write_scenario_evidence(feature_dir: Path, state: dict[str, object]) -> None:
+def _write_scenario_evidence(
+    feature_dir: Path,
+    state: dict[str, object],
+    *,
+    snapshot_sha256: str = "a" * 64,
+) -> None:
     for scenario in state["scenarios"]:
         scenario["result"] = "pass"
         scenario["evidence"] = []
@@ -115,8 +138,65 @@ def _write_scenario_evidence(feature_dir: Path, state: dict[str, object]) -> Non
                     "kind": kind,
                     "path": relative_path.as_posix(),
                     "evidence_scope": "integrated",
+                    "snapshot_sha256": snapshot_sha256,
                 }
             )
+
+
+def _complete_leader_review(
+    state: dict[str, object],
+    *,
+    snapshot_sha256: str = "a" * 64,
+) -> None:
+    obligation_ids = [item["id"] for item in state["obligations"]]
+    scenario_ids = [item["id"] for item in state["scenarios"]]
+    for obligation in state["obligations"]:
+        obligation["status"] = "covered"
+        obligation["review_assignment_ids"] = ["RA-COVERAGE-001"]
+    state["review_assignments"] = [
+        {
+            "id": "RA-COVERAGE-001",
+            "kind": "coverage_audit",
+            "worker_id": "coverage-auditor",
+            "obligation_ids": obligation_ids,
+            "scenario_ids": scenario_ids,
+            "read_only": True,
+            "packet_ref": "review-results/RA-COVERAGE-001.packet.json",
+            "result_ref": "review-results/RA-COVERAGE-001.json",
+            "observed_snapshot_sha256": snapshot_sha256,
+            "status": "accepted",
+            "leader_verdict": "accepted",
+        }
+    ]
+    state["coverage"].update(
+        {
+            "discovery_complete": True,
+            "blind_audit_complete": True,
+            "uncovered_obligation_ids": [],
+            "uncovered_surface_ids": [],
+            "final_gap_scan": "pass",
+        }
+    )
+    state["leader"].update(
+        {
+            "strategy": "leader-plus-subagents",
+            "review_plan_complete": True,
+            "all_review_results_joined": True,
+            "fix_plan_complete": True,
+            "all_fix_results_joined": True,
+            "final_revalidation_complete": True,
+            "verdict": "pass",
+        }
+    )
+    state["final"].update(
+        {
+            "verdict": "pass",
+            "coverage_verdict": "pass",
+            "repair_verdict": "pass",
+            "integration_verdict": "pass",
+            "all_packets_joined": True,
+        }
+    )
 
 
 def test_prepare_review_compiles_handoff_into_resumable_review_state(
@@ -131,6 +211,7 @@ def test_prepare_review_compiles_handoff_into_resumable_review_state(
     assert prepared["status"] == "ok"
     assert prepared["data"]["status"] == "reviewing"
     assert state_path == feature_dir / "review-state.json"
+    assert state["version"] == 2
     assert state["status"] == "reviewing"
     assert state["source"] == {
         "workflow_revision": revision,
@@ -143,6 +224,15 @@ def test_prepare_review_compiles_handoff_into_resumable_review_state(
     ]
     assert all(scenario["result"] == "pending" for scenario in state["scenarios"])
     assert state["findings"] == []
+    assert [obligation["id"] for obligation in state["obligations"]] == [
+        "RO-START-001",
+        "RO-UI-001",
+    ]
+    assert state["review_assignments"] == []
+    assert state["fix_assignments"] == []
+    assert state["revalidations"] == []
+    assert state["coverage"]["blind_audit_complete"] is False
+    assert state["leader"]["strategy"] == "pending"
     assert state["cursor"]["scenario_id"] == "SR-START-001"
 
 
@@ -189,6 +279,50 @@ def test_validate_review_marks_changed_implementation_handoff_stale(
     assert any("stale" in error.lower() for error in validation["errors"])
 
 
+@pytest.mark.parametrize(
+    "mutate",
+    (
+        lambda state: state["scenarios"].pop(),
+        lambda state: state["scenarios"][0].update({"required": False}),
+        lambda state: state["scenarios"][0].update({"actions": ["Pretend it ran."]}),
+        lambda state: state["scenarios"][0].update({"required_evidence": []}),
+    ),
+)
+def test_validate_review_rejects_canonical_scenario_contract_drift(
+    tmp_path: Path,
+    mutate,
+) -> None:
+    runtime, project_root, feature_dir, _revision, _prepared = _prepare(tmp_path)
+    state_path = runtime.review_state_path(feature_dir)
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    mutate(state)
+    state_path.write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
+
+    validation = runtime.validate_review(project_root, feature_dir)
+
+    assert validation["valid"] is False
+    assert any("canonical scenario contract" in error for error in validation["errors"])
+
+
+def test_validate_review_rejects_approved_state_without_zero_gap_subagent_coverage(
+    tmp_path: Path,
+) -> None:
+    runtime, project_root, feature_dir, _revision, _prepared = _prepare(tmp_path)
+    state_path = runtime.review_state_path(feature_dir)
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    _write_scenario_evidence(feature_dir, state)
+    state["status"] = "approved"
+    state["final"]["reviewed_snapshot_sha256"] = "a" * 64
+    state_path.write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
+
+    validation = runtime.validate_review(project_root, feature_dir)
+
+    assert validation["valid"] is False
+    assert any("coverage audit" in error for error in validation["errors"])
+    assert any("required obligation" in error for error in validation["errors"])
+    assert any("Leader" in error for error in validation["errors"])
+
+
 def test_validate_review_rejects_declared_evidence_without_a_real_file(
     tmp_path: Path,
 ) -> None:
@@ -220,6 +354,7 @@ def test_closeout_review_requires_approved_fresh_evidence_and_does_not_advance_w
     state_path = runtime.review_state_path(feature_dir)
     state = json.loads(state_path.read_text(encoding="utf-8"))
     _write_scenario_evidence(feature_dir, state)
+    _complete_leader_review(state)
     state["status"] = "approved"
     state["findings"] = []
     state_path.write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
@@ -268,6 +403,101 @@ def test_closeout_review_preserves_state_when_review_is_not_approved(
     assert show_workflow(feature_dir)["data"]["stage"] == "review"
 
 
+def test_validate_review_requires_independent_fix_and_revalidation_for_every_finding(
+    tmp_path: Path,
+) -> None:
+    runtime, project_root, feature_dir, _revision, _prepared = _prepare(tmp_path)
+    state_path = runtime.review_state_path(feature_dir)
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    _write_scenario_evidence(feature_dir, state)
+    _complete_leader_review(state)
+    state["status"] = "approved"
+    state["findings"] = [
+        {
+            "id": "SRF-001",
+            "scenario_id": "SR-UI-001",
+            "obligation_ids": ["RO-UI-001"],
+            "classification": "wiring",
+            "severity": "high",
+            "blocking": True,
+            "summary": "The Demo button is disconnected.",
+            "expected": "Selecting Demo opens the Demo screen.",
+            "observed": "Selecting Demo has no effect.",
+            "discovered_by_review_assignment_id": "RA-COVERAGE-001",
+            "status": "accepted_residual_risk",
+            "fix_assignment_id": "",
+            "revalidation_ids": [],
+        }
+    ]
+    state_path.write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
+
+    validation = runtime.validate_review(project_root, feature_dir)
+
+    assert validation["valid"] is False
+    assert any("blocking finding" in error for error in validation["errors"])
+    assert any("independent Fix assignment" in error for error in validation["errors"])
+    assert any("independent revalidation" in error for error in validation["errors"])
+
+
+def test_closeout_accepts_review_worker_to_independent_fix_to_revalidation_loop(
+    tmp_path: Path,
+) -> None:
+    runtime, project_root, feature_dir, revision, _prepared = _prepare(tmp_path)
+    state_path = runtime.review_state_path(feature_dir)
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    _write_scenario_evidence(feature_dir, state)
+    _complete_leader_review(state)
+    state["status"] = "approved"
+    state["findings"] = [
+        {
+            "id": "SRF-001",
+            "scenario_id": "SR-UI-001",
+            "obligation_ids": ["RO-UI-001"],
+            "classification": "wiring",
+            "severity": "high",
+            "blocking": True,
+            "summary": "The Demo button was disconnected.",
+            "expected": "Selecting Demo opens the Demo screen.",
+            "observed": "The repaired button opens Demo.",
+            "discovered_by_review_assignment_id": "RA-COVERAGE-001",
+            "status": "verified",
+            "fix_assignment_id": "FX-001",
+            "revalidation_ids": ["RV-001"],
+        }
+    ]
+    state["fix_assignments"] = [
+        {
+            "id": "FX-001",
+            "finding_ids": ["SRF-001"],
+            "worker_id": "fixer",
+            "allowed_write_paths": ["src/demo"],
+            "changed_paths": ["src/demo/button.ts"],
+            "packet_ref": "review-results/FX-001.packet.json",
+            "result_ref": "review-results/FX-001.json",
+            "status": "accepted",
+            "leader_verdict": "accepted",
+        }
+    ]
+    state["revalidations"] = [
+        {
+            "id": "RV-001",
+            "worker_id": "independent-validator",
+            "finding_ids": ["SRF-001"],
+            "fix_assignment_ids": ["FX-001"],
+            "scenario_ids": ["SR-UI-001"],
+            "snapshot_sha256": "a" * 64,
+            "result": "pass",
+            "evidence_refs": ["review-evidence/SR-UI-001/runtime_diagnostics.json"],
+            "leader_verdict": "accepted",
+        }
+    ]
+    state_path.write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
+
+    closed = runtime.closeout_review(project_root, feature_dir, expected_revision=revision)
+
+    assert closed["status"] == "ok"
+
+
 def test_approved_review_becomes_stale_when_live_source_changes(tmp_path: Path) -> None:
     runtime = _review_runtime()
     project_root, feature_dir, revision = _feature_at_review(tmp_path)
@@ -285,11 +515,15 @@ def test_approved_review_becomes_stale_when_live_source_changes(tmp_path: Path) 
 
     state_path = runtime.review_state_path(feature_dir)
     state = json.loads(state_path.read_text(encoding="utf-8"))
-    _write_scenario_evidence(feature_dir, state)
-    state["status"] = "approved"
-    state["final"]["reviewed_snapshot_sha256"] = runtime.implementation_snapshot_sha256(
-        project_root, feature_dir
+    reviewed_snapshot = runtime.implementation_snapshot_sha256(project_root, feature_dir)
+    _write_scenario_evidence(
+        feature_dir,
+        state,
+        snapshot_sha256=reviewed_snapshot,
     )
+    _complete_leader_review(state, snapshot_sha256=reviewed_snapshot)
+    state["status"] = "approved"
+    state["final"]["reviewed_snapshot_sha256"] = reviewed_snapshot
     state_path.write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
     assert runtime.validate_review(project_root, feature_dir)["valid"] is True
 
