@@ -12,7 +12,7 @@ dependencies = [
     "pyyaml>=6.0.3",
     "packaging>=26.2",
     "pathspec>=1.1.1",
-    "json5>=0.14.0",
+    "json5>=0.15.0",
     "jsonschema>=4.26.0",
     "pydantic-graph<2",
 ]
