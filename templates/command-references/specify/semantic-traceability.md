@@ -67,6 +67,27 @@ Use a simple row per term:
 - If selected or excluded meanings are missing user confirmation and the term is product-critical, keep the package out of planning-ready state.
 - Scope reduction requires confirmation. Do not convert a broad request into an MVP, prototype, demo, or smaller delivery unless the user requested it or explicitly accepted the narrower version.
 
+## Entrypoint Outcome Inheritance Audit
+
+Trigger this audit when a new or changed entry point reuses an existing operation, when an entry point is direct/background/headless/system-owned, or when its consumer, state owner, or interaction owner changes. "Reuse the existing flow" is not evidence that a new consumer inherits all behavior.
+
+Inspect current live evidence before writing the result inventory: result/error definitions, current consumers, state transitions, tests and assertions, and UI/window/request/retry owners. Archived specifications are excluded from default discovery. Use one only for explicit lineage or provenance, identify the exact claim being traced, and verify that claim against current live evidence before relying on it; an archived document never proves current behavior by itself.
+
+Persist one `entrypoint_outcome_contract` in `spec-contract.json`:
+
+- `triggered`, `trigger_reasons`, and an explicit `stand_down_reason` when not triggered;
+- `inventory_complete` plus non-empty `inventory_evidence_refs` when triggered;
+- `learning_context` derived from current operation/consumer/outcome evidence, non-empty `learning_search_refs`, and every returned ref in `learning_candidate_refs`;
+- `learning_dispositions`, with exactly one `applied`, `not_applicable`, or `deferred` disposition for every contextual candidate;
+- `result_inventory`, with stable outcome and entry-point IDs, operation/result family, classification, reachability, materiality, and live evidence refs;
+- `outcome_dispositions`, with exactly one disposition for every inventoried result.
+
+Do not silently ignore a contextual Learning candidate and do not auto-apply it. `applied` must trace to requirement or `CA-###` refs, `not_applicable` needs current evidence, and `deferred` needs an explicit deferral ref. Learning is recall evidence, not current truth; live code, tests, contracts, and confirmed user direction remain authoritative.
+
+Use the domain-neutral classifications `terminal-success`, `terminal-failure`, `cancelled`, `recoverable-user-input`, `recoverable-automatic`, and `partial-success`. A preserved or adapted outcome requires observable behavior, canonical `spec-contract.json#/acceptance_criteria/N` refs, and `CA-###` consequence refs. `not_applicable` requires current evidence and is invalid for a reachable material result. `deferred` requires a user-confirmed deferral ref, residual-risk rationale, and reopen condition in the referenced contract.
+
+For `recoverable-user-input`, make required interaction explicit: consumer/state transition, interaction surface and activation policy, request retention, retry identity, cancel behavior, security constraints, and validation. A requirement such as direct/background/no-home prohibits unrelated shell UI; it does not prohibit interaction required to recover the operation. Do not mark planning-ready until the inventory and dispositions close with zero missing or duplicate outcomes.
+
 ## Approach Comparison
 
 - When this command runs with `auto_default_recommendation: true`, apply the `sp-auto` Recommended Default Continuation before every bounded question, approach comparison, or section approval gate. If one safe recommended/default answer exists, record it and continue instead of asking; if it is not safe to assume, keep the confirmation gate and include a self-unblock recommendation.

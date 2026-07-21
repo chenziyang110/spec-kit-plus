@@ -11,7 +11,7 @@
   "review": null,
   "ui_verification": {
     "applicable": false,
-    "evidence_scope": "task",
+    "evidence_scope": "integrated",
     "integration_base_ref": null,
     "evidence": [],
     "contract_check": "not-run",

@@ -33,3 +33,31 @@ independent requirements.
 Before declaring planning-ready, reconcile contradictions between the contract,
 spec, discussion/UI handoffs, live behavior, and project rules. A non-empty
 semantic change to previously confirmed user intent requires explicit review.
+
+## Entrypoint outcome inheritance
+
+For a new or changed entry point over an existing operation, a
+direct/background/headless/system entry point, or a changed consumer or
+interaction owner, build `entrypoint_outcome_contract` from current live
+evidence: result/error definitions, existing consumers, state transitions,
+tests, and UI/window/request/retry owners. Archived specifications are excluded
+from default discovery; use one only for explicit lineage or provenance and
+verify the traced claim against current live evidence.
+
+Persist live facet values in `learning_context`, the contextual read in
+`learning_search_refs`, every returned ref in `learning_candidate_refs`, and
+exactly one `applied`, `not_applicable`, or `deferred` item in
+`learning_dispositions` for each candidate. Do not silently ignore or
+auto-apply a candidate: applied Learning traces to requirement or `CA-###`
+refs, not-applicable needs current evidence, and deferral needs an explicit
+deferral ref.
+
+Keep `result_inventory` separate from `outcome_dispositions` and require exact
+closure. Classify outcomes as terminal success/failure, cancelled,
+`recoverable-user-input`, recoverable automatic, or partial success. Every
+preserved/adapted outcome has observable behavior, canonical
+`spec-contract.json#/acceptance_criteria/N` refs, and `CA-###` refs.
+Not-applicable needs current evidence; deferral needs explicit
+user confirmation, residual risk, and a reopen condition. Direct/background or
+no-home constraints do not prohibit interaction required for recovery. Do not
+declare planning-ready with an incomplete inventory or any uncovered outcome.

@@ -35,6 +35,14 @@ complete outcome, dependencies, likely write scope, acceptance, verification,
 and must-preserve obligations. Mark parallel only when inputs are stable and
 writes do not overlap; name the join and combined check.
 
+Set root `validation_policy` to `mode: feature_epochs`, `max_epochs: 3`,
+`budget_scope: implement-review`,
+`budget_ref: implementation-review/validation-runs.json`, and
+`heavy_gate_owner: leader`. Keep full-suite, build, integration, E2E, and
+visual commands as shared verification gates. Put only cheap changed-scope
+checks safe for one Txx in `task_checks`; only those checks compile into a
+worker packet.
+
 At the task-index root, require `acceptance_refs` to be the complete unique
 ordered list `plan-contract.json#/acceptance_refs/0..N-1`; a ready version-2
 index may not omit the file or carry copied spec refs or a selected subset.

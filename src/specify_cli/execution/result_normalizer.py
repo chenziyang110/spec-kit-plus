@@ -260,6 +260,9 @@ def normalize_worker_task_result_payload(payload: WorkerTaskResult | dict[str, A
         manual_evidence=_normalize_evidence_items(
             _pick(payload, "manual_evidence", "manualEvidence")
         ),
+        must_preserve_evidence=_normalize_evidence_items(
+            _pick(payload, "must_preserve_evidence", "mustPreserveEvidence")
+        ),
         consequence_evidence=_normalize_evidence_items(
             _pick(payload, "consequence_evidence", "consequenceEvidence")
         ),

@@ -39,6 +39,21 @@
   },
   "must_preserve_refs": [],
   "consequence_obligation_refs": [],
+  "consequence_gate": {
+    "triggered": false,
+    "trigger_reason": null,
+    "status": "not-triggered",
+    "stand_down_reason": null
+  },
+  "consequence_analysis": {
+    "affected_object_map": [],
+    "state_behavior_matrix": [],
+    "dependency_impact": [],
+    "recovery_and_validation": [],
+    "coverage_gaps": []
+  },
+  "consequence_obligations": [],
+  "operational_consequence_decisions": [],
   "ui_design_contract": {
     "ui_applicable": false,
     "ui_work_type": null,

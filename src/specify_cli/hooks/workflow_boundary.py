@@ -28,8 +28,6 @@ ALLOWED_WORKFLOW_TRANSITIONS = {
     ("review", "specify"),
     ("review", "design"),
     ("accept", "review"),
-    ("accept", "clarify"),
-    ("accept", "specify"),
     ("accept", "integrate"),
     ("quick", "debug"),
     ("fast", "quick"),
@@ -47,7 +45,6 @@ ALLOWED_PHASE_TRANSITIONS = {
     ("review-and-repair", "acceptance-only"),
     ("review-and-repair", "planning-only"),
     ("acceptance-only", "review-and-repair"),
-    ("acceptance-only", "planning-only"),
 }
 
 

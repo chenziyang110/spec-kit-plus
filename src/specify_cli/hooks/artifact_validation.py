@@ -453,6 +453,7 @@ def _has_nonempty_prd_evidence(value: object) -> bool:
         )
     return False
 
+
 REFERENCE_IMPLEMENTATION_PROFILE = "reference-implementation"
 
 REFERENCE_IMPLEMENTATION_SPEC_REQUIRED_SECTIONS = (
@@ -1323,6 +1324,673 @@ def _consequence_contract_paths(feature_dir: Path) -> tuple[tuple[Path, str], ..
         (feature_dir / "plan-contract.json", "plan-contract.json"),
         (feature_dir / "plan" / "plan-contract.json", "plan/plan-contract.json"),
     )
+
+
+ENTRYPOINT_OUTCOME_CLASSIFICATIONS = {
+    "terminal-success",
+    "terminal-failure",
+    "cancelled",
+    "recoverable-user-input",
+    "recoverable-automatic",
+    "partial-success",
+}
+ENTRYPOINT_OUTCOME_DISPOSITIONS = {
+    "preserve",
+    "adapt",
+    "not_applicable",
+    "deferred",
+}
+ENTRYPOINT_OUTCOME_LEARNING_CONTEXT_KEYS = {
+    "components",
+    "operation_owners",
+    "consumer_owners",
+    "outcomes",
+    "states",
+    "entrypoints",
+    "validation_surfaces",
+}
+ENTRYPOINT_OUTCOME_LEARNING_DISPOSITIONS = {
+    "applied",
+    "not_applicable",
+    "deferred",
+}
+ENTRYPOINT_OUTCOME_PLAN_FIELDS = (
+    "decision_id",
+    "decision",
+    "producer_result_ref",
+    "consumer_owner",
+    "state_transition",
+    "interaction_owner",
+    "interaction_policy",
+    "request_retention",
+    "retry_identity",
+    "cancel_behavior",
+)
+
+
+def _entrypoint_outcome_string_list(
+    value: Any, field: str, label: str, *, required: bool = True
+) -> tuple[list[str], list[str]]:
+    errors: list[str] = []
+    if not isinstance(value, list):
+        return [], [f"{label}.{field} must be a string array"]
+    normalized: list[str] = []
+    for index, item in enumerate(value):
+        if not isinstance(item, str) or not item.strip():
+            errors.append(f"{label}.{field}[{index}] must be a non-empty string")
+            continue
+        normalized.append(item.strip())
+    if required and not normalized:
+        errors.append(f"{label}.{field} must be non-empty")
+    duplicates = sorted(item for item in set(normalized) if normalized.count(item) > 1)
+    if duplicates:
+        errors.append(
+            f"{label}.{field} must contain unique values: " + ", ".join(duplicates)
+        )
+    return normalized, errors
+
+
+def _entrypoint_outcome_spec_payload(
+    feature_dir: Path,
+) -> tuple[dict[str, Any] | None, dict[str, Any] | None, list[str]]:
+    payload, read_errors = _read_json_artifact(
+        feature_dir / "spec-contract.json", "spec-contract.json"
+    )
+    if read_errors:
+        return None, None, read_errors
+    if not isinstance(payload, dict):
+        return None, None, ["spec-contract.json must contain a top-level object"]
+    contract = payload.get("entrypoint_outcome_contract")
+    if not isinstance(contract, dict):
+        return (
+            payload,
+            None,
+            ["spec-contract.json entrypoint_outcome_contract must be an object"],
+        )
+    return payload, contract, []
+
+
+def _entrypoint_outcome_inventory_by_id(
+    contract: dict[str, Any],
+) -> dict[str, dict[str, Any]]:
+    inventory = contract.get("result_inventory")
+    if not isinstance(inventory, list):
+        return {}
+    return {
+        str(item.get("outcome_id") or "").strip(): item
+        for item in inventory
+        if isinstance(item, dict) and str(item.get("outcome_id") or "").strip()
+    }
+
+
+def _entrypoint_outcome_active_dispositions(
+    contract: dict[str, Any],
+) -> dict[str, dict[str, Any]]:
+    dispositions = contract.get("outcome_dispositions")
+    if not isinstance(dispositions, list):
+        return {}
+    return {
+        str(item.get("outcome_id") or "").strip(): item
+        for item in dispositions
+        if isinstance(item, dict)
+        and str(item.get("outcome_id") or "").strip()
+        and str(item.get("disposition") or "").strip() in {"preserve", "adapt"}
+    }
+
+
+def _validate_entrypoint_outcome_learning(
+    contract: dict[str, Any], label: str
+) -> list[str]:
+    errors: list[str] = []
+    raw_context = contract.get("learning_context")
+    if not isinstance(raw_context, dict) or not raw_context:
+        errors.append(f"{label}.learning_context must be a non-empty object")
+    else:
+        unknown_keys = sorted(
+            str(key)
+            for key in raw_context
+            if key not in ENTRYPOINT_OUTCOME_LEARNING_CONTEXT_KEYS
+        )
+        if unknown_keys:
+            errors.append(
+                f"{label}.learning_context contains unknown facets: "
+                + ", ".join(unknown_keys)
+            )
+        populated_facets = 0
+        for key, value in raw_context.items():
+            if key not in ENTRYPOINT_OUTCOME_LEARNING_CONTEXT_KEYS:
+                continue
+            values, list_errors = _entrypoint_outcome_string_list(
+                value,
+                str(key),
+                f"{label}.learning_context",
+                required=False,
+            )
+            errors.extend(list_errors)
+            if values:
+                populated_facets += 1
+        if not populated_facets:
+            errors.append(
+                f"{label}.learning_context must contain at least one non-empty facet"
+            )
+
+    _search_refs, list_errors = _entrypoint_outcome_string_list(
+        contract.get("learning_search_refs"), "learning_search_refs", label
+    )
+    errors.extend(list_errors)
+    candidate_refs, list_errors = _entrypoint_outcome_string_list(
+        contract.get("learning_candidate_refs"),
+        "learning_candidate_refs",
+        label,
+        required=False,
+    )
+    errors.extend(list_errors)
+    candidate_set = set(candidate_refs)
+
+    raw_dispositions = contract.get("learning_dispositions")
+    if not isinstance(raw_dispositions, list):
+        errors.append(f"{label}.learning_dispositions must be an array")
+        raw_dispositions = []
+
+    disposition_by_ref: dict[str, dict[str, Any]] = {}
+    for index, raw_item in enumerate(raw_dispositions):
+        item_label = f"{label}.learning_dispositions[{index}]"
+        if not isinstance(raw_item, dict):
+            errors.append(f"{item_label} must be an object")
+            continue
+        learning_ref = str(raw_item.get("learning_ref") or "").strip()
+        if not learning_ref:
+            errors.append(f"{item_label}.learning_ref must be a non-empty string")
+            continue
+        if learning_ref in disposition_by_ref:
+            errors.append(f"{label} duplicate learning disposition for {learning_ref}")
+            continue
+        disposition_by_ref[learning_ref] = raw_item
+        if learning_ref not in candidate_set:
+            errors.append(
+                f"{item_label} references unknown learning candidate {learning_ref}"
+            )
+
+        disposition = str(raw_item.get("disposition") or "").strip()
+        if disposition not in ENTRYPOINT_OUTCOME_LEARNING_DISPOSITIONS:
+            errors.append(
+                f"{item_label}.disposition must be one of: "
+                + ", ".join(sorted(ENTRYPOINT_OUTCOME_LEARNING_DISPOSITIONS))
+            )
+            continue
+        if not str(raw_item.get("rationale") or "").strip():
+            errors.append(f"{item_label}.rationale must be a non-empty string")
+        _match_basis, list_errors = _entrypoint_outcome_string_list(
+            raw_item.get("match_basis"), "match_basis", item_label
+        )
+        errors.extend(list_errors)
+        requirement_refs, list_errors = _entrypoint_outcome_string_list(
+            raw_item.get("requirement_refs"),
+            "requirement_refs",
+            item_label,
+            required=False,
+        )
+        errors.extend(list_errors)
+        consequence_refs, list_errors = _entrypoint_outcome_string_list(
+            raw_item.get("consequence_refs"),
+            "consequence_refs",
+            item_label,
+            required=False,
+        )
+        errors.extend(list_errors)
+        evidence_refs, list_errors = _entrypoint_outcome_string_list(
+            raw_item.get("evidence_refs"),
+            "evidence_refs",
+            item_label,
+            required=False,
+        )
+        errors.extend(list_errors)
+
+        if disposition == "applied" and not (requirement_refs or consequence_refs):
+            errors.append(
+                f"{label} learning {learning_ref} applied disposition requires "
+                "requirement_refs or consequence_refs"
+            )
+        elif disposition == "not_applicable" and not evidence_refs:
+            errors.append(
+                f"{label} learning {learning_ref} not_applicable disposition "
+                "requires evidence_refs"
+            )
+        elif (
+            disposition == "deferred"
+            and not str(raw_item.get("deferral_ref") or "").strip()
+        ):
+            errors.append(
+                f"{label} learning {learning_ref} deferred disposition requires "
+                "deferral_ref"
+            )
+
+    missing_dispositions = sorted(candidate_set - set(disposition_by_ref))
+    if missing_dispositions:
+        errors.append(
+            f"{label} is missing learning disposition for candidates: "
+            + ", ".join(missing_dispositions)
+        )
+    return errors
+
+
+def _validate_spec_entrypoint_outcome_contract(feature_dir: Path) -> list[str]:
+    payload, contract, errors = _entrypoint_outcome_spec_payload(feature_dir)
+    if errors or payload is None or contract is None:
+        return errors
+
+    label = "spec-contract.json entrypoint_outcome_contract"
+    acceptance_criteria = payload.get("acceptance_criteria")
+    canonical_acceptance_refs = {
+        f"spec-contract.json#/acceptance_criteria/{index}"
+        for index in range(
+            len(acceptance_criteria) if isinstance(acceptance_criteria, list) else 0
+        )
+    }
+    triggered = contract.get("triggered")
+    if not isinstance(triggered, bool):
+        return [f"{label}.triggered must be a boolean"]
+    if not triggered:
+        if not str(contract.get("stand_down_reason") or "").strip():
+            errors.append(
+                f"{label}.stand_down_reason must be non-empty when triggered is false"
+            )
+        return errors
+
+    trigger_reasons, list_errors = _entrypoint_outcome_string_list(
+        contract.get("trigger_reasons"), "trigger_reasons", label
+    )
+    errors.extend(list_errors)
+    if not trigger_reasons:
+        errors.append(f"{label} requires at least one trigger reason")
+    if contract.get("inventory_complete") is not True:
+        errors.append(f"{label}.inventory_complete must be true before planning-ready")
+    _inventory_refs, list_errors = _entrypoint_outcome_string_list(
+        contract.get("inventory_evidence_refs"), "inventory_evidence_refs", label
+    )
+    errors.extend(list_errors)
+    errors.extend(_validate_entrypoint_outcome_learning(contract, label))
+
+    raw_inventory = contract.get("result_inventory")
+    if not isinstance(raw_inventory, list) or not raw_inventory:
+        errors.append(f"{label}.result_inventory must be a non-empty array")
+        raw_inventory = []
+    inventory_by_id: dict[str, dict[str, Any]] = {}
+    for index, raw_item in enumerate(raw_inventory):
+        item_label = f"{label}.result_inventory[{index}]"
+        if not isinstance(raw_item, dict):
+            errors.append(f"{item_label} must be an object")
+            continue
+        for field in (
+            "outcome_id",
+            "entrypoint_id",
+            "operation",
+            "result_family",
+            "classification",
+        ):
+            if not str(raw_item.get(field) or "").strip():
+                errors.append(f"{item_label}.{field} must be a non-empty string")
+        outcome_id = str(raw_item.get("outcome_id") or "").strip()
+        if outcome_id:
+            if outcome_id in inventory_by_id:
+                errors.append(f"{label} duplicate outcome_id: {outcome_id}")
+            else:
+                inventory_by_id[outcome_id] = raw_item
+        classification = str(raw_item.get("classification") or "").strip()
+        if classification and classification not in ENTRYPOINT_OUTCOME_CLASSIFICATIONS:
+            errors.append(
+                f"{item_label}.classification must be one of: "
+                + ", ".join(sorted(ENTRYPOINT_OUTCOME_CLASSIFICATIONS))
+            )
+        for field in ("reachable", "material"):
+            if not isinstance(raw_item.get(field), bool):
+                errors.append(f"{item_label}.{field} must be a boolean")
+        _evidence_refs, list_errors = _entrypoint_outcome_string_list(
+            raw_item.get("evidence_refs"), "evidence_refs", item_label
+        )
+        errors.extend(list_errors)
+
+    raw_dispositions = contract.get("outcome_dispositions")
+    if not isinstance(raw_dispositions, list) or not raw_dispositions:
+        errors.append(f"{label}.outcome_dispositions must be a non-empty array")
+        raw_dispositions = []
+    disposition_by_id: dict[str, dict[str, Any]] = {}
+    for index, raw_item in enumerate(raw_dispositions):
+        item_label = f"{label}.outcome_dispositions[{index}]"
+        if not isinstance(raw_item, dict):
+            errors.append(f"{item_label} must be an object")
+            continue
+        outcome_id = str(raw_item.get("outcome_id") or "").strip()
+        if not outcome_id:
+            errors.append(f"{item_label}.outcome_id must be a non-empty string")
+            continue
+        if outcome_id in disposition_by_id:
+            errors.append(f"{label} duplicate disposition for {outcome_id}")
+            continue
+        disposition_by_id[outcome_id] = raw_item
+        inventory_item = inventory_by_id.get(outcome_id)
+        if inventory_item is None:
+            errors.append(f"{item_label} references unknown outcome {outcome_id}")
+
+        disposition = str(raw_item.get("disposition") or "").strip()
+        if disposition not in ENTRYPOINT_OUTCOME_DISPOSITIONS:
+            errors.append(
+                f"{item_label}.disposition must be one of: "
+                + ", ".join(sorted(ENTRYPOINT_OUTCOME_DISPOSITIONS))
+            )
+            continue
+        rationale = str(raw_item.get("rationale") or "").strip()
+        if not rationale:
+            errors.append(f"{item_label}.rationale must be a non-empty string")
+
+        if disposition in {"preserve", "adapt"}:
+            if not str(raw_item.get("observable_behavior") or "").strip():
+                errors.append(
+                    f"{label} outcome {outcome_id} observable_behavior must be non-empty"
+                )
+            acceptance_refs, list_errors = _entrypoint_outcome_string_list(
+                raw_item.get("acceptance_refs"),
+                "acceptance_refs",
+                f"{label} outcome {outcome_id}",
+            )
+            errors.extend(list_errors)
+            invalid_acceptance_refs = sorted(
+                ref for ref in acceptance_refs if ref not in canonical_acceptance_refs
+            )
+            if invalid_acceptance_refs:
+                errors.append(
+                    f"{label} outcome {outcome_id} acceptance_refs must point to top-level acceptance_criteria: "
+                    + ", ".join(invalid_acceptance_refs)
+                )
+            consequence_refs, list_errors = _entrypoint_outcome_string_list(
+                raw_item.get("consequence_refs"),
+                "consequence_refs",
+                f"{label} outcome {outcome_id}",
+            )
+            errors.extend(list_errors)
+            invalid_consequence_refs = sorted(
+                ref for ref in consequence_refs if not ref.startswith("CA-")
+            )
+            if invalid_consequence_refs:
+                errors.append(
+                    f"{label} outcome {outcome_id} consequence_refs must use CA- IDs: "
+                    + ", ".join(invalid_consequence_refs)
+                )
+        elif disposition == "not_applicable":
+            if inventory_item is not None and (
+                inventory_item.get("reachable") is True
+                and inventory_item.get("material") is True
+            ):
+                errors.append(
+                    f"{label} outcome {outcome_id} cannot be not_applicable while reachable and material"
+                )
+            _evidence_refs, list_errors = _entrypoint_outcome_string_list(
+                raw_item.get("evidence_refs"),
+                "evidence_refs",
+                f"{label} outcome {outcome_id}",
+            )
+            errors.extend(list_errors)
+        elif disposition == "deferred":
+            if not str(raw_item.get("deferral_ref") or "").strip():
+                errors.append(
+                    f"{label} outcome {outcome_id} deferral_ref must be non-empty when deferred"
+                )
+
+    missing_dispositions = sorted(set(inventory_by_id) - set(disposition_by_id))
+    if missing_dispositions:
+        errors.append(
+            f"{label} is missing disposition for outcomes: "
+            + ", ".join(missing_dispositions)
+        )
+
+    declared_consequence_refs = payload.get("consequence_obligation_refs")
+    if isinstance(declared_consequence_refs, list):
+        declared = {
+            str(item).strip()
+            for item in declared_consequence_refs
+            if isinstance(item, str) and item.strip()
+        }
+        active_refs = {
+            str(ref).strip()
+            for item in disposition_by_id.values()
+            if str(item.get("disposition") or "").strip() in {"preserve", "adapt"}
+            for ref in item.get("consequence_refs", [])
+            if isinstance(ref, str) and ref.strip()
+        }
+        missing_declared_refs = sorted(active_refs - declared)
+        if missing_declared_refs:
+            errors.append(
+                "spec-contract.json consequence_obligation_refs must include entrypoint outcomes: "
+                + ", ".join(missing_declared_refs)
+            )
+    return errors
+
+
+def _entrypoint_outcome_plan_payload(
+    feature_dir: Path,
+) -> tuple[dict[str, Any] | None, str, list[str]]:
+    for contract_path, label in _consequence_contract_paths(feature_dir):
+        if not contract_path.exists():
+            continue
+        payload, read_errors = _read_json_artifact(contract_path, label)
+        if read_errors:
+            return None, label, read_errors
+        if not isinstance(payload, dict):
+            return None, label, [f"{label} must contain a top-level object"]
+        return payload, label, []
+    return (
+        None,
+        "plan-contract.json",
+        ["plan-contract.json is required for triggered entrypoint outcomes"],
+    )
+
+
+def _validate_plan_entrypoint_outcome_contract(feature_dir: Path) -> list[str]:
+    if not (feature_dir / "spec-contract.json").is_file():
+        # Legacy feature packages can still complete their existing CA chain. New
+        # Specify output always carries the explicit outcome gate.
+        return []
+    errors = _validate_spec_entrypoint_outcome_contract(feature_dir)
+    payload, contract, read_errors = _entrypoint_outcome_spec_payload(feature_dir)
+    if read_errors or payload is None or contract is None:
+        return errors or read_errors
+    if contract.get("triggered") is not True:
+        return errors
+    if errors:
+        return errors
+
+    inventory_by_id = _entrypoint_outcome_inventory_by_id(contract)
+    active_dispositions = _entrypoint_outcome_active_dispositions(contract)
+    if not active_dispositions:
+        return errors
+    plan_payload, plan_label, plan_errors = _entrypoint_outcome_plan_payload(
+        feature_dir
+    )
+    errors.extend(plan_errors)
+    if plan_payload is None:
+        return errors
+
+    obligation_ids = _consequence_obligation_ids(plan_payload)
+    decisions = plan_payload.get("operational_consequence_decisions")
+    if not isinstance(decisions, list) or not decisions:
+        errors.append(
+            f"{plan_label} operational_consequence_decisions must cover triggered entrypoint outcomes"
+        )
+        return errors
+
+    decisions_by_ref: dict[str, list[dict[str, Any]]] = {}
+    for index, raw_decision in enumerate(decisions):
+        if not isinstance(raw_decision, dict):
+            errors.append(
+                f"{plan_label} operational_consequence_decisions[{index}] must be an object"
+            )
+            continue
+        for consequence_ref in _decision_consequence_obligation_ids(raw_decision):
+            decisions_by_ref.setdefault(consequence_ref, []).append(raw_decision)
+
+    for outcome_id, disposition in active_dispositions.items():
+        consequence_refs = {
+            str(item).strip()
+            for item in disposition.get("consequence_refs", [])
+            if isinstance(item, str) and item.strip()
+        }
+        missing_obligations = sorted(consequence_refs - obligation_ids)
+        if missing_obligations:
+            errors.append(
+                f"{plan_label} outcome {outcome_id} is missing consequence obligations: "
+                + ", ".join(missing_obligations)
+            )
+        relevant_decisions = [
+            decision
+            for consequence_ref in consequence_refs
+            for decision in decisions_by_ref.get(consequence_ref, [])
+        ]
+        if not relevant_decisions:
+            errors.append(
+                f"{plan_label} outcome {outcome_id} has no operational_consequence_decision"
+            )
+            continue
+        inventory_item = inventory_by_id.get(outcome_id, {})
+        for decision in relevant_decisions:
+            for field in ENTRYPOINT_OUTCOME_PLAN_FIELDS:
+                if not str(decision.get(field) or "").strip():
+                    errors.append(
+                        f"{plan_label} outcome {outcome_id} operational decision {field} must be non-empty"
+                    )
+            _validation_refs, list_errors = _entrypoint_outcome_string_list(
+                decision.get("validation_refs"),
+                "validation_refs",
+                f"{plan_label} outcome {outcome_id} operational decision",
+            )
+            errors.extend(list_errors)
+            if inventory_item.get("classification") == "recoverable-user-input":
+                _security_constraints, list_errors = _entrypoint_outcome_string_list(
+                    decision.get("security_constraints"),
+                    "security_constraints",
+                    f"{plan_label} outcome {outcome_id} operational decision",
+                )
+                errors.extend(list_errors)
+    return errors
+
+
+def _review_obligation_consequence_ids(obligation: Any) -> set[str]:
+    if not isinstance(obligation, dict):
+        return set()
+    ids = _decision_consequence_obligation_ids(obligation)
+    source_ref = str(obligation.get("source_ref") or "").strip()
+    if source_ref.startswith("CA-"):
+        ids.add(source_ref)
+    return ids
+
+
+def _validate_tasks_entrypoint_outcome_contract(feature_dir: Path) -> list[str]:
+    if not (feature_dir / "spec-contract.json").is_file():
+        return []
+    errors = _validate_plan_entrypoint_outcome_contract(feature_dir)
+    _payload, contract, read_errors = _entrypoint_outcome_spec_payload(feature_dir)
+    if read_errors or contract is None:
+        return errors or read_errors
+    if contract.get("triggered") is not True:
+        return errors
+    if errors:
+        return errors
+
+    active_dispositions = _entrypoint_outcome_active_dispositions(contract)
+    required_ids = {
+        str(ref).strip()
+        for disposition in active_dispositions.values()
+        for ref in disposition.get("consequence_refs", [])
+        if isinstance(ref, str) and ref.strip()
+    }
+    task_index_payload, task_errors = _read_json_artifact(
+        feature_dir / "task-index.json", "task-index.json"
+    )
+    if task_errors:
+        return [*errors, *task_errors]
+    if not isinstance(task_index_payload, dict):
+        return [*errors, "task-index.json must contain a top-level object"]
+
+    declared_refs = task_index_payload.get("consequence_obligation_refs")
+    declared_ids = (
+        {
+            str(item).strip()
+            for item in declared_refs
+            if isinstance(item, str) and item.strip()
+        }
+        if isinstance(declared_refs, list)
+        else set()
+    )
+    missing_declared = sorted(required_ids - declared_ids)
+    if missing_declared:
+        errors.append(
+            "task-index.json consequence_obligation_refs is missing entrypoint outcomes: "
+            + ", ".join(missing_declared)
+        )
+
+    task_ids = _task_index_consequence_ids(task_index_payload)
+    missing_task_ids = sorted(required_ids - task_ids)
+    if missing_task_ids:
+        errors.append(
+            "task-index.json tasks are missing entrypoint outcome consequence mappings: "
+            + ", ".join(missing_task_ids)
+        )
+
+    raw_scenarios = task_index_payload.get("system_review_scenarios")
+    scenario_by_id = (
+        {
+            str(item.get("id") or "").strip(): item
+            for item in raw_scenarios
+            if isinstance(item, dict) and str(item.get("id") or "").strip()
+        }
+        if isinstance(raw_scenarios, list)
+        else {}
+    )
+    raw_review_obligations = task_index_payload.get("review_obligations")
+    review_obligations = (
+        [item for item in raw_review_obligations if isinstance(item, dict)]
+        if isinstance(raw_review_obligations, list)
+        else []
+    )
+    review_by_ref: dict[str, list[dict[str, Any]]] = {}
+    for obligation in review_obligations:
+        for consequence_ref in _review_obligation_consequence_ids(obligation):
+            review_by_ref.setdefault(consequence_ref, []).append(obligation)
+
+    for consequence_ref in sorted(required_ids):
+        matching_obligations = review_by_ref.get(consequence_ref, [])
+        if not matching_obligations:
+            errors.append(
+                f"task-index.json review_obligations is missing entrypoint outcome {consequence_ref}"
+            )
+            continue
+        for obligation in matching_obligations:
+            scenario_ids, list_errors = _entrypoint_outcome_string_list(
+                obligation.get("scenario_ids"),
+                "scenario_ids",
+                f"task-index.json review obligation {consequence_ref}",
+            )
+            errors.extend(list_errors)
+            unknown_scenarios = sorted(
+                scenario_id
+                for scenario_id in scenario_ids
+                if scenario_id not in scenario_by_id
+            )
+            if unknown_scenarios:
+                errors.append(
+                    f"task-index.json review obligation {consequence_ref} references unknown system review scenarios: "
+                    + ", ".join(unknown_scenarios)
+                )
+            if obligation.get("required") is not True:
+                errors.append(
+                    f"task-index.json review obligation {consequence_ref} must be required"
+                )
+            for scenario_id in scenario_ids:
+                scenario = scenario_by_id.get(scenario_id)
+                if scenario is not None and scenario.get("required") is not True:
+                    errors.append(
+                        f"task-index.json system review scenario {scenario_id} for {consequence_ref} must be required"
+                    )
+    return errors
 
 
 def _decision_consequence_obligation_ids(decision: Any) -> set[str]:
@@ -3740,10 +4408,14 @@ def _validate_prd_worker_results(feature_dir: Path) -> list[str]:
                 f"{relative_label} is missing required worker result key: {key}"
             )
         paths_read = payload.get("paths_read")
-        if not isinstance(paths_read, list) or not paths_read or not all(
-            isinstance(item, str) and item.strip() for item in paths_read
+        if (
+            not isinstance(paths_read, list)
+            or not paths_read
+            or not all(isinstance(item, str) and item.strip() for item in paths_read)
         ):
-            errors.append(f"{relative_label} paths_read must be a non-empty string array")
+            errors.append(
+                f"{relative_label} paths_read must be a non-empty string array"
+            )
         for key in ("unknowns", "recommended_ledger_updates"):
             if key in payload and not isinstance(payload.get(key), list):
                 errors.append(f"{relative_label} {key} must be an array")
@@ -4049,7 +4721,9 @@ def _validate_prd_build_input_contracts(feature_dir: Path) -> list[str]:
             errors.append(f"{label} must record status or coverage_state")
         if status.lower() in {"n/a", "na", "not-applicable", "not_applicable"}:
             if not reason and not _has_nonempty_prd_evidence(evidence):
-                errors.append(f"{label} not-applicable status requires evidence or a reason")
+                errors.append(
+                    f"{label} not-applicable status requires evidence or a reason"
+                )
         elif not _has_nonempty_prd_evidence(evidence):
             errors.append(f"{label} must record non-empty evidence")
 
@@ -4108,7 +4782,9 @@ def _validate_prd_build_input_contracts(feature_dir: Path) -> list[str]:
     else:
         for index, artifact in enumerate(artifacts, start=1):
             if not isinstance(artifact, dict):
-                errors.append(f"artifact-contracts.json artifact {index} must be an object")
+                errors.append(
+                    f"artifact-contracts.json artifact {index} must be an object"
+                )
                 continue
             for field in ("id", "status"):
                 if not str(artifact.get(field) or "").strip():
@@ -4231,12 +4907,24 @@ def _validate_prd_build_artifacts(feature_dir: Path) -> list[str]:
         workflow_content = workflow_state_path.read_text(
             encoding="utf-8", errors="replace"
         )
-        if str(checkpoint.get("active_command") or "").strip().lower() != "sp-prd-build":
-            errors.append("workflow-state.md active_command must be sp-prd-build at completion")
+        if (
+            str(checkpoint.get("active_command") or "").strip().lower()
+            != "sp-prd-build"
+        ):
+            errors.append(
+                "workflow-state.md active_command must be sp-prd-build at completion"
+            )
         if str(checkpoint.get("status") or "").strip().lower() != "complete":
-            errors.append("workflow-state.md status must be complete at prd-build completion")
-        if extract_field(workflow_content, "build_status").strip().lower() != "complete":
-            errors.append("workflow-state.md build_status must be complete at prd-build completion")
+            errors.append(
+                "workflow-state.md status must be complete at prd-build completion"
+            )
+        if (
+            extract_field(workflow_content, "build_status").strip().lower()
+            != "complete"
+        ):
+            errors.append(
+                "workflow-state.md build_status must be complete at prd-build completion"
+            )
     errors.extend(_validate_prd_build_input_contracts(feature_dir))
     return errors
 
@@ -4305,6 +4993,7 @@ def _validate_spec_contract_artifacts(feature_dir: Path) -> list[str]:
         "capability_operations",
         "must_preserve_refs",
         "consequence_obligation_refs",
+        "entrypoint_outcome_contract",
         "design_contract",
         "context_capsule",
         "open_items",
@@ -4477,6 +5166,7 @@ def _validate_spec_contract_artifacts(feature_dir: Path) -> list[str]:
             payload.get("transition"), "spec-contract.json transition"
         )
     )
+    errors.extend(_validate_spec_entrypoint_outcome_contract(feature_dir))
     transition = payload.get("transition")
     if isinstance(transition, dict) and transition.get("status") == "ready":
         if transition.get("next_action") != "/sp.plan":
@@ -4853,10 +5543,16 @@ def validate_artifacts_hook(
     if command_name == "plan":
         validation_errors.extend(_validate_plan_consumes_deep_research(feature_dir))
         validation_errors.extend(_validate_plan_consequence_contract(feature_dir))
+        validation_errors.extend(
+            _validate_plan_entrypoint_outcome_contract(feature_dir)
+        )
         validation_errors.extend(_validate_plan_ui_contract(feature_dir))
         validation_errors.extend(_validate_plan_human_acceptance_contract(feature_dir))
     if command_name == "tasks":
         validation_errors.extend(_validate_tasks_consequence_contract(feature_dir))
+        validation_errors.extend(
+            _validate_tasks_entrypoint_outcome_contract(feature_dir)
+        )
         validation_errors.extend(_validate_tasks_ui_contract(feature_dir))
         validation_errors.extend(_validate_tasks_human_acceptance_contract(feature_dir))
     if command_name == "implement":

@@ -14,7 +14,9 @@ Preserved Contract: implementation is task-driven, uses validated packets for de
    - one delegated lane when a validated current packet has clear benefit;
    - parallel delegated lanes only for isolated write sets and explicit join points.
 5. For delegated work, compile and validate a WorkerTaskPacket just in time from the current task, live code, and stable contract refs. Never dispatch raw task text.
-6. Establish the required RED/repro baseline for behavior change, implement within scope, run task verification, and record the result.
+6. Establish one change-set RED/repro baseline when required, implement within
+   scope, run only cheap task checks per Txx, and record test impact for the next
+   Leader-owned validation epoch.
 7. Run event-triggered review when repository/task drift, parallel join, write-scope drift, validation failure, worker concern, obligation conflict, real-entrypoint gap, or review-window threshold requires it.
 8. Update one task lifecycle record, execution state, and canonical task status. Continue automatically until complete or genuinely blocked.
 
@@ -22,7 +24,11 @@ Preserved Contract: implementation is task-driven, uses validated packets for de
 
 Delegated packets contain objective, authoritative refs, bounded read/write scope, forbidden drift, validation, done condition, task-relevant `MP-*`/`CA-###`, consumer evidence, and recovery. Do not copy global policies or unrelated obligations.
 
-Worker results contain status, changed paths, validation results, task-relevant obligation evidence, concerns, and recovery when failed/blocked. The leader validates results before acceptance.
+Worker results contain status, changed paths, cheap task checks, test impact,
+task-relevant obligation evidence, concerns, and recovery when failed/blocked.
+The leader validates results and may advance dependency-safe work, but records
+feature verification as pending; a worker result never consumes or approves a
+heavyweight epoch.
 
 ## Obligation And Boundary Integrity
 
@@ -43,23 +49,32 @@ Before completion:
 
 - reconcile task graph, execution state, lifecycle records, worker results, and actual changed paths;
 - verify every acceptance criterion and open `MP-*`/`CA-###` obligation;
-- run required focused and broader validation based on changed surfaces;
+- reconcile the validation-epoch ledger shared across Implement and Review,
+  including each source fingerprint, result, covered Txx ids, and remaining
+  budget; the combined workflow allows at most three epochs;
+- run required focused and broader validation once for the integrated change-set
+  in the next Leader-owned epoch rather than once per Txx;
 - confirm real-entrypoint evidence and no unresolved blocker/open gap;
 - perform a broad diff review only when a review trigger fired or the changed surface is high risk; otherwise reuse accepted task validation and lifecycle evidence;
-- for UI work, run a visual convergence loop rather than a single terminal
-  glance: open the real entry point, capture the required viewport/state matrix,
+- for UI work, run a visual convergence loop in a coordinated integrated epoch
+  rather than per microtask: open the real entry point once per applicable
+  surface/fingerprint, capture the required viewport/state matrix,
   inspect it against `DESIGN.md`, `ui-brief.md`, and original fidelity refs,
   repair observable drift, and recapture. Use Playwright screenshots or
   representative output as applicable; check overflow, browser
   console, keyboard/focus, and accessibility when triggered; distinguish tests passed from visual/interaction acceptance;
-- before accepting a UI task, persist task-lifecycle `ui_verification` with
-  applicable=true, passing contract check, concrete evidence refs, visual
-  comparison, fidelity status, reviewer, and human-review ref when relevant;
-  `pending-human-review` blocks accepted closeout;
+- task lifecycles preserve UI contract coverage and reference the shared epoch;
+  persist typed evidence with `evidence_scope: integrated`. Do not run the full
+  viewport/state capture loop per Txx. `pending-human-review` blocks verified
+  closeout;
 - run `{{specify-subcmd:implement closeout --feature-dir "$FEATURE_DIR" --format json}}` when available;
 - update project cognition once from final changed paths and verification evidence when project truth changed.
 
 Write `implementation-handoff.json` for the mandatory system Review. Derive it deterministically from accepted lifecycle evidence, actual changed paths, the implementation fingerprint/source revision, official real entrypoints with ready signals, and required system-review scenarios. Validate it against the live Spec, Plan, and Tasks and preserve their exact complete `acceptance_refs` denominator, `acceptance_denominator_sha256`, and frozen Human Acceptance Universe (`human_acceptance_obligations`, `human_acceptance_scenarios`, and `human_acceptance_contract_sha256`) unchanged. Never omit an item, downgrade `required`, or reconstruct the frozen contract from prose. Each Review scenario carries stable acceptance refs, preconditions, actions, observable expected results, and evidence kinds. Keep agent-only lifecycle details by reference instead of reconstructing them in prose.
+
+Carry the validation-epoch ledger and remaining budget into that handoff without
+resetting it. Review consumes only the remaining shared budget. The third failed
+epoch blocks; never start a fourth.
 
 Implement does not own runtime identity for human acceptance. Do not create, infer, or prefill `reviewed_runtime_targets`; only `sp-review` creates immutable reviewed targets after the final integrated restart, evidence capture, and snapshot validation.
 

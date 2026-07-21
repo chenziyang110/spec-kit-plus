@@ -73,8 +73,7 @@ SKILLS_INTEGRATIONS = (
 )
 TEST_SPECIFY_COMMIT = "a" * 40
 TEST_SPECIFY_SOURCE = (
-    "git+https://github.com/chenziyang110/spec-kit-plus.git@"
-    f"{TEST_SPECIFY_COMMIT}"
+    f"git+https://github.com/chenziyang110/spec-kit-plus.git@{TEST_SPECIFY_COMMIT}"
 )
 TEST_SPECIFY_COMMAND = f"uvx --from {TEST_SPECIFY_SOURCE} specify"
 
@@ -203,7 +202,9 @@ def test_spx_sources_are_independent_and_discoverable() -> None:
         assert forbidden.lower() not in combined
 
 
-def test_spx_blocked_exit_requires_detailed_human_recovery_only_at_human_boundaries() -> None:
+def test_spx_blocked_exit_requires_detailed_human_recovery_only_at_human_boundaries() -> (
+    None
+):
     contract = re.sub(
         r"\s+",
         " ",
@@ -429,9 +430,10 @@ def test_spx_preplan_routes_stop_after_the_authorized_stage() -> None:
     assert "stop after that workflow returns" in skills["spx-auto"]
     assert "do not invoke a second workflow" in skills["spx-auto"]
 
-    assert "authorizes only the deep-research compatibility route" in skills[
-        "spx-research"
-    ]
+    assert (
+        "authorizes only the deep-research compatibility route"
+        in skills["spx-research"]
+    )
     assert "do not continue to `$spx-plan`" in skills["spx-research"]
 
     for name in ("spx-clarify", "spx-deep-research"):
@@ -444,14 +446,14 @@ def test_spx_preplan_routes_stop_after_the_authorized_stage() -> None:
 
 def test_spx_read_only_and_runtime_probe_boundaries_are_explicit() -> None:
     explain_reference = (
-        ADVANCED_SKILLS / "spx-explain" / "references" / "artifact-explanation.md"
-    ).read_text(encoding="utf-8").lower()
+        (ADVANCED_SKILLS / "spx-explain" / "references" / "artifact-explanation.md")
+        .read_text(encoding="utf-8")
+        .lower()
+    )
     team = re.sub(
         r"\s+",
         " ",
-        (ADVANCED_SKILLS / "spx-team" / "SKILL.md")
-        .read_text(encoding="utf-8")
-        .lower(),
+        (ADVANCED_SKILLS / "spx-team" / "SKILL.md").read_text(encoding="utf-8").lower(),
     )
 
     assert "--ensure-worktree" not in explain_reference
@@ -486,12 +488,13 @@ def test_spx_fast_and_quick_preserve_consequence_escalation_triggers() -> None:
             assert trigger in content
 
     assert "route bounded consequences to `$spx-quick`" in skills["spx-fast"]
-    assert "route broader or user-owned consequences to `$spx-specify`" in skills[
-        "spx-fast"
-    ]
-    assert "record bounded consequence obligations in `status.md`" in skills[
-        "spx-quick"
-    ]
+    assert (
+        "route broader or user-owned consequences to `$spx-specify`"
+        in skills["spx-fast"]
+    )
+    assert (
+        "record bounded consequence obligations in `status.md`" in skills["spx-quick"]
+    )
     assert "route unbounded consequences to `$spx-specify`" in skills["spx-quick"]
 
 
@@ -614,7 +617,9 @@ def test_spx_shared_project_cognition_contract_is_tool_driven() -> None:
         assert required in content
 
 
-def test_spx_shared_project_learning_contract_is_cli_progressive_and_read_only() -> None:
+def test_spx_shared_project_learning_contract_is_cli_progressive_and_read_only() -> (
+    None
+):
     content = (
         (ADVANCED_SKILLS / "_shared" / "project-learning.md")
         .read_text(encoding="utf-8")
@@ -816,8 +821,7 @@ def _fresh_codex_init(monkeypatch, tmp_path, profile: str):
     assert initialized.exit_code == 0, initialized.output
     context = (project / "AGENTS.md").read_text(encoding="utf-8")
     assert (
-        f"`{pinned_launcher.command} learning start --command <workflow> "
-        "--format json`"
+        f"`{pinned_launcher.command} learning start --command <workflow> --format json`"
     ) in context
     assert f"`{pinned_launcher.command} --help`" in context
     assert f"{pinned_launcher.command} check\n" in context
@@ -851,20 +855,26 @@ def test_fresh_advanced_codex_init_binds_root_discussion_skill_to_source_launche
         / "project-learning.md"
     ).read_text(encoding="utf-8")
     assert f"{pinned_command} discussion list --json" in discussion
-    assert render_command(
-        (*pinned_launcher.argv, "discussion", "init", "<slug>", "--json")
-    ) in discussion
-    assert render_command(
-        (
-            *pinned_launcher.argv,
-            "learning",
-            "start",
-            "--command",
-            "<classic-command-name>",
-            "--format",
-            "json",
+    assert (
+        render_command(
+            (*pinned_launcher.argv, "discussion", "init", "<slug>", "--json")
         )
-    ) in learning
+        in discussion
+    )
+    assert (
+        render_command(
+            (
+                *pinned_launcher.argv,
+                "learning",
+                "start",
+                "--command",
+                "<classic-command-name>",
+                "--format",
+                "json",
+            )
+        )
+        in learning
+    )
     assert "`specify discussion" not in discussion
     assert "\nspecify learning" not in learning
     manifest = IntegrationManifest.load("codex", project)
@@ -886,16 +896,19 @@ def test_fresh_classic_codex_init_binds_all_runtime_commands_to_source_launcher(
     discussion = (
         project / ".codex" / "skills" / "sp-discussion" / "SKILL.md"
     ).read_text(encoding="utf-8")
-    assert render_command(
-        (
-            *pinned_launcher.argv,
-            "discussion",
-            "mark-consumed",
-            "<slug>",
-            "--feature-dir",
-            "<feature-dir>",
+    assert (
+        render_command(
+            (
+                *pinned_launcher.argv,
+                "discussion",
+                "mark-consumed",
+                "<slug>",
+                "--feature-dir",
+                "<feature-dir>",
+            )
         )
-    ) in discussion
+        in discussion
+    )
     assert "{{specify-subcmd:" not in discussion
 
     diagnostic_codes = {
@@ -913,9 +926,7 @@ def test_runtime_repair_rebinds_unmodified_manifest_owned_source_launcher(
     manifest = IntegrationManifest.load("codex", project)
     config_path = project / ".specify" / "config.json"
     config = json.loads(config_path.read_text(encoding="utf-8"))
-    new_source = (
-        "git+https://github.com/chenziyang110/spec-kit-plus.git@" + "b" * 40
-    )
+    new_source = "git+https://github.com/chenziyang110/spec-kit-plus.git@" + "b" * 40
     new_command = f"uvx --from {new_source} specify"
     config["specify_launcher"].update(
         {
@@ -939,7 +950,8 @@ def test_runtime_repair_rebinds_unmodified_manifest_owned_source_launcher(
     assert new_command in content
     assert manifest.check_modified() == []
     assert not any(
-        issue["code"] in {
+        issue["code"]
+        in {
             "stale-generated-specify-launcher",
             "unbound-generated-specify-launcher",
         }
@@ -960,9 +972,7 @@ def test_runtime_repair_preserves_modified_source_bound_guidance(
     discussion.write_text(original, encoding="utf-8")
     config_path = project / ".specify" / "config.json"
     config = json.loads(config_path.read_text(encoding="utf-8"))
-    new_source = (
-        "git+https://github.com/chenziyang110/spec-kit-plus.git@" + "b" * 40
-    )
+    new_source = "git+https://github.com/chenziyang110/spec-kit-plus.git@" + "b" * 40
     config["specify_launcher"].update(
         {
             "command": f"uvx --from {new_source} specify",
@@ -995,11 +1005,7 @@ def test_advanced_local_references_without_cognition_launcher_use_recovery_contr
     config = project / ".specify" / "config.json"
     config.parent.mkdir(parents=True)
     config.write_text(
-        json.dumps(
-            {
-                "specify_launcher": _test_specify_launcher_payload()
-            }
-        ),
+        json.dumps({"specify_launcher": _test_specify_launcher_payload()}),
         encoding="utf-8",
     )
     manifest = IntegrationManifest("codex", project)
@@ -1012,9 +1018,7 @@ def test_advanced_local_references_without_cognition_launcher_use_recovery_contr
     )
 
     cognition_references = [
-        (skill_dir / "references" / "project-cognition.md").read_text(
-            encoding="utf-8"
-        )
+        (skill_dir / "references" / "project-cognition.md").read_text(encoding="utf-8")
         for skill_dir in integration.skills_dest(project).glob("spx-*")
     ]
 
@@ -1039,11 +1043,7 @@ def test_advanced_runtime_repair_rebinds_unavailable_cognition_references(
     config = project / ".specify" / "config.json"
     config.parent.mkdir(parents=True)
     config.write_text(
-        json.dumps(
-            {
-                "specify_launcher": _test_specify_launcher_payload()
-            }
-        ),
+        json.dumps({"specify_launcher": _test_specify_launcher_payload()}),
         encoding="utf-8",
     )
     manifest = IntegrationManifest("codex", project)
@@ -1092,11 +1092,7 @@ def test_runtime_repair_preserves_user_modified_cognition_guidance(tmp_path) -> 
     config = project / ".specify" / "config.json"
     config.parent.mkdir(parents=True)
     config.write_text(
-        json.dumps(
-            {
-                "specify_launcher": _test_specify_launcher_payload()
-            }
-        ),
+        json.dumps({"specify_launcher": _test_specify_launcher_payload()}),
         encoding="utf-8",
     )
     manifest = IntegrationManifest("codex", project)
@@ -1232,11 +1228,7 @@ def test_classic_missing_cognition_launcher_has_equivalent_recovery_and_rebinds(
     config = project / ".specify" / "config.json"
     config.parent.mkdir(parents=True)
     config.write_text(
-        json.dumps(
-            {
-                "specify_launcher": _test_specify_launcher_payload()
-            }
-        ),
+        json.dumps({"specify_launcher": _test_specify_launcher_payload()}),
         encoding="utf-8",
     )
     manifest = IntegrationManifest("codex", project)
@@ -1287,11 +1279,7 @@ def test_markdown_command_integration_installs_and_rebinds_cognition_recovery(
     config = project / ".specify" / "config.json"
     config.parent.mkdir(parents=True)
     config.write_text(
-        json.dumps(
-            {
-                "specify_launcher": _test_specify_launcher_payload()
-            }
-        ),
+        json.dumps({"specify_launcher": _test_specify_launcher_payload()}),
         encoding="utf-8",
     )
     manifest = IntegrationManifest("qwen", project)
@@ -1336,11 +1324,7 @@ def test_toml_command_integration_rebinds_cognition_recovery_as_valid_toml(
     config = project / ".specify" / "config.json"
     config.parent.mkdir(parents=True)
     config.write_text(
-        json.dumps(
-            {
-                "specify_launcher": _test_specify_launcher_payload()
-            }
-        ),
+        json.dumps({"specify_launcher": _test_specify_launcher_payload()}),
         encoding="utf-8",
     )
     manifest = IntegrationManifest("gemini", project)
@@ -1349,7 +1333,9 @@ def test_toml_command_integration_rebinds_cognition_recovery_as_valid_toml(
 
     implement_path = integration.commands_dest(project) / "sp.implement.toml"
     initial = tomllib.loads(implement_path.read_text(encoding="utf-8"))
-    assert "PROJECT_COGNITION_LAUNCHER_UNAVAILABLE:project-cognition" in initial["prompt"]
+    assert (
+        "PROJECT_COGNITION_LAUNCHER_UNAVAILABLE:project-cognition" in initial["prompt"]
+    )
 
     binary = project / ".specify" / "tools" / "project-cognition.exe"
     binary.parent.mkdir(parents=True)
@@ -1580,7 +1566,9 @@ def test_all_skills_integrations_support_the_advanced_profile(
     invocation_prefix = (
         "/skill:"
         if integration_key == "kimi"
-        else "$" if integration_key in {"agy", "codex", "trae", "zcode"} else "/"
+        else "$"
+        if integration_key in {"agy", "codex", "trae", "zcode"}
+        else "/"
     )
     for skill_name, next_skill in (
         ("spx-specify", "spx-plan"),
@@ -1590,9 +1578,7 @@ def test_all_skills_integrations_support_the_advanced_profile(
         installed_skill = re.sub(
             r"\s+",
             " ",
-            (skills_dir / skill_name / "SKILL.md")
-            .read_text(encoding="utf-8")
-            .lower(),
+            (skills_dir / skill_name / "SKILL.md").read_text(encoding="utf-8").lower(),
         )
         assert "this invocation authorizes only this workflow stage" in installed_skill
         expected_next = f"{invocation_prefix}{next_skill}"

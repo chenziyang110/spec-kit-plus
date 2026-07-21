@@ -130,6 +130,7 @@ from specify_cli.learnings import (
     ensure_learning_memory_from_templates,
     learning_status_payload,
     list_learning_summaries,
+    parse_learning_task_context,
     promote_learning,
     show_learning_detail,
     start_learning_session,
@@ -2934,6 +2935,132 @@ def quick_archive(
     )
 
 
+@implement_app.command("validation-start")
+def implement_validation_start(
+    feature_dir: str = typer.Option(..., "--feature-dir"),
+    stage: str = typer.Option(..., "--stage", help="implement or review"),
+    purpose: str = typer.Option(
+        ..., "--purpose", help="baseline, convergence, or delivery"
+    ),
+    command: list[str] = typer.Option(
+        ..., "--command", help="Validation command; repeat for the same epoch"
+    ),
+    task_id: list[str] = typer.Option(
+        [], "--task-id", help="Covered task ID; repeat as needed"
+    ),
+    fingerprint: str | None = typer.Option(
+        None,
+        "--fingerprint",
+        help="Implementation fingerprint; defaults to the current snapshot",
+    ),
+    output_format: TextJsonFormat = typer.Option(TextJsonFormat.text, "--format"),
+):
+    """Reserve one shared implement/review validation epoch."""
+    from .review_runtime import implementation_snapshot_sha256
+    from .validation_budget import ValidationBudgetError, reserve_validation_epoch
+
+    project_root = Path.cwd()
+    _require_spec_kit_plus_project(project_root)
+    resolved_feature_dir = _resolve_feature_dir(project_root, feature_dir)
+    resolved_fingerprint = fingerprint or implementation_snapshot_sha256(
+        project_root, resolved_feature_dir
+    )
+    try:
+        payload = reserve_validation_epoch(
+            project_root,
+            resolved_feature_dir,
+            stage=stage,
+            purpose=purpose,
+            fingerprint=resolved_fingerprint,
+            commands=command,
+            covered_task_ids=task_id,
+        )
+    except ValidationBudgetError as exc:
+        payload = {"status": "blocked", "errors": [str(exc)]}
+        if output_format.lower() == "json":
+            print_json(payload, indent=2)
+        else:
+            console.print(f"[red]Error:[/red] {exc}")
+        raise typer.Exit(10)
+    if output_format.lower() == "json":
+        print_json(payload, indent=2)
+    else:
+        console.print(
+            f"Reserved shared validation {payload['run_id']} "
+            f"({payload['purpose']}, {payload['status']})."
+        )
+
+
+@implement_app.command("validation-finish")
+def implement_validation_finish(
+    feature_dir: str = typer.Option(..., "--feature-dir"),
+    run_id: str = typer.Option(..., "--run-id"),
+    status: str = typer.Option(..., "--status", help="passed or failed"),
+    evidence_ref: list[str] = typer.Option(
+        ..., "--evidence-ref", help="Evidence reference; repeat as needed"
+    ),
+    summary: str = typer.Option(..., "--summary"),
+    output_format: TextJsonFormat = typer.Option(TextJsonFormat.text, "--format"),
+):
+    """Finish a reserved validation epoch with reusable evidence."""
+    from .validation_budget import ValidationBudgetError, complete_validation_epoch
+
+    project_root = Path.cwd()
+    _require_spec_kit_plus_project(project_root)
+    resolved_feature_dir = _resolve_feature_dir(project_root, feature_dir)
+    try:
+        payload = complete_validation_epoch(
+            project_root,
+            resolved_feature_dir,
+            run_id=run_id,
+            status=status,
+            evidence_refs=evidence_ref,
+            summary=summary,
+        )
+    except ValidationBudgetError as exc:
+        payload = {"status": "blocked", "errors": [str(exc)]}
+        if output_format.lower() == "json":
+            print_json(payload, indent=2)
+        else:
+            console.print(f"[red]Error:[/red] {exc}")
+        raise typer.Exit(10)
+    if output_format.lower() == "json":
+        print_json(payload, indent=2)
+    else:
+        console.print(
+            f"Finished shared validation {payload['run_id']}: {payload['status']}."
+        )
+
+
+@implement_app.command("validation-status")
+def implement_validation_status(
+    feature_dir: str = typer.Option(..., "--feature-dir"),
+    output_format: TextJsonFormat = typer.Option(TextJsonFormat.text, "--format"),
+):
+    """Show the shared implement-to-review validation budget."""
+    from .validation_budget import ValidationBudgetError, validation_budget_status
+
+    project_root = Path.cwd()
+    _require_spec_kit_plus_project(project_root)
+    resolved_feature_dir = _resolve_feature_dir(project_root, feature_dir)
+    try:
+        payload = validation_budget_status(project_root, resolved_feature_dir)
+    except ValidationBudgetError as exc:
+        payload = {"status": "blocked", "errors": [str(exc)]}
+        if output_format.lower() == "json":
+            print_json(payload, indent=2)
+        else:
+            console.print(f"[red]Error:[/red] {exc}")
+        raise typer.Exit(10)
+    if output_format.lower() == "json":
+        print_json(payload, indent=2)
+    else:
+        console.print(
+            f"Validation epochs: {payload['used_epochs']}/{payload['max_epochs']} "
+            f"used ({payload['remaining_epochs']} remaining)."
+        )
+
+
 @implement_app.command("closeout")
 def implement_closeout(
     feature_dir: str = typer.Option(
@@ -3735,6 +3862,11 @@ def learning_start_command(
         "--command",
         help="Workflow command name, for example specify or sp-implement",
     ),
+    context: list[str] | None = typer.Option(
+        None,
+        "--context",
+        help="Repeatable live task facet, for example operation_owner=ArchiveFlow",
+    ),
     output_format: TextJsonFormat = typer.Option(
         TextJsonFormat.text, "--format", help="Output format: text or json"
     ),
@@ -3742,7 +3874,15 @@ def learning_start_command(
     """Read compact relevant Learning context for a workflow start."""
     project_root = Path.cwd()
     _require_spec_kit_plus_project(project_root)
-    payload = start_learning_session(project_root, command_name=command_name)
+    try:
+        task_context = parse_learning_task_context(context)
+        payload = start_learning_session(
+            project_root,
+            command_name=command_name,
+            task_context=task_context,
+        )
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc), param_hint="--context") from exc
     if output_format.lower() == "json":
         print_json(payload, indent=2)
         return
@@ -3777,6 +3917,11 @@ def learning_list_command(
     query: str | None = typer.Option(
         None, "--query", help="Optional case-insensitive summary/trigger search"
     ),
+    context: list[str] | None = typer.Option(
+        None,
+        "--context",
+        help="Repeatable live task facet, for example operation_owner=ArchiveFlow",
+    ),
     cursor: int = typer.Option(
         0, "--cursor", min=0, help="Zero-based pagination cursor"
     ),
@@ -3794,12 +3939,14 @@ def learning_list_command(
     project_root = Path.cwd()
     _require_spec_kit_plus_project(project_root)
     try:
+        task_context = parse_learning_task_context(context)
         payload = list_learning_summaries(
             project_root,
             command_name=command_name,
             learning_type=learning_type,
             status=status,
             query=query,
+            task_context=task_context,
             cursor=cursor,
             limit=limit,
             include_all=all_items,
@@ -3931,6 +4078,11 @@ def learning_capture_command(
     exceptions: list[str] | None = typer.Option(
         None, "--exception", help="Condition where this learning should not be applied"
     ),
+    context: list[str] | None = typer.Option(
+        None,
+        "--context",
+        help="Repeatable structured facet, for example operation_owner=ArchiveFlow",
+    ),
     output_format: TextJsonFormat = typer.Option(
         TextJsonFormat.text, "--format", help="Output format: text or json"
     ),
@@ -3938,6 +4090,10 @@ def learning_capture_command(
     """Capture a passive learning observation for the current workflow."""
     project_root = Path.cwd()
     _require_spec_kit_plus_project(project_root)
+    try:
+        learning_facets = parse_learning_task_context(context)
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc), param_hint="--context") from exc
     payload = capture_learning(
         project_root,
         command_name=command_name,
@@ -3962,6 +4118,7 @@ def learning_capture_command(
         trigger_signals=trigger_signals,
         success_criteria=success_criteria,
         exceptions=exceptions,
+        facets=learning_facets,
     )
     if output_format.lower() == "json":
         print_json(payload, indent=2)

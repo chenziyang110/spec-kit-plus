@@ -82,6 +82,18 @@ def test_phase_boundary_allows_acceptance_to_review_repair(tmp_path: Path):
     assert result.status == "ok"
 
 
+def test_phase_boundary_blocks_acceptance_from_diagnosing_upstream(tmp_path: Path):
+    project = _create_project(tmp_path)
+
+    result = run_quality_hook(
+        project,
+        "workflow.phase_boundary.validate",
+        {"from_phase_mode": "acceptance-only", "to_phase_mode": "planning-only"},
+    )
+
+    assert result.status == "blocked"
+
+
 def test_phase_boundary_blocks_planning_to_execution_jump(tmp_path: Path):
     project = _create_project(tmp_path)
 

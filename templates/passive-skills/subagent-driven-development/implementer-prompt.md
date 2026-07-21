@@ -2,6 +2,14 @@
 
 Use this template when dispatching an implementer subagent.
 
+## Workflow-Owned Validation
+
+Under `sp-implement` feature epochs, the worker runs only cheap task checks and
+returns test impact. The Leader owns the validation epoch budget shared across
+Implement and Review. This prompt must not start an extra validation epoch for a
+Txx or handoff. A behavior-changing packet must provide an accepted change-set
+RED/baseline epoch ref or explicitly be test-authoring-only.
+
 ```
 Task tool (general-purpose):
   description: "Implement Task N: [task name]"
@@ -30,8 +38,10 @@ Task tool (general-purpose):
 
     Once you're clear on requirements:
     1. Implement exactly what the task specifies
-    2. Write the failing test first, verify the RED state, then implement the minimal fix
-    3. Rerun the same gate to prove the GREEN state and verify the implementation works
+    2. Preserve change-set test-first ordering: author tests only when assigned, or
+       require the accepted RED/baseline epoch ref before production edits
+    3. Run only cheap task checks and return test impact; defer heavyweight gates
+       to the Leader-owned epoch
     4. Commit your work
     5. Self-review (see below)
     6. Report back
@@ -40,7 +50,9 @@ Task tool (general-purpose):
 
     **While you work:** If you encounter something unexpected or unclear, **ask questions**.
     It's always OK to pause and clarify. Don't guess or make assumptions.
-    Do not edit production code until the RED state is verified.
+    Do not edit production code until the packet names the accepted change-set
+    baseline epoch. Do not run a test suite, full build, service startup, E2E, or
+    browser capture per Txx.
 
     ## Code Organization
 
@@ -93,8 +105,8 @@ Task tool (general-purpose):
 
     **Testing:**
     - Do tests actually verify behavior (not just mock behavior)?
-    - Did I write the failing test first and verify the RED state before production edits?
-    - Did I rerun the same gate and capture the GREEN state after the fix?
+    - Does this lane preserve the change-set test-first order and accepted epoch ref?
+    - Did I record cheap task checks and complete test impact for the Leader?
     - Are tests comprehensive?
 
     If you find issues during self-review, fix them now before reporting.
@@ -104,7 +116,7 @@ Task tool (general-purpose):
     When done, report:
     - **Status:** DONE | DONE_WITH_CONCERNS | BLOCKED | NEEDS_CONTEXT
     - What you implemented (or what you attempted, if blocked)
-    - What you tested and test results
+    - Cheap task checks run, test impact, and heavyweight gates deferred
     - Files changed
     - Self-review findings (if any)
     - Any issues or concerns

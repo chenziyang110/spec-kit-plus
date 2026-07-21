@@ -22,6 +22,12 @@
 
 ## Compatibility, Migration, and Recovery
 
+## Operational Entrypoint Outcome Design
+
+| Outcome / CA | Producer result | Consumer / transition | Interaction policy | Request retention | Retry identity | Cancel behavior | Validation |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| OUT-### / CA-### | [live result ref] | [owner and state/substate] | [owner and policy] | [retention rule] | [identity rule] | [observable result] | [real-entrypoint evidence] |
+
 ## Verification Strategy
 
 ## Risks and Decisions

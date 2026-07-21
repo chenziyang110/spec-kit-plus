@@ -291,6 +291,99 @@ def _result_has_passed_validation(result: dict[str, Any]) -> bool:
     return bool(statuses) and all(status == "passed" for status in statuses)
 
 
+def _uses_feature_epoch_validation(feature_dir: Path) -> bool:
+    task_index_path = feature_dir / "task-index.json"
+    if not task_index_path.is_file():
+        return False
+    try:
+        payload = json.loads(task_index_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return False
+    policy = payload.get("validation_policy") if isinstance(payload, dict) else None
+    return isinstance(policy, dict) and policy.get("mode") == "feature_epochs"
+
+
+def _shared_implement_validation_gaps(
+    project_root: Path,
+    feature_dir: Path,
+    checked_task_ids: set[str],
+) -> tuple[list[str], str]:
+    from .review_runtime import implementation_snapshot_sha256
+    from .validation_budget import ValidationBudgetError, validation_budget_status
+
+    try:
+        budget = validation_budget_status(project_root, feature_dir)
+    except ValidationBudgetError as exc:
+        return [f"shared validation budget is invalid: {exc}"], ""
+    running = [
+        run
+        for run in budget["runs"]
+        if isinstance(run, dict) and run.get("status") == "running"
+    ]
+    gaps = []
+    if running:
+        gaps.append("shared validation has an unfinished running epoch")
+    fingerprint = implementation_snapshot_sha256(project_root, feature_dir)
+    matching = [
+        run
+        for run in budget["runs"]
+        if isinstance(run, dict)
+        and run.get("stage") == "implement"
+        and run.get("purpose") == "convergence"
+        and run.get("status") == "passed"
+        and run.get("fingerprint") == fingerprint
+        and checked_task_ids
+        <= {
+            str(task_id).upper()
+            for task_id in run.get("covered_task_ids", [])
+            if isinstance(task_id, str)
+        }
+    ]
+    if not matching:
+        gaps.append(
+            "shared validation requires a fresh passed implement/convergence epoch "
+            "covering every checked task"
+        )
+        return gaps, ""
+    run = matching[-1]
+    return gaps, f"{budget['ledger_ref']}#{run['run_id']}"
+
+
+def _shared_validation_lifecycle_gaps(
+    feature_dir: Path,
+    checked_task_ids: set[str],
+    validation_run_ref: str,
+) -> list[str]:
+    if not validation_run_ref:
+        return []
+    gaps: list[str] = []
+    lifecycle_dir = feature_dir / "implementation-review" / "tasks"
+    for task_id in sorted(checked_task_ids):
+        relative = f"implementation-review/tasks/{task_id}.json"
+        path = lifecycle_dir / f"{task_id}.json"
+        if not path.is_file():
+            continue
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        validation = payload.get("validation") if isinstance(payload, dict) else None
+        refs = (
+            {
+                str(item.get("validation_run_ref") or "").strip()
+                for item in validation
+                if isinstance(item, dict)
+            }
+            if isinstance(validation, list)
+            else set()
+        )
+        if validation_run_ref not in refs:
+            gaps.append(
+                f"{relative} must reference shared validation run {validation_run_ref}"
+            )
+    return gaps
+
+
 def _result_has_consumer_evidence(result: dict[str, Any]) -> bool:
     evidence = result.get("consumer_evidence") or result.get("consumerEvidence") or []
     return has_any_evidence(evidence)
@@ -529,6 +622,7 @@ def _packetized_review_gaps(
                         feature_dir,
                         payload,
                         relative,
+                        require_integrated=_uses_feature_epoch_validation(feature_dir),
                     )
                 )
         return gaps
@@ -986,6 +1080,8 @@ def audit_implement_resume(project_root: Path, feature_dir: Path) -> dict[str, A
     tracker_status = str(tracker.get("status") or "").strip().lower()
     tasks = _parse_tasks(tasks_path)
     checked_tasks = [task for task in tasks if task["checked"]]
+    checked_task_ids = {str(task["task_id"]).upper() for task in checked_tasks}
+    feature_epoch_validation = _uses_feature_epoch_validation(resolved_feature_dir)
     all_checked = bool(tasks) and len(checked_tasks) == len(tasks)
     terminal = tracker_status == "resolved" or all_checked
     classification = "terminal-audit-required" if terminal else "clean-active"
@@ -1014,20 +1110,22 @@ def audit_implement_resume(project_root: Path, feature_dir: Path) -> dict[str, A
             elif result_status not in {"success", "done", "done_with_concerns"}:
                 missing.append("worker result is not successful")
             else:
-                if not _result_has_passed_validation(result):
+                if (
+                    not feature_epoch_validation
+                    and not _result_has_passed_validation(result)
+                ):
                     missing.append("missing passed validation evidence")
-                if task[
-                    "requires_real_entrypoint"
-                ] and not _result_has_consumer_evidence(result):
-                    missing.append("missing consumer evidence")
-                elif task[
-                    "requires_real_entrypoint"
-                ] and not _result_has_real_entrypoint_consumer_evidence(result):
-                    missing.append("missing real-entrypoint consumer evidence")
-                elif task["consumer_facing"] and not _result_has_consumer_evidence(
-                    result
+                if (
+                    (task["requires_real_entrypoint"] or task["consumer_facing"])
+                    and not _result_has_consumer_evidence(result)
                 ):
                     missing.append("missing consumer evidence")
+                elif (
+                    not feature_epoch_validation
+                    and task["requires_real_entrypoint"]
+                    and not _result_has_real_entrypoint_consumer_evidence(result)
+                ):
+                    missing.append("missing real-entrypoint consumer evidence")
 
         if missing:
             evidence_gaps.append(f"{task['task_id']}: {', '.join(missing)}")
@@ -1045,6 +1143,14 @@ def audit_implement_resume(project_root: Path, feature_dir: Path) -> dict[str, A
 
     if _tracker_has_open_gaps(resolved_feature_dir):
         evidence_gaps.append("implement-tracker.md has unresolved open_gaps")
+    shared_validation_ref = ""
+    if terminal and feature_epoch_validation:
+        shared_gaps, shared_validation_ref = _shared_implement_validation_gaps(
+            resolved_project_root,
+            resolved_feature_dir,
+            checked_task_ids,
+        )
+        evidence_gaps.extend(shared_gaps)
     evidence_gaps.extend(_task_lifecycle_blocker_gaps(resolved_feature_dir))
     evidence_gaps.extend(
         _packetized_review_gaps(
@@ -1054,6 +1160,14 @@ def audit_implement_resume(project_root: Path, feature_dir: Path) -> dict[str, A
             terminal=terminal,
         )
     )
+    if terminal and feature_epoch_validation:
+        evidence_gaps.extend(
+            _shared_validation_lifecycle_gaps(
+                resolved_feature_dir,
+                checked_task_ids,
+                shared_validation_ref,
+            )
+        )
 
     audit_passed = terminal and not evidence_gaps
     if audit_passed:

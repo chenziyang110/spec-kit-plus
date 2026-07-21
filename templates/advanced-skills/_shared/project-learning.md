@@ -18,6 +18,25 @@ SPX and Classic share one namespace: pass `implement` for `spx-implement` and
 more summaries. Execute one selected card's `show_argv` only when its triggers
 match the active work. Live evidence overrides stale Learning.
 
+After minimal live inspection identifies a reused operation or changed entry
+point, rerun targeted recall from current code, tests, and task/contract
+evidence:
+
+```text
+{{specify-subcmd:learning list --command <classic-command-name> --context operation_owner=<owner> --context consumer_owner=<consumer> --context outcome=<result-family> --format json}}
+```
+
+Do not derive context facets from archived specifications. An exact operation
+owner can recall a cross-command candidate even when a new consumer differs.
+Expand one match, verify it against live evidence, and do not auto-apply it.
+
+When the entrypoint outcome audit is triggered, persist `learning_context`,
+`learning_search_refs`, and all returned `learning_candidate_refs` in its one
+spec contract. Give every candidate one `applied`, `not_applicable`, or
+`deferred` item in `learning_dispositions`; do not silently ignore it. Applied
+Learning traces to requirement/consequence refs, not-applicable needs current
+evidence, and deferred needs an explicit deferral ref.
+
 `start`, `list`, and `show` are read-only. Never capture or promote while
 consuming.
 

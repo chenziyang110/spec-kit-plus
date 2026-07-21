@@ -183,7 +183,33 @@ def validate_worker_task_packet(packet: WorkerTaskPacket) -> WorkerTaskPacket:
         )
     if not packet.hard_rules:
         raise PacketValidationError("DP1", "hard_rules must be present in the packet")
-    if not packet.validation_gates:
+    policy = packet.validation_policy
+    if policy.mode not in {"task", "feature_epochs"}:
+        raise PacketValidationError("DP1", "validation_policy mode is invalid")
+    if policy.mode == "feature_epochs":
+        if (
+            isinstance(policy.max_epochs, bool)
+            or not isinstance(policy.max_epochs, int)
+            or not 1 <= policy.max_epochs <= 3
+        ):
+            raise PacketValidationError(
+                "DP1", "feature_epochs validation_policy max_epochs must be 1..3"
+            )
+        if policy.budget_scope != "implement-review":
+            raise PacketValidationError(
+                "DP1",
+                "feature_epochs validation_policy budget_scope must be implement-review",
+            )
+        if not policy.budget_ref.strip():
+            raise PacketValidationError(
+                "DP1", "feature_epochs validation_policy requires budget_ref"
+            )
+        if policy.heavy_gate_owner != "leader":
+            raise PacketValidationError(
+                "DP1",
+                "feature_epochs validation_policy heavy_gate_owner must be leader",
+            )
+    elif not packet.validation_gates:
         raise PacketValidationError(
             "DP1", "validation_gates must be present in the packet"
         )

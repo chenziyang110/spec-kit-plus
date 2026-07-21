@@ -14,6 +14,38 @@
       "items": { "type": "string", "minLength": 1 },
       "uniqueItems": true
     },
+    "learningFacets": {
+      "type": "object",
+      "properties": {
+        "components": { "$ref": "#/$defs/stringList" },
+        "operation_owners": { "$ref": "#/$defs/stringList" },
+        "consumer_owners": { "$ref": "#/$defs/stringList" },
+        "outcomes": { "$ref": "#/$defs/stringList" },
+        "states": { "$ref": "#/$defs/stringList" },
+        "entrypoints": { "$ref": "#/$defs/stringList" },
+        "validation_surfaces": { "$ref": "#/$defs/stringList" }
+      },
+      "minProperties": 1,
+      "additionalProperties": false
+    },
+    "contextMatch": {
+      "type": "object",
+      "required": [
+        "matched_facets",
+        "matched_dimensions",
+        "matched_values",
+        "exact_operation_owner",
+        "cross_command"
+      ],
+      "properties": {
+        "matched_facets": { "$ref": "#/$defs/learningFacets" },
+        "matched_dimensions": { "type": "integer", "minimum": 1 },
+        "matched_values": { "type": "integer", "minimum": 1 },
+        "exact_operation_owner": { "type": "boolean" },
+        "cross_command": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    },
     "learningType": {
       "enum": [
         "pitfall",
@@ -66,7 +98,8 @@
           "minItems": 7,
           "description": "Ready-to-execute argv that expands only this record."
         },
-        "why_relevant": { "type": "string", "minLength": 1 }
+        "why_relevant": { "type": "string", "minLength": 1 },
+        "context_match": { "$ref": "#/$defs/contextMatch" }
       },
       "additionalProperties": false
     },
@@ -87,6 +120,7 @@
         "record_schema": { "const": ".specify/templates/project-learning-record-schema.json#/$defs/summaryList" },
         "command": { "type": ["string", "null"] },
         "policy": { "type": ["string", "null"] },
+        "task_context": { "$ref": "#/$defs/learningFacets" },
         "filters": {
           "type": "object",
           "required": ["type", "status", "query"],
@@ -147,6 +181,7 @@
         "command": { "type": "string", "minLength": 1 },
         "policy": { "enum": ["skip", "consume-only", "consume-capture"] },
         "read_only": { "const": true },
+        "task_context": { "$ref": "#/$defs/learningFacets" },
         "items": {
           "type": "array",
           "items": { "$ref": "#/$defs/summaryCard" }
@@ -248,7 +283,8 @@
           "properties": {
             "commands": { "$ref": "#/$defs/stringList" },
             "trigger_signals": { "$ref": "#/$defs/stringList" },
-            "scope": { "type": "string" }
+            "scope": { "type": "string" },
+            "facets": { "$ref": "#/$defs/learningFacets" }
           },
           "additionalProperties": false
         },

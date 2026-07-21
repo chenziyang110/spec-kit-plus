@@ -11,6 +11,8 @@ import pytest
 from specify_cli.codex_team.auto_dispatch import (
     AutoDispatchError,
     AutoDispatchUnavailableError,
+    RESULT_END_MARKER,
+    RESULT_START_MARKER,
     complete_dispatched_batch,
     find_next_ready_parallel_batch,
     parse_tasks_markdown,
@@ -159,7 +161,6 @@ def test_parse_tasks_markdown_finds_parallel_batches_and_statuses(codex_team_pro
 **Join Point 1.1**: merge
 """,
     )
-
     parsed = parse_tasks_markdown(feature_dir / "tasks.md")
 
     assert [task.task_id for task in parsed.tasks] == ["T001", "T002", "T003"]
@@ -674,6 +675,32 @@ def test_route_ready_parallel_batch_uses_agent_teams_batch_executor_when_availab
 - `T003`
 """,
     )
+    (feature_dir / "task-index.json").write_text(
+        json.dumps(
+            {
+                "version": 2,
+                "status": "ready",
+                "validation_policy": {
+                    "mode": "feature_epochs",
+                    "max_epochs": 3,
+                    "budget_scope": "implement-review",
+                    "budget_ref": "implementation-review/validation-runs.json",
+                    "heavy_gate_owner": "leader",
+                },
+                "tasks": [
+                    {
+                        "id": task_id,
+                        "objective": f"Implement {task_id}",
+                        "expected_write_scope": [f"src/{task_id.lower()}.py"],
+                        "required_refs": ["src/contracts/auth.py"],
+                        "task_checks": [],
+                    }
+                    for task_id in ("T002", "T003")
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
 
     result = route_ready_parallel_batch(
         codex_team_project_root,
@@ -689,6 +716,69 @@ def test_route_ready_parallel_batch_uses_agent_teams_batch_executor_when_availab
     assert "Execution context bundle (read before claiming work):" in launched[0]["task_specs"][0]["description"]
     assert "src/contracts/auth.py [task_reference]" in launched[0]["task_specs"][0]["description"]
     assert "Acknowledge the execution context bundle in `rule_acknowledgement`" in launched[0]["task_specs"][0]["description"]
+    description = launched[0]["task_specs"][0]["description"]
+    result_json = description.split(RESULT_START_MARKER, 1)[1].split(RESULT_END_MARKER, 1)[0]
+    result_template = json.loads(result_json)
+    assert {
+        "acceptance_evidence",
+        "consumer_evidence",
+        "manual_evidence",
+        "must_preserve_evidence",
+        "consequence_evidence",
+        "ui_evidence",
+        "ui_verification",
+    } <= result_template.keys()
+    assert "feature_epochs" in description
+    assert "Do not run Leader-owned tests, builds, startup, E2E" in description
+    assert "write the failing test first" not in description
+    assert all(
+        "RED/GREEN" not in note
+        for note in result_template["rule_acknowledgement"]["critical_notes"]
+    )
+
+
+def test_agent_teams_batch_caps_workers_without_dropping_tasks(
+    monkeypatch, codex_team_project_root: Path
+) -> None:
+    from specify_cli.codex_team import auto_dispatch
+
+    monkeypatch.setattr(
+        auto_dispatch.ProcessBackend,
+        "launch",
+        lambda *args, **kwargs: None,
+    )
+    task_specs = [
+        {
+            "task_id": f"T{index:03d}",
+            "request_id": f"request-{index}",
+            "subject": f"T{index:03d}",
+            "description": "bounded task",
+        }
+        for index in range(1, 9)
+    ]
+
+    auto_dispatch.launch_agent_teams_batch_executor(
+        codex_team_project_root,
+        session_id="default",
+        batch_id="bounded-batch",
+        runtime_cli_path="runtime-cli.js",
+        task_specs=task_specs,
+    )
+
+    manifest = json.loads(
+        (
+            codex_team_project_root
+            / ".specify"
+            / "teams"
+            / "state"
+            / "executors"
+            / "bounded-batch.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert manifest["worker_count"] == 4
+    assert [item["task_id"] for item in manifest["tasks"]] == [
+        item["task_id"] for item in task_specs
+    ]
 
 
 def test_route_ready_parallel_batch_agent_teams_executor_completes_end_to_end(

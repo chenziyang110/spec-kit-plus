@@ -119,3 +119,24 @@ def test_render_schema_help_describes_pending_template_defaults() -> None:
     assert hint["canonical_template_defaults"]["status"] == "pending"
     assert hint["canonical_template_defaults"]["validation_results"] == "skipped until real execution occurs"
     assert any("Do not submit" in rule for rule in hint["submission_rules"])
+
+
+def test_render_schema_help_describes_validator_evidence_fields() -> None:
+    from specify_cli.codex_team.result_template import worker_result_schema_hint
+
+    hint = worker_result_schema_hint()
+
+    assert set(hint["conditional_evidence_fields"]) == {
+        "acceptance_evidence",
+        "consumer_evidence",
+        "manual_evidence",
+        "must_preserve_evidence",
+        "consequence_evidence",
+        "ui_evidence",
+        "ui_verification",
+    }
+    assert "mp_id" in hint["conditional_evidence_fields"]["must_preserve_evidence"]["required_item_fields"]
+    assert "obligation_id" in hint["conditional_evidence_fields"]["consequence_evidence"]["required_item_fields"]
+    assert {"kind", "ref"} <= set(
+        hint["conditional_evidence_fields"]["ui_evidence"]["required_item_fields"]
+    )

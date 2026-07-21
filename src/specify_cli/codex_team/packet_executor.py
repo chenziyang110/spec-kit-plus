@@ -40,6 +40,11 @@ def load_packet(packet_path: Path) -> WorkerTaskPacket:
 
 
 def build_result_template(packet: WorkerTaskPacket) -> dict[str, object]:
+    critical_note = (
+        "Replace the pending placeholder with real task-check evidence and test-impact notes; Leader-owned epoch evidence remains deferred."
+        if packet.validation_policy.mode == "feature_epochs"
+        else "Replace the pending placeholder with the real RED/GREEN or validation evidence before returning success."
+    )
     result = WorkerTaskResult(
         task_id=packet.task_id,
         status="pending",
@@ -58,9 +63,7 @@ def build_result_template(packet: WorkerTaskPacket) -> dict[str, object]:
             forbidden_drift_respected=False,
             context_bundle_read=False,
             paths_read=[],
-            critical_notes=[
-                "Replace the pending placeholder with the real RED/GREEN or validation evidence before returning success.",
-            ],
+            critical_notes=[critical_note],
         ),
     )
     return worker_task_result_payload(result)

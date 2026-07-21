@@ -120,6 +120,16 @@ def _write_minimal_acceptance_denominator(
         }
         for index in range(len(criteria))
     ]
+    spec_payload.setdefault(
+        "entrypoint_outcome_contract",
+        {
+            "triggered": False,
+            "stand_down_reason": (
+                "The test fixture changes no entrypoint, reused operation, or "
+                "consumer owner."
+            ),
+        },
+    )
     spec_path.write_text(json.dumps(spec_payload), encoding="utf-8")
 
     plan_path = feature_dir / "plan-contract.json"
@@ -403,6 +413,10 @@ def _write_valid_spec_contract(feature_dir: Path) -> None:
         "capability_operations": [],
         "must_preserve_refs": [],
         "consequence_obligation_refs": [],
+        "entrypoint_outcome_contract": {
+            "triggered": False,
+            "stand_down_reason": "The test fixture changes no entrypoint, reused operation, or consumer owner.",
+        },
         "design_contract": {
             "experience_requirements": [],
             "design_source_refs": [],

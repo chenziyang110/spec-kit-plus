@@ -96,12 +96,23 @@ def test_workflow_boundary_allows_review_upstream_only_for_truth_gap(tmp_path: P
         )
         assert without_truth_gap.status == "blocked", target
         assert with_truth_gap.status == "ok", target
+        for local_gap in ("implementation_gap", "traceability_gap"):
+            local_route = run_quality_hook(
+                project,
+                "workflow.boundary.validate",
+                {
+                    "from_command": "review",
+                    "to_command": target,
+                    "reason_category": local_gap,
+                },
+            )
+            assert local_route.status == "blocked", (target, local_gap)
 
 
-def test_workflow_boundary_allows_acceptance_repair_routes(tmp_path: Path):
+def test_workflow_boundary_sends_acceptance_failures_to_review_first(tmp_path: Path):
     project = _create_project(tmp_path)
 
-    for target in ("review", "clarify", "specify", "integrate"):
+    for target in ("review", "integrate"):
         result = run_quality_hook(
             project,
             "workflow.boundary.validate",
@@ -109,12 +120,13 @@ def test_workflow_boundary_allows_acceptance_repair_routes(tmp_path: Path):
         )
         assert result.status == "ok", target
 
-    direct_debug = run_quality_hook(
-        project,
-        "workflow.boundary.validate",
-        {"from_command": "accept", "to_command": "debug"},
-    )
-    assert direct_debug.status == "blocked"
+    for target in ("debug", "implement", "clarify", "specify"):
+        direct = run_quality_hook(
+            project,
+            "workflow.boundary.validate",
+            {"from_command": "accept", "to_command": target},
+        )
+        assert direct.status == "blocked", target
 
 
 def test_workflow_boundary_keeps_tasks_to_analyze_legacy_route(tmp_path: Path):

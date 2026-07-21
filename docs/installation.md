@@ -17,15 +17,15 @@ repository:
 
 ```powershell
 python -m pip uninstall -y specify-cli
-uv tool install specify-cli --force --from git+https://github.com/chenziyang110/spec-kit-plus.git
+uv tool install --force git+https://github.com/chenziyang110/spec-kit-plus.git
 Get-Command specify -All
 specify --help
 ```
 
 The uninstall step is intentional. Windows, Conda, and previous pip installs can
 leave an older `specify.exe` earlier on PATH, while development builds may still
-report the same `.dev0` version string. `specify --help` should show the
-current command surface, including commands such as `testing`.
+report the same `.dev0` version string. Use `specify --help` to verify the
+expected command surface and `specify check` to diagnose the active setup.
 
 ### Initialize a New Project
 
@@ -281,8 +281,8 @@ specify init my-project --ai claude
 installed wheel, so the generated project matches the installed CLI version.
 
 > **Note:** Python 3.11+ is required.
-
-> **Windows note:** Offline scaffolding requires PowerShell 7+ (`pwsh`), not Windows PowerShell 5.x (`powershell.exe`). Install from https://aka.ms/powershell.
+>
+> **Windows note:** Offline scaffolding requires PowerShell 7+ (`pwsh`), not Windows PowerShell 5.x (`powershell.exe`). Install it from the [official PowerShell page](https://aka.ms/powershell).
 
 ### Git Credential Manager on Linux
 

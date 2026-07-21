@@ -167,7 +167,9 @@ def test_spx_review_preserves_the_system_review_and_repair_contract() -> None:
     assert "$spx-accept" in combined
 
 
-@pytest.mark.parametrize(("profile", "combined"), _review_profile_contracts())
+@pytest.mark.parametrize(
+    ("profile", "combined"), _review_profile_contracts(), ids=("classic", "advanced")
+)
 def test_review_has_independent_audit_fix_and_revalidation_waves(
     profile: str,
     combined: str,
@@ -185,7 +187,9 @@ def test_review_has_independent_audit_fix_and_revalidation_waves(
     assert "leader orchestrates" in flat and "subagent" in flat
 
 
-@pytest.mark.parametrize(("profile", "combined"), _review_profile_contracts())
+@pytest.mark.parametrize(
+    ("profile", "combined"), _review_profile_contracts(), ids=("classic", "advanced")
+)
 def test_review_leader_owns_zero_uncovered_coverage_and_all_joins(
     profile: str,
     combined: str,
@@ -205,7 +209,9 @@ def test_review_leader_owns_zero_uncovered_coverage_and_all_joins(
     )
 
 
-@pytest.mark.parametrize(("profile", "combined"), _review_profile_contracts())
+@pytest.mark.parametrize(
+    ("profile", "combined"), _review_profile_contracts(), ids=("classic", "advanced")
+)
 def test_approved_scope_defects_stay_inside_review_fix(
     profile: str,
     combined: str,
@@ -229,7 +235,9 @@ def test_approved_scope_defects_stay_inside_review_fix(
         assert "reopen `$spx-tasks`" not in flat
 
 
-@pytest.mark.parametrize(("profile", "combined"), _review_profile_contracts())
+@pytest.mark.parametrize(
+    ("profile", "combined"), _review_profile_contracts(), ids=("classic", "advanced")
+)
 def test_review_only_hands_off_for_upstream_truth_changes(
     profile: str,
     combined: str,

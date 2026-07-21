@@ -34,10 +34,20 @@ User task → Is it static HTML?
 
 ## Spec Kit Plus UI Evidence
 
-For UI-affecting `sp-implement` work, browser verification must produce visual
-evidence as well as functional assertions. Capture at least one viewport screenshot
-for each affected route/state, and include desktop and mobile viewports when
-responsive behavior can change.
+### Workflow-Owned Validation
+
+For UI-affecting `sp-implement` work under feature epochs, workers inspect
+design inputs and return changed surfaces, required states/viewports, and visual
+risks. They must not start an extra validation epoch or run browser capture per
+Txx. The Leader groups the matrix and runs browser verification once per
+integrated surface/source fingerprint inside the shared Implement/Review
+validation epoch budget.
+
+That integrated browser verification must produce visual evidence as well as
+functional assertions. Capture the required viewport/state matrix with
+`evidence_scope: integrated`, including desktop and mobile viewports when
+responsive behavior can change. Store a stable viewport screenshot for every
+required matrix cell. Do not run the full viewport/state capture loop per Txx.
 
 Use visual regression-friendly screenshot paths that encode route, viewport, and
 scenario, with deterministic data and stable UI state. Check browser console

@@ -4601,9 +4601,11 @@ def test_worker_prompt_templates_exist_and_define_controller_worker_contracts() 
     assert "completion-handoff protocol" in implementer.lower()
     assert "task_started" in implementer.lower()
     assert "must not enter `idle` before the required handoff is written or returned" in implementer.lower()
-    assert "write the failing test first" in implementer.lower()
-    assert "red state" in implementer.lower()
-    assert "green state" in implementer.lower()
+    assert "test-authoring-only" in implementer.lower()
+    assert "accepted change-set red/baseline" in implementer.lower()
+    assert "must not run a test suite" in implementer.lower()
+    assert "per txx" in implementer.lower()
+    assert "only the leader may consume one" in implementer.lower()
     assert "do not claim verification that was not run" in implementer.lower()
     assert "consumer evidence" in implementer.lower()
     assert "created but not wired" in implementer.lower()
@@ -5483,7 +5485,7 @@ def test_structured_json_templates_preserve_fidelity_status_fields() -> None:
     assert "ui_verification" in task_lifecycle
     assert "evidence" in task_lifecycle["ui_verification"]
     assert "evidence_refs" not in task_lifecycle["ui_verification"]
-    assert task_lifecycle["ui_verification"]["evidence_scope"] == "task"
+    assert task_lifecycle["ui_verification"]["evidence_scope"] == "integrated"
     assert task_lifecycle["ui_verification"]["applicable"] is False
     assert "required_obligation_refs" in implement_state
 

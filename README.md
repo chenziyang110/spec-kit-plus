@@ -1,10 +1,240 @@
 # Spec Kit Plus
 
+**Spec-Driven Development workflows for local AI coding agents—from product intent to reviewed specifications, plans, tasks, implementation, integrated system review, and human acceptance.**
+
+[![Latest release](https://img.shields.io/github/v/release/chenziyang110/spec-kit-plus?display_name=tag&sort=semver)](https://github.com/chenziyang110/spec-kit-plus/releases)
+[![Test and lint](https://github.com/chenziyang110/spec-kit-plus/actions/workflows/test.yml/badge.svg)](https://github.com/chenziyang110/spec-kit-plus/actions/workflows/test.yml)
+[![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)](pyproject.toml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
+[Quick start](#quick-start) · [How it works](#how-it-works) · [Workflow profiles](#workflow-profiles) · [Integrations](#supported-integrations) · [Documentation](#documentation) · [Releases](https://github.com/chenziyang110/spec-kit-plus/releases)
+
+Spec Kit Plus is a maintained fork of [GitHub Spec Kit](https://github.com/github/spec-kit). The `specify` CLI scaffolds a shared Spec-Driven Development runtime and renders native commands or skills for the AI coding tool you select. The generated workflows then carry decisions through requirements, technical planning, execution, verification, and acceptance.
+
+> [!IMPORTANT]
+> This repository has fork-specific templates, profiles, runtimes, and release behavior. Install from `chenziyang110/spec-kit-plus` when you want the behavior documented here. Use [GitHub Spec Kit](https://github.com/github/spec-kit) when you want the canonical GitHub-maintained distribution.
+
+## Why Spec Kit Plus
+
+| Need | What this repository provides |
+| --- | --- |
+| Keep product intent intact | A reviewable artifact chain from `specify` through `plan`, `tasks`, `implement`, system `review`, and `accept`, with explicit repair and reopen paths. |
+| Work in the agent you already use | One integration registry renders the same workflow concepts into skills, commands, prompts, hooks, and context files native to each supported tool. |
+| Match prompts to the model | **Classic** keeps the full, explicit `sp-*` workflow; **Advanced** provides independent, prompt-optimized `spx-*` skills for skills-based integrations. |
+| Navigate an existing codebase | Project Cognition narrows brownfield evidence reads and change-impact routes while requiring live repository verification before technical claims or edits. |
+| Treat UI and acceptance as executable work | `DESIGN.md`, feature `ui-brief.md`, task-local UI contracts, real-entrypoint evidence, and resumable human acceptance remain part of delivery rather than optional prose. |
+| Extend without forking the runtime | Presets, extensions, a generic integration, project Learning, and optional team execution add capabilities around the shared CLI and artifact contracts. |
+
+## Quick start
+
+### Recommended setup
+
+- [Python 3.11 or newer](https://www.python.org/downloads/)
+- [uv](https://docs.astral.sh/uv/getting-started/installation/)
+- [Git](https://git-scm.com/downloads) (recommended; `init --no-git` is available)
+- the CLI or IDE for your chosen AI coding agent
+
+### 1. Install the CLI
+
+```bash
+uv tool install git+https://github.com/chenziyang110/spec-kit-plus.git
+```
+
+For a reproducible install, append a tag from [Releases](https://github.com/chenziyang110/spec-kit-plus/releases) to the Git URL, for example `@vX.Y.Z`.
+
+### 2. Initialize a project
+
+```bash
+specify init my-project --ai codex --workflow-profile classic
+cd my-project
+specify check
+```
+
+`specify init` creates the shared `.specify/` runtime and the native workflow catalog for the selected integration. `classic` is the non-interactive default; choose `advanced` when the integration supports skills and you want the independent `spx-*` catalog.
+
+To scaffold once without installing the CLI:
+
+```bash
+uvx --refresh --from git+https://github.com/chenziyang110/spec-kit-plus.git specify init my-project --ai codex --workflow-profile classic
+```
+
+For an existing directory, run `specify init --here --force --ai <agent>` after reviewing local changes. Use `--ignore-agent-tools` when you only want the generated assets and do not want `init` to require the selected agent executable.
+
+### 3. Start the workflow in your agent
+
+The following is Codex skill syntax and is entered inside Codex, not in the shell:
+
+```text
+$sp-specify Build a searchable knowledge base with role-based access and an audit trail.
+$sp-plan Use PostgreSQL, a REST API, and the existing frontend stack.
+$sp-tasks
+$sp-implement
+$sp-review
+$sp-accept
+```
+
+Other integrations use different punctuation. The `Start Here` panel printed by `specify init` shows the exact native commands for the selected agent.
+
+## How it works
+
+The normal pre-planning path is `specify -> plan`. Clarification and feasibility research are conditional branches, not mandatory ceremony.
+
+```mermaid
+flowchart LR
+    D["discussion<br/>(optional shaping)"] -.-> S["specify<br/>requirements and acceptance"]
+    S --> P["plan<br/>technical design"]
+    S -. needs repair .-> C["clarify"]
+    C --> P
+    S -. feasibility unproven .-> R["deep-research"]
+    R --> P
+    P --> T["tasks<br/>dependency-aware graph"]
+    T --> I["implement<br/>execute task graph"]
+    I --> V["review<br/>start, interact, repair"]
+    V --> A["accept<br/>human product verdict"]
+    A -. independent lanes .-> G["integrate"]
+```
+
+- Use `discussion` before formal specification when an idea still needs product or technical shaping.
+- Use `clarify` only when an existing specification needs deeper analysis before planning.
+- Use `deep-research` when requirements are clear but feasibility, external evidence, or an implementation chain still needs proof before planning.
+- Review the seeded constitution and run `constitution` when the project needs explicit governance changes.
+- Use `auto` to resume the safest next step from recorded workflow state.
+
+### Workflow catalog
+
+| Layer | Canonical workflows |
+| --- | --- |
+| Core workflow skills | `constitution`, `specify`, `plan`, `tasks`, `implement`, `review`, `accept` |
+| Support skills | `auto`, `ask`, `discussion`, `clarify`, `deep-research` (`research` compatibility alias), `design`, `fast`, `quick`, `checklist`, `analyze`, `debug`, `explain`, `integrate`, `implement-teams`, `prd-scan`, `prd-build`, `prd` (deprecated compatibility entrypoint), `map-scan`, `map-build`, `map-update`, `taskstoissues` |
+| Codex-only runtime | `sp-teams` for durable managed-team state and `team` for runtime operations inside the generated agent catalog |
+
+The generated `ask` workflow is read-only, evidence-backed project Q&A. `prd-scan -> prd-build` reconstructs current product documentation from an existing repository and is a peer workflow, not an automatic handoff to `plan`.
+
+## Workflow profiles
+
+| | Classic | Advanced |
+| --- | --- | --- |
+| Best fit | Broad compatibility and explicit guidance | Advanced models that can operate from compact, independently owned skills |
+| Availability | Every integration | Skills-based integrations only |
+| Generated surface | Agent-native `sp-*` skills or `/sp.*` commands | Independent `spx-*` skills plus the original Classic map companions |
+| Prompt policy | Full tutorials, recovery guidance, and compatibility detail | Removes repetition and stable boilerplate while preserving state, recovery, side-effect, and final-claim gates |
+| Default | Non-interactive default | Explicit opt-in with `--workflow-profile advanced` |
+
+Advanced optimization has **no hard word or token ceiling**. It optimizes expression only after preserving workflow semantics. An Advanced install also includes the unchanged Classic `sp-map-scan`, `sp-map-build`, and `sp-map-update` companions so a lower-cost model can run the more explicit map workflow.
+
+Install either profile explicitly:
+
+```bash
+specify init my-project --ai codex --workflow-profile classic
+specify init another-project --ai codex --workflow-profile advanced
+```
+
+Profiles are additive for a skills-based integration. To keep both in one project:
+
+```bash
+specify init my-project --ai codex --workflow-profile classic
+cd my-project
+specify init --here --force --ai codex --workflow-profile advanced
+```
+
+Canonical workflow names are integration-neutral. Invocation syntax depends on the integration:
+
+| Integration surface | Classic `specify` | Advanced `specify` | PRD reconstruction |
+| --- | --- | --- | --- |
+| Codex, Antigravity, Trae, and ZCode skills | `$sp-specify` | `$spx-specify` | `$sp-prd-scan -> $sp-prd-build` |
+| Claude, Cursor, and Mistral Vibe skills | `/sp-specify` | `/spx-specify` | `/sp-prd-scan -> /sp-prd-build` |
+| Kimi Code skills | `/skill:sp-specify` | `/skill:spx-specify` | `/skill:sp-prd-scan -> /skill:sp-prd-build` |
+| Slash-dot command integrations | `/sp.specify` | Not available | `/sp.prd-scan -> /sp.prd-build` |
+
+`/sp-*` is not universal for skills-backed integrations. Use the invocation form generated for your selected tool—for example `$sp-plan`, `/skill:sp-plan`, or `/sp.plan`.
+
+## Supported integrations
+
+The current registry is the source of the following integration keys:
+
+| Surface | Integration keys |
+| --- | --- |
+| Skills-based; Classic and Advanced | `agy`, `claude`, `codex`, `cursor-agent`, `kimi`, `trae`, `vibe`, `zcode` |
+| Command, prompt, or workflow based; Classic | `amp`, `auggie`, `bob`, `codebuddy`, `copilot`, `forge`, `gemini`, `iflow`, `junie`, `kilocode`, `kiro-cli`, `mimo`, `opencode`, `pi`, `qodercli`, `qwen`, `roo`, `shai`, `tabnine`, `windsurf` |
+| Bring your own agent | `generic` with `--ai-commands-dir <directory>` |
+
+Run `specify init --help` for the authoritative list shipped by the installed CLI. `specify integration list` inspects integrations already installed in a generated project; it is not the pre-init discovery command.
+
+## Installation, upgrade, and repair
+
+| Goal | Command or guide |
+| --- | --- |
+| Persistent install from this fork | `uv tool install git+https://github.com/chenziyang110/spec-kit-plus.git` |
+| One-time execution | `uvx --refresh --from git+https://github.com/chenziyang110/spec-kit-plus.git specify ...` |
+| Upgrade to the current fork head | `uv tool install --force git+https://github.com/chenziyang110/spec-kit-plus.git` |
+| Pin a release | Append `@vX.Y.Z` from [Releases](https://github.com/chenziyang110/spec-kit-plus/releases) to the Git URL |
+| Repair runtime-managed generated assets | `specify integration repair` from the generated project root |
+| Diagnose tools and project compatibility | `specify check` |
+| Troubleshoot installation and PATH | [Installation Guide](docs/installation.md) and [Upgrade Guide](docs/upgrade.md) |
+
+`specify version` reports package and interpreter information, but development installs can share the same `.dev0` version across commits. Verify the active command surface with `specify --help`; on Windows, use `Get-Command specify -All` to find stale pip, Conda, or uv entrypoints that may shadow the intended executable.
+
+Core scaffolding assets are bundled in the Python package. Some optional runtime components, including release builds of Project Cognition, are installed or downloaded separately; `specify init` reports a recovery path when a best-effort runtime install is unavailable.
+
+## Documentation
+
+| Goal | Read |
+| --- | --- |
+| Complete the first workflow | [Quick Start Guide](docs/quickstart.md) |
+| Install, pin, or troubleshoot the CLI | [Installation Guide](docs/installation.md) |
+| Upgrade the CLI or a generated project | [Upgrade Guide](docs/upgrade.md) |
+| Understand architecture and change propagation | [Project Handbook](PROJECT-HANDBOOK.md) |
+| Choose project governance defaults | [Constitution Profiles](docs/constitution-profiles.md) |
+| Develop an extension | [Extension Development Guide](extensions/EXTENSION-DEVELOPMENT-GUIDE.md) and [API Reference](extensions/EXTENSION-API-REFERENCE.md) |
+| Build or publish presets | [Preset Guide](presets/README.md) and [Publishing Guide](presets/PUBLISHING.md) |
+| Develop this repository | [Local Development Guide](docs/local-development.md) |
+| Review workflow quality evidence | [Workflow Quality](docs/workflow-quality/README.md) |
+
+## Project scope
+
+- Python support starts at 3.11; CI exercises Python 3.11, 3.12, and 3.13.
+- Generated automation includes Bash and PowerShell variants.
+- Classic and Advanced are separate prompt products over shared CLI, schema, validator, and artifact contracts.
+- In a terminal, the optional Codex team runtime is operated through `specify sp-teams ...`; inside Codex, `$sp-teams` is the generated skill entrypoint.
+- The first-release `sp-teams` scope is Codex-only and optional. Other integrations do not receive the Codex team runtime by default.
+- Project Cognition is advisory navigation, not repository truth: map points, code proves.
+
+## Community and contributing
+
+- Ask focused usage questions, report reproducible bugs, or propose features through [GitHub Issues](https://github.com/chenziyang110/spec-kit-plus/issues).
+- Check [Releases](https://github.com/chenziyang110/spec-kit-plus/releases) before reporting an issue against an older build.
+- Read the [Local Development Guide](docs/local-development.md) and the repository [pull request template](.github/PULL_REQUEST_TEMPLATE.md) before submitting a change.
+
+The primary local verification loop is:
+
+```bash
+uv sync --extra test
+uvx ruff check src/
+uv run pytest -n auto
+```
+
+Pull requests should describe the change, record verification, and disclose AI assistance as requested by the repository template.
+
+## License and acknowledgements
+
+Spec Kit Plus is distributed under the [MIT License](LICENSE). It builds on [GitHub Spec Kit](https://github.com/github/spec-kit) and retains its upstream copyright notice.
+
+## Maintainer reference
+
+The repository's regression suite treats the detailed workflow and runtime rules below as a user-visible product contract. They remain searchable here but are collapsed so the primary README path stays focused on evaluation and first success.
+
+<details>
+<summary><strong>Expand the full workflow and runtime contract reference</strong></summary>
+
+## Full product contract reference
+
 `spec-kit-plus` is a maintained fork of Spec Kit focused on practical Spec-Driven Development workflow support for local AI coding agents.
 
-`specify` is the public entrypoint for requirement discovery. Internally it runs
-the brainstorming lock flow, persists facts, route, and intent truth, and hands
-structured handoff context to `sp-implement` and later workflow stages.
+`specify` is the setup and management CLI. Inside a generated project, the
+agent-native `sp-specify` / `spx-specify` workflow runs the brainstorming lock
+flow, persists facts, route, and intent truth, and produces the structured
+handoff for `plan`; later stages continue through `tasks`, `implement`, and
+`accept`.
 
 This repository contains:
 
@@ -26,7 +256,7 @@ Schema v5 adds revision-bound, expiring reconciliation to the auditable live fee
 Install the CLI from this repository:
 
 ```bash
-uv tool install specify-cli --from git+https://github.com/chenziyang110/spec-kit-plus.git
+uv tool install git+https://github.com/chenziyang110/spec-kit-plus.git
 ```
 
 Upgrade to the latest version from this fork. If a machine previously installed
@@ -35,15 +265,15 @@ entry first so a stale `specify.exe` does not shadow the new one:
 
 ```powershell
 python -m pip uninstall -y specify-cli
-uv tool install specify-cli --force --from git+https://github.com/chenziyang110/spec-kit-plus.git
+uv tool install --force git+https://github.com/chenziyang110/spec-kit-plus.git
 Get-Command specify -All
 specify --help
 ```
 
 `specify version` reports the package version, but development installs can share
-the same `.dev0` version string across commits. Use `specify --help` to
-confirm newly added commands such as `testing` are present, and use
-`Get-Command specify -All` on Windows to detect duplicate old entrypoints.
+the same `.dev0` version string across commits. Use `specify --help` to confirm
+the expected command surface, and use `Get-Command specify -All` on Windows to
+detect duplicate old entrypoints.
 Feature creation follows `sp-specify` plus the generated create-feature script
 at `.specify/scripts/bash/create-new-feature.sh` or
 `.specify/scripts/powershell/create-new-feature.ps1`; do not assume a separate
@@ -78,7 +308,7 @@ uv pip install -e .
 - `git`
 - your target AI agent CLI or IDE integration
 
-## Quick Start
+## Classic quick-start contract
 
 Create a new project:
 
@@ -561,7 +791,7 @@ Conditional gates and follow-up commands:
 - Support drift is not runtime-truth staleness. When `freshness` is `support_drift`, resolve or ignore the support-surface change instead of reflexively routing to `map-update`.
 - Map points, code proves: technical claims must be backed by live code, tests, scripts, configuration, or authoritative docs.
 - `specify`, `clarify`, `deep-research`, `plan`, and `tasks` stay artifact-only unless they actually change source/runtime/template/config/test/generated-asset surfaces. When they do make those changes, closeout uses the same planner-first project cognition update path from workflow-owned changed paths and affected surfaces; `sp-map-update` remains the external/manual maintenance workflow for user edits, interrupted workflow repair, explicit map maintenance, and follow-up repair.
-- `auto` to resume the recommended next workflow step from current repository state; it reads canonical state surfaces such as `workflow-state.md`, `implement-tracker.md`, quick-task `STATUS.md`, and debug session files, then continues under the routed workflow's contract without rewriting downstream `next_command` to `sp-auto`. When the routed workflow would only ask a bounded question or confirmation with one safe recommended/default answer, `auto` accepts that recommendation and continues; when it cannot do so safely, it reports the blocker plus a self-unblock recommendation instead of waiting silently.
+- `auto` to resume the recommended next workflow step from current repository state; for feature stages it reads `workflow-runtime.json` through `workflow show` then `workflow next` and consumes structured `next_argv` before consulting rich `workflow-state.md`, `implement-tracker.md`, quick-task `STATUS.md`, or debug session files. It continues under the routed workflow's contract without rewriting downstream state to `sp-auto`. When the routed workflow would only ask a bounded question or confirmation with one safe recommended/default answer, `auto` accepts that recommendation and continues; when it cannot do so safely, it reports the blocker plus a self-unblock recommendation instead of waiting silently.
 - when concurrent feature lanes exist, `auto` should prefer lane registry plus reconcile over branch-only recency and should only auto-resume when exactly one safe candidate remains
 - `ask` for read-only evidence-backed project Q&A. Use it when you need a direct answer from project files, templates, docs, state, or memory before choosing an action workflow. Project cognition guides the search; live evidence proves the answer. Same-topic follow-ups reuse the prior evidence set when it still applies, localized or project-slang terms are normalized into project vocabulary, and complex answers separate proven facts from evidence-derived inferences. `sp-ask` is independent from `sp-discussion`; it creates no ask state or handoff, makes no source edits, and does not run tests, builds, package managers, or project CLI commands by default. Do not teach a `specify ask` helper in v1.
 - `discussion` to shape a rough idea before formal specification or bounded quick execution. It keeps human replies natural while Agent state and the single `handoff-to-specify.json` contract stay machine-oriented. `sp-specify` compiles a confirmed contract into `spec-contract.json`; `sp-quick` may consume it only when quick eligibility remains bounded. When the contract introduces no quick-stage `semantic_delta`, Quick binds understanding to the confirmed `review_digest` and does not ask for the same confirmation again.
@@ -838,32 +1068,37 @@ This repository is no longer only a Milestone 1 slice, but the full execution/ru
 
 ## Codex Team Runtime
 
-This fork now exposes a Codex-only first-release team/runtime surface through:
+This fork exposes a Codex-only first-release team/runtime surface. In a
+terminal, enter through the `specify` CLI:
 
 ```bash
-sp-teams
+specify sp-teams --help
 ```
 
-### The `sp-teams` surface
+Inside Codex, the generated agent skill is invoked as `$sp-teams`.
 
-`sp-teams` is the official CLI surface for the runtime. All operations start from this command, so avoid advertising legacy aliases or alternate entry points.
+### The `specify sp-teams` terminal surface
 
-- `sp-teams watch` opens a full-screen observer over members and flow, with lightweight terminal interaction for focus switching, detail expansion, and view cycling.
-- `sp-teams status` dumps the latest JSON snapshot of the team phase, worker roster, task queue, and mailbox state.
-- `sp-teams await` blocks until the runtime reaches a terminal phase so operators can wait for batch completion.
-- `sp-teams resume` re-attaches to an existing runtime session by replaying the metadata in `.specify/teams/` and restarting the tmux backend.
-- `sp-teams shutdown` requests a graceful stop, letting workers finish or fail their in-flight tasks before tearing down.
-- `sp-teams cleanup` removes `.specify/teams/` state after shutdown succeeds; run it only once shutdown has settled to avoid corrupting the state folder.
-- `sp-teams submit-result --request-id <id> --result-file <path>` validates and records a structured subagent result for an existing dispatch. Use `sp-teams result-template --request-id <id>` only to generate the canonical `pending` placeholder; do not submit that template unchanged.
-- `sp-teams api <operation>` proxies structured JSON operations (task claims, worker heartbeats, events) into the runtime; use it when automation needs a predictable channel.
+`specify sp-teams` is the official shell CLI surface for the runtime. Avoid
+advertising a bare `sp-teams` executable because the package does not install
+one.
+
+- `specify sp-teams watch` opens a full-screen observer over members and flow, with lightweight terminal interaction for focus switching, detail expansion, and view cycling.
+- `specify sp-teams status` dumps the latest JSON snapshot of the team phase, worker roster, task queue, and mailbox state.
+- `specify sp-teams await` blocks until the runtime reaches a terminal phase so operators can wait for batch completion.
+- `specify sp-teams resume` re-attaches to an existing runtime session by replaying the metadata in `.specify/teams/` and restarting the tmux backend.
+- `specify sp-teams shutdown` requests a graceful stop, letting workers finish or fail their in-flight tasks before tearing down.
+- `specify sp-teams cleanup` removes `.specify/teams/` state after shutdown succeeds; run it only once shutdown has settled to avoid corrupting the state folder.
+- `specify sp-teams submit-result --request-id <id> --result-file <path>` validates and records a structured subagent result for an existing dispatch. Use `specify sp-teams result-template --request-id <id>` only to generate the canonical `pending` placeholder; do not submit that template unchanged.
+- `specify sp-teams api <operation>` proxies structured JSON operations (task claims, worker heartbeats, events) into the runtime; use it when automation needs a predictable channel.
 
 For agents and automation, prefer the optional MCP supplement instead of having the model compose CLI invocations directly:
 
 - `specify-teams-mcp` exposes an agent-facing MCP facade for the structured control plane
-- install the optional facade with `pip install "specify-cli[mcp]"`; Codex config can register it only when that extra is available
+- install the optional facade from this fork with `uv tool install --force "specify-cli[mcp] @ git+https://github.com/chenziyang110/spec-kit-plus.git"`; Codex config can register it only when that extra is available
 - if you install the MCP extra after project init, refresh the generated Codex config with `scripts/sync-ecc-to-codex.sh` or `scripts/powershell/sync-ecc-to-codex.ps1`
 - the MCP layer is intended for agent/tool consumers
-- `sp-teams` remains the human/operator CLI and parity fallback surface
+- `specify sp-teams` remains the human/operator CLI and parity fallback surface
 
 This command suite powers both the `sp-teams` skill and the runtime APIs that downstream tooling relies on, which is why the command is restricted to Codex-initiated projects.
 
@@ -877,9 +1112,9 @@ All runtime state lives under `.specify/teams/`:
 
 Lifecycle notes:
 
-- Tasks run through `pending -> in_progress -> completed|failed` and emit events that `sp-teams status` surfaces.
+- Tasks run through `pending -> in_progress -> completed|failed` and emit events that `specify sp-teams status` surfaces.
 - Workers claim tasks with identity records, write heartbeats under `state/workers`, and consume mailbox messages from `state/mailboxes`.
-- Structured subagent results live under `state/results/` and are submitted through `sp-teams submit-result` / `sp-teams api submit-result` before `complete-batch` should mark a structured-result batch done.
+- Structured subagent results live under `state/results/` and are submitted through `specify sp-teams submit-result` / `specify sp-teams api submit-result` before `complete-batch` should mark a structured-result batch done.
 - Shutdown requests append a terminal event, and cleanup removes the `.specify/teams/` directory once all JSON files have been archived.
 
 Operators should treat this directory as the single source of truth for resumes, restarts, and audits, and not attempt to recreate state outside the official CLI surface.
@@ -887,10 +1122,10 @@ Operators should treat this directory as the single source of truth for resumes,
 ### Operator guidance and backend requirements
 
 - The runtime currently requires a tmux-capable backend (`tmux` on Unix/WSL or a Windows-compatible alternative) to host worker panes; the CLI validates the backend before bootstrapping a session.
-- `sp-teams watch` is the operator-facing live board: use it when you need a continuous view of members and flow instead of one-shot diagnostics.
-- Use `sp-teams resume` whenever a previously-running session still holds worker heartbeats or task claims to prevent duplicate boots.
-- Issue `sp-teams shutdown` before terminating the tmux backend so the runtime can flush claims and notify join points, then run `sp-teams cleanup` once the CLI reports the phase is `shutdown`/`cleaned`.
-- `sp-teams await` is useful for scripts that need to pause until the team exits the `dispatch` phase without polling `state/` files directly.
+- `specify sp-teams watch` is the operator-facing live board: use it when you need a continuous view of members and flow instead of one-shot diagnostics.
+- Use `specify sp-teams resume` whenever a previously-running session still holds worker heartbeats or task claims to prevent duplicate boots.
+- Issue `specify sp-teams shutdown` before terminating the tmux backend so the runtime can flush claims and notify join points, then run `specify sp-teams cleanup` once the CLI reports the phase is `shutdown`/`cleaned`.
+- `specify sp-teams await` is useful for scripts that need to pause until the team exits the `dispatch` phase without polling `state/` files directly.
 
 ### Release isolation guidance
 
@@ -950,7 +1185,7 @@ Result helper command shapes:
 - Command shape: `specify result path --command debug --session-slug <session-slug> --lane-id <lane-id>`
 - Command shape: `specify result submit --command debug --session-slug <session-slug> --lane-id <lane-id> --result-file <path>`
 - Command shape: `specify result path --command <workflow> --request-id <request-id>` for Codex runtime-managed result channels
-- Command shape: `sp-teams submit-result --request-id <request-id> --result-file <path>` for Codex runtime-managed result submission
+- Command shape: `specify sp-teams submit-result --request-id <request-id> --result-file <path>` for Codex runtime-managed result submission
 
 For the full CLI surface:
 
@@ -970,6 +1205,8 @@ Commonly used integrations in this fork include:
 - `cursor-agent`
 - `qwen`
 - `opencode`
+- `tabnine`
+- `trae`
 - `windsurf`
 - `junie`
 - `kilocode`
@@ -1047,12 +1284,12 @@ Navigation and technical truth are now cognition-first:
 - After a successful refresh, record the new fresh cognition baseline. Use dirty fallback metadata only when the required refresh cannot be completed now, so same-feature resume can warn instead of self-blocking while upstream brownfield entrypoints and other features still require refresh.
 - Any code change that alters project cognition meaning must update the cognition runtime. Workflow-owned mutation closeout is planner-first for normal `sp-*` work; use `sp-map-update` for external/manual map maintenance and follow-up repair.
 
-## Documentation
+## Reference documentation links
 
 - [Installation Guide](docs/installation.md)
 - [Upgrade Guide](docs/upgrade.md)
 - [Local Development](docs/local-development.md)
-- [Spec-Driven Walkthrough](spec-driven.md)
+- [Upstream Spec-Driven Development walkthrough](https://github.com/github/spec-kit/blob/main/spec-driven.md)
 
 ## Notes For This Fork
 
@@ -1063,3 +1300,5 @@ Navigation and technical truth are now cognition-first:
 ## License
 
 This project is licensed under the MIT License. See [LICENSE](LICENSE).
+
+</details>

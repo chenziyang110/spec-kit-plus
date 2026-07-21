@@ -8,6 +8,7 @@ from specify_cli.execution.packet_schema import (
     MustPreserveObligation,
     PacketReference,
     PacketScope,
+    ValidationPolicy,
     WorkerTaskPacket,
 )
 from specify_cli.execution.packet_validator import PacketValidationError
@@ -602,6 +603,90 @@ def test_validate_worker_task_result_enforces_ui_contract_required_evidence(
         exc.value.message
         == "visual_comparison_or_human_review requires ui_verification fidelity_status"
     )
+
+
+def test_feature_epoch_worker_defers_integrated_ui_evidence_to_leader(
+    sample_packet: WorkerTaskPacket,
+) -> None:
+    sample_packet.validation_policy = ValidationPolicy(
+        mode="feature_epochs",
+        max_epochs=3,
+        budget_scope="implement-review",
+        budget_ref="implementation-review/validation-runs.json",
+        heavy_gate_owner="leader",
+    )
+    sample_packet.validation_gates = []
+    sample_packet.task_checks = []
+    sample_packet.consumer_surfaces = ["Settings page"]
+    sample_packet.required_evidence = [
+        "consumer_evidence",
+        "real_entrypoint_evidence",
+    ]
+    sample_packet.ui_contract.fidelity_level = "high"
+    sample_packet.ui_contract.required_evidence = [
+        "structure_snapshot",
+        "visual_capture",
+        "runtime_diagnostics",
+        "visual_comparison_or_human_review",
+    ]
+    result = WorkerTaskResult(
+        task_id="T017",
+        status="success",
+        changed_files=["src/services/auth_service.py"],
+        validation_results=[],
+        summary="Implemented UI changes; integrated capture is leader-owned.",
+        consumer_evidence=[
+            {
+                "kind": "wiring",
+                "surface": "Settings page",
+                "consumer": "SettingsRoute",
+            }
+        ],
+        rule_acknowledgement=RuleAcknowledgement(
+            required_references_read=True,
+            forbidden_drift_respected=True,
+            context_bundle_read=True,
+            paths_read=[
+                ".specify/project-cognition/status.json",
+                ".specify/project-cognition/project-cognition.db",
+            ],
+        ),
+    )
+
+    assert validate_worker_task_result(result, sample_packet) is result
+
+
+def test_feature_epoch_worker_still_requires_cheap_consumer_wiring_evidence(
+    sample_packet: WorkerTaskPacket,
+) -> None:
+    sample_packet.validation_policy = ValidationPolicy(
+        mode="feature_epochs",
+        max_epochs=3,
+        budget_scope="implement-review",
+        budget_ref="implementation-review/validation-runs.json",
+        heavy_gate_owner="leader",
+    )
+    sample_packet.validation_gates = []
+    sample_packet.consumer_surfaces = ["Settings page"]
+    sample_packet.required_evidence = ["consumer_evidence"]
+    result = WorkerTaskResult(
+        task_id="T017",
+        status="success",
+        changed_files=["src/services/auth_service.py"],
+        summary="Implemented the surface but omitted its wiring evidence.",
+        rule_acknowledgement=RuleAcknowledgement(
+            required_references_read=True,
+            forbidden_drift_respected=True,
+            context_bundle_read=True,
+            paths_read=[
+                ".specify/project-cognition/status.json",
+                ".specify/project-cognition/project-cognition.db",
+            ],
+        ),
+    )
+
+    with pytest.raises(PacketValidationError, match="consumer evidence"):
+        validate_worker_task_result(result, sample_packet)
 
 
 def test_validate_worker_task_result_requires_current_ui_evidence_triad(

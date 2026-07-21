@@ -256,37 +256,49 @@ def validate_worker_task_result(
                 "worker packet contains obsolete UI evidence labels: "
                 + ", ".join(obsolete_present),
             )
-        if (
-            packet.consumer_surfaces
-            or "consumer_evidence" in required_evidence
-            or "real_entrypoint_evidence" in required_evidence
-        ):
+        defer_integrated_evidence = (
+            packet.validation_policy.mode == "feature_epochs"
+        )
+        if packet.consumer_surfaces or "consumer_evidence" in required_evidence:
             if not result.consumer_evidence:
                 raise PacketValidationError(
                     "DP3", "worker result is missing consumer evidence"
                 )
-        if "real_entrypoint_evidence" in required_evidence:
+        if (
+            not defer_integrated_evidence
+            and "real_entrypoint_evidence" in required_evidence
+        ):
             if not has_real_entrypoint_consumer_evidence(result.consumer_evidence):
                 raise PacketValidationError(
                     "DP3",
                     "worker result is missing real-entrypoint consumer evidence",
                 )
         if (
-            "acceptance_evidence" in required_evidence
+            not defer_integrated_evidence
+            and "acceptance_evidence" in required_evidence
             and not result.acceptance_evidence
         ):
             raise PacketValidationError(
                 "DP3", "worker result is missing acceptance evidence"
             )
-        if "manual_evidence" in required_evidence and not result.manual_evidence:
+        if (
+            not defer_integrated_evidence
+            and "manual_evidence" in required_evidence
+            and not result.manual_evidence
+        ):
             raise PacketValidationError(
                 "DP3", "worker result is missing manual evidence"
             )
-        ui_requirement_labels = {
-            _normalize_ui_evidence_kind(item)
-            for item in packet.ui_contract.required_evidence
-            if item.strip()
-        }
+        defer_integrated_ui_evidence = defer_integrated_evidence
+        ui_requirement_labels = (
+            set()
+            if defer_integrated_ui_evidence
+            else {
+                _normalize_ui_evidence_kind(item)
+                for item in packet.ui_contract.required_evidence
+                if item.strip()
+            }
+        )
         for required_kind in (
             "structure_snapshot",
             "visual_capture",
@@ -299,11 +311,16 @@ def validate_worker_task_result(
                     "DP3",
                     f"worker result is missing UI evidence for required kind: {required_kind}",
                 )
-        requires_ui_evidence = _requires_ui_evidence(packet, required_evidence)
+        requires_ui_evidence = (
+            not defer_integrated_ui_evidence
+            and _requires_ui_evidence(packet, required_evidence)
+        )
         requires_visual_review = (
-            "visual_comparison_or_human_review" in required_evidence
-            or "visual_comparison_or_human_review"
-            in ui_requirement_labels
+            not defer_integrated_ui_evidence
+            and (
+                "visual_comparison_or_human_review" in required_evidence
+                or "visual_comparison_or_human_review" in ui_requirement_labels
+            )
         )
         if requires_visual_review or requires_ui_evidence:
             fidelity_status = normalize_evidence_label(

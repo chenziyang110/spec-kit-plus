@@ -10,9 +10,21 @@ The Leader orchestrates subagents through three explicit waves and owns the join
 2. After joining and reconciling every audit result, an independent Fix wave assigns accepted findings to Fix workers with bounded, non-overlapping write scopes. Serialize shared registries, generated consumers, browser/database state, or overlapping writes.
 3. After joining and inspecting every repair, an independent revalidation wave assigns the failed journey and affected regression paths to the Leader or a different read-only worker. A repair author must not verify its own finding.
 
+These are orchestration waves, not permission for unlimited heavyweight runs.
+Continue the validation-epoch ledger shared across Implement and Review and do
+not reset it. The Leader opens at most one epoch for all Review/Audit scenarios
+against a source fingerprint and, after a Fix, at most one later epoch for the
+full revalidation matrix. Read-only workers may observe slices inside the open
+epoch but cannot open their own. The combined flow allows at most three epochs;
+the third failed epoch blocks and no agent may ever start a fourth.
+
 Compile every `SystemReviewPacket` just in time and identify its lane as `audit`, `diagnostic`, `fix`, or `revalidation`. `diagnostic` is a packet lane, not a `review-state.json` assignment kind: persist a diagnostic packet's read-only assignment with `kind: scenario_review` and `read_only: true`, never `kind: diagnostic`. The packet contains only the assigned obligation/surface/finding ids, current fingerprint, authoritative refs, official real entrypoint, preconditions and safe test data, exact actions, observable expected results, allowed read/write scope, forbidden paths and external effects, required evidence, failure taxonomy, validation commands, done condition, and recovery/return shape. Unknown root cause work uses a read-only diagnostic packet inside Review before the Leader issues any Fix packet.
 
-The result records status, observations, sanitized evidence refs, findings, changed paths, validation and rerun results, concerns, and recovery. The Leader validates live repository state and the packet boundary before accepting it.
+The result records status, observations, sanitized evidence refs, findings,
+changed paths, cheap task checks and test impact for Fix lanes, validation and
+rerun results for an already-open audit/revalidation epoch, concerns, and
+recovery. A Fix worker must not run heavyweight gates per Txx. The Leader
+validates live repository state and the packet boundary before accepting it.
 
 ## Authority
 

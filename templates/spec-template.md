@@ -206,6 +206,24 @@ Use this section when the Senior Consequence Analysis Gate triggers.
 
 - [Consequence obligation, recovery expectation, and validation signal]
 
+### Entrypoint Outcome Dispositions
+
+Use this table when `entrypoint_outcome_contract.triggered` is true. Derive outcomes from current result/error definitions, consumers, state transitions, and tests.
+
+#### Contextual Learning Dispositions
+
+Record every Learning ref returned by the live owner/outcome context search. A candidate is recall evidence, not truth; it must be verified and explicitly applied, rejected as not applicable, or deferred.
+
+| Learning Ref | Context Match | Disposition And Rationale | Requirement / Consequence Trace | Evidence Or Deferral |
+| --- | --- | --- | --- | --- |
+| [Learning ref] | [operation owner / consumer / outcome / other live facet] | [applied / not_applicable / deferred and why] | [spec-contract.json#/acceptance_criteria/N and/or CA-###] | [current evidence ref or deferral ref] |
+
+#### Existing Result Dispositions
+
+| Entry Point | Existing Operation Result | Classification | Disposition And Observable Behavior | Acceptance | Consequence |
+| --- | --- | --- | --- | --- | --- |
+| EP-### | OUT-### / [result family] | [terminal / recoverable / partial / cancelled] | [preserve, adapt, not applicable with evidence, or user-confirmed deferral] | spec-contract.json#/acceptance_criteria/N | CA-### |
+
 ## Fidelity Requirements
 
 Include this section only when the active workflow profile is `Reference-Implementation`.

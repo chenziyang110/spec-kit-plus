@@ -1507,3 +1507,61 @@ def test_approved_review_becomes_stale_when_live_source_changes(tmp_path: Path) 
     assert validation["valid"] is False
     assert validation["fresh"] is False
     assert any("reviewed snapshot" in error for error in validation["errors"])
+
+
+def test_feature_epoch_review_requires_one_shared_delivery_epoch(
+    tmp_path: Path,
+) -> None:
+    from specify_cli.validation_budget import (
+        complete_validation_epoch,
+        reserve_validation_epoch,
+    )
+
+    runtime = _review_runtime()
+    project_root, feature_dir, revision = _feature_at_review(tmp_path)
+    handoff_path = _write_implementation_handoff(feature_dir, revision)
+    handoff = json.loads(handoff_path.read_text(encoding="utf-8"))
+    handoff["validation_policy"] = {
+        "mode": "feature_epochs",
+        "max_epochs": 3,
+        "budget_scope": "implement-review",
+        "budget_ref": "implementation-review/validation-runs.json",
+        "heavy_gate_owner": "leader",
+    }
+    handoff["task_ids"] = ["T001"]
+    handoff_path.write_text(json.dumps(handoff, indent=2) + "\n", encoding="utf-8")
+    runtime.prepare_review(
+        project_root,
+        feature_dir,
+        expected_revision=revision,
+    )
+    state_path = runtime.review_state_path(feature_dir)
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    _write_scenario_evidence(feature_dir, state)
+    _complete_leader_review(state, feature_dir=feature_dir)
+    state["status"] = "approved"
+    state_path.write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
+
+    missing = runtime.validate_review(project_root, feature_dir)
+    assert missing["valid"] is False
+    assert any("delivery epoch" in error for error in missing["errors"]), missing
+
+    run = reserve_validation_epoch(
+        project_root,
+        feature_dir,
+        stage="review",
+        purpose="delivery",
+        fingerprint="a" * 64,
+        commands=["pytest -q", "npm run e2e"],
+        covered_task_ids=["T001"],
+    )
+    complete_validation_epoch(
+        project_root,
+        feature_dir,
+        run_id=run["run_id"],
+        status="passed",
+        evidence_refs=["review-evidence/final-validation.json"],
+        summary="Integrated delivery validation passed.",
+    )
+
+    assert runtime.validate_review(project_root, feature_dir)["valid"] is True

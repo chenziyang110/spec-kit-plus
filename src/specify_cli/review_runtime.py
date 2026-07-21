@@ -64,9 +64,14 @@ SNAPSHOT_EXCLUDED_FEATURE_NAMES = frozenset(
         ".human-acceptance-terminal.json",
         "workflow-runtime.json",
         "workflow-state.md",
+        "implementation-review/validation-runs.json",
     }
 )
-SNAPSHOT_EXCLUDED_FEATURE_PREFIXES = ("review-evidence/", "review-results/")
+SNAPSHOT_EXCLUDED_FEATURE_PREFIXES = (
+    "review-evidence/",
+    "review-results/",
+    "implementation-review/validation-evidence/",
+)
 
 
 class ReviewRuntimeError(ValueError):
@@ -297,6 +302,18 @@ def build_implementation_handoff(
     raw_human_obligations = task_index.get("human_acceptance_obligations")
     raw_human_scenarios = task_index.get("human_acceptance_scenarios")
     raw_acceptance_refs = task_index.get("acceptance_refs")
+    raw_validation_policy = task_index.get("validation_policy")
+    raw_tasks = task_index.get("tasks")
+    task_ids = (
+        [
+            str(item.get("task_id", item.get("id")) or "").strip().upper()
+            for item in raw_tasks
+            if isinstance(item, Mapping)
+            and str(item.get("task_id", item.get("id")) or "").strip()
+        ]
+        if isinstance(raw_tasks, list)
+        else []
+    )
     entrypoints = list(raw_entrypoints) if isinstance(raw_entrypoints, list) else []
     scenarios = list(raw_scenarios) if isinstance(raw_scenarios, list) else []
     obligations = list(raw_obligations) if isinstance(raw_obligations, list) else []
@@ -364,6 +381,7 @@ def build_implementation_handoff(
         "official_entrypoints": entrypoints,
         "system_review_scenarios": scenarios,
         "review_obligations": obligations,
+        "task_ids": list(dict.fromkeys(task_ids)),
         "acceptance_refs": acceptance_refs,
         "task_index_sha256": task_index_digest,
         "plan_contract_sha256": plan_contract_digest,
@@ -374,6 +392,27 @@ def build_implementation_handoff(
         "human_acceptance_contract_sha256": human_acceptance_contract_sha256,
         "human_acceptance_contract_origin": "task-index-v2",
     }
+    if isinstance(raw_validation_policy, Mapping):
+        payload["validation_policy"] = deepcopy(dict(raw_validation_policy))
+        if raw_validation_policy.get("mode") == "feature_epochs":
+            from .validation_budget import (
+                ValidationBudgetError,
+                validation_budget_status,
+            )
+
+            try:
+                budget = validation_budget_status(root, feature)
+            except ValidationBudgetError as exc:
+                raise ReviewRuntimeError(
+                    f"shared validation budget is invalid: {exc}"
+                ) from exc
+            payload["validation_budget"] = {
+                "ledger_ref": budget["ledger_ref"],
+                "max_epochs": budget["max_epochs"],
+                "used_epochs": budget["used_epochs"],
+                "remaining_epochs": budget["remaining_epochs"],
+                "consumed_runs_sha256": budget["runs_sha256"],
+            }
     _normalized_handoff(payload, expected_revision=source_revision)
     _validate_handoff_against_live_sources(feature, payload)
     output_path = implementation_handoff_path(feature)
@@ -387,6 +426,7 @@ def build_implementation_handoff(
                 "official_entrypoints",
                 "system_review_scenarios",
                 "review_obligations",
+                "task_ids",
                 "acceptance_refs",
                 "task_index_sha256",
                 "plan_contract_sha256",
@@ -396,6 +436,8 @@ def build_implementation_handoff(
                 "human_acceptance_scenarios",
                 "human_acceptance_contract_sha256",
                 "human_acceptance_contract_origin",
+                "validation_policy",
+                "validation_budget",
             )
             previous_scope = {key: deepcopy(previous.get(key)) for key in frozen_fields}
             next_scope = {key: deepcopy(payload.get(key)) for key in frozen_fields}
@@ -507,6 +549,19 @@ def _validate_handoff_against_live_sources(
     acceptance_refs = [
         str(item).strip() for item in (task_index.get("acceptance_refs") or [])
     ]
+    raw_tasks = task_index.get("tasks")
+    expected_task_ids = (
+        list(
+            dict.fromkeys(
+                str(item.get("task_id", item.get("id")) or "").strip().upper()
+                for item in raw_tasks
+                if isinstance(item, Mapping)
+                and str(item.get("task_id", item.get("id")) or "").strip()
+            )
+        )
+        if isinstance(raw_tasks, list)
+        else []
+    )
     task_sha256 = _sha256(task_index_path)
     plan_sha256 = _sha256(plan_path)
     spec_sha256 = _sha256(spec_path)
@@ -522,6 +577,7 @@ def _validate_handoff_against_live_sources(
         "official_entrypoints": list(entrypoints),
         "system_review_scenarios": list(scenarios),
         "review_obligations": expected_obligations,
+        "task_ids": expected_task_ids,
         "acceptance_refs": acceptance_refs,
         "task_index_sha256": task_sha256,
         "plan_contract_sha256": plan_sha256,
@@ -531,6 +587,9 @@ def _validate_handoff_against_live_sources(
         "human_acceptance_scenarios": expected_human_scenarios,
         "human_acceptance_contract_sha256": expected_human_sha256,
     }
+    live_validation_policy = task_index.get("validation_policy")
+    if isinstance(live_validation_policy, Mapping):
+        expected["validation_policy"] = dict(live_validation_policy)
     drifted = [key for key, value in expected.items() if handoff.get(key) != value]
     if drifted:
         raise ReviewRuntimeError(
@@ -3132,6 +3191,67 @@ def _review_validation_errors(
     return errors, fresh
 
 
+def _shared_delivery_epoch_errors(
+    project_root: Path,
+    feature_dir: Path,
+    state: Mapping[str, Any],
+    handoff: Mapping[str, Any],
+    *,
+    live_fingerprint: str | None,
+) -> list[str]:
+    policy = handoff.get("validation_policy")
+    if (
+        not isinstance(policy, Mapping)
+        or policy.get("mode") != "feature_epochs"
+        or state.get("status") != "approved"
+    ):
+        return []
+    from .validation_budget import ValidationBudgetError, validation_budget_status
+
+    try:
+        budget = validation_budget_status(project_root, feature_dir)
+    except ValidationBudgetError as exc:
+        return [f"shared validation budget is invalid: {exc}"]
+    errors: list[str] = []
+    if any(
+        isinstance(run, Mapping) and run.get("status") == "running"
+        for run in budget["runs"]
+    ):
+        errors.append("shared validation has an unfinished running epoch")
+    final = state.get("final")
+    final = final if isinstance(final, Mapping) else {}
+    expected_fingerprint = str(
+        live_fingerprint
+        or final.get("reviewed_snapshot_sha256")
+        or handoff.get("implementation_fingerprint")
+        or ""
+    )
+    delivery_runs = [
+        run
+        for run in budget["runs"]
+        if isinstance(run, Mapping)
+        and run.get("stage") == "review"
+        and run.get("purpose") == "delivery"
+        and run.get("status") == "passed"
+        and run.get("fingerprint") == expected_fingerprint
+        and set(
+            str(task_id).upper()
+            for task_id in handoff.get("task_ids", [])
+            if isinstance(task_id, str)
+        )
+        <= set(
+            str(task_id).upper()
+            for task_id in run.get("covered_task_ids", [])
+            if isinstance(task_id, str)
+        )
+    ]
+    if not delivery_runs:
+        errors.append(
+            "approved Review requires a fresh passed shared delivery epoch"
+        )
+    return errors
+
+
 def validate_review(project_root: Path, feature_dir: Path | str) -> dict[str, Any]:
     """Validate system review shape, freshness, scenarios, findings, and evidence."""
 
@@ -3158,6 +3278,15 @@ def validate_review(project_root: Path, feature_dir: Path | str) -> dict[str, An
             handoff_digest=_sha256(handoff_file),
             live_fingerprint=live_fingerprint,
             workflow=workflow if isinstance(workflow, Mapping) else None,
+        )
+        errors.extend(
+            _shared_delivery_epoch_errors(
+                root,
+                feature,
+                state,
+                handoff,
+                live_fingerprint=live_fingerprint,
+            )
         )
     except ReviewRuntimeError as exc:
         return {

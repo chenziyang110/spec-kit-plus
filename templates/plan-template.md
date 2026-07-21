@@ -226,6 +226,12 @@
 | --- | --- | --- | --- | --- |
 | CA-### | [decision] | [lock, lease, queue, or ordering rule] | [retry, rollback, de-scope, or reopen path] | [command or manual check] |
 
+### Operational Entrypoint Outcome Design
+
+| Outcome / CA | Producer Result | Consumer / State Transition | Interaction Owner / Policy | Request Retention | Retry Identity | Cancel Behavior | Validation |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| OUT-### / CA-### | [current result/error ref] | [owner and transition/substate] | [required interaction or explicit none] | [retention rule] | [same/new/not applicable] | [observable cancellation result] | [real-entrypoint evidence] |
+
 ## Dispatch Compilation Hints
 
 <!--

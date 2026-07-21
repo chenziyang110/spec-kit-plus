@@ -9,6 +9,12 @@ risks, verification routes, and minimal live reads. Do not treat map output as
 evidence by itself. Technical claims must be backed by live code, tests,
 scripts, configuration, or authoritative docs.
 
+Archived specifications are excluded from default discovery and are never
+current authority. Read one only when explicit lineage or provenance is needed,
+name the exact historical claim being traced, and verify it against current live evidence
+before use. A conflicting archive cannot override the live repository,
+an active approved contract, or confirmed user direction.
+
 ### Required Project Cognition Compass
 
 Default project cognition intake is `{{specify-subcmd:project-cognition compass --intent <intent> --query="$ARGUMENTS" --format json}}`.

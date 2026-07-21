@@ -46,6 +46,56 @@ def worker_result_schema_hint() -> dict[str, object]:
             "summary",
             "rule_acknowledgement",
         ],
+        "conditional_evidence_fields": {
+            "acceptance_evidence": {
+                "required_when": "packet.required_evidence includes acceptance_evidence and validation_policy is not feature_epochs",
+                "required_item_fields": [],
+            },
+            "consumer_evidence": {
+                "required_when": "the packet names consumer surfaces or requires consumer_evidence; feature_epochs defers only integrated real-entrypoint proof",
+                "required_item_fields": [],
+                "real_entrypoint_item_fields": [
+                    "kind",
+                    "entrypoint",
+                    "producer",
+                    "transformer",
+                    "consumer",
+                    "validation",
+                    "boundary_or_executor | boundary | executor",
+                ],
+            },
+            "manual_evidence": {
+                "required_when": "the packet requires manual evidence or UI human-review evidence and validation_policy is not feature_epochs",
+                "required_item_fields": [],
+            },
+            "must_preserve_evidence": {
+                "required_when": "the packet has must-preserve obligations or requires must_preserve_evidence",
+                "required_item_fields": ["mp_id"],
+            },
+            "consequence_evidence": {
+                "required_when": "the packet has consequence obligations",
+                "required_item_fields": ["obligation_id"],
+            },
+            "ui_evidence": {
+                "required_when": "the packet UI contract requires evidence and validation_policy is not feature_epochs",
+                "required_item_fields": ["kind", "ref"],
+                "accepted_kinds": [
+                    "structure_snapshot",
+                    "visual_capture",
+                    "runtime_diagnostics",
+                ],
+            },
+            "ui_verification": {
+                "required_when": "the packet requires UI evidence or visual comparison/human review and validation_policy is not feature_epochs",
+                "required_object_fields": [
+                    "contract_check",
+                    "runtime_evidence",
+                    "visual_comparison",
+                    "fidelity_status",
+                    "reviewer",
+                ],
+            },
+        },
         "accepted_status_values": ["pending", "success", "blocked", "failed"],
         "canonical_template_defaults": {
             "status": "pending",
@@ -78,6 +128,11 @@ def worker_result_schema_hint() -> dict[str, object]:
             "files_changed": "changed_files",
             "validationResults": "validation_results",
             "ruleAcknowledgement": "rule_acknowledgement",
+            "acceptanceEvidence": "acceptance_evidence",
+            "consumerEvidence": "consumer_evidence",
+            "manualEvidence": "manual_evidence",
+            "mustPreserveEvidence": "must_preserve_evidence",
+            "consequenceEvidence": "consequence_evidence",
         },
     }
 

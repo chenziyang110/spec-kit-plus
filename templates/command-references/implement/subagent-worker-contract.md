@@ -34,13 +34,25 @@ When delegation is selected, the leader compiles the current packet, dispatches,
 - If a task packet contains `must_preserve_obligations`, the worker must preserve those `MP-*` items or return a blocked result with the exact stop-and-reopen condition.
 - Do not dispatch a packet that drops a task-relevant `MP-*` or `CA-###` ref from the canonical task and plan contracts.
 - A successful worker result must include `must_preserve_evidence` for every packet obligation that affects acceptance, references, forbidden drift, or conflict/reopen conditions.
+- Packets project only cheap `task_checks` into worker `validation_gates` or
+  `verify_commands`. Canonical task-index `verification` and
+  `required_validation` remain inputs to the Leader-owned epoch. Workers return
+  test impact: changed behavior, affected test targets, required heavy gates,
+  and expected regression scope. They must not run a test suite, full build,
+  service startup, E2E flow, or browser/viewport capture per Txx. The Leader
+  alone owns the shared validation epoch and source fingerprint.
 - If implementation discovers a conflict with an `MP-*` obligation, stop and return a blocked result; do not silently rewrite the product goal, non-goal, selected decision, or reference obligation.
 - [AGENT] The leader must wait for and consume the structured handoff before closing the join point, declaring completion, requesting shutdown, or interrupting subagent execution
 - Idle subagent is not an accepted result
 - Treat `DONE_WITH_CONCERNS` as completed work plus follow-up concerns, not as silent success
 - Treat `NEEDS_CONTEXT` as a blocked handoff that must carry the missing context or failed assumption explicitly
 
-Accept a delegated lane only through a `WorkerTaskResult`-compatible payload containing task ID, status, changed paths, validation results, task-relevant obligation evidence, concerns, and blocker/recovery metadata when applicable. Merge that payload into the existing task lifecycle record; do not create a second result ledger.
+Accept a delegated lane only through a `WorkerTaskResult`-compatible payload containing task ID, status, changed paths, cheap task-check results, test impact, task-relevant obligation evidence, concerns, and blocker/recovery metadata when applicable. Merge that payload into the existing task lifecycle record; do not create a second result ledger. A successful implementation result proves the bounded edit only and may advance dependency-safe work; feature verification remains pending instead of duplicating the Leader's heavyweight evidence.
+
+Cheap producer-to-consumer wiring evidence remains task-local and required when
+the packet names a consumer surface. Only runtime real-entrypoint proof is
+deferred to the Leader-owned epoch; do not defer a static "created but not
+wired" check merely because `mode: feature_epochs` is active.
 
 ### Autonomous Blocker Recovery
 
@@ -55,4 +67,8 @@ If technical blockers arise (build errors, missing toolchain components, environ
 - Do not dispatch a subagent when required packet fields or required references are missing — repair the packet first or stop as `subagent-blocked`
 - Do not dispatch image-backed UI implementation when the worker cannot inspect the original visual input and the task depends on fidelity. Repair the packet/handoff first, or stop as `subagent-blocked` with the missing image handoff reason.
 - Do not bypass lifecycle truth, result handoffs, or verification gates.
+- Do not let a worker, passive skill, task transition, join, or resume start an
+  extra validation epoch. The epoch ledger is shared across Implement and Review,
+  permits at most three, and is never reset. The third failed epoch blocks;
+  never start a fourth.
 - Do not declare completion because tasks look checked off if the implementation contract is not actually satisfied

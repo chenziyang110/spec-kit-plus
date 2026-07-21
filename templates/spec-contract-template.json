@@ -18,6 +18,19 @@
   "capability_operations": [],
   "must_preserve_refs": [],
   "consequence_obligation_refs": [],
+  "entrypoint_outcome_contract": {
+    "triggered": false,
+    "trigger_reasons": [],
+    "stand_down_reason": null,
+    "inventory_complete": false,
+    "inventory_evidence_refs": [],
+    "learning_context": {},
+    "learning_search_refs": [],
+    "learning_candidate_refs": [],
+    "learning_dispositions": [],
+    "result_inventory": [],
+    "outcome_dispositions": []
+  },
   "design_contract": {
     "ui_applicable": false,
     "ui_work_type": null,

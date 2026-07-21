@@ -8,6 +8,8 @@ from typing import Literal
 
 
 PacketMode = Literal["hard_fail"]
+ValidationMode = Literal["task", "feature_epochs"]
+HeavyGateOwner = Literal["worker", "leader"]
 ContextKind = Literal[
     "coverage_baseline",
     "handbook",
@@ -70,6 +72,17 @@ class ContextBundleItem:
 class DispatchPolicy:
     mode: PacketMode = "hard_fail"
     must_acknowledge_rules: bool = True
+
+
+@dataclass(slots=True)
+class ValidationPolicy:
+    """Describe where validation runs and which shared budget owns it."""
+
+    mode: ValidationMode = "task"
+    max_epochs: int = 0
+    budget_scope: str = "task"
+    budget_ref: str = ""
+    heavy_gate_owner: HeavyGateOwner = "worker"
 
 
 @dataclass(slots=True)
@@ -143,12 +156,14 @@ class WorkerTaskPacket:
     platform_guardrails: list[str] = field(default_factory=list)
     intent: ExecutionIntent = field(default_factory=ExecutionIntent)
     dispatch_policy: DispatchPolicy = field(default_factory=DispatchPolicy)
+    validation_policy: ValidationPolicy = field(default_factory=ValidationPolicy)
     # Subagent-ready task contract fields (optional — populated when tasks.md is enriched)
     agent_role: str = ""
     context_nav: list[dict[str, str]] = field(default_factory=list)
     anti_goals: list[str] = field(default_factory=list)
     does_not_remove: list[str] = field(default_factory=list)
     capability_operations: list[str] = field(default_factory=list)
+    task_checks: list[str] = field(default_factory=list)
     verify_commands: list[str] = field(default_factory=list)
     acceptance_criteria: list[str] = field(default_factory=list)
     consumer_surfaces: list[str] = field(default_factory=list)
@@ -248,6 +263,12 @@ def worker_task_packet_from_json(text: str) -> WorkerTaskPacket:
     dispatch_policy = DispatchPolicy(
         **_filter_dataclass_payload(DispatchPolicy, payload.get("dispatch_policy", {}))
     )
+    raw_validation_policy = payload.get("validation_policy", {})
+    if not isinstance(raw_validation_policy, dict):
+        raise ValueError("validation_policy must be an object")
+    validation_policy = ValidationPolicy(
+        **_filter_dataclass_payload(ValidationPolicy, raw_validation_policy)
+    )
     ui_contract = UIContract(**_filter_dataclass_payload(UIContract, raw_ui_contract))
     packet_payload = _filter_dataclass_payload(WorkerTaskPacket, payload)
     packet_payload["intent"] = intent
@@ -258,5 +279,6 @@ def worker_task_packet_from_json(text: str) -> WorkerTaskPacket:
     packet_payload["must_preserve_obligations"] = must_preserve_obligations
     packet_payload["consequence_obligations"] = consequence_obligations
     packet_payload["dispatch_policy"] = dispatch_policy
+    packet_payload["validation_policy"] = validation_policy
     packet_payload["ui_contract"] = ui_contract
     return WorkerTaskPacket(**packet_payload)

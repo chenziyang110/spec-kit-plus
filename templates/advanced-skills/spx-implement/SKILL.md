@@ -36,13 +36,27 @@ silently repair cross-phase truth during the same `$spx-implement` invocation.
 
 Execute the confirmed scope completely. Adapt stale implementation details to
 the live repository while preserving user intent and recording material plan
-drift. For behavior changes, establish a failing test or credible baseline when
-practical. Delegate only independent, bounded work that benefits from
-parallelism, isolation, or review; direct execution needs no ceremony.
+drift. Group related behavior-changing Txx items into a coherent change-set;
+establish one failing test or credible baseline epoch before its production
+edits when practical. Delegate only independent, bounded work that benefits
+from parallelism, isolation, or review; direct execution needs no ceremony.
 
-Run the relevant verification for each task's changed behavior and risk. Fix
-understood local failures; hand off unknown root causes to `$spx-debug` and
-stop. Update existing task status and let deterministic closeout create the
+Use one validation-epoch ledger shared across Implement and Review, bound to
+source fingerprints and persisted through the handoff. The combined workflow
+allows at most three heavyweight epochs: optional change-set RED/baseline,
+Implement convergence, and integrated Review/final revalidation. Allocate them
+dynamically, do not reset the count on resume or handoff, and never start a
+fourth. Only the Leader may run heavyweight tests, builds, startup, E2E, or
+real-entrypoint gates. Per-Txx workers run cheap task checks only, return test
+impact, and may advance dependency-safe work while feature verification remains
+pending. A failed epoch may be repaired
+only while another remains; the third failed epoch blocks with exact evidence
+and recovery criteria.
+
+Run the relevant verification as one convergence epoch for the integrated change-set,
+not once per task. Fix understood local failures only while epoch budget
+remains; hand off unknown root causes to `$spx-debug` and stop. Update existing
+task status and let deterministic closeout create the
 preliminary `implementation-summary.md` and machine-readable
 `implementation-handoff.json` for the later system Review.
 Validate that handoff against the live Spec, Plan, and Tasks. Carry the exact
@@ -58,13 +72,19 @@ hand off to `$spx-implement-teams` and stop. Hand off independent lane closeout
 to `$spx-integrate` and stop; do not switch workflows inline.
 
 For UI-bearing work, consume the compiled task `ui_contract`; do not reconstruct
-design intent from task prose. Run the real surface, capture and visually inspect
-the required viewport/state matrix, repair drift, and recapture. Record behavior
-checks separately from visual/interaction acceptance. Missing or bootstrap
-design sources hand off to `$spx-design` and stop; unavailable comparison remains
-`pending-human-review`, never an implicit pass.
+design intent from task prose. Workers preserve design inputs and return changed
+surfaces, required states/viewports, and visual risks, but do not run the full
+viewport/state capture loop per Txx. In a Leader-owned epoch, run the integrated
+real surface once per applicable fingerprint and record `structure_snapshot`,
+`visual_capture`, and `runtime_diagnostics` with
+`evidence_scope: integrated`; visually inspect, repair drift when budget remains,
+and recapture in the next epoch. Record behavior checks separately from
+visual/interaction acceptance. Missing or bootstrap design sources hand off to
+`$spx-design` and stop; unavailable comparison remains `pending-human-review`,
+never an implicit pass.
 
-After verified repository changes, close out cognition with canonical workflow
+After verified repository changes, carry the unchanged validation-epoch ledger
+and remaining budget in `implementation-handoff.json`, then close out cognition with canonical workflow
 `implement`. Report changed files, checks actually run, failures or skipped
 checks, and residual risk. Ensure closeout prepared a trusted implementation
 handoff, recommend `$spx-review`, and stop. Do not invoke `$spx-accept`

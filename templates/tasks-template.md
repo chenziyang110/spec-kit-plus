@@ -187,10 +187,10 @@ If any finding is `escalated`, stop task generation and set `next_command` direc
 
 ## Task Shaping Rules
 
-- Each task should preserve one stable objective, a bounded expected write scope, and one verification path.
+- Each task should preserve one stable objective, a bounded expected write scope, and one shared verification path. Add `task_checks` only for cheap changed-scope checks that are safe to run for that Txx alone.
 - Stop decomposition once the current executable window is atomic.
 - Leave later execution phases at the coarser story or phase level only when their exact task shape depends on earlier join points, then refine them after the checkpoint inside the current confirmed delivery instead of guessing too early.
-- Store only task-shaping fields in `task-index.json`: objective, dependencies, expected write scope, required refs, forbidden drift, acceptance, verification, obligation refs, join point, and packet mode.
+- Store only task-shaping fields in `task-index.json`: objective, dependencies, expected write scope, required refs, forbidden drift, acceptance, verification, optional `task_checks`, obligation refs, join point, and packet mode. Root `validation_policy` is `feature_epochs` with `max_epochs: 3`, `budget_scope: implement-review`, shared budget ref, and leader-owned heavy gates; do not copy full-suite/build/E2E/visual gates into Txx packets.
 - Carry interfaces, review risks, fidelity requirements, controller checks, and real-entrypoint evidence only when they affect the current task.
 - Tasks that appear in User-Observable Path Coverage MUST also include `consumer_surfaces` and `required_evidence` with `real_entrypoint_evidence` so `sp-implement` can reject synthetic-only consumer proof.
 - Before finalizing a task, confirm it can run leader-direct or be compiled into a bounded delegated packet from the task plus named refs and live code. If neither route is safe, refine or block it.

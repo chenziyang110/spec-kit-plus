@@ -29,6 +29,10 @@ _No applicability notes recorded yet._
 
 _No trigger signals recorded yet._
 
+## Structured Facets
+
+_No structured facets recorded yet._
+
 ## Evidence
 
 _No evidence recorded yet._

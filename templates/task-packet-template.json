@@ -41,6 +41,14 @@
     "required_states": [],
     "required_evidence": []
   },
+  "validation_policy": {
+    "mode": "feature_epochs",
+    "max_epochs": 3,
+    "budget_scope": "implement-review",
+    "budget_ref": "implementation-review/validation-runs.json",
+    "heavy_gate_owner": "leader"
+  },
+  "task_checks": [],
   "required_validation": [],
   "required_consumer_evidence": [],
   "done_condition": [],

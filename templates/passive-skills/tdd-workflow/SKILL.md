@@ -1,12 +1,28 @@
 ---
 name: tdd-workflow
-description: Use this skill when writing new features, fixing bugs, or refactoring code. Enforces test-driven development with 80%+ coverage including unit, integration, and E2E tests.
+description: Use this skill for test-first design in standalone changes or when the owning workflow selects TDD. Defers test execution to workflow-owned validation epochs when sp-implement feature batching is active.
 origin: ECC
 ---
 
 # Test-Driven Development Workflow
 
 This skill ensures all code development follows TDD principles with comprehensive test coverage.
+
+## Workflow-Owned Validation
+
+When `sp-implement` activates `task-index.validation_policy.mode:
+feature_epochs`, its validation contract owns test execution. Keep tests authored
+before their change-set's production edits, but let the Leader combine them into
+one RED/baseline epoch and one later convergence epoch. Per-Txx workers run only
+cheap task checks and return test impact; they do not run RED/GREEN, a full suite,
+coverage, build, startup, E2E, or UI capture themselves.
+
+The validation epoch budget is shared across Implement and Review. This passive
+skill must not start an extra validation epoch before a task transition,
+delegation, commit, status message, or completion claim. Reuse the canonical
+`implementation-review/validation-runs.json` evidence for the unchanged source
+fingerprint. The generic steps below apply directly only when no owning workflow
+supplies a stricter execution schedule.
 
 ## When to Activate
 
@@ -19,7 +35,8 @@ This skill ensures all code development follows TDD principles with comprehensiv
 ## Core Principles
 
 ### 1. Tests BEFORE Code
-ALWAYS write tests first, then implement code to make tests pass.
+Always author tests first. Run them according to the active workflow's validation
+owner and budget, then implement code to make them pass.
 
 ### 2. Coverage Requirements
 - Minimum 80% coverage (unit + integration + E2E)
@@ -100,7 +117,9 @@ npm test
 # Tests should fail - we haven't implemented yet
 ```
 
-This step is mandatory and is the RED gate for all production changes.
+For standalone work this step is the RED gate. In workflow-owned feature-epoch
+execution, the Leader runs one combined RED/baseline epoch for the mapped
+change-set instead of repeating this command per Txx.
 
 Before modifying business logic or other production code, you must verify a valid RED state via one of these paths:
 - Runtime RED:
@@ -113,7 +132,9 @@ Before modifying business logic or other production code, you must verify a vali
 - In either case, the failure is caused by the intended business-logic bug, undefined behavior, or missing implementation
 - The failure is not caused only by unrelated syntax errors, broken test setup, missing dependencies, or unrelated regressions
 
-A test that was only written but not compiled and executed does not count as RED.
+A test that was only written but not compiled and executed does not count as
+RED; a worker's test-authoring result therefore remains pending until the
+Leader-owned epoch records it.
 
 Do not edit production code until this RED state is confirmed.
 

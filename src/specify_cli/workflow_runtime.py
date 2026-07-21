@@ -182,10 +182,14 @@ def _novice_human_action(
 def _validate_human_action_guide(guide: Mapping[str, Any]) -> dict[str, Any]:
     unknown = sorted(set(guide) - _HUMAN_ACTION_FIELDS)
     if unknown:
-        raise ValueError(f"human_action contains unknown field(s): {', '.join(unknown)}")
+        raise ValueError(
+            f"human_action contains unknown field(s): {', '.join(unknown)}"
+        )
     normalized = dict(guide)
     for field in ("goal", "why_human", "resume_instruction"):
-        normalized[field] = _required_text(normalized.get(field), f"human_action.{field}")
+        normalized[field] = _required_text(
+            normalized.get(field), f"human_action.{field}"
+        )
     for field in (
         "prerequisites",
         "safety_notes",
@@ -210,10 +214,14 @@ def _validate_human_action_guide(guide: Mapping[str, Any]) -> dict[str, Any]:
             )
         order = raw_step.get("order")
         if isinstance(order, bool) or not isinstance(order, int) or order < 1:
-            raise ValueError(f"human_action.steps[{index}].order must be a positive integer")
+            raise ValueError(
+                f"human_action.steps[{index}].order must be a positive integer"
+            )
         command = raw_step.get("command")
         if command is not None and not isinstance(command, str):
-            raise ValueError(f"human_action.steps[{index}].command must be a string or null")
+            raise ValueError(
+                f"human_action.steps[{index}].command must be a string or null"
+            )
         steps.append(
             {
                 "order": order,
@@ -295,9 +303,7 @@ def _runtime_blocker(
         guide = _validate_human_action_guide(guide)
     payload = {
         "version": 1,
-        "blocker_id": str(
-            blocker_id or f"workflow-{_slug(stage)}-{_slug(category)}"
-        ),
+        "blocker_id": str(blocker_id or f"workflow-{_slug(stage)}-{_slug(category)}"),
         "code": "workflow-blocked",
         "workflow": "sp|spx",
         "stage": stage,
@@ -663,11 +669,12 @@ def _actual_revision(feature_dir: Path) -> int:
         raise _invalid_runtime_state(
             feature_dir,
             cause=f"workflow runtime at {path} has no valid revision",
-            evidence=[
-                f"read-only parse failed: {type(exc).__name__}: {exc}"
-            ],
+            evidence=[f"read-only parse failed: {type(exc).__name__}: {exc}"],
             attempted_recovery=[
-                {"action": "Read and parse workflow-runtime.json", "result": "The runtime state is invalid."}
+                {
+                    "action": "Read and parse workflow-runtime.json",
+                    "result": "The runtime state is invalid.",
+                }
             ],
         ) from exc
 
@@ -761,11 +768,12 @@ def _read_state(feature_dir: Path) -> dict[str, Any]:
         raise _invalid_runtime_state(
             feature_dir,
             cause=f"workflow runtime at {path} is unreadable or invalid JSON",
-            evidence=[
-                f"read-only parse failed: {type(exc).__name__}: {exc}"
-            ],
+            evidence=[f"read-only parse failed: {type(exc).__name__}: {exc}"],
             attempted_recovery=[
-                {"action": "Read and parse workflow-runtime.json", "result": "The runtime state is invalid."}
+                {
+                    "action": "Read and parse workflow-runtime.json",
+                    "result": "The runtime state is invalid.",
+                }
             ],
         ) from exc
     if not isinstance(payload, dict):
@@ -851,7 +859,10 @@ def _read_state(feature_dir: Path) -> dict[str, Any]:
             cause="workflow runtime failed its schema contract: " + "; ".join(errors),
             evidence=[f"schema error: {error}" for error in errors],
             attempted_recovery=[
-                {"action": "Validate workflow-runtime.json", "result": "Schema validation failed."}
+                {
+                    "action": "Validate workflow-runtime.json",
+                    "result": "Schema validation failed.",
+                }
             ],
         )
 
@@ -920,8 +931,13 @@ def _read_state(feature_dir: Path) -> dict[str, Any]:
                 f"blocker: {error}"
                 for error in validate_workflow_blocker_payload(prior_blocker)
             )
-        if not isinstance(resolved_evidence, list) or not resolved_evidence or any(
-            not isinstance(item, str) or not item.strip() for item in resolved_evidence
+        if (
+            not isinstance(resolved_evidence, list)
+            or not resolved_evidence
+            or any(
+                not isinstance(item, str) or not item.strip()
+                for item in resolved_evidence
+            )
         ):
             resolution_errors.append(
                 "resolution_evidence must be a non-empty array of strings"
@@ -970,7 +986,9 @@ def _state_data(state: Mapping[str, Any]) -> dict[str, Any]:
         "stage": stage,
         "status": status,
         "summary": str(state.get("summary") or ""),
-        "next_stage": None if _is_terminal_state(stage, status) else _NEXT_STAGE.get(stage),
+        "next_stage": None
+        if _is_terminal_state(stage, status)
+        else _NEXT_STAGE.get(stage),
     }
     if state.get("last_reopen") is not None:
         data["last_reopen"] = dict(state["last_reopen"])
@@ -979,9 +997,7 @@ def _state_data(state: Mapping[str, Any]) -> dict[str, Any]:
         prior = resolution.get("blocker")
         data["last_blocker_resolution"] = {
             "blocker_id": (
-                str(prior.get("blocker_id") or "")
-                if isinstance(prior, Mapping)
-                else ""
+                str(prior.get("blocker_id") or "") if isinstance(prior, Mapping) else ""
             ),
             "owner": (
                 str(prior.get("owner") or "") if isinstance(prior, Mapping) else ""
@@ -2071,11 +2087,7 @@ def closeout_workflow(
                         if acceptance_read_error is not None
                         else []
                     ),
-                    *(
-                        [snapshot_read_error]
-                        if snapshot_read_error is not None
-                        else []
-                    ),
+                    *([snapshot_read_error] if snapshot_read_error is not None else []),
                 ],
                 attempted_recovery=[],
                 affected_scope=["human-acceptance.json", "workflow closeout"],

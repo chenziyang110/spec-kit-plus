@@ -38,5 +38,7 @@ def render_packet_summary(packet: WorkerTaskPacket) -> str:
         f"context_bundle: {render_context_bundle_summary(packet)}\n"
         f"context_nav: {context_nav}\n"
         f"required_references: {', '.join(ref.path for ref in packet.required_references)}\n"
+        f"validation_mode: {packet.validation_policy.mode}\n"
+        f"task_checks: {', '.join(packet.task_checks)}\n"
         f"validation_gates: {', '.join(packet.validation_gates)}"
     )

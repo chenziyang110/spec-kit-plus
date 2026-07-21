@@ -17,6 +17,25 @@ or `.planning/learnings/**` directly during normal workflow execution.
 4. Run the selected card's `show_argv` for one Learning at a time. Do not expand every detail.
 5. Apply guidance only when its applicability and trigger signals match live evidence. Current repository evidence overrides stale Learning.
 
+After minimal live inspection identifies a reused operation or changed entry
+point, run a contextual second pass from current code, tests, and task/contract
+evidence:
+
+```text
+{{specify-subcmd:learning list --command <classic-command-name> --context operation_owner=<owner> --context consumer_owner=<consumer> --context outcome=<result-family> --format json}}
+```
+
+Do not derive context facets from archived specifications. Exact operation
+owner matches may recall cross-command candidates even when the new consumer
+differs. Expand one selected match, validate it against live evidence, and do not auto-apply it.
+
+When the entrypoint outcome audit is triggered, persist `learning_context`,
+`learning_search_refs`, and all returned `learning_candidate_refs` in its one
+spec contract. Give every candidate one `applied`, `not_applicable`, or
+`deferred` item in `learning_dispositions`; do not silently ignore it. Applied
+Learning traces to requirement/consequence refs, not-applicable needs current
+evidence, and deferred needs an explicit deferral ref.
+
 Command shape: `{{specify-subcmd:learning list --command <command> --format json}}`
 and then `{{specify-subcmd:learning show --ref <ref> --format json}}`.
 

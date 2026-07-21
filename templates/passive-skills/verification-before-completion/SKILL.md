@@ -1,6 +1,6 @@
 ---
 name: verification-before-completion
-description: Use when about to claim work is complete, fixed, or passing, before committing or creating PRs - requires running verification commands and confirming output before making any success claims; evidence before assertions always
+description: Use when about to claim work is complete, fixed, or passing, before committing or creating PRs. Requires current fingerprint-bound verification evidence; respects workflow-owned validation epochs instead of duplicating commands.
 ---
 
 # Verification Before Completion
@@ -13,13 +13,28 @@ Claiming work is complete without verification is dishonesty, not efficiency.
 
 **Violating the letter of this rule is violating the spirit of this rule.**
 
+## Workflow-Owned Validation
+
+When an active workflow provides a validation epoch ledger, fresh evidence means
+current source-fingerprint-bound evidence in that ledger. Inspect it before a
+claim. Only the workflow's Leader may open a missing heavyweight epoch, and only
+when budget remains. A worker, passive skill, join, resume, or message must not
+start an extra validation epoch merely to make a local claim.
+
+For `sp-implement`, moving to the next Txx does not require another heavyweight
+test run. Record cheap task checks and test impact, then let the Leader verify
+the integrated change-set. The budget remains shared across
+Implement and Review and must not be reset at handoff.
+
 ## The Iron Law
 
 ```
 NO COMPLETION CLAIMS WITHOUT FRESH VERIFICATION EVIDENCE
 ```
 
-If you haven't run the verification command in this message, you cannot claim it passes.
+If the current source fingerprint has no accepted verification evidence, you
+cannot claim it passes. Evidence may come from the active workflow's canonical
+epoch ledger; it need not be rerun in this message.
 
 ## The Gate Function
 
@@ -27,7 +42,9 @@ If you haven't run the verification command in this message, you cannot claim it
 BEFORE claiming any status or expressing satisfaction:
 
 1. IDENTIFY: What command proves this claim?
-2. RUN: Execute the FULL command (fresh, complete)
+2. RUN OR REUSE: Outside a workflow budget, execute the full proving command.
+   Inside one, reuse a passed epoch for the unchanged fingerprint or ask the
+   Leader to allocate the next epoch; do not run independently.
 3. READ: Full output, check exit code, count failures
 4. VERIFY: Does output confirm the claim?
    - If NO: State actual status with evidence
@@ -41,7 +58,7 @@ Skip any step = lying, not verifying
 
 | Claim | Requires | Not Sufficient |
 |-------|----------|----------------|
-| Tests pass | Test command output: 0 failures | Previous run, "should pass" |
+| Tests pass | Current-fingerprint command output or accepted epoch evidence: 0 failures | Stale run, "should pass" |
 | Linter clean | Linter output: 0 errors | Partial check, extrapolation |
 | Build succeeds | Build command: exit 0 | Linter passing, logs look good |
 | Bug fixed | Test original symptom: passes | Code changed, assumed fixed |
@@ -58,7 +75,7 @@ Skip any step = lying, not verifying
 - Relying on partial verification
 - Thinking "just this once"
 - Tired and wanting work over
-- **ANY wording implying success without having run verification**
+- **ANY wording implying success without current verification evidence**
 
 ## Rationalization Prevention
 
@@ -81,9 +98,12 @@ Skip any step = lying, not verifying
 ❌ "Should pass now" / "Looks correct"
 ```
 
-**Regression tests (TDD Red-Green):**
+**Standalone regression tests (TDD Red-Green):**
 ```
-✅ Write → Run (pass) → Revert fix → Run (MUST FAIL) → Restore → Run (pass)
+✅ Outside an epoch-owned workflow: Write → Run (pass) → Revert fix → Run
+(MUST FAIL) → Restore → Run (pass)
+✅ Inside an epoch-owned workflow: use its recorded change-set RED and integrated
+GREEN evidence; do not manufacture three extra runs.
 ❌ "I've written a regression test" (without red-green verification)
 ```
 
@@ -121,8 +141,8 @@ From 24 failure memories:
 - ANY expression of satisfaction
 - ANY positive statement about work state
 - Committing, PR creation, task completion
-- Moving to next task
-- Delegating to agents
+- Final workflow or delivery claims that are not already covered by current
+  fingerprint-bound epoch evidence
 
 **Rule applies to:**
 - Exact phrases
@@ -134,6 +154,7 @@ From 24 failure memories:
 
 **No shortcuts for verification.**
 
-Run the command. Read the output. THEN claim the result.
+Run the command when you own the gate, or inspect the canonical current epoch
+when the workflow owns it. Read the evidence. Then claim only what it proves.
 
 This is non-negotiable.

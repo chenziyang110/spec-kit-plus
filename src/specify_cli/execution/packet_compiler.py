@@ -17,6 +17,7 @@ from .packet_schema import (
     PacketScope,
     UI_CONTRACT_FIELDS,
     UIContract,
+    ValidationPolicy,
     WorkerTaskPacket,
 )
 from .packet_validator import PacketValidationError, validate_worker_task_packet
@@ -655,6 +656,20 @@ def compile_worker_task_packet(
     task_index = _read_json_object(feature_dir / "task-index.json")
     plan_contract = _plan_contract(feature_dir)
     task_entry = _task_index_entry(task_index, task_id)
+    raw_validation_policy = task_index.get("validation_policy", {})
+    if raw_validation_policy and not isinstance(raw_validation_policy, dict):
+        raise PacketValidationError(
+            "DP0", "task-index.json validation_policy must be an object"
+        )
+    validation_policy = ValidationPolicy(
+        mode=str(raw_validation_policy.get("mode") or "task"),
+        max_epochs=raw_validation_policy.get("max_epochs", 0),
+        budget_scope=str(raw_validation_policy.get("budget_scope") or "task"),
+        budget_ref=str(raw_validation_policy.get("budget_ref") or ""),
+        heavy_gate_owner=str(
+            raw_validation_policy.get("heavy_gate_owner") or "worker"
+        ),
+    )
     task_index_version = task_index.get("version")
     canonical_task_index = (
         isinstance(task_index_version, int)
@@ -755,18 +770,22 @@ def compile_worker_task_packet(
         + _bullet_values(_section_body(plan_text, "Task-Level Quality Floor"))
         + _string_list(task_entry.get("hard_rules"))
     )
-    validation_gates = [
-        value
-        for value in _leading_bullet_values(
-            _section_body(tasks_text, "Validation Gates")
+    task_checks = _string_list(task_entry.get("task_checks"))
+    if validation_policy.mode == "feature_epochs":
+        validation_gates = _unique(task_checks)
+    else:
+        validation_gates = [
+            value
+            for value in _leading_bullet_values(
+                _section_body(tasks_text, "Validation Gates")
+            )
+            if not value.startswith("[ ]")
+        ]
+        validation_gates = _unique(
+            validation_gates
+            + _string_list(task_entry.get("verification"))
+            + _string_list(task_entry.get("required_validation"))
         )
-        if not value.startswith("[ ]")
-    ]
-    validation_gates = _unique(
-        validation_gates
-        + _string_list(task_entry.get("verification"))
-        + _string_list(task_entry.get("required_validation"))
-    )
 
     handoff_requirements = _unique(
         [
@@ -911,6 +930,7 @@ def compile_worker_task_packet(
         ),
         handoff_requirements=handoff_requirements,
         platform_guardrails=platform_guardrails,
+        validation_policy=validation_policy,
         context_nav=context_nav,
         anti_goals=_task_contract_bullet_values(task_detail, "Anti-Goals"),
         does_not_remove=_unique(
@@ -926,15 +946,20 @@ def compile_worker_task_packet(
             )
             + _string_list(task_entry.get("capability_operation_refs"))
         ),
-        verify_commands=_unique(
-            _task_contract_bullet_values(
-                task_detail, "Verify Commands", "Verification Commands"
+        task_checks=_unique(task_checks),
+        verify_commands=(
+            _unique(task_checks)
+            if validation_policy.mode == "feature_epochs"
+            else _unique(
+                _task_contract_bullet_values(
+                    task_detail, "Verify Commands", "Verification Commands"
+                )
+                + _task_detail_table_field_values(
+                    task_detail, "Scope Boundaries", "verify_commands"
+                )
+                + _string_list(task_entry.get("verification"))
+                + _string_list(task_entry.get("required_validation"))
             )
-            + _task_detail_table_field_values(
-                task_detail, "Scope Boundaries", "verify_commands"
-            )
-            + _string_list(task_entry.get("verification"))
-            + _string_list(task_entry.get("required_validation"))
         ),
         acceptance_criteria=_unique(
             _task_contract_bullet_values(task_detail, "Acceptance Criteria")

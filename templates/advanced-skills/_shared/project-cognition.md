@@ -3,6 +3,12 @@
 Use project cognition as the default navigation layer, not as proof of current
 behavior.
 
+Archived specifications are excluded from default discovery and are never
+current authority. Read one only for explicit lineage or provenance, identify
+the exact historical claim, and verify it against current live evidence before
+use. An archive cannot override the live repository, an active approved
+contract, or confirmed user direction.
+
 If the active workflow cannot safely continue after permitted self-recovery,
 read `references/blocker-resolution.md` before returning a blocked result.
 

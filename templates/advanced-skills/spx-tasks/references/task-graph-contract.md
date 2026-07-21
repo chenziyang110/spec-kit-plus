@@ -31,6 +31,13 @@ acceptance, verification, stop/reopen criteria, and failure recovery. A join
 point records its members, validation target, command or concrete check, pass
 condition, and recovery on failure before dependent tasks become ready.
 
+For every active entrypoint outcome, propagate its existing CA into top-level
+`consequence_obligation_refs`, a task's `consequence_obligation_ids`, and a
+required `review_obligations` row mapped to required real-entrypoint
+`system_review_scenarios`. Reuse that consequence/Review chain; do not create a
+parallel outcome-coverage object. Render user-visible recovery, retry,
+cancellation, foreground escalation, and request retention in `tasks.md`.
+
 Keep setup and foundational work before feature slices; verify at natural join
 points. If a task discovers unknown product behavior or architecture, the task
 graph is not the place to decide it—reopen the owning upstream workflow.

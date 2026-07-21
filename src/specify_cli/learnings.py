@@ -6,7 +6,7 @@ import hashlib
 import json
 import re
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Iterable, Mapping
 import yaml
 
 from specify_cli.atomic_io import atomic_write_text, interprocess_lock
@@ -40,6 +40,29 @@ LEARNING_STATUSES = {
 }
 SIGNAL_STRENGTHS = {"low", "medium", "high"}
 PROMOTION_TARGETS = {"learning", "rule"}
+LEARNING_FACET_KEYS = (
+    "components",
+    "operation_owners",
+    "consumer_owners",
+    "outcomes",
+    "states",
+    "entrypoints",
+    "validation_surfaces",
+)
+LEARNING_CONTEXT_KEY_MAP = {
+    "component": "components",
+    "operation_owner": "operation_owners",
+    "consumer_owner": "consumer_owners",
+    "outcome": "outcomes",
+    "state": "states",
+    "entrypoint": "entrypoints",
+    "validation_surface": "validation_surfaces",
+}
+LEARNING_CONTEXT_ARG_KEYS = {
+    value: key for key, value in LEARNING_CONTEXT_KEY_MAP.items()
+}
+MAX_LEARNING_CONTEXT_VALUES = 64
+MAX_LEARNING_CONTEXT_VALUE_LENGTH = 256
 MAP_WORKFLOW_COMMANDS = (
     "sp-map-scan",
     "sp-map-build",
@@ -138,6 +161,122 @@ REVIEW_TEMPLATE_TEXT = (
 )
 
 
+def _facet_match_token(value: str) -> str:
+    return re.sub(r"\s+", " ", value.strip().replace("\\", "/")).casefold()
+
+
+def _normalize_facet_values(value: Any) -> list[str]:
+    if isinstance(value, str):
+        raw_values: Iterable[Any] = [value]
+    elif isinstance(value, (list, tuple, set)):
+        raw_values = value
+    else:
+        return []
+    by_token: dict[str, str] = {}
+    for raw_value in raw_values:
+        if not isinstance(raw_value, str):
+            continue
+        display = re.sub(r"\s+", " ", raw_value.strip().replace("\\", "/"))
+        token = _facet_match_token(display)
+        if token and token not in by_token:
+            by_token[token] = display
+    return [by_token[token] for token in sorted(by_token)]
+
+
+def normalize_learning_facets(value: Any) -> dict[str, list[str]]:
+    """Normalize optional sparse Learning facets without rejecting legacy rows."""
+
+    if not isinstance(value, Mapping):
+        return {}
+    facets: dict[str, list[str]] = {}
+    for key in LEARNING_FACET_KEYS:
+        values = _normalize_facet_values(value.get(key))
+        if values:
+            facets[key] = values
+    return facets
+
+
+def _learning_facet_payload_warnings(value: Any) -> list[str]:
+    if value is None:
+        return []
+    if not isinstance(value, Mapping):
+        return ["facets must be an object; ignored optional facets"]
+    warnings: list[str] = []
+    for key, raw_values in value.items():
+        if key not in LEARNING_FACET_KEYS:
+            warnings.append(f"unknown optional facet '{key}' was ignored")
+            continue
+        values = [raw_values] if isinstance(raw_values, str) else raw_values
+        if not isinstance(values, (list, tuple, set)) or any(
+            not isinstance(item, str) or not item.strip() for item in values
+        ):
+            warnings.append(f"malformed optional facet '{key}' was partially ignored")
+    return warnings
+
+
+def parse_learning_task_context(values: Iterable[str] | None) -> dict[str, list[str]]:
+    """Parse repeatable ``--context key=value`` CLI values into canonical facets."""
+
+    if not values:
+        return {}
+    parsed: dict[str, list[str]] = {}
+    seen: set[tuple[str, str]] = set()
+    count = 0
+    for raw_item in values:
+        item = str(raw_item or "").strip()
+        if "=" not in item:
+            raise ValueError("learning context must use key=value")
+        raw_key, raw_value = item.split("=", 1)
+        key = raw_key.strip().casefold().replace("-", "_")
+        facet_key = LEARNING_CONTEXT_KEY_MAP.get(key)
+        if facet_key is None:
+            raise ValueError(f"unknown context facet '{raw_key.strip()}'")
+        value = re.sub(r"\s+", " ", raw_value.strip().replace("\\", "/"))
+        if not value:
+            raise ValueError(f"context facet '{key}' requires a non-empty value")
+        if len(value) > MAX_LEARNING_CONTEXT_VALUE_LENGTH:
+            raise ValueError(
+                f"context facet '{key}' exceeds {MAX_LEARNING_CONTEXT_VALUE_LENGTH} characters"
+            )
+        identity = (facet_key, _facet_match_token(value))
+        if identity in seen:
+            raise ValueError(f"duplicate context facet value '{key}={value}'")
+        seen.add(identity)
+        parsed.setdefault(facet_key, []).append(value)
+        count += 1
+        if count > MAX_LEARNING_CONTEXT_VALUES:
+            raise ValueError(
+                f"learning context accepts at most {MAX_LEARNING_CONTEXT_VALUES} values"
+            )
+    return normalize_learning_facets(parsed)
+
+
+def _merge_learning_facets(
+    current: Mapping[str, Iterable[str]] | None,
+    incoming: Mapping[str, Iterable[str]] | None,
+) -> dict[str, list[str]]:
+    merged: dict[str, list[str]] = {}
+    current_facets = normalize_learning_facets(current)
+    incoming_facets = normalize_learning_facets(incoming)
+    for key in LEARNING_FACET_KEYS:
+        values = _normalize_facet_values(
+            [*current_facets.get(key, []), *incoming_facets.get(key, [])]
+        )
+        if values:
+            merged[key] = values
+    return merged
+
+
+def _learning_context_argv(facets: Mapping[str, Iterable[str]]) -> list[str]:
+    args: list[str] = []
+    normalized = normalize_learning_facets(facets)
+    for facet_key in LEARNING_FACET_KEYS:
+        arg_key = LEARNING_CONTEXT_ARG_KEYS[facet_key]
+        for value in normalized.get(facet_key, []):
+            args.extend(["--context", f"{arg_key}={value}"])
+    return args
+
+
 @dataclass(frozen=True)
 class LearningPaths:
     constitution: Path
@@ -188,9 +327,13 @@ class LearningEntry:
     trigger_signals: list[str] = field(default_factory=list)
     success_criteria: list[str] = field(default_factory=list)
     exceptions: list[str] = field(default_factory=list)
+    facets: dict[str, list[str]] = field(default_factory=dict)
 
     def to_payload(self) -> dict[str, Any]:
-        return asdict(self)
+        payload = asdict(self)
+        if not self.facets:
+            payload.pop("facets", None)
+        return payload
 
     @classmethod
     def from_payload(cls, payload: dict[str, Any]) -> "LearningEntry":
@@ -224,6 +367,7 @@ class LearningEntry:
             trigger_signals=_coerce_str_list(payload.get("trigger_signals")),
             success_criteria=_coerce_str_list(payload.get("success_criteria")),
             exceptions=_coerce_str_list(payload.get("exceptions")),
+            facets=normalize_learning_facets(payload.get("facets")),
         )
 
 
@@ -242,9 +386,13 @@ class LearningIndexEntry:
     last_seen: str
     occurrence_count: int = 1
     signal_strength: str = "medium"
+    facets: dict[str, list[str]] = field(default_factory=dict)
 
     def to_payload(self) -> dict[str, Any]:
-        return asdict(self)
+        payload = asdict(self)
+        if not self.facets:
+            payload.pop("facets", None)
+        return payload
 
     @classmethod
     def from_payload(cls, payload: dict[str, Any]) -> "LearningIndexEntry":
@@ -317,6 +465,7 @@ class LearningIndexEntry:
             last_seen=last_seen,
             occurrence_count=occurrence_count,
             signal_strength=signal_strength,
+            facets=normalize_learning_facets(payload.get("facets")),
         )
 
 
@@ -653,6 +802,7 @@ def build_learning_entry(
     trigger_signals: Iterable[str] | None = None,
     success_criteria: Iterable[str] | None = None,
     exceptions: Iterable[str] | None = None,
+    facets: Mapping[str, Iterable[str]] | None = None,
 ) -> LearningEntry:
     normalized_summary = str(summary or "").strip()
     normalized_evidence = str(evidence or "").strip()
@@ -744,6 +894,7 @@ def build_learning_entry(
                 str(item).strip() for item in (exceptions or []) if str(item).strip()
             )
         ),
+        facets=normalize_learning_facets(facets),
     )
 
 
@@ -975,6 +1126,9 @@ def _render_entry_summary(entry: LearningEntry) -> str:
         )
     if entry.promotion_hint:
         structured_lines.append(f"- Promotion Hint: {entry.promotion_hint}")
+    for key, values in entry.facets.items():
+        if values:
+            structured_lines.append(f"- Facet {key}: {', '.join(values)}")
     if not structured_lines:
         return base
     return f"{base}\n#### Structured Learning\n\n" + "\n".join(structured_lines) + "\n"
@@ -1053,13 +1207,14 @@ def _index_entry_from_learning(entry: LearningEntry) -> LearningIndexEntry:
         last_seen=entry.last_seen,
         occurrence_count=entry.occurrence_count,
         signal_strength=entry.signal_strength,
+        facets=entry.facets,
     )
 
 
 def _render_index_entry_summary(entry: LearningIndexEntry) -> str:
     applies = ", ".join(entry.applies_to)
     triggers = ", ".join(entry.trigger_signals)
-    return (
+    summary = (
         f"### {entry.id} - {entry.problem}\n\n"
         f"- Type: `{entry.learning_type}`\n"
         f"- Source Command: `{entry.source_command}`\n"
@@ -1073,6 +1228,14 @@ def _render_index_entry_summary(entry: LearningIndexEntry) -> str:
         f"- Detail: `{entry.detail}`\n\n"
         f"#### Lesson\n\n{entry.lesson}\n"
     )
+    if not entry.facets:
+        return summary
+    facet_lines = [
+        f"- {key}: {', '.join(values)}"
+        for key, values in entry.facets.items()
+        if values
+    ]
+    return summary + "\n#### Facets\n\n" + "\n".join(facet_lines) + "\n"
 
 
 def _empty_learning_index_diagnostics() -> dict[str, Any]:
@@ -1116,6 +1279,19 @@ def _read_index_entries_with_diagnostics(
         try:
             if not isinstance(payload, dict):
                 raise ValueError("learning index entry is not an object")
+            facet_warnings = _learning_facet_payload_warnings(payload.get("facets"))
+            for warning in facet_warnings:
+                diagnostics["warnings"].append(
+                    f"learning_index_entry_{index}_facet_warning:{warning}"
+                )
+                diagnostics["details"].append(
+                    {
+                        "index": index,
+                        "id": str(entry_id or ""),
+                        "action": "ignored_optional_facet",
+                        "reason": warning,
+                    }
+                )
             entry = LearningIndexEntry.from_payload(payload)
         except Exception as exc:  # noqa: BLE001 - diagnostics must report and continue after malformed current entries.
             diagnostics["skipped_malformed_entries"] += 1
@@ -1345,6 +1521,7 @@ def _merge_legacy_confirmed_entry(
             dict.fromkeys([*current.success_criteria, *legacy.success_criteria])
         ),
         exceptions=sorted(dict.fromkeys([*current.exceptions, *legacy.exceptions])),
+        facets=_merge_learning_facets(current.facets, legacy.facets),
     )
 
 
@@ -1456,6 +1633,7 @@ def _merge_entry(
         trigger_signals=merged_trigger_signals,
         success_criteria=merged_success_criteria,
         exceptions=merged_exceptions,
+        facets=_merge_learning_facets(existing.facets, new_entry.facets),
     )
 
 
@@ -1497,6 +1675,7 @@ def _merge_index_entry(
         else "medium"
         if "medium" in {existing.signal_strength, new_entry.signal_strength}
         else "low",
+        facets=_merge_learning_facets(existing.facets, new_entry.facets),
     )
 
 
@@ -1541,6 +1720,14 @@ def _render_learning_detail(
         "\n".join(f"- {item}" for item in index_entry.trigger_signals)
         or "_No trigger signals recorded._"
     )
+    facets = (
+        "\n".join(
+            f"- {key}: {', '.join(values)}"
+            for key, values in entry.facets.items()
+            if values
+        )
+        or "_No structured facets recorded._"
+    )
     return "\n".join(
         [
             f"# {index_entry.problem}",
@@ -1568,6 +1755,10 @@ def _render_learning_detail(
             "## Trigger Signals",
             "",
             triggers,
+            "",
+            "## Structured Facets",
+            "",
+            facets,
             "",
             "## Evidence",
             "",
@@ -2430,12 +2621,62 @@ def _learning_catalog(
     return paths, catalog, diagnostics
 
 
+def _learning_context_match(
+    index_entry: LearningIndexEntry,
+    task_context: Mapping[str, Iterable[str]],
+) -> dict[str, Any]:
+    normalized_context = normalize_learning_facets(task_context)
+    normalized_facets = normalize_learning_facets(index_entry.facets)
+    matched_facets: dict[str, list[str]] = {}
+    legacy_signal_tokens = {
+        _facet_match_token(signal): signal
+        for signal in index_entry.trigger_signals
+        if _facet_match_token(signal)
+    }
+    for facet_key, query_values in normalized_context.items():
+        query_tokens = {_facet_match_token(value) for value in query_values}
+        stored_values = normalized_facets.get(facet_key, [])
+        stored_by_token = {_facet_match_token(value): value for value in stored_values}
+        matches = [
+            stored_by_token[token]
+            for token in sorted(query_tokens & set(stored_by_token))
+        ]
+        if (
+            not matches
+            and not stored_values
+            and facet_key in {"operation_owners", "components"}
+        ):
+            matches = [
+                legacy_signal_tokens[token]
+                for token in sorted(query_tokens & set(legacy_signal_tokens))
+            ]
+        if matches:
+            matched_facets[facet_key] = matches
+
+    matched_values = sum(len(values) for values in matched_facets.values())
+    return {
+        "matched_facets": matched_facets,
+        "matched_dimensions": len(matched_facets),
+        "matched_values": matched_values,
+        "exact_operation_owner": bool(matched_facets.get("operation_owners")),
+    }
+
+
+def _context_allows_cross_command(match: Mapping[str, Any]) -> bool:
+    return (
+        bool(match.get("exact_operation_owner"))
+        or int(match.get("matched_dimensions") or 0) >= 2
+    )
+
+
 def _learning_summary_card(
     index_entry: LearningIndexEntry,
     entry: LearningEntry | None,
     source_layer: str,
     *,
     command_name: str | None,
+    context_match: Mapping[str, Any] | None = None,
+    cross_command: bool = False,
 ) -> dict[str, Any]:
     status = entry.status if entry else "indexed"
     summary = entry.summary if entry else index_entry.problem
@@ -2465,7 +2706,23 @@ def _learning_summary_card(
             "json",
         ],
     }
-    if command_name:
+    if context_match and int(context_match.get("matched_dimensions") or 0) > 0:
+        rendered_matches = ", ".join(
+            f"{key}={value}"
+            for key, values in context_match.get("matched_facets", {}).items()
+            for value in values
+        )
+        card["context_match"] = {
+            "matched_facets": dict(context_match.get("matched_facets", {})),
+            "matched_dimensions": int(context_match.get("matched_dimensions") or 0),
+            "matched_values": int(context_match.get("matched_values") or 0),
+            "exact_operation_owner": bool(context_match.get("exact_operation_owner")),
+            "cross_command": cross_command,
+        }
+        card["why_relevant"] = f"task context matched {rendered_matches}" + (
+            " across command applicability" if cross_command else ""
+        )
+    elif command_name:
         card["why_relevant"] = f"applies to {command_name}"
     return card
 
@@ -2477,6 +2734,7 @@ def list_learning_summaries(
     learning_type: str | None = None,
     status: str | None = None,
     query: str | None = None,
+    task_context: Mapping[str, Iterable[str]] | None = None,
     cursor: int = 0,
     limit: int = 50,
     include_all: bool = False,
@@ -2489,6 +2747,7 @@ def list_learning_summaries(
     if normalized_status and normalized_status not in {*LEARNING_STATUSES, "indexed"}:
         raise ValueError(f"unsupported learning status '{status}'")
     normalized_query = query.strip().casefold() if query else ""
+    normalized_context = normalize_learning_facets(task_context)
     cursor = max(0, int(cursor))
     if include_all:
         limit = 0
@@ -2498,12 +2757,23 @@ def list_learning_summaries(
         limit = min(int(limit), 200)
 
     _paths, catalog, diagnostics = _learning_catalog(project_root)
-    cards: list[dict[str, Any]] = []
-    for index_entry, entry, source_layer in catalog:
-        if normalized_command and not is_index_relevant_to_command(
-            index_entry, normalized_command
-        ):
-            continue
+    ranked_cards: list[tuple[tuple[int, int, int, int], dict[str, Any]]] = []
+    for catalog_index, (index_entry, entry, source_layer) in enumerate(catalog):
+        command_match = bool(
+            normalized_command
+            and is_index_relevant_to_command(index_entry, normalized_command)
+        )
+        context_match = _learning_context_match(index_entry, normalized_context)
+        cross_command = False
+        if normalized_command and not command_match:
+            if not normalized_context or not _context_allows_cross_command(
+                context_match
+            ):
+                continue
+            cross_command = True
+        elif not normalized_command and normalized_context:
+            if int(context_match.get("matched_dimensions") or 0) == 0:
+                continue
         if normalized_type and index_entry.learning_type != normalized_type:
             continue
         entry_status = entry.status if entry else "indexed"
@@ -2517,18 +2787,30 @@ def list_learning_summaries(
                 index_entry.learning_type,
                 *index_entry.trigger_signals,
                 *index_entry.applies_to,
+                *(value for values in index_entry.facets.values() for value in values),
             ]
         ).casefold()
         if normalized_query and normalized_query not in searchable:
             continue
-        cards.append(
-            _learning_summary_card(
-                index_entry,
-                entry,
-                source_layer,
-                command_name=normalized_command,
-            )
+        card = _learning_summary_card(
+            index_entry,
+            entry,
+            source_layer,
+            command_name=normalized_command,
+            context_match=context_match if normalized_context else None,
+            cross_command=cross_command,
         )
+        rank = (
+            -int(bool(context_match.get("exact_operation_owner"))),
+            -int(context_match.get("matched_dimensions") or 0),
+            -int(context_match.get("matched_values") or 0),
+            catalog_index,
+        )
+        ranked_cards.append((rank, card))
+
+    if normalized_context:
+        ranked_cards.sort(key=lambda item: item[0])
+    cards = [card for _rank, card in ranked_cards]
 
     total = len(cards)
     page = cards[cursor:] if include_all else cards[cursor : cursor + limit]
@@ -2544,6 +2826,7 @@ def list_learning_summaries(
             next_argv.extend(["--status", normalized_status])
         if query:
             next_argv.extend(["--query", query])
+        next_argv.extend(_learning_context_argv(normalized_context))
         next_argv.extend(
             ["--cursor", str(next_cursor), "--limit", str(limit), "--format", "json"]
         )
@@ -2570,6 +2853,8 @@ def list_learning_summaries(
         "items": page,
         "warnings": list(diagnostics.get("warnings", [])),
     }
+    if normalized_context:
+        payload["task_context"] = normalized_context
     from .launcher import bind_project_launcher_payload
 
     return bind_project_launcher_payload(payload, project_root)
@@ -2617,6 +2902,14 @@ def show_learning_detail(project_root: Path, *, learning_ref: str) -> dict[str, 
         if entry and entry.recommended_action
         else index_entry.lesson
     )
+    applicability = {
+        "commands": index_entry.applies_to,
+        "trigger_signals": index_entry.trigger_signals,
+        "scope": entry.default_scope if entry else "",
+    }
+    detail_facets = entry.facets if entry and entry.facets else index_entry.facets
+    if detail_facets:
+        applicability["facets"] = detail_facets
     return {
         "schema_version": 1,
         "record_schema": ".specify/templates/project-learning-record-schema.json#/$defs/detailRecord",
@@ -2632,11 +2925,7 @@ def show_learning_detail(project_root: Path, *, learning_ref: str) -> dict[str, 
             "success_criteria": entry.success_criteria if entry else [],
             "exceptions": entry.exceptions if entry else [],
         },
-        "applicability": {
-            "commands": index_entry.applies_to,
-            "trigger_signals": index_entry.trigger_signals,
-            "scope": entry.default_scope if entry else "",
-        },
+        "applicability": applicability,
         "evidence": {
             "observation": entry.evidence if entry else index_entry.lesson,
             "decisive_signal": entry.decisive_signal if entry else "",
@@ -2662,7 +2951,12 @@ def show_learning_detail(project_root: Path, *, learning_ref: str) -> dict[str, 
     }
 
 
-def start_learning_session(project_root: Path, *, command_name: str) -> dict[str, Any]:
+def start_learning_session(
+    project_root: Path,
+    *,
+    command_name: str,
+    task_context: Mapping[str, Iterable[str]] | None = None,
+) -> dict[str, Any]:
     """Return the compact, read-only Learning intake for one workflow."""
 
     paths = build_learning_paths(project_root)
@@ -2670,6 +2964,7 @@ def start_learning_session(project_root: Path, *, command_name: str) -> dict[str
     catalog = list_learning_summaries(
         project_root,
         command_name=normalized_command,
+        task_context=task_context,
         limit=20,
     )
     candidates = [
@@ -2677,7 +2972,7 @@ def start_learning_session(project_root: Path, *, command_name: str) -> dict[str
         for entry in _read_entries_if_present(paths.candidates)
         if is_relevant_to_command(entry, normalized_command)
     ]
-    return {
+    payload = {
         "schema_version": 1,
         "record_schema": ".specify/templates/project-learning-record-schema.json#/$defs/startSummary",
         "command": normalized_command,
@@ -2705,6 +3000,9 @@ def start_learning_session(project_root: Path, *, command_name: str) -> dict[str
         ],
         "warnings": catalog["warnings"],
     }
+    if catalog.get("task_context"):
+        payload["task_context"] = catalog["task_context"]
+    return payload
 
 
 def capture_learning(
@@ -2732,6 +3030,7 @@ def capture_learning(
     trigger_signals: Iterable[str] | None = None,
     success_criteria: Iterable[str] | None = None,
     exceptions: Iterable[str] | None = None,
+    facets: Mapping[str, Iterable[str]] | None = None,
 ) -> dict[str, Any]:
     entry = build_learning_entry(
         command_name=command_name,
@@ -2756,6 +3055,7 @@ def capture_learning(
         trigger_signals=trigger_signals,
         success_criteria=success_criteria,
         exceptions=exceptions,
+        facets=facets,
     )
 
     with interprocess_lock(_learning_lock_path(project_root)):

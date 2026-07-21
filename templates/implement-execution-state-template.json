@@ -17,6 +17,12 @@
   "recovery": null,
   "open_gaps": [],
   "validation": [],
+  "validation_budget": {
+    "budget_ref": "implementation-review/validation-runs.json",
+    "max_epochs": 3,
+    "used_epochs": 0,
+    "active_run_id": null
+  },
   "review_window_policy": {
     "max_completed_tasks_before_review": 5,
     "max_unreviewed_changed_paths": 8,

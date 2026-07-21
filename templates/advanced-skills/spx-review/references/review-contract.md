@@ -5,8 +5,25 @@
 Review starts only after implementation closeout has produced a trusted
 `implementation-handoff.json` and the CLI runtime permits the `implement` to
 `review` transition. The handoff identifies the implementation fingerprint,
-official entrypoints, and required system Review scenarios. Reject a missing,
+official entrypoints, required system Review scenarios, and the validation-epoch
+ledger shared across Implement and Review. Reject a missing,
 ambiguous, or stale handoff; do not infer completion from task checkboxes.
+
+Continue that ledger without resetting its consumed count. The combined flow
+permits at most three Leader-owned heavyweight epochs bound to source
+fingerprints. Commands, scenarios, and read-only observation lanes against one
+fingerprint share the same epoch. The third failed epoch blocks with exact
+evidence and recovery criteria; never start a fourth validation epoch.
+
+Its canonical ref is `implementation-review/validation-runs.json`. Call
+`{{specify-subcmd:implement validation-status --feature-dir <feature-dir> --format json}}`
+before Review work. Before the Leader starts a delivery scenario wave, call
+`{{specify-subcmd:implement validation-start --feature-dir <feature-dir> --stage review --purpose delivery --command '<cmd>' [--command '<cmd2>'] [--task-id T001] [--task-id T002] [--fingerprint <sha>] --format json}}`;
+omit `--fingerprint` to bind the current implementation snapshot. After the wave,
+call
+`{{specify-subcmd:implement validation-finish --feature-dir <feature-dir> --run-id <Vn> --status <passed|failed> --evidence-ref <ref> [--evidence-ref <ref2>] --summary '<text>' --format json}}`.
+Use the runtime-returned run id and remaining budget; do not hand-edit or
+reconstruct the ledger.
 
 `review prepare` compiles or freshness-checks the resumable
 `review-state.json`. The installed template/schema and runtime are authoritative
@@ -62,7 +79,9 @@ For UI scenarios, evidence uses only canonical kinds
 `structure_snapshot`, `visual_capture`, and `runtime_diagnostics`, with
 `evidence_scope: integrated`, plus visual comparison or explicit human review.
 Use stable real content and the required viewport/state matrix. Isolated task
-evidence may guide Review but cannot close a system scenario.
+evidence may guide Review but cannot close a system scenario. Group the matrix
+by integrated surface and fingerprint; do not run the full viewport/state
+capture loop per Txx.
 
 Coverage closes only at zero uncovered obligations and surfaces after all
 packets joined. A worker cannot declare coverage complete; the leader owns the
@@ -105,8 +124,11 @@ scenario revalidation.
 
 ## Revalidation and approval
 
-After the audit join, use a separate Fix wave for accepted findings. After each
-repair, run an independent revalidation wave over the exact failed step, its
+After the audit join, use a separate Fix wave for accepted findings only when a
+later validation epoch remains. Fix workers run cheap task checks, return test
+impact, and must not execute heavyweight gates per Txx. Join the complete repair
+batch before the Leader opens one next epoch; do not open an epoch per finding
+or per repair. Run that independent revalidation wave over the exact failed step, its
 complete user journey, every scenario sharing the changed dependency, and the
 smallest credible regression set. A repair author must not verify its own
 finding; use the leader or a different read-only subagent. Recapture stale
@@ -114,6 +136,11 @@ UI/runtime evidence. That subset scopes finding-level revalidation only. After
 any Fix, restart from a clean supported state, rerun every required Review
 scenario, and recapture every required evidence record against the single final
 reviewed snapshot. No pre-Fix scenario evidence can satisfy approval.
+
+If a failed epoch consumed the final slot, preserve the findings and block
+without making an unprovable repair. Any source change requires a later epoch
+before approval; do not reset the ledger to manufacture capacity or retry a
+failed command against the unchanged fingerprint.
 
 If the Fix set is non-empty, write one final full-matrix revalidation. Its
 `fix_assignment_ids` and canonical `fix_assignments_sha256` cover every accepted
@@ -140,6 +167,8 @@ subtrees.
 - required evidence exists, is integrated, and matches the current snapshot;
 - startup/readiness and material runtime diagnostics pass;
 - each repair has fresh revalidation evidence;
+- the shared validation-epoch ledger contains at most three entries, was not
+  reset after Implement, and its latest required epoch passed;
 - the final source fingerprint is current;
 - every required Human Acceptance scenario has a ready reviewed runtime target
   whose immutable identity, linked Review scenarios, and ready evidence match

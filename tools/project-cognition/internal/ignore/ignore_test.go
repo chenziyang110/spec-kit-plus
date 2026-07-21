@@ -18,6 +18,9 @@ func TestLoadAppliesBuiltInDefaultIgnores(t *testing.T) {
 	if !matcher.Ignored(".specify/project-cognition/status.json") {
 		t.Fatal("expected built-in default rules to ignore project cognition runtime state")
 	}
+	if !matcher.Ignored(".specify/archive/old-feature/spec.md") {
+		t.Fatal("expected built-in default rules to ignore archived specifications")
+	}
 	if !matcher.Ignored("node_modules/pkg/index.js") {
 		t.Fatal("expected built-in default rules to ignore node_modules")
 	}

@@ -381,15 +381,7 @@ _SCHEMAS: dict[str, dict[str, Any]] = {
             "route": {
                 "enum": [
                     "sp-review",
-                    "sp-implement",
-                    "sp-debug",
-                    "sp-clarify",
-                    "sp-specify",
                     "spx-review",
-                    "spx-implement",
-                    "spx-debug",
-                    "spx-clarify",
-                    "spx-specify",
                 ]
             },
             "expected_revision": _REVISION,

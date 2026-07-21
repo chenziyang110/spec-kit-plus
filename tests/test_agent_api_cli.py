@@ -71,6 +71,21 @@ def _write_valid_spec_contract(feature_dir: Path) -> None:
         "capability_operations": [],
         "must_preserve_refs": [],
         "consequence_obligation_refs": [],
+        "entrypoint_outcome_contract": {
+            "triggered": False,
+            "trigger_reasons": [],
+            "stand_down_reason": (
+                "This fixture changes no entrypoint, reused operation, or consumer ownership."
+            ),
+            "inventory_complete": False,
+            "inventory_evidence_refs": [],
+            "learning_context": {},
+            "learning_search_refs": [],
+            "learning_candidate_refs": [],
+            "learning_dispositions": [],
+            "result_inventory": [],
+            "outcome_dispositions": [],
+        },
         "design_contract": {
             "experience_requirements": [],
             "design_source_refs": [],
@@ -869,7 +884,7 @@ def test_workflow_cli_validates_human_acceptance_before_closeout(
     assert shown["data"]["status"] == "active"
 
 
-def test_workflow_closeout_rejects_a_valid_but_unaccepted_draft(
+def test_workflow_closeout_rejects_acceptance_without_approved_review(
     tmp_path: Path,
 ) -> None:
     project = _project(tmp_path)
@@ -915,7 +930,7 @@ def test_workflow_closeout_rejects_a_valid_but_unaccepted_draft(
     assert payload["status"] == "blocked"
     assert payload["data"]["error_code"] == "human-acceptance-required"
     assert any(
-        "status=accepted" in error
+        "human-acceptance.json" in error or "review" in error.lower()
         for error in payload["data"]["human_acceptance"]["errors"]
     )
     assert (

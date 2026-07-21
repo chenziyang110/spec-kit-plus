@@ -8,7 +8,7 @@
 
 | What to Upgrade | Command | When to Use |
 |----------------|---------|-------------|
-| **CLI Tool Only** | `python -m pip uninstall -y specify-cli` then `uv tool install specify-cli --force --from git+https://github.com/chenziyang110/spec-kit-plus.git` | Get latest CLI features without touching project files |
+| **CLI Tool Only** | `python -m pip uninstall -y specify-cli` then `uv tool install --force git+https://github.com/chenziyang110/spec-kit-plus.git` | Get latest CLI features without touching project files |
 | **Project Files** | `uvx --refresh --from git+https://github.com/chenziyang110/spec-kit-plus.git specify init --here --force --ai codex` | Update slash commands, templates, and scripts in your project without using a stale PATH executable |
 | **Both** | Run CLI upgrade, then project update | Recommended for major version updates |
 
@@ -25,7 +25,7 @@ leave an older `specify.exe` earlier on PATH, so remove those first:
 
 ```powershell
 python -m pip uninstall -y specify-cli
-uv tool install specify-cli --force --from git+https://github.com/chenziyang110/spec-kit-plus.git
+uv tool install --force git+https://github.com/chenziyang110/spec-kit-plus.git
 Get-Command specify -All
 ```
 
@@ -48,8 +48,8 @@ specify --help
 
 This shows installed tools and confirms the CLI is working. Do not rely only on
 `specify version` for development builds: multiple commits can report the same
-`.dev0` version string. If a command such as `testing` is missing from
-`specify --help`, an old executable is still being used.
+`.dev0` version string. If expected commands such as `check` or `integration`
+are missing from `specify --help`, an old executable may still be in use.
 
 ---
 
@@ -210,7 +210,7 @@ Restart your IDE to refresh the command list.
 ```bash
 # Upgrade CLI (if using persistent install)
 python -m pip uninstall -y specify-cli
-uv tool install specify-cli --force --from git+https://github.com/chenziyang110/spec-kit-plus.git
+uv tool install --force git+https://github.com/chenziyang110/spec-kit-plus.git
 
 # Update project files to get new commands
 specify init --here --force --ai copilot
@@ -228,7 +228,7 @@ cp -r .specify/templates /tmp/templates-backup
 
 # 2. Upgrade CLI
 python -m pip uninstall -y specify-cli
-uv tool install specify-cli --force --from git+https://github.com/chenziyang110/spec-kit-plus.git
+uv tool install --force git+https://github.com/chenziyang110/spec-kit-plus.git
 
 # 3. Update project
 specify init --here --force --ai copilot
@@ -430,7 +430,7 @@ If not found, reinstall:
 
 ```bash
 uv tool uninstall specify-cli
-uv tool install specify-cli --from git+https://github.com/chenziyang110/spec-kit-plus.git
+uv tool install git+https://github.com/chenziyang110/spec-kit-plus.git
 ```
 
 ### "Claude or Gemini hooks still seem to call an old specify"

@@ -31,6 +31,7 @@ from specify_cli.codex_team.runtime_state import batch_record_payload
 from specify_cli.codex_team.session_ops import monitor_summary, resume_session
 from specify_cli.codex_team.worktree_ops import worker_worktree_path
 from specify_cli.codex_team.state_paths import batch_record_path
+from specify_cli.codex_team.packet_executor import build_result_template
 from specify_cli.orchestration import CapabilitySnapshot, describe_delegation_surface
 from specify_cli.orchestration.backends.process_backend import ProcessBackend
 from specify_cli.orchestration.policy import classify_batch_execution_policy
@@ -57,6 +58,7 @@ MATERIALIZED_TASK_RE = re.compile(r"^\s*-\s+(?P<task_id>[A-Za-z0-9_-]+)\s+(?P<su
 RESULT_START_MARKER = "BEGIN_WORKER_TASK_RESULT_JSON"
 RESULT_END_MARKER = "END_WORKER_TASK_RESULT_JSON"
 PACKAGE_SRC_ROOT = Path(__file__).resolve().parents[2]
+MAX_BATCH_WORKERS = 4
 
 
 class AutoDispatchError(RuntimeError):
@@ -175,39 +177,23 @@ def _agent_teams_team_name(batch_id: str) -> str:
 
 
 def _worker_result_template(packet: Any) -> dict[str, object]:
-    return {
-        "task_id": packet.task_id,
-        "status": "pending",
-        "changed_files": list(packet.scope.write_scope),
-        "validation_results": [
-            {
-                "command": gate,
-                "status": "skipped",
-                "output": "NOT RUN - replace with actual command output after execution",
-            }
-            for gate in packet.validation_gates
-        ],
-        "summary": packet.objective,
-        "concerns": [],
-        "reported_status": "",
-        "blockers": [],
-        "failed_assumptions": [],
-        "suggested_recovery_actions": [],
-        "rule_acknowledgement": {
-            "required_references_read": False,
-            "forbidden_drift_respected": False,
-            "context_bundle_read": False,
-            "paths_read": [],
-            "critical_notes": [
-                "Replace the pending placeholder with the real RED/GREEN or validation evidence before returning success."
-            ],
-        },
-    }
+    return build_result_template(packet)
 
 
 def _agent_teams_task_description(packet: Any, *, request_id: str) -> str:
     template = json.dumps(_worker_result_template(packet), ensure_ascii=False, indent=2)
     ordered_context = sorted(packet.context_bundle, key=lambda item: (item.read_order, item.path))
+    if packet.validation_policy.mode == "feature_epochs":
+        execution_instructions = [
+            "Validation policy: feature_epochs; only the Leader may consume the shared implement-review epoch budget.",
+            "Run only the listed task_checks/validation gates. Do not run Leader-owned tests, builds, startup, E2E, real-entrypoint checks, or visual capture.",
+            "Integrated real-entrypoint, acceptance, manual, and UI evidence is deferred to the Leader epoch. Return cheap task-local consumer/wiring, must-preserve, and consequence evidence plus changed surfaces, states, and test impact.",
+        ]
+    else:
+        execution_instructions = [
+            "Fill every evidence field required by the packet; this includes consumer, acceptance, manual, must-preserve, consequence, and UI evidence when their packet contracts apply.",
+            "If this lane changes behavior, write the failing test first, verify the RED state, then rerun the same gate after the fix and report the GREEN evidence.",
+        ]
     lines = [
         f"Delegated task {packet.task_id}",
         f"Objective: {packet.objective}",
@@ -241,7 +227,7 @@ def _agent_teams_task_description(packet: Any, *, request_id: str) -> str:
         RESULT_END_MARKER,
         "",
         "Do not leave the placeholder JSON in a success state. Replace the pending/skipped/false placeholders with the real execution result.",
-        "If this lane changes behavior, write the failing test first, verify the RED state, then rerun the same gate after the fix and report the GREEN evidence.",
+        *execution_instructions,
         "If you are blocked or failed, keep the same JSON shape but set status to blocked/failed and fill blockers, failed_assumptions, and suggested_recovery_actions truthfully.",
         "Set changed_files to the files you actually changed and preserve rule_acknowledgement truthfully.",
         "Acknowledge the execution context bundle in `rule_acknowledgement` before you claim or complete the task.",
@@ -876,7 +862,7 @@ def launch_agent_teams_batch_executor(
                 "runtime_cli_path": runtime_cli_path,
                 "state_root": str(codex_team_state_root(project_root) / "agent-teams" / batch_id),
                 "team_name": _agent_teams_team_name(batch_id),
-                "worker_count": len(task_specs),
+                "worker_count": min(MAX_BATCH_WORKERS, max(1, len(task_specs))),
                 "cwd": str(project_root),
                 "tasks": task_specs,
                 "session_id": session_id,

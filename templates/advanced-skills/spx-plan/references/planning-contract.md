@@ -36,6 +36,15 @@ version-2 plan it is the unique ordered list
 acceptance criterion exactly once; it is never a selected subset or prose
 reconstruction.
 
+When the specification `entrypoint_outcome_contract` is triggered, reuse its
+`CA-###` refs rather than copying the inventory. For each active outcome, add an
+`operational_consequence_decisions` entry with `producer_result_ref`,
+`consumer_owner`, state transition, interaction owner/policy,
+`request_retention`, `retry_identity`, cancel behavior, and validation refs.
+Recoverable user-input decisions also carry security constraints and distinguish
+prohibited unrelated shell UI from interaction required to continue. Missing
+outcome CA design blocks planning completion.
+
 When deep research exists, preserve its planning handoff rather than
 reconstructing feasibility. Consume each `PH-###` in a level-2 `## Deep Research
 Traceability Matrix` with the runtime-required columns: `Plan Decision`,

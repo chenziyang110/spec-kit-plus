@@ -207,7 +207,6 @@ Optional diagnostics:
 - Run `/sp-checklist` when you want a requirements-quality checklist before planning or task generation continues.
 - Run `/sp-analyze` when you explicitly need read-only cross-artifact diagnostics, are resuming a legacy `/sp.analyze` state, or need drift revalidation after implementation has started.
 
-
 Then, run the `implement` workflow to execute the plan.
 
 ```markdown
@@ -255,17 +254,17 @@ When the feature touches an established boundary pattern in the target project, 
 
 After initialization, treat the generated commands as three groups:
 
-- **Core workflow skills**: `constitution`, `specify`, `plan`, `tasks`, `implement`
+- **Core workflow skills**: `constitution`, `specify`, `plan`, `tasks`, `implement`, `review`, `accept`
 - **Support skills**: `map-scan`, `map-build`, `map-update`, `auto`, `ask`, `discussion`, `prd-scan`, `prd-build`, `prd` (deprecated compatibility entrypoint), `clarify`, `deep-research` (`research` alias), `checklist`, `analyze`, `debug`, `explain`
-- **Codex-only runtime**: `sp-teams` and `sp-teams` skill surface when the project was initialized for Codex
+- **Codex-only runtime**: terminal `specify sp-teams` commands and the `$sp-teams` skill when the project was initialized for Codex
 
 For Codex team-mode execution, use the runtime surface deliberately:
 
-- Run `sp-teams doctor` before the first coordinated batch so backend readiness, executor availability, baseline build state, and the latest transcript are visible up front.
-- Run `sp-teams live-probe` when the runtime was just installed, recently repaired, or still looks suspect after `doctor`.
-- If agent automation should use the optional MCP facade, install it with `pip install "specify-cli[mcp]"` and refresh the generated Codex config with `scripts/sync-ecc-to-codex.sh` or `scripts/powershell/sync-ecc-to-codex.ps1`.
-- Use `sp-teams result-template --request-id <id>` and `sp-teams submit-result --print-schema` instead of inventing handoff JSON by guesswork. The generated result template is a `pending placeholder` and must be replaced with a real success, blocked, or failed result before submission.
-- Use `sp-teams sync-back` after managed team execution when the canonical code changes landed under `.specify/teams/worktrees/<session>/...` and need to be promoted back to the main workspace.
+- Run `specify sp-teams doctor` before the first coordinated batch so backend readiness, executor availability, baseline build state, and the latest transcript are visible up front.
+- Run `specify sp-teams live-probe` when the runtime was just installed, recently repaired, or still looks suspect after `doctor`.
+- If agent automation should use the optional MCP facade, install it from this fork with `uv tool install --force "specify-cli[mcp] @ git+https://github.com/chenziyang110/spec-kit-plus.git"` and refresh the generated Codex config with `scripts/sync-ecc-to-codex.sh` or `scripts/powershell/sync-ecc-to-codex.ps1`.
+- Use `specify sp-teams result-template --request-id <id>` and `specify sp-teams submit-result --print-schema` instead of inventing handoff JSON by guesswork. The generated result template is a `pending placeholder` and must be replaced with a real success, blocked, or failed result before submission.
+- Use `specify sp-teams sync-back` after managed team execution when the canonical code changes landed under `.specify/teams/worktrees/<session>/...` and need to be promoted back to the main workspace.
 - In `sp-implement`, use adaptive execution: `leader-direct` for a small or tightly coupled task, `one-subagent` for one independent bounded lane, and `parallel-subagents` only for isolated lanes with an explicit join.
 - Use `native-subagents` for selected delegated lanes and `managed-team` only when durable state or lifecycle control is needed.
 - Compile a validated `WorkerTaskPacket` just in time only for delegated work; do not pre-generate packets for every task.
@@ -522,6 +521,7 @@ Validate the specification checklist using the `checklist` workflow:
 ```bash
 /sp-checklist
 ```
+
 After planning, continue with:
 
 ```text
@@ -558,6 +558,6 @@ Finally, implement the solution:
 
 ## Next Steps
 
-- Read the [complete methodology](https://github.com/chenziyang110/spec-kit-plus/blob/main/spec-driven.md) for in-depth guidance
+- Read the [upstream Spec-Driven Development walkthrough](https://github.com/github/spec-kit/blob/main/spec-driven.md) for in-depth guidance
 - Check out [more examples](https://github.com/chenziyang110/spec-kit-plus/tree/main/templates) in the repository
 - Explore the [source code on GitHub](https://github.com/chenziyang110/spec-kit-plus)

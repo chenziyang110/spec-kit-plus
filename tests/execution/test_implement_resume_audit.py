@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 from jsonschema import Draft202012Validator
 
+import specify_cli.implement_audit as implement_audit_module
 from specify_cli.implement_audit import audit_implement_resume
 from specify_cli.execution.implementation_review import (
     AcceptedResidualRisk,
@@ -19,6 +20,11 @@ from specify_cli.execution.implementation_review import (
 from specify_cli.implementation_summary import (
     build_implementation_summary,
     implementation_closeout_blockers,
+)
+from specify_cli.review_runtime import implementation_snapshot_sha256
+from specify_cli.validation_budget import (
+    complete_validation_epoch,
+    reserve_validation_epoch,
 )
 
 
@@ -210,11 +216,171 @@ def test_resolved_state_accepts_single_task_lifecycle_without_legacy_review_fano
 
     payload = audit_implement_resume(tmp_path, feature_dir)
 
-    assert payload["trusted_terminal_state"] is True
+    assert payload["trusted_terminal_state"] is True, payload
     assert not any(
         "implementation-review/ledger.json" in gap for gap in payload["open_gaps"]
     )
     assert not any("branch-review.md" in gap for gap in payload["open_gaps"])
+
+
+def test_resume_audit_accepts_one_shared_convergence_epoch_for_all_tasks(
+    tmp_path: Path,
+) -> None:
+    feature_dir = tmp_path / "specs" / "001-demo"
+    _write_basic_feature(feature_dir)
+    (feature_dir / "tasks.md").write_text(
+        "# Tasks\n\n- [X] T001 [US1] Update API implementation in src/demo.py\n",
+        encoding="utf-8",
+    )
+    (feature_dir / "task-index.json").write_text(
+        json.dumps(
+            {
+                "version": 2,
+                "status": "ready",
+                "validation_policy": {
+                    "mode": "feature_epochs",
+                    "max_epochs": 3,
+                    "budget_scope": "implement-review",
+                    "budget_ref": "implementation-review/validation-runs.json",
+                    "heavy_gate_owner": "leader",
+                },
+                "tasks": [{"id": "T001", "task_checks": []}],
+            }
+        ),
+        encoding="utf-8",
+    )
+    result_dir = feature_dir / "worker-results"
+    result_dir.mkdir()
+    result_path = result_dir / "T001.json"
+    result_payload = {
+        "task_id": "T001",
+        "status": "success",
+        "changed_files": ["src/demo.py"],
+        "validation_results": [],
+        "summary": "Implemented the task; leader owns shared validation.",
+    }
+    result_path.write_text(json.dumps(result_payload), encoding="utf-8")
+    lifecycle_dir = feature_dir / "implementation-review" / "tasks"
+    lifecycle_dir.mkdir(parents=True)
+    (lifecycle_dir / "T001.json").write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "task_id": "T001",
+                "task_ref": "task-index.json#/tasks/T001",
+                "source_revision": "r1",
+                "execution_mode": "leader-direct",
+                "packet_ref": None,
+                "status": "accepted",
+                "changed_paths": ["src/demo.py"],
+                "validation": [
+                    {
+                        "validation_run_ref": "implementation-review/validation-runs.json#V1",
+                        "status": "passed",
+                    }
+                ],
+                "review": None,
+                "obligation_evidence": [],
+                "blockers": [],
+                "recovery": None,
+            }
+        ),
+        encoding="utf-8",
+    )
+    missing_wiring = audit_implement_resume(tmp_path, feature_dir)
+    assert missing_wiring["trusted_terminal_state"] is False
+    assert any(
+        "missing consumer evidence" in finding["missing_evidence"]
+        for finding in missing_wiring["task_findings"]
+    )
+
+    result_payload["consumer_evidence"] = [
+        {
+            "kind": "wiring",
+            "surface": "API implementation",
+            "consumer": "demo entrypoint",
+        }
+    ]
+    result_path.write_text(json.dumps(result_payload), encoding="utf-8")
+    fingerprint = implementation_snapshot_sha256(tmp_path, feature_dir)
+    run = reserve_validation_epoch(
+        tmp_path,
+        feature_dir,
+        stage="implement",
+        purpose="convergence",
+        fingerprint=fingerprint,
+        commands=["pytest -q", "ruff check ."],
+        covered_task_ids=["T001"],
+    )
+    complete_validation_epoch(
+        tmp_path,
+        feature_dir,
+        run_id=run["run_id"],
+        status="passed",
+        evidence_refs=["implementation-review/validation-evidence/V1.txt"],
+        summary="Shared convergence gates passed.",
+    )
+    payload = audit_implement_resume(tmp_path, feature_dir)
+
+    assert payload["trusted_terminal_state"] is True, payload
+    assert payload["open_gaps"] == []
+
+
+def test_feature_epoch_lifecycle_requires_integrated_ui_evidence(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    feature_dir = tmp_path / "specs" / "001-ui"
+    lifecycle_dir = feature_dir / "implementation-review" / "tasks"
+    lifecycle_dir.mkdir(parents=True)
+    (feature_dir / "task-index.json").write_text(
+        json.dumps(
+            {
+                "version": 2,
+                "validation_policy": {"mode": "feature_epochs"},
+                "tasks": [{"id": "T001"}],
+            }
+        ),
+        encoding="utf-8",
+    )
+    (lifecycle_dir / "T001.json").write_text(
+        json.dumps(
+            {
+                "task_id": "T001",
+                "status": "accepted",
+                "changed_paths": ["src/ui/settings.tsx"],
+                "validation": [{"validation_run_ref": "ledger#V1"}],
+                "blockers": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(implement_audit_module, "ui_task_ids", lambda _: {"T001"})
+    monkeypatch.setattr(
+        implement_audit_module, "obsolete_task_ui_contract_fields", lambda _: {}
+    )
+    monkeypatch.setattr(
+        implement_audit_module, "invalid_task_ui_contracts", lambda _: {}
+    )
+    observed: list[bool] = []
+
+    def _capture_scope(*args: object, require_integrated: bool = False) -> list[str]:
+        observed.append(require_integrated)
+        return []
+
+    monkeypatch.setattr(
+        implement_audit_module,
+        "validate_lifecycle_ui_verification",
+        _capture_scope,
+    )
+
+    implement_audit_module._packetized_review_gaps(
+        feature_dir,
+        [{"task_id": "T001"}],
+        [{"task_id": "T001"}],
+        terminal=True,
+    )
+
+    assert observed == [True]
 
 
 def test_resume_audit_blocks_ui_lifecycle_without_visual_acceptance(

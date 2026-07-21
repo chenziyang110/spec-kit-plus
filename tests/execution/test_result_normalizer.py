@@ -49,6 +49,31 @@ def test_normalize_worker_task_result_payload_preserves_consequence_evidence() -
     ]
 
 
+def test_normalize_worker_task_result_payload_preserves_must_preserve_evidence() -> None:
+    result = normalize_worker_task_result_payload(
+        {
+            "task_id": "T105",
+            "status": "success",
+            "summary": "validated must-preserve obligation",
+            "must_preserve_evidence": [
+                {
+                    "mp_id": "MP-001",
+                    "validation_ref": "pytest tests/unit/test_auth_service.py -q",
+                    "outcome": "existing token refresh behavior remains intact",
+                }
+            ],
+        }
+    )
+
+    assert result.must_preserve_evidence == [
+        {
+            "mp_id": "MP-001",
+            "validation_ref": "pytest tests/unit/test_auth_service.py -q",
+            "outcome": "existing token refresh behavior remains intact",
+        }
+    ]
+
+
 def test_normalize_review_worker_result_preserves_review_contract_fields() -> None:
     observations = [
         {
