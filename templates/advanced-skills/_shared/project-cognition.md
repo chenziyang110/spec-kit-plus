@@ -124,15 +124,42 @@ never infer readiness from chat memory or graph confidence.
 
 ## Closeout after repository changes
 
-After verifying changes to source, runtime, templates, configuration, tests, or
-generated behavior, run
-`{{specify-subcmd:project-cognition closeout-plan --workflow <canonical-sp-workflow> --intent <intent> --format json}}`.
-Fill the returned agent-owned evidence fields, then execute the structured
-`update_argv`. If its first token is the bare `project-cognition` name, replace
+Only an owning mutation skill may perform cognition closeout. Its `SKILL.md`
+provides the exact registry-owned `sp-*` workflow literal and
+`project-cognition closeout-plan` command;
+never derive that ID from the SPX skill name, an environment variable, or chat
+state. Pass explicit workflow-owned changed paths, fill only the returned
+agent-owned evidence fields, then execute the structured `update_argv`. Set
+every `unknown_path_dispositions[].agent_disposition`; the runtime binds it to
+the matching `path_changes[].disposition`, and missing, duplicate, conflicting,
+or unmatched decisions fail before mutation. Delta mode must supply every
+returned `--path-disposition` placeholder. An
+ignored disposition remains in audit-only `path_changes`, but it must not enter
+graph-changing `changed_paths` or create graph adoption/reconciliation records. If its
+first token is the bare `project-cognition` name, replace
 only that first token with `{{specify-subcmd:project-cognition}}` and preserve
 every remaining argv token exactly; command strings marked display-only are not
 executable instructions. If the update cannot complete, leave freshness
 truthful and report the recovery action.
+
+For delta mode, every passing verification argument must use the structured
+planner shape `{"command":"<agent-owned verification command>","result":"passed","artifact":"<optional evidence artifact>"}`;
+never pass freeform command-result strings or result aliases. Legacy or
+free-text verification is audit evidence with `result=recorded` only and cannot
+satisfy clean closeout; clean closeout requires structured `result=passed`.
+After `update_argv`,
+`result_state=ready` or `result_state=no_op` must run
+`{{specify-subcmd:project-cognition validate-build --format json}}`. Only
+`status=ok` with `readiness=query_ready` creates the validate-build receipt
+bound to the latest update ID, outcome, and active generation; then, and only
+then, run `{{specify-subcmd:project-cognition complete-refresh --format json}}`.
+Clean completion requires that receipt-bound finalizer to succeed. For
+the interval before it succeeds, the runtime gate withholds Compass/query as
+pending finalization. For
+`partial_refresh`, `needs_rebuild`, `blocked`, or legacy `recorded`, the skill
+must not run `complete-refresh`; preserve the truthful state and returned
+recovery action. A failed, stale, blocked, or non-`query_ready` validation also
+must not run `complete-refresh`.
 
 Specification, plan, task, checklist, research, and other planning-only artifact
 changes do not make the code map dirty and do not require cognition closeout.

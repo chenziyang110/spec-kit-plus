@@ -13,7 +13,8 @@ def _assert_mandatory_subagent_guidance(content: str) -> None:
 
     assert "all substantive tasks in ordinary `sp-*` workflows default to and must use subagents" in lowered
     assert "the leader orchestrates:" in lowered
-    assert "before dispatch, every subagent lane needs a task contract" in lowered
+    assert "before dispatch, every subagent lane needs" in lowered
+    assert "task contract" in lowered
     assert "structured handoff" in lowered
     assert "execution_model: subagent-mandatory" in lowered
     assert "dispatch_shape: one-subagent | parallel-subagents" in lowered
@@ -57,7 +58,7 @@ def test_map_guidance_documents_schema_v5_alias_and_claim_readiness() -> None:
 
 def test_map_scan_template_defines_complete_scan_package_contract() -> None:
     content = _read("templates/commands/map-scan.md")
-    lowered = content.lower()
+    lowered = " ".join(content.lower().split())
 
     assert "sp-map-scan" in content
     assert "sp-map-build" in content
@@ -75,7 +76,7 @@ def test_map_scan_template_defines_complete_scan_package_contract() -> None:
     assert "MapScanPacket" in content
     assert "`mode: read_only`" in content
     assert "`result_handoff_path`" in content
-    assert "worker result handoffs" in lowered
+    assert "worker checkpoints and result handoffs" in lowered
     assert "worker-results/<packet-id>.json" in content
     assert "worker-results/<lane-id>.json" in content
     assert "full project-relevant inventory" in lowered
@@ -118,25 +119,20 @@ def test_map_scan_template_defines_complete_scan_package_contract() -> None:
     assert "project-cognition validate-scan --format json" in content
     assert "validate-scan" in lowered
     assert "may report complete only after" in lowered
-    assert "leader receives worker result" in lowered
-    assert "leader reads durable scan state" in lowered
-    assert "leader updates queue, coverage, and handoff ledgers" in lowered
-    assert "acceptance=fail_gap" in lowered
-    assert 'coverage[].outcome="overflow"' in lowered
-    assert "top-level `outcome`" in lowered
-    assert "legacy alias" in lowered
+    assert "inspect compact `scan-status`" in lowered
+    assert "lease a packet" in lowered
+    assert "submit packet-local checkpoints" in lowered
+    assert "runtime-owned projections" in lowered
+    assert "only runtime commands may change them" in lowered
     assert "accepted_nonblocking_gap_paths" in content
     assert "concrete repository file paths enumerated from `repository-universe.json`" in lowered
     assert "globs such as `jzwinrenew/*.cpp`" in lowered
     assert "directory patterns, absolute paths, and summary labels are invalid" in lowered
     assert "a top-level `coverage.json` or `coverage-ledger.json` row is not proof that a path was scanned" in lowered
     assert "included_paths - assigned_paths - accepted_nonblocking_gap_paths" in content
-    assert "every assigned path must also have a packet-local worker `coverage[]` outcome" in lowered
-    assert "worker-results/<packet-id>.json` must write the packet-local ledger as top-level `ledger`" in lowered
-    assert "`packet_local_ledger`, `packet-local-ledger`, scan-packet markdown sections" in lowered
-    assert '"ledger":{"todo":[],"doing":[],"done":["src/app.go"],"blocked":[],"overflow":[]}' in content
-    assert '"assigned_paths":["src/app.go"]' in content
-    assert '"paths_read":["src/app.go"]' in content
+    assert "accepted packet-local path results" in lowered
+    assert "runtime-generated packet-local task ledger and result skeleton" in lowered
+    assert "do not reproduce a stable json schema in the prompt" in lowered
 
     assert "current-runtime native subagents are the default" in lowered
     assert "choose_subagent_dispatch(command_name=\"map-scan\"" in lowered
@@ -146,7 +142,8 @@ def test_map_scan_template_defines_complete_scan_package_contract() -> None:
     assert "validated `mapscanpacket`" in lowered
     assert "raw inventory notes or raw chat summaries are not sufficient" in lowered
     assert "structured handoff" in lowered
-    assert "idle subagent output is not an accepted scan result" in lowered
+    assert "idle subagent output" in lowered
+    assert "not accepted scan results" in lowered
     assert "must wait for every dispatched scan lane" in lowered
 
     required_phrases = [
@@ -369,7 +366,7 @@ def test_map_build_template_requires_truth_layer_outputs() -> None:
 
 def test_map_scan_template_requires_canonical_boundary_contract() -> None:
     content = _read("templates/commands/map-scan.md")
-    lowered = content.lower()
+    lowered = " ".join(content.lower().split())
 
     assert "runtime-resolved scan set" in lowered
     assert "do not let the agent freely decide which files to omit" in lowered
@@ -385,8 +382,8 @@ def test_map_scan_template_requires_canonical_boundary_contract() -> None:
     assert "disposition is separate from criticality" in lowered
     assert "`criticality`" in content
     assert "excluded paths must not appear in graph-facing `coverage.json` rows" in lowered
-    assert "overflow" in lowered
-    assert "assigned_paths`, queue rows, worker `paths_read`, and worker coverage paths" in content
+    assert "capacity-exhausted" in lowered
+    assert "assigned_paths`, queue rows, worker path results, and worker coverage paths" in content
     assert "concrete repository file paths enumerated from `repository-universe.json`" in lowered
     assert "a top-level `coverage.json` or `coverage-ledger.json` row is not proof" in lowered
 
@@ -395,16 +392,16 @@ def test_map_scan_template_requires_packet_ledger_contract() -> None:
     content = _read("templates/commands/map-scan.md")
     lowered = content.lower()
 
-    assert "packet-local task ledger" in lowered
+    assert "runtime-generated packet-local task ledger" in lowered
     assert "paths_read" in content
-    assert "non-empty array of concrete repository paths" in lowered
-    assert "include confidence" in lowered
+    assert "non-empty set of concrete completed path results" in lowered
+    assert "path outcomes and confidence" in lowered
     assert "paths_read: true" in lowered
     assert "boolean read flags are invalid" in lowered
     assert "existing `evidence_ids`" in lowered
     assert "source_path" in lowered
-    assert "packet-local worker `coverage[]` outcome" in lowered
-    assert "acceptance value other than `pass` blocks" in lowered
+    assert "accepted packet-local path results" in lowered
+    assert "rejected or incomplete attempt blocks packet acceptance" in lowered
     assert "worker results without a matching scan packet are invalid" in lowered
     assert "coverage gate" in lowered
     assert "quality gate" in lowered
@@ -415,6 +412,78 @@ def test_map_scan_template_requires_packet_ledger_contract() -> None:
     assert "sampled and inventory_only are not free-form" in lowered
     assert "repository-universe.json" in content
     assert "disposition and criticality together justify" in lowered
+
+
+def test_map_scan_template_uses_runtime_owned_context_budgeted_dispatch() -> None:
+    content = _read("templates/commands/map-scan.md")
+    lowered = " ".join(content.lower().split())
+
+    for command in (
+        "project-cognition scan-set",
+        "project-cognition scan-prepare",
+        "project-cognition scan-lease",
+        "project-cognition scan-checkpoint",
+        "project-cognition scan-yield",
+        "scan-requeue",
+        "project-cognition scan-accept",
+        "project-cognition scan-status",
+        "project-cognition validate-scan",
+    ):
+        assert command in content
+
+    assert "effective worker context budget" in lowered
+    assert "estimated token cost" in lowered
+    assert "path count and byte limits are secondary guards" in lowered
+    assert "cli-generated self-contained task brief" in lowered
+    assert "minimum inherited conversation context" in lowered
+    assert "assigned paths minus runtime-accepted terminal paths" in lowered
+    assert "dispatch a new subagent for the remaining paths" in lowered
+    assert "--worker-capacity-tokens" in content
+    assert "active packet and attempt identifiers returned by `scan-status`" in lowered
+    assert "natural-language completion claims" in lowered
+    assert "only the runtime" in lowered
+    assert "global queue, handoff, coverage, evidence, provisional, and status artifacts" in lowered
+    assert "must not hand-write" in lowered
+    assert "sqlite" in lowered
+
+
+def test_map_scan_worker_prompt_is_checkpointed_and_packet_local() -> None:
+    scan_command = _read("templates/commands/map-scan.md")
+    content = _read("templates/worker-prompts/map-scan-worker.md")
+    lowered = " ".join(content.lower().split())
+
+    assert ".specify/templates/worker-prompts/map-scan-worker.md" in scan_command
+    assert "cli-generated self-contained task brief" in lowered
+    assert "minimum inherited conversation context" in lowered
+    assert "assigned_paths" in content
+    assert "effective context budget" in lowered
+    assert "scan-checkpoint" in content
+    assert "scan-yield" in content
+    assert "before context, tool-output, or result-output capacity is exhausted" in lowered
+    assert "packet-local" in lowered
+    assert "global queue" in lowered
+    assert "status.json" in content
+    assert "project-cognition.db" in content
+    assert "natural-language summary is not acceptance evidence" in lowered
+    assert "the runtime computes the authoritative remaining set" in lowered
+    assert "keep worker-authored `acceptance` at `partial`" in lowered
+    assert "runtime derives `pass`" in lowered
+
+
+def test_map_scan_and_build_require_a_receipt_bound_v2_handoff() -> None:
+    scan = _read("templates/commands/map-scan.md").lower()
+    build = _read("templates/commands/map-build.md").lower()
+    spx_scan = _read(
+        "templates/advanced-skills/spx-map-scan/references/scan-gates.md"
+    ).lower()
+    spx_build = _read("templates/advanced-skills/spx-map-build/SKILL.md").lower()
+
+    for content in (scan, build, spx_scan, spx_build):
+        assert "scan-receipt.json" in content
+        assert "v2" in content
+    assert "any later canonical mutation" in scan
+    assert "current source-file bytes" in scan
+    assert "absent or digest-mismatched" in build
 
 
 def test_map_scan_template_defines_machine_readable_scan_artifact_schema() -> None:

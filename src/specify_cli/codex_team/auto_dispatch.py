@@ -775,7 +775,7 @@ def _load_dispatch_record_payload(project_root: Path, request_id: str) -> dict[s
         return {}
     try:
         payload = json.loads(dispatch_path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError:
+    except (OSError, json.JSONDecodeError):
         return {}
     return payload if isinstance(payload, dict) else {}
 

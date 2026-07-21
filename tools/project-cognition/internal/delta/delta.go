@@ -9,6 +9,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	changemodel "github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/changes/model"
 )
 
 var nowUTC = func() time.Time {
@@ -34,6 +36,7 @@ type AppendInput struct {
 	OriginLaneID      string
 	Phase             string
 	ChangedPaths      []string
+	PathChanges       []changemodel.PathChange
 	ReadPaths         []string
 	BehaviorSurfaces  []string
 	GraphSemantics    map[string]any
@@ -65,22 +68,23 @@ type GitContext struct {
 }
 
 type Event struct {
-	EventID           string         `json:"event_id"`
-	SessionID         string         `json:"session_id"`
-	EventType         string         `json:"event_type"`
-	OriginCommand     string         `json:"origin_command,omitempty"`
-	OriginLaneID      string         `json:"origin_lane_id,omitempty"`
-	Phase             string         `json:"phase,omitempty"`
-	ChangedPaths      []string       `json:"changed_paths"`
-	ReadPaths         []string       `json:"read_paths"`
-	BehaviorSurfaces  []string       `json:"behavior_surfaces"`
-	GraphSemantics    map[string]any `json:"graph_semantics,omitempty"`
-	GeneratedSurfaces []string       `json:"generated_surface_notes"`
-	OwnerConsumers    []string       `json:"owner_consumer_notes"`
-	KnownUnknowns     []string       `json:"known_unknowns"`
-	Verification      []string       `json:"verification_evidence"`
-	Confidence        string         `json:"confidence,omitempty"`
-	CreatedAt         string         `json:"created_at"`
+	EventID           string                   `json:"event_id"`
+	SessionID         string                   `json:"session_id"`
+	EventType         string                   `json:"event_type"`
+	OriginCommand     string                   `json:"origin_command,omitempty"`
+	OriginLaneID      string                   `json:"origin_lane_id,omitempty"`
+	Phase             string                   `json:"phase,omitempty"`
+	ChangedPaths      []string                 `json:"changed_paths"`
+	PathChanges       []changemodel.PathChange `json:"path_changes,omitempty"`
+	ReadPaths         []string                 `json:"read_paths"`
+	BehaviorSurfaces  []string                 `json:"behavior_surfaces"`
+	GraphSemantics    map[string]any           `json:"graph_semantics,omitempty"`
+	GeneratedSurfaces []string                 `json:"generated_surface_notes"`
+	OwnerConsumers    []string                 `json:"owner_consumer_notes"`
+	KnownUnknowns     []string                 `json:"known_unknowns"`
+	Verification      []string                 `json:"verification_evidence"`
+	Confidence        string                   `json:"confidence,omitempty"`
+	CreatedAt         string                   `json:"created_at"`
 }
 
 type Bundle struct {
@@ -89,21 +93,22 @@ type Bundle struct {
 }
 
 type packetEvent struct {
-	EventType             string         `json:"event_type"`
-	OriginCommand         string         `json:"origin_command"`
-	OriginLaneID          string         `json:"origin_lane_id"`
-	Phase                 string         `json:"phase"`
-	ChangedPaths          []string       `json:"changed_paths"`
-	ReadPaths             []string       `json:"read_paths"`
-	BehaviorSurfaces      []string       `json:"behavior_surfaces"`
-	GraphSemantics        map[string]any `json:"graph_semantics"`
-	GeneratedSurfaces     []string       `json:"generated_surfaces"`
-	GeneratedSurfaceNotes []string       `json:"generated_surface_notes"`
-	OwnerConsumers        []string       `json:"owner_consumer_notes"`
-	KnownUnknowns         []string       `json:"known_unknowns"`
-	Verification          []string       `json:"verification"`
-	VerificationEvidence  []string       `json:"verification_evidence"`
-	Confidence            string         `json:"confidence"`
+	EventType             string                   `json:"event_type"`
+	OriginCommand         string                   `json:"origin_command"`
+	OriginLaneID          string                   `json:"origin_lane_id"`
+	Phase                 string                   `json:"phase"`
+	ChangedPaths          []string                 `json:"changed_paths"`
+	PathChanges           []changemodel.PathChange `json:"path_changes"`
+	ReadPaths             []string                 `json:"read_paths"`
+	BehaviorSurfaces      []string                 `json:"behavior_surfaces"`
+	GraphSemantics        map[string]any           `json:"graph_semantics"`
+	GeneratedSurfaces     []string                 `json:"generated_surfaces"`
+	GeneratedSurfaceNotes []string                 `json:"generated_surface_notes"`
+	OwnerConsumers        []string                 `json:"owner_consumer_notes"`
+	KnownUnknowns         []string                 `json:"known_unknowns"`
+	Verification          []string                 `json:"verification"`
+	VerificationEvidence  []string                 `json:"verification_evidence"`
+	Confidence            string                   `json:"confidence"`
 }
 
 func Begin(input BeginInput) (Session, error) {
@@ -143,6 +148,14 @@ func Append(input AppendInput) (Event, error) {
 	if _, err := os.Stat(filepath.Join(dir, "session.json")); err != nil {
 		return Event{}, fmt.Errorf("load delta session: %w", err)
 	}
+	pathChanges, err := normalizePathChanges(input.PathChanges)
+	if err != nil {
+		return Event{}, err
+	}
+	changedPaths := append([]string{}, input.ChangedPaths...)
+	for _, change := range pathChanges {
+		changedPaths = append(changedPaths, change.Path)
+	}
 
 	now := nowUTC()
 	baseEventID := "event-" + now.Format("20060102T150405.000000000Z")
@@ -152,7 +165,8 @@ func Append(input AppendInput) (Event, error) {
 		OriginCommand:     strings.TrimSpace(input.OriginCommand),
 		OriginLaneID:      strings.TrimSpace(input.OriginLaneID),
 		Phase:             strings.TrimSpace(input.Phase),
-		ChangedPaths:      normalizePaths(input.ChangedPaths),
+		ChangedPaths:      normalizePaths(changedPaths),
+		PathChanges:       pathChanges,
 		ReadPaths:         normalizePaths(input.ReadPaths),
 		BehaviorSurfaces:  normalizeStrings(input.BehaviorSurfaces),
 		GraphSemantics:    input.GraphSemantics,
@@ -196,6 +210,7 @@ func AppendPacketFile(runtimeDir string, sessionID string, packetFile string) (E
 		OriginLaneID:      packet.OriginLaneID,
 		Phase:             packet.Phase,
 		ChangedPaths:      packet.ChangedPaths,
+		PathChanges:       packet.PathChanges,
 		ReadPaths:         packet.ReadPaths,
 		BehaviorSurfaces:  packet.BehaviorSurfaces,
 		GraphSemantics:    packet.GraphSemantics,
@@ -205,6 +220,78 @@ func AppendPacketFile(runtimeDir string, sessionID string, packetFile string) (E
 		Verification:      append(packet.Verification, packet.VerificationEvidence...),
 		Confidence:        packet.Confidence,
 	})
+}
+
+func normalizePathChanges(values []changemodel.PathChange) ([]changemodel.PathChange, error) {
+	out := make([]changemodel.PathChange, 0, len(values))
+	seen := make(map[string]int, len(values))
+	for _, value := range values {
+		value.Path = normalizePath(value.Path)
+		value.OldPath = normalizePath(value.OldPath)
+		value.NodeID = strings.TrimSpace(value.NodeID)
+		value.EvidenceRefs = normalizeStrings(value.EvidenceRefs)
+		if value.Disposition != nil {
+			disposition := changemodel.Disposition(strings.TrimSpace(string(*value.Disposition)))
+			value.Disposition = &disposition
+		}
+		if !validJournalPath(value.Path) || (value.OldPath != "" && !validJournalPath(value.OldPath)) {
+			return nil, fmt.Errorf("invalid path change %q: expected a concrete repository-relative path", value.Path)
+		}
+		if err := value.Validate(); err != nil {
+			return nil, err
+		}
+		if priorIndex, ok := seen[value.Path]; ok {
+			prior := out[priorIndex]
+			if prior.OldPath != value.OldPath || prior.Operation != value.Operation || prior.NodeID != value.NodeID || !samePathChangeDisposition(prior.Disposition, value.Disposition) {
+				return nil, fmt.Errorf("conflicting path changes for %q", value.Path)
+			}
+			out[priorIndex].EvidenceRefs = normalizeStrings(append(prior.EvidenceRefs, value.EvidenceRefs...))
+			continue
+		}
+		seen[value.Path] = len(out)
+		out = append(out, value)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Path != out[j].Path {
+			return out[i].Path < out[j].Path
+		}
+		if out[i].OldPath != out[j].OldPath {
+			return out[i].OldPath < out[j].OldPath
+		}
+		return out[i].Operation < out[j].Operation
+	})
+	return out, nil
+}
+
+func samePathChangeDisposition(left *changemodel.Disposition, right *changemodel.Disposition) bool {
+	if left == nil || right == nil {
+		return left == nil && right == nil
+	}
+	return *left == *right
+}
+
+func normalizePath(path string) string {
+	normalized := filepath.ToSlash(strings.TrimSpace(path))
+	for strings.HasPrefix(normalized, "./") {
+		normalized = strings.TrimPrefix(normalized, "./")
+	}
+	return strings.TrimRight(normalized, "/")
+}
+
+func validJournalPath(path string) bool {
+	if path == "" || path == "." || filepath.IsAbs(path) || filepath.VolumeName(path) != "" || strings.Contains(path, ":") {
+		return false
+	}
+	path = filepath.ToSlash(path)
+	if path == ".specify" || strings.HasPrefix(path, ".specify/") || strings.ContainsAny(path, "*?[]{}") {
+		return false
+	}
+	for _, part := range strings.Split(path, "/") {
+		if part == "" || part == "." || part == ".." {
+			return false
+		}
+	}
+	return true
 }
 
 func Load(runtimeDir string, sessionID string) (Bundle, error) {
@@ -328,7 +415,7 @@ func normalizePaths(paths []string) []string {
 		for strings.HasPrefix(normalized, "./") {
 			normalized = strings.TrimPrefix(normalized, "./")
 		}
-		normalized = strings.Trim(normalized, "/")
+		normalized = strings.TrimRight(normalized, "/")
 		if normalized == "" {
 			continue
 		}

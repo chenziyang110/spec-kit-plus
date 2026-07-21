@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	changemodel "github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/changes/model"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/config"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/delta"
 )
@@ -103,6 +104,54 @@ func TestResolveUsesDeltaPathsWhenGitDiffEmpty(t *testing.T) {
 
 	if !contains(result.ChangedPaths, "src/a.go") {
 		t.Fatalf("ChangedPaths = %v, want src/a.go", result.ChangedPaths)
+	}
+}
+
+func TestResolveDerivesDeltaPathsFromTypedPathChanges(t *testing.T) {
+	disposition := changemodel.DispositionReviewOnly
+	result := Resolve(ResolveInput{
+		Config: config.Config{
+			ProjectCognition: config.ProjectCognitionConfig{AutoCommit: true},
+		},
+		Bundle: delta.Bundle{
+			Events: []delta.Event{{
+				PathChanges: []changemodel.PathChange{{
+					Path:        "src/typed-only.go",
+					Operation:   changemodel.OperationAdd,
+					Disposition: &disposition,
+				}},
+			}},
+		},
+	})
+
+	if !contains(result.ChangedPaths, "src/typed-only.go") {
+		t.Fatalf("ChangedPaths = %v, want typed-only delta path", result.ChangedPaths)
+	}
+}
+
+func TestResolveUnionsGitDiffAndDeltaPaths(t *testing.T) {
+	result := Resolve(ResolveInput{
+		Config: config.Config{
+			ProjectCognition: config.ProjectCognitionConfig{AutoCommit: true},
+		},
+		Bundle: delta.Bundle{
+			Events: []delta.Event{
+				{ChangedPaths: []string{"src/journal-only.go"}},
+			},
+		},
+		GitDiffPaths: []string{"src/diff-only.go"},
+	})
+
+	for _, path := range []string{"src/diff-only.go", "src/journal-only.go"} {
+		if !contains(result.ChangedPaths, path) {
+			t.Fatalf("ChangedPaths = %v, want %s", result.ChangedPaths, path)
+		}
+		if !contains(result.WorkflowOwnedPaths, path) {
+			t.Fatalf("WorkflowOwnedPaths = %v, want %s", result.WorkflowOwnedPaths, path)
+		}
+	}
+	if result.BoundarySource != "git_diff+delta_journal" {
+		t.Fatalf("BoundarySource = %q, want git_diff+delta_journal", result.BoundarySource)
 	}
 }
 

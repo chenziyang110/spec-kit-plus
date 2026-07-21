@@ -45,6 +45,10 @@ classic multi-agent debug template.
 
 After agent verification and related-risk review, move to
 `awaiting_human_verify`; do not resolve or archive until explicit human
-confirmation. Close out cognition with canonical workflow `debug` only after
-the lifecycle rules in the investigation contract are satisfied. Finish
+confirmation. Only after the lifecycle rules in the investigation contract are
+satisfied, run
+`{{specify-subcmd:project-cognition closeout-plan --workflow sp-debug --intent debug --format json}}`
+with explicit workflow-owned paths, fill returned agent-owned fields, and execute
+structured `update_argv`. Apply the receipt-bound finalizer gate in
+`references/project-cognition.md` before any clean claim. Finish
 truthfully, citing root-cause evidence, changes, verification, and uncertainty.

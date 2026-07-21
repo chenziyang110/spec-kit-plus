@@ -1,0 +1,156 @@
+{
+  "$schema": "project-cognition-workflow-registry.schema.json",
+  "schema_version": 1,
+  "workflows": {
+    "accept": {
+      "mode": "no_closeout",
+      "canonical_workflow": null,
+      "reason": "Human acceptance records product judgment but does not own repository mutation."
+    },
+    "analyze": {
+      "mode": "no_closeout",
+      "canonical_workflow": null,
+      "reason": "Analysis is read-only."
+    },
+    "ask": {
+      "mode": "no_closeout",
+      "canonical_workflow": null,
+      "reason": "Ask is read-only."
+    },
+    "auto": {
+      "mode": "no_closeout",
+      "canonical_workflow": null,
+      "reason": "The selected owning workflow performs any required closeout."
+    },
+    "checklist": {
+      "mode": "no_closeout",
+      "canonical_workflow": null,
+      "reason": "Checklist artifacts are planning-only."
+    },
+    "clarify": {
+      "mode": "no_closeout",
+      "canonical_workflow": null,
+      "reason": "Clarification changes specification artifacts only."
+    },
+    "constitution": {
+      "mode": "no_closeout",
+      "canonical_workflow": null,
+      "reason": "Constitution changes are governance artifacts and do not update the code map."
+    },
+    "debug": {
+      "mode": "mutation_closeout",
+      "canonical_workflow": "sp-debug",
+      "reason": "Debug may repair repository behavior."
+    },
+    "deep-research": {
+      "mode": "no_closeout",
+      "canonical_workflow": null,
+      "reason": "Research findings and isolated spikes are planning inputs."
+    },
+    "design": {
+      "mode": "no_closeout",
+      "canonical_workflow": null,
+      "reason": "Design writes design artifacts, not implementation."
+    },
+    "discussion": {
+      "mode": "no_closeout",
+      "canonical_workflow": null,
+      "reason": "Discussion writes planning state only."
+    },
+    "explain": {
+      "mode": "no_closeout",
+      "canonical_workflow": null,
+      "reason": "Explain is read-only."
+    },
+    "fast": {
+      "mode": "mutation_closeout",
+      "canonical_workflow": "sp-fast",
+      "reason": "Fast performs a bounded repository change."
+    },
+    "implement": {
+      "mode": "mutation_closeout",
+      "canonical_workflow": "sp-implement",
+      "reason": "Implement owns repository changes."
+    },
+    "implement-teams": {
+      "mode": "mutation_closeout",
+      "canonical_workflow": "sp-implement",
+      "reason": "Implement Teams changes orchestration only; closeout remains owned by sp-implement."
+    },
+    "integrate": {
+      "mode": "mutation_closeout",
+      "canonical_workflow": "sp-integrate",
+      "reason": "Integrate owns verified integrated-tree changes and repairs."
+    },
+    "map-build": {
+      "mode": "baseline_maintenance",
+      "canonical_workflow": null,
+      "reason": "Map Build publishes a baseline through its dedicated validation contract."
+    },
+    "map-scan": {
+      "mode": "baseline_maintenance",
+      "canonical_workflow": null,
+      "reason": "Map Scan produces baseline evidence through its dedicated acceptance contract."
+    },
+    "map-update": {
+      "mode": "map_maintenance",
+      "canonical_workflow": "sp-map-update",
+      "reason": "Map Update is the explicit incremental maintenance entrypoint."
+    },
+    "plan": {
+      "mode": "no_closeout",
+      "canonical_workflow": null,
+      "reason": "Plan artifacts are planning-only."
+    },
+    "prd": {
+      "mode": "no_closeout",
+      "canonical_workflow": null,
+      "reason": "PRD artifacts are planning-only."
+    },
+    "prd-build": {
+      "mode": "no_closeout",
+      "canonical_workflow": null,
+      "reason": "PRD reconstruction writes planning artifacts only."
+    },
+    "prd-scan": {
+      "mode": "no_closeout",
+      "canonical_workflow": null,
+      "reason": "PRD scanning records planning evidence only."
+    },
+    "quick": {
+      "mode": "mutation_closeout",
+      "canonical_workflow": "sp-quick",
+      "reason": "Quick performs a tracked repository change."
+    },
+    "research": {
+      "mode": "no_closeout",
+      "canonical_workflow": null,
+      "reason": "Research routes to planning research artifacts."
+    },
+    "review": {
+      "mode": "mutation_closeout",
+      "canonical_workflow": "sp-review",
+      "reason": "Review may repair integrated repository behavior."
+    },
+    "specify": {
+      "mode": "no_closeout",
+      "canonical_workflow": null,
+      "reason": "Specification artifacts are planning-only."
+    },
+    "tasks": {
+      "mode": "no_closeout",
+      "canonical_workflow": null,
+      "reason": "Task artifacts are planning-only."
+    },
+    "taskstoissues": {
+      "mode": "no_closeout",
+      "canonical_workflow": null,
+      "reason": "Issue export does not own repository source mutation."
+    },
+    "team": {
+      "mode": "no_closeout",
+      "canonical_workflow": null,
+      "reason": "Team runtime operations defer mutation closeout to the owning workflow."
+    }
+  }
+}

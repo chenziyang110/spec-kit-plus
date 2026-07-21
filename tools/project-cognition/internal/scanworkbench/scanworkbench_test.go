@@ -12,6 +12,7 @@ import (
 
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/build"
 	rt "github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtime"
+	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/scanreceipt"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/validation"
 )
 
@@ -34,6 +35,735 @@ func TestPrepareDefaultsToLowTierPacketSize(t *testing.T) {
 	if got := len(stringSlice(t, packets[0]["assigned_paths"])); got != 25 {
 		t.Fatalf("default first packet size = %d, want 25", got)
 	}
+	for _, packet := range packets {
+		estimated, ok := packet["estimated_tokens"].(float64)
+		if !ok || estimated <= 0 || estimated > float64(defaultEffectiveWorkerTokens) {
+			t.Fatalf("default estimated_tokens = %#v, want 1..%d", packet["estimated_tokens"], defaultEffectiveWorkerTokens)
+		}
+	}
+}
+
+func TestPrepareSplitsPacketsByEffectiveTokenBudget(t *testing.T) {
+	files := []string{"src/a.go", "src/b.go", "src/c.go", "src/d.go"}
+	paths := newScanPaths(t, files)
+	for _, rel := range files {
+		body := "package fixture\n/*\n" + strings.Repeat("token ", 700) + "*/\n"
+		if err := os.WriteFile(filepath.Join(paths.Root, filepath.FromSlash(rel)), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	payload, err := Prepare(paths, PrepareInput{
+		WorkerBudgetTokens: 2500,
+		MaxPaths:           100,
+	})
+	if err != nil {
+		t.Fatalf("Prepare returned error: %v", err)
+	}
+	if payload.PacketCount < 2 {
+		t.Fatalf("token-budgeted packet count = %d, want at least 2", payload.PacketCount)
+	}
+
+	queue := readJSONObject(t, filepath.Join(paths.RuntimeDir, "workbench", "scan-queue.json"))
+	assigned := map[string]int{}
+	for _, packet := range objectRows(t, queue["packets"]) {
+		estimated, ok := packet["estimated_tokens"].(float64)
+		if !ok || estimated <= 0 {
+			t.Fatalf("packet estimated_tokens = %#v, want positive number", packet["estimated_tokens"])
+		}
+		if estimated > 2500 {
+			t.Fatalf("packet estimated_tokens = %.0f, exceeds effective worker budget 2500", estimated)
+		}
+		for _, path := range stringSlice(t, packet["assigned_paths"]) {
+			assigned[path]++
+		}
+	}
+	for _, path := range files {
+		if assigned[path] != 1 {
+			t.Fatalf("path %s assigned %d times, want exactly once", path, assigned[path])
+		}
+	}
+}
+
+func TestLeaseRequiresExplicitCapacityForOversizedPacket(t *testing.T) {
+	paths := newScanPaths(t, []string{"src/huge.go"})
+	body := "package fixture\n/*" + strings.Repeat("large-input ", 4000) + "*/\n"
+	if err := os.WriteFile(filepath.Join(paths.Root, "src", "huge.go"), []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Prepare(paths, PrepareInput{WorkerBudgetTokens: 1000, MaxPaths: 10}); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := Lease(paths, LeaseInput{WorkerID: "worker-small"}); err == nil || !strings.Contains(err.Error(), "worker capacity") {
+		t.Fatalf("Lease oversized packet without capacity error = %v", err)
+	}
+	queue := readJSONObject(t, filepath.Join(paths.RuntimeDir, "workbench", "scan-queue.json"))
+	packet := objectRows(t, queue["packets"])[0]
+	estimated := int64(packet["estimated_tokens"].(float64))
+	lease, err := Lease(paths, LeaseInput{WorkerID: "worker-large", WorkerCapacityTokens: estimated})
+	if err != nil {
+		t.Fatalf("Lease oversized packet with sufficient capacity: %v", err)
+	}
+	if lease.EffectiveContextBudget != estimated {
+		t.Fatalf("lease effective budget = %d, want explicit capacity %d", lease.EffectiveContextBudget, estimated)
+	}
+}
+
+func TestLeaseCreatesUniqueAttemptsAndNeverDoubleAssignsPacket(t *testing.T) {
+	paths := newScanPaths(t, []string{"src/a.go", "src/b.go"})
+	if _, err := Prepare(paths, PrepareInput{MaxPaths: 1}); err != nil {
+		t.Fatal(err)
+	}
+
+	first, err := Lease(paths, LeaseInput{WorkerID: "worker-a"})
+	if err != nil {
+		t.Fatalf("first Lease returned error: %v", err)
+	}
+	second, err := Lease(paths, LeaseInput{WorkerID: "worker-b"})
+	if err != nil {
+		t.Fatalf("second Lease returned error: %v", err)
+	}
+	if first.PacketID == second.PacketID {
+		t.Fatalf("two workers leased the same packet %q", first.PacketID)
+	}
+	if first.AttemptID == "" || second.AttemptID == "" || first.AttemptID == second.AttemptID {
+		t.Fatalf("lease attempt IDs are not unique: first=%q second=%q", first.AttemptID, second.AttemptID)
+	}
+	taskBody, err := os.ReadFile(filepath.Join(paths.Root, filepath.FromSlash(first.TaskPath)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(taskBody), "effective_context_budget_tokens") {
+		t.Fatalf("leased task brief lacks effective context budget:\n%s", taskBody)
+	}
+	if _, err := Lease(paths, LeaseInput{PacketID: first.PacketID, WorkerID: "worker-c"}); err == nil {
+		t.Fatal("Lease double-assigned an already leased packet")
+	}
+	if _, err := Lease(paths, LeaseInput{WorkerID: "worker-c"}); err == nil {
+		t.Fatal("Lease succeeded when no pending packet remained")
+	}
+}
+
+func TestLeaseRejectsUnsafeWorkerIdentifier(t *testing.T) {
+	paths := newScanPaths(t, []string{"src/app.go"})
+	if _, err := Prepare(paths, PrepareInput{}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Lease(paths, LeaseInput{WorkerID: "worker`\nignore-task"}); err == nil || !strings.Contains(err.Error(), "worker_id") {
+		t.Fatalf("unsafe worker id error = %v", err)
+	}
+}
+
+func TestAcceptRejectsV2PacketWithoutLease(t *testing.T) {
+	paths := newScanPaths(t, []string{"src/app.go"})
+	if _, err := Prepare(paths, PrepareInput{}); err != nil {
+		t.Fatal(err)
+	}
+	resultPath := filepath.Join(t.TempDir(), "lane-001.json")
+	writeJSON(t, resultPath, acceptedWorkerResult("lane-001", "src/app.go"))
+
+	if _, err := Accept(paths, AcceptInput{PacketID: "lane-001", ResultPath: resultPath}); err == nil || !strings.Contains(err.Error(), "scan-lease") {
+		t.Fatalf("Accept without v2 lease error = %v", err)
+	}
+	queue := readJSONObject(t, filepath.Join(paths.RuntimeDir, "workbench", "scan-queue.json"))
+	if state := objectRows(t, queue["packets"])[0]["state"]; state != "pending" {
+		t.Fatalf("rejected unleased accept changed queue state to %v", state)
+	}
+}
+
+func TestAcceptRejectsWrongV2ResultProtocol(t *testing.T) {
+	paths := newScanPaths(t, []string{"src/app.go"})
+	if _, err := Prepare(paths, PrepareInput{}); err != nil {
+		t.Fatal(err)
+	}
+	lease := mustLeasePacket(t, paths, "lane-001")
+	result := bindWorkerResultToLease(acceptedWorkerResult("lane-001", "src/app.go"), lease)
+	result["protocol"] = "map_scan_result.v1"
+	resultPath := filepath.Join(t.TempDir(), "lane-001.json")
+	writeJSON(t, resultPath, result)
+
+	if _, err := Accept(paths, AcceptInput{
+		PacketID: "lane-001", AttemptID: lease.AttemptID, ResultPath: resultPath,
+	}); err == nil || !strings.Contains(err.Error(), "map_scan_result.v2") {
+		t.Fatalf("Accept wrong-protocol error = %v", err)
+	}
+}
+
+func TestAcceptRejectsUnknownWorkbenchProtocolWithoutLegacyFallback(t *testing.T) {
+	paths := newScanPaths(t, []string{"src/app.go"})
+	if _, err := Prepare(paths, PrepareInput{}); err != nil {
+		t.Fatal(err)
+	}
+	queuePath := filepath.Join(paths.RuntimeDir, "workbench", "scan-queue.json")
+	queue := readJSONObject(t, queuePath)
+	queue["protocol"] = "map_scan_workbench.v3"
+	writeJSON(t, queuePath, queue)
+	resultPath := filepath.Join(t.TempDir(), "lane-001.json")
+	writeJSON(t, resultPath, acceptedWorkerResult("lane-001", "src/app.go"))
+
+	if _, err := Accept(paths, AcceptInput{PacketID: "lane-001", ResultPath: resultPath}); err == nil || !strings.Contains(err.Error(), "workbench protocol") {
+		t.Fatalf("Accept unknown workbench protocol error = %v", err)
+	}
+}
+
+func TestAcceptRejectsCompleteV2IdentityStrippingWithoutLegacyFallback(t *testing.T) {
+	paths := newScanPaths(t, []string{"src/app.go"})
+	if _, err := Prepare(paths, PrepareInput{}); err != nil {
+		t.Fatal(err)
+	}
+	writeLegacyQueue(t, paths)
+	resultPath := filepath.Join(t.TempDir(), "lane-001.json")
+	writeJSON(t, resultPath, acceptedWorkerResult("lane-001", "src/app.go"))
+
+	if _, err := Accept(paths, AcceptInput{PacketID: "lane-001", ResultPath: resultPath}); err == nil || !strings.Contains(err.Error(), "v2 workbench identity") {
+		t.Fatalf("Accept stripped v2 workbench identity error = %v", err)
+	}
+}
+
+func TestAcceptDerivesV2AcceptanceInsteadOfTrustingWorkerPass(t *testing.T) {
+	paths := newScanPaths(t, []string{"src/app.go"})
+	if _, err := Prepare(paths, PrepareInput{}); err != nil {
+		t.Fatal(err)
+	}
+	lease := mustLeasePacket(t, paths, "lane-001")
+	result := bindWorkerResultToLease(acceptedWorkerResult("lane-001", "src/app.go"), lease)
+	result["acceptance"] = "pass"
+	resultPath := filepath.Join(t.TempDir(), "lane-001.json")
+	writeJSON(t, resultPath, result)
+
+	if _, err := Accept(paths, AcceptInput{PacketID: "lane-001", AttemptID: lease.AttemptID, ResultPath: resultPath}); err == nil || !strings.Contains(err.Error(), "worker-authored acceptance") {
+		t.Fatalf("Accept worker-authored pass error = %v", err)
+	}
+	result["acceptance"] = "partial"
+	writeJSON(t, resultPath, result)
+	if _, err := Accept(paths, AcceptInput{PacketID: "lane-001", AttemptID: lease.AttemptID, ResultPath: resultPath}); err != nil {
+		t.Fatalf("Accept runtime-derived result returned error: %v", err)
+	}
+	canonical := readJSONObject(t, filepath.Join(paths.RuntimeDir, "workbench", "worker-results", "lane-001.json"))
+	if canonical["acceptance"] != "pass" {
+		t.Fatalf("canonical acceptance = %v, want runtime-derived pass", canonical["acceptance"])
+	}
+}
+
+func TestResumableCommandsRejectLegacyWorkbenchQueue(t *testing.T) {
+	t.Run("lease", func(t *testing.T) {
+		paths := newScanPaths(t, []string{"src/app.go"})
+		if _, err := Prepare(paths, PrepareInput{}); err != nil {
+			t.Fatal(err)
+		}
+		writeLegacyQueue(t, paths)
+
+		if _, err := Lease(paths, LeaseInput{PacketID: "lane-001", WorkerID: "worker-a"}); err == nil || !strings.Contains(err.Error(), "v2 workbench") {
+			t.Fatalf("Lease legacy queue error = %v", err)
+		}
+	})
+
+	t.Run("status", func(t *testing.T) {
+		paths := newScanPaths(t, []string{"src/app.go"})
+		if _, err := Prepare(paths, PrepareInput{}); err != nil {
+			t.Fatal(err)
+		}
+		writeLegacyQueue(t, paths)
+
+		if _, err := Status(paths); err == nil || !strings.Contains(err.Error(), "v2 workbench") {
+			t.Fatalf("Status legacy queue error = %v", err)
+		}
+	})
+}
+
+func writeLegacyQueue(t *testing.T, paths rt.Paths) {
+	t.Helper()
+	queuePath := filepath.Join(paths.RuntimeDir, "workbench", "scan-queue.json")
+	queue := readJSONObject(t, queuePath)
+	delete(queue, "protocol")
+	delete(queue, "generation_id")
+	delete(queue, "scan_set_path")
+	writeJSON(t, queuePath, queue)
+}
+
+func TestCheckpointAcceptsCumulativeProgressWithoutDuplicateRows(t *testing.T) {
+	assigned := []string{"src/a.go", "src/b.go", "src/c.go"}
+	paths := newScanPaths(t, assigned)
+	if _, err := Prepare(paths, PrepareInput{MaxPaths: len(assigned)}); err != nil {
+		t.Fatal(err)
+	}
+	lease, err := Lease(paths, LeaseInput{PacketID: "lane-001", WorkerID: "worker-a"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	checkpointDir := t.TempDir()
+	firstPath := filepath.Join(checkpointDir, "checkpoint-0001.json")
+	writeJSON(t, firstPath, checkpointWorkerResult("lane-001", lease.AttemptID, 1, assigned, assigned[:1]))
+	if _, err := Checkpoint(paths, CheckpointInput{
+		PacketID: "lane-001", AttemptID: lease.AttemptID, ResultPath: firstPath,
+	}); err != nil {
+		t.Fatalf("first Checkpoint returned error: %v", err)
+	}
+
+	secondPath := filepath.Join(checkpointDir, "checkpoint-0002.json")
+	writeJSON(t, secondPath, checkpointWorkerResult("lane-001", lease.AttemptID, 2, assigned, assigned[:2]))
+	if _, err := Checkpoint(paths, CheckpointInput{
+		PacketID: "lane-001", AttemptID: lease.AttemptID, ResultPath: secondPath,
+	}); err != nil {
+		t.Fatalf("second cumulative Checkpoint returned error: %v", err)
+	}
+
+	coverage := objectRows(t, readJSONObject(t, filepath.Join(paths.RuntimeDir, "coverage.json"))["rows"])
+	if len(coverage) != 2 {
+		t.Fatalf("coverage rows after cumulative checkpoints = %d, want 2", len(coverage))
+	}
+	got := map[string]int{}
+	for _, row := range coverage {
+		got[row["path"].(string)]++
+	}
+	for _, path := range assigned[:2] {
+		if got[path] != 1 {
+			t.Fatalf("checkpointed path %s has %d canonical rows, want 1", path, got[path])
+		}
+	}
+	mapState, err := os.ReadFile(filepath.Join(paths.RuntimeDir, "workbench", "map-state.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"- packets: 1", "- accepted: 0", "- pending: 1"} {
+		if !strings.Contains(string(mapState), want) {
+			t.Fatalf("checkpoint corrupted human scan state; missing %q:\n%s", want, mapState)
+		}
+	}
+}
+
+func TestCheckpointCumulativeNodeMonotonicallyExtendsPathsAndEvidence(t *testing.T) {
+	assigned := []string{"src/a.go", "src/b.go"}
+	paths := newScanPaths(t, assigned)
+	if _, err := Prepare(paths, PrepareInput{MaxPaths: len(assigned)}); err != nil {
+		t.Fatal(err)
+	}
+	lease := mustLeasePacket(t, paths, "lane-001")
+	checkpointDir := t.TempDir()
+
+	firstPath := filepath.Join(checkpointDir, "checkpoint-0001.json")
+	writeJSON(t, firstPath, sharedNodeCheckpointWorkerResult("lane-001", lease.AttemptID, 1, assigned, assigned[:1]))
+	if _, err := Checkpoint(paths, CheckpointInput{
+		PacketID: "lane-001", AttemptID: lease.AttemptID, ResultPath: firstPath,
+	}); err != nil {
+		t.Fatalf("first Checkpoint returned error: %v", err)
+	}
+
+	secondPath := filepath.Join(checkpointDir, "checkpoint-0002.json")
+	writeJSON(t, secondPath, sharedNodeCheckpointWorkerResult("lane-001", lease.AttemptID, 2, assigned, assigned))
+	if _, err := Checkpoint(paths, CheckpointInput{
+		PacketID: "lane-001", AttemptID: lease.AttemptID, ResultPath: secondPath,
+	}); err != nil {
+		t.Fatalf("second cumulative Checkpoint returned error: %v", err)
+	}
+
+	nodes := objectRows(t, readJSONObject(t, filepath.Join(paths.RuntimeDir, "provisional", "nodes.json"))["nodes"])
+	if len(nodes) != 1 {
+		t.Fatalf("node count after cumulative checkpoints = %d, want 1", len(nodes))
+	}
+	if got := stringSlice(t, nodes[0]["paths"]); !sameStringSet(got, assigned) {
+		t.Fatalf("shared node paths = %v, want %v", got, assigned)
+	}
+	wantEvidence := []string{"E-lane-001-1", "E-lane-001-2"}
+	if got := stringSlice(t, nodes[0]["evidence_ids"]); !sameStringSet(got, wantEvidence) {
+		t.Fatalf("shared node evidence_ids = %v, want %v", got, wantEvidence)
+	}
+}
+
+func TestCheckpointCumulativeNodeRejectsNonMonotonicOverwrite(t *testing.T) {
+	tests := []struct {
+		name   string
+		mutate func(*testing.T, map[string]any)
+		want   string
+	}{
+		{
+			name: "drops paths",
+			mutate: func(t *testing.T, result map[string]any) {
+				nodes := objectRows(t, result["nodes"])
+				nodes[0]["paths"] = []string{"src/b.go"}
+				nodes = append(nodes, map[string]any{
+					"id": "N-lane-001-aux", "type": "file", "title": "a.go", "confidence": "high",
+					"paths": []string{"src/a.go"}, "evidence_ids": []string{"E-lane-001-1"},
+				})
+				result["nodes"] = nodes
+			},
+			want: "dropped paths",
+		},
+		{
+			name: "drops evidence ids",
+			mutate: func(t *testing.T, result map[string]any) {
+				objectRows(t, result["nodes"])[0]["evidence_ids"] = []string{"E-lane-001-2"}
+			},
+			want: "dropped evidence_ids",
+		},
+		{
+			name: "changes immutable fields",
+			mutate: func(t *testing.T, result map[string]any) {
+				objectRows(t, result["nodes"])[0]["title"] = "rewritten component"
+			},
+			want: "changed immutable fields",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			assigned := []string{"src/a.go", "src/b.go"}
+			paths := newScanPaths(t, assigned)
+			if _, err := Prepare(paths, PrepareInput{MaxPaths: len(assigned)}); err != nil {
+				t.Fatal(err)
+			}
+			lease := mustLeasePacket(t, paths, "lane-001")
+			checkpointDir := t.TempDir()
+
+			firstPath := filepath.Join(checkpointDir, "checkpoint-0001.json")
+			writeJSON(t, firstPath, sharedNodeCheckpointWorkerResult("lane-001", lease.AttemptID, 1, assigned, assigned[:1]))
+			if _, err := Checkpoint(paths, CheckpointInput{
+				PacketID: "lane-001", AttemptID: lease.AttemptID, ResultPath: firstPath,
+			}); err != nil {
+				t.Fatalf("first Checkpoint returned error: %v", err)
+			}
+
+			second := sharedNodeCheckpointWorkerResult("lane-001", lease.AttemptID, 2, assigned, assigned)
+			test.mutate(t, second)
+			secondPath := filepath.Join(checkpointDir, "checkpoint-0002.json")
+			writeJSON(t, secondPath, second)
+			if _, err := Checkpoint(paths, CheckpointInput{
+				PacketID: "lane-001", AttemptID: lease.AttemptID, ResultPath: secondPath,
+			}); err == nil || !strings.Contains(err.Error(), test.want) {
+				t.Fatalf("non-monotonic cumulative Checkpoint error = %v, want %q", err, test.want)
+			}
+
+			nodes := objectRows(t, readJSONObject(t, filepath.Join(paths.RuntimeDir, "provisional", "nodes.json"))["nodes"])
+			if len(nodes) != 1 {
+				t.Fatalf("rejected checkpoint node count = %d, want 1", len(nodes))
+			}
+			if got := stringSlice(t, nodes[0]["paths"]); !sameStringSet(got, assigned[:1]) {
+				t.Fatalf("rejected checkpoint mutated shared node paths: %v", got)
+			}
+			if got := stringSlice(t, nodes[0]["evidence_ids"]); !sameStringSet(got, []string{"E-lane-001-1"}) {
+				t.Fatalf("rejected checkpoint mutated shared node evidence_ids: %v", got)
+			}
+		})
+	}
+}
+
+func TestCheckpointRetryIsIdempotentButConflictingPayloadIsRejected(t *testing.T) {
+	assigned := []string{"src/a.go", "src/b.go"}
+	paths := newScanPaths(t, assigned)
+	if _, err := Prepare(paths, PrepareInput{MaxPaths: len(assigned)}); err != nil {
+		t.Fatal(err)
+	}
+	lease := mustLeasePacket(t, paths, "lane-001")
+	resultPath := filepath.Join(t.TempDir(), "checkpoint-0001.json")
+	result := checkpointWorkerResult("lane-001", lease.AttemptID, 1, assigned, assigned[:1])
+	writeJSON(t, resultPath, result)
+	first, err := Checkpoint(paths, CheckpointInput{PacketID: "lane-001", AttemptID: lease.AttemptID, ResultPath: resultPath})
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := Checkpoint(paths, CheckpointInput{PacketID: "lane-001", AttemptID: lease.AttemptID, ResultPath: resultPath})
+	if err != nil {
+		t.Fatalf("identical checkpoint retry returned error: %v", err)
+	}
+	if first != second {
+		t.Fatalf("idempotent checkpoint payload changed: first=%#v second=%#v", first, second)
+	}
+
+	result["confidence"] = "low"
+	writeJSON(t, resultPath, result)
+	if _, err := Checkpoint(paths, CheckpointInput{PacketID: "lane-001", AttemptID: lease.AttemptID, ResultPath: resultPath}); err == nil || !strings.Contains(err.Error(), "conflict") {
+		t.Fatalf("conflicting same-sequence checkpoint error = %v", err)
+	}
+}
+
+func TestStatusSubtractsCheckpointedWorkAndExposesActiveLease(t *testing.T) {
+	assigned := []string{"src/a.go", "src/b.go", "src/c.go"}
+	paths := newScanPaths(t, assigned)
+	for _, rel := range assigned {
+		body := "package fixture\n/*" + strings.Repeat("content ", 500) + "*/\n"
+		if err := os.WriteFile(filepath.Join(paths.Root, filepath.FromSlash(rel)), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := Prepare(paths, PrepareInput{MaxPaths: len(assigned), WorkerBudgetTokens: 10000}); err != nil {
+		t.Fatal(err)
+	}
+	lease := mustLeasePacket(t, paths, "lane-001")
+	before, err := Status(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resultPath := filepath.Join(t.TempDir(), "checkpoint-0001.json")
+	writeJSON(t, resultPath, checkpointWorkerResult("lane-001", lease.AttemptID, 1, assigned, assigned[:2]))
+	if _, err := Checkpoint(paths, CheckpointInput{PacketID: "lane-001", AttemptID: lease.AttemptID, ResultPath: resultPath}); err != nil {
+		t.Fatal(err)
+	}
+	after, err := Status(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if after.EstimatedRemainingTokens >= before.EstimatedRemainingTokens {
+		t.Fatalf("remaining tokens did not decrease after checkpoint: before=%d after=%d", before.EstimatedRemainingTokens, after.EstimatedRemainingTokens)
+	}
+	if len(after.ActiveLeases) != 1 || after.ActiveLeases[0].PacketID != lease.PacketID || after.ActiveLeases[0].AttemptID != lease.AttemptID || after.ActiveLeases[0].RemainingPathCount != 1 {
+		t.Fatalf("active lease recovery summary = %#v", after.ActiveLeases)
+	}
+}
+
+func TestYieldPreservesCompletedSubsetAndRequeuesExactRemainder(t *testing.T) {
+	assigned := []string{"src/a.go", "src/b.go", "src/c.go"}
+	paths := newScanPaths(t, assigned)
+	if _, err := Prepare(paths, PrepareInput{MaxPaths: len(assigned)}); err != nil {
+		t.Fatal(err)
+	}
+	lease, err := Lease(paths, LeaseInput{PacketID: "lane-001", WorkerID: "worker-a"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	resultPath := filepath.Join(t.TempDir(), "checkpoint-0001.json")
+	writeJSON(t, resultPath, checkpointWorkerResult("lane-001", lease.AttemptID, 1, assigned, assigned[:2]))
+	if _, err := Checkpoint(paths, CheckpointInput{
+		PacketID: "lane-001", AttemptID: lease.AttemptID, ResultPath: resultPath,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Yield(paths, YieldInput{PacketID: "lane-001", AttemptID: lease.AttemptID}); err != nil {
+		t.Fatalf("Yield returned error: %v", err)
+	}
+
+	queue := readJSONObject(t, filepath.Join(paths.RuntimeDir, "workbench", "scan-queue.json"))
+	acceptedPaths := []string{}
+	pendingPaths := []string{}
+	for _, packet := range objectRows(t, queue["packets"]) {
+		switch packet["state"] {
+		case "accepted":
+			acceptedPaths = append(acceptedPaths, stringSlice(t, packet["assigned_paths"])...)
+		case "pending":
+			pendingPaths = append(pendingPaths, stringSlice(t, packet["assigned_paths"])...)
+		}
+	}
+	if !sameStringSet(acceptedPaths, assigned[:2]) {
+		t.Fatalf("accepted paths after yield = %v, want %v", acceptedPaths, assigned[:2])
+	}
+	if !sameStringSet(pendingPaths, assigned[2:]) {
+		t.Fatalf("pending paths after yield = %v, want %v", pendingPaths, assigned[2:])
+	}
+	coverage := objectRows(t, readJSONObject(t, filepath.Join(paths.RuntimeDir, "coverage.json"))["rows"])
+	if len(coverage) != 2 {
+		t.Fatalf("yield discarded checkpointed coverage: got %d rows, want 2", len(coverage))
+	}
+
+	next, err := Lease(paths, LeaseInput{WorkerID: "worker-b"})
+	if err != nil {
+		t.Fatalf("Lease of yielded remainder returned error: %v", err)
+	}
+	if next.AttemptID == lease.AttemptID {
+		t.Fatalf("requeued remainder reused stale attempt %q", next.AttemptID)
+	}
+}
+
+func TestYieldKeepsExactRemainderFromCustomByteBudget(t *testing.T) {
+	assigned := []string{"src/a.go", "src/b.go", "src/c.go"}
+	paths := newScanPaths(t, assigned)
+	content := []byte(strings.Repeat("x", int(defaultPacketBytes/2)+128))
+	for _, rel := range assigned {
+		if err := os.WriteFile(filepath.Join(paths.Root, filepath.FromSlash(rel)), content, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := Prepare(paths, PrepareInput{
+		MaxPaths:           len(assigned),
+		MaxBytes:           defaultPacketBytes * 2,
+		WorkerBudgetTokens: 2_000_000,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	lease := mustLeasePacket(t, paths, "lane-001")
+	resultPath := filepath.Join(t.TempDir(), "checkpoint-0001.json")
+	writeJSON(t, resultPath, checkpointWorkerResult("lane-001", lease.AttemptID, 1, assigned, assigned[:1]))
+	if _, err := Checkpoint(paths, CheckpointInput{
+		PacketID: "lane-001", AttemptID: lease.AttemptID, ResultPath: resultPath,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	payload, err := Yield(paths, YieldInput{PacketID: "lane-001", AttemptID: lease.AttemptID})
+	if err != nil {
+		t.Fatalf("Yield with custom byte budget returned error: %v", err)
+	}
+	queue := readJSONObject(t, filepath.Join(paths.RuntimeDir, "workbench", "scan-queue.json"))
+	var remainder []string
+	for _, packet := range objectRows(t, queue["packets"]) {
+		if packet["packet_id"] == payload.RemainderPacketID {
+			remainder = stringSlice(t, packet["assigned_paths"])
+		}
+	}
+	if !sameStringSet(remainder, assigned[1:]) {
+		t.Fatalf("yielded remainder = %v, want exact remainder %v", remainder, assigned[1:])
+	}
+}
+
+func TestYieldRetryAfterHandoffFailureKeepsExactPartition(t *testing.T) {
+	assigned := []string{"src/a.go", "src/b.go", "src/c.go"}
+	paths := newScanPaths(t, assigned)
+	if _, err := Prepare(paths, PrepareInput{MaxPaths: len(assigned)}); err != nil {
+		t.Fatal(err)
+	}
+	lease := mustLeasePacket(t, paths, "lane-001")
+	resultPath := filepath.Join(t.TempDir(), "checkpoint-0001.json")
+	writeJSON(t, resultPath, checkpointWorkerResult("lane-001", lease.AttemptID, 1, assigned, assigned[:2]))
+	if _, err := Checkpoint(paths, CheckpointInput{PacketID: "lane-001", AttemptID: lease.AttemptID, ResultPath: resultPath}); err != nil {
+		t.Fatal(err)
+	}
+
+	handoffPath := filepath.Join(paths.RuntimeDir, "workbench", "handoff-ledger.json")
+	backupPath := filepath.Join(paths.RuntimeDir, "workbench", "handoff-ledger.backup")
+	if err := os.Rename(handoffPath, backupPath); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(handoffPath, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Yield(paths, YieldInput{PacketID: "lane-001", AttemptID: lease.AttemptID}); err == nil {
+		t.Fatal("Yield unexpectedly succeeded with unwritable handoff ledger")
+	}
+	if err := os.Remove(handoffPath); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(backupPath, handoffPath); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Yield(paths, YieldInput{PacketID: "lane-001", AttemptID: lease.AttemptID}); err != nil {
+		t.Fatalf("retry Yield returned error: %v", err)
+	}
+
+	queue := readJSONObject(t, filepath.Join(paths.RuntimeDir, "workbench", "scan-queue.json"))
+	accepted, pending := []string{}, []string{}
+	for _, packet := range objectRows(t, queue["packets"]) {
+		switch packet["state"] {
+		case "accepted":
+			accepted = append(accepted, stringSlice(t, packet["assigned_paths"])...)
+		case "pending":
+			pending = append(pending, stringSlice(t, packet["assigned_paths"])...)
+		}
+	}
+	if !sameStringSet(accepted, assigned[:2]) || !sameStringSet(pending, assigned[2:]) {
+		t.Fatalf("yield retry partition accepted=%v pending=%v, want %v / %v", accepted, pending, assigned[:2], assigned[2:])
+	}
+}
+
+func TestForcePrepareCreatesNewAttemptGenerationAndRejectsLateResult(t *testing.T) {
+	paths := newScanPaths(t, []string{"src/app.go"})
+	if _, err := Prepare(paths, PrepareInput{}); err != nil {
+		t.Fatal(err)
+	}
+	first := mustLeasePacket(t, paths, "lane-001")
+	lateResultPath := filepath.Join(t.TempDir(), "late-result.json")
+	writeJSON(t, lateResultPath, bindWorkerResultToLease(acceptedWorkerResult("lane-001", "src/app.go"), first))
+
+	if _, err := Prepare(paths, PrepareInput{Force: true}); err != nil {
+		t.Fatal(err)
+	}
+	second := mustLeasePacket(t, paths, "lane-001")
+	if second.AttemptID == first.AttemptID {
+		t.Fatalf("force prepare reused attempt id %q", first.AttemptID)
+	}
+	if _, err := Accept(paths, AcceptInput{PacketID: second.PacketID, AttemptID: second.AttemptID, ResultPath: lateResultPath}); err == nil || !strings.Contains(err.Error(), "attempt_id") {
+		t.Fatalf("late prior-generation result error = %v", err)
+	}
+}
+
+func TestCheckpointAndAcceptRejectUntrustedCompletionClaims(t *testing.T) {
+	t.Run("path outside assignment", func(t *testing.T) {
+		assigned := []string{"src/a.go", "src/b.go"}
+		paths := newScanPaths(t, assigned)
+		if _, err := Prepare(paths, PrepareInput{MaxPaths: len(assigned)}); err != nil {
+			t.Fatal(err)
+		}
+		lease, err := Lease(paths, LeaseInput{WorkerID: "worker-a"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		resultPath := filepath.Join(t.TempDir(), "outside.json")
+		writeJSON(t, resultPath, checkpointWorkerResult(lease.PacketID, lease.AttemptID, 1, assigned, []string{"src/outside.go"}))
+		if _, err := Checkpoint(paths, CheckpointInput{
+			PacketID: lease.PacketID, AttemptID: lease.AttemptID, ResultPath: resultPath,
+		}); err == nil {
+			t.Fatal("Checkpoint accepted a path outside the leased assignment")
+		}
+		if got := len(objectRows(t, readJSONObject(t, filepath.Join(paths.RuntimeDir, "coverage.json"))["rows"])); got != 0 {
+			t.Fatalf("rejected checkpoint mutated canonical coverage: %d rows", got)
+		}
+	})
+
+	t.Run("omitted paths cannot finalize packet", func(t *testing.T) {
+		assigned := []string{"src/a.go", "src/b.go"}
+		paths := newScanPaths(t, assigned)
+		if _, err := Prepare(paths, PrepareInput{MaxPaths: len(assigned)}); err != nil {
+			t.Fatal(err)
+		}
+		lease, err := Lease(paths, LeaseInput{WorkerID: "worker-a"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		resultPath := filepath.Join(t.TempDir(), "partial.json")
+		writeJSON(t, resultPath, checkpointWorkerResult(lease.PacketID, lease.AttemptID, 1, assigned, assigned[:1]))
+		if _, err := Checkpoint(paths, CheckpointInput{
+			PacketID: lease.PacketID, AttemptID: lease.AttemptID, ResultPath: resultPath,
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := Accept(paths, AcceptInput{PacketID: lease.PacketID, AttemptID: lease.AttemptID}); err == nil {
+			t.Fatal("Accept finalized a packet with an omitted assigned path")
+		}
+	})
+
+	t.Run("stale attempt", func(t *testing.T) {
+		paths := newScanPaths(t, []string{"src/a.go"})
+		if _, err := Prepare(paths, PrepareInput{MaxPaths: 1}); err != nil {
+			t.Fatal(err)
+		}
+		first, err := Lease(paths, LeaseInput{WorkerID: "worker-a"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := Yield(paths, YieldInput{PacketID: first.PacketID, AttemptID: first.AttemptID}); err != nil {
+			t.Fatal(err)
+		}
+		second, err := Lease(paths, LeaseInput{WorkerID: "worker-b"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		resultPath := filepath.Join(t.TempDir(), "stale.json")
+		writeJSON(t, resultPath, checkpointWorkerResult(second.PacketID, first.AttemptID, 1, []string{"src/a.go"}, []string{"src/a.go"}))
+		if _, err := Checkpoint(paths, CheckpointInput{
+			PacketID: second.PacketID, AttemptID: first.AttemptID, ResultPath: resultPath,
+		}); err == nil {
+			t.Fatal("Checkpoint accepted a stale attempt")
+		}
+	})
+
+	t.Run("wrong protocol", func(t *testing.T) {
+		paths := newScanPaths(t, []string{"src/a.go"})
+		if _, err := Prepare(paths, PrepareInput{MaxPaths: 1}); err != nil {
+			t.Fatal(err)
+		}
+		lease, err := Lease(paths, LeaseInput{WorkerID: "worker-a"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		result := checkpointWorkerResult(lease.PacketID, lease.AttemptID, 1, []string{"src/a.go"}, []string{"src/a.go"})
+		result["protocol"] = "map_scan_result.v1"
+		resultPath := filepath.Join(t.TempDir(), "wrong-protocol.json")
+		writeJSON(t, resultPath, result)
+		if _, err := Checkpoint(paths, CheckpointInput{
+			PacketID: lease.PacketID, AttemptID: lease.AttemptID, ResultPath: resultPath,
+		}); err == nil || !strings.Contains(err.Error(), "map_scan_result.v2") {
+			t.Fatalf("Checkpoint wrong-protocol error = %v", err)
+		}
+	})
 }
 
 func TestPrepareCreatesBoundedConcretePacketSkeleton(t *testing.T) {
@@ -91,6 +821,13 @@ func TestPrepareCreatesBoundedConcretePacketSkeleton(t *testing.T) {
 	if strings.Contains(text, "**") || strings.Contains(text, "src/*") {
 		t.Fatalf("packet contains worker-discretion glob: %s", text)
 	}
+	pending := readJSONObject(t, filepath.Join(paths.RuntimeDir, "workbench", "pending-results", "lane-001.json"))
+	if pending["protocol"] != "map_scan_result.v2" || pending["acceptance"] != "partial" {
+		t.Fatalf("generated result skeleton = %#v", pending)
+	}
+	if got := stringSlice(t, pending["assigned_paths"]); !equalStrings(got, []string{"README.md", "src/a.go"}) {
+		t.Fatalf("generated result skeleton assigned_paths = %v", got)
+	}
 }
 
 func TestAcceptMergesPacketAndProducesBuildableScanPackage(t *testing.T) {
@@ -98,10 +835,11 @@ func TestAcceptMergesPacketAndProducesBuildableScanPackage(t *testing.T) {
 	if _, err := Prepare(paths, PrepareInput{PacketSize: 25}); err != nil {
 		t.Fatal(err)
 	}
+	lease := mustLeasePacket(t, paths, "lane-001")
 	resultPath := filepath.Join(t.TempDir(), "lane-001.json")
-	writeJSON(t, resultPath, acceptedWorkerResult("lane-001", "src/app.go"))
+	writeJSON(t, resultPath, bindWorkerResultToLease(acceptedWorkerResult("lane-001", "src/app.go"), lease))
 
-	payload, err := Accept(paths, AcceptInput{PacketID: "lane-001", ResultPath: resultPath})
+	payload, err := Accept(paths, AcceptInput{PacketID: "lane-001", AttemptID: lease.AttemptID, ResultPath: resultPath})
 	if err != nil {
 		t.Fatalf("Accept returned error: %v", err)
 	}
@@ -112,6 +850,9 @@ func TestAcceptMergesPacketAndProducesBuildableScanPackage(t *testing.T) {
 	gate := validation.ValidateScan(paths)
 	if gate.Status != "ok" || gate.Readiness != "scan_ready" {
 		t.Fatalf("validate-scan = %#v", gate)
+	}
+	if _, _, err := scanreceipt.Create(paths, gate.Readiness); err != nil {
+		t.Fatalf("create scan receipt: %v", err)
 	}
 
 	buildPayload, err := build.Run(paths)
@@ -138,13 +879,14 @@ func TestAcceptRejectsCrossPacketPathsWithoutMerging(t *testing.T) {
 	if _, err := Prepare(paths, PrepareInput{PacketSize: 1}); err != nil {
 		t.Fatal(err)
 	}
-	result := acceptedWorkerResult("lane-001", "src/a.go")
+	lease := mustLeasePacket(t, paths, "lane-001")
+	result := bindWorkerResultToLease(acceptedWorkerResult("lane-001", "src/a.go"), lease)
 	evidence := objectRows(t, result["evidence"])
 	evidence[0]["source_path"] = "src/b.go"
 	resultPath := filepath.Join(t.TempDir(), "lane-001.json")
 	writeJSON(t, resultPath, result)
 
-	if _, err := Accept(paths, AcceptInput{PacketID: "lane-001", ResultPath: resultPath}); err == nil {
+	if _, err := Accept(paths, AcceptInput{PacketID: "lane-001", AttemptID: lease.AttemptID, ResultPath: resultPath}); err == nil {
 		t.Fatal("Accept succeeded for evidence outside assigned_paths")
 	}
 	if _, err := os.Stat(filepath.Join(paths.RuntimeDir, "workbench", "worker-results", "lane-001.json")); !os.IsNotExist(err) {
@@ -155,7 +897,7 @@ func TestAcceptRejectsCrossPacketPathsWithoutMerging(t *testing.T) {
 		t.Fatalf("invalid result mutated provisional nodes: %#v", got)
 	}
 	queue := readJSONObject(t, filepath.Join(paths.RuntimeDir, "workbench", "scan-queue.json"))
-	if state := objectRows(t, queue["packets"])[0]["state"]; state != "pending" {
+	if state := objectRows(t, queue["packets"])[0]["state"]; state != "leased" {
 		t.Fatalf("invalid result changed queue state to %v", state)
 	}
 }
@@ -169,9 +911,10 @@ func TestAcceptKeepsHandoffLedgerDeterministicAcrossCompletionOrder(t *testing.T
 		packetID string
 		path     string
 	}{{"lane-002", "src/b.go"}, {"lane-001", "src/a.go"}} {
+		lease := mustLeasePacket(t, paths, item.packetID)
 		resultPath := filepath.Join(t.TempDir(), item.packetID+".json")
-		writeJSON(t, resultPath, acceptedWorkerResult(item.packetID, item.path))
-		if _, err := Accept(paths, AcceptInput{PacketID: item.packetID, ResultPath: resultPath}); err != nil {
+		writeJSON(t, resultPath, bindWorkerResultToLease(acceptedWorkerResult(item.packetID, item.path), lease))
+		if _, err := Accept(paths, AcceptInput{PacketID: item.packetID, AttemptID: lease.AttemptID, ResultPath: resultPath}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -182,7 +925,13 @@ func TestAcceptKeepsHandoffLedgerDeterministicAcrossCompletionOrder(t *testing.T
 	for _, event := range events {
 		got = append(got, event["event_id"].(string))
 	}
-	want := []string{"dispatch-lane-001", "dispatch-lane-002", "return-lane-001", "return-lane-002"}
+	queue := readJSONObject(t, filepath.Join(paths.RuntimeDir, "workbench", "scan-queue.json"))
+	generationID := queue["generation_id"].(string)
+	want := []string{
+		"dispatch-lane-001", "dispatch-lane-002",
+		"lease-" + generationID + "-lane-001-attempt-001", "lease-" + generationID + "-lane-002-attempt-001",
+		"return-lane-001", "return-lane-002",
+	}
 	if !equalStrings(got, want) {
 		t.Fatalf("handoff event order = %v, want %v", got, want)
 	}
@@ -194,11 +943,14 @@ func TestAcceptSerializesConcurrentPacketsWithoutLostUpdates(t *testing.T) {
 		t.Fatal(err)
 	}
 	resultDir := t.TempDir()
+	attempts := map[string]string{}
 	for _, item := range []struct {
 		packetID string
 		path     string
 	}{{"lane-001", "src/a.go"}, {"lane-002", "src/b.go"}} {
-		writeJSON(t, filepath.Join(resultDir, item.packetID+".json"), acceptedWorkerResult(item.packetID, item.path))
+		lease := mustLeasePacket(t, paths, item.packetID)
+		attempts[item.packetID] = lease.AttemptID
+		writeJSON(t, filepath.Join(resultDir, item.packetID+".json"), bindWorkerResultToLease(acceptedWorkerResult(item.packetID, item.path), lease))
 	}
 
 	var wg sync.WaitGroup
@@ -210,6 +962,7 @@ func TestAcceptSerializesConcurrentPacketsWithoutLostUpdates(t *testing.T) {
 			defer wg.Done()
 			_, err := Accept(paths, AcceptInput{
 				PacketID:   packetID,
+				AttemptID:  attempts[packetID],
 				ResultPath: filepath.Join(resultDir, packetID+".json"),
 			})
 			errorsByPacket <- err
@@ -242,8 +995,9 @@ func TestAcceptWaitsForExistingWorkbenchOperation(t *testing.T) {
 	if _, err := Prepare(paths, PrepareInput{}); err != nil {
 		t.Fatal(err)
 	}
+	lease := mustLeasePacket(t, paths, "lane-001")
 	resultPath := filepath.Join(t.TempDir(), "lane-001.json")
-	writeJSON(t, resultPath, acceptedWorkerResult("lane-001", "src/app.go"))
+	writeJSON(t, resultPath, bindWorkerResultToLease(acceptedWorkerResult("lane-001", "src/app.go"), lease))
 
 	release, err := acquireWorkbenchLock(paths)
 	if err != nil {
@@ -251,7 +1005,7 @@ func TestAcceptWaitsForExistingWorkbenchOperation(t *testing.T) {
 	}
 	done := make(chan error, 1)
 	go func() {
-		_, err := Accept(paths, AcceptInput{PacketID: "lane-001", ResultPath: resultPath})
+		_, err := Accept(paths, AcceptInput{PacketID: "lane-001", AttemptID: lease.AttemptID, ResultPath: resultPath})
 		done <- err
 	}()
 	select {
@@ -276,7 +1030,9 @@ func TestAcceptPreservesCrossPacketEdgeByCanonicalPath(t *testing.T) {
 	if _, err := Prepare(paths, PrepareInput{PacketSize: 1}); err != nil {
 		t.Fatal(err)
 	}
-	first := acceptedWorkerResult("lane-001", "src/a.go")
+	firstLease := mustLeasePacket(t, paths, "lane-001")
+	secondLease := mustLeasePacket(t, paths, "lane-002")
+	first := bindWorkerResultToLease(acceptedWorkerResult("lane-001", "src/a.go"), firstLease)
 	first["edges"] = []map[string]any{{
 		"id": "EDGE-a-imports-b", "type": "imports",
 		"source_id": "N-lane-001", "target_id": "src/b.go",
@@ -284,15 +1040,17 @@ func TestAcceptPreservesCrossPacketEdgeByCanonicalPath(t *testing.T) {
 	}}
 	resultDir := t.TempDir()
 	writeJSON(t, filepath.Join(resultDir, "lane-001.json"), first)
-	writeJSON(t, filepath.Join(resultDir, "lane-002.json"), acceptedWorkerResult("lane-002", "src/b.go"))
-	for _, packetID := range []string{"lane-001", "lane-002"} {
-		if _, err := Accept(paths, AcceptInput{PacketID: packetID, ResultPath: filepath.Join(resultDir, packetID+".json")}); err != nil {
-			t.Fatalf("Accept %s returned error: %v", packetID, err)
+	writeJSON(t, filepath.Join(resultDir, "lane-002.json"), bindWorkerResultToLease(acceptedWorkerResult("lane-002", "src/b.go"), secondLease))
+	for _, lease := range []LeasePayload{firstLease, secondLease} {
+		if _, err := Accept(paths, AcceptInput{PacketID: lease.PacketID, AttemptID: lease.AttemptID, ResultPath: filepath.Join(resultDir, lease.PacketID+".json")}); err != nil {
+			t.Fatalf("Accept %s returned error: %v", lease.PacketID, err)
 		}
 	}
 
 	if gate := validation.ValidateScan(paths); gate.Status != "ok" {
 		t.Fatalf("cross-packet validate-scan = %#v", gate)
+	} else if _, _, err := scanreceipt.Create(paths, gate.Readiness); err != nil {
+		t.Fatalf("create cross-packet scan receipt: %v", err)
 	}
 	payload, err := build.Run(paths)
 	if err != nil || payload.Status != "ok" {
@@ -311,6 +1069,23 @@ func TestPrepareRejectsUnsafeScanSetPath(t *testing.T) {
 
 	if _, err := Prepare(paths, PrepareInput{}); err == nil {
 		t.Fatal("Prepare accepted a path outside the repository")
+	}
+}
+
+func TestPrepareRejectsAliasesForTheSameRepositoryFile(t *testing.T) {
+	paths := newScanPaths(t, []string{"src/app.go"})
+	writeJSON(t, filepath.Join(paths.RuntimeDir, "tmp", "scan-files.json"), map[string]any{
+		"files": []string{"src/app.go", "./src/app.go"},
+	})
+	if _, err := Prepare(paths, PrepareInput{}); err == nil || !strings.Contains(err.Error(), "canonical") {
+		t.Fatalf("Prepare alias-path error = %v", err)
+	}
+}
+
+func TestPrepareRejectsTaskBriefMarkdownControlCharacters(t *testing.T) {
+	paths := newScanPaths(t, []string{"src/bad`task.go"})
+	if _, err := Prepare(paths, PrepareInput{}); err == nil || !strings.Contains(err.Error(), "task brief") {
+		t.Fatalf("Prepare markdown-control path error = %v", err)
 	}
 }
 
@@ -340,14 +1115,44 @@ func TestPrepareRejectsSymlinkedRuntimeControlDirectory(t *testing.T) {
 	}
 }
 
+func TestLeaseRejectsSymlinkedNestedControlDirectory(t *testing.T) {
+	paths := newScanPaths(t, []string{"src/app.go"})
+	if _, err := Prepare(paths, PrepareInput{}); err != nil {
+		t.Fatal(err)
+	}
+	pendingResults := filepath.Join(paths.RuntimeDir, "workbench", "pending-results")
+	if err := os.Remove(filepath.Join(pendingResults, "lane-001.json")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(pendingResults); err != nil {
+		t.Fatal(err)
+	}
+	external := t.TempDir()
+	if err := os.Symlink(external, pendingResults); err != nil {
+		t.Skipf("symbolic links are unavailable: %v", err)
+	}
+
+	if _, err := Lease(paths, LeaseInput{WorkerID: "worker-a"}); err == nil || !strings.Contains(err.Error(), "symbolic links") {
+		t.Fatalf("Lease with nested control symlink error = %v", err)
+	}
+	entries, err := os.ReadDir(external)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 0 {
+		t.Fatalf("Lease wrote outside repository through nested symlink: %v", entries)
+	}
+}
+
 func TestPrepareRequiresForceBeforeReplacingAcceptedWorkbench(t *testing.T) {
 	paths := newScanPaths(t, []string{"src/app.go"})
 	if _, err := Prepare(paths, PrepareInput{}); err != nil {
 		t.Fatal(err)
 	}
+	lease := mustLeasePacket(t, paths, "lane-001")
 	resultPath := filepath.Join(t.TempDir(), "lane-001.json")
-	writeJSON(t, resultPath, acceptedWorkerResult("lane-001", "src/app.go"))
-	if _, err := Accept(paths, AcceptInput{PacketID: "lane-001", ResultPath: resultPath}); err != nil {
+	writeJSON(t, resultPath, bindWorkerResultToLease(acceptedWorkerResult("lane-001", "src/app.go"), lease))
+	if _, err := Accept(paths, AcceptInput{PacketID: "lane-001", AttemptID: lease.AttemptID, ResultPath: resultPath}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -379,14 +1184,15 @@ func TestAcceptRecoversMatchingPartiallyMergedRowsWithoutDuplicates(t *testing.T
 	if _, err := Prepare(paths, PrepareInput{}); err != nil {
 		t.Fatal(err)
 	}
-	result := acceptedWorkerResult("lane-001", "src/app.go")
+	lease := mustLeasePacket(t, paths, "lane-001")
+	result := bindWorkerResultToLease(acceptedWorkerResult("lane-001", "src/app.go"), lease)
 	writeJSON(t, filepath.Join(paths.RuntimeDir, "evidence", "lane-001.json"), map[string]any{"rows": result["evidence"]})
 	writeJSON(t, filepath.Join(paths.RuntimeDir, "provisional", "nodes.json"), map[string]any{"nodes": result["nodes"]})
 	writeJSON(t, filepath.Join(paths.RuntimeDir, "coverage.json"), map[string]any{"rows": result["coverage"]})
 	resultPath := filepath.Join(t.TempDir(), "lane-001.json")
 	writeJSON(t, resultPath, result)
 
-	if _, err := Accept(paths, AcceptInput{PacketID: "lane-001", ResultPath: resultPath}); err != nil {
+	if _, err := Accept(paths, AcceptInput{PacketID: "lane-001", AttemptID: lease.AttemptID, ResultPath: resultPath}); err != nil {
 		t.Fatalf("Accept could not recover matching partial state: %v", err)
 	}
 	if got := len(objectRows(t, readJSONObject(t, filepath.Join(paths.RuntimeDir, "provisional", "nodes.json"))["nodes"])); got != 1 {
@@ -402,18 +1208,19 @@ func TestAcceptRejectsConflictingPartiallyMergedRow(t *testing.T) {
 	if _, err := Prepare(paths, PrepareInput{}); err != nil {
 		t.Fatal(err)
 	}
-	result := acceptedWorkerResult("lane-001", "src/app.go")
+	lease := mustLeasePacket(t, paths, "lane-001")
+	result := bindWorkerResultToLease(acceptedWorkerResult("lane-001", "src/app.go"), lease)
 	conflict := cloneTestObject(objectRows(t, result["nodes"])[0])
 	conflict["title"] = "different content"
 	writeJSON(t, filepath.Join(paths.RuntimeDir, "provisional", "nodes.json"), map[string]any{"nodes": []map[string]any{conflict}})
 	resultPath := filepath.Join(t.TempDir(), "lane-001.json")
 	writeJSON(t, resultPath, result)
 
-	if _, err := Accept(paths, AcceptInput{PacketID: "lane-001", ResultPath: resultPath}); err == nil || !strings.Contains(err.Error(), "conflict") {
+	if _, err := Accept(paths, AcceptInput{PacketID: "lane-001", AttemptID: lease.AttemptID, ResultPath: resultPath}); err == nil || !strings.Contains(err.Error(), "conflict") {
 		t.Fatalf("Accept conflict error = %v", err)
 	}
 	queue := readJSONObject(t, filepath.Join(paths.RuntimeDir, "workbench", "scan-queue.json"))
-	if state := objectRows(t, queue["packets"])[0]["state"]; state != "pending" {
+	if state := objectRows(t, queue["packets"])[0]["state"]; state != "leased" {
 		t.Fatalf("conflicting retry changed queue state to %v", state)
 	}
 }
@@ -423,12 +1230,13 @@ func TestAcceptSameResultIsIdempotentAfterAccepted(t *testing.T) {
 	if _, err := Prepare(paths, PrepareInput{}); err != nil {
 		t.Fatal(err)
 	}
+	lease := mustLeasePacket(t, paths, "lane-001")
 	resultPath := filepath.Join(t.TempDir(), "lane-001.json")
-	writeJSON(t, resultPath, acceptedWorkerResult("lane-001", "src/app.go"))
-	if _, err := Accept(paths, AcceptInput{PacketID: "lane-001", ResultPath: resultPath}); err != nil {
+	writeJSON(t, resultPath, bindWorkerResultToLease(acceptedWorkerResult("lane-001", "src/app.go"), lease))
+	if _, err := Accept(paths, AcceptInput{PacketID: "lane-001", AttemptID: lease.AttemptID, ResultPath: resultPath}); err != nil {
 		t.Fatal(err)
 	}
-	payload, err := Accept(paths, AcceptInput{PacketID: "lane-001", ResultPath: resultPath})
+	payload, err := Accept(paths, AcceptInput{PacketID: "lane-001", AttemptID: lease.AttemptID, ResultPath: resultPath})
 	if err != nil {
 		t.Fatalf("accepted packet retry returned error: %v", err)
 	}
@@ -439,10 +1247,10 @@ func TestAcceptSameResultIsIdempotentAfterAccepted(t *testing.T) {
 		t.Fatalf("node count after accepted retry = %d, want 1", got)
 	}
 
-	changed := acceptedWorkerResult("lane-001", "src/app.go")
+	changed := bindWorkerResultToLease(acceptedWorkerResult("lane-001", "src/app.go"), lease)
 	objectRows(t, changed["nodes"])[0]["title"] = "changed"
 	writeJSON(t, resultPath, changed)
-	if _, err := Accept(paths, AcceptInput{PacketID: "lane-001", ResultPath: resultPath}); err == nil {
+	if _, err := Accept(paths, AcceptInput{PacketID: "lane-001", AttemptID: lease.AttemptID, ResultPath: resultPath}); err == nil {
 		t.Fatal("accepted packet retry allowed a different result")
 	}
 }
@@ -452,6 +1260,7 @@ func TestAcceptHumanStateFailureCommitsCanonicalQueueAndRemainsRetryable(t *test
 	if _, err := Prepare(paths, PrepareInput{}); err != nil {
 		t.Fatal(err)
 	}
+	lease := mustLeasePacket(t, paths, "lane-001")
 	mapStatePath := filepath.Join(paths.RuntimeDir, "workbench", "map-state.md")
 	if err := os.Remove(mapStatePath); err != nil {
 		t.Fatal(err)
@@ -460,8 +1269,8 @@ func TestAcceptHumanStateFailureCommitsCanonicalQueueAndRemainsRetryable(t *test
 		t.Fatal(err)
 	}
 	resultPath := filepath.Join(t.TempDir(), "lane-001.json")
-	writeJSON(t, resultPath, acceptedWorkerResult("lane-001", "src/app.go"))
-	if _, err := Accept(paths, AcceptInput{PacketID: "lane-001", ResultPath: resultPath}); err == nil {
+	writeJSON(t, resultPath, bindWorkerResultToLease(acceptedWorkerResult("lane-001", "src/app.go"), lease))
+	if _, err := Accept(paths, AcceptInput{PacketID: "lane-001", AttemptID: lease.AttemptID, ResultPath: resultPath}); err == nil {
 		t.Fatal("Accept succeeded despite human-state render fault")
 	}
 	queue := readJSONObject(t, filepath.Join(paths.RuntimeDir, "workbench", "scan-queue.json"))
@@ -471,9 +1280,87 @@ func TestAcceptHumanStateFailureCommitsCanonicalQueueAndRemainsRetryable(t *test
 	if err := os.Remove(mapStatePath); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := Accept(paths, AcceptInput{PacketID: "lane-001", ResultPath: resultPath}); err != nil {
+	if _, err := Accept(paths, AcceptInput{PacketID: "lane-001", AttemptID: lease.AttemptID, ResultPath: resultPath}); err != nil {
 		t.Fatalf("retry after human-state fault failed: %v", err)
 	}
+}
+
+func checkpointWorkerResult(packetID string, attemptID string, sequence int, assigned []string, completed []string) map[string]any {
+	completedSet := map[string]bool{}
+	for _, path := range completed {
+		completedSet[path] = true
+	}
+	todo := make([]string, 0, len(assigned)-len(completed))
+	for _, path := range assigned {
+		if !completedSet[path] {
+			todo = append(todo, path)
+		}
+	}
+	coverage := make([]map[string]any, 0, len(completed))
+	evidence := make([]map[string]any, 0, len(completed))
+	nodes := make([]map[string]any, 0, len(completed))
+	for index, path := range completed {
+		evidenceID := fmt.Sprintf("E-%s-%d", packetID, index+1)
+		nodeID := fmt.Sprintf("N-%s-%d", packetID, index+1)
+		coverage = append(coverage, map[string]any{
+			"path": path, "outcome": "read", "evidence_ids": []string{evidenceID},
+		})
+		evidence = append(evidence, map[string]any{
+			"id": evidenceID, "source_kind": "source", "source_path": path,
+			"span": "1:1-3:1", "extractor": "scan-worker", "content_hash": "hash-" + path,
+		})
+		nodes = append(nodes, map[string]any{
+			"id": nodeID, "type": "file", "title": filepath.Base(path), "confidence": "high",
+			"paths": []string{path}, "evidence_ids": []string{evidenceID},
+		})
+	}
+	return map[string]any{
+		"protocol":       "map_scan_result.v2",
+		"packet_id":      packetID,
+		"attempt_id":     attemptID,
+		"sequence":       sequence,
+		"assigned_paths": append([]string{}, assigned...),
+		"paths_read":     append([]string{}, completed...),
+		"ledger": map[string]any{
+			"todo": todo, "doing": []string{}, "done": append([]string{}, completed...),
+			"blocked": []string{}, "overflow": []string{},
+		},
+		"coverage": coverage, "evidence": evidence, "nodes": nodes,
+		"edges": []map[string]any{}, "observations": []map[string]any{}, "claims": []map[string]any{},
+		"confidence": "high", "acceptance": "partial",
+	}
+}
+
+func sharedNodeCheckpointWorkerResult(packetID string, attemptID string, sequence int, assigned []string, completed []string) map[string]any {
+	result := checkpointWorkerResult(packetID, attemptID, sequence, assigned, completed)
+	evidenceIDs := make([]string, 0, len(completed))
+	for index := range completed {
+		evidenceIDs = append(evidenceIDs, fmt.Sprintf("E-%s-%d", packetID, index+1))
+	}
+	result["nodes"] = []map[string]any{{
+		"id": "N-" + packetID + "-shared", "type": "component", "title": "shared component", "confidence": "high",
+		"paths": append([]string{}, completed...), "evidence_ids": evidenceIDs,
+	}}
+	return result
+}
+
+func sameStringSet(left []string, right []string) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	counts := map[string]int{}
+	for _, item := range left {
+		counts[item]++
+	}
+	for _, item := range right {
+		counts[item]--
+	}
+	for _, count := range counts {
+		if count != 0 {
+			return false
+		}
+	}
+	return true
 }
 
 func acceptedWorkerResult(packetID string, path string) map[string]any {
@@ -518,6 +1405,23 @@ func acceptedWorkerResult(packetID string, path string) map[string]any {
 		"confidence":   "high",
 		"acceptance":   "pass",
 	}
+}
+
+func mustLeasePacket(t *testing.T, paths rt.Paths, packetID string) LeasePayload {
+	t.Helper()
+	lease, err := Lease(paths, LeaseInput{PacketID: packetID, WorkerID: "test-worker-" + packetID})
+	if err != nil {
+		t.Fatalf("Lease %s returned error: %v", packetID, err)
+	}
+	return lease
+}
+
+func bindWorkerResultToLease(result map[string]any, lease LeasePayload) map[string]any {
+	result["protocol"] = "map_scan_result.v2"
+	result["attempt_id"] = lease.AttemptID
+	result["sequence"] = 1
+	result["acceptance"] = "partial"
+	return result
 }
 
 func newScanPaths(t *testing.T, files []string) rt.Paths {

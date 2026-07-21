@@ -17,6 +17,7 @@ import (
 	rt "github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtime"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtimegate"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/scanartifacts"
+	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/scanreceipt"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/store"
 )
 
@@ -49,12 +50,29 @@ type ReconciliationCategory struct {
 }
 
 func Run(paths rt.Paths) (Payload, error) {
+	receiptBefore, receiptRequiredBefore, receiptErrBefore := scanreceipt.VerifySnapshot(paths)
 	pkg, scanResult := scanartifacts.Load(paths, scanartifacts.ValidateOptions{RequireStatusJSON: false})
 	payload := basePayload(paths)
 	payload.Errors = append(payload.Errors, scanResult.Errors...)
 	payload.Warnings = append(payload.Warnings, scanResult.Warnings...)
 	payload.ScanArtifactCounts = scanCounts(pkg)
 	if len(scanResult.Errors) > 0 {
+		return payload, nil
+	}
+	if receiptErrBefore != nil {
+		payload.Errors = append(payload.Errors, receiptErrBefore.Error())
+		payload.RecoveryAction = "run project-cognition validate-scan --format json"
+		return payload, nil
+	}
+	receiptAfter, receiptRequiredAfter, receiptErrAfter := scanreceipt.VerifySnapshot(paths)
+	if receiptErrAfter != nil {
+		payload.Errors = append(payload.Errors, receiptErrAfter.Error())
+		payload.RecoveryAction = "run project-cognition validate-scan --format json"
+		return payload, nil
+	}
+	if receiptRequiredBefore != receiptRequiredAfter || (receiptRequiredBefore && receiptBefore != receiptAfter) {
+		payload.Errors = append(payload.Errors, "scan artifacts changed while build-from-scan was loading them; rerun validate-scan")
+		payload.RecoveryAction = "run project-cognition validate-scan --format json"
 		return payload, nil
 	}
 	compiled, compilation := compiler.Compile(compiler.AdaptLegacy(pkg))

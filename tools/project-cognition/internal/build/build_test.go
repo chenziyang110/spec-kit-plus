@@ -989,6 +989,64 @@ func TestRunBlocksWhenStatusWriteFailsAfterReadyDBCommit(t *testing.T) {
 	}
 }
 
+func TestRunBlocksV2WorkbenchWithoutValidatedScanReceipt(t *testing.T) {
+	paths := writeMinimalScanPackage(t)
+	markBuildFixtureAsV2Workbench(t, paths)
+
+	payload, err := Run(paths)
+	if err != nil {
+		t.Fatalf("Run returned operational error: %v", err)
+	}
+	if payload.Status != "blocked" || payload.Readiness != rt.BlockedReadiness {
+		t.Fatalf("Run payload = %#v, want blocked before validated scan receipt", payload)
+	}
+	joined := strings.Join(payload.Errors, "\n")
+	if !strings.Contains(joined, "scan-receipt.json") || !strings.Contains(joined, "validate-scan") {
+		t.Fatalf("Run errors = %#v, want missing receipt with validate-scan recovery", payload.Errors)
+	}
+	if _, err := os.Stat(paths.DatabasePath); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("build without receipt created or touched graph store: %v", err)
+	}
+}
+
+func TestRunKeepsLegacyScanPackageCompatibleWithoutReceipt(t *testing.T) {
+	paths := writeMinimalScanPackage(t)
+	if _, err := os.Stat(filepath.Join(paths.RuntimeDir, "scan-receipt.json")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("legacy fixture unexpectedly has scan receipt: %v", err)
+	}
+
+	payload, err := Run(paths)
+	if err != nil {
+		t.Fatalf("Run legacy package returned error: %v", err)
+	}
+	if payload.Status != "ok" || payload.Readiness != rt.ReadyReadiness {
+		t.Fatalf("Run legacy package = %#v, want compatibility build to remain ready", payload)
+	}
+}
+
+func markBuildFixtureAsV2Workbench(t *testing.T, paths rt.Paths) {
+	t.Helper()
+	const generationID = "GEN-scan-v2"
+	if err := os.MkdirAll(filepath.Join(paths.RuntimeDir, "tmp"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeJSON(t, filepath.Join(paths.RuntimeDir, "workbench", "scan-queue.json"), map[string]any{
+		"protocol":      "map_scan_workbench.v2",
+		"generation_id": generationID,
+		"scan_set_path": ".specify/project-cognition/tmp/scan-files.json",
+		"packets": []map[string]any{{
+			"packet_id":           "lane-1",
+			"state":               "accepted",
+			"attempt_id":          "attempt-lane-1-1",
+			"assigned_paths":      []string{"src/app.go"},
+			"result_handoff_path": ".specify/project-cognition/workbench/worker-results/lane-1.json",
+		}},
+	})
+	writeJSON(t, filepath.Join(paths.RuntimeDir, "tmp", "scan-files.json"), map[string]any{
+		"protocol": "map_scan_set.v2", "generation_id": generationID, "files": []string{"src/app.go"},
+	})
+}
+
 func writeMinimalScanPackage(t *testing.T) rt.Paths {
 	t.Helper()
 	root := t.TempDir()

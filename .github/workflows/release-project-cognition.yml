@@ -21,6 +21,7 @@ jobs:
         run: |
           mkdir -p bin
           VERSION="${{ github.event.release.tag_name }}"
+          SOURCE_REVISION="$(git rev-parse HEAD)"
           echo "Building project-cognition ${VERSION}..."
 
           TARGETS="
@@ -40,7 +41,7 @@ jobs:
             echo "  -> ${goos}/${goarch}"
             GOOS=${goos} GOARCH=${goarch} CGO_ENABLED=0 \
               go build -trimpath \
-                -ldflags="-s -w -X 'main.version=${VERSION}'" \
+                -ldflags="-s -w -X main.version=${VERSION} -X github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/buildinfo.SourceRevision=${SOURCE_REVISION} -X github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/buildinfo.BuildDirty=false" \
                 -o "bin/project-cognition-${goos}-${goarch}${ext}" .
           done
 
@@ -50,7 +51,13 @@ jobs:
           chmod +x bin/project-cognition-linux-amd64
           bin/project-cognition-linux-amd64 --help | grep -q "scan-prepare"
           bin/project-cognition-linux-amd64 --help | grep -q "scan-accept"
+          bin/project-cognition-linux-amd64 --help | grep -q "scan-checkpoint"
+          bin/project-cognition-linux-amd64 version --format json | grep -q '"runtime_protocol":"project-cognition.v2"'
+          bin/project-cognition-linux-amd64 version --format json | grep -q '"schema_version":5'
+          bin/project-cognition-linux-amd64 version --format json | grep -q '"dirty":false'
           bin/project-cognition-linux-amd64 scan-prepare --help 2>&1 | grep -q -- "-force"
+          bin/project-cognition-linux-amd64 scan-prepare --help 2>&1 | grep -q -- "-safety-percent"
+          bin/project-cognition-linux-amd64 scan-lease --help 2>&1 | grep -q -- "-worker-capacity-tokens"
           bin/project-cognition-linux-amd64 scan-accept --help 2>&1 | grep -q -- "-packet-id"
 
       - name: Upload binaries to release

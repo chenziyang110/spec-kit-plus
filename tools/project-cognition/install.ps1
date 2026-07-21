@@ -74,8 +74,13 @@ function Get-NativeHelpOutput {
 try {
 Write-Host "==> Verifying..."
 & $candidate --version
+$runtimeInfo = Get-NativeHelpOutput -Command $candidate -Arguments @("version", "--format", "json")
+if (($runtimeInfo -notmatch [regex]::Escape('"runtime_protocol":"project-cognition.v2"')) -or ($runtimeInfo -notmatch '"schema_version":5') -or ($runtimeInfo -notmatch '"dirty":false')) {
+    Write-Host "Error: downloaded project-cognition binary has incompatible protocol, schema, or dirty provenance."
+    exit 1
+}
 $rootHelp = Get-NativeHelpOutput -Command $candidate -Arguments @("--help")
-foreach ($requiredCommand in @("repair-status", "scan-set", "scan-prepare", "scan-accept")) {
+foreach ($requiredCommand in @("repair-status", "scan-set", "scan-prepare", "scan-lease", "scan-checkpoint", "scan-yield", "scan-requeue", "scan-status", "scan-accept")) {
     if ($rootHelp -notmatch [regex]::Escape($requiredCommand)) {
         Write-Host "Error: downloaded project-cognition binary is missing required ${requiredCommand} command."
         Write-Host "Expected 'project-cognition --help' to include ${requiredCommand}."
@@ -83,15 +88,37 @@ foreach ($requiredCommand in @("repair-status", "scan-set", "scan-prepare", "sca
     }
 }
 $scanPrepareHelp = Get-NativeHelpOutput -Command $candidate -Arguments @("scan-prepare", "--help")
-if (($scanPrepareHelp -notmatch '-force') -or ($scanPrepareHelp -notmatch '-scan-set')) {
-    Write-Host "Error: downloaded project-cognition binary is missing required scan-prepare flags."
-    Write-Host "Expected 'project-cognition scan-prepare --help' to include -force and -scan-set."
+foreach ($requiredFlag in @('-force', '-scan-set', '-max-paths', '-max-bytes', '-worker-budget-tokens', '-context-window-tokens', '-inherited-context-tokens', '-system-skill-tokens', '-reserved-output-tokens', '-reserved-tool-tokens', '-reserved-reasoning-tokens', '-safety-percent')) {
+    if ($scanPrepareHelp -notmatch [regex]::Escape($requiredFlag)) {
+        Write-Host "Error: downloaded project-cognition binary is missing required scan-prepare flag ${requiredFlag}."
+        Write-Host "Expected 'project-cognition scan-prepare --help' to expose the complete context-budget protocol."
+        exit 1
+    }
+}
+$scanLeaseHelp = Get-NativeHelpOutput -Command $candidate -Arguments @("scan-lease", "--help")
+if (($scanLeaseHelp -notmatch '-packet-id') -or ($scanLeaseHelp -notmatch '-worker-id') -or ($scanLeaseHelp -notmatch '-worker-capacity-tokens')) {
+    Write-Host "Error: downloaded project-cognition binary is missing required scan-lease flags."
+    exit 1
+}
+$scanCheckpointHelp = Get-NativeHelpOutput -Command $candidate -Arguments @("scan-checkpoint", "--help")
+if (($scanCheckpointHelp -notmatch '-packet-id') -or ($scanCheckpointHelp -notmatch '-attempt-id') -or ($scanCheckpointHelp -notmatch '-result')) {
+    Write-Host "Error: downloaded project-cognition binary is missing required scan-checkpoint flags."
+    exit 1
+}
+$scanYieldHelp = Get-NativeHelpOutput -Command $candidate -Arguments @("scan-yield", "--help")
+if (($scanYieldHelp -notmatch '-packet-id') -or ($scanYieldHelp -notmatch '-attempt-id')) {
+    Write-Host "Error: downloaded project-cognition binary is missing required scan-yield flags."
+    exit 1
+}
+$scanRequeueHelp = Get-NativeHelpOutput -Command $candidate -Arguments @("scan-requeue", "--help")
+if (($scanRequeueHelp -notmatch '-packet-id') -or ($scanRequeueHelp -notmatch '-attempt-id')) {
+    Write-Host "Error: downloaded project-cognition binary is missing required scan-requeue flags."
     exit 1
 }
 $scanAcceptHelp = Get-NativeHelpOutput -Command $candidate -Arguments @("scan-accept", "--help")
-if (($scanAcceptHelp -notmatch '-packet-id') -or ($scanAcceptHelp -notmatch '-result')) {
+if (($scanAcceptHelp -notmatch '-packet-id') -or ($scanAcceptHelp -notmatch '-attempt-id') -or ($scanAcceptHelp -notmatch '-result')) {
     Write-Host "Error: downloaded project-cognition binary is missing required scan-accept flags."
-    Write-Host "Expected 'project-cognition scan-accept --help' to include -packet-id and -result."
+    Write-Host "Expected 'project-cognition scan-accept --help' to include -packet-id, -attempt-id, and -result."
     exit 1
 }
 $updateHelp = Get-NativeHelpOutput -Command $candidate -Arguments @("update", "--help")

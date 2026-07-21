@@ -10,9 +10,9 @@ import (
 	"strings"
 	"testing"
 
+	changemodel "github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/changes/model"
 	rt "github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtime"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/store"
-	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/update"
 )
 
 func TestRunPlansPayloadModeForKnownMappedChange(t *testing.T) {
@@ -80,12 +80,9 @@ func TestRunAcceptsFirstIterationWorkflowAllowlist(t *testing.T) {
 		{input: "debug", want: "sp-debug"},
 		{input: "/sp.fast", want: "sp-fast"},
 		{input: "sp-quick", want: "sp-quick"},
-		{input: "analyze", want: "sp-analyze"},
-		{input: "/sp.specify", want: "sp-specify"},
-		{input: "clarify", want: "sp-clarify"},
-		{input: "sp-plan", want: "sp-plan"},
-		{input: "/sp.tasks", want: "sp-tasks"},
-		{input: "deep-research", want: "sp-deep-research"},
+		{input: "review", want: "sp-review"},
+		{input: "/sp.integrate", want: "sp-integrate"},
+		{input: "implement-teams", want: "sp-implement"},
 		{input: "/sp.map-update", want: "sp-map-update"},
 	}
 
@@ -160,8 +157,53 @@ func TestRunQueuesUnknownPathDispositionWithoutBlockingKnownUnknown(t *testing.T
 	if len(payload.PayloadDraft.KnownUnknowns) != 0 {
 		t.Fatalf("draft KnownUnknowns = %#v, want none", payload.PayloadDraft.KnownUnknowns)
 	}
+	if len(payload.PayloadDraft.PathChanges) != 1 {
+		t.Fatalf("draft PathChanges = %#v, want one typed path change", payload.PayloadDraft.PathChanges)
+	}
+	pathChange := payload.PayloadDraft.PathChanges[0]
+	if pathChange.Path != "src/new-feature.go" || pathChange.Operation != changemodel.OperationAdd {
+		t.Fatalf("draft PathChanges[0] = %#v, want typed add", pathChange)
+	}
+	if pathChange.Disposition != nil {
+		t.Fatalf("draft unknown path disposition = %#v, want explicit agent decision", pathChange.Disposition)
+	}
+	if len(payload.PayloadDraft.UnknownPathDispositions) != 1 || payload.PayloadDraft.UnknownPathDispositions[0].Path != "src/new-feature.go" {
+		t.Fatalf("draft UnknownPathDispositions = %#v, want new-feature decision queue", payload.PayloadDraft.UnknownPathDispositions)
+	}
 	if !containsCloseoutString(payload.RequiredAgentFields, "unknown_path_dispositions") {
 		t.Fatalf("RequiredAgentFields = %#v, want unknown_path_dispositions", payload.RequiredAgentFields)
+	}
+}
+
+func TestRunPayloadDraftPreservesMappedRenameOperationAndOldPath(t *testing.T) {
+	root, paths := initCloseoutFixture(t)
+	base := runCloseoutGit(t, root, "rev-parse", "HEAD")
+	runCloseoutGit(t, root, "mv", "src/app.go", "src/renamed-app.go")
+
+	payload, err := Run(paths, Input{
+		Workflow:           "implement",
+		Since:              strings.TrimSpace(base),
+		Head:               strings.TrimSpace(base),
+		IncludeWorkingTree: true,
+	})
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+	if payload.PayloadDraft == nil || len(payload.PayloadDraft.PathChanges) != 1 {
+		t.Fatalf("PayloadDraft.PathChanges = %#v, want one rename", payload.PayloadDraft)
+	}
+	change := payload.PayloadDraft.PathChanges[0]
+	if change.Path != "src/renamed-app.go" || change.OldPath != "src/app.go" {
+		t.Fatalf("rename paths = %q <- %q, want src/renamed-app.go <- src/app.go", change.Path, change.OldPath)
+	}
+	if change.Operation != changemodel.OperationRename || change.NodeID != "N-app" {
+		t.Fatalf("typed rename = %#v, want rename for N-app", change)
+	}
+	if change.Disposition == nil || *change.Disposition != changemodel.DispositionAdoptable {
+		t.Fatalf("mapped rename disposition = %#v, want adoptable", change.Disposition)
+	}
+	if len(payload.PayloadDraft.UnknownPathDispositions) != 0 {
+		t.Fatalf("UnknownPathDispositions = %#v, want none for mapped rename", payload.PayloadDraft.UnknownPathDispositions)
 	}
 }
 
@@ -197,14 +239,66 @@ func TestRunPreservesDeltaSessionMode(t *testing.T) {
 	if !reflect.DeepEqual(payload.DeltaAppendDraft.ChangedPaths, []string{"src/app.go"}) {
 		t.Fatalf("DeltaAppendDraft.ChangedPaths = %#v", payload.DeltaAppendDraft.ChangedPaths)
 	}
-	if len(payload.DeltaAppendDraft.ArgvPlaceholders) == 0 || !containsCloseoutString(payload.DeltaAppendDraft.ArgvPlaceholders, "<agent-owned passing verification evidence>") {
-		t.Fatalf("DeltaAppendDraft.ArgvPlaceholders = %#v", payload.DeltaAppendDraft.ArgvPlaceholders)
+	if len(payload.DeltaAppendDraft.PathChanges) != 1 || payload.DeltaAppendDraft.PathChanges[0].Operation != changemodel.OperationModify {
+		t.Fatalf("DeltaAppendDraft.PathChanges = %#v, want typed modify", payload.DeltaAppendDraft.PathChanges)
+	}
+	pathChangeFlag := indexCloseoutString(payload.DeltaAppendDraft.ArgvPrefix, "--path-change")
+	if pathChangeFlag < 0 || pathChangeFlag+1 >= len(payload.DeltaAppendDraft.ArgvPrefix) {
+		t.Fatalf("DeltaAppendDraft.ArgvPrefix = %#v, want typed --path-change argv", payload.DeltaAppendDraft.ArgvPrefix)
+	}
+	var argvChange changemodel.PathChange
+	if err := json.Unmarshal([]byte(payload.DeltaAppendDraft.ArgvPrefix[pathChangeFlag+1]), &argvChange); err != nil {
+		t.Fatalf("parse --path-change argv: %v", err)
+	}
+	if argvChange.Path != "src/app.go" || argvChange.Operation != changemodel.OperationModify {
+		t.Fatalf("argv path change = %#v, want src/app.go modify", argvChange)
+	}
+	verificationFlag := indexCloseoutString(payload.DeltaAppendDraft.ArgvPlaceholders, "--verification")
+	if verificationFlag < 0 || verificationFlag+1 >= len(payload.DeltaAppendDraft.ArgvPlaceholders) {
+		t.Fatalf("DeltaAppendDraft.ArgvPlaceholders = %#v, want structured verification argv", payload.DeltaAppendDraft.ArgvPlaceholders)
+	}
+	var verification VerificationRecord
+	if err := json.Unmarshal([]byte(payload.DeltaAppendDraft.ArgvPlaceholders[verificationFlag+1]), &verification); err != nil {
+		t.Fatalf("parse verification argv: %v", err)
+	}
+	if verification.Result != "passed" || verification.Command == "" {
+		t.Fatalf("verification argv = %#v, want explicit passed result and command placeholder", verification)
 	}
 	if !reflect.DeepEqual(payload.UpdateArgv, []string{"project-cognition", "update", "--delta-session", "D-session", "--reason", "workflow-finalize", "--format", "json"}) {
 		t.Fatalf("UpdateArgv = %#v", payload.UpdateArgv)
 	}
 	if payload.RecommendedNextCommand != "fill_delta_append_draft_then_update" {
 		t.Fatalf("RecommendedNextCommand = %q", payload.RecommendedNextCommand)
+	}
+}
+
+func TestRunDeltaDraftRequiresUnknownPathDispositionArgument(t *testing.T) {
+	root, paths := initCloseoutFixture(t)
+	writeCloseoutFile(t, root, "src/new.go", "package app\n")
+
+	payload, err := Run(paths, Input{
+		Workflow:           "sp-quick",
+		DeltaSessionID:     "D-session",
+		ExplicitPaths:      []string{"src/new.go"},
+		IncludeWorkingTree: true,
+		IncludeUntracked:   true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if payload.DeltaAppendDraft == nil {
+		t.Fatal("DeltaAppendDraft is nil")
+	}
+	dispositionFlag := indexCloseoutString(payload.DeltaAppendDraft.ArgvPlaceholders, "--path-disposition")
+	if dispositionFlag < 0 || dispositionFlag+1 >= len(payload.DeltaAppendDraft.ArgvPlaceholders) {
+		t.Fatalf("ArgvPlaceholders = %#v, want path disposition decision", payload.DeltaAppendDraft.ArgvPlaceholders)
+	}
+	var decision map[string]string
+	if err := json.Unmarshal([]byte(payload.DeltaAppendDraft.ArgvPlaceholders[dispositionFlag+1]), &decision); err != nil {
+		t.Fatal(err)
+	}
+	if decision["path"] != "src/new.go" || decision["agent_disposition"] == "" {
+		t.Fatalf("decision = %#v, want planner-owned path and agent disposition placeholder", decision)
 	}
 }
 
@@ -223,7 +317,7 @@ func TestRunBlocksUnknownWorkflowName(t *testing.T) {
 	if payload.Status != "blocked" {
 		t.Fatalf("Status = %q, want blocked", payload.Status)
 	}
-	if len(payload.Errors) == 0 || !strings.Contains(payload.Errors[0], "unknown workflow") {
+	if len(payload.Errors) == 0 || !strings.Contains(payload.Errors[0], "does not own project cognition closeout") {
 		t.Fatalf("Errors = %#v", payload.Errors)
 	}
 	if payload.UpdateCommand != "" {
@@ -237,20 +331,24 @@ func TestRunBlocksInRepoOutOfContractWorkflowNames(t *testing.T) {
 
 	for _, workflow := range []string{
 		"sp-auto",
+		"sp-analyze",
 		"sp-checklist",
+		"sp-clarify",
 		"sp-constitution",
+		"sp-deep-research",
 		"sp-discussion",
 		"sp-explain",
-		"sp-integrate",
 		"sp-map-build",
 		"sp-map-scan",
+		"sp-plan",
 		"sp-prd",
 		"sp-prd-build",
 		"sp-prd-scan",
 		"sp-research",
+		"sp-specify",
+		"sp-tasks",
 		"research",
 		"sp-taskstoissues",
-		"sp-implement-teams",
 		"sp-team",
 	} {
 		t.Run(workflow, func(t *testing.T) {
@@ -268,7 +366,7 @@ func TestRunBlocksInRepoOutOfContractWorkflowNames(t *testing.T) {
 			if payload.UpdateCommand != "" || len(payload.UpdateArgv) != 0 {
 				t.Fatalf("update command fields = %q/%#v, want empty", payload.UpdateCommand, payload.UpdateArgv)
 			}
-			if len(payload.Errors) == 0 || !strings.Contains(payload.Errors[0], "unknown workflow") {
+			if len(payload.Errors) == 0 || !strings.Contains(payload.Errors[0], "does not own project cognition closeout") {
 				t.Fatalf("Errors = %#v", payload.Errors)
 			}
 			assertBlockedArraysEncodeAsEmpty(t, payload)
@@ -373,10 +471,23 @@ func initCloseoutFixture(t *testing.T) (string, rt.Paths) {
 	runCloseoutGit(t, root, "config", "user.name", "Test User")
 	runCloseoutGit(t, root, "add", ".")
 	runCloseoutGit(t, root, "commit", "-m", "baseline")
-	if _, err := update.CompleteRefresh(paths, "map-build"); err != nil {
-		t.Fatalf("CompleteRefresh: %v", err)
-	}
+	recordCloseoutTestRefreshBaseline(t, paths, root)
 	return root, paths
+}
+
+func recordCloseoutTestRefreshBaseline(t *testing.T, paths rt.Paths, root string) {
+	t.Helper()
+	status, err := rt.ReadStatus(paths)
+	if err != nil {
+		t.Fatalf("ReadStatus: %v", err)
+	}
+	status.LastRefreshGitCommit = strings.TrimSpace(runCloseoutGit(t, root, "rev-parse", "HEAD"))
+	status.LastRefreshGitBranch = strings.TrimSpace(runCloseoutGit(t, root, "branch", "--show-current"))
+	status.LastRefreshReason = "test-fixture"
+	status.LastRefreshBasis = "seeded"
+	if err := rt.WriteStatus(paths, status); err != nil {
+		t.Fatalf("WriteStatus refresh baseline: %v", err)
+	}
 }
 
 func seedCloseoutRuntimePathIndex(t *testing.T, paths rt.Paths) {
@@ -459,6 +570,15 @@ func containsCloseoutString(values []string, want string) bool {
 		}
 	}
 	return false
+}
+
+func indexCloseoutString(values []string, want string) int {
+	for index, value := range values {
+		if value == want {
+			return index
+		}
+	}
+	return -1
 }
 
 func assertBlockedArraysEncodeAsEmpty(t *testing.T, payload Payload) {

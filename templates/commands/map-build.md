@@ -46,7 +46,7 @@ Reconstruct or refresh the query-backed project cognition runtime from a complet
 - Treat `P3`, `inventory_only`, and `excluded` rows as boundary accounting only unless explicit accepted scan evidence and a high-value reason promote them. Do not derive graph, path_index, alias_index, route rows, or `minimal_live_reads` from raw inventory-only rows.
 - Dispatch only validated packetized build lanes as `one-subagent` or `parallel-subagents`.
 - If overlap, missing packet data, missing required references, or unsafe acceptance criteria prevent safe dispatch, record `subagent-blocked` and stop for escalation or recovery.
-- Run `{{specify-subcmd:project-cognition validate-scan --format json}}` before graph import.
+- Run `{{specify-subcmd:project-cognition validate-scan --format json}}` before graph import. For a v2 workbench this must create a matching `scan-receipt.json`; `build-from-scan` refuses an absent or digest-mismatched receipt and must not mutate the graph store.
 - Run `{{specify-subcmd:project-cognition build-from-scan --format json}}` after scan and package validation. It adapts the accepted canonical scan package into a versioned proposal and runs the deterministic cognition proposal compiler before any graph-store mutation, then rebuilds the graph store into schema v5 and owns DB import, metadata, status publication, and DB/status agreement.
 - Treat `compilation.publication_allowed=false` as a hard pre-publication block. Report the bounded compiler conflicts and stop without creating, archiving, replacing, or publishing a graph store.
 - A successful compile means the proposal is structurally safe and deterministic enough to publish as advisory graph material. Compiled nodes, edges, paths, aliases, and graph claims remain route candidates rather than repository facts; even `verified_in_graph_generation` requires bounded live repository evidence before behavioral or workflow final claims.
@@ -286,7 +286,7 @@ normalize user input into project vocabulary; it is not evidence by itself.
 
 Before reporting completion:
 
-- run `{{specify-subcmd:project-cognition validate-scan --format json}}` before graph import
+- run `{{specify-subcmd:project-cognition validate-scan --format json}}` before graph import and confirm the v2 scan receipt is current
 - run `{{specify-subcmd:project-cognition build-from-scan --format json}}`; if it returns `status=blocked`, report its `errors`, identity reconciliation details from `identity_reconciliation`, `rejections`, `merge_records`, and `recovery_action`
 - run `{{specify-subcmd:project-cognition validate-build --format json}}` after `build-from-scan`
 - report completion only after `validate-build` returns `status=ok` and `readiness=query_ready`

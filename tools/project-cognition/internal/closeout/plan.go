@@ -1,13 +1,15 @@
 package closeout
 
 import (
-	"fmt"
+	"encoding/json"
 	"path/filepath"
 	"sort"
 	"strings"
 
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/changes"
+	changemodel "github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/changes/model"
 	rt "github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtime"
+	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/workflowregistry"
 )
 
 const (
@@ -19,20 +21,6 @@ const (
 
 	closeoutReason = "workflow-finalize"
 )
-
-var knownWorkflows = map[string]struct{}{
-	"sp-implement":     {},
-	"sp-debug":         {},
-	"sp-fast":          {},
-	"sp-quick":         {},
-	"sp-analyze":       {},
-	"sp-specify":       {},
-	"sp-clarify":       {},
-	"sp-plan":          {},
-	"sp-tasks":         {},
-	"sp-deep-research": {},
-	"sp-map-update":    {},
-}
 
 type Input struct {
 	Workflow           string   `json:"workflow"`
@@ -81,34 +69,37 @@ type UnknownPathDisposition struct {
 }
 
 type PayloadDraft struct {
-	Workflow             string               `json:"workflow"`
-	Reason               string               `json:"reason"`
-	ChangedPaths         []string             `json:"changed_paths"`
-	ScopePaths           []string             `json:"scope_paths"`
-	BehaviorSurfaces     []string             `json:"behavior_surfaces"`
-	GeneratedSurfaces    []string             `json:"generated_surfaces"`
-	GeneratedSurfaceNote []string             `json:"generated_surface_notes"`
-	StateContracts       []string             `json:"state_contracts"`
-	Verification         []VerificationRecord `json:"verification"`
-	VerificationEvidence []VerificationRecord `json:"verification_evidence"`
-	KnownUnknowns        []string             `json:"known_unknowns"`
-	ConfidenceNotes      []string             `json:"confidence_notes"`
-	UserDecisions        []string             `json:"user_decisions"`
-	Boundary             BoundaryDraft        `json:"boundary"`
-	PayloadPath          string               `json:"payload_path"`
-	UpdateCommand        string               `json:"update_command"`
-	UpdateArgv           []string             `json:"update_argv"`
+	Workflow                string                   `json:"workflow"`
+	Reason                  string                   `json:"reason"`
+	ChangedPaths            []string                 `json:"changed_paths"`
+	PathChanges             []changemodel.PathChange `json:"path_changes"`
+	UnknownPathDispositions []UnknownPathDisposition `json:"unknown_path_dispositions"`
+	ScopePaths              []string                 `json:"scope_paths"`
+	BehaviorSurfaces        []string                 `json:"behavior_surfaces"`
+	GeneratedSurfaces       []string                 `json:"generated_surfaces"`
+	GeneratedSurfaceNote    []string                 `json:"generated_surface_notes"`
+	StateContracts          []string                 `json:"state_contracts"`
+	Verification            []VerificationRecord     `json:"verification"`
+	VerificationEvidence    []VerificationRecord     `json:"verification_evidence"`
+	KnownUnknowns           []string                 `json:"known_unknowns"`
+	ConfidenceNotes         []string                 `json:"confidence_notes"`
+	UserDecisions           []string                 `json:"user_decisions"`
+	Boundary                BoundaryDraft            `json:"boundary"`
+	PayloadPath             string                   `json:"payload_path"`
+	UpdateCommand           string                   `json:"update_command"`
+	UpdateArgv              []string                 `json:"update_argv"`
 }
 
 type DeltaAppendDraft struct {
-	EventType              string   `json:"event_type"`
-	OriginCommand          string   `json:"origin_command"`
-	Phase                  string   `json:"phase"`
-	ChangedPaths           []string `json:"changed_paths"`
-	RequiredAgentFields    []string `json:"required_agent_fields"`
-	RequiredEvidenceResult string   `json:"required_evidence_result"`
-	ArgvPrefix             []string `json:"argv_prefix"`
-	ArgvPlaceholders       []string `json:"argv_placeholders"`
+	EventType              string                   `json:"event_type"`
+	OriginCommand          string                   `json:"origin_command"`
+	Phase                  string                   `json:"phase"`
+	ChangedPaths           []string                 `json:"changed_paths"`
+	PathChanges            []changemodel.PathChange `json:"path_changes"`
+	RequiredAgentFields    []string                 `json:"required_agent_fields"`
+	RequiredEvidenceResult string                   `json:"required_evidence_result"`
+	ArgvPrefix             []string                 `json:"argv_prefix"`
+	ArgvPlaceholders       []string                 `json:"argv_placeholders"`
 }
 
 type VerificationRecord struct {
@@ -160,6 +151,7 @@ func Run(paths rt.Paths, input Input) (Payload, error) {
 		return Payload{}, err
 	}
 
+	dispositions := unknownPathDispositions(changePayload.Changes)
 	payload := Payload{
 		Status:                  changePayload.Status,
 		Workflow:                workflow,
@@ -168,7 +160,7 @@ func Run(paths rt.Paths, input Input) (Payload, error) {
 		RequiredAgentFields:     requiredAgentFields(changePayload.UnknownPaths),
 		KnownPaths:              knownPaths(changePayload.Changes),
 		UnknownPaths:            append([]string{}, changePayload.UnknownPaths...),
-		UnknownPathDispositions: unknownPathDispositions(changePayload.Changes),
+		UnknownPathDispositions: dispositions,
 		Changes:                 append([]changes.Change{}, changePayload.Changes...),
 		ChangeSummary:           changePayload.Summary,
 		Warnings:                append([]string{}, changePayload.Warnings...),
@@ -186,7 +178,7 @@ func Run(paths rt.Paths, input Input) (Payload, error) {
 		payload.DeltaSessionID = &sessionID
 		payload.CommandSafetyNote = "command strings are display-only; use argv arrays after filling required agent-owned evidence fields"
 		payload.DeltaAppendCommand = "display only: project-cognition delta append --session <delta_session_id> --event-type workflow_closeout ...agent evidence flags... --format json"
-		payload.DeltaAppendDraft = deltaAppendDraft(sessionID, workflow, changedPaths, payload.RequiredAgentFields)
+		payload.DeltaAppendDraft = deltaAppendDraft(sessionID, workflow, changedPaths, pathChanges(changePayload.Changes), dispositions, payload.RequiredAgentFields)
 		payload.UpdateCommand = "display only: project-cognition update --delta-session <delta_session_id> --reason <reason> --format json"
 		payload.UpdateArgv = []string{"project-cognition", "update", "--delta-session", sessionID, "--reason", reason, "--format", "json"}
 		payload.RecommendedNextCommand = "fill_delta_append_draft_then_update"
@@ -202,19 +194,21 @@ func Run(paths rt.Paths, input Input) (Payload, error) {
 	payload.UpdateArgv = updateArgv
 	payload.RecommendedNextCommand = "write_payload_then_update"
 	payload.PayloadDraft = &PayloadDraft{
-		Workflow:             workflow,
-		Reason:               reason,
-		ChangedPaths:         changedPaths,
-		ScopePaths:           append([]string{}, changedPaths...),
-		BehaviorSurfaces:     []string{},
-		GeneratedSurfaces:    []string{},
-		GeneratedSurfaceNote: []string{},
-		StateContracts:       []string{},
-		Verification:         []VerificationRecord{},
-		VerificationEvidence: []VerificationRecord{},
-		KnownUnknowns:        []string{},
-		ConfidenceNotes:      []string{},
-		UserDecisions:        []string{},
+		Workflow:                workflow,
+		Reason:                  reason,
+		ChangedPaths:            changedPaths,
+		PathChanges:             pathChanges(changePayload.Changes),
+		UnknownPathDispositions: append([]UnknownPathDisposition{}, dispositions...),
+		ScopePaths:              append([]string{}, changedPaths...),
+		BehaviorSurfaces:        []string{},
+		GeneratedSurfaces:       []string{},
+		GeneratedSurfaceNote:    []string{},
+		StateContracts:          []string{},
+		Verification:            []VerificationRecord{},
+		VerificationEvidence:    []VerificationRecord{},
+		KnownUnknowns:           []string{},
+		ConfidenceNotes:         []string{},
+		UserDecisions:           []string{},
 		Boundary: BoundaryDraft{
 			InitialDirtyPaths:  []string{},
 			WorkflowOwnedPaths: []string{},
@@ -227,20 +221,7 @@ func Run(paths rt.Paths, input Input) (Payload, error) {
 }
 
 func CanonicalWorkflow(value string) (string, error) {
-	normalized := strings.ToLower(strings.TrimSpace(value))
-	normalized = strings.TrimPrefix(normalized, "/")
-	normalized = strings.ReplaceAll(normalized, ".", "-")
-	normalized = strings.ReplaceAll(normalized, "_", "-")
-	if normalized == "" {
-		return "", fmt.Errorf("unknown workflow %q: expected a supported sp-* workflow such as sp-implement or sp-quick", value)
-	}
-	if !strings.HasPrefix(normalized, "sp-") {
-		normalized = "sp-" + normalized
-	}
-	if _, ok := knownWorkflows[normalized]; !ok {
-		return "", fmt.Errorf("unknown workflow %q: expected a supported sp-* workflow such as sp-implement or sp-quick", value)
-	}
-	return normalized, nil
+	return workflowregistry.CanonicalCloseoutWorkflow(value)
 }
 
 func knownPaths(items []changes.Change) []string {
@@ -259,6 +240,26 @@ func changedPaths(items []changes.Change) []string {
 		out = append(out, item.Path)
 	}
 	return sortedUnique(out)
+}
+
+func pathChanges(items []changes.Change) []changemodel.PathChange {
+	out := make([]changemodel.PathChange, 0, len(items))
+	for _, item := range items {
+		change := item.PathChange
+		change.EvidenceRefs = append([]string{}, item.EvidenceRefs...)
+		if item.KnownToRuntime {
+			disposition := changemodel.DispositionAdoptable
+			change.Disposition = &disposition
+		}
+		out = append(out, change)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Path == out[j].Path {
+			return out[i].OldPath < out[j].OldPath
+		}
+		return out[i].Path < out[j].Path
+	})
+	return out
 }
 
 func unknownPathDispositions(items []changes.Change) []UnknownPathDisposition {
@@ -313,7 +314,7 @@ func normalizePayloadPath(value string, workflow string) string {
 	return ".specify/project-cognition/updates/" + workflow + "-closeout.json"
 }
 
-func deltaAppendDraft(sessionID string, workflow string, paths []string, requiredFields []string) *DeltaAppendDraft {
+func deltaAppendDraft(sessionID string, workflow string, paths []string, changes []changemodel.PathChange, dispositions []UnknownPathDisposition, requiredFields []string) *DeltaAppendDraft {
 	prefix := []string{
 		"project-cognition", "delta", "append",
 		"--session", sessionID,
@@ -324,22 +325,37 @@ func deltaAppendDraft(sessionID string, workflow string, paths []string, require
 	for _, path := range paths {
 		prefix = append(prefix, "--changed-path", path)
 	}
+	for _, change := range changes {
+		encoded, _ := json.Marshal(change)
+		prefix = append(prefix, "--path-change", string(encoded))
+	}
+	placeholders := []string{
+		"--behavior-surface", "<agent-owned behavior surface>",
+		"--generated-surface", "<agent-owned generated surface if applicable>",
+		"--known-unknown", "<agent-owned known unknown if applicable>",
+	}
+	for _, disposition := range dispositions {
+		encoded, _ := json.Marshal(map[string]string{
+			"path":              disposition.Path,
+			"agent_disposition": "<adoptable|review_only|ignored|blocking_known_unknown>",
+		})
+		placeholders = append(placeholders, "--path-disposition", string(encoded))
+	}
+	placeholders = append(placeholders,
+		"--verification", `{"command":"<agent-owned verification command>","result":"passed","artifact":"<optional evidence artifact>"}`,
+		"--confidence", "<agent-owned confidence note>",
+		"--format", "json",
+	)
 	return &DeltaAppendDraft{
 		EventType:              "workflow_closeout",
 		OriginCommand:          workflow,
 		Phase:                  "closeout",
 		ChangedPaths:           append([]string{}, paths...),
+		PathChanges:            append([]changemodel.PathChange{}, changes...),
 		RequiredAgentFields:    append([]string{}, requiredFields...),
 		RequiredEvidenceResult: "passed",
 		ArgvPrefix:             prefix,
-		ArgvPlaceholders: []string{
-			"--behavior-surface", "<agent-owned behavior surface>",
-			"--generated-surface", "<agent-owned generated surface if applicable>",
-			"--known-unknown", "<agent-owned known unknown if applicable>",
-			"--verification", "<agent-owned passing verification evidence>",
-			"--confidence", "<agent-owned confidence note>",
-			"--format", "json",
-		},
+		ArgvPlaceholders:       placeholders,
 	}
 }
 

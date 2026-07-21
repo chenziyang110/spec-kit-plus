@@ -289,6 +289,126 @@ def _write_implement_tracker(
 
 def _write_tasks_and_worker_result(feature_dir: Path) -> None:
     feature_dir.mkdir(parents=True, exist_ok=True)
+    (feature_dir / "spec-contract.json").write_text(
+        json.dumps(
+            {
+                "scope": {
+                    "in": ["A user can refresh validation fixture evidence."],
+                    "out": [],
+                    "deferred": [],
+                },
+                "acceptance_criteria": [
+                    "A user can refresh validation fixture evidence."
+                ],
+                "capability_operations": [],
+                "acceptance_coverage": [
+                    {
+                        "requirement_ref": "spec-contract.json#/scope/in/0",
+                        "acceptance_ref": ("spec-contract.json#/acceptance_criteria/0"),
+                    }
+                ],
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (feature_dir / "plan-contract.json").write_text(
+        json.dumps(
+            {
+                "version": 2,
+                "status": "ready",
+                "acceptance_refs": ["spec-contract.json#/acceptance_criteria/0"],
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (feature_dir / "task-index.json").write_text(
+        json.dumps(
+            {
+                "version": 2,
+                "status": "ready",
+                "acceptance_refs": ["plan-contract.json#/acceptance_refs/0"],
+                "official_entrypoints": [
+                    {
+                        "id": "fixture-cli",
+                        "command": "specify implement closeout",
+                        "ready_signal": "The closeout result is emitted.",
+                    }
+                ],
+                "system_review_scenarios": [
+                    {
+                        "id": "SR-FIXTURE-001",
+                        "kind": "interaction",
+                        "title": "Refresh validation fixture evidence",
+                        "required": True,
+                        "entrypoint_id": "fixture-cli",
+                        "preconditions": ["The fixture project is initialized."],
+                        "actions": ["Run implementation closeout."],
+                        "expected_results": ["The closeout result reports success."],
+                        "required_evidence": ["runtime_diagnostics"],
+                    }
+                ],
+                "review_obligations": [
+                    {
+                        "id": "RO-FIXTURE-001",
+                        "kind": "acceptance",
+                        "source_ref": "plan-contract.json#/acceptance_refs/0",
+                        "surface": "Implementation closeout result",
+                        "required": True,
+                        "scenario_ids": ["SR-FIXTURE-001"],
+                    }
+                ],
+                "human_acceptance_obligations": [
+                    {
+                        "id": "HAO-FIXTURE-001",
+                        "source_ref": "plan-contract.json#/acceptance_refs/0",
+                        "change_kind": "changed",
+                        "user_outcome": (
+                            "The user sees a successful implementation closeout."
+                        ),
+                        "required": True,
+                        "scenario_ids": ["HA-FIXTURE-001"],
+                    }
+                ],
+                "human_acceptance_scenarios": [
+                    {
+                        "id": "HA-FIXTURE-001",
+                        "title": "Confirm implementation closeout",
+                        "user_value": (
+                            "The user can confirm the implementation is ready "
+                            "for review."
+                        ),
+                        "actor": "human user",
+                        "required": True,
+                        "obligation_ids": ["HAO-FIXTURE-001"],
+                        "entrypoint_id": "fixture-cli",
+                        "review_scenario_ids": ["SR-FIXTURE-001"],
+                        "start_state": "The fixture implementation is complete.",
+                        "steps": [
+                            {
+                                "id": "HA-FIXTURE-001-S01",
+                                "action": "Inspect the closeout result.",
+                                "expected_result": (
+                                    "The result reports that closeout succeeded."
+                                ),
+                                "evidence_requirement": (
+                                    "Human-visible successful closeout output."
+                                ),
+                                "risk": "low",
+                            }
+                        ],
+                    }
+                ],
+                "tasks": [{"id": "T001"}],
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
     (feature_dir / "tasks.md").write_text(
         "\n".join(
             [
@@ -313,6 +433,30 @@ def _write_tasks_and_worker_result(feature_dir: Path) -> None:
                         "status": "passed",
                     }
                 ],
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    lifecycle_dir = feature_dir / "implementation-review" / "tasks"
+    lifecycle_dir.mkdir(parents=True, exist_ok=True)
+    (lifecycle_dir / "T001.json").write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "task_id": "T001",
+                "task_ref": "task-index.json#/tasks/T001",
+                "source_revision": "r1",
+                "execution_mode": "leader-direct",
+                "packet_ref": None,
+                "status": "accepted",
+                "changed_paths": [],
+                "validation": [{"command": "pytest -q", "status": "passed"}],
+                "review": None,
+                "obligation_evidence": [],
+                "blockers": [],
+                "recovery": None,
             },
             indent=2,
         )
@@ -3225,6 +3369,11 @@ def test_implement_closeout_validates_state_and_auto_captures(tmp_path: Path) ->
     assert payload["status"] == "ok"
     assert payload["hook_result"]["status"] == "ok"
     assert payload["auto_capture"]["status"] == "captured"
+    assert payload["next_command"] == "sp-review (Classic) or spx-review (Advanced)"
+    handoff = json.loads(
+        (feature_dir / "implementation-handoff.json").read_text(encoding="utf-8")
+    )
+    assert handoff["human_acceptance_contract_origin"] == "task-index-v2"
 
 
 def test_implement_closeout_returns_blocked_json_when_session_state_is_missing(

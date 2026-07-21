@@ -708,6 +708,7 @@ def _reject_unsafe_status_scalar(value: Any) -> None:
         "not applicable",
         "not-applicable",
         "not-needed",
+        "not-triggered",
         "not_applicable",
         "not_needed",
         "null",

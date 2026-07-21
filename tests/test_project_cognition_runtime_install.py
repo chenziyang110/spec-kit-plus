@@ -1,5 +1,8 @@
+import json
 import os
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+import time
 
 from typer.testing import CliRunner
 
@@ -19,6 +22,128 @@ def test_project_cognition_binary_name_matches_platform(monkeypatch):
     assert project_cognition_runtime.binary_filename() == "project-cognition-windows-amd64.exe"
 
 
+def test_project_cognition_runtime_info_uses_machine_readable_version_command(
+    monkeypatch, tmp_path: Path
+):
+    binary = tmp_path / "project-cognition"
+    binary.write_text("binary", encoding="utf-8")
+    calls: list[list[str]] = []
+
+    class Result:
+        returncode = 0
+        stdout = json.dumps(
+            {
+                "version": "v1.2.3",
+                "runtime_protocol": "project-cognition.v2",
+                "schema_version": 5,
+                "source_revision": "abc123",
+                "dirty": False,
+            }
+        )
+        stderr = ""
+
+    def fake_run(command, **kwargs):
+        calls.append([str(part) for part in command])
+        return Result()
+
+    monkeypatch.setattr(project_cognition_runtime.subprocess, "run", fake_run)
+
+    assert project_cognition_runtime._runtime_info((str(binary),)) == {
+        "version": "v1.2.3",
+        "runtime_protocol": "project-cognition.v2",
+        "schema_version": 5,
+        "source_revision": "abc123",
+        "dirty": False,
+    }
+    assert calls == [[str(binary), "version", "--format", "json"]]
+
+
+def test_project_cognition_runtime_compatibility_checks_protocol_schema_and_dirty(
+    monkeypatch, tmp_path: Path
+):
+    binary = tmp_path / "project-cognition"
+    binary.write_text("binary", encoding="utf-8")
+    monkeypatch.setattr(
+        project_cognition_runtime,
+        "_binary_supports_required_commands",
+        lambda candidate: True,
+    )
+
+    compatible = {
+        "version": "v1.2.3",
+        "runtime_protocol": "project-cognition.v2",
+        "schema_version": 5,
+        "source_revision": "abc123",
+        "dirty": False,
+    }
+    monkeypatch.setattr(project_cognition_runtime, "_runtime_info", lambda argv: compatible)
+    assert project_cognition_runtime._binary_is_compatible(binary) is True
+
+    incompatible_protocol = {**compatible, "runtime_protocol": "project-cognition.v1"}
+    monkeypatch.setattr(
+        project_cognition_runtime, "_runtime_info", lambda argv: incompatible_protocol
+    )
+    assert project_cognition_runtime._binary_is_compatible(binary) is False
+
+    incompatible_schema = {**compatible, "schema_version": 4}
+    monkeypatch.setattr(
+        project_cognition_runtime, "_runtime_info", lambda argv: incompatible_schema
+    )
+    assert project_cognition_runtime._binary_is_compatible(binary) is False
+
+    dirty = {**compatible, "dirty": True}
+    monkeypatch.setattr(project_cognition_runtime, "_runtime_info", lambda argv: dirty)
+    assert project_cognition_runtime._binary_is_compatible(binary) is False
+    assert project_cognition_runtime._binary_is_compatible(binary, allow_dirty=True) is True
+
+
+def test_project_cognition_runtime_info_rejects_malformed_or_failed_output(
+    monkeypatch, tmp_path: Path
+):
+    binary = tmp_path / "project-cognition"
+    binary.write_text("binary", encoding="utf-8")
+
+    class Result:
+        returncode = 0
+        stdout = "not-json"
+        stderr = ""
+
+    monkeypatch.setattr(
+        project_cognition_runtime.subprocess, "run", lambda *args, **kwargs: Result()
+    )
+    assert project_cognition_runtime._runtime_info((str(binary),)) is None
+
+    Result.returncode = 2
+    Result.stdout = "{}"
+    assert project_cognition_runtime._runtime_info((str(binary),)) is None
+
+
+def test_project_cognition_source_build_replaces_empty_candidate_before_go_build(
+    monkeypatch, tmp_path: Path
+):
+    source_dir = tmp_path / "source"
+    source_dir.mkdir()
+    candidate = tmp_path / ".project-cognition.candidate"
+    candidate.write_text("", encoding="utf-8")
+
+    class Result:
+        returncode = 0
+        stdout = ""
+        stderr = ""
+
+    def fake_run(command, **kwargs):
+        assert not candidate.exists(), "go build must not receive the mkstemp placeholder"
+        candidate.write_text("built runtime", encoding="utf-8")
+        return Result()
+
+    monkeypatch.setattr(project_cognition_runtime.shutil, "which", lambda command: "go")
+    monkeypatch.setattr(project_cognition_runtime.subprocess, "run", fake_run)
+    monkeypatch.setattr(project_cognition_runtime.platform, "system", lambda: "Windows")
+
+    assert project_cognition_runtime._build_from_source(source_dir, candidate) == candidate
+    assert candidate.read_text(encoding="utf-8") == "built runtime"
+
+
 def test_ensure_project_cognition_binary_downloads_release_asset(monkeypatch, tmp_path: Path):
     downloads: list[tuple[str, Path]] = []
 
@@ -27,8 +152,8 @@ def test_ensure_project_cognition_binary_downloads_release_asset(monkeypatch, tm
     monkeypatch.setattr(project_cognition_runtime.platform, "machine", lambda: "x86_64")
     monkeypatch.setattr(
         project_cognition_runtime,
-        "_binary_supports_required_commands",
-        lambda binary: True,
+        "_binary_is_compatible",
+        lambda binary, allow_dirty=False: True,
         raising=False,
     )
 
@@ -52,6 +177,106 @@ def test_ensure_project_cognition_binary_downloads_release_asset(monkeypatch, tm
     assert downloads[0][1].name.startswith(".project-cognition.")
 
 
+def test_ensure_project_cognition_binary_serializes_concurrent_cache_publication(
+    monkeypatch, tmp_path: Path
+):
+    downloads: list[Path] = []
+    monkeypatch.setattr(project_cognition_runtime, "cache_dir", lambda: tmp_path)
+    monkeypatch.setattr(project_cognition_runtime.platform, "system", lambda: "Linux")
+    monkeypatch.setattr(project_cognition_runtime.platform, "machine", lambda: "x86_64")
+    monkeypatch.setattr(project_cognition_runtime.os, "chmod", lambda path, mode: None)
+
+    def fake_is_compatible(binary: Path, *, allow_dirty: bool = False) -> bool:
+        return binary.exists() and binary.read_text(encoding="utf-8") == "binary"
+
+    def fake_urlretrieve(url: str, dest: Path):
+        downloads.append(dest)
+        time.sleep(0.1)
+        dest.write_text("binary", encoding="utf-8")
+        return dest, None
+
+    monkeypatch.setattr(project_cognition_runtime, "_binary_is_compatible", fake_is_compatible)
+    monkeypatch.setattr(project_cognition_runtime, "urlretrieve", fake_urlretrieve)
+
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        binaries = list(pool.map(lambda _: project_cognition_runtime.ensure_binary("v1.2.3"), range(4)))
+
+    assert binaries == [tmp_path / "project-cognition"] * 4
+    assert len(downloads) == 1
+
+
+def test_ensure_project_cognition_binary_reuses_hash_bound_dirty_source_build(
+    monkeypatch, tmp_path: Path
+):
+    source_dir = tmp_path / "source" / "project-cognition"
+    source_dir.mkdir(parents=True)
+    source_file = source_dir / "main.go"
+    source_file.write_text("package main\n", encoding="utf-8")
+    builds: list[Path] = []
+    downloads: list[Path] = []
+
+    monkeypatch.setattr(project_cognition_runtime, "cache_dir", lambda: tmp_path / "cache")
+    monkeypatch.setattr(project_cognition_runtime.platform, "system", lambda: "Linux")
+    monkeypatch.setattr(project_cognition_runtime.platform, "machine", lambda: "x86_64")
+    monkeypatch.setattr(project_cognition_runtime.os, "chmod", lambda path, mode: None)
+    monkeypatch.setattr(
+        project_cognition_runtime,
+        "_bundled_project_cognition_source",
+        lambda: source_dir,
+    )
+
+    def fake_is_compatible(binary: Path, *, allow_dirty: bool = False) -> bool:
+        return (
+            binary.exists()
+            and binary.read_text(encoding="utf-8") == "dirty source runtime"
+            and allow_dirty
+        )
+
+    def fake_urlretrieve(url: str, dest: Path):
+        downloads.append(dest)
+        dest.write_text("incompatible release runtime", encoding="utf-8")
+        return dest, None
+
+    def fake_build_from_source(source: Path, dest: Path) -> Path:
+        builds.append(source)
+        dest.write_text("dirty source runtime", encoding="utf-8")
+        return dest
+
+    monkeypatch.setattr(project_cognition_runtime, "_binary_is_compatible", fake_is_compatible)
+    monkeypatch.setattr(project_cognition_runtime, "urlretrieve", fake_urlretrieve)
+    monkeypatch.setattr(project_cognition_runtime, "_build_from_source", fake_build_from_source)
+
+    first = project_cognition_runtime.ensure_binary(version="v1.2.3")
+    second = project_cognition_runtime.ensure_binary(version="v1.2.3")
+
+    assert first == second == tmp_path / "cache" / "project-cognition"
+    assert builds == [source_dir]
+    assert len(downloads) == 1
+    assert project_cognition_runtime._source_build_marker(first).is_file()
+
+    monkeypatch.setattr(
+        project_cognition_runtime,
+        "REQUIRED_COMMANDS",
+        (*project_cognition_runtime.REQUIRED_COMMANDS, "future-command"),
+    )
+    project_cognition_runtime.ensure_binary(version="v1.2.3")
+
+    assert builds == [source_dir, source_dir]
+    assert len(downloads) == 2
+
+    first.write_text("tampered runtime", encoding="utf-8")
+    project_cognition_runtime.ensure_binary(version="v1.2.3")
+
+    assert builds == [source_dir, source_dir, source_dir]
+    assert len(downloads) == 3
+
+    source_file.write_text("package main\n// changed\n", encoding="utf-8")
+    project_cognition_runtime.ensure_binary(version="v1.2.3")
+
+    assert builds == [source_dir, source_dir, source_dir, source_dir]
+    assert len(downloads) == 4
+
+
 def test_ensure_project_cognition_binary_refreshes_cached_binary_without_required_commands(
     monkeypatch, tmp_path: Path
 ):
@@ -65,7 +290,7 @@ def test_ensure_project_cognition_binary_refreshes_cached_binary_without_require
     cached_binary = tmp_path / "project-cognition"
     cached_binary.write_text("old runtime", encoding="utf-8")
 
-    def fake_supports_required_commands(binary: Path) -> bool:
+    def fake_is_compatible(binary: Path, *, allow_dirty: bool = False) -> bool:
         return binary.read_text(encoding="utf-8") == "new runtime"
 
     def fake_urlretrieve(url: str, dest: Path):
@@ -75,8 +300,8 @@ def test_ensure_project_cognition_binary_refreshes_cached_binary_without_require
 
     monkeypatch.setattr(
         project_cognition_runtime,
-        "_binary_supports_required_commands",
-        fake_supports_required_commands,
+        "_binary_is_compatible",
+        fake_is_compatible,
         raising=False,
     )
     monkeypatch.setattr(project_cognition_runtime, "urlretrieve", fake_urlretrieve)
@@ -147,7 +372,7 @@ def test_ensure_project_cognition_binary_builds_bundled_source_when_release_lack
         raising=False,
     )
 
-    def fake_supports_required_commands(binary: Path) -> bool:
+    def fake_is_compatible(binary: Path, *, allow_dirty: bool = False) -> bool:
         return binary.read_text(encoding="utf-8") == "built runtime"
 
     def fake_urlretrieve(url: str, dest: Path):
@@ -161,8 +386,8 @@ def test_ensure_project_cognition_binary_builds_bundled_source_when_release_lack
 
     monkeypatch.setattr(
         project_cognition_runtime,
-        "_binary_supports_required_commands",
-        fake_supports_required_commands,
+        "_binary_is_compatible",
+        fake_is_compatible,
         raising=False,
     )
     monkeypatch.setattr(project_cognition_runtime, "urlretrieve", fake_urlretrieve)
@@ -198,8 +423,9 @@ def test_ensure_project_cognition_binary_builds_bundled_source_when_download_fai
     )
     monkeypatch.setattr(
         project_cognition_runtime,
-        "_binary_supports_required_commands",
-        lambda binary: binary.read_text(encoding="utf-8") == "built runtime",
+        "_binary_is_compatible",
+        lambda binary, allow_dirty=False: binary.read_text(encoding="utf-8")
+        == "built runtime",
         raising=False,
     )
 
@@ -283,6 +509,11 @@ def test_project_cognition_required_commands_include_compass_and_expand():
     assert "generate-ignore" in project_cognition_runtime.REQUIRED_COMMANDS
     assert "scan-set" in project_cognition_runtime.REQUIRED_COMMANDS
     assert "scan-prepare" in project_cognition_runtime.REQUIRED_COMMANDS
+    assert "scan-lease" in project_cognition_runtime.REQUIRED_COMMANDS
+    assert "scan-checkpoint" in project_cognition_runtime.REQUIRED_COMMANDS
+    assert "scan-yield" in project_cognition_runtime.REQUIRED_COMMANDS
+    assert "scan-requeue" in project_cognition_runtime.REQUIRED_COMMANDS
+    assert "scan-status" in project_cognition_runtime.REQUIRED_COMMANDS
     assert "scan-accept" in project_cognition_runtime.REQUIRED_COMMANDS
     assert "changes" in project_cognition_runtime.REQUIRED_COMMANDS
     assert "closeout-plan" in project_cognition_runtime.REQUIRED_COMMANDS
@@ -309,12 +540,35 @@ def test_project_cognition_install_scripts_verify_closeout_plan_flags():
     assert "semantic-intake binary is missing required input flag" in shell_script
     assert "semantic-audit-resume --help" in shell_script
     assert "semantic-audit-resume binary is missing required input flag" in shell_script
-    assert "required_command in repair-status scan-set scan-prepare scan-accept" in shell_script
+    assert "required_command in repair-status scan-set scan-prepare scan-lease scan-checkpoint scan-yield scan-requeue scan-status scan-accept" in shell_script
     assert "scan-prepare --help" in shell_script
-    assert "-force" in shell_script
+    for flag in (
+        "-force",
+        "-scan-set",
+        "-max-paths",
+        "-max-bytes",
+        "-worker-budget-tokens",
+        "-context-window-tokens",
+        "-inherited-context-tokens",
+        "-system-skill-tokens",
+        "-reserved-output-tokens",
+        "-reserved-tool-tokens",
+        "-reserved-reasoning-tokens",
+        "-safety-percent",
+    ):
+        assert flag in shell_script
+    assert "scan-lease --help" in shell_script
+    assert '"-worker-capacity-tokens"' in shell_script
+    assert "scan-checkpoint --help" in shell_script
+    assert "scan-yield --help" in shell_script
+    assert "scan-requeue --help" in shell_script
     assert "scan-accept --help" in shell_script
     assert "-packet-id" in shell_script
+    assert "-attempt-id" in shell_script
     assert "project-cognition --help" in shell_script
+    assert 'version --format json' in shell_script
+    assert 'project-cognition.v2' in shell_script
+    assert '"schema_version":5' in shell_script
     assert '@("closeout-plan", "--help")' in powershell_script
     assert "-workflow" in powershell_script
     assert "-delta-session" in powershell_script
@@ -322,10 +576,33 @@ def test_project_cognition_install_scripts_verify_closeout_plan_flags():
     assert "semantic-intake binary is missing required input flag" in powershell_script
     assert '@("semantic-audit-resume", "--help")' in powershell_script
     assert "semantic-audit-resume binary is missing required input flag" in powershell_script
-    assert '"repair-status", "scan-set", "scan-prepare", "scan-accept"' in powershell_script
+    assert '"repair-status", "scan-set", "scan-prepare", "scan-lease", "scan-checkpoint", "scan-yield", "scan-requeue", "scan-status", "scan-accept"' in powershell_script
     assert '@("scan-prepare", "--help")' in powershell_script
+    for flag in (
+        "-force",
+        "-scan-set",
+        "-max-paths",
+        "-max-bytes",
+        "-worker-budget-tokens",
+        "-context-window-tokens",
+        "-inherited-context-tokens",
+        "-system-skill-tokens",
+        "-reserved-output-tokens",
+        "-reserved-tool-tokens",
+        "-reserved-reasoning-tokens",
+        "-safety-percent",
+    ):
+        assert flag in powershell_script
+    assert '@("scan-lease", "--help")' in powershell_script
+    assert "'-worker-capacity-tokens'" in powershell_script
+    assert '@("scan-checkpoint", "--help")' in powershell_script
+    assert '@("scan-yield", "--help")' in powershell_script
+    assert '@("scan-requeue", "--help")' in powershell_script
     assert '@("scan-accept", "--help")' in powershell_script
     assert '@("--help")' in powershell_script
+    assert '@("version", "--format", "json")' in powershell_script
+    assert 'project-cognition.v2' in powershell_script
+    assert '"schema_version":5' in powershell_script
 
 
 def test_project_cognition_binary_support_requires_compass_and_expand(
@@ -414,7 +691,7 @@ def test_project_cognition_binary_support_requires_update_payload_file(monkeypat
 
     class RootHelpResult:
         stdout = (
-            "Commands: status, build-from-scan, init-empty, repair-status, generate-ignore, scan-set, scan-prepare, scan-accept, changes, update, semantic-intake, semantic-audit-resume, lexicon, compass, "
+            "Commands: status, build-from-scan, init-empty, repair-status, generate-ignore, scan-set, scan-prepare, scan-lease, scan-checkpoint, scan-yield, scan-requeue, scan-status, scan-accept, changes, update, semantic-intake, semantic-audit-resume, lexicon, compass, "
             "expand, delta, closeout-plan\n"
         )
         stderr = ""
@@ -550,7 +827,7 @@ def test_project_cognition_binary_support_requires_semantic_intake_input_flag(
 
     class RootHelpResult:
         stdout = (
-            "Commands: status, build-from-scan, init-empty, repair-status, generate-ignore, scan-set, scan-prepare, scan-accept, changes, update, "
+            "Commands: status, build-from-scan, init-empty, repair-status, generate-ignore, scan-set, scan-prepare, scan-lease, scan-checkpoint, scan-yield, scan-requeue, scan-status, scan-accept, changes, update, "
             "semantic-intake, semantic-audit-resume, lexicon, compass, expand, delta, closeout-plan\n"
         )
         stderr = ""
@@ -593,7 +870,7 @@ def test_project_cognition_binary_support_requires_compass_precision_flags(
 
     class RootHelpResult:
         stdout = (
-            "Commands: status, build-from-scan, init-empty, repair-status, generate-ignore, scan-set, scan-prepare, scan-accept, changes, update, semantic-intake, semantic-audit-resume, lexicon, compass, "
+            "Commands: status, build-from-scan, init-empty, repair-status, generate-ignore, scan-set, scan-prepare, scan-lease, scan-checkpoint, scan-yield, scan-requeue, scan-status, scan-accept, changes, update, semantic-intake, semantic-audit-resume, lexicon, compass, "
             "expand, delta, closeout-plan\n"
         )
         stderr = ""
@@ -774,7 +1051,7 @@ def test_project_cognition_binary_support_requires_closeout_plan_delta_session_f
 
     class RootHelpResult:
         stdout = (
-            "Commands: status, build-from-scan, init-empty, repair-status, generate-ignore, scan-set, scan-prepare, scan-accept, changes, update, semantic-intake, semantic-audit-resume, lexicon, compass, "
+            "Commands: status, build-from-scan, init-empty, repair-status, generate-ignore, scan-set, scan-prepare, scan-lease, scan-checkpoint, scan-yield, scan-requeue, scan-status, scan-accept, changes, update, semantic-intake, semantic-audit-resume, lexicon, compass, "
             "expand, delta, closeout-plan\n"
         )
         stderr = ""
@@ -863,7 +1140,8 @@ def test_project_cognition_binary_support_requires_scan_workbench_flags(
 
     outputs = {
         ("--help",): (
-            "build-from-scan init-empty repair-status generate-ignore scan-set scan-prepare scan-accept "
+            "build-from-scan init-empty repair-status generate-ignore scan-set scan-prepare "
+            "scan-lease scan-checkpoint scan-yield scan-requeue scan-status scan-accept "
             "changes closeout-plan semantic-intake semantic-audit-resume lexicon compass "
             "expand update delta"
         ),
@@ -889,6 +1167,100 @@ def test_project_cognition_binary_support_requires_scan_workbench_flags(
         if args not in outputs:
             raise AssertionError(f"unexpected command: {command}")
         return Result(outputs[args])
+
+    monkeypatch.setattr(project_cognition_runtime.subprocess, "run", fake_run)
+
+    assert project_cognition_runtime._binary_supports_required_commands(binary) is False
+
+
+def test_project_cognition_binary_support_requires_resumable_scan_flags(
+    monkeypatch, tmp_path: Path
+):
+    binary = tmp_path / "project-cognition"
+    binary.write_text("binary", encoding="utf-8")
+
+    outputs = {
+        ("--help",): (
+            "build-from-scan init-empty repair-status generate-ignore scan-set scan-prepare "
+            "scan-lease scan-checkpoint scan-yield scan-requeue scan-status scan-accept "
+            "changes closeout-plan semantic-intake semantic-audit-resume lexicon compass "
+            "expand update delta"
+        ),
+        ("update", "--help"): "-payload-file -verification",
+        ("semantic-intake", "--help"): "-input",
+        ("semantic-audit-resume", "--help"): "-input",
+        ("lexicon", "--help"): "-mode",
+        ("compass", "--help"): "-semantic-intake-file -query-plan-file",
+        ("expand", "--help"): "-section",
+        ("delta", "append", "--help"): "-verification -generated-surface",
+        ("closeout-plan", "--help"): "-workflow -delta-session",
+        ("scan-prepare", "--help"): (
+            "-force -scan-set -worker-budget-tokens -context-window-tokens -max-paths"
+        ),
+        ("scan-lease", "--help"): "-packet-id -worker-id -worker-capacity-tokens",
+        # Missing -result must keep this runtime incompatible.
+        ("scan-checkpoint", "--help"): "-packet-id -attempt-id",
+    }
+
+    class Result:
+        stderr = ""
+
+        def __init__(self, stdout: str):
+            self.stdout = stdout
+
+    def fake_run(command, **kwargs):
+        args = tuple(str(part) for part in command[1:])
+        if args not in outputs:
+            raise AssertionError(f"unexpected command: {command}")
+        return Result(outputs[args])
+
+    monkeypatch.setattr(project_cognition_runtime.subprocess, "run", fake_run)
+
+    assert project_cognition_runtime._binary_supports_required_commands(binary) is False
+
+
+def test_project_cognition_binary_support_requires_complete_scan_budget_protocol(
+    monkeypatch, tmp_path: Path
+):
+    binary = tmp_path / "project-cognition"
+    binary.write_text("binary", encoding="utf-8")
+
+    outputs = {
+        ("--help",): (
+            "build-from-scan init-empty repair-status generate-ignore scan-set scan-prepare "
+            "scan-lease scan-checkpoint scan-yield scan-requeue scan-status scan-accept "
+            "changes closeout-plan semantic-intake semantic-audit-resume lexicon compass "
+            "expand update delta"
+        ),
+        ("update", "--help"): "-payload-file -verification",
+        ("semantic-intake", "--help"): "-input",
+        ("semantic-audit-resume", "--help"): "-input",
+        ("lexicon", "--help"): "-mode",
+        ("compass", "--help"): "-semantic-intake-file -query-plan-file",
+        ("expand", "--help"): "-section",
+        ("delta", "append", "--help"): "-verification -generated-surface",
+        ("closeout-plan", "--help"): "-workflow -delta-session",
+        # Everything except -safety-percent: this older runtime must be rejected.
+        ("scan-prepare", "--help"): (
+            "-force -scan-set -max-paths -max-bytes -worker-budget-tokens "
+            "-context-window-tokens -inherited-context-tokens -system-skill-tokens "
+            "-reserved-output-tokens -reserved-tool-tokens -reserved-reasoning-tokens"
+        ),
+        ("scan-lease", "--help"): "-packet-id -worker-id -worker-capacity-tokens",
+        ("scan-checkpoint", "--help"): "-packet-id -attempt-id -result",
+        ("scan-yield", "--help"): "-packet-id -attempt-id",
+        ("scan-requeue", "--help"): "-packet-id -attempt-id",
+        ("scan-accept", "--help"): "-packet-id -attempt-id -result",
+    }
+
+    class Result:
+        stderr = ""
+
+        def __init__(self, stdout: str):
+            self.stdout = stdout
+
+    def fake_run(command, **kwargs):
+        return Result(outputs[tuple(str(part) for part in command[1:])])
 
     monkeypatch.setattr(project_cognition_runtime.subprocess, "run", fake_run)
 

@@ -73,7 +73,10 @@ Update `STATUS.md` at meaningful transitions and render `SUMMARY.md` from
 `assets/summary.md` on completion or blockage. Close with
 `{{specify-subcmd:quick close <id>}}` only after terminal truth is recorded;
 archive is a separate explicit action.
-After verified repository changes, close out cognition with canonical workflow
-`quick`. Report changed paths, evidence, and remaining risk. This invocation
+After verified repository changes, run
+`{{specify-subcmd:project-cognition closeout-plan --workflow sp-quick --intent implement --format json}}`
+with explicit workflow-owned paths, fill returned agent-owned fields, and execute
+structured `update_argv`. Apply the receipt-bound finalizer gate in
+`references/project-cognition.md` before any clean claim. Report changed paths, evidence, and remaining risk. This invocation
 authorizes only this workflow stage; report any escalation as a handoff and do
 not invoke another workflow in this run.

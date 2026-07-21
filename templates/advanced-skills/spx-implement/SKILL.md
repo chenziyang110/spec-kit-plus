@@ -84,8 +84,11 @@ visual/interaction acceptance. Missing or bootstrap design sources hand off to
 never an implicit pass.
 
 After verified repository changes, carry the unchanged validation-epoch ledger
-and remaining budget in `implementation-handoff.json`, then close out cognition with canonical workflow
-`implement`. Report changed files, checks actually run, failures or skipped
+and remaining budget in `implementation-handoff.json`, then run
+`{{specify-subcmd:project-cognition closeout-plan --workflow sp-implement --intent implement --format json}}`
+with explicit workflow-owned paths, fill returned agent-owned fields, and execute
+structured `update_argv`. Apply the receipt-bound finalizer gate in
+`references/project-cognition.md` before any clean claim. Report changed files, checks actually run, failures or skipped
 checks, and residual risk. Ensure closeout prepared a trusted implementation
 handoff, recommend `$spx-review`, and stop. Do not invoke `$spx-accept`
 directly: technical completion is not human product acceptance, and task

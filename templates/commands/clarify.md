@@ -217,10 +217,6 @@ Goal: Strengthen an existing spec package after `/sp.specify` by closing plannin
    - whether another `/sp.specify` or `/sp.clarify` pass is still justified before planning
    - updated `workflow-state.md` path
    - cognition follow-up: if artifact-only clarification work proves later implementation should refresh ownership, workflow, integration boundary, or verification-surface cognition, record that as an advisory in `workflow-state.md`, `alignment.md`, or `context.md`; do not mark project cognition dirty or require a refresh until actual source/runtime changes make the runtime truth out of date.
-   - If this workflow makes actual source/runtime/template/config/test/generated-asset changes in the current run, follow the shared inline closeout contract:
-
-{{spec-kit-include: ../command-partials/common/inline-project-cognition-update.md}}
-
 ## Presentation Contract
 
 When communicating findings and completion, use a structured terminal presentation built from open blocks with:

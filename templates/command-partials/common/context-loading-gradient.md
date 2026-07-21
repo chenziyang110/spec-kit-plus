@@ -152,9 +152,9 @@ If `baseline_kind=greenfield_empty`, continue with workflow artifacts and live r
 
 ### Mutation Closeout Rule
 
-Entry-time stale or weak cognition is still an advisory navigation concern unless the user explicitly requested map maintenance. A workflow may continue from live evidence when entry guidance allows it. That entry routing rule does not waive closeout ownership.
+Entry-time stale or weak cognition is still an advisory navigation concern unless the user explicitly requested map maintenance. A workflow may continue from live evidence when entry guidance allows it. That entry routing rule does not waive closeout ownership. Workflow-owned mutation closeout is not external map maintenance and still requires the owning workflow's inline project cognition update at the final verified change boundary; context loading does not execute or duplicate closeout.
 
-{{spec-kit-include: inline-project-cognition-update.md}}
+`sp-map-update` is for manual/external maintenance and follow-up repair, not routine closeout for the active mutation workflow.
 
 ### Primary Read Restriction
 

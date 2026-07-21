@@ -22,14 +22,35 @@ Confirm scan/rebuild need with
 3. Run
    `{{specify-subcmd:project-cognition scan-prepare --scan-set .specify/project-cognition/tmp/scan-files.json --format json}}`.
    Resume a compatible queue. Use `--force` only after explicitly abandoning
-   the old workbench, because accepted and pending results are discarded.
-4. Keep the advanced model as leader and dispatch every prepared packet with
+   the old workbench, because accepted and pending results are discarded. Give
+   the runtime the selected worker/model capacity when supported. It must pack
+   by effective context budget and estimated token cost, with path count and
+   bytes only as secondary guards.
+4. Keep the advanced model as leader. Inspect
+   `{{specify-subcmd:project-cognition scan-status --format json}}`, use
+   `{{specify-subcmd:project-cognition scan-lease --worker-id <worker-id> --format json}}` to claim one prepared
+   packet/attempt, and dispatch its CLI-generated self-contained task brief with
    `references/scan-worker.md` to the lowest-cost capable worker/model. The
-   leader owns boundaries, acceptance, coverage, and escalation—not bulk reads.
-5. Accept each returned packet with
-   `{{specify-subcmd:project-cognition scan-accept --packet-id <packet-id> --format json}}`.
-   Repair or escalate rejected packets locally.
-6. Run `{{specify-subcmd:project-cognition validate-scan --format json}}` and
+   leader owns boundaries and escalation—not bulk reads or scheduler state.
+   Limit every wave to currently available worker slots; pending packet count
+   is not permission to oversubscribe the agent runtime.
+   Never dispatch a packet whose estimate exceeds that worker's effective
+   capacity. An oversized packet requires a sufficiently capable worker and an
+   explicit `--worker-capacity-tokens <tokens>` lease override, or re-planning.
+5. Require useful packet-local progress through
+   `{{specify-subcmd:project-cognition scan-checkpoint}}`. A worker nearing
+   context/tool/result capacity must checkpoint completed work and call
+   `{{specify-subcmd:project-cognition scan-yield}}`; the runtime preserves
+   accepted progress, computes the remaining paths, and requeues them for a new
+   subagent. If a worker stops before yielding, recover its packet/attempt from
+   compact `scan-status` and call `scan-requeue`; then lease the exact remainder
+   to a new worker.
+6. Accept a complete returned attempt with
+   `{{specify-subcmd:project-cognition scan-accept --packet-id <packet-id> --attempt-id <attempt-id> --format json}}`.
+   Repair or escalate rejected packets through the runtime. Repeat
+   `scan-status -> scan-lease -> checkpoint/yield/accept` until no pending,
+   leased, yielded, or blocked high-value packet remains.
+7. Run `{{specify-subcmd:project-cognition validate-scan --format json}}` and
    repair every blocking coverage/evidence gap.
 
 If no capable worker is available or a prepared packet cannot be dispatched
@@ -37,7 +58,9 @@ safely, preserve the prepared queue and persist `subagent_blocked` in the
 canonical workbench state and gap/coverage surfaces with packet, blocked scope,
 owner, and `recovery_condition`. Keep the workbench resumable and stop with that
 recovery action. Do not replace the missing worker with leader bulk reads or
-discard accepted/pending packet state.
+discard accepted/pending packet state. The leader and workers must not hand-edit
+global queue, handoff, coverage, evidence, provisional, status, or SQLite
+surfaces; only runtime commands may mutate them.
 
 Stop when validation reports the scan package ready. Do not run
 `build-from-scan`, publish a database, or claim the cognition baseline is

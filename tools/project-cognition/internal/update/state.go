@@ -2,6 +2,7 @@ package update
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -12,6 +13,7 @@ import (
 	"time"
 
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/boundary"
+	changemodel "github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/changes/model"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/config"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/delta"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/ignore"
@@ -62,24 +64,27 @@ type UpdateBoundaryInput struct {
 }
 
 type PayloadFileInput struct {
-	Workflow             string                   `json:"workflow"`
-	Reason               string                   `json:"reason"`
-	ChangedPaths         []string                 `json:"changed_paths"`
-	ScopePaths           []string                 `json:"scope_paths"`
-	BehaviorSurfaces     []string                 `json:"behavior_surfaces"`
-	GeneratedSurfaces    []string                 `json:"generated_surfaces"`
-	GeneratedSurfaceNote []string                 `json:"generated_surface_notes"`
-	StateContracts       []string                 `json:"state_contracts"`
-	Verification         VerificationEvidenceList `json:"verification"`
-	VerificationEvidence VerificationEvidenceList `json:"verification_evidence"`
-	KnownUnknowns        []string                 `json:"known_unknowns"`
-	ConfidenceNotes      []string                 `json:"confidence_notes"`
-	UserDecisions        []string                 `json:"user_decisions"`
-	Boundary             UpdateBoundaryInput      `json:"boundary"`
+	Workflow                string                                `json:"workflow"`
+	Reason                  string                                `json:"reason"`
+	ChangedPaths            []string                              `json:"changed_paths"`
+	PathChanges             []changemodel.PathChange              `json:"path_changes"`
+	UnknownPathDispositions []changemodel.PathDispositionDecision `json:"unknown_path_dispositions"`
+	ScopePaths              []string                              `json:"scope_paths"`
+	BehaviorSurfaces        []string                              `json:"behavior_surfaces"`
+	GeneratedSurfaces       []string                              `json:"generated_surfaces"`
+	GeneratedSurfaceNote    []string                              `json:"generated_surface_notes"`
+	StateContracts          []string                              `json:"state_contracts"`
+	Verification            VerificationEvidenceList              `json:"verification"`
+	VerificationEvidence    VerificationEvidenceList              `json:"verification_evidence"`
+	KnownUnknowns           []string                              `json:"known_unknowns"`
+	ConfidenceNotes         []string                              `json:"confidence_notes"`
+	UserDecisions           []string                              `json:"user_decisions"`
+	Boundary                UpdateBoundaryInput                   `json:"boundary"`
 }
 
 type UpdateInput struct {
 	ChangedPaths      []string
+	PathChanges       []changemodel.PathChange
 	ScopePaths        []string
 	Reason            string
 	DeltaSessionID    string
@@ -115,32 +120,64 @@ const (
 	ResultNeedsRebuild   = "needs_rebuild"
 	ResultBlocked        = "blocked"
 	ResultRecorded       = "recorded"
+	validateBuildReceipt = "validate-build-receipt.json"
 )
 
+var closureNodeBudget = 1000
+
+var errNoUpdateRecord = errors.New("no project cognition update record")
+
+type ValidateBuildReceipt struct {
+	Version            int    `json:"version"`
+	Gate               string `json:"gate"`
+	Status             string `json:"status"`
+	Readiness          string `json:"readiness"`
+	ActiveGenerationID string `json:"active_generation_id"`
+	UpdateID           string `json:"update_id"`
+	UpdateOutcome      string `json:"update_outcome"`
+	ValidatedAt        string `json:"validated_at"`
+}
+
+type updateRecordRef struct {
+	ID           string
+	ResultState  string
+	GenerationID string
+	ChangedPaths []string
+}
+
 type UpdatePayload struct {
-	Readiness               string           `json:"readiness"`
-	RecommendedNextAction   string           `json:"recommended_next_action"`
-	UpdateID                string           `json:"update_id"`
-	UpdateOutcome           string           `json:"update_outcome"`
-	ResultState             string           `json:"result_state"`
-	StatusUpdate            StatusUpdate     `json:"status_update"`
-	ChangedPaths            []string         `json:"changed_paths"`
-	IgnoredPaths            []string         `json:"ignored_paths"`
-	AffectedNodes           []map[string]any `json:"affected_nodes"`
-	AffectedGraphClaims     []string         `json:"affected_graph_claims"`
-	MissingCoverage         []string         `json:"missing_coverage"`
-	AdoptedPaths            []string         `json:"adopted_paths"`
-	ReviewPaths             []string         `json:"review_paths"`
-	UnadoptablePaths        []string         `json:"unadoptable_paths"`
-	PartialRefreshReasons   []string         `json:"partial_refresh_reasons"`
-	KnownUnknowns           []string         `json:"known_unknowns"`
-	MinimalLiveReads        []string         `json:"minimal_live_reads"`
-	PathAdoption            map[string]any   `json:"path_adoption"`
-	LastRefreshChangedBasis []string         `json:"last_refresh_changed_files_basis"`
-	Boundary                *boundary.Result `json:"boundary,omitempty"`
+	Readiness               string                   `json:"readiness"`
+	RecommendedNextAction   string                   `json:"recommended_next_action"`
+	UpdateID                string                   `json:"update_id"`
+	UpdateOutcome           string                   `json:"update_outcome"`
+	ResultState             string                   `json:"result_state"`
+	StatusUpdate            StatusUpdate             `json:"status_update"`
+	ChangedPaths            []string                 `json:"changed_paths"`
+	PathChanges             []changemodel.PathChange `json:"path_changes"`
+	IgnoredPaths            []string                 `json:"ignored_paths"`
+	AffectedNodes           []map[string]any         `json:"affected_nodes"`
+	AffectedGraphClaims     []string                 `json:"affected_graph_claims"`
+	ClosureTruncated        bool                     `json:"closure_truncated"`
+	ClosureTruncationReason string                   `json:"closure_truncation_reason,omitempty"`
+	MissingCoverage         []string                 `json:"missing_coverage"`
+	AdoptedPaths            []string                 `json:"adopted_paths"`
+	ReviewPaths             []string                 `json:"review_paths"`
+	UnadoptablePaths        []string                 `json:"unadoptable_paths"`
+	PartialRefreshReasons   []string                 `json:"partial_refresh_reasons"`
+	KnownUnknowns           []string                 `json:"known_unknowns"`
+	MinimalLiveReads        []string                 `json:"minimal_live_reads"`
+	PathAdoption            map[string]any           `json:"path_adoption"`
+	LastRefreshChangedBasis []string                 `json:"last_refresh_changed_files_basis"`
+	Boundary                *boundary.Result         `json:"boundary,omitempty"`
 }
 
 func MarkDirty(paths rt.Paths, input DirtyInput) (rt.Status, error) {
+	releaseUpdateLock, err := rt.AcquireUpdateLock(paths)
+	if err != nil {
+		return rt.Status{}, err
+	}
+	defer releaseUpdateLock()
+
 	if err := blockSplitBrainBaseline(paths); err != nil {
 		return rt.Status{}, err
 	}
@@ -178,42 +215,28 @@ func MarkDirty(paths rt.Paths, input DirtyInput) (rt.Status, error) {
 }
 
 func ClearDirty(paths rt.Paths) (rt.Status, error) {
-	if err := blockSplitBrainBaseline(paths); err != nil {
-		return rt.Status{}, err
-	}
-	status, err := rt.ReadStatus(paths)
-	if err != nil {
-		return rt.Status{}, err
-	}
-	status.Dirty = false
-	status.DirtyReasons = []string{}
-	status.DirtyOriginCommand = ""
-	status.DirtyOriginFeatureDir = ""
-	status.DirtyOriginLaneID = ""
-	status.DirtyScopePaths = []string{}
-	if status.Status == "stale" {
-		status.Status = "ok"
-	}
-	if err := rt.WriteStatus(paths, status); err != nil {
-		return rt.Status{}, err
-	}
-	return status, nil
+	return CompleteRefresh(paths, "clear-dirty")
 }
 
 func RecordRefresh(paths rt.Paths, reason string) (rt.Status, error) {
-	if err := blockSplitBrainBaseline(paths); err != nil {
+	releaseUpdateLock, err := rt.AcquireUpdateLock(paths)
+	if err != nil {
 		return rt.Status{}, err
 	}
+	defer releaseUpdateLock()
+	return recordRefreshLocked(paths, reason)
+}
+
+func recordRefreshLocked(paths rt.Paths, reason string) (rt.Status, error) {
 	if reason == "" {
 		reason = "manual"
 	}
-	status, err := rt.ReadStatus(paths)
+	status, err := completeRefreshLocked(paths, "recorded")
 	if err != nil {
 		return rt.Status{}, err
 	}
 	status.LastRefreshReason = reason
 	status.LastRefreshBasis = "recorded"
-	recordGitRefreshBaseline(paths, &status)
 	if err := rt.WriteStatus(paths, status); err != nil {
 		return rt.Status{}, err
 	}
@@ -235,16 +258,46 @@ func recordGitRefreshBaseline(paths rt.Paths, status *rt.Status) {
 }
 
 func CompleteRefresh(paths rt.Paths, basis string) (rt.Status, error) {
+	releaseUpdateLock, err := rt.AcquireUpdateLock(paths)
+	if err != nil {
+		return rt.Status{}, err
+	}
+	defer releaseUpdateLock()
+	return completeRefreshLocked(paths, basis)
+}
+
+func completeRefreshLocked(paths rt.Paths, basis string) (rt.Status, error) {
 	agreement, ok := runtimegate.CheckExisting(paths)
 	if !ok {
 		return rt.Status{}, fmt.Errorf("project cognition agreement blocked: run_map_scan_build: status.json and project-cognition.db are missing")
 	}
-	if agreement.Status != "ok" {
+	if agreement.Status != "ok" && agreement.CauseCode != runtimegate.CauseUpdateFinalizationPending {
 		return rt.Status{}, fmt.Errorf("project cognition agreement blocked: %s: %s", agreementAction(agreement), strings.Join(agreement.Errors, "; "))
 	}
 	status, err := rt.ReadStatus(paths)
 	if err != nil {
 		return rt.Status{}, err
+	}
+	if !refreshEligibleOutcome(status.LastUpdateOutcome) || strings.TrimSpace(status.LastUpdateID) == "" {
+		return rt.Status{}, fmt.Errorf("complete refresh blocked: latest update outcome %q is not ready or no_op", status.LastUpdateOutcome)
+	}
+	latest, err := latestUpdateRecord(paths)
+	if err != nil {
+		return rt.Status{}, fmt.Errorf("complete refresh blocked: latest update record unavailable: %w", err)
+	}
+	if latest.ID != status.LastUpdateID || latest.ResultState != status.LastUpdateOutcome || latest.GenerationID != status.ActiveGenerationID {
+		return rt.Status{}, fmt.Errorf("complete refresh blocked: status latest update %s/%s does not match database latest update %s/%s", status.LastUpdateID, status.LastUpdateOutcome, latest.ID, latest.ResultState)
+	}
+	if !finalizationEligibleStatus(status, latest) {
+		return rt.Status{}, fmt.Errorf("complete refresh blocked: latest update %s left unresolved dirty or stale project cognition state", status.LastUpdateID)
+	}
+	receipt, err := readValidateBuildReceipt(paths)
+	if err != nil {
+		return rt.Status{}, fmt.Errorf("complete refresh blocked: run validate-build after the latest ready/no_op update: %w", err)
+	}
+	if receipt.Gate != "build_acceptance" || receipt.Status != "ok" || receipt.Readiness != rt.ReadyReadiness ||
+		receipt.ActiveGenerationID != status.ActiveGenerationID || receipt.UpdateID != status.LastUpdateID || receipt.UpdateOutcome != status.LastUpdateOutcome {
+		return rt.Status{}, fmt.Errorf("complete refresh blocked: validate-build receipt does not match latest update %s/%s", status.LastUpdateID, status.LastUpdateOutcome)
 	}
 	status.Status = "ok"
 	status.Freshness = rt.ReadyFreshness
@@ -258,8 +311,9 @@ func CompleteRefresh(paths rt.Paths, basis string) (rt.Status, error) {
 	status.DirtyScopePaths = []string{}
 	status.StalePaths = []string{}
 	status.StaleReasons = []string{}
+	status.LastFinalizedUpdateID = status.LastUpdateID
 	if basis == "" {
-		basis = "map-build"
+		basis = "validated-update"
 	}
 	status.LastRefreshBasis = basis
 	recordGitRefreshBaseline(paths, &status)
@@ -269,14 +323,164 @@ func CompleteRefresh(paths rt.Paths, basis string) (rt.Status, error) {
 	return status, nil
 }
 
+func RecordValidateBuildReceipt(paths rt.Paths, gateStatus string, gate string, readiness string) error {
+	releaseUpdateLock, err := rt.AcquireUpdateLock(paths)
+	if err != nil {
+		return err
+	}
+	defer releaseUpdateLock()
+
+	receiptPath := filepath.Join(paths.RuntimeDir, validateBuildReceipt)
+	removeReceipt := func() error {
+		if err := os.Remove(receiptPath); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("remove stale validate-build receipt: %w", err)
+		}
+		return nil
+	}
+	if gateStatus != "ok" || gate != "build_acceptance" || readiness != rt.ReadyReadiness {
+		return removeReceipt()
+	}
+	status, err := rt.ReadStatus(paths)
+	if err != nil {
+		return err
+	}
+	if !refreshEligibleOutcome(status.LastUpdateOutcome) || strings.TrimSpace(status.LastUpdateID) == "" {
+		return removeReceipt()
+	}
+	latest, err := latestUpdateRecord(paths)
+	if errors.Is(err, errNoUpdateRecord) || errors.Is(err, os.ErrNotExist) {
+		return removeReceipt()
+	}
+	if err != nil {
+		return err
+	}
+	if latest.ID != status.LastUpdateID || latest.ResultState != status.LastUpdateOutcome || latest.GenerationID != status.ActiveGenerationID || !finalizationEligibleStatus(status, latest) {
+		return removeReceipt()
+	}
+	receipt := ValidateBuildReceipt{
+		Version:            1,
+		Gate:               gate,
+		Status:             gateStatus,
+		Readiness:          readiness,
+		ActiveGenerationID: status.ActiveGenerationID,
+		UpdateID:           status.LastUpdateID,
+		UpdateOutcome:      status.LastUpdateOutcome,
+		ValidatedAt:        time.Now().UTC().Format(time.RFC3339Nano),
+	}
+	data, err := json.MarshalIndent(receipt, "", "  ")
+	if err != nil {
+		return fmt.Errorf("encode validate-build receipt: %w", err)
+	}
+	if err := os.MkdirAll(paths.RuntimeDir, 0o755); err != nil {
+		return fmt.Errorf("create runtime dir for validate-build receipt: %w", err)
+	}
+	if err := os.WriteFile(receiptPath, append(data, '\n'), 0o644); err != nil {
+		return fmt.Errorf("write validate-build receipt: %w", err)
+	}
+	return nil
+}
+
+func readValidateBuildReceipt(paths rt.Paths) (ValidateBuildReceipt, error) {
+	data, err := os.ReadFile(filepath.Join(paths.RuntimeDir, validateBuildReceipt))
+	if err != nil {
+		return ValidateBuildReceipt{}, err
+	}
+	var receipt ValidateBuildReceipt
+	if err := json.Unmarshal(data, &receipt); err != nil {
+		return ValidateBuildReceipt{}, fmt.Errorf("parse validate-build receipt: %w", err)
+	}
+	if receipt.Version != 1 {
+		return ValidateBuildReceipt{}, fmt.Errorf("unsupported validate-build receipt version %d", receipt.Version)
+	}
+	return receipt, nil
+}
+
+func latestUpdateRecord(paths rt.Paths) (updateRecordRef, error) {
+	st, err := store.OpenExisting(paths)
+	if err != nil {
+		return updateRecordRef{}, err
+	}
+	defer st.Close()
+	generationID, err := st.ActiveGenerationID(context.Background())
+	if err != nil {
+		return updateRecordRef{}, err
+	}
+	var record updateRecordRef
+	var changedPathsJSON string
+	err = st.DB().QueryRowContext(context.Background(), `SELECT id, result_state, changed_paths_json FROM updates WHERE generation_id = ? ORDER BY completed_at DESC, id DESC LIMIT 1`, generationID).Scan(&record.ID, &record.ResultState, &changedPathsJSON)
+	if errors.Is(err, sql.ErrNoRows) {
+		return updateRecordRef{}, errNoUpdateRecord
+	}
+	if err != nil {
+		return updateRecordRef{}, fmt.Errorf("read latest project cognition update: %w", err)
+	}
+	if strings.TrimSpace(changedPathsJSON) != "" {
+		if err := json.Unmarshal([]byte(changedPathsJSON), &record.ChangedPaths); err != nil {
+			return updateRecordRef{}, fmt.Errorf("parse latest project cognition update changed paths: %w", err)
+		}
+	}
+	record.ChangedPaths = normalizePaths(record.ChangedPaths)
+	record.GenerationID = generationID
+	return record, nil
+}
+
+func refreshEligibleOutcome(outcome string) bool {
+	return outcome == ResultReady || outcome == ResultNoOp
+}
+
+func cleanRefreshStatus(status rt.Status) bool {
+	return status.Status == "ok" && status.Freshness == rt.ReadyFreshness && status.Readiness == rt.ReadyReadiness && status.GraphReady &&
+		!status.Dirty && len(status.DirtyReasons) == 0 && len(status.DirtyScopePaths) == 0 && len(status.StalePaths) == 0 && len(status.StaleReasons) == 0
+}
+
+func finalizationEligibleStatus(status rt.Status, latest updateRecordRef) bool {
+	if cleanRefreshStatus(status) {
+		return true
+	}
+	if status.Status != "stale" || status.Freshness != rt.StaleFreshness || status.Readiness != rt.ReviewReadiness ||
+		status.RecommendedNextAction != "review_project_cognition_update" || !status.GraphReady || !status.Dirty ||
+		status.DirtyOriginCommand != "project-cognition repair-status" || status.DirtyOriginFeatureDir != "" || status.DirtyOriginLaneID != "" {
+		return false
+	}
+	dirtyReasons := compactStrings(status.DirtyReasons)
+	staleReasons := compactStrings(status.StaleReasons)
+	if len(dirtyReasons) != 1 || dirtyReasons[0] != runtimegate.LatestUpdateMismatchRepairReason ||
+		len(staleReasons) != 1 || staleReasons[0] != runtimegate.LatestUpdateMismatchRepairReason {
+		return false
+	}
+	return sameNormalizedPaths(status.DirtyScopePaths, latest.ChangedPaths) &&
+		sameNormalizedPaths(status.StalePaths, latest.ChangedPaths) &&
+		sameNormalizedPaths(status.LastRefreshChangedFilesBasis, latest.ChangedPaths)
+}
+
+func sameNormalizedPaths(left []string, right []string) bool {
+	left = normalizePaths(left)
+	right = normalizePaths(right)
+	if len(left) != len(right) {
+		return false
+	}
+	for index := range left {
+		if left[index] != right[index] {
+			return false
+		}
+	}
+	return true
+}
+
 func RefreshTopics(paths rt.Paths, topics []string, reason string) (rt.Status, error) {
+	releaseUpdateLock, err := rt.AcquireUpdateLock(paths)
+	if err != nil {
+		return rt.Status{}, err
+	}
+	defer releaseUpdateLock()
+
 	if err := blockSplitBrainBaseline(paths); err != nil {
 		return rt.Status{}, err
 	}
 	if reason == "" {
 		reason = "topic-refresh"
 	}
-	status, err := RecordRefresh(paths, reason)
+	status, err := recordRefreshLocked(paths, reason)
 	if err != nil {
 		return rt.Status{}, err
 	}
@@ -288,6 +492,12 @@ func RefreshTopics(paths rt.Paths, topics []string, reason string) (rt.Status, e
 }
 
 func RunUpdate(paths rt.Paths, input UpdateInput) (UpdatePayload, error) {
+	releaseUpdateLock, err := rt.AcquireUpdateLock(paths)
+	if err != nil {
+		return UpdatePayload{}, err
+	}
+	defer releaseUpdateLock()
+
 	if err := blockSplitBrainBaseline(paths); err != nil {
 		return UpdatePayload{}, err
 	}
@@ -301,8 +511,16 @@ func RunUpdate(paths rt.Paths, input UpdateInput) (UpdatePayload, error) {
 	if input.DeltaSessionID != "" {
 		return runDeltaSessionUpdate(paths, input)
 	}
+	pathChanges, err := normalizePathChanges(input.PathChanges)
+	if err != nil {
+		return UpdatePayload{}, err
+	}
+	input.PathChanges = pathChanges
 	changed := append([]string{}, input.ChangedPaths...)
 	changed = append(changed, input.ScopePaths...)
+	for _, change := range pathChanges {
+		changed = append(changed, change.Path)
+	}
 	if len(changed) == 0 {
 		derived, err := rt.GitChangedPaths(paths.Root)
 		if err != nil {
@@ -315,6 +533,8 @@ func RunUpdate(paths rt.Paths, input UpdateInput) (UpdatePayload, error) {
 	kept, ignored := matcher.Filter(changed)
 	kept = normalizePaths(kept)
 	ignored = normalizePaths(ignored)
+	input.PathChanges, kept = convertIgnoredRenameTargetsToDeletes(input.PathChanges, kept, ignored)
+	input.PathChanges = filterPathChanges(input.PathChanges, kept)
 	if err := validateChangedPaths(kept); err != nil {
 		return UpdatePayload{}, err
 	}
@@ -335,111 +555,100 @@ func agreementAction(agreement runtimegate.Agreement) string {
 func runResolvedUpdate(paths rt.Paths, input UpdateInput, changed []string, ignored []string, boundaryResult *boundary.Result) (UpdatePayload, error) {
 	changed = normalizePaths(changed)
 	ignored = normalizePaths(ignored)
+	ignoredDispositionChanges := pathChangesWithDisposition(input.PathChanges, changemodel.DispositionIgnored)
+	pathChanges, ignoredByDisposition := splitIgnoredPathChanges(input.PathChanges)
+	input.PathChanges = pathChanges
+	ignored = normalizePaths(append(ignored, ignoredByDisposition...))
+	changed = subtractStrings(changed, ignoredByDisposition)
 	if err := validateChangedPaths(changed); err != nil {
+		return UpdatePayload{}, err
+	}
+	input.Verification = normalizeVerificationEvidence(input.Verification)
+	if err := validateVerificationEvidence(input.Verification); err != nil {
+		return UpdatePayload{}, err
+	}
+	baselineStatus, err := requireUpdateBaseline(paths)
+	if err != nil {
 		return UpdatePayload{}, err
 	}
 	updateID := "upd-" + time.Now().UTC().Format("20060102T150405.000000000Z")
 
 	st, err := store.OpenExisting(paths)
-	if errors.Is(err, os.ErrNotExist) {
-		st = nil
-		err = nil
-	}
 	if err != nil {
 		return UpdatePayload{}, err
 	}
-	nodes := []map[string]any{}
-	closure := store.AffectedClosure{}
-	pathNodeIDs := map[string]string{}
-	adoptedPathSet := map[string]bool{}
-	resultState := updateResultState(changed, nodes, input, pathNodeIDs)
-	if st != nil {
-		defer st.Close()
-		closure, err = st.AffectedClosureForPaths(context.Background(), changed)
-		if err != nil {
-			return UpdatePayload{}, err
-		}
-		pathNodeIDs, err = st.NodeIDsForExactPaths(context.Background(), changed)
-		if err != nil {
-			return UpdatePayload{}, err
-		}
-		if canAdoptWorkflowPaths(changed, input) {
-			for _, path := range unmappedPaths(changed, pathNodeIDs) {
-				if _, err := st.AdoptWorkflowPath(context.Background(), store.WorkflowPathAdoption{
-					UpdateID:         updateID,
-					Path:             path,
-					Workflow:         input.Workflow,
-					BehaviorSurfaces: input.BehaviorSurfaces,
-					Verification:     verificationAttrs(input.Verification),
-					Reason:           input.Reason,
-				}); err != nil {
-					return UpdatePayload{}, err
-				}
-				adoptedPathSet[path] = true
-			}
-			closure, err = st.AffectedClosureForPaths(context.Background(), changed)
-			if err != nil {
-				return UpdatePayload{}, err
-			}
-			pathNodeIDs, err = st.NodeIDsForExactPaths(context.Background(), changed)
-			if err != nil {
-				return UpdatePayload{}, err
-			}
-		}
-		nodes, err = st.NodesForIDs(context.Background(), closure.NodeIDs)
-		if err != nil {
-			return UpdatePayload{}, err
-		}
-		resultState = updateResultState(changed, nodes, input, pathNodeIDs)
-		if resultState == ResultReady && len(closure.NodeIDs) > 0 {
-			for _, path := range changed {
-				if adoptedPathSet[path] {
-					continue
-				}
-				nodeID := pathNodeIDs[path]
-				if nodeID == "" {
-					return UpdatePayload{}, fmt.Errorf("ready update path %s has no exact path_index node", path)
-				}
-				if _, err := st.RefreshPathCoverage(context.Background(), store.PathCoverageRefresh{
-					UpdateID:   updateID,
-					Path:       path,
-					NodeID:     nodeID,
-					Relation:   "owns",
-					Confidence: "verified",
-					Reason:     input.Reason,
-				}); err != nil {
-					return UpdatePayload{}, err
-				}
-			}
-		}
-		if err := st.RecordStructuredUpdate(context.Background(), store.UpdateRecord{
+	defer st.Close()
+
+	lookupPaths := pathChangeLookupPaths(changed, input.PathChanges)
+	pathNodeIDs, err := st.NodeIDsForExactPaths(context.Background(), lookupPaths)
+	if err != nil {
+		return UpdatePayload{}, err
+	}
+	input.PathChanges = completePathChanges(changed, input.PathChanges, pathNodeIDs)
+	auditPathChanges := append([]changemodel.PathChange{}, input.PathChanges...)
+	auditPathChanges = append(auditPathChanges, ignoredDispositionChanges...)
+	sort.Slice(auditPathChanges, func(i, j int) bool { return auditPathChanges[i].Path < auditPathChanges[j].Path })
+	if err := validatePathChangesAgainstRuntime(input.PathChanges, pathNodeIDs); err != nil {
+		return UpdatePayload{}, err
+	}
+	refreshScopePaths := pathChangeLookupPaths(changed, input.PathChanges)
+	graphChanges := graphMutationPathChanges(input.PathChanges)
+	closurePaths := pathChangeLookupPaths(graphMutationPaths(graphChanges), graphChanges)
+	closure, err := st.AffectedClosureForPathsAndNodeIDsWithBudget(context.Background(), closurePaths, pathChangeNodeIDs(graphChanges), store.ClosureBudget{MaxNodes: closureNodeBudget})
+	if err != nil {
+		return UpdatePayload{}, err
+	}
+	nodes, err := st.NodesForIDs(context.Background(), closure.NodeIDs)
+	if err != nil {
+		return UpdatePayload{}, err
+	}
+	resultState := constrainResultStateByBaseline(typedUpdateResultState(changed, input, closure, pathNodeIDs), baselineStatus, refreshScopePaths, input.Reason)
+	typedResult, err := st.ApplyTypedUpdate(context.Background(), store.TypedUpdate{
+		Record: store.UpdateRecord{
 			ID:             updateID,
 			Trigger:        input.Reason,
-			ChangedPaths:   changed,
+			ChangedPaths:   graphMutationPaths(input.PathChanges),
 			AffectedNodes:  closure.NodeIDs,
 			AffectedClaims: closure.ClaimIDs,
 			AffectedSlices: closure.SliceIDs,
 			ResultState:    resultState,
 			Attrs: map[string]any{
-				"workflow":           input.Workflow,
-				"behavior_surfaces":  input.BehaviorSurfaces,
 				"generated_surfaces": input.GeneratedSurfaces,
 				"state_contracts":    input.StateContracts,
-				"verification":       input.Verification,
 				"known_unknowns":     input.KnownUnknowns,
 				"confidence_notes":   input.ConfidenceNotes,
 				"boundary":           boundaryResult,
+				"closure_truncated":  closure.Truncated,
 			},
-		}); err != nil {
-			return UpdatePayload{}, err
-		}
+		},
+		PathChanges:      auditPathChanges,
+		Workflow:         input.Workflow,
+		BehaviorSurfaces: input.BehaviorSurfaces,
+		Verification:     verificationAttrs(input.Verification),
+		Reason:           input.Reason,
+	})
+	if err != nil {
+		return UpdatePayload{}, err
+	}
+	postClosure, err := st.AffectedClosureForPathsWithBudget(context.Background(), closurePaths, store.ClosureBudget{MaxNodes: closureNodeBudget})
+	if err != nil {
+		return UpdatePayload{}, err
+	}
+	closure = mergeAffectedClosures(closure, postClosure, typedResult.AffectedNodeIDs)
+	nodes, err = st.NodesForIDs(context.Background(), closure.NodeIDs)
+	if err != nil {
+		return UpdatePayload{}, err
+	}
+	pathNodeIDs, err = st.NodeIDsForExactPaths(context.Background(), lookupPaths)
+	if err != nil {
+		return UpdatePayload{}, err
 	}
 
 	status, err := rt.ReadStatus(paths)
 	if err != nil {
 		return UpdatePayload{}, err
 	}
-	status = applyResultState(status, resultState, updateID, changed, input.Reason)
+	status = applyResultState(status, resultState, updateID, refreshScopePaths, input.Reason)
 	if input.DeltaSessionID != "" {
 		status.LastDeltaSessionID = input.DeltaSessionID
 	}
@@ -450,22 +659,28 @@ func runResolvedUpdate(paths rt.Paths, input UpdateInput, changed []string, igno
 		return UpdatePayload{}, err
 	}
 
-	updatePaths := updatePathPayloads(resultState, changed)
 	pathAccounting := updatePathAccounting(changed, ignored)
 	if boundaryResult != nil {
 		pathAccounting = boundaryResult.PathAccounting
 	}
-	reviewPaths := updatePaths.review
+	reviewPaths := reviewOnlyPaths(input.PathChanges)
+	if resultState != ResultReady && len(reviewPaths) == 0 {
+		reviewPaths = append([]string{}, changed...)
+	}
 	if boundaryResult != nil && resultState != ResultReady {
 		reviewPaths = appendUnique(reviewPaths, boundaryResult.AmbiguousPaths...)
 	}
-	partialRefreshReasons := updateResultReasons(resultState, changed, nodes, input, pathNodeIDs, st != nil)
+	partialRefreshReasons := updateResultReasons(resultState, changed, nodes, input, pathNodeIDs, true, baselineStatus, refreshScopePaths)
+	partialRefreshReasons = appendUnique(partialRefreshReasons, pathChangePartialReasons(input.PathChanges, closure)...)
 	knownUnknowns := compactStrings(input.KnownUnknowns)
 	if boundaryResult != nil {
 		knownUnknowns = compactStrings(append(knownUnknowns, boundaryResult.Warnings...))
 	}
 	pathAdoption := map[string]any{
-		"adopted":         updatePaths.adopted,
+		"adopted":         typedResult.AdoptedPaths,
+		"refreshed":       typedResult.RefreshedPaths,
+		"renamed":         typedResult.RenamedPaths,
+		"deleted":         typedResult.DeletedPaths,
 		"ignored":         ignored,
 		"needs_review":    reviewPaths,
 		"path_accounting": pathAccounting,
@@ -484,21 +699,42 @@ func runResolvedUpdate(paths rt.Paths, input UpdateInput, changed []string, igno
 		UpdateOutcome:           boundaryOutcome(boundaryResult),
 		ResultState:             resultState,
 		StatusUpdate:            statusUpdateFromStatus(status),
-		ChangedPaths:            updatePaths.changed,
+		ChangedPaths:            append([]string{}, changed...),
+		PathChanges:             append([]changemodel.PathChange{}, auditPathChanges...),
 		IgnoredPaths:            ignored,
 		AffectedNodes:           nodes,
 		AffectedGraphClaims:     append([]string{}, closure.ClaimIDs...),
+		ClosureTruncated:        closure.Truncated,
+		ClosureTruncationReason: closure.TruncationReason,
 		MissingCoverage:         []string{},
-		AdoptedPaths:            updatePaths.adopted,
+		AdoptedPaths:            append([]string{}, typedResult.AdoptedPaths...),
 		ReviewPaths:             reviewPaths,
-		UnadoptablePaths:        []string{},
+		UnadoptablePaths:        blockingDispositionPaths(input.PathChanges),
 		PartialRefreshReasons:   partialRefreshReasons,
 		KnownUnknowns:           knownUnknowns,
-		MinimalLiveReads:        updatePaths.minimalLiveReads,
+		MinimalLiveReads:        append([]string{}, reviewPaths...),
 		PathAdoption:            pathAdoption,
-		LastRefreshChangedBasis: updatePaths.changed,
+		LastRefreshChangedBasis: append([]string{}, refreshScopePaths...),
 		Boundary:                boundaryResult,
 	}, nil
+}
+
+func requireUpdateBaseline(paths rt.Paths) (rt.Status, error) {
+	agreement, ok := runtimegate.CheckExisting(paths)
+	if !ok {
+		return rt.Status{}, fmt.Errorf("project cognition update blocked: run_map_scan_build: status.json and project-cognition.db are missing")
+	}
+	if agreement.Status != "ok" {
+		return rt.Status{}, fmt.Errorf("project cognition update blocked: %s: %s", agreementAction(agreement), strings.Join(agreement.Errors, "; "))
+	}
+	status, err := rt.ReadStatus(paths)
+	if err != nil {
+		return rt.Status{}, err
+	}
+	if status.Status == "missing" || status.Freshness == rt.MissingFreshness || status.Readiness == rt.NeedsRebuildReadiness || !status.GraphReady || status.ActiveGenerationID == "" {
+		return rt.Status{}, fmt.Errorf("project cognition update blocked: run_map_scan_build: baseline is missing or needs_rebuild")
+	}
+	return status, nil
 }
 
 func statusUpdateFromStatus(status rt.Status) StatusUpdate {
@@ -515,17 +751,221 @@ func statusUpdateFromStatus(status rt.Status) StatusUpdate {
 	}
 }
 
-func updateResultState(kept []string, nodes []map[string]any, input UpdateInput, pathNodeIDs map[string]string) string {
-	if len(kept) == 0 {
+func typedUpdateResultState(changed []string, input UpdateInput, closure store.AffectedClosure, pathNodeIDs map[string]string) string {
+	if len(changed) == 0 {
 		return ResultNoOp
 	}
-	if len(nodes) > 0 && allPathsMapped(kept, pathNodeIDs) && hasPassingVerification(input.Verification) && len(blockingKnownUnknowns(input.KnownUnknowns)) == 0 {
-		return ResultReady
+	if closure.Truncated || !hasPassingVerification(input.Verification) || len(blockingKnownUnknowns(input.KnownUnknowns)) > 0 {
+		return ResultPartialRefresh
 	}
-	return ResultPartialRefresh
+	for _, change := range input.PathChanges {
+		if change.Disposition == nil || *change.Disposition != changemodel.DispositionAdoptable {
+			return ResultPartialRefresh
+		}
+		switch change.Operation {
+		case changemodel.OperationAdd:
+			continue
+		case changemodel.OperationRename:
+			if change.NodeID == "" && pathNodeIDs[change.OldPath] == "" {
+				return ResultPartialRefresh
+			}
+		case changemodel.OperationModify, changemodel.OperationDelete:
+			if change.NodeID == "" && pathNodeIDs[change.Path] == "" {
+				return ResultPartialRefresh
+			}
+		default:
+			return ResultPartialRefresh
+		}
+	}
+	return ResultReady
 }
 
-func updateResultReasons(resultState string, kept []string, nodes []map[string]any, input UpdateInput, pathNodeIDs map[string]string, hasStore bool) []string {
+func splitIgnoredPathChanges(values []changemodel.PathChange) ([]changemodel.PathChange, []string) {
+	kept := make([]changemodel.PathChange, 0, len(values))
+	ignored := []string{}
+	for _, value := range values {
+		if value.Disposition != nil && *value.Disposition == changemodel.DispositionIgnored {
+			ignored = append(ignored, value.Path)
+			continue
+		}
+		kept = append(kept, value)
+	}
+	return kept, normalizePaths(ignored)
+}
+
+func pathChangesWithDisposition(values []changemodel.PathChange, disposition changemodel.Disposition) []changemodel.PathChange {
+	out := []changemodel.PathChange{}
+	for _, value := range values {
+		if value.Disposition != nil && *value.Disposition == disposition {
+			out = append(out, value)
+		}
+	}
+	return out
+}
+
+func pathChangeLookupPaths(changed []string, values []changemodel.PathChange) []string {
+	paths := append([]string{}, changed...)
+	for _, value := range values {
+		paths = append(paths, value.Path)
+		if value.OldPath != "" {
+			paths = append(paths, value.OldPath)
+		}
+	}
+	return normalizePaths(paths)
+}
+
+func completePathChanges(changed []string, values []changemodel.PathChange, pathNodeIDs map[string]string) []changemodel.PathChange {
+	out := make([]changemodel.PathChange, 0, len(changed)+len(values))
+	seen := make(map[string]bool, len(changed)+len(values))
+	for _, value := range values {
+		if value.NodeID == "" {
+			value.NodeID = pathNodeIDs[value.Path]
+			if value.NodeID == "" && value.Operation == changemodel.OperationRename {
+				value.NodeID = pathNodeIDs[value.OldPath]
+			}
+		}
+		out = append(out, value)
+		seen[value.Path] = true
+	}
+	for _, path := range changed {
+		if seen[path] {
+			continue
+		}
+		nodeID := pathNodeIDs[path]
+		operation := changemodel.OperationModify
+		disposition := changemodel.DispositionAdoptable
+		if nodeID == "" {
+			operation = changemodel.OperationAdd
+			disposition = changemodel.DispositionReviewOnly
+		}
+		out = append(out, changemodel.PathChange{
+			Path:        path,
+			Operation:   operation,
+			NodeID:      nodeID,
+			Disposition: &disposition,
+		})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Path < out[j].Path })
+	return out
+}
+
+func validatePathChangesAgainstRuntime(values []changemodel.PathChange, pathNodeIDs map[string]string) error {
+	for _, value := range values {
+		if !value.MutatesGraph() {
+			continue
+		}
+		switch value.Operation {
+		case changemodel.OperationAdd:
+			if pathNodeIDs[value.Path] != "" {
+				return fmt.Errorf("path change %s cannot add: active path coverage already exists", value.Path)
+			}
+		case changemodel.OperationModify, changemodel.OperationDelete:
+			if pathNodeIDs[value.Path] == "" {
+				return fmt.Errorf("path change %s cannot %s: active path coverage is missing", value.Path, value.Operation)
+			}
+		case changemodel.OperationRename:
+			if pathNodeIDs[value.OldPath] == "" {
+				return fmt.Errorf("path change %s cannot rename: old_path %s lacks active path coverage", value.Path, value.OldPath)
+			}
+			if pathNodeIDs[value.Path] != "" {
+				return fmt.Errorf("path change %s cannot rename: target already has active path coverage", value.Path)
+			}
+		}
+	}
+	return nil
+}
+
+func mergeAffectedClosures(left store.AffectedClosure, right store.AffectedClosure, nodeIDs []string) store.AffectedClosure {
+	merged := store.AffectedClosure{
+		NodeIDs:            appendUnique(append([]string{}, left.NodeIDs...), append(right.NodeIDs, nodeIDs...)...),
+		ClaimIDs:           appendUnique(append([]string{}, left.ClaimIDs...), right.ClaimIDs...),
+		SliceIDs:           appendUnique(append([]string{}, left.SliceIDs...), right.SliceIDs...),
+		TraversedEdgeTypes: appendUnique(append([]string{}, left.TraversedEdgeTypes...), right.TraversedEdgeTypes...),
+		Truncated:          left.Truncated || right.Truncated,
+	}
+	if left.TruncationReason != "" {
+		merged.TruncationReason = left.TruncationReason
+	} else {
+		merged.TruncationReason = right.TruncationReason
+	}
+	return merged
+}
+
+func reviewOnlyPaths(values []changemodel.PathChange) []string {
+	paths := []string{}
+	for _, value := range values {
+		if value.Disposition != nil && (*value.Disposition == changemodel.DispositionReviewOnly || *value.Disposition == changemodel.DispositionBlockingKnownUnknown) {
+			paths = append(paths, value.Path)
+		}
+	}
+	return normalizePaths(paths)
+}
+
+func graphMutationPaths(values []changemodel.PathChange) []string {
+	paths := []string{}
+	for _, value := range values {
+		if value.MutatesGraph() {
+			paths = append(paths, value.Path)
+		}
+	}
+	return normalizePaths(paths)
+}
+
+func graphMutationPathChanges(values []changemodel.PathChange) []changemodel.PathChange {
+	out := make([]changemodel.PathChange, 0, len(values))
+	for _, value := range values {
+		if value.MutatesGraph() {
+			out = append(out, value)
+		}
+	}
+	return out
+}
+
+func pathChangeNodeIDs(values []changemodel.PathChange) []string {
+	nodeIDs := []string{}
+	for _, value := range values {
+		if value.NodeID != "" {
+			nodeIDs = append(nodeIDs, value.NodeID)
+		}
+	}
+	return compactStrings(nodeIDs)
+}
+
+func blockingDispositionPaths(values []changemodel.PathChange) []string {
+	paths := []string{}
+	for _, value := range values {
+		if value.Disposition != nil && *value.Disposition == changemodel.DispositionBlockingKnownUnknown {
+			paths = append(paths, value.Path)
+		}
+	}
+	return normalizePaths(paths)
+}
+
+func pathChangePartialReasons(values []changemodel.PathChange, closure store.AffectedClosure) []string {
+	reasons := []string{}
+	for _, value := range values {
+		if value.Disposition == nil {
+			reasons = append(reasons, "path_disposition_missing")
+			continue
+		}
+		switch *value.Disposition {
+		case changemodel.DispositionReviewOnly:
+			reasons = append(reasons, "review_only_paths_present")
+		case changemodel.DispositionBlockingKnownUnknown:
+			reasons = append(reasons, "blocking_path_dispositions_present")
+		}
+	}
+	if closure.Truncated {
+		reason := strings.TrimSpace(closure.TruncationReason)
+		if reason == "" {
+			reason = "truncated"
+		}
+		reasons = append(reasons, "affected_closure_"+reason)
+	}
+	return compactStrings(reasons)
+}
+
+func updateResultReasons(resultState string, kept []string, nodes []map[string]any, input UpdateInput, pathNodeIDs map[string]string, hasStore bool, baselineStatus rt.Status, refreshScopePaths []string) []string {
 	if resultState != ResultPartialRefresh {
 		return []string{}
 	}
@@ -545,7 +985,34 @@ func updateResultReasons(resultState string, kept []string, nodes []map[string]a
 	if len(blockingKnownUnknowns(input.KnownUnknowns)) > 0 {
 		reasons = append(reasons, "blocking_known_unknowns_present")
 	}
+	if baselineHasUnresolvedState(baselineStatus, refreshScopePaths, input.Reason) {
+		reasons = append(reasons, "existing_project_cognition_stale_or_dirty")
+	}
 	return compactStrings(reasons)
+}
+
+func constrainResultStateByBaseline(resultState string, status rt.Status, changedPaths []string, reason string) string {
+	if resultState != ResultReady && resultState != ResultNoOp {
+		return resultState
+	}
+	if baselineHasUnresolvedState(status, changedPaths, reason) {
+		return ResultPartialRefresh
+	}
+	return resultState
+}
+
+func baselineHasUnresolvedState(status rt.Status, changedPaths []string, reason string) bool {
+	remainingStalePaths := subtractStrings(status.StalePaths, changedPaths)
+	remainingDirtyScope := subtractStrings(status.DirtyScopePaths, changedPaths)
+	remainingStaleReasons := subtractStrings(status.StaleReasons, []string{reason})
+	remainingDirtyReasons := subtractStrings(status.DirtyReasons, []string{reason})
+	if len(remainingStalePaths) > 0 || len(remainingDirtyScope) > 0 || len(remainingStaleReasons) > 0 || len(remainingDirtyReasons) > 0 {
+		return true
+	}
+	if status.Dirty && len(status.DirtyScopePaths) == 0 && len(status.DirtyReasons) == 0 {
+		return true
+	}
+	return false
 }
 
 func allPathsMapped(paths []string, pathNodeIDs map[string]string) bool {
@@ -560,23 +1027,9 @@ func allPathsMapped(paths []string, pathNodeIDs map[string]string) bool {
 	return true
 }
 
-func unmappedPaths(paths []string, pathNodeIDs map[string]string) []string {
-	out := make([]string, 0, len(paths))
-	for _, path := range paths {
-		if pathNodeIDs[path] == "" {
-			out = append(out, path)
-		}
-	}
-	return out
-}
-
-func canAdoptWorkflowPaths(kept []string, input UpdateInput) bool {
-	return len(kept) > 0 && hasPassingVerification(input.Verification) && len(blockingKnownUnknowns(input.KnownUnknowns)) == 0
-}
-
 func hasPassingVerification(values []VerificationEvidence) bool {
 	for _, value := range values {
-		if verificationResultPassed(value.Result) {
+		if strings.TrimSpace(value.Command) != "" && verificationResultPassed(value.Result) {
 			return true
 		}
 	}
@@ -584,24 +1037,21 @@ func hasPassingVerification(values []VerificationEvidence) bool {
 }
 
 func verificationResultPassed(value string) bool {
-	switch strings.ToLower(strings.TrimSpace(value)) {
-	case "passed", "pass", "success", "succeeded", "ok":
-		return true
-	default:
-		return false
-	}
+	return strings.TrimSpace(value) == "passed"
 }
 
-func normalizeVerificationResult(value string) string {
-	trimmed := strings.TrimSpace(value)
-	switch strings.ToLower(trimmed) {
-	case "passed", "pass", "success", "succeeded", "ok":
-		return "passed"
-	case "failed", "fail", "failure", "error":
-		return "failed"
-	default:
-		return trimmed
+func validateVerificationEvidence(values []VerificationEvidence) error {
+	for index, value := range values {
+		if strings.TrimSpace(value.Command) == "" {
+			return fmt.Errorf("invalid verification evidence %d: command is required", index+1)
+		}
+		switch strings.TrimSpace(value.Result) {
+		case "passed", "failed", ResultRecorded:
+		default:
+			return fmt.Errorf("invalid verification evidence %d: result must be passed, failed, or recorded", index+1)
+		}
 	}
+	return nil
 }
 
 func verificationAttrs(values []VerificationEvidence) []map[string]string {
@@ -635,6 +1085,11 @@ func applyResultState(status rt.Status, resultState string, updateID string, cha
 		status.Readiness = rt.ReadyReadiness
 		status.RecommendedNextAction = "use_project_cognition"
 		status.Dirty = false
+		status.DirtyReasons = []string{}
+		status.DirtyOriginCommand = ""
+		status.DirtyOriginFeatureDir = ""
+		status.DirtyOriginLaneID = ""
+		status.DirtyScopePaths = []string{}
 		status.StalePaths = subtractStrings(status.StalePaths, changedPaths)
 		status.StaleReasons = subtractStrings(status.StaleReasons, []string{reason})
 	case ResultNoOp:
@@ -676,37 +1131,6 @@ func applyResultState(status rt.Status, resultState string, updateID string, cha
 		status.StaleReasons = appendUnique(status.StaleReasons, reason)
 	}
 	return status
-}
-
-type updatePathPayload struct {
-	changed          []string
-	adopted          []string
-	review           []string
-	minimalLiveReads []string
-}
-
-func updatePathPayloads(resultState string, kept []string) updatePathPayload {
-	switch resultState {
-	case ResultReady:
-		return updatePathPayload{
-			changed: append([]string{}, kept...),
-			adopted: append([]string{}, kept...),
-		}
-	case ResultNoOp:
-		return updatePathPayload{
-			changed:          []string{},
-			adopted:          []string{},
-			review:           []string{},
-			minimalLiveReads: []string{},
-		}
-	default:
-		return updatePathPayload{
-			changed:          append([]string{}, kept...),
-			adopted:          []string{},
-			review:           append([]string{}, kept...),
-			minimalLiveReads: append([]string{}, kept...),
-		}
-	}
 }
 
 func boundaryOutcome(result *boundary.Result) string {
@@ -762,6 +1186,26 @@ func loadPayloadFile(path string) (PayloadFileInput, error) {
 		return PayloadFileInput{}, fmt.Errorf("parse update payload file: %w", err)
 	}
 	payload.ChangedPaths = normalizePaths(payload.ChangedPaths)
+	for index := range payload.PathChanges {
+		payload.PathChanges[index].Path = normalizePathValue(payload.PathChanges[index].Path)
+		payload.PathChanges[index].OldPath = normalizePathValue(payload.PathChanges[index].OldPath)
+	}
+	for index := range payload.UnknownPathDispositions {
+		payload.UnknownPathDispositions[index].Path = normalizePathValue(payload.UnknownPathDispositions[index].Path)
+		if payload.UnknownPathDispositions[index].AgentDisposition != nil {
+			disposition := changemodel.Disposition(strings.TrimSpace(string(*payload.UnknownPathDispositions[index].AgentDisposition)))
+			payload.UnknownPathDispositions[index].AgentDisposition = &disposition
+		}
+	}
+	resolvedPathChanges, err := changemodel.ResolvePathDispositions(payload.PathChanges, payload.UnknownPathDispositions)
+	if err != nil {
+		return PayloadFileInput{}, err
+	}
+	pathChanges, err := normalizePathChanges(resolvedPathChanges)
+	if err != nil {
+		return PayloadFileInput{}, err
+	}
+	payload.PathChanges = pathChanges
 	payload.ScopePaths = normalizePaths(payload.ScopePaths)
 	payload.GeneratedSurfaces = normalizePaths(append(payload.GeneratedSurfaces, payload.GeneratedSurfaceNote...))
 	payload.Verification = normalizeVerificationEvidence(append(payload.Verification, payload.VerificationEvidence...))
@@ -778,6 +1222,7 @@ func applyPayloadFileInput(input UpdateInput, payload PayloadFileInput) UpdateIn
 		input.Reason = payload.Reason
 	}
 	input.ChangedPaths = append(input.ChangedPaths, payload.ChangedPaths...)
+	input.PathChanges = append(input.PathChanges, payload.PathChanges...)
 	input.ScopePaths = append(input.ScopePaths, payload.ScopePaths...)
 	input.BehaviorSurfaces = append(input.BehaviorSurfaces, payload.BehaviorSurfaces...)
 	input.GeneratedSurfaces = append(input.GeneratedSurfaces, payload.GeneratedSurfaces...)
@@ -798,6 +1243,7 @@ func applyDeltaBundleInput(input UpdateInput, bundle delta.Bundle) UpdateInput {
 	}
 	input.Boundary.InitialDirtyPaths = append(input.Boundary.InitialDirtyPaths, bundle.Session.Git.InitialDirtyPaths...)
 	for _, event := range bundle.Events {
+		input.PathChanges = append(input.PathChanges, event.PathChanges...)
 		input.BehaviorSurfaces = append(input.BehaviorSurfaces, event.BehaviorSurfaces...)
 		input.GeneratedSurfaces = append(input.GeneratedSurfaces, event.GeneratedSurfaces...)
 		input.KnownUnknowns = append(input.KnownUnknowns, event.KnownUnknowns...)
@@ -830,19 +1276,18 @@ func updateInputFromBoundary(input UpdateInput, result boundary.Result) UpdateIn
 }
 
 func verificationEvidenceFromDelta(value string) VerificationEvidence {
+	trimmed := strings.TrimSpace(value)
+	if strings.HasPrefix(trimmed, "{") {
+		var evidence VerificationEvidence
+		if err := json.Unmarshal([]byte(trimmed), &evidence); err == nil {
+			return evidence
+		}
+	}
 	return verificationEvidenceFromText(value)
 }
 
 func verificationEvidenceFromText(value string) VerificationEvidence {
-	result := "recorded"
-	lower := strings.ToLower(value)
-	if strings.Contains(lower, "pass") {
-		result = "passed"
-	}
-	if strings.Contains(lower, "fail") {
-		result = "failed"
-	}
-	return VerificationEvidence{Command: strings.TrimSpace(value), Result: result}
+	return VerificationEvidence{Command: strings.TrimSpace(value), Result: ResultRecorded}
 }
 
 func normalizeVerificationEvidence(values []VerificationEvidence) []VerificationEvidence {
@@ -856,11 +1301,6 @@ func normalizeVerificationEvidence(values []VerificationEvidence) []Verification
 		}
 		if normalized.Command == "" && normalized.Result == "" && normalized.Artifact == "" {
 			continue
-		}
-		if normalized.Result == "" {
-			normalized.Result = verificationEvidenceFromText(normalized.Command).Result
-		} else {
-			normalized.Result = normalizeVerificationResult(normalized.Result)
 		}
 		key := normalized.Command + "\x00" + normalized.Result + "\x00" + normalized.Artifact
 		if _, ok := seen[key]; ok {
@@ -893,6 +1333,10 @@ func runDeltaSessionUpdate(paths rt.Paths, input UpdateInput) (UpdatePayload, er
 		return UpdatePayload{}, err
 	}
 	input = applyDeltaBundleInput(input, bundle)
+	input.PathChanges, err = normalizePathChanges(input.PathChanges)
+	if err != nil {
+		return UpdatePayload{}, err
+	}
 
 	gitDiff, err := gitDiffPathsFromCommitRange(paths.Root, input.CommitRange)
 	if err != nil {
@@ -908,6 +1352,7 @@ func runDeltaSessionUpdate(paths rt.Paths, input UpdateInput) (UpdatePayload, er
 
 	resolvedInput := updateInputFromBoundary(input, result)
 	kept, extraIgnored := ignore.Load(paths.Root).Filter(result.ChangedPaths)
+	resolvedInput.PathChanges = filterPathChanges(resolvedInput.PathChanges, normalizePaths(kept))
 	ignored := normalizePaths(append(result.IgnoredPaths, extraIgnored...))
 	payload, err := runResolvedUpdate(paths, resolvedInput, normalizePaths(kept), ignored, &result)
 	if err != nil {
@@ -1027,6 +1472,88 @@ func normalizePaths(paths []string) []string {
 	}
 	sort.Strings(out)
 	return out
+}
+
+func normalizePathChanges(values []changemodel.PathChange) ([]changemodel.PathChange, error) {
+	out := make([]changemodel.PathChange, 0, len(values))
+	seenPaths := make(map[string]int, len(values))
+	for _, value := range values {
+		value.Path = normalizePathValue(value.Path)
+		value.OldPath = normalizePathValue(value.OldPath)
+		value.NodeID = strings.TrimSpace(value.NodeID)
+		value.EvidenceRefs = compactStrings(value.EvidenceRefs)
+		if value.Disposition != nil {
+			disposition := changemodel.Disposition(strings.TrimSpace(string(*value.Disposition)))
+			value.Disposition = &disposition
+		}
+		if !validChangedPath(value.Path) || (value.OldPath != "" && !validChangedPath(value.OldPath)) {
+			return nil, fmt.Errorf("invalid path change %q: expected a concrete repository-relative path", value.Path)
+		}
+		if err := value.Validate(); err != nil {
+			return nil, err
+		}
+		if priorIndex, ok := seenPaths[value.Path]; ok {
+			prior := out[priorIndex]
+			if prior.OldPath != value.OldPath || prior.Operation != value.Operation || prior.NodeID != value.NodeID || !sameDisposition(prior.Disposition, value.Disposition) {
+				return nil, fmt.Errorf("conflicting path changes for %q", value.Path)
+			}
+			out[priorIndex].EvidenceRefs = compactStrings(append(prior.EvidenceRefs, value.EvidenceRefs...))
+			continue
+		}
+		seenPaths[value.Path] = len(out)
+		out = append(out, value)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Path < out[j].Path })
+	return out, nil
+}
+
+func normalizePathValue(path string) string {
+	path = filepath.ToSlash(strings.TrimSpace(path))
+	for strings.HasPrefix(path, "./") {
+		path = strings.TrimPrefix(path, "./")
+	}
+	return strings.TrimRight(path, "/")
+}
+
+func sameDisposition(left *changemodel.Disposition, right *changemodel.Disposition) bool {
+	if left == nil || right == nil {
+		return left == nil && right == nil
+	}
+	return *left == *right
+}
+
+func filterPathChanges(values []changemodel.PathChange, keptPaths []string) []changemodel.PathChange {
+	kept := make(map[string]struct{}, len(keptPaths))
+	for _, path := range keptPaths {
+		kept[path] = struct{}{}
+	}
+	out := make([]changemodel.PathChange, 0, len(values))
+	for _, value := range values {
+		if _, ok := kept[value.Path]; ok {
+			out = append(out, value)
+		}
+	}
+	return out
+}
+
+func convertIgnoredRenameTargetsToDeletes(values []changemodel.PathChange, keptPaths []string, ignoredPaths []string) ([]changemodel.PathChange, []string) {
+	ignored := make(map[string]struct{}, len(ignoredPaths))
+	for _, path := range ignoredPaths {
+		ignored[path] = struct{}{}
+	}
+	out := make([]changemodel.PathChange, 0, len(values))
+	for _, value := range values {
+		if value.Operation == changemodel.OperationRename && value.OldPath != "" {
+			if _, targetIgnored := ignored[value.Path]; targetIgnored {
+				value.Path = value.OldPath
+				value.OldPath = ""
+				value.Operation = changemodel.OperationDelete
+				keptPaths = append(keptPaths, value.Path)
+			}
+		}
+		out = append(out, value)
+	}
+	return out, normalizePaths(keptPaths)
 }
 
 func validateChangedPaths(paths []string) error {

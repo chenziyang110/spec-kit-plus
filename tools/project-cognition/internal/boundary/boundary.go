@@ -38,11 +38,14 @@ type PathAccounting struct {
 }
 
 func Resolve(input ResolveInput) Result {
-	candidates := normalizePaths(input.GitDiffPaths)
-	boundarySource := "git_diff"
-	if len(candidates) == 0 {
-		boundarySource = "delta_journal"
-		candidates = eventChangedPaths(input.Bundle.Events)
+	gitDiffPaths := normalizePaths(input.GitDiffPaths)
+	deltaPaths := eventChangedPaths(input.Bundle.Events)
+	candidates := normalizePaths(append(gitDiffPaths, deltaPaths...))
+	boundarySource := "delta_journal"
+	if len(gitDiffPaths) > 0 && len(deltaPaths) > 0 {
+		boundarySource = "git_diff+delta_journal"
+	} else if len(gitDiffPaths) > 0 {
+		boundarySource = "git_diff"
 	}
 	candidates = normalizePaths(append(candidates, input.ExplicitArtifacts...))
 
@@ -119,6 +122,9 @@ func eventChangedPaths(events []delta.Event) []string {
 	paths := make([]string, 0)
 	for _, event := range events {
 		paths = append(paths, event.ChangedPaths...)
+		for _, change := range event.PathChanges {
+			paths = append(paths, change.Path)
+		}
 	}
 	return normalizePaths(paths)
 }
@@ -173,7 +179,7 @@ func normalizePaths(paths []string) []string {
 		for strings.HasPrefix(normalized, "./") {
 			normalized = strings.TrimPrefix(normalized, "./")
 		}
-		normalized = strings.Trim(normalized, "/")
+		normalized = strings.TrimRight(normalized, "/")
 		if normalized == "" {
 			continue
 		}

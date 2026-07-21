@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	changemodel "github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/changes/model"
 	rt "github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtime"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/store"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/update"
@@ -246,9 +247,7 @@ func TestRunFiltersCognitionIgnoredPaths(t *testing.T) {
 	writeFile(t, root, ".cognitionignore", ".specify/\nscratch/\n")
 	runGit(t, root, "add", ".cognitionignore")
 	runGit(t, root, "commit", "-m", "ignore scratch")
-	if _, err := update.CompleteRefresh(paths, "map-build"); err != nil {
-		t.Fatalf("CompleteRefresh after ignore commit: %v", err)
-	}
+	recordChangesTestRefreshBaseline(t, paths, root)
 	writeFile(t, root, "scratch/out.log", "generated\n")
 
 	payload, err := Run(paths, Input{IncludeWorkingTree: true, IncludeUntracked: true})
@@ -264,6 +263,36 @@ func TestRunFiltersCognitionIgnoredPaths(t *testing.T) {
 	}
 	if payload.NextAction != "no_op" {
 		t.Fatalf("NextAction = %q, want no_op", payload.NextAction)
+	}
+}
+
+func TestRunRenameIntoIgnoredScopePreservesOldPathDeletion(t *testing.T) {
+	root, paths := initChangesFixture(t)
+	writeFile(t, root, ".cognitionignore", ".specify/\nvendor/\n")
+	runGit(t, root, "add", ".cognitionignore")
+	runGit(t, root, "commit", "-m", "ignore vendor")
+	recordChangesTestRefreshBaseline(t, paths, root)
+	if err := os.MkdirAll(filepath.Join(root, "vendor"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	runGit(t, root, "mv", "src/app.go", "vendor/app.go")
+
+	payload, err := Run(paths, Input{IncludeWorkingTree: true})
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+	if !containsString(payload.IgnoredPaths, "vendor/app.go") {
+		t.Fatalf("IgnoredPaths = %#v, want vendor/app.go", payload.IgnoredPaths)
+	}
+	if len(payload.Changes) != 1 {
+		t.Fatalf("Changes = %#v, want old-path deletion only", payload.Changes)
+	}
+	change := payload.Changes[0]
+	if change.Path != "src/app.go" || change.OldPath != "" || change.Operation != changemodel.OperationDelete {
+		t.Fatalf("change = %#v, want deletion of src/app.go", change)
+	}
+	if !change.KnownToRuntime || change.NodeID != "N-app" {
+		t.Fatalf("runtime identity = known %v node %q, want true/N-app", change.KnownToRuntime, change.NodeID)
 	}
 }
 
@@ -348,6 +377,9 @@ func TestRunClassifiesWorkingTreeDeleteAndRenameChanges(t *testing.T) {
 	if renamed.ChangeLevel != "renamed_path" {
 		t.Fatalf("renamed ChangeLevel = %q, want renamed_path", renamed.ChangeLevel)
 	}
+	if renamed.Operation != changemodel.OperationRename {
+		t.Fatalf("renamed Operation = %q, want %q", renamed.Operation, changemodel.OperationRename)
+	}
 	if !reflect.DeepEqual(renamed.Reason, []string{"changed path lacks active runtime path_index coverage"}) {
 		t.Fatalf("renamed Reason = %#v", renamed.Reason)
 	}
@@ -355,11 +387,42 @@ func TestRunClassifiesWorkingTreeDeleteAndRenameChanges(t *testing.T) {
 	if deleted.ChangeLevel != "deleted_path" {
 		t.Fatalf("deleted ChangeLevel = %q, want deleted_path", deleted.ChangeLevel)
 	}
+	if deleted.Operation != changemodel.OperationDelete {
+		t.Fatalf("deleted Operation = %q, want %q", deleted.Operation, changemodel.OperationDelete)
+	}
 	if !reflect.DeepEqual(deleted.Reason, []string{"path exists in active runtime path_index"}) {
 		t.Fatalf("deleted Reason = %#v", deleted.Reason)
 	}
 	if payload.Summary.Deleted != 1 || payload.Summary.Renamed != 1 {
 		t.Fatalf("summary deleted/renamed = %d/%d, want 1/1", payload.Summary.Deleted, payload.Summary.Renamed)
+	}
+}
+
+func TestRunRenameUsesMappedOldPathIdentity(t *testing.T) {
+	root, paths := initChangesFixture(t)
+	base := gitHead(t, root)
+	runGit(t, root, "mv", "src/app.go", "src/renamed-app.go")
+
+	payload, err := Run(paths, Input{Since: base, Head: base, IncludeWorkingTree: true})
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+
+	if len(payload.Changes) != 1 {
+		t.Fatalf("Changes = %#v, want one rename", payload.Changes)
+	}
+	change := payload.Changes[0]
+	if change.Path != "src/renamed-app.go" || change.OldPath != "src/app.go" {
+		t.Fatalf("rename paths = %q <- %q, want src/renamed-app.go <- src/app.go", change.Path, change.OldPath)
+	}
+	if change.Operation != changemodel.OperationRename {
+		t.Fatalf("Operation = %q, want %q", change.Operation, changemodel.OperationRename)
+	}
+	if !change.KnownToRuntime || change.NodeID != "N-app" {
+		t.Fatalf("runtime identity = known %v node %q, want true/N-app", change.KnownToRuntime, change.NodeID)
+	}
+	if len(payload.UnknownPaths) != 0 {
+		t.Fatalf("UnknownPaths = %#v, want mapped rename to stay known", payload.UnknownPaths)
 	}
 }
 
@@ -826,10 +889,23 @@ func initChangesFixture(t *testing.T) (string, rt.Paths) {
 	runGit(t, root, "config", "user.name", "Test User")
 	runGit(t, root, "add", ".")
 	runGit(t, root, "commit", "-m", "baseline")
-	if _, err := update.CompleteRefresh(paths, "map-build"); err != nil {
-		t.Fatalf("CompleteRefresh: %v", err)
-	}
+	recordChangesTestRefreshBaseline(t, paths, root)
 	return root, paths
+}
+
+func recordChangesTestRefreshBaseline(t *testing.T, paths rt.Paths, root string) {
+	t.Helper()
+	status, err := rt.ReadStatus(paths)
+	if err != nil {
+		t.Fatalf("ReadStatus: %v", err)
+	}
+	status.LastRefreshGitCommit = gitHead(t, root)
+	status.LastRefreshGitBranch = strings.TrimSpace(runGit(t, root, "branch", "--show-current"))
+	status.LastRefreshReason = "test-fixture"
+	status.LastRefreshBasis = "seeded"
+	if err := rt.WriteStatus(paths, status); err != nil {
+		t.Fatalf("WriteStatus refresh baseline: %v", err)
+	}
 }
 
 func seedRuntimePathIndex(t *testing.T, paths rt.Paths) {

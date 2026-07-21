@@ -149,8 +149,11 @@ session readiness/actions, and Review never prefills
 human PASS. After an acceptance repair, every human scenario is reset and must
 be rerun; preserve no earlier PASS.
 
-After verified Review-owned changes, close out cognition with canonical
-workflow `review`, then run
+After verified Review-owned changes, run
+`{{specify-subcmd:project-cognition closeout-plan --workflow sp-review --intent implement --format json}}`
+with explicit Review-owned paths, fill returned agent-owned fields, and execute
+structured `update_argv`. Apply the receipt-bound finalizer gate in
+`references/project-cognition.md` before any clean claim; then run
 `{{specify-subcmd:review closeout --feature-dir <feature-dir> --expected-revision <revision> --format json}}`.
 Execute only the successful response's revision-bound workflow completion argv.
 Recommend `$spx-accept` and stop; do not run human acceptance inline. Never

@@ -46,8 +46,10 @@ def test_map_update_has_deterministic_validation_and_freshness_closeout() -> Non
     ):
         assert required in skill
 
-    assert "`ready` requires passing `validate-build` before `complete-refresh`" in gates
-    assert "`no_op` may use `record-refresh`" in gates
+    assert "`result_state=ready` or `result_state=no_op` requires" in gates
+    assert "`status=ok` and `readiness=query_ready`" in gates
+    assert "matching validation receipt" in gates
+    assert "not an ordinary closeout branch" in gates
     assert "never call `complete-refresh`" in gates
 
 

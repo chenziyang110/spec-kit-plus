@@ -8,6 +8,7 @@ import tempfile
 
 import pytest
 
+import specify_cli.codex_team.auto_dispatch as auto_dispatch
 from specify_cli.codex_team.auto_dispatch import (
     AutoDispatchError,
     AutoDispatchUnavailableError,
@@ -82,6 +83,35 @@ def _write_feature_tasks(project_root: Path, content: str) -> Path:
     tasks_path = feature_dir / "tasks.md"
     tasks_path.write_text(normalized, encoding="utf-8")
     return feature_dir
+
+
+def test_wait_for_terminal_dispatch_retries_transient_windows_read_error(
+    monkeypatch, tmp_path: Path
+):
+    request_id = "dispatch-read-race"
+    path = dispatch_record_path(tmp_path, request_id)
+    path.parent.mkdir(parents=True)
+    terminal = {"status": "completed", "request_id": request_id}
+    path.write_text(json.dumps(terminal), encoding="utf-8")
+    original_read_text = Path.read_text
+    attempts = 0
+
+    def flaky_read_text(candidate: Path, *args, **kwargs):
+        nonlocal attempts
+        if candidate == path and attempts == 0:
+            attempts += 1
+            raise PermissionError("atomic replacement in progress")
+        return original_read_text(candidate, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", flaky_read_text)
+
+    assert auto_dispatch._wait_for_terminal_agent_teams_dispatch(
+        tmp_path,
+        request_id,
+        timeout_s=0.2,
+        interval_s=0.001,
+    ) == terminal
+    assert attempts == 1
 
 
 def _write_fake_agent_teams_runtime_cli(path: Path) -> None:

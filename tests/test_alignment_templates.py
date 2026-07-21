@@ -380,8 +380,6 @@ def _launcher_compass(intent: str) -> str:
 
 INLINE_CLOSEOUT_SURFACES = (
     "templates/command-partials/common/inline-project-cognition-update.md",
-    "templates/passive-skills/spec-kit-project-cognition-gate/SKILL.md",
-    "templates/passive-skills/spec-kit-workflow-routing/SKILL.md",
 )
 
 
@@ -431,9 +429,15 @@ def test_inline_project_cognition_update_uses_shared_partial() -> None:
     assert "do not route that to `sp-map-update`" in shared
     assert "Never run the `complete-refresh` or `clear-dirty` helper after `result_state=partial_refresh`" in shared
 
-    for path in INLINE_CLOSEOUT_SURFACES[1:]:
+    for path in (
+        "templates/passive-skills/spec-kit-project-cognition-gate/SKILL.md",
+        "templates/passive-skills/spec-kit-workflow-routing/SKILL.md",
+    ):
         content = _read(path)
-        for term in required_planner_terms:
+        assert "rendered planner-first closeout command" in content, path
+        assert "registry-owned literal `sp-*` workflow ID" in content, path
+        assert "$ACTIVE_WORKFLOW" not in content, path
+        for term in required_planner_terms[2:]:
             assert term in content, f"{path} missing {term}"
         assert "fields listed in `required_agent_fields`" in content, path
         assert "populated only when evidence supports them" in content, path
@@ -459,7 +463,7 @@ def test_inline_project_cognition_update_uses_shared_partial() -> None:
     ]
     for path in common_partials:
         content = _read_project_file(path)
-        assert "inline-project-cognition-update.md" in content, path
+        assert "{{spec-kit-include: inline-project-cognition-update.md}}" not in content, path
         assert "project-cognition update --changed-path" not in content, path
 
     commands = [
@@ -467,10 +471,17 @@ def test_inline_project_cognition_update_uses_shared_partial() -> None:
         "templates/commands/quick.md",
         "templates/commands/implement.md",
         "templates/commands/debug.md",
-        "templates/commands/map-update.md",
+        "templates/commands/implement-teams.md",
+        "templates/commands/integrate.md",
+        "templates/commands/review.md",
     ]
     for path in commands:
-        assert "inline-project-cognition-update.md" in _read_project_file(path), path
+        assert "project-cognition closeout-plan --workflow" in _read(path), path
+
+    map_update = (
+        PROJECT_ROOT / "templates" / "commands" / "map-update.md"
+    ).read_text(encoding="utf-8")
+    assert map_update.count("project-cognition closeout-plan --workflow sp-map-update") == 1
 
 
 def test_ask_command_contract_is_read_only_evidence_backed_project_qa() -> None:
@@ -613,11 +624,14 @@ def test_source_changing_sp_workflows_include_inline_cognition_closeout_contract
         "templates/commands/quick.md",
         "templates/commands/implement.md",
         "templates/commands/debug.md",
+        "templates/commands/implement-teams.md",
+        "templates/commands/integrate.md",
+        "templates/commands/review.md",
     ]
     for path in commands:
-        content = _read_project_file(path)
-        assert "inline-project-cognition-update.md" in content, path
-        assert "project-cognition mark-dirty" not in content or "inline-project-cognition-update.md" in content, path
+        content = _read(path)
+        assert "project-cognition closeout-plan --workflow" in content, path
+        assert "$ACTIVE_WORKFLOW" not in content, path
 
     shared = _read("templates/command-partials/common/inline-project-cognition-update.md")
     for term in (
@@ -4268,7 +4282,6 @@ def test_mutation_workflows_require_inline_cognition_update_before_dirty_fallbac
 def test_inline_cognition_closeout_shared_surfaces_are_consistent() -> None:
     required_paths = (
         "templates/command-partials/common/context-loading-gradient.md",
-        "templates/command-partials/common/planning-context-loading-gradient.md",
         "templates/command-partials/common/senior-consequence-analysis-gate.md",
         "templates/command-partials/common/navigation-check.md",
         "templates/command-partials/fast/shell.md",
@@ -4286,13 +4299,21 @@ def test_inline_cognition_closeout_shared_surfaces_are_consistent() -> None:
             "inline project cognition update" in content
             or "planner-first" in content
         ), path
-        assert "sp-map-update is for manual/external maintenance" in content, path
+        assert "sp-map-update is for manual/external maintenance" in content.replace("`", ""), path
         if path in {
             "templates/passive-skills/spec-kit-project-cognition-gate/SKILL.md",
             "templates/passive-skills/spec-kit-workflow-routing/SKILL.md",
         }:
-            assert "closeout-plan" in content, path
+            assert "rendered planner-first closeout command" in content, path
+            assert "registry-owned literal `sp-*` workflow id" in content, path
             assert "unknown_path_dispositions" in content, path
+
+    planning_context = _read(
+        "templates/command-partials/common/planning-context-loading-gradient.md"
+    ).lower()
+    assert "planning-only artifact writes do not require" in planning_context
+    assert "hand off to the appropriate mutation workflow" in planning_context
+    assert "inline-project-cognition-update.md" not in planning_context
 
     for path in (
         "templates/command-partials/common/context-loading-gradient.md",
@@ -4305,7 +4326,7 @@ def test_inline_cognition_closeout_shared_surfaces_are_consistent() -> None:
         if path.endswith("context-loading-gradient.md") or path.endswith("planning-context-loading-gradient.md"):
             assert "entry-time stale or weak cognition is still an advisory navigation concern" in content
             assert "does not waive closeout ownership" in content
-        if "passive-skills" not in path:
+        if path == "templates/project-handbook-template.md":
             assert "verification_evidence" in content
             assert "generated_surface_notes" in content
             assert "failed verification evidence" in content or "failed verification cannot produce" in content
@@ -4335,7 +4356,13 @@ def test_runtime_cognition_partials_preserve_mutation_closeout_rule() -> None:
     for content in (context, consequence_gate, passive_gate):
         assert "mutation closeout" in content
         assert "entry-time stale" in content or "entry stale" in content
-        assert "inline project cognition update" in content
+        assert (
+            "inline project cognition update" in content
+            or "planner-first closeout command" in content
+            or "workflow-local planner-first contract" in content
+        )
+
+    for content in (context, passive_gate):
         assert "dirty only when inline update cannot complete" in content or "mark-dirty" in content
 
     assert "does not waive closeout ownership" in context
@@ -4610,7 +4637,7 @@ def test_worker_prompt_templates_exist_and_define_controller_worker_contracts() 
     assert "consumer evidence" in implementer.lower()
     assert "created but not wired" in implementer.lower()
     assert "real_entrypoint_evidence" in implementer
-    assert "kind: real_entrypoint" in implementer
+    assert "kind: real_entrypoint" in " ".join(implementer.split())
     assert "synthetic component" in implementer.lower()
 
     assert "# Debug Investigator Worker Prompt" in debug_investigator

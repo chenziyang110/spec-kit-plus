@@ -724,10 +724,6 @@ When refusal happens, output a gap report inline before the refusal decision:
 - Keep all prototype work isolated under `FEATURE_DIR/research-spikes/`.
 - Do not edit source code, tests, migrations, or production config from this command.
 - Do not hand off to `/sp.plan` with only raw research notes; synthesize findings into `Planning Handoff`, constraints, rejected options, and residual risks.
-- If this workflow makes actual source/runtime/template/config/test/generated-asset changes in the current run, follow the shared inline closeout contract:
-
-{{spec-kit-include: ../command-partials/common/inline-project-cognition-update.md}}
-
 ## Post-Execution Checks
 
 **Check for extension hooks (after deep research)**:

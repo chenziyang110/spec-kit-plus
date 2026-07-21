@@ -56,6 +56,7 @@ type Status struct {
 	LastRefreshGitBranch         string   `json:"last_refresh_git_branch,omitempty"`
 	LastRefreshChangedFilesBasis []string `json:"last_refresh_changed_files_basis"`
 	LastUpdateID                 string   `json:"last_update_id"`
+	LastFinalizedUpdateID        string   `json:"last_finalized_update_id,omitempty"`
 	LastDeltaSessionID           string   `json:"last_delta_session_id"`
 	LastUpdateOutcome            string   `json:"last_update_outcome"`
 	LastUpdateBoundary           string   `json:"last_update_boundary"`

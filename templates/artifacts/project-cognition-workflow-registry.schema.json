@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "project-cognition-workflow-registry.schema.json",
+  "title": "Project cognition workflow closeout registry",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["$schema", "schema_version", "workflows"],
+  "properties": {
+    "$schema": {
+      "const": "project-cognition-workflow-registry.schema.json"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "workflows": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "$ref": "#/$defs/workflowPolicy"
+      }
+    }
+  },
+  "$defs": {
+    "workflowPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "canonical_workflow", "reason"],
+      "properties": {
+        "mode": {
+          "enum": [
+            "mutation_closeout",
+            "map_maintenance",
+            "baseline_maintenance",
+            "no_closeout"
+          ]
+        },
+        "canonical_workflow": {
+          "type": ["string", "null"],
+          "pattern": "^sp-[a-z0-9-]+$"
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "mode": {
+                "enum": ["mutation_closeout", "map_maintenance"]
+              }
+            },
+            "required": ["mode"]
+          },
+          "then": {
+            "properties": {
+              "canonical_workflow": {
+                "type": "string"
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "canonical_workflow": {
+                "type": "null"
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

@@ -98,7 +98,6 @@ Fast path does not load the full passive learning layer.
    - If not, stop and redirect to the right workflow instead of forcing the task through `sp-fast`.
 
 2. **Pass the project cognition gate**
-   - {{spec-kit-include: ../command-partials/common/context-loading-gradient.md}}
    - **Project cognition gate:** query the active project's runtime before broad
      repository reads.
 
@@ -117,7 +116,7 @@ Fast path does not load the full passive learning layer.
      - `needs_rebuild`: route by `recommended_next_action.action_id`, not readiness alone. Preserve resumable actions such as `complete_scan_packets`; only `action_id=project_cognition.rebuild` may consume `rebuild_reasons[]` and `recommended_next_action.workflow_routes.classic.steps` as a rebuild handoff.
      - `blocked`: report the blocking runtime issue and continue with live evidence only where this workflow allows degraded navigation.
      - Use map-scan -> map-build only for first/missing/unusable baseline, schema failure, schema v1 or old broad-schema rebuild-required readiness, zero active-generation path_index rows, missing or invalid alias_index, explicit_rebuild_requested, or baseline_identity_invalid.
-     - Pre-work map maintenance may record ordinary uncertain closure, partial/low-confidence facts, known unknowns, and `minimal_live_reads`. Use map-update for ordinary existing-baseline gaps. After a successful existing-baseline maintenance refresh, use `{{specify-subcmd:project-cognition complete-refresh --format json}}` only for incremental freshness finalization; do not run `complete-refresh` as a rebuild finalizer.
+     - Pre-work map maintenance may record ordinary uncertain closure, partial/low-confidence facts, known unknowns, and `minimal_live_reads`. Use map-update for ordinary existing-baseline gaps. After a successful existing-baseline maintenance update, follow the receipt-bound `validate-build` then `complete-refresh` sequence defined by map-update, only for incremental freshness finalization. Do not run `complete-refresh` as a rebuild finalizer or invoke it without the matching validation receipt.
      - **CARRY FORWARD**: Use project-cognition signals to decide whether
        fast-path execution is still safe. Carry the selected capability, minimal reads,
        and verification route into the fast-task state or report.
@@ -147,7 +146,6 @@ Fast path does not load the full passive learning layer.
    - Include `changed_code_paths` with modified, added, deleted, and renamed paths.
    - Include `changed_behavior_surfaces` for commands, APIs, templates, generated assets, state files, tests, docs, validators, packets, or runtime assumptions affected by the change.
    - Include `verification_evidence` with the exact checks run and the result.
-   - {{spec-kit-include: ../command-partials/common/inline-project-cognition-update.md}}
    - The completion claim must be backed by live code, tests, scripts, configuration, or authoritative docs; project cognition can support route selection but cannot be the sole evidence for completion. Continue only when verification is truthfully green and no explicit blocker prevents completion.
 
 ## Output Contract

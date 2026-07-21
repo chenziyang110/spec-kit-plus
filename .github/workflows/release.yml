@@ -126,25 +126,18 @@ jobs:
           curl -sSL https://raw.githubusercontent.com/chenziyang110/spec-kit-plus/main/tools/spec-lint/install.sh | bash
           # Windows (PowerShell)
           irm https://raw.githubusercontent.com/chenziyang110/spec-kit-plus/main/tools/spec-lint/install.ps1 | iex
-          # Go users
-          go install github.com/chenziyang110/spec-kit-plus/tools/spec-lint@${VERSION}
           \`\`\`
 
           ### project-cognition runtime
 
-          Generated project cognition workflows require the standalone \`project-cognition\` binary. This release publishes prebuilt binaries for Windows, Linux, and macOS. The runtime includes \`scan-set\` for compact file-list resolution, \`scan-prepare\` and idempotent \`scan-accept\` for advanced low-cost packet scanning, the default compass/expand navigation commands, the WorkContract v1 \`semantic-intake\` candidate command, the optional \`semantic-audit-resume\` validator for persisted semantic-audit state, the advanced lexicon/query planning commands, and \`closeout-plan\` for planner-first workflow-owned mutation closeout. Generated projects also include the semantic-audit-resume example matrix under \`.specify/templates/examples/semantic-audit-resume/\` so downstream workflows can validate fresh, route-changed, active-claim-changed, missing-file, claim-ref-mismatch, and verification-ref-mismatch resume outcomes.
+          Generated project cognition workflows require the standalone \`project-cognition\` binary. This release publishes prebuilt binaries for Windows, Linux, and macOS. The runtime includes \`scan-set\`, context-budgeted \`scan-prepare\`, and resumable \`scan-lease\` / \`scan-checkpoint\` / \`scan-yield\` / \`scan-requeue\` / \`scan-status\` / \`scan-accept\` orchestration with receipt-bound scan validation. It also includes the default compass/expand navigation commands, the WorkContract v1 \`semantic-intake\` candidate command, the optional \`semantic-audit-resume\` validator for persisted semantic-audit state, the advanced lexicon/query planning commands, and \`closeout-plan\` for planner-first workflow-owned mutation closeout. Generated projects also include the semantic-audit-resume example matrix under \`.specify/templates/examples/semantic-audit-resume/\` so downstream workflows can validate fresh, route-changed, active-claim-changed, missing-file, claim-ref-mismatch, and verification-ref-mismatch resume outcomes.
 
           **Install the prebuilt release binary**
           \`\`\`bash
           # Linux / macOS
           curl -sSL https://raw.githubusercontent.com/chenziyang110/spec-kit-plus/main/tools/project-cognition/install.sh | PROJECT_COGNITION_VERSION=${VERSION} bash
           # Windows (PowerShell)
-          $env:PROJECT_COGNITION_VERSION="${VERSION}"; irm https://raw.githubusercontent.com/chenziyang110/spec-kit-plus/main/tools/project-cognition/install.ps1 | iex
-          \`\`\`
-
-          **Go users can also install from source**
-          \`\`\`bash
-          go install github.com/chenziyang110/spec-kit-plus/tools/project-cognition@${VERSION}
+          \$env:PROJECT_COGNITION_VERSION="${VERSION}"; irm https://raw.githubusercontent.com/chenziyang110/spec-kit-plus/main/tools/project-cognition/install.ps1 | iex
           \`\`\`
 
           The generated helper scripts prefer \`PROJECT_COGNITION_BIN\` when it is set, then the pinned \`.specify/config.json\` \`project_cognition_launcher\`, and finally \`project-cognition\` from PATH.
@@ -164,6 +157,7 @@ jobs:
         if: steps.check_release.outputs.exists == 'false'
         run: |
           VERSION="${{ steps.version.outputs.tag }}"
+          SOURCE_REVISION="$(git rev-parse HEAD)"
           mkdir -p dist/release-tools
 
           TARGETS="
@@ -177,6 +171,10 @@ jobs:
           build_tool() {
             local tool="$1"
             local dir="$2"
+            local ldflags="-s -w -X main.version=${VERSION}"
+            if [ "$tool" = "project-cognition" ]; then
+              ldflags="${ldflags} -X github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/buildinfo.SourceRevision=${SOURCE_REVISION} -X github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/buildinfo.BuildDirty=false"
+            fi
             echo "Building ${tool} ${VERSION}..."
             for target in $TARGETS; do
               goos="${target%/*}"
@@ -189,7 +187,7 @@ jobs:
                 cd "$dir"
                 GOOS=${goos} GOARCH=${goarch} CGO_ENABLED=0 \
                   go build -trimpath \
-                    -ldflags="-s -w -X 'main.version=${VERSION}'" \
+                    -ldflags="${ldflags}" \
                     -o "../../dist/release-tools/${tool}-${goos}-${goarch}${ext}" .
               )
             done
@@ -209,7 +207,13 @@ jobs:
           ./dist/release-tools/project-cognition-linux-amd64 --help | grep -q "scan-set"
           ./dist/release-tools/project-cognition-linux-amd64 --help | grep -q "scan-prepare"
           ./dist/release-tools/project-cognition-linux-amd64 --help | grep -q "scan-accept"
+          ./dist/release-tools/project-cognition-linux-amd64 --help | grep -q "scan-checkpoint"
+          ./dist/release-tools/project-cognition-linux-amd64 version --format json | grep -q '"runtime_protocol":"project-cognition.v2"'
+          ./dist/release-tools/project-cognition-linux-amd64 version --format json | grep -q '"schema_version":5'
+          ./dist/release-tools/project-cognition-linux-amd64 version --format json | grep -q '"dirty":false'
           ./dist/release-tools/project-cognition-linux-amd64 scan-prepare --help 2>&1 | grep -q -- "-force"
+          ./dist/release-tools/project-cognition-linux-amd64 scan-prepare --help 2>&1 | grep -q -- "-safety-percent"
+          ./dist/release-tools/project-cognition-linux-amd64 scan-lease --help 2>&1 | grep -q -- "-worker-capacity-tokens"
           ./dist/release-tools/project-cognition-linux-amd64 scan-accept --help 2>&1 | grep -q -- "-packet-id"
           ./dist/release-tools/project-cognition-linux-amd64 --help | grep -q "semantic-intake"
           ./dist/release-tools/project-cognition-linux-amd64 semantic-intake --help 2>&1 | grep -q -- "-input"

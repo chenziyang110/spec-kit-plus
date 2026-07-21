@@ -62,8 +62,13 @@ chmod 0755 "$tmp"
 
 echo "==> Verifying..."
 "$tmp" --version
+runtime_info="$("$tmp" version --format json 2>&1 || true)"
+if [[ "$runtime_info" != *'"runtime_protocol":"project-cognition.v2"'* || "$runtime_info" != *'"schema_version":5'* || "$runtime_info" != *'"dirty":false'* ]]; then
+  echo "Error: downloaded project-cognition binary has incompatible protocol, schema, or dirty provenance." >&2
+  exit 1
+fi
 root_help="$("$tmp" --help 2>&1 || true)"
-for required_command in repair-status scan-set scan-prepare scan-accept; do
+for required_command in repair-status scan-set scan-prepare scan-lease scan-checkpoint scan-yield scan-requeue scan-status scan-accept; do
   if [[ "$root_help" != *"$required_command"* ]]; then
     echo "Error: downloaded project-cognition binary is missing required ${required_command} command." >&2
     echo "Expected 'project-cognition --help' to include ${required_command}." >&2
@@ -71,15 +76,37 @@ for required_command in repair-status scan-set scan-prepare scan-accept; do
   fi
 done
 scan_prepare_help="$("$tmp" scan-prepare --help 2>&1 || true)"
-if [[ "$scan_prepare_help" != *"-force"* || "$scan_prepare_help" != *"-scan-set"* ]]; then
-  echo "Error: downloaded project-cognition binary is missing required scan-prepare flags." >&2
-  echo "Expected 'project-cognition scan-prepare --help' to include -force and -scan-set." >&2
+for required_flag in -force -scan-set -max-paths -max-bytes -worker-budget-tokens -context-window-tokens -inherited-context-tokens -system-skill-tokens -reserved-output-tokens -reserved-tool-tokens -reserved-reasoning-tokens -safety-percent; do
+  if [[ "$scan_prepare_help" != *"$required_flag"* ]]; then
+    echo "Error: downloaded project-cognition binary is missing required scan-prepare flag ${required_flag}." >&2
+    echo "Expected 'project-cognition scan-prepare --help' to expose the complete context-budget protocol." >&2
+    exit 1
+  fi
+done
+scan_lease_help="$("$tmp" scan-lease --help 2>&1 || true)"
+if [[ "$scan_lease_help" != *"-packet-id"* || "$scan_lease_help" != *"-worker-id"* || "$scan_lease_help" != *"-worker-capacity-tokens"* ]]; then
+  echo "Error: downloaded project-cognition binary is missing required scan-lease flags." >&2
+  exit 1
+fi
+scan_checkpoint_help="$("$tmp" scan-checkpoint --help 2>&1 || true)"
+if [[ "$scan_checkpoint_help" != *"-packet-id"* || "$scan_checkpoint_help" != *"-attempt-id"* || "$scan_checkpoint_help" != *"-result"* ]]; then
+  echo "Error: downloaded project-cognition binary is missing required scan-checkpoint flags." >&2
+  exit 1
+fi
+scan_yield_help="$("$tmp" scan-yield --help 2>&1 || true)"
+if [[ "$scan_yield_help" != *"-packet-id"* || "$scan_yield_help" != *"-attempt-id"* ]]; then
+  echo "Error: downloaded project-cognition binary is missing required scan-yield flags." >&2
+  exit 1
+fi
+scan_requeue_help="$("$tmp" scan-requeue --help 2>&1 || true)"
+if [[ "$scan_requeue_help" != *"-packet-id"* || "$scan_requeue_help" != *"-attempt-id"* ]]; then
+  echo "Error: downloaded project-cognition binary is missing required scan-requeue flags." >&2
   exit 1
 fi
 scan_accept_help="$("$tmp" scan-accept --help 2>&1 || true)"
-if [[ "$scan_accept_help" != *"-packet-id"* || "$scan_accept_help" != *"-result"* ]]; then
+if [[ "$scan_accept_help" != *"-packet-id"* || "$scan_accept_help" != *"-attempt-id"* || "$scan_accept_help" != *"-result"* ]]; then
   echo "Error: downloaded project-cognition binary is missing required scan-accept flags." >&2
-  echo "Expected 'project-cognition scan-accept --help' to include -packet-id and -result." >&2
+  echo "Expected 'project-cognition scan-accept --help' to include -packet-id, -attempt-id, and -result." >&2
   exit 1
 fi
 update_help="$("$tmp" update --help 2>&1 || true)"

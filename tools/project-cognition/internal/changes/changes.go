@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strings"
 
+	changemodel "github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/changes/model"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/ignore"
 	rt "github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtime"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/store"
@@ -48,15 +49,13 @@ type Summary struct {
 }
 
 type Change struct {
-	Path               string   `json:"path"`
-	OldPath            string   `json:"old_path,omitempty"`
+	changemodel.PathChange
 	GitStatus          string   `json:"git_status"`
 	Sources            []string `json:"sources"`
 	Tracked            bool     `json:"tracked"`
 	WorkingTreeDirty   bool     `json:"working_tree_dirty"`
 	IgnoredByCognition bool     `json:"ignored_by_cognition"`
 	KnownToRuntime     bool     `json:"known_to_runtime"`
-	NodeID             string   `json:"node_id,omitempty"`
 	ChangeLevel        string   `json:"change_level"`
 	RecommendedAction  string   `json:"recommended_action"`
 	Reason             []string `json:"reason"`
@@ -220,18 +219,51 @@ func Run(paths rt.Paths, input Input) (Payload, error) {
 	}
 
 	matcher := ignore.Load(paths.Root)
-	includedPaths := make([]string, 0, len(merged))
+	includedItems := make(map[string]*mergedChange, len(merged))
 	for _, item := range merged {
 		if matcher.Ignored(item.path) {
 			payload.IgnoredPaths = append(payload.IgnoredPaths, item.path)
 			continue
 		}
-		includedPaths = append(includedPaths, item.path)
+		includedItems[item.path] = item
+	}
+	// A rename into cognition-ignored scope still removes the old tracked path
+	// from the runtime graph. Preserve that half as a synthetic delete while the
+	// ignored destination remains excluded from cognition.
+	for _, item := range merged {
+		oldPath := strings.TrimSpace(item.oldPath)
+		if !matcher.Ignored(item.path) || oldPath == "" || matcher.Ignored(oldPath) {
+			continue
+		}
+		if _, exists := includedItems[oldPath]; exists {
+			continue
+		}
+		sources := make(map[string]bool, len(item.sources))
+		for source, present := range item.sources {
+			sources[source] = present
+		}
+		includedItems[oldPath] = &mergedChange{
+			path:    oldPath,
+			status:  "D",
+			sources: sources,
+			tracked: item.tracked,
+		}
+	}
+	includedPaths := make([]string, 0, len(includedItems))
+	for path := range includedItems {
+		includedPaths = append(includedPaths, path)
 	}
 	sort.Strings(includedPaths)
 	sort.Strings(payload.IgnoredPaths)
 
-	pathNodeIDs, err := nodeIDsForPaths(paths, includedPaths, runtimeRequiresStore(status))
+	lookupPaths := append([]string{}, includedPaths...)
+	for _, path := range includedPaths {
+		if oldPath := strings.TrimSpace(includedItems[path].oldPath); oldPath != "" {
+			lookupPaths = append(lookupPaths, oldPath)
+		}
+	}
+	lookupPaths = uniqueSortedPaths(lookupPaths)
+	pathNodeIDs, err := nodeIDsForPaths(paths, lookupPaths, runtimeRequiresStore(status))
 	if err != nil {
 		payload.Status = "blocked"
 		payload.Readiness = rt.NeedsRebuildReadiness
@@ -246,18 +278,25 @@ func Run(paths rt.Paths, input Input) (Payload, error) {
 		return payload, nil
 	}
 	for _, path := range includedPaths {
-		item := merged[path]
+		item := includedItems[path]
 		nodeID := pathNodeIDs[path]
+		if nodeID == "" && item.oldPath != "" {
+			nodeID = pathNodeIDs[item.oldPath]
+		}
 		change := Change{
-			Path:               item.path,
-			OldPath:            item.oldPath,
+			PathChange: changemodel.PathChange{
+				Path:         item.path,
+				OldPath:      item.oldPath,
+				Operation:    operationFor(item.status, item.tracked, nodeID != ""),
+				NodeID:       nodeID,
+				EvidenceRefs: []string{},
+			},
 			GitStatus:          item.status,
 			Sources:            sortedSources(item.sources),
 			Tracked:            item.tracked,
 			WorkingTreeDirty:   item.sources["working_tree"],
 			IgnoredByCognition: false,
 			KnownToRuntime:     nodeID != "",
-			NodeID:             nodeID,
 		}
 		change.ChangeLevel = classify(change.GitStatus, change.KnownToRuntime)
 		change.RecommendedAction = recommendedAction(change.ChangeLevel)
@@ -292,6 +331,24 @@ func Run(paths rt.Paths, input Input) (Payload, error) {
 
 	payload.NextAction = nextAction(payload.Readiness, payload.Summary.Included, payload.UnknownPaths)
 	return payload, nil
+}
+
+func operationFor(status string, tracked bool, known bool) changemodel.Operation {
+	status = strings.TrimSpace(status)
+	switch {
+	case strings.HasPrefix(status, "D"):
+		return changemodel.OperationDelete
+	case strings.HasPrefix(status, "R"):
+		return changemodel.OperationRename
+	case status == "??" || strings.HasPrefix(status, "A"):
+		return changemodel.OperationAdd
+	case strings.HasPrefix(status, "M"):
+		return changemodel.OperationModify
+	case status == "explicit" && !tracked && !known:
+		return changemodel.OperationAdd
+	default:
+		return changemodel.OperationModify
+	}
 }
 
 func addMerged(merged map[string]*mergedChange, entry rt.GitStatusEntry, source string, tracked bool) {
@@ -505,7 +562,22 @@ func normalizePath(path string) string {
 	for strings.HasPrefix(normalized, "./") {
 		normalized = strings.TrimPrefix(normalized, "./")
 	}
-	return strings.Trim(normalized, "/")
+	return strings.TrimRight(normalized, "/")
+}
+
+func uniqueSortedPaths(values []string) []string {
+	seen := map[string]bool{}
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		value = normalizePath(value)
+		if value == "" || seen[value] {
+			continue
+		}
+		seen[value] = true
+		out = append(out, value)
+	}
+	sort.Strings(out)
+	return out
 }
 
 func normalizeExplicitPath(root string, path string) (string, error) {

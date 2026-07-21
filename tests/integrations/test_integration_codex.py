@@ -1105,7 +1105,9 @@ def test_codex_generated_sp_implement_includes_native_spawn_agent_routing(tmp_pa
     assert "just in time" in content.lower()
     assert "map-update" in content.lower()
     assert "workflow-owned mutation closeout is not an external map-maintenance handoff" in content.lower()
-    assert "update --delta-session" in content.lower()
+    assert "update_argv" in content.lower()
+    assert "update --delta-session" not in content.lower()
+    assert "update --payload-file" not in content.lower()
     assert "sp-map-update is for manual/external maintenance and follow-up repair" in content.lower()
     assert "do not claim completion from chat narration" in content.lower()
     assert "validation evidence" in content.lower()
@@ -1609,7 +1611,9 @@ def test_codex_generated_sp_debug_includes_leader_led_native_investigation_guida
     assert "candidate queue" in content
     assert "root-cause mode" in content
     assert "workflow-owned mutation closeout is not an external map-maintenance handoff" in content
-    assert "update --delta-session" in content
+    assert "update_argv" in content
+    assert "update --delta-session" not in content
+    assert "update --payload-file" not in content
     assert "sp-map-update is for manual/external maintenance and follow-up repair" in content
 
 
@@ -1873,7 +1877,9 @@ def test_codex_generated_sp_quick_supports_lightweight_tracked_execution(tmp_pat
     assert "project cognition can support route selection but cannot be the sole evidence for completion" in content
     assert "map-update" in content
     assert "workflow-owned mutation closeout is not an external map-maintenance handoff" in content
-    assert "update --delta-session" in content
+    assert "update_argv" in content
+    assert "update --delta-session" not in content
+    assert "update --payload-file" not in content
     assert "sp-map-update is for manual/external maintenance and follow-up repair" in content
     assert "resume" in content
     assert "resolved/" in content

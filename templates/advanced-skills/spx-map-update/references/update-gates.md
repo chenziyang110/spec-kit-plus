@@ -6,15 +6,20 @@ update boundary. Include `--reason map-update` when supported.
 
 After executing structured `update_argv`, branch on `result_state`:
 
-- `ready` requires passing `validate-build` before `complete-refresh`; validate
-  the resulting build/query surface and complete incremental freshness only
-  after agreement is proven;
-- `no_op` may use `record-refresh` when only freshness metadata must advance;
-  otherwise report why nothing changed;
+- `result_state=ready` or `result_state=no_op` requires `validate-build`; only
+  `status=ok` and `readiness=query_ready` creates the receipt bound to the
+  latest update ID, outcome, and active generation, after which
+  `complete-refresh` must consume that receipt; until then the runtime gate
+  withholds Compass/query as pending finalization;
 - `partial_refresh` or `blocked`: preserve the recorded state and gaps; never
   call `complete-refresh`;
-- `needs_rebuild`: preserve the state, never call `complete-refresh`, and stop
+- `needs_rebuild` or legacy `recorded`: preserve the state, never call
+  `complete-refresh`, and stop
   with a handoff to `spx-map-rebuild`.
+
+`record-refresh` is a compatibility or explicit metadata-recording entrypoint
+only when a matching validation receipt already exists. It is not an ordinary
+closeout branch and cannot bypass receipt-bound `complete-refresh`.
 
 Use bounded identity repair only for the affected scope. When the update marks
 graph claims stale or contradicted, generic test success cannot re-promote them.

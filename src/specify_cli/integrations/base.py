@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import importlib
 import inspect
+import json
 import re
 import shutil
 from abc import ABC
@@ -109,6 +110,18 @@ class IntegrationBase(ABC):
         {"implement", "review", "debug", "quick"}
     )
     SUBAGENT_DISCOVERY_EXCLUDED_COMMANDS = frozenset({"fast"})
+    PROJECT_COGNITION_WORKFLOW_TOKEN = "{{project-cognition-workflow}}"
+    PROJECT_COGNITION_WORKFLOW_REGISTRY = (
+        "project-cognition-workflow-registry.json"
+    )
+    PROJECT_COGNITION_WORKFLOW_MODES = frozenset(
+        {
+            "mutation_closeout",
+            "map_maintenance",
+            "baseline_maintenance",
+            "no_closeout",
+        }
+    )
     SUBAGENT_DISCOVERY_TRIGGERS = (
         "## mandatory subagent execution",
         "choose_subagent_dispatch",
@@ -148,7 +161,9 @@ class IntegrationBase(ABC):
         }
     )
     UNRESOLVED_RENDERER_TOKEN_RE = re.compile(
-        r"\{SCRIPT\}|\{AGENT_SCRIPT\}|\{ARGS\}|__AGENT__|\{\{invoke:[^}]+}}"
+        r"\{SCRIPT\}|\{AGENT_SCRIPT\}|\{ARGS\}|__AGENT__|"
+        r"\{\{invoke:[^}]+}}|\{\{spec-kit-include:|"
+        r"\{\{project-cognition-workflow}}"
     )
 
     # -- Public API -------------------------------------------------------
@@ -207,6 +222,166 @@ class IntegrationBase(ABC):
             if candidate.is_dir():
                 return candidate
         return None
+
+    @classmethod
+    def project_cognition_workflow_registry(cls) -> dict[str, Any]:
+        """Load and validate the shared workflow closeout registry."""
+
+        pkg_dir = Path(inspect.getfile(IntegrationBase)).resolve().parent.parent
+        candidates = (
+            pkg_dir
+            / "core_pack"
+            / "templates"
+            / "artifacts"
+            / cls.PROJECT_COGNITION_WORKFLOW_REGISTRY,
+            pkg_dir.parent.parent
+            / "templates"
+            / "artifacts"
+            / cls.PROJECT_COGNITION_WORKFLOW_REGISTRY,
+        )
+        registry_path = next((path for path in candidates if path.is_file()), None)
+        if registry_path is None:
+            raise FileNotFoundError(
+                "Project cognition workflow registry is unavailable; checked: "
+                + ", ".join(str(path) for path in candidates)
+            )
+
+        try:
+            registry = json.loads(registry_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise ValueError(
+                f"Invalid project cognition workflow registry: {registry_path}"
+            ) from exc
+        cls._validate_project_cognition_workflow_registry(registry)
+        return registry
+
+    @classmethod
+    def _validate_project_cognition_workflow_registry(
+        cls,
+        registry: Any,
+    ) -> None:
+        """Validate the stable subset consumed by prompt renderers."""
+
+        if not isinstance(registry, dict):
+            raise ValueError("Project cognition workflow registry must be an object")
+        if registry.get("$schema") != "project-cognition-workflow-registry.schema.json":
+            raise ValueError("Project cognition workflow registry has an unknown schema")
+        if registry.get("schema_version") != 1:
+            raise ValueError("Project cognition workflow registry must use schema_version 1")
+        workflows = registry.get("workflows")
+        if not isinstance(workflows, dict) or not workflows:
+            raise ValueError("Project cognition workflow registry requires workflows")
+
+        for command_name, policy in workflows.items():
+            if not isinstance(command_name, str) or not re.fullmatch(
+                r"[a-z0-9]+(?:-[a-z0-9]+)*", command_name
+            ):
+                raise ValueError(f"Invalid workflow command name: {command_name!r}")
+            if not isinstance(policy, dict):
+                raise ValueError(f"Workflow policy for {command_name!r} must be an object")
+            if set(policy) != {"mode", "canonical_workflow", "reason"}:
+                raise ValueError(
+                    f"Workflow policy for {command_name!r} has invalid fields"
+                )
+            mode = policy.get("mode")
+            if mode not in cls.PROJECT_COGNITION_WORKFLOW_MODES:
+                raise ValueError(
+                    f"Workflow policy for {command_name!r} has invalid mode {mode!r}"
+                )
+            canonical = policy.get("canonical_workflow")
+            requires_canonical = mode in {"mutation_closeout", "map_maintenance"}
+            if requires_canonical:
+                if not isinstance(canonical, str) or not re.fullmatch(
+                    r"sp-[a-z0-9]+(?:-[a-z0-9]+)*", canonical
+                ):
+                    raise ValueError(
+                        f"Workflow policy for {command_name!r} requires a canonical sp-* workflow"
+                    )
+            elif canonical is not None:
+                raise ValueError(
+                    f"Workflow policy for {command_name!r} must not define a canonical workflow"
+                )
+            if not isinstance(policy.get("reason"), str) or not policy["reason"].strip():
+                raise ValueError(
+                    f"Workflow policy for {command_name!r} requires a reason"
+                )
+
+    @classmethod
+    def project_cognition_workflow_policy(
+        cls,
+        command_name: str,
+    ) -> dict[str, Any]:
+        """Return one validated closeout policy by Classic command name."""
+
+        workflows = cls.project_cognition_workflow_registry()["workflows"]
+        try:
+            return workflows[command_name]
+        except KeyError as exc:
+            raise ValueError(
+                f"No project cognition workflow policy for {command_name!r}"
+            ) from exc
+
+    @staticmethod
+    def _command_name_for_template(template_path: Path | None) -> str | None:
+        if template_path is None:
+            return None
+        parts = template_path.parts
+        topology_directories = {
+            "commands",
+            "command-references",
+            "command-partials",
+        }
+        topology_indices = [
+            index
+            for index, part in enumerate(parts)
+            if part in topology_directories
+        ]
+        if not topology_indices:
+            return None
+
+        # Source checkouts use templates/<surface>/..., while wheels use
+        # core_pack/<surface>/.... Prefer those known roots over an unrelated
+        # ancestor that happens to share a surface directory name. Fixtures may
+        # provide only <surface>/..., so retain the nearest-match fallback.
+        rooted_indices = [
+            index
+            for index in topology_indices
+            if index > 0 and parts[index - 1] in {"templates", "core_pack"}
+        ]
+        index = max(rooted_indices or topology_indices)
+        if index + 1 >= len(parts):
+            return None
+
+        directory = parts[index]
+        owner = parts[index + 1]
+        if directory == "commands":
+            return Path(owner).stem
+        if owner == "common":
+            return None
+        return owner
+
+    @classmethod
+    def render_project_cognition_workflow_token(
+        cls,
+        content: str,
+        template_path: Path | None,
+    ) -> str:
+        """Render the closeout workflow token to a registry-owned literal ID."""
+
+        if cls.PROJECT_COGNITION_WORKFLOW_TOKEN not in content:
+            return content
+        command_name = cls._command_name_for_template(template_path)
+        if command_name is None:
+            raise ValueError(
+                "Cannot render project cognition workflow without an owning command"
+            )
+        policy = cls.project_cognition_workflow_policy(command_name)
+        canonical = policy.get("canonical_workflow")
+        if policy.get("mode") != "mutation_closeout" or not canonical:
+            raise ValueError(
+                f"Workflow {command_name!r} does not own mutation closeout"
+            )
+        return content.replace(cls.PROJECT_COGNITION_WORKFLOW_TOKEN, canonical)
 
     def list_command_templates(self) -> list[Path]:
         """Return sorted list of command template files from the shared directory."""
@@ -581,27 +756,32 @@ class IntegrationBase(ABC):
         content: str,
         command_name: str,
     ) -> str:
-        """Append skill-only cognition freshness closeout guidance for planning artifacts."""
+        """Keep planning navigation visible without granting mutation closeout."""
 
         if command_name not in {"specify", "plan", "tasks"}:
             return content
 
-        marker = "## Project Cognition Freshness Closeout"
+        marker = "## Project Cognition Navigation (Planning Only)"
         if marker in content:
             return content
 
         addendum = (
             "\n"
             f"{marker}\n\n"
-            "- This workflow is artifact-only unless the user explicitly requested source/runtime/template/config/test/generated-asset changes; do not call `{{specify-subcmd:project-cognition mark-dirty --help}}`, `{{specify-subcmd:project-cognition complete-refresh --help}}`, or `{{specify-subcmd:project-cognition validate-build --format json}}` just because `sp-specify`, `sp-plan`, or `sp-tasks` wrote planning artifacts.\n"
-            "- If this planning workflow makes actual source/runtime/template/config/test/generated-asset changes in the current run, it stops being artifact-only for closeout: run inline project cognition update from the workflow-owned changed paths and affected surfaces.\n"
-            "- Git-baseline freshness only changes after source/runtime/template/config/test/generated-asset changes are recorded; planning-only artifact edits do not require `project-cognition complete-refresh`, and manual override/fallback belongs only to an explicit map-maintenance recovery path.\n"
-            "- Inline project cognition update uses `{{specify-subcmd:project-cognition delta append --help}}` followed by `{{specify-subcmd:project-cognition update --delta-session \"$DELTA_SESSION_ID\" --reason workflow-finalize --format json}}` when a delta session exists, or `{{specify-subcmd:project-cognition update --payload-file \".specify/project-cognition/updates/<update-id>.json\" --reason workflow-finalize --format json}}` when no delta session exists.\n"
-            "- The payload-file path must include changed_paths, behavior_surfaces, generated_surfaces, state_contracts, verification, known_unknowns, and confidence_notes so the update is equivalent to `sp-map-update`, not just a path stamp; `verification_evidence` and `generated_surface_notes` are accepted compatibility aliases.\n"
-            "- Use `known_unknowns` only for blockers that make the cognition update unsafe to trust. If unrelated dirty or untracked working-tree paths were excluded by explicit workflow-owned paths, record that as `confidence_notes` or `boundary.initial_dirty_paths`, not as blocking `known_unknowns`.\n"
-            "- clean closeout keys on `result_state`, not `update_id`, `last_update_id`, or freshness alone. Treat `ready` and `no_op` as clean, `partial_refresh` as recorded but not fully clean, `needs_rebuild` as a map-scan/map-build route, `blocked` as blocked, and `recorded` as legacy recorded-only output that is never clean completion.\n"
-            "- Use `{{specify-subcmd:project-cognition mark-dirty --reason \"<reason>\" --format json}}` only when inline update cannot complete.\n"
-            "- `sp-map-update` is for manual/external maintenance and follow-up repair, not routine cleanup for changes this workflow just made; run `/sp-map-scan` followed by `/sp-map-build` only for brownfield first/missing/unusable baseline, schema failure, schema v1 or old broad-schema rebuild-required readiness, zero active-generation `path_index` rows outside `greenfield_empty`, missing or invalid `alias_index`, `explicit_rebuild_requested`, or `baseline_identity_invalid`.\n"
+            "- Use `.specify/project-cognition/status.json` to assess "
+            "Git-baseline freshness and "
+            "`.specify/project-cognition/project-cognition.db` only as advisory "
+            "navigation; prove planning facts from bounded live repository "
+            "evidence.\n"
+            "- This planning-only section does not grant source-mutation authority "
+            "or mutation-closeout execution. The current workflow remains "
+            "artifact-only.\n"
+            "- Planning artifact writes do not run `project-cognition "
+            "complete-refresh`. Any manual override/fallback belongs to an explicit "
+            "map-maintenance recovery path, not specification closeout.\n"
+            "- Recommend `/sp-map-update` for ordinary existing-baseline gaps; run "
+            "`/sp-map-scan` followed by `/sp-map-build` only for a missing or "
+            "unusable baseline or an explicit rebuild condition.\n"
         )
         return content + addendum
 
@@ -678,6 +858,10 @@ class IntegrationBase(ABC):
     ) -> str:
         """Append a hard project cognition read gate for runtime-facing commands when absent."""
 
+        policy = self.project_cognition_workflow_policy(command_name)
+        if policy["mode"] != "mutation_closeout":
+            return content
+
         if command_name not in self.RUNTIME_SUBAGENT_CONTRACT_COMMANDS:
             return content
 
@@ -708,12 +892,7 @@ class IntegrationBase(ABC):
             "- Use `map-update` for ordinary existing-baseline gaps. If `baseline_kind=greenfield_empty`, do not recommend map-scan -> map-build solely because the graph has no paths; continue with workflow artifacts and live requirements. Use `map-scan -> map-build` only for brownfield first/missing/unusable baseline, schema failure, schema v1 or old broad-schema rebuild-required readiness, zero active-generation `path_index` rows outside `greenfield_empty`, missing or invalid `alias_index`, `explicit_rebuild_requested`, or `baseline_identity_invalid`.\n"
             "- Treat the project cognition compass packet as advisory navigation for brownfield context; do not fall back to chat memory or ad hoc repository instincts when compass-backed runtime coverage should guide the route.\n"
             "- Treat this as advisory navigation, not a hard gate; continue with live repository evidence when the bundle is weak, stale, or missing, and use map maintenance only when it is actually useful.\n"
-            "- Mutation closeout is separate from entry routing: entry stale may continue, but workflow-owned mutation closeout is not an external map-maintenance handoff. If the workflow changes source/runtime truth-owning surfaces, shared surfaces, command/route/contract boundaries, verification entry points, runtime assumptions, or other project-related behavior surfaces, final state must run inline project cognition update from changed paths, affected surfaces, and verification evidence.\n"
-            "- Inline project cognition update uses `{{specify-subcmd:project-cognition delta append --help}}` followed by `{{specify-subcmd:project-cognition update --delta-session \"$DELTA_SESSION_ID\" --reason workflow-finalize --format json}}` when a delta session exists, or `{{specify-subcmd:project-cognition update --payload-file \".specify/project-cognition/updates/<update-id>.json\" --reason workflow-finalize --format json}}` when no delta session exists.\n"
-            "- The payload-file path must include changed_paths, behavior_surfaces, generated_surfaces, state_contracts, verification, known_unknowns, and confidence_notes so the update is equivalent to `sp-map-update`, not just a path stamp; `verification_evidence` and `generated_surface_notes` are accepted compatibility aliases.\n"
-            "- Use `known_unknowns` only for blockers that make the cognition update unsafe to trust. If unrelated dirty or untracked working-tree paths were excluded by explicit workflow-owned paths, record that as `confidence_notes` or `boundary.initial_dirty_paths`, not as blocking `known_unknowns`.\n"
-            "- clean closeout keys on `result_state`, not `update_id`, `last_update_id`, or freshness alone. Treat `ready` and `no_op` as clean, `partial_refresh` as recorded but not fully clean, `needs_rebuild` as a map-scan/map-build route, `blocked` as blocked, and `recorded` as legacy recorded-only output that is never clean completion.\n"
-            "- Use `{{specify-subcmd:project-cognition mark-dirty --reason \"<reason>\" --format json}}` only when inline update cannot complete. Dirty only when inline update cannot complete.\n"
+            "- Mutation closeout is separate from entry routing. Its single semantic owner is the shared inline closeout contract rendered in the owning command or triggered closeout reference; this advisory gate does not restate or execute closeout.\n"
             "- `sp-map-update` is for manual/external maintenance and follow-up repair after user edits, interrupted workflows, or explicit operator map-maintenance requests. It is not routine cleanup for changes this workflow just made.\n"
             "- A project-cognition compass intake is not complete when it returns JSON. It is complete only when readiness drives routing, `minimal_live_reads` constrains inspection, lane-level `first_pass_paths` reasons are considered, and relevant facts are carried into the next workflow artifact or execution state.\n"
             f"{carry_forward}"
@@ -1510,6 +1689,10 @@ class IntegrationBase(ABC):
             content,
             template_path=template_path,
         )
+        content = IntegrationBase.render_project_cognition_workflow_token(
+            content,
+            template_path,
+        )
 
         # 1. Extract script command from frontmatter
         script_command = ""
@@ -1595,6 +1778,16 @@ class IntegrationBase(ABC):
         content = CommandRegistrar.render_invocation_placeholders(agent_name, content)
         if project_root is not None:
             content = render_project_launcher_placeholders(project_root, content)
+
+        for unresolved in (
+            "{{spec-kit-include:",
+            IntegrationBase.PROJECT_COGNITION_WORKFLOW_TOKEN,
+        ):
+            if unresolved in content:
+                raise ValueError(
+                    f"{template_path or '<template>'} contains unresolved renderer token "
+                    f"{unresolved!r}"
+                )
 
         return content
 

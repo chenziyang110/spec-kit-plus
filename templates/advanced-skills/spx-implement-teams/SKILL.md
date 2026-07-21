@@ -52,6 +52,11 @@ fresh packet. Separate failures introduced by this feature from baseline debt.
 Baseline debt must be recorded with evidence and routed explicitly; it never
 turns a new regression or an unmet acceptance check into a pass.
 
-Finish through the ordinary implementation closeout and cognition closeout.
+Finish through the ordinary implementation closeout. Cognition ownership remains
+canonical `sp-implement`: run
+`{{specify-subcmd:project-cognition closeout-plan --workflow sp-implement --intent implement --format json}}`
+with explicit workflow-owned paths, fill returned agent-owned fields, and execute
+structured `update_argv`. Apply the receipt-bound finalizer gate in
+`references/project-cognition.md` before any clean claim.
 Idle workers, terminal-looking trackers, or a successful sync are not feature
 completion. Preserve blocked team state and report the exact recovery command.

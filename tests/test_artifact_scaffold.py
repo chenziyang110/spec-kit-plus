@@ -702,6 +702,45 @@ def test_plan_contract_scaffold_rejects_project_template_ready_transition_defaul
     assert not output.exists()
 
 
+def test_plan_contract_scaffold_accepts_not_triggered_consequence_gate_default(
+    tmp_path: Path,
+):
+    _write_project_plan_contract_template(
+        tmp_path,
+        consequence_gate={"triggered": False, "status": "not-triggered"},
+    )
+
+    scaffold_artifact(
+        tmp_path,
+        kind="plan-contract",
+        out_path="specs/001-demo/plan-contract.json",
+    )
+
+    output = tmp_path / "specs" / "001-demo" / "plan-contract.json"
+    data = json.loads(output.read_text(encoding="utf-8"))
+    assert data["consequence_gate"]["status"] == "not-triggered"
+
+
+@pytest.mark.parametrize("gate_status", ["ready", "complete"])
+def test_plan_contract_scaffold_rejects_terminal_consequence_gate_default(
+    tmp_path: Path, gate_status: str
+):
+    _write_project_plan_contract_template(
+        tmp_path,
+        consequence_gate={"triggered": True, "status": gate_status},
+    )
+    output = tmp_path / "specs" / "001-demo" / "plan-contract.json"
+
+    with pytest.raises(ArtifactScaffoldError, match="unsafe_status"):
+        scaffold_artifact(
+            tmp_path,
+            kind="plan-contract",
+            out_path="specs/001-demo/plan-contract.json",
+        )
+
+    assert not output.exists()
+
+
 def test_plan_contract_scaffold_supports_nested_allowed_specs_plan_path(tmp_path: Path):
     scaffold_artifact(
         tmp_path,

@@ -454,7 +454,9 @@ def test_readme_documents_inline_project_cognition_closeout() -> None:
     readme = _read("README.md").lower()
 
     assert "workflow-owned mutation closeout is planner-first" in readme
-    assert 'project-cognition closeout-plan --workflow "$active_workflow" --format json' in readme
+    assert "registry-owned literal canonical id" in readme
+    assert "project-cognition closeout-plan --workflow sp-implement --format json" in readme
+    assert "$active_workflow" not in readme
     assert "update_mode=delta_session" in readme
     assert "update_mode=payload_file" in readme
     assert "unknown_path_dispositions" in readme
@@ -467,7 +469,11 @@ def test_readme_documents_inline_project_cognition_closeout() -> None:
     assert "failed verification evidence" in readme
     assert "known_unknowns` only for blockers" in readme
     assert "confidence_notes` or `boundary.initial_dirty_paths" in readme
-    assert "status=ok" in readme
+    assert "selects the finalization branch" in readme
+    assert "clean completion additionally requires" in readme
+    assert "`status=ok` and `readiness=query_ready`" in readme
+    assert "planning-only workflows do not acquire source mutation authority" in readme
+    assert "hand off to a registry-owned mutation workflow" in readme
     assert "update_id" in readme
     assert "recorded-only" in readme
     assert (

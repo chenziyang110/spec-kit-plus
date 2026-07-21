@@ -59,11 +59,13 @@ func ValidateBuild(paths rt.Paths) GatePayload {
 	}
 	greenfieldEmpty := false
 	agreement := runtimegate.Check(paths)
-	if agreement.Status == "blocked" {
+	if agreement.Status == "blocked" && agreement.CauseCode != runtimegate.CauseUpdateFinalizationPending {
 		payload.Errors = append(payload.Errors, agreement.Errors...)
 		if agreement.RecoveryAction != "" {
 			payload.Details["recovery_action"] = agreement.RecoveryAction
 		}
+	} else if agreement.CauseCode == runtimegate.CauseUpdateFinalizationPending {
+		payload.Details["runtime_agreement"] = "pending_receipt_bound_finalization"
 	}
 	st, err := store.OpenExisting(paths)
 	if err != nil {

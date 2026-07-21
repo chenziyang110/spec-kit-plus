@@ -350,23 +350,17 @@ def _assert_runtime_cognition_carry_forward(content: str, command_name: str) -> 
     assert "carry forward" in content
     assert "next workflow artifact or execution state" in content
     assert "mutation closeout" in content
-    assert "workflow-owned mutation closeout is not an external map-maintenance handoff" in content
-    assert "inline project cognition update" in content
-    assert "project-cognition delta append" in content
-    assert "project-cognition update --delta-session" in content
-    assert "project-cognition update --payload-file" in content
-    assert "project-cognition claim-reconcile prepare" in content
-    assert "project-cognition claim-reconcile apply" in content
-    assert "apply_argv" in content
-    assert "expected_content_hash" not in content
-    assert "verification_evidence" in content
-    assert "generated_surface_notes" in content
-    assert "result_state" in content
-    assert "update_id" in content
-    assert "clean closeout" in content
-    assert "not `update_id`, `last_update_id`, or freshness alone" in content
-    assert "recorded-only output" in content
+    assert "single semantic owner is the shared inline closeout contract" in content
+    assert "project-cognition delta append" not in content
+    assert "project-cognition update --delta-session" not in content
+    assert "project-cognition update --payload-file" not in content
     assert "project-cognition update --changed-path" not in content
+    planner = f"project-cognition closeout-plan --workflow sp-{command_name}"
+    if command_name == "implement":
+        assert content.count(planner) == 2
+        assert content.count("### inline project cognition update") == 1
+    else:
+        assert planner not in content
     assert "sp-map-update is for manual/external maintenance and follow-up repair" in content
     assert "actual `{{invoke:map-update}}` refresh" not in content
     assert "project_cognition_refresh` recommending" not in content

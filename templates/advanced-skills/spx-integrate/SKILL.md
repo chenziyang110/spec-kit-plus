@@ -42,6 +42,10 @@ when readiness and verification pass may you close a lane with
 `{{specify-subcmd:integrate --feature-dir <feature-dir> --close}}`. Preserve a
 blocked lane and its recovery evidence instead of forcing terminal state.
 
-Close out project cognition for actual integrated repository changes. Report
+For actual integrated repository changes, run
+`{{specify-subcmd:project-cognition closeout-plan --workflow sp-integrate --intent implement --format json}}`
+with explicit integration-owned paths, fill returned agent-owned fields, and execute
+structured `update_argv`. Apply the receipt-bound finalizer gate in
+`references/project-cognition.md` before any clean claim. Report
 lane order, overlap/conflict decisions, checks run, closed lanes, and remaining
 mainline or PR actions.

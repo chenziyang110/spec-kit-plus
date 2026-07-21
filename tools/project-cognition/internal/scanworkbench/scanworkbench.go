@@ -18,7 +18,10 @@ import (
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/scanset"
 )
 
-const defaultPacketSize = 25
+const (
+	defaultPacketSize   = 25
+	workbenchProtocolV2 = "map_scan_workbench.v2"
+)
 
 const (
 	workbenchLockRetryInterval = 25 * time.Millisecond
@@ -28,11 +31,15 @@ const (
 )
 
 var packetIDPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*$`)
+var workerIDPattern = regexp.MustCompile(`^[A-Za-z0-9/][A-Za-z0-9._:/-]{0,127}$`)
 
 type PrepareInput struct {
-	ScanSetPath string
-	PacketSize  int
-	Force       bool
+	ScanSetPath        string
+	PacketSize         int
+	MaxPaths           int
+	MaxBytes           int64
+	WorkerBudgetTokens int64
+	Force              bool
 }
 
 type PreparePayload struct {
@@ -47,6 +54,7 @@ type PreparePayload struct {
 
 type AcceptInput struct {
 	PacketID   string
+	AttemptID  string
 	ResultPath string
 }
 
@@ -64,14 +72,28 @@ type scanSetFile struct {
 }
 
 type queueFile struct {
-	Packets []queuePacket `json:"packets"`
+	Protocol     string        `json:"protocol,omitempty"`
+	GenerationID string        `json:"generation_id,omitempty"`
+	ScanSetPath  string        `json:"scan_set_path,omitempty"`
+	Packets      []queuePacket `json:"packets"`
 }
 
 type queuePacket struct {
-	PacketID          string   `json:"packet_id"`
-	State             string   `json:"state"`
-	AssignedPaths     []string `json:"assigned_paths"`
-	ResultHandoffPath string   `json:"result_handoff_path"`
+	PacketID               string   `json:"packet_id"`
+	State                  string   `json:"state"`
+	AssignedPaths          []string `json:"assigned_paths"`
+	ResultHandoffPath      string   `json:"result_handoff_path"`
+	ParentPacketID         string   `json:"parent_packet_id,omitempty"`
+	WorkerID               string   `json:"worker_id,omitempty"`
+	AttemptID              string   `json:"attempt_id,omitempty"`
+	AttemptNumber          int      `json:"attempt_number,omitempty"`
+	CheckpointPath         string   `json:"checkpoint_path,omitempty"`
+	CheckpointSequence     int      `json:"checkpoint_sequence,omitempty"`
+	CompletedPaths         []string `json:"completed_paths,omitempty"`
+	EstimatedTokens        int64    `json:"estimated_tokens"`
+	EstimatedBytes         int64    `json:"estimated_bytes"`
+	EffectiveContextBudget int64    `json:"effective_context_budget_tokens"`
+	Oversized              bool     `json:"oversized,omitempty"`
 }
 
 type handoffFile struct {
@@ -96,7 +118,10 @@ type workerLedger struct {
 }
 
 type workerResult struct {
+	Protocol      string           `json:"protocol,omitempty"`
 	PacketID      string           `json:"packet_id"`
+	AttemptID     string           `json:"attempt_id,omitempty"`
+	Sequence      int              `json:"sequence,omitempty"`
 	FamilyID      string           `json:"family_id,omitempty"`
 	AssignedPaths []string         `json:"assigned_paths"`
 	PathsRead     []string         `json:"paths_read"`
@@ -130,12 +155,29 @@ func prepareUnlocked(paths rt.Paths, input PrepareInput) (PreparePayload, error)
 	if scanSetPath == "" {
 		scanSetPath = scanset.DefaultOutputPath
 	}
-	packetSize := input.PacketSize
-	if packetSize == 0 {
-		packetSize = defaultPacketSize
+	maxPaths := input.MaxPaths
+	if maxPaths == 0 {
+		maxPaths = input.PacketSize
 	}
-	if packetSize < 1 || packetSize > 150 {
+	if maxPaths == 0 {
+		maxPaths = defaultPacketSize
+	}
+	if maxPaths < 1 || maxPaths > 150 {
 		return PreparePayload{}, fmt.Errorf("packet size must be between 1 and 150")
+	}
+	if input.WorkerBudgetTokens < 0 {
+		return PreparePayload{}, fmt.Errorf("worker token budget must not be negative")
+	}
+	if input.MaxBytes < 0 {
+		return PreparePayload{}, fmt.Errorf("packet byte budget must not be negative")
+	}
+	workerBudgetTokens := input.WorkerBudgetTokens
+	if workerBudgetTokens == 0 {
+		workerBudgetTokens = defaultEffectiveWorkerTokens
+	}
+	maxBytes := input.MaxBytes
+	if maxBytes == 0 {
+		maxBytes = defaultPacketBytes
 	}
 
 	absScanSet, relScanSet, err := resolveRepositoryFile(paths.Root, scanSetPath)
@@ -164,33 +206,52 @@ func prepareUnlocked(paths rt.Paths, input PrepareInput) (PreparePayload, error)
 		return PreparePayload{}, err
 	}
 
-	packetIDs := make([]string, 0, (len(files)+packetSize-1)/packetSize)
-	queue := queueFile{Packets: []queuePacket{}}
+	plans, err := planPackets(paths.Root, files, packetPlanningBudget{
+		MaxPaths: maxPaths, MaxBytes: maxBytes, MaxTokens: workerBudgetTokens,
+	})
+	if err != nil {
+		return PreparePayload{}, err
+	}
+	packetIDs := make([]string, 0, len(plans))
+	generationID, err := scanGenerationID(paths.Root, files)
+	if err != nil {
+		return PreparePayload{}, err
+	}
+	queue := queueFile{
+		Protocol: workbenchProtocolV2, GenerationID: generationID,
+		ScanSetPath: filepath.ToSlash(relScanSet), Packets: []queuePacket{},
+	}
 	handoffs := handoffFile{Events: []map[string]any{}}
-	for start := 0; start < len(files); start += packetSize {
-		end := start + packetSize
-		if end > len(files) {
-			end = len(files)
-		}
+	for _, plan := range plans {
 		packetID := fmt.Sprintf("lane-%03d", len(packetIDs)+1)
-		assigned := append([]string{}, files[start:end]...)
+		assigned := append([]string{}, plan.Paths...)
 		resultPath := canonicalWorkerResultPath(packetID)
 		packetIDs = append(packetIDs, packetID)
 		queue.Packets = append(queue.Packets, queuePacket{
-			PacketID:          packetID,
-			State:             "pending",
-			AssignedPaths:     assigned,
-			ResultHandoffPath: resultPath,
+			PacketID:               packetID,
+			State:                  "pending",
+			AssignedPaths:          assigned,
+			ResultHandoffPath:      resultPath,
+			EstimatedTokens:        plan.EstimatedTokens,
+			EstimatedBytes:         plan.EstimatedBytes,
+			EffectiveContextBudget: workerBudgetTokens,
+			Oversized:              plan.Oversized,
 		})
 		handoffs.Events = append(handoffs.Events, map[string]any{
 			"event_id":            "dispatch-" + packetID,
 			"packet_id":           packetID,
-			"event_type":          "dispatched",
+			"event_type":          "prepared",
 			"result_handoff_path": resultPath,
 		})
 		if err := writeTextAtomic(
 			filepath.Join(paths.RuntimeDir, "workbench", "scan-packets", packetID+".md"),
 			renderPacket(packetID, assigned),
+		); err != nil {
+			return PreparePayload{}, err
+		}
+		if err := writeJSONAtomic(
+			filepath.Join(paths.RuntimeDir, "workbench", "pending-results", packetID+".json"),
+			workerResultSkeleton(packetID, "", assigned),
 		); err != nil {
 			return PreparePayload{}, err
 		}
@@ -258,6 +319,10 @@ func acceptUnlocked(paths rt.Paths, input AcceptInput) (AcceptPayload, error) {
 	if err := readJSON(queuePath, &queue); err != nil {
 		return AcceptPayload{}, fmt.Errorf("read scan queue: %w", err)
 	}
+	isV2, err := classifyWorkbenchProtocol(queue)
+	if err != nil {
+		return AcceptPayload{}, err
+	}
 	packetIndex := -1
 	for i := range queue.Packets {
 		if queue.Packets[i].PacketID == packetID {
@@ -269,19 +334,47 @@ func acceptUnlocked(paths rt.Paths, input AcceptInput) (AcceptPayload, error) {
 		return AcceptPayload{}, fmt.Errorf("packet %s is not present in scan-queue.json", packetID)
 	}
 	packet := queue.Packets[packetIndex]
-	if packet.State != "pending" && packet.State != "accepted" {
+	if isV2 && packet.State == "pending" {
+		return AcceptPayload{}, fmt.Errorf("packet %s must be claimed with scan-lease before scan-accept", packetID)
+	}
+	if packet.State != "pending" && packet.State != "leased" && packet.State != "accepted" {
 		return AcceptPayload{}, fmt.Errorf("packet %s state %s is not acceptable", packetID, packet.State)
+	}
+	if packet.State == "leased" {
+		attemptID := strings.TrimSpace(input.AttemptID)
+		if attemptID == "" || attemptID != packet.AttemptID {
+			return AcceptPayload{}, fmt.Errorf("packet %s requires active attempt_id %s", packetID, packet.AttemptID)
+		}
 	}
 
 	resultPath := strings.TrimSpace(input.ResultPath)
 	if resultPath == "" {
-		resultPath = filepath.Join(paths.RuntimeDir, "workbench", "pending-results", packetID+".json")
+		if packet.CheckpointPath != "" {
+			resultPath = filepath.Join(paths.Root, filepath.FromSlash(packet.CheckpointPath))
+		} else {
+			resultPath = filepath.Join(paths.RuntimeDir, "workbench", "pending-results", packetID+".json")
+		}
 	} else if !filepath.IsAbs(resultPath) {
 		resultPath = filepath.Join(paths.Root, filepath.FromSlash(resultPath))
 	}
 	var result workerResult
 	if err := readJSON(resultPath, &result); err != nil {
 		return AcceptPayload{}, fmt.Errorf("read worker result: %w", err)
+	}
+	if isV2 {
+		if result.Protocol != "map_scan_result.v2" {
+			return AcceptPayload{}, fmt.Errorf("packet %s result protocol %q must be map_scan_result.v2", packetID, result.Protocol)
+		}
+		if strings.TrimSpace(result.AttemptID) == "" || result.Sequence < 1 {
+			return AcceptPayload{}, fmt.Errorf("packet %s v2 result requires attempt_id and positive sequence", packetID)
+		}
+		if result.Acceptance != "partial" {
+			return AcceptPayload{}, fmt.Errorf("packet %s worker-authored acceptance must remain partial; scan-accept derives pass after runtime validation", packetID)
+		}
+		result.Acceptance = "pass"
+	}
+	if packet.State == "leased" && result.AttemptID != packet.AttemptID {
+		return AcceptPayload{}, fmt.Errorf("packet %s worker result attempt_id %q does not match active attempt %s", packetID, result.AttemptID, packet.AttemptID)
 	}
 	allAssignedPaths := map[string]bool{}
 	for _, queuedPacket := range queue.Packets {
@@ -332,7 +425,6 @@ func acceptUnlocked(paths rt.Paths, input AcceptInput) (AcceptPayload, error) {
 		return AcceptPayload{}, err
 	}
 
-	var err error
 	if nodes["nodes"], err = mergeObjectRows(nodes["nodes"], result.Nodes, "id", "node"); err != nil {
 		return AcceptPayload{}, err
 	}
@@ -364,6 +456,10 @@ func acceptUnlocked(paths rt.Paths, input AcceptInput) (AcceptPayload, error) {
 		"packet_id":          packetID,
 		"event_type":         "returned",
 		"worker_result_path": canonicalWorkerResultPath(packetID),
+	}
+	if packet.AttemptID != "" {
+		returnEvent["attempt_id"] = packet.AttemptID
+		returnEvent["worker_id"] = packet.WorkerID
 	}
 	if handoffs.Events, err = mergeObjectRows(handoffs.Events, []map[string]any{returnEvent}, "event_id", "handoff"); err != nil {
 		return AcceptPayload{}, err
@@ -403,11 +499,64 @@ func acceptUnlocked(paths rt.Paths, input AcceptInput) (AcceptPayload, error) {
 	return acceptedPayload(queue, packet), nil
 }
 
+func classifyWorkbenchProtocol(queue queueFile) (bool, error) {
+	protocol := strings.TrimSpace(queue.Protocol)
+	generationID := strings.TrimSpace(queue.GenerationID)
+	scanSetPath := strings.TrimSpace(queue.ScanSetPath)
+	if protocol == "" && generationID == "" && scanSetPath == "" {
+		if queueHasV2Footprints(queue.Packets) {
+			return false, fmt.Errorf("v2 workbench identity is missing; restore or recreate the scan workbench")
+		}
+		return false, nil
+	}
+	if protocol != workbenchProtocolV2 {
+		return false, fmt.Errorf("scan workbench protocol %q is incompatible with %s", protocol, workbenchProtocolV2)
+	}
+	if generationID == "" || scanSetPath == "" {
+		return false, fmt.Errorf("v2 scan workbench requires generation_id and scan_set_path")
+	}
+	return true, nil
+}
+
+func queueHasV2Footprints(packets []queuePacket) bool {
+	for _, packet := range packets {
+		if packet.ParentPacketID != "" || packet.WorkerID != "" || packet.AttemptID != "" ||
+			packet.AttemptNumber != 0 || packet.CheckpointPath != "" || packet.CheckpointSequence != 0 ||
+			len(packet.CompletedPaths) != 0 || packet.EstimatedTokens != 0 || packet.EstimatedBytes != 0 ||
+			packet.EffectiveContextBudget != 0 || packet.Oversized {
+			return true
+		}
+	}
+	return false
+}
+
+func requireV2Workbench(queue queueFile) error {
+	isV2, err := classifyWorkbenchProtocol(queue)
+	if err != nil {
+		return err
+	}
+	if !isV2 {
+		return fmt.Errorf("resumable scan command requires a v2 workbench queue")
+	}
+	return nil
+}
+
 func validateScanSetPaths(root string, raw []string) ([]string, error) {
 	seen := map[string]bool{}
+	physical := []struct {
+		path string
+		info os.FileInfo
+	}{}
 	files := make([]string, 0, len(raw))
 	for _, item := range raw {
 		path := normalizePath(item)
+		cleaned := filepath.ToSlash(filepath.Clean(filepath.FromSlash(path)))
+		if cleaned != path {
+			return nil, fmt.Errorf("scan set path %q is not in canonical repository form %q", item, cleaned)
+		}
+		if strings.ContainsAny(path, "`\r\n") {
+			return nil, fmt.Errorf("scan set path %q contains task brief control characters", item)
+		}
 		if !scanartifacts.ValidConcreteRepositoryPath(path) {
 			return nil, fmt.Errorf("scan set path %q is not a concrete repository file", item)
 		}
@@ -417,9 +566,22 @@ func validateScanSetPaths(root string, raw []string) ([]string, error) {
 		if err := validateRepositoryFile(root, path); err != nil {
 			return nil, err
 		}
+		info, err := os.Stat(filepath.Join(root, filepath.FromSlash(path)))
+		if err != nil {
+			return nil, err
+		}
+		for _, prior := range physical {
+			if os.SameFile(prior.info, info) && prior.path != path {
+				return nil, fmt.Errorf("scan set paths %q and %q refer to the same repository file", prior.path, path)
+			}
+		}
 		if !seen[path] {
 			seen[path] = true
 			files = append(files, path)
+			physical = append(physical, struct {
+				path string
+				info os.FileInfo
+			}{path: path, info: info})
 		}
 	}
 	sort.Strings(files)
@@ -854,6 +1016,19 @@ func validateRuntimeControlDir(paths rt.Paths) error {
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("inspect project cognition runtime directory: %w", err)
 	}
+	if _, err := os.Lstat(runtimeDir); err == nil {
+		if err := filepath.WalkDir(runtimeDir, func(path string, entry os.DirEntry, walkErr error) error {
+			if walkErr != nil {
+				return walkErr
+			}
+			if entry.Type()&os.ModeSymlink != 0 {
+				return fmt.Errorf("project cognition control path must not contain symbolic links: %s", path)
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -923,6 +1098,9 @@ func lockOwnedBy(ownerPath, ownerToken string) bool {
 }
 
 func resetWorkbench(paths rt.Paths) error {
+	if err := os.Remove(filepath.Join(paths.RuntimeDir, "scan-receipt.json")); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("remove stale scan receipt: %w", err)
+	}
 	for _, path := range []string{
 		filepath.Join(paths.RuntimeDir, "evidence"),
 		filepath.Join(paths.RuntimeDir, "provisional"),
@@ -938,6 +1116,7 @@ func resetWorkbench(paths rt.Paths) error {
 		filepath.Join(paths.RuntimeDir, "workbench", "scan-packets"),
 		filepath.Join(paths.RuntimeDir, "workbench", "worker-results"),
 		filepath.Join(paths.RuntimeDir, "workbench", "pending-results"),
+		filepath.Join(paths.RuntimeDir, "workbench", "checkpoints"),
 	} {
 		if err := os.MkdirAll(path, 0o755); err != nil {
 			return fmt.Errorf("create scan state %s: %w", path, err)
@@ -1029,28 +1208,12 @@ func renderPacket(packetID string, paths []string) string {
 		builder.WriteString("`\n")
 	}
 	builder.WriteString("\nReturn one packet-local JSON object using this exact shape (repeat rows as needed):\n\n")
-	skeleton := map[string]any{
-		"packet_id":      packetID,
-		"assigned_paths": paths,
-		"paths_read":     paths,
-		"ledger": map[string]any{
-			"todo": []string{}, "doing": []string{}, "done": paths,
-			"blocked": []string{}, "overflow": []string{},
-		},
-		"coverage": []map[string]any{{"path": "<assigned-path>", "outcome": "read", "evidence_ids": []string{"E-001"}}},
-		"evidence": []map[string]any{{"id": "E-001", "source_path": "<assigned-path>", "span": "<line-range>"}},
-		"nodes": []map[string]any{{
-			"id": "N-001", "type": "file", "title": "<title>",
-			"paths": []string{"<assigned-path>"}, "evidence_ids": []string{"E-001"},
-		}},
-		"edges": []map[string]any{}, "observations": []map[string]any{}, "claims": []map[string]any{},
-		"confidence": "high", "acceptance": "pass",
-	}
+	skeleton := workerResultSkeleton(packetID, "<active-attempt-id>", paths)
 	skeletonJSON, _ := json.MarshalIndent(skeleton, "", "  ")
 	builder.WriteString("```json\n")
 	builder.Write(skeletonJSON)
 	builder.WriteString("\n```\n\n")
-	builder.WriteString("Every pass result must mark every assigned path read or deep_read with matching evidence and nodes[].paths. For a relationship proven by an assigned file but targeting another scan packet, one edge endpoint may be that other file's concrete repository path; at least one endpoint must remain packet-local. Do not read an unassigned target merely to strengthen the edge. Do not write product files or canonical cognition ledgers.\n")
+	builder.WriteString("Treat this as a cumulative checkpoint skeleton. Move only concretely completed paths from ledger.todo to ledger.done, add matching paths_read, coverage, evidence, and nodes[].paths, increment sequence, and keep acceptance=partial even when every assigned path is complete; scan-accept derives pass only after runtime validation. Submit checkpoints through project-cognition scan-checkpoint; finish with scan-accept or yield remaining work with scan-yield. For a relationship proven by an assigned file but targeting another scan packet, one edge endpoint may be that other file's concrete repository path; at least one endpoint must remain packet-local. Do not read an unassigned target merely to strengthen the edge. Do not write product files or canonical cognition ledgers.\n")
 	return builder.String()
 }
 

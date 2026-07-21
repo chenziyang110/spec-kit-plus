@@ -1,8 +1,40 @@
 from pathlib import Path
+from threading import Event, Thread
 
 import pytest
 
-from specify_cli.atomic_io import atomic_write_text
+from specify_cli.atomic_io import atomic_write_text, interprocess_lock
+
+
+def test_interprocess_lock_waits_for_competing_holder(tmp_path: Path) -> None:
+    lock_path = tmp_path / "state.lock"
+    first_entered = Event()
+    release_first = Event()
+    second_entered = Event()
+
+    def hold_first() -> None:
+        with interprocess_lock(lock_path):
+            first_entered.set()
+            assert release_first.wait(5)
+
+    def enter_second() -> None:
+        assert first_entered.wait(5)
+        with interprocess_lock(lock_path):
+            second_entered.set()
+
+    first = Thread(target=hold_first)
+    second = Thread(target=enter_second)
+    first.start()
+    second.start()
+    assert first_entered.wait(5)
+    assert not second_entered.wait(0.2)
+    release_first.set()
+    first.join(5)
+    second.join(5)
+
+    assert not first.is_alive()
+    assert not second.is_alive()
+    assert second_entered.is_set()
 
 
 @pytest.mark.parametrize("escape_kind", ["final", "parent"])

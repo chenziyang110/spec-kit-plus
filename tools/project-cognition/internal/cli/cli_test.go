@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	changemodel "github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/changes/model"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/claim"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/query"
 	rt "github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtime"
@@ -545,14 +546,14 @@ func TestChangesCommandAppearsInHelp(t *testing.T) {
 	}
 }
 
-func TestRootHelpListsScanSet(t *testing.T) {
+func TestRootHelpListsResumableScanWorkbenchCommands(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	code := Run([]string{"--help"}, &stdout, &stderr, "test")
 	if code != 0 {
 		t.Fatalf("code = %d stderr=%s", code, stderr.String())
 	}
-	if !strings.Contains(stdout.String(), "generate-ignore, scan-set, scan-prepare, scan-accept, mark-dirty") {
-		t.Fatalf("help does not list scan-set after generate-ignore:\n%s", stdout.String())
+	if !strings.Contains(stdout.String(), "generate-ignore, scan-set, scan-prepare, scan-lease, scan-checkpoint, scan-yield, scan-requeue, scan-status, scan-accept, mark-dirty") {
+		t.Fatalf("help does not list the resumable scan workbench commands:\n%s", stdout.String())
 	}
 }
 
@@ -1265,8 +1266,9 @@ func TestCloseoutPlanCommandDeltaSessionMode(t *testing.T) {
 		t.Fatalf("delta_append_draft.argv_placeholders = %#v, want array", deltaAppendDraft["argv_placeholders"])
 	}
 	argvPlaceholders := jsonAnySliceStrings(argvPlaceholdersValue)
-	if !hasString(argvPlaceholders, "<agent-owned passing verification evidence>") {
-		t.Fatalf("delta_append_draft.argv_placeholders = %#v, want verification evidence placeholder", argvPlaceholders)
+	verificationPlaceholder := `{"command":"<agent-owned verification command>","result":"passed","artifact":"<optional evidence artifact>"}`
+	if !hasString(argvPlaceholders, verificationPlaceholder) {
+		t.Fatalf("delta_append_draft.argv_placeholders = %#v, want structured verification placeholder", argvPlaceholders)
 	}
 	if !hasString(argvPlaceholders, "--format") || !hasString(argvPlaceholders, "json") {
 		t.Fatalf("delta_append_draft.argv_placeholders = %#v, want --format json", argvPlaceholders)
@@ -3352,6 +3354,83 @@ func TestDeltaAppendCommandWritesEvent(t *testing.T) {
 	}
 }
 
+func TestDeltaAppendCommandAcceptsTypedPathChangeJSON(t *testing.T) {
+	root := t.TempDir()
+	if err := os.Mkdir(filepath.Join(root, ".specify"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	old, _ := os.Getwd()
+	if err := os.Chdir(root); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(old) })
+
+	sessionID := beginDeltaSession(t)
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{
+		"delta", "append",
+		"--session", sessionID,
+		"--event-type", "workflow_closeout",
+		"--path-change", `{"path":"src/review.go","operation":"add","disposition":"review_only"}`,
+		"--format", "json",
+	}, &stdout, &stderr, "test")
+	if code != 0 {
+		t.Fatalf("code = %d stderr=%s", code, stderr.String())
+	}
+	var payload struct {
+		ChangedPaths []string `json:"changed_paths"`
+		PathChanges  []struct {
+			Path        string `json:"path"`
+			Operation   string `json:"operation"`
+			Disposition string `json:"disposition"`
+		} `json:"path_changes"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(payload.ChangedPaths, []string{"src/review.go"}) || len(payload.PathChanges) != 1 {
+		t.Fatalf("payload = %#v, want typed path change with derived changed path", payload)
+	}
+	if payload.PathChanges[0].Operation != "add" || payload.PathChanges[0].Disposition != "review_only" {
+		t.Fatalf("PathChanges = %#v", payload.PathChanges)
+	}
+}
+
+func TestDeltaAppendCommandAppliesPlannerAgentDisposition(t *testing.T) {
+	root := t.TempDir()
+	if err := os.Mkdir(filepath.Join(root, ".specify"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	old, _ := os.Getwd()
+	if err := os.Chdir(root); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(old) })
+
+	sessionID := beginDeltaSession(t)
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{
+		"delta", "append",
+		"--session", sessionID,
+		"--event-type", "workflow_closeout",
+		"--path-change", `{"path":"src/new.go","operation":"add"}`,
+		"--path-disposition", `{"path":"src/new.go","agent_disposition":"adoptable"}`,
+		"--format", "json",
+	}, &stdout, &stderr, "test")
+	if code != 0 {
+		t.Fatalf("code = %d stderr=%s", code, stderr.String())
+	}
+	var payload struct {
+		PathChanges []changemodel.PathChange `json:"path_changes"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if len(payload.PathChanges) != 1 || payload.PathChanges[0].Disposition == nil || *payload.PathChanges[0].Disposition != changemodel.DispositionAdoptable {
+		t.Fatalf("PathChanges = %#v, want resolved adoptable disposition", payload.PathChanges)
+	}
+}
+
 func TestDeltaAppendCommandAcceptsPacketFile(t *testing.T) {
 	root := t.TempDir()
 	if err := os.Mkdir(filepath.Join(root, ".specify"), 0o755); err != nil {
@@ -3394,6 +3473,7 @@ func TestUpdateCommandAcceptsDeltaSession(t *testing.T) {
 	if err := os.Mkdir(filepath.Join(root, ".specify"), 0o755); err != nil {
 		t.Fatal(err)
 	}
+	seedReadyCLIUpdateRuntime(t, root)
 	old, _ := os.Getwd()
 	if err := os.Chdir(root); err != nil {
 		t.Fatal(err)
@@ -3448,7 +3528,8 @@ func TestUpdateCommandTreatsQuotedInitialDirtyUnicodePathAsAmbiguous(t *testing.
 	if err := os.WriteFile(filepath.Join(root, ".specify", ".keep"), []byte("keep\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	runGit(t, root, "add", ".specify/.keep")
+	seedReadyCLIUpdateRuntime(t, root)
+	runGit(t, root, "add", ".specify")
 	runGit(t, root, "commit", "-m", "initial")
 	if err := os.WriteFile(filepath.Join(root, "café.go"), []byte("package demo\n"), 0o644); err != nil {
 		t.Fatal(err)
@@ -3514,7 +3595,8 @@ func TestUpdateCommandTreatsStagedRenameTargetAsAmbiguous(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(root, "old.txt"), []byte("old\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	runGit(t, root, "add", ".specify/.keep", "old.txt")
+	seedReadyCLIUpdateRuntime(t, root)
+	runGit(t, root, "add", ".specify", "old.txt")
 	runGit(t, root, "commit", "-m", "initial")
 	runGit(t, root, "mv", "old.txt", "new.txt")
 
@@ -3661,13 +3743,6 @@ func initCLIGit(t *testing.T, root string) {
 	if err := os.WriteFile(filepath.Join(root, "src", "app.go"), []byte("package main\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	paths, err := rt.ResolvePaths(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := update.CompleteRefresh(paths, "map-build"); err != nil {
-		t.Fatalf("CompleteRefresh: %v", err)
-	}
 	runGit(t, root, "add", ".")
 	runGit(t, root, "commit", "-m", "baseline")
 }
@@ -3696,6 +3771,50 @@ func cliRuntimePaths(root string) rt.Paths {
 		RuntimeDir:   runtimeDir,
 		StatusPath:   filepath.Join(runtimeDir, rt.StatusFileName),
 		DatabasePath: filepath.Join(runtimeDir, rt.DBFileName),
+	}
+}
+
+func seedReadyCLIUpdateRuntime(t *testing.T, root string) {
+	t.Helper()
+	paths := cliRuntimePaths(root)
+	st, err := store.Open(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = st.ImportGeneration(context.Background(), store.ImportInput{
+		GenerationID: "GEN-cli-update",
+		Kind:         "full",
+		SourceCommit: "abc123",
+		Evidence: []store.EvidenceImport{{
+			ID: "E-app", SourceKind: "file", SourcePath: "src/app.go", CommitSHA: "abc123", Extractor: "test", ContentHash: "hash-app",
+		}},
+		Nodes: []store.NodeImport{{
+			ID: "N-app", Type: "capability", Title: "App", Confidence: "verified", EvidenceIDs: []string{"E-app"},
+		}},
+		PathIndex: []store.PathIndexImport{{
+			ID: "P-app", Path: "src/app.go", NodeID: "N-app", Relation: "owns", Confidence: "verified", EvidenceID: "E-app",
+		}},
+	})
+	if err != nil {
+		_ = st.Close()
+		t.Fatal(err)
+	}
+	if _, _, err := st.PublishRuntimeMetadata(context.Background(), "GEN-cli-update", rt.BaselineKindBrownfieldFull); err != nil {
+		_ = st.Close()
+		t.Fatal(err)
+	}
+	if err := st.Close(); err != nil {
+		t.Fatal(err)
+	}
+	status := rt.DefaultStatus(paths)
+	status.Status = "ok"
+	status.Freshness = rt.ReadyFreshness
+	status.Readiness = rt.ReadyReadiness
+	status.RecommendedNextAction = "use_project_cognition"
+	status.GraphReady = true
+	status.ActiveGenerationID = "GEN-cli-update"
+	if err := rt.WriteStatus(paths, status); err != nil {
+		t.Fatal(err)
 	}
 }
 
@@ -3901,7 +4020,7 @@ func TestUpdateCommandAcceptsPayloadFileAndEmitsResultState(t *testing.T) {
 	}
 }
 
-func TestUpdateCommandAcceptsVerificationForDirectChangedPaths(t *testing.T) {
+func TestUpdateCommandDoesNotInferPassedVerificationFromFreeFormText(t *testing.T) {
 	root := writeMinimalCLIScanPackage(t)
 	old, _ := os.Getwd()
 	if err := os.Chdir(root); err != nil {
@@ -3920,7 +4039,7 @@ func TestUpdateCommandAcceptsVerificationForDirectChangedPaths(t *testing.T) {
 		"update",
 		"--changed-path", "src/app.go",
 		"--behavior-surface", "application entrypoint",
-		"--verification", "go test ./... PASS",
+		"--verification", "go test ./... bypass cache",
 		"--reason", "workflow-finalize",
 		"--format", "json",
 	}, &stdout, &stderr, "test")
@@ -3931,11 +4050,76 @@ func TestUpdateCommandAcceptsVerificationForDirectChangedPaths(t *testing.T) {
 	if err := json.Unmarshal(stdout.Bytes(), &result); err != nil {
 		t.Fatal(err)
 	}
-	if result["result_state"] != "ready" {
-		t.Fatalf("payload = %#v, want ready result_state", result)
+	if result["result_state"] != "partial_refresh" {
+		t.Fatalf("payload = %#v, want partial_refresh for free-form verification text", result)
 	}
-	if result["readiness"] != rt.ReadyReadiness {
-		t.Fatalf("payload = %#v, want ready readiness", result)
+	if result["readiness"] == rt.ReadyReadiness {
+		t.Fatalf("payload = %#v, did not want ready readiness", result)
+	}
+}
+
+func TestValidateBuildWritesReceiptForLatestReadyUpdate(t *testing.T) {
+	root := writeMinimalCLIScanPackage(t)
+	old, _ := os.Getwd()
+	if err := os.Chdir(root); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(old) })
+
+	var buildStdout, buildStderr bytes.Buffer
+	if code := Run([]string{"build-from-scan", "--format", "json"}, &buildStdout, &buildStderr, "test"); code != 0 {
+		t.Fatalf("build code = %d stderr=%s stdout=%s", code, buildStderr.String(), buildStdout.String())
+	}
+
+	if err := os.WriteFile(filepath.Join(root, ".cognitionignore"), []byte("vendor/\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var updateStdout, updateStderr bytes.Buffer
+	if code := Run([]string{"update", "--changed-path", "vendor/generated.go", "--format", "json"}, &updateStdout, &updateStderr, "test"); code != 0 {
+		t.Fatalf("update code = %d stderr=%s stdout=%s", code, updateStderr.String(), updateStdout.String())
+	}
+	var updatePayload map[string]any
+	if err := json.Unmarshal(updateStdout.Bytes(), &updatePayload); err != nil {
+		t.Fatal(err)
+	}
+	if updatePayload["result_state"] != update.ResultNoOp {
+		t.Fatalf("update payload = %#v, want no_op", updatePayload)
+	}
+	for _, name := range []string{"capability-ledger.json", "control-ledger.json"} {
+		path := filepath.Join(root, ".specify", "project-cognition", "workbench", name)
+		if err := os.WriteFile(path, []byte("{\"rows\":[]}\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	var validateStdout, validateStderr bytes.Buffer
+	if code := Run([]string{"validate-build", "--format", "json"}, &validateStdout, &validateStderr, "test"); code != 0 {
+		t.Fatalf("validate-build code = %d stderr=%s stdout=%s", code, validateStderr.String(), validateStdout.String())
+	}
+	receiptPath := filepath.Join(root, ".specify", "project-cognition", "validate-build-receipt.json")
+	data, err := os.ReadFile(receiptPath)
+	if err != nil {
+		t.Fatalf("read validate-build receipt: %v", err)
+	}
+	var receipt map[string]any
+	if err := json.Unmarshal(data, &receipt); err != nil {
+		t.Fatal(err)
+	}
+	if receipt["update_id"] != updatePayload["update_id"] || receipt["update_outcome"] != update.ResultNoOp {
+		t.Fatalf("receipt = %#v, update = %#v", receipt, updatePayload)
+	}
+
+	var completeStdout, completeStderr bytes.Buffer
+	if code := Run([]string{"complete-refresh", "--format", "json"}, &completeStdout, &completeStderr, "test"); code != 0 {
+		t.Fatalf("complete-refresh code = %d stderr=%s stdout=%s", code, completeStderr.String(), completeStdout.String())
+	}
+	var completePayload map[string]any
+	if err := json.Unmarshal(completeStdout.Bytes(), &completePayload); err != nil {
+		t.Fatal(err)
+	}
+	if completePayload["last_refresh_basis"] != "validated-update" {
+		t.Fatalf("complete payload = %#v, want validated-update basis", completePayload)
 	}
 }
 

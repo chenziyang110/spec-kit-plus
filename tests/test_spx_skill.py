@@ -365,6 +365,39 @@ def test_spx_skills_keep_runtime_reuse_and_safety_boundaries() -> None:
     ):
         assert required in scan_worker
 
+    scan_gates = re.sub(
+        r"\s+",
+        " ",
+        (
+            ADVANCED_SKILLS
+            / "spx-map-scan"
+            / "references"
+            / "scan-gates.md"
+        ).read_text(encoding="utf-8").lower(),
+    )
+    scan_worker_compact = re.sub(r"\s+", " ", scan_worker)
+    for command in (
+        "scan-prepare",
+        "scan-lease",
+        "scan-checkpoint",
+        "scan-yield",
+        "scan-requeue",
+        "scan-accept",
+        "scan-status",
+    ):
+        assert command in skills["spx-map-scan"] or command in scan_gates
+        assert command in scan_worker or command in scan_gates
+
+    assert "effective worker context budget" in scan_gates
+    assert "--worker-capacity-tokens" in scan_gates
+    assert "estimated token cost" in scan_gates
+    assert "assigned paths minus runtime-accepted terminal paths" in scan_gates
+    assert "global queue, handoff, coverage, evidence, provisional, and status artifacts" in scan_gates
+    assert "cli-generated self-contained task brief" in scan_worker_compact
+    assert "minimum inherited conversation context" in scan_gates
+    assert "natural-language summary is not acceptance evidence" in scan_worker_compact
+    assert "the runtime computes the authoritative remaining set" in scan_worker_compact
+
     assert "prd-scan" in skills["spx-prd"]
     assert "prd-build" in skills["spx-prd"]
     assert "read-only" in skills["spx-prd-scan"]
@@ -696,9 +729,29 @@ def test_advanced_profile_installs_spx_with_only_classic_map_companions(
         skills_dir / "spx-map-scan" / "references" / "scan-worker.md"
     )
     assert installed_scan_worker.exists()
-    assert (
-        "lowest-cost model" in installed_scan_worker.read_text(encoding="utf-8").lower()
+    installed_scan_worker_content = installed_scan_worker.read_text(encoding="utf-8").lower()
+    assert "lowest-cost model" in installed_scan_worker_content
+    installed_scan_contract = "\n".join(
+        (
+            (skills_dir / "spx-map-scan" / "SKILL.md").read_text(encoding="utf-8"),
+            (
+                skills_dir
+                / "spx-map-scan"
+                / "references"
+                / "scan-gates.md"
+            ).read_text(encoding="utf-8"),
+            installed_scan_worker_content,
+        )
     )
+    for command in (
+        "scan-prepare",
+        "scan-lease",
+        "scan-checkpoint",
+        "scan-yield",
+        "scan-accept",
+        "scan-status",
+    ):
+        assert command in installed_scan_contract
 
     assert not (skills_dir / "sp-plan" / "SKILL.md").exists()
     assert not (skills_dir / "tdd-workflow" / "SKILL.md").exists()
@@ -910,6 +963,35 @@ def test_fresh_classic_codex_init_binds_all_runtime_commands_to_source_launcher(
         in discussion
     )
     assert "{{specify-subcmd:" not in discussion
+
+    map_scan = (
+        project / ".codex" / "skills" / "sp-map-scan" / "SKILL.md"
+    ).read_text(encoding="utf-8")
+    for command in (
+        "scan-prepare",
+        "scan-lease",
+        "scan-checkpoint",
+        "scan-yield",
+        "scan-accept",
+        "scan-status",
+    ):
+        assert (
+            f"PROJECT_COGNITION_LAUNCHER_UNAVAILABLE:project-cognition {command}"
+            in map_scan
+        )
+    assert "{{specify-subcmd:" not in map_scan
+
+    map_scan_worker = (
+        project
+        / ".specify"
+        / "templates"
+        / "worker-prompts"
+        / "map-scan-worker.md"
+    )
+    assert map_scan_worker.exists()
+    worker_content = map_scan_worker.read_text(encoding="utf-8")
+    assert "scan-checkpoint" in worker_content
+    assert "scan-yield" in worker_content
 
     diagnostic_codes = {
         issue["code"] for issue in diagnose_project_runtime_compatibility(project)

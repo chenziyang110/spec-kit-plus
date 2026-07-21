@@ -16,7 +16,9 @@ import (
 
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/build"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/buildgate"
+	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/buildinfo"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/changes"
+	changemodel "github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/changes/model"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/closeout"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/delta"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/ignore"
@@ -25,6 +27,7 @@ import (
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/reference"
 	rt "github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtime"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtimegate"
+	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/scanreceipt"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/scanset"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/scanworkbench"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/store"
@@ -54,9 +57,12 @@ func Run(args []string, stdout io.Writer, stderr io.Writer, version string) int 
 		printHelp(stdout, version)
 		return 0
 	}
-	if args[0] == "--version" || args[0] == "version" {
+	if args[0] == "--version" {
 		fmt.Fprintf(stdout, "project-cognition %s\n", version)
 		return 0
+	}
+	if args[0] == "version" {
+		return versionCommand(args[1:], stdout, stderr, version)
 	}
 
 	paths, err := rt.ResolvePaths(".")
@@ -78,6 +84,16 @@ func Run(args []string, stdout io.Writer, stderr io.Writer, version string) int 
 		return scanSetCommand(args[1:], stdout, stderr, paths)
 	case "scan-prepare":
 		return scanPrepareCommand(args[1:], stdout, stderr, paths)
+	case "scan-lease":
+		return scanLeaseCommand(args[1:], stdout, stderr, paths)
+	case "scan-checkpoint":
+		return scanCheckpointCommand(args[1:], stdout, stderr, paths)
+	case "scan-yield":
+		return scanYieldCommand(args[1:], stdout, stderr, paths, false)
+	case "scan-requeue":
+		return scanYieldCommand(args[1:], stdout, stderr, paths, true)
+	case "scan-status":
+		return scanStatusCommand(args[1:], stdout, stderr, paths)
 	case "scan-accept":
 		return scanAcceptCommand(args[1:], stdout, stderr, paths)
 	case "mark-dirty":
@@ -91,9 +107,9 @@ func Run(args []string, stdout io.Writer, stderr io.Writer, version string) int 
 	case "refresh-topics":
 		return refreshTopicsCommand(args[1:], stdout, stderr, paths)
 	case "validate-scan":
-		return jsonOnlyCommand(args[1:], stdout, stderr, validation.ValidateScan(paths))
+		return validateScanCommand(args[1:], stdout, stderr, paths)
 	case "validate-build":
-		return jsonOnlyCommand(args[1:], stdout, stderr, validation.ValidateBuild(paths))
+		return validateBuildCommand(args[1:], stdout, stderr, paths)
 	case "build-from-scan", "import-scan", "rebuild-from-scan":
 		return buildFromScanCommand(args[1:], stdout, stderr, paths)
 	case "publish-runtime-metadata":
@@ -134,10 +150,28 @@ func Run(args []string, stdout io.Writer, stderr io.Writer, version string) int 
 	}
 }
 
+func versionCommand(args []string, stdout io.Writer, stderr io.Writer, version string) int {
+	fs := flag.NewFlagSet("version", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	format := fs.String("format", "text", "Output format: text or json")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	switch *format {
+	case "text":
+		fmt.Fprintf(stdout, "project-cognition %s\n", version)
+		return 0
+	case "json":
+		return writeCompactJSON(stdout, buildinfo.Current(version))
+	default:
+		return writeCompactErrorJSON(stdout, fmt.Errorf("version supports only --format text or json"))
+	}
+}
+
 func printHelp(w io.Writer, version string) {
 	fmt.Fprintf(w, "project-cognition %s\n\n", version)
 	fmt.Fprintln(w, "Usage: project-cognition <command> [options]")
-	fmt.Fprintln(w, "Commands: status, check, repair-status, init-empty, generate-ignore, scan-set, scan-prepare, scan-accept, mark-dirty, clear-dirty, record-refresh, complete-refresh, refresh-topics, validate-scan, validate-build, build-from-scan, import-scan, rebuild-from-scan, publish-runtime-metadata, changes, closeout-plan, update, claim-reconcile prepare|apply, lexicon, query, semantic-intake, semantic-audit, semantic-audit-resume, compass, expand, discover, read, doctor, rebuild, delta")
+	fmt.Fprintln(w, "Commands: status, check, repair-status, init-empty, generate-ignore, scan-set, scan-prepare, scan-lease, scan-checkpoint, scan-yield, scan-requeue, scan-status, scan-accept, mark-dirty, clear-dirty, record-refresh, complete-refresh, refresh-topics, validate-scan, validate-build, build-from-scan, import-scan, rebuild-from-scan, publish-runtime-metadata, changes, closeout-plan, update, claim-reconcile prepare|apply, lexicon, query, semantic-intake, semantic-audit, semantic-audit-resume, compass, expand, discover, read, doctor, rebuild, delta")
 }
 
 func claimReconcileCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {
@@ -601,6 +635,16 @@ func scanPrepareCommand(args []string, stdout io.Writer, stderr io.Writer, paths
 	fs.SetOutput(stderr)
 	scanSetPath := fs.String("scan-set", scanset.DefaultOutputPath, "Repository-relative canonical scan-set file")
 	packetSize := fs.Int("packet-size", 0, "Maximum concrete paths per packet; default 25")
+	maxPaths := fs.Int("max-paths", 0, "Maximum concrete paths per packet; supersedes --packet-size")
+	maxBytes := fs.Int64("max-bytes", 0, "Maximum estimated source bytes per packet")
+	workerBudgetTokens := fs.Int64("worker-budget-tokens", 0, "Effective task-token budget per worker")
+	contextWindowTokens := fs.Int64("context-window-tokens", 0, "Worker model context window")
+	inheritedContextTokens := fs.Int64("inherited-context-tokens", 0, "Context already consumed before the task")
+	systemSkillTokens := fs.Int64("system-skill-tokens", 0, "System, skill, and taskbook overhead")
+	reservedOutputTokens := fs.Int64("reserved-output-tokens", 0, "Reserved result-output budget")
+	reservedToolTokens := fs.Int64("reserved-tool-tokens", 0, "Reserved tool-output budget")
+	reservedReasoningTokens := fs.Int64("reserved-reasoning-tokens", 0, "Reserved reasoning budget")
+	safetyPercent := fs.Int("safety-percent", 75, "Percent of remaining context usable for scan input")
 	force := fs.Bool("force", false, "Replace an existing scan workbench and discard its results")
 	format := fs.String("format", "json", "Output format: json")
 	if err := fs.Parse(args); err != nil {
@@ -609,11 +653,162 @@ func scanPrepareCommand(args []string, stdout io.Writer, stderr io.Writer, paths
 	if *format != "json" {
 		return writeCompactErrorJSON(stdout, fmt.Errorf("scan-prepare supports only --format json"))
 	}
+	if *packetSize > 0 && *maxPaths > 0 {
+		return writeCompactErrorJSON(stdout, fmt.Errorf("scan-prepare cannot combine --packet-size with --max-paths"))
+	}
+	effectiveBudget, err := effectiveScanWorkerBudget(*workerBudgetTokens, *contextWindowTokens, []int64{
+		*inheritedContextTokens, *systemSkillTokens, *reservedOutputTokens, *reservedToolTokens, *reservedReasoningTokens,
+	}, *safetyPercent)
+	if err != nil {
+		return writeCompactErrorJSON(stdout, err)
+	}
 	payload, err := scanworkbench.Prepare(paths, scanworkbench.PrepareInput{
-		ScanSetPath: *scanSetPath,
-		PacketSize:  *packetSize,
-		Force:       *force,
+		ScanSetPath:        *scanSetPath,
+		PacketSize:         *packetSize,
+		MaxPaths:           *maxPaths,
+		MaxBytes:           *maxBytes,
+		WorkerBudgetTokens: effectiveBudget,
+		Force:              *force,
 	})
+	if err != nil {
+		return writeCompactErrorJSON(stdout, err)
+	}
+	return writeCompactJSON(stdout, payload)
+}
+
+func effectiveScanWorkerBudget(direct int64, contextWindow int64, reserves []int64, safetyPercent int) (int64, error) {
+	if direct < 0 || contextWindow < 0 {
+		return 0, fmt.Errorf("scan worker token budgets must not be negative")
+	}
+	hasReserve := false
+	for _, reserve := range reserves {
+		if reserve < 0 {
+			return 0, fmt.Errorf("scan worker context reserves must not be negative")
+		}
+		hasReserve = hasReserve || reserve > 0
+	}
+	if direct > 0 && contextWindow > 0 {
+		return 0, fmt.Errorf("scan-prepare cannot combine --worker-budget-tokens with --context-window-tokens")
+	}
+	if direct > 0 && hasReserve {
+		return 0, fmt.Errorf("scan-prepare cannot combine --worker-budget-tokens with context reserve flags")
+	}
+	if safetyPercent < 1 || safetyPercent > 100 {
+		return 0, fmt.Errorf("scan worker safety percent must be between 1 and 100")
+	}
+	if direct > 0 {
+		return direct, nil
+	}
+	if contextWindow == 0 {
+		if hasReserve {
+			return 0, fmt.Errorf("scan worker context reserve flags require --context-window-tokens")
+		}
+		return 0, nil
+	}
+	available := contextWindow
+	for _, reserve := range reserves {
+		if reserve >= available {
+			return 0, fmt.Errorf("scan worker reserves exhaust the model context window")
+		}
+		available -= reserve
+	}
+	percent := int64(safetyPercent)
+	budget := (available/100)*percent + ((available%100)*percent)/100
+	if budget < 1 {
+		return 0, fmt.Errorf("scan worker effective context budget is too small after reserves and safety margin")
+	}
+	return budget, nil
+}
+
+func scanLeaseCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {
+	fs := flag.NewFlagSet("scan-lease", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	packetID := fs.String("packet-id", "", "Pending packet identifier; defaults to the first pending packet")
+	workerID := fs.String("worker-id", "", "Worker identifier")
+	workerCapacityTokens := fs.Int64("worker-capacity-tokens", 0, "Effective context capacity of the selected worker")
+	format := fs.String("format", "json", "Output format: json")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	if *format != "json" {
+		return writeCompactErrorJSON(stdout, fmt.Errorf("scan-lease supports only --format json"))
+	}
+	payload, err := scanworkbench.Lease(paths, scanworkbench.LeaseInput{
+		PacketID: *packetID, WorkerID: *workerID, WorkerCapacityTokens: *workerCapacityTokens,
+	})
+	if err != nil {
+		return writeCompactErrorJSON(stdout, err)
+	}
+	return writeCompactJSON(stdout, payload)
+}
+
+func scanCheckpointCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {
+	fs := flag.NewFlagSet("scan-checkpoint", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	packetID := fs.String("packet-id", "", "Leased packet identifier")
+	attemptID := fs.String("attempt-id", "", "Active lease attempt identifier")
+	resultPath := fs.String("result", "", "Cumulative checkpoint result JSON")
+	format := fs.String("format", "json", "Output format: json")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	if *format != "json" {
+		return writeCompactErrorJSON(stdout, fmt.Errorf("scan-checkpoint supports only --format json"))
+	}
+	canonicalResult, err := canonicalPendingScanResult(paths, *packetID, *resultPath, true)
+	if err != nil {
+		return writeCompactErrorJSON(stdout, err)
+	}
+	payload, err := scanworkbench.Checkpoint(paths, scanworkbench.CheckpointInput{
+		PacketID: *packetID, AttemptID: *attemptID, ResultPath: canonicalResult,
+	})
+	if err != nil {
+		return writeCompactErrorJSON(stdout, err)
+	}
+	return writeCompactJSON(stdout, payload)
+}
+
+func scanYieldCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths, requeue bool) int {
+	name := "scan-yield"
+	if requeue {
+		name = "scan-requeue"
+	}
+	fs := flag.NewFlagSet(name, flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	packetID := fs.String("packet-id", "", "Leased packet identifier")
+	attemptID := fs.String("attempt-id", "", "Active lease attempt identifier")
+	format := fs.String("format", "json", "Output format: json")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	if *format != "json" {
+		return writeCompactErrorJSON(stdout, fmt.Errorf("%s supports only --format json", name))
+	}
+	input := scanworkbench.YieldInput{PacketID: *packetID, AttemptID: *attemptID}
+	var payload scanworkbench.YieldPayload
+	var err error
+	if requeue {
+		payload, err = scanworkbench.Requeue(paths, input)
+	} else {
+		payload, err = scanworkbench.Yield(paths, input)
+	}
+	if err != nil {
+		return writeCompactErrorJSON(stdout, err)
+	}
+	return writeCompactJSON(stdout, payload)
+}
+
+func scanStatusCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {
+	fs := flag.NewFlagSet("scan-status", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	format := fs.String("format", "json", "Output format: json")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	if *format != "json" {
+		return writeCompactErrorJSON(stdout, fmt.Errorf("scan-status supports only --format json"))
+	}
+	payload, err := scanworkbench.Status(paths)
 	if err != nil {
 		return writeCompactErrorJSON(stdout, err)
 	}
@@ -624,6 +819,7 @@ func scanAcceptCommand(args []string, stdout io.Writer, stderr io.Writer, paths 
 	fs := flag.NewFlagSet("scan-accept", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	packetID := fs.String("packet-id", "", "Prepared scan packet identifier")
+	attemptID := fs.String("attempt-id", "", "Active lease attempt identifier")
 	resultPath := fs.String("result", "", "Worker result JSON; defaults to the packet pending-results path")
 	format := fs.String("format", "json", "Output format: json")
 	if err := fs.Parse(args); err != nil {
@@ -635,14 +831,55 @@ func scanAcceptCommand(args []string, stdout io.Writer, stderr io.Writer, paths 
 	if strings.TrimSpace(*packetID) == "" {
 		return writeCompactErrorJSON(stdout, fmt.Errorf("scan-accept requires --packet-id"))
 	}
+	canonicalResult, err := canonicalPendingScanResult(paths, *packetID, *resultPath, false)
+	if err != nil {
+		return writeCompactErrorJSON(stdout, err)
+	}
 	payload, err := scanworkbench.Accept(paths, scanworkbench.AcceptInput{
 		PacketID:   *packetID,
-		ResultPath: *resultPath,
+		AttemptID:  *attemptID,
+		ResultPath: canonicalResult,
 	})
 	if err != nil {
 		return writeCompactErrorJSON(stdout, err)
 	}
 	return writeCompactJSON(stdout, payload)
+}
+
+func canonicalPendingScanResult(paths rt.Paths, packetID string, raw string, required bool) (string, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		if required {
+			return "", fmt.Errorf("scan-checkpoint requires --result at the CLI-designated pending result path")
+		}
+		return "", nil
+	}
+	expectedDir := filepath.Join(paths.RuntimeDir, "workbench", "pending-results")
+	expectedName := strings.TrimSpace(packetID) + ".json"
+	candidate := filepath.FromSlash(raw)
+	if !filepath.IsAbs(candidate) {
+		candidate = filepath.Join(paths.Root, candidate)
+	}
+	candidate, err := filepath.Abs(candidate)
+	if err != nil {
+		return "", err
+	}
+	rel, err := filepath.Rel(expectedDir, candidate)
+	if err != nil || filepath.Clean(rel) != expectedName {
+		return "", fmt.Errorf("scan result must use the CLI-designated pending result path for packet %s", packetID)
+	}
+	info, err := os.Lstat(candidate)
+	if err != nil {
+		return "", fmt.Errorf("inspect pending scan result: %w", err)
+	}
+	if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
+		return "", fmt.Errorf("pending scan result must be a regular non-symlink file")
+	}
+	const maxWorkerResultBytes = int64(16 * 1024 * 1024)
+	if info.Size() > maxWorkerResultBytes {
+		return "", fmt.Errorf("pending scan result exceeds the 16 MiB limit")
+	}
+	return candidate, nil
 }
 
 func isFilesystemRoot(path string) bool {
@@ -717,11 +954,12 @@ func recordRefreshCommand(args []string, stdout io.Writer, stderr io.Writer, pat
 func completeRefreshCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {
 	fs := flag.NewFlagSet("complete-refresh", flag.ContinueOnError)
 	fs.SetOutput(stderr)
+	basis := fs.String("basis", "validated-update", "Validated refresh basis")
 	_ = fs.String("format", "json", "Output format")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
-	status, err := update.CompleteRefresh(paths, "map-build")
+	status, err := update.CompleteRefresh(paths, *basis)
 	return writeCommandResult(stdout, stderr, paths, status, err)
 }
 
@@ -747,6 +985,66 @@ func jsonOnlyCommand(args []string, stdout io.Writer, stderr io.Writer, payload 
 	code := writeJSON(stdout, payload)
 	if code != 0 {
 		return code
+	}
+	if payloadBlocked(payload) {
+		return 1
+	}
+	return 0
+}
+
+func validateScanCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {
+	return validateScanCommandWithValidator(args, stdout, stderr, paths, validation.ValidateScan)
+}
+
+func validateScanCommandWithValidator(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths, validate func(rt.Paths) validation.GatePayload) int {
+	fs := flag.NewFlagSet("validate-scan", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	format := fs.String("format", "json", "Output format: json")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	if *format != "json" {
+		return writeCompactErrorJSON(stdout, fmt.Errorf("validate-scan supports only --format json"))
+	}
+	fingerprint, _, fingerprintErr := scanreceipt.ComputeFingerprint(paths)
+	payload := validate(paths)
+	if payload.Status == "ok" && payload.Readiness == "scan_ready" {
+		var receiptErr error
+		if fingerprintErr != nil {
+			receiptErr = fingerprintErr
+		} else {
+			_, _, receiptErr = scanreceipt.CreateExpected(paths, payload.Readiness, &fingerprint)
+		}
+		if receiptErr != nil {
+			payload.Status = "blocked"
+			payload.Readiness = rt.BlockedReadiness
+			payload.Errors = append(payload.Errors, fmt.Sprintf("write scan-receipt.json: %v", receiptErr))
+		}
+	}
+	if code := writeJSON(stdout, payload); code != 0 {
+		return code
+	}
+	if payloadBlocked(payload) {
+		return 1
+	}
+	return 0
+}
+
+func validateBuildCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {
+	fs := flag.NewFlagSet("validate-build", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	_ = fs.String("format", "json", "Output format")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	payload := validation.ValidateBuild(paths)
+	receiptErr := update.RecordValidateBuildReceipt(paths, payload.Status, payload.Gate, payload.Readiness)
+	if code := writeJSON(stdout, payload); code != 0 {
+		return code
+	}
+	if receiptErr != nil {
+		fmt.Fprintf(stderr, "project-cognition: record validate-build receipt: %v\n", receiptErr)
+		return 1
 	}
 	if payloadBlocked(payload) {
 		return 1
@@ -1040,21 +1338,15 @@ func updateCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.P
 func verificationEvidenceFromCLI(values []string) []update.VerificationEvidence {
 	out := make([]update.VerificationEvidence, 0, len(values))
 	for _, value := range values {
-		out = append(out, update.VerificationEvidence{Command: value, Result: verificationResultFromText(value)})
+		trimmed := strings.TrimSpace(value)
+		var structured update.VerificationEvidence
+		if strings.HasPrefix(trimmed, "{") && json.Unmarshal([]byte(trimmed), &structured) == nil {
+			out = append(out, structured)
+			continue
+		}
+		out = append(out, update.VerificationEvidence{Command: trimmed, Result: update.ResultRecorded})
 	}
 	return out
-}
-
-func verificationResultFromText(value string) string {
-	result := "recorded"
-	lower := strings.ToLower(value)
-	if strings.Contains(lower, "pass") {
-		result = "passed"
-	}
-	if strings.Contains(lower, "fail") {
-		result = "failed"
-	}
-	return result
 }
 
 func lexiconCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {
@@ -1599,12 +1891,16 @@ func deltaAppendCommand(args []string, stdout io.Writer, stderr io.Writer, paths
 	phase := fs.String("phase", "", "Workflow phase")
 	confidence := fs.String("confidence", "", "Confidence")
 	var changedPaths stringList
+	var pathChangeJSON stringList
+	var pathDispositionJSON stringList
 	var readPaths stringList
 	var behaviorSurfaces stringList
 	var knownUnknowns stringList
 	var verification stringList
 	var generatedSurfaces stringList
 	fs.Var(&changedPaths, "changed-path", "Changed path")
+	fs.Var(&pathChangeJSON, "path-change", "Typed path change JSON object")
+	fs.Var(&pathDispositionJSON, "path-disposition", "Planner path disposition decision JSON object")
 	fs.Var(&readPaths, "read-path", "Read path")
 	fs.Var(&behaviorSurfaces, "behavior-surface", "Behavior surface")
 	fs.Var(&knownUnknowns, "known-unknown", "Known unknown")
@@ -1618,8 +1914,23 @@ func deltaAppendCommand(args []string, stdout io.Writer, stderr io.Writer, paths
 	var event delta.Event
 	var err error
 	if *packetFile != "" {
+		if len(pathChangeJSON) > 0 || len(pathDispositionJSON) > 0 {
+			return writeCommandResult(stdout, stderr, paths, event, fmt.Errorf("delta append cannot combine --packet-file with --path-change or --path-disposition"))
+		}
 		event, err = delta.AppendPacketFile(paths.RuntimeDir, *sessionID, *packetFile)
 	} else {
+		pathChanges, parseErr := parsePathChangeJSON(pathChangeJSON)
+		if parseErr != nil {
+			return writeCommandResult(stdout, stderr, paths, event, parseErr)
+		}
+		pathDispositions, parseErr := parsePathDispositionJSON(pathDispositionJSON)
+		if parseErr != nil {
+			return writeCommandResult(stdout, stderr, paths, event, parseErr)
+		}
+		pathChanges, parseErr = changemodel.ResolvePathDispositions(pathChanges, pathDispositions)
+		if parseErr != nil {
+			return writeCommandResult(stdout, stderr, paths, event, parseErr)
+		}
 		event, err = delta.Append(delta.AppendInput{
 			RuntimeDir:        paths.RuntimeDir,
 			SessionID:         *sessionID,
@@ -1628,6 +1939,7 @@ func deltaAppendCommand(args []string, stdout io.Writer, stderr io.Writer, paths
 			OriginLaneID:      *originLaneID,
 			Phase:             *phase,
 			ChangedPaths:      changedPaths,
+			PathChanges:       pathChanges,
 			ReadPaths:         readPaths,
 			BehaviorSurfaces:  behaviorSurfaces,
 			GeneratedSurfaces: generatedSurfaces,
@@ -1637,6 +1949,30 @@ func deltaAppendCommand(args []string, stdout io.Writer, stderr io.Writer, paths
 		})
 	}
 	return writeCommandResult(stdout, stderr, paths, event, err)
+}
+
+func parsePathChangeJSON(values []string) ([]changemodel.PathChange, error) {
+	out := make([]changemodel.PathChange, 0, len(values))
+	for index, value := range values {
+		var change changemodel.PathChange
+		if err := json.Unmarshal([]byte(value), &change); err != nil {
+			return nil, fmt.Errorf("parse --path-change %d: %w", index+1, err)
+		}
+		out = append(out, change)
+	}
+	return out, nil
+}
+
+func parsePathDispositionJSON(values []string) ([]changemodel.PathDispositionDecision, error) {
+	out := make([]changemodel.PathDispositionDecision, 0, len(values))
+	for index, value := range values {
+		var decision changemodel.PathDispositionDecision
+		if err := json.Unmarshal([]byte(value), &decision); err != nil {
+			return nil, fmt.Errorf("parse --path-disposition %d: %w", index+1, err)
+		}
+		out = append(out, decision)
+	}
+	return out, nil
 }
 
 func deltaStatusCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {

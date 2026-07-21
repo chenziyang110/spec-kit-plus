@@ -14,6 +14,8 @@ or modify product source.
 Require `{{specify-subcmd:project-cognition validate-scan --format json}}` to
 report a build-ready scan. If it is incomplete, stop and route the exact gaps to
 `$spx-map-scan`; do not invoke `$spx-map-scan` in this run.
+For a v2 workbench, this validation must issue the current `scan-receipt.json`;
+`build-from-scan` refuses an absent or digest-mismatched receipt before graph-store mutation.
 
 Run `{{specify-subcmd:project-cognition build-from-scan --format json}}`, then
 `{{specify-subcmd:project-cognition validate-build --format json}}`. These are

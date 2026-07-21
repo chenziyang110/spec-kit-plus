@@ -39,6 +39,139 @@ func TestCheckAgreementAcceptsMatchingStatusAndDB(t *testing.T) {
 	}
 }
 
+func TestCheckAgreementBlocksLatestUpdateSplitBrain(t *testing.T) {
+	paths := testPaths(t)
+	st, err := store.Open(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	importAndPublishReady(t, st, "GEN-1")
+	if err := st.RecordStructuredUpdate(context.Background(), store.UpdateRecord{
+		ID:          "upd-db-only",
+		Trigger:     "sp-review",
+		ResultState: "ready",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.Close(); err != nil {
+		t.Fatal(err)
+	}
+	status := rt.DefaultStatus(paths)
+	status.Status = "ok"
+	status.Freshness = rt.ReadyFreshness
+	status.Readiness = rt.ReadyReadiness
+	status.GraphReady = true
+	status.ActiveGenerationID = "GEN-1"
+	if err := rt.WriteStatus(paths, status); err != nil {
+		t.Fatal(err)
+	}
+
+	agreement := Check(paths)
+
+	if agreement.Status == "ok" {
+		t.Fatal("expected DB/status latest-update split brain to block")
+	}
+	if agreement.CauseCode != CauseStatusLatestUpdateMismatch {
+		t.Fatalf("CauseCode = %q, want %q; errors=%v", agreement.CauseCode, CauseStatusLatestUpdateMismatch, agreement.Errors)
+	}
+	if agreement.DBLatestUpdateID != "upd-db-only" || agreement.DBLatestUpdateOutcome != "ready" {
+		t.Fatalf("DB latest update = %q/%q", agreement.DBLatestUpdateID, agreement.DBLatestUpdateOutcome)
+	}
+}
+
+func TestCheckAgreementBlocksReadyUpdatePendingReceiptFinalizer(t *testing.T) {
+	paths := testPaths(t)
+	st, err := store.Open(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	importAndPublishReady(t, st, "GEN-1")
+	if err := st.RecordStructuredUpdate(context.Background(), store.UpdateRecord{
+		ID:          "upd-pending-finalizer",
+		Trigger:     "sp-review",
+		ResultState: "ready",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.Close(); err != nil {
+		t.Fatal(err)
+	}
+	status := rt.DefaultStatus(paths)
+	status.Status = "ok"
+	status.Freshness = rt.ReadyFreshness
+	status.Readiness = rt.ReadyReadiness
+	status.GraphReady = true
+	status.ActiveGenerationID = "GEN-1"
+	status.LastUpdateID = "upd-pending-finalizer"
+	status.LastUpdateOutcome = "ready"
+	if err := rt.WriteStatus(paths, status); err != nil {
+		t.Fatal(err)
+	}
+
+	agreement := Check(paths)
+
+	if agreement.Status == "ok" || agreement.CauseCode != CauseUpdateFinalizationPending {
+		t.Fatalf("agreement = %+v, want pending finalization blocker", agreement)
+	}
+	if agreement.RecoveryAction != FinalizeUpdateAction {
+		t.Fatalf("RecoveryAction = %q, want %q", agreement.RecoveryAction, FinalizeUpdateAction)
+	}
+
+	status.LastFinalizedUpdateID = status.LastUpdateID
+	if err := rt.WriteStatus(paths, status); err != nil {
+		t.Fatal(err)
+	}
+	if finalized := Check(paths); finalized.Status != "ok" {
+		t.Fatalf("finalized agreement = %+v", finalized)
+	}
+}
+
+func TestRepairStatusFromDBConservativelyRecoversLatestUpdateSplitBrain(t *testing.T) {
+	paths := testPaths(t)
+	st, err := store.Open(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	importAndPublishReady(t, st, "GEN-1")
+	if err := st.RecordStructuredUpdate(context.Background(), store.UpdateRecord{
+		ID:           "upd-db-only",
+		Trigger:      "sp-review",
+		ChangedPaths: []string{"internal/service.go"},
+		ResultState:  "ready",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.Close(); err != nil {
+		t.Fatal(err)
+	}
+	status := rt.DefaultStatus(paths)
+	status.Status = "ok"
+	status.Freshness = rt.ReadyFreshness
+	status.Readiness = rt.ReadyReadiness
+	status.GraphReady = true
+	status.ActiveGenerationID = "GEN-1"
+	if err := rt.WriteStatus(paths, status); err != nil {
+		t.Fatal(err)
+	}
+
+	repaired, err := RepairStatusFromDB(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if repaired.LastUpdateID != "upd-db-only" || repaired.LastUpdateOutcome != "ready" {
+		t.Fatalf("repaired latest update = %q/%q", repaired.LastUpdateID, repaired.LastUpdateOutcome)
+	}
+	if !repaired.Dirty || repaired.Freshness != rt.StaleFreshness || repaired.Readiness != rt.ReviewReadiness {
+		t.Fatalf("repaired status must remain conservative: %+v", repaired)
+	}
+	if !containsString(repaired.StalePaths, "internal/service.go") {
+		t.Fatalf("StalePaths = %v, want recovered update path", repaired.StalePaths)
+	}
+	if agreement := Check(paths); agreement.CauseCode != CauseUpdateFinalizationPending {
+		t.Fatalf("repaired agreement = %+v, want conservative pending finalization", agreement)
+	}
+}
+
 func TestCheckAgreementAcceptsMatchingGenerationRegardlessOfStatusValue(t *testing.T) {
 	paths := testPaths(t)
 	st, err := store.Open(paths)

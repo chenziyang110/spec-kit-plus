@@ -33,6 +33,10 @@ surface drift or overlap risk, and close the lane cleanly.
    contracts, repair drift, and recapture. The close helper must remain blocked
    while only task-scope evidence exists or human review is unresolved.
 
+After verified integrated-tree changes or integration-owned repairs, close out project cognition with canonical workflow `sp-integrate`:
+
+{{spec-kit-include: ../command-partials/common/inline-project-cognition-update.md}}
+
 ## Output Contract
 
 - Integration readiness result for each candidate lane.

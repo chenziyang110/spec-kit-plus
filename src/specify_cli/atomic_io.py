@@ -4,10 +4,12 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from contextlib import contextmanager
+import errno
 import os
 from pathlib import Path
 import stat
 import tempfile
+import time
 
 
 def _absolute_path_without_link_resolution(path: Path) -> Path:
@@ -95,7 +97,23 @@ def interprocess_lock(path: Path) -> Iterator[None]:
         if os.name == "nt":
             import msvcrt
 
-            msvcrt.locking(handle.fileno(), msvcrt.LK_LOCK, 1)
+            deadline = time.monotonic() + 120.0
+            while True:
+                try:
+                    msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+                    break
+                except OSError as exc:
+                    if exc.errno not in {
+                        errno.EACCES,
+                        errno.EAGAIN,
+                        errno.EDEADLK,
+                    }:
+                        raise
+                    if time.monotonic() >= deadline:
+                        raise TimeoutError(
+                            f"timed out waiting for local state lock: {lock_path}"
+                        ) from exc
+                    time.sleep(0.025)
         else:
             import fcntl
 

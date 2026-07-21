@@ -149,9 +149,7 @@ map-maintenance recommendation.
 
 Entry-time stale or weak cognition is still an advisory navigation concern unless the user explicitly requested map maintenance. That entry routing rule does not waive closeout ownership.
 
-Planning-only artifact writes do not require project cognition refresh. If this planning workflow makes actual source/runtime/template/config/test/generated-asset changes in the current run, follow the shared inline closeout contract:
-
-{{spec-kit-include: inline-project-cognition-update.md}}
+Planning-only artifact writes do not require project cognition refresh. This workflow does not acquire source/runtime/template/config/test/generated-asset mutation authority from context loading. If the request requires those changes, hand off to the appropriate mutation workflow; do not conditionally run mutation closeout from a planning workflow.
 
 ### Greenfield Empty Baseline
 

@@ -75,6 +75,10 @@ Use this when:
 25. Use the teams runtime as the execution backend for the prepared batch rather than as a replacement for the `sp-implement` contract.
 26. If the user only wants to inspect the Codex runtime surface before implementing, redirect them to `sp-teams` or `$sp-teams`.
 
+After verified repository changes, apply the ordinary implementation cognition closeout with canonical workflow `sp-implement`:
+
+{{spec-kit-include: ../command-partials/common/inline-project-cognition-update.md}}
+
 ## Output Expectations
 
 Successful runs should leave the user with:

@@ -19,6 +19,7 @@ import (
 
 	_ "modernc.org/sqlite"
 
+	changemodel "github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/changes/model"
 	"github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/claim"
 	rt "github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/runtime"
 )
@@ -96,9 +97,35 @@ type UpdateRecord struct {
 }
 
 type AffectedClosure struct {
-	NodeIDs  []string
-	ClaimIDs []string
-	SliceIDs []string
+	NodeIDs            []string
+	ClaimIDs           []string
+	SliceIDs           []string
+	TraversedEdgeTypes []string
+	Truncated          bool
+	TruncationReason   string
+}
+
+type ClosureBudget struct {
+	MaxNodes int
+}
+
+type TypedUpdate struct {
+	Record           UpdateRecord
+	PathChanges      []changemodel.PathChange
+	Workflow         string
+	BehaviorSurfaces []string
+	Verification     []map[string]string
+	Reason           string
+}
+
+type TypedUpdateResult struct {
+	AdoptedPaths    []string
+	RefreshedPaths  []string
+	RenamedPaths    []string
+	DeletedPaths    []string
+	SkippedPaths    []string
+	AffectedNodeIDs []string
+	PathNodeIDs     map[string]string
 }
 
 type ClaimTransition struct {
@@ -502,40 +529,30 @@ func (s *Store) RecordUpdate(ctx context.Context, id, reason, changedPathsJSON s
 }
 
 func (s *Store) RecordStructuredUpdate(ctx context.Context, record UpdateRecord) error {
-	generationID, err := s.ActiveGenerationID(ctx)
+	_, err := s.ApplyTypedUpdate(ctx, TypedUpdate{Record: record})
+	return err
+}
+
+func (s *Store) ApplyTypedUpdate(ctx context.Context, input TypedUpdate) (TypedUpdateResult, error) {
+	result := TypedUpdateResult{
+		AdoptedPaths:    []string{},
+		RefreshedPaths:  []string{},
+		RenamedPaths:    []string{},
+		DeletedPaths:    []string{},
+		SkippedPaths:    []string{},
+		AffectedNodeIDs: []string{},
+		PathNodeIDs:     map[string]string{},
+	}
+	pathChanges, err := normalizeTypedPathChanges(input.PathChanges)
 	if err != nil {
-		return err
+		return result, err
 	}
-	if generationID == "" {
-		return nil
-	}
-	if strings.TrimSpace(record.ResultState) == "" {
-		record.ResultState = "blocked"
-	}
-	now := time.Now().UTC().Format(time.RFC3339)
-	changedJSON, err := json.Marshal(record.ChangedPaths)
-	if err != nil {
-		return fmt.Errorf("encode update changed paths: %w", err)
-	}
-	nodesJSON, err := json.Marshal(record.AffectedNodes)
-	if err != nil {
-		return fmt.Errorf("encode update affected nodes: %w", err)
-	}
-	claimsJSON, err := json.Marshal(record.AffectedClaims)
-	if err != nil {
-		return fmt.Errorf("encode update affected claims: %w", err)
-	}
-	slicesJSON, err := json.Marshal(record.AffectedSlices)
-	if err != nil {
-		return fmt.Errorf("encode update affected slices: %w", err)
-	}
-	attrs, err := attrsJSONOrEmpty(record.Attrs)
-	if err != nil {
-		return fmt.Errorf("encode update attrs: %w", err)
+	if strings.TrimSpace(input.Record.ID) == "" {
+		return result, fmt.Errorf("typed update record id is required")
 	}
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		return fmt.Errorf("begin structured update: %w", err)
+		return result, fmt.Errorf("begin typed update: %w", err)
 	}
 	committed := false
 	defer func() {
@@ -543,34 +560,168 @@ func (s *Store) RecordStructuredUpdate(ctx context.Context, record UpdateRecord)
 			_ = tx.Rollback()
 		}
 	}()
-	if _, err := markClaimsStaleTx(ctx, tx, generationID, record.AffectedClaims, changedPathReason(record.ChangedPaths), record.ID, now); err != nil {
-		return err
-	}
-	_, err = tx.ExecContext(ctx, `INSERT INTO updates(id, generation_id, trigger, changed_paths_json, affected_nodes_json, affected_claims_json, affected_slices_json, result_state, completed_at, attrs_json) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, record.ID, generationID, record.Trigger, string(changedJSON), string(nodesJSON), string(claimsJSON), string(slicesJSON), record.ResultState, now, attrs)
+	generationID, err := activeGenerationIDTx(ctx, tx)
 	if err != nil {
-		return fmt.Errorf("record structured update: %w", err)
+		return result, err
+	}
+	if generationID == "" {
+		if len(pathChanges) > 0 {
+			return result, fmt.Errorf("project-cognition.db has no active generation")
+		}
+		return result, nil
+	}
+	now := time.Now().UTC().Format(time.RFC3339)
+	for _, change := range pathChanges {
+		if !change.MutatesGraph() {
+			result.SkippedPaths = append(result.SkippedPaths, change.Path)
+			continue
+		}
+		switch change.Operation {
+		case changemodel.OperationAdd:
+			nodeIDs, err := applyAddPathTx(ctx, tx, generationID, input, change, now)
+			if err != nil {
+				return result, err
+			}
+			result.AdoptedPaths = append(result.AdoptedPaths, change.Path)
+			result.AffectedNodeIDs = append(result.AffectedNodeIDs, nodeIDs...)
+			if len(nodeIDs) > 0 {
+				result.PathNodeIDs[change.Path] = nodeIDs[0]
+			}
+		case changemodel.OperationModify:
+			nodeIDs, err := applyModifyPathTx(ctx, tx, generationID, input, change, now)
+			if err != nil {
+				return result, err
+			}
+			result.RefreshedPaths = append(result.RefreshedPaths, change.Path)
+			result.AffectedNodeIDs = append(result.AffectedNodeIDs, nodeIDs...)
+			if len(nodeIDs) > 0 {
+				result.PathNodeIDs[change.Path] = nodeIDs[0]
+			}
+		case changemodel.OperationRename:
+			nodeIDs, err := applyRenamePathTx(ctx, tx, generationID, input, change, now)
+			if err != nil {
+				return result, err
+			}
+			result.RenamedPaths = append(result.RenamedPaths, change.Path)
+			result.AffectedNodeIDs = append(result.AffectedNodeIDs, nodeIDs...)
+			if len(nodeIDs) > 0 {
+				result.PathNodeIDs[change.Path] = nodeIDs[0]
+			}
+		case changemodel.OperationDelete:
+			nodeIDs, err := applyDeletePathTx(ctx, tx, generationID, change)
+			if err != nil {
+				return result, err
+			}
+			result.DeletedPaths = append(result.DeletedPaths, change.Path)
+			result.AffectedNodeIDs = append(result.AffectedNodeIDs, nodeIDs...)
+		}
+	}
+	result.AdoptedPaths = uniqueSorted(result.AdoptedPaths)
+	result.RefreshedPaths = uniqueSorted(result.RefreshedPaths)
+	result.RenamedPaths = uniqueSorted(result.RenamedPaths)
+	result.DeletedPaths = uniqueSorted(result.DeletedPaths)
+	result.SkippedPaths = uniqueSorted(result.SkippedPaths)
+	result.AffectedNodeIDs = uniqueSorted(result.AffectedNodeIDs)
+
+	record := input.Record
+	if strings.TrimSpace(record.ResultState) == "" {
+		record.ResultState = "blocked"
+	}
+	if len(pathChanges) > 0 {
+		// Typed dispositions are authoritative for graph-changing path scope.
+		// Do not let a duplicated caller-authored ChangedPaths field smuggle an
+		// ignored, review-only, or blocking path into the update record.
+		record.ChangedPaths = []string{}
+	}
+	for _, change := range pathChanges {
+		if change.MutatesGraph() {
+			record.ChangedPaths = append(record.ChangedPaths, change.Path)
+		}
+	}
+	record.ChangedPaths = uniqueSorted(record.ChangedPaths)
+	record.AffectedNodes = uniqueSorted(append(record.AffectedNodes, result.AffectedNodeIDs...))
+	automaticClaimIDs, err := claimIDsForNodeIDsTx(ctx, tx, generationID, result.AffectedNodeIDs)
+	if err != nil {
+		return result, err
+	}
+	record.AffectedClaims = uniqueSorted(append(record.AffectedClaims, automaticClaimIDs...))
+	record.Attrs = cloneStringAnyMap(record.Attrs)
+	record.Attrs["path_changes"] = pathChanges
+	if workflow := strings.TrimSpace(input.Workflow); workflow != "" {
+		record.Attrs["workflow"] = workflow
+	}
+	if len(input.BehaviorSurfaces) > 0 {
+		record.Attrs["behavior_surfaces"] = uniqueSorted(input.BehaviorSurfaces)
+	}
+	if len(input.Verification) > 0 {
+		record.Attrs["verification"] = input.Verification
+	}
+	if reason := strings.TrimSpace(input.Reason); reason != "" {
+		record.Attrs["reason"] = reason
+	}
+	if _, err := markClaimsStaleTx(ctx, tx, generationID, record.AffectedClaims, changedPathReason(record.ChangedPaths), record.ID, now); err != nil {
+		return result, err
+	}
+	if err := insertStructuredUpdateTx(ctx, tx, generationID, record, now); err != nil {
+		return result, err
 	}
 	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("commit structured update: %w", err)
+		return result, fmt.Errorf("commit typed update: %w", err)
 	}
 	committed = true
-	return nil
+	return result, nil
 }
 
 func (s *Store) AffectedClosureForPaths(ctx context.Context, paths []string) (AffectedClosure, error) {
-	nodes, err := s.NodesForPaths(ctx, paths)
+	return s.AffectedClosureForPathsWithBudget(ctx, paths, ClosureBudget{})
+}
+
+func (s *Store) AffectedClosureForPathsWithBudget(ctx context.Context, paths []string, budget ClosureBudget) (AffectedClosure, error) {
+	return s.AffectedClosureForPathsAndNodeIDsWithBudget(ctx, paths, nil, budget)
+}
+
+func (s *Store) AffectedClosureForPathsAndNodeIDsWithBudget(ctx context.Context, paths []string, startingNodeIDs []string, budget ClosureBudget) (AffectedClosure, error) {
+	paths = uniqueSorted(paths)
+	startingNodeIDs = uniqueSorted(startingNodeIDs)
+	if len(paths) == 0 && len(startingNodeIDs) == 0 {
+		return AffectedClosure{
+			NodeIDs:            []string{},
+			ClaimIDs:           []string{},
+			SliceIDs:           []string{},
+			TraversedEdgeTypes: []string{},
+		}, nil
+	}
+	if len(paths) > 0 {
+		nodes, err := s.NodesForPaths(ctx, paths)
+		if err != nil {
+			return AffectedClosure{}, err
+		}
+		startingNodeIDs = uniqueSorted(append(startingNodeIDs, nodeIDsFromMaps(nodes)...))
+	}
+	generationID, err := s.ActiveGenerationID(ctx)
 	if err != nil {
 		return AffectedClosure{}, err
 	}
-	nodeIDs := uniqueSorted(nodeIDsFromMaps(nodes))
+	nodeIDs, edgeTypes, truncated, err := s.expandTypedEdgeClosure(ctx, generationID, startingNodeIDs, budget)
+	if err != nil {
+		return AffectedClosure{}, err
+	}
 	claimIDs, err := s.claimIDsForNodesAndPaths(ctx, nodeIDs, paths)
 	if err != nil {
 		return AffectedClosure{}, err
 	}
 	return AffectedClosure{
-		NodeIDs:  nodeIDs,
-		ClaimIDs: claimIDs,
-		SliceIDs: []string{},
+		NodeIDs:            nodeIDs,
+		ClaimIDs:           claimIDs,
+		SliceIDs:           []string{},
+		TraversedEdgeTypes: edgeTypes,
+		Truncated:          truncated,
+		TruncationReason: func() string {
+			if truncated {
+				return "node_budget_exhausted"
+			}
+			return ""
+		}(),
 	}, nil
 }
 
@@ -1329,7 +1480,7 @@ func (s *Store) NodesForPaths(ctx context.Context, paths []string) ([]map[string
 		return []map[string]any{}, nil
 	}
 	if len(paths) == 0 {
-		rows, err := s.db.QueryContext(ctx, `SELECT n.id, n.type, n.title, COALESCE(p.path, '') FROM nodes n LEFT JOIN path_index p ON p.generation_id = n.generation_id AND p.node_id = n.id WHERE n.generation_id = ? ORDER BY n.id LIMIT 25`, generationID)
+		rows, err := s.db.QueryContext(ctx, `SELECT n.id, n.type, n.title, COALESCE(p.path, '') FROM nodes n LEFT JOIN path_index p ON p.generation_id = n.generation_id AND p.node_id = n.id WHERE n.generation_id = ? ORDER BY n.id`, generationID)
 		if err != nil {
 			return nil, fmt.Errorf("query nodes: %w", err)
 		}
@@ -1338,7 +1489,7 @@ func (s *Store) NodesForPaths(ctx context.Context, paths []string) ([]map[string
 	out := make([]map[string]any, 0)
 	for _, path := range paths {
 		descendantPattern := strings.TrimRight(path, "/") + "/%"
-		rows, err := s.db.QueryContext(ctx, `SELECT DISTINCT n.id, n.type, n.title, p.path FROM path_index p JOIN nodes n ON n.generation_id = p.generation_id AND n.id = p.node_id WHERE p.generation_id = ? AND (p.path = ? OR p.path LIKE ?) ORDER BY n.id LIMIT 25`, generationID, path, descendantPattern)
+		rows, err := s.db.QueryContext(ctx, `SELECT DISTINCT n.id, n.type, n.title, p.path FROM path_index p JOIN nodes n ON n.generation_id = p.generation_id AND n.id = p.node_id WHERE p.generation_id = ? AND (p.path = ? OR p.path LIKE ?) ORDER BY n.id`, generationID, path, descendantPattern)
 		if err != nil {
 			return nil, fmt.Errorf("query nodes for %s: %w", path, err)
 		}

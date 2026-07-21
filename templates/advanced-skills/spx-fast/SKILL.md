@@ -49,7 +49,10 @@ changes, and perform visual inspection;
 code or style tests alone do not close the change.
 
 Create no spec, plan, tasks, quick workspace, delegation packet, or lifecycle
-artifact. Close out cognition with canonical workflow `fast` when repository
-behavior changed. Report the outcome, changed paths, exact verification, and
+artifact. When repository behavior changed, run
+`{{specify-subcmd:project-cognition closeout-plan --workflow sp-fast --intent implement --format json}}`
+with explicit workflow-owned paths, fill returned agent-owned fields, and execute
+structured `update_argv`. Apply the receipt-bound finalizer gate in
+`references/project-cognition.md` before any clean claim. Report the outcome, changed paths, exact verification, and
 residual risk. This invocation authorizes only this workflow stage; report any
 escalation as a handoff and do not invoke another workflow in this run.
