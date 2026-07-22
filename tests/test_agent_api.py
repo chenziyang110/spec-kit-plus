@@ -2,20 +2,15 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-import tomllib
 
 import pytest
 from jsonschema import Draft202012Validator
 
 from specify_cli.agent_api import (
-    AGENT_PROTOCOL_VERSION,
-    CAPABILITY_IDS,
     AgentApiError,
-    capabilities_handshake,
     capability_schema,
     classify_exit,
     envelope,
-    list_capabilities,
     show_capability,
 )
 
@@ -71,80 +66,13 @@ def test_classify_exit_rejects_unknown_status() -> None:
         classify_exit("mystery")
 
 
-def test_handshake_discloses_version_protocol_and_stable_capability_ids() -> None:
-    project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
-
-    payload = capabilities_handshake()
-
-    assert payload["status"] == "ok"
-    assert payload["data"]["cli_version"] == project["project"]["version"]
-    assert payload["data"]["protocol_version"] == AGENT_PROTOCOL_VERSION
-    assert payload["data"]["capability_ids"] == list(CAPABILITY_IDS)
-    assert payload["data"]["schema_versions"] == {
-        "agent-capability": 1,
-        "agent-envelope": 1,
-        "workflow-blocker": 1,
-        "workflow-runtime": 1,
-    }
-    assert payload["next_argv"] == [
-        "specify",
-        "api",
-        "list",
-        "--format",
-        "json",
-    ]
-
-
-def test_handshake_reports_required_capability_negotiation() -> None:
-    ready = capabilities_handshake(required=["learning.start", "workflow.enter"])
-
-    assert ready["status"] == "ok"
-    assert ready["data"]["required_capabilities"] == [
-        "learning.start",
-        "workflow.enter",
-    ]
-    assert ready["data"]["missing_capabilities"] == []
-
-    unsupported = capabilities_handshake(required=["future.capability"])
-    assert unsupported["status"] == "error"
-    assert unsupported["data"]["missing_capabilities"] == ["future.capability"]
-
-
-def test_capability_list_is_summary_only_and_paginated() -> None:
-    first = list_capabilities(cursor=0, limit=2)
-
-    assert first["status"] == "ok"
-    assert len(first["items"]) == 2
-    assert first["data"] == {"cursor": 0, "limit": 2, "total": len(CAPABILITY_IDS)}
-    assert "input_schema" not in first["items"][0]
-    assert first["items"][0]["show_argv"] == [
-        "specify",
-        "api",
-        "show",
-        first["items"][0]["id"],
-        "--format",
-        "json",
-    ]
-    assert first["next_argv"] == [
-        "specify",
-        "api",
-        "list",
-        "--cursor",
-        "2",
-        "--limit",
-        "2",
-        "--format",
-        "json",
-    ]
-
-    last = list_capabilities(cursor=len(CAPABILITY_IDS) - 1, limit=20)
-    assert last["next_argv"] == []
-
-
-@pytest.mark.parametrize("cursor,limit", [(-1, 1), (0, 0), (0, 201)])
-def test_capability_list_rejects_invalid_pagination(cursor: int, limit: int) -> None:
-    with pytest.raises(AgentApiError):
-        list_capabilities(cursor=cursor, limit=limit)
+@pytest.mark.parametrize(
+    "retired_id",
+    ("agent.handshake", "agent.capabilities.list"),
+)
+def test_retired_python_discovery_capability_ids_are_unknown(retired_id: str) -> None:
+    with pytest.raises(AgentApiError, match="unknown capability"):
+        show_capability(retired_id)
 
 
 def test_capability_show_expands_one_record_and_points_to_its_schema() -> None:
@@ -152,7 +80,12 @@ def test_capability_show_expands_one_record_and_points_to_its_schema() -> None:
 
     assert payload["data"]["id"] == "workflow.transition"
     assert payload["data"]["input_schema"] == "workflow-transition-input"
-    assert payload["data"]["side_effect"] == "writes-workflow-runtime"
+    assert payload["data"]["side_effect"] == "writes-workflow"
+    assert payload["data"]["command"] == [
+        "specify-runtime",
+        "workflow",
+        "transition",
+    ]
     assert payload["next_argv"] == [
         "specify",
         "api",
@@ -164,10 +97,10 @@ def test_capability_show_expands_one_record_and_points_to_its_schema() -> None:
 
     reopen = show_capability("workflow.reopen")
     assert reopen["data"]["input_schema"] == "workflow-reopen-input"
-    assert reopen["data"]["side_effect"] == "writes-workflow-runtime"
+    assert reopen["data"]["side_effect"] == "writes-workflow"
     resolve = show_capability("workflow.resolve")
     assert resolve["data"]["input_schema"] == "workflow-resolve-input"
-    assert resolve["data"]["side_effect"] == "writes-workflow-runtime"
+    assert resolve["data"]["side_effect"] == "writes-workflow"
 
 
 def test_schema_expands_only_the_requested_machine_contract() -> None:

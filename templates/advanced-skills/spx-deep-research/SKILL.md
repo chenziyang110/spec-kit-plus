@@ -26,8 +26,8 @@ repository evidence first and current primary external sources when the answer
 depends on an API, platform, standard, dependency, or recent behavior.
 
 Before any write, run
-`{{specify-subcmd:workflow show --feature-dir <feature-dir> --format json}}`.
-`FEATURE_DIR/workflow-runtime.json` is CLI-owned; this auxiliary skill must not write
+`{{specify-subcmd:specify-runtime workflow show --feature-dir <feature-dir> --format json}}`.
+`FEATURE_DIR/workflow.json` is CLI-owned; this auxiliary skill must not write
 it, and its expected required-stage owner is `specify`. On missing, corrupt,
 different, or completed runtime state, stop with the returned blocker or a
 typed owner handoff containing the observed stage, expected owner, affected

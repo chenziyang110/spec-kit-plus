@@ -24,7 +24,6 @@ Or install globally:
     specify init --here
 """
 
-import hashlib
 import os
 import re
 import subprocess
@@ -40,11 +39,6 @@ from dataclasses import dataclass
 from datetime import date
 from enum import Enum
 
-from specify_cli.atomic_io import (
-    atomic_write_bytes,
-    interprocess_lock,
-    read_local_state_bytes,
-)
 from pathlib import Path
 from typing import Any, Optional, Tuple
 
@@ -94,11 +88,9 @@ from specify_cli.codex_team.runtime_bridge import (
 from specify_cli.cli_output import print_json
 from specify_cli.agent_api import (
     AgentApiError,
-    capabilities_handshake,
     capability_schema,
     classify_exit,
     envelope as agent_envelope,
-    list_capabilities,
     show_capability,
 )
 from specify_cli.command_catalog import list_command_catalog, show_catalog_command
@@ -151,16 +143,7 @@ from specify_cli.lanes import (
 )
 from specify_cli.workflow_runtime import (
     WorkflowRuntimeError,
-    block_workflow,
-    closeout_workflow,
-    complete_workflow_stage,
-    enter_workflow,
-    next_workflow,
-    reopen_workflow,
-    resolve_workflow_blocker,
     show_workflow,
-    terminal_acceptance_snapshot_path,
-    transition_workflow,
 )
 
 
@@ -522,13 +505,6 @@ api_app = typer.Typer(
 )
 app.add_typer(api_app, name="api")
 
-workflow_app = typer.Typer(
-    name="workflow",
-    help="Guard and inspect the mandatory SP/SPX feature workflow",
-    add_completion=False,
-)
-app.add_typer(workflow_app, name="workflow")
-
 teams_app = typer.Typer(
     name="sp-teams",
     help="Codex-only team/runtime surface",
@@ -705,400 +681,6 @@ def _resolve_workflow_feature_dir(raw_value: str) -> Path:
     return feature_dir
 
 
-def _read_agent_input(input_source: str) -> dict[str, Any]:
-    if input_source == "-":
-        raw = sys.stdin.read()
-    else:
-        project_root = Path.cwd().resolve()
-        input_path = Path(input_source)
-        input_path = (
-            input_path.resolve()
-            if input_path.is_absolute()
-            else (project_root / input_path).resolve()
-        )
-        try:
-            input_path.relative_to(project_root)
-        except ValueError as exc:
-            raise AgentApiError("--input must be inside the current project") from exc
-        raw = input_path.read_text(encoding="utf-8")
-    payload = json.loads(raw)
-    if not isinstance(payload, dict):
-        raise AgentApiError("--input must contain one JSON object")
-    return payload
-
-
-def _workflow_artifact_gate(
-    *,
-    feature_dir: Path,
-    current_stage: str,
-    target_stage: str,
-    expected_revision: int,
-    resume_argv: list[str],
-    require_accepted: bool = False,
-) -> dict[str, Any] | None:
-    if current_stage == "discussion":
-        return None
-
-    from .hooks.engine import run_quality_hook
-
-    validation = run_quality_hook(
-        Path.cwd(),
-        "workflow.artifacts.validate",
-        {
-            "command_name": current_stage,
-            "feature_dir": str(feature_dir),
-            "require_accepted": require_accepted,
-        },
-    )
-    if validation.status in {"ok", "warn", "repaired"}:
-        return None
-
-    if validation.status not in {"blocked", "repairable-block"}:
-        return agent_envelope(
-            "error",
-            f"{current_stage} artifact validation failed unexpectedly.",
-            data={
-                "error_code": "artifact-validation-error",
-                "event": validation.event,
-                "stage": current_stage,
-                "target_stage": target_stage,
-                "revision": expected_revision,
-                "errors": list(validation.errors),
-                "warnings": list(validation.warnings),
-            },
-            next_argv=resume_argv,
-        )
-
-    raw = validation.to_dict()
-    blockers = []
-    for item in raw.get("blockers", []):
-        blocker = dict(item)
-        blocker["code"] = "artifact-validation-blocked"
-        from .launcher import render_command
-
-        resume_command = render_command(tuple(resume_argv))
-        blocker["resume"] = {
-            "instruction": f"Run the exact resume command: {resume_command}",
-            "command": resume_command,
-            "argv": list(resume_argv),
-        }
-        blockers.append(blocker)
-    return agent_envelope(
-        validation.status,
-        f"{current_stage} artifacts are not ready for {target_stage}.",
-        data={
-            "error_code": "artifact-validation-blocked",
-            "event": validation.event,
-            "stage": current_stage,
-            "target_stage": target_stage,
-            "revision": expected_revision,
-            "errors": list(validation.errors),
-            "warnings": list(validation.warnings),
-        },
-        blockers=blockers,
-        next_argv=resume_argv,
-    )
-
-
-def _workflow_transition_operation(
-    *,
-    feature_dir: Path,
-    target_stage: str,
-    expected_revision: int,
-    summary: str,
-) -> dict[str, Any]:
-    """Validate the completed source stage before performing its guarded handoff."""
-
-    upcoming = next_workflow(feature_dir)
-    current_stage = str(upcoming["data"].get("stage") or "")
-    next_stage = upcoming["data"].get("next_stage")
-    current_revision = upcoming["data"].get("revision")
-
-    # Let the runtime build the canonical transition/revision blocker before
-    # running an artifact gate that cannot change that result.
-    if (
-        str(target_stage or "").strip().lower() != next_stage
-        or expected_revision != current_revision
-        or upcoming["data"].get("status") != "completed"
-    ):
-        return transition_workflow(
-            feature_dir,
-            target_stage=target_stage,
-            expected_revision=expected_revision,
-            summary=summary,
-        )
-
-    resume_argv = [
-        "specify",
-        "workflow",
-        "transition",
-        "--to",
-        str(target_stage),
-        "--feature-dir",
-        str(feature_dir),
-        "--expected-revision",
-        str(expected_revision),
-        "--format",
-        "json",
-    ]
-    artifact_block = _workflow_artifact_gate(
-        feature_dir=feature_dir,
-        current_stage=current_stage,
-        target_stage=str(target_stage),
-        expected_revision=expected_revision,
-        resume_argv=resume_argv,
-    )
-    if artifact_block is not None:
-        return artifact_block
-
-    return transition_workflow(
-        feature_dir,
-        target_stage=target_stage,
-        expected_revision=expected_revision,
-        summary=summary,
-    )
-
-
-def _workflow_closeout_operation(
-    *, feature_dir: Path, expected_revision: int, summary: str
-) -> dict[str, Any]:
-    from .human_acceptance import (
-        acceptance_closeout_blockers,
-        validate_human_acceptance,
-    )
-
-    project_root = Path.cwd().resolve()
-    acceptance_path = feature_dir / "human-acceptance.json"
-    resume_argv = [
-        "specify",
-        "workflow",
-        "closeout",
-        "--feature-dir",
-        str(feature_dir),
-        "--expected-revision",
-        str(expected_revision),
-        "--format",
-        "json",
-    ]
-
-    def acceptance_block(acceptance: dict[str, Any]) -> dict[str, Any]:
-        return agent_envelope(
-            "blocked",
-            "Human product acceptance must be completed before workflow closeout.",
-            data={
-                "error_code": "human-acceptance-required",
-                "stage": "accept",
-                "target_stage": "workflow closeout",
-                "revision": expected_revision,
-                "human_acceptance": acceptance,
-            },
-            blockers=acceptance_closeout_blockers(
-                feature_dir,
-                acceptance=acceptance,
-            ),
-            show_argv=[
-                "specify",
-                "workflow",
-                "show",
-                "--feature-dir",
-                str(feature_dir),
-                "--format",
-                "json",
-            ],
-            next_argv=[],
-        )
-
-    # Acceptance writers use this lock before mutating the guide. Keep it held
-    # through the runtime CAS so an accepted verdict and terminal phase commit
-    # are one ordered transaction (acceptance lock -> workflow lock).
-    with interprocess_lock(feature_dir / ".human-acceptance.lock"):
-        shown = show_workflow(feature_dir)
-        data = shown["data"]
-        if (
-            data.get("stage") != "accept"
-            or data.get("status") != "active"
-            or data.get("revision") != expected_revision
-        ):
-            return closeout_workflow(
-                feature_dir,
-                expected_revision=expected_revision,
-                summary=summary,
-                acceptance_sha256="",
-            )
-        acceptance = validate_human_acceptance(
-            project_root,
-            feature_dir,
-            require_accepted=True,
-        )
-        if not acceptance["valid"]:
-            return acceptance_block(acceptance)
-        artifact_block = _workflow_artifact_gate(
-            feature_dir=feature_dir,
-            current_stage="accept",
-            target_stage="workflow closeout",
-            expected_revision=expected_revision,
-            resume_argv=resume_argv,
-            require_accepted=True,
-        )
-        if artifact_block is not None:
-            return artifact_block
-        # Revalidate after hooks so an autofix or injected concurrent write cannot
-        # invalidate acceptance between the gate and the terminal runtime write.
-        try:
-            acceptance_bytes_before = read_local_state_bytes(
-                acceptance_path,
-                root=feature_dir,
-            )
-        except (OSError, ValueError) as exc:
-            unstable = validate_human_acceptance(
-                project_root,
-                feature_dir,
-                require_accepted=True,
-            )
-            unstable.update(
-                {
-                    "valid": False,
-                    "accepted": False,
-                    "contract_valid": False,
-                    "required_action_owner": "agent",
-                    "errors": [
-                        *list(unstable.get("errors") or []),
-                        f"human-acceptance.json could not be snapshotted: {type(exc).__name__}",
-                    ],
-                }
-            )
-            return acceptance_block(unstable)
-        acceptance = validate_human_acceptance(
-            project_root,
-            feature_dir,
-            require_accepted=True,
-        )
-        try:
-            acceptance_bytes_after = read_local_state_bytes(
-                acceptance_path,
-                root=feature_dir,
-            )
-        except (OSError, ValueError) as exc:
-            unstable = {
-                **acceptance,
-                "valid": False,
-                "accepted": False,
-                "contract_valid": False,
-                "required_action_owner": "agent",
-                "errors": [
-                    *list(acceptance.get("errors") or []),
-                    f"human-acceptance.json changed during snapshot: {type(exc).__name__}",
-                ],
-            }
-            return acceptance_block(unstable)
-        if not acceptance["valid"]:
-            return acceptance_block(acceptance)
-        if acceptance_bytes_before != acceptance_bytes_after:
-            unstable = {
-                **acceptance,
-                "valid": False,
-                "accepted": False,
-                "contract_valid": False,
-                "required_action_owner": "agent",
-                "errors": [
-                    *list(acceptance.get("errors") or []),
-                    "human-acceptance.json changed during terminal validation",
-                ],
-            }
-            return acceptance_block(unstable)
-        acceptance_sha256 = hashlib.sha256(acceptance_bytes_after).hexdigest()
-        atomic_write_bytes(
-            terminal_acceptance_snapshot_path(feature_dir),
-            acceptance_bytes_after,
-        )
-        return closeout_workflow(
-            feature_dir,
-            expected_revision=expected_revision,
-            summary=summary,
-            acceptance_sha256=acceptance_sha256,
-        )
-
-
-def _workflow_complete_stage_operation(
-    *,
-    feature_dir: Path,
-    expected_revision: int,
-    summary: str,
-) -> dict[str, Any]:
-    shown = show_workflow(feature_dir)
-    data = shown["data"]
-    current_stage = str(data.get("stage") or "")
-    next_stage = data.get("next_stage")
-    if (
-        data.get("revision") != expected_revision
-        or data.get("status") != "active"
-        or not next_stage
-    ):
-        return complete_workflow_stage(
-            feature_dir,
-            expected_revision=expected_revision,
-            summary=summary,
-        )
-    resume_argv = [
-        "specify",
-        "workflow",
-        "complete-stage",
-        "--feature-dir",
-        str(feature_dir),
-        "--expected-revision",
-        str(expected_revision),
-        "--format",
-        "json",
-    ]
-    artifact_block = _workflow_artifact_gate(
-        feature_dir=feature_dir,
-        current_stage=current_stage,
-        target_stage=str(next_stage),
-        expected_revision=expected_revision,
-        resume_argv=resume_argv,
-    )
-    if artifact_block is not None:
-        return artifact_block
-    return complete_workflow_stage(
-        feature_dir,
-        expected_revision=expected_revision,
-        summary=summary,
-    )
-
-
-@api_app.command("handshake")
-def api_handshake_command(
-    required: list[str] | None = typer.Option(
-        None,
-        "--require",
-        help="Required capability ID(s); repeat or use comma-separated values",
-    ),
-    output_format: str = AGENT_JSON_FORMAT_OPTION,
-) -> None:
-    """Negotiate Agent API version and required stable capabilities."""
-
-    _require_agent_json_format(output_format)
-    required_ids = [
-        capability.strip()
-        for value in (required or [])
-        for capability in value.split(",")
-        if capability.strip()
-    ]
-    _run_agent_operation(lambda: capabilities_handshake(required=required_ids))
-
-
-@api_app.command("list")
-def api_list_command(
-    cursor: int = typer.Option(0, "--cursor", help="Zero-based result cursor"),
-    limit: int = typer.Option(20, "--limit", help="Maximum summary records"),
-    output_format: str = AGENT_JSON_FORMAT_OPTION,
-) -> None:
-    """List compact capability summaries; expand only the selected record."""
-
-    _require_agent_json_format(output_format)
-    _run_agent_operation(lambda: list_capabilities(cursor=cursor, limit=limit))
-
-
 @api_app.command("show")
 def api_show_command(
     capability_id: str = typer.Argument(..., help="Stable capability ID"),
@@ -1150,252 +732,6 @@ def api_command_command(
 
     _require_agent_json_format(output_format)
     _run_agent_operation(lambda: show_catalog_command(app, command_id))
-
-
-@workflow_app.command("show")
-def workflow_show_command(
-    feature_dir: str = typer.Option(..., "--feature-dir", help="Feature directory"),
-    output_format: str = AGENT_JSON_FORMAT_OPTION,
-) -> None:
-    """Read the current compact phase runtime without parsing rich workflow state."""
-
-    _require_agent_json_format(output_format)
-    _run_agent_operation(
-        lambda: show_workflow(_resolve_workflow_feature_dir(feature_dir))
-    )
-
-
-@workflow_app.command("enter")
-def workflow_enter_command(
-    command_name: str = typer.Option(
-        "specify", "--command", help="Entry command: discussion or specify"
-    ),
-    feature_dir: str = typer.Option(..., "--feature-dir", help="Feature directory"),
-    expected_revision: int = typer.Option(
-        0, "--expected-revision", help="Expected absent-state revision"
-    ),
-    summary: str = typer.Option("", "--summary", help="Compact stage summary"),
-    output_format: str = AGENT_JSON_FORMAT_OPTION,
-) -> None:
-    """Create guarded phase runtime at discussion or specify."""
-
-    _require_agent_json_format(output_format)
-    _run_agent_operation(
-        lambda: enter_workflow(
-            _resolve_workflow_feature_dir(feature_dir),
-            stage=command_name,
-            expected_revision=expected_revision,
-            summary=summary,
-        )
-    )
-
-
-@workflow_app.command("next")
-def workflow_next_command(
-    feature_dir: str = typer.Option(..., "--feature-dir", help="Feature directory"),
-    output_format: str = AGENT_JSON_FORMAT_OPTION,
-) -> None:
-    """Resolve the only legal next stage without mutating state."""
-
-    _require_agent_json_format(output_format)
-    _run_agent_operation(
-        lambda: next_workflow(_resolve_workflow_feature_dir(feature_dir))
-    )
-
-
-@workflow_app.command("complete-stage")
-def workflow_complete_stage_command(
-    feature_dir: str = typer.Option(..., "--feature-dir", help="Feature directory"),
-    expected_revision: int = typer.Option(
-        ..., "--expected-revision", help="Current workflow revision"
-    ),
-    summary: str = typer.Option("", "--summary", help="Compact closeout summary"),
-    output_format: str = AGENT_JSON_FORMAT_OPTION,
-) -> None:
-    """Validate and complete the current stage without entering the next one."""
-
-    _require_agent_json_format(output_format)
-    _run_agent_operation(
-        lambda: _workflow_complete_stage_operation(
-            feature_dir=_resolve_workflow_feature_dir(feature_dir),
-            expected_revision=expected_revision,
-            summary=summary,
-        )
-    )
-
-
-@workflow_app.command("transition")
-def workflow_transition_command(
-    target_stage: str = typer.Option(..., "--to", help="Required next stage"),
-    feature_dir: str = typer.Option(..., "--feature-dir", help="Feature directory"),
-    expected_revision: int = typer.Option(
-        ..., "--expected-revision", help="Current workflow revision"
-    ),
-    summary: str = typer.Option("", "--summary", help="Compact target summary"),
-    output_format: str = AGENT_JSON_FORMAT_OPTION,
-) -> None:
-    """Advance exactly one mandatory SP/SPX stage."""
-
-    _require_agent_json_format(output_format)
-    _run_agent_operation(
-        lambda: _workflow_transition_operation(
-            feature_dir=_resolve_workflow_feature_dir(feature_dir),
-            target_stage=target_stage,
-            expected_revision=expected_revision,
-            summary=summary,
-        )
-    )
-
-
-@workflow_app.command("reopen")
-def workflow_reopen_command(
-    target_stage: str = typer.Option(
-        ...,
-        "--to",
-        help="Earlier invalidated or same completed stage: specify, plan, tasks, or implement",
-    ),
-    feature_dir: str = typer.Option(..., "--feature-dir", help="Feature directory"),
-    expected_revision: int = typer.Option(
-        ..., "--expected-revision", help="Current workflow revision"
-    ),
-    reason: str = typer.Option(
-        ...,
-        "--reason",
-        help="Compact reason the upstream contract is invalid",
-    ),
-    evidence: list[str] = typer.Option(
-        ...,
-        "--evidence",
-        help="Sanitized evidence proving invalidation; repeat as needed",
-    ),
-    invalidated_artifact: list[str] = typer.Option(
-        ...,
-        "--invalidated-artifacts",
-        help="Invalidated target or downstream artifact; repeat as needed",
-    ),
-    output_format: str = AGENT_JSON_FORMAT_OPTION,
-) -> None:
-    """Reopen an earlier or same completed stage without deleting stale artifacts."""
-
-    _require_agent_json_format(output_format)
-    _run_agent_operation(
-        lambda: reopen_workflow(
-            _resolve_workflow_feature_dir(feature_dir),
-            target_stage=target_stage,
-            expected_revision=expected_revision,
-            reason=reason,
-            evidence=evidence,
-            invalidated_artifacts=invalidated_artifact,
-        )
-    )
-
-
-@workflow_app.command("resolve")
-def workflow_resolve_command(
-    feature_dir: str = typer.Option(..., "--feature-dir", help="Feature directory"),
-    expected_revision: int = typer.Option(
-        ..., "--expected-revision", help="Current blocked workflow revision"
-    ),
-    resolution_evidence: list[str] = typer.Option(
-        ...,
-        "--resolution-evidence",
-        help="Sanitized evidence satisfying the unblock criteria; repeat as needed",
-    ),
-    summary: str = typer.Option("", "--summary", help="Compact resolution summary"),
-    output_format: str = AGENT_JSON_FORMAT_OPTION,
-) -> None:
-    """Resolve a persisted blocker and reactivate its current owner."""
-
-    _require_agent_json_format(output_format)
-    _run_agent_operation(
-        lambda: resolve_workflow_blocker(
-            _resolve_workflow_feature_dir(feature_dir),
-            expected_revision=expected_revision,
-            resolution_evidence=resolution_evidence,
-            summary=summary,
-        )
-    )
-
-
-@workflow_app.command("block")
-def workflow_block_command(
-    input_source: str = typer.Option(
-        "-", "--input", help="Structured blocker JSON file, or - for stdin"
-    ),
-    feature_dir: str | None = typer.Option(
-        None, "--feature-dir", help="Override feature_dir from the JSON input"
-    ),
-    output_format: str = AGENT_JSON_FORMAT_OPTION,
-) -> None:
-    """Persist one detailed blocker and its human-resolution tutorial."""
-
-    _require_agent_json_format(output_format)
-
-    def operation() -> dict[str, Any]:
-        payload = _read_agent_input(input_source)
-        payload_feature_dir = str(payload.pop("feature_dir", ""))
-        raw_feature_dir = feature_dir or payload_feature_dir
-        expected_revision = payload.pop("expected_revision", None)
-        if isinstance(expected_revision, bool) or not isinstance(
-            expected_revision, int
-        ):
-            raise AgentApiError("expected_revision must be an integer")
-        human_action = payload.pop("human_action", None)
-        if human_action is not None and not isinstance(human_action, dict):
-            raise AgentApiError("human_action must be an object or null")
-        human_action_required = payload.pop("human_action_required", None)
-        if human_action_required is not None and not isinstance(
-            human_action_required, bool
-        ):
-            raise AgentApiError("human_action_required must be a boolean or null")
-        category = payload.pop("category", "")
-        owner = payload.pop("owner", "")
-        cause = payload.pop("cause", "")
-        evidence = payload.pop("evidence", [])
-        attempted_recovery = payload.pop("attempted_recovery", [])
-        affected_scope = payload.pop("affected_scope", [])
-        exact_next_action = payload.pop("exact_next_action", "")
-        unblock_criteria = payload.pop("unblock_criteria", "")
-        if payload:
-            unknown = ", ".join(sorted(payload))
-            raise AgentApiError(f"unknown blocker input field(s): {unknown}")
-        return block_workflow(
-            _resolve_workflow_feature_dir(raw_feature_dir),
-            expected_revision=expected_revision,
-            category=category,
-            owner=owner,
-            cause=cause,
-            evidence=evidence,
-            attempted_recovery=attempted_recovery,
-            affected_scope=affected_scope,
-            exact_next_action=exact_next_action,
-            unblock_criteria=unblock_criteria,
-            human_action=human_action,
-            human_action_required=human_action_required,
-        )
-
-    _run_agent_operation(operation)
-
-
-@workflow_app.command("closeout")
-def workflow_closeout_command(
-    feature_dir: str = typer.Option(..., "--feature-dir", help="Feature directory"),
-    expected_revision: int = typer.Option(
-        ..., "--expected-revision", help="Current workflow revision"
-    ),
-    summary: str = typer.Option("", "--summary", help="Acceptance closeout summary"),
-    output_format: str = AGENT_JSON_FORMAT_OPTION,
-) -> None:
-    """Close a workflow only from active human acceptance."""
-
-    _require_agent_json_format(output_format)
-    _run_agent_operation(
-        lambda: _workflow_closeout_operation(
-            feature_dir=_resolve_workflow_feature_dir(feature_dir),
-            expected_revision=expected_revision,
-            summary=summary,
-        )
-    )
 
 
 @design_app.command("lint")
@@ -3146,6 +2482,56 @@ def implement_closeout(
                 console.print(f"- {gap}")
         raise typer.Exit(10)
 
+    def stop_for_workflow(payload: dict[str, Any]) -> None:
+        data = payload.get("data")
+        payload["data"] = {
+            **(data if isinstance(data, dict) else {}),
+            "feature_dir": str(resolved_feature_dir),
+        }
+        if output_format.lower() == "json":
+            print_json(payload, indent=2)
+        else:
+            console.print(f"[red]Error:[/red] {payload.get('summary')}")
+        raise typer.Exit(10)
+
+    try:
+        workflow = show_workflow(resolved_feature_dir)["data"]
+        workflow_revision = int(workflow["revision"])
+        review_revision = workflow_revision + (
+            2 if workflow.get("stage") == "implement" and workflow.get("status") == "active" else 1
+        )
+    except WorkflowRuntimeError as exc:
+        stop_for_workflow(exc.to_envelope())
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        stop_for_workflow(
+            agent_envelope(
+                "blocked",
+                "Implementation closeout requires valid workflow runtime state.",
+                data={
+                    "error_code": "invalid-workflow-runtime",
+                    "details": [f"{type(exc).__name__}: {exc}"],
+                },
+                blockers=[
+                    {
+                        "code": "invalid-workflow-runtime",
+                        "owner": "agent",
+                        "exact_next_action": (
+                            "Repair workflow runtime state through specify-runtime, then "
+                            "rerun implement closeout."
+                        ),
+                    }
+                ],
+                show_argv=[
+                    "specify-runtime",
+                    "workflow",
+                    "show",
+                    "--feature-dir",
+                    str(resolved_feature_dir),
+                    "--format",
+                    "json",
+                ],
+            )
+        )
     auto_payload = capture_auto_learning(
         project_root,
         command_name="implement",
@@ -3153,21 +2539,13 @@ def implement_closeout(
     )
     summary_payload = build_implementation_summary(project_root, resolved_feature_dir)
     try:
-        workflow = show_workflow(resolved_feature_dir)["data"]
-        workflow_revision = int(workflow["revision"])
-        review_revision = workflow_revision + (
-            2 if workflow.get("stage") == "implement" and workflow.get("status") == "active" else 1
-        )
-    except (OSError, ValueError, KeyError):
-        # Legacy projects without the compact workflow runtime can still create a
-        # handoff; review prepare will bind it when the runtime is installed.
-        review_revision = 0
-    try:
         handoff_payload = build_implementation_handoff(
             project_root,
             resolved_feature_dir,
             source_revision=review_revision,
         )
+    except WorkflowRuntimeError as exc:
+        stop_for_workflow(exc.to_envelope())
     except ValueError as exc:
         payload = {
             "status": "blocked",
@@ -3586,7 +2964,7 @@ def accept_closeout(
     _require_spec_kit_plus_project(project_root)
     resolved_feature_dir = _resolve_feature_dir(project_root, feature_dir)
     exact_show_argv = [
-        "specify",
+        "specify-runtime",
         "workflow",
         "show",
         "--feature-dir",
@@ -3661,7 +3039,7 @@ def accept_closeout(
                     data=common_data,
                     show_argv=exact_show_argv,
                     next_argv=[
-                        "specify",
+                        "specify-runtime",
                         "workflow",
                         "closeout",
                         "--feature-dir",
@@ -9223,6 +8601,7 @@ def lint(
             ["validate", "spec", *validate_args],
             cwd=Path.cwd(),
             check=False,
+            install_if_missing=True,
         )
     except SpecifyRuntimeError as exc:
         console.print(f"[red]Error:[/red] {exc}")

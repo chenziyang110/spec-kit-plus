@@ -10,7 +10,7 @@ def test_project_map_preflight_for_debug_is_advisory(monkeypatch, tmp_path, caps
     monkeypatch.chdir(project_root)
     monkeypatch.setattr(
         cli_module,
-        "run_project_cognition",
+        "run_specify_runtime",
         lambda _args, *, cwd, check=True: {
             "freshness": "stale",
             "state": "runtime_stale",

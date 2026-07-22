@@ -7,6 +7,7 @@ from pathlib import Path
 from types import ModuleType
 
 import pytest
+from tests.conftest import install_passing_workflow_gate
 
 from specify_cli.workflow_runtime import (
     complete_workflow_stage,
@@ -16,8 +17,23 @@ from specify_cli.workflow_runtime import (
 )
 
 
+pytestmark = pytest.mark.usefixtures("unified_runtime_env")
+
+
 def _review_runtime() -> ModuleType:
     return importlib.import_module("specify_cli.review_runtime")
+
+
+def _mock_workflow_stage(
+    runtime: ModuleType,
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    stage: str = "implement",
+    status: str = "active",
+) -> dict[str, str]:
+    state = {"stage": stage, "status": status}
+    monkeypatch.setattr(runtime, "show_workflow", lambda _feature: {"data": state})
+    return state
 
 
 def test_review_findings_require_orthogonal_gap_classification() -> None:
@@ -42,6 +58,7 @@ def _feature_at_review(tmp_path: Path) -> tuple[Path, Path, int]:
     project_root = tmp_path / "project"
     feature_dir = project_root / ".specify" / "features" / "001-system-review"
     feature_dir.mkdir(parents=True)
+    install_passing_workflow_gate(project_root)
     entered = enter_workflow(feature_dir, stage="specify", expected_revision=0)
     revision = entered["data"]["revision"]
     for target in ("plan", "tasks", "implement", "review"):
@@ -553,8 +570,10 @@ def test_prepare_review_compiles_handoff_into_resumable_review_state(
 
 def test_build_implementation_handoff_carries_the_human_acceptance_universe(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     runtime = _review_runtime()
+    _mock_workflow_stage(runtime, monkeypatch)
     project_root = tmp_path / "project"
     feature_dir = project_root / ".specify" / "features" / "001-demo"
     feature_dir.mkdir(parents=True)
@@ -673,8 +692,10 @@ def test_build_implementation_handoff_carries_the_human_acceptance_universe(
 
 def test_modern_handoff_rejects_missing_human_acceptance_universe(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     runtime = _review_runtime()
+    _mock_workflow_stage(runtime, monkeypatch)
     project_root = tmp_path / "project"
     feature_dir = project_root / ".specify" / "features" / "001-demo"
     feature_dir.mkdir(parents=True)
@@ -740,8 +761,10 @@ def test_handoff_revalidates_human_to_system_review_links(
 
 def test_handoff_binds_acceptance_denominator_and_task_contract_digests(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     runtime = _review_runtime()
+    workflow_state = _mock_workflow_stage(runtime, monkeypatch)
     project_root = tmp_path / "project"
     feature_dir = project_root / ".specify" / "features" / "001-demo"
     feature_dir.mkdir(parents=True)
@@ -874,10 +897,7 @@ def test_handoff_binds_acceptance_denominator_and_task_contract_digests(
             project_root, feature_dir, source_revision=7
         )
 
-    (feature_dir / "workflow-runtime.json").write_text(
-        json.dumps({"stage": "review", "status": "active"}),
-        encoding="utf-8",
-    )
+    workflow_state.update({"stage": "review", "status": "active"})
     (feature_dir / "implementation-handoff.json").unlink()
     with pytest.raises(runtime.ReviewRuntimeError, match="active Implement"):
         runtime.build_implementation_handoff(
@@ -1214,7 +1234,7 @@ def test_closeout_review_requires_approved_fresh_evidence_and_does_not_advance_w
     assert closed["data"]["status"] == "approved"
     assert closed["data"]["fresh"] is True
     assert closed["next_argv"] == [
-        "specify",
+        "specify-runtime",
         "workflow",
         "complete-stage",
         "--feature-dir",

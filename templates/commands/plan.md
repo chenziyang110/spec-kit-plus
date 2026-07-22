@@ -35,7 +35,7 @@ agent_scripts:
 
 ## Main Flow
 
-1. Resolve `FEATURE_DIR` without creating `plan.md`, using the explicit feature argument or `{{specify-subcmd:lane resolve --command plan --ensure-worktree}}`. Enter `plan` with the deterministic workflow transition and stop on exit `10`; do not edit source/runtime/test files.
+1. Resolve `FEATURE_DIR` without creating `plan.md`, using the explicit feature argument or `{{specify-subcmd:lane resolve --command plan --ensure-worktree}}`. Enter `plan` with the deterministic `specify-runtime workflow transition` command and stop on exit `10`; do not edit source/runtime/test files.
 2. Only after the transition succeeds, run `{SCRIPT}` to create the plan skeleton or report `STATUS=noop` without overwriting existing work.
 3. Read canonical `spec-contract.json` first. Reuse its context capsule, evidence refs, and `semantic_delta`; open `spec.md`, alignment/context views, memory, or live project files only when a required reference or stale-evidence condition demands it.
 4. Preserve complete-first scope: do not split confirmed scope into MVP, future-work slices, `v1/v2`, `P0/P1`, or a smaller delivery unless the user confirmed the deferral contract.

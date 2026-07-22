@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import importlib.metadata
 import json
 import os
 import platform
@@ -13,6 +14,8 @@ from pathlib import Path
 from typing import Any, Sequence
 from urllib.request import urlretrieve
 
+from packaging.version import InvalidVersion, Version
+
 from specify_cli.atomic_io import atomic_write_text, interprocess_lock, read_local_state_text
 from specify_cli.launcher import (
     resolve_runtime_launcher_argv,
@@ -20,7 +23,6 @@ from specify_cli.launcher import (
 )
 
 REPO = "chenziyang110/spec-kit-plus"
-DEFAULT_VERSION = "latest"
 EXPECTED_RUNTIME_PROTOCOL = "specify-runtime.v1"
 SOURCE_BUILD_MARKER_VERSION = 1
 REQUIRED_CAPABILITIES = (
@@ -31,15 +33,37 @@ REQUIRED_CAPABILITIES = (
     "artifact.scaffold",
     "artifact.show",
     "artifact.submit",
+    "cognition.run",
     "validate.spec",
-    "workflow.start",
-    "workflow.status",
+    "workflow.show",
+    "workflow.enter",
+    "workflow.next",
+    "workflow.complete-stage",
     "workflow.transition",
+    "workflow.reopen",
+    "workflow.block",
+    "workflow.resolve",
+    "workflow.closeout",
 )
 RUNTIME_COMMAND = "specify-runtime"
 RUNTIME_ENV = "SPECIFY_RUNTIME_BIN"
 RUNTIME_CACHE_ENV = "SPECIFY_RUNTIME_CACHE_DIR"
 ALLOW_DIRTY_ENV = "SPECIFY_RUNTIME_ALLOW_DIRTY"
+
+
+def default_runtime_version() -> str:
+    """Pin stable packages to their matching release and let dev builds track latest."""
+
+    try:
+        package_version = Version(importlib.metadata.version("specify-cli"))
+    except (importlib.metadata.PackageNotFoundError, InvalidVersion):
+        return "latest"
+    if package_version.is_devrelease or package_version.is_prerelease or package_version.local:
+        return "latest"
+    return f"v{package_version.public}"
+
+
+DEFAULT_VERSION = default_runtime_version()
 
 
 class SpecifyRuntimeError(RuntimeError):
@@ -104,8 +128,7 @@ def _env_argv() -> list[str] | None:
     override = os.environ.get(RUNTIME_ENV, "").strip()
     if not override:
         return None
-    parts = [part for part in override.split(os.pathsep) if part]
-    return parts or None
+    return [override]
 
 
 def resolve_specify_runtime_binary(project_root: Path | None = None) -> list[str]:
@@ -135,10 +158,17 @@ def run_specify_runtime(
     *,
     cwd: Path,
     check: bool = True,
+    install_if_missing: bool = False,
 ) -> dict[str, Any]:
     """Run specify-runtime and parse its JSON object stdout."""
 
-    command = [*resolve_specify_runtime_binary(cwd), *args]
+    try:
+        runtime_argv = resolve_specify_runtime_binary(cwd)
+    except SpecifyRuntimeError:
+        if not install_if_missing:
+            raise
+        runtime_argv = [str(ensure_binary())]
+    command = [*runtime_argv, *args]
     result = subprocess.run(
         command,
         cwd=cwd,

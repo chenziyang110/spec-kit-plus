@@ -567,6 +567,59 @@ def _acceptance_repair_recovery_error(
         "--format",
         "json",
     ]
+    workflow_show_argv = [
+        "specify-runtime",
+        "workflow",
+        "show",
+        "--feature-dir",
+        str(feature_dir),
+        "--format",
+        "json",
+    ]
+    workflow_state_ref = f"{_display_path(feature_dir, root)}/workflow-state.md"
+    acceptance_ref = f"{_display_path(feature_dir, root)}/human-acceptance.json"
+    workflow_state_show_argv = [
+        "specify-runtime",
+        "artifact",
+        "show",
+        "--path",
+        workflow_state_ref,
+        "--view",
+        "summary",
+        "--format",
+        "json",
+    ]
+    acceptance_show_argv = [
+        "specify-runtime",
+        "artifact",
+        "show",
+        "--path",
+        acceptance_ref,
+        "--view",
+        "full",
+        "--format",
+        "json",
+    ]
+    acceptance_prepare_argv = [
+        "specify-runtime",
+        "artifact",
+        "prepare",
+        "--path",
+        acceptance_ref,
+        "--format",
+        "json",
+    ]
+    acceptance_submit_argv = [
+        "specify-runtime",
+        "artifact",
+        "submit",
+        "--lease",
+        "<lease-id>",
+        "--content-file",
+        _display_path(backup_path, root),
+        "--format",
+        "json",
+    ]
     blocker = _acceptance_blocker(
         blocker_id="ACCEPTANCE-REPAIR-RECOVERY",
         category="artifact-or-state",
@@ -578,10 +631,11 @@ def _acceptance_repair_recovery_error(
             f"backup: {_display_path(backup_path, root)}",
         ],
         exact_next_action=(
-            "Inspect the journal, backup, workflow-runtime.json, rich workflow-state.md, "
-            "and human-acceptance.json; restore the backup only when the phase runtime "
-            "still names the journal's "
-            "original accept revision, otherwise preserve all files for maintainer review."
+            "Preserve the journal and backup as exceptional recovery evidence; inspect "
+            "phase state with workflow show and canonical artifacts with artifact show. "
+            "Restore human-acceptance.json only through an artifact prepare/submit lease "
+            "when the phase runtime still names the journal's original accept revision; "
+            "otherwise preserve the recovery evidence for maintainer review."
         ),
         unblock_criteria=(
             "The acceptance file and workflow state match one journal phase, and a "
@@ -600,10 +654,12 @@ def _acceptance_repair_recovery_error(
             f"Access to the project at {root}",
             f"The journal at {_display_path(journal_path, root)}",
             f"The backup at {_display_path(backup_path, root)}",
-            "The current workflow-runtime.json, workflow-state.md, and human-acceptance.json files",
+            "Permission to run specify-runtime workflow and artifact commands",
         ],
         "safety_notes": [
             "Do not delete the journal or backup before copying both to a safe location.",
+            "Do not open or edit workflow.json directly; the workflow runtime owns it.",
+            "Do not read or overwrite workflow-state.md or human-acceptance.json outside the artifact CLI.",
             "Do not edit revision numbers or invent a missing acceptance verdict.",
             "Do not paste secrets or unredacted private acceptance evidence into chat.",
         ],
@@ -611,29 +667,49 @@ def _acceptance_repair_recovery_error(
             {
                 "order": 1,
                 "title": "Preserve the recovery packet",
-                "action": "Copy the journal, backup, workflow state, and acceptance state before editing anything.",
+                "action": "Copy the internal journal and backup to a safe location before changing recovery state.",
                 "command": None,
-                "expected_result": "Four unchanged recovery files are available for comparison.",
+                "expected_result": "Unchanged copies of both exceptional recovery records are available.",
                 "if_failed": "Stop without editing and report the inaccessible path and sanitized OS error.",
             },
             {
                 "order": 2,
-                "title": "Match the recorded phase",
-                "action": "Compare the journal expected revision/target with the current workflow stage and acceptance status.",
-                "command": None,
-                "expected_result": "The state matches either the original accept phase or the completed repair handoff.",
-                "if_failed": "Preserve all files and return their stage, status, and revision values; do not guess.",
+                "title": "Read the runtime-owned phase",
+                "action": "Use workflow show and compare its stage/status/revision with the journal.",
+                "command": render_command(tuple(workflow_show_argv)),
+                "expected_result": "The runtime reports either the original accept revision or the completed review handoff.",
+                "if_failed": "Preserve both recovery records and return the typed workflow blocker; do not inspect workflow.json directly.",
             },
             {
                 "order": 3,
-                "title": "Restore only the proven side",
-                "action": "If workflow is still at the original accept revision, restore the backup acceptance file; if the repair handoff is fully committed, keep the draft acceptance file and remove only the journal and backup.",
-                "command": None,
-                "expected_result": "Both durable files describe the same repair phase.",
-                "if_failed": "Stop and return the smallest sanitized filesystem error; do not broaden permissions or delete evidence.",
+                "title": "Read canonical recovery context",
+                "action": (
+                    "Run artifact show for workflow-state.md, then run this command again "
+                    f"with {acceptance_ref} and --view full to inspect human acceptance: "
+                    f"{render_command(tuple(acceptance_show_argv))}"
+                ),
+                "command": render_command(tuple(workflow_state_show_argv)),
+                "expected_result": "The artifact summaries identify the current acceptance status, finding, route, and rich resume state.",
+                "if_failed": "Return the typed artifact blocker without opening either canonical file directly.",
             },
             {
                 "order": 4,
+                "title": "Prepare a guarded restore",
+                "action": "Only for the proven original accept revision, request a write lease for human-acceptance.json.",
+                "command": render_command(tuple(acceptance_prepare_argv)),
+                "expected_result": "The runtime returns one lease ID and a submit argv.",
+                "if_failed": "Stop and return the typed lease blocker; keep the journal and backup unchanged.",
+            },
+            {
+                "order": 5,
+                "title": "Submit the preserved acceptance backup",
+                "action": "Replace <lease-id> with the lease from the prior step and submit the internal backup as content.",
+                "command": render_command(tuple(acceptance_submit_argv)),
+                "expected_result": "The artifact runtime atomically restores human-acceptance.json under the lease.",
+                "if_failed": "Do not retry with direct filesystem writes; return the submit blocker and retain both recovery records.",
+            },
+            {
+                "order": 6,
                 "title": "Verify through the CLI",
                 "action": "Rerun the exact route-repair command with real sanitized evidence and inspect its JSON result.",
                 "command": render_command(tuple(resume_argv)),
@@ -643,7 +719,7 @@ def _acceptance_repair_recovery_error(
         ],
         "verification": [
             "No pending journal remains after a successful recovery",
-            "Workflow stage/revision and acceptance status describe one consistent phase",
+            "Workflow show and artifact show describe one consistent phase",
             "The named open finding and its evidence are preserved",
         ],
         "evidence_to_return": [
@@ -2331,7 +2407,7 @@ def acceptance_closeout_blockers(
         "json",
     ]
     show_argv = [
-        "specify",
+        "specify-runtime",
         "workflow",
         "show",
         "--feature-dir",

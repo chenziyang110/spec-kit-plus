@@ -86,7 +86,7 @@ Use `execution_surface: native-subagents`.
 
 ## Workflow Phase Lock
 
-- [AGENT] Before any artifact or rich-state write, run `{{specify-subcmd:workflow show --feature-dir <feature-dir> --format json}}`. `FEATURE_DIR/workflow-runtime.json` is CLI-owned and this auxiliary workflow must not write it. The expected required-stage owner is `specify`. If the runtime is missing, corrupt, at another stage, or already completed, stop with its blocker or a typed owner handoff naming the observed stage, expected owner, affected files, exact next action, unblock criteria, and resume argv; do not overwrite either state surface to force entry.
+- [AGENT] Before any artifact or rich-state write, run `{{specify-subcmd:specify-runtime workflow show --feature-dir <feature-dir> --format json}}`. `FEATURE_DIR/workflow.json` is CLI-owned and this auxiliary workflow must not write it. The expected required-stage owner is `specify`. If the runtime is missing, corrupt, at another stage, or already completed, stop with its blocker or a typed owner handoff naming the observed stage, expected owner, affected files, exact next action, unblock criteria, and resume argv; do not overwrite either state surface to force entry.
 - [AGENT] Create or resume `WORKFLOW_STATE_FILE` before substantial research.
 - Read `templates/workflow-state-template.md`.
 - If `WORKFLOW_STATE_FILE` already exists, read it first and preserve still-valid `next_action`, `exit_criteria`, and `next_command` details instead of relying on chat memory alone.

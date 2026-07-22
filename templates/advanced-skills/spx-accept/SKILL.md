@@ -66,7 +66,10 @@ journey from the real entrypoint; Agent preparation, automation, or inspection
 never counts as human PASS.
 
 This workflow owns human product acceptance, not code review. It may write only
-`human-acceptance.json` and acceptance-owned workflow-state fields. Do not edit
+`human-acceptance.json` through the launcher-bound `accept` CLI subcommands and acceptance-owned rich
+`workflow-state.md` fields through an `artifact prepare` / `artifact submit`
+lease. It never authors the compact `workflow.json` phase lock; only
+`specify-runtime workflow` may change it. Do not edit
 production source, tests, requirements, planning/task artifacts, or
 implementation lifecycle state; do not commit, push, deploy, or invoke a repair
 workflow inline. Safe reversible local/sandbox runtime startup, readiness, and

@@ -7,15 +7,13 @@ render its JSON-serializable payloads without importing the main CLI module.
 from __future__ import annotations
 
 from copy import deepcopy
-import importlib.metadata
 import json
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any, Mapping
 
 from jsonschema import Draft202012Validator
 
 
-AGENT_PROTOCOL_VERSION = "1.0"
 SCHEMA_VERSIONS: dict[str, int] = {
     "agent-capability": 1,
     "agent-envelope": 1,
@@ -176,28 +174,6 @@ WORKFLOW_BLOCKER_CATEGORIES = tuple(
 
 
 _SCHEMAS: dict[str, dict[str, Any]] = {
-    "agent-handshake-input": _object_schema(
-        "agent-handshake-input",
-        properties={
-            "require": {
-                "type": "array",
-                "items": _STRING,
-                "uniqueItems": True,
-            }
-        },
-    ),
-    "capability-list-input": _object_schema(
-        "capability-list-input",
-        properties={
-            "cursor": {"type": "integer", "minimum": 0, "default": 0},
-            "limit": {
-                "type": "integer",
-                "minimum": 1,
-                "maximum": 200,
-                "default": 20,
-            },
-        },
-    ),
     "capability-show-input": _object_schema(
         "capability-show-input",
         properties={"capability_id": _STRING},
@@ -440,20 +416,6 @@ def validate_workflow_blocker_payload(payload: Mapping[str, Any]) -> list[str]:
 
 _CAPABILITIES: tuple[dict[str, Any], ...] = (
     {
-        "id": "agent.handshake",
-        "summary": "Negotiate the compact Agent API and its schema versions.",
-        "input_schema": "agent-handshake-input",
-        "side_effect": "none",
-        "command": ["specify", "api", "handshake"],
-    },
-    {
-        "id": "agent.capabilities.list",
-        "summary": "List compact capability summaries with cursor pagination.",
-        "input_schema": "capability-list-input",
-        "side_effect": "none",
-        "command": ["specify", "api", "list"],
-    },
-    {
         "id": "agent.capabilities.show",
         "summary": "Expand one selected capability record.",
         "input_schema": "capability-show-input",
@@ -486,49 +448,49 @@ _CAPABILITIES: tuple[dict[str, Any], ...] = (
         "summary": "Read the compact current workflow state.",
         "input_schema": "workflow-show-input",
         "side_effect": "none",
-        "command": ["specify", "workflow", "show"],
+        "command": ["specify-runtime", "workflow", "show"],
     },
     {
         "id": "workflow.enter",
         "summary": "Create a guarded workflow at discussion or specify.",
         "input_schema": "workflow-enter-input",
-        "side_effect": "writes-workflow-runtime",
-        "command": ["specify", "workflow", "enter"],
+        "side_effect": "writes-workflow",
+        "command": ["specify-runtime", "workflow", "enter"],
     },
     {
         "id": "workflow.transition",
         "summary": "Advance exactly one required workflow stage.",
         "input_schema": "workflow-transition-input",
-        "side_effect": "writes-workflow-runtime",
-        "command": ["specify", "workflow", "transition"],
+        "side_effect": "writes-workflow",
+        "command": ["specify-runtime", "workflow", "transition"],
     },
     {
         "id": "workflow.reopen",
         "summary": "Reopen an invalidated earlier or same completed required stage.",
         "input_schema": "workflow-reopen-input",
-        "side_effect": "writes-workflow-runtime",
-        "command": ["specify", "workflow", "reopen"],
+        "side_effect": "writes-workflow",
+        "command": ["specify-runtime", "workflow", "reopen"],
     },
     {
         "id": "workflow.next",
         "summary": "Resolve the next legal runtime action argv.",
         "input_schema": "workflow-next-input",
         "side_effect": "none",
-        "command": ["specify", "workflow", "next"],
+        "command": ["specify-runtime", "workflow", "next"],
     },
     {
         "id": "workflow.complete-stage",
         "summary": "Validate and close one stage without entering its successor.",
         "input_schema": "workflow-complete-stage-input",
-        "side_effect": "writes-workflow-runtime",
-        "command": ["specify", "workflow", "complete-stage"],
+        "side_effect": "writes-workflow",
+        "command": ["specify-runtime", "workflow", "complete-stage"],
     },
     {
         "id": "workflow.resolve",
         "summary": "Resolve one persisted blocker and reactivate its owning stage.",
         "input_schema": "workflow-resolve-input",
-        "side_effect": "writes-workflow-runtime",
-        "command": ["specify", "workflow", "resolve"],
+        "side_effect": "writes-workflow",
+        "command": ["specify-runtime", "workflow", "resolve"],
     },
     {
         "id": "review.prepare",
@@ -555,21 +517,21 @@ _CAPABILITIES: tuple[dict[str, Any], ...] = (
         "id": "workflow.block",
         "summary": "Record a resumable blocker and novice human action guide.",
         "input_schema": "workflow-block-input",
-        "side_effect": "writes-workflow-runtime",
-        "command": ["specify", "workflow", "block"],
+        "side_effect": "writes-workflow",
+        "command": ["specify-runtime", "workflow", "block"],
     },
     {
         "id": "workflow.closeout",
         "summary": "Complete an accepted workflow with a revision guard.",
         "input_schema": "workflow-closeout-input",
-        "side_effect": "writes-workflow-runtime",
-        "command": ["specify", "workflow", "closeout"],
+        "side_effect": "writes-workflow",
+        "command": ["specify-runtime", "workflow", "closeout"],
     },
     {
         "id": "accept.route-repair",
         "summary": "Invalidate a failed verdict and reopen its owning repair stage.",
         "input_schema": "accept-route-repair-input",
-        "side_effect": "writes-workflow-runtime-and-acceptance-state",
+        "side_effect": "writes-workflow-and-acceptance-state",
         "command": ["specify", "accept", "route-repair"],
     },
     {
@@ -584,102 +546,6 @@ _CAPABILITIES: tuple[dict[str, Any], ...] = (
 CAPABILITY_IDS = tuple(record["id"] for record in _CAPABILITIES)
 _CAPABILITY_BY_ID = {record["id"]: record for record in _CAPABILITIES}
 _SCHEMA_OWNER = {record["input_schema"]: record["id"] for record in _CAPABILITIES}
-
-
-def _current_version() -> str:
-    source_pyproject = Path(__file__).resolve().parents[2] / "pyproject.toml"
-    if source_pyproject.is_file():
-        try:
-            import tomllib
-
-            payload = tomllib.loads(source_pyproject.read_text(encoding="utf-8"))
-            version = str(payload.get("project", {}).get("version") or "").strip()
-            if version:
-                return version
-        except (OSError, ValueError):
-            pass
-    try:
-        return importlib.metadata.version("specify-cli")
-    except importlib.metadata.PackageNotFoundError:
-        return "unknown"
-
-
-def capabilities_handshake(
-    *,
-    version: str | None = None,
-    required: Sequence[str] | None = None,
-) -> dict[str, Any]:
-    """Return the minimum information needed to negotiate Agent API use."""
-
-    if isinstance(required, (str, bytes)):
-        raise AgentApiError("required capabilities must be a sequence, not a string")
-    normalized_required = list(
-        dict.fromkeys(str(item).strip() for item in (required or []) if str(item).strip())
-    )
-    missing = [item for item in normalized_required if item not in CAPABILITY_IDS]
-
-    return envelope(
-        "ok" if not missing else "error",
-        "Agent API ready." if not missing else "Required Agent API capabilities are missing.",
-        data={
-            "cli_version": str(version or _current_version()),
-            "protocol_version": AGENT_PROTOCOL_VERSION,
-            "capability_ids": list(CAPABILITY_IDS),
-            "required_capabilities": normalized_required,
-            "missing_capabilities": missing,
-            "schema_versions": dict(SCHEMA_VERSIONS),
-        },
-        next_argv=["specify", "api", "list", "--format", "json"],
-    )
-
-
-def list_capabilities(*, cursor: int = 0, limit: int = 20) -> dict[str, Any]:
-    """List summary cards; callers expand only selected records with ``show``."""
-
-    if not isinstance(cursor, int) or cursor < 0:
-        raise AgentApiError("cursor must be a non-negative integer")
-    if not isinstance(limit, int) or limit < 1 or limit > 200:
-        raise AgentApiError("limit must be an integer between 1 and 200")
-    page = _CAPABILITIES[cursor : cursor + limit]
-    items = [
-        {
-            "id": record["id"],
-            "summary": record["summary"],
-            "schema_version": SCHEMA_VERSIONS["agent-capability"],
-            "show_argv": [
-                "specify",
-                "api",
-                "show",
-                record["id"],
-                "--format",
-                "json",
-            ],
-        }
-        for record in page
-    ]
-    next_cursor = cursor + len(page)
-    next_argv = (
-        [
-            "specify",
-            "api",
-            "list",
-            "--cursor",
-            str(next_cursor),
-            "--limit",
-            str(limit),
-            "--format",
-            "json",
-        ]
-        if next_cursor < len(_CAPABILITIES)
-        else []
-    )
-    return envelope(
-        "ok",
-        f"Returned {len(items)} of {len(_CAPABILITIES)} capabilities.",
-        data={"cursor": cursor, "limit": limit, "total": len(_CAPABILITIES)},
-        items=items,
-        next_argv=next_argv,
-    )
 
 
 def show_capability(capability_id: str) -> dict[str, Any]:
@@ -740,16 +606,13 @@ exit_code_for_status = classify_exit
 
 
 __all__ = [
-    "AGENT_PROTOCOL_VERSION",
     "CAPABILITY_IDS",
     "SCHEMA_VERSIONS",
     "AgentApiError",
     "agent_envelope",
-    "capabilities_handshake",
     "capability_schema",
     "classify_exit",
     "envelope",
     "exit_code_for_status",
-    "list_capabilities",
     "show_capability",
 ]

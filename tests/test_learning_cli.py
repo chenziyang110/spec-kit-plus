@@ -9,7 +9,7 @@ from jsonschema import Draft202012Validator
 from typer.testing import CliRunner
 
 from specify_cli import app
-from tests.conftest import strip_ansi
+from tests.conftest import install_passing_workflow_gate, strip_ansi
 from specify_cli.debug.persistence import MarkdownPersistenceHandler
 from specify_cli.debug.schema import (
     DebugGraphState,
@@ -30,6 +30,9 @@ from specify_cli.workflow_runtime import (
     enter_workflow,
     transition_workflow,
 )
+
+
+pytestmark = pytest.mark.usefixtures("unified_runtime_env")
 
 
 runner = CliRunner()
@@ -3297,7 +3300,8 @@ def test_phase_completion_and_transition_preserve_learning_capture_source(
     project = tmp_path
     (project / ".specify").mkdir(parents=True, exist_ok=True)
     _seed_learning_templates(project)
-    feature_dir = project / "specs" / "runtime-signal"
+    feature_dir = project / ".specify" / "features" / "runtime-signal"
+    install_passing_workflow_gate(project)
     _write_workflow_state(
         feature_dir,
         trigger_signals=[
@@ -3341,7 +3345,8 @@ def test_implement_closeout_validates_state_and_auto_captures(tmp_path: Path) ->
     project = tmp_path
     (project / ".specify").mkdir(parents=True, exist_ok=True)
     _seed_learning_templates(project)
-    feature_dir = project / "specs" / "demo-feature"
+    feature_dir = project / ".specify" / "features" / "demo-feature"
+    install_passing_workflow_gate(project)
     _write_workflow_state(feature_dir)
     _write_implement_tracker(
         feature_dir,
@@ -3351,6 +3356,16 @@ def test_implement_closeout_validates_state_and_auto_captures(tmp_path: Path) ->
         completed_checks=["pytest -q"],
     )
     _write_tasks_and_worker_result(feature_dir)
+    entered = enter_workflow(feature_dir, stage="specify", expected_revision=0)
+    revision = int(entered["data"]["revision"])
+    for target_stage in ("plan", "tasks", "implement"):
+        completed = complete_workflow_stage(feature_dir, expected_revision=revision)
+        transitioned = transition_workflow(
+            feature_dir,
+            target_stage=target_stage,
+            expected_revision=int(completed["data"]["revision"]),
+        )
+        revision = int(transitioned["data"]["revision"])
 
     result = _invoke_in_project(
         project,

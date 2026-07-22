@@ -2,9 +2,13 @@ package main
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -25,6 +29,9 @@ func TestArtifactPrepareSubmitAndProgressiveShow(t *testing.T) {
 	}
 	if path := prepared.Data["canonical_path"]; path != ".specify/features/001-runtime/spec-contract.json" {
 		t.Fatalf("prepare canonical_path = %#v", path)
+	}
+	if prepared.Data["target_exists"] != false || prepared.Data["target_sha256"] != "" {
+		t.Fatalf("prepare target snapshot = %#v, want absent target", prepared.Data)
 	}
 
 	content := json.RawMessage(`{"schema_version":1,"status":"ready","target_need":"A deterministic runtime"}`)
@@ -191,6 +198,176 @@ func TestArtifactNewLeaseCanAtomicallyReplaceExistingArtifact(t *testing.T) {
 	}
 }
 
+func TestArtifactConcurrentLeasesRejectStaleSubmit(t *testing.T) {
+	projectRoot := t.TempDir()
+	service := NewArtifactService(projectRoot)
+	path := "specs/001-runtime/spec.md"
+
+	first := service.Prepare(ArtifactPrepareRequest{Path: path})
+	second := service.Prepare(ArtifactPrepareRequest{Path: path})
+	if first.Status != "ok" || second.Status != "ok" {
+		t.Fatalf("prepare results = %#v %#v, want ok", first, second)
+	}
+
+	firstResult := service.Submit(ArtifactSubmitRequest{
+		LeaseID: first.Data["lease_id"].(string),
+		Content: []byte("# First writer\n"),
+	})
+	if firstResult.Status != "ok" {
+		t.Fatalf("first submit = %#v, want ok", firstResult)
+	}
+	secondResult := service.Submit(ArtifactSubmitRequest{
+		LeaseID: second.Data["lease_id"].(string),
+		Content: []byte("# Stale writer\n"),
+	})
+	if secondResult.Status != "blocked" {
+		t.Fatalf("stale submit = %#v, want blocked", secondResult)
+	}
+
+	stored, err := os.ReadFile(filepath.Join(projectRoot, filepath.FromSlash(path)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(stored) != "# First writer\n" {
+		t.Fatalf("stored = %q, want first writer preserved", stored)
+	}
+}
+
+func TestArtifactLeaseDetectsExistingTargetChangedAfterPrepare(t *testing.T) {
+	projectRoot := t.TempDir()
+	path := "specs/001-runtime/spec.md"
+	target := filepath.Join(projectRoot, filepath.FromSlash(path))
+	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(target, []byte("# Original\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	service := NewArtifactService(projectRoot)
+	prepared := service.Prepare(ArtifactPrepareRequest{Path: path})
+	if prepared.Status != "ok" {
+		t.Fatalf("prepare = %#v, want ok", prepared)
+	}
+	wantDigest := fmt.Sprintf("%x", sha256.Sum256([]byte("# Original\n")))
+	if prepared.Data["target_exists"] != true || prepared.Data["target_sha256"] != wantDigest {
+		t.Fatalf("prepare target snapshot = %#v, want existing digest %s", prepared.Data, wantDigest)
+	}
+	if err := os.WriteFile(target, []byte("# External update\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	result := service.Submit(ArtifactSubmitRequest{
+		LeaseID: prepared.Data["lease_id"].(string),
+		Content: []byte("# Lease update\n"),
+	})
+	if result.Status != "blocked" {
+		t.Fatalf("submit after external update = %#v, want blocked", result)
+	}
+	stored, err := os.ReadFile(target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(stored) != "# External update\n" {
+		t.Fatalf("stored = %q, want external update preserved", stored)
+	}
+}
+
+func TestArtifactInvalidContentConsumesClaimedLease(t *testing.T) {
+	service := NewArtifactService(t.TempDir())
+	prepared := service.Prepare(ArtifactPrepareRequest{Path: "specs/001-runtime/spec-contract.json"})
+	if prepared.Status != "ok" {
+		t.Fatalf("prepare = %#v, want ok", prepared)
+	}
+	leaseID := prepared.Data["lease_id"].(string)
+
+	invalid := service.Submit(ArtifactSubmitRequest{LeaseID: leaseID, Content: []byte("{not-json")})
+	if invalid.Status != "invalid" {
+		t.Fatalf("invalid submit = %#v, want invalid", invalid)
+	}
+	if optionValue(invalid.NextArgv, "--path", "") != "specs/001-runtime/spec-contract.json" {
+		t.Fatalf("invalid submit next argv = %#v, want a fresh prepare command", invalid.NextArgv)
+	}
+	retried := service.Submit(ArtifactSubmitRequest{LeaseID: leaseID, Content: []byte(`{"status":"ready"}`)})
+	if retried.Status != "blocked" {
+		t.Fatalf("retry invalid-content lease = %#v, want blocked", retried)
+	}
+}
+
+func TestArtifactStaleTargetConsumesClaimedLease(t *testing.T) {
+	projectRoot := t.TempDir()
+	target := filepath.Join(projectRoot, "specs", "001-runtime", "spec.md")
+	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(target, []byte("# Original\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	service := NewArtifactService(projectRoot)
+	prepared := service.Prepare(ArtifactPrepareRequest{Path: "specs/001-runtime/spec.md"})
+	leaseID := prepared.Data["lease_id"].(string)
+	if err := os.WriteFile(target, []byte("# External\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	stale := service.Submit(ArtifactSubmitRequest{LeaseID: leaseID, Content: []byte("# Proposed\n")})
+	if stale.Status != "blocked" || optionValue(stale.NextArgv, "--path", "") != "specs/001-runtime/spec.md" {
+		t.Fatalf("stale submit = %#v, want blocked with fresh prepare argv", stale)
+	}
+	retried := service.Submit(ArtifactSubmitRequest{LeaseID: leaseID, Content: []byte("# Reuse\n")})
+	if retried.Status != "blocked" {
+		t.Fatalf("retry stale lease = %#v, want blocked", retried)
+	}
+	stored, err := os.ReadFile(target)
+	if err != nil || string(stored) != "# External\n" {
+		t.Fatalf("stale retry changed target = %q, %v", stored, err)
+	}
+}
+
+func TestArtifactRegistryRejectsRuntimeOwnedAndHiddenPaths(t *testing.T) {
+	tests := []struct {
+		name    string
+		request ArtifactPrepareRequest
+	}{
+		{name: "mixed-case workflow path", request: ArtifactPrepareRequest{Path: ".specify/features/001-runtime/WORKFLOW.json"}},
+		{name: "canonical workflow kind", request: ArtifactPrepareRequest{FeatureID: "001-runtime", Kind: "workflow"}},
+		{name: "terminal acceptance snapshot", request: ArtifactPrepareRequest{Path: ".specify/features/001-runtime/.human-acceptance-terminal.json"}},
+		{name: "acceptance repair journal", request: ArtifactPrepareRequest{Path: ".specify/features/001-runtime/.human-acceptance-repair.json"}},
+		{name: "generic hidden basename", request: ArtifactPrepareRequest{Path: "specs/001-runtime/.private.json"}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			result := NewArtifactService(t.TempDir()).Prepare(test.request)
+			if result.Status != "invalid" {
+				t.Fatalf("prepare = %#v, want invalid", result)
+			}
+		})
+	}
+}
+
+func TestAtomicWriteSyncFailureLeavesExistingTargetUnchanged(t *testing.T) {
+	directory := t.TempDir()
+	target := filepath.Join(directory, "state.json")
+	if err := os.WriteFile(target, []byte("original\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	priorSync := syncAtomicTempFile
+	syncAtomicTempFile = func(*os.File) error { return errors.New("injected temp sync failure") }
+	defer func() { syncAtomicTempFile = priorSync }()
+
+	err := atomicWriteFile(target, []byte("replacement\n"), 0o644)
+	if err == nil || !strings.Contains(err.Error(), "injected temp sync failure") {
+		t.Fatalf("atomic write error = %v, want injected sync failure", err)
+	}
+	stored, readErr := os.ReadFile(target)
+	if readErr != nil || string(stored) != "original\n" {
+		t.Fatalf("target after sync failure = %q, %v", stored, readErr)
+	}
+	matches, globErr := filepath.Glob(filepath.Join(directory, ".state.json.tmp-*"))
+	if globErr != nil || len(matches) != 0 {
+		t.Fatalf("temporary files after sync failure = %#v, %v", matches, globErr)
+	}
+}
+
 func TestArtifactLeaseIsSingleUseAndCannotRedirectOutput(t *testing.T) {
 	projectRoot := t.TempDir()
 	service := NewArtifactService(projectRoot)
@@ -209,6 +386,60 @@ func TestArtifactLeaseIsSingleUseAndCannotRedirectOutput(t *testing.T) {
 	outside := filepath.Join(projectRoot, "redirected.md")
 	if _, err := os.Stat(outside); !os.IsNotExist(err) {
 		t.Fatalf("artifact service created an unregistered output: %v", err)
+	}
+}
+
+func TestArtifactConcurrentSubmitClaimsOneLeaseOnce(t *testing.T) {
+	projectRoot := t.TempDir()
+	service := NewArtifactService(projectRoot)
+	prepared := service.Prepare(ArtifactPrepareRequest{Path: "specs/001-runtime/spec.md"})
+	leaseID := prepared.Data["lease_id"].(string)
+	const contenders = 16
+	start := make(chan struct{})
+	results := make(chan Envelope, contenders)
+	for index := 0; index < contenders; index++ {
+		go func() {
+			<-start
+			results <- service.Submit(ArtifactSubmitRequest{LeaseID: leaseID, Content: []byte("# One writer\n")})
+		}()
+	}
+	close(start)
+	okCount := 0
+	blockedCount := 0
+	for index := 0; index < contenders; index++ {
+		switch result := <-results; result.Status {
+		case "ok":
+			okCount++
+		case "blocked":
+			blockedCount++
+		default:
+			t.Fatalf("concurrent submit = %#v", result)
+		}
+	}
+	if okCount != 1 || blockedCount != contenders-1 {
+		t.Fatalf("concurrent lease results = %d ok, %d blocked", okCount, blockedCount)
+	}
+}
+
+func TestArtifactCorruptClaimCannotBeRetriedOrWriteTarget(t *testing.T) {
+	projectRoot := t.TempDir()
+	service := NewArtifactService(projectRoot)
+	prepared := service.Prepare(ArtifactPrepareRequest{Path: "specs/001-runtime/spec.md"})
+	leaseID := prepared.Data["lease_id"].(string)
+	leasePath, err := service.leasePath(leaseID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(leasePath, []byte(`{"id":`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	first := service.Submit(ArtifactSubmitRequest{LeaseID: leaseID, Content: []byte("# Unsafe\n")})
+	second := service.Submit(ArtifactSubmitRequest{LeaseID: leaseID, Content: []byte("# Retry\n")})
+	if first.Status != "blocked" || second.Status != "blocked" {
+		t.Fatalf("corrupt claim results = %#v %#v, want blocked", first, second)
+	}
+	if _, err := os.Stat(filepath.Join(projectRoot, "specs", "001-runtime", "spec.md")); !os.IsNotExist(err) {
+		t.Fatalf("corrupt lease wrote target: %v", err)
 	}
 }
 
@@ -233,7 +464,7 @@ func TestArtifactShowRejectsUnknownView(t *testing.T) {
 	}
 }
 
-func TestArtifactSubmitRejectsSymlinkedRegisteredParent(t *testing.T) {
+func TestArtifactPrepareRejectsSymlinkedRegisteredParent(t *testing.T) {
 	projectRoot := t.TempDir()
 	outside := t.TempDir()
 	if err := os.Symlink(outside, filepath.Join(projectRoot, "specs")); err != nil {
@@ -241,19 +472,44 @@ func TestArtifactSubmitRejectsSymlinkedRegisteredParent(t *testing.T) {
 	}
 	service := NewArtifactService(projectRoot)
 	prepared := service.Prepare(ArtifactPrepareRequest{Path: "specs/001-runtime/spec.md"})
-	if prepared.Status != "ok" {
-		t.Fatalf("prepare = %#v", prepared)
-	}
-
-	submitted := service.Submit(ArtifactSubmitRequest{
-		LeaseID: prepared.Data["lease_id"].(string),
-		Content: []byte("# Escaped\n"),
-	})
-	if submitted.Status != "blocked" {
-		t.Fatalf("symlinked submit = %#v, want blocked", submitted)
+	if prepared.Status != "blocked" {
+		t.Fatalf("symlinked prepare = %#v, want blocked", prepared)
 	}
 	if _, err := os.Stat(filepath.Join(outside, "001-runtime", "spec.md")); !os.IsNotExist(err) {
 		t.Fatalf("submit escaped the project root: %v", err)
+	}
+}
+
+func TestArtifactSubmitRechecksParentAfterMkdirAll(t *testing.T) {
+	projectRoot := t.TempDir()
+	outside := t.TempDir()
+	service := NewArtifactService(projectRoot)
+	prepared := service.Prepare(ArtifactPrepareRequest{Path: "specs/001-runtime/spec.md"})
+	if prepared.Status != "ok" {
+		t.Fatalf("prepare = %#v, want ok", prepared)
+	}
+
+	var hookErr error
+	service.afterArtifactMkdirAll = func() {
+		parent := filepath.Join(projectRoot, "specs", "001-runtime")
+		if err := os.Remove(parent); err != nil {
+			hookErr = err
+			return
+		}
+		hookErr = os.Symlink(outside, parent)
+	}
+	result := service.Submit(ArtifactSubmitRequest{
+		LeaseID: prepared.Data["lease_id"].(string),
+		Content: []byte("# Escaped after mkdir\n"),
+	})
+	if hookErr != nil {
+		t.Skipf("symlink replacement unavailable: %v", hookErr)
+	}
+	if result.Status != "blocked" {
+		t.Fatalf("submit after parent replacement = %#v, want blocked", result)
+	}
+	if _, err := os.Stat(filepath.Join(outside, "spec.md")); !os.IsNotExist(err) {
+		t.Fatalf("submit escaped through replaced parent: %v", err)
 	}
 }
 

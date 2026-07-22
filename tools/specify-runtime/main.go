@@ -165,28 +165,207 @@ func runWorkflow(args []string, stdout io.Writer) int {
 	if len(args) == 0 {
 		return writeEnvelope(stdout, NewEnvelope("usage-error", "missing workflow subcommand"))
 	}
+	if args[0] == "--help" || args[0] == "-h" || args[0] == "help" {
+		_, _ = fmt.Fprintln(stdout, "specify-runtime workflow commands:")
+		for _, command := range []string{"show", "enter", "next", "complete-stage", "transition", "reopen", "block", "resolve", "closeout"} {
+			_, _ = fmt.Fprintf(stdout, "  %s\n", command)
+		}
+		return 0
+	}
 	projectRoot := optionValue(args, "--project-root", ".")
 	service := NewWorkflowService(projectRoot)
 	switch args[0] {
-	case "start":
-		env := service.Start(WorkflowStartRequest{
-			FeatureID: optionValue(args, "--feature", ""),
-			Stage:     optionValue(args, "--stage", "specify"),
+	case "show":
+		return writeEnvelope(stdout, service.Show(WorkflowShowRequest{FeatureDir: optionValue(args, "--feature-dir", "")}))
+	case "enter":
+		revision, env, ok := workflowRevisionOption(args, "--expected-revision", false, 0)
+		if !ok {
+			return writeEnvelope(stdout, env)
+		}
+		env = service.Enter(WorkflowEnterRequest{
+			FeatureDir:       optionValue(args, "--feature-dir", ""),
+			Command:          optionValue(args, "--command", "specify"),
+			ExpectedRevision: revision,
+			Summary:          optionValue(args, "--summary", ""),
+		})
+		return writeEnvelope(stdout, env)
+	case "next":
+		return writeEnvelope(stdout, service.Next(WorkflowShowRequest{FeatureDir: optionValue(args, "--feature-dir", "")}))
+	case "complete-stage":
+		revision, env, ok := workflowRevisionOption(args, "--expected-revision", true, 0)
+		if !ok {
+			return writeEnvelope(stdout, env)
+		}
+		env = service.CompleteStage(WorkflowCompleteStageRequest{
+			FeatureDir:       optionValue(args, "--feature-dir", ""),
+			ExpectedRevision: revision,
+			Summary:          optionValue(args, "--summary", ""),
 		})
 		return writeEnvelope(stdout, env)
 	case "transition":
-		revision, _ := strconv.Atoi(optionValue(args, "--expected-revision", "0"))
-		env := service.Transition(WorkflowTransitionRequest{
-			FeatureID:        optionValue(args, "--feature", ""),
+		revision, env, ok := workflowRevisionOption(args, "--expected-revision", true, 0)
+		if !ok {
+			return writeEnvelope(stdout, env)
+		}
+		env = service.Transition(WorkflowTransitionRequest{
+			FeatureDir:       optionValue(args, "--feature-dir", ""),
 			To:               optionValue(args, "--to", ""),
 			ExpectedRevision: revision,
+			Summary:          optionValue(args, "--summary", ""),
 		})
 		return writeEnvelope(stdout, env)
-	case "status":
-		return writeEnvelope(stdout, service.Status(optionValue(args, "--feature", "")))
+	case "reopen":
+		revision, env, ok := workflowRevisionOption(args, "--expected-revision", true, 0)
+		if !ok {
+			return writeEnvelope(stdout, env)
+		}
+		env = service.Reopen(WorkflowReopenRequest{
+			FeatureDir:           optionValue(args, "--feature-dir", ""),
+			To:                   optionValue(args, "--to", ""),
+			ExpectedRevision:     revision,
+			Reason:               optionValue(args, "--reason", ""),
+			Evidence:             optionValues(args, "--evidence"),
+			InvalidatedArtifacts: optionValues(args, "--invalidated-artifacts"),
+			RepairRoute:          optionValue(args, "--repair-route", ""),
+			FindingID:            optionValue(args, "--finding-id", ""),
+		})
+		return writeEnvelope(stdout, env)
+	case "block":
+		request, env, ok := readWorkflowBlockInput(projectRoot, optionValue(args, "--input", ""))
+		if !ok {
+			return writeEnvelope(stdout, env)
+		}
+		if override := optionValue(args, "--feature-dir", ""); strings.TrimSpace(override) != "" {
+			request.FeatureDir = override
+		}
+		return writeEnvelope(stdout, service.Block(request))
+	case "resolve":
+		revision, env, ok := workflowRevisionOption(args, "--expected-revision", true, 0)
+		if !ok {
+			return writeEnvelope(stdout, env)
+		}
+		env = service.Resolve(WorkflowResolveRequest{
+			FeatureDir:         optionValue(args, "--feature-dir", ""),
+			ExpectedRevision:   revision,
+			ResolutionEvidence: optionValues(args, "--resolution-evidence"),
+			Summary:            optionValue(args, "--summary", ""),
+		})
+		return writeEnvelope(stdout, env)
+	case "closeout":
+		revision, env, ok := workflowRevisionOption(args, "--expected-revision", true, 0)
+		if !ok {
+			return writeEnvelope(stdout, env)
+		}
+		env = service.Closeout(WorkflowCloseoutRequest{
+			FeatureDir:       optionValue(args, "--feature-dir", ""),
+			ExpectedRevision: revision,
+			Summary:          optionValue(args, "--summary", ""),
+		})
+		return writeEnvelope(stdout, env)
 	default:
 		return writeEnvelope(stdout, NewEnvelope("usage-error", fmt.Sprintf("unknown workflow subcommand %q", args[0])))
 	}
+}
+
+func workflowRevisionOption(args []string, name string, required bool, fallback int) (int, Envelope, bool) {
+	raw := optionValue(args, name, "")
+	if strings.TrimSpace(raw) == "" {
+		if !required {
+			return fallback, Envelope{}, true
+		}
+		env := NewEnvelope("usage-error", fmt.Sprintf("missing required %s", name))
+		env.Data["error_code"] = "invalid-argument"
+		return 0, env, false
+	}
+	revision, err := strconv.Atoi(raw)
+	if err != nil || revision < 0 {
+		env := NewEnvelope("usage-error", fmt.Sprintf("%s must be a non-negative integer", name))
+		env.Data["error_code"] = "invalid-argument"
+		return 0, env, false
+	}
+	return revision, Envelope{}, true
+}
+
+func readWorkflowBlockInput(projectRoot, input string) (WorkflowBlockRequest, Envelope, bool) {
+	var request WorkflowBlockRequest
+	input = strings.TrimSpace(input)
+	if input == "" {
+		env := NewEnvelope("usage-error", "workflow block requires --input")
+		env.Data["error_code"] = "invalid-block-input"
+		return request, env, false
+	}
+	root, err := filepath.Abs(projectRoot)
+	if err == nil {
+		root, err = filepath.EvalSymlinks(root)
+	}
+	if err != nil {
+		env := workflowInvalid("workflow block project root is invalid", "invalid-block-input", err)
+		return request, env, false
+	}
+	inputPath := input
+	if !filepath.IsAbs(inputPath) && filepath.VolumeName(inputPath) == "" {
+		inputPath = filepath.Join(root, filepath.FromSlash(inputPath))
+	}
+	inputPath, err = filepath.Abs(inputPath)
+	if err != nil {
+		env := workflowInvalid("workflow block input path is invalid", "invalid-block-input", err)
+		return request, env, false
+	}
+	relative, err := filepath.Rel(root, inputPath)
+	if err != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
+		env := workflowInvalid("workflow block input must stay inside the project", "invalid-block-input", fmt.Errorf("--input must be a project-root-contained JSON file"))
+		return request, env, false
+	}
+	secureInput, err := secureProjectPath(root, filepath.ToSlash(relative))
+	if err != nil || !sameFilesystemPath(secureInput, inputPath) {
+		if err == nil {
+			err = fmt.Errorf("input path is not canonical")
+		}
+		env := workflowInvalid("workflow block input path is unsafe", "invalid-block-input", err)
+		return request, env, false
+	}
+	if !strings.EqualFold(filepath.Ext(secureInput), ".json") {
+		env := workflowInvalid("workflow block input type is invalid", "invalid-block-input", fmt.Errorf("--input must name a JSON file"))
+		return request, env, false
+	}
+	info, err := os.Stat(secureInput)
+	if err != nil || !info.Mode().IsRegular() {
+		if err == nil {
+			err = fmt.Errorf("--input must be a regular file")
+		}
+		env := workflowInvalid("workflow block input is unavailable", "invalid-block-input", err)
+		return request, env, false
+	}
+	raw, err := os.ReadFile(secureInput)
+	if err != nil {
+		env := workflowInvalid("workflow block input is unavailable", "invalid-block-input", err)
+		return request, env, false
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &fields); err != nil {
+		env := workflowInvalid("workflow block input is invalid", "invalid-block-input", err)
+		return request, env, false
+	}
+	for _, required := range []string{
+		"feature_dir", "expected_revision", "category", "owner", "cause", "evidence",
+		"attempted_recovery", "affected_scope", "exact_next_action", "unblock_criteria",
+	} {
+		if _, ok := fields[required]; !ok {
+			env := workflowInvalid("workflow block input is invalid", "invalid-block-input", fmt.Errorf("missing required field %q", required))
+			return request, env, false
+		}
+	}
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&request); err != nil {
+		env := workflowInvalid("workflow block input is invalid", "invalid-block-input", err)
+		return request, env, false
+	}
+	if err := ensureJSONEOF(decoder); err != nil {
+		env := workflowInvalid("workflow block input is invalid", "invalid-block-input", err)
+		return request, env, false
+	}
+	return request, Envelope{}, true
 }
 
 func runValidate(args []string, stdout io.Writer) int {
@@ -300,6 +479,17 @@ func optionValue(args []string, name, fallback string) string {
 	return fallback
 }
 
+func optionValues(args []string, name string) []string {
+	values := []string{}
+	for index := 0; index < len(args)-1; index++ {
+		if args[index] == name {
+			values = append(values, args[index+1])
+			index++
+		}
+	}
+	return values
+}
+
 func hasFlag(args []string, name string) bool {
 	for _, arg := range args {
 		if arg == name {
@@ -310,12 +500,64 @@ func hasFlag(args []string, name string) bool {
 }
 
 func writeEnvelope(stdout io.Writer, env Envelope) int {
+	bindEnvelopeRuntimeArgv(&env)
 	encoder := json.NewEncoder(stdout)
 	encoder.SetEscapeHTML(false)
 	if err := encoder.Encode(env); err != nil {
 		return 1
 	}
 	return ExitCodeForStatus(env.Status)
+}
+
+func bindEnvelopeRuntimeArgv(env *Envelope) {
+	executable, err := os.Executable()
+	if err != nil || strings.TrimSpace(executable) == "" {
+		return
+	}
+	if absolute, absErr := filepath.Abs(executable); absErr == nil {
+		executable = absolute
+	}
+	bind := func(argv []string) []string {
+		if len(argv) > 0 && argv[0] == "specify-runtime" {
+			result := append([]string{}, argv...)
+			result[0] = executable
+			return result
+		}
+		return argv
+	}
+	env.NextArgv = bind(env.NextArgv)
+	env.ShowArgv = bind(env.ShowArgv)
+	env.Data = bindRuntimeArgvValue(env.Data, executable).(map[string]any)
+	env.Items = bindRuntimeArgvValue(env.Items, executable).([]any)
+	env.Blockers = bindRuntimeArgvValue(env.Blockers, executable).([]any)
+}
+
+func bindRuntimeArgvValue(value any, executable string) any {
+	switch typed := value.(type) {
+	case map[string]any:
+		result := make(map[string]any, len(typed))
+		for key, item := range typed {
+			result[key] = bindRuntimeArgvValue(item, executable)
+		}
+		return result
+	case []any:
+		result := make([]any, len(typed))
+		for index, item := range typed {
+			result[index] = bindRuntimeArgvValue(item, executable)
+		}
+		if len(result) > 0 && result[0] == "specify-runtime" {
+			result[0] = executable
+		}
+		return result
+	case []string:
+		result := append([]string{}, typed...)
+		if len(result) > 0 && result[0] == "specify-runtime" {
+			result[0] = executable
+		}
+		return result
+	default:
+		return value
+	}
 }
 
 func defaultCapabilities() []string {
@@ -327,9 +569,16 @@ func defaultCapabilities() []string {
 		"artifact.scaffold",
 		"artifact.show",
 		"artifact.submit",
+		"cognition.run",
 		"validate.spec",
-		"workflow.start",
-		"workflow.status",
+		"workflow.block",
+		"workflow.closeout",
+		"workflow.complete-stage",
+		"workflow.enter",
+		"workflow.next",
+		"workflow.reopen",
+		"workflow.resolve",
+		"workflow.show",
 		"workflow.transition",
 	}
 	sort.Strings(capabilities)
@@ -362,16 +611,30 @@ func capabilitySummary(id string) string {
 		return "Create a registered, create-only workflow artifact scaffold."
 	case "artifact.submit":
 		return "Write leased artifact content atomically."
+	case "cognition.run":
+		return "Run the namespaced project cognition command surface."
 	case "artifact.show":
 		return "Read compact or full artifact views."
 	case "validate.spec":
 		return "Validate core specification artifacts."
-	case "workflow.start":
-		return "Create the typed workflow state."
-	case "workflow.status":
+	case "workflow.show":
 		return "Read the current typed workflow state."
+	case "workflow.enter":
+		return "Create the typed workflow state at discussion or specify."
+	case "workflow.next":
+		return "Resolve the exact revision-bound next workflow action."
+	case "workflow.complete-stage":
+		return "Validate artifacts and complete the active workflow stage."
 	case "workflow.transition":
-		return "Advance workflow state with optimistic revision checks."
+		return "Validate artifacts and advance one completed workflow stage."
+	case "workflow.reopen":
+		return "Reopen an invalidated earlier stage or route a guarded acceptance repair."
+	case "workflow.block":
+		return "Persist one structured workflow blocker."
+	case "workflow.resolve":
+		return "Resolve a persisted workflow blocker with evidence."
+	case "workflow.closeout":
+		return "Atomically bind passed human acceptance to terminal workflow state."
 	default:
 		return "Runtime capability."
 	}

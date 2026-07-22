@@ -10,13 +10,31 @@ jobs:
     permissions:
       contents: write
     steps:
+      - name: Check whether runtime assets are missing
+        id: assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          expected='["specify-runtime-linux-amd64","specify-runtime-linux-arm64","specify-runtime-darwin-amd64","specify-runtime-darwin-arm64","specify-runtime-windows-amd64.exe"]'
+          actual="$(gh release view "$RELEASE_TAG" --json assets --jq '[.assets[] | select(.size > 0) | .name]')"
+          if jq -e --argjson expected "$expected" --argjson actual "$actual" \
+            '$expected - $actual | length == 0' >/dev/null; then
+            echo "missing=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "missing=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - uses: actions/checkout@v7
+        if: steps.assets.outputs.missing == 'true'
 
       - uses: actions/setup-go@v6
+        if: steps.assets.outputs.missing == 'true'
         with:
           go-version: '1.21'
 
       - name: Cross-compile specify-runtime
+        if: steps.assets.outputs.missing == 'true'
         working-directory: tools/specify-runtime
         run: |
           mkdir -p bin
@@ -54,12 +72,17 @@ jobs:
           bin/specify-runtime-linux-amd64 version --format json | grep -q '"protocol_version":"specify-runtime.v1"'
           bin/specify-runtime-linux-amd64 artifact catalog --format json | grep -q '"quick-status"'
           bin/specify-runtime-linux-amd64 artifact catalog --format json | grep -q '"plan-contract"'
+          workflow_help="$(bin/specify-runtime-linux-amd64 workflow --help 2>&1)"
+          for command in show enter next complete-stage transition reopen block resolve closeout; do
+            grep -q "$command" <<<"$workflow_help"
+          done
           bin/specify-runtime-linux-amd64 cognition scan-prepare --help 2>&1 | grep -q -- "-force"
           bin/specify-runtime-linux-amd64 cognition scan-prepare --help 2>&1 | grep -q -- "-safety-percent"
           bin/specify-runtime-linux-amd64 cognition scan-lease --help 2>&1 | grep -q -- "-worker-capacity-tokens"
           bin/specify-runtime-linux-amd64 cognition scan-accept --help 2>&1 | grep -q -- "-packet-id"
 
       - name: Upload binaries to release
+        if: steps.assets.outputs.missing == 'true'
         uses: softprops/action-gh-release@v3
         with:
           files: tools/specify-runtime/bin/*

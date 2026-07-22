@@ -1,7 +1,7 @@
 package main
 
 type Envelope struct {
-	Blockers []string       `json:"blockers"`
+	Blockers []any          `json:"blockers"`
 	Data     map[string]any `json:"data"`
 	Items    []any          `json:"items"`
 	NextArgv []string       `json:"next_argv"`
@@ -12,7 +12,7 @@ type Envelope struct {
 
 func NewEnvelope(status, summary string) Envelope {
 	return Envelope{
-		Blockers: []string{},
+		Blockers: []any{},
 		Data:     map[string]any{},
 		Items:    []any{},
 		NextArgv: []string{},

@@ -12,10 +12,11 @@ def test_lint_cli_forwards_compact_agent_output_options(monkeypatch) -> None:
     captured: dict[str, object] = {}
 
     def fake_run(
-        args: list[str], *, cwd, check: bool = True
+        args: list[str], *, cwd, check: bool = True, install_if_missing: bool = False
     ) -> dict[str, object]:
         captured["args"] = args
         captured["check"] = check
+        captured["install_if_missing"] = install_if_missing
         return {"status": "ok", "summary": "spec valid"}
 
     def fake_ensure_binary(*, force: bool = False):
@@ -53,6 +54,7 @@ def test_lint_cli_forwards_compact_agent_output_options(monkeypatch) -> None:
             "--show-passes",
         ],
         "check": False,
+        "install_if_missing": True,
         "force": True,
     }
 
@@ -60,7 +62,9 @@ def test_lint_cli_forwards_compact_agent_output_options(monkeypatch) -> None:
 def test_lint_cli_contract_is_strict_and_agent_discoverable(monkeypatch) -> None:
     called = False
 
-    def fake_run(args: list[str], *, cwd, check: bool = True) -> dict[str, object]:
+    def fake_run(
+        args: list[str], *, cwd, check: bool = True, install_if_missing: bool = False
+    ) -> dict[str, object]:
         nonlocal called
         called = True
         return {"status": "ok"}

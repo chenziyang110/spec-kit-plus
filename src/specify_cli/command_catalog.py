@@ -18,8 +18,6 @@ _READ_ONLY_OPERATIONS = frozenset(
     {
         "api.command",
         "api.commands",
-        "api.handshake",
-        "api.list",
         "api.schema",
         "api.show",
         "accept.closeout",

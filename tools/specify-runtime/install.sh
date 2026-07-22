@@ -53,7 +53,7 @@ fi
 chmod 0755 "$candidate"
 
 handshake="$("$candidate" api handshake --format json)"
-if [[ "$handshake" != *'"protocol_version":"specify-runtime.v1"'* || "$handshake" != *'"artifact.catalog"'* || "$handshake" != *'"artifact.prepare"'* || "$handshake" != *'"artifact.scaffold"'* || "$handshake" != *'"artifact.show"'* || "$handshake" != *'"artifact.submit"'* || "$handshake" != *'"validate.spec"'* || "$handshake" != *'"workflow.start"'* || "$handshake" != *'"workflow.status"'* || "$handshake" != *'"workflow.transition"'* ]]; then
+if [[ "$handshake" != *'"protocol_version":"specify-runtime.v1"'* || "$handshake" != *'"artifact.catalog"'* || "$handshake" != *'"artifact.prepare"'* || "$handshake" != *'"artifact.scaffold"'* || "$handshake" != *'"artifact.show"'* || "$handshake" != *'"artifact.submit"'* || "$handshake" != *'"cognition.run"'* || "$handshake" != *'"validate.spec"'* || "$handshake" != *'"workflow.show"'* || "$handshake" != *'"workflow.enter"'* || "$handshake" != *'"workflow.next"'* || "$handshake" != *'"workflow.complete-stage"'* || "$handshake" != *'"workflow.transition"'* || "$handshake" != *'"workflow.reopen"'* || "$handshake" != *'"workflow.block"'* || "$handshake" != *'"workflow.resolve"'* || "$handshake" != *'"workflow.closeout"'* ]]; then
   echo "Downloaded binary failed the specify-runtime API handshake" >&2
   exit 1
 fi

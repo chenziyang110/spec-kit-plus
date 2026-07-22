@@ -19,7 +19,7 @@ rules, ready tasks, and cognition-selected live paths before editing.
 Transition from the validated `tasks` stage into `implement` through the
 workflow runtime before any source or test edit.
 
-Recover durable execution truth before work: CLI-owned `workflow-runtime.json`
+Recover durable execution truth before work: CLI-owned `workflow.json`
 is the required phase gate; rich `workflow-state.md` is resume, evidence, and
 optional Analyze Gate context, while the compact execution state is the
 implementation source of truth,

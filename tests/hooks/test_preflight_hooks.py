@@ -834,7 +834,9 @@ def test_preflight_warns_support_drift_with_support_specific_guidance(monkeypatc
             "reasons": ["tool-managed support surface changed: .specify/templates/runtime-config.template.json"],
         }
 
-    monkeypatch.setattr("specify_cli.hooks.project_cognition.run_project_cognition", support_drift)
+    monkeypatch.setattr(
+        "specify_cli.hooks.project_cognition.run_specify_runtime", support_drift
+    )
 
     result = run_quality_hook(
         project,

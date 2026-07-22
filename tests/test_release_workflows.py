@@ -25,6 +25,8 @@ def test_release_workflow_uploads_unified_runtime_binaries():
     assert './dist/release-tools/specify-runtime-linux-amd64 version --format json | grep -q \'"protocol_version":"specify-runtime.v1"\'' in content
     assert './dist/release-tools/specify-runtime-linux-amd64 artifact catalog --format json | grep -q \'"quick-status"\'' in content
     assert './dist/release-tools/specify-runtime-linux-amd64 artifact catalog --format json | grep -q \'"plan-contract"\'' in content
+    assert "workflow --help 2>&1" in content
+    assert "show enter next complete-stage transition reopen block resolve closeout" in content
     assert "cognition scan-prepare --help 2>&1 | grep -q -- \"-force\"" in content
     assert "cognition scan-lease --help 2>&1 | grep -q -- \"-worker-capacity-tokens\"" in content
     assert "cognition scan-accept --help 2>&1 | grep -q -- \"-packet-id\"" in content
@@ -66,6 +68,8 @@ def test_runtime_fallback_release_smokes_namespaced_cognition_commands():
     assert 'bin/specify-runtime-linux-amd64 version --format json | grep -q \'"protocol_version":"specify-runtime.v1"\'' in content
     assert 'bin/specify-runtime-linux-amd64 artifact catalog --format json | grep -q \'"quick-status"\'' in content
     assert 'bin/specify-runtime-linux-amd64 artifact catalog --format json | grep -q \'"plan-contract"\'' in content
+    assert "workflow --help 2>&1" in content
+    assert "show enter next complete-stage transition reopen block resolve closeout" in content
 
 
 def test_runtime_installers_require_artifact_and_workflow_capabilities() -> None:
@@ -76,7 +80,20 @@ def test_runtime_installers_require_artifact_and_workflow_capabilities() -> None
         encoding="utf-8"
     )
 
-    for capability in ("artifact.scaffold", "artifact.submit", "workflow.transition"):
+    for capability in (
+        "artifact.scaffold",
+        "artifact.submit",
+        "cognition.run",
+        "workflow.show",
+        "workflow.enter",
+        "workflow.next",
+        "workflow.complete-stage",
+        "workflow.transition",
+        "workflow.reopen",
+        "workflow.block",
+        "workflow.resolve",
+        "workflow.closeout",
+    ):
         assert capability in shell
         assert capability.replace(".", r"\.") in powershell
 
@@ -102,3 +119,6 @@ def test_runtime_attach_workflow_remains_fallback_only():
     assert "release:" in content
     assert "types: [published]" in content
     assert "tools/specify-runtime/bin/*" in content
+    assert "Check whether runtime assets are missing" in content
+    assert "steps.assets.outputs.missing == 'true'" in content
+    assert "gh release view" in content

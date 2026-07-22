@@ -17,7 +17,7 @@ def _surface(name: str) -> str:
 def test_implement_preserves_state_external_evidence_and_handoff_boundaries() -> None:
     content = _surface("implement")
 
-    assert "workflow-runtime.json is the required phase gate" in content
+    assert "workflow.json is the required phase gate" in content
     assert "workflow-state.md is the phase gate" not in content
     assert "external-evidence-checkpoint" in content
     assert "mandatory_for_completion" in content

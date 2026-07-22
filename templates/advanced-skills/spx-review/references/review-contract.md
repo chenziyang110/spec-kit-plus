@@ -30,7 +30,7 @@ reconstruct the ledger.
 for stable fields. Review owns that state, `review-evidence/**`, Review result
 records, bounded source/test repairs, and Review-owned rich workflow-state
 fields. It must not silently rewrite specification, plan, tasks, task lifecycle
-acceptance, or CLI-owned `workflow-runtime.json`.
+acceptance, or CLI-owned `workflow.json`.
 
 On resume, validate the persisted source revision, handoff digest, current
 implementation/configuration fingerprint, Review cycle id, prior approved
@@ -117,7 +117,7 @@ repair and revalidation. Only a proven upstream truth gap may leave Review.
   blocked Review with the full Human Action Guide and exact resume point.
 
 For a proven truth gap, use the runtime-provided reopen argv when present.
-Otherwise use `workflow reopen` with current revision, compact reason,
+Otherwise use `specify-runtime workflow reopen` with current revision, compact reason,
 sanitized evidence, and the complete invalidated-artifact set. The upstream
 workflow never declares Review passed; return to the reopened Review owner for
 scenario revalidation.

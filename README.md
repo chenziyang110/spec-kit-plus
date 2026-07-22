@@ -687,29 +687,29 @@ not invent unsupported names such as `specify create-feature`.
 
 ### Agent-facing CLI discovery and workflow guard
 
-Agents should start with `specify api handshake --format json`; add repeated or
-comma-separated `--require` capability IDs when a workflow depends on a stable
-surface. `specify api list` lists the compact optimized Agent API, while
-`specify api commands --format json` inventories every live CLI operation as
+Agents should start with `specify-runtime api handshake --format json` and use
+`specify-runtime api list --format json` to discover the compact unified-runtime
+surface. The remaining Python domain commands stay progressively discoverable:
+`specify api commands --format json` inventories live Typer operations as
 summary cards. Expand only a selected operation with
-`specify api command <dot-separated-id> --format json`, or expand one stable
-capability/schema with `specify api show` and `specify api schema`. This keeps
-help text and parameters out of context until they are needed.
+`specify api command <dot-separated-id> --format json`, or expand one Python
+domain capability/schema with `specify api show` and `specify api schema`. This
+keeps help text and parameters out of context until they are needed.
 
-Feature phase order lives in CLI-owned `FEATURE_DIR/workflow-runtime.json`;
+Feature phase order lives in CLI-owned `FEATURE_DIR/workflow.json`;
 rich `workflow-state.md` remains workflow-owned evidence and Learning state.
-Feature stages use `specify workflow show|enter|next|complete-stage|transition|reopen|block|resolve|closeout`.
-After an active stage's artifacts pass, its owner runs `specify workflow complete-stage`
+Feature stages use `specify-runtime workflow show|enter|next|complete-stage|transition|reopen|block|resolve|closeout`.
+After an active stage's artifacts pass, its owner runs `specify-runtime workflow complete-stage`
 with the current revision. The destination stage then runs the exact returned
-`specify workflow transition --to <stage>` argv. Only completed `accept` is
+`specify-runtime workflow transition --to <stage>` argv. Only completed `accept` is
 terminal. The CLI refuses skips or stale writes without mutation. Exit code `10` means a durable,
 resumable business blocker, `2` means invalid usage, `1` means execution
 failure, and `0` means success. Human-owned blockers include exact steps,
 expected results, safe failure branches, evidence to return, and resume argv.
-Evidence-backed `workflow reopen` handles an invalidated earlier or same
+Evidence-backed `specify-runtime workflow reopen` handles an invalidated earlier or same
 completed non-accept stage without deleting stale artifacts; failed acceptance
 uses atomic `accept route-repair`. An unresolved blocker cannot be replaced or
-bypassed. After its criteria are proven, `workflow resolve` reactivates the same
+bypassed. After its criteria are proven, `specify-runtime workflow resolve` reactivates the same
 owner and preserves the complete blocker audit.
 
 Optional feasibility branch when `sp-specify` finds an unproven implementation chain:
@@ -792,7 +792,7 @@ Conditional gates and follow-up commands:
 - Support drift is not runtime-truth staleness. When `freshness` is `support_drift`, resolve or ignore the support-surface change instead of reflexively routing to `map-update`.
 - Map points, code proves: technical claims must be backed by live code, tests, scripts, configuration, or authoritative docs.
 - Planning-only workflows do not acquire source mutation authority: `specify`, `clarify`, `deep-research`, `plan`, and `tasks` write their owned planning artifacts only. If a request requires source/runtime/template/config/test/generated-asset changes, they must hand off to a registry-owned mutation workflow and stop; they do not conditionally run mutation closeout themselves. The receiving mutation owner applies its rendered planner-first project cognition closeout, while `sp-map-update` remains the external/manual maintenance workflow for user edits, interrupted workflow repair, explicit map maintenance, and follow-up repair.
-- `auto` to resume the recommended next workflow step from current repository state; for feature stages it reads `workflow-runtime.json` through `workflow show` then `workflow next` and consumes structured `next_argv` before consulting rich `workflow-state.md`, `implement-tracker.md`, quick-task `STATUS.md`, or debug session files. It continues under the routed workflow's contract without rewriting downstream state to `sp-auto`. When the routed workflow would only ask a bounded question or confirmation with one safe recommended/default answer, `auto` accepts that recommendation and continues; when it cannot do so safely, it reports the blocker plus a self-unblock recommendation instead of waiting silently.
+- `auto` to resume the recommended next workflow step from current repository state; for feature stages it reads `workflow.json` through `specify-runtime workflow show` then `specify-runtime workflow next` and consumes structured `next_argv` before consulting rich `workflow-state.md`, `implement-tracker.md`, quick-task `STATUS.md`, or debug session files. It continues under the routed workflow's contract without rewriting downstream state to `sp-auto`. When the routed workflow would only ask a bounded question or confirmation with one safe recommended/default answer, `auto` accepts that recommendation and continues; when it cannot do so safely, it reports the blocker plus a self-unblock recommendation instead of waiting silently.
 - when concurrent feature lanes exist, `auto` should prefer lane registry plus reconcile over branch-only recency and should only auto-resume when exactly one safe candidate remains
 - `ask` for read-only evidence-backed project Q&A. Use it when you need a direct answer from project files, templates, docs, state, or memory before choosing an action workflow. Project cognition guides the search; live evidence proves the answer. Same-topic follow-ups reuse the prior evidence set when it still applies, localized or project-slang terms are normalized into project vocabulary, and complex answers separate proven facts from evidence-derived inferences. `sp-ask` is independent from `sp-discussion`; it creates no ask state or handoff, makes no source edits, and does not run tests, builds, package managers, or project CLI commands by default. Do not teach a `specify ask` helper in v1.
 - `discussion` to shape a rough idea before formal specification or bounded quick execution. It keeps human replies natural while Agent state and the single `handoff-to-specify.json` contract stay machine-oriented. `sp-specify` compiles a confirmed contract into `spec-contract.json`; `sp-quick` may consume it only when quick eligibility remains bounded. When the contract introduces no quick-stage `semantic_delta`, Quick binds understanding to the confirmed `review_digest` and does not ask for the same confirmation again.

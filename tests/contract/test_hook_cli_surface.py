@@ -11,6 +11,12 @@ from typer.testing import CliRunner
 
 from specify_cli import app
 from specify_cli.hooks import artifact_validation as artifact_validation_mod
+from specify_cli.workflow_runtime import (
+    complete_workflow_stage,
+    enter_workflow,
+    transition_workflow,
+)
+from tests.conftest import install_passing_workflow_gate
 from tests.project_cognition_fake import (
     install_fake_project_cognition,
     write_project_cognition_status,
@@ -51,7 +57,14 @@ def _create_project(tmp_path: Path) -> Path:
 
 
 @pytest.fixture(autouse=True)
-def _fake_project_cognition_tool(monkeypatch, tmp_path: Path) -> None:
+def _fake_project_cognition_tool(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    built_unified_runtime: Path,
+) -> None:
+    """Fake cognition while forwarding every other namespace to the Go runtime."""
+
+    monkeypatch.setenv("SPECIFY_TEST_REAL_RUNTIME_BIN", str(built_unified_runtime))
     install_fake_project_cognition(monkeypatch, tmp_path)
 
 
@@ -598,7 +611,7 @@ def test_map_build_capability_diagram_validation_accepts_project_map_prefixed_pa
 
 def test_hook_validate_state_outputs_parseable_json(tmp_path: Path):
     project = _create_project(tmp_path)
-    feature_dir = project / "specs" / "001-demo"
+    feature_dir = project / ".specify" / "features" / "001-demo"
     feature_dir.mkdir(parents=True, exist_ok=True)
     (feature_dir / "workflow-state.md").write_text(
         "\n".join(
@@ -670,7 +683,7 @@ def test_hook_validate_state_supports_fixed_specify_lifecycle_state_shape(
     tmp_path: Path,
 ):
     project = _create_project(tmp_path)
-    feature_dir = project / "specs" / "001-demo"
+    feature_dir = project / ".specify" / "features" / "001-demo"
     feature_dir.mkdir(parents=True, exist_ok=True)
     (feature_dir / "workflow-state.md").write_text(
         "\n".join(
@@ -759,7 +772,7 @@ def test_hook_cli_surface_locks_fixed_specify_template_contract() -> None:
 
 def test_hook_validate_state_supports_frontmatter_fallback_via_cli(tmp_path: Path):
     project = _create_project(tmp_path)
-    feature_dir = project / "specs" / "001-demo"
+    feature_dir = project / ".specify" / "features" / "001-demo"
     feature_dir.mkdir(parents=True, exist_ok=True)
     (feature_dir / "workflow-state.md").write_text(
         "\n".join(
@@ -810,7 +823,7 @@ def test_hook_validate_state_supports_frontmatter_fallback_via_cli(tmp_path: Pat
 
 def test_hook_validate_state_autofix_repairs_missing_sections_via_cli(tmp_path: Path):
     project = _create_project(tmp_path)
-    feature_dir = project / "specs" / "001-demo"
+    feature_dir = project / ".specify" / "features" / "001-demo"
     feature_dir.mkdir(parents=True, exist_ok=True)
     target = feature_dir / "workflow-state.md"
     target.write_text(
@@ -854,7 +867,7 @@ def test_hook_validate_state_autofix_repairs_missing_sections_via_cli(tmp_path: 
 
 def test_hook_validate_state_escapes_unicode_for_non_utf8_stdout(tmp_path: Path):
     project = _create_project(tmp_path)
-    feature_dir = project / "specs" / "001-demo"
+    feature_dir = project / ".specify" / "features" / "001-demo"
     feature_dir.mkdir(parents=True, exist_ok=True)
     (feature_dir / "workflow-state.md").write_text(
         "\n".join(
@@ -933,7 +946,7 @@ def test_hook_validate_state_escapes_unicode_for_non_utf8_stdout(tmp_path: Path)
 
 def test_hook_validate_state_supports_constitution_command(tmp_path: Path):
     project = _create_project(tmp_path)
-    feature_dir = project / "specs" / "001-demo"
+    feature_dir = project / ".specify" / "features" / "001-demo"
     feature_dir.mkdir(parents=True, exist_ok=True)
     (feature_dir / "workflow-state.md").write_text(
         "\n".join(
@@ -1116,7 +1129,7 @@ def test_hook_validate_state_supports_prd_scan_command(tmp_path: Path):
 
 def test_hook_preflight_blocks_implement_and_returns_json(tmp_path: Path):
     project = _create_project(tmp_path)
-    feature_dir = project / "specs" / "001-demo"
+    feature_dir = project / ".specify" / "features" / "001-demo"
     feature_dir.mkdir(parents=True, exist_ok=True)
     (feature_dir / "workflow-state.md").write_text(
         "\n".join(
@@ -1165,7 +1178,7 @@ def test_hook_validate_state_implement_json_includes_implementation_review(
     tmp_path: Path,
 ):
     project = _create_project(tmp_path)
-    feature_dir = project / "specs" / "001-demo"
+    feature_dir = project / ".specify" / "features" / "001-demo"
     feature_dir.mkdir(parents=True, exist_ok=True)
     (feature_dir / "implement-tracker.md").write_text(
         "\n".join(
@@ -1213,7 +1226,7 @@ def test_hook_validate_state_implement_blocked_json_includes_implementation_revi
     tmp_path: Path,
 ):
     project = _create_project(tmp_path)
-    feature_dir = project / "specs" / "001-demo"
+    feature_dir = project / ".specify" / "features" / "001-demo"
     feature_dir.mkdir(parents=True, exist_ok=True)
     (feature_dir / "implement-tracker.md").write_text(
         "\n".join(
@@ -1312,7 +1325,7 @@ def test_hook_checkpoint_outputs_resume_payload_json(tmp_path: Path):
 
 def test_hook_checkpoint_supports_constitution_command(tmp_path: Path):
     project = _create_project(tmp_path)
-    feature_dir = project / "specs" / "001-demo"
+    feature_dir = project / ".specify" / "features" / "001-demo"
     feature_dir.mkdir(parents=True, exist_ok=True)
     (feature_dir / "workflow-state.md").write_text(
         "\n".join(
@@ -1485,7 +1498,7 @@ def test_hook_checkpoint_supports_prd_build_command(tmp_path: Path):
 
 def test_hook_validate_artifacts_supports_constitution_command(tmp_path: Path):
     project = _create_project(tmp_path)
-    feature_dir = project / "specs" / "001-demo"
+    feature_dir = project / ".specify" / "features" / "001-demo"
     feature_dir.mkdir(parents=True, exist_ok=True)
     memory_dir = project / ".specify" / "memory"
     memory_dir.mkdir(parents=True, exist_ok=True)
@@ -1518,7 +1531,7 @@ def test_hook_validate_artifacts_blocks_implement_when_tracker_is_missing(
     tmp_path: Path,
 ):
     project = _create_project(tmp_path)
-    feature_dir = project / "specs" / "001-demo"
+    feature_dir = project / ".specify" / "features" / "001-demo"
     feature_dir.mkdir(parents=True, exist_ok=True)
 
     result = _invoke_in_project(
@@ -1544,7 +1557,7 @@ def test_hook_validate_artifacts_blocks_packetized_implement_missing_review_ledg
     tmp_path: Path,
 ):
     project = _create_project(tmp_path)
-    feature_dir = project / "specs" / "001-demo"
+    feature_dir = project / ".specify" / "features" / "001-demo"
     feature_dir.mkdir(parents=True, exist_ok=True)
     (feature_dir / "implement-tracker.md").write_text(
         "# Implement Tracker\n", encoding="utf-8"
@@ -1582,7 +1595,7 @@ def test_hook_validate_artifacts_blocks_packetized_implement_malformed_packet_js
     tmp_path: Path,
 ):
     project = _create_project(tmp_path)
-    feature_dir = project / "specs" / "001-demo"
+    feature_dir = project / ".specify" / "features" / "001-demo"
     feature_dir.mkdir(parents=True, exist_ok=True)
     (feature_dir / "implement-tracker.md").write_text(
         "# Implement Tracker\n", encoding="utf-8"
@@ -1621,7 +1634,7 @@ def test_hook_validate_artifacts_blocks_packetized_implement_non_object_packet(
     tmp_path: Path,
 ):
     project = _create_project(tmp_path)
-    feature_dir = project / "specs" / "001-demo"
+    feature_dir = project / ".specify" / "features" / "001-demo"
     feature_dir.mkdir(parents=True, exist_ok=True)
     (feature_dir / "implement-tracker.md").write_text(
         "# Implement Tracker\n", encoding="utf-8"
@@ -1661,7 +1674,7 @@ def test_hook_validate_artifacts_blocks_packetized_implement_missing_packet_task
     tmp_path: Path,
 ):
     project = _create_project(tmp_path)
-    feature_dir = project / "specs" / "001-demo"
+    feature_dir = project / ".specify" / "features" / "001-demo"
     feature_dir.mkdir(parents=True, exist_ok=True)
     (feature_dir / "implement-tracker.md").write_text(
         "# Implement Tracker\n", encoding="utf-8"
@@ -1700,7 +1713,7 @@ def test_hook_validate_artifacts_blocks_packetized_implement_non_string_packet_t
     tmp_path: Path,
 ):
     project = _create_project(tmp_path)
-    feature_dir = project / "specs" / "001-demo"
+    feature_dir = project / ".specify" / "features" / "001-demo"
     feature_dir.mkdir(parents=True, exist_ok=True)
     (feature_dir / "implement-tracker.md").write_text(
         "# Implement Tracker\n", encoding="utf-8"
@@ -1739,7 +1752,7 @@ def test_hook_validate_artifacts_blocks_packetized_implement_packet_task_id_mism
     tmp_path: Path,
 ):
     project = _create_project(tmp_path)
-    feature_dir = project / "specs" / "001-demo"
+    feature_dir = project / ".specify" / "features" / "001-demo"
     feature_dir.mkdir(parents=True, exist_ok=True)
     (feature_dir / "implement-tracker.md").write_text(
         "# Implement Tracker\n", encoding="utf-8"
@@ -1778,7 +1791,7 @@ def test_hook_validate_artifacts_blocks_packetized_implement_blank_packet_task_i
     tmp_path: Path,
 ):
     project = _create_project(tmp_path)
-    feature_dir = project / "specs" / "001-demo"
+    feature_dir = project / ".specify" / "features" / "001-demo"
     feature_dir.mkdir(parents=True, exist_ok=True)
     (feature_dir / "implement-tracker.md").write_text(
         "# Implement Tracker\n", encoding="utf-8"
@@ -1817,7 +1830,7 @@ def test_hook_validate_artifacts_allows_checked_implement_tasks_without_packets(
     tmp_path: Path,
 ):
     project = _create_project(tmp_path)
-    feature_dir = project / "specs" / "001-demo"
+    feature_dir = project / ".specify" / "features" / "001-demo"
     feature_dir.mkdir(parents=True, exist_ok=True)
     (feature_dir / "implement-tracker.md").write_text(
         "# Implement Tracker\n", encoding="utf-8"
@@ -1855,7 +1868,7 @@ def test_hook_validate_artifacts_blocks_extra_unknown_packetized_implement_task(
     tmp_path: Path,
 ):
     project = _create_project(tmp_path)
-    feature_dir = project / "specs" / "001-demo"
+    feature_dir = project / ".specify" / "features" / "001-demo"
     feature_dir.mkdir(parents=True, exist_ok=True)
     (feature_dir / "implement-tracker.md").write_text(
         "# Implement Tracker\n", encoding="utf-8"
@@ -1893,7 +1906,7 @@ def test_hook_validate_artifacts_allows_mixed_implement_tasks_when_only_packetiz
     tmp_path: Path,
 ):
     project = _create_project(tmp_path)
-    feature_dir = project / "specs" / "001-demo"
+    feature_dir = project / ".specify" / "features" / "001-demo"
     feature_dir.mkdir(parents=True, exist_ok=True)
     (feature_dir / "implement-tracker.md").write_text(
         "# Implement Tracker\n", encoding="utf-8"
@@ -1976,7 +1989,7 @@ def test_hook_validate_artifacts_blocks_unchecked_known_packetized_implement_tas
     tmp_path: Path,
 ):
     project = _create_project(tmp_path)
-    feature_dir = project / "specs" / "001-demo"
+    feature_dir = project / ".specify" / "features" / "001-demo"
     feature_dir.mkdir(parents=True, exist_ok=True)
     (feature_dir / "implement-tracker.md").write_text(
         "# Implement Tracker\n", encoding="utf-8"
@@ -2053,7 +2066,7 @@ def test_hook_validate_artifacts_blocks_packetized_implement_malformed_review_le
     tmp_path: Path,
 ):
     project = _create_project(tmp_path)
-    feature_dir = project / "specs" / "001-demo"
+    feature_dir = project / ".specify" / "features" / "001-demo"
     feature_dir.mkdir(parents=True, exist_ok=True)
     (feature_dir / "implement-tracker.md").write_text(
         "# Implement Tracker\n", encoding="utf-8"
@@ -2095,7 +2108,7 @@ def test_hook_validate_artifacts_blocks_packetized_implement_ledger_tasks_not_ar
     tmp_path: Path,
 ):
     project = _create_project(tmp_path)
-    feature_dir = project / "specs" / "001-demo"
+    feature_dir = project / ".specify" / "features" / "001-demo"
     feature_dir.mkdir(parents=True, exist_ok=True)
     (feature_dir / "implement-tracker.md").write_text(
         "# Implement Tracker\n", encoding="utf-8"
@@ -2137,7 +2150,7 @@ def test_hook_validate_artifacts_blocks_packetized_implement_non_accepted_ledger
     tmp_path: Path,
 ):
     project = _create_project(tmp_path)
-    feature_dir = project / "specs" / "001-demo"
+    feature_dir = project / ".specify" / "features" / "001-demo"
     feature_dir.mkdir(parents=True, exist_ok=True)
     (feature_dir / "implement-tracker.md").write_text(
         "# Implement Tracker\n", encoding="utf-8"
@@ -2196,7 +2209,7 @@ def test_hook_validate_artifacts_blocks_packetized_implement_missing_task_review
     tmp_path: Path,
 ):
     project = _create_project(tmp_path)
-    feature_dir = project / "specs" / "001-demo"
+    feature_dir = project / ".specify" / "features" / "001-demo"
     feature_dir.mkdir(parents=True, exist_ok=True)
     (feature_dir / "implement-tracker.md").write_text(
         "# Implement Tracker\n", encoding="utf-8"
@@ -2255,7 +2268,7 @@ def test_hook_validate_artifacts_blocks_packetized_implement_missing_task_brief_
     tmp_path: Path,
 ):
     project = _create_project(tmp_path)
-    feature_dir = project / "specs" / "001-demo"
+    feature_dir = project / ".specify" / "features" / "001-demo"
     _write_hook_packetized_implement_feature(feature_dir)
     _write_hook_packetized_implement_review_state(feature_dir, write_task_brief=False)
 
@@ -2285,7 +2298,7 @@ def test_hook_validate_artifacts_blocks_packetized_implement_non_canonical_task_
     tmp_path: Path,
 ):
     project = _create_project(tmp_path)
-    feature_dir = project / "specs" / "001-demo"
+    feature_dir = project / ".specify" / "features" / "001-demo"
     _write_hook_packetized_implement_feature(feature_dir)
     _write_hook_packetized_implement_review_state(
         feature_dir,
@@ -2318,7 +2331,7 @@ def test_hook_validate_artifacts_blocks_packetized_implement_missing_review_pack
     tmp_path: Path,
 ):
     project = _create_project(tmp_path)
-    feature_dir = project / "specs" / "001-demo"
+    feature_dir = project / ".specify" / "features" / "001-demo"
     _write_hook_packetized_implement_feature(feature_dir)
     _write_hook_packetized_implement_review_state(
         feature_dir, write_review_package=False
@@ -2351,7 +2364,7 @@ def test_hook_validate_artifacts_blocks_packetized_implement_non_canonical_revie
     tmp_path: Path,
 ):
     project = _create_project(tmp_path)
-    feature_dir = project / "specs" / "001-demo"
+    feature_dir = project / ".specify" / "features" / "001-demo"
     _write_hook_packetized_implement_feature(feature_dir)
     _write_hook_packetized_implement_review_state(
         feature_dir,
@@ -2384,7 +2397,7 @@ def test_hook_validate_artifacts_blocks_packetized_implement_rejected_task_revie
     tmp_path: Path,
 ):
     project = _create_project(tmp_path)
-    feature_dir = project / "specs" / "001-demo"
+    feature_dir = project / ".specify" / "features" / "001-demo"
     feature_dir.mkdir(parents=True, exist_ok=True)
     (feature_dir / "implement-tracker.md").write_text(
         "# Implement Tracker\n", encoding="utf-8"
@@ -2466,7 +2479,7 @@ def test_hook_validate_artifacts_blocks_packetized_implement_malformed_task_revi
     tmp_path: Path,
 ):
     project = _create_project(tmp_path)
-    feature_dir = project / "specs" / "001-demo"
+    feature_dir = project / ".specify" / "features" / "001-demo"
     feature_dir.mkdir(parents=True, exist_ok=True)
     (feature_dir / "implement-tracker.md").write_text(
         "# Implement Tracker\n", encoding="utf-8"
@@ -2530,7 +2543,7 @@ def test_hook_validate_artifacts_blocks_packetized_implement_non_canonical_task_
     tmp_path: Path,
 ):
     project = _create_project(tmp_path)
-    feature_dir = project / "specs" / "001-demo"
+    feature_dir = project / ".specify" / "features" / "001-demo"
     feature_dir.mkdir(parents=True, exist_ok=True)
     (feature_dir / "implement-tracker.md").write_text(
         "# Implement Tracker\n", encoding="utf-8"
@@ -2593,7 +2606,7 @@ def test_hook_validate_artifacts_blocks_packetized_implement_missing_branch_revi
     tmp_path: Path,
 ):
     project = _create_project(tmp_path)
-    feature_dir = project / "specs" / "001-demo"
+    feature_dir = project / ".specify" / "features" / "001-demo"
     feature_dir.mkdir(parents=True, exist_ok=True)
     (feature_dir / "implement-tracker.md").write_text(
         "# Implement Tracker\n", encoding="utf-8"
@@ -2670,7 +2683,7 @@ def test_hook_validate_artifacts_accepts_packetized_implement_with_accepted_revi
     tmp_path: Path,
 ):
     project = _create_project(tmp_path)
-    feature_dir = project / "specs" / "001-demo"
+    feature_dir = project / ".specify" / "features" / "001-demo"
     feature_dir.mkdir(parents=True, exist_ok=True)
     (feature_dir / "implement-tracker.md").write_text(
         "# Implement Tracker\n", encoding="utf-8"
@@ -2748,7 +2761,7 @@ def test_hook_validate_artifacts_blocks_specify_when_semantic_ready_state_is_mis
     tmp_path: Path,
 ):
     project = _create_project(tmp_path)
-    feature_dir = project / "specs" / "001-demo"
+    feature_dir = project / ".specify" / "features" / "001-demo"
     feature_dir.mkdir(parents=True, exist_ok=True)
     (feature_dir / "spec.md").write_text("# Spec\n", encoding="utf-8")
     (feature_dir / "alignment.md").write_text("# Alignment\n", encoding="utf-8")
@@ -5497,7 +5510,7 @@ def test_hook_validate_packet_outputs_parseable_json(tmp_path: Path):
 
 def test_implement_resume_audit_cli_blocks_false_resolved_state(tmp_path: Path):
     project = _create_project(tmp_path)
-    feature_dir = project / "specs" / "001-demo"
+    feature_dir = project / ".specify" / "features" / "001-demo"
     feature_dir.mkdir(parents=True)
     (feature_dir / "workflow-state.md").write_text(
         "# Workflow State\n\n## Next Command\n\n- `/sp.implement`\n",
@@ -5552,7 +5565,7 @@ def test_implement_resume_audit_cli_blocks_false_resolved_state(tmp_path: Path):
 
 def test_validate_session_state_surfaces_terminal_audit_required(tmp_path: Path):
     project = _create_project(tmp_path)
-    feature_dir = project / "specs" / "001-demo"
+    feature_dir = project / ".specify" / "features" / "001-demo"
     feature_dir.mkdir(parents=True)
     (feature_dir / "workflow-state.md").write_text(
         "# Workflow State\n\n## Next Command\n\n- `/sp.implement`\n",
@@ -5602,7 +5615,7 @@ def test_validate_session_state_surfaces_terminal_audit_required(tmp_path: Path)
 
 def test_implement_closeout_blocks_false_resolved_state(tmp_path: Path):
     project = _create_project(tmp_path)
-    feature_dir = project / "specs" / "001-demo"
+    feature_dir = project / ".specify" / "features" / "001-demo"
     feature_dir.mkdir(parents=True)
     (feature_dir / "workflow-state.md").write_text(
         "# Workflow State\n\n## Next Command\n\n- `/sp.implement`\n",
@@ -5638,7 +5651,7 @@ def test_implement_closeout_blocks_false_resolved_state(tmp_path: Path):
 
 def test_implement_closeout_blocks_readable_nonterminal_state(tmp_path: Path):
     project = _create_project(tmp_path)
-    feature_dir = project / "specs" / "001-demo"
+    feature_dir = project / ".specify" / "features" / "001-demo"
     feature_dir.mkdir(parents=True)
     (feature_dir / "workflow-state.md").write_text(
         "# Workflow State\n\n## Next Command\n\n- `/sp.implement`\n",
@@ -5713,7 +5726,7 @@ def test_hook_validate_commit_accepts_external_evidence_checkpoint_option(
     tmp_path: Path,
 ):
     project = _create_project(tmp_path)
-    feature_dir = project / "specs" / "001-demo"
+    feature_dir = project / ".specify" / "features" / "001-demo"
     feature_dir.mkdir(parents=True)
     (feature_dir / "implement-tracker.md").write_text(
         "---\nstatus: validating\nfeature: 001-demo\nresume_decision: continue\n---\n\n"
@@ -5767,12 +5780,27 @@ def test_hook_validate_commit_accepts_external_evidence_checkpoint_option(
     assert payload["data"]["workflow_finalized"] is False
 
 
+@pytest.mark.usefixtures("unified_runtime_env")
 def test_implement_closeout_writes_review_handoff_without_preparing_acceptance(
     tmp_path: Path,
 ):
     project = _create_project(tmp_path)
     feature_dir = project / ".specify" / "features" / "001-demo"
     feature_dir.mkdir(parents=True)
+    install_passing_workflow_gate(project)
+    entered = enter_workflow(feature_dir, stage="specify", expected_revision=0)
+    revision = int(entered["data"]["revision"])
+    for target_stage in ("plan", "tasks", "implement"):
+        completed = complete_workflow_stage(
+            feature_dir,
+            expected_revision=revision,
+        )
+        transitioned = transition_workflow(
+            feature_dir,
+            target_stage=target_stage,
+            expected_revision=int(completed["data"]["revision"]),
+        )
+        revision = int(transitioned["data"]["revision"])
     (feature_dir / "workflow-state.md").write_text(
         "# Workflow State\n\n## Current Command\n\n- status: `completed`\n\n## Next Command\n\n- `/sp.implement`\n",
         encoding="utf-8",
@@ -5973,6 +6001,42 @@ def test_implement_closeout_writes_review_handoff_without_preparing_acceptance(
     assert repeated.exit_code == 0, repeated.output
     repeated_payload = json.loads(repeated.output)
     assert repeated_payload["implementation_handoff"]["status"] == "ok"
+
+    handoff_path = feature_dir / "implementation-handoff.json"
+    handoff_path.unlink()
+    (feature_dir / "workflow.json").unlink()
+    missing = _invoke_in_project(
+        project,
+        [
+            "implement",
+            "closeout",
+            "--feature-dir",
+            str(feature_dir),
+            "--format",
+            "json",
+        ],
+    )
+    assert missing.exit_code == 10
+    missing_payload = json.loads(missing.output)
+    assert missing_payload["data"]["error_code"] == "missing-workflow-state"
+    assert not handoff_path.exists()
+
+    (feature_dir / "workflow.json").write_text('{"schema_version":', encoding="utf-8")
+    invalid = _invoke_in_project(
+        project,
+        [
+            "implement",
+            "closeout",
+            "--feature-dir",
+            str(feature_dir),
+            "--format",
+            "json",
+        ],
+    )
+    assert invalid.exit_code == 10
+    invalid_payload = json.loads(invalid.output)
+    assert invalid_payload["data"]["error_code"] == "invalid-workflow-runtime"
+    assert not handoff_path.exists()
 
 
 def test_hook_monitor_context_outputs_parseable_json(tmp_path: Path):
@@ -6625,7 +6689,7 @@ def test_hook_validate_commit_outputs_parseable_json(tmp_path: Path):
 
 def test_hook_workflow_policy_outputs_parseable_json(tmp_path: Path):
     project = _create_project(tmp_path)
-    feature_dir = project / "specs" / "001-demo"
+    feature_dir = project / ".specify" / "features" / "001-demo"
     feature_dir.mkdir(parents=True, exist_ok=True)
 
     result = _invoke_in_project(
@@ -6650,7 +6714,7 @@ def test_hook_workflow_policy_outputs_parseable_json(tmp_path: Path):
 
 def test_hook_workflow_policy_outputs_redirect_payload(tmp_path: Path):
     project = _create_project(tmp_path)
-    feature_dir = project / "specs" / "001-demo"
+    feature_dir = project / ".specify" / "features" / "001-demo"
     feature_dir.mkdir(parents=True, exist_ok=True)
     (feature_dir / "workflow-state.md").write_text(
         "\n".join(
@@ -6728,7 +6792,7 @@ def test_hook_workflow_policy_outputs_redirect_payload(tmp_path: Path):
 
 def test_hook_workflow_policy_accepts_prior_redirect_count(tmp_path: Path):
     project = _create_project(tmp_path)
-    feature_dir = project / "specs" / "001-demo"
+    feature_dir = project / ".specify" / "features" / "001-demo"
     feature_dir.mkdir(parents=True, exist_ok=True)
     (feature_dir / "workflow-state.md").write_text(
         "\n".join(
@@ -6808,7 +6872,7 @@ def test_hook_workflow_policy_uses_persisted_redirect_count_when_flag_omitted(
     tmp_path: Path,
 ):
     project = _create_project(tmp_path)
-    feature_dir = project / "specs" / "001-demo"
+    feature_dir = project / ".specify" / "features" / "001-demo"
     feature_dir.mkdir(parents=True, exist_ok=True)
     (feature_dir / "workflow-state.md").write_text(
         "\n".join(
@@ -7225,7 +7289,9 @@ def test_project_map_preflight_support_drift_copy_does_not_route_to_map_update(
             "review_topics": [],
         }
 
-    monkeypatch.setattr("specify_cli.run_project_cognition", support_drift)
+    monkeypatch.setattr(
+        "specify_cli.run_specify_runtime", support_drift
+    )
 
     bootstrap = _invoke_in_project(project, ["sp-teams", "--bootstrap"])
     assert bootstrap.exit_code == 0
@@ -7264,7 +7330,9 @@ def test_project_map_preflight_partial_refresh_copy_explains_refresh_recorded_bu
             "review_topics": ["ARCHITECTURE.md"],
         }
 
-    monkeypatch.setattr("specify_cli.run_project_cognition", partial_refresh)
+    monkeypatch.setattr(
+        "specify_cli.run_specify_runtime", partial_refresh
+    )
 
     bootstrap = _invoke_in_project(project, ["sp-teams", "--bootstrap"])
     assert bootstrap.exit_code == 0
@@ -7301,7 +7369,9 @@ def test_project_map_preflight_path_index_gap_routes_to_map_update(
             "review_topics": [],
         }
 
-    monkeypatch.setattr("specify_cli.run_project_cognition", stale_path_index_gap)
+    monkeypatch.setattr(
+        "specify_cli.run_specify_runtime", stale_path_index_gap
+    )
 
     bootstrap = _invoke_in_project(project, ["sp-teams", "--bootstrap"])
     assert bootstrap.exit_code == 0
@@ -7341,7 +7411,9 @@ def test_project_map_preflight_scan_build_copy_names_all_rebuild_reasons(
             "review_topics": [],
         }
 
-    monkeypatch.setattr("specify_cli.run_project_cognition", zero_path_index_rebuild)
+    monkeypatch.setattr(
+        "specify_cli.run_specify_runtime", zero_path_index_rebuild
+    )
 
     bootstrap = _invoke_in_project(project, ["sp-teams", "--bootstrap"])
     assert bootstrap.exit_code == 0

@@ -189,7 +189,7 @@ def test_debug_preflight_warns_on_support_drift(clean_debug_dir, monkeypatch, ca
 
     monkeypatch.setattr(
         cli_module,
-        "run_project_cognition",
+        "run_specify_runtime",
         lambda _args, *, cwd, check=True: {
             "freshness": "support_drift",
             "state": "support_drift",
@@ -212,7 +212,7 @@ def test_debug_preflight_warns_on_partial_refresh(clean_debug_dir, monkeypatch, 
 
     monkeypatch.setattr(
         cli_module,
-        "run_project_cognition",
+        "run_specify_runtime",
         lambda _args, *, cwd, check=True: {
             "freshness": "partial_refresh",
             "state": "partial_refresh",

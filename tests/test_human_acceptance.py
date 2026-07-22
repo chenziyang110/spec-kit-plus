@@ -8,8 +8,8 @@ from pathlib import Path
 import pytest
 from jsonschema import Draft202012Validator
 from typer.testing import CliRunner
+from tests.conftest import install_passing_workflow_gate
 
-import specify_cli as specify_cli_module
 from specify_cli import app
 from specify_cli import human_acceptance as human_acceptance_module
 from specify_cli import review_runtime as review_runtime_module
@@ -28,10 +28,12 @@ from specify_cli.workflow_runtime import (
     enter_workflow,
     resolve_workflow_blocker,
     show_workflow,
-    terminal_acceptance_snapshot_path,
     transition_workflow,
     workflow_runtime_path,
 )
+
+
+pytestmark = pytest.mark.usefixtures("unified_runtime_env")
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -66,6 +68,7 @@ def _feature(tmp_path: Path) -> tuple[Path, Path]:
     project = tmp_path / "project"
     feature = project / ".specify" / "features" / "001-demo"
     feature.mkdir(parents=True)
+    install_passing_workflow_gate(project)
     (feature / "implementation-summary.md").write_text(
         "# Implementation Summary\n\nDemo feature complete.\n", encoding="utf-8"
     )
@@ -1669,7 +1672,7 @@ def test_acceptance_route_repair_cannot_supersede_a_human_blocker(
         )
 
     error = captured.value.to_envelope()
-    assert error["data"]["error_code"] == "blocked-reopen-requires-resolution"
+    assert error["data"]["error_code"] == "blocked-stage-requires-resolution"
     assert error["blockers"][0]["human_action_guide"] == original["human_action_guide"]
     assert state_path.read_bytes() == acceptance_before
     shown = show_workflow(feature)
@@ -1725,6 +1728,9 @@ def test_acceptance_remains_fresh_after_its_human_blocker_is_resolved(
             ],
             "verification": ["Log in to the sandbox."],
             "evidence_to_return": ["A sanitized successful-login observation."],
+            "resume_instruction": (
+                "Return the evidence, then execute the blocker resume argv exactly."
+            ),
         },
     )
     resolved = resolve_workflow_blocker(
@@ -2131,7 +2137,7 @@ def test_corrupt_acceptance_repair_backup_blocks_without_deleting_recovery_evide
     payload = captured.value.to_envelope()
     assert payload["data"]["error_code"] == "acceptance-repair-recovery-required"
     assert payload["blockers"][0]["human_action_required"] is True
-    assert len(payload["blockers"][0]["human_action_guide"]["steps"]) == 4
+    assert len(payload["blockers"][0]["human_action_guide"]["steps"]) == 6
     assert (feature / "human-acceptance.json").read_bytes() == acceptance_before
     assert workflow_runtime_path(feature).read_bytes() == workflow_before
     assert journal.read_bytes() == journal_before
@@ -2443,250 +2449,10 @@ def test_accept_cli_closes_only_fresh_explicit_human_acceptance(
     assert payload["status"] == "ok"
     assert payload["data"]["human_acceptance"]["accepted"] is True
     assert payload["data"]["hook_result"]["status"] == "ok"
-    assert payload["next_argv"][:3] == ["specify", "workflow", "closeout"]
+    assert payload["next_argv"][:3] == ["specify-runtime", "workflow", "closeout"]
     assert payload["next_argv"][
         payload["next_argv"].index("--expected-revision") + 1
     ] == str(revision)
-
-
-def test_workflow_closeout_revalidates_acceptance_after_the_artifact_gate(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-) -> None:
-    project, feature = _feature(tmp_path)
-    entered = enter_workflow(feature, stage="specify", expected_revision=0)
-    revision = entered["data"]["revision"]
-    for target in ("plan", "tasks", "implement", "review", "accept"):
-        transitioned = _complete_then_transition(
-            feature,
-            target_stage=target,
-            revision=revision,
-        )
-        revision = transitioned["data"]["revision"]
-    prepare_human_acceptance(project, feature)
-    state_path = feature / "human-acceptance.json"
-    _accepted_state(state_path)
-
-    def mutate_after_initial_validation(**_kwargs) -> None:
-        state = json.loads(state_path.read_text(encoding="utf-8"))
-        state["status"] = "draft"
-        state_path.write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
-        return None
-
-    monkeypatch.setattr(
-        specify_cli_module,
-        "_workflow_artifact_gate",
-        mutate_after_initial_validation,
-    )
-    monkeypatch.chdir(project)
-
-    result = CliRunner().invoke(
-        app,
-        [
-            "workflow",
-            "closeout",
-            "--feature-dir",
-            str(feature),
-            "--expected-revision",
-            str(revision),
-            "--format",
-            "json",
-        ],
-        catch_exceptions=False,
-    )
-
-    assert result.exit_code == 10
-    payload = json.loads(result.output)
-    assert payload["data"]["error_code"] == "human-acceptance-required"
-    assert payload["blockers"][0]["owner"] == "agent"
-    assert show_workflow(feature)["data"]["status"] == "active"
-
-
-def test_terminal_closeout_snapshots_acceptance_and_is_idempotent(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-) -> None:
-    project, feature = _feature(tmp_path)
-    revision = _accepted_acceptance_at_active_accept(project, feature)
-    acceptance_path = feature / "human-acceptance.json"
-    accepted_bytes = acceptance_path.read_bytes()
-    (feature / "workflow-state.md").write_text(
-        """# Workflow State: Demo
-
-## Current Command
-
-- active_command: sp-accept
-- status: completed
-
-## Phase Mode
-
-- phase_mode: acceptance-only
-- summary: Human accepted every required scenario.
-
-## Allowed Artifact Writes
-
-- human-acceptance.json
-- workflow-state.md
-
-## Forbidden Actions
-
-- edit production source code
-- edit tests
-
-## Authoritative Files
-
-- implementation-summary.md
-- human-acceptance.json
-
-## Next Command
-
-- `/sp.integrate`
-""",
-        encoding="utf-8",
-    )
-    monkeypatch.setattr(
-        specify_cli_module,
-        "_workflow_artifact_gate",
-        lambda **_kwargs: None,
-    )
-    monkeypatch.chdir(project)
-
-    closed = CliRunner().invoke(
-        app,
-        [
-            "workflow",
-            "closeout",
-            "--feature-dir",
-            str(feature),
-            "--expected-revision",
-            str(revision),
-            "--format",
-            "json",
-        ],
-        catch_exceptions=False,
-    )
-
-    assert closed.exit_code == 0, closed.output
-    closed_payload = json.loads(closed.output)
-    snapshot_path = terminal_acceptance_snapshot_path(feature)
-    assert snapshot_path.read_bytes() == accepted_bytes
-    assert closed_payload["data"]["acceptance_snapshot_path"] == str(snapshot_path)
-    assert show_workflow(feature)["data"]["status"] == "completed"
-
-    repeated = CliRunner().invoke(
-        app,
-        [
-            "accept",
-            "closeout",
-            "--feature-dir",
-            str(feature),
-            "--format",
-            "json",
-        ],
-        catch_exceptions=False,
-    )
-
-    assert repeated.exit_code == 0, repeated.output
-    repeated_payload = json.loads(repeated.output)
-    assert repeated_payload["status"] == "ok"
-    assert repeated_payload["data"]["already_completed"] is True
-    assert repeated_payload["blockers"] == []
-
-    acceptance_before_prepare = acceptance_path.read_bytes()
-    (feature / "implementation-summary.md").write_text(
-        "# Implementation Summary\n\nChanged after terminal closeout.\n",
-        encoding="utf-8",
-    )
-    prepared = CliRunner().invoke(
-        app,
-        [
-            "accept",
-            "prepare",
-            "--feature-dir",
-            str(feature),
-            "--format",
-            "json",
-        ],
-        catch_exceptions=False,
-    )
-
-    assert prepared.exit_code == 10
-    prepared_payload = json.loads(prepared.output)
-    assert prepared_payload["error_code"] == "terminal-feature-immutable"
-    assert prepared_payload["blockers"][0]["owner"] == "agent"
-    assert acceptance_path.read_bytes() == acceptance_before_prepare
-    assert show_workflow(feature)["data"]["status"] == "completed"
-
-
-def test_terminal_show_fails_closed_when_current_acceptance_drifts(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-) -> None:
-    project, feature = _feature(tmp_path)
-    revision = _accepted_acceptance_at_active_accept(project, feature)
-    monkeypatch.setattr(
-        specify_cli_module,
-        "_workflow_artifact_gate",
-        lambda **_kwargs: None,
-    )
-    monkeypatch.chdir(project)
-    closed = CliRunner().invoke(
-        app,
-        [
-            "workflow",
-            "closeout",
-            "--feature-dir",
-            str(feature),
-            "--expected-revision",
-            str(revision),
-            "--format",
-            "json",
-        ],
-        catch_exceptions=False,
-    )
-    assert closed.exit_code == 0, closed.output
-
-    state_path = feature / "human-acceptance.json"
-    state = json.loads(state_path.read_text(encoding="utf-8"))
-    state["status"] = "draft"
-    state_path.write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
-
-    closeout = CliRunner().invoke(
-        app,
-        [
-            "accept",
-            "closeout",
-            "--feature-dir",
-            str(feature),
-            "--format",
-            "json",
-        ],
-        catch_exceptions=False,
-    )
-    assert closeout.exit_code == 10
-    closeout_payload = json.loads(closeout.output)
-    assert (
-        closeout_payload["data"]["error_code"] == "terminal-acceptance-evidence-drift"
-    )
-    assert closeout_payload["blockers"][0]["owner"] == "maintainer"
-    assert closeout_payload["blockers"][0]["human_action_guide"]["steps"]
-
-    with pytest.raises(WorkflowRuntimeError) as captured:
-        show_workflow(feature)
-
-    error = captured.value.to_envelope()
-    assert error["data"]["error_code"] == "terminal-acceptance-evidence-drift"
-    assert "current human acceptance digest" in json.dumps(error)
-    assert error["blockers"][0]["owner"] == "maintainer"
-    assert error["blockers"][0]["human_action_guide"]["steps"]
-    prepared = prepare_human_acceptance(project, feature)
-    recovery = acceptance_closeout_blockers(feature, acceptance=prepared)[0]
-    assert recovery["code"] == "terminal-acceptance-evidence-drift"
-    assert "restore human-acceptance.json" in recovery["exact_next_action"]
-    assert (
-        terminal_acceptance_snapshot_path(feature).read_bytes()
-        != state_path.read_bytes()
-    )
 
 
 def test_accept_closeout_preserves_the_authoritative_runtime_human_blocker(
@@ -2733,51 +2499,3 @@ def test_accept_closeout_preserves_the_authoritative_runtime_human_blocker(
     assert returned["unblock_criteria"] == original["unblock_criteria"]
     assert returned["human_action_guide"] == original["human_action_guide"]
     assert payload["data"]["resolution_action"] == blocked["data"]["resolution_action"]
-
-
-def test_closeout_detects_acceptance_change_between_snapshot_and_runtime_cas(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-) -> None:
-    project, feature = _feature(tmp_path)
-    revision = _accepted_acceptance_at_active_accept(project, feature)
-    state_path = feature / "human-acceptance.json"
-    real_closeout = specify_cli_module.closeout_workflow
-
-    def mutate_then_closeout(*args, **kwargs):
-        state = json.loads(state_path.read_text(encoding="utf-8"))
-        state["status"] = "draft"
-        state_path.write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
-        return real_closeout(*args, **kwargs)
-
-    monkeypatch.setattr(
-        specify_cli_module,
-        "_workflow_artifact_gate",
-        lambda **_kwargs: None,
-    )
-    monkeypatch.setattr(
-        specify_cli_module,
-        "closeout_workflow",
-        mutate_then_closeout,
-    )
-    monkeypatch.chdir(project)
-
-    result = CliRunner().invoke(
-        app,
-        [
-            "workflow",
-            "closeout",
-            "--feature-dir",
-            str(feature),
-            "--expected-revision",
-            str(revision),
-            "--format",
-            "json",
-        ],
-        catch_exceptions=False,
-    )
-
-    assert result.exit_code == 10
-    payload = json.loads(result.output)
-    assert payload["data"]["error_code"] == "acceptance-snapshot-conflict"
-    assert show_workflow(feature)["data"]["status"] == "active"

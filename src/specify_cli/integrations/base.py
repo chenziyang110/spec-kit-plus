@@ -743,7 +743,7 @@ class IntegrationBase(ABC):
             "- Treat `final-handoff-decision` as a compatibility readiness check name only; do not restore the legacy staged handoff flow.\n"
             "- In compile mode, reuse the confirmed discussion contract's context capsule and decision digest. Run one bounded `{{specify-subcmd:specify-runtime cognition compass --intent plan --query=\"$ARGUMENTS\" --format json}}` intake only when a planning facet is absent or outdated; preserve `{{specify-subcmd:specify-runtime cognition query --intent plan --query-plan \"<query_plan_json>\" --format json}}` as a precision escalation for an explicit unresolved concept.\n"
             "- Read top-level `minimal_live_reads` first and open live files only for the named gap. Do not build a second broad repository summary or infer final scope from first-pass paths.\n"
-            "- After `FEATURE_DIR` is known, use `{{specify-subcmd:workflow show --feature-dir <feature-dir> --format json}}`; when state is missing, run `{{specify-subcmd:workflow enter --command specify --feature-dir <feature-dir> --format json}}`. The deterministic runtime owns only `workflow-runtime.json`; create or resume rich `workflow-state.md` from the installed template for specification evidence and Learning, and never use it to skip runtime stages. Do not implement code, edit source files, edit tests, or run implementation-oriented fix loops from `sp-specify`.\n"
+            "- After `FEATURE_DIR` is known, use `{{specify-subcmd:specify-runtime workflow show --feature-dir <feature-dir> --format json}}`; when state is missing, run `{{specify-subcmd:specify-runtime workflow enter --command specify --feature-dir <feature-dir> --format json}}`. The deterministic workflow runtime owns `workflow.json` as required-stage state; do not author or advance it manually. Rich `workflow-state.md` remains specification evidence and resume state inside the fixed workflow artifact boundary: read it only through `{{specify-subcmd:specify-runtime artifact show --path <project-relative-workflow-state-path> --view summary}}`; write it only through an authorized `{{specify-subcmd:specify-runtime artifact prepare --path <project-relative-workflow-state-path>}}` then `{{specify-subcmd:specify-runtime artifact submit --lease <lease-id> --content-file <temporary-file>}}` lease. Never use rich state to skip runtime stages. Do not implement code, edit source files, edit tests, or run implementation-oriented fix loops from `sp-specify`.\n"
             "- Write canonical `spec-contract.json` first. Render `spec.md`; write `alignment.md`, `context.md`, `references.md`, or diagnostics only when the triggered content has independent project-review value and cannot be represented by a stable ref.\n"
             "- Clarify only planning-critical ambiguity. Recommend `/sp.clarify` or `/sp.deep-research` only when the unresolved item belongs there.\n"
             "- Preserve this as an internal understand-before-acting pass; do not replace the one-question-at-a-time requirement discovery flow with a broad analysis report.\n"
@@ -1944,17 +1944,17 @@ class IntegrationBase(ABC):
         *,
         skipped_modified: list[str] | None = None,
     ) -> list[Path]:
-        """Rebind unmodified generated guidance after cognition runtime recovery."""
+        """Rebind unmodified generated guidance after unified runtime recovery."""
 
         from specify_cli.launcher import (
             SPECIFY_RUNTIME_UNAVAILABLE_MARKER,
             load_runtime_launcher,
             rebind_unavailable_specify_runtime_commands,
-            rebind_unbound_specify_runtime_cognition_calls,
+            rebind_unbound_unified_runtime_calls,
         )
 
         project_root_resolved = project_root.resolve()
-        cognition_launcher = load_runtime_launcher(project_root)
+        runtime_launcher = load_runtime_launcher(project_root)
         modified = set(manifest.check_modified())
         rebound: list[Path] = []
         for relative in sorted(manifest.files):
@@ -1982,7 +1982,7 @@ class IntegrationBase(ABC):
                 f"{SPECIFY_RUNTIME_UNAVAILABLE_MARKER}:specify-runtime"
                 in content
             )
-            _, bare_count = rebind_unbound_specify_runtime_cognition_calls(
+            _, bare_count = rebind_unbound_unified_runtime_calls(
                 content,
                 "__SPEC_KIT_BOUND_SPECIFY_RUNTIME__",
             )
@@ -1992,7 +1992,7 @@ class IntegrationBase(ABC):
                 if skipped_modified is not None:
                     skipped_modified.append(relative)
                 continue
-            if cognition_launcher is None:
+            if runtime_launcher is None:
                 if skipped_modified is not None:
                     skipped_modified.append(relative)
                 continue
@@ -2013,9 +2013,9 @@ class IntegrationBase(ABC):
                 content,
                 command_renderer=command_renderer,
             )
-            repaired, _ = rebind_unbound_specify_runtime_cognition_calls(
+            repaired, _ = rebind_unbound_unified_runtime_calls(
                 repaired,
-                cognition_launcher.command,
+                runtime_launcher.command,
                 command_renderer=command_renderer,
             )
             if repaired == content:

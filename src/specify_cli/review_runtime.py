@@ -62,7 +62,7 @@ SNAPSHOT_EXCLUDED_FEATURE_NAMES = frozenset(
         ".human-acceptance-repair.json",
         ".human-acceptance-repair-backup.json",
         ".human-acceptance-terminal.json",
-        "workflow-runtime.json",
+        "workflow.json",
         "workflow-state.md",
         "implementation-review/validation-runs.json",
     }
@@ -264,9 +264,11 @@ def build_implementation_handoff(
 
     root = project_root.resolve(strict=False)
     feature = _resolve_feature_dir(root, feature_dir)
-    workflow_path = feature / "workflow-runtime.json"
-    if workflow_path.is_file():
-        workflow_state = _read_json_object(workflow_path, label="workflow-runtime.json")
+    try:
+        workflow_state = show_workflow(feature)["data"]
+    except MissingWorkflowState:
+        workflow_state = None
+    if workflow_state is not None:
         if (
             workflow_state.get("stage") != "implement"
             or workflow_state.get("status") != "active"
@@ -3335,7 +3337,7 @@ def closeout_review(
             "state_path": str(review_state_path(feature)),
         },
         next_argv=[
-            "specify",
+            "specify-runtime",
             "workflow",
             "complete-stage",
             "--feature-dir",

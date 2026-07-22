@@ -18,17 +18,17 @@ def test_classic_stage_handoff_uses_the_deterministic_workflow_cli() -> None:
     compact_shared = " ".join(shared.split())
 
     for command in (
-        "workflow show",
-        "workflow enter",
-        "workflow transition",
-        "workflow next",
-        "workflow block",
-        "workflow resolve",
-        "workflow closeout",
-        "workflow reopen",
+        "specify-runtime workflow show",
+        "specify-runtime workflow enter",
+        "specify-runtime workflow transition",
+        "specify-runtime workflow next",
+        "specify-runtime workflow block",
+        "specify-runtime workflow resolve",
+        "specify-runtime workflow closeout",
+        "specify-runtime workflow reopen",
     ):
         assert command in shared
-    assert "Do not author or advance `workflow-runtime.json` by hand" in compact_shared
+    assert "Do not author or advance `workflow.json` by hand" in compact_shared
     assert (
         "`workflow-state.md` remains the rich workflow-owned evidence" in compact_shared
     )
@@ -56,7 +56,7 @@ def test_advanced_required_stages_read_one_compact_workflow_runtime_reference() 
 
     runtime = _read("templates/advanced-skills/_shared/workflow-runtime.md")
     compact_runtime = " ".join(runtime.split())
-    assert "workflow transition" in runtime
+    assert "specify-runtime workflow transition" in runtime
     assert "validates the completed source-stage artifacts" in compact_runtime
     assert "exit `10`" in runtime
 
@@ -83,7 +83,7 @@ def test_runtime_state_is_separate_from_auxiliary_and_learning_state() -> None:
     learning = _read("templates/advanced-skills/_shared/project-learning.md")
 
     for content in (classic, advanced):
-        assert "workflow-runtime.json" in content
+        assert "workflow.json" in content
         assert "workflow-state.md" in content
         assert "must not overwrite" in content.lower()
     assert "## Learning Triggers" in learning
@@ -98,11 +98,13 @@ def test_auto_routes_canonical_features_from_structured_runtime_argv_first() -> 
 
     for content in (classic, advanced):
         lowered = content.lower()
-        assert "workflow show" in content
-        assert "workflow next" in content
+        assert "specify-runtime workflow show" in content
+        assert "specify-runtime workflow next" in content
         assert "next_argv" in content
-        assert "workflow-runtime.json" in content
-        assert content.index("workflow show") < content.index("workflow-state.md")
+        assert "workflow.json" in content
+        assert content.index("specify-runtime workflow show") < content.index(
+            "workflow-state.md"
+        )
         assert "active `accept`" in lowered
         assert "workflow closeout" in lowered
         assert "current accept owner" in lowered
@@ -130,8 +132,8 @@ def test_auxiliary_workflows_guard_the_runtime_without_owning_it() -> None:
     for classic, advanced, expected_owner in surfaces.values():
         for content in (classic, advanced):
             lowered = content.lower()
-            assert "workflow show" in lowered
-            assert "workflow-runtime.json" in lowered
+            assert "specify-runtime workflow show" in lowered
+            assert "workflow.json" in lowered
             assert "must not write" in lowered
             assert expected_owner in lowered
             assert "typed owner handoff" in lowered
@@ -169,7 +171,7 @@ def test_analyze_reopens_invalidated_required_stages_through_the_runtime() -> No
 
     for content in (classic, advanced):
         lowered = content.lower()
-        assert "workflow reopen" in lowered
+        assert "specify-runtime workflow reopen" in lowered
         assert "--expected-revision" in content
         assert "--reason" in content
         assert "--evidence" in content
@@ -189,11 +191,11 @@ def test_human_guidance_teaches_complete_then_transition_and_split_state() -> No
         "docs/quickstart.md",
     ):
         content = _read(relative)
-        assert "workflow-runtime.json" in content, relative
-        assert "workflow complete-stage" in content, relative
-        assert "workflow transition --to <stage>" in content, relative
-        assert content.index("workflow complete-stage") < content.index(
-            "workflow transition --to <stage>"
+        assert "workflow.json" in content, relative
+        assert "specify-runtime workflow complete-stage" in content, relative
+        assert "specify-runtime workflow transition --to <stage>" in content, relative
+        assert content.index("specify-runtime workflow complete-stage") < content.index(
+            "specify-runtime workflow transition --to <stage>"
         ), relative
 
 
@@ -210,7 +212,7 @@ def test_acceptance_repair_and_implement_closeout_name_the_correct_state_owner()
         assert (
             "must not write" in content.lower() or "forbidden writes" in content.lower()
         )
-        assert "workflow-runtime.json" in content
+        assert "workflow.json" in content
         assert "acceptance-owned" in content.lower()
         assert "rich" in content.lower()
         assert (
@@ -218,7 +220,7 @@ def test_acceptance_repair_and_implement_closeout_name_the_correct_state_owner()
         )
 
     main_implement = _read("templates/advanced-skills/spx-implement/SKILL.md")
-    assert "`workflow-runtime.json`\nis the required phase gate" in main_implement
+    assert "`workflow.json`\nis the required phase gate" in main_implement
     assert "rich `workflow-state.md` is resume, evidence" in main_implement
     assert "`workflow-state.md` is the phase gate" not in main_implement
 
@@ -230,7 +232,7 @@ def test_acceptance_repair_and_implement_closeout_name_the_correct_state_owner()
     )
     for content in implement_surfaces:
         assert "complete-stage" in content
-        assert "workflow-runtime.json" in content
+        assert "workflow.json" in content
         assert "does not update" in content.lower()
         assert "rich `workflow-state.md`" in content
 
@@ -240,8 +242,23 @@ def test_skills_renderer_no_longer_reintroduces_manual_specify_state_authoring()
 ):
     renderer = _read("src/specify_cli/integrations/base.py")
 
-    assert "workflow enter --command specify" in renderer
+    assert "specify-runtime workflow enter --command specify" in renderer
     assert "create or resume sparse `WORKFLOW_STATE_FILE`" not in renderer
+
+
+def test_rich_workflow_state_uses_the_artifact_boundary_not_phase_authority() -> None:
+    for relative in (
+        "templates/command-partials/common/runtime-artifact-boundary.md",
+        "templates/advanced-skills/_shared/runtime-artifact-boundary.md",
+    ):
+        content = _read(relative)
+        assert "`workflow-state.md` is inside this boundary" in content, relative
+        assert "rich semantic resume/evidence state" in content, relative
+        assert "never required-stage authority" in content, relative
+        assert "specify-runtime artifact show" in content, relative
+        assert "specify-runtime artifact prepare" in content, relative
+        assert "specify-runtime artifact submit" in content, relative
+        assert "CLI-owned `workflow.json`" in content, relative
 
 
 def test_plan_and_accept_resolve_then_gate_before_their_first_owned_write() -> None:

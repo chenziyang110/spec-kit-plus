@@ -135,15 +135,15 @@ requirements diagnostics are conditional views; `workflow-state.md` is sparse
 resume state. Semantic decisions, capability operations, evidence refs,
 protected obligations, and semantic delta live in the canonical contract.
 
-Required phase order is separate in CLI-owned `FEATURE_DIR/workflow-runtime.json`.
+Required phase order is separate in CLI-owned `FEATURE_DIR/workflow.json`.
 When the active stage's artifacts are ready, its owner runs
-`specify workflow complete-stage`; the destination stage then executes the exact
-returned `specify workflow transition --to <stage>` argv. Only completed
+`specify-runtime workflow complete-stage`; the destination stage then executes the exact
+returned `specify-runtime workflow transition --to <stage>` argv. Only completed
 `accept` is terminal. Stage transitions never rewrite rich `workflow-state.md`,
 so clarification, analysis, resume evidence, and Learning signals survive.
-Use evidence-backed `specify workflow reopen` for an invalidated earlier or same
+Use evidence-backed `specify-runtime workflow reopen` for an invalidated earlier or same
 completed non-accept stage. Blockers are single-owner records: after the stated
-criteria are proven, `specify workflow resolve` reactivates that owner while
+criteria are proven, `specify-runtime workflow resolve` reactivates that owner while
 retaining the complete blocker and resolution evidence for audit.
 
 That package then moves forward through structured handoff contracts into

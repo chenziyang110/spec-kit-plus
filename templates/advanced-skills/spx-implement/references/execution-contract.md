@@ -162,7 +162,7 @@ human verdict.
 Before stopping, update owned rich `workflow-state.md` evidence/resume fields
 truthfully, including the Review handoff. Then run the workflow runtime
 `complete-stage` command with the current revision. It records
-`implement/completed` only in CLI-owned `workflow-runtime.json`; it does not update
+`implement/completed` only in CLI-owned `workflow.json`; it does not update
 rich `workflow-state.md` fields such as `active_command`, `phase_mode`, or
 `next_command`. Do not execute
 the returned transition or set `active_command: sp-review`; the separately

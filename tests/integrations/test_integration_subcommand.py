@@ -592,7 +592,12 @@ class TestIntegrationRepair:
         assert relative in integration._last_repair_skipped_modified
         assert relative in integration._last_repair_unresolved_cognition_markers
 
-    def test_repair_rebinds_unmodified_bare_specify_runtime_call(self, tmp_path):
+    @pytest.mark.parametrize("namespace", ("workflow", "artifact", "cognition"))
+    def test_repair_rebinds_unmodified_bare_specify_runtime_call(
+        self,
+        tmp_path,
+        namespace,
+    ):
         project = tmp_path / "project"
         integration = get_integration("claude")
         assert integration is not None
@@ -616,7 +621,7 @@ class TestIntegrationRepair:
         target = project / ".claude" / "skills" / "sp-plan" / "SKILL.md"
         target.parent.mkdir(parents=True)
         target.write_text(
-            "Run `specify-runtime cognition compass --intent plan --format json`.\n",
+            f"Run `specify-runtime {namespace} status --format json`.\n",
             encoding="utf-8",
         )
         manifest.record_existing(target.relative_to(project))
@@ -630,7 +635,7 @@ class TestIntegrationRepair:
         content = target.read_text(encoding="utf-8")
         assert target in repaired
         assert str(binary) in content
-        assert "`specify-runtime cognition compass" not in content
+        assert f"`specify-runtime {namespace} status" not in content
         assert target.relative_to(project).as_posix() not in (
             integration._last_repair_skipped_modified
         )

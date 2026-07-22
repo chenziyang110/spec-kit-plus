@@ -167,6 +167,15 @@ def test_generated_specify_skill_teaches_simplified_specify_contract(tmp_path):
     assert "spec-contract.json" in content
     assert "semantic_delta" in content
     assert "named evidence reference is stale, missing, or contradictory" in content
+    assert "specify-runtime workflow show" in content
+    assert "specify-runtime workflow enter --command specify" in content
+    assert "workflow.json" in content
+    assert "workflow-runtime.json" not in content
+    assert "specify-runtime artifact show" in content
+    assert "specify-runtime artifact prepare" in content
+    assert "specify-runtime artifact submit" in content
+    assert "read it only through" in content
+    assert "write it only through" in content
     assert "facts-lock" not in content
     assert "route-lock" not in content
     assert "intent-lock" not in content

@@ -383,9 +383,11 @@ class TestBuiltInSkillGeneration:
         assert "workflow-state.md" in specify_body
         assert "workflow show" in specify_body
         assert "--feature-dir" in specify_body
-        assert "workflow enter" in specify_body
+        assert re.search(
+            r"specify-runtime(?:\.exe)? workflow enter", specify_body, re.IGNORECASE
+        )
         assert "--command specify" in specify_body
-        assert "deterministic runtime owns only `workflow-runtime.json`" in specify_body
+        assert "deterministic workflow runtime owns `workflow.json`" in specify_body
         assert "create or resume sparse `WORKFLOW_STATE_FILE`" not in specify_body
         assert "Do not implement code, edit source files, edit tests, or run implementation-oriented fix loops from `sp-specify`." in specify_body
         assert "open live files only for the named gap" in specify_body.lower()
@@ -419,10 +421,11 @@ class TestBuiltInSkillGeneration:
         assert "implementation target and boundary refs" in plan_body
         assert "Dispatch Compilation Hints" in plan_body
         assert "workflow-state.md" in plan_body
-        assert "enter `plan` with the deterministic workflow transition" in plan_body.lower()
-        assert (
-            render_command(("workflow", "transition", "--to", "<this-stage>"))
-            in plan_body
+        assert "enter `plan` with the deterministic" in plan_body.lower()
+        assert re.search(
+            r"specify-runtime(?:\.exe)? workflow transition --to",
+            plan_body,
+            re.IGNORECASE,
         )
         assert "do not edit source/runtime/test files" in plan_body.lower()
         assert "planning does not grant permission to start execution" in plan_body.lower()
@@ -455,7 +458,12 @@ class TestBuiltInSkillGeneration:
         assert "MP-*" in tasks_body
         assert "CA-###" in tasks_body
         assert "workflow-state.md" in tasks_body
-        assert "enter `tasks` through the deterministic workflow transition" in tasks_body.lower()
+        assert "enter `tasks` through the deterministic" in tasks_body.lower()
+        assert re.search(
+            r"specify-runtime(?:\.exe)? workflow transition --to",
+            tasks_body,
+            re.IGNORECASE,
+        )
         assert "the cli owns phase state" in tasks_body.lower()
         assert "one result per lane under `task-generation/handoffs/`" in tasks_body.lower()
         assert "task-generation/lane-manifest.json" in tasks_body

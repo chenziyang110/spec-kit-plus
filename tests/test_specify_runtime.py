@@ -33,6 +33,29 @@ def _write_config(project_root: Path, payload: dict[str, object]) -> None:
     config_path.write_text(json.dumps(payload), encoding="utf-8")
 
 
+def test_required_runtime_contract_uses_the_current_workflow_surface() -> None:
+    runtime = _load_runtime()
+
+    workflow_capabilities = {
+        capability
+        for capability in runtime.REQUIRED_CAPABILITIES
+        if capability.startswith("workflow.")
+    }
+    assert workflow_capabilities == {
+        "workflow.show",
+        "workflow.enter",
+        "workflow.next",
+        "workflow.complete-stage",
+        "workflow.transition",
+        "workflow.reopen",
+        "workflow.block",
+        "workflow.resolve",
+        "workflow.closeout",
+    }
+    assert "workflow.start" not in runtime.REQUIRED_CAPABILITIES
+    assert "workflow.status" not in runtime.REQUIRED_CAPABILITIES
+
+
 def test_runtime_resolver_prefers_project_fixed_launcher(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -90,6 +113,16 @@ def test_runtime_resolver_uses_new_env_and_ignores_legacy_config_and_env(
     resolved = runtime.resolve_specify_runtime_binary(tmp_path)
 
     assert resolved == [str(env_binary)]
+
+
+def test_runtime_env_is_one_executable_path_not_an_argv_vector(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runtime = _load_runtime()
+    configured = f"runtime{os.pathsep}with-separator"
+    monkeypatch.setenv("SPECIFY_RUNTIME_BIN", configured)
+
+    assert runtime._env_argv() == [configured]
 
 
 def test_runtime_resolver_falls_back_only_to_specify_runtime_on_path(
@@ -190,6 +223,52 @@ def test_runtime_runner_unwraps_cognition_envelope_for_existing_python_consumers
     assert result == {"freshness": "fresh", "readiness": "query_ready"}
 
 
+def test_runtime_runner_can_install_when_missing(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    runtime = _load_runtime()
+    binary = _write_executable(tmp_path / RUNTIME_BINARY_NAME)
+    calls: list[list[str]] = []
+
+    def missing_runtime(_project_root: Path | None = None) -> list[str]:
+        raise runtime.SpecifyRuntimeError("runtime missing")
+
+    monkeypatch.setattr(runtime, "resolve_specify_runtime_binary", missing_runtime)
+    monkeypatch.setattr(runtime, "ensure_binary", lambda: binary)
+
+    def fake_run(command: list[str], **_kwargs: object) -> SimpleNamespace:
+        calls.append(command)
+        return SimpleNamespace(returncode=0, stdout='{"status":"ok"}', stderr="")
+
+    monkeypatch.setattr(runtime.subprocess, "run", fake_run)
+
+    payload = runtime.run_specify_runtime(
+        ["validate", "spec", "--dir", "."],
+        cwd=tmp_path,
+        install_if_missing=True,
+    )
+
+    assert payload == {"status": "ok"}
+    assert calls == [[str(binary), "validate", "spec", "--dir", "."]]
+
+
+def test_default_runtime_version_pins_stable_packages_and_tracks_dev_latest(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runtime = _load_runtime()
+
+    monkeypatch.setattr(runtime.importlib.metadata, "version", lambda _name: "1.2.3")
+    assert runtime.default_runtime_version() == "v1.2.3"
+
+    monkeypatch.setattr(
+        runtime.importlib.metadata,
+        "version",
+        lambda _name: "1.2.4.dev0",
+    )
+    assert runtime.default_runtime_version() == "latest"
+
+
 def test_python_runtime_surface_removes_legacy_installers_and_launchers() -> None:
     legacy_modules = [
         PACKAGE_ROOT / "project_cognition_runtime.py",
@@ -253,7 +332,9 @@ def test_python_callers_use_only_unified_runtime_namespaces() -> None:
     assert unresolved == []
     assert any(prefix[0] == "cognition" for prefix in prefixes)
     assert any(prefix[:2] == ("validate", "spec") for prefix in prefixes)
+    assert any(prefix[0] == "workflow" for prefix in prefixes)
     assert all(
-        prefix[0] == "cognition" or prefix[:2] == ("validate", "spec")
+        prefix[0] in {"cognition", "workflow"}
+        or prefix[:2] == ("validate", "spec")
         for prefix in prefixes
     )

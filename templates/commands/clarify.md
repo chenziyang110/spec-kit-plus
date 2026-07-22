@@ -92,7 +92,7 @@ Goal: Strengthen an existing spec package after `/sp.specify` by closing plannin
    - Set `REFERENCES_FILE` to `FEATURE_DIR/references.md`.
    - Set `WORKFLOW_STATE_FILE` to `FEATURE_DIR/workflow-state.md`.
 
-   Before any artifact or rich-state write, run `{{specify-subcmd:workflow show --feature-dir <feature-dir> --format json}}`. `FEATURE_DIR/workflow-runtime.json` is CLI-owned and this auxiliary workflow must not write it. The expected required-stage owner is `specify`. If the runtime is missing, corrupt, at another stage, or already completed, stop with its blocker or a typed owner handoff naming the observed stage, expected owner, affected files, exact next action, unblock criteria, and resume argv; do not overwrite either state surface to force entry.
+   Before any artifact or rich-state write, run `{{specify-subcmd:specify-runtime workflow show --feature-dir <feature-dir> --format json}}`. `FEATURE_DIR/workflow.json` is CLI-owned and this auxiliary workflow must not write it. The expected required-stage owner is `specify`. If the runtime is missing, corrupt, at another stage, or already completed, stop with its blocker or a typed owner handoff naming the observed stage, expected owner, affected files, exact next action, unblock criteria, and resume argv; do not overwrite either state surface to force entry.
 
 2. Create or resume the workflow state:
    - Read `templates/workflow-state-template.md`.

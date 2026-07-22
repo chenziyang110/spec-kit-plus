@@ -3,6 +3,8 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"reflect"
 	"sort"
 	"testing"
@@ -61,9 +63,25 @@ func TestAPIHandshakePublishesProtocolVersionAndCapabilities(t *testing.T) {
 		t.Fatalf("handshake data.protocol_version = %#v, want non-empty string", data["protocol_version"])
 	}
 	capabilities := requireStringArray(t, data, "capability_ids")
-	for _, capability := range []string{"api.handshake", "api.list", "artifact.catalog", "artifact.scaffold", "validate.spec", "workflow.status"} {
+	seenCapabilities := map[string]bool{}
+	for _, capability := range capabilities {
+		if seenCapabilities[capability] {
+			t.Fatalf("handshake capability_ids contains duplicate %q: %#v", capability, capabilities)
+		}
+		seenCapabilities[capability] = true
+	}
+	for _, capability := range []string{
+		"api.handshake", "api.list", "artifact.catalog", "artifact.scaffold", "cognition.run", "validate.spec",
+		"workflow.show", "workflow.enter", "workflow.next", "workflow.complete-stage", "workflow.transition",
+		"workflow.reopen", "workflow.block", "workflow.resolve", "workflow.closeout",
+	} {
 		if !containsString(capabilities, capability) {
 			t.Fatalf("handshake capability_ids = %#v, want %q", capabilities, capability)
+		}
+	}
+	for _, retired := range []string{"workflow.start", "workflow.status"} {
+		if containsString(capabilities, retired) {
+			t.Fatalf("handshake capability_ids retained retired capability %q: %#v", retired, capabilities)
 		}
 	}
 }
@@ -93,11 +111,54 @@ func TestAPIListReturnsCompactCapabilityCards(t *testing.T) {
 		if !idOK || id == "" || !summaryOK || summary == "" {
 			t.Fatalf("api list items[%d] = %#v, want non-empty id and summary", index, item)
 		}
+		if seen[id] {
+			t.Fatalf("api list contains duplicate capability %q", id)
+		}
 		seen[id] = true
 	}
-	for _, capability := range []string{"api.handshake", "api.list", "artifact.catalog", "artifact.scaffold", "validate.spec", "workflow.status"} {
+	if len(seen) != len(items) {
+		t.Fatalf("api list contains duplicate capability cards: %d unique of %d", len(seen), len(items))
+	}
+	for _, capability := range []string{
+		"api.handshake", "api.list", "artifact.catalog", "artifact.scaffold", "validate.spec",
+		"workflow.show", "workflow.enter", "workflow.next", "workflow.complete-stage", "workflow.transition",
+		"workflow.reopen", "workflow.block", "workflow.resolve", "workflow.closeout",
+	} {
 		if !seen[capability] {
 			t.Fatalf("api list ids = %#v, want %q", seen, capability)
+		}
+	}
+}
+
+func TestEnvelopeBindsTopLevelAndNestedRuntimeArgvToCurrentExecutable(t *testing.T) {
+	env := NewEnvelope("blocked", "binding contract")
+	env.ShowArgv = []string{"specify-runtime", "workflow", "show"}
+	env.NextArgv = []string{"specify-runtime", "workflow", "next"}
+	env.Data["resolution_action"] = map[string]any{
+		"base_argv": []any{"specify-runtime", "workflow", "resolve"},
+	}
+	env.Blockers = append(env.Blockers, map[string]any{
+		"resume": map[string]any{"argv": []string{"specify-runtime", "workflow", "show"}},
+	})
+	var stdout bytes.Buffer
+	writeEnvelope(&stdout, env)
+	payload := decodeJSONObject(t, stdout.Bytes())
+	executable, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	executable, err = filepath.Abs(executable)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for label, argv := range map[string][]string{
+		"show":       requireStringArray(t, payload, "show_argv"),
+		"next":       requireStringArray(t, payload, "next_argv"),
+		"resolution": requireStringArray(t, requireObject(t, requireObject(t, payload, "data"), "resolution_action"), "base_argv"),
+		"blocker":    requireStringArray(t, requireObject(t, requireObjectValue(t, payload["blockers"].([]any)[0]), "resume"), "argv"),
+	} {
+		if argv[0] != executable {
+			t.Fatalf("%s argv[0] = %q, want %q", label, argv[0], executable)
 		}
 	}
 }
@@ -147,6 +208,15 @@ func requireObject(t *testing.T, payload map[string]any, key string) map[string]
 		t.Fatalf("%s = %#v, want object", key, payload[key])
 	}
 	return value
+}
+
+func requireObjectValue(t *testing.T, value any) map[string]any {
+	t.Helper()
+	result, ok := value.(map[string]any)
+	if !ok {
+		t.Fatalf("value = %#v, want object", value)
+	}
+	return result
 }
 
 func requireStringArray(t *testing.T, payload map[string]any, key string) []string {

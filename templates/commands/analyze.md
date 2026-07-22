@@ -55,18 +55,18 @@ When recommending manual implementation resumption to the user, tell them to run
 
 ## Workflow Phase Lock
 
-- [AGENT] Before any report or rich-state write, run `{{specify-subcmd:workflow show --feature-dir <feature-dir> --format json}}`. `FEATURE_DIR/workflow-runtime.json` is CLI-owned and this auxiliary workflow must not write it manually; its only permitted runtime mutation is the evidence-backed `workflow reopen` operation below. The expected required-stage owner is `tasks or implement`. If the runtime is missing, corrupt, at another stage, or terminal, remain read-only and stop with its blocker or a typed owner handoff naming the observed stage, expected owner, highest invalid stage, exact next action, unblock criteria, and resume argv; never rewrite phase order to make analysis fit.
+- [AGENT] Before any report or rich-state write, run `{{specify-subcmd:specify-runtime workflow show --feature-dir <feature-dir> --format json}}`. `FEATURE_DIR/workflow.json` is CLI-owned and this auxiliary workflow must not write it manually; its only permitted runtime mutation is the evidence-backed `specify-runtime workflow reopen` operation below. The expected required-stage owner is `tasks or implement`. If the runtime is missing, corrupt, at another stage, or terminal, remain read-only and stop with its blocker or a typed owner handoff naming the observed stage, expected owner, highest invalid stage, exact next action, unblock criteria, and resume argv; never rewrite phase order to make analysis fit.
 - [AGENT] After the complete blocker bundle selects one upstream repair route,
   reopen the highest invalid required stage before handing off. Map `clarify` or
   `deep-research` to reopen `specify`; map `plan` to reopen `plan`; map `tasks`
   to reopen `tasks`; map a completed execution-only owner to reopen `implement`.
   When the target is earlier than the current non-blocked required stage, or is
   that same stage with `status: completed`, run
-  `{{specify-subcmd:workflow reopen --to <mapped-stage> --feature-dir <feature-dir> --expected-revision <revision> --reason <finding-summary> --evidence <finding-id-or-sanitized-evidence> --invalidated-artifacts <artifact> --format json}}`,
+  `{{specify-subcmd:specify-runtime workflow reopen --to <mapped-stage> --feature-dir <feature-dir> --expected-revision <revision> --reason <finding-summary> --evidence <finding-id-or-sanitized-evidence> --invalidated-artifacts <artifact> --format json}}`,
   repeating evidence and artifact flags for the full stale downstream set.
   Preserve its returned revision and hand off without executing the repair
   workflow inline. If the runtime is blocked, honor and resolve that blocker
-  with `workflow resolve` before reopen. If already at the mapped stage and
+  with `specify-runtime workflow resolve` before reopen. If already at the mapped stage and
   active, hand off to its current owner without reopening; if completed,
   reactivate it through the same evidence-backed reopen command. An acceptance
   finding must use `accept route-repair`, never generic reopen.

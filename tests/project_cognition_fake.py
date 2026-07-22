@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import shlex
 import sys
 import textwrap
 from pathlib import Path
@@ -39,7 +40,9 @@ def write_fake_project_cognition_script(tmp_path: Path) -> Path:
         textwrap.dedent(
             r'''
             import json
+            import os
             import sqlite3
+            import subprocess
             import sys
             from pathlib import Path
 
@@ -1088,24 +1091,28 @@ def write_fake_project_cognition_script(tmp_path: Path) -> Path:
 
             def main():
                 args = sys.argv[1:]
-                if args[:2] == ["api", "handshake"]:
-                    print(json.dumps({
-                        "status": "ok",
-                        "summary": "fake runtime handshake",
-                        "data": {
-                            "protocol_version": "specify-runtime.v1",
-                            "capability_ids": [
-                                "api.handshake", "api.list", "artifact.catalog",
-                                "artifact.prepare", "artifact.scaffold", "artifact.show",
-                                "artifact.submit", "validate.spec", "workflow.start",
-                                "workflow.status", "workflow.transition",
-                            ],
-                        },
-                        "items": [], "blockers": [], "show_argv": [], "next_argv": [],
-                    }))
-                    return 0
-                if args[:1] == ["cognition"]:
-                    args = args[1:]
+                if args[:1] != ["cognition"]:
+                    real_runtime = os.environ.get("SPECIFY_TEST_REAL_RUNTIME_BIN", "").strip()
+                    if not real_runtime:
+                        print(json.dumps({
+                            "status": "error",
+                            "summary": "fake cognition runtime cannot serve this namespace",
+                            "data": {}, "items": [], "blockers": [],
+                            "show_argv": [], "next_argv": [],
+                        }))
+                        return 1
+                    completed = subprocess.run(
+                        [real_runtime, *args],
+                        capture_output=True,
+                        text=True,
+                        encoding="utf-8",
+                        errors="replace",
+                        check=False,
+                    )
+                    sys.stdout.write(completed.stdout)
+                    sys.stderr.write(completed.stderr)
+                    return completed.returncode
+                args = args[1:]
                 command = args[0] if args else "check"
                 if command == "validate-scan":
                     print(json.dumps(_validate_scan()))
@@ -1141,7 +1148,23 @@ def write_fake_project_cognition_script(tmp_path: Path) -> Path:
 
 
 def project_cognition_bin_value(script: Path) -> str:
-    return f"{sys.executable}{os.pathsep}{script}"
+    """Create one executable shim for the strict unified-runtime env contract."""
+
+    if os.name == "nt":
+        wrapper = script.with_suffix(".cmd")
+        wrapper.write_text(
+            f'@echo off\r\n"{sys.executable}" "{script}" %*\r\nexit /b %errorlevel%\r\n',
+            encoding="utf-8",
+        )
+    else:
+        wrapper = script.with_suffix("")
+        wrapper.write_text(
+            "#!/bin/sh\n"
+            f"exec {shlex.quote(sys.executable)} {shlex.quote(str(script))} \"$@\"\n",
+            encoding="utf-8",
+        )
+        wrapper.chmod(0o755)
+    return str(wrapper)
 
 
 def install_fake_project_cognition(monkeypatch, tmp_path: Path) -> Path:

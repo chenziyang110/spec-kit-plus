@@ -22,6 +22,11 @@ from specify_cli.implement_audit import (
     _task_review_record_from_payload,
 )
 from specify_cli.specify_runtime import SpecifyRuntimeError, run_specify_runtime
+from specify_cli.workflow_runtime import (
+    MissingWorkflowState,
+    WorkflowRuntimeError,
+    show_workflow,
+)
 
 from .checkpoint_serializers import (
     extract_field,
@@ -5480,12 +5485,22 @@ def validate_artifacts_hook(
         if all((feature_dir / name).exists() for name in legacy_specify_artifacts):
             required_artifacts = legacy_specify_artifacts
     missing = [name for name in required_artifacts if not (feature_dir / name).exists()]
-    if (
-        command_name == "implement"
-        and (feature_dir / "workflow-runtime.json").is_file()
-        and not (feature_dir / "implementation-handoff.json").is_file()
-    ):
-        missing.append("implementation-handoff.json")
+    if command_name == "implement":
+        try:
+            show_workflow(feature_dir)
+        except MissingWorkflowState:
+            pass
+        except WorkflowRuntimeError as exc:
+            return HookResult(
+                event=WORKFLOW_ARTIFACTS_VALIDATE,
+                status="blocked",
+                severity="critical",
+                errors=[f"workflow state could not be validated: {exc}"],
+                data={"feature_dir": str(feature_dir)},
+            )
+        else:
+            if not (feature_dir / "implementation-handoff.json").is_file():
+                missing.append("implementation-handoff.json")
     type_errors: list[str] = []
     if command_name == "plan":
         contract_paths = _consequence_contract_paths(feature_dir)

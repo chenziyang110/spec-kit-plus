@@ -38,10 +38,17 @@ try {
         ($handshake -notmatch '"artifact\.scaffold"') -or
         ($handshake -notmatch '"artifact\.show"') -or
         ($handshake -notmatch '"artifact\.submit"') -or
+        ($handshake -notmatch '"cognition\.run"') -or
         ($handshake -notmatch '"validate\.spec"') -or
-        ($handshake -notmatch '"workflow\.start"') -or
-        ($handshake -notmatch '"workflow\.status"') -or
-        ($handshake -notmatch '"workflow\.transition"')) {
+        ($handshake -notmatch '"workflow\.show"') -or
+        ($handshake -notmatch '"workflow\.enter"') -or
+        ($handshake -notmatch '"workflow\.next"') -or
+        ($handshake -notmatch '"workflow\.complete-stage"') -or
+        ($handshake -notmatch '"workflow\.transition"') -or
+        ($handshake -notmatch '"workflow\.reopen"') -or
+        ($handshake -notmatch '"workflow\.block"') -or
+        ($handshake -notmatch '"workflow\.resolve"') -or
+        ($handshake -notmatch '"workflow\.closeout"')) {
         throw "Downloaded binary failed the specify-runtime API handshake"
     }
 

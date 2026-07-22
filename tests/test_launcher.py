@@ -23,7 +23,7 @@ from specify_cli.launcher import (
     SpecifyLauncherSpec,
     load_project_specify_launcher,
     project_specify_subcommand,
-    rebind_unbound_specify_runtime_cognition_calls,
+    rebind_unbound_unified_runtime_calls,
     rebind_source_bound_specify_launchers,
     rebind_unbound_specify_runtime_calls,
     render_claude_hook_launcher,
@@ -80,12 +80,10 @@ def test_agent_payload_argv_and_derived_commands_bind_from_nested_cwd(tmp_path):
     feature = project / ".specify" / "features" / "001 space 项目&$"
     original_argv = [
         "specify",
-        "workflow",
-        "transition",
+        "accept",
+        "closeout",
         "--feature-dir",
         str(feature),
-        "--to",
-        "accept",
     ]
     original_command = render_command(tuple(original_argv))
     payload = {
@@ -95,7 +93,7 @@ def test_agent_payload_argv_and_derived_commands_bind_from_nested_cwd(tmp_path):
             "command": original_command,
             "instruction": f"Run the exact resume command: {original_command}",
         },
-        "metadata": {"command": ["specify", "workflow", "transition"]},
+        "metadata": {"command": ["specify", "accept", "prepare"]},
     }
 
     bound = bind_project_launcher_payload(payload, nested)
@@ -110,7 +108,7 @@ def test_agent_payload_argv_and_derived_commands_bind_from_nested_cwd(tmp_path):
     assert bound["resume"]["instruction"] == (
         f"Run the exact resume command: {expected_command}"
     )
-    assert bound["metadata"]["command"] == ["specify", "workflow", "transition"]
+    assert bound["metadata"]["command"] == ["specify", "accept", "prepare"]
 
 
 def test_agent_payload_binding_stops_at_an_unconfigured_nested_project(tmp_path):
@@ -120,11 +118,66 @@ def test_agent_payload_binding_stops_at_an_unconfigured_nested_project(tmp_path)
     nested.mkdir(parents=True)
     _write_pinned_launcher_config(outer)
     (inner / ".specify").mkdir()
-    payload = {"next_argv": ["specify", "workflow", "show"]}
+    payload = {"next_argv": ["specify", "accept", "prepare"]}
 
     bound = bind_project_launcher_payload(payload, nested)
 
     assert bound == payload
+
+
+def test_agent_payload_binds_nested_runtime_argv_to_absolute_project_launcher(
+    tmp_path,
+):
+    project = tmp_path / "runtime-project"
+    nested = project / "nested"
+    nested.mkdir(parents=True)
+    runtime = (tmp_path / "runtime tools" / "specify-runtime.exe").resolve()
+    runtime.parent.mkdir()
+    runtime.write_bytes(b"runtime fixture")
+    config_path = project / ".specify" / "config.json"
+    config_path.parent.mkdir(parents=True)
+    config_path.write_text(
+        json.dumps(
+            {
+                "runtime_launcher": {
+                    "command": render_command((str(runtime),)),
+                    "argv": [str(runtime)],
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    original = [
+        "specify-runtime",
+        "workflow",
+        "resolve",
+        "--feature-dir",
+        ".specify/features/001-demo",
+    ]
+    rendered = render_command(tuple(original))
+    payload = {
+        "next_argv": ["specify-runtime", "workflow", "show"],
+        "data": {"resolution_action": {"base_argv": original}},
+        "blockers": [
+            {
+                "resume": {
+                    "argv": list(original),
+                    "command": rendered,
+                    "instruction": f"Run the exact resume command: {rendered}",
+                }
+            }
+        ],
+    }
+
+    bound = bind_project_launcher_payload(payload, nested)
+
+    expected = [str(runtime), *original[1:]]
+    expected_rendered = render_command(tuple(expected))
+    assert bound["next_argv"] == [str(runtime), "workflow", "show"]
+    assert bound["data"]["resolution_action"]["base_argv"] == expected
+    assert bound["blockers"][0]["resume"]["argv"] == expected
+    assert bound["blockers"][0]["resume"]["command"] == expected_rendered
+    assert expected_rendered in bound["blockers"][0]["resume"]["instruction"]
 
 
 def test_write_project_specify_launcher_config_preserves_existing_keys(tmp_path):
@@ -218,14 +271,14 @@ def test_machine_binding_config_rebuilds_untrusted_command_and_argv(
 
     launcher = load_project_specify_launcher(tmp_path)
     bound = bind_project_launcher_payload(
-        {"next_argv": ["specify", "workflow", "show"]},
+        {"next_argv": ["specify", "accept", "prepare"]},
         tmp_path,
     )
 
     assert launcher == launcher_module.project_local_specify_launcher_spec(binding_id)
     assert "INJECTED" not in launcher.command
     assert "INJECTED" not in json.dumps(bound)
-    assert bound["next_argv"] == [*launcher.argv, "workflow", "show"]
+    assert bound["next_argv"] == [*launcher.argv, "accept", "prepare"]
 
 
 def test_source_bound_config_rebuilds_command_and_rejects_argv_injection(tmp_path):
@@ -1053,7 +1106,7 @@ def test_render_project_launcher_placeholders_expands_cli_and_subcommand(tmp_pat
     )
 
 
-def test_render_project_launcher_rebinds_bare_project_cognition_calls(tmp_path):
+def test_render_project_launcher_rebinds_bare_unified_runtime_calls(tmp_path):
     config_dir = tmp_path / ".specify"
     config_dir.mkdir(parents=True)
     (config_dir / "config.json").write_text(
@@ -1070,13 +1123,33 @@ def test_render_project_launcher_rebinds_bare_project_cognition_calls(tmp_path):
 
     rendered = render_project_launcher_placeholders(
         tmp_path,
-        "Run `specify-runtime cognition generate-ignore --format json`.\n\n"
-        "```bash\nspecify-runtime cognition scan-set --format json\n```\n",
+        "Run `specify-runtime workflow show --feature-dir .specify/features/001-demo --format json`.\n\n"
+        "```bash\nspecify-runtime artifact show --kind spec --format json\n```\n\n"
+        "Run `specify-runtime cognition scan-set --format json`.\n",
     )
 
-    assert "`C:/trusted/specify-runtime.exe cognition generate-ignore --format json`" in rendered
-    assert "C:/trusted/specify-runtime.exe cognition scan-set --format json" in rendered
-    assert "`specify-runtime cognition generate-ignore" not in rendered
+    assert (
+        "`C:/trusted/specify-runtime.exe workflow show --feature-dir "
+        ".specify/features/001-demo --format json`" in rendered
+    )
+    assert "C:/trusted/specify-runtime.exe artifact show --kind spec --format json" in rendered
+    assert "`C:/trusted/specify-runtime.exe cognition scan-set --format json`" in rendered
+    assert "`specify-runtime workflow show" not in rendered
+
+
+def test_render_project_launcher_placeholders_rejects_retired_python_workflow_placeholder(
+    tmp_path,
+):
+    rendered = render_project_launcher_placeholders(
+        tmp_path,
+        "Run `{{specify-subcmd:workflow show --feature-dir <feature-dir> --format json}}`.",
+    )
+
+    assert "specify workflow" not in rendered
+    assert (
+        "SPECIFY_RUNTIME_LAUNCHER_UNAVAILABLE:retired-specify-workflow-placeholder"
+        in rendered
+    )
 
 
 def test_render_project_launcher_placeholders_without_project_launcher_avoids_bare_cognition_command(tmp_path):
@@ -1114,7 +1187,7 @@ def test_diagnose_project_runtime_compatibility_reports_broken_launcher(tmp_path
     assert "<agent>" not in broken["repair"]
 
 
-def test_diagnose_project_runtime_compatibility_reports_missing_cognition_launcher(
+def test_diagnose_project_runtime_compatibility_reports_missing_runtime_launcher(
     tmp_path,
 ):
     config_path = tmp_path / ".specify" / "config.json"
@@ -1139,7 +1212,7 @@ def test_diagnose_project_runtime_compatibility_reports_missing_cognition_launch
         if issue["code"] == "missing-specify-runtime-launcher"
     )
     assert "integration repair" in missing["repair"]
-    assert "specify cognition" in missing["repair"]
+    assert "Python `specify` subcommands" in missing["repair"]
     assert "do not" in missing["repair"].lower()
 
 
@@ -1491,25 +1564,97 @@ def test_launcher_rebinding_scopes_negative_language_to_each_inline_command():
     assert "do not call `specify lane register`" in rebound
 
 
-def test_project_cognition_rebinding_covers_inline_and_shell_fence_calls():
+def test_unified_runtime_rebinding_covers_namespaces_and_non_executable_contexts():
     pinned = "C:/trusted/specify-runtime.exe"
     content = (
-        "Run `specify-runtime cognition generate-ignore --format json`.\n\n"
+        "Run `specify-runtime workflow show --feature-dir .specify/features/001-demo --format json`.\n\n"
         "```bash\n"
-        "specify-runtime cognition scan-set --format json\n"
+        "specify-runtime artifact show --kind spec --format json\n"
         "```\n\n"
         "Do not run `specify-runtime cognition mark-dirty`.\n"
+        "Documentation-only example: `specify-runtime workflow transition`.\n"
+        "Run `specify-runtime unsupported inspect`.\n"
     )
 
-    rebound, count = rebind_unbound_specify_runtime_cognition_calls(
+    rebound, count = rebind_unbound_unified_runtime_calls(
         content,
         pinned,
     )
 
     assert count == 2
-    assert f"`{pinned} cognition generate-ignore --format json`" in rebound
-    assert f"{pinned} cognition scan-set --format json" in rebound
+    assert (
+        f"`{pinned} workflow show --feature-dir "
+        ".specify/features/001-demo --format json`" in rebound
+    )
+    assert f"{pinned} artifact show --kind spec --format json" in rebound
     assert "Do not run `specify-runtime cognition mark-dirty`" in rebound
+    assert "Documentation-only example: `specify-runtime workflow transition`" in rebound
+    assert "Run `specify-runtime unsupported inspect`" in rebound
+
+
+@pytest.mark.parametrize(
+    "runtime_args",
+    (
+        "api handshake",
+        "artifact show --kind spec",
+        "cognition status",
+        "validate spec --path feature/spec.md",
+        "version",
+        "workflow show",
+    ),
+)
+def test_unified_runtime_rebinding_recognizes_each_supported_namespace(runtime_args):
+    pinned = "C:/trusted/specify-runtime.exe"
+
+    rebound, count = rebind_unbound_unified_runtime_calls(
+        f"Run `specify-runtime {runtime_args}`.\n",
+        pinned,
+    )
+
+    assert count == 1
+    assert f"`{pinned} {runtime_args}`" in rebound
+
+
+@pytest.mark.parametrize("namespace", ("workflow", "artifact", "cognition"))
+def test_runtime_diagnostics_report_unbound_unified_runtime_namespaces(
+    monkeypatch,
+    tmp_path,
+    namespace,
+):
+    config_path = tmp_path / ".specify" / "config.json"
+    config_path.parent.mkdir(parents=True)
+    config_path.write_text(
+        json.dumps(
+            {
+                "runtime_launcher": {
+                    "command": "C:/trusted/specify-runtime.exe",
+                    "argv": ["C:/trusted/specify-runtime.exe"],
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        launcher_module,
+        "runtime_launcher_is_compatible",
+        lambda project_root, launcher=None: True,
+    )
+    skill_path = tmp_path / ".codex" / "skills" / "runtime" / "SKILL.md"
+    skill_path.parent.mkdir(parents=True)
+    skill_path.write_text(
+        f"Run `specify-runtime {namespace} status --format json`.\n",
+        encoding="utf-8",
+    )
+
+    issues = diagnose_project_runtime_compatibility(tmp_path)
+
+    issue = next(
+        item
+        for item in issues
+        if item["code"] == "unbound-generated-specify-runtime-launcher"
+    )
+    assert ".codex/skills/runtime/SKILL.md" in issue["summary"]
+    assert "specify-runtime cognition" not in issue["summary"]
 
 
 def test_runtime_diagnostics_ignore_workflow_arrow_notation(tmp_path):

@@ -28,6 +28,12 @@ _NAKED_RUNTIME_COMMAND = re.compile(
     r")|spec-lint\s+(?:check|fix|lint|scan|validate))\b",
     re.IGNORECASE,
 )
+_PYTHON_WORKFLOW_COMMAND = re.compile(
+    r"(?<![\w-])specify\s+workflow\s+(?:"
+    r"show|enter|next|complete-stage|transition|reopen|block|resolve|closeout"
+    r")\b",
+    re.IGNORECASE,
+)
 
 
 CLASSIC_ARTIFACT_SURFACES = {
@@ -277,3 +283,30 @@ def test_generated_scaffolds_use_unified_runtime_not_python_control_plane(
         content = _read_generated_tree(generated_agent_surfaces[profile]).lower()
         assert "specify-runtime artifact scaffold" in content
         assert "specify artifact scaffold" not in content
+
+
+def test_generated_phase_control_uses_only_unified_runtime(
+    generated_agent_surfaces: dict[str, Path],
+) -> None:
+    required_verbs = (
+        "show",
+        "transition",
+        "complete-stage",
+        "block",
+        "resolve",
+        "closeout",
+    )
+
+    for profile in ("classic", "advanced"):
+        content = _read_generated_tree(generated_agent_surfaces[profile]).lower()
+        assert "workflow-runtime.json" not in content, profile
+        assert _PYTHON_WORKFLOW_COMMAND.search(content) is None, profile
+        for verb in required_verbs:
+            command = re.compile(
+                rf"\bspecify-runtime(?:\.exe)?\s+workflow\s+{re.escape(verb)}\b"
+            )
+            assert command.search(content), f"{profile}: missing workflow {verb}"
+        assert "`workflow-state.md` is inside this boundary" in content, profile
+        assert "never required-stage authority" in content, profile
+        assert "only completed `accept` is terminal" in content, profile
+        assert "unresolved blocker" in content, profile

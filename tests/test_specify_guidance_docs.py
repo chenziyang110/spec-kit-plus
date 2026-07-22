@@ -158,10 +158,11 @@ def test_primary_docs_teach_progressive_agent_cli_discovery_and_stage_guards() -
     ):
         content = (PROJECT_ROOT / relative).read_text(encoding="utf-8")
         lowered = content.casefold()
-        assert "specify api handshake" in lowered
+        assert "specify-runtime api handshake" in lowered
+        assert "specify-runtime api list" in lowered
         assert "specify api commands" in lowered
         assert "specify api command" in lowered
-        assert "specify workflow transition" in lowered
+        assert "specify-runtime workflow transition" in lowered
         assert "exit code `10`" in lowered
 
 

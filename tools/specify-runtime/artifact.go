@@ -11,10 +11,13 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/filelock"
 )
 
 type ArtifactService struct {
-	projectRoot string
+	projectRoot           string
+	afterArtifactMkdirAll func()
 }
 
 type ArtifactPrepareRequest struct {
@@ -38,6 +41,8 @@ type ArtifactShowRequest struct {
 type artifactLease struct {
 	ID            string `json:"id"`
 	CanonicalPath string `json:"canonical_path"`
+	TargetExists  bool   `json:"target_exists"`
+	TargetSHA256  string `json:"target_sha256"`
 	Used          bool   `json:"used"`
 }
 
@@ -52,6 +57,18 @@ func (service *ArtifactService) Prepare(request ArtifactPrepareRequest) Envelope
 		env.Blockers = append(env.Blockers, err.Error())
 		return env
 	}
+	target, err := secureProjectPath(service.projectRoot, canonicalPath)
+	if err != nil {
+		env := NewEnvelope("blocked", "artifact path safety check failed")
+		env.Blockers = append(env.Blockers, err.Error())
+		return env
+	}
+	targetExists, targetSHA256, err := snapshotArtifactTarget(target)
+	if err != nil {
+		env := NewEnvelope("blocked", "artifact target cannot be inspected")
+		env.Blockers = append(env.Blockers, err.Error())
+		return env
+	}
 	leaseID, err := newLeaseID()
 	if err != nil {
 		env := NewEnvelope("error", "failed to create artifact lease")
@@ -61,6 +78,8 @@ func (service *ArtifactService) Prepare(request ArtifactPrepareRequest) Envelope
 	lease := artifactLease{
 		ID:            leaseID,
 		CanonicalPath: canonicalPath,
+		TargetExists:  targetExists,
+		TargetSHA256:  targetSHA256,
 	}
 	if err := service.writeLease(lease); err != nil {
 		env := NewEnvelope("error", "failed to create artifact lease")
@@ -70,6 +89,8 @@ func (service *ArtifactService) Prepare(request ArtifactPrepareRequest) Envelope
 	env := NewEnvelope("ok", "artifact lease prepared")
 	env.Data["lease_id"] = lease.ID
 	env.Data["canonical_path"] = canonicalPath
+	env.Data["target_exists"] = lease.TargetExists
+	env.Data["target_sha256"] = lease.TargetSHA256
 	env.NextArgv = []string{"specify-runtime", "artifact", "submit", "--lease", lease.ID, "--content-file", "<path>"}
 	return env
 }
@@ -79,13 +100,13 @@ func (service *ArtifactService) Submit(request ArtifactSubmitRequest) Envelope {
 	if err != nil {
 		env := NewEnvelope("blocked", "artifact lease is unavailable")
 		env.Blockers = append(env.Blockers, err.Error())
+		if lease.Used && lease.CanonicalPath != "" {
+			env.NextArgv = []string{"specify-runtime", "artifact", "prepare", "--path", lease.CanonicalPath}
+		}
 		return env
 	}
-	if lease.Used {
-		env := NewEnvelope("blocked", "artifact lease has already been used")
-		env.Blockers = append(env.Blockers, "prepare a new lease before submitting updated content")
-		return service.finishLease(lease, claimPath, env)
-	}
+	// claimLease durably consumes the lease before any content or target work, so
+	// every later exit remains one-use, including validation and stale-target failures.
 	content, err := normalizeArtifactContent(request.Content)
 	if err != nil {
 		env := NewEnvelope("invalid", "artifact content is invalid")
@@ -108,16 +129,87 @@ func (service *ArtifactService) Submit(request ArtifactSubmitRequest) Envelope {
 		env.Blockers = append(env.Blockers, err.Error())
 		return service.finishLease(lease, claimPath, env)
 	}
+	if service.afterArtifactMkdirAll != nil {
+		service.afterArtifactMkdirAll()
+	}
+	target, err = secureProjectPath(service.projectRoot, lease.CanonicalPath)
+	if err != nil {
+		env := NewEnvelope("blocked", "artifact path safety check failed")
+		env.Blockers = append(env.Blockers, err.Error())
+		return service.finishLease(lease, claimPath, env)
+	}
+	lockPath, err := service.artifactLockPath(lease.CanonicalPath)
+	if err != nil {
+		env := NewEnvelope("blocked", "artifact lock path safety check failed")
+		env.Blockers = append(env.Blockers, err.Error())
+		return service.finishLease(lease, claimPath, env)
+	}
+	releaseLock, err := filelock.Acquire(lockPath)
+	if err != nil {
+		env := NewEnvelope("error", "failed to acquire artifact write lock")
+		env.Blockers = append(env.Blockers, err.Error())
+		return service.finishLease(lease, claimPath, env)
+	}
+	defer releaseLock()
+	target, err = secureProjectPath(service.projectRoot, lease.CanonicalPath)
+	if err != nil {
+		env := NewEnvelope("blocked", "artifact path safety check failed")
+		env.Blockers = append(env.Blockers, err.Error())
+		return service.finishLease(lease, claimPath, env)
+	}
+	currentExists, currentSHA256, err := snapshotArtifactTarget(target)
+	if err != nil {
+		env := NewEnvelope("blocked", "artifact target cannot be inspected")
+		env.Blockers = append(env.Blockers, err.Error())
+		return service.finishLease(lease, claimPath, env)
+	}
+	if currentExists != lease.TargetExists || currentSHA256 != lease.TargetSHA256 {
+		env := NewEnvelope("blocked", "artifact target changed after lease preparation")
+		env.Blockers = append(env.Blockers, "prepare a new lease from the current canonical artifact before submitting")
+		env.NextArgv = []string{"specify-runtime", "artifact", "prepare", "--path", lease.CanonicalPath}
+		env.ShowArgv = []string{"specify-runtime", "artifact", "show", "--path", lease.CanonicalPath, "--view", "summary"}
+		return service.finishLease(lease, claimPath, env)
+	}
 	if err := atomicWriteFile(target, content, 0o644); err != nil {
 		env := NewEnvelope("error", "failed to write canonical artifact")
 		env.Blockers = append(env.Blockers, err.Error())
 		return service.finishLease(lease, claimPath, env)
 	}
-	lease.Used = true
 	env := NewEnvelope("ok", "canonical artifact submitted")
 	env.Data["canonical_path"] = lease.CanonicalPath
 	env.ShowArgv = []string{"specify-runtime", "artifact", "show", "--path", lease.CanonicalPath, "--view", "summary"}
 	return service.finishLease(lease, claimPath, env)
+}
+
+func snapshotArtifactTarget(path string) (bool, string, error) {
+	raw, err := os.ReadFile(path)
+	if os.IsNotExist(err) {
+		return false, "", nil
+	}
+	if err != nil {
+		return false, "", err
+	}
+	digest := sha256.Sum256(raw)
+	return true, hex.EncodeToString(digest[:]), nil
+}
+
+func (service *ArtifactService) artifactLockPath(canonicalPath string) (string, error) {
+	digest := sha256.Sum256([]byte(canonicalPath))
+	relative := filepath.ToSlash(filepath.Join(
+		".specify",
+		"runtime",
+		"locks",
+		"artifacts",
+		hex.EncodeToString(digest[:])+".lock",
+	))
+	path, err := secureProjectPath(service.projectRoot, relative)
+	if err != nil {
+		return "", err
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return "", err
+	}
+	return secureProjectPath(service.projectRoot, relative)
 }
 
 func (service *ArtifactService) Show(request ArtifactShowRequest) Envelope {
@@ -184,7 +276,7 @@ func canonicalArtifactPath(featureID, kind string) (string, error) {
 	if kind == "spec" {
 		extension = ".md"
 	}
-	return fmt.Sprintf(".specify/features/%s/%s%s", featureID, kind, extension), nil
+	return registeredArtifactPath(fmt.Sprintf(".specify/features/%s/%s%s", featureID, kind, extension))
 }
 
 var registeredArtifactRoots = []string{
@@ -235,7 +327,11 @@ func registeredArtifactPath(requestedPath string) (string, error) {
 	if !allowedRoot {
 		return "", fmt.Errorf("artifact path %q is outside registered workflow roots", normalized)
 	}
-	if filepath.Base(normalized) == "workflow.json" {
+	basename := filepath.Base(normalized)
+	if strings.HasPrefix(basename, ".") {
+		return "", fmt.Errorf("hidden workflow artifacts are runtime-owned and cannot be registered")
+	}
+	if strings.EqualFold(basename, "workflow.json") {
 		return "", fmt.Errorf("workflow.json is owned by specify-runtime workflow")
 	}
 	extension := strings.ToLower(filepath.Ext(normalized))
@@ -397,29 +493,41 @@ func (service *ArtifactService) readLease(leaseID string) (artifactLease, error)
 
 func (service *ArtifactService) claimLease(leaseID string) (artifactLease, string, error) {
 	var lease artifactLease
-	path, err := service.leasePath(leaseID)
+	if _, err := service.leasePath(leaseID); err != nil {
+		return lease, "", err
+	}
+	lockPath, err := secureProjectPath(service.projectRoot, filepath.ToSlash(filepath.Join(
+		".specify", "runtime", "locks", "leases", leaseID+".lock",
+	)))
 	if err != nil {
 		return lease, "", err
 	}
-	claimPath := path + ".claimed"
-	if err := os.Rename(path, claimPath); err != nil {
+	if err := os.MkdirAll(filepath.Dir(lockPath), 0o755); err != nil {
 		return lease, "", err
 	}
-	raw, err := os.ReadFile(claimPath)
+	lockPath, err = secureProjectPath(service.projectRoot, filepath.ToSlash(filepath.Join(
+		".specify", "runtime", "locks", "leases", leaseID+".lock",
+	)))
 	if err != nil {
-		return lease, claimPath, err
+		return lease, "", err
 	}
-	if err := json.Unmarshal(raw, &lease); err != nil {
-		return lease, claimPath, err
+	release, err := filelock.Acquire(lockPath)
+	if err != nil {
+		return lease, "", err
 	}
-	if lease.ID != leaseID {
-		return lease, claimPath, fmt.Errorf("lease id does not match its record")
+	defer release()
+	lease, err = service.readLease(leaseID)
+	if err != nil {
+		return lease, "", err
 	}
-	canonicalPath, err := registeredArtifactPath(lease.CanonicalPath)
-	if err != nil || canonicalPath != lease.CanonicalPath {
-		return lease, claimPath, fmt.Errorf("lease canonical path is invalid")
+	if lease.Used {
+		return lease, "", fmt.Errorf("artifact lease has already been claimed")
 	}
-	return lease, claimPath, nil
+	lease.Used = true
+	if err := service.writeLease(lease); err != nil {
+		return artifactLease{}, "", fmt.Errorf("persist claimed lease: %w", err)
+	}
+	return lease, "", nil
 }
 
 func (service *ArtifactService) releaseLease(lease artifactLease, claimPath string) error {
@@ -436,6 +544,9 @@ func (service *ArtifactService) releaseLease(lease artifactLease, claimPath stri
 }
 
 func (service *ArtifactService) finishLease(lease artifactLease, claimPath string, env Envelope) Envelope {
+	if lease.Used && env.Status != "ok" && len(env.NextArgv) == 0 && lease.CanonicalPath != "" {
+		env.NextArgv = []string{"specify-runtime", "artifact", "prepare", "--path", lease.CanonicalPath}
+	}
 	if err := service.releaseLease(lease, claimPath); err != nil {
 		env.Status = "error"
 		env.Summary = "failed to persist artifact lease state"
@@ -452,6 +563,10 @@ func newLeaseID() (string, error) {
 	return hex.EncodeToString(bytes[:]), nil
 }
 
+var syncAtomicTempFile = func(file *os.File) error {
+	return file.Sync()
+}
+
 func atomicWriteFile(path string, content []byte, perm os.FileMode) error {
 	temp, err := os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+".tmp-*")
 	if err != nil {
@@ -463,10 +578,15 @@ func atomicWriteFile(path string, content []byte, perm os.FileMode) error {
 		_ = temp.Close()
 		return err
 	}
-	if err := temp.Close(); err != nil {
+	if err := temp.Chmod(perm); err != nil {
+		_ = temp.Close()
 		return err
 	}
-	if err := os.Chmod(tempName, perm); err != nil {
+	if err := syncAtomicTempFile(temp); err != nil {
+		_ = temp.Close()
+		return err
+	}
+	if err := temp.Close(); err != nil {
 		return err
 	}
 	return replaceFile(tempName, path)

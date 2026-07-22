@@ -19,12 +19,15 @@ recorded digest/fingerprint differs, status is `stale` and no prior verdict can
 close acceptance. Return to `$spx-review`; only that owner may revalidate the
 product and refresh the acceptance handoff.
 
-Use CLI-owned `workflow-runtime.json` as the required phase lock. Use rich
+Use CLI-owned `workflow.json` as the required phase lock. Use rich
 `workflow-state.md` only for acceptance-owned resume and evidence state:
 
 - `active_command: sp-accept`
 - `phase_mode: acceptance-only`
-- allowed writes: `human-acceptance.json` and acceptance-owned workflow state
+- allowed writes: `human-acceptance.json` through the launcher-bound `accept`
+  CLI subcommands, plus
+  acceptance-owned rich `workflow-state.md` fields through an artifact lease;
+  never author compact `workflow.json`
 - forbidden writes: source, tests, requirements, plan/tasks, implementation or
   Review records, production/protected external systems; safe reversible
   local/sandbox runtime and isolated-fixture preparation remains allowed
@@ -129,7 +132,7 @@ stop. Review remains the stage owner for the acceptance finding; only a proven
 requirement, design, or architecture truth gap may leave Review for its upstream
 owner. The
 owning required stage reads the reopened CLI state, completes it through
-`workflow complete-stage`, and progresses every required stage in order. Only
+`specify-runtime workflow complete-stage`, and progresses every required stage in order. Only
 after the runtime re-enters active `accept` execute
 `acceptance_return_argv` to rebuild/freshness-check the guide, start at the
 preserved failed cursor, and rerun the entire frozen Human Acceptance Universe.
@@ -142,6 +145,6 @@ matching Review. Never synthesize those records or edit a finding to
 approved Review.
 
 After `accept closeout` succeeds and its exact `next_argv` commits terminal
-workflow closeout, the acceptance state, immutable terminal snapshot, and
+state through `specify-runtime workflow closeout`, the acceptance state, immutable terminal snapshot, and
 completed runtime are read-only. Changed implementation scope starts a new
 feature workflow; never rewrite the terminal verdict to draft or stale.
