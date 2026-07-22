@@ -21,10 +21,7 @@ from specify_cli.implement_audit import (
     _packetized_task_ids,
     _task_review_record_from_payload,
 )
-from specify_cli.project_cognition_tool import (
-    ProjectCognitionToolError,
-    run_project_cognition,
-)
+from specify_cli.specify_runtime import SpecifyRuntimeError, run_specify_runtime
 
 from .checkpoint_serializers import (
     extract_field,
@@ -4493,8 +4490,11 @@ def _run_project_cognition_validation(
     project_root: Path, command: str
 ) -> dict[str, object]:
     try:
-        return run_project_cognition([command, "--format", "json"], cwd=project_root)
-    except ProjectCognitionToolError as exc:
+        return run_specify_runtime(
+            ["cognition", command, "--format", "json"],
+            cwd=project_root,
+        )
+    except SpecifyRuntimeError as exc:
         return {
             "status": "blocked",
             "errors": [str(exc)],

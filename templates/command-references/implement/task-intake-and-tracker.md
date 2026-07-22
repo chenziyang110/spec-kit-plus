@@ -18,7 +18,7 @@ If the current task's required refs are stale, missing, or contradicted by live 
 Run or emulate:
 
 ```text
-{{specify-subcmd:project-cognition compass --intent implement --query="$ARGUMENTS" --format json}}
+{{specify-subcmd:specify-runtime cognition compass --intent implement --query="$ARGUMENTS" --format json}}
 ```
 
 Use `compass_state`, `minimal_live_reads`, `first_pass_paths`, `coverage_diagnostics`, and `expansion_ref` only to repair the current task context; they do not replace live proof or authorize a broader implementation scope.

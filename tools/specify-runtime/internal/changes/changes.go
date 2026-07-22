@@ -1,0 +1,630 @@
+package changes
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"os/exec"
+	"path/filepath"
+	"sort"
+	"strings"
+
+	changemodel "github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/changes/model"
+	"github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/ignore"
+	rt "github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/runtime"
+	"github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/store"
+)
+
+const (
+	nextNoOp            = "no_op"
+	nextAffectedClosure = "affected_closure"
+	nextPartialRefresh  = "partial_refresh"
+	nextNeedsRebuild    = "needs_rebuild"
+	nextBlocked         = "blocked"
+
+	levelMappedChange = "mapped_change"
+	levelNewPath      = "new_path"
+	levelDeletedPath  = "deleted_path"
+	levelRenamedPath  = "renamed_path"
+	levelUnknownPath  = "unknown_path"
+)
+
+type Input struct {
+	Since              string   `json:"since"`
+	Head               string   `json:"head"`
+	IncludeWorkingTree bool     `json:"include_working_tree"`
+	IncludeUntracked   bool     `json:"include_untracked"`
+	ExplicitPaths      []string `json:"explicit_paths"`
+	Intent             string   `json:"intent"`
+}
+
+type Summary struct {
+	Total    int `json:"total"`
+	Included int `json:"included"`
+	Ignored  int `json:"ignored"`
+	Known    int `json:"known"`
+	Unknown  int `json:"unknown"`
+	Deleted  int `json:"deleted"`
+	Renamed  int `json:"renamed"`
+}
+
+type Change struct {
+	changemodel.PathChange
+	GitStatus          string   `json:"git_status"`
+	Sources            []string `json:"sources"`
+	Tracked            bool     `json:"tracked"`
+	WorkingTreeDirty   bool     `json:"working_tree_dirty"`
+	IgnoredByCognition bool     `json:"ignored_by_cognition"`
+	KnownToRuntime     bool     `json:"known_to_runtime"`
+	ChangeLevel        string   `json:"change_level"`
+	RecommendedAction  string   `json:"recommended_action"`
+	Reason             []string `json:"reason"`
+}
+
+type Payload struct {
+	Status           string   `json:"status"`
+	Readiness        string   `json:"readiness"`
+	BaselineCommit   string   `json:"baseline_commit,omitempty"`
+	HeadCommit       string   `json:"head_commit,omitempty"`
+	WorkingTreeDirty bool     `json:"working_tree_dirty"`
+	NextAction       string   `json:"next_action"`
+	Summary          Summary  `json:"summary"`
+	Changes          []Change `json:"changes"`
+	IgnoredPaths     []string `json:"ignored_paths"`
+	UnknownPaths     []string `json:"unknown_paths"`
+	Warnings         []string `json:"warnings"`
+	Errors           []string `json:"errors"`
+}
+
+type mergedChange struct {
+	path    string
+	oldPath string
+	status  string
+	sources map[string]bool
+	tracked bool
+}
+
+func Run(paths rt.Paths, input Input) (Payload, error) {
+	payload := Payload{
+		Changes:      []Change{},
+		IgnoredPaths: []string{},
+		UnknownPaths: []string{},
+		Warnings:     []string{},
+		Errors:       []string{},
+	}
+
+	status, err := rt.ReadStatus(paths)
+	if errors.Is(err, rt.ErrUnsupportedLegacy) {
+		payload.Status = "blocked"
+		payload.Readiness = rt.UnsupportedReadiness
+		payload.NextAction = nextNeedsRebuild
+		payload.Errors = []string{rt.UnsupportedLegacyPayload(paths).Errors[0]}
+		return payload, nil
+	}
+	if err != nil {
+		payload.Status = "blocked"
+		payload.Readiness = rt.NeedsRebuildReadiness
+		payload.NextAction = nextNeedsRebuild
+		payload.Errors = []string{err.Error()}
+		return payload, nil
+	}
+	repairableDirty := repairableDirtyStatus(status)
+	if status.Status == "blocked" || (status.Readiness == rt.BlockedReadiness && !repairableDirty) {
+		payload.Status = "blocked"
+		payload.Readiness = rt.BlockedReadiness
+		payload.NextAction = nextBlocked
+		payload.Errors = blockedRuntimeErrors(status)
+		return payload, nil
+	}
+	payload.Status = "ok"
+	payload.Readiness = status.Readiness
+	if repairableDirty {
+		payload.Warnings = append(payload.Warnings, repairableDirtyWarnings(status)...)
+	}
+
+	if !rt.GitAvailable(paths.Root) {
+		payload.Status = "blocked"
+		payload.Readiness = rt.BlockedReadiness
+		payload.NextAction = nextBlocked
+		payload.Errors = []string{"git repository unavailable"}
+		return payload, nil
+	}
+
+	head := strings.TrimSpace(input.Head)
+	if head == "" {
+		var headErr error
+		head, headErr = rt.GitHead(paths.Root)
+		if headErr != nil {
+			payload.Status = "blocked"
+			payload.Readiness = rt.BlockedReadiness
+			payload.NextAction = nextBlocked
+			payload.Errors = []string{"git repository unavailable"}
+			return payload, nil
+		}
+	}
+	baseline := strings.TrimSpace(input.Since)
+	if baseline == "" {
+		baseline = strings.TrimSpace(status.LastRefreshGitCommit)
+	}
+	payload.HeadCommit = head
+	payload.BaselineCommit = baseline
+	if baseline == "" {
+		payload.Warnings = append(payload.Warnings, "no refresh git baseline recorded; using working tree status only")
+	}
+
+	merged := map[string]*mergedChange{}
+	if baseline != "" && head != "" {
+		entries, err := rt.GitDiffNameStatus(paths.Root, baseline, head)
+		if err != nil {
+			payload.Status = "blocked"
+			payload.Readiness = rt.BlockedReadiness
+			payload.NextAction = nextBlocked
+			payload.Errors = []string{err.Error()}
+			return payload, nil
+		}
+		for _, entry := range entries {
+			if !includeCommittedStatusEntry(entry.Code) {
+				payload.Status = "blocked"
+				payload.Readiness = rt.BlockedReadiness
+				payload.NextAction = nextBlocked
+				payload.Changes = []Change{}
+				payload.UnknownPaths = []string{}
+				payload.Errors = []string{fmt.Sprintf("unsupported committed git status %q for %s", entry.Code, entry.Path)}
+				return payload, nil
+			}
+			addMerged(merged, entry, "committed", true)
+		}
+	}
+
+	if input.IncludeWorkingTree || input.IncludeUntracked {
+		entries, err := rt.GitStatusEntries(paths.Root)
+		if err != nil {
+			payload.Status = "blocked"
+			payload.Readiness = rt.BlockedReadiness
+			payload.NextAction = nextBlocked
+			payload.Errors = []string{"git repository unavailable"}
+			return payload, nil
+		}
+		for _, entry := range entries {
+			include, block := intakeStatusEntry(entry.Code, input.IncludeWorkingTree, input.IncludeUntracked)
+			if block {
+				payload.Status = "blocked"
+				payload.Readiness = rt.BlockedReadiness
+				payload.NextAction = nextBlocked
+				payload.Changes = []Change{}
+				payload.UnknownPaths = []string{}
+				payload.Errors = []string{fmt.Sprintf("unsupported git status %q for %s", entry.Code, entry.Path)}
+				return payload, nil
+			}
+			if !include {
+				continue
+			}
+			addMerged(merged, entry, "working_tree", entry.Code != "??")
+		}
+	}
+
+	for _, path := range input.ExplicitPaths {
+		originalPath := path
+		path, err = normalizeExplicitPath(paths.Root, path)
+		if err != nil {
+			payload.Status = "blocked"
+			payload.Readiness = rt.BlockedReadiness
+			payload.NextAction = nextBlocked
+			payload.Changes = []Change{}
+			payload.UnknownPaths = []string{}
+			payload.Errors = []string{fmt.Sprintf("invalid explicit path %q: expected a concrete repository-relative path", originalPath)}
+			return payload, nil
+		}
+		addMerged(merged, rt.GitStatusEntry{Code: "explicit", Path: path}, "explicit", pathTrackedByGit(paths.Root, path))
+	}
+
+	matcher := ignore.Load(paths.Root)
+	includedItems := make(map[string]*mergedChange, len(merged))
+	for _, item := range merged {
+		if matcher.Ignored(item.path) {
+			payload.IgnoredPaths = append(payload.IgnoredPaths, item.path)
+			continue
+		}
+		includedItems[item.path] = item
+	}
+	// A rename into cognition-ignored scope still removes the old tracked path
+	// from the runtime graph. Preserve that half as a synthetic delete while the
+	// ignored destination remains excluded from cognition.
+	for _, item := range merged {
+		oldPath := strings.TrimSpace(item.oldPath)
+		if !matcher.Ignored(item.path) || oldPath == "" || matcher.Ignored(oldPath) {
+			continue
+		}
+		if _, exists := includedItems[oldPath]; exists {
+			continue
+		}
+		sources := make(map[string]bool, len(item.sources))
+		for source, present := range item.sources {
+			sources[source] = present
+		}
+		includedItems[oldPath] = &mergedChange{
+			path:    oldPath,
+			status:  "D",
+			sources: sources,
+			tracked: item.tracked,
+		}
+	}
+	includedPaths := make([]string, 0, len(includedItems))
+	for path := range includedItems {
+		includedPaths = append(includedPaths, path)
+	}
+	sort.Strings(includedPaths)
+	sort.Strings(payload.IgnoredPaths)
+
+	lookupPaths := append([]string{}, includedPaths...)
+	for _, path := range includedPaths {
+		if oldPath := strings.TrimSpace(includedItems[path].oldPath); oldPath != "" {
+			lookupPaths = append(lookupPaths, oldPath)
+		}
+	}
+	lookupPaths = uniqueSortedPaths(lookupPaths)
+	pathNodeIDs, err := nodeIDsForPaths(paths, lookupPaths, runtimeRequiresStore(status))
+	if err != nil {
+		payload.Status = "blocked"
+		payload.Readiness = rt.NeedsRebuildReadiness
+		payload.NextAction = nextNeedsRebuild
+		payload.Changes = []Change{}
+		payload.UnknownPaths = []string{}
+		payload.Errors = []string{err.Error()}
+		payload.Summary = Summary{
+			Total:   len(includedPaths) + len(payload.IgnoredPaths),
+			Ignored: len(payload.IgnoredPaths),
+		}
+		return payload, nil
+	}
+	for _, path := range includedPaths {
+		item := includedItems[path]
+		nodeID := pathNodeIDs[path]
+		if nodeID == "" && item.oldPath != "" {
+			nodeID = pathNodeIDs[item.oldPath]
+		}
+		change := Change{
+			PathChange: changemodel.PathChange{
+				Path:         item.path,
+				OldPath:      item.oldPath,
+				Operation:    operationFor(item.status, item.tracked, nodeID != ""),
+				NodeID:       nodeID,
+				EvidenceRefs: []string{},
+			},
+			GitStatus:          item.status,
+			Sources:            sortedSources(item.sources),
+			Tracked:            item.tracked,
+			WorkingTreeDirty:   item.sources["working_tree"],
+			IgnoredByCognition: false,
+			KnownToRuntime:     nodeID != "",
+		}
+		change.ChangeLevel = classify(change.GitStatus, change.KnownToRuntime)
+		change.RecommendedAction = recommendedAction(change.ChangeLevel)
+		change.Reason = reason(change.KnownToRuntime, change.ChangeLevel)
+		payload.Changes = append(payload.Changes, change)
+		if change.WorkingTreeDirty {
+			payload.WorkingTreeDirty = true
+		}
+	}
+
+	sort.Slice(payload.Changes, func(i, j int) bool {
+		return payload.Changes[i].Path < payload.Changes[j].Path
+	})
+	for _, change := range payload.Changes {
+		payload.Summary.Included++
+		if change.KnownToRuntime {
+			payload.Summary.Known++
+		} else {
+			payload.Summary.Unknown++
+			payload.UnknownPaths = append(payload.UnknownPaths, change.Path)
+		}
+		switch change.ChangeLevel {
+		case levelDeletedPath:
+			payload.Summary.Deleted++
+		case levelRenamedPath:
+			payload.Summary.Renamed++
+		}
+	}
+	sort.Strings(payload.UnknownPaths)
+	payload.Summary.Ignored = len(payload.IgnoredPaths)
+	payload.Summary.Total = payload.Summary.Included + payload.Summary.Ignored
+
+	payload.NextAction = nextAction(payload.Readiness, payload.Summary.Included, payload.UnknownPaths)
+	return payload, nil
+}
+
+func operationFor(status string, tracked bool, known bool) changemodel.Operation {
+	status = strings.TrimSpace(status)
+	switch {
+	case strings.HasPrefix(status, "D"):
+		return changemodel.OperationDelete
+	case strings.HasPrefix(status, "R"):
+		return changemodel.OperationRename
+	case status == "??" || strings.HasPrefix(status, "A"):
+		return changemodel.OperationAdd
+	case strings.HasPrefix(status, "M"):
+		return changemodel.OperationModify
+	case status == "explicit" && !tracked && !known:
+		return changemodel.OperationAdd
+	default:
+		return changemodel.OperationModify
+	}
+}
+
+func addMerged(merged map[string]*mergedChange, entry rt.GitStatusEntry, source string, tracked bool) {
+	path := normalizePath(entry.Path)
+	if path == "" {
+		return
+	}
+	item := merged[path]
+	if item == nil {
+		item = &mergedChange{
+			path:    path,
+			sources: map[string]bool{},
+		}
+		merged[path] = item
+	}
+	if oldPath := normalizePath(entry.OldPath); oldPath != "" {
+		item.oldPath = oldPath
+	}
+	status := strings.TrimSpace(entry.Code)
+	if status != "" && shouldReplaceStatus(item.status, status, source) {
+		item.status = status
+	}
+	item.sources[source] = true
+	item.tracked = item.tracked || tracked
+}
+
+func shouldReplaceStatus(current string, next string, source string) bool {
+	if current == "" {
+		return true
+	}
+	if source == "working_tree" {
+		return true
+	}
+	if source == "committed" && current == "explicit" {
+		return true
+	}
+	return false
+}
+
+func includeCommittedStatusEntry(code string) bool {
+	code = strings.TrimSpace(code)
+	if code == "" {
+		return false
+	}
+	switch code[0] {
+	case 'A', 'M', 'D':
+		return len(code) == 1
+	case 'R':
+		for _, r := range code[1:] {
+			if r < '0' || r > '9' {
+				return false
+			}
+		}
+		return true
+	default:
+		return false
+	}
+}
+
+func includeStatusEntry(code string, includeWorkingTree bool, includeUntracked bool) bool {
+	include, _ := intakeStatusEntry(code, includeWorkingTree, includeUntracked)
+	return include
+}
+
+func intakeStatusEntry(code string, includeWorkingTree bool, includeUntracked bool) (bool, bool) {
+	code = strings.TrimSpace(code)
+	if code == "??" {
+		return includeUntracked, false
+	}
+	switch code {
+	case "DD", "AU", "UD", "UA", "DU", "AA", "UU":
+		return false, true
+	}
+	for _, r := range code {
+		switch r {
+		case 'M', 'A', 'D', 'R':
+			continue
+		default:
+			return false, true
+		}
+	}
+	if code == "" {
+		return false, false
+	}
+	return includeWorkingTree, false
+}
+
+func sortedSources(sources map[string]bool) []string {
+	out := make([]string, 0, len(sources))
+	for _, source := range []string{"committed", "working_tree", "explicit"} {
+		if sources[source] {
+			out = append(out, source)
+		}
+	}
+	var unknown []string
+	for source := range sources {
+		switch source {
+		case "committed", "working_tree", "explicit":
+			continue
+		default:
+			unknown = append(unknown, source)
+		}
+	}
+	sort.Strings(unknown)
+	out = append(out, unknown...)
+	return out
+}
+
+func nodeIDsForPaths(paths rt.Paths, changedPaths []string, requireStore bool) (map[string]string, error) {
+	if len(changedPaths) == 0 && !requireStore {
+		return map[string]string{}, nil
+	}
+	st, err := store.OpenExisting(paths)
+	if err != nil {
+		return nil, fmt.Errorf("runtime graph store unavailable: %w", err)
+	}
+	defer st.Close()
+	if len(changedPaths) == 0 {
+		return map[string]string{}, nil
+	}
+	pathNodeIDs, err := st.NodeIDsForExactPaths(context.Background(), changedPaths)
+	if err != nil {
+		return nil, fmt.Errorf("runtime path index lookup failed: %w", err)
+	}
+	return pathNodeIDs, nil
+}
+
+func runtimeRequiresStore(status rt.Status) bool {
+	return status.Readiness == rt.ReadyReadiness || status.GraphReady
+}
+
+func repairableDirtyStatus(status rt.Status) bool {
+	return status.Status == "stale" && status.Dirty && status.RecommendedNextAction == "run_map_update"
+}
+
+func repairableDirtyWarnings(status rt.Status) []string {
+	warnings := []string{"project cognition runtime is marked dirty; collecting changes for map update"}
+	for _, reason := range status.DirtyReasons {
+		reason = strings.TrimSpace(reason)
+		if reason != "" {
+			warnings = append(warnings, "dirty reason: "+reason)
+		}
+	}
+	for _, path := range status.DirtyScopePaths {
+		path = strings.TrimSpace(path)
+		if path != "" {
+			warnings = append(warnings, "dirty scope path: "+path)
+		}
+	}
+	return warnings
+}
+
+func blockedRuntimeErrors(status rt.Status) []string {
+	reasons := append([]string{}, status.StaleReasons...)
+	reasons = append(reasons, status.DirtyReasons...)
+	if len(reasons) == 0 {
+		return []string{"project cognition runtime is blocked"}
+	}
+	return append([]string{"project cognition runtime is blocked"}, reasons...)
+}
+
+func classify(status string, known bool) string {
+	switch {
+	case strings.HasPrefix(status, "D"):
+		return levelDeletedPath
+	case strings.HasPrefix(status, "R"):
+		return levelRenamedPath
+	case status == "??" || strings.HasPrefix(status, "A"):
+		return levelNewPath
+	case known:
+		return levelMappedChange
+	default:
+		return levelUnknownPath
+	}
+}
+
+func recommendedAction(level string) string {
+	switch level {
+	case levelMappedChange, levelDeletedPath, levelRenamedPath:
+		return nextAffectedClosure
+	default:
+		return nextPartialRefresh
+	}
+}
+
+func reason(known bool, level string) []string {
+	if known {
+		return []string{"path exists in active runtime path_index"}
+	}
+	if level == levelNewPath {
+		return []string{"path is not in active runtime path_index"}
+	}
+	return []string{"changed path lacks active runtime path_index coverage"}
+}
+
+func nextAction(readiness string, included int, unknownPaths []string) string {
+	if readiness == rt.NeedsRebuildReadiness || readiness == rt.UnsupportedReadiness {
+		return nextNeedsRebuild
+	}
+	if included == 0 {
+		return nextNoOp
+	}
+	if len(unknownPaths) > 0 {
+		return nextPartialRefresh
+	}
+	return nextAffectedClosure
+}
+
+func normalizePath(path string) string {
+	normalized := filepath.ToSlash(strings.TrimSpace(path))
+	for strings.HasPrefix(normalized, "./") {
+		normalized = strings.TrimPrefix(normalized, "./")
+	}
+	return strings.TrimRight(normalized, "/")
+}
+
+func uniqueSortedPaths(values []string) []string {
+	seen := map[string]bool{}
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		value = normalizePath(value)
+		if value == "" || seen[value] {
+			continue
+		}
+		seen[value] = true
+		out = append(out, value)
+	}
+	sort.Strings(out)
+	return out
+}
+
+func normalizeExplicitPath(root string, path string) (string, error) {
+	trimmed := strings.TrimSpace(path)
+	if trimmed == "" {
+		return "", fmt.Errorf("empty explicit path")
+	}
+	if filepath.IsAbs(trimmed) || filepath.VolumeName(trimmed) != "" {
+		rel, err := filepath.Rel(root, trimmed)
+		if err != nil {
+			return "", err
+		}
+		trimmed = rel
+	}
+	normalized := normalizePath(trimmed)
+	if !validExplicitPath(normalized) {
+		return "", fmt.Errorf("invalid explicit path")
+	}
+	return normalized, nil
+}
+
+func validExplicitPath(path string) bool {
+	path = filepath.ToSlash(strings.TrimSpace(path))
+	path = strings.TrimPrefix(path, "./")
+	if path == "" || path == "." || filepath.IsAbs(path) || strings.HasPrefix(path, "/") || filepath.VolumeName(path) != "" || strings.Contains(path, ":") {
+		return false
+	}
+	if path == ".specify" || strings.HasPrefix(path, ".specify/") {
+		return false
+	}
+	if strings.ContainsAny(path, "*?[]{}") {
+		return false
+	}
+	parts := strings.Split(path, "/")
+	for _, part := range parts {
+		if part == "" || part == "." || part == ".." {
+			return false
+		}
+	}
+	return true
+}
+
+func pathTrackedByGit(root string, path string) bool {
+	if path == "" {
+		return false
+	}
+	cmd := exec.Command("git", "ls-files", "--error-unmatch", "--", path)
+	cmd.Dir = root
+	return cmd.Run() == nil
+}

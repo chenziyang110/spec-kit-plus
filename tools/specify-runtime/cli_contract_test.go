@@ -61,7 +61,7 @@ func TestAPIHandshakePublishesProtocolVersionAndCapabilities(t *testing.T) {
 		t.Fatalf("handshake data.protocol_version = %#v, want non-empty string", data["protocol_version"])
 	}
 	capabilities := requireStringArray(t, data, "capability_ids")
-	for _, capability := range []string{"api.handshake", "api.list", "validate.spec"} {
+	for _, capability := range []string{"api.handshake", "api.list", "artifact.catalog", "artifact.scaffold", "validate.spec", "workflow.status"} {
 		if !containsString(capabilities, capability) {
 			t.Fatalf("handshake capability_ids = %#v, want %q", capabilities, capability)
 		}
@@ -95,7 +95,7 @@ func TestAPIListReturnsCompactCapabilityCards(t *testing.T) {
 		}
 		seen[id] = true
 	}
-	for _, capability := range []string{"api.handshake", "api.list", "validate.spec"} {
+	for _, capability := range []string{"api.handshake", "api.list", "artifact.catalog", "artifact.scaffold", "validate.spec", "workflow.status"} {
 		if !seen[capability] {
 			t.Fatalf("api list ids = %#v, want %q", seen, capability)
 		}

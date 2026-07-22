@@ -53,7 +53,7 @@ def sample_packet() -> WorkerTaskPacket:
                 required_for=["implementation_scope"],
                 read_order=2,
                 must_read=True,
-                selection_reason="project-cognition query narrows the runtime context to touched surfaces without raw slice reads",
+                selection_reason="specify-runtime cognition query narrows the runtime context to touched surfaces without raw slice reads",
             )
         ],
         required_references=[

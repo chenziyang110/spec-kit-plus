@@ -16,7 +16,7 @@ from .dispatch import (
 from .utils import generate_slug, get_debug_dir
 from .graph import run_debug_session
 from ..learnings import capture_auto_learning
-from ..project_cognition_tool import ProjectCognitionToolError, run_project_cognition
+from ..specify_runtime import SpecifyRuntimeError, run_specify_runtime
 
 console = Console()
 debug_app = typer.Typer(help="Systematic debugging engine for Spec Kit Plus.")
@@ -59,8 +59,8 @@ def _project_map_preflight_for_debug() -> None:
         return
 
     try:
-        result = run_project_cognition(["check", "--format", "json"], cwd=project_root)
-    except ProjectCognitionToolError as exc:
+        result = run_specify_runtime(["cognition", "check", "--format", "json"], cwd=project_root)
+    except SpecifyRuntimeError as exc:
         result = {
             "freshness": "missing",
             "state": "missing_baseline",

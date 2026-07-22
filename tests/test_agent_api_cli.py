@@ -396,11 +396,11 @@ def test_agent_api_commands_catalog_covers_the_actual_cross_domain_cli() -> None
         "workflow.transition",
         "accept.closeout",
         "hook.validate-artifacts",
-        "artifact.scaffold",
         "integration.install",
         "extension.add",
         "sp-teams.status",
     } <= ids
+    assert "artifact.scaffold" not in ids
     assert "sp-teams.notify-hook" not in ids
 
 

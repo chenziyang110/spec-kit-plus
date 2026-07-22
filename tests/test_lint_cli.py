@@ -1,23 +1,28 @@
 from __future__ import annotations
 
-import importlib
-
 from typer.testing import CliRunner
 
+import specify_cli
 from specify_cli import app
 from specify_cli.command_catalog import show_catalog_command
+from specify_cli import specify_runtime
 
 
 def test_lint_cli_forwards_compact_agent_output_options(monkeypatch) -> None:
-    specify_lint = importlib.import_module("specify_cli.lint")
     captured: dict[str, object] = {}
 
-    def fake_run(args: list[str], *, force: bool = False) -> int:
+    def fake_run(
+        args: list[str], *, cwd, check: bool = True
+    ) -> dict[str, object]:
         captured["args"] = args
-        captured["force"] = force
-        return 0
+        captured["check"] = check
+        return {"status": "ok", "summary": "spec valid"}
 
-    monkeypatch.setattr(specify_lint, "run", fake_run)
+    def fake_ensure_binary(*, force: bool = False):
+        captured["force"] = force
+
+    monkeypatch.setattr(specify_cli, "run_specify_runtime", fake_run)
+    monkeypatch.setattr(specify_runtime, "ensure_binary", fake_ensure_binary)
 
     result = CliRunner().invoke(
         app,
@@ -37,28 +42,30 @@ def test_lint_cli_forwards_compact_agent_output_options(monkeypatch) -> None:
     assert result.exit_code == 0, result.output
     assert captured == {
         "args": [
-            "-dir",
+            "validate",
+            "spec",
+            "--dir",
             ".specify/features/001-demo",
-            "-tier",
+            "--tier",
             "deep",
-            "-format",
+            "--format",
             "json",
-            "-show-passes",
+            "--show-passes",
         ],
+        "check": False,
         "force": True,
     }
 
 
 def test_lint_cli_contract_is_strict_and_agent_discoverable(monkeypatch) -> None:
-    specify_lint = importlib.import_module("specify_cli.lint")
     called = False
 
-    def fake_run(args: list[str], *, force: bool = False) -> int:
+    def fake_run(args: list[str], *, cwd, check: bool = True) -> dict[str, object]:
         nonlocal called
         called = True
-        return 0
+        return {"status": "ok"}
 
-    monkeypatch.setattr(specify_lint, "run", fake_run)
+    monkeypatch.setattr(specify_cli, "run_specify_runtime", fake_run)
 
     invalid = CliRunner().invoke(app, ["lint", "--format", "yaml"])
     detail = show_catalog_command(app, "lint")["data"]

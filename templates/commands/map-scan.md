@@ -38,9 +38,9 @@ Use `execution_surface: native-subagents`.
 
 ## Process
 
-- Before repository inventory, run `{{specify-subcmd:project-cognition generate-ignore --format json}}`. If it creates `.specify/project-cognition/.cognitionignore`, ask the user to review the starter suggestions and wait for confirmation before continuing.
-- After the ignore gate is clear, run `{{specify-subcmd:project-cognition scan-set --out .specify/project-cognition/tmp/scan-files.json --format json}}` and use the returned file list as the candidate scan set. The agent may choose scan intent and concrete `--scope` values, but `project-cognition scan-set` decides the initial included file list through deterministic runtime rules; do not let the agent freely decide which files to omit.
-- Run `{{specify-subcmd:project-cognition scan-prepare}}` against that scan set.
+- Before repository inventory, run `{{specify-subcmd:specify-runtime cognition generate-ignore --format json}}`. If it creates `.specify/project-cognition/.cognitionignore`, ask the user to review the starter suggestions and wait for confirmation before continuing.
+- After the ignore gate is clear, run `{{specify-subcmd:specify-runtime cognition scan-set --out .specify/project-cognition/tmp/scan-files.json --format json}}` and use the returned file list as the candidate scan set. The agent may choose scan intent and concrete `--scope` values, but `specify-runtime cognition scan-set` decides the initial included file list through deterministic runtime rules; do not let the agent freely decide which files to omit.
+- Run `{{specify-subcmd:specify-runtime cognition scan-prepare}}` against that scan set.
   It performs the cheap inventory/classification pass, estimates token cost,
   calculates each worker's effective context budget after instruction,
   inherited-context, reasoning, tool-output, checkpoint, result-output, and
@@ -52,12 +52,12 @@ Use `execution_surface: native-subagents`.
   `P1`, `P2`, or `P3`, keeps related paths together when the budget permits, and
   creates an oversized single-path packet rather than silently truncating a
   file that cannot fit a normal packet.
-- Drive dispatch from `{{specify-subcmd:project-cognition scan-status --format json}}`, which
+- Drive dispatch from `{{specify-subcmd:specify-runtime cognition scan-status --format json}}`, which
   returns the compact pending/leased/accepted state and the next safe action.
   Bound each wave by the platform's currently available subagent slots and the
   selected models' effective capacities; never spawn one worker per pending
   packet merely because the queue is parallelizable.
-  Use `{{specify-subcmd:project-cognition scan-lease --worker-id <worker-id> --format json}}` to claim one prepared
+  Use `{{specify-subcmd:specify-runtime cognition scan-lease --worker-id <worker-id> --format json}}` to claim one prepared
   packet and attempt, then give its CLI-generated self-contained task brief to
   one capable subagent with the minimum inherited conversation context the
   platform permits. Count any unavoidable inherited context against that
@@ -67,12 +67,12 @@ Use `execution_surface: native-subagents`.
   re-plan. Never knowingly assign more estimated work than the selected worker
   can consume.
 - Require the worker to submit bounded packet-local progress through
-  `{{specify-subcmd:project-cognition scan-checkpoint}}`. When it predicts that
+  `{{specify-subcmd:specify-runtime cognition scan-checkpoint}}`. When it predicts that
   context, tool-output, or result-output capacity will run out, it checkpoints
-  completed work and uses `{{specify-subcmd:project-cognition scan-yield}}`; it
+  completed work and uses `{{specify-subcmd:specify-runtime cognition scan-yield}}`; it
   must not guess, omit paths, or claim the whole packet complete.
 - Finish a complete attempt with
-  `{{specify-subcmd:project-cognition scan-accept --packet-id <packet-id> --attempt-id <attempt-id> --format json}}`. The runtime validates the
+  `{{specify-subcmd:specify-runtime cognition scan-accept --packet-id <packet-id> --attempt-id <attempt-id> --format json}}`. The runtime validates the
   attempt, merges accepted packet-local data atomically, and computes the
   authoritative remaining set as assigned paths minus runtime-accepted terminal
   paths. A yield or partial result requeues only that remaining set; dispatch a
@@ -157,7 +157,7 @@ Human workflow prose may say `subagent-blocked`, but persisted machine fields us
 
 If a substantive scan/build lane cannot dispatch or complete, use the runtime's
 yield/block/requeue surface and verify through
-`{{specify-subcmd:project-cognition scan-status}}`.
+`{{specify-subcmd:specify-runtime cognition scan-status}}`.
 Only the runtime may persist:
 
 - `.specify/project-cognition/status.json` with `baseline_state=blocked` and
@@ -335,8 +335,8 @@ but new scan artifacts must write `rows`; do not maintain separate `rows` and
 - Each `result_handoff_path` must point to `.specify/project-cognition/workbench/worker-results/<packet-id>.json`.
 - Every `scan-packets/<lane-id>.md` file must have exactly one matching `worker-results/<lane-id>.json` handoff, and worker results without a matching scan packet are invalid.
 - Runtime-validated worker checkpoints and result handoffs are the machine-checkable evidence surface for packet acceptance.
-- Use `project-cognition scan-set` for inventory discovery before escalating to deeper reads. `rg --files` may support diagnostics, but it must not replace the runtime-resolved scan set.
-- Treat Git-tracked file lists and user-provided scan hints as metadata or `scan-set --scope` inputs; they must not become scan targets until `project-cognition scan-set` returns them in `.specify/project-cognition/tmp/scan-files.json`.
+- Use `specify-runtime cognition scan-set` for inventory discovery before escalating to deeper reads. `rg --files` may support diagnostics, but it must not replace the runtime-resolved scan set.
+- Treat Git-tracked file lists and user-provided scan hints as metadata or `scan-set --scope` inputs; they must not become scan targets until `specify-runtime cognition scan-set` returns them in `.specify/project-cognition/tmp/scan-files.json`.
 - Raw inventory notes or raw chat summaries are not sufficient.
 - Idle subagent output and natural-language completion claims are not accepted scan results.
 - The leader must wait for every dispatched scan lane to return a structured handoff before closing the scan stage.
@@ -507,7 +507,7 @@ evidence supports it.
 
 ## Concept Retrieval Signal Evidence
 
-- Collect concept retrieval signals that let `project-cognition lexicon` surface
+- Collect concept retrieval signals that let `specify-runtime cognition lexicon` surface
   useful `concept_candidates` instead of only path or symbol matches.
 - Record colloquial user phrases, aliases, shorthand, command names, workflow
   names, symptoms, and domain vocabulary that maintainers naturally use when
@@ -544,9 +544,9 @@ Before reporting completion:
 
 - confirm that the evidence baseline exists under `.specify/project-cognition/`
 - confirm that provisional nodes and candidate edges were written
-- run `{{specify-subcmd:project-cognition scan-status}}` and confirm that no
+- run `{{specify-subcmd:specify-runtime cognition scan-status}}` and confirm that no
   pending, leased, yielded, or blocked high-value packet remains
-- run `{{specify-subcmd:project-cognition validate-scan --format json}}` before handoff to `sp-map-build`
+- run `{{specify-subcmd:specify-runtime cognition validate-scan --format json}}` before handoff to `sp-map-build`
 - `sp-map-scan` may report complete only after `validate-scan` returns `status=ok` and `readiness=scan_ready`
 - for the runtime-owned v2 workbench, that successful validation writes
   `scan-receipt.json`, binding the generation, canonical scan set, current source-file bytes,

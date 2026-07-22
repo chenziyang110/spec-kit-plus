@@ -87,7 +87,7 @@ def test_worker_task_packet_captures_required_execution_contract() -> None:
                 required_for=["workflow_boundary", "architecture_boundary", "forbidden_drift"],
                 read_order=2,
                 must_read=True,
-                selection_reason="project-cognition query returns touched-scope context and conflict signals",
+                selection_reason="specify-runtime cognition query returns touched-scope context and conflict signals",
             ),
         ],
         required_references=[
@@ -278,7 +278,7 @@ def test_worker_task_packet_round_trips_through_json() -> None:
                 required_for=["workflow_boundary", "architecture_boundary", "forbidden_drift"],
                 read_order=2,
                 must_read=True,
-                selection_reason="project-cognition query returns touched-scope context and conflict signals",
+                selection_reason="specify-runtime cognition query returns touched-scope context and conflict signals",
             ),
         ],
         required_references=[

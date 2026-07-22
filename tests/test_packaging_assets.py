@@ -155,10 +155,10 @@ def test_semantic_audit_resume_validator_examples_execute_when_go_is_available()
         pytest.skip("Go toolchain unavailable")
 
     examples_dir = REPO_ROOT / "templates" / "examples" / "semantic-audit-resume"
-    runtime_dir = REPO_ROOT / "tools" / "project-cognition"
+    runtime_dir = REPO_ROOT / "tools" / "specify-runtime"
 
     fresh = subprocess.run(
-        ["go", "run", ".", "semantic-audit-resume", "--input", str(examples_dir / "resume-validation.json"), "--format", "json"],
+        ["go", "run", ".", "cognition", "semantic-audit-resume", "--input", str(examples_dir / "resume-validation.json"), "--format", "json"],
         cwd=runtime_dir,
         capture_output=True,
         check=False,
@@ -168,7 +168,7 @@ def test_semantic_audit_resume_validator_examples_execute_when_go_is_available()
         timeout=60,
     )
     assert fresh.returncode == 0, fresh.stderr
-    fresh_payload = json.loads(fresh.stdout)
+    fresh_payload = json.loads(fresh.stdout)["data"]
     assert fresh_payload["semantic_audit_generated_resume_smoke"] == "passed"
     assert fresh_payload["semantic_audit_resume_status"] == "fresh"
     assert fresh_payload["can_reuse_persisted_claim_readiness"] is True
@@ -179,6 +179,7 @@ def test_semantic_audit_resume_validator_examples_execute_when_go_is_available()
             "go",
             "run",
             ".",
+            "cognition",
             "semantic-audit-resume",
             "--input",
             str(examples_dir / "resume-validation-route-changed.json"),
@@ -194,7 +195,7 @@ def test_semantic_audit_resume_validator_examples_execute_when_go_is_available()
         timeout=60,
     )
     assert route_changed.returncode == 0, route_changed.stderr
-    route_changed_payload = json.loads(route_changed.stdout)
+    route_changed_payload = json.loads(route_changed.stdout)["data"]
     assert route_changed_payload["semantic_audit_generated_resume_smoke"] == "failed"
     assert route_changed_payload["semantic_audit_resume_status"] == "needs-rerun"
     assert route_changed_payload["semantic_audit_stale_reasons"] == ["route-changed"]
@@ -222,6 +223,7 @@ def test_semantic_audit_resume_validator_examples_execute_when_go_is_available()
                 "go",
                 "run",
                 ".",
+                "cognition",
                 "semantic-audit-resume",
                 "--input",
                 str(examples_dir / fixture),
@@ -237,7 +239,7 @@ def test_semantic_audit_resume_validator_examples_execute_when_go_is_available()
             timeout=60,
         )
         assert result.returncode == 0, result.stderr
-        payload = json.loads(result.stdout)
+        payload = json.loads(result.stdout)["data"]
         assert payload["semantic_audit_generated_resume_smoke"] == "failed"
         assert payload["semantic_audit_resume_status"] == "needs-rerun"
         assert payload["semantic_audit_stale_reasons"] == expected_reasons
@@ -330,12 +332,12 @@ def test_wheel_force_include_bundles_shared_runtime_helpers() -> None:
         assert "__SPECIFY_BINDING_ID__" in asset.read_text(encoding="utf-8")
 
 
-def test_wheel_force_include_bundles_project_cognition_source() -> None:
+def test_wheel_force_include_bundles_unified_runtime_source() -> None:
     pyproject = (REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8")
 
     assert (
-        '"tools/project-cognition" = '
-        '"specify_cli/core_pack/tools/project-cognition"'
+        '"tools/specify-runtime" = '
+        '"specify_cli/core_pack/tools/specify-runtime"'
     ) in pyproject
 
 

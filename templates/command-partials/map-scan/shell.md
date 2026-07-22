@@ -10,7 +10,7 @@ Generate a complete graph-native evidence baseline for the current codebase.
 - This command owns graph-native evidence-baseline outputs only; it must not write final cognition truth.
 - Legacy atlas artifacts such as `PROJECT-HANDBOOK.md` may be read only when explicitly relevant to migration or export parity; they must not become scan targets.
 - `.specify/**` is workflow/runtime state, not project graph evidence; `.specify/**` paths may be read only for command operation or validation and must not become scan targets or graph paths.
-- Resolve the candidate scan set through `project-cognition scan-set` before repository inventory, evidence, coverage, or packet scope. The runtime applies project cognition ignore rules from root `.cognitionignore` and `.specify/project-cognition/.cognitionignore`, built-in low-signal exclusions, binary-file suppression, and obvious secret-path suppression. These rules are for project cognition only.
+- Resolve the candidate scan set through `specify-runtime cognition scan-set` before repository inventory, evidence, coverage, or packet scope. The runtime applies project cognition ignore rules from root `.cognitionignore` and `.specify/project-cognition/.cognitionignore`, built-in low-signal exclusions, binary-file suppression, and obvious secret-path suppression. These rules are for project cognition only.
 - Before subagent dispatch, write the canonical boundary in `.specify/project-cognition/workbench/repository-universe.json` from the resolved scan-set file; do not substitute raw `rg --files`, broad directory globs, or free-form agent judgment about what to omit.
 - [AGENT] Treat `scan-queue.json` and `handoff-ledger.json` as required scan workbench artifacts before `validate-scan`.
 - Stage the canonical boundary artifact before dispatch, then accept scan packets only after the leader verifies packet-local ledger accounting for every assigned path and a `worker-results/<packet-id>.json` handoff whose `paths_read` is a non-empty concrete path array.
@@ -25,7 +25,7 @@ Generate a complete graph-native evidence baseline for the current codebase.
 - Before repository inventory, run:
 
 ```text
-{{specify-subcmd:project-cognition generate-ignore --format json}}
+{{specify-subcmd:specify-runtime cognition generate-ignore --format json}}
 ```
 
 - If the command returns `status=created`, review `.specify/project-cognition/.cognitionignore` with the user and wait for confirmation before continuing to inventory, packet dispatch, or writing `repository-universe.json`.
@@ -35,7 +35,7 @@ Generate a complete graph-native evidence baseline for the current codebase.
 After the ignore gate is clear, resolve the agent-facing candidate file list:
 
 ```text
-{{specify-subcmd:project-cognition scan-set --out .specify/project-cognition/tmp/scan-files.json --format json}}
+{{specify-subcmd:specify-runtime cognition scan-set --out .specify/project-cognition/tmp/scan-files.json --format json}}
 ```
 
 - Default stdout is compact JSON containing only the scan-set file path and count.

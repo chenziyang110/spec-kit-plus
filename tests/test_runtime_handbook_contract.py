@@ -93,10 +93,10 @@ def test_context_loading_gradient_uses_cognition_runtime_gate() -> None:
 
     assert (
         "default project cognition intake is "
-        "`{{specify-subcmd:project-cognition compass"
+        "`{{specify-subcmd:specify-runtime cognition compass"
         in lowered
     )
-    assert "project-cognition lexicon" in lowered
+    assert "specify-runtime cognition lexicon" in lowered
     assert "alias catalog" in lowered
     assert "semantic_intake" in lowered
     assert "facet coverage" in lowered
@@ -121,7 +121,7 @@ def test_context_loading_gradient_uses_cognition_runtime_gate() -> None:
     assert "atlas.entry" not in content
     assert "root topic document" not in lowered
     assert "module overview document" not in lowered
-    assert "a project-cognition compass intake is not complete when it returns json" in lowered
+    assert "a specify-runtime cognition compass intake is not complete when it returns json" in lowered
     assert "readiness drives routing" in lowered
     assert "minimal_live_reads constrains inspection" in lowered
     assert "carry forward the selected concepts" in lowered
@@ -137,7 +137,7 @@ def test_project_cognition_passive_skill_mirrors_query_completion_contract() -> 
         .split()
     )
 
-    assert "a project-cognition compass intake is not complete when it returns json" in content
+    assert "a specify-runtime cognition compass intake is not complete when it returns json" in content
     assert "concept_candidates" in content
     assert "selected_concepts" in content
     assert "rejected_concepts" in content
@@ -153,7 +153,7 @@ def test_project_cognition_passive_skill_mirrors_query_completion_contract() -> 
     assert "weak coverage" in content
     assert "when inspecting or comparing another local directory" in content
     assert "check whether that directory or its children contain `.specify/` first" in content
-    assert "project-cognition discover --root" in content
+    assert "specify-runtime cognition discover --root" in content
     assert ".specify/project-cognition/status.json" in content
     assert ".specify/project-cognition/project-cognition.db" in content
     assert "reference_readiness" in content
@@ -172,9 +172,9 @@ def test_upstream_workflow_templates_are_query_backed_cognition_first() -> None:
         content = read_command_with_references(Path(rel_path).stem)
         lowered = content.lower()
 
-        assert "project-cognition compass --intent plan" in content
-        assert "run at most one `project-cognition compass --intent plan` intake" in content
-        assert content.count("project-cognition compass --intent plan --query=") <= 1
+        assert "specify-runtime cognition compass --intent plan" in content
+        assert "run at most one `specify-runtime cognition compass --intent plan` intake" in content
+        assert content.count("specify-runtime cognition compass --intent plan --query=") <= 1
         assert "minimal_live_reads" in content
         assert "advisory navigation" in lowered
         assert "do not turn ordinary planning into map maintenance" in lowered
@@ -200,7 +200,7 @@ def test_workflow_templates_carry_project_cognition_facts_forward() -> None:
 
     for rel_path, phrases in expectations.items():
         content = read_command_with_references(Path(rel_path).stem).lower()
-        assert "project-cognition compass" in content, rel_path
+        assert "specify-runtime cognition compass" in content, rel_path
         for phrase in phrases:
             assert phrase.lower() in content, f"{rel_path} missing {phrase!r}"
 
@@ -211,9 +211,9 @@ def test_runtime_handbook_docs_are_query_backed() -> None:
 
     assert ".specify/project-cognition/status.json" in content
     assert ".specify/project-cognition/project-cognition.db" in content
-    assert "task-local `project-cognition compass` packet" in lowered
-    assert "advanced agent-planned `project-cognition lexicon --mode catalog`" in lowered
-    assert "project-cognition lexicon" in lowered
+    assert "task-local `specify-runtime cognition compass` packet" in lowered
+    assert "advanced agent-planned `specify-runtime cognition lexicon --mode catalog`" in lowered
+    assert "specify-runtime cognition lexicon" in lowered
     assert "alias catalog" in lowered
     assert "semantic_intake" in lowered
     assert "facet coverage" in lowered
@@ -222,12 +222,12 @@ def test_runtime_handbook_docs_are_query_backed() -> None:
     assert "candidate_universe_version" in content
     assert "active_generation_id" in content
     assert "returned map " + "terms" not in lowered
-    assert "project-cognition query --query-plan" in lowered
+    assert "specify-runtime cognition query --query-plan" in lowered
     assert "advisory navigation" in lowered
     assert "live repository evidence" in lowered or "live evidence" in lowered
     assert "workflow-owned mutation closeout is not external map maintenance" in lowered
     assert "run planner-first project cognition update" in lowered or "runs planner-first project cognition update" in lowered
-    assert "project-cognition closeout-plan --workflow" in lowered
+    assert "specify-runtime cognition closeout-plan --workflow" in lowered
     assert "unknown_path_dispositions" in lowered
     assert "update_mode=delta_session" in lowered
     assert "update_mode=payload_file" in lowered
@@ -253,7 +253,7 @@ def test_runtime_handbook_docs_are_query_backed() -> None:
 
 def test_handbook_docs_include_project_cognition_changes_command() -> None:
     required_phrases = (
-        "project-cognition changes --format json",
+        "specify-runtime cognition changes --format json",
         "sp-map-update",
         "summary.included",
         "summary.ignored",
@@ -282,9 +282,9 @@ def test_runtime_docs_explain_graph_backed_project_cognition_lexicon() -> None:
         "lexicon_generation_id",
         "candidate_universe_version",
         "active_generation_id",
-        "project-cognition lexicon",
-        "project-cognition compass",
-        "project-cognition query --query-plan",
+        "specify-runtime cognition lexicon",
+        "specify-runtime cognition compass",
+        "specify-runtime cognition query --query-plan",
     )
 
     for rel_path in ("README.md", "PROJECT-HANDBOOK.md", "templates/project-handbook-template.md"):
@@ -316,12 +316,28 @@ def test_runtime_docs_explain_project_cognition_ignore_rules() -> None:
         assert "review" in lowered
 
 
+def test_primary_runtime_docs_publish_fixed_artifact_scaffold_contract() -> None:
+    for rel_path in (
+        "README.md",
+        "PROJECT-HANDBOOK.md",
+        "templates/project-handbook-template.md",
+    ):
+        content = _read(rel_path).lower()
+
+        assert "specify-runtime artifact catalog" in content
+        assert "specify-runtime artifact scaffold" in content
+        assert "--path <project-relative-path>" in content
+        assert "create-only" in content
+        assert "plan-contract" in content
+        assert "quick-status" in content
+
+
 def test_runtime_docs_explain_cross_project_reference_cognition_gate() -> None:
     for rel_path in ("README.md", "PROJECT-HANDBOOK.md", "templates/project-handbook-template.md"):
         content = _read(rel_path)
         lowered = " ".join(content.lower().split())
 
-        assert "project-cognition discover --root" in lowered
+        assert "specify-runtime cognition discover --root" in lowered
         assert ".specify/project-cognition/status.json" in content
         assert ".specify/project-cognition/project-cognition.db" in content
         assert "reference_readiness" in content

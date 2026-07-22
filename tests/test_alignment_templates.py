@@ -371,11 +371,11 @@ def test_classic_fast_and_quick_cannot_bypass_ui_quality_gate() -> None:
 
 
 def _launcher_query(intent: str) -> str:
-    return f'{{{{specify-subcmd:project-cognition query --intent {intent} --query-plan "<query_plan_json>" --format json}}}}'
+    return f'{{{{specify-subcmd:specify-runtime cognition query --intent {intent} --query-plan "<query_plan_json>" --format json}}}}'
 
 
 def _launcher_compass(intent: str) -> str:
-    return f'{{{{specify-subcmd:project-cognition compass --intent {intent} --query="$ARGUMENTS" --format json}}}}'
+    return f'{{{{specify-subcmd:specify-runtime cognition compass --intent {intent} --query="$ARGUMENTS" --format json}}}}'
 
 
 INLINE_CLOSEOUT_SURFACES = (
@@ -384,16 +384,16 @@ INLINE_CLOSEOUT_SURFACES = (
 
 
 STALE_DIRECT_CLOSEOUT_COMMANDS = (
-    'project-cognition update --delta-session "$DELTA_SESSION_ID" --reason workflow-finalize --format json',
-    'project-cognition update --payload-file ".specify/project-cognition/updates/<update-id>.json" --reason workflow-finalize --format json',
-    'project-cognition delta append --session "$DELTA_SESSION_ID"',
+    'specify-runtime cognition update --delta-session "$DELTA_SESSION_ID" --reason workflow-finalize --format json',
+    'specify-runtime cognition update --payload-file ".specify/project-cognition/updates/<update-id>.json" --reason workflow-finalize --format json',
+    'specify-runtime cognition delta append --session "$DELTA_SESSION_ID"',
 )
 
 
 def test_inline_project_cognition_update_uses_shared_partial() -> None:
     shared = _read("templates/command-partials/common/inline-project-cognition-update.md")
     required_planner_terms = (
-        "project-cognition closeout-plan --workflow",
+        "specify-runtime cognition closeout-plan --workflow",
         "--delta-session",
         "update_mode=delta_session",
         "update_mode=payload_file",
@@ -464,7 +464,7 @@ def test_inline_project_cognition_update_uses_shared_partial() -> None:
     for path in common_partials:
         content = _read_project_file(path)
         assert "{{spec-kit-include: inline-project-cognition-update.md}}" not in content, path
-        assert "project-cognition update --changed-path" not in content, path
+        assert "specify-runtime cognition update --changed-path" not in content, path
 
     commands = [
         "templates/commands/fast.md",
@@ -476,12 +476,12 @@ def test_inline_project_cognition_update_uses_shared_partial() -> None:
         "templates/commands/review.md",
     ]
     for path in commands:
-        assert "project-cognition closeout-plan --workflow" in _read(path), path
+        assert "specify-runtime cognition closeout-plan --workflow" in _read(path), path
 
     map_update = (
         PROJECT_ROOT / "templates" / "commands" / "map-update.md"
     ).read_text(encoding="utf-8")
-    assert map_update.count("project-cognition closeout-plan --workflow sp-map-update") == 1
+    assert map_update.count("specify-runtime cognition closeout-plan --workflow sp-map-update") == 1
 
 
 def test_ask_command_contract_is_read_only_evidence_backed_project_qa() -> None:
@@ -497,8 +497,8 @@ def test_ask_command_contract_is_read_only_evidence_backed_project_qa() -> None:
     assert "do not invoke it automatically" in command
     assert _launcher_compass("ask") in shell
     assert _launcher_query("ask") in shell
-    assert "project-cognition query --intent ask --query-plan-file <path> --format json" in shell
-    assert "project-cognition lexicon --intent ask --mode catalog --format json" in shell
+    assert "specify-runtime cognition query --intent ask --query-plan-file <path> --format json" in shell
+    assert "specify-runtime cognition lexicon --intent ask --mode catalog --format json" in shell
     assert "only after you build a semantic intake or query plan" in shell
     assert "compass output or live evidence is ambiguous or has incomplete coverage" in shell
     assert "stale or localization-sensitive results are examples" in shell.lower()
@@ -598,8 +598,8 @@ def test_project_cognition_gate_has_ask_specific_read_only_navigation() -> None:
     lowered = gate.lower()
 
     assert "For `sp-ask`" in gate
-    assert 'project-cognition compass --intent ask --query="$ARGUMENTS" --format json' in gate
-    assert "project-cognition query --intent ask" in gate
+    assert 'specify-runtime cognition compass --intent ask --query="$ARGUMENTS" --format json' in gate
+    assert "specify-runtime cognition query --intent ask" in gate
     assert "semantic\n  intake or query plan" in gate
     assert "compass output or live evidence is ambiguous" in gate
     assert "or has incomplete coverage" in gate
@@ -630,12 +630,12 @@ def test_source_changing_sp_workflows_include_inline_cognition_closeout_contract
     ]
     for path in commands:
         content = _read(path)
-        assert "project-cognition closeout-plan --workflow" in content, path
+        assert "specify-runtime cognition closeout-plan --workflow" in content, path
         assert "$ACTIVE_WORKFLOW" not in content, path
 
     shared = _read("templates/command-partials/common/inline-project-cognition-update.md")
     for term in (
-        "project-cognition closeout-plan --workflow",
+        "specify-runtime cognition closeout-plan --workflow",
         "--delta-session",
         "update_mode=delta_session",
         "update_mode=payload_file",
@@ -730,7 +730,7 @@ def test_worker_prompts_report_inline_update_payload_evidence() -> None:
 
 def _assert_agent_assisted_cognition_gate(content: str, intent: str) -> None:
     assert _launcher_compass(intent) in content
-    assert "project-cognition query" in content
+    assert "specify-runtime cognition query" in content
     assert "--query-plan" in content
     assert (
         "only when `compass_state`, coverage diagnostics, localization, or live evidence requires explicit concept decisions" in content
@@ -1381,10 +1381,10 @@ def test_discussion_staged_cognition_gate_and_technical_options_contract() -> No
     assert "product framing may begin before project cognition" in lowered
     assert "forbidden before the cognition gate" in lowered
     assert ".specify/project-cognition/status.json" in content
-    assert "project-cognition compass --intent discussion" in content
-    assert "project-cognition query --query-plan" in content
+    assert "specify-runtime cognition compass --intent discussion" in content
+    assert "specify-runtime cognition query --query-plan" in content
     assert "only when `compass_state`, coverage diagnostics, localization, or live evidence requires explicit concept decisions" in content
-    assert "project-cognition query --intent plan" not in content
+    assert "specify-runtime cognition query --intent plan" not in content
     assert "Question Evidence Gate" in content
     assert "Turn Classifier" in content
     assert "Cognition Advisory, Code Authority" in content
@@ -2140,10 +2140,10 @@ def test_project_cognition_gate_has_staged_discussion_gate() -> None:
     assert "technical options" in lowered
     assert "default project cognition intake" in lowered
     assert "minimal_live_reads" in lowered
-    assert "project-cognition compass --intent discussion" in content
-    assert "project-cognition query --intent discussion" in content
-    assert "project-cognition compass --intent plan" not in content
-    assert "project-cognition query --intent plan" not in content
+    assert "specify-runtime cognition compass --intent discussion" in content
+    assert "specify-runtime cognition query --intent discussion" in content
+    assert "specify-runtime cognition compass --intent plan" not in content
+    assert "specify-runtime cognition query --intent plan" not in content
     assert "use `--intent plan` from `sp-discussion`" in content
     assert "truth pass" in lowered
     assert "verified_project_facts" in content
@@ -2575,7 +2575,7 @@ def _legacy_core_planning_templates_use_logical_atlas_references() -> None:
         content = _read(rel_path)
         lowered = content.lower()
         _assert_agent_assisted_cognition_gate(content, "plan")
-        assert "project-cognition query" in lowered
+        assert "specify-runtime cognition query" in lowered
         assert "minimal_live_reads" in lowered
         assert "build-handbook.md" not in lowered
         assert "build-workflow-contract" not in lowered
@@ -2583,8 +2583,8 @@ def _legacy_core_planning_templates_use_logical_atlas_references() -> None:
         assert "atlas.entry" not in lowered
 
     implement = _read("templates/commands/implement.md").lower()
-    assert "project-cognition compass --intent implement" in implement
-    assert "project-cognition query --query-plan" in implement
+    assert "specify-runtime cognition compass --intent implement" in implement
+    assert "specify-runtime cognition query --query-plan" in implement
     assert "only when `compass_state`, coverage diagnostics, localization, or live evidence requires explicit concept decisions" in implement
     assert "query-plan" in implement
     assert "minimal_live_reads" in implement
@@ -2679,9 +2679,9 @@ def test_generated_workflow_templates_use_launcher_backed_cognition_helpers() ->
     for path in command_dir.glob("*.md"):
         content = path.read_text(encoding="utf-8")
         for bare in (
-            "specify project-cognition query",
-            "specify project-cognition complete-refresh",
-            "specify project-cognition mark-dirty",
+            "specify specify-runtime cognition query",
+            "specify specify-runtime cognition complete-refresh",
+            "specify specify-runtime cognition mark-dirty",
             "specify project-map complete-refresh",
             "specify project-map mark-dirty",
         ):
@@ -3186,7 +3186,7 @@ def test_analyze_template_expands_to_context_and_locked_decision_drift():
     assert "plan-contract.json" in content
     assert "task-index.json" in content
     assert ".specify/memory/constitution.md" in content
-    assert "Consume the `project-cognition query` bundle." in content
+    assert "Consume the `specify-runtime cognition query` bundle." in content
     assert "choose the cognition intent" in lowered
     assert "--intent plan" in content
     assert "--intent implement" in content
@@ -4218,7 +4218,7 @@ def _legacy_implement_template_supports_capability_aware_parallel_batches():
     assert "two or more safe validated packets with isolated write sets" in lowered
     assert "`subagent-blocked`" in lowered
     assert "workflow-owned mutation closeout is not an external map-maintenance handoff" in lowered
-    assert "project-cognition closeout-plan --workflow" in lowered
+    assert "specify-runtime cognition closeout-plan --workflow" in lowered
     assert "update_mode=delta_session" in lowered
     assert "update_mode=payload_file" in lowered
     assert "update_argv" in lowered
@@ -4256,13 +4256,13 @@ def test_mutation_workflows_require_inline_cognition_update_before_dirty_fallbac
         content = _read(path).lower()
 
         assert "workflow-owned mutation closeout is not an external map-maintenance handoff" in content
-        assert "project-cognition closeout-plan --workflow" in content
+        assert "specify-runtime cognition closeout-plan --workflow" in content
         assert "update_mode=delta_session" in content
         assert "update_mode=payload_file" in content
         assert "update_argv" in content
         assert "clean closeout keys on `result_state`" in content
         assert "sp-map-update is for manual/external maintenance and follow-up repair" in content
-        assert "project-cognition mark-dirty" in content
+        assert "specify-runtime cognition mark-dirty" in content
         assert "dirty only when inline update" in content
 
         for stale_closeout_phrase in (
@@ -4341,7 +4341,7 @@ def test_constitution_workflow_reports_cognition_followup_without_mutating_it() 
 
     assert "this workflow writes only `.specify/memory/constitution.md`" in content
     assert "does not own project cognition mutation closeout" in content
-    assert "do not run `project-cognition update`, `project-cognition mark-dirty`" in content
+    assert "do not run `specify-runtime cognition update`, `specify-runtime cognition mark-dirty`" in content
     assert "report that follow-up instead" in content
     assert "routine cleanup for constitution-only changes" in content
 
@@ -4377,14 +4377,14 @@ def test_map_update_template_does_not_rebuild_after_successful_incremental_updat
     assert "do not tell the user to run" in lowered
     assert "merely because refreshed source changes are not committed yet" in lowered
     assert "after those source changes are committed" in lowered
-    assert "project-cognition record-refresh" in lowered
+    assert "specify-runtime cognition record-refresh" in lowered
     assert "without rerunning `{{invoke:map-scan}}` or `{{invoke:map-build}}`" in lowered
 
     for path in ["README.md", "PROJECT-HANDBOOK.md", "templates/project-handbook-template.md"]:
         doc = _read(path).lower()
         assert "committing the refreshed source changes does not require a full rebuild by itself" in doc
-        assert "project-cognition record-refresh" in doc
-        assert "project-cognition complete-refresh" in doc
+        assert "specify-runtime cognition record-refresh" in doc
+        assert "specify-runtime cognition complete-refresh" in doc
 
 
 def test_implement_template_requires_resume_audit_before_trusting_terminal_state():
@@ -4489,13 +4489,13 @@ def test_shared_implement_teams_contract_preserves_explicit_execution_packet_fie
     assert "completion-handoff protocol covering start, blocker, and final completion evidence" in content
     assert "platform guardrails" in content
     assert "status flip alone" in content
-    assert "project-cognition compass --intent implement" in content
+    assert "specify-runtime cognition compass --intent implement" in content
     assert "minimal_live_reads" in content
     assert "first_pass_paths" in content
     assert "coverage_diagnostics" in content
     assert "expansion_ref" in content
     assert "lexicon -> semantic_intake -> query" in content
-    assert "project-cognition lexicon --intent implement" not in content
+    assert "specify-runtime cognition lexicon --intent implement" not in content
 
 
 def test_implement_template_requires_explicit_join_point_validation_blocks():
@@ -4688,9 +4688,9 @@ def test_checklist_template_prefers_native_question_tools_with_textual_fallback(
     assert "learning start --command <classic-command-name> --format json" in content
     assert ".specify/memory/learnings/INDEX.md" not in content
     assert "capture-auto" in lowered
-    assert "project-cognition query" in lowered
+    assert "specify-runtime cognition query" in lowered
     assert "--query-plan" in lowered
-    assert "project-cognition compass --intent plan" in lowered
+    assert "specify-runtime cognition compass --intent plan" in lowered
     assert "lexicon -> semantic_intake -> query" in lowered
     assert "query-plan" in lowered
     assert "readiness values" in lowered
@@ -4768,7 +4768,7 @@ def test_project_map_refresh_guidance_uses_git_baseline_and_dirty_fallback():
     stale_normal_path_phrases = [
         "should mark `.specify/project-cognition/status.json` dirty and run",
         "mark `.specify/project-cognition/status.json` dirty through the project cognition freshness helper and recommend",
-        "prefer `project-cognition mark-dirty` as the shared dirty-mark path",
+        "prefer `specify-runtime cognition mark-dirty` as the shared dirty-mark path",
     ]
     for path in refresh_owned_surfaces:
         lowered = _read(path).lower()
@@ -4798,7 +4798,7 @@ def test_project_map_refresh_guidance_uses_git_baseline_and_dirty_fallback():
         assert "cognition follow-up" in lowered
         assert "artifact-only" in lowered
         assert "actual source/runtime truth changes" in lowered
-        assert "project-cognition complete-refresh" not in lowered
+        assert "specify-runtime cognition complete-refresh" not in lowered
 
     for path in [
         "templates/commands/quick.md",
@@ -4808,7 +4808,7 @@ def test_project_map_refresh_guidance_uses_git_baseline_and_dirty_fallback():
         lowered = _read(path).lower()
         assert "project cognition runtime" in lowered
         assert "map-update" in lowered
-        assert "project-cognition closeout-plan --workflow" in lowered
+        assert "specify-runtime cognition closeout-plan --workflow" in lowered
         assert "update_mode=delta_session" in lowered
         assert "dirty only when inline update cannot complete" in lowered
         assert "git-baseline freshness" not in lowered
@@ -4823,8 +4823,8 @@ def test_planning_only_workflows_do_not_dirty_project_cognition_after_artifact_w
         lowered = _read(path).lower()
 
         assert "do not mark project cognition dirty" in lowered
-        assert "project-cognition complete-refresh" not in lowered
-        assert "project-cognition validate-build --format json" not in lowered
+        assert "specify-runtime cognition complete-refresh" not in lowered
+        assert "specify-runtime cognition validate-build --format json" not in lowered
         assert "artifact-only" in lowered
         assert "cognition follow-up" in lowered
         assert "actual source/runtime truth changes" in lowered
@@ -4838,7 +4838,7 @@ def test_specify_plan_and_tasks_treat_needs_update_as_planning_advisory():
     ]:
         lowered = _read(path).lower()
 
-        assert "project-cognition compass --intent plan" in lowered
+        assert "specify-runtime cognition compass --intent plan" in lowered
         assert "minimal_live_reads" in lowered
         assert "planning advisories" in lowered
         assert "`needs_update`: route through `{{invoke:map-update}}`" not in lowered
@@ -4931,10 +4931,10 @@ def test_project_cognition_freshness_scripts_are_launcher_backed_and_map_free():
     ps_freshness = _read("scripts/powershell/project-cognition-freshness.ps1")
 
     for content in (sh_freshness, ps_freshness):
-        assert "project-cognition" in content
-        assert "PROJECT_COGNITION_BIN" in content
+        assert "specify-runtime" in content
+        assert "SPECIFY_RUNTIME_BIN" in content
         assert ".specify/config.json" in content
-        assert "project_cognition_launcher" in content
+        assert "runtime_launcher" in content
         assert "integration repair" in content
         assert ".specify/project-map" not in content
         assert "project-map-freshness" not in content

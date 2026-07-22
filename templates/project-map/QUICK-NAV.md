@@ -67,7 +67,7 @@
 - Compatibility/export freshness or dirty-state routing looks wrong:
   Read `root/OPERATIONS.md`, `root/WORKFLOWS.md`,
   `index/status.json`, `.specify/project-cognition/status.json`, and
-  `tools/project-cognition/`
+  `tools/specify-runtime/`
 - Subagent dispatch guidance is inconsistent across workflows:
   Read `root/WORKFLOWS.md`,
   `modules/templates-generated-surfaces/WORKFLOWS.md`, and
@@ -81,7 +81,7 @@
   Why it matters: workflow contracts and user-visible execution rules
 - `src/specify_cli/integrations/base.py`
   Why it matters: injected runtime guidance and logical atlas-contract wording
-- `tools/project-cognition/`
+- `tools/specify-runtime/`
   Why it matters: freshness, topic routing, validation, query, and blocking vs review behavior
 
 ## Verification Routes
@@ -92,7 +92,7 @@
   Run `pytest tests/test_project_map_layered_contract.py tests/test_project_handbook_templates.py -q`
 - Compatibility/export freshness helper behavior:
   Run `pytest tests/test_project_map_freshness_scripts.py -q` and
-  `cd tools/project-cognition && go test ./...`
+  `cd tools/specify-runtime && go test ./...`
 
 ## Propagation-Risk Routes
 

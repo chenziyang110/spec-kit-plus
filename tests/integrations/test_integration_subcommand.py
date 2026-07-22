@@ -11,7 +11,7 @@ from specify_cli import app
 from specify_cli.integrations import get_integration
 from specify_cli.integrations.manifest import IntegrationManifest
 from specify_cli.launcher import (
-    PROJECT_COGNITION_UNAVAILABLE_MARKER,
+    SPECIFY_RUNTIME_UNAVAILABLE_MARKER,
     SPECIFY_PROJECT_LAUNCHER_POSIX,
     SPECIFY_PROJECT_LAUNCHER_WINDOWS,
     SpecifyLauncherSpec,
@@ -562,8 +562,8 @@ class TestIntegrationRepair:
     @pytest.mark.parametrize(
         "runtime_call",
         (
-            f"{PROJECT_COGNITION_UNAVAILABLE_MARKER}:project-cognition compass",
-            "`project-cognition compass --intent plan --format json`",
+            f"{SPECIFY_RUNTIME_UNAVAILABLE_MARKER}:specify-runtime cognition compass",
+            "`specify-runtime cognition compass --intent plan --format json`",
         ),
     )
     def test_repair_reports_modified_cognition_runtime_call_as_partial_candidate(
@@ -592,12 +592,12 @@ class TestIntegrationRepair:
         assert relative in integration._last_repair_skipped_modified
         assert relative in integration._last_repair_unresolved_cognition_markers
 
-    def test_repair_rebinds_unmodified_bare_project_cognition_call(self, tmp_path):
+    def test_repair_rebinds_unmodified_bare_specify_runtime_call(self, tmp_path):
         project = tmp_path / "project"
         integration = get_integration("claude")
         assert integration is not None
         manifest = IntegrationManifest("claude", project)
-        binary = project / "runtime" / "project-cognition.exe"
+        binary = project / "runtime" / "specify-runtime.exe"
         binary.parent.mkdir(parents=True)
         binary.write_text("runtime", encoding="utf-8")
         config = project / ".specify" / "config.json"
@@ -605,7 +605,7 @@ class TestIntegrationRepair:
         config.write_text(
             json.dumps(
                 {
-                    "project_cognition_launcher": {
+                    "runtime_launcher": {
                         "command": str(binary),
                         "argv": [str(binary)],
                     }
@@ -616,7 +616,7 @@ class TestIntegrationRepair:
         target = project / ".claude" / "skills" / "sp-plan" / "SKILL.md"
         target.parent.mkdir(parents=True)
         target.write_text(
-            "Run `project-cognition compass --intent plan --format json`.\n",
+            "Run `specify-runtime cognition compass --intent plan --format json`.\n",
             encoding="utf-8",
         )
         manifest.record_existing(target.relative_to(project))
@@ -630,7 +630,7 @@ class TestIntegrationRepair:
         content = target.read_text(encoding="utf-8")
         assert target in repaired
         assert str(binary) in content
-        assert "`project-cognition compass" not in content
+        assert "`specify-runtime cognition compass" not in content
         assert target.relative_to(project).as_posix() not in (
             integration._last_repair_skipped_modified
         )
@@ -651,11 +651,11 @@ class TestIntegrationRepair:
             fail_launcher,
         )
         monkeypatch.setattr(
-            "specify_cli.launcher.load_project_cognition_launcher",
+            "specify_cli.launcher.load_runtime_launcher",
             lambda project_root: object(),
         )
         monkeypatch.setattr(
-            "specify_cli.launcher.project_cognition_launcher_is_compatible",
+            "specify_cli.launcher.runtime_launcher_is_compatible",
             lambda project_root, launcher: True,
         )
         monkeypatch.setattr(cli_module, "_install_shared_infra", lambda *args, **kwargs: True)
@@ -686,7 +686,7 @@ class TestIntegrationRepair:
         generated = project / ".claude" / "skills" / "sp-plan" / "SKILL.md"
         generated.parent.mkdir(parents=True)
         generated.write_text(
-            f"{PROJECT_COGNITION_UNAVAILABLE_MARKER}:project-cognition compass\n",
+            f"{SPECIFY_RUNTIME_UNAVAILABLE_MARKER}:specify-runtime cognition compass\n",
             encoding="utf-8",
         )
         monkeypatch.setattr(
@@ -694,11 +694,11 @@ class TestIntegrationRepair:
             lambda project_root: None,
         )
         monkeypatch.setattr(
-            "specify_cli.launcher.load_project_cognition_launcher",
+            "specify_cli.launcher.load_runtime_launcher",
             lambda project_root: object(),
         )
         monkeypatch.setattr(
-            "specify_cli.launcher.project_cognition_launcher_is_compatible",
+            "specify_cli.launcher.runtime_launcher_is_compatible",
             lambda project_root, launcher: True,
         )
         monkeypatch.setattr(cli_module, "_install_shared_infra", lambda *args, **kwargs: True)
@@ -709,7 +709,7 @@ class TestIntegrationRepair:
         )
 
         assert any(
-            issue["code"] == "unrebound-project-cognition-launcher"
+            issue["code"] == "unrebound-specify-runtime-launcher"
             and ".claude/skills/sp-plan/SKILL.md" in issue["summary"]
             for issue in report.remaining_issues
         )

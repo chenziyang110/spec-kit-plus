@@ -1,0 +1,370 @@
+package specvalidate
+
+import (
+	"encoding/json"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+)
+
+func TestContractChecksPassForCurrentPlanningReadyPackage(t *testing.T) {
+	results := runLintForTest(t, filepath.Join("testdata", "good-spec"), "standard")
+
+	requireCheckStatus(t, results, "required-artifacts", statusPass)
+	requireCheckStatus(t, results, "workflow-state-readiness", statusPass)
+	requireCheckStatus(t, results, "handoff-json-schema", statusPass)
+	requireCheckStatus(t, results, "planning-gate-ready", statusPass)
+	requireCheckStatus(t, results, "source-signal-disposition", statusPass)
+	requireCheckStatus(t, results, "must-preserve-coverage", statusPass)
+	requireCheckStatus(t, results, "review-state-approved", statusPass)
+	requireCheckStatus(t, results, "quality-gate-summary", statusPass)
+}
+
+func TestCanonicalSpecContractPassesWithoutLegacyArtifactFanout(t *testing.T) {
+	dir := t.TempDir()
+	writeFileForTest(t, dir, "spec.md", "# Spec\n\n## Need\nA compact canonical specification.\n")
+	contract := map[string]any{
+		"version":                     1,
+		"status":                      "planning-ready",
+		"source_contract":             nil,
+		"source_revision":             nil,
+		"decision_digest_ref":         nil,
+		"target_need":                 "Produce a compact canonical specification.",
+		"scope":                       map[string]any{"in": []any{"canonical contract"}, "out": []any{}, "deferred": []any{}},
+		"constraints":                 []any{"Do not duplicate handoff truth."},
+		"acceptance_criteria":         []any{"Planner can consume spec-contract.json directly."},
+		"decisions":                   []any{},
+		"semantic_delta":              []any{},
+		"capability_operations":       []any{},
+		"must_preserve_refs":          []any{"MP-001"},
+		"consequence_obligation_refs": []any{},
+		"design_contract": map[string]any{
+			"experience_requirements":    []any{},
+			"design_source_refs":         []any{},
+			"design_system_requirements": []any{},
+			"design_system_status":       "not-applicable",
+			"design_risk_level":          "none",
+			"fidelity_refs":              []any{},
+			"required_states":            []any{},
+			"validation_refs":            []any{},
+		},
+		"context_capsule": map[string]any{
+			"boundary_ref":          "repo-root",
+			"evidence_refs":         []any{},
+			"selected_capabilities": []any{},
+			"minimal_live_reads":    []any{},
+			"validation_routes":     []any{"specify-runtime validate spec"},
+			"stale_if":              []any{},
+		},
+		"open_items": []any{},
+		"artifact_refs": map[string]any{
+			"spec": "spec.md", "alignment": nil, "context": nil, "references": nil,
+		},
+		"transition": map[string]any{
+			"version": 1, "status": "ready", "source_ref": "spec-contract.json",
+			"semantic_delta": []any{}, "required_refs": []any{}, "blockers": []any{},
+			"next_action": "/sp.plan", "recovery": nil,
+		},
+	}
+	data, err := json.MarshalIndent(contract, "", "  ")
+	if err != nil {
+		t.Fatalf("marshal canonical contract: %v", err)
+	}
+	writeFileForTest(t, dir, "spec-contract.json", string(data)+"\n")
+
+	results := runLintForTest(t, dir, "standard")
+	for _, name := range []string{
+		"required-artifacts", "workflow-state-readiness", "handoff-json-schema",
+		"planning-gate-ready", "source-signal-disposition", "must-preserve-coverage",
+		"review-state-approved", "quality-gate-summary", "scout-summary",
+		"capability-triage", "execution-mode", "change-propagation",
+	} {
+		requireCheckStatus(t, results, name, statusPass)
+	}
+}
+
+func TestCanonicalSpecContractRejectsInvalidVersionAndTransition(t *testing.T) {
+	dir := t.TempDir()
+	writeFileForTest(t, dir, "spec.md", "# Spec\n")
+	invalidContract := `{
+  "version": 2,
+  "status": "planning-ready",
+  "source_contract": null,
+  "source_revision": null,
+  "decision_digest_ref": null,
+  "target_need": "Demo need",
+  "scope": {"in": ["demo"], "out": [], "deferred": []},
+  "constraints": [],
+  "acceptance_criteria": ["Demo is verifiable"],
+  "decisions": [],
+  "semantic_delta": [],
+  "capability_operations": [],
+  "must_preserve_refs": [],
+  "consequence_obligation_refs": [],
+  "design_contract": {},
+  "context_capsule": {"evidence_refs": [], "selected_capabilities": [], "minimal_live_reads": [], "validation_routes": [], "stale_if": []},
+  "open_items": [],
+  "artifact_refs": {"spec": "spec.md"},
+  "transition": {"version": 2, "status": "ready", "source_ref": "spec-contract.json", "semantic_delta": [], "required_refs": [], "blockers": [], "next_action": "/sp.plan"}
+}`
+	writeFileForTest(t, dir, "spec-contract.json", invalidContract)
+
+	results := runLintForTest(t, dir, "standard")
+
+	requireCheckStatus(t, results, "handoff-json-schema", statusFail)
+
+	unreviewedDelta := strings.ReplaceAll(invalidContract, `"version": 2`, `"version": 1`)
+	unreviewedDelta = strings.Replace(
+		unreviewedDelta,
+		`"semantic_delta": []`,
+		`"semantic_delta": [{"ref": "DEC-001", "change": "Changed scope"}]`,
+		1,
+	)
+	writeFileForTest(t, dir, "spec-contract.json", unreviewedDelta)
+	results = runLintForTest(t, dir, "standard")
+	requireCheckStatus(t, results, "review-state-approved", statusFail)
+}
+
+func TestContractChecksRejectPlanningBlockers(t *testing.T) {
+	tests := []struct {
+		name      string
+		mutate    func(t *testing.T, dir string)
+		checkName string
+	}{
+		{
+			name: "missing handoff json",
+			mutate: func(t *testing.T, dir string) {
+				t.Helper()
+				if err := os.Remove(filepath.Join(dir, "brainstorming", "handoff-to-specify.json")); err != nil {
+					t.Fatalf("remove handoff json: %v", err)
+				}
+			},
+			checkName: "required-artifacts",
+		},
+		{
+			name: "invalid handoff json",
+			mutate: func(t *testing.T, dir string) {
+				t.Helper()
+				writeFileForTest(t, dir, filepath.Join("brainstorming", "handoff-to-specify.json"), "{not json")
+			},
+			checkName: "handoff-json-schema",
+		},
+		{
+			name: "malformed handoff schema types",
+			mutate: func(t *testing.T, dir string) {
+				t.Helper()
+				mutateHandoffForTest(t, dir, func(h map[string]any) {
+					h["source_files_read"] = "spec.md"
+				})
+			},
+			checkName: "handoff-json-schema",
+		},
+		{
+			name: "non string handoff status",
+			mutate: func(t *testing.T, dir string) {
+				t.Helper()
+				mutateHandoffForTest(t, dir, func(h map[string]any) {
+					h["status"] = 123
+				})
+			},
+			checkName: "handoff-json-schema",
+		},
+		{
+			name: "blocked planning gate",
+			mutate: func(t *testing.T, dir string) {
+				t.Helper()
+				mutateHandoffForTest(t, dir, func(h map[string]any) {
+					h["planning_gate_status"] = "blocked_by_hard_unknowns"
+				})
+			},
+			checkName: "planning-gate-ready",
+		},
+		{
+			name: "hard unknowns",
+			mutate: func(t *testing.T, dir string) {
+				t.Helper()
+				mutateHandoffForTest(t, dir, func(h map[string]any) {
+					h["hard_unknown_count"] = 1
+				})
+			},
+			checkName: "planning-gate-ready",
+		},
+		{
+			name: "clarification blocker disposition",
+			mutate: func(t *testing.T, dir string) {
+				t.Helper()
+				mutateHandoffForTest(t, dir, func(h map[string]any) {
+					h["source_signal_disposition"] = []any{
+						map[string]any{
+							"id":          "SSD-001",
+							"signal":      "ambiguous scope",
+							"disposition": "clarification_blocker",
+						},
+					}
+				})
+			},
+			checkName: "source-signal-disposition",
+		},
+		{
+			name: "untraceable must preserve row",
+			mutate: func(t *testing.T, dir string) {
+				t.Helper()
+				mutateHandoffForTest(t, dir, func(h map[string]any) {
+					h["must_preserve"] = []any{map[string]any{"status": "mapped"}}
+				})
+			},
+			checkName: "must-preserve-coverage",
+		},
+		{
+			name: "missing user review state",
+			mutate: func(t *testing.T, dir string) {
+				t.Helper()
+				path := filepath.Join(dir, "workflow-state.md")
+				content := readFileForTest(t, path)
+				content = strings.ReplaceAll(content, "last_user_reviewed_artifact_state: approved", "")
+				if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+					t.Fatalf("write workflow-state.md: %v", err)
+				}
+			},
+			checkName: "workflow-state-readiness",
+		},
+		{
+			name: "routes away from plan",
+			mutate: func(t *testing.T, dir string) {
+				t.Helper()
+				path := filepath.Join(dir, "workflow-state.md")
+				content := readFileForTest(t, path)
+				content = strings.ReplaceAll(content, "next_command: /sp.plan", "next_command: /sp.clarify")
+				content = strings.ReplaceAll(content, "final_handoff_decision: /sp.plan", "final_handoff_decision: /sp.clarify")
+				if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+					t.Fatalf("write workflow-state.md: %v", err)
+				}
+			},
+			checkName: "workflow-state-readiness",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := copyGoodSpecForTest(t)
+			tt.mutate(t, dir)
+
+			results := runLintForTest(t, dir, "standard")
+
+			requireCheckStatus(t, results, tt.checkName, statusFail)
+		})
+	}
+}
+
+func TestReviewRequestedWarnsWithoutBlocking(t *testing.T) {
+	dir := copyGoodSpecForTest(t)
+	path := filepath.Join(dir, "workflow-state.md")
+	content := readFileForTest(t, path)
+	content = strings.ReplaceAll(content, "last_user_reviewed_artifact_state: approved", "last_user_reviewed_artifact_state: requested")
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatalf("write workflow-state.md: %v", err)
+	}
+
+	results := runLintForTest(t, dir, "standard")
+
+	requireCheckStatus(t, results, "workflow-state-readiness", statusPass)
+	requireCheckStatus(t, results, "review-state-approved", statusWarn)
+}
+
+func runLintForTest(t *testing.T, dir string, tier string) map[string]checkResult {
+	t.Helper()
+	results := newRunner(tier).run(loadArtifacts(dir))
+	byName := map[string]checkResult{}
+	for _, result := range results {
+		byName[result.name] = result
+	}
+	return byName
+}
+
+func requireCheckStatus(t *testing.T, results map[string]checkResult, name string, want status) {
+	t.Helper()
+	got, ok := results[name]
+	if !ok {
+		t.Fatalf("check %q not found; available checks: %v", name, checkNamesForTest(results))
+	}
+	if got.status != want {
+		t.Fatalf("check %q status = %v (%s); want %v", name, got.status, got.message, want)
+	}
+}
+
+func checkNamesForTest(results map[string]checkResult) []string {
+	names := make([]string, 0, len(results))
+	for name := range results {
+		names = append(names, name)
+	}
+	return names
+}
+
+func copyGoodSpecForTest(t *testing.T) string {
+	t.Helper()
+	src := filepath.Join("testdata", "good-spec")
+	dst := filepath.Join(t.TempDir(), "good-spec")
+	copyDirForTest(t, src, dst)
+	return dst
+}
+
+func copyDirForTest(t *testing.T, src string, dst string) {
+	t.Helper()
+	entries, err := os.ReadDir(src)
+	if err != nil {
+		t.Fatalf("read dir %s: %v", src, err)
+	}
+	if err := os.MkdirAll(dst, 0755); err != nil {
+		t.Fatalf("make dir %s: %v", dst, err)
+	}
+	for _, entry := range entries {
+		srcPath := filepath.Join(src, entry.Name())
+		dstPath := filepath.Join(dst, entry.Name())
+		if entry.IsDir() {
+			copyDirForTest(t, srcPath, dstPath)
+			continue
+		}
+		data := []byte(readFileForTest(t, srcPath))
+		if err := os.WriteFile(dstPath, data, 0644); err != nil {
+			t.Fatalf("copy file %s: %v", srcPath, err)
+		}
+	}
+}
+
+func mutateHandoffForTest(t *testing.T, dir string, mutate func(map[string]any)) {
+	t.Helper()
+	path := filepath.Join(dir, "brainstorming", "handoff-to-specify.json")
+	var handoff map[string]any
+	if err := json.Unmarshal([]byte(readFileForTest(t, path)), &handoff); err != nil {
+		t.Fatalf("parse handoff json: %v", err)
+	}
+	mutate(handoff)
+	data, err := json.MarshalIndent(handoff, "", "  ")
+	if err != nil {
+		t.Fatalf("marshal handoff json: %v", err)
+	}
+	if err := os.WriteFile(path, append(data, '\n'), 0644); err != nil {
+		t.Fatalf("write handoff json: %v", err)
+	}
+}
+
+func readFileForTest(t *testing.T, path string) string {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read file %s: %v", path, err)
+	}
+	return string(data)
+}
+
+func writeFileForTest(t *testing.T, dir string, rel string, content string) {
+	t.Helper()
+	path := filepath.Join(dir, rel)
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		t.Fatalf("make parent for %s: %v", path, err)
+	}
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatalf("write file %s: %v", path, err)
+	}
+}

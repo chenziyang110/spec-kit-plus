@@ -1,11 +1,11 @@
-"""Project cognition gate hooks backed by the external project-cognition binary."""
+"""Project cognition gate hooks backed by the unified Specify runtime."""
 
 from __future__ import annotations
 
 from pathlib import Path
 
 from specify_cli.execution import worker_task_packet_from_json
-from specify_cli.project_cognition_tool import ProjectCognitionToolError, run_project_cognition
+from specify_cli.specify_runtime import SpecifyRuntimeError, run_specify_runtime
 
 from .events import (
     PROJECT_COGNITION_COMPLETE_REFRESH,
@@ -71,8 +71,8 @@ HUMAN_FALLBACK_GUIDANCE = {
 def project_cognition_freshness_result(project_root: Path, *, command_name: str) -> HookResult:
     normalized = command_name.strip().lower()
     try:
-        freshness = run_project_cognition(["check", "--format", "json"], cwd=project_root)
-    except ProjectCognitionToolError as exc:
+        freshness = run_specify_runtime(["cognition", "check", "--format", "json"], cwd=project_root)
+    except SpecifyRuntimeError as exc:
         freshness = {
             "state": "missing_baseline",
             "freshness": "missing_baseline",
@@ -236,6 +236,6 @@ def complete_refresh_hook(project_root: Path, _payload: dict[str, object]) -> Ho
 
 def _run_hook_binary(project_root: Path, args: list[str], *, blocked_ok: bool = False) -> dict[str, object]:
     try:
-        return run_project_cognition(args, cwd=project_root, check=not blocked_ok)
-    except ProjectCognitionToolError as exc:
+        return run_specify_runtime(["cognition", *args], cwd=project_root, check=not blocked_ok)
+    except SpecifyRuntimeError as exc:
         raise QualityHookError(str(exc)) from exc

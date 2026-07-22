@@ -22,9 +22,8 @@ from specify_cli.launcher import (
     install_shared_hook_launcher_assets,
     SpecifyLauncherSpec,
     load_project_specify_launcher,
-    project_cognition_launcher_is_compatible,
     project_specify_subcommand,
-    rebind_unbound_project_cognition_runtime_calls,
+    rebind_unbound_specify_runtime_cognition_calls,
     rebind_source_bound_specify_launchers,
     rebind_unbound_specify_runtime_calls,
     render_claude_hook_launcher,
@@ -33,7 +32,8 @@ from specify_cli.launcher import (
     render_project_launcher_placeholders,
     resolve_specify_launcher_spec,
     resolve_hook_runtime_spec,
-    resolve_project_cognition_launcher_argv,
+    resolve_runtime_launcher_argv,
+    runtime_launcher_is_compatible,
     write_project_specify_launcher_config,
 )
 from specify_cli import launcher as launcher_module
@@ -299,15 +299,15 @@ def test_source_bound_config_rejects_non_full_commit_ids(
     assert load_project_specify_launcher(tmp_path) is None
 
 
-def test_project_cognition_config_rebuilds_untrusted_command(tmp_path):
-    binary_name = "project-cognition.exe" if os.name == "nt" else "project-cognition"
+def test_runtime_config_rebuilds_untrusted_command(tmp_path):
+    binary_name = "specify-runtime.exe" if os.name == "nt" else "specify-runtime"
     binary = tmp_path / binary_name
     config_path = tmp_path / ".specify" / "config.json"
     config_path.parent.mkdir(parents=True)
     config_path.write_text(
         json.dumps(
             {
-                "project_cognition_launcher": {
+                "runtime_launcher": {
                     "command": "pwsh -Command INJECTED_SECOND_COMMAND",
                     "argv": [str(binary)],
                 }
@@ -316,7 +316,7 @@ def test_project_cognition_config_rebuilds_untrusted_command(tmp_path):
         encoding="utf-8",
     )
 
-    launcher = launcher_module.load_project_cognition_launcher(tmp_path)
+    launcher = launcher_module.load_runtime_launcher(tmp_path)
 
     assert launcher is not None
     assert launcher.argv == (str(binary),)
@@ -1059,9 +1059,9 @@ def test_render_project_launcher_rebinds_bare_project_cognition_calls(tmp_path):
     (config_dir / "config.json").write_text(
         json.dumps(
             {
-                "project_cognition_launcher": {
-                    "command": "C:/trusted/project-cognition.exe",
-                    "argv": ["C:/trusted/project-cognition.exe"],
+                "runtime_launcher": {
+                    "command": "C:/trusted/specify-runtime.exe",
+                    "argv": ["C:/trusted/specify-runtime.exe"],
                 }
             }
         ),
@@ -1070,25 +1070,25 @@ def test_render_project_launcher_rebinds_bare_project_cognition_calls(tmp_path):
 
     rendered = render_project_launcher_placeholders(
         tmp_path,
-        "Run `project-cognition generate-ignore --format json`.\n\n"
-        "```bash\nproject-cognition scan-set --format json\n```\n",
+        "Run `specify-runtime cognition generate-ignore --format json`.\n\n"
+        "```bash\nspecify-runtime cognition scan-set --format json\n```\n",
     )
 
-    assert "`C:/trusted/project-cognition.exe generate-ignore --format json`" in rendered
-    assert "C:/trusted/project-cognition.exe scan-set --format json" in rendered
-    assert "`project-cognition generate-ignore" not in rendered
+    assert "`C:/trusted/specify-runtime.exe cognition generate-ignore --format json`" in rendered
+    assert "C:/trusted/specify-runtime.exe cognition scan-set --format json" in rendered
+    assert "`specify-runtime cognition generate-ignore" not in rendered
 
 
 def test_render_project_launcher_placeholders_without_project_launcher_avoids_bare_cognition_command(tmp_path):
     rendered = render_project_launcher_placeholders(
         tmp_path,
-        'Run `{{specify-subcmd:project-cognition query --intent implement --query-plan "<query_plan_json>" --format json}}`.',
+        'Run `{{specify-subcmd:specify-runtime cognition query --intent implement --query-plan "<query_plan_json>" --format json}}`.',
     )
 
-    assert "specify project-cognition query" not in rendered
-    assert "PROJECT_COGNITION_LAUNCHER_UNAVAILABLE:project-cognition" in rendered
-    assert "project-cognition query --intent implement" in rendered
-    assert "(requires project-cognition" not in rendered
+    assert "specify specify-runtime cognition query" not in rendered
+    assert "SPECIFY_RUNTIME_LAUNCHER_UNAVAILABLE:specify-runtime cognition" in rendered
+    assert "specify-runtime cognition query --intent implement" in rendered
+    assert "(requires specify-runtime" not in rendered
 
 
 def test_diagnose_project_runtime_compatibility_reports_broken_launcher(tmp_path):
@@ -1136,18 +1136,18 @@ def test_diagnose_project_runtime_compatibility_reports_missing_cognition_launch
     missing = next(
         issue
         for issue in issues
-        if issue["code"] == "missing-project-cognition-launcher"
+        if issue["code"] == "missing-specify-runtime-launcher"
     )
     assert "integration repair" in missing["repair"]
     assert "specify cognition" in missing["repair"]
     assert "do not" in missing["repair"].lower()
 
 
-def test_project_cognition_launcher_resolves_project_relative_binary(
+def test_runtime_launcher_resolves_project_relative_binary(
     monkeypatch,
     tmp_path,
 ):
-    binary_name = "project-cognition.exe" if os.name == "nt" else "project-cognition"
+    binary_name = "specify-runtime.exe" if os.name == "nt" else "specify-runtime"
     binary = tmp_path / ".specify" / "bin" / binary_name
     binary.parent.mkdir(parents=True)
     binary.write_text("binary", encoding="utf-8")
@@ -1157,7 +1157,7 @@ def test_project_cognition_launcher_resolves_project_relative_binary(
     config_path.write_text(
         json.dumps(
             {
-                "project_cognition_launcher": {
+                "runtime_launcher": {
                     "command": f".specify/bin/{binary_name}",
                     "argv": [f".specify/bin/{binary_name}"],
                 }
@@ -1173,14 +1173,14 @@ def test_project_cognition_launcher_resolves_project_relative_binary(
         return True
 
     monkeypatch.setattr(
-        "specify_cli.project_cognition_runtime.launcher_supports_required_commands",
+        "specify_cli.specify_runtime.launcher_supports_required_commands",
         compatible,
     )
 
-    resolved = resolve_project_cognition_launcher_argv(tmp_path)
+    resolved = resolve_runtime_launcher_argv(tmp_path)
 
     assert resolved == (str(binary),)
-    assert project_cognition_launcher_is_compatible(tmp_path) is True
+    assert runtime_launcher_is_compatible(tmp_path) is True
     assert captured == {"argv": (str(binary),), "cwd": tmp_path}
 
 
@@ -1188,7 +1188,7 @@ def test_missing_relative_cognition_launcher_does_not_fall_back_to_path(
     monkeypatch,
     tmp_path,
 ):
-    binary_name = "project-cognition.exe" if os.name == "nt" else "project-cognition"
+    binary_name = "specify-runtime.exe" if os.name == "nt" else "specify-runtime"
     path_candidate = tmp_path / "malicious-path" / binary_name
     path_candidate.parent.mkdir()
     path_candidate.write_text("malicious", encoding="utf-8")
@@ -1199,7 +1199,7 @@ def test_missing_relative_cognition_launcher_does_not_fall_back_to_path(
     config_path.write_text(
         json.dumps(
             {
-                "project_cognition_launcher": {
+                "runtime_launcher": {
                     "command": binary_name,
                     "argv": [binary_name],
                 }
@@ -1213,17 +1213,17 @@ def test_missing_relative_cognition_launcher_does_not_fall_back_to_path(
         lambda _entry: str(path_candidate),
     )
 
-    assert resolve_project_cognition_launcher_argv(tmp_path) is None
+    assert resolve_runtime_launcher_argv(tmp_path) is None
     assert any(
-        issue["code"] == "broken-project-cognition-launcher"
+        issue["code"] == "broken-specify-runtime-launcher"
         for issue in diagnose_project_runtime_compatibility(tmp_path)
     )
 
 
-def test_diagnose_project_runtime_compatibility_rejects_corrupt_cognition_binary(
+def test_diagnose_project_runtime_compatibility_rejects_corrupt_runtime_binary(
     tmp_path,
 ):
-    binary_name = "project-cognition.exe" if os.name == "nt" else "project-cognition"
+    binary_name = "specify-runtime.exe" if os.name == "nt" else "specify-runtime"
     binary = tmp_path / ".specify" / "bin" / binary_name
     binary.parent.mkdir(parents=True)
     binary.write_text("not an executable", encoding="utf-8")
@@ -1232,7 +1232,7 @@ def test_diagnose_project_runtime_compatibility_rejects_corrupt_cognition_binary
     (tmp_path / ".specify" / "config.json").write_text(
         json.dumps(
             {
-                "project_cognition_launcher": {
+                "runtime_launcher": {
                     "command": str(binary),
                     "argv": [str(binary)],
                 }
@@ -1244,7 +1244,7 @@ def test_diagnose_project_runtime_compatibility_rejects_corrupt_cognition_binary
     issues = diagnose_project_runtime_compatibility(tmp_path)
 
     assert any(
-        issue["code"] == "broken-project-cognition-launcher" for issue in issues
+        issue["code"] == "broken-specify-runtime-launcher" for issue in issues
     )
 
 
@@ -1492,24 +1492,24 @@ def test_launcher_rebinding_scopes_negative_language_to_each_inline_command():
 
 
 def test_project_cognition_rebinding_covers_inline_and_shell_fence_calls():
-    pinned = "C:/trusted/project-cognition.exe"
+    pinned = "C:/trusted/specify-runtime.exe"
     content = (
-        "Run `project-cognition generate-ignore --format json`.\n\n"
+        "Run `specify-runtime cognition generate-ignore --format json`.\n\n"
         "```bash\n"
-        "project-cognition scan-set --format json\n"
+        "specify-runtime cognition scan-set --format json\n"
         "```\n\n"
-        "Do not run `project-cognition mark-dirty`.\n"
+        "Do not run `specify-runtime cognition mark-dirty`.\n"
     )
 
-    rebound, count = rebind_unbound_project_cognition_runtime_calls(
+    rebound, count = rebind_unbound_specify_runtime_cognition_calls(
         content,
         pinned,
     )
 
     assert count == 2
-    assert f"`{pinned} generate-ignore --format json`" in rebound
-    assert f"{pinned} scan-set --format json" in rebound
-    assert "Do not run `project-cognition mark-dirty`" in rebound
+    assert f"`{pinned} cognition generate-ignore --format json`" in rebound
+    assert f"{pinned} cognition scan-set --format json" in rebound
+    assert "Do not run `specify-runtime cognition mark-dirty`" in rebound
 
 
 def test_runtime_diagnostics_ignore_workflow_arrow_notation(tmp_path):

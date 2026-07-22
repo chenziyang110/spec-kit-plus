@@ -9,7 +9,7 @@ verified before release, and what the next maintainer should build next.
 
 Implemented in this working tree:
 
-- `project-cognition semantic-intake --input <file> --format json`
+- `specify-runtime cognition semantic-intake --input <file> --format json`
 - semantic-intake request validation for `version: 1`, `raw_request`, and agent facets
 - project-backed candidate universe with primary, contrast, and rejected candidates
 - permission cap: semantic-intake can guide routing but cannot authorize source edits, root-cause claims, fixed claims, completion claims, or release-safe claims
@@ -21,7 +21,7 @@ Implemented in this working tree:
 
 Added as the v1.1 minimal audit slice in this working tree:
 
-- optional `project-cognition semantic-audit --input <file> --format json`
+- optional `specify-runtime cognition semantic-audit --input <file> --format json`
 - replayable `semantic_routing_audit` artifact construction from a WorkContract, semantic-intake input/output snapshots, selected/contrast/rejected candidate IDs, permission decision, action log, and route corrections
 - semantic-audit validation that selected candidates exist in the semantic-intake primary candidate universe, contrast candidates exist in contrast candidates, and rejected candidates exist in rejected candidates
 - semantic-audit permission cap at the lower of `P2` and the embedded semantic-intake `permission_hint.maximum_without_live_evidence`; it blocks source-change actions, P2-only inspect actions below P2, and final root-cause/fixed/complete/release-safe claims from routing data alone
@@ -52,7 +52,7 @@ Added as the v1.2 minimal evidence-guided inspection slice in this working tree:
 - v1.3.6 generated resume smoke: generated workflow guidance and `workflow-state.md` now carry `semantic_audit_generated_resume_smoke` and `semantic_audit_stale_reasons`; resumed workflows must prompt-check persisted audit file presence and route/claim/ref drift before trusting persisted claim readiness, while stale-state detection remains prompt-only in this version
 - v1.3.7 generated downstream smoke: actual Codex init coverage verifies the generated sp-debug skill, generated debug command template, and `.specify/templates/workflow-state-template.md` carry the v1.3.6 resume smoke contract in a downstream project
 - v1.3.8 semantic audit resume examples: generated projects now receive `.specify/templates/examples/semantic-audit-resume/scenarios.md` with fresh, missing-file, route-changed, active-claim-changed, claim-ref-mismatch, and verification-ref-mismatch examples for prompt-level resume smoke
-- v1.3.9 runtime resume validator: `project-cognition semantic-audit-resume --input <resume-validation.json> --format json` is now an optional JSON comparator for persisted audit input/output plus extracted workflow state; prompt fallback remains valid and the validator does not authorize source edits, final claims, or P3/P4 permission
+- v1.3.9 runtime resume validator: `specify-runtime cognition semantic-audit-resume --input <resume-validation.json> --format json` is now an optional JSON comparator for persisted audit input/output plus extracted workflow state; prompt fallback remains valid and the validator does not authorize source edits, final claims, or P3/P4 permission
 
 The v1.1 audit command is intentionally optional at this stage. It should not be
 added to `REQUIRED_COMMANDS`, install smoke checks, or release smoke checks until
@@ -61,10 +61,10 @@ a generated workflow makes the audit artifact mandatory.
 Local validation already used for this v1 slice:
 
 ```powershell
-cd tools/project-cognition
+cd tools/specify-runtime
 go test ./...
 go vet ./...
-go build -o $env:TEMP\spec-kit-plus-project-cognition-smoke.exe .
+go build -o $env:TEMP\spec-kit-plus-specify-runtime-smoke.exe .
 
 cd ../..
 python -m pytest -q
@@ -129,7 +129,7 @@ Use this checklist when reviewing the implementation:
 - generated workflow prompts use compass-first intake and semantic-intake escalation.
 - semantic-intake-only output never authorizes edits or final correctness claims.
 - installers and runtime compatibility checks reject older binaries without `semantic-intake --input`.
-- release workflow smoke-tests the new project-cognition command surface before asset upload.
+- release workflow smoke-tests the namespaced `specify-runtime cognition` command surface before asset upload.
 
 ## v1.1 Audit Artifact
 
@@ -262,7 +262,7 @@ v1.3.8 semantic audit resume examples is locally closed:
 
 v1.3.9 runtime resume validator is locally closed:
 
-- `project-cognition semantic-audit-resume --input <resume-validation.json> --format json` accepts extracted workflow state and concrete paths to `semantic-audit-input.json` plus `semantic-audit-output.json`
+- `specify-runtime cognition semantic-audit-resume --input <resume-validation.json> --format json` accepts extracted workflow state and concrete paths to `semantic-audit-input.json` plus `semantic-audit-output.json`
 - the validator compares selected candidate IDs, active claim type, route fingerprint, authorization refs, verification refs, and input/output file-pair route consistency
 - output records `validator: semantic-audit-resume`, `semantic_audit_generated_resume_smoke`, `semantic_audit_resume_status`, `semantic_audit_resume_validation`, `semantic_audit_stale_reasons`, `can_reuse_persisted_claim_readiness`, `claim_ready_allowed`, `permission_promotion_granted: false`, `grants_permission: false`, and `boundary: comparison_only_no_source_edit_or_claim_authorization`
 - the command is an optional JSON comparator; it does not parse workflow-state.md and does not authorize source edits, final claims, or P3/P4 permission
@@ -274,7 +274,7 @@ v1.3.9 runtime resume validator is locally closed:
 v1.3.10 resume validator downstream adoption is locally closed:
 
 - generated projects now receive concrete validator fixtures under `.specify/templates/examples/semantic-audit-resume/`
-- `resume-validation.json` demonstrates a fresh `project-cognition semantic-audit-resume --input resume-validation.json --format json` result with `semantic_audit_generated_resume_smoke: passed`, `semantic_audit_resume_status: fresh`, and `can_reuse_persisted_claim_readiness: true`
+- `resume-validation.json` demonstrates a fresh `specify-runtime cognition semantic-audit-resume --input resume-validation.json --format json` result with `semantic_audit_generated_resume_smoke: passed`, `semantic_audit_resume_status: fresh`, and `can_reuse_persisted_claim_readiness: true`
 - `resume-validation-route-changed.json` demonstrates a stale route result with `semantic_audit_generated_resume_smoke: failed`, `semantic_audit_resume_status: needs-rerun`, and `semantic_audit_stale_reasons: [route-changed]`
 - both fixtures reference sibling `semantic-audit-input.json` and `semantic-audit-output.json`; the runtime still reads explicit JSON paths and does not parse workflow-state.md
 - Codex init smoke verifies generated downstream projects receive the fresh and route-changed validator fixtures
@@ -285,7 +285,7 @@ v1.3.10 resume validator downstream adoption is locally closed:
 
 v1.3.11 resume validator workflow preference is locally closed:
 
-- generated workflow contracts now prefer the optional runtime validator when a compatible `project-cognition semantic-audit-resume` command is available
+- generated workflow contracts now prefer the optional runtime validator when a compatible `specify-runtime cognition semantic-audit-resume` command is available
 - workflows should build an ephemeral resume-validation.json from current workflow state plus concrete `semantic_audit_input_path` and `semantic_audit_output_path`
 - if the validator returns fresh and `can_reuse_persisted_claim_readiness: true`, workflows may reuse persisted claim readiness for the same active claim
 - if the validator is unavailable, blocked, or returns stale output, prompt fallback remains valid and final claims remain blocked until `semantic-audit-input.json` is rebuilt
@@ -317,7 +317,7 @@ v1.3.13 real downstream resume smoke is locally closed:
 
 v1.3.14 resume validator test hygiene and release readiness is locally closed:
 
-- extract local helpers for running `project-cognition semantic-audit-resume` from Python tests without weakening coverage
+- extract local helpers for running `specify-runtime cognition semantic-audit-resume` from Python tests without weakening coverage
 - split the real downstream resume validator smoke into its own Codex init test with an explicit Go-toolchain skip when Go is unavailable
 - keep long inline resume-validation JSON construction in the smoke because it proves generated workflows can build an ephemeral validator input from workflow state without relying on example fixture paths
 
@@ -326,7 +326,7 @@ v1.3.14 resume validator test hygiene and release readiness is locally closed:
 v1.3.15 release readiness is locally closed:
 
 - full project-cognition Go tests pass with `go test ./...`
-- full project-cognition vet passes with `go vet ./...`
+- full unified runtime vet passes with `go vet ./...`
 - full Python suite passes with `python -m pytest -q`
 - wheel packaging succeeds with `python -m build --wheel`
 - `git diff --check` passes; the only output is the existing CRLF normalization warning for `templates/commands/implement-teams.md` and `templates/commands/map-scan.md`
@@ -352,8 +352,8 @@ Build next only when the user explicitly asks to publish or trigger the external
 - do not run `.github/workflows/release.yml` directly from a dirty local working tree; `release.yml` checks out the pushed tag or dispatched tag and cannot see uncommitted local changes
 - confirm the working tree changes are committed and pushed before triggering release automation
 - confirm the intended tag, likely `v0.5.14` if releasing from the current `0.5.14.dev0` development version after `v0.5.13`
-- trigger or run the release process that publishes the updated project-cognition binary assets
-- verify the released project-cognition binary exposes `semantic-audit-resume --input`
+- trigger or run the release process that publishes the updated `specify-runtime` binary assets
+- verify the released `specify-runtime` binary exposes `cognition semantic-audit-resume --input`
 - verify a freshly initialized downstream project receives the semantic-audit-resume example matrix from the packaged release
 - keep workflow authorization claim-readiness-only unless a separate permission contract explicitly allows P3/P4 influence
 - decide ambiguous multi-claim authorization policy if workflows authorize multiple final claims without selecting a single active claim
@@ -399,7 +399,7 @@ release:
 - confirm the intended SemVer release tag, likely `v0.5.14` from the current development version
 - commit and push the current working tree changes
 - trigger `.github/workflows/release-trigger.yml` with the confirmed version
-- verify the published project-cognition binary exposes `semantic-audit-resume --input`
+- verify the published `specify-runtime` binary exposes `cognition semantic-audit-resume --input`
 - verify a freshly initialized downstream project receives the semantic-audit-resume examples and active claim guidance from the packaged release
 
 ## Hard Boundaries For Future Maintainers

@@ -23,6 +23,8 @@ def _write_fake_project_cognition_bin(tmp_path: Path) -> Path:
                 "import pathlib",
                 "import sys",
                 "args = sys.argv[1:]",
+                "if args[:1] == ['cognition']:",
+                "    args = args[1:]",
                 "cmd = args[0] if args else ''",
                 "root = pathlib.Path.cwd()",
                 "status_path = root / '.specify' / 'project-cognition' / 'status.json'",
@@ -187,7 +189,7 @@ def test_workflow_state_validate_blocks_missing_workflow_state(tmp_path: Path):
 def test_project_cognition_mark_dirty_hook_invokes_external_binary(tmp_path: Path, monkeypatch):
     project = _create_project(tmp_path)
     fake_bin = _write_fake_project_cognition_bin(tmp_path)
-    monkeypatch.setenv("PROJECT_COGNITION_BIN", f"{os.sys.executable}{os.pathsep}{fake_bin}")
+    monkeypatch.setenv("SPECIFY_RUNTIME_BIN", f"{os.sys.executable}{os.pathsep}{fake_bin}")
 
     result = run_quality_hook(
         project,

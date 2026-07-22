@@ -24,7 +24,6 @@ _READ_ONLY_OPERATIONS = frozenset(
         "api.show",
         "accept.closeout",
         "accept.validate",
-        "artifact.audit-fixed-cost",
         "check",
         "design.lint",
         "discussion.list",

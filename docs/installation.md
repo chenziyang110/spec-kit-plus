@@ -87,15 +87,16 @@ If you prefer to get the templates without checking for the right tools:
 uvx --refresh --from git+https://github.com/chenziyang110/spec-kit-plus.git specify init <project_name> --ai claude --ignore-agent-tools
 ```
 
-### Install Project Cognition Runtime
+### Install Unified Specify Runtime
 
-Generated project cognition workflows call the standalone `project-cognition`
-binary directly. Releases publish prebuilt binaries for Windows, Linux, and
-macOS. `specify init` best-effort downloads the matching release asset into
+Generated Agent workflows call the standalone `specify-runtime` binary for
+fixed artifacts, typed workflow state, specification validation, and the
+namespaced project cognition commands. Releases publish prebuilt binaries for
+Windows, Linux, and macOS. `specify init` best-effort downloads the matching release asset into
 `~/.specify/bin/` and pins that executable in the generated project's
 `.specify/config.json`. If automatic download is unavailable, use the
-installers below or set `PROJECT_COGNITION_BIN` to a custom binary path.
-The same binary exposes `semantic-audit-resume` for persisted semantic audit
+installers below or set `SPECIFY_RUNTIME_BIN` to a custom binary path.
+The same binary exposes `cognition semantic-audit-resume` for persisted semantic audit
 state checks. The command compares a saved audit input/output pair against
 workflow state; it does not authorize source changes or final claims, and does not grant P3/P4. Multiple `authorized_claims` require one `active_claim_type`, and failed,
 blocked, skipped, or inconclusive verification results keep claim readiness
@@ -103,7 +104,7 @@ blocked with `verification_result_failed`, `verification_result_blocked`, or
 `verification_result_inconclusive` until a newer matching passed rerun
 supersedes them.
 After the binary is pinned, empty projects initialized by `specify init` run
-`project-cognition init-empty`. When there is no business code yet, that
+`specify-runtime cognition init-empty`. When there is no business code yet, that
 bootstrap creates `.specify/project-cognition/status.json` and
 `.specify/project-cognition/project-cognition.db` with
 baseline kind `baseline_kind=greenfield_empty`; greenfield flows do not require
@@ -113,7 +114,7 @@ cognition baseline is needed for a first/missing/unusable baseline.
 
 Workflow-owned mutation closeout is planner-first: source-changing `sp-*`
 workflows run
-`project-cognition closeout-plan --workflow "$ACTIVE_WORKFLOW" --format json`,
+`specify-runtime cognition closeout-plan --workflow "$ACTIVE_WORKFLOW" --format json`,
 passing `--delta-session "$DELTA_SESSION_ID"` when a delta session exists. The
 planner returns `update_mode=delta_session` or `update_mode=payload_file`,
 `required_agent_fields`, `unknown_path_dispositions`, display-only command
@@ -136,23 +137,25 @@ paths were excluded by explicit workflow-owned paths, record that as
 
 ```bash
 # Linux / macOS
-curl -sSL https://raw.githubusercontent.com/chenziyang110/spec-kit-plus/main/tools/project-cognition/install.sh | bash
+curl -sSL https://raw.githubusercontent.com/chenziyang110/spec-kit-plus/main/tools/specify-runtime/install.sh | bash
 ```
 
 ```powershell
 # Windows PowerShell
-irm https://raw.githubusercontent.com/chenziyang110/spec-kit-plus/main/tools/project-cognition/install.ps1 | iex
+irm https://raw.githubusercontent.com/chenziyang110/spec-kit-plus/main/tools/specify-runtime/install.ps1 | iex
 ```
 
 Go users can also install from source:
 
 ```bash
-go install github.com/chenziyang110/spec-kit-plus/tools/project-cognition@latest
+go install github.com/chenziyang110/spec-kit-plus/tools/specify-runtime@latest
 ```
 
-Generated helper scripts prefer `PROJECT_COGNITION_BIN` when set, then the
-project-pinned `.specify/config.json` launcher when generated from `specify
-init`, and otherwise call `project-cognition` from PATH.
+Generated helper scripts prefer the project-pinned `runtime_launcher` in
+`.specify/config.json`, then `SPECIFY_RUNTIME_BIN`, and finally
+`specify-runtime` from PATH.
+
+The same binary owns canonical Agent artifact access. Use `specify-runtime artifact catalog` to inspect deterministic scaffold kinds, `specify-runtime artifact scaffold --kind <plan-contract|quick-status> --path <project-relative-path> --vars <compact-json>` for create-only stable boilerplate, and the `artifact show` or `artifact prepare` -> `artifact submit` path for progressive reads and leased writes.
 
 ## Verification
 

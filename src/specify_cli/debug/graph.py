@@ -38,7 +38,7 @@ from .utils import run_command, edit_file, read_file
 from .think_agent import build_think_subagent_prompt
 from .contract_agent import build_contract_subagent_prompt
 import functools
-from specify_cli.project_cognition_tool import ProjectCognitionToolError, run_project_cognition
+from specify_cli.specify_runtime import SpecifyRuntimeError, run_specify_runtime
 from specify_cli.verification import (
     ValidationResult as SharedValidationResult,
     run_verification_commands,
@@ -780,11 +780,11 @@ def _query_backed_debug_bundle(state: DebugGraphState) -> dict | None:
         ]
         for path in _debug_query_paths(state):
             args.extend(["--paths", path])
-        payload = run_project_cognition(
-            args,
+        payload = run_specify_runtime(
+            ["cognition", *args],
             cwd=project_root,
         )
-    except ProjectCognitionToolError:
+    except SpecifyRuntimeError:
         return None
     readiness = str(payload.get("readiness") or "").strip().lower()
     if readiness not in {"ready", "review"}:

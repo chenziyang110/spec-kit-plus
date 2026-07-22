@@ -4,7 +4,7 @@
 
 ## Artifact Contract Gate
 
-Before applying the tiered quality checks, `spec-lint` validates the current
+Before applying the tiered quality checks, `specify-runtime validate spec` validates the current
 `sp-specify -> sp-plan` artifact contract. This contract gate is mechanical and
 planning-readiness oriented: it proves the required handoff surfaces exist and
 do not record a planning blocker.
@@ -73,7 +73,7 @@ scout summary topics below:
 - **Verification entry points**: where to find relevant tests, how to validate changes
 - **Known unknowns**: stale evidence, weak mappings, observability gaps
 
-**Machine check**: `spec-lint` verifies keyword coverage across these 6 topic groups.
+**Machine check**: `specify-runtime validate spec` verifies keyword coverage across these 6 topic groups.
 
 ### 2. Capability Triage (light+, spec.md)
 
@@ -87,7 +87,7 @@ Every capability in the capability map must carry one of three state labels:
 
 At least 80% of capabilities must be labeled. Unlabeled capabilities imply incomplete analysis.
 
-**Machine check**: `spec-lint` counts capabilities and verifies label coverage.
+**Machine check**: `specify-runtime validate spec` counts capabilities and verifies label coverage.
 
 ### 3. Execution Mode (legacy packages)
 
@@ -110,7 +110,7 @@ When the contract references a separate context view, it must have at least one
 data row if the change has consumers. Otherwise stable evidence refs in the
 context capsule are sufficient and planning resolves the detailed interface map.
 
-**Machine check**: `spec-lint` verifies that a change-propagation or impact section contains a data table.
+**Machine check**: `specify-runtime validate spec` verifies that a change-propagation or impact section contains a data table.
 
 ### 5. Non-Functional Requirements (standard+, spec.md)
 
@@ -123,7 +123,7 @@ At least 2 of 4 NFR dimensions must be addressed:
 
 Dimensions with no special constraints should be recorded as "accepts standard engineering defaults."
 
-**Machine check**: `spec-lint` probes keyword presence for each dimension.
+**Machine check**: `specify-runtime validate spec` probes keyword presence for each dimension.
 
 **Deep tier**: All 4 dimensions must have quantified thresholds, not just mentions.
 
@@ -137,7 +137,7 @@ For each error or failure path described in the spec, the user-visible behavior 
 
 If error paths are described only as internal states or exception types, the contract is incomplete.
 
-**Machine check**: `spec-lint` heuristically compares error mentions to user-visible behavior mentions.
+**Machine check**: `specify-runtime validate spec` heuristically compares error mentions to user-visible behavior mentions.
 
 **Deep tier**: Every error path must have an explicit user-visible behavior contract.
 
@@ -154,7 +154,7 @@ Every configuration item must declare when changes take effect:
 
 Without effective-when declarations, planners may design stateful update mechanisms with race conditions.
 
-**Machine check**: `spec-lint` checks for effective-when keywords near configuration declarations.
+**Machine check**: `specify-runtime validate spec` checks for effective-when keywords near configuration declarations.
 
 **Deep tier**: Every configuration item must have an effective-when declaration.
 
@@ -168,7 +168,7 @@ Each capability should carry a minimal test strategy note:
 
 This enables planners to estimate test effort during task decomposition.
 
-**Machine check**: `spec-lint` checks for test strategy keywords within capability sections.
+**Machine check**: `specify-runtime validate spec` checks for test strategy keywords within capability sections.
 
 ## Artifact Review Gate (Conditional Human Review)
 
@@ -182,7 +182,7 @@ When semantic delta is non-empty or a user-owned decision remains unresolved, a 
 
 ## Tooling
 
-- `specify lint --dir <FEATURE_DIR> --tier <light|standard|deep>` runs the packaged `spec-lint` artifact gate
+- `specify lint --dir <FEATURE_DIR> --tier <light|standard|deep>` invokes the packaged `specify-runtime validate spec` gate
 - Agents use `--format json`; compact output omits passing check names unless `--show-passes` is requested
 - Exit code 0 = checks pass, 1 = checks fail or execution fails, 2 = invalid tier/format usage
 - Items without the machine-check tag require human judgment only when their trigger applies

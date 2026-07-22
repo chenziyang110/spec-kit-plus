@@ -119,7 +119,7 @@ def _run_bash_cognition(repo: Path, *args: str, project_cognition_bin: Path) -> 
     shutil.copy(BASH_COGNITION_HELPER, scripts_dir / "project-cognition-freshness.sh")
     quoted_args = " ".join(shlex.quote(arg) for arg in args)
     command = (
-        f"PROJECT_COGNITION_BIN={shlex.quote(project_cognition_bin.relative_to(repo).as_posix())} "
+        f"SPECIFY_RUNTIME_BIN={shlex.quote(project_cognition_bin.relative_to(repo).as_posix())} "
         f"scripts/bash/project-cognition-freshness.sh . {quoted_args}"
     ).strip()
     result = subprocess.run(
@@ -150,7 +150,7 @@ def _run_bash_cognition_from_project_launcher(
     config.write_text(
         json.dumps(
             {
-                "project_cognition_launcher": {
+                "runtime_launcher": {
                     "command": project_cognition_bin.as_posix(),
                     "argv": [project_cognition_bin.relative_to(repo).as_posix()],
                 }
@@ -166,7 +166,7 @@ def _run_bash_cognition_from_project_launcher(
         text=True,
         encoding="utf-8",
         errors="replace",
-        env={key: value for key, value in os.environ.items() if key != "PROJECT_COGNITION_BIN"},
+        env={key: value for key, value in os.environ.items() if key != "SPECIFY_RUNTIME_BIN"},
     )
     return json.loads(result.stdout)
 
@@ -179,10 +179,11 @@ def _write_bash_fake_project_cognition(repo: Path) -> Path | None:
     binary_path.write_text(
         "#!/usr/bin/env bash\n"
         "set -euo pipefail\n"
-        "if [[ \"${1:-}\" == \"specify\" || \"${1:-}\" == \"project-cognition\" || \"${2:-}\" == \"project-cognition\" ]]; then\n"
-        "  echo \"unexpected wrapper args: $*\" >&2\n"
+        "if [[ \"${1:-}\" != \"cognition\" ]]; then\n"
+        "  echo \"missing cognition namespace: $*\" >&2\n"
         "  exit 64\n"
         "fi\n"
+        "shift 1\n"
         "if [[ \"${1:-}\" != \"mark-dirty\" ]]; then\n"
         "  echo \"unexpected command args: $*\" >&2\n"
         "  exit 65\n"
@@ -251,7 +252,7 @@ def _run_powershell_cognition(repo: Path, *args: str, project_cognition_bin: Pat
         check=True,
         capture_output=True,
         text=True,
-        env={**os.environ, "PYTHONPATH": str(PROJECT_ROOT / "src"), "PROJECT_COGNITION_BIN": str(project_cognition_bin)},
+        env={**os.environ, "PYTHONPATH": str(PROJECT_ROOT / "src"), "SPECIFY_RUNTIME_BIN": str(project_cognition_bin)},
     )
     return json.loads(result.stdout)
 
@@ -273,7 +274,7 @@ def _run_powershell_cognition_from_project_launcher(
     config.write_text(
         json.dumps(
             {
-                "project_cognition_launcher": {
+                "runtime_launcher": {
                     "command": str(project_cognition_bin),
                     "argv": [str(project_cognition_bin)],
                 }
@@ -298,7 +299,7 @@ def _run_powershell_cognition_from_project_launcher(
         check=True,
         capture_output=True,
         text=True,
-        env={key: value for key, value in os.environ.items() if key != "PROJECT_COGNITION_BIN"},
+        env={key: value for key, value in os.environ.items() if key != "SPECIFY_RUNTIME_BIN"},
     )
     return json.loads(result.stdout)
 
@@ -312,14 +313,11 @@ def _write_powershell_fake_project_cognition(repo: Path) -> Path | None:
     binary_path.write_text(
         """
 param([Parameter(ValueFromRemainingArguments=$true)][string[]]$Args)
-if ($Args.Count -gt 0 -and ($Args[0] -eq "specify" -or $Args[0] -eq "project-cognition")) {
-    Write-Error "unexpected wrapper args: $($Args -join ' ')"
+if ($Args.Count -lt 1 -or $Args[0] -ne "cognition") {
+    Write-Error "missing cognition namespace: $($Args -join ' ')"
     exit 64
 }
-if ($Args.Count -gt 1 -and $Args[1] -eq "project-cognition") {
-    Write-Error "unexpected wrapper args: $($Args -join ' ')"
-    exit 64
-}
+$Args = @($Args | Select-Object -Skip 1)
 if ($Args.Count -lt 1 -or $Args[0] -ne "mark-dirty") {
     Write-Error "unexpected command args: $($Args -join ' ')"
     exit 65
@@ -631,7 +629,7 @@ def test_bash_project_cognition_helper_reads_launcher_without_python(tmp_path: P
     (repo / ".specify" / "config.json").write_text(
         json.dumps(
             {
-                "project_cognition_launcher": {
+                "runtime_launcher": {
                     "command": ".specify/bin/project-cognition",
                     "argv": [".specify/bin/project-cognition"],
                 }

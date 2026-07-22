@@ -152,6 +152,44 @@ def test_runtime_runner_uses_unified_namespaced_argv(
     assert "spec-lint" not in calls[0][0]
 
 
+def test_runtime_runner_unwraps_cognition_envelope_for_existing_python_consumers(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    runtime = _load_runtime()
+    binary = _write_executable(tmp_path / RUNTIME_BINARY_NAME)
+    monkeypatch.setattr(
+        runtime,
+        "resolve_specify_runtime_binary",
+        lambda project_root=None: [str(binary)],
+    )
+
+    def fake_run(command: list[str], **kwargs: object) -> SimpleNamespace:
+        return SimpleNamespace(
+            returncode=0,
+            stdout=json.dumps(
+                {
+                    "status": "ok",
+                    "summary": "cognition completed",
+                    "data": {"freshness": "fresh", "readiness": "query_ready"},
+                    "items": [],
+                    "blockers": [],
+                    "show_argv": [],
+                    "next_argv": [],
+                }
+            ),
+            stderr="",
+        )
+
+    monkeypatch.setattr(runtime.subprocess, "run", fake_run)
+
+    result = runtime.run_specify_runtime(
+        ["cognition", "check", "--format", "json"], cwd=tmp_path
+    )
+
+    assert result == {"freshness": "fresh", "readiness": "query_ready"}
+
+
 def test_python_runtime_surface_removes_legacy_installers_and_launchers() -> None:
     legacy_modules = [
         PACKAGE_ROOT / "project_cognition_runtime.py",

@@ -44,16 +44,11 @@ jobs:
         run: |
           VERSION="${{ steps.version.outputs.tag }}"
           expected_assets=(
-            spec-lint-linux-amd64
-            spec-lint-linux-arm64
-            spec-lint-darwin-amd64
-            spec-lint-darwin-arm64
-            spec-lint-windows-amd64.exe
-            project-cognition-linux-amd64
-            project-cognition-linux-arm64
-            project-cognition-darwin-amd64
-            project-cognition-darwin-arm64
-            project-cognition-windows-amd64.exe
+            specify-runtime-linux-amd64
+            specify-runtime-linux-arm64
+            specify-runtime-darwin-amd64
+            specify-runtime-darwin-arm64
+            specify-runtime-windows-amd64.exe
           )
           if release_json="$(gh release view "$VERSION" --json isDraft,assets 2>/dev/null)" && \
              [ "$(jq -r '.isDraft' <<<"$release_json")" = "false" ]; then
@@ -113,34 +108,19 @@ jobs:
           specify init my-project
           \`\`\`
 
-          ### spec-lint (spec quality checker)
+          ### specify-runtime
 
-          **Primary:** Use \`specify lint\` (auto-downloads on first run):
-          \`\`\`bash
-          specify lint -dir ./specs/001-xxx/ -tier standard
-          \`\`\`
-
-          **Standalone install:**
-          \`\`\`bash
-          # Linux / macOS
-          curl -sSL https://raw.githubusercontent.com/chenziyang110/spec-kit-plus/main/tools/spec-lint/install.sh | bash
-          # Windows (PowerShell)
-          irm https://raw.githubusercontent.com/chenziyang110/spec-kit-plus/main/tools/spec-lint/install.ps1 | iex
-          \`\`\`
-
-          ### project-cognition runtime
-
-          Generated project cognition workflows require the standalone \`project-cognition\` binary. This release publishes prebuilt binaries for Windows, Linux, and macOS. The runtime includes \`scan-set\`, context-budgeted \`scan-prepare\`, and resumable \`scan-lease\` / \`scan-checkpoint\` / \`scan-yield\` / \`scan-requeue\` / \`scan-status\` / \`scan-accept\` orchestration with receipt-bound scan validation. It also includes the default compass/expand navigation commands, the WorkContract v1 \`semantic-intake\` candidate command, the optional \`semantic-audit-resume\` validator for persisted semantic-audit state, the advanced lexicon/query planning commands, and \`closeout-plan\` for planner-first workflow-owned mutation closeout. Generated projects also include the semantic-audit-resume example matrix under \`.specify/templates/examples/semantic-audit-resume/\` so downstream workflows can validate fresh, route-changed, active-claim-changed, missing-file, claim-ref-mismatch, and verification-ref-mismatch resume outcomes.
+          Generated Agent workflows use one project-pinned \`specify-runtime\` binary for canonical workflow artifacts, typed workflow state, specification validation, and project cognition. This release publishes the runtime for Windows, Linux, and macOS.
 
           **Install the prebuilt release binary**
           \`\`\`bash
           # Linux / macOS
-          curl -sSL https://raw.githubusercontent.com/chenziyang110/spec-kit-plus/main/tools/project-cognition/install.sh | PROJECT_COGNITION_VERSION=${VERSION} bash
+          curl -sSL https://raw.githubusercontent.com/chenziyang110/spec-kit-plus/main/tools/specify-runtime/install.sh | SPECIFY_RUNTIME_VERSION=${VERSION} bash
           # Windows (PowerShell)
-          \$env:PROJECT_COGNITION_VERSION="${VERSION}"; irm https://raw.githubusercontent.com/chenziyang110/spec-kit-plus/main/tools/project-cognition/install.ps1 | iex
+          \$env:SPECIFY_RUNTIME_VERSION="${VERSION}"; irm https://raw.githubusercontent.com/chenziyang110/spec-kit-plus/main/tools/specify-runtime/install.ps1 | iex
           \`\`\`
 
-          The generated helper scripts prefer \`PROJECT_COGNITION_BIN\` when it is set, then the pinned \`.specify/config.json\` \`project_cognition_launcher\`, and finally \`project-cognition\` from PATH.
+          Generated helpers prefer the project-pinned \`.specify/config.json\` \`runtime_launcher\`, then \`SPECIFY_RUNTIME_BIN\`, and finally \`specify-runtime\` from PATH.
 
           NOTES_EOF
 
@@ -172,8 +152,8 @@ jobs:
             local tool="$1"
             local dir="$2"
             local ldflags="-s -w -X main.version=${VERSION}"
-            if [ "$tool" = "project-cognition" ]; then
-              ldflags="${ldflags} -X github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/buildinfo.SourceRevision=${SOURCE_REVISION} -X github.com/chenziyang110/spec-kit-plus/tools/project-cognition/internal/buildinfo.BuildDirty=false"
+            if [ "$tool" = "specify-runtime" ]; then
+              ldflags="${ldflags} -X github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/buildinfo.SourceRevision=${SOURCE_REVISION} -X github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/buildinfo.BuildDirty=false"
             fi
             echo "Building ${tool} ${VERSION}..."
             for target in $TARGETS; do
@@ -193,45 +173,44 @@ jobs:
             done
           }
 
-          build_tool "spec-lint" "tools/spec-lint"
-          build_tool "project-cognition" "tools/project-cognition"
+          build_tool "specify-runtime" "tools/specify-runtime"
 
           echo ""
           echo "=== Built release tool binaries ==="
           ls -lh dist/release-tools/
 
-      - name: Smoke-test project-cognition release binary
+      - name: Smoke-test specify-runtime release binary
         if: steps.check_release.outputs.exists == 'false'
         run: |
-          chmod +x ./dist/release-tools/project-cognition-linux-amd64
-          ./dist/release-tools/project-cognition-linux-amd64 --help | grep -q "scan-set"
-          ./dist/release-tools/project-cognition-linux-amd64 --help | grep -q "scan-prepare"
-          ./dist/release-tools/project-cognition-linux-amd64 --help | grep -q "scan-accept"
-          ./dist/release-tools/project-cognition-linux-amd64 --help | grep -q "scan-checkpoint"
-          ./dist/release-tools/project-cognition-linux-amd64 version --format json | grep -q '"runtime_protocol":"project-cognition.v2"'
-          ./dist/release-tools/project-cognition-linux-amd64 version --format json | grep -q '"schema_version":5'
-          ./dist/release-tools/project-cognition-linux-amd64 version --format json | grep -q '"dirty":false'
-          ./dist/release-tools/project-cognition-linux-amd64 scan-prepare --help 2>&1 | grep -q -- "-force"
-          ./dist/release-tools/project-cognition-linux-amd64 scan-prepare --help 2>&1 | grep -q -- "-safety-percent"
-          ./dist/release-tools/project-cognition-linux-amd64 scan-lease --help 2>&1 | grep -q -- "-worker-capacity-tokens"
-          ./dist/release-tools/project-cognition-linux-amd64 scan-accept --help 2>&1 | grep -q -- "-packet-id"
-          ./dist/release-tools/project-cognition-linux-amd64 --help | grep -q "semantic-intake"
-          ./dist/release-tools/project-cognition-linux-amd64 semantic-intake --help 2>&1 | grep -q -- "-input"
-          ./dist/release-tools/project-cognition-linux-amd64 semantic-audit-resume --help 2>&1 | grep -q -- "-input"
-          ./dist/release-tools/project-cognition-linux-amd64 compass --help 2>&1 | grep -q -- "-semantic-intake-file"
-          ./dist/release-tools/project-cognition-linux-amd64 compass --help 2>&1 | grep -q -- "-query-plan-file"
-          ./dist/release-tools/project-cognition-linux-amd64 expand --help 2>&1 | grep -q -- "-section"
-          ./dist/release-tools/project-cognition-linux-amd64 delta append --help 2>&1 | grep -q -- "-verification"
-          ./dist/release-tools/project-cognition-linux-amd64 delta append --help 2>&1 | grep -q -- "-generated-surface"
-          ./dist/release-tools/project-cognition-linux-amd64 closeout-plan --help 2>&1 | grep -q -- "-workflow"
-          ./dist/release-tools/project-cognition-linux-amd64 closeout-plan --help 2>&1 | grep -q -- "-delta-session"
+          chmod +x ./dist/release-tools/specify-runtime-linux-amd64
+          ./dist/release-tools/specify-runtime-linux-amd64 --help | grep -q "cognition"
+          ./dist/release-tools/specify-runtime-linux-amd64 --help | grep -q "artifact"
+          ./dist/release-tools/specify-runtime-linux-amd64 --help | grep -q "workflow"
+          ./dist/release-tools/specify-runtime-linux-amd64 --help | grep -q "validate"
+          ./dist/release-tools/specify-runtime-linux-amd64 version --format json | grep -q '"protocol_version":"specify-runtime.v1"'
+          ./dist/release-tools/specify-runtime-linux-amd64 artifact catalog --format json | grep -q '"quick-status"'
+          ./dist/release-tools/specify-runtime-linux-amd64 artifact catalog --format json | grep -q '"plan-contract"'
+          ./dist/release-tools/specify-runtime-linux-amd64 cognition scan-prepare --help 2>&1 | grep -q -- "-force"
+          ./dist/release-tools/specify-runtime-linux-amd64 cognition scan-prepare --help 2>&1 | grep -q -- "-safety-percent"
+          ./dist/release-tools/specify-runtime-linux-amd64 cognition scan-lease --help 2>&1 | grep -q -- "-worker-capacity-tokens"
+          ./dist/release-tools/specify-runtime-linux-amd64 cognition scan-accept --help 2>&1 | grep -q -- "-packet-id"
+          ./dist/release-tools/specify-runtime-linux-amd64 cognition --help | grep -q "semantic-intake"
+          ./dist/release-tools/specify-runtime-linux-amd64 cognition semantic-intake --help 2>&1 | grep -q -- "-input"
+          ./dist/release-tools/specify-runtime-linux-amd64 cognition semantic-audit-resume --help 2>&1 | grep -q -- "-input"
+          ./dist/release-tools/specify-runtime-linux-amd64 cognition compass --help 2>&1 | grep -q -- "-semantic-intake-file"
+          ./dist/release-tools/specify-runtime-linux-amd64 cognition compass --help 2>&1 | grep -q -- "-query-plan-file"
+          ./dist/release-tools/specify-runtime-linux-amd64 cognition expand --help 2>&1 | grep -q -- "-section"
+          ./dist/release-tools/specify-runtime-linux-amd64 cognition delta append --help 2>&1 | grep -q -- "-verification"
+          ./dist/release-tools/specify-runtime-linux-amd64 cognition delta append --help 2>&1 | grep -q -- "-generated-surface"
+          ./dist/release-tools/specify-runtime-linux-amd64 cognition closeout-plan --help 2>&1 | grep -q -- "-workflow"
+          ./dist/release-tools/specify-runtime-linux-amd64 cognition closeout-plan --help 2>&1 | grep -q -- "-delta-session"
           tmpdir="$(mktemp -d)"
           cp templates/examples/semantic-audit-resume/semantic-audit-input.json "$tmpdir/"
           cp templates/examples/semantic-audit-resume/semantic-audit-output.json "$tmpdir/"
           cp templates/examples/semantic-audit-resume/resume-validation.json "$tmpdir/"
           cp templates/examples/semantic-audit-resume/resume-validation-route-changed.json "$tmpdir/"
-          ./dist/release-tools/project-cognition-linux-amd64 semantic-audit-resume --input "$tmpdir/resume-validation.json" --format json | grep -q '"semantic_audit_resume_status": "fresh"'
-          ./dist/release-tools/project-cognition-linux-amd64 semantic-audit-resume --input "$tmpdir/resume-validation-route-changed.json" --format json | grep -q '"semantic_audit_resume_status": "needs-rerun"'
+          ./dist/release-tools/specify-runtime-linux-amd64 cognition semantic-audit-resume --input "$tmpdir/resume-validation.json" --format json | grep -q '"semantic_audit_resume_status":"fresh"'
+          ./dist/release-tools/specify-runtime-linux-amd64 cognition semantic-audit-resume --input "$tmpdir/resume-validation-route-changed.json" --format json | grep -q '"semantic_audit_resume_status":"needs-rerun"'
 
       - name: Create GitHub Release
         if: steps.check_release.outputs.exists == 'false'

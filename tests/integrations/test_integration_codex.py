@@ -73,13 +73,14 @@ def _run_semantic_audit_resume_fixture(resume_path: Path) -> dict[str, object]:
             "go",
             "run",
             ".",
+            "cognition",
             "semantic-audit-resume",
             "--input",
             str(resume_path),
             "--format",
             "json",
         ],
-        cwd=REPO_ROOT / "tools" / "project-cognition",
+        cwd=REPO_ROOT / "tools" / "specify-runtime",
         capture_output=True,
         check=False,
         encoding="utf-8",
@@ -88,7 +89,8 @@ def _run_semantic_audit_resume_fixture(resume_path: Path) -> dict[str, object]:
         timeout=60,
     )
     assert result.returncode == 0, result.stderr
-    return json.loads(result.stdout)
+    envelope = json.loads(result.stdout)
+    return envelope["data"]
 
 
 def test_codex_integration_metadata():
@@ -281,7 +283,7 @@ class TestCodexIntegration:
             for path in skills_dir.glob("**/SKILL.md")
         )
 
-        assert "project-cognition query" in generated
+        assert "specify-runtime cognition query" in generated
         assert "alias catalog" in generated
         assert "semantic_intake" in generated
         assert "facet coverage" in generated
@@ -332,7 +334,7 @@ class TestCodexAutoPromote:
         cognition_helper_text = cognition_helper.read_text(encoding="utf-8")
         assert ".specify/project-map" not in cognition_helper_text
         assert "project-map-freshness" not in cognition_helper_text
-        assert "project-cognition" in cognition_helper_text
+        assert "specify-runtime" in cognition_helper_text
         assert not (target / ".specify" / "scripts" / "bash" / "project-map-freshness.sh").exists()
 
         _assert_compact_managed_context((target / "AGENTS.md").read_text(encoding="utf-8"))
@@ -387,8 +389,8 @@ class TestCodexAutoPromote:
         assert "{{spec-kit-include: ../command-partials/ask/shell.md}}" in template_content
 
         assert "Evidence-Backed Project Q&A" in partial_content
-        assert "project-cognition compass --intent ask" in partial_content
-        assert "project-cognition query --intent ask" in partial_content
+        assert "specify-runtime cognition compass --intent ask" in partial_content
+        assert "specify-runtime cognition query --intent ask" in partial_content
         assert "project cognition as advisory navigation" in partial_lower
         assert "live evidence is authoritative" in partial_lower
         assert "Do not create `.specify/ask/`" in partial_content
@@ -700,17 +702,17 @@ class TestCodexAutoPromote:
             )
         )
         generated_discussion = "\n".join([skill_content, command_template]).replace(
-            "project-cognition.exe", "project-cognition"
+            "specify-runtime.exe", "specify-runtime"
         )
         generated_lower = generated_discussion.lower()
 
         assert "Turn Classifier" in generated_discussion
         assert "Question Evidence Gate" in generated_discussion
         assert "Cognition Advisory, Code Authority" in generated_discussion
-        assert "project-cognition compass --intent discussion" in generated_discussion
-        assert "project-cognition query --query-plan" in generated_discussion
+        assert "cognition compass --intent discussion" in generated_discussion
+        assert "cognition query --query-plan" in generated_discussion
         assert "only when `compass_state`, coverage diagnostics, localization, or live evidence requires explicit concept decisions" in generated_discussion
-        assert "project-cognition query --intent plan" not in generated_discussion
+        assert "cognition query --intent plan" not in generated_discussion
         assert "ui-interaction-discussion" in generated_discussion
         assert "senior ui and interaction designer" in generated_lower
         assert "ascii sketches" in generated_lower
@@ -906,7 +908,7 @@ def test_codex_generated_sp_implement_teams_skill_exists_and_is_codex_only(tmp_p
     assert "coverage_diagnostics" in lower
     assert "expansion_ref" in lower
     assert "lexicon -> semantic_intake -> query" in lower
-    assert "project-cognition lexicon --intent implement" not in lower
+    assert "specify-runtime cognition lexicon --intent implement" not in lower
     assert "write set and shared surfaces" in lower
     assert "explicit verification command or acceptance check" in lower
     assert "completion-handoff protocol" in lower

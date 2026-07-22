@@ -28,7 +28,7 @@ Read `.specify/memory/constitution.md` as governance. Consume project rules and
 task-relevant Learning only through the project-learning CLI intake.
 
 Create new state deterministically with
-`{{specify-subcmd:artifact scaffold --kind quick-status --out ".planning/quick/<id>-<slug>/STATUS.md" --vars "<compact-json>" --format json}}`
+`{{specify-subcmd:specify-runtime artifact scaffold --kind quick-status --path ".planning/quick/<id>-<slug>/STATUS.md" --vars "<compact-json>"}}`
 and fill only the returned semantic anchors. Resume an existing
 `.planning/quick/<id>-<slug>/STATUS.md` instead of replacing it. The bundled
 `assets/status.md` remains a compatibility example, not the authoritative
@@ -74,7 +74,7 @@ Update `STATUS.md` at meaningful transitions and render `SUMMARY.md` from
 `{{specify-subcmd:quick close <id>}}` only after terminal truth is recorded;
 archive is a separate explicit action.
 After verified repository changes, run
-`{{specify-subcmd:project-cognition closeout-plan --workflow sp-quick --intent implement --format json}}`
+`{{specify-subcmd:specify-runtime cognition closeout-plan --workflow sp-quick --intent implement --format json}}`
 with explicit workflow-owned paths, fill returned agent-owned fields, and execute
 structured `update_argv`. Apply the receipt-bound finalizer gate in
 `references/project-cognition.md` before any clean claim. Report changed paths, evidence, and remaining risk. This invocation

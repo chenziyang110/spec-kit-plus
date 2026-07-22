@@ -50,6 +50,38 @@ func TestValidateSpecReturnsRepairableBlockForMissingCoreArtifacts(t *testing.T)
 	if code := ExitCodeForStatus(payload["status"].(string)); code != 10 {
 		t.Fatalf("validate missing spec exit code = %d, want 10", code)
 	}
+	nextArgv := payload["next_argv"].([]any)
+	wantPrefix := []string{"specify-runtime", "validate", "spec", "--dir"}
+	if len(nextArgv) < len(wantPrefix) {
+		t.Fatalf("validate missing spec next_argv = %#v, want executable rerun command", nextArgv)
+	}
+	for index, want := range wantPrefix {
+		if nextArgv[index] != want {
+			t.Fatalf("validate missing spec next_argv[%d] = %#v, want %q; argv=%#v", index, nextArgv[index], want, nextArgv)
+		}
+	}
+}
+
+func TestValidateSpecStandardTierIncludesStructuredContractDiagnostics(t *testing.T) {
+	featureDir := t.TempDir()
+	writeTestFile(t, featureDir, "spec.md", "# Feature Specification\n\n## Requirements\n\n- FR-001: The runtime validates a specification.\n")
+	writeTestFile(t, featureDir, "spec-contract.json", `{"schema_version":1,"status":"ready"}`+"\n")
+
+	result := ValidateSpec(SpecValidationRequest{
+		FeatureDir: featureDir,
+		Tier:       "standard",
+	})
+
+	payload := decodeJSONValue(t, result)
+	requireUnifiedEnvelope(t, payload)
+	if payload["status"] != "blocked" {
+		t.Fatalf("validate incomplete standard contract status = %#v, want blocked; payload=%#v", payload["status"], payload)
+	}
+	data := requireObject(t, payload, "data")
+	failures, ok := data["failures"].([]any)
+	if !ok || len(failures) == 0 {
+		t.Fatalf("validate incomplete standard contract data.failures = %#v, want structured diagnostics", data["failures"])
+	}
 }
 
 func writeTestFile(t *testing.T, root, relative, content string) {

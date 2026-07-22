@@ -14,7 +14,7 @@ read `references/blocker-resolution.md` before returning a blocked result.
 
 ## Intake
 
-Run `{{specify-subcmd:project-cognition compass --intent <intent> --query="<request>" --format json}}`,
+Run `{{specify-subcmd:specify-runtime cognition compass --intent <intent> --query="<request>" --format json}}`,
 using the intent named by the active skill. This placeholder resolves to the
 project-pinned cognition binary during installation. If it instead resolves to
 an all-caps unavailable-launcher marker, treat that token as a non-executable
@@ -51,10 +51,10 @@ do not rewrite graph-store metadata by hand.
 - Read `minimal_live_reads` before broad repository search and use
   `first_pass_paths` to choose the next live evidence.
 - Follow `expansion_ref` with
-  `{{specify-subcmd:project-cognition expand --ref <expansion-ref> --format json}}`
+  `{{specify-subcmd:specify-runtime cognition expand --ref <expansion-ref> --format json}}`
   only when coverage or contradictory live evidence requires more map detail.
 - Escalate to lexicon, agent-authored semantic intake, and a precise
-  `{{specify-subcmd:project-cognition query --intent <intent> --query-plan <query-plan-json> --format json}}`
+  `{{specify-subcmd:specify-runtime cognition query --intent <intent> --query-plan <query-plan-json> --format json}}`
   only for unresolved terminology, multilingual intent, or material coverage
   gaps.
 - Treat graph claims as route candidates. The live repository, tests,
@@ -104,12 +104,12 @@ root-cause, fixed, completed, or release-safe claim, persist
 workflow state. Use the deterministic runtime rather than reconstructing its
 stable schema:
 
-`{{specify-subcmd:project-cognition semantic-audit --input <semantic-audit-input.json> --format json}}`
+`{{specify-subcmd:specify-runtime cognition semantic-audit --input <semantic-audit-input.json> --format json}}`
 
 On resume, validate the persisted route, active claim, authorization refs, and
 verification refs with:
 
-`{{specify-subcmd:project-cognition semantic-audit-resume --input <resume-validation.json> --format json}}`
+`{{specify-subcmd:specify-runtime cognition semantic-audit-resume --input <resume-validation.json> --format json}}`
 
 If either audit file is missing, stale, or inconsistent, do not reuse
 `claim_ready`; rebuild the audit and keep the final claim blocked. A final claim
@@ -126,7 +126,7 @@ never infer readiness from chat memory or graph confidence.
 
 Only an owning mutation skill may perform cognition closeout. Its `SKILL.md`
 provides the exact registry-owned `sp-*` workflow literal and
-`project-cognition closeout-plan` command;
+`specify-runtime cognition closeout-plan` command;
 never derive that ID from the SPX skill name, an environment variable, or chat
 state. Pass explicit workflow-owned changed paths, fill only the returned
 agent-owned evidence fields, then execute the structured `update_argv`. Set
@@ -136,8 +136,8 @@ or unmatched decisions fail before mutation. Delta mode must supply every
 returned `--path-disposition` placeholder. An
 ignored disposition remains in audit-only `path_changes`, but it must not enter
 graph-changing `changed_paths` or create graph adoption/reconciliation records. If its
-first token is the bare `project-cognition` name, replace
-only that first token with `{{specify-subcmd:project-cognition}}` and preserve
+first two tokens are the bare `specify-runtime cognition` namespace, replace
+only those tokens with `{{specify-subcmd:specify-runtime cognition}}` and preserve
 every remaining argv token exactly; command strings marked display-only are not
 executable instructions. If the update cannot complete, leave freshness
 truthful and report the recovery action.
@@ -149,10 +149,10 @@ free-text verification is audit evidence with `result=recorded` only and cannot
 satisfy clean closeout; clean closeout requires structured `result=passed`.
 After `update_argv`,
 `result_state=ready` or `result_state=no_op` must run
-`{{specify-subcmd:project-cognition validate-build --format json}}`. Only
+`{{specify-subcmd:specify-runtime cognition validate-build --format json}}`. Only
 `status=ok` with `readiness=query_ready` creates the validate-build receipt
 bound to the latest update ID, outcome, and active generation; then, and only
-then, run `{{specify-subcmd:project-cognition complete-refresh --format json}}`.
+then, run `{{specify-subcmd:specify-runtime cognition complete-refresh --format json}}`.
 Clean completion requires that receipt-bound finalizer to succeed. For
 the interval before it succeeds, the runtime gate withholds Compass/query as
 pending finalization. For

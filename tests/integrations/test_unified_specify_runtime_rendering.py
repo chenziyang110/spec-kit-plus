@@ -72,6 +72,14 @@ WORKER_ARTIFACT_SURFACES = {
 }
 
 
+RUNTIME_ARTIFACT_BOUNDARY = "fixed workflow artifact boundary"
+REQUIRED_ARTIFACT_COMMANDS = (
+    "specify-runtime artifact show",
+    "specify-runtime artifact prepare",
+    "specify-runtime artifact submit",
+)
+
+
 def _install_codex_profile(project: Path, profile: str) -> Path:
     integration = get_integration("codex")
     assert integration is not None
@@ -186,3 +194,86 @@ def test_generated_worker_artifact_surfaces_use_unified_specify_runtime(
     )
 
     assert errors == [], "\n".join(errors)
+
+
+def test_every_classic_workflow_has_the_shared_fixed_artifact_boundary(
+    generated_agent_surfaces: dict[str, Path],
+) -> None:
+    classic = generated_agent_surfaces["classic"]
+    errors: list[str] = []
+    for skill in sorted(classic.glob("sp-*/SKILL.md")):
+        content = skill.read_text(encoding="utf-8").lower()
+        missing = [command for command in REQUIRED_ARTIFACT_COMMANDS if command not in content]
+        if RUNTIME_ARTIFACT_BOUNDARY not in content or missing:
+            errors.append(f"{skill.parent.name}: missing boundary commands {missing}")
+
+    assert len(list(classic.glob("sp-*/SKILL.md"))) == 30
+    assert errors == [], "\n".join(errors)
+
+
+def test_every_advanced_workflow_has_the_shared_fixed_artifact_boundary(
+    generated_agent_surfaces: dict[str, Path],
+) -> None:
+    advanced = generated_agent_surfaces["advanced"]
+    errors: list[str] = []
+    for skill in sorted(advanced.glob("spx-*/SKILL.md")):
+        content = skill.read_text(encoding="utf-8").lower()
+        missing = [command for command in REQUIRED_ARTIFACT_COMMANDS if command not in content]
+        if RUNTIME_ARTIFACT_BOUNDARY not in content or missing:
+            errors.append(f"{skill.parent.name}: missing boundary commands {missing}")
+
+    assert len(list(advanced.glob("spx-*/SKILL.md"))) == 31
+    assert errors == [], "\n".join(errors)
+
+
+def test_worker_prompts_name_only_implemented_runtime_artifact_namespaces(
+    generated_agent_surfaces: dict[str, Path],
+) -> None:
+    workers = generated_agent_surfaces["workers"]
+    errors: list[str] = []
+    for prompt in sorted(workers.glob("*.md")):
+        content = prompt.read_text(encoding="utf-8").lower()
+        missing = [command for command in REQUIRED_ARTIFACT_COMMANDS if command not in content]
+        unsupported = [
+            command
+            for command in (
+                "specify-runtime context",
+                "specify-runtime evidence",
+                "specify-runtime session",
+            )
+            if command in content
+        ]
+        if RUNTIME_ARTIFACT_BOUNDARY not in content or missing or unsupported:
+            errors.append(
+                f"{prompt.name}: missing boundary commands {missing}; unsupported {unsupported}"
+            )
+
+    assert errors == [], "\n".join(errors)
+
+
+def test_generated_workflows_do_not_name_unimplemented_runtime_namespaces(
+    generated_agent_surfaces: dict[str, Path],
+) -> None:
+    unsupported = (
+        "specify-runtime context",
+        "specify-runtime evidence",
+        "specify-runtime session",
+    )
+    errors: list[str] = []
+    for profile in ("classic", "advanced"):
+        root = generated_agent_surfaces[profile]
+        content = _read_generated_tree(root).lower()
+        for command in unsupported:
+            if command in content:
+                errors.append(f"{profile}: unsupported namespace {command}")
+
+    assert errors == [], "\n".join(errors)
+
+
+def test_generated_scaffolds_use_unified_runtime_not_python_control_plane(
+    generated_agent_surfaces: dict[str, Path],
+) -> None:
+    for profile in ("classic", "advanced"):
+        content = _read_generated_tree(generated_agent_surfaces[profile]).lower()
+        assert "specify-runtime artifact scaffold" in content
+        assert "specify artifact scaffold" not in content

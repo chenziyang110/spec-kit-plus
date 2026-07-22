@@ -109,9 +109,9 @@ from specify_cli.design import (
     import_design_reference,
     lint_design_file,
 )
-from specify_cli.project_cognition_tool import (
-    ProjectCognitionToolError,
-    run_project_cognition,
+from specify_cli.specify_runtime import (
+    SpecifyRuntimeError,
+    run_specify_runtime,
 )
 from specify_cli.execution import (
     build_result_handoff_path,
@@ -578,13 +578,6 @@ result_app = typer.Typer(
     add_completion=False,
 )
 app.add_typer(result_app, name="result")
-
-artifact_app = typer.Typer(
-    name="artifact",
-    help="Audit and scaffold fixed workflow artifacts",
-    add_completion=False,
-)
-app.add_typer(artifact_app, name="artifact")
 
 hook_app = typer.Typer(
     name="hook",
@@ -1754,13 +1747,13 @@ def _project_map_preflight(
     command_name: str,
 ) -> dict[str, Any]:
     try:
-        result = run_project_cognition(["check", "--format", "json"], cwd=project_root)
-    except ProjectCognitionToolError as exc:
+        result = run_specify_runtime(["cognition", "check", "--format", "json"], cwd=project_root)
+    except SpecifyRuntimeError as exc:
         result = {
             "freshness": "missing_baseline",
             "state": "missing_baseline",
             "readiness": "blocked",
-            "recommended_next_action": "install_project_cognition",
+            "recommended_next_action": "install_specify_runtime",
             "status_path": str(
                 project_root / ".specify" / "project-cognition" / "status.json"
             ),
@@ -5284,7 +5277,7 @@ def _run_project_cognition_init_empty(
 ) -> tuple[bool, str]:
     try:
         result = subprocess.run(
-            [str(binary), "init-empty", "--format", "json"],
+            [str(binary), "cognition", "init-empty", "--format", "json"],
             cwd=project_path,
             capture_output=True,
             check=False,
@@ -5299,7 +5292,7 @@ def _run_project_cognition_init_empty(
         detail = (result.stderr or result.stdout).strip()
         return (
             False,
-            detail or f"project-cognition init-empty exited {result.returncode}",
+            detail or f"specify-runtime cognition init-empty exited {result.returncode}",
         )
     try:
         payload = json.loads(result.stdout or "{}")
@@ -5309,9 +5302,18 @@ def _run_project_cognition_init_empty(
         return True, "available; bootstrap status unknown"
 
     status = payload.get("status")
-    if status == "ok" and payload.get("baseline_kind") == "greenfield_empty":
+    data = payload.get("data")
+    if not isinstance(data, dict):
+        data = {}
+    if status == "ok" and (
+        payload.get("baseline_kind") == "greenfield_empty"
+        or data.get("baseline_kind") == "greenfield_empty"
+    ):
         return True, "greenfield baseline"
-    if status == "ok" and payload.get("already_initialized") is True:
+    if status == "ok" and (
+        payload.get("already_initialized") is True
+        or data.get("already_initialized") is True
+    ):
         return True, "already initialized"
     if status == "declined":
         warnings = payload.get("warnings")
@@ -5320,7 +5322,7 @@ def _run_project_cognition_init_empty(
             if detail:
                 return False, detail
         detail = str(payload.get("detail") or payload.get("message") or "").strip()
-        return False, detail or "project-cognition init-empty declined"
+        return False, detail or "specify-runtime cognition init-empty declined"
     detail = str(payload.get("detail") or payload.get("message") or "").strip()
     return True, detail or "available; bootstrap status unknown"
 
@@ -6117,15 +6119,13 @@ def init(
 
             tracker.start("project-cognition")
             try:
-                from specify_cli.project_cognition_runtime import (
-                    ensure_binary as _ensure_project_cognition,
-                    write_project_launcher_config as _write_project_cognition_launcher,
+                from specify_cli.specify_runtime import (
+                    ensure_binary as _ensure_runtime,
+                    write_project_launcher_config as _write_runtime_launcher,
                 )
 
-                project_cognition_binary = _ensure_project_cognition()
-                _write_project_cognition_launcher(
-                    project_path, project_cognition_binary
-                )
+                project_cognition_binary = _ensure_runtime()
+                _write_runtime_launcher(project_path, project_cognition_binary)
                 init_ok, init_detail = _run_project_cognition_init_empty(
                     project_path, project_cognition_binary
                 )
@@ -6348,14 +6348,14 @@ def init(
     console.print(tracker.render())
     console.print("\n[bold green]Spec Kit Plus project ready.[/bold green]")
 
-    # Pre-fetch spec-lint binary in the background so `specify lint` works
+    # Pre-fetch specify-runtime in the background so `specify lint` works
     # immediately without a download pause on first use.  Non-fatal.
     try:
-        from specify_cli.lint import ensure_binary as _ensure_lint
+        from specify_cli.specify_runtime import ensure_binary as _ensure_runtime
 
-        _ensure_lint()
+        _ensure_runtime()
     except Exception:
-        pass  # spec-lint download is best-effort during init
+        pass  # runtime download is best-effort during init
 
     if project_cognition_install_warning:
         console.print()
@@ -6363,14 +6363,10 @@ def init(
             _open_block(
                 "Project Cognition Runtime",
                 [
-                    "[yellow]Warning:[/yellow] project-cognition could not be auto-installed during init.",
+                    "[yellow]Warning:[/yellow] specify-runtime could not be auto-installed during init.",
                     project_cognition_install_warning,
                     "",
-                    "[dim]Install the prebuilt release binary manually:[/dim]",
-                    "[cyan]curl -sSL https://raw.githubusercontent.com/chenziyang110/spec-kit-plus/main/tools/project-cognition/install.sh | bash[/cyan]",
-                    "[cyan]irm https://raw.githubusercontent.com/chenziyang110/spec-kit-plus/main/tools/project-cognition/install.ps1 | iex[/cyan]",
-                    "",
-                    "[dim]Or set PROJECT_COGNITION_BIN to an existing binary path.[/dim]",
+                    "[dim]Install the prebuilt specify-runtime release binary manually or set SPECIFY_RUNTIME_BIN to an existing binary path.[/dim]",
                 ],
                 accent="yellow",
             )
@@ -6381,7 +6377,7 @@ def init(
             _open_block(
                 "Project Cognition Baseline",
                 [
-                    "[yellow]Warning:[/yellow] project-cognition runtime is available, but the greenfield empty baseline was not created.",
+                    "[yellow]Warning:[/yellow] specify-runtime is available, but the greenfield empty baseline was not created.",
                     project_cognition_baseline_warning,
                 ],
                 accent="yellow",
@@ -7905,67 +7901,6 @@ def team_result_template(
     )
 
 
-@artifact_app.command("audit-fixed-cost")
-def artifact_audit_fixed_cost_command(
-    output_format: str = typer.Option("json", "--format", help="Output format: json"),
-):
-    """Report fixed artifact scaffold candidates and estimated token savings."""
-    project_root = Path.cwd()
-    _require_spec_kit_plus_project(project_root)
-    if output_format.lower() != "json":
-        console.print(
-            "[red]Error:[/red] only --format json is supported for artifact audit"
-        )
-        raise typer.Exit(1)
-
-    from specify_cli.artifacts import audit_fixed_cost
-
-    print_json(audit_fixed_cost())
-
-
-@artifact_app.command("scaffold")
-def artifact_scaffold_command(
-    kind: str = typer.Option(..., "--kind", help="Artifact scaffold kind"),
-    out_path: str = typer.Option(
-        ..., "--out", help="Project-relative artifact output path"
-    ),
-    vars_json: str = typer.Option(
-        "{}", "--vars", help="Compact JSON variables for the scaffold"
-    ),
-    output_format: str = typer.Option("json", "--format", help="Output format: json"),
-):
-    """Create a fixed workflow artifact scaffold at a safe project-relative path."""
-    project_root = Path.cwd()
-    _require_spec_kit_plus_project(project_root)
-    if output_format.lower() != "json":
-        console.print(
-            "[red]Error:[/red] only --format json is supported for artifact scaffold"
-        )
-        raise typer.Exit(1)
-    try:
-        variables = json.loads(vars_json)
-    except json.JSONDecodeError as exc:
-        console.print(f"[red]Error:[/red] invalid --vars JSON: {exc}")
-        raise typer.Exit(1) from exc
-    if not isinstance(variables, dict):
-        console.print("[red]Error:[/red] --vars must decode to a JSON object")
-        raise typer.Exit(1)
-
-    from specify_cli.artifacts import ArtifactScaffoldError, scaffold_artifact
-
-    try:
-        payload = scaffold_artifact(
-            project_root,
-            kind=kind,
-            out_path=out_path,
-            variables=variables,
-        )
-    except ArtifactScaffoldError as exc:
-        console.print(f"[red]Error:[/red] {exc}")
-        raise typer.Exit(1) from exc
-    print_json(payload)
-
-
 @teams_app.command("api")
 def team_api(
     operation: str = typer.Argument(
@@ -9250,28 +9185,64 @@ def lint(
         help="Include passing check names in JSON output",
     ),
     show_version: bool = typer.Option(
-        False, "--version", help="Print spec-lint version and exit"
+        False, "--version", help="Print specify-runtime version and exit"
     ),
     force_download: bool = typer.Option(
-        False, "--force-download", help="Re-download spec-lint binary even if cached"
+        False, "--force-download", help="Re-download specify-runtime binary even if cached"
     ),
 ):
     """Run spec quality gate checks on a feature directory.
 
-    Downloads the spec-lint binary on first run (cached at ~/.specify/bin/).
+    Downloads the unified specify-runtime binary on first run when needed.
     """
-    from specify_cli.lint import run as run_lint
+    if force_download:
+        from specify_cli.specify_runtime import ensure_binary
 
-    args = []
+        ensure_binary(force=True)
     if show_version:
-        args.append("--version")
-    else:
-        args.extend(["-dir", dir, "-tier", tier.value, "-format", output_format.value])
-        if show_passes:
-            args.append("-show-passes")
+        from specify_cli.specify_runtime import ensure_binary
 
-    ec = run_lint(args, force=force_download)
-    raise typer.Exit(code=ec)
+        binary = ensure_binary()
+        version_args = [str(binary), "version"]
+        if output_format == TextJsonFormat.json:
+            version_args.extend(["--format", "json"])
+        raise typer.Exit(code=subprocess.run(version_args, check=False).returncode)
+
+    validate_args = [
+        "--dir",
+        dir,
+        "--tier",
+        tier.value,
+        "--format",
+        output_format.value,
+    ]
+    if show_passes:
+        validate_args.append("--show-passes")
+    try:
+        payload = run_specify_runtime(
+            ["validate", "spec", *validate_args],
+            cwd=Path.cwd(),
+            check=False,
+        )
+    except SpecifyRuntimeError as exc:
+        console.print(f"[red]Error:[/red] {exc}")
+        raise typer.Exit(code=1)
+
+    if output_format == TextJsonFormat.json:
+        print_json(payload, indent=2)
+    else:
+        summary = str(payload.get("summary") or payload.get("status") or "").strip()
+        if summary:
+            console.print(summary)
+
+    status = str(payload.get("status") or "error")
+    if status in {"ok", "warn", "repaired"}:
+        raise typer.Exit(code=0)
+    if status in {"blocked", "repairable-block"}:
+        raise typer.Exit(code=10)
+    if status in {"invalid", "usage-error"}:
+        raise typer.Exit(code=2)
+    raise typer.Exit(code=1)
 
 
 # ===== Extension Commands =====
@@ -9774,13 +9745,13 @@ def _repair_active_integration_runtime_assets(
         SPECIFY_PROJECT_LAUNCHER_POSIX,
         SPECIFY_PROJECT_LAUNCHER_WINDOWS,
         diagnose_project_runtime_compatibility,
-        load_project_cognition_launcher,
-        project_cognition_launcher_is_compatible,
+        load_runtime_launcher,
+        runtime_launcher_is_compatible,
         write_project_specify_launcher_config,
     )
-    from .project_cognition_runtime import (
-        ensure_binary as ensure_project_cognition_binary,
-        write_project_launcher_config as write_project_cognition_launcher,
+    from .specify_runtime import (
+        ensure_binary as ensure_runtime_binary,
+        write_project_launcher_config as write_runtime_launcher,
     )
 
     current = _read_integration_json(project_root)
@@ -9793,17 +9764,17 @@ def _repair_active_integration_runtime_assets(
     except RuntimeError as exc:
         launcher_conflicts.append(str(exc))
 
-    cognition_launcher = load_project_cognition_launcher(project_root)
-    cognition_available = project_cognition_launcher_is_compatible(
+    cognition_launcher = load_runtime_launcher(project_root)
+    cognition_available = runtime_launcher_is_compatible(
         project_root,
         cognition_launcher,
     )
     if not cognition_available:
-        cognition_binary = ensure_project_cognition_binary()
-        written = write_project_cognition_launcher(project_root, cognition_binary)
+        cognition_binary = ensure_runtime_binary()
+        written = write_runtime_launcher(project_root, cognition_binary)
         if written is None:
             raise RuntimeError(
-                "project-cognition runtime was recovered, but `.specify/config.json` "
+                "specify-runtime was recovered, but `.specify/config.json` "
                 "could not be updated with the project-pinned launcher"
             )
 
@@ -9828,8 +9799,8 @@ def _repair_active_integration_runtime_assets(
                 "broken-project-launcher",
                 "stale-generated-specify-launcher",
                 "unbound-generated-specify-launcher",
-                "unrebound-project-cognition-launcher",
-                "unbound-generated-project-cognition-launcher",
+                "unrebound-specify-runtime-launcher",
+                "unbound-generated-specify-runtime-launcher",
             }
         ]
         if launcher_conflicts:
@@ -9915,8 +9886,8 @@ def _repair_active_integration_runtime_assets(
             "broken-project-launcher",
             "stale-generated-specify-launcher",
             "unbound-generated-specify-launcher",
-            "unrebound-project-cognition-launcher",
-            "unbound-generated-project-cognition-launcher",
+            "unrebound-specify-runtime-launcher",
+            "unbound-generated-specify-runtime-launcher",
         }
     ]
     if launcher_conflicts:

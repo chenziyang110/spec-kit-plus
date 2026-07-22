@@ -331,7 +331,7 @@ def test_ask_surface_is_read_only_stateless_and_has_no_specify_helper() -> None:
     assert "do not execute project cli commands" in lowered
     assert "do not invoke another `sp-*` workflow automatically" in lowered
     assert "allowed operations are narrow file reads, `rg`" in lowered
-    assert "project-cognition compass --intent ask" in combined
+    assert "specify-runtime cognition compass --intent ask" in combined
     assert "specify ask" not in lowered
     assert "commits that are already available locally" not in lowered
     assert "commit history" not in lowered
@@ -340,8 +340,8 @@ def test_ask_surface_is_read_only_stateless_and_has_no_specify_helper() -> None:
     assert "only after you build a semantic intake or query plan" in lowered
     assert "compass output or live evidence is ambiguous or has incomplete coverage" in lowered
     assert "stale or localization-sensitive results are examples" in lowered
-    assert 'project-cognition query --intent ask --query-plan "<query_plan_json>" --format json' in combined
-    assert "project-cognition query --intent ask --query-plan-file <path> --format json" in combined
+    assert 'specify-runtime cognition query --intent ask --query-plan "<query_plan_json>" --format json' in combined
+    assert "specify-runtime cognition query --intent ask --query-plan-file <path> --format json" in combined
     assert "only after the agent builds a semantic\n  intake or query plan" in combined
     assert "compass output or live evidence is ambiguous\n  or has incomplete coverage" in combined
     assert "Stale or localization-sensitive cases are examples" in combined
@@ -598,7 +598,7 @@ def test_readme_and_quickstart_label_remaining_helper_command_shapes() -> None:
     assert "command shape: `specify discussion close <slug> --status completed|abandoned`" in readme
     assert "command shape: `specify discussion mark-consumed <slug> --feature-dir <feature-dir>`" in readme
     assert "command shape: `specify hook mark-dirty --reason " not in readme
-    assert "command shape: `project-cognition mark-dirty --reason " in readme
+    assert "command shape: `specify-runtime cognition mark-dirty --reason " in readme
     assert "command shape: `specify project-map mark-dirty --reason " not in readme
     assert "legacy project-map artifacts" in readme
     assert "--origin-command <workflow>" in readme
@@ -753,8 +753,8 @@ def test_guidance_docs_document_refresh_readiness_state_vocabulary() -> None:
         assert "support_drift" in content
         assert "partial_refresh" in content
         assert "recommended_next_action" in content
-        assert "project-cognition validate-scan --format json" in content
-        assert "project-cognition validate-build --format json" in content
+        assert "specify-runtime cognition validate-scan --format json" in content
+        assert "specify-runtime cognition validate-build --format json" in content
         assert "first brownfield cognition baseline" in content
         assert closed_rebuild_policy in normalized
 
@@ -792,7 +792,7 @@ def test_docs_describe_greenfield_project_cognition_bootstrap() -> None:
         lowered = block.lower()
         normalized = " ".join(block.replace("`", "").split()).lower()
 
-        assert "project-cognition init-empty" in lowered, path
+        assert "specify-runtime cognition init-empty" in lowered, path
         assert ".specify/project-cognition/status.json" in lowered, path
         assert ".specify/project-cognition/project-cognition.db" in lowered, path
         assert "baseline_kind=greenfield_empty" in normalized, path

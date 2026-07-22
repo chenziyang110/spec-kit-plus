@@ -102,7 +102,7 @@ def _fake_tmux_env(tmp_path: Path) -> dict[str, str]:
     env = os.environ.copy()
     env["PATH"] = f"{bin_dir}{os.pathsep}{env.get('PATH', '')}"
     env["SPECIFY_CODEX_TEAM_EXECUTOR"] = "legacy-heartbeat-runtime"
-    env["PROJECT_COGNITION_BIN"] = project_cognition_bin_value(project_cognition_script)
+    env["SPECIFY_RUNTIME_BIN"] = project_cognition_bin_value(project_cognition_script)
     return env
 
 

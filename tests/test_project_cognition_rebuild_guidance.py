@@ -93,7 +93,7 @@ def test_rendered_classic_runtime_gates_use_structured_actions_and_pinned_cognit
                 "specify",
             ],
         },
-        "project_cognition_launcher": {
+        "runtime_launcher": {
             "command": str(cognition),
             "argv": [str(cognition)],
         },

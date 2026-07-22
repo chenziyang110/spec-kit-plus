@@ -64,8 +64,8 @@ def test_debug_template_documents_map_backed_intake_contract() -> None:
     assert "manual `capture-learning` hook surface" not in content
     assert "debug cognition gate" in content
     assert "pass the cognition gate before" in content
-    assert "project-cognition compass --intent debug" in content
-    assert "project-cognition query --query-plan" in content
+    assert "specify-runtime cognition compass --intent debug" in content
+    assert "specify-runtime cognition query --query-plan" in content
     assert "minimal_live_reads" in content
     assert "debug-handbook.md" not in content
     assert "debug-workflow-contract" not in content
@@ -158,7 +158,7 @@ def test_debug_template_documents_map_backed_intake_contract() -> None:
     assert "verification_evidence" in content
     assert "project_cognition_refresh" in content
     assert "workflow-owned mutation closeout is not an external map-maintenance handoff" in content
-    assert "project-cognition closeout-plan --workflow" in content
+    assert "specify-runtime cognition closeout-plan --workflow" in content
     assert "update_mode=delta_session" in content
     assert "update_mode=payload_file" in content
     assert "update_argv" in content
@@ -173,7 +173,7 @@ def test_debug_template_documents_map_backed_intake_contract() -> None:
     assert "partial/low-confidence facts, known unknowns, and `minimal_live_reads`" in content
     assert "use map-update for ordinary existing-baseline gaps" in content
     assert "use map-scan -> map-build only for first/missing/unusable baseline, schema failure, schema v1 or old broad-schema rebuild-required readiness, zero active-generation path_index rows, missing or invalid alias_index, explicit_rebuild_requested, or baseline_identity_invalid" in content
-    assert "returned `project-cognition query` bundle and readiness as the truth source" not in content
+    assert "returned `specify-runtime cognition query` bundle and readiness as the truth source" not in content
     assert "returned project cognition compass packet as the default intake source" in content
     assert "use only returned `minimal_live_reads` when needed" in content
     assert "debug session state" in content
@@ -181,10 +181,10 @@ def test_debug_template_documents_map_backed_intake_contract() -> None:
     assert "coverage gaps" in content
     assert ".specify/project-map/index/status.json" not in content
     assert "complete-refresh" in content
-    assert "project-cognition validate-build --format json" in content
+    assert "specify-runtime cognition validate-build --format json" in content
     assert "incremental freshness finalization" in content
     assert "do not run `complete-refresh` as a rebuild finalizer" in content
-    assert "{{specify-subcmd:project-cognition mark-dirty --reason \"workflow-closeout-failed\" --format json}}" in content
+    assert "{{specify-subcmd:specify-runtime cognition mark-dirty --reason \"workflow-closeout-failed\" --format json}}" in content
     assert "write the selected capability or symptom, evidence routes" in content
     assert "highest-signal" in content
     assert "write a failing automated repro test before changing production code" in content

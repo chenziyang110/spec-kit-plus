@@ -128,8 +128,8 @@ Once the release trigger workflow completes:
 2. Extract version from tag name
 3. Check if release already exists
 4. Generate release notes from commits
-5. Cross-compile release tool binaries (`spec-lint` and `project-cognition`)
-6. Create GitHub Release with all assets, including `spec-lint-*` and `project-cognition-*` binaries
+5. Cross-compile the unified `specify-runtime` binary
+6. Create the GitHub Release with all `specify-runtime-*` platform assets
 
 ## Version Constraints
 

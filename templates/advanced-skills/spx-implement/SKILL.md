@@ -85,7 +85,7 @@ never an implicit pass.
 
 After verified repository changes, carry the unchanged validation-epoch ledger
 and remaining budget in `implementation-handoff.json`, then run
-`{{specify-subcmd:project-cognition closeout-plan --workflow sp-implement --intent implement --format json}}`
+`{{specify-subcmd:specify-runtime cognition closeout-plan --workflow sp-implement --intent implement --format json}}`
 with explicit workflow-owned paths, fill returned agent-owned fields, and execute
 structured `update_argv`. Apply the receipt-bound finalizer gate in
 `references/project-cognition.md` before any clean claim. Report changed files, checks actually run, failures or skipped

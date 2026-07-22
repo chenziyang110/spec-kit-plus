@@ -21,24 +21,24 @@ This passive skill is the brownfield advisory navigation layer, not a hard workf
 Before code edits, investigation, planning against existing code, or architectural
 judgment in an established Spec Kit Plus repository:
 
-- Default project cognition intake is `project-cognition compass --intent <intent> --query="$ARGUMENTS" --format json`.
+- Default project cognition intake is `specify-runtime cognition compass --intent <intent> --query="$ARGUMENTS" --format json`.
   Consume the packet in this order:
   1. Read top-level `epistemic_contract` first. Require `graph_role=route_candidate_only`, `fact_source_of_truth=live_repository`, `live_verification_required=true`, `graph_only_claims_allowed=false`, and `unverified_claim_action=withhold`.
   2. Read top-level `minimal_live_reads` and use those files as the bounded first live evidence route.
   3. Then use lane-level `first_pass_paths` for reasons, evidence hints, verification hints, follow-up surfaces, and `before_fix_claim` checks.
   4. Read lane-level `claim_refs` only as compact route candidates. `route_confidence` is scoped by `confidence_scope=route_candidate`; inspect `state`, `freshness`, and `stale`, and require live verification before using a claim as repository truth.
   5. Treat `coverage_diagnostics` as confidence and closeout signals, never as route candidates.
-  6. Treat `expansion_ref` as a normal continuation path. Run `project-cognition expand --id <id> --section claim_evidence --format json` when an active claim needs bounded `source_path`/`span` evidence; advanced `project-cognition query` may also return top-level `claim_signals` with bounded evidence refs.
+  6. Treat `expansion_ref` as a normal continuation path. Run `specify-runtime cognition expand --id <id> --section claim_evidence --format json` when an active claim needs bounded `source_path`/`span` evidence; advanced `specify-runtime cognition query` may also return top-level `claim_signals` with bounded evidence refs.
   7. Do not infer final edit scope from `minimal_live_reads`, `first_pass_paths`, `claim_refs`, `claim_signals`, or `claim_evidence`.
   Compass applies graph claims only as a bounded rerank after repository-backed route eligibility is established. `match_score` remains the eligibility score; lane `claim_ranking.adjustment` may only move an already-matched candidate by `+1` for fresh `supported`/`verified_in_graph_generation`, `-1` for stale, or `-2` for contradicted. Claims cannot create candidates and cannot replace live verification. When `coverage_diagnostics` contains `stale_claim_signal` or `contradicted_claim_signal`, treat the packet as `usable_with_review`, follow `reconcile_claims_with_minimal_live_reads`, and complete the lane-specific refresh or reconciliation action against the live repository.
-  For decisive claim-specific evidence, provide only reconciliation intent: workflow, stable `claim_id`, reason, repository-relative `source_path`, bounded line `span`, `supporting` or `contradicting` role, and optional claim-specific verification. Run `project-cognition claim-reconcile prepare --input <intent.json> --format json`; the runtime owns every integrity field and the prepared packet path. Execute the returned `apply_argv` exactly (`project-cognition claim-reconcile apply --input <prepared_packet_path> --format json`). Generic workflow verification is insufficient. On ready, rerun Compass once; on partial or blocked, withhold the claim.
+  For decisive claim-specific evidence, provide only reconciliation intent: workflow, stable `claim_id`, reason, repository-relative `source_path`, bounded line `span`, `supporting` or `contradicting` role, and optional claim-specific verification. Run `specify-runtime cognition claim-reconcile prepare --input <intent.json> --format json`; the runtime owns every integrity field and the prepared packet path. Execute the returned `apply_argv` exactly (`specify-runtime cognition claim-reconcile apply --input <prepared_packet_path> --format json`). Generic workflow verification is insufficient. On ready, rerun Compass once; on partial or blocked, withhold the claim.
   The `epistemic_contract` cannot authorize source changes and cannot prove current behavior. Carry `epistemic_contract` forward, withhold unverified claims, and let contradictory live evidence override the route candidate.
   Graph claims are indexed assertions. Even `verified_in_graph_generation` is only an active graph-generation state, not current repository truth; graph claims cannot authorize source changes and cannot set workflow `claim_ready=true`. Treat `candidate` and `supported` as navigation hypotheses, and `contradicted` or `stale` as negative-route or historical context until bounded live evidence is checked.
   Readiness values are `query_ready`, `review`, `needs_rebuild`, `blocked`, and `unsupported_runtime`. Compass-specific advice is in `compass_state` and `recommended_next_action`.
   Treat `recommended_next_action` as an object. Do not treat `recommended_next_action` as a string. Read `recommended_next_action.action_id` for every packet: `needs_rebuild` alone is not a rebuild route and can accompany a resumable action such as `complete_scan_packets`. Only for `action_id=project_cognition.rebuild`, inspect every entry in `rebuild_reasons[]`, preserve its stable `code`, human-readable `message`, and relevant `evidence`, then follow the canonical Classic sequence in `recommended_next_action.workflow_routes.classic.steps`. Project those canonical step names through this integration's invocation syntax instead of guessing from readiness or an internal action ID. Non-rebuild actions omit workflow routes and must be preserved by `action_id` alone.
   If a non-workflow action includes `recommended_next_action.argv`, execute that exact argv through the project-pinned cognition launcher. `project_cognition.repair_status` owns the deterministic `repair-status` action; never patch graph-store metadata by hand.
   When `compass_state=needs_semantic_intake`, the agent writes `semantic_intake` from project vocabulary and reruns compass with `--semantic-intake-file`, or uses the advanced `lexicon -> semantic_intake -> query` path when explicit concept decisions are needed.
-  Advanced routing remains available as `project-cognition lexicon --mode catalog`, agent-authored `semantic_intake` and `concept_decisions`, then `project-cognition query --query-plan`. Use it when the first compass packet is too draft-like, a workflow needs explicit concept decisions, or coverage cannot be resolved from the default packet.
+  Advanced routing remains available as `specify-runtime cognition lexicon --mode catalog`, agent-authored `semantic_intake` and `concept_decisions`, then `specify-runtime cognition query --query-plan`. Use it when the first compass packet is too draft-like, a workflow needs explicit concept decisions, or coverage cannot be resolved from the default packet.
   The current query contract is `claim_retrieval_contract_version=2` and `candidate_universe_version=2`; carry the latter from lexicon into every explicit query plan. Never parse missing or non-current versions as legacy input; rerun lexicon or compass with the current binary and repair the install if needed.
   The advanced path still requires `normalized_query`, `intent_facets`, `negative_constraints`, `alias_interpretations`, `selected_concepts`, `rejected_concepts`, `concept_decisions`, `covered_facets`, `missing_facets`, `match_sources`, `lexicon_generation_id`, `expanded_queries`, `repository_search_terms`, and facet coverage; do not trust top similarity alone.
   If the query command reports query-plan diagnostics, preserve its `warnings`, `repair_hints`, normalized `query_plan`, structured `errors`, and `expected_shape` so the workflow can repair the plan instead of ending on a raw parser exception.
@@ -48,9 +48,9 @@ judgment in an established Spec Kit Plus repository:
   flat keyword list. Resolve broad, conflicting, or unknown candidates through
   the returned readiness state; do not widen live repository reads beyond the
   returned `route_pack` and `minimal_live_reads`.
-- For `sp-ask`, use `project-cognition compass --intent ask --query="$ARGUMENTS" --format json`
+- For `sp-ask`, use `specify-runtime cognition compass --intent ask --query="$ARGUMENTS" --format json`
   as the default advisory navigation command. Use
-  `project-cognition query --intent ask` only after the agent builds a semantic
+  `specify-runtime cognition query --intent ask` only after the agent builds a semantic
   intake or query plan because the compass output or live evidence is ambiguous
   or has incomplete coverage. Stale or localization-sensitive cases are examples
   that still require that ambiguity or incomplete-coverage reason. Live evidence
@@ -80,8 +80,8 @@ judgment in an established Spec Kit Plus repository:
   existing code, implementation-path recommendations, or source-grounded
   recommendations, complete the workflow's Truth Pass with the active
   launcher-backed project cognition query planning flow and bounded live evidence.
-  Use `project-cognition compass --intent discussion --query="$ARGUMENTS" --format json` and
-  preserve `project-cognition query --intent discussion` as the advanced precision path for discussion grounding. Record
+  Use `specify-runtime cognition compass --intent discussion --query="$ARGUMENTS" --format json` and
+  preserve `specify-runtime cognition query --intent discussion` as the advanced precision path for discussion grounding. Record
   `verified_project_facts`, `open_assumptions`, `evidence_checked`, and
   `advice_confidence`. Do not use `--intent plan` from `sp-discussion`.
 - Project cognition is project-scoped. Current project cognition proves only
@@ -101,7 +101,7 @@ judgment in an established Spec Kit Plus repository:
   to choose minimal live reads, ownership hints, consumers, state surfaces,
   verification routes, and coverage gaps. Do not treat it as authoritative
   evidence for current behavior; prove project facts from live repository files.
-- A project-cognition compass intake is not complete when it returns JSON. It is complete
+- A specify-runtime cognition compass intake is not complete when it returns JSON. It is complete
   only when readiness is interpreted as advisory navigation, `minimal_live_reads`
   constrains inspection, lane-level `first_pass_paths` reasons are considered,
   live evidence proves technical claims, and relevant facts are carried into the
@@ -121,9 +121,9 @@ judgment in an established Spec Kit Plus repository:
 - When inspecting or comparing another local directory, check whether that
   directory or its children contain `.specify/` first. A referenced directory may
   be a downstream Spec Kit project even when it is outside the current repo.
-- Prefer `project-cognition discover --root <path> --format json` to enumerate nested
+- Prefer `specify-runtime cognition discover --root <path> --format json` to enumerate nested
   `.specify/` candidates before broad live reads. Treat its `projects` entries as
-  project-cognition candidates and its `specify_candidates` entries as the
+  specify-runtime cognition candidates and its `specify_candidates` entries as the
   broader set of Spec Kit-shaped directories.
 - Use another project's cognition only when
   `.specify/project-cognition/status.json` exists,
@@ -155,7 +155,7 @@ judgment in an established Spec Kit Plus repository:
 ## Missing Runtime Launcher Recovery
 
 - If an installed cognition command begins with the all-caps
-  `PROJECT_COGNITION_LAUNCHER_UNAVAILABLE` marker, treat the complete marked
+  `SPECIFY_RUNTIME_LAUNCHER_UNAVAILABLE` marker, treat the complete marked
   command as non-executable. The suffix only preserves the intended cognition
   subcommand so managed guidance can be rebound after repair.
 - Do not probe `specify cognition` or `specify project-cognition`. Run
@@ -219,7 +219,7 @@ judgment in an established Spec Kit Plus repository:
 - When `DELTA_SESSION_ID` exists, pass `--delta-session "$DELTA_SESSION_ID"` to `closeout-plan`. Fill fields listed in `required_agent_fields` from live evidence; optional payload/delta fields such as `known_unknowns` and `boundary` are populated only when evidence supports them. Follow `update_mode=delta_session` by completing `delta_append_draft.argv_prefix` with evidence placeholders, appending the workflow closeout delta event, then running structured `update_argv`. Follow `update_mode=payload_file` by writing the completed `payload_draft`, then running structured `update_argv`. The display-only `update_command` and display-only `delta_append_command` placeholders are not execution strings.
 - Use `known_unknowns` only for blockers that make the cognition update unsafe to trust. If the working tree contains unrelated dirty/untracked paths and the workflow uses explicit workflow-owned paths, record that as `confidence_notes` or `boundary.initial_dirty_paths`, not as a blocking `known_unknowns` item.
 - Before update recording, resolve `unknown_path_dispositions` by setting `agent_disposition` to `adoptable`, `review_only`, `ignored`, or `blocking_known_unknown`. Verified `adoptable` paths do not become blocking `known_unknowns`. Only `blocking_known_unknown` dispositions become payload or delta known unknowns. `agent_disposition=adoptable` is an agent accounting decision, not proof that runtime indexing already succeeded; after `update_argv` runs, inspect `result_state`, `adopted_paths`, `review_paths`, `minimal_live_reads`, and `partial_refresh_reasons`.
-- Clean closeout keys on `result_state`, not `status=ok`, `update_id`, `last_update_id`, or freshness alone; `recorded` is legacy recorded-only partial/blocked output. If `partial_refresh_reasons` includes `missing_passing_verification_result`, repair the payload or delta evidence and rerun `update_argv` before final closeout instead of routing to `sp-map-update`. Never run the `complete-refresh` or `clear-dirty` helper after `result_state=partial_refresh`, `needs_rebuild`, `blocked`, or legacy `recorded`. Use `project-cognition mark-dirty --reason "workflow-closeout-failed" --format json` only when planner/update is unavailable, fails before recording useful update data, cannot safely identify workflow-owned scope, is blocked by runtime state, or verification/workflow completion is not trustworthy.
+- Clean closeout keys on `result_state`, not `status=ok`, `update_id`, `last_update_id`, or freshness alone; `recorded` is legacy recorded-only partial/blocked output. If `partial_refresh_reasons` includes `missing_passing_verification_result`, repair the payload or delta evidence and rerun `update_argv` before final closeout instead of routing to `sp-map-update`. Never run the `complete-refresh` or `clear-dirty` helper after `result_state=partial_refresh`, `needs_rebuild`, `blocked`, or legacy `recorded`. Use `specify-runtime cognition mark-dirty --reason "workflow-closeout-failed" --format json` only when planner/update is unavailable, fails before recording useful update data, cannot safely identify workflow-owned scope, is blocked by runtime state, or verification/workflow completion is not trustworthy.
 - `sp-map-update` is for manual/external maintenance and follow-up repair after user edits, interrupted workflows, or explicit operator map-maintenance requests. It is external map maintenance, not routine cleanup for changes this workflow just made. In shared routing summaries, sp-map-update is for manual/external maintenance.
 - Do not rely on generic framework instinct, chat memory, or prior sessions when the
   project cognition runtime should be the source of truth.

@@ -9,7 +9,7 @@ adoption path.
 Run the fresh fixture from this directory:
 
 ```bash
-project-cognition semantic-audit-resume --input resume-validation.json --format json
+specify-runtime cognition semantic-audit-resume --input resume-validation.json --format json
 ```
 
 Expected fresh result:
@@ -24,7 +24,7 @@ grants_permission: false
 Run the stale route fixture from this directory:
 
 ```bash
-project-cognition semantic-audit-resume --input resume-validation-route-changed.json --format json
+specify-runtime cognition semantic-audit-resume --input resume-validation-route-changed.json --format json
 ```
 
 Expected stale result:

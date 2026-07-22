@@ -23,11 +23,11 @@ inherited/system-skill/reasoning/tool/result reserves to `scan-prepare`. Use
 treat the advertised context window as wholly available scan input.
 
 Drive the workbench only through
-`{{specify-subcmd:project-cognition scan-status}}`,
-`{{specify-subcmd:project-cognition scan-lease}}`,
-`{{specify-subcmd:project-cognition scan-checkpoint}}`,
-`{{specify-subcmd:project-cognition scan-yield}}`, and
-`{{specify-subcmd:project-cognition scan-accept}}`. The leased packet's
+`{{specify-subcmd:specify-runtime cognition scan-status}}`,
+`{{specify-subcmd:specify-runtime cognition scan-lease}}`,
+`{{specify-subcmd:specify-runtime cognition scan-checkpoint}}`,
+`{{specify-subcmd:specify-runtime cognition scan-yield}}`, and
+`{{specify-subcmd:specify-runtime cognition scan-accept}}`. The leased packet's
 CLI-generated self-contained task brief is authoritative. Dispatch it with the
 minimum inherited conversation context the platform permits, and debit any
 unavoidable inherited material from the effective budget. Checkpoints preserve

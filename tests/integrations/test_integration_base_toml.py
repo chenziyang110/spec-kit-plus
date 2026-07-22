@@ -180,14 +180,14 @@ def _assert_discussion_contract(command_content: str) -> None:
     assert "Turn Classifier" in command_content
     assert "Question Evidence Gate" in command_content
     assert "Cognition Advisory, Code Authority" in command_content
-    assert "project-cognition compass --intent discussion" in command_content
-    assert "project-cognition query --query-plan" in command_content
+    assert "specify-runtime cognition compass --intent discussion" in command_content
+    assert "specify-runtime cognition query --query-plan" in command_content
     assert "only when `compass_state`, coverage diagnostics, localization, or live evidence requires explicit concept decisions" in command_content
     assert "--query-plan" in command_content
     assert "lexicon -> semantic_intake -> query" in command_content
     assert "semantic_intake" in command_content
     assert "facet coverage" in command_lower
-    assert "project-cognition query --intent plan" not in command_content
+    assert "specify-runtime cognition query --intent plan" not in command_content
     assert "ui-interaction-discussion" in command_content
     assert "optional ui and interaction discussion" in command_lower
     assert "senior ui and interaction designer" in command_lower
@@ -307,8 +307,8 @@ def _assert_ask_contract(content: str) -> None:
 
     assert "sp-ask" in content
     assert "Evidence-Backed Project Q&A" in content
-    assert "project-cognition compass --intent ask" in content
-    assert "project-cognition query --intent ask" in content
+    assert "specify-runtime cognition compass --intent ask" in content
+    assert "specify-runtime cognition query --intent ask" in content
     assert "project cognition provides advisory navigation" in lowered
     assert "live evidence is authoritative" in lowered
     assert "do not create `.specify/ask/`" in lowered
@@ -351,11 +351,11 @@ def _assert_runtime_cognition_carry_forward(content: str, command_name: str) -> 
     assert "next workflow artifact or execution state" in content
     assert "mutation closeout" in content
     assert "single semantic owner is the shared inline closeout contract" in content
-    assert "project-cognition delta append" not in content
-    assert "project-cognition update --delta-session" not in content
-    assert "project-cognition update --payload-file" not in content
-    assert "project-cognition update --changed-path" not in content
-    planner = f"project-cognition closeout-plan --workflow sp-{command_name}"
+    assert "specify-runtime cognition delta append" not in content
+    assert "specify-runtime cognition update --delta-session" not in content
+    assert "specify-runtime cognition update --payload-file" not in content
+    assert "specify-runtime cognition update --changed-path" not in content
+    planner = f"specify-runtime cognition closeout-plan --workflow sp-{command_name}"
     if command_name == "implement":
         assert content.count(planner) == 2
         assert content.count("### inline project cognition update") == 1
@@ -551,7 +551,7 @@ class TomlIntegrationTests:
             for path in commands_dir.glob("**/*.toml")
         )
 
-        assert "project-cognition query" in generated
+        assert "specify-runtime cognition query" in generated
         assert "alias catalog" in generated
         assert "semantic_intake" in generated
         assert "facet coverage" in generated
@@ -799,7 +799,7 @@ class TomlIntegrationTests:
             if command_name == "implement":
                 assert "current-task navigation repair" in content
                 assert "only when a required ref is stale, missing, or contradicted by live code" in content
-                assert "project-cognition query --query-plan" not in content
+                assert "specify-runtime cognition query --query-plan" not in content
                 assert "current task's required refs" in content
                 assert "minimal_live_reads" in content
             elif "debug" in f.name:
@@ -810,7 +810,7 @@ class TomlIntegrationTests:
             else:
                 assert "crucial first step" in content
                 assert "project cognition" in content
-                assert "project-cognition query" in content
+                assert "specify-runtime cognition query" in content
                 assert "alias catalog" in content
                 assert "semantic_intake" in content
                 assert "facet coverage" in content

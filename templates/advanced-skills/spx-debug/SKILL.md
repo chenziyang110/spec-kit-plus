@@ -47,7 +47,7 @@ After agent verification and related-risk review, move to
 `awaiting_human_verify`; do not resolve or archive until explicit human
 confirmation. Only after the lifecycle rules in the investigation contract are
 satisfied, run
-`{{specify-subcmd:project-cognition closeout-plan --workflow sp-debug --intent debug --format json}}`
+`{{specify-subcmd:specify-runtime cognition closeout-plan --workflow sp-debug --intent debug --format json}}`
 with explicit workflow-owned paths, fill returned agent-owned fields, and execute
 structured `update_argv`. Apply the receipt-bound finalizer gate in
 `references/project-cognition.md` before any clean claim. Finish

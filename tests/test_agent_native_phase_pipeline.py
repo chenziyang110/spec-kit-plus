@@ -89,7 +89,7 @@ def test_tasks_use_one_cognition_intake_and_compile_worker_packets_just_in_time(
     references = _read_tree("templates/command-references/tasks")
     combined = f"{command}\n{shell}\n{references}".lower()
 
-    assert combined.count("project-cognition compass --intent plan") == 1
+    assert combined.count("specify-runtime cognition compass --intent plan") == 1
     assert "task-index.json as the canonical task graph" in combined
     assert "just in time" in combined
     assert "do not pre-generate a full worker packet for every task" in combined

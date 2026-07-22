@@ -268,7 +268,7 @@ def test_project_cognition_gate_references_routing_and_learning_roles() -> None:
     assert "route selection" in content
     assert "shared memory capture layer" in content
     assert "launcher-backed project cognition query planning flow" in content
-    assert "project-cognition lexicon" in content
+    assert "specify-runtime cognition lexicon" in content
     assert "alias catalog" in content
     assert "semantic_intake" in content
     assert "facet coverage" in content

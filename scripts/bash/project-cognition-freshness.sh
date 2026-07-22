@@ -33,7 +33,7 @@ normalize_configured_path() {
     printf '%s\n' "$configured"
 }
 
-project_cognition_config_value() {
+specify_runtime_config_value() {
     local config_path="$1"
     local candidate
     for candidate in python3 python; do
@@ -45,7 +45,7 @@ import sys
 
 try:
     payload = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
-    argv = payload.get("project_cognition_launcher", {}).get("argv", [])
+    argv = payload.get("runtime_launcher", {}).get("argv", [])
     if isinstance(argv, list) and argv and isinstance(argv[0], str):
         print(argv[0])
 except (OSError, ValueError, TypeError):
@@ -60,7 +60,7 @@ PY
 const fs = require("fs");
 try {
   const payload = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
-  const argv = payload?.project_cognition_launcher?.argv;
+  const argv = payload?.runtime_launcher?.argv;
   if (Array.isArray(argv) && typeof argv[0] === "string") process.stdout.write(argv[0]);
 } catch (_) {}
 ' "$config_path" 2>/dev/null
@@ -68,14 +68,14 @@ try {
     fi
 
     if command -v jq >/dev/null 2>&1; then
-        jq -r '.project_cognition_launcher.argv[0] // empty' "$config_path" 2>/dev/null
+        jq -r '.runtime_launcher.argv[0] // empty' "$config_path" 2>/dev/null
         return 0
     fi
 
     # Last-resort parser for the deterministic pretty-printed config shape.
     # It intentionally extracts only the first argv string from the named object.
     awk '
-        /"project_cognition_launcher"[[:space:]]*:/ { in_launcher = 1; next }
+        /"runtime_launcher"[[:space:]]*:/ { in_launcher = 1; next }
         in_launcher && /"argv"[[:space:]]*:/ { in_argv = 1; next }
         in_argv && match($0, /"([^"\\]|\\.)*"/) {
             value = substr($0, RSTART + 1, RLENGTH - 2)
@@ -86,41 +86,41 @@ try {
     ' "$config_path" 2>/dev/null | sed -e 's#\\\\#\\#g' -e 's#\\/#/#g' -e 's#\\"#"#g'
 }
 
-project_cognition_config_bin() {
+specify_runtime_config_bin() {
     local config_path="$REPO_ROOT/.specify/config.json"
     [[ -f "$config_path" ]] || return 1
 
     local configured
-    configured="$(project_cognition_config_value "$config_path")"
+    configured="$(specify_runtime_config_value "$config_path")"
     [[ -n "$configured" ]] || return 1
     configured="$(normalize_configured_path "$configured")" || return 1
     [[ -f "$configured" ]] || return 1
     printf '%s\n' "$configured"
 }
 
-project_cognition_bin() {
-    if [[ -n "${PROJECT_COGNITION_BIN:-}" ]]; then
-        printf '%s\n' "$PROJECT_COGNITION_BIN"
-        return 0
-    fi
+specify_runtime_bin() {
     local configured
-    if configured="$(project_cognition_config_bin)"; then
+    if configured="$(specify_runtime_config_bin)"; then
         printf '%s\n' "$configured"
         return 0
     fi
-    if command -v project-cognition >/dev/null 2>&1; then
-        command -v project-cognition
+    if [[ -n "${SPECIFY_RUNTIME_BIN:-}" ]]; then
+        printf '%s\n' "$SPECIFY_RUNTIME_BIN"
         return 0
     fi
-    echo "Cannot run project-cognition: no usable project_cognition_launcher is pinned in .specify/config.json." >&2
-    echo "Run the project-pinned Specify launcher with 'check', then 'integration repair'. Do not probe 'specify cognition' or 'specify project-cognition'." >&2
+    if command -v specify-runtime >/dev/null 2>&1; then
+        command -v specify-runtime
+        return 0
+    fi
+    echo "Cannot run project cognition: no usable runtime_launcher is pinned in .specify/config.json." >&2
+    echo "Run the project-pinned Specify launcher with 'check', then 'integration repair', or set SPECIFY_RUNTIME_BIN." >&2
     return 127
 }
 
 run_project_cognition() {
     local bin
-    bin="$(project_cognition_bin)" || return $?
-    (cd "$REPO_ROOT" && "$bin" "$@")
+    bin="$(specify_runtime_bin)" || return $?
+    (cd "$REPO_ROOT" && "$bin" cognition "$@")
 }
 
 parse_dirty_scope_paths() {

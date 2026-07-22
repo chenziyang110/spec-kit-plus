@@ -49,9 +49,9 @@ def test_quick_template_exists_and_defines_lightweight_tracked_flow() -> None:
     assert "do not parse learning storage" in content
     assert "## project learning" in content
     assert "project cognition gate" in content
-    assert "project-cognition compass --intent implement" in content
+    assert "specify-runtime cognition compass --intent implement" in content
     assert "lexicon -> semantic_intake -> query" in content
-    assert "project-cognition query --query-plan" in content
+    assert "specify-runtime cognition query --query-plan" in content
     assert "--query-plan" in content
     assert "query_plan" in content
     assert "concept_decisions" in content
@@ -158,8 +158,8 @@ def test_quick_template_uses_fixed_status_scaffold() -> None:
     scaffold = read_template("templates/artifacts/quick-status.md").lower()
 
     assert "## status.md scaffold" in content
-    assert "artifact scaffold --kind quick-status" in content
-    assert '--out ".planning/quick/<id>-<slug>/status.md"' in content
+    assert "specify-runtime artifact scaffold --kind quick-status" in content
+    assert '--path ".planning/quick/<id>-<slug>/status.md"' in content
     assert "--vars" in content
     assert "project-relative" in content
     assert "do not pass an absolute path" in content
@@ -284,7 +284,7 @@ def test_quick_template_refreshes_project_cognition_when_truth_surfaces_change()
     content = read_command_with_references("quick").lower()
 
     assert "workflow-owned mutation closeout is not an external map-maintenance handoff" in content
-    assert "project-cognition closeout-plan --workflow" in content
+    assert "specify-runtime cognition closeout-plan --workflow" in content
     assert "update_mode=delta_session" in content
     assert "update_mode=payload_file" in content
     assert "update_argv" in content
@@ -306,7 +306,7 @@ def test_quick_template_refreshes_project_cognition_when_truth_surfaces_change()
     assert "action_id=project_cognition.rebuild" in content
     assert "rebuild_reasons[]" in content
     assert "recommended_next_action.workflow_routes.classic.steps" in content
-    assert "{{specify-subcmd:project-cognition mark-dirty --reason \"workflow-closeout-failed\" --format json}}" in content
+    assert "{{specify-subcmd:specify-runtime cognition mark-dirty --reason \"workflow-closeout-failed\" --format json}}" in content
 
 
 def test_quick_template_requires_constitution_before_status_and_subagent_dispatch() -> None:

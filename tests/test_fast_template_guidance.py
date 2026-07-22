@@ -31,9 +31,9 @@ def test_fast_template_exists_and_defines_scope_gate() -> None:
     assert "delegated change" not in content
     assert "delegate it through" not in content
     assert "project cognition gate" in content
-    assert "project-cognition compass --intent implement" in content
+    assert "specify-runtime cognition compass --intent implement" in content
     assert "lexicon -> semantic_intake -> query" in content
-    assert "project-cognition query --query-plan" in content
+    assert "specify-runtime cognition query --query-plan" in content
     assert "--query-plan" in content
     assert "query_plan" in content
     assert "concept_decisions" in content
@@ -67,7 +67,7 @@ def test_fast_template_exists_and_defines_scope_gate() -> None:
     assert "verification_evidence" in content
     assert "project_cognition_refresh" in content
     assert "workflow-owned mutation closeout is not an external map-maintenance handoff" in content
-    assert "project-cognition closeout-plan --workflow" in content
+    assert "specify-runtime cognition closeout-plan --workflow" in content
     assert "update_mode=delta_session" in content
     assert "update_mode=payload_file" in content
     assert "update_argv" in content
@@ -87,7 +87,7 @@ def test_fast_template_exists_and_defines_scope_gate() -> None:
     assert "complete-refresh" in content
     assert "incremental freshness finalization" in content
     assert "do not run `complete-refresh` as a rebuild finalizer" in content
-    assert "{{specify-subcmd:project-cognition mark-dirty --reason \"workflow-closeout-failed\" --format json}}" in content
+    assert "{{specify-subcmd:specify-runtime cognition mark-dirty --reason \"workflow-closeout-failed\" --format json}}" in content
     assert "do not run learning intake, hooks, capture, or promotion" in content
     assert "default compass packet" in content
     assert "returned `minimal_live_reads`" in content

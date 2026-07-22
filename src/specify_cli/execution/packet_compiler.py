@@ -539,7 +539,7 @@ def _context_bundle_from_project_docs(
             "project_cognition",
             "Canonical SQLite project cognition graph store queried for task-local bundle, readiness, and minimal_live_reads.",
             ["workflow_boundary", "architecture_boundary", "forbidden_drift"],
-            "project-cognition query resolves touched-area execution context without raw slice reads",
+            "specify-runtime cognition query resolves touched-area execution context without raw slice reads",
         ),
     ]
 

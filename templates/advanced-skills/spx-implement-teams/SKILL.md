@@ -54,7 +54,7 @@ turns a new regression or an unmet acceptance check into a pass.
 
 Finish through the ordinary implementation closeout. Cognition ownership remains
 canonical `sp-implement`: run
-`{{specify-subcmd:project-cognition closeout-plan --workflow sp-implement --intent implement --format json}}`
+`{{specify-subcmd:specify-runtime cognition closeout-plan --workflow sp-implement --intent implement --format json}}`
 with explicit workflow-owned paths, fill returned agent-owned fields, and execute
 structured `update_argv`. Apply the receipt-bound finalizer gate in
 `references/project-cognition.md` before any clean claim.

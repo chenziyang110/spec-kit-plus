@@ -741,7 +741,7 @@ class IntegrationBase(ABC):
             "- Before drafting or asking clarification questions, identify the target need, scope boundary, key constraints, acceptance proof, known unknowns, and safest next step.\n"
             "- Keep guided requirement discovery concise and avoid reviving the deprecated fixed heavy discovery lifecycle.\n"
             "- Treat `final-handoff-decision` as a compatibility readiness check name only; do not restore the legacy staged handoff flow.\n"
-            "- In compile mode, reuse the confirmed discussion contract's context capsule and decision digest. Run one bounded `{{specify-subcmd:project-cognition compass --intent plan --query=\"$ARGUMENTS\" --format json}}` intake only when a planning facet is absent or outdated; preserve `{{specify-subcmd:project-cognition query --intent plan --query-plan \"<query_plan_json>\" --format json}}` as a precision escalation for an explicit unresolved concept.\n"
+            "- In compile mode, reuse the confirmed discussion contract's context capsule and decision digest. Run one bounded `{{specify-subcmd:specify-runtime cognition compass --intent plan --query=\"$ARGUMENTS\" --format json}}` intake only when a planning facet is absent or outdated; preserve `{{specify-subcmd:specify-runtime cognition query --intent plan --query-plan \"<query_plan_json>\" --format json}}` as a precision escalation for an explicit unresolved concept.\n"
             "- Read top-level `minimal_live_reads` first and open live files only for the named gap. Do not build a second broad repository summary or infer final scope from first-pass paths.\n"
             "- After `FEATURE_DIR` is known, use `{{specify-subcmd:workflow show --feature-dir <feature-dir> --format json}}`; when state is missing, run `{{specify-subcmd:workflow enter --command specify --feature-dir <feature-dir> --format json}}`. The deterministic runtime owns only `workflow-runtime.json`; create or resume rich `workflow-state.md` from the installed template for specification evidence and Learning, and never use it to skip runtime stages. Do not implement code, edit source files, edit tests, or run implementation-oriented fix loops from `sp-specify`.\n"
             "- Write canonical `spec-contract.json` first. Render `spec.md`; write `alignment.md`, `context.md`, `references.md`, or diagnostics only when the triggered content has independent project-review value and cannot be represented by a stable ref.\n"
@@ -776,7 +776,7 @@ class IntegrationBase(ABC):
             "- This planning-only section does not grant source-mutation authority "
             "or mutation-closeout execution. The current workflow remains "
             "artifact-only.\n"
-            "- Planning artifact writes do not run `project-cognition "
+            "- Planning artifact writes do not run `specify-runtime cognition "
             "complete-refresh`. Any manual override/fallback belongs to an explicit "
             "map-maintenance recovery path, not specification closeout.\n"
             "- Recommend `/sp-map-update` for ordinary existing-baseline gaps; run "
@@ -799,8 +799,8 @@ class IntegrationBase(ABC):
         addendum = (
             "\n"
             f"{marker}\n\n"
-            "- Run `{{specify-subcmd:project-cognition compass --intent plan --query=\"$ARGUMENTS\" --format json}}` before shaping the checklist. Read top-level `minimal_live_reads` first, then use lane-level `first_pass_paths` reasons, `verification_hints`, `followup_surfaces`, and `before_fix_claim`; treat `coverage_diagnostics` as confidence and closeout signals and `expansion_ref` as a continuation path only when coverage state or live evidence requires it.\n"
-            "- Preserve the advanced `lexicon -> semantic_intake -> query` path with `{{specify-subcmd:project-cognition query --intent plan --query-plan \"<query_plan_json>\" --format json}}` when explicit concept decisions are needed; include `query_plan`, `semantic_intake`, `concept_decisions`, `covered_facets`, `missing_facets`, `match_sources`, `lexicon_generation_id`, and `repository_search_terms` there.\n"
+            "- Run `{{specify-subcmd:specify-runtime cognition compass --intent plan --query=\"$ARGUMENTS\" --format json}}` before shaping the checklist. Read top-level `minimal_live_reads` first, then use lane-level `first_pass_paths` reasons, `verification_hints`, `followup_surfaces`, and `before_fix_claim`; treat `coverage_diagnostics` as confidence and closeout signals and `expansion_ref` as a continuation path only when coverage state or live evidence requires it.\n"
+            "- Preserve the advanced `lexicon -> semantic_intake -> query` path with `{{specify-subcmd:specify-runtime cognition query --intent plan --query-plan \"<query_plan_json>\" --format json}}` when explicit concept decisions are needed; include `query_plan`, `semantic_intake`, `concept_decisions`, `covered_facets`, `missing_facets`, `match_sources`, `lexicon_generation_id`, and `repository_search_terms` there.\n"
         )
         return content + addendum
 
@@ -894,7 +894,7 @@ class IntegrationBase(ABC):
             "- Treat this as advisory navigation, not a hard gate; continue with live repository evidence when the bundle is weak, stale, or missing, and use map maintenance only when it is actually useful.\n"
             "- Mutation closeout is separate from entry routing. Its single semantic owner is the shared inline closeout contract rendered in the owning command or triggered closeout reference; this advisory gate does not restate or execute closeout.\n"
             "- `sp-map-update` is for manual/external maintenance and follow-up repair after user edits, interrupted workflows, or explicit operator map-maintenance requests. It is not routine cleanup for changes this workflow just made.\n"
-            "- A project-cognition compass intake is not complete when it returns JSON. It is complete only when readiness drives routing, `minimal_live_reads` constrains inspection, lane-level `first_pass_paths` reasons are considered, and relevant facts are carried into the next workflow artifact or execution state.\n"
+            "- A specify-runtime cognition compass intake is not complete when it returns JSON. It is complete only when readiness drives routing, `minimal_live_reads` constrains inspection, lane-level `first_pass_paths` reasons are considered, and relevant facts are carried into the next workflow artifact or execution state.\n"
             f"{carry_forward}"
         )
 
@@ -923,24 +923,24 @@ class IntegrationBase(ABC):
             return (
                 "**Current-Task Navigation Repair**: Reuse the current task's required refs and live touched-area evidence. "
                 "Only when a required ref is stale, missing, or contradicted by live code, run at most one "
-                "`{{specify-subcmd:project-cognition compass --intent implement --query=\"$ARGUMENTS\" --format json}}` "
+                "`{{specify-subcmd:specify-runtime cognition compass --intent implement --query=\"$ARGUMENTS\" --format json}}` "
                 f"{command_step}. {EPISTEMIC_CONTRACT_GUIDANCE} Use `compass_state`, `minimal_live_reads`, `first_pass_paths`, `coverage_diagnostics`, "
                 "and `expansion_ref` only to repair current-task context; they do not replace live proof or authorize "
                 "broader implementation scope."
             )
         return (
             "**Crucial First Step**: You MUST use project cognition compass first: "
-            f"run `{{{{specify-subcmd:project-cognition compass --intent {intent} --query=\"$ARGUMENTS\" --format json}}}}` "
+            f"run `{{{{specify-subcmd:specify-runtime cognition compass --intent {intent} --query=\"$ARGUMENTS\" --format json}}}}` "
             f"{command_step}. {EPISTEMIC_CONTRACT_GUIDANCE} Read top-level `minimal_live_reads` first, then use lane-level `first_pass_paths` reasons, "
             "`verification_hints`, `followup_surfaces`, and `before_fix_claim`; treat `coverage_diagnostics` as confidence "
             "and closeout signals, never as route candidates. Treat `expansion_ref` as a normal continuation path and run "
-            "`{{specify-subcmd:project-cognition expand --id <id> --section <section> --format json}}` only when coverage state or live evidence "
+            "`{{specify-subcmd:specify-runtime cognition expand --id <id> --section <section> --format json}}` only when coverage state or live evidence "
             "requires more map detail. Do not infer final edit scope from `minimal_live_reads` or `first_pass_paths`. "
             "Readiness values are `query_ready`, `review`, `needs_rebuild`, `blocked`, and `unsupported_runtime`. "
             "When `compass_state=needs_semantic_intake`, write `semantic_intake` from project vocabulary and rerun compass "
             "with `--semantic-intake-file`, or use the advanced `lexicon -> semantic_intake -> query` path when explicit "
             "concept decisions are needed. Preserve advanced routing through "
-            f"`{{{{specify-subcmd:project-cognition query --intent {intent} --query-plan \"<query_plan_json>\" --format json}}}}` "
+            f"`{{{{specify-subcmd:specify-runtime cognition query --intent {intent} --query-plan \"<query_plan_json>\" --format json}}}}` "
             "for precision cases."
         )
 
@@ -1479,6 +1479,29 @@ class IntegrationBase(ABC):
                 else:
                     content = f"{blocker_contract}\n\n{content.lstrip()}"
 
+            runtime_boundary_path = (
+                template_path.parent.parent
+                / "command-partials"
+                / "common"
+                / "runtime-artifact-boundary.md"
+            )
+            if (
+                runtime_boundary_path.is_file()
+                and "## Fixed Workflow Artifact Boundary" not in content
+            ):
+                runtime_boundary = runtime_boundary_path.read_text(
+                    encoding="utf-8"
+                ).strip()
+                frontmatter_text, body = IntegrationBase._split_frontmatter(content)
+                if frontmatter_text:
+                    rendered_body = body.lstrip("\r\n")
+                    content = (
+                        f"---\n{frontmatter_text}---\n\n"
+                        f"{runtime_boundary}\n\n{rendered_body}"
+                    )
+                else:
+                    content = f"{runtime_boundary}\n\n{content.lstrip()}"
+
         frontmatter_text, body = IntegrationBase._split_frontmatter(content)
         if not frontmatter_text or "## Workflow Contract Summary" in body:
             return content
@@ -1892,7 +1915,7 @@ class IntegrationBase(ABC):
             skipped_modified=skipped,
         )
         created.extend(
-            self.rebind_unavailable_project_cognition_commands(
+            self.rebind_unavailable_specify_runtime_commands(
                 project_root,
                 manifest,
                 skipped_modified=cognition_skipped,
@@ -1914,7 +1937,7 @@ class IntegrationBase(ABC):
         )
         return created
 
-    def rebind_unavailable_project_cognition_commands(
+    def rebind_unavailable_specify_runtime_commands(
         self,
         project_root: Path,
         manifest: IntegrationManifest,
@@ -1924,14 +1947,14 @@ class IntegrationBase(ABC):
         """Rebind unmodified generated guidance after cognition runtime recovery."""
 
         from specify_cli.launcher import (
-            PROJECT_COGNITION_UNAVAILABLE_MARKER,
-            load_project_cognition_launcher,
-            rebind_unavailable_project_cognition_commands,
-            rebind_unbound_project_cognition_runtime_calls,
+            SPECIFY_RUNTIME_UNAVAILABLE_MARKER,
+            load_runtime_launcher,
+            rebind_unavailable_specify_runtime_commands,
+            rebind_unbound_specify_runtime_cognition_calls,
         )
 
         project_root_resolved = project_root.resolve()
-        cognition_launcher = load_project_cognition_launcher(project_root)
+        cognition_launcher = load_runtime_launcher(project_root)
         modified = set(manifest.check_modified())
         rebound: list[Path] = []
         for relative in sorted(manifest.files):
@@ -1956,12 +1979,12 @@ class IntegrationBase(ABC):
                     skipped_modified.append(relative)
                 continue
             marker_present = (
-                f"{PROJECT_COGNITION_UNAVAILABLE_MARKER}:project-cognition"
+                f"{SPECIFY_RUNTIME_UNAVAILABLE_MARKER}:specify-runtime"
                 in content
             )
-            _, bare_count = rebind_unbound_project_cognition_runtime_calls(
+            _, bare_count = rebind_unbound_specify_runtime_cognition_calls(
                 content,
-                "__SPEC_KIT_BOUND_PROJECT_COGNITION__",
+                "__SPEC_KIT_BOUND_SPECIFY_RUNTIME__",
             )
             if not marker_present and bare_count == 0:
                 continue
@@ -1985,12 +2008,12 @@ class IntegrationBase(ABC):
                     rendered = render_toml_string(command)
                     return rendered[1:-1]
 
-            repaired = rebind_unavailable_project_cognition_commands(
+            repaired = rebind_unavailable_specify_runtime_commands(
                 project_root,
                 content,
                 command_renderer=command_renderer,
             )
-            repaired, _ = rebind_unbound_project_cognition_runtime_calls(
+            repaired, _ = rebind_unbound_specify_runtime_cognition_calls(
                 repaired,
                 cognition_launcher.command,
                 command_renderer=command_renderer,
@@ -2975,6 +2998,24 @@ class SkillsIntegration(IntegrationBase):
                 template_path=source_path,
             )
             skill_content = self.render_advanced_invocations(skill_content)
+            if "## Fixed Workflow Artifact Boundary" not in skill_content:
+                frontmatter_text, body = self._split_frontmatter(skill_content)
+                boundary = (
+                    "## Fixed Workflow Artifact Boundary\n\n"
+                    "Before any canonical workflow artifact access, use "
+                    "`specify-runtime artifact show`; authorized writes use "
+                    "`specify-runtime artifact prepare` followed by "
+                    "`specify-runtime artifact submit`. Read "
+                    "`references/runtime-artifact-boundary.md` for the exact contract.\n\n"
+                )
+                if frontmatter_text:
+                    rendered_body = body.lstrip("\r\n")
+                    skill_content = (
+                        f"---\n{frontmatter_text}---\n\n"
+                        f"{boundary}{rendered_body}"
+                    )
+                else:
+                    skill_content = boundary + skill_content.lstrip()
             skill_dir = skills_dir / skill_name
             created.append(
                 self.write_file_and_record(
@@ -3674,11 +3715,11 @@ class SkillsIntegration(IntegrationBase):
             "3. join point expectations and result handoff expectations are explicit\n"
             "4. the team-managed lane cannot be treated as complete from a status flip alone; the leader still needs the promised completion handoff or result evidence\n\n"
             "Before assigning team-managed work, preserve the same project cognition compass contract that `sp-implement` uses:\n\n"
-            "1. run `{{specify-subcmd:project-cognition compass --intent implement --query=\"$ARGUMENTS\" --format json}}` and include the compass packet in the execution context bundle\n"
+            "1. run `{{specify-subcmd:specify-runtime cognition compass --intent implement --query=\"$ARGUMENTS\" --format json}}` and include the compass packet in the execution context bundle\n"
             f"2. {EPISTEMIC_CONTRACT_GUIDANCE} Carry `epistemic_contract` in every teammate context packet.\n"
             "3. read top-level `minimal_live_reads` first, then use lane-level `first_pass_paths` reasons, evidence hints, `verification_hints`, `followup_surfaces`, and `before_fix_claim` checks\n"
             "4. preserve `coverage_diagnostics` as confidence and closeout signals, not route candidates\n"
-            "5. treat `expansion_ref` as a normal continuation path and run `{{specify-subcmd:project-cognition expand --id <id> --section <section> --format json}}` only when coverage state or live evidence requires more map detail\n"
+            "5. treat `expansion_ref` as a normal continuation path and run `{{specify-subcmd:specify-runtime cognition expand --id <id> --section <section> --format json}}` only when coverage state or live evidence requires more map detail\n"
             "6. do not infer final edit scope from `minimal_live_reads` or `first_pass_paths`; carry them as advisory first-pass evidence routes in every teammate context packet\n"
             "7. use the advanced `lexicon -> semantic_intake -> query` path only when explicit concept decisions are needed or coverage cannot be resolved from the default compass packet\n"
             "8. in that precision escalation, normalize user input and write a `semantic_intake` object with `workflow_intent`, `normalized_query`, `intent_facets`, `negative_constraints`, `alias_interpretations`, and `open_semantic_questions`\n"
@@ -3687,7 +3728,7 @@ class SkillsIntegration(IntegrationBase):
             "11. keep `alias_interpretations` object-shaped, for example `{\"alias\": \"<user term>\", \"meaning\": \"<project term>\", \"confidence\": \"medium\"}`, never as a string array\n"
             "12. build a `query_plan` with `selected_concepts`, `rejected_concepts`, `concept_decisions`, `covered_facets`, `missing_facets`, `match_sources`, `lexicon_generation_id`, `expanded_queries`, `repository_search_terms`, and justified `paths`\n"
             "13. derive project-language search terms from the alias catalog before source search; do not search only the raw user words; include component names, state names, file names, command names, UI labels, and route names from candidates, aliases, matched terms, returned paths, `normalized_query`, and `expanded_queries`\n"
-            "14. run `{{specify-subcmd:project-cognition query --intent implement --query-plan \"<query_plan_json>\" --format json}}` only for that precision escalation, and preserve returned readiness, `minimal_live_reads`, `first_pass_paths`, and the task-local bundle in every teammate context packet\n"
+            "14. run `{{specify-subcmd:specify-runtime cognition query --intent implement --query-plan \"<query_plan_json>\" --format json}}` only for that precision escalation, and preserve returned readiness, `minimal_live_reads`, `first_pass_paths`, and the task-local bundle in every teammate context packet\n"
             "15. if the query reports diagnostics, preserve `warnings`, `repair_hints`, normalized `query_plan`, structured `errors`, and `expected_shape` so the leader can repair the plan instead of losing the diagnostics in team chat\n\n"
             "The only intended difference is the dispatch path:\n\n"
             f"1. `{canonical_command}` may route the current ready batch through subagents first\n"

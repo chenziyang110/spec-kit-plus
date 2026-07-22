@@ -309,7 +309,7 @@ class TestCopilotIntegration:
             if "sp.implement" in rel:
                 assert "current-task navigation repair" in content
                 assert "only when a required ref is stale, missing, or contradicted by live code" in content
-                assert "project-cognition query --query-plan" not in content
+                assert "specify-runtime cognition query --query-plan" not in content
             elif "sp.debug" in rel:
                 assert "crucial first step" in content
                 assert "debug-handbook.md" in content

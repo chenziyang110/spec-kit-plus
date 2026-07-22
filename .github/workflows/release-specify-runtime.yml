@@ -1,0 +1,65 @@
+name: Attach specify-runtime binaries to release
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  build-and-upload:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.21'
+
+      - name: Cross-compile specify-runtime
+        working-directory: tools/specify-runtime
+        run: |
+          mkdir -p bin
+          VERSION="${{ github.event.release.tag_name }}"
+          SOURCE_REVISION="$(git rev-parse HEAD)"
+          echo "Building specify-runtime ${VERSION}..."
+
+          TARGETS="
+          linux/amd64
+          linux/arm64
+          darwin/amd64
+          darwin/arm64
+          windows/amd64
+          "
+
+          for target in $TARGETS; do
+            goos="${target%/*}"
+            goarch="${target#*/}"
+            ext=""
+            if [ "$goos" = "windows" ]; then ext=".exe"; fi
+
+            echo "  -> ${goos}/${goarch}"
+            GOOS=${goos} GOARCH=${goarch} CGO_ENABLED=0 \
+              go build -trimpath \
+                -ldflags="-s -w -X main.version=${VERSION} -X github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/buildinfo.SourceRevision=${SOURCE_REVISION} -X github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/buildinfo.BuildDirty=false" \
+                -o "bin/specify-runtime-${goos}-${goarch}${ext}" .
+          done
+
+          echo ""
+          echo "=== Built binaries ==="
+          ls -lh bin/
+          chmod +x bin/specify-runtime-linux-amd64
+          bin/specify-runtime-linux-amd64 --help | grep -q "cognition"
+          bin/specify-runtime-linux-amd64 --help | grep -q "artifact"
+          bin/specify-runtime-linux-amd64 version --format json | grep -q '"protocol_version":"specify-runtime.v1"'
+          bin/specify-runtime-linux-amd64 artifact catalog --format json | grep -q '"quick-status"'
+          bin/specify-runtime-linux-amd64 artifact catalog --format json | grep -q '"plan-contract"'
+          bin/specify-runtime-linux-amd64 cognition scan-prepare --help 2>&1 | grep -q -- "-force"
+          bin/specify-runtime-linux-amd64 cognition scan-prepare --help 2>&1 | grep -q -- "-safety-percent"
+          bin/specify-runtime-linux-amd64 cognition scan-lease --help 2>&1 | grep -q -- "-worker-capacity-tokens"
+          bin/specify-runtime-linux-amd64 cognition scan-accept --help 2>&1 | grep -q -- "-packet-id"
+
+      - name: Upload binaries to release
+        uses: softprops/action-gh-release@v3
+        with:
+          files: tools/specify-runtime/bin/*

@@ -70,3 +70,19 @@ func TestWorkflowRejectsStageSkippingAndPublishesRecovery(t *testing.T) {
 	}
 }
 
+func TestWorkflowStartDoesNotResetExistingState(t *testing.T) {
+	service := NewWorkflowService(t.TempDir())
+	first := service.Start(WorkflowStartRequest{FeatureID: "001-runtime", Stage: "specify"})
+	if first.Status != "ok" {
+		t.Fatalf("first start = %#v", first)
+	}
+
+	second := service.Start(WorkflowStartRequest{FeatureID: "001-runtime", Stage: "plan"})
+	if second.Status != "blocked" {
+		t.Fatalf("second start = %#v, want blocked", second)
+	}
+	status := service.Status("001-runtime")
+	if status.Data["revision"] != 1 || status.Data["stage"] != "specify" {
+		t.Fatalf("state was reset: %#v", status)
+	}
+}

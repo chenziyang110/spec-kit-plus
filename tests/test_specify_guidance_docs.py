@@ -234,14 +234,14 @@ def test_upgrade_doc_mentions_project_launcher_binding():
     assert "runtime" in upgrade.lower()
 
 
-def test_helper_docs_preserve_project_cognition_launcher_precedence() -> None:
+def test_helper_docs_preserve_runtime_launcher_precedence() -> None:
     for rel_path in ("README.md", ".github/workflows/release.yml"):
         content = _read(rel_path)
         candidates = [
             paragraph
             for paragraph in content.split("\n\n")
             if "helper" in paragraph.lower()
-            and "PROJECT_COGNITION_BIN" in paragraph
+            and "SPECIFY_RUNTIME_BIN" in paragraph
             and "PATH" in paragraph
         ]
         assert candidates, f"{rel_path} must document helper launcher precedence"
@@ -249,8 +249,8 @@ def test_helper_docs_preserve_project_cognition_launcher_precedence() -> None:
         for paragraph in candidates:
             normalized = " ".join(paragraph.split())
             priority = normalized[normalized.lower().index("helper") :]
-            env_index = priority.index("PROJECT_COGNITION_BIN")
-            pin_markers = ("project_cognition_launcher", ".specify/config.json")
+            env_index = priority.index("SPECIFY_RUNTIME_BIN")
+            pin_markers = ("runtime_launcher", ".specify/config.json")
             pin_indexes = [
                 priority.index(marker)
                 for marker in pin_markers
@@ -261,7 +261,7 @@ def test_helper_docs_preserve_project_cognition_launcher_precedence() -> None:
             )
             pin_index = min(pin_indexes)
             path_index = priority.index("PATH", pin_index)
-            assert env_index < pin_index < path_index
+            assert pin_index < env_index < path_index
 
 
 def test_repo_docs_explain_adaptive_plan_tasks_dispatch_contract() -> None:
@@ -455,7 +455,7 @@ def test_readme_documents_inline_project_cognition_closeout() -> None:
 
     assert "workflow-owned mutation closeout is planner-first" in readme
     assert "registry-owned literal canonical id" in readme
-    assert "project-cognition closeout-plan --workflow sp-implement --format json" in readme
+    assert "specify-runtime cognition closeout-plan --workflow sp-implement --format json" in readme
     assert "$active_workflow" not in readme
     assert "update_mode=delta_session" in readme
     assert "update_mode=payload_file" in readme
@@ -555,7 +555,7 @@ def test_quickstart_skill_map_and_guidance_use_canonical_names_not_claude_syntax
     assert "task-local compass packet" in quickstart_lower
     assert "source-changing `sp-*` workflows run planner-first project cognition update for their own closeout" in quickstart_lower
     assert "source-changing `sp-*` workflow that alters navigation meaning should run planner-first project cognition update" in quickstart_lower
-    assert 'project-cognition closeout-plan --workflow "$active_workflow" --format json' in quickstart_lower
+    assert 'specify-runtime cognition closeout-plan --workflow "$active_workflow" --format json' in quickstart_lower
     assert "unknown_path_dispositions" in quickstart_lower
     assert "update_mode=delta_session" in quickstart_lower
     assert "update_mode=payload_file" in quickstart_lower
@@ -565,7 +565,7 @@ def test_quickstart_skill_map_and_guidance_use_canonical_names_not_claude_syntax
     assert "known_unknowns` only for blockers" in quickstart_lower
     assert "confidence_notes` or `boundary.initial_dirty_paths" in quickstart_lower
     installation_lower = _read("docs/installation.md").lower()
-    assert 'project-cognition closeout-plan --workflow "$active_workflow" --format json' in installation_lower
+    assert 'specify-runtime cognition closeout-plan --workflow "$active_workflow" --format json' in installation_lower
     assert "unknown_path_dispositions" in installation_lower
     assert "update_mode=delta_session" in installation_lower
     assert "update_mode=payload_file" in installation_lower
@@ -592,7 +592,7 @@ def test_repo_docs_route_brownfield_runtime_through_cognition_query() -> None:
     handbook = _read("PROJECT-HANDBOOK.md").lower()
 
     for content in (readme, handbook):
-        assert "project-cognition query" in content
+        assert "specify-runtime cognition query" in content
         assert "project-cognition.db" in content
         assert "alias catalog" in content
         assert "semantic_intake" in content
@@ -601,8 +601,8 @@ def test_repo_docs_route_brownfield_runtime_through_cognition_query() -> None:
         assert "lexicon_generation_id" in content
         assert "candidate_universe_version" in content
         assert "active_generation_id" in content
-        assert "project-cognition lexicon" in content
-        assert "project-cognition query --query-plan" in content
+        assert "specify-runtime cognition lexicon" in content
+        assert "specify-runtime cognition query --query-plan" in content
         assert "returned map " + "terms" not in content
         assert "workflow-appropriate slice" not in content
         assert "workflow-appropriate slices" not in content

@@ -1,3 +1,7 @@
+## Fixed Workflow Artifact Boundary
+
+Read canonical workflow artifacts only with `specify-runtime artifact show`. When the worker packet authorizes an artifact write, use `specify-runtime artifact prepare` followed by `specify-runtime artifact submit`; never overwrite the canonical path directly. Source and test files in the packet's write scope remain normal repository edits.
+
 # Implementer Worker Prompt
 
 Use this template when the leader dispatches a concrete implementation lane for `sp-implement`.

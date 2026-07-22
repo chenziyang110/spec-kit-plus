@@ -40,9 +40,9 @@ def test_map_update_has_deterministic_validation_and_freshness_closeout() -> Non
     )
 
     for required in (
-        "project-cognition validate-build --format json",
-        "project-cognition complete-refresh --format json",
-        "project-cognition record-refresh --reason map-update --format json",
+        "specify-runtime cognition validate-build --format json",
+        "specify-runtime cognition complete-refresh --format json",
+        "specify-runtime cognition record-refresh --reason map-update --format json",
     ):
         assert required in skill
 

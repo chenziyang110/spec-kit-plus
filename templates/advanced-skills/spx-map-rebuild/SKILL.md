@@ -1,6 +1,6 @@
 ---
 name: spx-map-rebuild
-description: Project-cognition rebuild orchestrator for advanced coding models. Use when a full rebuild is required and the independent scan then deterministic build skills should run in sequence.
+description: specify-runtime cognition rebuild orchestrator for advanced coding models. Use when a full rebuild is required and the independent scan then deterministic build skills should run in sequence.
 ---
 
 # SPX Map Rebuild
@@ -12,7 +12,7 @@ invalid baseline. This is a convenience orchestrator, not a replacement for
 either phase.
 
 Confirm rebuild necessity with
-`{{specify-subcmd:project-cognition status --format json}}`. A localized stale
+`{{specify-subcmd:specify-runtime cognition status --format json}}`. A localized stale
 route belongs in `$spx-map-update`.
 
 Run `$spx-map-scan` to completion. Preserve its hard stop: a validated scan is

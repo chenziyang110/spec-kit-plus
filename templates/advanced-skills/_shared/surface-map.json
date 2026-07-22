@@ -4,7 +4,7 @@
   "design": {
     "equivalence": "command-equivalent, prompt-optimized",
     "prompt_shape": "short leader skill plus triggered advanced references and compact views",
-    "machine_contracts": "shared canonical schemas, validators, scripts, lifecycle state, and project-cognition runtime",
+    "machine_contracts": "shared canonical schemas, validators, scripts, lifecycle state, and specify-runtime cognition runtime",
     "passive_skills": "classic passive prompt bundles are not installed; essential gates live in the owning SPX skill or advanced reference",
     "classic_sources": "audit inputs for SPX prompts; only the three classic map companion skills are also installed through the unchanged classic renderer"
   },

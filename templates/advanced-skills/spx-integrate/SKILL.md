@@ -43,7 +43,7 @@ when readiness and verification pass may you close a lane with
 blocked lane and its recovery evidence instead of forcing terminal state.
 
 For actual integrated repository changes, run
-`{{specify-subcmd:project-cognition closeout-plan --workflow sp-integrate --intent implement --format json}}`
+`{{specify-subcmd:specify-runtime cognition closeout-plan --workflow sp-integrate --intent implement --format json}}`
 with explicit integration-owned paths, fill returned agent-owned fields, and execute
 structured `update_argv`. Apply the receipt-bound finalizer gate in
 `references/project-cognition.md` before any clean claim. Report

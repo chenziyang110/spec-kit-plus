@@ -39,7 +39,7 @@ The scaffold renders the `STATUS.md template`; valid lifecycle values are
 Command shape:
 
 ```text
-{{specify-subcmd:artifact scaffold --kind quick-status --out ".planning/quick/<id>-<slug>/STATUS.md" --vars "<compact-json>" --format json}}
+{{specify-subcmd:specify-runtime artifact scaffold --kind quick-status --path ".planning/quick/<id>-<slug>/STATUS.md" --vars "<compact-json>"}}
 ```
 
 `--out` must be project-relative. Do not pass an absolute path. The scaffold is create-only and returns `agent_fill_required` plus `fill_targets`; write semantic quick-task content only at those returned anchors.

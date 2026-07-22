@@ -59,7 +59,7 @@ def _run_bash_cognition(repo: Path, dirty_scope_paths_json: str) -> subprocess.C
         newline="\n",
     )
     fake.chmod(fake.stat().st_mode | 0o111)
-    command = "PROJECT_COGNITION_BIN=.specify/bin/project-cognition-fake.sh " + shlex.join(
+    command = "SPECIFY_RUNTIME_BIN=.specify/bin/project-cognition-fake.sh " + shlex.join(
         [
             "scripts/bash/project-cognition-freshness.sh",
             ".",
@@ -121,7 +121,7 @@ def _run_powershell_cognition(repo: Path, dirty_scope_paths_json: str) -> subpro
         check=False,
         capture_output=True,
         text=True,
-        env={**os.environ, "PROJECT_COGNITION_BIN": str(fake)},
+        env={**os.environ, "SPECIFY_RUNTIME_BIN": str(fake)},
     )
 
 
@@ -147,6 +147,7 @@ def test_project_cognition_wrapper_expands_dirty_scope_json(
         else capture.read_text(encoding="utf-8").splitlines()
     )
     assert args == [
+        "cognition",
         "mark-dirty",
         "--reason",
         "workflow changed",

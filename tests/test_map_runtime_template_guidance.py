@@ -198,8 +198,8 @@ def test_workflows_use_project_cognition_compass_as_default_intake() -> None:
 
     for name, intent in workflow_intents.items():
         content = _read_command(name).lower()
-        assert "project-cognition compass" in content
-        assert f"project-cognition compass --intent {intent}" in content
+        assert "specify-runtime cognition compass" in content
+        assert f"specify-runtime cognition compass --intent {intent}" in content
         assert "minimal_live_reads" in content
         assert "first_pass_paths" in content
         assert "coverage_diagnostics" in content
@@ -207,15 +207,15 @@ def test_workflows_use_project_cognition_compass_as_default_intake() -> None:
             assert "expansion_ref" in content
             assert "at most one" in content
             assert "context capsule" in content
-            assert "project-cognition query --query-plan" not in content
+            assert "specify-runtime cognition query --query-plan" not in content
             assert "lexicon -> semantic_intake -> query" not in content
             continue
         assert (
             "lexicon -> semantic_intake -> query" in content
-            or "lexicon -> semantic_intake -> project-cognition query" in content
+            or "lexicon -> semantic_intake -> specify-runtime cognition query" in content
         )
-        assert "project-cognition query" in content
-        assert "project-cognition query --query-plan" in content
+        assert "specify-runtime cognition query" in content
+        assert "specify-runtime cognition query --query-plan" in content
         assert "only when `compass_state`, coverage diagnostics, localization, or live evidence requires explicit concept decisions" in content
         assert "--query-plan" in content
         assert "query_plan" in content
@@ -245,8 +245,8 @@ def test_cognition_launchers_use_double_brace_generated_forms() -> None:
     for name in ("plan.md", "implement.md", "debug.md", "tasks.md"):
         content = _read_command(name)
         raw_content = _read(f"templates/commands/{name}")
-        assert not re.search(r"(?<!\{)\{specify-subcmd:project-cognition compass", raw_content)
-        assert "{{specify-subcmd:project-cognition compass" in content
+        assert not re.search(r"(?<!\{)\{specify-subcmd:specify-runtime cognition compass", raw_content)
+        assert "{{specify-subcmd:specify-runtime cognition compass" in content
 
 
 def test_default_runnable_cognition_blocks_only_run_compass() -> None:
@@ -267,17 +267,17 @@ def test_default_runnable_cognition_blocks_only_run_compass() -> None:
         content = _read_command(name)
         blocks = _run_or_emulate_blocks(content)
         assert blocks, f"{name} missing Run or emulate fenced block"
-        expected = f'{{{{specify-subcmd:project-cognition compass --intent {intent} --query="$ARGUMENTS" --format json}}}}'
+        expected = f'{{{{specify-subcmd:specify-runtime cognition compass --intent {intent} --query="$ARGUMENTS" --format json}}}}'
         assert any(block.strip() == expected for block in blocks), f"{name} default runnable block must only contain compass"
         for block in blocks:
-            assert "project-cognition query" not in block, f"{name} has advanced query in default runnable block"
+            assert "specify-runtime cognition query" not in block, f"{name} has advanced query in default runnable block"
             assert "semantic_intake" not in block, f"{name} has semantic-intake guidance in default runnable block"
 
 
 def test_specify_default_intake_does_not_use_old_ready_readiness() -> None:
     content = _read_command("specify.md").lower()
     assert "when cognition reports `ready`, use the returned task-local bundle" not in content
-    assert "at most one `project-cognition compass --intent plan` intake" in content
+    assert "at most one `specify-runtime cognition compass --intent plan` intake" in content
     assert "canonical context capsule lacks a required facet" in content
     assert "`minimal_live_reads`" in content
     assert "`first_pass_paths`" in content
@@ -309,7 +309,7 @@ def test_included_workflow_partials_use_phase_appropriate_runtime_inputs() -> No
 
     for path in advanced_partials:
         content = _read(path).lower()
-        assert "project-cognition query" in content or "project cognition query" in content
+        assert "specify-runtime cognition query" in content or "project cognition query" in content
         assert "task-local" in content
         assert "bundle" in content
         assert "readiness" in content
@@ -378,9 +378,9 @@ def test_project_cognition_consumers_enforce_machine_readable_epistemic_contract
 def test_claim_aware_retrieval_contract_propagates_to_agent_consumers() -> None:
     runtime_source = _compact(
         (
-            _read("tools/project-cognition/internal/query/query.go")
-            + _read("tools/project-cognition/internal/query/compass.go")
-            + _read("tools/project-cognition/internal/query/claim_signal.go")
+            _read("tools/specify-runtime/internal/query/query.go")
+            + _read("tools/specify-runtime/internal/query/compass.go")
+            + _read("tools/specify-runtime/internal/query/claim_signal.go")
         ).lower()
     )
     for term in (
@@ -432,8 +432,8 @@ def test_claim_aware_retrieval_contract_propagates_to_agent_consumers() -> None:
 def test_claim_aware_ranking_and_reconciliation_contract_propagates_to_agents() -> None:
     runtime_source = _compact(
         (
-            _read("tools/project-cognition/internal/query/compass.go")
-            + _read("tools/project-cognition/internal/query/claim_signal.go")
+            _read("tools/specify-runtime/internal/query/compass.go")
+            + _read("tools/specify-runtime/internal/query/claim_signal.go")
         ).lower()
     )
     for term in (
@@ -544,10 +544,10 @@ def test_typed_graph_claim_lifecycle_is_separate_from_workflow_final_claims() ->
 def test_live_claim_reconciliation_contract_propagates_without_authorization_leakage() -> None:
     runtime = _compact(
         (
-            _read("tools/project-cognition/internal/reconcile/prepare.go")
-            + _read("tools/project-cognition/internal/reconcile/reconcile.go")
-            + _read("tools/project-cognition/internal/store/schema.go")
-            + _read("tools/project-cognition/internal/query/epistemic_contract.go")
+            _read("tools/specify-runtime/internal/reconcile/prepare.go")
+            + _read("tools/specify-runtime/internal/reconcile/reconcile.go")
+            + _read("tools/specify-runtime/internal/store/schema.go")
+            + _read("tools/specify-runtime/internal/query/epistemic_contract.go")
         ).lower()
     )
     for term in (
@@ -577,8 +577,8 @@ def test_live_claim_reconciliation_contract_propagates_without_authorization_lea
     for path in guidance_surfaces:
         content = _compact(_read(path).lower())
         for term in (
-            "project-cognition claim-reconcile prepare",
-            "project-cognition claim-reconcile apply",
+            "specify-runtime cognition claim-reconcile prepare",
+            "specify-runtime cognition claim-reconcile apply",
             "apply_argv",
             "runtime owns",
             "claim-specific",
@@ -605,8 +605,8 @@ def test_live_claim_reconciliation_contract_propagates_without_authorization_lea
         assert "must not" in content and "re-promote" in content
 
     semantic = _compact(_read(SEMANTIC_WORK_CONTRACT_PARTIAL).lower())
-    assert "project-cognition claim-reconcile prepare" in semantic
-    assert "project-cognition claim-reconcile apply" in semantic
+    assert "specify-runtime cognition claim-reconcile prepare" in semantic
+    assert "specify-runtime cognition claim-reconcile apply" in semantic
     assert "runtime owns" in semantic
     assert "does not populate" in semantic
     assert "claim_verification_refs" in semantic
@@ -616,8 +616,8 @@ def test_live_claim_reconciliation_contract_propagates_without_authorization_lea
         content = _compact(_read(path).lower())
         for term in (
             "schema v5",
-            "project-cognition claim-reconcile prepare",
-            "project-cognition claim-reconcile apply",
+            "specify-runtime cognition claim-reconcile prepare",
+            "specify-runtime cognition claim-reconcile apply",
             "runtime owns",
             "apply_argv",
             "current evidence basis",
@@ -639,7 +639,7 @@ def test_shared_semantic_work_contract_partial_defines_permission_and_learning_g
     for memory_level in ("m0", "m1"):
         assert memory_level in content
 
-    assert "project-cognition semantic-audit" in content
+    assert "specify-runtime cognition semantic-audit" in content
     assert '"semantic_audit_input"' in content
     assert '"semantic_intake_input"' in content
     assert '"semantic_intake_output"' in content
@@ -833,7 +833,7 @@ def test_semantic_work_contract_handoff_records_generated_downstream_smoke_bound
     assert "dirty local working tree" in content
     assert "confirm the working tree changes are committed and pushed" in content
     assert "v0.5.14" in content
-    assert "released project-cognition binary exposes" in content
+    assert "released `specify-runtime` binary exposes" in content
     assert "packaged release" in content
     assert "v1.3.17 local preflight is closed" in content
     assert "release-trigger versus release workflow ownership is documented and tested" in content
@@ -877,7 +877,7 @@ def test_semantic_resume_validator_downstream_adoption_examples_are_documented()
     assert "resume-validation-verification-ref-mismatch.json" in content
     assert "semantic-audit-input.json" in content
     assert "semantic-audit-output.json" in content
-    assert "project-cognition semantic-audit-resume --input resume-validation.json --format json" in content
+    assert "specify-runtime cognition semantic-audit-resume --input resume-validation.json --format json" in content
     assert "semantic_audit_generated_resume_smoke: passed" in content
     assert "semantic_audit_generated_resume_smoke: failed" in content
     assert "can_reuse_persisted_claim_readiness" in content
@@ -973,7 +973,7 @@ def test_shared_project_cognition_partials_include_canonical_query_plan_skeleton
 
 def test_cognition_workflows_preserve_shared_intake_sequence() -> None:
     required_terms = (
-        "project-cognition compass",
+        "specify-runtime cognition compass",
         "minimal_live_reads",
         "first_pass_paths",
         "coverage_diagnostics",
@@ -984,7 +984,7 @@ def test_cognition_workflows_preserve_shared_intake_sequence() -> None:
         "missing_facets",
         "match_sources",
         "lexicon_generation_id",
-        "project-cognition query",
+        "specify-runtime cognition query",
         "--query-plan",
         "repository_search_terms",
         "agent-owned semantic normalization",
@@ -999,14 +999,14 @@ def test_cognition_workflows_preserve_shared_intake_sequence() -> None:
     for name in OPTIMIZED_PHASE_COMMANDS:
         content = _read_command(name).lower()
         for term in (
-            "project-cognition compass",
+            "specify-runtime cognition compass",
             "minimal_live_reads",
             "first_pass_paths",
             "coverage_diagnostics",
             "expansion_ref",
         ):
             assert term in content, f"{name} missing compact cognition intake term {term}"
-        assert "project-cognition query --query-plan" not in content
+        assert "specify-runtime cognition query --query-plan" not in content
 
 
 def test_docs_describe_compass_default_and_advanced_query_path() -> None:
@@ -1021,9 +1021,9 @@ def test_docs_describe_compass_default_and_advanced_query_path() -> None:
 
     for path in ["README.md", "PROJECT-HANDBOOK.md", "templates/project-handbook-template.md"]:
         content = _compact(_read(path).lower())
-        assert "project-cognition compass" in content, path
-        assert 'project-cognition compass --intent <intent> --query "$arguments" --format json' in content, path
-        assert "project-cognition semantic-intake" in content, path
+        assert "specify-runtime cognition compass" in content, path
+        assert 'specify-runtime cognition compass --intent <intent> --query "$arguments" --format json' in content, path
+        assert "specify-runtime cognition semantic-intake" in content, path
         assert "workcontract v1" in content, path
         assert "v1.1 audit artifact" in content, path
         assert "workcontract artifact" in content, path
@@ -1034,17 +1034,17 @@ def test_docs_describe_compass_default_and_advanced_query_path() -> None:
         assert "semantic-intake alone cannot authorize source changes" in content, path
         assert "minimal_live_reads" in content, path
         assert "first_pass_paths" in content, path
-        assert "project-cognition lexicon --mode catalog" in content, path
+        assert "specify-runtime cognition lexicon --mode catalog" in content, path
         assert "agent-authored `semantic_intake`" in content, path
         assert "concept_decisions" in content, path
-        assert "project-cognition query --query-plan" in content, path
+        assert "specify-runtime cognition query --query-plan" in content, path
         assert "lexicon -> semantic_intake -> query" in content, path
         assert "final edit scope" in content, path
         for phrase in stale_default_query_phrases:
             assert phrase not in content, f"{path} still contains stale default query wording: {phrase}"
 
     handbook = _compact(_read("PROJECT-HANDBOOK.md").lower())
-    assert 'project-cognition compass --intent debug --query "$arguments" --format json' in handbook
+    assert 'specify-runtime cognition compass --intent debug --query "$arguments" --format json' in handbook
 
 
 def test_cognition_workflows_preserve_direct_agent_normalization_guidance() -> None:
@@ -1163,8 +1163,8 @@ def test_map_build_template_targets_graph_reconstruction() -> None:
     content = _read("templates/commands/map-build.md")
 
     assert ".specify/project-cognition/project-cognition.db" in content
-    assert "{{specify-subcmd:project-cognition compass" in content
-    assert "{{specify-subcmd:project-cognition query" in content
+    assert "{{specify-subcmd:specify-runtime cognition compass" in content
+    assert "{{specify-subcmd:specify-runtime cognition query" in content
     assert "--query-plan" in content
     assert "raw graph JSON artifacts or slices as runtime truth" in content
     assert "conflict" in content.lower()
@@ -1196,7 +1196,7 @@ def test_map_update_template_exists_and_is_incremental() -> None:
     assert "do not split small localized updates into parallel scan-style lanes just because subagents are available" in content.lower()
     assert "escalate to `sp-map-scan`, then `sp-map-build` only when no query-backed baseline exists" in content.lower()
     assert "do not escalate merely because the affected closure is uncertain" in content.lower()
-    assert "project-cognition validate-build --format json" in content
+    assert "specify-runtime cognition validate-build --format json" in content
     assert "must not call" in content.lower()
     assert "needs_rebuild" in content
     assert "complete-refresh" in content

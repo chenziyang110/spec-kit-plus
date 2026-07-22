@@ -17,7 +17,7 @@ from specify_cli.launcher import (
     SpecifyLauncherSpec,
     diagnose_project_runtime_compatibility,
     render_command,
-    write_project_cognition_launcher_config,
+    write_runtime_launcher_config,
 )
 
 
@@ -635,13 +635,13 @@ def test_spx_shared_project_cognition_contract_is_tool_driven() -> None:
     )
 
     for required in (
-        "project-cognition compass",
+        "specify-runtime cognition compass",
         "minimal_live_reads",
         "first_pass_paths",
         "coverage_diagnostics",
         "expansion_ref",
         "live repository",
-        "project-cognition closeout-plan",
+        "specify-runtime cognition closeout-plan",
         "update_argv",
         "needs_rebuild",
         "spx-map-rebuild",
@@ -775,9 +775,9 @@ def test_advanced_local_references_use_the_project_pinned_launcher(tmp_path) -> 
         json.dumps(
             {
                 "specify_launcher": _test_specify_launcher_payload(),
-                "project_cognition_launcher": {
-                    "command": "C:/tools/project-cognition.exe",
-                    "argv": ["C:/tools/project-cognition.exe"],
+                "runtime_launcher": {
+                    "command": "C:/tools/specify-runtime.exe",
+                    "argv": ["C:/tools/specify-runtime.exe"],
                 },
             }
         ),
@@ -813,15 +813,13 @@ def test_advanced_local_references_use_the_project_pinned_launcher(tmp_path) -> 
 
     assert f"{TEST_SPECIFY_COMMAND} implement resume-audit" in execution
     assert f"{TEST_SPECIFY_COMMAND} sp-teams auto-dispatch" in teams
-    assert "C:\\tools\\project-cognition.exe" in cognition or (
-        "C:/tools/project-cognition.exe" in cognition
+    assert "C:\\tools\\specify-runtime.exe" in cognition or (
+        "C:/tools/specify-runtime.exe" in cognition
     )
     assert "{{specify-subcmd:" not in execution + teams + cognition
 
 
 def _fresh_codex_init(monkeypatch, tmp_path, profile: str):
-    import importlib
-
     project = tmp_path / f"fresh-{profile}-project"
     project.mkdir()
     assert not (project / ".specify" / "config.json").exists()
@@ -840,10 +838,8 @@ def _fresh_codex_init(monkeypatch, tmp_path, profile: str):
         "specify_cli.launcher.resolve_specify_launcher_spec",
         lambda: pinned_launcher,
     )
-    specify_lint = importlib.import_module("specify_cli.lint")
-    monkeypatch.setattr(specify_lint, "ensure_binary", lambda: tmp_path / "spec-lint")
     monkeypatch.setattr(
-        "specify_cli.project_cognition_runtime.ensure_binary",
+        "specify_cli.specify_runtime.ensure_binary",
         lambda: (_ for _ in ()).throw(RuntimeError("offline runtime fixture")),
     )
     runner = CliRunner()
@@ -976,7 +972,7 @@ def test_fresh_classic_codex_init_binds_all_runtime_commands_to_source_launcher(
         "scan-status",
     ):
         assert (
-            f"PROJECT_COGNITION_LAUNCHER_UNAVAILABLE:project-cognition {command}"
+            f"SPECIFY_RUNTIME_LAUNCHER_UNAVAILABLE:specify-runtime cognition {command}"
             in map_scan
         )
     assert "{{specify-subcmd:" not in map_scan
@@ -1107,13 +1103,13 @@ def test_advanced_local_references_without_cognition_launcher_use_recovery_contr
     assert cognition_references
     assert len(set(cognition_references)) == 1
     cognition = cognition_references[0]
-    assert "PROJECT_COGNITION_LAUNCHER_UNAVAILABLE" in cognition
+    assert "SPECIFY_RUNTIME_LAUNCHER_UNAVAILABLE" in cognition
     assert f"{TEST_SPECIFY_COMMAND} check" in cognition
     assert f"{TEST_SPECIFY_COMMAND} integration repair" in cognition
     assert "specify cognition" in cognition
     assert "do not" in cognition.lower()
     assert "(requires project-cognition" not in cognition
-    assert "`project-cognition compass" not in cognition
+    assert "`specify-runtime cognition compass" not in cognition
     assert "{{specify-subcmd:" not in cognition
 
 
@@ -1140,15 +1136,15 @@ def test_advanced_runtime_repair_rebinds_unavailable_cognition_references(
     )
     assert references
     assert all(
-        "PROJECT_COGNITION_LAUNCHER_UNAVAILABLE"
+        "SPECIFY_RUNTIME_LAUNCHER_UNAVAILABLE"
         in reference.read_text(encoding="utf-8")
         for reference in references
     )
 
-    binary = project / ".specify" / "bin" / "project-cognition"
+    binary = project / ".specify" / "bin" / "specify-runtime"
     binary.parent.mkdir(parents=True)
     binary.write_text("binary", encoding="utf-8")
-    write_project_cognition_launcher_config(project, binary)
+    write_runtime_launcher_config(project, binary)
 
     repaired = integration.repair_runtime_assets(
         project,
@@ -1163,7 +1159,7 @@ def test_advanced_runtime_repair_rebinds_unavailable_cognition_references(
     assert len(set(repaired_references)) == 1
     assert all(str(binary) in content for content in repaired_references)
     assert all(
-        "PROJECT_COGNITION_LAUNCHER_UNAVAILABLE" not in content
+        "SPECIFY_RUNTIME_LAUNCHER_UNAVAILABLE" not in content
         for content in repaired_references
     )
 
@@ -1195,10 +1191,10 @@ def test_runtime_repair_preserves_user_modified_cognition_guidance(tmp_path) -> 
         encoding="utf-8",
     )
 
-    binary = project / ".specify" / "bin" / "project-cognition"
+    binary = project / ".specify" / "bin" / "specify-runtime"
     binary.parent.mkdir(parents=True)
     binary.write_text("binary", encoding="utf-8")
-    write_project_cognition_launcher_config(project, binary)
+    write_runtime_launcher_config(project, binary)
 
     repaired = integration.repair_runtime_assets(
         project,
@@ -1208,7 +1204,7 @@ def test_runtime_repair_preserves_user_modified_cognition_guidance(tmp_path) -> 
 
     content = reference.read_text(encoding="utf-8")
     assert reference not in repaired
-    assert "PROJECT_COGNITION_LAUNCHER_UNAVAILABLE" in content
+    assert "SPECIFY_RUNTIME_LAUNCHER_UNAVAILABLE" in content
     assert "User-owned recovery note." in content
 
 
@@ -1216,15 +1212,11 @@ def test_advanced_integration_repair_installs_and_rebinds_missing_cognition_runt
     monkeypatch,
     tmp_path,
 ) -> None:
-    import importlib
-
     project = tmp_path / "project"
     project.mkdir()
     monkeypatch.setattr(specify_cli, "check_tool", lambda tool, tracker=None: True)
-    specify_lint = importlib.import_module("specify_cli.lint")
-    monkeypatch.setattr(specify_lint, "ensure_binary", lambda: tmp_path / "spec-lint")
     monkeypatch.setattr(
-        "specify_cli.project_cognition_runtime.ensure_binary",
+        "specify_cli.specify_runtime.ensure_binary",
         lambda: (_ for _ in ()).throw(RuntimeError("offline runtime fixture")),
     )
     runner = CliRunner()
@@ -1258,7 +1250,7 @@ def test_advanced_integration_repair_installs_and_rebinds_missing_cognition_runt
             / "references"
             / "project-cognition.md"
         )
-        assert "PROJECT_COGNITION_LAUNCHER_UNAVAILABLE" in (
+        assert "SPECIFY_RUNTIME_LAUNCHER_UNAVAILABLE" in (
             installed_reference.read_text(encoding="utf-8")
         )
         (project / "DESIGN.md").write_text(
@@ -1266,11 +1258,11 @@ def test_advanced_integration_repair_installs_and_rebinds_missing_cognition_runt
             encoding="utf-8",
         )
 
-        binary = tmp_path / "cache" / "project-cognition"
+        binary = tmp_path / "cache" / "specify-runtime"
         binary.parent.mkdir(parents=True)
         binary.write_text("binary", encoding="utf-8")
         monkeypatch.setattr(
-            "specify_cli.project_cognition_runtime.ensure_binary", lambda: binary
+            "specify_cli.specify_runtime.ensure_binary", lambda: binary
         )
         repaired = runner.invoke(
             app,
@@ -1284,7 +1276,7 @@ def test_advanced_integration_repair_installs_and_rebinds_missing_cognition_runt
     project_config = json.loads(
         (project / ".specify" / "config.json").read_text(encoding="utf-8")
     )
-    assert project_config["project_cognition_launcher"]["argv"] == [str(binary)]
+    assert project_config["runtime_launcher"]["argv"] == [str(binary)]
     assert (project / "DESIGN.md").read_text(encoding="utf-8") == (
         "# Approved project design\n\nDo not replace this contract.\n"
     )
@@ -1297,7 +1289,7 @@ def test_advanced_integration_repair_installs_and_rebinds_missing_cognition_runt
     assert cognition_references
     assert all(str(binary) in content for content in cognition_references)
     assert all(
-        "PROJECT_COGNITION_LAUNCHER_UNAVAILABLE" not in content
+        "SPECIFY_RUNTIME_LAUNCHER_UNAVAILABLE" not in content
         for content in cognition_references
     )
 
@@ -1328,19 +1320,19 @@ def test_classic_missing_cognition_launcher_has_equivalent_recovery_and_rebinds(
         skills / "spec-kit-project-cognition-gate" / "SKILL.md"
     ).read_text(encoding="utf-8")
     assert (
-        "PROJECT_COGNITION_LAUNCHER_UNAVAILABLE:project-cognition compass"
+        "SPECIFY_RUNTIME_LAUNCHER_UNAVAILABLE:specify-runtime cognition compass"
         in implement_content
     )
-    assert "PROJECT_COGNITION_LAUNCHER_UNAVAILABLE" in cognition_gate
+    assert "SPECIFY_RUNTIME_LAUNCHER_UNAVAILABLE" in cognition_gate
     assert f"{TEST_SPECIFY_COMMAND} check" in cognition_gate
     assert f"{TEST_SPECIFY_COMMAND} integration repair" in cognition_gate
     assert "specify cognition" in cognition_gate
     assert "do not" in cognition_gate.lower()
 
-    binary = project / ".specify" / "bin" / "project-cognition"
+    binary = project / ".specify" / "bin" / "specify-runtime"
     binary.parent.mkdir(parents=True)
     binary.write_text("binary", encoding="utf-8")
-    write_project_cognition_launcher_config(project, binary)
+    write_runtime_launcher_config(project, binary)
     repaired = integration.repair_runtime_assets(
         project,
         manifest,
@@ -1349,8 +1341,8 @@ def test_classic_missing_cognition_launcher_has_equivalent_recovery_and_rebinds(
 
     assert implement in repaired
     repaired_implement = implement.read_text(encoding="utf-8")
-    assert "PROJECT_COGNITION_LAUNCHER_UNAVAILABLE" not in repaired_implement
-    assert f"{binary} compass --intent implement" in repaired_implement
+    assert "SPECIFY_RUNTIME_LAUNCHER_UNAVAILABLE" not in repaired_implement
+    assert f"{binary} cognition compass --intent implement" in repaired_implement
 
 
 def test_markdown_command_integration_installs_and_rebinds_cognition_recovery(
@@ -1373,17 +1365,17 @@ def test_markdown_command_integration_installs_and_rebinds_cognition_recovery(
     semantic_contract = (
         commands / "references" / "implement" / "semantic-work-contract.md"
     ).read_text(encoding="utf-8")
-    assert "PROJECT_COGNITION_LAUNCHER_UNAVAILABLE:project-cognition" in implement
-    assert "PROJECT_COGNITION_LAUNCHER_UNAVAILABLE" in semantic_contract
+    assert "SPECIFY_RUNTIME_LAUNCHER_UNAVAILABLE:specify-runtime cognition" in implement
+    assert "SPECIFY_RUNTIME_LAUNCHER_UNAVAILABLE" in semantic_contract
     assert f"{TEST_SPECIFY_COMMAND} check" in semantic_contract
     assert f"{TEST_SPECIFY_COMMAND} integration repair" in semantic_contract
     assert "specify cognition" in semantic_contract
     assert "do not" in semantic_contract.lower()
 
-    binary = project / ".specify" / "bin" / "project-cognition"
+    binary = project / ".specify" / "bin" / "specify-runtime"
     binary.parent.mkdir(parents=True)
     binary.write_text("binary", encoding="utf-8")
-    write_project_cognition_launcher_config(project, binary)
+    write_runtime_launcher_config(project, binary)
 
     repaired = integration.repair_runtime_assets(
         project,
@@ -1394,8 +1386,8 @@ def test_markdown_command_integration_installs_and_rebinds_cognition_recovery(
     implement_path = commands / "sp.implement.md"
     assert implement_path in repaired
     repaired_implement = implement_path.read_text(encoding="utf-8")
-    assert "PROJECT_COGNITION_LAUNCHER_UNAVAILABLE" not in repaired_implement
-    assert f"{binary} compass --intent implement" in repaired_implement
+    assert "SPECIFY_RUNTIME_LAUNCHER_UNAVAILABLE" not in repaired_implement
+    assert f"{binary} cognition compass --intent implement" in repaired_implement
 
 
 def test_toml_command_integration_rebinds_cognition_recovery_as_valid_toml(
@@ -1416,13 +1408,13 @@ def test_toml_command_integration_rebinds_cognition_recovery_as_valid_toml(
     implement_path = integration.commands_dest(project) / "sp.implement.toml"
     initial = tomllib.loads(implement_path.read_text(encoding="utf-8"))
     assert (
-        "PROJECT_COGNITION_LAUNCHER_UNAVAILABLE:project-cognition" in initial["prompt"]
+        "SPECIFY_RUNTIME_LAUNCHER_UNAVAILABLE:specify-runtime cognition" in initial["prompt"]
     )
 
-    binary = project / ".specify" / "tools" / "project-cognition.exe"
+    binary = project / ".specify" / "tools" / "specify-runtime.exe"
     binary.parent.mkdir(parents=True)
     binary.write_text("binary", encoding="utf-8")
-    write_project_cognition_launcher_config(project, binary)
+    write_runtime_launcher_config(project, binary)
 
     repaired = integration.repair_runtime_assets(
         project,
@@ -1432,8 +1424,8 @@ def test_toml_command_integration_rebinds_cognition_recovery_as_valid_toml(
 
     assert implement_path in repaired
     repaired_payload = tomllib.loads(implement_path.read_text(encoding="utf-8"))
-    assert "PROJECT_COGNITION_LAUNCHER_UNAVAILABLE" not in repaired_payload["prompt"]
-    assert f"{binary} compass --intent implement" in repaired_payload["prompt"]
+    assert "SPECIFY_RUNTIME_LAUNCHER_UNAVAILABLE" not in repaired_payload["prompt"]
+    assert f"{binary} cognition compass --intent implement" in repaired_payload["prompt"]
 
 
 def test_advanced_upgrade_prunes_only_unmodified_retired_spx_files(tmp_path) -> None:
@@ -1842,7 +1834,7 @@ def test_init_can_install_both_profiles_without_losing_either(
     project_config = json.loads(
         (project / ".specify" / "config.json").read_text(encoding="utf-8")
     )
-    cognition_binary = project_config["project_cognition_launcher"]["argv"][0]
+    cognition_binary = project_config["runtime_launcher"]["argv"][0]
     installed_cognition = (
         skills_dir / "spx-ask" / "references" / "project-cognition.md"
     ).read_text(encoding="utf-8")

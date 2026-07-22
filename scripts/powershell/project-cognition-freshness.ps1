@@ -17,16 +17,12 @@ if ([string]::IsNullOrWhiteSpace($RepoRoot)) {
     $RepoRoot = Get-RepoRoot
 }
 
-function Get-ProjectCognitionBin {
-    if (-not [string]::IsNullOrWhiteSpace($env:PROJECT_COGNITION_BIN)) {
-        return $env:PROJECT_COGNITION_BIN
-    }
-
+function Get-SpecifyRuntimeBin {
     $configPath = Join-Path $RepoRoot ".specify/config.json"
     if (Test-Path -LiteralPath $configPath -PathType Leaf) {
         try {
             $config = Get-Content -LiteralPath $configPath -Raw | ConvertFrom-Json
-            $configured = $config.project_cognition_launcher.argv[0]
+            $configured = $config.runtime_launcher.argv[0]
             if (-not [string]::IsNullOrWhiteSpace($configured)) {
                 if (-not [System.IO.Path]::IsPathRooted($configured)) {
                     $configured = Join-Path $RepoRoot $configured
@@ -40,23 +36,27 @@ function Get-ProjectCognitionBin {
         }
     }
 
-    $projectCognition = Get-Command project-cognition -ErrorAction SilentlyContinue
-    if ($projectCognition) {
-        return $projectCognition.Source
+    if (-not [string]::IsNullOrWhiteSpace($env:SPECIFY_RUNTIME_BIN)) {
+        return $env:SPECIFY_RUNTIME_BIN
     }
 
-    Write-Error "Cannot run project-cognition: no usable project_cognition_launcher is pinned in .specify/config.json. Run the project-pinned Specify launcher with 'check', then 'integration repair'. Do not probe 'specify cognition' or 'specify project-cognition'."
+    $specifyRuntime = Get-Command specify-runtime -ErrorAction SilentlyContinue
+    if ($specifyRuntime) {
+        return $specifyRuntime.Source
+    }
+
+    Write-Error "Cannot run project cognition: no usable runtime_launcher is pinned in .specify/config.json. Run the project-pinned Specify launcher with 'check', then 'integration repair', or set SPECIFY_RUNTIME_BIN."
     exit 127
 }
 
 function Invoke-ProjectCognition {
     param([string[]]$ProjectCognitionArgs)
 
-    $projectCognition = Get-ProjectCognitionBin
+    $specifyRuntime = Get-SpecifyRuntimeBin
 
     Push-Location -LiteralPath $RepoRoot
     try {
-        & $projectCognition @ProjectCognitionArgs
+        & $specifyRuntime cognition @ProjectCognitionArgs
         if ($LASTEXITCODE -ne 0) {
             exit $LASTEXITCODE
         }

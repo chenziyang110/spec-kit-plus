@@ -116,7 +116,7 @@ def test_map_scan_template_defines_complete_scan_package_contract() -> None:
         "only read `.specify/**` for workflow operation, validation, migration, or when the requested scan "
         "is explicitly about generated workflow surfaces or spec-kit-plus itself"
     ) in lowered
-    assert "project-cognition validate-scan --format json" in content
+    assert "specify-runtime cognition validate-scan --format json" in content
     assert "validate-scan" in lowered
     assert "may report complete only after" in lowered
     assert "inspect compact `scan-status`" in lowered
@@ -175,10 +175,10 @@ def test_map_scan_template_defines_complete_scan_package_contract() -> None:
     scan_shell_lowered = scan_shell.lower()
     assert ".cognitionignore" in content
     assert ".cognitionignore" in scan_shell
-    assert "project-cognition generate-ignore --format json" in content
-    assert "project-cognition generate-ignore --format json" in scan_shell
-    assert "project-cognition scan-set --out .specify/project-cognition/tmp/scan-files.json --format json" in content
-    assert "project-cognition scan-set --out .specify/project-cognition/tmp/scan-files.json --format json" in scan_shell
+    assert "specify-runtime cognition generate-ignore --format json" in content
+    assert "specify-runtime cognition generate-ignore --format json" in scan_shell
+    assert "specify-runtime cognition scan-set --out .specify/project-cognition/tmp/scan-files.json --format json" in content
+    assert "specify-runtime cognition scan-set --out .specify/project-cognition/tmp/scan-files.json --format json" in scan_shell
     assert "default stdout is compact json" in scan_shell_lowered
     assert "handoff file is a temporary agent-facing scan-set containing only `files`" in scan_shell_lowered
     assert "review `.specify/project-cognition/.cognitionignore`" in scan_shell_lowered
@@ -228,10 +228,10 @@ def test_map_build_template_refuses_incomplete_scan_packages() -> None:
     assert "packet evidence intake" in lowered
     assert "structural-only refresh is a failed build" in lowered
     assert "reverse coverage validation" in lowered
-    assert "project-cognition build-from-scan --format json" in content
-    assert "project-cognition publish-runtime-metadata --format json" not in content
-    assert "project-cognition complete-refresh --format json" not in content
-    assert "project-cognition validate-build --format json" in content
+    assert "specify-runtime cognition build-from-scan --format json" in content
+    assert "specify-runtime cognition publish-runtime-metadata --format json" not in content
+    assert "specify-runtime cognition complete-refresh --format json" not in content
+    assert "specify-runtime cognition validate-build --format json" in content
     assert "validate-build" in lowered
     assert "path_index_to_included_ratio" in content
     assert "accepted_nonblocking_gap_paths" in content
@@ -419,15 +419,15 @@ def test_map_scan_template_uses_runtime_owned_context_budgeted_dispatch() -> Non
     lowered = " ".join(content.lower().split())
 
     for command in (
-        "project-cognition scan-set",
-        "project-cognition scan-prepare",
-        "project-cognition scan-lease",
-        "project-cognition scan-checkpoint",
-        "project-cognition scan-yield",
+        "specify-runtime cognition scan-set",
+        "specify-runtime cognition scan-prepare",
+        "specify-runtime cognition scan-lease",
+        "specify-runtime cognition scan-checkpoint",
+        "specify-runtime cognition scan-yield",
         "scan-requeue",
-        "project-cognition scan-accept",
-        "project-cognition scan-status",
-        "project-cognition validate-scan",
+        "specify-runtime cognition scan-accept",
+        "specify-runtime cognition scan-status",
+        "specify-runtime cognition validate-scan",
     ):
         assert command in content
 
@@ -555,7 +555,7 @@ def test_map_update_template_requires_changed_path_accounting() -> None:
     assert "ignored with reason" in lowered
     assert "partial with `minimal_live_reads`" in lowered
     assert "provisional `path_index` and `alias_index` coverage" in lowered
-    assert "future `project-cognition compass` and alias-catalog routing" in lowered
+    assert "future `specify-runtime cognition compass` and alias-catalog routing" in lowered
     assert "must not write `.cognitionignore`-excluded paths into update records" in lowered
     assert "reserved rebuild reason" in lowered
 
@@ -564,10 +564,10 @@ def test_map_update_template_uses_git_native_changes_and_finalizers() -> None:
     content = _read("templates/commands/map-update.md")
     lowered = content.lower()
 
-    assert "project-cognition changes --format json" in content
+    assert "specify-runtime cognition changes --format json" in content
     assert "consume `next_action`" in lowered
     assert "feed `changes[].path`" in lowered
     assert "use the returned `result_state`" in lowered
     assert "must not call `complete-refresh` when `result_state` is `partial_refresh`" in lowered
-    assert "project-cognition complete-refresh --format json" in content
-    assert "project-cognition record-refresh --reason \"map-update\" --format json" in content
+    assert "specify-runtime cognition complete-refresh --format json" in content
+    assert "specify-runtime cognition record-refresh --reason \"map-update\" --format json" in content

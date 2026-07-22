@@ -51,8 +51,8 @@ SPECIFY_BINDING_DISPATCH_WINDOWS = "dispatch.ps1"
 SPECIFY_BINDING_DISPATCH_METADATA = "dispatch.json"
 SPECIFY_BINDING_PLACEHOLDER = "__SPECIFY_BINDING_ID__"
 SPECIFY_REPAIR_MESSAGE_PLACEHOLDER = "__SPECIFY_REPAIR_MESSAGE__"
-PROJECT_COGNITION_LAUNCHER_CONFIG_KEY = "project_cognition_launcher"
-PROJECT_COGNITION_UNAVAILABLE_MARKER = "PROJECT_COGNITION_LAUNCHER_UNAVAILABLE"
+RUNTIME_LAUNCHER_CONFIG_KEY = "runtime_launcher"
+SPECIFY_RUNTIME_UNAVAILABLE_MARKER = "SPECIFY_RUNTIME_LAUNCHER_UNAVAILABLE"
 HOOK_RUNTIME_ARGV_ENV = "SPECIFY_HOOK_RUNTIME_ARGV"
 HOOK_RUNTIME_COMMAND_ENV = "SPECIFY_HOOK_RUNTIME_COMMAND"
 HOOK_LAUNCHER_POSIX = "specify-hook"
@@ -132,9 +132,9 @@ _MARKDOWN_FENCE_RE = re.compile(
 _BARE_SPECIFY_LINE_RE = re.compile(
     r"^(?P<prefix>\s*(?:(?:PS>)|\$)?\s*)(?P<command>specify(?:\s+[^\r\n]+)?)(?P<suffix>\s*)$"
 )
-_BARE_PROJECT_COGNITION_LINE_RE = re.compile(
+_BARE_SPECIFY_RUNTIME_COGNITION_LINE_RE = re.compile(
     r"^(?P<prefix>\s*(?:(?:PS>)|\$)?\s*)"
-    r"(?P<command>project-cognition(?:\s+[^\r\n]+)?)"
+    r"(?P<command>specify-runtime\s+cognition(?:\s+[^\r\n]+)?)"
     r"(?P<suffix>\s*)$"
 )
 _SPECIFY_OPTION_RE = re.compile(r"^-{1,2}[A-Za-z][A-Za-z0-9-]*$")
@@ -1311,25 +1311,25 @@ def bind_project_launcher_payload(payload: Any, project_root: Path) -> Any:
     return transform(payload)
 
 
-def load_project_cognition_launcher(project_root: Path) -> SpecifyLauncherSpec | None:
-    """Load the persisted project-cognition launcher from ``.specify/config.json``."""
+def load_runtime_launcher(project_root: Path) -> SpecifyLauncherSpec | None:
+    """Load the persisted Specify runtime launcher from ``.specify/config.json``."""
 
     config_path = project_root / SPECIFY_CONFIG_FILE
     payload = _load_config(config_path)
     if payload is None:
         return None
     return _normalize_project_cognition_payload(
-        payload.get(PROJECT_COGNITION_LAUNCHER_CONFIG_KEY)
+        payload.get(RUNTIME_LAUNCHER_CONFIG_KEY)
     )
 
 
-def resolve_project_cognition_launcher_argv(
+def resolve_runtime_launcher_argv(
     project_root: Path,
     launcher: SpecifyLauncherSpec | None = None,
 ) -> tuple[str, ...] | None:
-    """Resolve a cognition launcher entry relative to its project when needed."""
+    """Resolve a runtime launcher entry relative to its project when needed."""
 
-    resolved = launcher or load_project_cognition_launcher(project_root)
+    resolved = launcher or load_runtime_launcher(project_root)
     if resolved is None or not resolved.argv:
         return None
 
@@ -1357,16 +1357,16 @@ def resolve_project_cognition_launcher_argv(
     return (str(executable), *resolved.argv[1:])
 
 
-def project_cognition_launcher_is_compatible(
+def runtime_launcher_is_compatible(
     project_root: Path,
     launcher: SpecifyLauncherSpec | None = None,
 ) -> bool:
     """Probe the configured launcher for the current required command surface."""
 
-    argv = resolve_project_cognition_launcher_argv(project_root, launcher)
+    argv = resolve_runtime_launcher_argv(project_root, launcher)
     if argv is None:
         return False
-    from .project_cognition_runtime import launcher_supports_required_commands
+    from .specify_runtime import launcher_supports_required_commands
 
     return launcher_supports_required_commands(argv, cwd=project_root)
 
@@ -1429,17 +1429,17 @@ def _is_bare_specify_runtime_command(command: str) -> bool:
     return bool(_SPECIFY_OPTION_RE.fullmatch(root)) or root in _SPECIFY_RUNTIME_ROOTS
 
 
-def _is_bare_project_cognition_runtime_command(command: str) -> bool:
-    """Return whether *command* starts a bare project-cognition CLI call."""
+def _is_bare_specify_runtime_cognition_command(command: str) -> bool:
+    """Return whether *command* starts a bare unified runtime cognition call."""
 
     stripped = command.strip()
-    if not stripped.startswith("project-cognition"):
+    if not stripped.startswith("specify-runtime"):
         return False
     try:
         tokens = shlex.split(stripped, posix=os.name != "nt")
     except ValueError:
         return False
-    return len(tokens) >= 2 and tokens[0] == "project-cognition"
+    return len(tokens) >= 3 and tokens[:2] == ["specify-runtime", "cognition"]
 
 
 def _inline_command_context(
@@ -1544,13 +1544,13 @@ def rebind_unbound_specify_runtime_calls(
     return "".join(output), count
 
 
-def rebind_unbound_project_cognition_runtime_calls(
+def rebind_unbound_specify_runtime_cognition_calls(
     text: str,
     launcher_command: str,
     *,
     command_renderer: Callable[[str], str] | None = None,
 ) -> tuple[str, int]:
-    """Rebind executable bare project-cognition calls to the pinned binary."""
+    """Rebind bare ``specify-runtime cognition`` calls to the pinned binary."""
 
     rendered_launcher = (
         command_renderer(launcher_command)
@@ -1583,7 +1583,7 @@ def rebind_unbound_project_cognition_runtime_calls(
             output.append(raw_line)
             continue
 
-        command_match = _BARE_PROJECT_COGNITION_LINE_RE.match(line)
+        command_match = _BARE_SPECIFY_RUNTIME_COGNITION_LINE_RE.match(line)
         context = (
             f"{fence_context}\n{line}"
             if fence_marker is not None
@@ -1592,16 +1592,17 @@ def rebind_unbound_project_cognition_runtime_calls(
         if (
             (fence_marker is None or fence_is_shell_like)
             and command_match
-            and _is_bare_project_cognition_runtime_command(
+            and _is_bare_specify_runtime_cognition_command(
                 command_match.group("command")
             )
             and not _NON_EXECUTABLE_SPECIFY_CONTEXT_RE.search(context)
         ):
             command = command_match.group("command")
+            suffix = command[len("specify-runtime") :]
             line = (
                 command_match.group("prefix")
                 + rendered_launcher
-                + command[len("project-cognition") :]
+                + suffix
                 + command_match.group("suffix")
             )
             raw_line = line + newline
@@ -1612,7 +1613,7 @@ def rebind_unbound_project_cognition_runtime_calls(
                 nonlocal count
                 code = match.group("code")
                 if (
-                    not _is_bare_project_cognition_runtime_command(code)
+                    not _is_bare_specify_runtime_cognition_command(code)
                     or _NON_EXECUTABLE_SPECIFY_CONTEXT_RE.search(
                         _inline_command_context(line, match, previous_nonempty)
                     )
@@ -1621,11 +1622,9 @@ def rebind_unbound_project_cognition_runtime_calls(
                 leading = code[: len(code) - len(code.lstrip())]
                 trailing = code[len(code.rstrip()) :]
                 stripped = code.strip()
+                suffix = stripped[len("specify-runtime") :]
                 count += 1
-                return (
-                    f"`{leading}{rendered_launcher}"
-                    f"{stripped[len('project-cognition'):]}{trailing}`"
-                )
+                return f"`{leading}{rendered_launcher}{suffix}{trailing}`"
 
             raw_line = _MARKDOWN_INLINE_CODE_RE.sub(replace_inline, raw_line)
             previous_nonempty = line if line.strip() else ""
@@ -1641,10 +1640,10 @@ def _contains_unbound_specify_runtime_call(text: str) -> bool:
     return count > 0
 
 
-def _contains_unbound_project_cognition_runtime_call(text: str) -> bool:
-    _, count = rebind_unbound_project_cognition_runtime_calls(
+def _contains_unbound_specify_runtime_cognition_call(text: str) -> bool:
+    _, count = rebind_unbound_specify_runtime_cognition_calls(
         text,
-        "__SPEC_KIT_BOUND_PROJECT_COGNITION__",
+        "__SPEC_KIT_BOUND_SPECIFY_RUNTIME__",
     )
     return count > 0
 
@@ -1701,7 +1700,7 @@ def render_project_launcher_placeholders(project_root: Path, body: str) -> str:
         return body
 
     launcher = load_project_specify_launcher(project_root)
-    cognition_launcher = load_project_cognition_launcher(project_root)
+    cognition_launcher = load_runtime_launcher(project_root)
     default = default_specify_launcher_spec()
     active_launcher = launcher or default
 
@@ -1718,11 +1717,11 @@ def render_project_launcher_placeholders(project_root: Path, body: str) -> str:
             return match.group(0)
         if not tokens:
             return match.group(0)
-        if tokens[0] == "project-cognition":
+        if tokens[:2] == ("specify-runtime", "cognition"):
             if cognition_launcher is not None:
                 return render_command((*cognition_launcher.argv, *tokens[1:]))
             return (
-                f"{PROJECT_COGNITION_UNAVAILABLE_MARKER}:"
+                f"{SPECIFY_RUNTIME_UNAVAILABLE_MARKER}:"
                 f"{render_command(tokens)}"
             )
         if launcher is None:
@@ -1735,37 +1734,37 @@ def render_project_launcher_placeholders(project_root: Path, body: str) -> str:
         rendered,
         active_launcher.command,
     )
-    cognition_command = (
+    runtime_command = (
         cognition_launcher.command
         if cognition_launcher is not None
-        else f"{PROJECT_COGNITION_UNAVAILABLE_MARKER}:project-cognition"
+        else f"{SPECIFY_RUNTIME_UNAVAILABLE_MARKER}:specify-runtime"
     )
-    rendered, _ = rebind_unbound_project_cognition_runtime_calls(
+    rendered, _ = rebind_unbound_specify_runtime_cognition_calls(
         rendered,
-        cognition_command,
+        runtime_command,
     )
     return rendered
 
 
-def rebind_unavailable_project_cognition_commands(
+def rebind_unavailable_specify_runtime_commands(
     project_root: Path,
     body: str,
     *,
     command_renderer: Callable[[str], str] | None = None,
 ) -> str:
-    """Replace recoverable unavailable markers with the pinned cognition binary."""
+    """Replace recoverable unavailable markers with the pinned runtime binary."""
 
-    launcher = load_project_cognition_launcher(project_root)
+    launcher = load_runtime_launcher(project_root)
     if launcher is None:
         return body
-    marker = f"{PROJECT_COGNITION_UNAVAILABLE_MARKER}:project-cognition"
+    marker = f"{SPECIFY_RUNTIME_UNAVAILABLE_MARKER}:specify-runtime"
     command = (
         command_renderer(launcher.command)
         if command_renderer is not None
         else launcher.command
     )
     rebound = body.replace(marker, command)
-    rebound, _ = rebind_unbound_project_cognition_runtime_calls(
+    rebound, _ = rebind_unbound_specify_runtime_cognition_calls(
         rebound,
         launcher.command,
         command_renderer=command_renderer,
@@ -1867,8 +1866,8 @@ def write_project_specify_launcher_config(
     return config_path
 
 
-def write_project_cognition_launcher_config(project_root: Path, binary: str | Path) -> Path | None:
-    """Persist the preferred ``project-cognition`` binary into ``.specify/config.json``."""
+def write_runtime_launcher_config(project_root: Path, binary: str | Path) -> Path | None:
+    """Persist the preferred ``specify-runtime`` binary into ``.specify/config.json``."""
 
     binary_path = Path(binary).expanduser()
     if not binary_path.is_absolute():
@@ -1883,10 +1882,10 @@ def write_project_cognition_launcher_config(project_root: Path, binary: str | Pa
         return None
 
     desired = _launcher_payload(launcher)
-    if payload.get(PROJECT_COGNITION_LAUNCHER_CONFIG_KEY) == desired:
+    if payload.get(RUNTIME_LAUNCHER_CONFIG_KEY) == desired:
         return config_path
 
-    payload[PROJECT_COGNITION_LAUNCHER_CONFIG_KEY] = desired
+    payload[RUNTIME_LAUNCHER_CONFIG_KEY] = desired
     config_path.parent.mkdir(parents=True, exist_ok=True)
     atomic_write_text(
         config_path,
@@ -2006,8 +2005,8 @@ def diagnose_project_runtime_compatibility(project_root: Path) -> list[dict[str,
             )
 
     if (project_root / ".specify").exists():
-        cognition_launcher = load_project_cognition_launcher(project_root)
-        cognition_compatible = project_cognition_launcher_is_compatible(
+        cognition_launcher = load_runtime_launcher(project_root)
+        cognition_compatible = runtime_launcher_is_compatible(
             project_root, cognition_launcher
         )
         marker_files: list[str] = []
@@ -2019,9 +2018,9 @@ def diagnose_project_runtime_compatibility(project_root: Path) -> list[dict[str,
                 _read_text_if_exists(path),
             )
             relative = path.relative_to(project_root).as_posix()
-            if f"{PROJECT_COGNITION_UNAVAILABLE_MARKER}:project-cognition" in text:
+            if f"{SPECIFY_RUNTIME_UNAVAILABLE_MARKER}:specify-runtime" in text:
                 marker_files.append(relative)
-            if cognition_compatible and _contains_unbound_project_cognition_runtime_call(text):
+            if cognition_compatible and _contains_unbound_specify_runtime_cognition_call(text):
                 unbound_cognition_files.append(relative)
 
         if not cognition_compatible:
@@ -2033,11 +2032,11 @@ def diagnose_project_runtime_compatibility(project_root: Path) -> list[dict[str,
             issues.append(
                 {
                     "code": (
-                        "broken-project-cognition-launcher"
+                        "broken-specify-runtime-launcher"
                         if cognition_launcher
-                        else "missing-project-cognition-launcher"
+                        else "missing-specify-runtime-launcher"
                     ),
-                    "summary": "The project-pinned project-cognition launcher is unavailable.",
+                    "summary": "The project-pinned specify-runtime launcher is unavailable.",
                     "repair": (
                         f"Run `{repair_command}` to install a compatible runtime, pin it in "
                         "`.specify/config.json`, and rebind unmodified generated guidance. "
@@ -2051,9 +2050,9 @@ def diagnose_project_runtime_compatibility(project_root: Path) -> list[dict[str,
                 preview += f", +{len(marker_files) - 5} more"
             issues.append(
                 {
-                    "code": "unrebound-project-cognition-launcher",
+                    "code": "unrebound-specify-runtime-launcher",
                     "summary": (
-                        "Generated guidance still contains unavailable project-cognition "
+                        "Generated guidance still contains unavailable specify-runtime "
                         f"markers: {preview}."
                     ),
                     "repair": (
@@ -2068,14 +2067,15 @@ def diagnose_project_runtime_compatibility(project_root: Path) -> list[dict[str,
                 preview += f", +{len(unbound_cognition_files) - 5} more"
             issues.append(
                 {
-                    "code": "unbound-generated-project-cognition-launcher",
+                    "code": "unbound-generated-specify-runtime-launcher",
                     "summary": (
-                        "Generated workflow guidance invokes PATH-level bare `project-cognition` "
+                        "Generated workflow guidance invokes PATH-level bare "
+                        "`specify-runtime cognition` "
                         f"despite a project-pinned launcher: {preview}."
                     ),
                     "repair": (
                         "Run `integration repair` through a trusted external Spec Kit Plus launcher, "
-                        "then verify each executable call begins with the project_cognition_launcher "
+                        "then verify each executable call begins with the runtime_launcher "
                         "recorded in `.specify/config.json`."
                     ),
                 }

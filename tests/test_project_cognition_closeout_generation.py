@@ -31,9 +31,9 @@ MUTATION_WORKFLOWS = {
 }
 MAINTENANCE_WORKFLOWS = {"map-update": "sp-map-update"}
 DIRECT_UPDATE_FRAGMENTS = (
-    "project-cognition delta append --help",
-    "project-cognition update --delta-session",
-    "project-cognition update --payload-file",
+    "specify-runtime cognition delta append --help",
+    "specify-runtime cognition update --delta-session",
+    "specify-runtime cognition update --payload-file",
 )
 STRUCTURED_PASSED_VERIFICATION = (
     '{"command":"<agent-owned verification command>","result":"passed",'
@@ -179,7 +179,7 @@ def test_classic_mutation_workflows_render_literal_canonical_closeout_ids(
 ) -> None:
     rendered = _classic_surface(command_name)
 
-    assert f"project-cognition closeout-plan --workflow {canonical_workflow}" in rendered
+    assert f"specify-runtime cognition closeout-plan --workflow {canonical_workflow}" in rendered
     assert "$ACTIVE_WORKFLOW" not in rendered
     assert "{{project-cognition-workflow}}" not in rendered
 
@@ -197,7 +197,7 @@ def test_generated_mutation_surface_has_one_closeout_contract(
     assert rendered.count("### Inline Project Cognition Update") == 1
     assert (
         rendered.count(
-            f"project-cognition closeout-plan --workflow {canonical_workflow}"
+            f"specify-runtime cognition closeout-plan --workflow {canonical_workflow}"
         )
         == 2
     )
@@ -223,7 +223,7 @@ def test_spx_mutation_workflows_own_literal_canonical_closeout_commands(
         ROOT / "templates" / "advanced-skills" / f"spx-{command_name}" / "SKILL.md"
     ).read_text(encoding="utf-8")
 
-    assert f"project-cognition closeout-plan --workflow {canonical_workflow}" in skill
+    assert f"specify-runtime cognition closeout-plan --workflow {canonical_workflow}" in skill
     assert "$ACTIVE_WORKFLOW" not in skill
     assert "<canonical-sp-workflow>" not in skill
 
@@ -252,7 +252,7 @@ def test_generated_template_sources_do_not_depend_on_active_workflow_environment
 def test_classic_map_update_has_one_planner_first_update_path() -> None:
     rendered = _classic_surface("map-update")
 
-    planner = "project-cognition closeout-plan --workflow sp-map-update"
+    planner = "specify-runtime cognition closeout-plan --workflow sp-map-update"
     assert rendered.count(planner) == 1
     assert "--changed-path" in rendered
     assert "update_argv" in rendered
@@ -265,8 +265,8 @@ def test_spx_map_update_uses_the_registry_canonical_workflow() -> None:
         ROOT / "templates" / "advanced-skills" / "spx-map-update" / "SKILL.md"
     ).read_text(encoding="utf-8")
 
-    assert "project-cognition closeout-plan --workflow sp-map-update" in skill
-    assert "project-cognition closeout-plan --workflow map-update" not in skill
+    assert "specify-runtime cognition closeout-plan --workflow sp-map-update" in skill
+    assert "specify-runtime cognition closeout-plan --workflow map-update" not in skill
 
 
 def test_map_update_profiles_use_the_receipt_bound_finalizer_for_no_op() -> None:
@@ -301,7 +301,7 @@ def test_non_mutation_workflows_do_not_conditionally_claim_mutation_closeout() -
             / "SKILL.md"
         ).read_text(encoding="utf-8")
         assert "inline-project-cognition-update.md" not in classic, command_name
-        assert "project-cognition closeout-plan --workflow" not in spx, command_name
+        assert "specify-runtime cognition closeout-plan --workflow" not in spx, command_name
 
     planning_context = (
         ROOT
@@ -323,7 +323,7 @@ def test_non_mutation_workflows_do_not_conditionally_claim_mutation_closeout() -
         assert ".specify/project-cognition/status.json" in rendered
         assert ".specify/project-cognition/project-cognition.db" in rendered
         assert "Git-baseline freshness" in rendered
-        assert "project-cognition closeout-plan --workflow" not in rendered
+        assert "specify-runtime cognition closeout-plan --workflow" not in rendered
         assert "run inline project cognition update" not in rendered
         for fragment in DIRECT_UPDATE_FRAGMENTS:
             assert fragment not in rendered
@@ -355,7 +355,7 @@ def test_shared_integration_gate_does_not_duplicate_closeout_contract(
         command_name=command_name,
     )
 
-    assert "project-cognition closeout-plan --workflow" not in rendered
+    assert "specify-runtime cognition closeout-plan --workflow" not in rendered
     assert "update_argv" not in rendered
     for fragment in DIRECT_UPDATE_FRAGMENTS:
         assert fragment not in rendered
@@ -375,8 +375,8 @@ def test_cursor_advisory_does_not_reintroduce_direct_update_commands() -> None:
 
 
 def _assert_receipt_finalizer_gate(content: str) -> None:
-    validate = "project-cognition validate-build --format json"
-    finalize = "project-cognition complete-refresh --format json"
+    validate = "specify-runtime cognition validate-build --format json"
+    finalize = "specify-runtime cognition complete-refresh --format json"
     assert validate in content
     assert finalize in content
     assert content.index(validate) < content.index(finalize)
@@ -428,7 +428,7 @@ def test_fast_pre_work_map_maintenance_cannot_bypass_validation_receipt() -> Non
 
     assert (
         "After a successful existing-baseline maintenance refresh, use "
-        "`{{specify-subcmd:project-cognition complete-refresh --format json}}`"
+        "`{{specify-subcmd:specify-runtime cognition complete-refresh --format json}}`"
     ) not in fast
     assert "receipt-bound `validate-build` then `complete-refresh` sequence" in fast
 

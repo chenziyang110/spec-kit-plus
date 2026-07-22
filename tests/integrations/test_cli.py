@@ -23,8 +23,8 @@ def _read_skill_with_references(skill_path):
             for reference_path in sorted(references_dir.glob("**/*.md"))
         )
     return "\n\n".join(parts).replace(
-        "project-cognition.exe",
-        "project-cognition",
+        "specify-runtime.exe",
+        "specify-runtime",
     )
 
 
@@ -187,7 +187,7 @@ class TestInitIntegrationFlag:
         assert "managed-team" in lowered
         assert "compass --intent implement" in lowered
         assert "only when a required ref is stale, missing, or contradicted by live code" in lowered
-        assert "project-cognition query --query-plan" not in lowered
+        assert "specify-runtime cognition query --query-plan" not in lowered
         assert "current task's required refs" in lowered
         assert "minimal_live_reads" in lowered
         assert ".specify/project-cognition/slices/change.json" not in content.lower()
@@ -265,7 +265,7 @@ class TestInitIntegrationFlag:
         assert "capability-aware investigation" in debug_content
         assert "compass --intent debug" in debug_content
         assert "lexicon -> semantic_intake -> query" in debug_content
-        assert "project-cognition query --query-plan" in debug_content
+        assert "cognition query --query-plan" in debug_content
         assert "--query-plan" in debug_content
         assert "returned readiness" in debug_content
         assert "task-local bundle" in debug_content
@@ -281,11 +281,11 @@ class TestInitIntegrationFlag:
             (skills_dir / "sp-fast" / "SKILL.md")
             .read_text(encoding="utf-8")
             .lower()
-            .replace("project-cognition.exe", "project-cognition")
+            .replace("specify-runtime.exe", "specify-runtime")
         )
         assert "compass --intent implement" in fast_content
         assert "lexicon -> semantic_intake -> query" in fast_content
-        assert "project-cognition query --query-plan" in fast_content
+        assert "cognition query --query-plan" in fast_content
         assert "--query-plan" in fast_content
         assert "returned readiness" in fast_content
         assert "minimal_live_reads" in fast_content
@@ -318,7 +318,7 @@ class TestInitIntegrationFlag:
         assert ".planning/learnings/candidates.md" not in quick_content
         assert "compass --intent implement" in quick_content
         assert "lexicon -> semantic_intake -> query" in quick_content
-        assert "project-cognition query --query-plan" in quick_content
+        assert "cognition query --query-plan" in quick_content
         assert "--query-plan" in quick_content
         assert "project cognition query" in quick_content
         assert "returned readiness" in quick_content

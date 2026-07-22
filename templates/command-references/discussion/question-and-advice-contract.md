@@ -23,9 +23,9 @@ Before asking the user a question, decide whether the agent can answer it from e
 
 Ask the user only for product decisions, preferences, trade-offs, genuine boundary gaps, evidence conflicts requiring user judgment, or facts unavailable after bounded lookup.
 
-Do not ask the user when the answer can be found through current repository files, tests, scripts, CLI help, templates, authoritative docs, or a bounded project-cognition route followed by live reads.
+Do not ask the user when the answer can be found through current repository files, tests, scripts, CLI help, templates, authoritative docs, or a bounded specify-runtime cognition route followed by live reads.
 
-When evidence lookup fails, report what was checked and ask one focused question. Do not ask broad questions such as "where is this implemented?" until bounded search and project-cognition navigation have failed.
+When evidence lookup fails, report what was checked and ask one focused question. Do not ask broad questions such as "where is this implemented?" until bounded search and specify-runtime cognition navigation have failed.
 
 ## Boss-Friendly Advisor Response
 

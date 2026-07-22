@@ -50,7 +50,7 @@ code or style tests alone do not close the change.
 
 Create no spec, plan, tasks, quick workspace, delegation packet, or lifecycle
 artifact. When repository behavior changed, run
-`{{specify-subcmd:project-cognition closeout-plan --workflow sp-fast --intent implement --format json}}`
+`{{specify-subcmd:specify-runtime cognition closeout-plan --workflow sp-fast --intent implement --format json}}`
 with explicit workflow-owned paths, fill returned agent-owned fields, and execute
 structured `update_argv`. Apply the receipt-bound finalizer gate in
 `references/project-cognition.md` before any clean claim. Report the outcome, changed paths, exact verification, and

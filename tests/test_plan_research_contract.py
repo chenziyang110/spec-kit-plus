@@ -35,7 +35,7 @@ def test_plan_command_requires_persisted_delegated_planning_lane_handoffs() -> N
 def test_plan_command_scaffolds_plan_contract_with_project_relative_path() -> None:
     content = read_command_with_references("plan").lower()
 
-    assert "artifact scaffold --kind plan-contract" in content
+    assert "specify-runtime artifact scaffold --kind plan-contract" in content
     assert "project-relative" in content
     assert "never pass an absolute `feature_dir`" in content
     assert "if no contract exists" in content

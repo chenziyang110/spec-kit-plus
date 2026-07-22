@@ -6,7 +6,7 @@ Answer project questions with evidence-backed, read-only project Q&A.
 
 ## Context
 
-- Primary inputs: the user's project question, project memory, generated state, docs, templates, live files, and project-cognition navigation output.
+- Primary inputs: the user's project question, project memory, generated state, docs, templates, live files, and specify-runtime cognition navigation output.
 - Project cognition provides advisory navigation. Live evidence is authoritative.
 - Read and carry `epistemic_contract`; require `graph_role=route_candidate_only`, `fact_source_of_truth=live_repository`, `live_verification_required=true`, `graph_only_claims_allowed=false`, and `unverified_claim_action=withhold`. It cannot authorize source changes and cannot prove current behavior.
 - This workflow answers questions only; it does not create implementation, discussion, debug, or planning state.
@@ -43,7 +43,7 @@ You answer project questions. The user's question may be rough, partial, bilingu
 
 Use this command when the user wants to know something about the project before choosing an action workflow.
 
-For `sp-ask`, read-only evidence lanes are optional. Use leader-inline for simple questions, and use `choose_evidence_lane_dispatch(command_name="ask", snapshot, workload_shape)` only when the answer needs independent evidence packets from multiple files, docs, generated state, memory, or project-cognition routes.
+For `sp-ask`, read-only evidence lanes are optional. Use leader-inline for simple questions, and use `choose_evidence_lane_dispatch(command_name="ask", snapshot, workload_shape)` only when the answer needs independent evidence packets from multiple files, docs, generated state, memory, or specify-runtime cognition routes.
 
 ## Read-Only Boundary
 
@@ -59,27 +59,27 @@ This workflow is read-only.
 - Do not execute project CLI commands.
 - Do not invoke another `sp-*` workflow automatically.
 
-Allowed operations are narrow file reads, `rg`, project memory reads, generated-state reads, docs/template reads, and project-cognition navigation.
+Allowed operations are narrow file reads, `rg`, project memory reads, generated-state reads, docs/template reads, and specify-runtime cognition navigation.
 
 ## Default Navigation
 
 Start with:
 
 ```text
-{{specify-subcmd:project-cognition compass --intent ask --query="$ARGUMENTS" --format json}}
+{{specify-subcmd:specify-runtime cognition compass --intent ask --query="$ARGUMENTS" --format json}}
 ```
 
 Treat project cognition as advisory navigation. Live evidence is authoritative.
 
-Use `project-cognition query --intent ask` only after you build a semantic intake or query plan from the user's wording and the project vocabulary because the compass output or live evidence is ambiguous or has incomplete coverage. Stale or localization-sensitive results are examples that still require that ambiguity or incomplete-coverage reason.
+Use `specify-runtime cognition query --intent ask` only after you build a semantic intake or query plan from the user's wording and the project vocabulary because the compass output or live evidence is ambiguous or has incomplete coverage. Stale or localization-sensitive results are examples that still require that ambiguity or incomplete-coverage reason.
 
 ```text
-{{specify-subcmd:project-cognition query --intent ask --query-plan "<query_plan_json>" --format json}}
+{{specify-subcmd:specify-runtime cognition query --intent ask --query-plan "<query_plan_json>" --format json}}
 ```
 
-When shell quoting makes inline JSON brittle, write the planned object to a file and call `project-cognition query --intent ask --query-plan-file <path> --format json` instead.
+When shell quoting makes inline JSON brittle, write the planned object to a file and call `specify-runtime cognition query --intent ask --query-plan-file <path> --format json` instead.
 
-Use `project-cognition lexicon --intent ask --mode catalog --format json` only when you need vocabulary candidates before writing the query plan.
+Use `specify-runtime cognition lexicon --intent ask --mode catalog --format json` only when you need vocabulary candidates before writing the query plan.
 
 For localized, mixed-language, CJK, colloquial, or project-slang questions, agent-owned semantic normalization is mandatory before broad source search. Extract embedded project terms such as command names, UI labels, file stems, state names, adapter names, package names, extension names, and route names. Write `alias_interpretations`, `normalized_query`, `intent_facets`, `expanded_queries`, and `repository_search_terms` from the alias catalog and live hints before deciding what to read.
 
@@ -88,7 +88,7 @@ Same-topic follow-up mode:
 - Use when the current user question is a direct continuation of the prior `sp-ask` answer in the same chat.
 - Reuse the previous target project root, evidence set, compass or query packet, semantic intake, and proven facts when they still cover the new question.
 - Read only delta evidence for new claims, missing surfaces, changed terminology, or unresolved uncertainty.
-- Rerun `project-cognition compass --intent ask` when the follow-up changes topic, target project root, evidence family, or boundary, or when the prior evidence is not available in the conversation.
+- Rerun `specify-runtime cognition compass --intent ask` when the follow-up changes topic, target project root, evidence family, or boundary, or when the prior evidence is not available in the conversation.
 
 ## Question Classifier
 
@@ -140,6 +140,6 @@ If the answer reveals that the user needs action, recommend one next workflow wi
 - Use `sp-debug` for root-cause diagnosis.
 - Use `sp-deep-research` for feasibility proof or external evidence.
 - Use `sp-explain` for explaining a specific generated artifact or stage output.
-- Use `sp-map-update`, `sp-map-scan`, or `sp-map-build` only when project-cognition freshness or coverage itself is the subject.
+- Use `sp-map-update`, `sp-map-scan`, or `sp-map-build` only when specify-runtime cognition freshness or coverage itself is the subject.
 
 Do not ask the user to say "continue" when the answer and recommended next step can be delivered in one response.

@@ -1,0 +1,3 @@
+## Fixed Workflow Artifact Boundary
+
+Canonical workflow artifacts are runtime-owned. Read them with `specify-runtime artifact show --path <project-relative-path> --view summary`; request `--view full` only when the summary is insufficient. For an authorized write, call `specify-runtime artifact prepare --path <project-relative-path>`, author only the semantic payload in a temporary file, then execute `specify-runtime artifact submit --lease <lease-id> --content-file <temporary-file>`. Never read or overwrite a canonical workflow artifact directly, invent an unregistered path, or reuse a lease. Source code, tests, and other task-scoped implementation files remain normal repository edits.

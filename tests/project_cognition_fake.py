@@ -1087,8 +1087,26 @@ def write_fake_project_cognition_script(tmp_path: Path) -> Path:
 
 
             def main():
-                command = sys.argv[1] if len(sys.argv) > 1 else "check"
                 args = sys.argv[1:]
+                if args[:2] == ["api", "handshake"]:
+                    print(json.dumps({
+                        "status": "ok",
+                        "summary": "fake runtime handshake",
+                        "data": {
+                            "protocol_version": "specify-runtime.v1",
+                            "capability_ids": [
+                                "api.handshake", "api.list", "artifact.catalog",
+                                "artifact.prepare", "artifact.scaffold", "artifact.show",
+                                "artifact.submit", "validate.spec", "workflow.start",
+                                "workflow.status", "workflow.transition",
+                            ],
+                        },
+                        "items": [], "blockers": [], "show_argv": [], "next_argv": [],
+                    }))
+                    return 0
+                if args[:1] == ["cognition"]:
+                    args = args[1:]
+                command = args[0] if args else "check"
                 if command == "validate-scan":
                     print(json.dumps(_validate_scan()))
                     return 0
@@ -1128,5 +1146,5 @@ def project_cognition_bin_value(script: Path) -> str:
 
 def install_fake_project_cognition(monkeypatch, tmp_path: Path) -> Path:
     script = write_fake_project_cognition_script(tmp_path)
-    monkeypatch.setenv("PROJECT_COGNITION_BIN", project_cognition_bin_value(script))
+    monkeypatch.setenv("SPECIFY_RUNTIME_BIN", project_cognition_bin_value(script))
     return script

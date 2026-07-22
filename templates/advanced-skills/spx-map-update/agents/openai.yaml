@@ -1,7 +1,7 @@
 interface:
   display_name: "SPX Map Update"
   short_description: "Incrementally repair project cognition"
-  default_prompt: "Use $spx-map-update to refresh this project-cognition scope."
+  default_prompt: "Use $spx-map-update to refresh this specify-runtime cognition scope."
 
 policy:
   allow_implicit_invocation: false
