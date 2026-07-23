@@ -94,6 +94,7 @@ def test_aggregate_learning_patterns_marks_candidate_with_three_occurrences_as_p
         ],
         confirmed_entries=[],
         rule_entries=[],
+        stale_after_days=36_500,
     )
 
     pattern = patterns[0]
@@ -115,6 +116,7 @@ def test_aggregate_learning_patterns_marks_confirmed_project_constraint_as_rule_
             )
         ],
         rule_entries=[],
+        stale_after_days=36_500,
     )
 
     pattern = patterns[0]

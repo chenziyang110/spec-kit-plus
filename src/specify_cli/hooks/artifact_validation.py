@@ -5498,6 +5498,11 @@ def validate_artifacts_hook(
                 errors=[f"workflow state could not be validated: {exc}"],
                 data={"feature_dir": str(feature_dir)},
             )
+        except ValueError:
+            # Legacy projects may still keep feature artifacts under specs/.
+            # They have no unified .specify/features workflow state to inspect,
+            # so retain the pre-runtime artifact validation path.
+            pass
         else:
             if not (feature_dir / "implementation-handoff.json").is_file():
                 missing.append("implementation-handoff.json")
