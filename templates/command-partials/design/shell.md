@@ -152,7 +152,7 @@ If the mode is ambiguous, choose the smallest safe mode and state the assumption
 ## Synthesis Rules
 
 - Write the project's own `DESIGN.md` as the final output.
-- Present the exactly three HTML-backed directions from the active preview
+- Present exactly the three HTML-backed directions from the active preview
   round when creating or synthesizing a design system.
 - Before proposing them, name the product subject, audience, and single user job.
 - Each direction must state a visual thesis, content thesis, interaction thesis,

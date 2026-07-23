@@ -1,5 +1,5 @@
 ---
-description: Use when a project needs design questions, three inspectable HTML directions, a DESIGN.md design-system contract, style refinement, or a design readiness audit before UI work proceeds.
+description: Use when a project needs a DESIGN.md design-system contract, design questions, three inspectable HTML directions, style refinement, or a design readiness audit before UI work proceeds.
 workflow_contract:
   when_to_use: A project needs product-wide interface style, design-system tokens, platform UI rules, or design readiness review before specification, planning, tasks, or implementation.
   primary_objective: Resolve design-shaping questions, obtain approval of one of three HTML-rendered directions, and produce, refine, synthesize, or audit the root `DESIGN.md` contract without implementing application UI.
