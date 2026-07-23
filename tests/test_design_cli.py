@@ -30,6 +30,8 @@ design_system:
     direction: purposeful-compact
     source_refs:
       - src/app/page.tsx
+    visual_refs:
+      - .specify/design/previews/round-01.html#direction-a
   platforms:
     - web
   tokens:
@@ -144,6 +146,27 @@ def test_ready_lint_rejects_non_string_approval_source_refs(tmp_path: Path) -> N
     diagnostics = lint_design_file(design_file, level="ready")
 
     assert any(item.code == "missing-design-provenance" for item in diagnostics)
+
+
+def test_ready_lint_requires_an_inspectable_approved_visual_reference(
+    tmp_path: Path,
+) -> None:
+    design_file = tmp_path / "DESIGN.md"
+    design_file.write_text(
+        VALID_DESIGN.replace(
+            "    visual_refs:\n"
+            "      - .specify/design/previews/round-01.html#direction-a\n",
+            "    visual_refs: []\n",
+        ),
+        encoding="utf-8",
+    )
+
+    diagnostics = lint_design_file(design_file, level="ready")
+
+    assert any(
+        item.code == "missing-approved-visual-reference"
+        for item in diagnostics
+    )
 
 
 def test_lint_design_file_reports_non_file_path(tmp_path: Path) -> None:
