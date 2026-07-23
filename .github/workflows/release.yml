@@ -128,7 +128,7 @@ jobs:
           echo "" >> release_notes.md
           echo "$COMMITS" >> release_notes.md
 
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@v7
         if: steps.check_release.outputs.exists == 'false'
         with:
           go-version: '1.21'
