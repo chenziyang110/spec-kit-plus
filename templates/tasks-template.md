@@ -123,7 +123,7 @@ description: "Task list template for feature implementation"
 | ui_contract_ref | task-index.json#/tasks/T###/ui_contract |
 | schema_ref | .specify/templates/task-packet-template.json#/ui_contract |
 | direction_core | [ui_work_type; surface_type; platforms; subject; audience; single_job] |
-| approved_direction | [visual_thesis; content_thesis; interaction_thesis; signature_element; approved_visual_ref] |
+| approved_direction | [visual_thesis; content_thesis; interaction_thesis; signature_element; approved_visual_ref; motion/reduced-motion contract location] |
 | task_inputs | [design_sources; reference_intents; real_content_plan; image_plan] |
 | fidelity_level | [approximate | high | inspiration] |
 | adaptation_rules | [must_preserve; may_adapt; must_not] |

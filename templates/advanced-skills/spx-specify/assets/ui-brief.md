@@ -12,7 +12,9 @@
 - content_thesis:
 - interaction_thesis:
 - signature_element:
-- approved_visual_ref:
+- approved_visual_ref: .specify/design/previews/round-NN.html#direction-id | live governing surface
+- approved_direction_id:
+- design_review_round:
 - entry_points:
 - user_job_and_experience_intent:
 - visual_or_interaction_signature:
@@ -27,9 +29,11 @@
 - may_adapt:
 - must_not:
 - required_states:
+- motion_contract: {entrance:, feedback:, loading:, state_transition:, duration_tokens:, easing_tokens:, spatial_behavior:, reduced_motion_equivalent:}
 - responsive_and_accessibility_constraints:
 - visual_acceptance_matrix: [entry point | viewport | state | expected | evidence]
 - required_evidence: [structure_snapshot, visual_capture, runtime_diagnostics, visual_comparison_or_human_review]
 - difference_inventory:
 - accepted_deviations:
+- motion_and_reduced_motion_runtime_check:
 - pending_human_review:

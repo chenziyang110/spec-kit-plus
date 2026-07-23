@@ -33,6 +33,12 @@ design_system:
     typography:
       body.family: {value: "{{body_font_family}}", usage: "{{body_font_usage}}"}
       body.size: {value: "{{body_font_size}}", usage: "{{body_size_usage}}"}
+    motion:
+      duration.fast: {value: "{{motion_duration_fast}}", usage: direct control feedback}
+      duration.base: {value: "{{motion_duration_base}}", usage: state transitions}
+      duration.slow: {value: "{{motion_duration_slow}}", usage: staged hierarchy reveal}
+      easing.standard: {value: "{{motion_easing_standard}}", usage: continuous state change}
+      easing.emphasized: {value: "{{motion_easing_emphasized}}", usage: entrance and confirmation}
   components: {}
   accessibility:
     contrast_intent: WCAG AA for ordinary text
@@ -50,8 +56,8 @@ distinguish this product. Keep them observable and reusable.
 ## Design Direction
 
 Record the visual, content, and interaction theses; the signature element; and
-the inspectable approved visual reference. Separate safe system choices from
-deliberate creative risks and their costs.
+the exact approved `round-NN.html#direction-id` visual reference. Separate safe
+system choices from deliberate creative risks and their costs.
 
 ## Visual And Interaction Signature
 
@@ -68,7 +74,9 @@ requirements. Keep `design_system.platforms` above in sync.
 
 Define shared component anatomy, variants, composition, and required
 default/hover/focus/disabled/loading/error/empty states. Add machine-readable
-component entries above when a rule becomes canonical.
+component entries above when a rule becomes canonical. Map meaningful entrance,
+feedback, state-transition, loading, and reduced-motion behavior to the motion
+tokens rather than adding untracked animation.
 
 ## Anti-Patterns
 

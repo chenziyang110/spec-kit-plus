@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from html.parser import HTMLParser
 import json
 import re
 from pathlib import Path
@@ -24,6 +25,20 @@ REQUIRED_TOKEN_CATEGORIES = ("color", "spacing", "radius", "typography")
 REQUIRED_ACCESSIBILITY_KEYS = ("contrast_intent", "focus_visible", "keyboard_navigation")
 SUPPORTED_EXPORT_FORMATS = {"json", "tailwind"}
 SUPPORTED_LINT_LEVELS = {"structural", "ready"}
+DESIGN_PREVIEW_SCHEMA = "spec-kit-design-preview-v1"
+DESIGN_PREVIEW_REQUIRED_SECTIONS = (
+    "foundations",
+    "components",
+    "states",
+    "motion",
+    "responsive",
+    "handoff",
+)
+DESIGN_PREVIEW_PLACEHOLDER_RE = re.compile(r"__[A-Z0-9_]+__")
+DESIGN_PREVIEW_REMOTE_RE = re.compile(r"(?i)(?:https?:)?//")
+DESIGN_PREVIEW_NETWORK_SCRIPT_RE = re.compile(
+    r"(?i)\b(?:fetch|XMLHttpRequest|WebSocket|EventSource)\s*\("
+)
 
 
 @dataclass(frozen=True)
@@ -46,6 +61,70 @@ class DesignLintError(ValueError):
     pass
 
 
+class _DesignPreviewHTMLParser(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.html_lang = ""
+        self.preview_attrs: dict[str, str] = {}
+        self.direction_ids: list[str] = []
+        self.sections: set[str] = set()
+        self.external_dependencies: list[str] = []
+        self.style_parts: list[str] = []
+        self.script_parts: list[str] = []
+        self._style_depth = 0
+        self._script_depth = 0
+
+    def handle_starttag(
+        self,
+        tag: str,
+        attrs: list[tuple[str, str | None]],
+    ) -> None:
+        normalized_tag = tag.lower()
+        normalized_attrs = {
+            str(name).lower(): "" if value is None else str(value)
+            for name, value in attrs
+        }
+        if normalized_tag == "html":
+            self.html_lang = normalized_attrs.get("lang", "").strip()
+        if "data-design-preview-schema" in normalized_attrs:
+            self.preview_attrs = normalized_attrs
+
+        direction_id = normalized_attrs.get("data-direction-id", "").strip()
+        if direction_id:
+            self.direction_ids.append(direction_id)
+        section = normalized_attrs.get("data-preview-section", "").strip()
+        if section:
+            self.sections.add(section)
+
+        if normalized_tag == "style":
+            self._style_depth += 1
+        if normalized_tag == "script":
+            self._script_depth += 1
+            source = normalized_attrs.get("src", "").strip()
+            if source:
+                self.external_dependencies.append(source)
+        if normalized_tag == "link" and normalized_attrs.get("href", "").strip():
+            self.external_dependencies.append(normalized_attrs["href"].strip())
+
+        for attribute_name in ("src", "poster"):
+            reference = normalized_attrs.get(attribute_name, "").strip()
+            if reference and not reference.lower().startswith("data:"):
+                self.external_dependencies.append(reference)
+
+    def handle_endtag(self, tag: str) -> None:
+        normalized_tag = tag.lower()
+        if normalized_tag == "style" and self._style_depth:
+            self._style_depth -= 1
+        if normalized_tag == "script" and self._script_depth:
+            self._script_depth -= 1
+
+    def handle_data(self, data: str) -> None:
+        if self._style_depth:
+            self.style_parts.append(data)
+        if self._script_depth:
+            self.script_parts.append(data)
+
+
 def parse_design_markdown(text: str, *, source: str = "DESIGN.md") -> DesignDocument:
     match = FRONT_MATTER_RE.match(text)
     if not match:
@@ -65,6 +144,221 @@ def parse_design_markdown(text: str, *, source: str = "DESIGN.md") -> DesignDocu
         design_system=design_system,
         body=match.group(2),
     )
+
+
+def lint_design_preview_file(
+    path: Path,
+    *,
+    level: str = "structural",
+) -> list[DesignDiagnostic]:
+    """Validate a project-level, three-direction HTML design preview board."""
+
+    normalized_level = level.lower()
+    if normalized_level not in SUPPORTED_LINT_LEVELS:
+        raise DesignLintError(f"unsupported design preview lint level: {level}")
+    if not path.exists():
+        return [
+            DesignDiagnostic(
+                "preview-missing-file",
+                f"{path} does not exist",
+                str(path),
+            )
+        ]
+    if not path.is_file():
+        return [
+            DesignDiagnostic(
+                "preview-read-error",
+                f"{path} is not a file",
+                str(path),
+            )
+        ]
+
+    try:
+        content = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        return [
+            DesignDiagnostic(
+                "preview-read-error",
+                f"cannot read {path}: {exc}",
+                str(path),
+            )
+        ]
+
+    parser = _DesignPreviewHTMLParser()
+    try:
+        parser.feed(content)
+        parser.close()
+    except Exception as exc:
+        return [
+            DesignDiagnostic(
+                "preview-parse-error",
+                f"cannot parse {path}: {exc}",
+                str(path),
+            )
+        ]
+
+    diagnostics: list[DesignDiagnostic] = []
+    if not re.search(r"(?i)<!doctype\s+html\s*>", content):
+        _add_diagnostic(
+            diagnostics,
+            "preview-missing-doctype",
+            "design preview must declare <!doctype html>",
+            "html",
+        )
+    if not parser.html_lang:
+        _add_diagnostic(
+            diagnostics,
+            "preview-missing-language",
+            "design preview must declare a document language",
+            "html.lang",
+        )
+
+    schema = parser.preview_attrs.get("data-design-preview-schema", "").strip()
+    if schema != DESIGN_PREVIEW_SCHEMA:
+        _add_diagnostic(
+            diagnostics,
+            "preview-invalid-schema",
+            f"data-design-preview-schema must equal {DESIGN_PREVIEW_SCHEMA}",
+            "data-design-preview-schema",
+        )
+
+    direction_ids = parser.direction_ids
+    if len(direction_ids) != 3:
+        _add_diagnostic(
+            diagnostics,
+            "preview-direction-count",
+            "design preview must contain exactly three comparable directions",
+            "data-direction-id",
+        )
+    if len(set(direction_ids)) != len(direction_ids):
+        _add_diagnostic(
+            diagnostics,
+            "preview-duplicate-direction",
+            "design direction IDs must be unique",
+            "data-direction-id",
+        )
+
+    for section in DESIGN_PREVIEW_REQUIRED_SECTIONS:
+        if section not in parser.sections:
+            _add_diagnostic(
+                diagnostics,
+                "preview-missing-section",
+                f"design preview is missing required section: {section}",
+                f"data-preview-section.{section}",
+            )
+
+    style_text = "\n".join(parser.style_parts)
+    script_text = "\n".join(parser.script_parts)
+    for token_name in (
+        "--motion-duration-fast",
+        "--motion-duration-base",
+        "--motion-easing-standard",
+        "--motion-easing-emphasized",
+    ):
+        if token_name not in style_text:
+            _add_diagnostic(
+                diagnostics,
+                "preview-missing-motion-token",
+                f"design preview must define {token_name}",
+                f"style.{token_name}",
+            )
+    if "prefers-reduced-motion: reduce" not in style_text:
+        _add_diagnostic(
+            diagnostics,
+            "preview-missing-reduced-motion",
+            "design preview must provide a prefers-reduced-motion fallback",
+            "style.prefers-reduced-motion",
+        )
+
+    dependency_evidence = list(parser.external_dependencies)
+    if (
+        DESIGN_PREVIEW_REMOTE_RE.search(content)
+        or re.search(r"(?i)@import\b", style_text)
+        or re.search(r"(?i)url\s*\(\s*(?![\"']?data:)", style_text)
+        or DESIGN_PREVIEW_NETWORK_SCRIPT_RE.search(script_text)
+    ):
+        dependency_evidence.append("remote or runtime-loaded content")
+    if dependency_evidence:
+        _add_diagnostic(
+            diagnostics,
+            "preview-remote-dependency",
+            "design preview must be a self-contained HTML file without external or network runtime dependencies",
+            "html.dependencies",
+        )
+
+    if normalized_level == "ready":
+        status = parser.preview_attrs.get("data-preview-status", "").strip().lower()
+        if status not in {"candidate", "approved"}:
+            _add_diagnostic(
+                diagnostics,
+                "preview-not-candidate",
+                "ready preview status must be candidate or approved",
+                "data-preview-status",
+            )
+        if DESIGN_PREVIEW_PLACEHOLDER_RE.search(content):
+            _add_diagnostic(
+                diagnostics,
+                "preview-unresolved-placeholder",
+                "ready preview must not contain unresolved __PLACEHOLDER__ values",
+                "html",
+            )
+        if status == "approved":
+            approved_direction = parser.preview_attrs.get(
+                "data-approved-direction",
+                "",
+            ).strip()
+            if approved_direction not in set(direction_ids):
+                _add_diagnostic(
+                    diagnostics,
+                    "preview-invalid-approval",
+                    "approved preview must name one existing data-direction-id",
+                    "data-approved-direction",
+                )
+
+    return diagnostics
+
+
+def scaffold_design_preview(
+    out_path: Path,
+    *,
+    force: bool = False,
+    template_path: Path | None = None,
+) -> Path:
+    """Copy the bundled three-direction design preview scaffold."""
+
+    source = template_path or _locate_design_preview_template()
+    if not source.exists() or not source.is_file():
+        raise DesignLintError(f"design preview template does not exist: {source}")
+    if out_path.exists() and not force:
+        raise DesignLintError(f"design preview already exists: {out_path}")
+
+    diagnostics = lint_design_preview_file(source, level="structural")
+    if diagnostics:
+        messages = "; ".join(
+            f"{diagnostic.code}: {diagnostic.message}"
+            for diagnostic in diagnostics
+        )
+        raise DesignLintError(f"bundled design preview template is invalid: {messages}")
+
+    try:
+        content = source.read_text(encoding="utf-8")
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        out_path.write_text(content, encoding="utf-8")
+    except OSError as exc:
+        raise DesignLintError(f"cannot write design preview {out_path}: {exc}") from exc
+    return out_path
+
+
+def _locate_design_preview_template() -> Path:
+    package_template = (
+        Path(__file__).parent
+        / "core_pack"
+        / "templates"
+        / "design-preview-template.html"
+    )
+    if package_template.is_file():
+        return package_template
+    return Path(__file__).parents[2] / "templates" / "design-preview-template.html"
 
 
 def lint_design_file(path: Path, *, level: str = "structural") -> list[DesignDiagnostic]:
@@ -353,6 +647,18 @@ def _validate_design_readiness(document: DesignDocument, diagnostics: list[Desig
                 "design_system.approval.source_refs must identify product or repository evidence",
                 "design_system.approval.source_refs",
             )
+        visual_refs = approval.get("visual_refs")
+        if (
+            not isinstance(visual_refs, list)
+            or not visual_refs
+            or not all(isinstance(item, str) and item.strip() for item in visual_refs)
+        ):
+            _add_diagnostic(
+                diagnostics,
+                "missing-approved-visual-reference",
+                "design_system.approval.visual_refs must identify the exact inspectable artifact approved by the user",
+                "design_system.approval.visual_refs",
+            )
 
     name = str(design_system.get("name") or "").strip().lower()
     if not name or name in {"project-design-system", "bootstrap-design-seed"} or "{{" in name:
@@ -403,6 +709,8 @@ def _to_tailwind_theme(design_system: dict[str, Any]) -> dict[str, Any]:
         "fontSize": {},
         "boxShadow": {},
         "animation": {},
+        "transitionDuration": {},
+        "transitionTimingFunction": {},
     }
     skipped_token_categories: list[str] = []
     tokens = design_system.get("tokens", {})
@@ -436,6 +744,20 @@ def _to_tailwind_theme(design_system: dict[str, Any]) -> dict[str, Any]:
             _copy_tokens(entries, extend["boxShadow"])
         elif category == "animation":
             _copy_tokens(entries, extend["animation"])
+        elif category == "motion":
+            for token_name, token_value in entries.items():
+                value = _token_export_value(token_value)
+                if value is None:
+                    continue
+                export_name = str(token_name).replace(".", "-")
+                if str(token_name).startswith("duration."):
+                    extend["transitionDuration"][export_name] = value
+                elif str(token_name).startswith("easing."):
+                    extend["transitionTimingFunction"][export_name] = value
+                else:
+                    skipped_token_categories.append(
+                        f"{category}.{token_name}"
+                    )
         else:
             skipped_token_categories.append(str(category))
 

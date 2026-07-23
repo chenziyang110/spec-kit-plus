@@ -23,7 +23,8 @@
 - Content thesis:
 - Interaction thesis:
 - Signature element:
-- Approved visual reference:
+- Approved project-level visual reference: .specify/design/previews/round-NN.html#direction-id | live governing surface
+- Approved direction ID and review round:
 - Safe system choices:
 - Deliberate creative risks, gain, and cost:
 
@@ -83,6 +84,9 @@
 - Secondary flow:
 - Keyboard and focus path:
 - Feedback timing:
+- Entrance, feedback, loading, and state-transition motion:
+- Duration, easing, and spatial tokens:
+- Reduced-motion equivalent:
 
 ## Responsive Behavior
 
@@ -132,6 +136,7 @@
 - Accessibility check when interactive:
 - Difference inventory against reference or prior surface:
 - Accepted deviations and approver:
+- Motion and reduced-motion runtime check:
 - Visual acceptance matrix: [entry point | viewport | state | expected result | evidence path]
 - Human review requirement:
 

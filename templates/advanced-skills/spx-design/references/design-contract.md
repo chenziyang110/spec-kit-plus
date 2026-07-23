@@ -17,6 +17,24 @@ Include only applicable decisions:
 - accessibility semantics, focus, contrast, input, and reduced-motion behavior;
 - reference fidelity and later visual evidence requirements.
 
+Before locking a new or materially changed direction, use the installed
+`design-preview-template.html` as the stable project-level review carrier. One
+numbered HTML round holds exactly three directions and one shared comparison
+baseline: foundations, components, required states, data density, motion,
+responsive frames, and handoff boundaries. Keep it self-contained and
+framework-neutral. Modern CSS and bounded inline review behavior may express
+direction switching and meaningful animation, but the artifact must not load
+remote code/assets, persist data, call a network, simulate business logic, or
+claim to be production implementation.
+
+Every direction defines motion purpose plus duration, easing, distance or
+spatial behavior, and a `prefers-reduced-motion` equivalent. Compare all three
+with the same content and state matrix. If none is satisfactory, incorporate
+the user's named feedback into a new immutable round. Approval identifies the
+exact round path and direction ID; carry that reference unchanged through
+`approval.visual_refs`, the feature UI brief, plan/task UI contracts, and final
+visual comparison.
+
 For a new or high-visibility direction, persist an inspectable approved visual
 reference in `approval.visual_refs`. Assign each source an explicit use intent;
 reference intent and fidelity are separate decisions. Use real product content
@@ -27,3 +45,9 @@ Name existing implementation owners and planned gaps without pretending a
 planned token or component already exists. When auditing, cite concrete live
 surfaces and distinguish contract drift from intentional exception. Avoid
 generic aesthetic prose that cannot guide or verify downstream work.
+
+The project-level design preview and feature-level `ui-target.html` are
+different artifacts. The preview approves reusable visual, component, state,
+density, and motion language. The target later describes one feature
+composition and cannot silently replace or weaken the approved preview
+reference.

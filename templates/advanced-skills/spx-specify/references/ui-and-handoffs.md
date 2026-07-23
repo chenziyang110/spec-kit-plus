@@ -12,6 +12,9 @@ in the relevant design/fidelity refs. Record:
 
 - subject, audience, single job, visual/content/interaction theses, signature,
   and the approved visual ref;
+- when supplied by design, the exact immutable project-level
+  `round-NN.html#direction-id`, its motion tokens, and reduced-motion
+  equivalent;
 - real entry points, surface/platform classification, experience intent, and
   information hierarchy;
 - approved `DESIGN.md` rules, tokens/components, and any explicit extension;
@@ -33,3 +36,5 @@ Do not infer hidden behavior from a screenshot. Do not reduce original visual
 inputs to prose when downstream implementation needs to inspect them. If
 `DESIGN.md` is bootstrap/unapproved and the feature needs a new direction, stop
 and route to `$spx-design` instead of inheriting starter aesthetics.
+Do not substitute feature-level `ui-target.html` for an approved project-level
+design preview; preserve both references when both apply.

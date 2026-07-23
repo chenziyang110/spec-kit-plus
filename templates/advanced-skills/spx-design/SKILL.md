@@ -21,16 +21,41 @@ it after interruption or compaction. Persist `active_command: sp-design`,
 `phase_mode: design-only`, current stage, selected mode/direction, approval
 state, lint result, next action, and next command. The `allowed_writes` are only
 `DESIGN.md`, `.specify/design/design-state.md`,
+`.specify/design/design-brief.md`, `.specify/design/previews/*.html`,
 `.specify/design/references.md`, `.specify/design/options.md`,
 `.specify/design/review.md`, and stable design rules in
 `.specify/memory/project-rules.md` when they truly become project defaults.
 
-When creating a new direction or replacing a bootstrap seed, present two or
-three project-specific directions grounded in subject, audience, and one user
-job. Each states visual/content/interaction theses, a signature element, and
-creative-risk tradeoffs, and has an inspectable visual artifact. Obtain user
-approval of that artifact before locking one. Refinement that preserves an
-already approved direction needs no ceremonial re-selection.
+Compile `.specify/design/design-brief.md` from the installed
+`design-brief-template.md`. Infer repository evidence first, then ask one
+high-impact design question at a time when the answer can change hierarchy,
+density, component anatomy, motion, responsive/accessibility behavior,
+reference fidelity, or approval scope. Do not ask for a production framework
+merely to shape a framework-neutral preview. Confirm subject, audience, single
+job, platforms/viewports, comparison content, component/state coverage,
+meaningful motion and `prefers-reduced-motion`, and Must Preserve / May Adapt /
+Must Not boundaries.
+
+When creating a new direction or replacing a bootstrap seed, scaffold
+`.specify/design/previews/round-NN.html` from the installed
+`design-preview-template.html`. Produce exactly three project-specific
+directions in that one self-contained board. Hold content, component/state
+coverage, and viewports constant so visual, density, and motion differences are
+comparable. Use modern native HTML/CSS—custom properties, cascade layers,
+fluid scales, container queries, and progressive view transitions—with only
+bounded inline review logic and no framework, CDN, remote runtime dependency,
+network call, persistence, analytics, or business behavior.
+
+Replace all placeholders, set candidate status, run
+`{{specify-subcmd:design preview-lint .specify/design/previews/round-NN.html --level ready}}`,
+and inspect direction switching, keyboard operation, responsive widths, state
+coverage, motion, and reduced motion in a real browser. Present the exact round
+path, direction IDs, and tradeoffs. Iterate new numbered rounds until the user
+approves; do not overwrite prior rounds or treat criticism as approval. Freeze
+the approved round and record
+`approved_visual_ref: .specify/design/previews/round-NN.html#<direction-id>` in
+the brief, review, and `DESIGN.md` `approval.visual_refs`. Refinement that
+preserves an already approved direction needs no ceremonial re-selection.
 
 Create or revise root `DESIGN.md` from `assets/design-system.md`. Record only
 decisions that constrain downstream UI work: principles, foundations, tokens,
@@ -54,5 +79,7 @@ Do not edit application source, tests, or generated component code. Preserve
 useful existing decisions and validate that referenced tokens/components exist
 or are clearly marked planned. Continue feature-specific requirements through
 `$spx-specify` and implementation design/tasks through `$spx-plan` as explicit
-handoffs. This invocation authorizes only this workflow stage; do not invoke
-another workflow in this run.
+handoffs. The project-level preview owns reusable design decisions; the later
+feature-level `ui-target.html` owns one feature's concrete composition. This
+invocation authorizes only this workflow stage; do not invoke another workflow
+in this run.

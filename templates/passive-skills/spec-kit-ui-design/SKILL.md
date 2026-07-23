@@ -19,6 +19,11 @@ TUI, or CLI output quality affects the outcome.
 - If `DESIGN.md` is present, implementation must follow it for layout,
   component usage, color, typography, motion, density, interaction states,
   accessibility expectations, and evidence requirements.
+- When approval points to
+  `.specify/design/previews/round-NN.html#<direction-id>`, treat that exact
+  project-level design board as inspectable handoff evidence. Preserve its
+  component/state, density, meaningful-motion, and reduced-motion decisions;
+  do not replace it with prose or a later feature target.
 - A `DESIGN.md` with `design_system.status: bootstrap` is only an initialized
   seed. Do not let its generic tokens suppress project-specific design work or
   treat it as an approved product direction.
@@ -44,6 +49,9 @@ TUI, or CLI output quality affects the outcome.
   `choose_ui_reference_lane_dispatch` and `lane_mode: ui-reference-artifact`.
 - The UI reference lane writes `ui-reference-notes.md`, `ui-brief.md`, and
   optional `ui-target.html`.
+- Keep the artifacts distinct: the project-level design preview approves the
+  reusable design language, while feature-level `ui-target.html` describes one
+  concrete feature composition.
 - `approximate` is the default fidelity mode. `high` requires visual
   comparison; `inspiration` extracts principles only.
 - If the environment cannot prove visual similarity, the workflow must record

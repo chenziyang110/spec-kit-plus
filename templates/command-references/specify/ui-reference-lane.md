@@ -7,6 +7,11 @@ Preserved Contract: UI reference work must preserve lane dispatch, static target
 ## UI Reference Lane
 
 **UI reference input handling**:
+- Preserve an approved project-level
+  `.specify/design/previews/round-NN.html#<direction-id>` as
+  `approved_visual_ref`; do not collapse it into prose or replace it with the
+  feature-level `ui-target.html`. Carry its motion and reduced-motion decisions
+  into the UI brief.
 - Detect screenshots, HTML/CSS mockups, UI framework snippets, design exports, UI reference URLs or existing UI pages, and matching-language such as "make it like this" as UI reference input.
 - Give every reference its own use intent: `exact`, `preserve-structure`,
   `inspiration`, `extract-tokens`, or `do-not-copy`. Intent controls permitted

@@ -66,6 +66,14 @@ approved. A prose label alone is not visual approval.
 - Prefer existing component patterns before adding variants.
 - Do not invent styling outside the token set without updating this file.
 
+## Motion Rules
+
+- Define duration, easing, and spatial behavior as tokens before implementation.
+- Use motion to reveal hierarchy, reinforce action, or explain state change.
+- Every meaningful animation needs a `prefers-reduced-motion` equivalent.
+- The approved project-level HTML preview is the visual motion reference;
+  feature-level targets still define concrete composition and state coverage.
+
 ## Anti-Patterns
 
 - Do not ship generic gradient-heavy screens that ignore product context.

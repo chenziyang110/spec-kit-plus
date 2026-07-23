@@ -99,7 +99,9 @@ from specify_cli.design import (
     DesignLintError,
     export_design_system,
     import_design_reference,
+    lint_design_preview_file,
     lint_design_file,
+    scaffold_design_preview,
 )
 from specify_cli.specify_runtime import (
     SpecifyRuntimeError,
@@ -583,7 +585,7 @@ app.add_typer(lane_app, name="lane")
 
 design_app = typer.Typer(
     name="design",
-    help="Lint, export, and import Spec Kit Plus DESIGN.md assets",
+    help="Create previews and lint, export, or import Spec Kit Plus design assets",
     add_completion=False,
 )
 app.add_typer(design_app, name="design")
@@ -767,6 +769,71 @@ def design_lint(
 
     if not diagnostics:
         console.print(f"{_display_path(path)} is valid at {level} level")
+        return
+
+    for diagnostic in diagnostics:
+        console.print(f"{diagnostic.code}: {diagnostic.message}")
+    raise typer.Exit(1)
+
+
+@design_app.command("preview")
+def design_preview(
+    out: Path = typer.Option(
+        Path(".specify/design/previews/round-01.html"),
+        "--out",
+        help="Write the three-direction design preview scaffold to this path",
+    ),
+    force: bool = typer.Option(
+        False,
+        "--force",
+        help="Replace an existing unapproved preview scaffold",
+    ),
+) -> None:
+    """Create a self-contained three-direction HTML design review board."""
+
+    try:
+        out_path = scaffold_design_preview(out, force=force)
+    except DesignLintError as exc:
+        console.print(f"[red]Error:[/red] {exc}")
+        raise typer.Exit(1)
+    print(f"Wrote {_display_path(out_path)}")
+
+
+@design_app.command("preview-lint")
+def design_preview_lint(
+    path: Path = typer.Argument(..., help="Path to a design preview HTML file"),
+    output_format: TextJsonFormat = typer.Option(
+        TextJsonFormat.text,
+        "--format",
+        help="Output format: text or json",
+    ),
+    level: str = typer.Option(
+        "structural",
+        "--level",
+        help="Validation level: structural or ready",
+    ),
+) -> None:
+    """Validate a self-contained three-direction HTML design preview."""
+
+    normalized_format = output_format.lower()
+    normalized_level = level.lower()
+    if normalized_level not in {"structural", "ready"}:
+        console.print(
+            "[red]Error:[/red] unsupported design preview lint level: "
+            f"{normalized_level}"
+        )
+        raise typer.Exit(2)
+
+    diagnostics = lint_design_preview_file(path, level=normalized_level)
+    if normalized_format == "json":
+        print_json(_diagnostics_payload(diagnostics))
+        if diagnostics:
+            raise typer.Exit(1)
+        return
+    if not diagnostics:
+        console.print(
+            f"{_display_path(path)} is valid at {normalized_level} level"
+        )
         return
 
     for diagnostic in diagnostics:
@@ -4949,7 +5016,7 @@ def _get_skills_dir(project_path: Path, selected_ai: str) -> Path:
 DEFAULT_SKILLS_DIR = ".agents/skills"
 NATIVE_SKILLS_AGENTS = {"codex", "kimi"}
 SKILL_DESCRIPTIONS = {
-    "design": "Use when a project needs a DESIGN.md design-system contract, design-system synthesis, UI style refinement, or design readiness audit before UI work proceeds.",
+    "design": "Use when a project needs design questions, three inspectable HTML directions, a DESIGN.md contract, UI style refinement, or a design readiness audit before UI work proceeds.",
     "discussion": "Use when a rough idea or requirement needs a resumable senior product-engineering discussion before formal specification.",
     "specify": "Use when a new or changed feature request needs guided requirement discovery and a planning-ready specification package.",
     "prd-scan": "Use when an existing repository needs read-only heavy reconstruction scan outputs before final PRD synthesis; execution is subagent-mandatory and critical claims target L4 Reconstruction-Ready.",

@@ -20,12 +20,15 @@ Name subject, audience, single job, visual/content/interaction theses, and one
 recognizable signature. New or high-visibility direction requires an
 inspectable approved visual reference; a narrow existing-pattern exception must
 name its live governing surface. Reuse approved tokens and components.
+When `sp-design` produced a project-level HTML preview, preserve the exact
+immutable `round-NN.html#direction-id` reference and its motion/reduced-motion
+contract. Do not replace it with a prose summary or the later feature target.
 
 ## Delivery chain
 
 For substantive UI work preserve one contract through the workflow:
 
-`DESIGN.md + original references -> ui-brief.md -> plan ui_design_contract -> task ui_contract -> real-entrypoint evidence`
+`DESIGN.md + approved design preview + original references -> ui-brief.md -> plan ui_design_contract -> task ui_contract -> real-entrypoint evidence`
 
 The UI brief is required for substantive UI work even without external
 references. It identifies entry points, required states and viewports,
@@ -53,6 +56,12 @@ localization where supported. Persist the platform-neutral evidence triad:
 `visual_comparison_or_human_review`. For web these mean accessibility/DOM
 snapshot, viewport screenshot, and console/runtime output. Tests passed and
 visual acceptance are separate claims.
+
+For approved motion, exercise the named entrance, feedback, loading, and state
+transition moments at the real entry point and verify the reduced-motion
+equivalent. Keep this evidence within the existing structure snapshot, visual
+capture, runtime diagnostics, and comparison/review kinds rather than inventing
+a parallel motion-evidence schema.
 
 If visual comparison is unavailable, record `pending-human-review` and the
 exact evidence/decision needed. Never claim visual match from prose, component

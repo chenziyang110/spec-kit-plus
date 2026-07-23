@@ -11,11 +11,12 @@
 - Work type, surface type, and platforms:
 - Subject, audience, and single job:
 - Visual/content/interaction theses and signature:
-- Approved visual reference:
+- Approved project-level visual reference and direction ID:
 - Reference intents and real content/image plans:
 - Design and UI brief sources:
 - Tokens/components and planned extensions:
 - Required states and responsive/accessibility rules:
+- Required motion moments, tokens, and reduced-motion equivalents:
 - Fidelity and must-preserve constraints:
 - Real entry points and structure/visual/runtime evidence:
 - Visual comparison, deviations, or human-review boundary:

@@ -143,7 +143,9 @@
 ## Design System Adoption
 
 - Source and status:
+- Approved project-level visual reference:
 - Token strategy:
+- Motion and reduced-motion token strategy:
 - Component reuse and extension policy:
 - Platform adaptation strategy:
 - Accessibility requirements:
@@ -155,6 +157,7 @@
 - UI brief source:
 - UI work type and real entry points:
 - Experience intent and visual/interaction signature:
+- Approved design preview round/direction:
 - UI reference notes:
 - Visual target:
 - Fidelity mode:
@@ -164,6 +167,7 @@
 - May adapt:
 - Must not:
 - Required states and viewport matrix:
+- Required motion moments and reduced-motion equivalents:
 - Visual verification strategy:
 
 ## Technical Context

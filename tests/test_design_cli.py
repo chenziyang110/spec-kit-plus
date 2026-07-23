@@ -315,7 +315,9 @@ def test_export_design_system_allows_explicit_legacy_structural_escape_hatch(
         "    status: approved\n"
         "    direction: purposeful-compact\n"
         "    source_refs:\n"
-        "      - src/app/page.tsx\n",
+        "      - src/app/page.tsx\n"
+        "    visual_refs:\n"
+        "      - .specify/design/previews/round-01.html#direction-a\n",
         "",
     )
     design_file.write_text(legacy_design, encoding="utf-8")
@@ -420,7 +422,9 @@ def test_design_export_cli_allows_explicit_unapproved_legacy_migration(
         "    status: approved\n"
         "    direction: purposeful-compact\n"
         "    source_refs:\n"
-        "      - src/app/page.tsx\n",
+        "      - src/app/page.tsx\n"
+        "    visual_refs:\n"
+        "      - .specify/design/previews/round-01.html#direction-a\n",
         "",
     )
     Path("DESIGN.md").write_text(legacy_design, encoding="utf-8")

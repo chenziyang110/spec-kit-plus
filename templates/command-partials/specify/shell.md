@@ -40,6 +40,11 @@ Turn a new or changed feature request into a reviewed, planning-ready specificat
 - Treat `DESIGN.md` with `design_system.status: bootstrap` as not ready for a
   new direction. Route product-wide or high-visibility design decisions to
   `sp-design`; do not inherit its generic starter tokens as product intent.
+- When approved design provenance names
+  `.specify/design/previews/round-NN.html#<direction-id>`, inspect and preserve
+  that exact project-level visual reference, including its component/state,
+  density, motion-token, and reduced-motion decisions. A later feature-level
+  `ui-target.html` refines concrete composition and does not replace it.
 - Detect screenshots, HTML/CSS mockups, Tailwind/shadcn/React/Vue/Svelte snippets, Figma exports, reference URLs, existing product pages, or matching-language such as "make it like this", "basically the same", "copy this layout", or "use this as the design".
 - When UI reference input exists, ask for the fidelity mode unless the user already stated it:
   - `approximate` by default: preserve layout, density, hierarchy, visual rhythm, component structure, and primary interactions.

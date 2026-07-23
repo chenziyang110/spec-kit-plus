@@ -22,6 +22,13 @@ solution. For substantive new UI, route through `sp-design`/`spx-design`; for a
 narrow existing-pattern change, ground the implementation in the live product
 surface and record the bounded design assumption.
 
+When `DESIGN.md` records an approved
+`.specify/design/previews/round-NN.html#<direction-id>`, inspect that exact
+project-level design board before implementation. Carry its component states,
+density, motion tokens, and reduced-motion equivalent into the feature brief
+and real UI. A feature-level `ui-target.html` can refine composition, but cannot
+silently replace the approved reusable design language.
+
 Do not invent unrelated bold aesthetics when the project already has a design
 system or when the request is to implement an existing product surface. If no
 design system exists and the work is high-visibility, new product UI, a redesign
