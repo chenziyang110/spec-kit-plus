@@ -3,6 +3,7 @@ from pathlib import Path
 
 import pytest
 
+from specify_cli.hooks import artifact_validation
 from specify_cli.hooks.engine import run_quality_hook
 from specify_cli.hooks.artifact_validation import (
     _validate_plan_human_acceptance_contract,
@@ -11,6 +12,7 @@ from specify_cli.hooks.artifact_validation import (
     _validate_tasks_human_acceptance_contract,
     _validate_tasks_ui_contract,
 )
+from specify_cli.workflow_runtime import WorkflowRuntimeError
 
 
 def _create_project(tmp_path: Path) -> Path:
@@ -1020,6 +1022,40 @@ def test_agent_native_implement_artifacts_require_checked_task_lifecycle(
     assert any(
         "implementation-review/tasks/T001.json" in message for message in result.errors
     )
+
+
+def test_implement_artifacts_block_when_workflow_runtime_validation_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project = _create_project(tmp_path)
+    feature_dir = project / ".specify" / "features" / "001-demo"
+    feature_dir.mkdir(parents=True)
+    (feature_dir / "implement-tracker.md").write_text(
+        "---\nstatus: resolved\n---\n\nnext_action: complete\n",
+        encoding="utf-8",
+    )
+
+    def fail_workflow_validation(_feature_dir: Path) -> dict[str, object]:
+        raise WorkflowRuntimeError(
+            "runtime returned an invalid envelope",
+            code="invalid-workflow-runtime-response",
+            status="error",
+        )
+
+    monkeypatch.setattr(artifact_validation, "show_workflow", fail_workflow_validation)
+
+    result = run_quality_hook(
+        project_root=project,
+        event_name="workflow.artifacts.validate",
+        payload={"command_name": "implement", "feature_dir": str(feature_dir)},
+    )
+
+    assert result.status == "blocked"
+    assert result.severity == "critical"
+    assert result.errors == [
+        "workflow state could not be validated: runtime returned an invalid envelope"
+    ]
 
 
 def test_agent_native_ui_task_lifecycle_requires_visual_acceptance(

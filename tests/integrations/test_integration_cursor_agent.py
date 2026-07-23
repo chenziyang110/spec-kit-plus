@@ -33,7 +33,7 @@ def test_cursor_skills_init_installs_command_and_passive_skills(tmp_path):
     ask_content = ask_path.read_text(encoding="utf-8")
     ask_lower = ask_content.lower()
 
-    assert "project-cognition" in ask_content
+    assert "specify-runtime cognition" in ask_content
     assert "compass --intent ask" in ask_content
     assert "query --intent ask" in ask_content
     assert "Evidence-Backed Project Q&A" in ask_content

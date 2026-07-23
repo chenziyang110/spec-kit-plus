@@ -1,10 +1,10 @@
 import json
-import os
 from pathlib import Path
 
 import pytest
 
 from specify_cli.hooks.engine import QualityHookError, run_quality_hook
+from tests.project_cognition_fake import project_cognition_bin_value
 
 
 def _create_project(tmp_path: Path) -> Path:
@@ -189,7 +189,7 @@ def test_workflow_state_validate_blocks_missing_workflow_state(tmp_path: Path):
 def test_project_cognition_mark_dirty_hook_invokes_external_binary(tmp_path: Path, monkeypatch):
     project = _create_project(tmp_path)
     fake_bin = _write_fake_project_cognition_bin(tmp_path)
-    monkeypatch.setenv("SPECIFY_RUNTIME_BIN", f"{os.sys.executable}{os.pathsep}{fake_bin}")
+    monkeypatch.setenv("SPECIFY_RUNTIME_BIN", project_cognition_bin_value(fake_bin))
 
     result = run_quality_hook(
         project,
