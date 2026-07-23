@@ -179,9 +179,6 @@ def run_specify_runtime(
         check=False,
     )
     output = (result.stdout or "").strip()
-    if check and result.returncode != 0:
-        detail = (result.stderr or output or f"{RUNTIME_COMMAND} failed").strip()
-        raise SpecifyRuntimeError(f"{RUNTIME_COMMAND} {' '.join(args)} failed: {detail}")
     if not output:
         if result.returncode != 0:
             detail = (result.stderr or f"{RUNTIME_COMMAND} failed").strip()
@@ -197,8 +194,32 @@ def run_specify_runtime(
         raise SpecifyRuntimeError(f"{RUNTIME_COMMAND} {' '.join(args)} returned non-object JSON")
     if args[:1] == ["cognition"]:
         data = payload.get("data")
-        if _is_runtime_envelope(payload) and isinstance(data, dict):
-            return data
+        if _is_runtime_envelope(payload):
+            envelope_status = str(payload.get("status") or "").strip().lower()
+            if (
+                check
+                and result.returncode != 0
+                and envelope_status not in {"blocked", "repairable-block"}
+            ):
+                detail = str(
+                    result.stderr
+                    or payload.get("summary")
+                    or output
+                    or f"{RUNTIME_COMMAND} failed"
+                ).strip()
+                raise SpecifyRuntimeError(
+                    f"{RUNTIME_COMMAND} {' '.join(args)} failed: {detail}"
+                )
+            if isinstance(data, dict):
+                return data
+    if check and result.returncode != 0:
+        detail = str(
+            result.stderr
+            or payload.get("summary")
+            or output
+            or f"{RUNTIME_COMMAND} failed"
+        ).strip()
+        raise SpecifyRuntimeError(f"{RUNTIME_COMMAND} {' '.join(args)} failed: {detail}")
     return payload
 
 

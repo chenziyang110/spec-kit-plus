@@ -59,6 +59,8 @@ def test_runtime_fallback_release_smokes_namespaced_cognition_commands():
     )
 
     assert 'bin/specify-runtime-linux-amd64 --help | grep -q "cognition"' in content
+    assert "ref: ${{ github.event.release.tag_name }}" in content
+    assert "fetch-depth: 0" in content
     assert 'SOURCE_REVISION="$(git rev-parse HEAD)"' in content
     assert "tools/specify-runtime/internal/buildinfo.SourceRevision=${SOURCE_REVISION}" in content
     assert "tools/specify-runtime/internal/buildinfo.BuildDirty=false" in content

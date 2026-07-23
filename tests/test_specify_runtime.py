@@ -223,6 +223,89 @@ def test_runtime_runner_unwraps_cognition_envelope_for_existing_python_consumers
     assert result == {"freshness": "fresh", "readiness": "query_ready"}
 
 
+@pytest.mark.parametrize("status", ["blocked", "repairable-block"])
+def test_runtime_runner_returns_structured_cognition_blockers(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    status: str,
+) -> None:
+    runtime = _load_runtime()
+    binary = _write_executable(tmp_path / RUNTIME_BINARY_NAME)
+    monkeypatch.setattr(
+        runtime,
+        "resolve_specify_runtime_binary",
+        lambda project_root=None: [str(binary)],
+    )
+    blocker = {
+        "status": status,
+        "readiness": "blocked",
+        "error_code": "unsupported_legacy_runtime",
+        "recommended_next_action": "run_map_scan_build",
+    }
+
+    def fake_run(command: list[str], **kwargs: object) -> SimpleNamespace:
+        return SimpleNamespace(
+            returncode=10,
+            stdout=json.dumps(
+                {
+                    "status": status,
+                    "summary": "project cognition command did not complete",
+                    "data": blocker,
+                    "items": [],
+                    "blockers": [],
+                    "show_argv": [],
+                    "next_argv": [],
+                }
+            ),
+            stderr="",
+        )
+
+    monkeypatch.setattr(runtime.subprocess, "run", fake_run)
+
+    result = runtime.run_specify_runtime(
+        ["cognition", "check", "--format", "json"], cwd=tmp_path
+    )
+
+    assert result == blocker
+
+
+def test_runtime_runner_still_raises_for_cognition_usage_errors(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    runtime = _load_runtime()
+    binary = _write_executable(tmp_path / RUNTIME_BINARY_NAME)
+    monkeypatch.setattr(
+        runtime,
+        "resolve_specify_runtime_binary",
+        lambda project_root=None: [str(binary)],
+    )
+
+    def fake_run(command: list[str], **kwargs: object) -> SimpleNamespace:
+        return SimpleNamespace(
+            returncode=2,
+            stdout=json.dumps(
+                {
+                    "status": "usage-error",
+                    "summary": "invalid cognition arguments",
+                    "data": {"error": "missing input"},
+                    "items": [],
+                    "blockers": [],
+                    "show_argv": [],
+                    "next_argv": [],
+                }
+            ),
+            stderr="",
+        )
+
+    monkeypatch.setattr(runtime.subprocess, "run", fake_run)
+
+    with pytest.raises(runtime.SpecifyRuntimeError, match="invalid cognition arguments"):
+        runtime.run_specify_runtime(
+            ["cognition", "query", "--format", "json"], cwd=tmp_path
+        )
+
+
 def test_runtime_runner_can_install_when_missing(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
