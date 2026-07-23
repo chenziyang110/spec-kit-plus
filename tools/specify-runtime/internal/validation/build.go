@@ -26,13 +26,16 @@ func ValidateBuild(paths rt.Paths) GatePayload {
 		".specify/project-cognition/status.json",
 	}
 	payload := GatePayload{
-		Status:       "ok",
-		Gate:         "build_acceptance",
-		Readiness:    "query_ready",
-		Errors:       []string{},
-		Warnings:     []string{},
-		CheckedPaths: required,
-		Details:      map[string]any{},
+		Status:              "ok",
+		Gate:                "build_acceptance",
+		Readiness:           "query_ready",
+		CompletionAllowed:   true,
+		BypassAllowed:       false,
+		ErrorClassification: "none",
+		Errors:              []string{},
+		Warnings:            []string{},
+		CheckedPaths:        required,
+		Details:             map[string]any{},
 	}
 	requiredErrors := []string{}
 	for _, rel := range required {
@@ -101,6 +104,8 @@ func ValidateBuild(paths rt.Paths) GatePayload {
 	if len(payload.Errors) > 0 {
 		payload.Status = "blocked"
 		payload.Readiness = "blocked"
+		payload.CompletionAllowed = false
+		payload.ErrorClassification = "build_integrity"
 	}
 	return payload
 }

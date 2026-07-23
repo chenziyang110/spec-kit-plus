@@ -240,6 +240,62 @@ def test_claude_hook_infers_map_update_active_context(tmp_path):
     assert inferred["feature_dir"] == str(feature_dir)
 
 
+def test_claude_hook_infers_project_cognition_map_scan_active_context(tmp_path):
+    module = _load_claude_hook_dispatch_module()
+    project_root = tmp_path / "claude-hook-map-scan-runtime"
+    cognition_dir = project_root / ".specify" / "project-cognition"
+    workbench_dir = cognition_dir / "workbench"
+    workbench_dir.mkdir(parents=True, exist_ok=True)
+    (workbench_dir / "map-state.md").write_text(
+        "\n".join(
+            [
+                "---",
+                "active_command: sp-map-scan",
+                "status: scanning",
+                "---",
+                "",
+                "# Project Cognition Map State",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    inferred = module._infer_active_context(project_root)
+
+    assert inferred is not None
+    assert inferred["command_name"] == "map-scan"
+    assert inferred["feature_dir"] == str(cognition_dir)
+    assert inferred["state_file"] == str(workbench_dir / "map-state.md")
+
+
+def test_claude_hook_infers_project_cognition_map_build_active_context(tmp_path):
+    module = _load_claude_hook_dispatch_module()
+    project_root = tmp_path / "claude-hook-map-build-runtime"
+    cognition_dir = project_root / ".specify" / "project-cognition"
+    workbench_dir = cognition_dir / "workbench"
+    workbench_dir.mkdir(parents=True, exist_ok=True)
+    (workbench_dir / "map-state.md").write_text(
+        "\n".join(
+            [
+                "---",
+                "active_command: sp-map-build",
+                "status: building",
+                "---",
+                "",
+                "# Project Cognition Map State",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    inferred = module._infer_active_context(project_root)
+
+    assert inferred is not None
+    assert inferred["command_name"] == "map-build"
+    assert inferred["feature_dir"] == str(cognition_dir)
+    assert inferred["state_file"] == str(workbench_dir / "map-state.md")
+
+
 def test_claude_hook_treats_custom_complete_statuses_as_terminal(tmp_path):
     module = _load_claude_hook_dispatch_module()
     project_root = tmp_path / "claude-hook-terminal-compat"
@@ -982,7 +1038,7 @@ class TestClaudeIntegration:
         managed_read_entries = [
             entry
             for entry in merged["hooks"]["PreToolUse"]
-            if entry.get("matcher") == "Read|Write|Edit|MultiEdit"
+            if entry.get("matcher") == "Read"
             and any(
                 isinstance(hook, dict)
                 and self._expected_launcher_hook("pre-tool-read", script_type="sh")
@@ -991,6 +1047,18 @@ class TestClaudeIntegration:
             )
         ]
         assert len(managed_read_entries) == 1
+        managed_write_entries = [
+            entry
+            for entry in merged["hooks"]["PreToolUse"]
+            if entry.get("matcher") == "Write|Edit|MultiEdit"
+            and any(
+                isinstance(hook, dict)
+                and self._expected_launcher_hook("pre-tool-write", script_type="sh")
+                == hook
+                for hook in entry.get("hooks", [])
+            )
+        ]
+        assert len(managed_write_entries) == 1
 
         tracked = {
             path.resolve().relative_to(tmp_path.resolve()).as_posix()
@@ -1420,6 +1488,78 @@ class TestClaudeIntegration:
         finally:
             os.environ.clear()
             os.environ.update(old_env)
+
+        assert result is None
+
+    def test_claude_hook_dispatch_blocks_direct_runtime_owned_project_cognition_write(
+        self, tmp_path
+    ):
+        module = _load_claude_hook_dispatch_module()
+        cognition_dir = tmp_path / ".specify" / "project-cognition"
+        workbench_dir = cognition_dir / "workbench"
+        workbench_dir.mkdir(parents=True, exist_ok=True)
+        (workbench_dir / "map-state.md").write_text(
+            "---\nactive_command: sp-map-scan\nstatus: scanning\n---\n",
+            encoding="utf-8",
+        )
+        payload = {
+            "tool_name": "Write",
+            "tool_input": {"file_path": str(cognition_dir / "status.json")},
+        }
+
+        result = module._handle_pre_tool_write(tmp_path, payload)
+
+        assert result is not None
+        assert result["hookSpecificOutput"]["permissionDecision"] == "deny"
+        assert (
+            "runtime-owned project cognition path"
+            in result["hookSpecificOutput"]["permissionDecisionReason"]
+        )
+
+    def test_claude_hook_dispatch_blocks_packet_local_project_cognition_worker_result_write(
+        self, tmp_path
+    ):
+        module = _load_claude_hook_dispatch_module()
+        cognition_dir = tmp_path / ".specify" / "project-cognition"
+        workbench_dir = cognition_dir / "workbench"
+        worker_results_dir = workbench_dir / "worker-results"
+        worker_results_dir.mkdir(parents=True, exist_ok=True)
+        (workbench_dir / "map-state.md").write_text(
+            "---\nactive_command: sp-map-scan\nstatus: scanning\n---\n",
+            encoding="utf-8",
+        )
+        payload = {
+            "tool_name": "Write",
+            "tool_input": {"file_path": str(worker_results_dir / "core.json")},
+        }
+
+        result = module._handle_pre_tool_write(tmp_path, payload)
+
+        assert result is not None
+        assert result["hookSpecificOutput"]["permissionDecision"] == "deny"
+        assert (
+            "runtime-owned project cognition path"
+            in result["hookSpecificOutput"]["permissionDecisionReason"]
+        )
+
+    def test_claude_hook_dispatch_allows_packet_local_project_cognition_pending_result_write(
+        self, tmp_path
+    ):
+        module = _load_claude_hook_dispatch_module()
+        cognition_dir = tmp_path / ".specify" / "project-cognition"
+        workbench_dir = cognition_dir / "workbench"
+        pending_dir = workbench_dir / "pending-results"
+        pending_dir.mkdir(parents=True, exist_ok=True)
+        (workbench_dir / "map-state.md").write_text(
+            "---\nactive_command: sp-map-build\nstatus: building\n---\n",
+            encoding="utf-8",
+        )
+        payload = {
+            "tool_name": "Write",
+            "tool_input": {"file_path": str(pending_dir / "lane-a.json")},
+        }
+
+        result = module._handle_pre_tool_write(tmp_path, payload)
 
         assert result is None
 
@@ -2183,6 +2323,308 @@ class TestClaudeIntegration:
             "Resume cue: run manual scenarios from quickstart.md to validate all user stories."
             in payload["systemMessage"]
         )
+
+    def test_claude_hook_dispatch_blocks_stop_when_map_scan_validate_artifacts_fails(
+        self, tmp_path, monkeypatch
+    ):
+        module = _load_claude_hook_dispatch_module()
+        cognition_dir = tmp_path / ".specify" / "project-cognition"
+        cognition_dir.mkdir(parents=True, exist_ok=True)
+        context = {
+            "command_name": "map-scan",
+            "feature_dir": str(cognition_dir),
+            "state_file": str(cognition_dir / "workbench" / "map-state.md"),
+        }
+        calls = []
+
+        monkeypatch.setattr(
+            module, "_infer_active_context", lambda _project_root: context
+        )
+
+        def fake_run_shared_hook(_project_root, args, **_kwargs):
+            calls.append(args)
+            if args[0] == "validate-artifacts":
+                return {
+                    "status": "blocked",
+                    "errors": ["validate-scan failed: blocked queue remains"],
+                    "warnings": [],
+                    "actions": [],
+                }
+            if args[0] == "monitor-context":
+                return {"status": "ok", "warnings": [], "actions": []}
+            return None
+
+        monkeypatch.setattr(module, "_run_shared_hook", fake_run_shared_hook)
+
+        payload = module._handle_stop_monitor(tmp_path, {})
+
+        assert payload["decision"] == "block"
+        assert "validate-scan failed" in payload["reason"]
+        assert calls[0] == [
+            "validate-artifacts",
+            "--command",
+            "map-scan",
+            "--feature-dir",
+            str(cognition_dir),
+        ]
+
+    def test_claude_hook_dispatch_blocks_stop_when_map_build_validate_artifacts_fails(
+        self, tmp_path, monkeypatch
+    ):
+        module = _load_claude_hook_dispatch_module()
+        cognition_dir = tmp_path / ".specify" / "project-cognition"
+        cognition_dir.mkdir(parents=True, exist_ok=True)
+        context = {
+            "command_name": "map-build",
+            "feature_dir": str(cognition_dir),
+            "state_file": str(cognition_dir / "workbench" / "map-state.md"),
+        }
+        calls = []
+
+        monkeypatch.setattr(
+            module, "_infer_active_context", lambda _project_root: context
+        )
+
+        def fake_run_shared_hook(_project_root, args, **_kwargs):
+            calls.append(args)
+            if args[0] == "validate-artifacts":
+                return {
+                    "status": "blocked",
+                    "errors": ["validate-build failed: query_ready gate not met"],
+                    "warnings": [],
+                    "actions": [],
+                }
+            if args[0] == "monitor-context":
+                return {"status": "ok", "warnings": [], "actions": []}
+            return None
+
+        monkeypatch.setattr(module, "_run_shared_hook", fake_run_shared_hook)
+
+        payload = module._handle_stop_monitor(tmp_path, {})
+
+        assert payload["decision"] == "block"
+        assert "validate-build failed" in payload["reason"]
+        assert calls[0] == [
+            "validate-artifacts",
+            "--command",
+            "map-build",
+            "--feature-dir",
+            str(cognition_dir),
+        ]
+
+    def test_claude_hook_dispatch_stop_uses_transcript_command_before_stale_map_state(
+        self, tmp_path, monkeypatch
+    ):
+        module = _load_claude_hook_dispatch_module()
+        cognition_dir = tmp_path / ".specify" / "project-cognition"
+        cognition_dir.mkdir(parents=True, exist_ok=True)
+        transcript_path = tmp_path / ".claude" / "transcripts" / "session.jsonl"
+        transcript_path.parent.mkdir(parents=True, exist_ok=True)
+        transcript_path.write_text(
+            "\n".join(
+                [
+                    json.dumps({"type": "user", "message": {"content": [{"type": "text", "text": "先做 $sp-map-scan"}]}}),
+                    json.dumps({"type": "assistant", "message": {"content": [{"type": "text", "text": "ok"}]}}),
+                    json.dumps({"type": "user", "message": {"content": [{"type": "text", "text": "现在继续 $sp-map-build"}]}}),
+                ])
+            + "\n",
+            encoding="utf-8",
+        )
+        stale_context = {
+            "command_name": "map-scan",
+            "feature_dir": str(cognition_dir),
+            "state_file": str(cognition_dir / "workbench" / "map-state.md"),
+        }
+        calls = []
+
+        monkeypatch.setattr(
+            module, "_infer_active_context", lambda _project_root: stale_context
+        )
+
+        def fake_run_shared_hook(_project_root, args, **_kwargs):
+            calls.append(args)
+            if args[0] == "validate-artifacts":
+                return {
+                    "status": "blocked",
+                    "errors": [f"{args[2]} blocked by validation"],
+                    "warnings": [],
+                    "actions": [],
+                }
+            return {"status": "ok", "warnings": [], "actions": []}
+
+        monkeypatch.setattr(module, "_run_shared_hook", fake_run_shared_hook)
+
+        payload = module._handle_stop_monitor(
+            tmp_path, {"transcript_path": str(transcript_path)}
+        )
+
+        assert payload["decision"] == "block"
+        assert "map-build blocked by validation" in payload["reason"]
+        assert calls[0] == [
+            "validate-artifacts",
+            "--command",
+            "map-build",
+            "--feature-dir",
+            str(cognition_dir),
+        ]
+
+    def test_claude_hook_dispatch_stop_uses_transcript_command_when_no_active_map_state(
+        self, tmp_path, monkeypatch
+    ):
+        module = _load_claude_hook_dispatch_module()
+        cognition_dir = tmp_path / ".specify" / "project-cognition"
+        cognition_dir.mkdir(parents=True, exist_ok=True)
+        transcript_path = tmp_path / ".claude" / "transcripts" / "session.jsonl"
+        transcript_path.parent.mkdir(parents=True, exist_ok=True)
+        transcript_path.write_text(
+            json.dumps(
+                {
+                    "type": "user",
+                    "message": {
+                        "content": [{"type": "text", "text": "run $sp-map-scan next"}]
+                    },
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        calls = []
+
+        monkeypatch.setattr(module, "_infer_active_context", lambda _project_root: None)
+
+        def fake_run_shared_hook(_project_root, args, **_kwargs):
+            calls.append(args)
+            if args[0] == "validate-artifacts":
+                return {
+                    "status": "blocked",
+                    "errors": ["map-scan transcript route blocked"],
+                    "warnings": [],
+                    "actions": [],
+                }
+            return {"status": "ok", "warnings": [], "actions": []}
+
+        monkeypatch.setattr(module, "_run_shared_hook", fake_run_shared_hook)
+
+        payload = module._handle_stop_monitor(
+            tmp_path, {"transcript_path": str(transcript_path)}
+        )
+
+        assert payload["decision"] == "block"
+        assert "map-scan transcript route blocked" in payload["reason"]
+        assert calls[0] == [
+            "validate-artifacts",
+            "--command",
+            "map-scan",
+            "--feature-dir",
+            str(cognition_dir),
+        ]
+
+    def test_claude_hook_dispatch_reads_nested_user_role_from_realistic_transcript(
+        self, tmp_path
+    ):
+        module = _load_claude_hook_dispatch_module()
+        transcript_path = tmp_path / ".claude" / "transcripts" / "session.jsonl"
+        transcript_path.parent.mkdir(parents=True, exist_ok=True)
+        transcript_path.write_text(
+            json.dumps(
+                {
+                    "type": "message",
+                    "message": {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": "现在执行 $sp-map-build"}
+                        ],
+                    },
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        context = module._map_context_from_transcript(
+            tmp_path, {"transcript_path": str(transcript_path)}
+        )
+
+        assert context is not None
+        assert context["command_name"] == "map-build"
+
+    def test_claude_hook_transcript_map_command_is_not_sticky_after_new_user_request(
+        self, tmp_path
+    ):
+        module = _load_claude_hook_dispatch_module()
+        transcript_path = tmp_path / ".claude" / "transcripts" / "session.jsonl"
+        transcript_path.parent.mkdir(parents=True, exist_ok=True)
+        transcript_path.write_text(
+            "\n".join(
+                [
+                    json.dumps(
+                        {
+                            "type": "user",
+                            "message": {
+                                "content": [
+                                    {"type": "text", "text": "run $sp-map-scan"}
+                                ]
+                            },
+                        }
+                    ),
+                    json.dumps(
+                        {
+                            "type": "user",
+                            "message": {
+                                "content": [
+                                    {
+                                        "type": "text",
+                                        "text": "现在处理一个无关的普通任务",
+                                    }
+                                ]
+                            },
+                        }
+                    ),
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        context = module._map_context_from_transcript(
+            tmp_path, {"transcript_path": str(transcript_path)}
+        )
+
+        assert context is None
+
+    def test_claude_hook_reads_bounded_tail_of_external_transcript(
+        self, tmp_path, monkeypatch
+    ):
+        module = _load_claude_hook_dispatch_module()
+        claude_config = tmp_path / "claude-config"
+        transcript_path = claude_config / "projects" / "demo" / "session.jsonl"
+        transcript_path.parent.mkdir(parents=True, exist_ok=True)
+        large_assistant_entry = json.dumps(
+            {
+                "type": "assistant",
+                "message": {"content": "x" * (module.TRANSCRIPT_READ_LIMIT_BYTES + 1024)},
+            }
+        )
+        map_entry = json.dumps(
+            {
+                "type": "user",
+                "message": {
+                    "content": [{"type": "text", "text": "继续 $sp-map-build"}]
+                },
+            }
+        )
+        transcript_path.write_text(
+            large_assistant_entry + "\n" + map_entry + "\n",
+            encoding="utf-8",
+        )
+        monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(claude_config))
+
+        context = module._map_context_from_transcript(
+            tmp_path / "project", {"transcript_path": str(transcript_path)}
+        )
+
+        assert context is not None
+        assert context["command_name"] == "map-build"
 
     def test_claude_hook_dispatch_session_start_builds_without_read_side_fallback(
         self, tmp_path

@@ -20,6 +20,9 @@ func TestValidateArtifactsDoesNotRequireStatusJSON(t *testing.T) {
 	if result.Status != "ok" {
 		t.Fatalf("Status = %q, want ok; errors=%#v", result.Status, result.Errors)
 	}
+	if !result.CompletionAllowed || result.BypassAllowed || result.ErrorClassification != "none" {
+		t.Fatalf("successful completion contract = %#v", result)
+	}
 	if !containsString(result.CheckedPaths, ".specify/project-cognition/workbench/repository-universe.json") {
 		t.Fatalf("CheckedPaths = %#v, want repository-universe.json", result.CheckedPaths)
 	}
@@ -86,6 +89,9 @@ func TestValidateArtifactsReportsUTF8BOM(t *testing.T) {
 	if result.Status != "blocked" {
 		t.Fatalf("Status = %q, want blocked; errors=%#v", result.Status, result.Errors)
 	}
+	if result.CompletionAllowed || result.BypassAllowed || result.ErrorClassification != "scan_evidence_integrity" {
+		t.Fatalf("blocked completion contract = %#v", result)
+	}
 	if !containsError(result.Errors, "coverage.json contains UTF-8 BOM") {
 		t.Fatalf("Errors = %#v, want UTF-8 BOM error", result.Errors)
 	}
@@ -124,6 +130,45 @@ func TestLoadRequiresSchedulerArtifacts(t *testing.T) {
 		if !containsError(result.Errors, want) {
 			t.Fatalf("Errors = %#v, want %q", result.Errors, want)
 		}
+	}
+}
+
+func TestValidateV2ScanRejectsHandAuthoredAcceptanceWithoutRuntimeReceipt(t *testing.T) {
+	paths := scanArtifactTestPaths(t)
+	writeMinimalScanPackage(t, paths)
+	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "workbench", "scan-queue.json"), []byte(`{
+		"protocol":"map_scan_workbench.v2",
+		"generation_id":"GEN-hand-authored",
+		"scan_set_path":".specify/project-cognition/tmp/scan-files.json",
+		"packets":[{
+			"packet_id":"lane-1",
+			"state":"accepted",
+			"attempt_id":"GEN-hand-authored-lane-1-attempt-001",
+			"assigned_paths":["src/app.go"],
+			"result_handoff_path":".specify/project-cognition/workbench/worker-results/lane-1.json"
+		}]
+	}`))
+	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "workbench", "worker-results", "lane-1.json"), []byte(`{
+		"protocol":"map_scan_result.v2",
+		"packet_id":"lane-1",
+		"attempt_id":"GEN-hand-authored-lane-1-attempt-001",
+		"sequence":1,
+		"family_id":"app",
+		"assigned_paths":["src/app.go"],
+		"paths_read":["src/app.go"],
+		"ledger":{"todo":[],"doing":[],"done":["src/app.go"],"blocked":[],"overflow":[]},
+		"coverage":[{"path":"src/app.go","outcome":"read","evidence_ids":["E-001"]}],
+		"confidence":"high",
+		"acceptance":"pass"
+	}`))
+
+	result := Validate(paths, ValidateOptions{RequireStatusJSON: false})
+
+	if result.Status != "blocked" || result.CompletionAllowed || result.BypassAllowed {
+		t.Fatalf("hand-authored v2 acceptance contract = %#v, want blocked", result)
+	}
+	if !containsError(result.Errors, "requires a runtime acceptance receipt from scan-accept or scan-yield") {
+		t.Fatalf("Errors = %#v, want missing runtime acceptance receipt", result.Errors)
 	}
 }
 

@@ -1263,7 +1263,7 @@ def test_advanced_integration_repair_installs_and_rebinds_missing_cognition_runt
         binary.parent.mkdir(parents=True)
         binary.write_text("binary", encoding="utf-8")
         monkeypatch.setattr(
-            "specify_cli.specify_runtime.ensure_binary", lambda: binary
+            "specify_cli.specify_runtime.ensure_binary", lambda force=False: binary
         )
         repaired = runner.invoke(
             app,

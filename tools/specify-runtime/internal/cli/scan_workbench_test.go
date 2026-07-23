@@ -56,6 +56,12 @@ func TestScanPrepareAndAcceptCommands(t *testing.T) {
 	if attemptID == "" {
 		t.Fatalf("scan-lease output has no attempt_id: %#v", lease)
 	}
+	if lease["result_protocol"] != "map_scan_result.v2" || lease["required_acceptance"] != "partial" {
+		t.Fatalf("scan-lease output has no machine-readable result contract: %#v", lease)
+	}
+	if lease["result_submission_path"] != ".specify/project-cognition/workbench/pending-results/lane-001.json" {
+		t.Fatalf("scan-lease result_submission_path = %#v", lease["result_submission_path"])
+	}
 
 	resultPath := filepath.Join(root, ".specify", "project-cognition", "workbench", "pending-results", "lane-001.json")
 	writeCLIJSON(t, resultPath, acceptedCLIWorkerResult("lane-001", attemptID, "src/app.go"))
@@ -65,7 +71,7 @@ func TestScanPrepareAndAcceptCommands(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("scan-accept code = %d stderr=%s stdout=%s", code, stderr.String(), stdout.String())
 	}
-	if got, want := strings.TrimSpace(stdout.String()), `{"status":"accepted","packet_id":"lane-001","accepted_path_count":1,"pending_packets":0,"worker_result_path":".specify/project-cognition/workbench/worker-results/lane-001.json","next_action":"validate_scan"}`; got != want {
+	if got, want := strings.TrimSpace(stdout.String()), `{"status":"accepted","packet_id":"lane-001","accepted_path_count":1,"pending_packets":0,"worker_result_path":".specify/project-cognition/workbench/worker-results/lane-001.json","completion_allowed":false,"completion_gate":"validate_scan","next_action":"validate_scan"}`; got != want {
 		t.Fatalf("scan-accept stdout = %q, want %q", got, want)
 	}
 
@@ -145,11 +151,99 @@ func TestScanStatusReportsCompactLeaseCounts(t *testing.T) {
 	if remaining, ok := status["estimated_remaining_tokens"].(float64); !ok || remaining <= 0 {
 		t.Fatalf("estimated_remaining_tokens = %#v, want positive number", status["estimated_remaining_tokens"])
 	}
+	if status["stage_state"] != "packets_pending" || status["completion_allowed"] != false || status["completion_gate"] != "validate_scan" {
+		t.Fatalf("scan-status completion contract = %#v", status)
+	}
 	output := stdout.String()
 	for _, forbidden := range append([]string{"assigned_paths"}, files...) {
 		if strings.Contains(output, forbidden) {
 			t.Fatalf("compact scan-status leaked %q: %s", forbidden, output)
 		}
+	}
+}
+
+func TestScanPrepareReturnsTypedForceRebuildRecovery(t *testing.T) {
+	root := t.TempDir()
+	for _, rel := range []string{".specify/project-cognition/tmp", "src"} {
+		if err := os.MkdirAll(filepath.Join(root, filepath.FromSlash(rel)), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(root, "src", "app.go"), []byte("package app\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	writeCLIJSON(t, filepath.Join(root, ".specify", "project-cognition", "tmp", "scan-files.json"), map[string]any{
+		"files": []string{"src/app.go"},
+	})
+	if err := os.MkdirAll(filepath.Join(root, ".specify", "project-cognition", "workbench"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	old, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(root); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(old) })
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"scan-prepare", "--format", "json"}, &stdout, &stderr, "test")
+	if code != 1 {
+		t.Fatalf("scan-prepare code=%d stderr=%s stdout=%s", code, stderr.String(), stdout.String())
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatalf("decode scan-prepare output: %v; output=%s", err, stdout.String())
+	}
+	if payload["recovery_action"] != scanWorkbenchForceRebuildAction {
+		t.Fatalf("recovery_action = %#v, want %q; payload=%#v", payload["recovery_action"], scanWorkbenchForceRebuildAction, payload)
+	}
+	if payload["completion_allowed"] != false || payload["bypass_allowed"] != false || payload["error_classification"] != "scan_workbench_contract" {
+		t.Fatalf("completion contract = %#v", payload)
+	}
+	if argv, ok := payload["recovery_argv"].([]any); !ok || len(argv) < 5 || argv[3] != "--force" {
+		t.Fatalf("recovery_argv = %#v, want scan-prepare --force", payload["recovery_argv"])
+	}
+}
+
+func TestScanStatusReturnsTypedLegacyWorkbenchRecovery(t *testing.T) {
+	root := t.TempDir()
+	workbench := filepath.Join(root, ".specify", "project-cognition", "workbench")
+	if err := os.MkdirAll(workbench, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeCLIJSON(t, filepath.Join(workbench, "scan-queue.json"), map[string]any{
+		"packets": []map[string]any{},
+	})
+
+	old, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(root); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(old) })
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"scan-status", "--format", "json"}, &stdout, &stderr, "test")
+	if code != 1 {
+		t.Fatalf("scan-status code=%d stderr=%s stdout=%s", code, stderr.String(), stdout.String())
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatalf("decode scan-status output: %v; output=%s", err, stdout.String())
+	}
+	if payload["recovery_action"] != scanWorkbenchBackupRebuildAction {
+		t.Fatalf("recovery_action = %#v, want %q; payload=%#v", payload["recovery_action"], scanWorkbenchBackupRebuildAction, payload)
+	}
+	if payload["completion_allowed"] != false || payload["bypass_allowed"] != false || payload["error_classification"] != "scan_workbench_contract" {
+		t.Fatalf("completion contract = %#v", payload)
+	}
+	if detail, _ := payload["recovery_detail"].(string); !strings.Contains(detail, "instead of editing queue JSON by hand") {
+		t.Fatalf("recovery_detail = %#v, want no-manual-edit guidance", payload["recovery_detail"])
 	}
 }
 

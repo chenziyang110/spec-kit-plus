@@ -3586,6 +3586,8 @@ def test_map_workflow_templates_define_graph_native_lifecycle() -> None:
     assert "project-cognition" in content
     assert 'choose_subagent_dispatch(command_name="map-scan"' in content
     assert 'choose_subagent_dispatch(command_name="map-build"' in content
+    assert "mandatory subagent lanes are read-only verification lanes only" in content.lower()
+    assert "do not dispatch model-authored graph construction lanes" in content.lower()
     assert "build or refresh `DEBUG-HANDBOOK.md` and `BUILD-HANDBOOK.md`" not in content
     assert "runtime handbook output contract" not in content.lower()
 

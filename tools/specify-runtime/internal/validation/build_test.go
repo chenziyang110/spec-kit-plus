@@ -93,6 +93,9 @@ func TestValidateBuildAcceptsGreenfieldEmptyBaseline(t *testing.T) {
 	if payload.Status != "ok" {
 		t.Fatalf("payload = %#v", payload)
 	}
+	if !payload.CompletionAllowed || payload.BypassAllowed || payload.ErrorClassification != "none" {
+		t.Fatalf("successful build completion contract = %#v", payload)
+	}
 	if payload.Details["baseline_kind"] != rt.BaselineKindGreenfieldEmpty {
 		t.Fatalf("details baseline_kind = %#v", payload.Details["baseline_kind"])
 	}
@@ -132,6 +135,9 @@ func TestValidateBuildBlocksGreenfieldMetadataKindMismatch(t *testing.T) {
 
 	if payload.Status != "blocked" {
 		t.Fatalf("payload = %#v", payload)
+	}
+	if payload.CompletionAllowed || payload.BypassAllowed || payload.ErrorClassification != "build_integrity" {
+		t.Fatalf("blocked build completion contract = %#v", payload)
 	}
 	if !hasValidationError(payload.Errors, `baseline_kind mismatch: DB metadata has "brownfield_full", active generation has "greenfield_empty"`) {
 		t.Fatalf("errors = %#v", payload.Errors)

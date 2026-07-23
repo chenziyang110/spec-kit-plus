@@ -719,6 +719,53 @@ class TestIntegrationRepair:
             for issue in report.remaining_issues
         )
 
+    def test_repair_rechecks_runtime_when_binding_drifted(
+        self,
+        tmp_path,
+        monkeypatch,
+    ):
+        project = tmp_path / "project"
+        (project / ".specify").mkdir(parents=True)
+        forced: list[bool] = []
+        runtime_binary = project / "runtime" / (
+            "specify-runtime.exe" if os.name == "nt" else "specify-runtime"
+        )
+        runtime_binary.parent.mkdir(parents=True)
+        runtime_binary.write_text("runtime", encoding="utf-8")
+
+        monkeypatch.setattr(
+            "specify_cli.launcher.write_project_specify_launcher_config",
+            lambda project_root: None,
+        )
+        monkeypatch.setattr(
+            "specify_cli.launcher.load_runtime_launcher",
+            lambda project_root: object(),
+        )
+        monkeypatch.setattr(
+            "specify_cli.launcher.runtime_launcher_is_compatible",
+            lambda project_root, launcher: False,
+        )
+        monkeypatch.setattr(
+            "specify_cli.specify_runtime.ensure_binary",
+            lambda force=False: forced.append(force) or runtime_binary,
+        )
+        monkeypatch.setattr(
+            "specify_cli.specify_runtime.write_project_launcher_config",
+            lambda project_root, binary: project_root / ".specify" / "config.json",
+        )
+        monkeypatch.setattr(
+            cli_module,
+            "_install_shared_infra",
+            lambda *args, **kwargs: True,
+        )
+
+        cli_module._repair_active_integration_runtime_assets(
+            project,
+            script_type="ps",
+        )
+
+        assert forced == [False]
+
     def test_partial_repair_tutorial_uses_external_runtime_for_wrapper_recovery(
         self,
         tmp_path,

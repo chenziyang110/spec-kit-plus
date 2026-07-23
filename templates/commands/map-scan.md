@@ -36,6 +36,21 @@ Use `execution_model: subagent-mandatory`.
 Use `dispatch_shape: one-subagent | parallel-subagents`.
 Use `execution_surface: native-subagents`.
 
+## Completion Authority
+
+`scan-status` reports workbench control state; `status=ok` is not scan
+completion. When every packet is accepted it reports
+`stage_state=validation_required`, `completion_allowed=false`, and
+`completion_gate=validate_scan`.
+
+Only `{{specify-subcmd:specify-runtime cognition validate-scan --format json}}`
+may authorize completion. Report success and hand off to `sp-map-build` only
+when it returns `status=ok` and `readiness=scan_ready`. A blocked validator is
+an evidence-integrity blocker, including when the reported defect is a schema,
+identity, path-accounting, or evidence-reference mismatch. Its machine contract
+sets `completion_allowed=false`, `bypass_allowed=false`, and
+`error_classification=scan_evidence_integrity`.
+
 ## Process
 
 - Before repository inventory, run `{{specify-subcmd:specify-runtime cognition generate-ignore --format json}}`. If it creates `.specify/project-cognition/.cognitionignore`, ask the user to review the starter suggestions and wait for confirmation before continuing.
@@ -47,6 +62,12 @@ Use `execution_surface: native-subagents`.
   safety reserves, and deterministically renders bounded packets. Estimated
   token cost is the primary packing constraint; path count and byte limits are
   secondary guards.
+- If `scan-prepare` or `scan-status` returns
+  `error_classification=scan_workbench_contract`, preserve its
+  `recovery_action`, `recovery_detail`, and `recovery_argv`. For a legacy or
+  incompatible queue, back up the existing workbench and use the returned
+  `scan-prepare --force` action only after explicitly abandoning its accepted
+  and pending results. Do not edit queue JSON or write a normalization script.
 - Build a value-weighted evidence baseline before any graph reconstruction work
   begins. The runtime classifies every non-excluded candidate path as `P0`,
   `P1`, `P2`, or `P3`, keeps related paths together when the budget permits, and
@@ -75,7 +96,13 @@ Use `execution_surface: native-subagents`.
   `{{specify-subcmd:specify-runtime cognition scan-accept --packet-id <packet-id> --attempt-id <attempt-id> --format json}}`. The runtime validates the
   attempt, merges accepted packet-local data atomically, and computes the
   authoritative remaining set as assigned paths minus runtime-accepted terminal
-  paths. A yield or partial result requeues only that remaining set; dispatch a
+  paths. For every V2 acceptance it also freezes the submitted partial result
+  under `workbench/accepted-submissions/` and writes a digest-bound
+  `workbench/acceptance-receipts/<packet-id>.json` covering the workbench
+  generation, packet, attempt, sequence, submission, and canonical result.
+  Leaders and workers must never create, copy, normalize, or repair either
+  runtime-owned acceptance surface by hand. A yield or partial result requeues
+  only that remaining set; dispatch a
   new subagent for the remaining paths from the next `scan-lease` task brief.
   If a worker disconnects or stops before yielding, use the active packet and
   attempt identifiers returned by `scan-status` with `scan-requeue`; accepted
@@ -377,6 +404,15 @@ but new scan artifacts must write `rows`; do not maintain separate `rows` and
   skeleton. The worker records concrete path outcomes and confidence only in
   that designated packet-local surface, then submits it through
   `scan-checkpoint`; do not reproduce a stable JSON schema in the prompt.
+- Workers must copy the supplied JSON skeleton and write only the designated
+  packet-local pending result.
+- Worker-authored `acceptance` remains `partial` even when the packet-local work
+  is complete. The runtime derives `pass` only after `scan-accept` validates the
+  full attempt; workers must not self-declare `acceptance: pass`.
+- `validate-scan` requires the matching runtime-authored V2 packet acceptance
+  receipt and frozen submission snapshot. A missing receipt, mismatched
+  generation/attempt/sequence, or changed submission/canonical digest is an
+  evidence-integrity failure, not a harmless formatting issue.
 - Each runtime-accepted checkpoint identifies its packet and attempt and
   contains a non-empty set of concrete completed path results. `scan-accept`
   closes an attempt only after all assigned paths have an accepted terminal
@@ -570,6 +606,9 @@ Before reporting completion:
   boundary and target ledgers, accepted packet artifacts, evidence, coverage, and
   provisional graph inputs; any later canonical mutation makes the receipt
   stale and requires `validate-scan` again
-- if `validate-scan` returns `status=blocked`, report the blocking errors and do not claim the scan package is build-ready
+- if `validate-scan` returns `status=blocked`, report the exact blocking errors
+  and typed recovery action, then stop; do not say format issues are harmless,
+  do not say they leave completeness unaffected, do not claim the scan package
+  is build-ready, and do not hand off to `sp-map-build`
 - confirm that the scan still has not published final cognition truth
 - report any open uncertainty that `sp-map-build` must reconcile

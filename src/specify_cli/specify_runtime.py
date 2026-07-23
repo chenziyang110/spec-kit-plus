@@ -25,6 +25,7 @@ from specify_cli.launcher import (
 REPO = "chenziyang110/spec-kit-plus"
 EXPECTED_RUNTIME_PROTOCOL = "specify-runtime.v1"
 SOURCE_BUILD_MARKER_VERSION = 1
+RUNTIME_LAUNCHER_BINDING_VERSION = 1
 REQUIRED_CAPABILITIES = (
     "api.handshake",
     "api.list",
@@ -315,11 +316,24 @@ def _bundled_runtime_source() -> Path | None:
     module_dir = Path(__file__).resolve().parent
     candidates = [
         module_dir / "core_pack" / "tools" / RUNTIME_COMMAND,
-        module_dir.parent.parent / "tools" / RUNTIME_COMMAND,
+        _local_runtime_source_checkout(),
     ]
     for candidate in candidates:
-        if (candidate / "go.mod").is_file() and (candidate / "main.go").is_file():
+        if (
+            candidate is not None
+            and (candidate / "go.mod").is_file()
+            and (candidate / "main.go").is_file()
+        ):
             return candidate
+    return None
+
+
+def _local_runtime_source_checkout() -> Path | None:
+    """Return the runtime source only when this module lives in a repo checkout."""
+
+    candidate = Path(__file__).resolve().parent.parent.parent / "tools" / RUNTIME_COMMAND
+    if (candidate / "go.mod").is_file() and (candidate / "main.go").is_file():
+        return candidate
     return None
 
 
@@ -364,6 +378,57 @@ def _runtime_contract_fingerprint() -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
+def current_runtime_binding_metadata() -> dict[str, Any]:
+    """Describe when the current Specify install requires a source-aligned runtime."""
+
+    from specify_cli.launcher import resolve_specify_launcher_spec
+
+    launcher = resolve_specify_launcher_spec()
+    source_dir = _bundled_runtime_source()
+    local_source_dir = _local_runtime_source_checkout()
+    metadata: dict[str, Any] = {
+        "binding_version": RUNTIME_LAUNCHER_BINDING_VERSION,
+        "runtime_contract_sha256": _runtime_contract_fingerprint(),
+        "specify_launcher_kind": launcher.kind,
+        "source_build_required": False,
+    }
+    if launcher.kind == "source_bound":
+        metadata["specify_launcher_argv"] = list(launcher.argv)
+        if source_dir is not None:
+            metadata["runtime_source_sha256"] = _source_fingerprint(source_dir)
+            metadata["source_build_required"] = True
+    elif launcher.kind == "local_environment" and local_source_dir is not None:
+        metadata["runtime_source_sha256"] = _source_fingerprint(local_source_dir)
+        metadata["source_build_required"] = True
+    return metadata
+
+
+def runtime_binding_metadata_matches(
+    persisted: object,
+    current: dict[str, Any] | None = None,
+) -> bool:
+    """Return whether a persisted runtime binding still matches the current source."""
+
+    current = current or current_runtime_binding_metadata()
+    if not bool(current.get("source_build_required")):
+        return True
+    if not isinstance(persisted, dict):
+        return False
+    return (
+        persisted.get("binding_version") == current.get("binding_version")
+        and persisted.get("runtime_contract_sha256")
+        == current.get("runtime_contract_sha256")
+        and persisted.get("runtime_source_sha256")
+        == current.get("runtime_source_sha256")
+        and persisted.get("specify_launcher_kind")
+        == current.get("specify_launcher_kind")
+        and persisted.get("specify_launcher_argv")
+        == current.get("specify_launcher_argv")
+        and bool(persisted.get("source_build_required"))
+        == bool(current.get("source_build_required"))
+    )
+
+
 def _write_source_build_marker(binary: Path, source_dir: Path) -> None:
     marker = {
         "marker_version": SOURCE_BUILD_MARKER_VERSION,
@@ -397,6 +462,12 @@ def _source_build_marker_matches(binary: Path) -> bool:
 
 
 def _cached_binary_is_compatible(binary: Path) -> bool:
+    binding = current_runtime_binding_metadata()
+    if bool(binding.get("source_build_required")):
+        return _source_build_marker_matches(binary) and _binary_is_compatible(
+            binary,
+            allow_dirty=_allow_dirty_runtime(),
+        )
     if _source_build_marker_matches(binary):
         return True
     return _binary_is_compatible(binary, allow_dirty=_allow_dirty_runtime())
@@ -474,6 +545,7 @@ def ensure_binary(version: str = DEFAULT_VERSION, force: bool = False) -> Path:
     cache = cache_dir()
     cache.mkdir(parents=True, exist_ok=True)
     dest = cached_executable()
+    binding = current_runtime_binding_metadata()
     if dest.exists() and not force and _cached_binary_is_compatible(dest):
         return dest
 
@@ -481,6 +553,12 @@ def ensure_binary(version: str = DEFAULT_VERSION, force: bool = False) -> Path:
         dest = cached_executable()
         if dest.exists() and not force and _cached_binary_is_compatible(dest):
             return dest
+        if bool(binding.get("source_build_required")):
+            return _build_supported_binary_from_source(
+                dest,
+                version,
+                "the current Specify installation requires a source-aligned runtime",
+            )
 
         candidate_fd, candidate_name = tempfile.mkstemp(
             prefix=f".{dest.name}.", suffix=".candidate", dir=cache

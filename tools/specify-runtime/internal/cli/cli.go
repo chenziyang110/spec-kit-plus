@@ -38,7 +38,9 @@ import (
 const (
 	deltaGitProbeTimeout = 5 * time.Second
 	// exitCodeBlocked distinguishes an actionable workflow stop from a runtime failure.
-	exitCodeBlocked = 10
+	exitCodeBlocked                  = 10
+	scanWorkbenchForceRebuildAction  = "project_cognition.scan_workbench_force_rebuild"
+	scanWorkbenchBackupRebuildAction = "project_cognition.scan_workbench_backup_and_rebuild"
 )
 
 type stringList []string
@@ -671,6 +673,9 @@ func scanPrepareCommand(args []string, stdout io.Writer, stderr io.Writer, paths
 		Force:              *force,
 	})
 	if err != nil {
+		if handled := writeScanWorkbenchRecoveryJSON(stdout, err); handled {
+			return 1
+		}
 		return writeCompactErrorJSON(stdout, err)
 	}
 	return writeCompactJSON(stdout, payload)
@@ -810,9 +815,44 @@ func scanStatusCommand(args []string, stdout io.Writer, stderr io.Writer, paths 
 	}
 	payload, err := scanworkbench.Status(paths)
 	if err != nil {
+		if handled := writeScanWorkbenchRecoveryJSON(stdout, err); handled {
+			return 1
+		}
 		return writeCompactErrorJSON(stdout, err)
 	}
 	return writeCompactJSON(stdout, payload)
+}
+
+func writeScanWorkbenchRecoveryJSON(w io.Writer, err error) bool {
+	if err == nil {
+		return false
+	}
+	message := err.Error()
+	payload := map[string]any{
+		"status":               "blocked",
+		"readiness":            rt.BlockedReadiness,
+		"completion_allowed":   false,
+		"bypass_allowed":       false,
+		"error_classification": "scan_workbench_contract",
+		"errors":               []string{message},
+		"warnings":             []string{},
+	}
+	switch {
+	case strings.Contains(message, "rerun scan-prepare with --force"):
+		payload["recovery_action"] = scanWorkbenchForceRebuildAction
+		payload["recovery_detail"] = "backup any needed scan workbench artifacts, then rerun scan-prepare with --force to rebuild the workbench"
+		payload["recovery_argv"] = []string{"specify-runtime", "cognition", "scan-prepare", "--force", "--format", "json"}
+	case strings.Contains(message, "v2 workbench identity is missing"), strings.Contains(message, "requires a v2 workbench queue"):
+		payload["recovery_action"] = scanWorkbenchBackupRebuildAction
+		payload["recovery_detail"] = "backup the existing scan workbench directory, then rebuild it with scan-prepare --force instead of editing queue JSON by hand"
+		payload["recovery_argv"] = []string{"specify-runtime", "cognition", "scan-prepare", "--force", "--format", "json"}
+	case strings.Contains(message, "unsupported legacy status must be removed or repaired before scan-prepare"):
+		payload["recovery_action"] = runtimegate.RepairStatusAction
+		payload["recovery_detail"] = "repair or replace the incompatible status.json before rebuilding scan workbench state"
+	default:
+		return false
+	}
+	return writeCompactJSON(w, payload) == 0
 }
 
 func scanAcceptCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {
@@ -1018,6 +1058,8 @@ func validateScanCommandWithValidator(args []string, stdout io.Writer, stderr io
 		if receiptErr != nil {
 			payload.Status = "blocked"
 			payload.Readiness = rt.BlockedReadiness
+			payload.CompletionAllowed = false
+			payload.ErrorClassification = "scan_receipt_integrity"
 			payload.Errors = append(payload.Errors, fmt.Sprintf("write scan-receipt.json: %v", receiptErr))
 		}
 	}

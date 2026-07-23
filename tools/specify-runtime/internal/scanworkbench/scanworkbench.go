@@ -2,6 +2,7 @@ package scanworkbench
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -20,8 +21,9 @@ import (
 )
 
 const (
-	defaultPacketSize   = 25
-	workbenchProtocolV2 = "map_scan_workbench.v2"
+	defaultPacketSize           = 25
+	workbenchProtocolV2         = "map_scan_workbench.v2"
+	acceptanceReceiptProtocolV1 = "map_scan_acceptance.v1"
 )
 
 const (
@@ -65,6 +67,8 @@ type AcceptPayload struct {
 	AcceptedPathCount int    `json:"accepted_path_count"`
 	PendingPackets    int    `json:"pending_packets"`
 	WorkerResultPath  string `json:"worker_result_path"`
+	CompletionAllowed bool   `json:"completion_allowed"`
+	CompletionGate    string `json:"completion_gate"`
 	NextAction        string `json:"next_action"`
 }
 
@@ -150,6 +154,20 @@ type workerResult struct {
 	Claims        []map[string]any `json:"claims,omitempty"`
 	Confidence    string           `json:"confidence"`
 	Acceptance    string           `json:"acceptance"`
+}
+
+type acceptanceReceipt struct {
+	Protocol              string `json:"protocol"`
+	WorkbenchGenerationID string `json:"workbench_generation_id"`
+	PacketID              string `json:"packet_id"`
+	AttemptID             string `json:"attempt_id"`
+	Sequence              int    `json:"sequence"`
+	SourceResultPath      string `json:"source_result_path"`
+	SubmissionPath        string `json:"submission_path"`
+	SubmissionSHA256      string `json:"submission_sha256"`
+	CanonicalResultPath   string `json:"canonical_result_path"`
+	CanonicalResultSHA256 string `json:"canonical_result_sha256"`
+	AcceptedPathCount     int    `json:"accepted_path_count"`
 }
 
 // Prepare converts the runtime-produced scan set into deterministic boundary,
@@ -387,6 +405,11 @@ func acceptUnlocked(paths rt.Paths, input AcceptInput) (AcceptPayload, error) {
 	if err := readJSON(resultPath, &result); err != nil {
 		return AcceptPayload{}, fmt.Errorf("read worker result: %w", err)
 	}
+	submittedResult := result
+	submissionValue, submissionDigest, err := readNormalizedJSONFile(resultPath)
+	if err != nil {
+		return AcceptPayload{}, fmt.Errorf("hash worker result: %w", err)
+	}
 	if isV2 {
 		if result.Protocol != "map_scan_result.v2" {
 			return AcceptPayload{}, fmt.Errorf("packet %s result protocol %q must be map_scan_result.v2", packetID, result.Protocol)
@@ -411,8 +434,18 @@ func acceptUnlocked(paths rt.Paths, input AcceptInput) (AcceptPayload, error) {
 	if err := validateWorkerResult(packet, result, allAssignedPaths); err != nil {
 		return AcceptPayload{}, err
 	}
+	submissionPath := acceptanceSubmissionPath(paths, resultPath)
 	if packet.State == "accepted" {
-		return acceptAlreadyCommitted(paths, queue, packet, result)
+		return acceptAlreadyCommitted(
+			paths,
+			queue,
+			packet,
+			submissionPath,
+			submissionValue,
+			submissionDigest,
+			submittedResult,
+			result,
+		)
 	}
 	if err := ensureEvidenceCompatible(paths, packetID, result.Evidence); err != nil {
 		return AcceptPayload{}, err
@@ -449,6 +482,32 @@ func acceptUnlocked(paths rt.Paths, input AcceptInput) (AcceptPayload, error) {
 	canonicalResult := filepath.Join(paths.RuntimeDir, "workbench", "worker-results", packetID+".json")
 	if err := ensureWorkerResultCompatible(canonicalResult, result); err != nil {
 		return AcceptPayload{}, err
+	}
+	submissionSnapshotPath := acceptanceSubmissionSnapshotPath(paths, packetID)
+	if isV2 {
+		if err := ensureNormalizedJSONCompatible(submissionSnapshotPath, submissionValue); err != nil {
+			return AcceptPayload{}, err
+		}
+	}
+	var receipt acceptanceReceipt
+	if isV2 {
+		receipt, err = newAcceptanceReceipt(
+			queue,
+			packet,
+			submissionPath,
+			submissionDigest,
+			submittedResult,
+			result,
+		)
+		if err != nil {
+			return AcceptPayload{}, err
+		}
+		if err := ensureAcceptanceReceiptCompatible(
+			acceptanceReceiptPath(paths, packetID),
+			receipt,
+		); err != nil {
+			return AcceptPayload{}, err
+		}
 	}
 
 	if nodes["nodes"], err = mergeObjectRows(nodes["nodes"], result.Nodes, "id", "node"); err != nil {
@@ -506,6 +565,19 @@ func acceptUnlocked(paths rt.Paths, input AcceptInput) (AcceptPayload, error) {
 		{canonicalResult, result},
 		{filepath.Join(paths.RuntimeDir, "workbench", "coverage-ledger.json"), coverageLedger},
 		{filepath.Join(paths.RuntimeDir, "workbench", "handoff-ledger.json"), handoffs},
+	}
+	if isV2 {
+		writes = append(
+			writes,
+			struct {
+				path  string
+				value any
+			}{submissionSnapshotPath, submissionValue},
+			struct {
+				path  string
+				value any
+			}{acceptanceReceiptPath(paths, packetID), receipt},
+		)
 	}
 	for _, item := range writes {
 		if err := writeJSONAtomic(item.path, item.value); err != nil {
@@ -837,7 +909,16 @@ func referencesMatchingEvidencePath(refs []string, path string, evidence map[str
 	return false
 }
 
-func acceptAlreadyCommitted(paths rt.Paths, queue queueFile, packet queuePacket, incoming workerResult) (AcceptPayload, error) {
+func acceptAlreadyCommitted(
+	paths rt.Paths,
+	queue queueFile,
+	packet queuePacket,
+	submissionPath string,
+	submissionValue any,
+	submissionDigest string,
+	submitted workerResult,
+	incoming workerResult,
+) (AcceptPayload, error) {
 	canonicalPath := filepath.Join(paths.RuntimeDir, "workbench", "worker-results", packet.PacketID+".json")
 	var canonical workerResult
 	if err := readJSON(canonicalPath, &canonical); err != nil {
@@ -845,6 +926,33 @@ func acceptAlreadyCommitted(paths rt.Paths, queue queueFile, packet queuePacket,
 	}
 	if !sameJSON(canonical, incoming) {
 		return AcceptPayload{}, fmt.Errorf("accepted packet %s result conflict", packet.PacketID)
+	}
+	if queue.Protocol == workbenchProtocolV2 {
+		submissionSnapshotPath := acceptanceSubmissionSnapshotPath(paths, packet.PacketID)
+		if err := ensureNormalizedJSONCompatible(submissionSnapshotPath, submissionValue); err != nil {
+			return AcceptPayload{}, err
+		}
+		receipt, err := newAcceptanceReceipt(
+			queue,
+			packet,
+			submissionPath,
+			submissionDigest,
+			submitted,
+			canonical,
+		)
+		if err != nil {
+			return AcceptPayload{}, err
+		}
+		receiptPath := acceptanceReceiptPath(paths, packet.PacketID)
+		if err := ensureAcceptanceReceiptCompatible(receiptPath, receipt); err != nil {
+			return AcceptPayload{}, err
+		}
+		if err := writeJSONAtomic(submissionSnapshotPath, submissionValue); err != nil {
+			return AcceptPayload{}, err
+		}
+		if err := writeJSONAtomic(receiptPath, receipt); err != nil {
+			return AcceptPayload{}, err
+		}
 	}
 
 	// An accepted queue is canonical. Repair human-readable mirrors when
@@ -854,6 +962,123 @@ func acceptAlreadyCommitted(paths rt.Paths, queue queueFile, packet queuePacket,
 		_ = renderHumanState(paths, queue, ledger)
 	}
 	return acceptedPayload(queue, packet), nil
+}
+
+func newAcceptanceReceipt(
+	queue queueFile,
+	packet queuePacket,
+	submissionPath string,
+	submissionDigest string,
+	submitted workerResult,
+	canonical workerResult,
+) (acceptanceReceipt, error) {
+	canonicalDigest, err := normalizedJSONDigest(canonical)
+	if err != nil {
+		return acceptanceReceipt{}, fmt.Errorf("hash packet %s canonical result: %w", packet.PacketID, err)
+	}
+	return acceptanceReceipt{
+		Protocol:              acceptanceReceiptProtocolV1,
+		WorkbenchGenerationID: queue.GenerationID,
+		PacketID:              packet.PacketID,
+		AttemptID:             submitted.AttemptID,
+		Sequence:              submitted.Sequence,
+		SourceResultPath:      submissionPath,
+		SubmissionPath:        canonicalAcceptedSubmissionPath(packet.PacketID),
+		SubmissionSHA256:      submissionDigest,
+		CanonicalResultPath:   canonicalWorkerResultPath(packet.PacketID),
+		CanonicalResultSHA256: canonicalDigest,
+		AcceptedPathCount:     len(normalizedSet(canonical.AssignedPaths)),
+	}, nil
+}
+
+func ensureAcceptanceReceiptCompatible(path string, incoming acceptanceReceipt) error {
+	var existing acceptanceReceipt
+	if err := readJSON(path, &existing); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		return fmt.Errorf("read acceptance receipt: %w", err)
+	}
+	if !sameJSON(existing, incoming) {
+		return fmt.Errorf("packet %s acceptance receipt conflict", incoming.PacketID)
+	}
+	return nil
+}
+
+func acceptanceReceiptPath(paths rt.Paths, packetID string) string {
+	return filepath.Join(paths.RuntimeDir, "workbench", "acceptance-receipts", packetID+".json")
+}
+
+func acceptanceSubmissionSnapshotPath(paths rt.Paths, packetID string) string {
+	return filepath.Join(paths.RuntimeDir, "workbench", "accepted-submissions", packetID+".json")
+}
+
+func canonicalAcceptedSubmissionPath(packetID string) string {
+	return ".specify/project-cognition/workbench/accepted-submissions/" + packetID + ".json"
+}
+
+func acceptanceSubmissionPath(paths rt.Paths, resultPath string) string {
+	absoluteRoot, rootErr := filepath.Abs(paths.Root)
+	absoluteResult, resultErr := filepath.Abs(resultPath)
+	if rootErr != nil || resultErr != nil {
+		return "external-result"
+	}
+	relative, err := filepath.Rel(absoluteRoot, absoluteResult)
+	if err != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(os.PathSeparator)) || filepath.IsAbs(relative) {
+		return "external-result"
+	}
+	return filepath.ToSlash(relative)
+}
+
+func normalizedJSONDigest(value any) (string, error) {
+	encoded, err := json.Marshal(value)
+	if err != nil {
+		return "", err
+	}
+	var normalized any
+	if err := json.Unmarshal(encoded, &normalized); err != nil {
+		return "", err
+	}
+	encoded, err = json.Marshal(normalized)
+	if err != nil {
+		return "", err
+	}
+	sum := sha256.Sum256(encoded)
+	return fmt.Sprintf("%x", sum[:]), nil
+}
+
+func readNormalizedJSONFile(path string) (any, string, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, "", err
+	}
+	var value any
+	if err := json.Unmarshal(data, &value); err != nil {
+		return nil, "", err
+	}
+	digest, err := normalizedJSONDigest(value)
+	if err != nil {
+		return nil, "", err
+	}
+	return value, digest, nil
+}
+
+func ensureNormalizedJSONCompatible(path string, incoming any) error {
+	_, existingDigest, err := readNormalizedJSONFile(path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		return err
+	}
+	incomingDigest, err := normalizedJSONDigest(incoming)
+	if err != nil {
+		return err
+	}
+	if existingDigest != incomingDigest {
+		return fmt.Errorf("accepted submission snapshot conflict at %s", path)
+	}
+	return nil
 }
 
 func acceptedPayload(queue queueFile, packet queuePacket) AcceptPayload {
@@ -873,6 +1098,8 @@ func acceptedPayload(queue queueFile, packet queuePacket) AcceptPayload {
 		AcceptedPathCount: len(packet.AssignedPaths),
 		PendingPackets:    pending,
 		WorkerResultPath:  canonicalWorkerResultPath(packet.PacketID),
+		CompletionAllowed: false,
+		CompletionGate:    "validate_scan",
 		NextAction:        nextAction,
 	}
 }
@@ -1141,6 +1368,8 @@ func resetWorkbench(paths rt.Paths) error {
 		filepath.Join(paths.RuntimeDir, "provisional"),
 		filepath.Join(paths.RuntimeDir, "workbench", "scan-packets"),
 		filepath.Join(paths.RuntimeDir, "workbench", "worker-results"),
+		filepath.Join(paths.RuntimeDir, "workbench", "acceptance-receipts"),
+		filepath.Join(paths.RuntimeDir, "workbench", "accepted-submissions"),
 		filepath.Join(paths.RuntimeDir, "workbench", "pending-results"),
 		filepath.Join(paths.RuntimeDir, "workbench", "checkpoints"),
 	} {

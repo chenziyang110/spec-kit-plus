@@ -13,25 +13,31 @@ import (
 )
 
 type GatePayload struct {
-	Status       string         `json:"status"`
-	Gate         string         `json:"gate"`
-	Readiness    string         `json:"readiness"`
-	Errors       []string       `json:"errors"`
-	Warnings     []string       `json:"warnings"`
-	CheckedPaths []string       `json:"checked_paths"`
-	Details      map[string]any `json:"details"`
+	Status              string         `json:"status"`
+	Gate                string         `json:"gate"`
+	Readiness           string         `json:"readiness"`
+	CompletionAllowed   bool           `json:"completion_allowed"`
+	BypassAllowed       bool           `json:"bypass_allowed"`
+	ErrorClassification string         `json:"error_classification"`
+	Errors              []string       `json:"errors"`
+	Warnings            []string       `json:"warnings"`
+	CheckedPaths        []string       `json:"checked_paths"`
+	Details             map[string]any `json:"details"`
 }
 
 func ValidateScan(paths rt.Paths) GatePayload {
 	result := scanartifacts.Validate(paths, scanartifacts.ValidateOptions{RequireStatusJSON: true})
 	return GatePayload{
-		Status:       result.Status,
-		Gate:         result.Gate,
-		Readiness:    result.Readiness,
-		Errors:       result.Errors,
-		Warnings:     result.Warnings,
-		CheckedPaths: result.CheckedPaths,
-		Details:      result.Details,
+		Status:              result.Status,
+		Gate:                result.Gate,
+		Readiness:           result.Readiness,
+		CompletionAllowed:   result.CompletionAllowed,
+		BypassAllowed:       result.BypassAllowed,
+		ErrorClassification: result.ErrorClassification,
+		Errors:              result.Errors,
+		Warnings:            result.Warnings,
+		CheckedPaths:        result.CheckedPaths,
+		Details:             result.Details,
 	}
 }
 

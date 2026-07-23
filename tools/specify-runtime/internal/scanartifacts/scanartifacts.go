@@ -20,16 +20,24 @@ type ValidateOptions struct {
 	RequireStatusJSON bool
 }
 
-const maxReportedValidationErrors = 50
+const (
+	maxReportedValidationErrors = 50
+	mapScanWorkbenchProtocolV2  = "map_scan_workbench.v2"
+	mapScanAcceptanceReceiptV1  = "map_scan_acceptance.v1"
+	mapScanResultProtocolV2     = "map_scan_result.v2"
+)
 
 type Result struct {
-	Status       string         `json:"status"`
-	Gate         string         `json:"gate"`
-	Readiness    string         `json:"readiness"`
-	Errors       []string       `json:"errors"`
-	Warnings     []string       `json:"warnings"`
-	CheckedPaths []string       `json:"checked_paths"`
-	Details      map[string]any `json:"details"`
+	Status              string         `json:"status"`
+	Gate                string         `json:"gate"`
+	Readiness           string         `json:"readiness"`
+	CompletionAllowed   bool           `json:"completion_allowed"`
+	BypassAllowed       bool           `json:"bypass_allowed"`
+	ErrorClassification string         `json:"error_classification"`
+	Errors              []string       `json:"errors"`
+	Warnings            []string       `json:"warnings"`
+	CheckedPaths        []string       `json:"checked_paths"`
+	Details             map[string]any `json:"details"`
 }
 
 type Package struct {
@@ -97,9 +105,13 @@ type queueRow struct {
 	AssignedPaths     []string
 	ParentPacketID    string
 	ResultHandoffPath string
+	AttemptID         string
 }
 
 type queueState struct {
+	protocol              string
+	generationID          string
+	scanSetPath           string
 	rowsByPacket          map[string]queueRow
 	childrenByParent      map[string][]string
 	returnedPackets       map[string]bool
@@ -249,6 +261,8 @@ func Load(paths rt.Paths, opts ValidateOptions) (Package, Result) {
 	if len(result.Errors) > 0 {
 		result.Status = "blocked"
 		result.Readiness = "blocked"
+		result.CompletionAllowed = false
+		result.ErrorClassification = "scan_evidence_integrity"
 	}
 	result.Details["required_artifacts"] = result.CheckedPaths
 	result.Details["boundary"] = map[string]any{
@@ -348,13 +362,16 @@ func validateJSONObjectFile(path string, label string) error {
 
 func newResult(checked []string) Result {
 	return Result{
-		Status:       "ok",
-		Gate:         "scan_acceptance",
-		Readiness:    "scan_ready",
-		Errors:       []string{},
-		Warnings:     []string{},
-		CheckedPaths: checked,
-		Details:      map[string]any{},
+		Status:              "ok",
+		Gate:                "scan_acceptance",
+		Readiness:           "scan_ready",
+		CompletionAllowed:   true,
+		BypassAllowed:       false,
+		ErrorClassification: "none",
+		Errors:              []string{},
+		Warnings:            []string{},
+		CheckedPaths:        checked,
+		Details:             map[string]any{},
 	}
 }
 
@@ -433,6 +450,21 @@ func loadQueueState(paths rt.Paths, result *Result) queueState {
 	if err != nil {
 		result.Errors = append(result.Errors, err.Error())
 	} else {
+		if obj, ok := raw.(map[string]any); ok {
+			state.protocol = normalizedString(obj["protocol"])
+			state.generationID = normalizedString(obj["generation_id"])
+			state.scanSetPath = normalizedString(obj["scan_set_path"])
+			if state.protocol != "" && state.protocol != mapScanWorkbenchProtocolV2 {
+				result.Errors = append(result.Errors, fmt.Sprintf(
+					"scan-queue.json protocol %q is not supported",
+					state.protocol,
+				))
+			}
+			if state.protocol == mapScanWorkbenchProtocolV2 &&
+				(state.generationID == "" || state.scanSetPath == "") {
+				result.Errors = append(result.Errors, "v2 scan-queue.json requires generation_id and scan_set_path")
+			}
+		}
 		rows, err := arrayRowsForKeys(raw, "packets", "rows", "queue")
 		if err != nil {
 			result.Errors = append(result.Errors, "scan-queue.json: "+err.Error())
@@ -457,6 +489,7 @@ func loadQueueState(paths rt.Paths, result *Result) queueState {
 					AssignedPaths:     normalizedStringSlice(row["assigned_paths"]),
 					ParentPacketID:    parentPacketID,
 					ResultHandoffPath: normalizedString(row["result_handoff_path"]),
+					AttemptID:         normalizedString(row["attempt_id"]),
 				}
 				validateConcretePathArray("scan-queue packet "+packetID, "assigned_paths", row["assigned_paths"], result)
 				for _, assignedPath := range state.rowsByPacket[packetID].AssignedPaths {
@@ -1549,6 +1582,9 @@ func validateWorkerResults(paths rt.Paths, boundary Boundary, pkg Package, queue
 			validateQueueWorkerAssignedPaths(packetID, row, normalizedStringSlice(packet["assigned_paths"]), result)
 			validateQueueResultHandoffPath(packetID, row, entry.Name(), result)
 		}
+		if queue.protocol == mapScanWorkbenchProtocolV2 {
+			validateRuntimeAcceptanceReceipt(paths, queue, row, packetID, entry.Name(), packet, result)
+		}
 		if !queue.returnedPackets[packetID] {
 			result.Errors = append(result.Errors, fmt.Sprintf("worker result %s has no matching return event in handoff-ledger.json", packetID))
 		} else {
@@ -1589,6 +1625,181 @@ func validateWorkerResults(paths rt.Paths, boundary Boundary, pkg Package, queue
 		}
 	}
 	return summary
+}
+
+func validateRuntimeAcceptanceReceipt(
+	paths rt.Paths,
+	queue queueState,
+	row queueRow,
+	packetID string,
+	resultFileName string,
+	packet map[string]any,
+	result *Result,
+) {
+	receiptName := packetID + ".json"
+	receiptPath := filepath.Join(paths.RuntimeDir, "workbench", "acceptance-receipts", receiptName)
+	raw, err := readJSONFile(receiptPath, "acceptance-receipts/"+receiptName)
+	if err != nil {
+		result.Errors = append(result.Errors, fmt.Sprintf(
+			"packet %s requires a runtime acceptance receipt from scan-accept or scan-yield: %v",
+			packetID,
+			err,
+		))
+		return
+	}
+	receipt, ok := raw.(map[string]any)
+	if !ok {
+		result.Errors = append(result.Errors, fmt.Sprintf(
+			"acceptance receipt for packet %s must contain a top-level JSON object",
+			packetID,
+		))
+		return
+	}
+
+	if normalizedString(receipt["protocol"]) != mapScanAcceptanceReceiptV1 {
+		result.Errors = append(result.Errors, fmt.Sprintf(
+			"acceptance receipt for packet %s protocol must be %s",
+			packetID,
+			mapScanAcceptanceReceiptV1,
+		))
+	}
+	if normalizedString(receipt["workbench_generation_id"]) != queue.generationID ||
+		queue.generationID == "" {
+		result.Errors = append(result.Errors, fmt.Sprintf(
+			"acceptance receipt for packet %s must match scan-queue generation_id",
+			packetID,
+		))
+	}
+	if normalizedString(receipt["packet_id"]) != packetID {
+		result.Errors = append(result.Errors, fmt.Sprintf(
+			"acceptance receipt for packet %s has mismatched packet_id",
+			packetID,
+		))
+	}
+
+	attemptID := normalizedString(packet["attempt_id"])
+	sequence := intFromValue(packet["sequence"])
+	if normalizedString(packet["protocol"]) != mapScanResultProtocolV2 ||
+		attemptID == "" ||
+		sequence < 1 {
+		result.Errors = append(result.Errors, fmt.Sprintf(
+			"runtime-accepted packet %s must retain map_scan_result.v2 protocol, attempt_id, and positive sequence",
+			packetID,
+		))
+	}
+	if row.AttemptID == "" || attemptID != row.AttemptID ||
+		normalizedString(receipt["attempt_id"]) != row.AttemptID {
+		result.Errors = append(result.Errors, fmt.Sprintf(
+			"acceptance receipt for packet %s must match the scan-queue and result attempt_id",
+			packetID,
+		))
+	}
+	if intFromValue(receipt["sequence"]) != sequence || sequence < 1 {
+		result.Errors = append(result.Errors, fmt.Sprintf(
+			"acceptance receipt for packet %s must match the result sequence",
+			packetID,
+		))
+	}
+
+	expectedCanonicalPath := canonicalWorkerResultPath(resultFileName)
+	if normalizedString(receipt["canonical_result_path"]) != expectedCanonicalPath {
+		result.Errors = append(result.Errors, fmt.Sprintf(
+			"acceptance receipt for packet %s canonical_result_path must match %s",
+			packetID,
+			expectedCanonicalPath,
+		))
+	}
+	if normalizedString(receipt["canonical_result_sha256"]) != hashNormalizedObject(packet) {
+		result.Errors = append(result.Errors, fmt.Sprintf(
+			"acceptance receipt for packet %s canonical result digest does not match worker-results/%s",
+			packetID,
+			resultFileName,
+		))
+	}
+	if intFromValue(receipt["accepted_path_count"]) != len(uniqueStrings(normalizedStringSlice(packet["assigned_paths"]))) {
+		result.Errors = append(result.Errors, fmt.Sprintf(
+			"acceptance receipt for packet %s accepted_path_count does not match the canonical result",
+			packetID,
+		))
+	}
+	validateAcceptanceSubmissionDigest(paths, packetID, attemptID, sequence, receipt, result)
+}
+
+func validateAcceptanceSubmissionDigest(
+	paths rt.Paths,
+	packetID string,
+	attemptID string,
+	sequence int,
+	receipt map[string]any,
+	result *Result,
+) {
+	submissionPath := normalizedString(receipt["submission_path"])
+	expectedSubmissionPath := ".specify/project-cognition/workbench/accepted-submissions/" + packetID + ".json"
+	cleanPath := filepath.ToSlash(filepath.Clean(filepath.FromSlash(submissionPath)))
+	if submissionPath == "" ||
+		cleanPath != submissionPath ||
+		submissionPath != expectedSubmissionPath {
+		result.Errors = append(result.Errors, fmt.Sprintf(
+			"acceptance receipt for packet %s submission_path must match %s",
+			packetID,
+			expectedSubmissionPath,
+		))
+		return
+	}
+	sourceResultPath := normalizedString(receipt["source_result_path"])
+	pendingPath := ".specify/project-cognition/workbench/pending-results/" + packetID + ".json"
+	checkpointPrefix := ".specify/project-cognition/workbench/checkpoints/" + packetID + "/" + attemptID + "/"
+	cleanSourcePath := filepath.ToSlash(filepath.Clean(filepath.FromSlash(sourceResultPath)))
+	if sourceResultPath == "" ||
+		(sourceResultPath != "external-result" &&
+			(cleanSourcePath != sourceResultPath ||
+				(sourceResultPath != pendingPath && !strings.HasPrefix(sourceResultPath, checkpointPrefix)))) {
+		result.Errors = append(result.Errors, fmt.Sprintf(
+			"acceptance receipt for packet %s source_result_path is not a runtime-designated result path",
+			packetID,
+		))
+	}
+	info, err := os.Lstat(filepath.Join(paths.Root, filepath.FromSlash(submissionPath)))
+	if err != nil || info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
+		result.Errors = append(result.Errors, fmt.Sprintf(
+			"acceptance receipt for packet %s submission artifact is missing or unsafe",
+			packetID,
+		))
+		return
+	}
+	raw, err := readJSONFile(
+		filepath.Join(paths.Root, filepath.FromSlash(submissionPath)),
+		"accepted submission for "+packetID,
+	)
+	if err != nil {
+		result.Errors = append(result.Errors, err.Error())
+		return
+	}
+	submission, ok := raw.(map[string]any)
+	if !ok {
+		result.Errors = append(result.Errors, fmt.Sprintf(
+			"accepted submission for packet %s must contain a top-level JSON object",
+			packetID,
+		))
+		return
+	}
+	if normalizedString(receipt["submission_sha256"]) != hashNormalizedObject(submission) {
+		result.Errors = append(result.Errors, fmt.Sprintf(
+			"acceptance receipt for packet %s submission digest does not match %s",
+			packetID,
+			submissionPath,
+		))
+	}
+	if normalizedString(submission["protocol"]) != mapScanResultProtocolV2 ||
+		normalizedString(submission["packet_id"]) != packetID ||
+		normalizedString(submission["attempt_id"]) != attemptID ||
+		intFromValue(submission["sequence"]) != sequence ||
+		normalizedString(submission["acceptance"]) != "partial" {
+		result.Errors = append(result.Errors, fmt.Sprintf(
+			"accepted submission for packet %s must retain the leased v2 partial-result identity",
+			packetID,
+		))
+	}
 }
 
 func validateScanPacketFiles(paths rt.Paths, result *Result) map[string]bool {

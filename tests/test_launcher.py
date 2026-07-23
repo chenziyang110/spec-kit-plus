@@ -14,6 +14,8 @@ from specify_cli.integrations.manifest import IntegrationManifest
 from specify_cli.launcher import (
     bind_project_launcher_payload,
     HookRuntimeSpec,
+    RUNTIME_LAUNCHER_CONFIG_KEY,
+    RUNTIME_LAUNCHER_BINDING_CONFIG_KEY,
     SPECIFY_PROJECT_LAUNCHER_POSIX,
     SPECIFY_PROJECT_LAUNCHER_WINDOWS,
     SPECIFY_RUNTIME_ID,
@@ -375,6 +377,95 @@ def test_runtime_config_rebuilds_untrusted_command(tmp_path):
     assert launcher.argv == (str(binary),)
     assert launcher.command == render_command((str(binary),))
     assert "INJECTED" not in launcher.command
+
+
+def test_write_runtime_launcher_config_persists_source_bound_binding_metadata(
+    tmp_path,
+    monkeypatch,
+):
+    binary_name = "specify-runtime.exe" if os.name == "nt" else "specify-runtime"
+    binary = tmp_path / binary_name
+    config_path = tmp_path / ".specify" / "config.json"
+    config_path.parent.mkdir(parents=True)
+    config_path.write_text(json.dumps({}), encoding="utf-8")
+    metadata = {
+        "binding_version": 1,
+        "specify_launcher_kind": "source_bound",
+        "specify_launcher_argv": ["uvx", "--from", TEST_SPECIFY_SOURCE, "specify"],
+        "runtime_contract_sha256": "contract",
+        "runtime_source_sha256": "source",
+        "source_build_required": True,
+    }
+    monkeypatch.setattr(
+        "specify_cli.specify_runtime.current_runtime_binding_metadata",
+        lambda: metadata,
+    )
+
+    written = launcher_module.write_runtime_launcher_config(tmp_path, binary)
+
+    assert written == config_path
+    payload = json.loads(config_path.read_text(encoding="utf-8"))
+    assert payload[RUNTIME_LAUNCHER_CONFIG_KEY]["argv"] == [str(binary.resolve())]
+    assert payload[RUNTIME_LAUNCHER_BINDING_CONFIG_KEY] == metadata
+
+
+def test_runtime_launcher_is_incompatible_when_source_bound_binding_drifted(
+    tmp_path,
+    monkeypatch,
+):
+    binary_name = "specify-runtime.exe" if os.name == "nt" else "specify-runtime"
+    binary = tmp_path / binary_name
+    binary.write_text("runtime", encoding="utf-8")
+    if os.name != "nt":
+        binary.chmod(binary.stat().st_mode | stat.S_IXUSR)
+    config_path = tmp_path / ".specify" / "config.json"
+    config_path.parent.mkdir(parents=True)
+    config_path.write_text(
+        json.dumps(
+            {
+                "runtime_launcher": {
+                    "command": str(binary),
+                    "argv": [str(binary)],
+                },
+                "runtime_launcher_binding": {
+                    "binding_version": 1,
+                    "specify_launcher_kind": "source_bound",
+                    "specify_launcher_argv": [
+                        "uvx",
+                        "--from",
+                        TEST_SPECIFY_SOURCE,
+                        "specify",
+                    ],
+                    "runtime_contract_sha256": "contract",
+                    "runtime_source_sha256": "old",
+                    "source_build_required": True,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        "specify_cli.specify_runtime.launcher_supports_required_commands",
+        lambda argv, cwd=None: True,
+    )
+    monkeypatch.setattr(
+        "specify_cli.specify_runtime.current_runtime_binding_metadata",
+        lambda: {
+            "binding_version": 1,
+            "specify_launcher_kind": "source_bound",
+            "specify_launcher_argv": [
+                "uvx",
+                "--from",
+                TEST_UPDATED_SPECIFY_SOURCE,
+                "specify",
+            ],
+            "runtime_contract_sha256": "contract",
+            "runtime_source_sha256": "new",
+            "source_build_required": True,
+        },
+    )
+
+    assert runtime_launcher_is_compatible(tmp_path) is False
 
 
 def test_resolve_specify_launcher_binds_normal_install_to_current_interpreter(
@@ -1248,6 +1339,10 @@ def test_runtime_launcher_resolves_project_relative_binary(
     monkeypatch.setattr(
         "specify_cli.specify_runtime.launcher_supports_required_commands",
         compatible,
+    )
+    monkeypatch.setattr(
+        "specify_cli.specify_runtime.current_runtime_binding_metadata",
+        lambda: {"source_build_required": False},
     )
 
     resolved = resolve_runtime_launcher_argv(tmp_path)

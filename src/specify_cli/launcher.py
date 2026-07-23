@@ -52,6 +52,7 @@ SPECIFY_BINDING_DISPATCH_METADATA = "dispatch.json"
 SPECIFY_BINDING_PLACEHOLDER = "__SPECIFY_BINDING_ID__"
 SPECIFY_REPAIR_MESSAGE_PLACEHOLDER = "__SPECIFY_REPAIR_MESSAGE__"
 RUNTIME_LAUNCHER_CONFIG_KEY = "runtime_launcher"
+RUNTIME_LAUNCHER_BINDING_CONFIG_KEY = "runtime_launcher_binding"
 SPECIFY_RUNTIME_UNAVAILABLE_MARKER = "SPECIFY_RUNTIME_LAUNCHER_UNAVAILABLE"
 HOOK_RUNTIME_ARGV_ENV = "SPECIFY_HOOK_RUNTIME_ARGV"
 HOOK_RUNTIME_COMMAND_ENV = "SPECIFY_HOOK_RUNTIME_COMMAND"
@@ -1372,9 +1373,19 @@ def runtime_launcher_is_compatible(
     argv = resolve_runtime_launcher_argv(project_root, launcher)
     if argv is None:
         return False
-    from .specify_runtime import launcher_supports_required_commands
+    from .specify_runtime import (
+        current_runtime_binding_metadata,
+        launcher_supports_required_commands,
+        runtime_binding_metadata_matches,
+    )
 
-    return launcher_supports_required_commands(argv, cwd=project_root)
+    if not launcher_supports_required_commands(argv, cwd=project_root):
+        return False
+    payload = _load_config(project_root / SPECIFY_CONFIG_FILE) or {}
+    return runtime_binding_metadata_matches(
+        payload.get(RUNTIME_LAUNCHER_BINDING_CONFIG_KEY),
+        current_runtime_binding_metadata(),
+    )
 
 
 def _normalize_command_text(command: str) -> str:
@@ -1888,6 +1899,8 @@ def write_project_specify_launcher_config(
 def write_runtime_launcher_config(project_root: Path, binary: str | Path) -> Path | None:
     """Persist the preferred ``specify-runtime`` binary into ``.specify/config.json``."""
 
+    from .specify_runtime import current_runtime_binding_metadata
+
     binary_path = Path(binary).expanduser()
     if not binary_path.is_absolute():
         binary_path = binary_path.resolve()
@@ -1901,10 +1914,15 @@ def write_runtime_launcher_config(project_root: Path, binary: str | Path) -> Pat
         return None
 
     desired = _launcher_payload(launcher)
-    if payload.get(RUNTIME_LAUNCHER_CONFIG_KEY) == desired:
+    binding = current_runtime_binding_metadata()
+    if (
+        payload.get(RUNTIME_LAUNCHER_CONFIG_KEY) == desired
+        and payload.get(RUNTIME_LAUNCHER_BINDING_CONFIG_KEY) == binding
+    ):
         return config_path
 
     payload[RUNTIME_LAUNCHER_CONFIG_KEY] = desired
+    payload[RUNTIME_LAUNCHER_BINDING_CONFIG_KEY] = binding
     config_path.parent.mkdir(parents=True, exist_ok=True)
     atomic_write_text(
         config_path,

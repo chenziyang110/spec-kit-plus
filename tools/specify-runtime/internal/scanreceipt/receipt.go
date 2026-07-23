@@ -240,6 +240,8 @@ func canonicalArtifactDigest(paths rt.Paths) (string, error) {
 	for _, dir := range []string{
 		filepath.Join(paths.RuntimeDir, "evidence"),
 		filepath.Join(paths.RuntimeDir, "workbench", "worker-results"),
+		filepath.Join(paths.RuntimeDir, "workbench", "accepted-submissions"),
+		filepath.Join(paths.RuntimeDir, "workbench", "acceptance-receipts"),
 	} {
 		if err := rejectSymlinksBelow(paths.RuntimeDir, dir); err != nil {
 			return "", err

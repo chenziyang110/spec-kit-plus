@@ -101,9 +101,15 @@ class ClaudeIntegration(SkillsIntegration):
             ],
             "PreToolUse": [
                 {
-                    "matcher": "Read|Write|Edit|MultiEdit",
+                    "matcher": "Read",
                     "hooks": [
                         cls._hook_dispatch_hook("pre-tool-read", script_type=script_type)
+                    ],
+                },
+                {
+                    "matcher": "Write|Edit|MultiEdit",
+                    "hooks": [
+                        cls._hook_dispatch_hook("pre-tool-write", script_type=script_type)
                     ],
                 },
                 {
@@ -158,6 +164,7 @@ class ClaudeIntegration(SkillsIntegration):
             f"{CLAUDE_HOOK_DISPATCH} post-tool-session-state",
             f"{CLAUDE_HOOK_DISPATCH} stop-monitor",
             f"{CLAUDE_HOOK_DISPATCH} pre-tool-read",
+            f"{CLAUDE_HOOK_DISPATCH} pre-tool-write",
             f"{CLAUDE_HOOK_DISPATCH} pre-tool-bash",
         )
 

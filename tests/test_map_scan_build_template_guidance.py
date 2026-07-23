@@ -24,9 +24,13 @@ def _assert_mandatory_subagent_guidance(content: str) -> None:
 def test_map_scan_and_build_templates_require_mandatory_subagent_guidance() -> None:
     scan_content = _read("templates/commands/map-scan.md").lower()
     build_content = _read("templates/commands/map-build.md").lower()
+    build_normalized = " ".join(build_content.split())
 
     _assert_mandatory_subagent_guidance(scan_content)
     _assert_mandatory_subagent_guidance(build_content)
+    assert "mandatory subagent lanes are read-only verification lanes only" in build_normalized
+    assert "the leader invokes the deterministic runtime build chain" in build_normalized
+    assert "subagents must not create or edit scan artifacts" in build_normalized
 
     for content in (scan_content, build_content):
         assert "subagent_blocked" in content
@@ -135,6 +139,24 @@ def test_map_scan_template_defines_complete_scan_package_contract() -> None:
     assert "accepted packet-local path results" in lowered
     assert "runtime-generated packet-local task ledger and result skeleton" in lowered
     assert "do not reproduce a stable json schema in the prompt" in lowered
+    assert "copy the supplied json skeleton" in lowered
+    assert "write only the designated packet-local pending result" in lowered
+    assert "must not self-declare `acceptance: pass`" in lowered
+    assert "worker-authored `acceptance` remains `partial`" in lowered
+    assert "the runtime derives `pass` only after `scan-accept` validates" in lowered
+    assert "validate-scan` returns `status=blocked`" in content
+    assert "do not claim the scan package is build-ready" in lowered
+    assert "do not say format issues are harmless" in lowered
+    assert "do not say they leave completeness unaffected" in lowered
+    assert "stage_state=validation_required" in lowered
+    assert "completion_allowed=false" in lowered
+    assert "completion_gate=validate_scan" in lowered
+    assert "bypass_allowed=false" in lowered
+    assert "error_classification=scan_evidence_integrity" in lowered
+    assert "error_classification=scan_workbench_contract" in lowered
+    assert "preserve its `recovery_action`, `recovery_detail`, and `recovery_argv`" in lowered
+    assert "back up the existing workbench" in lowered
+    assert "do not edit queue json or write a normalization script" in lowered
 
     assert "current-runtime native subagents are the default" in lowered
     assert "choose_subagent_dispatch(command_name=\"map-scan\"" in lowered
@@ -215,10 +237,10 @@ def test_map_build_template_refuses_incomplete_scan_packages() -> None:
     assert "must not guess and continue" in lowered
     assert "Project Cognition Workbench State Protocol" in content
     assert "Validate Scan Inputs Before Execution" in content
-    assert "Compile And Validate MapBuildPacket Inputs" in content
+    assert "Compile And Validate MapBuildPacket Inputs" not in content
     assert "do not rebuild the scan from chat memory" in lowered
     assert "coverage-ledger.json` as the machine-readable row source" in content
-    assert "MapBuildPacket" in content
+    assert "MapBuildPacket" not in content
     assert "raw scan prose or raw Markdown checklist items alone" in content
     assert ".specify/project-cognition/workbench/worker-results/<packet-id>.json" in content
     assert "scan gap report" in lowered
@@ -234,12 +256,22 @@ def test_map_build_template_refuses_incomplete_scan_packages() -> None:
     assert "specify-runtime cognition publish-runtime-metadata --format json" not in content
     assert "specify-runtime cognition complete-refresh --format json" not in content
     assert "specify-runtime cognition validate-build --format json" in content
+    assert "specify-runtime cognition compass --intent implement" in content
     assert "validate-build" in lowered
     assert "path_index_to_included_ratio" in content
     assert "accepted_nonblocking_gap_paths" in content
     assert "must not set `freshness=fresh`" in lowered
     assert "must not set `readiness=query_ready`" in lowered
     assert "must not set `graph_ready=true`" in lowered
+    assert "if `validate-scan` returns `status=blocked`, stop" in lowered
+    assert "do not proceed to `build-from-scan`" in lowered
+    assert "do not write normalize/rebuild helper scripts" in lowered
+    assert "mandatory subagent lanes are read-only verification lanes only" in lowered
+    assert "do not dispatch model-authored graph construction lanes" in lowered
+    assert "stage_state=validation_required" in lowered
+    assert "completion_gate=validate_build" in lowered
+    assert "error_classification=build_integrity" in lowered
+    assert "bypass_allowed=false" in lowered
     assert "Freshness=ready" not in content
     assert "manual sql" in lowered
     assert "hand-picked node subsets" in lowered
@@ -258,6 +290,10 @@ def test_map_build_template_refuses_incomplete_scan_packages() -> None:
     assert "must not write `.cognitionignore`-excluded paths" in content
     build_shell = _read("templates/command-partials/map-build/shell.md")
     assert ".cognitionignore" in build_shell
+    build_shell_lowered = build_shell.lower()
+    assert "typed recovery" in build_shell_lowered
+    assert "`--force`" in build_shell
+    assert "explicitly abandons the old workbench" in build_shell_lowered
 
     required_phrases = [
         "every `critical` row is covered by active runtime path and route indexes",
@@ -299,6 +335,40 @@ def test_map_build_exposes_deterministic_proposal_compilation_gate() -> None:
         content = _read(path)
         assert "deterministic cognition proposal compiler" in content
         assert "before sqlite publication" in content.lower()
+
+
+def test_map_scan_worker_contract_requires_runtime_skeleton_and_partial_acceptance() -> None:
+    content = _read("templates/advanced-skills/spx-map-scan/references/scan-worker.md")
+    lowered = " ".join(content.lower().split())
+
+    assert "pending-results/<packet-id>.json" in content
+    assert "copy the supplied json skeleton" in lowered
+    assert "write only the designated packet-local pending result" in lowered
+    assert "keep worker-authored `acceptance` at `partial`" in lowered
+    assert "the runtime derives `pass` only after `scan-accept` validates the full result" in lowered
+    assert "do not self-declare `acceptance: pass`" in lowered
+    assert "do not run `scan-accept`" in lowered
+
+
+def test_classic_and_spx_map_build_flow_is_runtime_only_without_model_authored_build_lanes() -> None:
+    classic_build = _read("templates/commands/map-build.md").lower()
+    classic_partial = _read("templates/command-partials/map-build/shell.md").lower()
+    spx_build = _read("templates/advanced-skills/spx-map-build/skill.md").lower()
+    spx_gates = _read("templates/advanced-skills/spx-map-build/references/build-gates.md").lower()
+
+    for content in (classic_build, spx_build, spx_gates):
+        assert "validate-scan" in content
+        assert "build-from-scan" in content
+        assert "validate-build" in content
+        assert "compass" in content
+        assert "mapbuildpacket" not in content
+        assert "normalize/rebuild helper scripts" in content or "normalize/rebuild helper script" not in content
+
+    assert "validate-scan" in classic_partial
+    assert "build-from-scan" in classic_partial
+    assert "validate-build" in classic_partial
+    assert "compass" not in classic_partial
+    assert "mapbuildpacket" not in classic_partial
 
 
 def test_map_workflow_templates_require_project_concept_lexicon_signals() -> None:
@@ -545,8 +615,11 @@ def test_map_scan_and_build_require_a_receipt_bound_v2_handoff() -> None:
     for content in (scan, build, spx_scan, spx_build):
         assert "scan-receipt.json" in content
         assert "v2" in content
+        assert "acceptance-receipts/<packet-id>.json" in content
     assert "any later canonical mutation" in scan
     assert "current source-file bytes" in scan
+    assert "accepted-submissions/" in scan
+    assert "must never create, copy, normalize, or repair" in scan
     assert "absent or digest-mismatched" in build
 
 

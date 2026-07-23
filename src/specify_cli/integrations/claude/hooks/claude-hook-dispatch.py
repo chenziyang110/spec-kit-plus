@@ -46,6 +46,8 @@ ACTIVE_STATE_STATUSES = {
     "in_progress",
     "executing",
     "execution",
+    "scanning",
+    "building",
 }
 TERMINAL_STATE_STATUSES = {
     "resolved",
@@ -75,6 +77,8 @@ LEARNING_SIGNAL_FIELDS = {
     "scope_changes": "--scope-changes",
 }
 SHARED_HOOK_TIMEOUT_SECONDS = 5.0
+TRANSCRIPT_READ_LIMIT_BYTES = 512 * 1024
+TRANSCRIPT_LINE_LIMIT = 2000
 SHARED_HOOK_PAYLOAD_STATUSES = {"ok", "warn", "blocked", "repaired", "repairable-block"}
 SHARED_HOOK_BLOCKING_PAYLOAD_STATUSES = {"blocked", "repairable-block"}
 SharedHookClientStatus = Literal[
@@ -772,6 +776,27 @@ def _feature_root_candidates(project_root: Path) -> list[Path]:
 
 
 def _infer_active_context(project_root: Path) -> dict[str, str] | None:
+    cognition_map_state = (
+        project_root / ".specify" / "project-cognition" / "workbench" / "map-state.md"
+    )
+    cognition_text = _read_text(cognition_map_state)
+    if cognition_text:
+        active_command = (
+            _extract_frontmatter_field(cognition_text, "active_command")
+            or _extract_field(cognition_text, "active_command")
+        ).lower()
+        status = (
+            _extract_frontmatter_field(cognition_text, "status")
+            or _extract_field(cognition_text, "status")
+        ).lower()
+        mapped = WORKFLOW_COMMAND_MAP.get(active_command)
+        if mapped and _is_active_state_status(status):
+            return {
+                "command_name": mapped,
+                "feature_dir": str(project_root / ".specify" / "project-cognition"),
+                "state_file": str(cognition_map_state),
+            }
+
     implement_candidates: list[tuple[float, dict[str, str]]] = []
     for root in _feature_root_candidates(project_root):
         if not root.is_dir():
@@ -869,6 +894,18 @@ def _extract_tool_input(payload: dict[str, Any]) -> dict[str, Any]:
     return tool_input if isinstance(tool_input, dict) else {}
 
 
+def _extract_transcript_path(payload: dict[str, Any]) -> str:
+    candidates = (
+        payload.get("transcript_path"),
+        payload.get("transcriptPath"),
+    )
+    for candidate in candidates:
+        value = str(candidate or "").strip()
+        if value:
+            return value
+    return ""
+
+
 def _extract_read_path(tool_input: dict[str, Any]) -> str:
     for key in ("file_path", "path"):
         value = str(tool_input.get(key) or "").strip()
@@ -914,6 +951,14 @@ def _normalized_path_for_compare(project_root: Path, raw_path: str) -> str:
     return str(path.resolve()).replace("\\", "/").lower()
 
 
+def _path_is_relative_to(path: Path, root: Path) -> bool:
+    try:
+        path.relative_to(root)
+    except ValueError:
+        return False
+    return True
+
+
 def _is_state_repair_path(
     project_root: Path, context: dict[str, str] | None, target_path: str
 ) -> bool:
@@ -923,6 +968,153 @@ def _is_state_repair_path(
     return _normalized_path_for_compare(
         project_root, target_path
     ) == _normalized_path_for_compare(project_root, state_file)
+
+
+def _runtime_owned_cognition_write_denial(
+    project_root: Path, target_path: str
+) -> str:
+    if not target_path:
+        return ""
+    normalized_target = Path(_normalized_path_for_compare(project_root, target_path))
+    cognition_root = (
+        Path(_normalized_path_for_compare(project_root, ".specify/project-cognition"))
+    )
+    try:
+        normalized_target.relative_to(cognition_root)
+    except ValueError:
+        return ""
+
+    allowed_suffixes = (
+        Path("workbench/pending-results"),
+    )
+    for suffix in allowed_suffixes:
+        allowed_root = cognition_root / suffix
+        try:
+            normalized_target.relative_to(allowed_root)
+            return ""
+        except ValueError:
+            continue
+
+    return "runtime-owned project cognition path requires runtime-managed updates"
+
+
+def _iter_transcript_user_texts(transcript_path: Path) -> list[str]:
+    try:
+        if not transcript_path.is_file():
+            return []
+        size = transcript_path.stat().st_size
+        offset = max(0, size - TRANSCRIPT_READ_LIMIT_BYTES)
+        with transcript_path.open("rb") as handle:
+            handle.seek(offset)
+            data = handle.read(TRANSCRIPT_READ_LIMIT_BYTES)
+    except OSError:
+        return []
+    if offset:
+        _partial, separator, data = data.partition(b"\n")
+        if not separator:
+            return []
+    raw = data.decode("utf-8", errors="replace")
+
+    user_texts: list[str] = []
+    lines = raw.splitlines()
+    for raw_line in lines[-TRANSCRIPT_LINE_LIMIT:]:
+        line = raw_line.strip()
+        if not line:
+            continue
+        try:
+            payload = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(payload, dict):
+            continue
+        message = payload.get("message", payload)
+        if not isinstance(message, dict):
+            continue
+        entry_type = str(payload.get("role") or payload.get("type") or "").strip().lower()
+        message_role = str(message.get("role") or "").strip().lower()
+        effective_role = message_role or entry_type
+        if effective_role not in {"user", "human"}:
+            continue
+        content = message.get("content")
+        if isinstance(content, list):
+            parts: list[str] = []
+            for item in content:
+                if not isinstance(item, dict):
+                    continue
+                if str(item.get("type") or "").strip().lower() != "text":
+                    continue
+                text = str(item.get("text") or "").strip()
+                if text:
+                    parts.append(text)
+            if parts:
+                user_texts.append("\n".join(parts))
+                continue
+        text = str(
+            message.get("text")
+            or message.get("content")
+            or payload.get("text")
+            or ""
+        ).strip()
+        if text:
+            user_texts.append(text)
+    return user_texts
+
+
+def _map_command_from_text(text: str) -> str:
+    matches: list[tuple[int, str]] = []
+    for match in re.finditer(
+        r"(?i)(?:^|\s)[$/]sp-map-(build|scan)(?=$|[\s.,;:!?])",
+        str(text or ""),
+    ):
+        matches.append((match.start(), "map-" + match.group(1).lower()))
+    if not matches:
+        return ""
+    return max(matches, key=lambda item: item[0])[1]
+
+
+def _map_context_from_transcript(
+    project_root: Path, payload: dict[str, Any]
+) -> dict[str, str] | None:
+    transcript_raw = _extract_transcript_path(payload)
+    if not transcript_raw:
+        return None
+    transcript_path = Path(transcript_raw)
+    if not transcript_path.is_absolute():
+        transcript_path = project_root / transcript_path
+    try:
+        transcript_path = transcript_path.resolve()
+    except OSError:
+        return None
+
+    allowed_roots = [project_root.resolve()]
+    claude_config = str(os.environ.get("CLAUDE_CONFIG_DIR") or "").strip()
+    if claude_config:
+        allowed_roots.append(Path(claude_config).expanduser().resolve())
+    else:
+        allowed_roots.append((Path.home() / ".claude").resolve())
+    if not any(
+        _path_is_relative_to(transcript_path, allowed_root)
+        for allowed_root in allowed_roots
+    ):
+        return None
+
+    user_texts = _iter_transcript_user_texts(transcript_path)
+    if not user_texts:
+        return None
+    mapped = _map_command_from_text(user_texts[-1])
+    if not mapped:
+        return None
+    return {
+        "command_name": mapped,
+        "feature_dir": str(project_root / ".specify" / "project-cognition"),
+        "state_file": str(
+            project_root
+            / ".specify"
+            / "project-cognition"
+            / "workbench"
+            / "map-state.md"
+        ),
+    }
 
 
 def _is_validate_state_autofix_command(command: str) -> bool:
@@ -1192,6 +1384,15 @@ def _handle_pre_tool_write(
                 "permissionDecisionReason": "workflow-state repair is required before writing other files",
             }
         }
+    denial_reason = _runtime_owned_cognition_write_denial(project_root, target_path)
+    if denial_reason:
+        return {
+            "hookSpecificOutput": {
+                "hookEventName": "PreToolUse",
+                "permissionDecision": "deny",
+                "permissionDecisionReason": denial_reason,
+            }
+        }
     return None
 
 
@@ -1354,11 +1555,28 @@ def _handle_post_tool_session_state(
 
 
 def _handle_stop_monitor(
-    project_root: Path, _payload: dict[str, Any]
+    project_root: Path, payload: dict[str, Any]
 ) -> dict[str, Any] | None:
-    context = _infer_active_context(project_root)
+    context = _map_context_from_transcript(project_root, payload) or _infer_active_context(project_root)
     if not context:
         return None
+
+    if context["command_name"] in {"map-scan", "map-build"}:
+        validation = _run_shared_hook(
+            project_root,
+            [
+                "validate-artifacts",
+                "--command",
+                context["command_name"],
+                "--feature-dir",
+                context["feature_dir"],
+            ],
+        )
+        validation_output = _shared_to_claude_output(
+            hook_event_name="Stop", shared_payload=validation
+        )
+        if validation_output:
+            return validation_output
 
     args = [
         "monitor-context",

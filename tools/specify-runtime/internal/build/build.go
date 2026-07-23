@@ -28,6 +28,11 @@ var unsafeIDPartPattern = regexp.MustCompile(`[^A-Za-z0-9._-]+`)
 type Payload struct {
 	Status                 string                            `json:"status"`
 	Readiness              string                            `json:"readiness"`
+	StageState             string                            `json:"stage_state"`
+	CompletionAllowed      bool                              `json:"completion_allowed"`
+	CompletionGate         string                            `json:"completion_gate"`
+	BypassAllowed          bool                              `json:"bypass_allowed"`
+	ErrorClassification    string                            `json:"error_classification"`
 	Errors                 []string                          `json:"errors"`
 	Warnings               []string                          `json:"warnings"`
 	ScanArtifactCounts     map[string]int                    `json:"scan_artifact_counts"`
@@ -192,6 +197,8 @@ func Run(paths rt.Paths) (Payload, error) {
 
 	payload.Status = "ok"
 	payload.Readiness = rt.ReadyReadiness
+	payload.StageState = "validation_required"
+	payload.ErrorClassification = "none"
 	return payload, nil
 }
 
@@ -236,6 +243,11 @@ func basePayload(paths rt.Paths) Payload {
 	return Payload{
 		Status:                 "blocked",
 		Readiness:              rt.BlockedReadiness,
+		StageState:             "blocked",
+		CompletionAllowed:      false,
+		CompletionGate:         "validate_build",
+		BypassAllowed:          false,
+		ErrorClassification:    "build_construction_integrity",
 		Errors:                 []string{},
 		Warnings:               []string{},
 		ScanArtifactCounts:     emptyCounts(),

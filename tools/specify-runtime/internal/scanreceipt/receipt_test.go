@@ -45,6 +45,28 @@ func TestVerifyRejectsSourceMutationAfterValidation(t *testing.T) {
 	}
 }
 
+func TestVerifyRejectsPacketAcceptanceReceiptMutationAfterValidation(t *testing.T) {
+	paths := newReceiptPaths(t)
+	acceptancePath := filepath.Join(paths.RuntimeDir, "workbench", "acceptance-receipts", "lane-1.json")
+	writeReceiptJSON(t, acceptancePath, map[string]any{
+		"protocol":  "map_scan_acceptance.v1",
+		"packet_id": "lane-1",
+		"digest":    "before",
+	})
+	if _, required, err := Create(paths, "scan_ready"); err != nil || !required {
+		t.Fatalf("Create required=%v err=%v", required, err)
+	}
+	writeReceiptJSON(t, acceptancePath, map[string]any{
+		"protocol":  "map_scan_acceptance.v1",
+		"packet_id": "lane-1",
+		"digest":    "after",
+	})
+
+	if required, err := Verify(paths); !required || err == nil || !strings.Contains(err.Error(), "stale") {
+		t.Fatalf("Verify after packet acceptance mutation required=%v err=%v", required, err)
+	}
+}
+
 func TestCreateExpectedRejectsValidateThenSealSnapshotChange(t *testing.T) {
 	paths := newReceiptPaths(t)
 	fingerprint, required, err := ComputeFingerprint(paths)
@@ -206,6 +228,8 @@ func newReceiptPaths(t *testing.T) rt.Paths {
 		filepath.Join(root, "src"),
 		filepath.Join(paths.RuntimeDir, "tmp"),
 		filepath.Join(paths.RuntimeDir, "workbench", "worker-results"),
+		filepath.Join(paths.RuntimeDir, "workbench", "accepted-submissions"),
+		filepath.Join(paths.RuntimeDir, "workbench", "acceptance-receipts"),
 		filepath.Join(paths.RuntimeDir, "evidence"),
 		filepath.Join(paths.RuntimeDir, "provisional"),
 	} {

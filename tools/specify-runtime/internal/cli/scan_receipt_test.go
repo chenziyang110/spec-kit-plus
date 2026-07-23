@@ -2,8 +2,10 @@ package cli
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -22,6 +24,13 @@ func TestValidateScanCommandWritesV2ScanReceipt(t *testing.T) {
 	code := Run([]string{"validate-scan", "--format", "json"}, &stdout, &stderr, "test")
 	if code != 0 {
 		t.Fatalf("validate-scan code=%d stderr=%s stdout=%s", code, stderr.String(), stdout.String())
+	}
+	var gate map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &gate); err != nil {
+		t.Fatalf("decode validate-scan output: %v; output=%s", err, stdout.String())
+	}
+	if gate["completion_allowed"] != true || gate["bypass_allowed"] != false || gate["error_classification"] != "none" {
+		t.Fatalf("validate-scan completion contract = %#v", gate)
 	}
 
 	receiptPath := filepath.Join(paths.RuntimeDir, "scan-receipt.json")
@@ -188,11 +197,70 @@ func markCLIFixtureAsV2Workbench(t *testing.T, root string) rt.Paths {
 			"result_handoff_path": ".specify/project-cognition/workbench/worker-results/lane-1.json",
 		}},
 	})
+	writeCLIV2AcceptanceFixture(t, paths, generationID, "attempt-lane-1-1")
 	status := rt.DefaultStatus(paths)
 	if err := rt.WriteStatus(paths, status); err != nil {
 		t.Fatal(err)
 	}
 	return paths
+}
+
+func writeCLIV2AcceptanceFixture(t *testing.T, paths rt.Paths, generationID string, attemptID string) {
+	t.Helper()
+	resultPath := filepath.Join(paths.RuntimeDir, "workbench", "worker-results", "lane-1.json")
+	data, err := os.ReadFile(resultPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var canonical map[string]any
+	if err := json.Unmarshal(data, &canonical); err != nil {
+		t.Fatal(err)
+	}
+	canonical["protocol"] = "map_scan_result.v2"
+	canonical["attempt_id"] = attemptID
+	canonical["sequence"] = 1
+	writeTestJSON(t, resultPath, canonical)
+
+	submitted := cloneJSONMap(t, canonical)
+	submitted["acceptance"] = "partial"
+	writeTestJSON(t, filepath.Join(paths.RuntimeDir, "workbench", "pending-results", "lane-1.json"), submitted)
+	writeTestJSON(t, filepath.Join(paths.RuntimeDir, "workbench", "accepted-submissions", "lane-1.json"), submitted)
+	writeTestJSON(t, filepath.Join(paths.RuntimeDir, "workbench", "acceptance-receipts", "lane-1.json"), map[string]any{
+		"protocol":                "map_scan_acceptance.v1",
+		"workbench_generation_id": generationID,
+		"packet_id":               "lane-1",
+		"attempt_id":              attemptID,
+		"sequence":                1,
+		"source_result_path":      ".specify/project-cognition/workbench/pending-results/lane-1.json",
+		"submission_path":         ".specify/project-cognition/workbench/accepted-submissions/lane-1.json",
+		"submission_sha256":       normalizedJSONTestDigest(t, submitted),
+		"canonical_result_path":   ".specify/project-cognition/workbench/worker-results/lane-1.json",
+		"canonical_result_sha256": normalizedJSONTestDigest(t, canonical),
+		"accepted_path_count":     1,
+	})
+}
+
+func cloneJSONMap(t *testing.T, value map[string]any) map[string]any {
+	t.Helper()
+	data, err := json.Marshal(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var clone map[string]any
+	if err := json.Unmarshal(data, &clone); err != nil {
+		t.Fatal(err)
+	}
+	return clone
+}
+
+func normalizedJSONTestDigest(t *testing.T, value any) string {
+	t.Helper()
+	data, err := json.Marshal(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sum := sha256.Sum256(data)
+	return fmt.Sprintf("%x", sum[:])
 }
 
 func chdirForScanReceiptTest(t *testing.T, root string) {

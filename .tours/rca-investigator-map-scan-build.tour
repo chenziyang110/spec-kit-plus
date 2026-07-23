@@ -1,0 +1,68 @@
+{
+  "$schema": "https://aka.ms/codetour-schema",
+  "title": "sp-map-scan / sp-map-build completion-gate RCA",
+  "description": "RCA and fix tour: follow the scan/build state machine and the machine-enforced gates that prevent narrated completion without runtime acceptance.",
+  "ref": "main",
+  "steps": [
+    {
+      "file": "templates/commands/map-scan.md",
+      "line": 39,
+      "description": "The Classic scan prompt defines the intended leader loop: runtime-created scan set and packets, then status, lease, checkpoint/yield, and accept. Subagent completion is only an input to this loop."
+    },
+    {
+      "file": "tools/specify-runtime/internal/scanworkbench/scanworkbench.go",
+      "line": 176,
+      "description": "scan-prepare is the canonical workbench constructor. It classifies and packetizes the runtime scan set; leaders are not supposed to hand-author queue, boundary, or target JSON."
+    },
+    {
+      "file": "templates/worker-prompts/map-scan-worker.md",
+      "line": 15,
+      "description": "Every worker must keep acceptance=partial, write only its CLI-designated packet-local result, and return packet/attempt identity. The runtime—not the worker—derives pass."
+    },
+    {
+      "file": "tools/specify-runtime/internal/scanworkbench/scanworkbench.go",
+      "line": 344,
+      "description": "scan-accept enforces packet state, active attempt identity, protocol, ledger partition, concrete path evidence, and compatible aggregate merges. It freezes the submitted partial result and emits a digest-bound per-packet runtime acceptance receipt before the queue packet becomes accepted."
+    },
+    {
+      "file": "tools/specify-runtime/internal/scanartifacts/scanartifacts.go",
+      "line": 1630,
+      "description": "validate-scan requires each V2 canonical worker result to have a matching runtime acceptance receipt and frozen submission snapshot bound to generation, attempt, sequence, and both digests. Hand-authored matching queue, handoff, and worker-result JSON without this chain is blocked."
+    },
+    {
+      "file": "tools/specify-runtime/internal/scanworkbench/orchestration.go",
+      "line": 594,
+      "description": "scan-status summarizes canonical queue state. When all packets are accepted it returns stage_state=validation_required, completion_allowed=false, completion_gate=validate_scan, and next_action=validate_scan."
+    },
+    {
+      "file": "templates/commands/map-scan.md",
+      "line": 39,
+      "description": "The completion authority is deliberately near the start: scan-status status=ok is not completion, and only validate-scan status=ok plus readiness=scan_ready authorizes the build handoff."
+    },
+    {
+      "file": "tools/specify-runtime/internal/cli/cli.go",
+      "line": 1039,
+      "description": "validate-scan is the machine gate. Only a ready payload can create scan-receipt.json; blocked validation returns a non-zero exit."
+    },
+    {
+      "file": "tools/specify-runtime/internal/build/build.go",
+      "line": 57,
+      "description": "build-from-scan verifies the frozen scan receipt before and after loading. Missing, stale, or invalid scan inputs stop before graph-store publication."
+    },
+    {
+      "file": "templates/commands/map-build.md",
+      "line": 41,
+      "description": "Classic build now makes the runtime-only chain explicit. Mandatory Classic subagents are limited to read-only verification; they cannot author packets, normalize scan results, construct graph rows, or replace the runtime with helper scripts."
+    },
+    {
+      "file": "src/specify_cli/integrations/claude/__init__.py",
+      "line": 70,
+      "description": "Claude now registers separate Read and Write|Edit|MultiEdit hooks, so runtime-owned cognition writes reach the actual write guard. Only packet-local pending-results remain directly writable."
+    },
+    {
+      "file": "src/specify_cli/integrations/claude/hooks/claude-hook-dispatch.py",
+      "line": 1557,
+      "description": "The Stop monitor prefers the latest explicit map command from a bounded transcript tail, falls back to active state, and runs shared validate-artifacts for map-scan or map-build before Claude may stop."
+    }
+  ]
+}

@@ -46,7 +46,10 @@ type LeasePayload struct {
 	AttemptID              string `json:"attempt_id"`
 	WorkerID               string `json:"worker_id"`
 	TaskPath               string `json:"task_path"`
+	ResultSubmissionPath   string `json:"result_submission_path"`
 	ResultHandoffPath      string `json:"result_handoff_path"`
+	ResultProtocol         string `json:"result_protocol"`
+	RequiredAcceptance     string `json:"required_acceptance"`
 	EstimatedTokens        int64  `json:"estimated_tokens"`
 	EffectiveContextBudget int64  `json:"effective_context_budget_tokens"`
 	PendingPackets         int    `json:"pending_packets"`
@@ -97,10 +100,13 @@ type YieldPayload struct {
 
 type StatusPayload struct {
 	Status                     string               `json:"status"`
+	StageState                 string               `json:"stage_state"`
 	Packets                    map[string]int       `json:"packets"`
 	ActiveLeases               []ActiveLeaseSummary `json:"active_leases,omitempty"`
 	EstimatedRemainingTokens   int64                `json:"estimated_remaining_tokens"`
 	RecommendedParallelWorkers int                  `json:"recommended_parallel_workers"`
+	CompletionAllowed          bool                 `json:"completion_allowed"`
+	CompletionGate             string               `json:"completion_gate"`
 	NextAction                 string               `json:"next_action"`
 }
 
@@ -292,7 +298,10 @@ func Lease(paths rt.Paths, input LeaseInput) (LeasePayload, error) {
 		AttemptID:              packet.AttemptID,
 		WorkerID:               workerID,
 		TaskPath:               canonicalPacketTaskPath(packet.PacketID),
+		ResultSubmissionPath:   canonicalPendingResultPath(packet.PacketID),
 		ResultHandoffPath:      packet.ResultHandoffPath,
+		ResultProtocol:         "map_scan_result.v2",
+		RequiredAcceptance:     "partial",
 		EstimatedTokens:        packet.EstimatedTokens,
 		EffectiveContextBudget: packet.EffectiveContextBudget,
 		PendingPackets:         pending,
@@ -499,6 +508,29 @@ func yieldUnlocked(paths rt.Paths, input YieldInput) (YieldPayload, error) {
 	if err := ensureWorkerResultCompatible(canonicalResult, acceptedResult); err != nil {
 		return YieldPayload{}, err
 	}
+	submissionValue, submissionDigest, err := readNormalizedJSONFile(checkpointPath)
+	if err != nil {
+		return YieldPayload{}, fmt.Errorf("hash packet %s checkpoint: %w", packet.PacketID, err)
+	}
+	submissionSnapshotPath := acceptanceSubmissionSnapshotPath(paths, packet.PacketID)
+	if err := ensureNormalizedJSONCompatible(submissionSnapshotPath, submissionValue); err != nil {
+		return YieldPayload{}, err
+	}
+	receipt, err := newAcceptanceReceipt(
+		queue,
+		packet,
+		acceptanceSubmissionPath(paths, checkpointPath),
+		submissionDigest,
+		checkpoint,
+		acceptedResult,
+	)
+	if err != nil {
+		return YieldPayload{}, err
+	}
+	receiptPath := acceptanceReceiptPath(paths, packet.PacketID)
+	if err := ensureAcceptanceReceiptCompatible(receiptPath, receipt); err != nil {
+		return YieldPayload{}, err
+	}
 	var handoffs handoffFile
 	handoffPath := filepath.Join(paths.RuntimeDir, "workbench", "handoff-ledger.json")
 	if err := readJSON(handoffPath, &handoffs); err != nil {
@@ -520,6 +552,12 @@ func yieldUnlocked(paths rt.Paths, input YieldInput) (YieldPayload, error) {
 	handoffs.Events, mergeErr = mergeObjectRows(handoffs.Events, []map[string]any{yieldEvent, returnEvent}, "event_id", "handoff")
 	if mergeErr != nil {
 		return YieldPayload{}, mergeErr
+	}
+	if err := writeJSONAtomic(submissionSnapshotPath, submissionValue); err != nil {
+		return YieldPayload{}, err
+	}
+	if err := writeJSONAtomic(receiptPath, receipt); err != nil {
+		return YieldPayload{}, err
 	}
 	if err := writeJSONAtomic(canonicalResult, acceptedResult); err != nil {
 		return YieldPayload{}, err
@@ -589,16 +627,21 @@ func Status(paths rt.Paths) (StatusPayload, error) {
 		}
 	}
 	nextAction := "validate_scan"
+	stageState := "validation_required"
 	if counts["pending"] > 0 {
 		nextAction = "dispatch_pending_packets"
+		stageState = "packets_pending"
 	} else if counts["leased"] > 0 {
 		nextAction = "await_worker_results"
+		stageState = "worker_results_pending"
 	} else if counts["blocked"] > 0 {
 		nextAction = "resolve_blocked_packets"
+		stageState = "packets_blocked"
 	}
 	return StatusPayload{
-		Status: "ok", Packets: counts, ActiveLeases: activeLeases, EstimatedRemainingTokens: remainingTokens,
-		RecommendedParallelWorkers: counts["pending"], NextAction: nextAction,
+		Status: "ok", StageState: stageState, Packets: counts, ActiveLeases: activeLeases,
+		EstimatedRemainingTokens: remainingTokens, RecommendedParallelWorkers: counts["pending"],
+		CompletionAllowed: false, CompletionGate: "validate_scan", NextAction: nextAction,
 	}, nil
 }
 
@@ -879,7 +922,7 @@ func appendYieldEvent(paths rt.Paths, queue *queueFile, packet queuePacket, stat
 
 func renderLeasedPacket(packet queuePacket) string {
 	base := renderPacket(packet.PacketID, packet.AssignedPaths)
-	resultPath := ".specify/project-cognition/workbench/pending-results/" + packet.PacketID + ".json"
+	resultPath := canonicalPendingResultPath(packet.PacketID)
 	return base + fmt.Sprintf("\nActive lease:\n- worker_id: `%s`\n- attempt_id: `%s`\n- estimated_task_tokens: `%d`\n- effective_context_budget_tokens: `%d`\n- checkpoint_command: `specify-runtime cognition scan-checkpoint --packet-id %s --attempt-id %s --result %s --format json`\n- yield_command: `specify-runtime cognition scan-yield --packet-id %s --attempt-id %s --format json`\nSubmit cumulative checkpoints before the context safety threshold. The leader accepts a fully checkpointed attempt with the same packet and attempt identifiers.\n", packet.WorkerID, packet.AttemptID, packet.EstimatedTokens, packet.EffectiveContextBudget, packet.PacketID, packet.AttemptID, resultPath, packet.PacketID, packet.AttemptID)
 }
 
@@ -907,6 +950,10 @@ func packetTaskPath(paths rt.Paths, packetID string) string {
 
 func canonicalPacketTaskPath(packetID string) string {
 	return ".specify/project-cognition/workbench/scan-packets/" + packetID + ".md"
+}
+
+func canonicalPendingResultPath(packetID string) string {
+	return ".specify/project-cognition/workbench/pending-results/" + packetID + ".json"
 }
 
 func canonicalCheckpointPath(packetID string, attemptID string, sequence int) string {

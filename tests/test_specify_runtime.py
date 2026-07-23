@@ -125,6 +125,69 @@ def test_runtime_env_is_one_executable_path_not_an_argv_vector(
     assert runtime._env_argv() == [configured]
 
 
+def test_source_bound_runtime_binding_metadata_requires_matching_source_fingerprint(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runtime = _load_runtime()
+    launcher = SimpleNamespace(
+        kind="source_bound",
+        argv=(
+            "uvx",
+            "--from",
+            "git+https://github.com/chenziyang110/spec-kit-plus.git@" + ("a" * 40),
+            "specify",
+        ),
+    )
+    monkeypatch.setattr(
+        "specify_cli.launcher.resolve_specify_launcher_spec",
+        lambda: launcher,
+    )
+    monkeypatch.setattr(
+        runtime,
+        "_bundled_runtime_source",
+        lambda: PROJECT_ROOT / "tools" / "specify-runtime",
+    )
+
+    metadata = runtime.current_runtime_binding_metadata()
+
+    assert metadata["binding_version"] == runtime.RUNTIME_LAUNCHER_BINDING_VERSION
+    assert metadata["specify_launcher_kind"] == "source_bound"
+    assert metadata["specify_launcher_argv"] == list(launcher.argv)
+    assert metadata["source_build_required"] is True
+    assert metadata["runtime_source_sha256"] == runtime._source_fingerprint(
+        PROJECT_ROOT / "tools" / "specify-runtime"
+    )
+    drifted = dict(metadata)
+    drifted["runtime_source_sha256"] = "stale"
+    assert runtime.runtime_binding_metadata_matches(metadata, metadata) is True
+    assert runtime.runtime_binding_metadata_matches(drifted, metadata) is False
+
+
+def test_local_checkout_runtime_binding_requires_matching_source_fingerprint(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runtime = _load_runtime()
+    launcher = SimpleNamespace(kind="local_environment", argv=("specify",))
+    source_dir = PROJECT_ROOT / "tools" / "specify-runtime"
+    monkeypatch.setattr(
+        "specify_cli.launcher.resolve_specify_launcher_spec",
+        lambda: launcher,
+    )
+    monkeypatch.setattr(runtime, "_local_runtime_source_checkout", lambda: source_dir)
+    monkeypatch.setattr(runtime, "_bundled_runtime_source", lambda: source_dir)
+
+    metadata = runtime.current_runtime_binding_metadata()
+
+    assert metadata["specify_launcher_kind"] == "local_environment"
+    assert "specify_launcher_argv" not in metadata
+    assert metadata["source_build_required"] is True
+    assert metadata["runtime_source_sha256"] == runtime._source_fingerprint(source_dir)
+    drifted = dict(metadata)
+    drifted["runtime_source_sha256"] = "stale"
+    assert runtime.runtime_binding_metadata_matches(metadata, metadata) is True
+    assert runtime.runtime_binding_metadata_matches(drifted, metadata) is False
+
+
 def test_runtime_resolver_falls_back_only_to_specify_runtime_on_path(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

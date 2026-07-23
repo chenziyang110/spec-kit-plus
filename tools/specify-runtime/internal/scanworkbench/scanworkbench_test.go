@@ -130,6 +130,12 @@ func TestLeaseCreatesUniqueAttemptsAndNeverDoubleAssignsPacket(t *testing.T) {
 	if first.AttemptID == "" || second.AttemptID == "" || first.AttemptID == second.AttemptID {
 		t.Fatalf("lease attempt IDs are not unique: first=%q second=%q", first.AttemptID, second.AttemptID)
 	}
+	if first.ResultSubmissionPath != ".specify/project-cognition/workbench/pending-results/"+first.PacketID+".json" {
+		t.Fatalf("lease result submission path = %q", first.ResultSubmissionPath)
+	}
+	if first.ResultProtocol != "map_scan_result.v2" || first.RequiredAcceptance != "partial" {
+		t.Fatalf("lease worker result contract = protocol %q acceptance %q", first.ResultProtocol, first.RequiredAcceptance)
+	}
 	taskBody, err := os.ReadFile(filepath.Join(paths.Root, filepath.FromSlash(first.TaskPath)))
 	if err != nil {
 		t.Fatal(err)
@@ -561,6 +567,43 @@ func TestYieldPreservesCompletedSubsetAndRequeuesExactRemainder(t *testing.T) {
 	}
 	if next.AttemptID == lease.AttemptID {
 		t.Fatalf("requeued remainder reused stale attempt %q", next.AttemptID)
+	}
+}
+
+func TestYieldFullyCheckpointedPacketCreatesValidAcceptanceReceipt(t *testing.T) {
+	assigned := []string{"src/app.go"}
+	paths := newScanPaths(t, assigned)
+	if _, err := Prepare(paths, PrepareInput{}); err != nil {
+		t.Fatal(err)
+	}
+	lease := mustLeasePacket(t, paths, "lane-001")
+	resultPath := filepath.Join(t.TempDir(), "checkpoint-0001.json")
+	writeJSON(t, resultPath, checkpointWorkerResult(
+		"lane-001",
+		lease.AttemptID,
+		1,
+		assigned,
+		assigned,
+	))
+	if _, err := Checkpoint(paths, CheckpointInput{
+		PacketID: "lane-001", AttemptID: lease.AttemptID, ResultPath: resultPath,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Yield(paths, YieldInput{
+		PacketID: "lane-001", AttemptID: lease.AttemptID,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	receipt := readJSONObject(t, acceptanceReceiptPath(paths, "lane-001"))
+	if receipt["protocol"] != acceptanceReceiptProtocolV1 ||
+		receipt["attempt_id"] != lease.AttemptID ||
+		receipt["submission_path"] != canonicalAcceptedSubmissionPath("lane-001") {
+		t.Fatalf("yield acceptance receipt = %#v", receipt)
+	}
+	if gate := validation.ValidateScan(paths); gate.Status != "ok" {
+		t.Fatalf("validate-scan after fully checkpointed yield = %#v", gate)
 	}
 }
 
@@ -1000,6 +1043,24 @@ func TestAcceptMergesPacketAndProducesBuildableScanPackage(t *testing.T) {
 	if payload.Status != "accepted" || payload.PacketID != "lane-001" || payload.AcceptedPathCount != 1 {
 		t.Fatalf("unexpected accept payload: %#v", payload)
 	}
+	if payload.CompletionAllowed || payload.CompletionGate != "validate_scan" {
+		t.Fatalf("accept completion gate = allowed %t gate %q", payload.CompletionAllowed, payload.CompletionGate)
+	}
+	status, err := Status(paths)
+	if err != nil {
+		t.Fatalf("Status returned error: %v", err)
+	}
+	if status.StageState != "validation_required" || status.CompletionAllowed || status.CompletionGate != "validate_scan" {
+		t.Fatalf("scan status completion gate = %#v", status)
+	}
+	receipt := readJSONObject(t, filepath.Join(paths.RuntimeDir, "workbench", "acceptance-receipts", "lane-001.json"))
+	if receipt["protocol"] != acceptanceReceiptProtocolV1 ||
+		receipt["workbench_generation_id"] == "" ||
+		receipt["attempt_id"] != lease.AttemptID ||
+		receipt["submission_path"] != canonicalAcceptedSubmissionPath("lane-001") ||
+		receipt["canonical_result_path"] != canonicalWorkerResultPath("lane-001") {
+		t.Fatalf("runtime acceptance receipt = %#v", receipt)
+	}
 
 	gate := validation.ValidateScan(paths)
 	if gate.Status != "ok" || gate.Readiness != "scan_ready" {
@@ -1029,6 +1090,40 @@ func TestAcceptMergesPacketAndProducesBuildableScanPackage(t *testing.T) {
 	coverage := readJSONObject(t, filepath.Join(paths.RuntimeDir, "coverage.json"))
 	if got := objectRows(t, coverage["rows"]); len(got) != 1 || got[0]["path"] != "src/app.go" {
 		t.Fatalf("inventory-only path leaked into worker coverage: %#v", got)
+	}
+}
+
+func TestValidateScanRejectsTamperedAcceptedSubmissionSnapshot(t *testing.T) {
+	paths := newScanPaths(t, []string{"src/app.go"})
+	if _, err := Prepare(paths, PrepareInput{}); err != nil {
+		t.Fatal(err)
+	}
+	lease := mustLeasePacket(t, paths, "lane-001")
+	resultPath := filepath.Join(t.TempDir(), "lane-001.json")
+	writeJSON(t, resultPath, bindWorkerResultToLease(
+		acceptedWorkerResult("lane-001", "src/app.go"),
+		lease,
+	))
+	if _, err := Accept(paths, AcceptInput{
+		PacketID: "lane-001", AttemptID: lease.AttemptID, ResultPath: resultPath,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	snapshotPath := acceptanceSubmissionSnapshotPath(paths, "lane-001")
+	snapshot := readJSONObject(t, snapshotPath)
+	snapshot["tampered"] = true
+	writeJSON(t, snapshotPath, snapshot)
+
+	gate := validation.ValidateScan(paths)
+
+	if gate.Status != "blocked" || gate.CompletionAllowed || gate.BypassAllowed {
+		t.Fatalf("tampered acceptance snapshot gate = %#v, want blocked", gate)
+	}
+	if !containsError(
+		gate.Errors,
+		"acceptance receipt for packet lane-001 submission digest does not match .specify/project-cognition/workbench/accepted-submissions/lane-001.json",
+	) {
+		t.Fatalf("validate-scan errors = %#v, want submission digest mismatch", gate.Errors)
 	}
 }
 

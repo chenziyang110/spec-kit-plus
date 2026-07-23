@@ -15,7 +15,10 @@ Require `{{specify-subcmd:specify-runtime cognition validate-scan --format json}
 report a build-ready scan. If it is incomplete, stop and route the exact gaps to
 `$spx-map-scan`; do not invoke `$spx-map-scan` in this run.
 For a v2 workbench, this validation must issue the current `scan-receipt.json`;
-`build-from-scan` refuses an absent or digest-mismatched receipt before graph-store mutation.
+it does so only after verifying every runtime-owned
+`workbench/acceptance-receipts/<packet-id>.json` and frozen submission digest.
+Never hand-author or normalize either receipt layer. `build-from-scan` refuses
+an absent or digest-mismatched receipt before graph-store mutation.
 
 Run `{{specify-subcmd:specify-runtime cognition build-from-scan --format json}}`, then
 `{{specify-subcmd:specify-runtime cognition validate-build --format json}}`. These are

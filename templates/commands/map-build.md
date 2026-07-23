@@ -29,9 +29,25 @@ Use `execution_model: subagent-mandatory`.
 Use `dispatch_shape: one-subagent | parallel-subagents`.
 Use `execution_surface: native-subagents`.
 
+For this command, mandatory subagent lanes are read-only verification lanes only.
+The leader invokes the deterministic runtime build chain. Subagents must not
+create or edit scan artifacts, normalize worker results, construct graph rows,
+write SQLite data, or replace any runtime command with a helper script.
+
 ## Objective
 
 Reconstruct or refresh the query-backed project cognition runtime from a completed value-weighted evidence baseline.
+
+## Completion Authority
+
+The only build path is `validate-scan -> build-from-scan -> validate-build ->
+compass`. A command returning `status=ok` at an intermediate stage is not
+workflow completion. Successful `build-from-scan` reports
+`stage_state=validation_required`, `completion_allowed=false`, and
+`completion_gate=validate_build`. Report completion only after `validate-build`
+returns `status=ok` with `readiness=query_ready` and the representative Compass
+smoke query succeeds. A blocked build gate sets `completion_allowed=false`,
+`bypass_allowed=false`, and `error_classification=build_integrity`.
 
 {{spec-kit-include: ../command-partials/common/learning-layer.md}}
 
@@ -39,14 +55,24 @@ Reconstruct or refresh the query-backed project cognition runtime from a complet
 
 - Start with validation, not writing.
 - Update `map-state.md` before long-running reconstruction, join-point acceptance, compaction-risk transitions, or any stop where resume will depend on more than the visible conversation.
-- Validate scan inputs before execution and compile/validate `MapBuildPacket` inputs before dispatch.
+- Validate scan inputs before execution and treat the accepted workbench as the
+  sole build input contract. Do not invent model-authored build packets or
+  parallel graph-construction schemas.
 - Validate both `.specify/project-cognition/workbench/repository-universe.json` and `.specify/project-cognition/workbench/scan-targets.json` before graph import. `repository-universe.json` is full path accounting; `scan-targets.json` is the high-value execution target set.
 - Treat `P0`/`P1` `scan_decision=scan` rows as graph-build candidates that must be backed by accepted packet evidence before they can publish queryable runtime truth.
 - Treat `P2` rows according to their recorded `scan_decision`: scanned or sampled rows can support graph truth when evidence-backed; inventory-only rows remain boundary accounting.
 - Treat `P3`, `inventory_only`, and `excluded` rows as boundary accounting only unless explicit accepted scan evidence and a high-value reason promote them. Do not derive graph, path_index, alias_index, route rows, or `minimal_live_reads` from raw inventory-only rows.
-- Dispatch only validated packetized build lanes as `one-subagent` or `parallel-subagents`.
-- If overlap, missing packet data, missing required references, or unsafe acceptance criteria prevent safe dispatch, record `subagent-blocked` and stop for escalation or recovery.
-- Run `{{specify-subcmd:specify-runtime cognition validate-scan --format json}}` before graph import. For a v2 workbench this must create a matching `scan-receipt.json`; `build-from-scan` refuses an absent or digest-mismatched receipt and must not mutate the graph store.
+- If the Classic profile requires delegated review, dispatch only bounded,
+  read-only validation lanes over the accepted workbench. Their findings may
+  block the runtime chain but may not author build inputs or outputs.
+- If review finds overlap, missing packet data, missing required references, or
+  unsafe acceptance criteria, stop and route the defect back to
+  `sp-map-scan`; do not repair canonical scan artifacts in `sp-map-build`.
+- Run `{{specify-subcmd:specify-runtime cognition validate-scan --format json}}` before graph import. For a v2 workbench it first requires each accepted packet's runtime-owned `workbench/acceptance-receipts/<packet-id>.json` and frozen submission digest, then creates a matching `scan-receipt.json`; `build-from-scan` refuses an absent or digest-mismatched receipt and must not mutate the graph store. Never hand-author or normalize either receipt layer.
+- If `validate-scan` returns `status=blocked`, stop. Report the exact blocking
+  errors, preserve the typed runtime recovery signal, and do not proceed to
+  `build-from-scan`. Do not say the format issues are harmless or that they do
+  not affect completeness.
 - Run `{{specify-subcmd:specify-runtime cognition build-from-scan --format json}}` after scan and package validation. It adapts the accepted canonical scan package into a versioned proposal and runs the deterministic cognition proposal compiler before any graph-store mutation, then rebuilds the graph store into schema v5 and owns DB import, metadata, status publication, and DB/status agreement.
 - Treat `compilation.publication_allowed=false` as a hard pre-publication block. Report the bounded compiler conflicts and stop without creating, archiving, replacing, or publishing a graph store.
 - A successful compile means the proposal is structurally safe and deterministic enough to publish as advisory graph material. Compiled nodes, edges, paths, aliases, and graph claims remain route candidates rather than repository facts; even `verified_in_graph_generation` requires bounded live repository evidence before behavioral or workflow final claims.
@@ -55,19 +81,17 @@ Reconstruct or refresh the query-backed project cognition runtime from a complet
 
 ## Machine-Readable Blocked State
 
-Human workflow prose may say `subagent-blocked`, but persisted machine fields use
+Human workflow prose may say `subagent-blocked`; machine reports use
 `subagent_blocked`.
 
-If a substantive scan/build lane cannot dispatch or complete, write:
-
-- `.specify/project-cognition/status.json` with `baseline_state=blocked` and
-  `subagent_blocked` in `stale_reasons` or `dirty_reasons`
-- `.specify/project-cognition/workbench/map-state.md` with
-  `readiness=blocked`, `blocking_reason=subagent_blocked`, blocked lane ids,
-  blocked scope, and recovery condition
-- `.specify/project-cognition/workbench/coverage-ledger.json.open_gaps[]` with
-  `reason="subagent_blocked"`, `lane_id`, `packet_id`, `blocked_scope`,
-  `criticality`, `owner`, `status="blocked"`, and `recovery_condition`
+If a required read-only verification lane cannot dispatch or complete, stop
+before construction and report `subagent_blocked`, the blocked scope, owner,
+and recovery condition. Do not directly write `status.json`, `map-state.md`, or
+`coverage-ledger.json` to manufacture that state. Canonical persistence, when a
+runtime surface is available, must remain runtime-owned.
+A runtime-owned `.specify/project-cognition/workbench/coverage-ledger.json.open_gaps[]`
+record may use `low_risk_open_gap` only with owner, reason,
+`evidence_expectation`, and `revisit_condition`.
 
 `unknown` blocks, `blocked`, `critical_open_gap`, and `subagent_blocked` block baseline
 activation. `low_risk_open_gap` may pass only with owner, reason,
@@ -97,6 +121,7 @@ Before writing query-backed truth, read:
 - `.specify/project-cognition/workbench/scan-queue.json`
 - `.specify/project-cognition/workbench/handoff-ledger.json`
 - `.specify/project-cognition/workbench/scan-packets/`
+- `.specify/project-cognition/workbench/worker-results/<packet-id>.json`
 
 If those artifacts are missing, stop and route back to `/sp-map-scan`.
 
@@ -171,8 +196,6 @@ The only canonical runtime outputs for this command are:
 - `.specify/project-cognition/status.json`
 - `.specify/project-cognition/project-cognition.db`
 - query/update helper readiness metadata
-- join-point `worker-results` evidence for delegated build lanes until the leader accepts the final query-ready baseline
-- `.specify/project-cognition/workbench/worker-results/<packet-id>.json`
 
 Do not publish handbook-first runtime truth from this command. Do not publish raw graph JSON artifacts or slices as runtime truth.
 
@@ -188,16 +211,19 @@ Do not publish handbook-first runtime truth from this command. Do not publish ra
 - Do not perform a structural-only refresh and call it success.
 - Do not accept manual SQL, sqlite shell scripting, hand-picked node subsets, or leader-memory graph reconstruction as normal build paths.
 - Do not locally patch around contract-invalid or systemic scan packet failures.
-- If the build lane cannot be safely packetized or delegated, record `subagent-blocked` and stop for escalation or recovery.
-- If a delegated lane returns unresolved evidence gaps, preserve the scan gap report and stop for escalation or recovery instead of inventing closure.
+- If a read-only validation lane returns unresolved evidence gaps, preserve the
+  scan gap report and route back to `sp-map-scan` instead of inventing closure.
 
 ## Project Cognition Workbench State Protocol
 
 - Project Map State Protocol remains active during build acceptance.
 - Validate Scan Inputs Before Execution.
-- Compile And Validate MapBuildPacket Inputs.
+- Typed runtime recovery owns stale or incompatible workbench repair. If an old
+  workbench must be discarded, do it only through the runtime's typed recovery
+  path; use `--force` only after an explicit decision to abandon the old
+  workbench and its accepted/pending results.
 - Treat `coverage-ledger.json` as the machine-readable row source.
-- `MapBuildPacket` is required for delegated build lanes.
+- The accepted workbench is the sole build input contract.
 - Raw scan prose or raw Markdown checklist items alone are insufficient.
 - raw scan prose or raw Markdown checklist items alone
 - Packet evidence intake must reject packet results without paths read.
@@ -213,10 +239,12 @@ Do not publish handbook-first runtime truth from this command. Do not publish ra
 - Build intake must reject `.cognitionignore`-excluded paths from scan coverage, evidence rows, provisional nodes, provisional edges, observations, packet results, and `repository-universe.json` included paths.
 - DB publication must not write `.cognitionignore`-excluded paths into `evidence.source_path`, `path_index.path`, or `alias_index` target material.
 - DB publication must not write raw inventory-only paths into `evidence.source_path`, `nodes.paths`, `path_index.path`, `alias_index`, route rows, or `minimal_live_reads` unless the path was promoted by `scan-targets.json` and backed by accepted evidence.
+- Do not write normalize/rebuild helper scripts. Use the runtime's typed
+  recovery or route back to `sp-map-scan`.
 
 ## Build Duties
 
-`sp-map-build` must:
+The deterministic `build-from-scan` runtime must:
 
 - begins with validation, not writing
 - validate scan completeness for graph reconstruction through the value-weighted target set
@@ -278,8 +306,9 @@ normalize user input into project vocabulary; it is not evidence by itself.
 ## Dispatch Guidance
 
 - Use `choose_subagent_dispatch(command_name="map-build", snapshot, workload_shape)` before lane execution.
-- Dispatch each build lane from a validated `MapBuildPacket`.
-- Recommended build lanes include DB normalization, alias readiness review, route validation, and queryable task-local bundle generation.
+- Any required delegated lane is read-only and limited to validation, alias
+  readiness review, route validation, or queryability checks over the accepted
+  runtime workbench. Do not dispatch model-authored graph construction lanes.
 - The leader owns final graph consistency and readiness state.
 
 ## Completion Rule
@@ -287,6 +316,8 @@ normalize user input into project vocabulary; it is not evidence by itself.
 Before reporting completion:
 
 - run `{{specify-subcmd:specify-runtime cognition validate-scan --format json}}` before graph import and confirm the v2 scan receipt is current
+- if `validate-scan` returns `status=blocked`, stop, report the exact blocking
+  errors and typed recovery path, and do not proceed to `build-from-scan`
 - run `{{specify-subcmd:specify-runtime cognition build-from-scan --format json}}`; if it returns `status=blocked`, report its `errors`, identity reconciliation details from `identity_reconciliation`, `rejections`, `merge_records`, and `recovery_action`
 - run `{{specify-subcmd:specify-runtime cognition validate-build --format json}}` after `build-from-scan`
 - report completion only after `validate-build` returns `status=ok` and `readiness=query_ready`
@@ -294,6 +325,8 @@ Before reporting completion:
 - confirm claim-aware routing preserves the bounded rerank contract: `match_score` alone establishes candidate eligibility; `claim_ranking.adjustment` cannot create candidates and cannot replace live verification. Fresh supported or graph-generation-verified claims add at most `+1`; stale and contradicted claims subtract `-1` and `-2`. `stale_claim_signal` and `contradicted_claim_signal` must keep the packet `usable_with_review` and route through `reconcile_claims_with_minimal_live_reads` plus lane-specific live repository reconciliation.
 - preserve the advanced `lexicon -> semantic_intake -> query` flow for explicit concept decisions or unresolved coverage. In that escalation, write `semantic_intake` from the alias catalog, select candidates by facet coverage, write `concept_decisions` with `covered_facets`, `missing_facets`, and `match_sources`, carry `lexicon_generation_id`, add `repository_search_terms`, and run `{{specify-subcmd:specify-runtime cognition query --intent implement --query-plan "<query_plan_json>" --format json}}`. Agent-owned semantic normalization is mandatory: raw lexicon ranking and `agent_normalization` are only bootstrap signals, not route decisions. If `agent_normalization.required=true`, every raw candidate is `score=0`, or the prompt is localized, mixed-language, CJK, colloquial, symptom-first, or mixed-language or CJK text, extract embedded project terms and write `semantic_intake` from the alias catalog before selecting or rejecting concepts. If `agent_normalization` is omitted, treat it as `required=false`; CJK or mixed CJK/ASCII input still requires agent normalization even when positive raw lexical matches exist because embedded project tokens do not translate the surrounding user language. The agent still owns translation; `agent_normalization` is advisory guidance, not a route decision. (raw lexicon ranking is only a bootstrap; action: write_semantic_intake_from_alias_catalog) Derive project-language search terms from the alias catalog before source search. Do not search only the raw user words; include component names, state names, file names, command names, UI labels, and route names from candidates, aliases, matched_terms, colloquial_matches, returned paths, `normalized_query`, and `expanded_queries`. Use these project-language search terms before broad repository search
 - if `validate-build` returns `status=blocked`, report the specific DB, schema, active generation, status, or smoke-query error and do not mark the baseline fresh
+- do not write normalize/rebuild helper scripts; use the typed runtime
+  recovery path or route back to `sp-map-scan`
 - confirm that `status.json` reflects a query-ready baseline
 - confirm that the runtime remains query-backed and does not advertise raw graph JSON or handbook-first outputs as runtime truth
 - report whether follow-on localized maintenance should continue through `map-update` for future touched-area drift

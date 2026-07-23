@@ -4246,6 +4246,9 @@ func writeTestJSON(t *testing.T, path string, payload any) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
 	if err := os.WriteFile(path, append(data, '\n'), 0o644); err != nil {
 		t.Fatal(err)
 	}

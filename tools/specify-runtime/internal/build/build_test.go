@@ -2,7 +2,9 @@ package build
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"os"
@@ -26,6 +28,9 @@ func TestRunCreatesGoRuntimeFromScanPackage(t *testing.T) {
 	}
 	if payload.Readiness != rt.ReadyReadiness {
 		t.Fatalf("Readiness = %q, want %q", payload.Readiness, rt.ReadyReadiness)
+	}
+	if payload.StageState != "validation_required" || payload.CompletionAllowed || payload.CompletionGate != "validate_build" || payload.BypassAllowed || payload.ErrorClassification != "none" {
+		t.Fatalf("build-from-scan completion contract = %#v", payload)
 	}
 	if payload.ActiveGenerationID == "" {
 		t.Fatal("ActiveGenerationID is empty")
@@ -154,6 +159,9 @@ func TestRunBlocksCompilerConflictBeforeCreatingGraphStore(t *testing.T) {
 	}
 	if payload.Status != "blocked" || payload.Compilation.PublicationAllowed {
 		t.Fatalf("payload = %#v, want compiler-blocked publication", payload)
+	}
+	if payload.CompletionAllowed || payload.CompletionGate != "validate_build" || payload.BypassAllowed || payload.ErrorClassification != "build_construction_integrity" {
+		t.Fatalf("blocked build-from-scan completion contract = %#v", payload)
 	}
 	if payload.ActiveGenerationID != "" {
 		t.Fatalf("ActiveGenerationID = %q, want empty", payload.ActiveGenerationID)
@@ -1069,6 +1077,65 @@ func markBuildFixtureAsV2Workbench(t *testing.T, paths rt.Paths) {
 	writeJSON(t, filepath.Join(paths.RuntimeDir, "tmp", "scan-files.json"), map[string]any{
 		"protocol": "map_scan_set.v2", "generation_id": generationID, "files": []string{"src/app.go"},
 	})
+	writeBuildV2AcceptanceFixture(t, paths, generationID, "attempt-lane-1-1")
+}
+
+func writeBuildV2AcceptanceFixture(t *testing.T, paths rt.Paths, generationID string, attemptID string) {
+	t.Helper()
+	resultPath := filepath.Join(paths.RuntimeDir, "workbench", "worker-results", "lane-1.json")
+	data, err := os.ReadFile(resultPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var canonical map[string]any
+	if err := json.Unmarshal(data, &canonical); err != nil {
+		t.Fatal(err)
+	}
+	canonical["protocol"] = "map_scan_result.v2"
+	canonical["attempt_id"] = attemptID
+	canonical["sequence"] = 1
+	writeJSON(t, resultPath, canonical)
+
+	submitted := cloneBuildJSONMap(t, canonical)
+	submitted["acceptance"] = "partial"
+	writeJSON(t, filepath.Join(paths.RuntimeDir, "workbench", "pending-results", "lane-1.json"), submitted)
+	writeJSON(t, filepath.Join(paths.RuntimeDir, "workbench", "accepted-submissions", "lane-1.json"), submitted)
+	writeJSON(t, filepath.Join(paths.RuntimeDir, "workbench", "acceptance-receipts", "lane-1.json"), map[string]any{
+		"protocol":                "map_scan_acceptance.v1",
+		"workbench_generation_id": generationID,
+		"packet_id":               "lane-1",
+		"attempt_id":              attemptID,
+		"sequence":                1,
+		"source_result_path":      ".specify/project-cognition/workbench/pending-results/lane-1.json",
+		"submission_path":         ".specify/project-cognition/workbench/accepted-submissions/lane-1.json",
+		"submission_sha256":       buildJSONDigest(t, submitted),
+		"canonical_result_path":   ".specify/project-cognition/workbench/worker-results/lane-1.json",
+		"canonical_result_sha256": buildJSONDigest(t, canonical),
+		"accepted_path_count":     1,
+	})
+}
+
+func cloneBuildJSONMap(t *testing.T, value map[string]any) map[string]any {
+	t.Helper()
+	data, err := json.Marshal(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var clone map[string]any
+	if err := json.Unmarshal(data, &clone); err != nil {
+		t.Fatal(err)
+	}
+	return clone
+}
+
+func buildJSONDigest(t *testing.T, value any) string {
+	t.Helper()
+	data, err := json.Marshal(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sum := sha256.Sum256(data)
+	return hex.EncodeToString(sum[:])
 }
 
 func writeMinimalScanPackage(t *testing.T) rt.Paths {
@@ -1199,6 +1266,9 @@ func writeJSON(t *testing.T, path string, payload any) {
 	t.Helper()
 	data, err := json.MarshalIndent(payload, "", "  ")
 	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(path, append(data, '\n'), 0o644); err != nil {
