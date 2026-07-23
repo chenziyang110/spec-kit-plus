@@ -48,6 +48,8 @@ def test_design_preview_template_is_a_modern_three_direction_board() -> None:
     assert "document.startViewTransition" in content
     assert "--motion-duration-fast" in content
     assert "--motion-easing-emphasized" in content
+    assert '<body data-active-direction="direction-a">' in content
+    assert "document.body.dataset.activeDirection = directionId" in content
     assert "https://" not in content
     assert "http://" not in content
     assert "<script src=" not in content
