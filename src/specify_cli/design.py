@@ -329,8 +329,27 @@ def scaffold_design_preview(
     source = template_path or _locate_design_preview_template()
     if not source.exists() or not source.is_file():
         raise DesignLintError(f"design preview template does not exist: {source}")
-    if out_path.exists() and not force:
-        raise DesignLintError(f"design preview already exists: {out_path}")
+    if out_path.exists():
+        if not force:
+            raise DesignLintError(f"design preview already exists: {out_path}")
+        try:
+            existing_content = out_path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError) as exc:
+            raise DesignLintError(
+                f"cannot inspect existing design preview {out_path}: {exc}"
+            ) from exc
+        existing_parser = _DesignPreviewHTMLParser()
+        existing_parser.feed(existing_content)
+        existing_parser.close()
+        existing_status = (
+            existing_parser.preview_attrs.get("data-preview-status", "")
+            .strip()
+            .lower()
+        )
+        if existing_status == "approved":
+            raise DesignLintError(
+                f"approved design preview cannot be overwritten: {out_path}"
+            )
 
     diagnostics = lint_design_preview_file(source, level="structural")
     if diagnostics:

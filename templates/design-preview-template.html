@@ -75,7 +75,7 @@
         --preview-max-width: 1440px;
       }
 
-      #design-preview[data-active-direction="direction-a"] {
+      body[data-active-direction="direction-a"] {
         /* __DIRECTION_A_TOKEN_NOTE__ */
         color-scheme: light;
         --font-display: "Arial Narrow", "Aptos Display", "Segoe UI", sans-serif;
@@ -102,7 +102,7 @@
         --preview-glow-angle: 118deg;
       }
 
-      #design-preview[data-active-direction="direction-b"] {
+      body[data-active-direction="direction-b"] {
         /* __DIRECTION_B_TOKEN_NOTE__ */
         color-scheme: dark;
         --font-display: "Bahnschrift", "Aptos Display", "Segoe UI", sans-serif;
@@ -129,7 +129,7 @@
         --preview-glow-angle: 145deg;
       }
 
-      #design-preview[data-active-direction="direction-c"] {
+      body[data-active-direction="direction-c"] {
         /* __DIRECTION_C_TOKEN_NOTE__ */
         color-scheme: light;
         --font-display: Georgia, "Times New Roman", serif;
@@ -1202,7 +1202,7 @@
     }
   </style>
 </head>
-<body>
+<body data-active-direction="direction-a">
   <main
     id="design-preview"
     data-design-preview-schema="spec-kit-design-preview-v1"
@@ -1770,6 +1770,7 @@
         const directionName = tab.dataset.directionName;
 
         preview.dataset.activeDirection = directionId;
+        document.body.dataset.activeDirection = directionId;
         directionTabs.forEach((candidate) => {
           const isSelected = candidate === tab;
           candidate.setAttribute("aria-selected", String(isSelected));
