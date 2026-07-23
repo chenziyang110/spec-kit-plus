@@ -10,14 +10,13 @@
 
 ## Installation
 
-### Install or Upgrade This Fork
+### Install or Upgrade Spec Kit Plus
 
-For Spec Kit Plus, install from this fork rather than the upstream Spec Kit
-repository:
+Spec Kit Plus is independently developed and distributed from this repository:
 
 ```powershell
 python -m pip uninstall -y specify-cli
-uv tool install --force git+https://github.com/chenziyang110/spec-kit-plus.git
+uv tool install specify-cli --force --from git+https://github.com/chenziyang110/spec-kit-plus.git
 Get-Command specify -All
 specify --help
 ```
@@ -29,12 +28,12 @@ expected command surface and `specify check` to diagnose the active setup.
 
 ### Initialize a New Project
 
-The easiest way to get started is to initialize a new project from this fork. Use
+The easiest way to get started is to initialize a new project from Spec Kit Plus. Use
 `--refresh` when you want uv to re-check the Git source instead of reusing a
 cached build:
 
 ```bash
-# Install from the latest fork commit
+# Run from the current development head
 uvx --refresh --from git+https://github.com/chenziyang110/spec-kit-plus.git specify init <PROJECT_NAME>
 
 # Or pin a specific tag or branch when you need reproducibility

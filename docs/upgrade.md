@@ -1,547 +1,219 @@
-# Upgrade Guide
+# Upgrade and Repair Guide
 
-> You have Spec Kit installed and want to upgrade to the latest version to get new features, bug fixes, or updated slash commands. This guide covers both upgrading the CLI tool and updating your project files.
+This guide covers three separate operations:
 
----
+1. upgrade the `specify` CLI;
+2. repair runtime-managed assets in an initialized project;
+3. intentionally regenerate or add workflow profiles.
 
-## Quick Reference
+Keep them separate. A CLI upgrade does not automatically rewrite a generated
+project, and ordinary project repair should not overwrite user-edited workflow
+content.
 
-| What to Upgrade | Command | When to Use |
-|----------------|---------|-------------|
-| **CLI Tool Only** | `python -m pip uninstall -y specify-cli` then `uv tool install --force git+https://github.com/chenziyang110/spec-kit-plus.git` | Get latest CLI features without touching project files |
-| **Project Files** | `uvx --refresh --from git+https://github.com/chenziyang110/spec-kit-plus.git specify init --here --force --ai codex` | Update slash commands, templates, and scripts in your project without using a stale PATH executable |
-| **Both** | Run CLI upgrade, then project update | Recommended for major version updates |
+## Before You Start
 
----
+From the project root:
 
-## Part 1: Upgrade the CLI Tool
+```bash
+git status --short
+specify check
+```
 
-The CLI tool (`specify`) is separate from your project files. Upgrade it to get the latest features and bug fixes.
+Commit or back up work you cannot recreate. Pay particular attention to:
 
-### If you installed with `uv tool install`
+- `.specify/memory/constitution.md`;
+- customized generated commands, skills, templates, hooks, or context files;
+- `.specify/features/**` workflow artifacts;
+- local runtime or Project Cognition state that you intend to preserve.
 
-Upgrade to the latest Spec Kit Plus fork. On Windows, Conda and pip installs can
-leave an older `specify.exe` earlier on PATH, so remove those first:
+Do not use a broad regeneration command before reviewing those paths.
+
+## 1. Upgrade the CLI
+
+### Reproducible tagged release
+
+Use a tag from
+[Spec Kit Plus Releases](https://github.com/chenziyang110/spec-kit-plus/releases):
+
+```bash
+uv tool install specify-cli --force --from git+https://github.com/chenziyang110/spec-kit-plus.git@vX.Y.Z
+```
+
+Tagged releases publish matching prebuilt `specify-runtime` binaries for
+Windows, Linux, and macOS.
+
+### Current development head
+
+Use the untagged repository only when you intentionally want the latest
+development state:
+
+```bash
+uv tool install specify-cli --force --from git+https://github.com/chenziyang110/spec-kit-plus.git
+```
+
+Development commits can share the same `.dev0` package version. Verify the
+command surface as well as the version:
+
+```bash
+specify version
+specify --help
+specify check
+```
+
+On Windows, stale pip, Conda, or uv entrypoints may shadow the intended CLI:
 
 ```powershell
-python -m pip uninstall -y specify-cli
-uv tool install --force git+https://github.com/chenziyang110/spec-kit-plus.git
 Get-Command specify -All
 ```
 
-### If you use one-shot `uvx` commands
-
-Use `--refresh` when testing the latest fork without relying on whatever
-`specify` is installed on PATH:
+If necessary, remove the obsolete installation before reinstalling:
 
 ```powershell
-uvx --refresh --from git+https://github.com/chenziyang110/spec-kit-plus.git specify --help
-uvx --refresh --from git+https://github.com/chenziyang110/spec-kit-plus.git specify check
+python -m pip uninstall -y specify-cli
+uv tool uninstall specify-cli
+uv tool install specify-cli --from git+https://github.com/chenziyang110/spec-kit-plus.git@vX.Y.Z
 ```
 
-### Verify the upgrade
+## 2. Repair an Initialized Project
 
-```powershell
+The preferred post-upgrade sequence is:
+
+```bash
 specify check
-specify --help
+specify integration repair
+specify check
 ```
 
-This shows installed tools and confirms the CLI is working. Do not rely only on
-`specify version` for development builds: multiple commits can report the same
-`.dev0` version string. If expected commands such as `check` or `integration`
-are missing from `specify --help`, an old executable may still be in use.
+`specify integration repair` refreshes shared and runtime-managed generated
+assets in place. It uses the project's recorded integration/profile metadata
+and preserves user-edited workflow content when the managed file contract says
+the file is user-owned.
 
----
+Review the resulting diff before continuing:
 
-## Part 2: Updating Project Files
+```bash
+git status --short
+git diff -- .specify
+```
 
-When Spec Kit releases new features (like new slash commands or updated templates), you need to refresh your project's Spec Kit files.
+Also inspect the selected agent directory, such as `.codex/`, `.claude/`,
+`.gemini/`, or the directory recorded in `.specify/config.json`.
 
-### What gets updated?
+### Project launcher and runtime binding
 
-Running `specify init --here --force` will update:
+Current generated projects record trusted launchers in `.specify/config.json`:
 
-- ✅ **Workflow command files** (`.claude/skills/`, `.github/prompts/`, etc.)
-- ✅ **Script files** (`.specify/scripts/`)
-- ✅ **Template files** (`.specify/templates/`)
-- ✅ **Shared memory files** (`.specify/memory/`) - **⚠️ See warnings below**
+- `specify_launcher` binds project helpers and native hooks to the intended
+  Python CLI source;
+- `runtime_launcher` binds workflow helpers to the project-pinned
+  `specify-runtime` binary.
 
-### What stays safe?
+Generated helpers prefer `runtime_launcher`, then `SPECIFY_RUNTIME_BIN`, then a
+`specify-runtime` executable on `PATH`. If `specify check` reports stale or
+missing launchers, run repair from a trusted external CLI installation:
 
-These files are **never touched** by the upgrade—the template packages don't even contain them:
+```bash
+uvx --refresh --from git+https://github.com/chenziyang110/spec-kit-plus.git specify integration repair
+```
 
-- ✅ **Your specifications** (`specs/001-my-feature/spec.md`, etc.) - **CONFIRMED SAFE**
-- ✅ **Your implementation plans** (`specs/001-my-feature/plan.md`, `tasks.md`, etc.) - **CONFIRMED SAFE**
-- ✅ **Your source code** - **CONFIRMED SAFE**
-- ✅ **Your git history** - **CONFIRMED SAFE**
+Do not edit managed hook command strings by hand unless the diagnostic
+explicitly says the file is user-owned.
 
-The `specs/` directory is completely excluded from template packages and will never be modified during upgrades.
+## 3. Regenerate or Add a Workflow Profile
 
-### Update command
-
-Run this inside your project directory. Prefer the `uvx --refresh` form when you
-want the latest fork commit and do not want to depend on whichever `specify`
-executable is currently first on PATH:
+Use a full init pass when you intentionally need to add an integration, add the
+other workflow profile, or regenerate catalog surfaces that repair cannot
+reconstruct:
 
 Command shape:
 
 ```bash
-uvx --refresh --from git+https://github.com/chenziyang110/spec-kit-plus.git specify init --here --force --ai <your-agent>
+uvx --refresh --from git+https://github.com/chenziyang110/spec-kit-plus.git \
+  specify init --here --force --ai <your-agent> --workflow-profile <classic|advanced>
 ```
 
-Replace `<your-agent>` with your AI assistant. Refer to this list of [Supported AI Agents](../README.md#-supported-ai-agents)
+Review local changes first. This operation is broader than
+`specify integration repair` and may refresh templates, scripts, context files,
+and agent-native workflow surfaces.
 
-**Example:**
+Classic and Advanced installs are additive for skills-based integrations:
 
-```bash
-uvx --refresh --from git+https://github.com/chenziyang110/spec-kit-plus.git specify init --here --force --ai copilot
-```
+- Classic installs the full `sp-*` workflow and passive-skill surfaces.
+- Advanced installs the independent `spx-*` catalog plus the unchanged Classic
+  `sp-map-scan`, `sp-map-build`, and `sp-map-update` companions.
+- Re-running init for the other profile should preserve both installed profile
+  records and user-modified files.
 
-### Runtime launcher binding inside generated projects
+Project feature work lives under `.specify/features/**`. Treat those artifacts,
+source code, tests, and git history as user/project state; inspect the diff and
+do not remove them as part of an upgrade.
 
-Refreshing a project from a trusted source-bound command can also persist a
-project launcher in `.specify/config.json` under `specify_launcher`.
+## Project Cognition Compatibility
 
-That matters because there are two different questions:
+`specify-runtime` Project Cognition schema v5 is current-only. It does not
+migrate or silently replace schema v4 or older stores.
 
-1. did you install or run the latest CLI source successfully
-2. will generated runtime helper commands inside the project keep calling that
-   same trusted source later
-
-The second question is about runtime binding, not installation.
-
-When `specify_launcher` exists, first-party runtime helper instructions should
-follow that project launcher instead of assuming the first PATH `specify` entry
-is correct.
-
-When `specify_launcher` is missing, the project is in compatibility mode.
-Compatibility mode can still work, but runtime helper commands may fall back to
-PATH `specify`, which means an older global install can still be selected if it
-shadows the newer one.
-
-### Workflow contract drift after CLI upgrades
-
-If `specify check` reports stale generated workflow routing or stale helper
-command surfaces, treat that as a hard incompatibility rather than a warning.
-Run `specify integration repair` to refresh the generated assets before
-continuing with `sp-*` workflows.
-
-### Understanding the `--force` flag
-
-Without `--force`, the CLI warns you and asks for confirmation:
+If greenfield initialization reports:
 
 ```text
-Warning: Current directory is not empty (25 items)
-Template files will be merged with existing content and may overwrite existing files
-Proceed? [y/N]
+unsupported_legacy_runtime
+readiness=unsupported_runtime
+recovery_action=run_map_scan_build
 ```
 
-With `--force`, it skips the confirmation and proceeds immediately.
+the binary is running, but an incompatible
+`.specify/project-cognition/` store already exists. This is not evidence that a
+new runtime release is required.
 
-**Important: Your `specs/` directory is always safe.** The `--force` flag only affects template files (commands, scripts, templates, memory). Your feature specifications, plans, and tasks in `specs/` are never included in upgrade packages and cannot be overwritten.
+Recovery:
 
----
+1. Decide whether the existing Cognition state contains anything you need.
+2. Archive `.specify/project-cognition/` outside the active path; remove it only
+   after confirming it is disposable.
+3. For a truly empty project, rerun initialization so
+   `cognition init-empty` can create `baseline_kind=greenfield_empty`.
+4. For a project with business code, run `sp-map-scan` followed by
+   `sp-map-build` with the current pinned runtime.
+5. Run `specify check` again and keep live repository evidence—not the graph—as
+   the source of truth.
 
-## ⚠️ Important Warnings
+## Common Diagnostics
 
-### 1. Constitution file will be overwritten
+| Symptom | Current action |
+| --- | --- |
+| Expected CLI command is missing | Check `specify --help`, then inspect duplicate executables with `Get-Command specify -All` on Windows. |
+| Generated scripts or hooks are stale | Run `specify check`, `specify integration repair`, then `specify check` again. |
+| Agent does not show refreshed workflows | Confirm the integration/profile in `.specify/config.json`, restart the agent/IDE, and inspect the generated agent directory. |
+| Advanced skills are absent | Confirm the integration is skills-based and rerun init with `--workflow-profile advanced`. |
+| Runtime helper cannot start | Check `runtime_launcher`, `SPECIFY_RUNTIME_BIN`, and `specify-runtime` on `PATH`, in that order. |
+| Project Cognition reports `unsupported_legacy_runtime` | Archive the incompatible store and use the empty-project or brownfield recovery above. |
+| CLI upgrade appears unchanged | Compare both `specify version` and `specify --help`; `.dev0` alone cannot distinguish development commits. |
 
-**Known issue:** `specify init --here --force` currently overwrites `.specify/memory/constitution.md` with the default template, erasing any customizations you made.
+## No-Git Projects
 
-**Workaround:**
+`--no-git` skips repository initialization; it does not disable workflow state
+or make destructive regeneration safer:
 
 ```bash
-# 1. Back up your constitution before upgrading
-cp .specify/memory/constitution.md .specify/memory/constitution-backup.md
-
-# 2. Run the upgrade
-specify init --here --force --ai copilot
-
-# 3. Restore your customized constitution
-mv .specify/memory/constitution-backup.md .specify/memory/constitution.md
+specify init --here --force --ai <agent> --no-git
 ```
 
-Or use git to restore it:
-
-```bash
-# After upgrade, restore from git history
-git restore .specify/memory/constitution.md
-```
-
-### 2. Custom template modifications
-
-If you customized any templates in `.specify/templates/`, the upgrade will overwrite them. Back them up first:
-
-```bash
-# Back up custom templates
-cp -r .specify/templates .specify/templates-backup
-
-# After upgrade, merge your changes back manually
-```
-
-### 3. Duplicate slash commands (IDE-based agents)
-
-Some IDE-based agents (like Kilo Code, Windsurf) may show **duplicate slash commands** after upgrading—both old and new versions appear.
-
-**Solution:** Manually delete the old command files from your agent's folder.
-
-**Example for Kilo Code:**
-
-```bash
-# Navigate to the agent's commands folder
-cd .kilocode/rules/
-
-# List files and identify duplicates
-ls -la
-
-# Delete old versions (example filenames - yours may differ)
-rm speckit.specify-old.md
-rm speckit.plan-v1.md
-```
-
-Restart your IDE to refresh the command list.
-
----
-
-## Common Scenarios
-
-### Scenario 1: "I just want new slash commands"
-
-```bash
-# Upgrade CLI (if using persistent install)
-python -m pip uninstall -y specify-cli
-uv tool install --force git+https://github.com/chenziyang110/spec-kit-plus.git
-
-# Update project files to get new commands
-specify init --here --force --ai copilot
-
-# Restore your constitution if customized
-git restore .specify/memory/constitution.md
-```
-
-### Scenario 2: "I customized templates and constitution"
-
-```bash
-# 1. Back up customizations
-cp .specify/memory/constitution.md /tmp/constitution-backup.md
-cp -r .specify/templates /tmp/templates-backup
-
-# 2. Upgrade CLI
-python -m pip uninstall -y specify-cli
-uv tool install --force git+https://github.com/chenziyang110/spec-kit-plus.git
-
-# 3. Update project
-specify init --here --force --ai copilot
-
-# 4. Restore customizations
-mv /tmp/constitution-backup.md .specify/memory/constitution.md
-# Manually merge template changes if needed
-```
-
-### Scenario 3: "I see duplicate slash commands in my IDE"
-
-This happens with IDE-based agents (Kilo Code, Windsurf, Roo Code, etc.).
-
-```bash
-# Find the agent folder (example: .kilocode/rules/)
-cd .kilocode/rules/
-
-# List all files
-ls -la
-
-# Delete old command files
-rm speckit.old-command-name.md
-
-# Restart your IDE
-```
-
-### Scenario 4: "I'm working on a project without Git"
-
-If you initialized your project with `--no-git`, you can still upgrade:
-
-```bash
-# Manually back up files you customized
-cp .specify/memory/constitution.md /tmp/constitution-backup.md
-
-# Run upgrade
-specify init --here --force --ai copilot --no-git
-
-# Restore customizations
-mv /tmp/constitution-backup.md .specify/memory/constitution.md
-```
-
-The `--no-git` flag skips git initialization but doesn't affect file updates.
-
----
-
-## Using `--no-git` Flag
-
-The `--no-git` flag tells Spec Kit to **skip git repository initialization**. This is useful when:
-
-- You manage version control differently (Mercurial, SVN, etc.)
-- Your project is part of a larger monorepo with existing git setup
-- You're experimenting and don't want version control yet
-
-**During initial setup:**
-
-```bash
-specify init my-project --ai copilot --no-git
-```
-
-**During upgrade:**
-
-```bash
-specify init --here --force --ai copilot --no-git
-```
-
-### What `--no-git` does NOT do
-
-❌ Does NOT prevent file updates
-❌ Does NOT skip slash command installation
-❌ Does NOT affect template merging
-
-It **only** skips running `git init` and creating the initial commit.
-
-### Working without Git
-
-If you use `--no-git`, you'll need to manage feature directories manually:
-
-**Set the `SPECIFY_FEATURE` environment variable** before using planning commands:
-
-```bash
-# Bash/Zsh
-export SPECIFY_FEATURE="001-my-feature"
-
-# PowerShell
-$env:SPECIFY_FEATURE = "001-my-feature"
-```
-
-This tells Spec Kit which feature directory to use when creating specs, plans, and tasks.
-
-**Why this matters:** Without git, Spec Kit can't detect your current branch name to determine the active feature. The environment variable provides that context manually.
-
----
-
-## Troubleshooting
-
-### "Slash commands not showing up after upgrade"
-
-**Cause:** Agent didn't reload the command files.
-
-**Fix:**
-
-1. **Restart your IDE/editor** completely (not just reload window)
-2. **For CLI-based agents**, verify files exist:
-
-   ```bash
-   ls -la .claude/skills/        # Claude Code
-   ls -la .gemini/commands/      # Gemini
-   ls -la .cursor/commands/      # Cursor
-   ls -la .pi/prompts/           # Pi Coding Agent
-   ```
-
-3. **Check agent-specific setup:**
-   - Codex requires `CODEX_HOME` environment variable
-   - Some agents need workspace restart or cache clearing
-
-### "I lost my constitution customizations"
-
-**Fix:** Restore from git or backup:
-
-```bash
-# If you committed before upgrading
-git restore .specify/memory/constitution.md
-
-# If you backed up manually
-cp /tmp/constitution-backup.md .specify/memory/constitution.md
-```
-
-**Prevention:** Always commit or back up `constitution.md` before upgrading.
-
-### "Warning: Current directory is not empty"
-
-**Full warning message:**
-
-```text
-Warning: Current directory is not empty (25 items)
-Template files will be merged with existing content and may overwrite existing files
-Do you want to continue? [y/N]
-```
-
-**What this means:**
-
-This warning appears when you run `specify init --here` (or `specify init .`) in a directory that already has files. It's telling you:
-
-1. **The directory has existing content** - In the example, 25 files/folders
-2. **Files will be merged** - New template files will be added alongside your existing files
-3. **Some files may be overwritten** - If you already have Spec Kit files (`.claude/`, `.specify/`, etc.), they'll be replaced with the new versions
-
-**What gets overwritten:**
-
-Only Spec Kit infrastructure files:
-
-- Agent command files (`.claude/skills/`, `.github/prompts/`, etc.)
-- Scripts in `.specify/scripts/`
-- Templates in `.specify/templates/`
-- Memory files in `.specify/memory/` (including constitution)
-
-**What stays untouched:**
-
-- Your `specs/` directory (specifications, plans, tasks)
-- Your source code files
-- Your `.git/` directory and git history
-- Any other files not part of Spec Kit templates
-
-**How to respond:**
-
-- **Type `y` and press Enter** - Proceed with the merge (recommended if upgrading)
-- **Type `n` and press Enter** - Cancel the operation
-- **Use `--force` flag** - Skip this confirmation entirely:
-
-  ```bash
-  specify init --here --force --ai copilot
-  ```
-
-**When you see this warning:**
-
-- ✅ **Expected** when upgrading an existing Spec Kit project
-- ✅ **Expected** when adding Spec Kit to an existing codebase
-- ⚠️ **Unexpected** if you thought you were creating a new project in an empty directory
-
-**Prevention tip:** Before upgrading, commit or back up your `.specify/memory/constitution.md` if you customized it.
-
-### "CLI upgrade doesn't seem to work"
-
-Verify the installation:
-
-```bash
-# Check installed tools
-uv tool list
-
-# Should show specify-cli
-
-# Verify path
-which specify
-
-# Should point to the uv tool installation directory
-```
-
-If not found, reinstall:
-
-```bash
-uv tool uninstall specify-cli
-uv tool install git+https://github.com/chenziyang110/spec-kit-plus.git
-```
-
-### "Claude or Gemini hooks still seem to call an old specify"
-
-Projects initialized from a git direct-url install now record a source-bound
-launcher in `.specify/config.json` under `specify_launcher`. Claude and Gemini
-native hooks still use that trusted launcher path after their shared startup
-launcher resolves Python.
-
-Generated Claude and Gemini hook registrations now call the shared launcher
-under `.specify/bin/`:
-
-- POSIX: `.specify/bin/specify-hook`
-- Windows: `.specify/bin/specify-hook.cmd`
-
-That shared launcher resolves the Python runtime at hook execution time and
-then delegates to the existing project-local dispatch script. This avoids
-hardcoding `python` or `python3` into managed hook registrations.
-
-The same underlying risk exists beyond native hooks: if a project has no
-trusted project launcher, runtime helper instructions can still fall back to
-PATH `specify` compatibility mode.
-
-If a project still has direct `python ...claude-hook-dispatch.py` or
-`python ...gemini-hook-dispatch.py` managed commands, run:
-
-```bash
-specify integration repair
-```
-
-This refresh installs the shared launcher assets under `.specify/bin/` and
-rewrites managed hook commands to use the stable launcher contract.
-
-For custom environments, set one of these before starting the agent:
-
-```bash
-SPECIFY_HOOK_ARGV='["uvx","--refresh","--from","git+https://github.com/chenziyang110/spec-kit-plus.git","specify"]'
-SPECIFY_HOOK_COMMAND='uvx --refresh --from git+https://github.com/chenziyang110/spec-kit-plus.git specify'
-```
-
-If you need to override how the shared startup launcher finds Python itself,
-set one of these before starting the agent:
-
-```bash
-SPECIFY_HOOK_RUNTIME_COMMAND='python3'
-```
-
-PowerShell:
-
-```powershell
-$env:SPECIFY_HOOK_ARGV = '["uvx","--refresh","--from","git+https://github.com/chenziyang110/spec-kit-plus.git","specify"]'
-$env:SPECIFY_HOOK_COMMAND = 'uvx --refresh --from git+https://github.com/chenziyang110/spec-kit-plus.git specify'
-$env:SPECIFY_HOOK_RUNTIME_COMMAND = 'py'
-```
-
-### "Do I need to run specify every time I open my project?"
-
-**Short answer:** No, you only run `specify init` once per project (or when upgrading).
-
-**Explanation:**
-
-The `specify` CLI tool is used for:
-
-- **Initial setup:** `specify init` to bootstrap Spec Kit in your project
-- **Upgrades:** `specify init --here --force` to update templates and commands
-- **Diagnostics:** `specify check` to verify tool installation
-
-Once you've run `specify init`, the workflow commands are **permanently installed** in your project's agent folder (`.claude/skills/`, `.github/prompts/`, `.pi/prompts/`, etc.). Your AI assistant reads these command files directly—no need to run `specify` again until you upgrade.
-
-**If your agent isn't recognizing slash commands:**
-
-1. **Verify command files exist:**
-
-   ```bash
-   # For GitHub Copilot
-   ls -la .github/prompts/
-
-   # For Claude
-   ls -la .claude/skills/
-
-   # For Pi
-   ls -la .pi/prompts/
-   ```
-
-2. **Restart your IDE/editor completely** (not just reload window)
-
-3. **Check you're in the correct directory** where you ran `specify init`
-
-4. **For some agents**, you may need to reload the workspace or clear cache
-
-**Related issue:** If Copilot can't open local files or uses PowerShell commands unexpectedly, this is typically an IDE context issue, not related to `specify`. Try:
-
-- Restarting VS Code
-- Checking file permissions
-- Ensuring the workspace folder is properly opened
-
----
-
-## Version Compatibility
-
-Spec Kit follows semantic versioning for major releases. The CLI and project files are designed to be compatible within the same major version.
-
-**Best practice:** Keep both CLI and project files in sync by upgrading both together during major version changes.
-
----
-
-## Next Steps
-
-After upgrading:
-
-- **Test new workflow commands:** Run `sp-constitution` or another generated command to verify everything works
-- **Review release notes:** Check [GitHub Releases](https://github.com/chenziyang110/spec-kit-plus/releases) for new features and breaking changes
-- **Update workflows:** If new commands were added, update your team's development workflows
-- **Check documentation:** Visit [github.io/spec-kit](https://github.github.io/spec-kit/) for updated guides
+Without git, create a manual backup before regeneration. If workflow resolution
+cannot infer the active feature, provide the feature explicitly through the
+generated command or the documented `SPECIFY_FEATURE` environment variable.
+
+## Verification Checklist
+
+After an upgrade or repair:
+
+- `specify version` and `specify --help` describe the intended CLI;
+- `specify check` has no unresolved launcher or compatibility errors;
+- `.specify/config.json` records the intended integration and workflow profile;
+- project-pinned `specify_launcher` and `runtime_launcher` resolve;
+- the agent displays the expected native `sp-*` and/or `spx-*` surfaces;
+- existing `.specify/features/**` artifacts and user changes remain intact;
+- `git diff` contains only reviewed changes.
+
+For release-specific changes and binary assets, use
+[Spec Kit Plus Releases](https://github.com/chenziyang110/spec-kit-plus/releases)
+as the authoritative history.

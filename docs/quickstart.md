@@ -263,7 +263,7 @@ For Codex team-mode execution, use the runtime surface deliberately:
 
 - Run `specify sp-teams doctor` before the first coordinated batch so backend readiness, executor availability, baseline build state, and the latest transcript are visible up front.
 - Run `specify sp-teams live-probe` when the runtime was just installed, recently repaired, or still looks suspect after `doctor`.
-- If agent automation should use the optional MCP facade, install it from this fork with `uv tool install --force "specify-cli[mcp] @ git+https://github.com/chenziyang110/spec-kit-plus.git"` and refresh the generated Codex config with `scripts/sync-ecc-to-codex.sh` or `scripts/powershell/sync-ecc-to-codex.ps1`.
+- If agent automation should use the optional MCP facade, install it from Spec Kit Plus with `uv tool install --force "specify-cli[mcp] @ git+https://github.com/chenziyang110/spec-kit-plus.git"` and refresh the generated Codex config with `scripts/sync-ecc-to-codex.sh` or `scripts/powershell/sync-ecc-to-codex.ps1`.
 - Use `specify sp-teams result-template --request-id <id>` and `specify sp-teams submit-result --print-schema` instead of inventing handoff JSON by guesswork. The generated result template is a `pending placeholder` and must be replaced with a real success, blocked, or failed result before submission.
 - Use `specify sp-teams sync-back` after managed team execution when the canonical code changes landed under `.specify/teams/worktrees/<session>/...` and need to be promoted back to the main workspace.
 - In `sp-implement`, use adaptive execution: `leader-direct` for a small or tightly coupled task, `one-subagent` for one independent bounded lane, and `parallel-subagents` only for isolated lanes with an explicit join.
@@ -526,7 +526,7 @@ Validate the specification checklist using the `checklist` workflow:
 After planning, continue with:
 
 ```text
-specify -> plan -> tasks -> implement
+specify -> plan -> tasks -> implement -> review -> accept
 ```
 
 Generate an actionable task list using the `tasks` workflow:
@@ -535,12 +535,17 @@ Generate an actionable task list using the `tasks` workflow:
 /sp-tasks
 ```
 
-### Step 6: Validate and Implement
+### Step 6: Implement, Review, and Accept
 
 Finally, implement the solution:
 
+Then run it from the official entrypoint for integrated system review and hand
+fresh evidence to human acceptance:
+
 ```bash
 /sp-implement
+/sp-review
+/sp-accept
 ```
 
 > [!TIP]
@@ -559,6 +564,6 @@ Finally, implement the solution:
 
 ## Next Steps
 
-- Read the [upstream Spec-Driven Development walkthrough](https://github.com/github/spec-kit/blob/main/spec-driven.md) for in-depth guidance
+- Read the [GitHub Spec Kit methodology reference](https://github.com/github/spec-kit/blob/main/spec-driven.md) for additional background
 - Check out [more examples](https://github.com/chenziyang110/spec-kit-plus/tree/main/templates) in the repository
 - Explore the [source code on GitHub](https://github.com/chenziyang110/spec-kit-plus)

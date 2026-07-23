@@ -9,10 +9,10 @@
 
 [Quick start](#quick-start) · [How it works](#how-it-works) · [Workflow profiles](#workflow-profiles) · [Integrations](#supported-integrations) · [Documentation](#documentation) · [Releases](https://github.com/chenziyang110/spec-kit-plus/releases)
 
-Spec Kit Plus is a maintained fork of [GitHub Spec Kit](https://github.com/github/spec-kit). The `specify` CLI scaffolds a shared Spec-Driven Development runtime and renders native commands or skills for the AI coding tool you select. The generated workflows then carry decisions through requirements, technical planning, execution, verification, and acceptance.
+Spec Kit Plus is an independently developed Spec-Driven Development toolkit for local AI coding agents. The `specify` CLI scaffolds a shared runtime and renders native commands or skills for the AI coding tool you select. The generated workflows then carry decisions through requirements, technical planning, execution, verification, and acceptance.
 
 > [!IMPORTANT]
-> This repository has fork-specific templates, profiles, runtimes, and release behavior. Install from `chenziyang110/spec-kit-plus` when you want the behavior documented here. Use [GitHub Spec Kit](https://github.com/github/spec-kit) when you want the canonical GitHub-maintained distribution.
+> Spec Kit Plus has its own templates, workflow profiles, runtimes, and release behavior. Install from `chenziyang110/spec-kit-plus` when you want the capabilities documented here. [GitHub Spec Kit](https://github.com/github/spec-kit) remains a separate project with its own canonical distribution.
 
 ## Why Spec Kit Plus
 
@@ -37,10 +37,13 @@ Spec Kit Plus is a maintained fork of [GitHub Spec Kit](https://github.com/githu
 ### 1. Install the CLI
 
 ```bash
-uv tool install git+https://github.com/chenziyang110/spec-kit-plus.git
+uv tool install specify-cli --from git+https://github.com/chenziyang110/spec-kit-plus.git
 ```
 
-For a reproducible install, append a tag from [Releases](https://github.com/chenziyang110/spec-kit-plus/releases) to the Git URL, for example `@vX.Y.Z`.
+An untagged Git install follows the current development head. For a reproducible
+CLI/runtime pair, append a tag from
+[Releases](https://github.com/chenziyang110/spec-kit-plus/releases) to the Git
+URL, for example `@vX.Y.Z`.
 
 ### 2. Initialize a project
 
@@ -164,9 +167,9 @@ Run `specify init --help` for the authoritative list shipped by the installed CL
 
 | Goal | Command or guide |
 | --- | --- |
-| Persistent install from this fork | `uv tool install git+https://github.com/chenziyang110/spec-kit-plus.git` |
+| Persistent Git install | `uv tool install specify-cli --from git+https://github.com/chenziyang110/spec-kit-plus.git` |
 | One-time execution | `uvx --refresh --from git+https://github.com/chenziyang110/spec-kit-plus.git specify ...` |
-| Upgrade to the current fork head | `uv tool install --force git+https://github.com/chenziyang110/spec-kit-plus.git` |
+| Upgrade to the current repository head | `uv tool install specify-cli --force --from git+https://github.com/chenziyang110/spec-kit-plus.git` |
 | Pin a release | Append `@vX.Y.Z` from [Releases](https://github.com/chenziyang110/spec-kit-plus/releases) to the Git URL |
 | Repair runtime-managed generated assets | `specify integration repair` from the generated project root |
 | Diagnose tools and project compatibility | `specify check` |
@@ -174,7 +177,16 @@ Run `specify init --help` for the authoritative list shipped by the installed CL
 
 `specify version` reports package and interpreter information, but development installs can share the same `.dev0` version across commits. Verify the active command surface with `specify --help`; on Windows, use `Get-Command specify -All` to find stale pip, Conda, or uv entrypoints that may shadow the intended executable.
 
-Core scaffolding assets are bundled in the Python package. Some optional runtime components, including release builds of Project Cognition, are installed or downloaded separately; `specify init` reports a recovery path when a best-effort runtime install is unavailable.
+Core scaffolding assets are bundled in the Python package. Tagged releases also
+publish matching prebuilt `specify-runtime` binaries for Windows, Linux, and
+macOS. `specify init` downloads and pins the matching runtime when possible and
+reports a recovery path when the best-effort install is unavailable.
+
+If `cognition init-empty` reports `unsupported_legacy_runtime`, a legacy
+`.specify/project-cognition/` store is blocking the current schema; it does not
+mean the runtime binary is missing. Archive that directory first (or remove it
+only after confirming it is disposable), then rerun initialization for an empty
+project or run `sp-map-scan -> sp-map-build` for an existing codebase.
 
 ## Documentation
 
@@ -184,6 +196,7 @@ Core scaffolding assets are bundled in the Python package. Some optional runtime
 | Install, pin, or troubleshoot the CLI | [Installation Guide](docs/installation.md) |
 | Upgrade the CLI or a generated project | [Upgrade Guide](docs/upgrade.md) |
 | Understand architecture and change propagation | [Project Handbook](PROJECT-HANDBOOK.md) |
+| Maintain workflow/profile product contracts | [Repository agent guidance](AGENTS.md) |
 | Choose project governance defaults | [Constitution Profiles](docs/constitution-profiles.md) |
 | Develop an extension | [Extension Development Guide](extensions/EXTENSION-DEVELOPMENT-GUIDE.md) and [API Reference](extensions/EXTENSION-API-REFERENCE.md) |
 | Build or publish presets | [Preset Guide](presets/README.md) and [Publishing Guide](presets/PUBLISHING.md) |
@@ -196,7 +209,7 @@ Core scaffolding assets are bundled in the Python package. Some optional runtime
 - Generated automation includes Bash and PowerShell variants.
 - Classic and Advanced are separate prompt products over shared CLI, schema, validator, and artifact contracts.
 - In a terminal, the optional Codex team runtime is operated through `specify sp-teams ...`; inside Codex, `$sp-teams` is the generated skill entrypoint.
-- The first-release `sp-teams` scope is Codex-only and optional. Other integrations do not receive the Codex team runtime by default.
+- The current `sp-teams` scope is Codex-only and optional. Other integrations do not receive the Codex team runtime by default.
 - Project Cognition is advisory navigation, not repository truth: map points, code proves.
 
 ## Community and contributing
@@ -228,13 +241,13 @@ The repository's regression suite treats the detailed workflow and runtime rules
 
 ## Full product contract reference
 
-`spec-kit-plus` is a maintained fork of Spec Kit focused on practical Spec-Driven Development workflow support for local AI coding agents.
+`spec-kit-plus` is an independently developed Spec-Driven Development system focused on practical workflow support for local AI coding agents.
 
 `specify` is the setup and management CLI. Inside a generated project, the
 agent-native `sp-specify` / `spx-specify` workflow runs the brainstorming lock
 flow, persists facts, route, and intent truth, and produces the structured
-handoff for `plan`; later stages continue through `tasks`, `implement`, and
-`accept`.
+handoff for `plan`; later stages continue through `tasks`, `implement`,
+integrated system `review`, and human `accept`.
 
 This repository contains:
 
@@ -251,21 +264,21 @@ Schema v5 adds revision-bound, expiring reconciliation to the auditable live fee
 
 ## Install
 
-### Persistent install from this fork
+### Persistent install
 
 Install the CLI from this repository:
 
 ```bash
-uv tool install git+https://github.com/chenziyang110/spec-kit-plus.git
+uv tool install specify-cli --from git+https://github.com/chenziyang110/spec-kit-plus.git
 ```
 
-Upgrade to the latest version from this fork. If a machine previously installed
+Upgrade to the latest Spec Kit Plus version. If a machine previously installed
 `specify-cli` through `pip`, Conda, or another `uv tool` location, remove the old
 entry first so a stale `specify.exe` does not shadow the new one:
 
 ```powershell
 python -m pip uninstall -y specify-cli
-uv tool install --force git+https://github.com/chenziyang110/spec-kit-plus.git
+uv tool install specify-cli --force --from git+https://github.com/chenziyang110/spec-kit-plus.git
 Get-Command specify -All
 specify --help
 ```
@@ -287,7 +300,7 @@ the script's explicit `--number` / `-Number` option.
 uvx --refresh --from git+https://github.com/chenziyang110/spec-kit-plus.git specify init my-project --ai codex
 ```
 
-Initialize the current directory with the latest fork version, without relying on whatever `specify` is currently on your `PATH`:
+Initialize the current directory with the latest repository version, without relying on whatever `specify` is currently on your `PATH`:
 
 ```bash
 uvx --refresh --from git+https://github.com/chenziyang110/spec-kit-plus.git specify init . --ai codex
@@ -298,7 +311,8 @@ uvx --refresh --from git+https://github.com/chenziyang110/spec-kit-plus.git spec
 ```bash
 git clone https://github.com/chenziyang110/spec-kit-plus.git
 cd spec-kit-plus
-uv pip install -e .
+uv sync --extra test
+uv run specify --help
 ```
 
 ## Prerequisites
@@ -450,9 +464,10 @@ your agent:
 3. `plan` to define implementation design
 4. `tasks` to break work into executable tasks
 5. `implement` to execute the task plan
-6. `accept` to restore a human's context and guide explicit product acceptance one real step at a time
-7. `auto` to resume the recommended next workflow step from current repository state when you do not want to name the exact command yourself
-8. `integrate` to close out accepted independent feature lanes before mainline merge
+6. `review` to start the integrated product from its official entrypoint, repair bounded wiring or implementation defects, and capture fresh system evidence
+7. `accept` to restore a human's context and guide explicit product acceptance one real step at a time
+8. `auto` to resume the recommended next workflow step from current repository state when you do not want to name the exact command yourself
+9. `integrate` to close out accepted independent feature lanes before mainline merge
 
 After an advanced-profile init, use independent, discoverable SPX skills:
 
@@ -751,9 +766,9 @@ Kimi.
 
 Skill map after `specify init`:
 
-- Core workflow skills: `constitution`, `specify`, `plan`, `tasks`, `implement`
-- Support skills: `map-scan`, `map-build`, `map-update`, `auto`, `ask`, `discussion`, `design`, `prd-scan`, `prd-build`, `prd` (deprecated compatibility entrypoint), `clarify`, `deep-research` (`research` alias), `checklist`, `analyze`, `debug`, `explain`
-- Codex-only runtime: `sp-teams`
+- Core workflow skills: `constitution`, `specify`, `plan`, `tasks`, `implement`, `review`, `accept`
+- Support skills: `auto`, `ask`, `discussion`, `clarify`, `deep-research` (`research` alias), `design`, `fast`, `quick`, `checklist`, `analyze`, `debug`, `explain`, `integrate`, `implement-teams`, `prd-scan`, `prd-build`, `prd` (deprecated compatibility entrypoint), `map-scan`, `map-build`, `map-update`, `taskstoissues`
+- Codex-only runtime: terminal `specify sp-teams` operations plus the generated `sp-teams` and `team` catalog entries
 
 Conditional gates and follow-up commands:
 
@@ -980,7 +995,7 @@ Native hook coverage matrix:
 After planning, continue with:
 
 ```text
-specify -> plan -> tasks -> implement
+specify -> plan -> tasks -> implement -> review -> accept
 ```
 
 `plan` and `tasks` use adaptive execution: `execution_model: adaptive`, `execution_mode: light | standard | heavy`, and `dispatch_shape: leader-inline | one-subagent | parallel-subagents | subagent-blocked`. Light, low-risk single-lane planning or task generation runs leader-inline. Standard work uses native subagents when available; if native subagents are unavailable and no high-risk trigger is present, it may continue leader-inline with `capability_degraded: true`. Standard work that has no safe subagent lane or cannot be packetized safely records `dispatch_shape: subagent-blocked` and stops. Heavy or safety-critical work also blocks when native subagents are unavailable or the work is unpacketizable. Managed-team fallback is not part of adaptive plan/tasks dispatch.
@@ -1010,7 +1025,7 @@ Boundary-sensitive implementation rule:
 - `implement` should compile and validate a `WorkerTaskPacket` just in time only for delegated work; leader-direct tasks do not need packet boilerplate.
 - Subagent packets should carry platform guardrails when a lane depends on supported-platform constraints, conditional compilation, or environment-sensitive runtime assumptions.
 
-Current `sp-implement` runtime model in this fork:
+Current `sp-implement` runtime model in Spec Kit Plus:
 
 - `sp-implement` uses `execution_model: adaptive`; the leader owns route selection, execution state, acceptance, and recovery
 - one small or tightly coupled task may run `leader-direct`; one independent bounded task may use `one-subagent`; isolated ready lanes with an explicit join may use `parallel-subagents`
@@ -1059,7 +1074,7 @@ alongside the SPX skills.
 
 ## Multi-CLI Orchestration
 
-Current orchestration status in this fork:
+Current orchestration status in Spec Kit Plus:
 
 - generic orchestration core exists under `src/specify_cli/orchestration/`
 - `sp-plan` and `sp-tasks` are adaptive: `execution_model: adaptive`, `execution_mode: light | standard | heavy`, `dispatch_shape: leader-inline | one-subagent | parallel-subagents | subagent-blocked`.
@@ -1068,14 +1083,14 @@ Current orchestration status in this fork:
 - in execution-oriented workflows, use subagent execution only when a validated `WorkerTaskPacket` or equivalent execution contract preserves quality
 - `specify`, `plan`, `tasks`, and `explain` now document workflow-specific lanes and join points while keeping shared workflow templates integration-neutral
 - `sp-teams` remains the Codex `managed-team` execution surface for durable team state, explicit join-point tracking, result files, or lifecycle control beyond one in-session subagent burst
-- Claude, Gemini, and Copilot ship first-release adapter skeletons (alongside Codex) for native-first capability reporting
+- Claude, Gemini, and Copilot ship initial adapter skeletons (alongside Codex) for native-first capability reporting
 - durable runtime maturity for `implement` and `debug`, plus wider integration rollout, remain future work
 
 This repository is no longer only a Milestone 1 slice, but the full execution/runtime maturity roadmap is still not complete.
 
 ## Codex Team Runtime
 
-This fork exposes a Codex-only first-release team/runtime surface. In a
+Spec Kit Plus exposes a Codex-only team/runtime surface. In a
 terminal, enter through the `specify` CLI:
 
 ```bash
@@ -1102,7 +1117,7 @@ one.
 For agents and automation, prefer the optional MCP supplement instead of having the model compose CLI invocations directly:
 
 - `specify-teams-mcp` exposes an agent-facing MCP facade for the structured control plane
-- install the optional facade from this fork with `uv tool install --force "specify-cli[mcp] @ git+https://github.com/chenziyang110/spec-kit-plus.git"`; Codex config can register it only when that extra is available
+- install the optional Spec Kit Plus facade with `uv tool install --force "specify-cli[mcp] @ git+https://github.com/chenziyang110/spec-kit-plus.git"`; Codex config can register it only when that extra is available
 - if you install the MCP extra after project init, refresh the generated Codex config with `scripts/sync-ecc-to-codex.sh` or `scripts/powershell/sync-ecc-to-codex.ps1`
 - the MCP layer is intended for agent/tool consumers
 - `specify sp-teams` remains the human/operator CLI and parity fallback surface
@@ -1138,13 +1153,13 @@ Operators should treat this directory as the single source of truth for resumes,
 
 Current release scope:
 
-- Codex-only for first release
+- Codex-only in the current release scope
 - requires a tmux-capable environment
 - installs the Codex team skill as `sp-teams`
 - keeps non-Codex integrations free of the team/runtime surface by default
 - installs runtime helper assets only under `.specify/teams/` for Codex projects
 
-Existing Codex projects may use an optional upgrade path, but that upgrade remains optional, non-blocking release support rather than a first-release requirement.
+Existing Codex projects may use an optional upgrade path, but that upgrade remains optional and non-blocking rather than a requirement for other integrations.
 
 Release isolation guidance:
 
@@ -1216,7 +1231,7 @@ specify init --help
 
 ## Supported Agents
 
-Commonly used integrations in this fork include:
+Commonly used integrations in Spec Kit Plus include:
 
 - `codex`
 - `claude`
@@ -1309,13 +1324,13 @@ Navigation and technical truth are now cognition-first:
 - [Installation Guide](docs/installation.md)
 - [Upgrade Guide](docs/upgrade.md)
 - [Local Development](docs/local-development.md)
-- [Upstream Spec-Driven Development walkthrough](https://github.com/github/spec-kit/blob/main/spec-driven.md)
+- [GitHub Spec Kit methodology reference](https://github.com/github/spec-kit/blob/main/spec-driven.md)
 
-## Notes For This Fork
+## Spec Kit Plus Notes
 
-- install from `chenziyang110/spec-kit-plus`, not the upstream `github/spec-kit`, if you want this fork's behavior
-- Codex integration in this fork defaults to skills-mode behavior; `--ai-skills` is usually unnecessary
-- template and workflow behavior may differ from upstream Spec Kit
+- install from `chenziyang110/spec-kit-plus` when you want the capabilities documented here
+- the Codex integration defaults to skills-mode behavior; `--ai-skills` is usually unnecessary
+- templates, runtimes, and workflow behavior evolve independently from GitHub Spec Kit
 
 ## License
 

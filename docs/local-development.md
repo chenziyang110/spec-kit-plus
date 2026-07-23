@@ -31,21 +31,19 @@ python src/specify_cli/__init__.py init demo-project --script ps
 
 ## 3. Use Editable Install (Isolated Environment)
 
-Create an isolated environment using `uv` so dependencies resolve exactly like end users get them:
+Create the project environment with `uv` so development and test dependencies
+match the repository lockfile:
 
 ```bash
-# Create & activate virtual env (uv auto-manages .venv)
-uv venv
-source .venv/bin/activate  # or on Windows PowerShell: .venv\Scripts\Activate.ps1
+# Create/update .venv and install the test extra
+uv sync --extra test
 
-# Install project in editable mode
-uv pip install -e .
-
-# Now 'specify' entrypoint is available
-specify --help
+# Run the project entrypoint in that environment
+uv run specify --help
 ```
 
-Re-running after code edits requires no reinstall because of editable mode.
+Re-running after code edits requires no reinstall because the project is synced
+as an editable package.
 
 ## 4. Invoke with uvx Directly From Git (Current Branch)
 
@@ -144,7 +142,7 @@ specify init demo --skip-tls --ai gemini --ignore-agent-tools --script ps
 | Action | Command |
 |--------|---------|
 | Run CLI directly | `python -m src.specify_cli --help` |
-| Editable install | `uv pip install -e .` then `specify ...` |
+| Synced editable environment | `uv sync --extra test` then `uv run specify ...` |
 | Local uvx run (repo root) | `uvx --from . specify ...` |
 | Local uvx run (abs path) | `uvx --from /mnt/c/GitHub/spec-kit-plus specify ...` |
 | Git branch uvx | `uvx --from git+URL@branch specify ...` |
@@ -162,7 +160,7 @@ rm -rf .venv dist build *.egg-info
 
 | Symptom | Fix |
 |---------|-----|
-| `ModuleNotFoundError: typer` | Run `uv pip install -e .` |
+| `ModuleNotFoundError: typer` | Run `uv sync --extra test` and invoke through `uv run` |
 | Scripts not executable (Linux) | Re-run init or `chmod +x scripts/*.sh` |
 | Git step skipped | You passed `--no-git` or Git not installed |
 | Wrong script type downloaded | Pass `--script sh` or `--script ps` explicitly |
