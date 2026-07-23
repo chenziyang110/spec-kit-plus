@@ -132,6 +132,27 @@ def test_scaffold_design_preview_copies_template_without_overwriting(
         scaffold_design_preview(output, template_path=PREVIEW_TEMPLATE)
 
 
+def test_scaffold_design_preview_never_overwrites_an_approved_round(
+    tmp_path: Path,
+) -> None:
+    output = tmp_path / ".specify" / "design" / "previews" / "round-01.html"
+    approved = _candidate_preview().replace(
+        'data-preview-status="candidate"',
+        'data-preview-status="approved" data-approved-direction="direction-a"',
+    )
+    output.parent.mkdir(parents=True)
+    output.write_text(approved, encoding="utf-8")
+
+    with pytest.raises(DesignLintError, match="approved"):
+        scaffold_design_preview(
+            output,
+            force=True,
+            template_path=PREVIEW_TEMPLATE,
+        )
+
+    assert output.read_text(encoding="utf-8") == approved
+
+
 def test_design_preview_cli_scaffolds_and_lints_candidate(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
