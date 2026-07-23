@@ -203,6 +203,7 @@ def test_agent_command_catalog_never_requires_side_effect_or_summary_guessing() 
     ] == []
     assert hints["accept.validate"] == "read-only"
     assert hints["discussion.validate-handoff"] == "read-only"
+    assert hints["discussion.confirm-handoff"] == "local-write"
     assert hints["hook.build-compaction"] == "local-write"
     assert hints["hook.validate-artifacts"] == "read-only"
     assert hints["hook.validate-state"] == "conditional-local-write"

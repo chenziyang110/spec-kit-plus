@@ -587,7 +587,7 @@ repair, and recapture loop. If comparison is unavailable, fidelity remains
 
 Use `ask` for read-only evidence-backed project Q&A when you need a direct answer from project files, templates, docs, state, or memory before choosing an action workflow. Project cognition guides the search; live evidence proves the answer. Same-topic follow-ups reuse the prior evidence set when it still applies, localized or project-slang terms are normalized into project vocabulary, and complex answers separate proven facts from evidence-derived inferences. In v1, `sp-ask` is independent from `sp-discussion`, creates no state or handoff, makes no source edits, and does not run tests, builds, package managers, or project CLI commands by default. There is no `specify ask` Typer helper in v1.
 
-Use `discussion` before `specify` or `quick` when product direction, trade-offs, or context boundaries are not yet stable. Human-visible replies remain human-first and adaptive; compact typed state stays backstage. After explicit handoff request, boundary lock, self-review, and confirmation, `sp-discussion` writes exactly one Agent-only `handoff-to-specify.json` requirement contract. It has no Markdown companion or reviewer-guide artifact. The contract preserves target need, scope, constraints, success criteria, design direction, evidence refs, target boundary, decision digest, Must-Preserve/Consequence refs, consumer eligibility, and recovery. Supporting discussion files are read downstream only through a named stale, missing, or contradictory evidence ref.
+Use `discussion` before `specify` or `quick` when product direction, trade-offs, or context boundaries are not yet stable. Human-visible replies remain human-first and adaptive; compact typed state stays backstage. An already-invoked incomplete discussion remains active across topical follow-up turns even when the user does not repeat the workflow name. After explicit handoff request and boundary lock, `sp-discussion` writes and draft-validates exactly one Agent-only `handoff-to-specify.json`, presents its `review_digest`, binds exact user approval with `discussion confirm-handoff`, and only then marks the contract ready. It has no Markdown companion, assessment document, or reviewer-guide artifact. The contract preserves target need, scope, constraints, success criteria, design direction, evidence refs, target boundary, decision digest, Must-Preserve/Consequence refs, consumer eligibility, and recovery. Supporting discussion files are read downstream only through a named stale, missing, or contradictory evidence ref.
 
 The discussion output is one canonical Agent-only JSON contract shared by eligible consumers.
 
@@ -601,7 +601,7 @@ When a discussion direction is locked but the topic is not handoff-ready or down
 
 When the user rejects fallback, backup plans, dual-stack operation, or old-implementation fallback, `sp-discussion` should record that as no parallel old-backend operation, no old-stack cutover fallback, and no alternate product path. It should not turn that into a new discussion question about database snapshots, restore mechanics, rollback scripts, or other data-safety mechanisms; those are downstream planning and implementation safety constraints, not product fallback options.
 
-When a discussion looks mature enough for handoff but the user has not explicitly requested handoff, `sp-discussion` should use the same unified frontstage contract to give the likely assessment verdict, proposed handoff goal, recommended consumer, package scope, excluded scope, readiness checks, default next action, and override path without writing or claiming `handoff-assessment.md`.
+When a discussion looks mature enough for handoff but the user has not explicitly requested handoff, `sp-discussion` should use the same unified frontstage contract to give the likely assessment verdict, proposed handoff goal, recommended consumer, package scope, excluded scope, readiness checks, default next action, and override path without creating a separate assessment artifact.
 
 When a draft contract exists, `sp-discussion` explains the proposed route, scope, exclusions, readiness checks, and allowed review decisions in the visible reply. The reply is human-first; the JSON remains the only handoff authority.
 
@@ -858,7 +858,8 @@ Routing guide for lightweight work:
   - Command shape: `specify discussion resume <slug>`
   - Command shape: `specify discussion checkpoint <slug> --summary <summary> [--phase <phase>]`
   - Command shape: `specify discussion write-handoff <slug> --input <draft.json>`
-  - Command shape: `specify discussion validate-handoff <slug>`
+  - Command shape: `specify discussion validate-handoff <slug> --mode draft|ready`
+  - Command shape: `specify discussion confirm-handoff <slug> --digest <review-digest>`
   - Command shape: `specify discussion mark-ready <slug>`
   - Command shape: `specify discussion close <slug> --status completed|abandoned`
   - Command shape: `specify discussion mark-consumed <slug> --feature-dir <feature-dir>`

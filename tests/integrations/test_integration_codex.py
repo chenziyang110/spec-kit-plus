@@ -765,7 +765,8 @@ class TestCodexAutoPromote:
         assert "first-pass content" in generated_lower
         assert "pre-handoff readiness" in generated_lower
         assert "proposed handoff goal" in generated_lower
-        assert "without writing or claiming `handoff-assessment.md`" in generated_lower
+        assert "without creating a separate assessment artifact" in generated_lower
+        assert "confirm-handoff" in generated_lower
         assert "decision requested" in generated_lower
         assert "scope to approve" in generated_lower
         assert "allowed approval" in generated_lower
@@ -792,7 +793,7 @@ class TestCodexAutoPromote:
         assert "next consumption path" in generated_lower
         assert "do not close with only file paths, status counters, or a next command" in generated_lower
         assert "keep ready-summary quality checks internal" in generated_lower
-        assert "`ready-for-handoff` or `continue-discussion`" in generated_lower
+        assert "`ready-for-contract`, `continue-discussion`, or `blocked`" in generated_lower
         assert "canonical json payload" in generated_lower
         assert "confirmed unified handoff pair" not in generated_lower
 

@@ -15,6 +15,8 @@ Before asking a question, classify the user's latest input:
 - `handoff_request`: explicit request to feed the result to `sp-specify`, continue to the next stage, or produce handoff artifacts.
 - `continuation_or_resume`: user wants to continue an existing discussion.
 
+A contextual confirmation such as `yes`, `ok`, or `可以` inherits the immediately preceding named decision. Classify it as `handoff_request` only when the prior visible request explicitly named handoff creation. Classify it as exact handoff approval only when the prior review named the current `review_digest`. Otherwise it confirms the ordinary product decision and remains inside `sp-discussion`.
+
 The classifier controls the next step. Product intent can be discussed directly or with one product question. Current project facts require evidence lookup before asking the user. Boundary gaps may require one concise boundary question. Handoff requests enter strict handoff assessment. Resume reads compact state and recent events first.
 
 ## Question Evidence Gate
@@ -164,7 +166,7 @@ When a lifecycle state needs specialized content, adapt the same contract:
 - Technical options compare 2-3 requirement-level paths with recommendation, evidence status, trade-offs, verification expectations, data-safety constraints, stop-and-reopen conditions, and scope-adjustment path when relevant.
 - Readiness summary covers the locked direction, why the topic is not yet ready for handoff or downstream execution, blocked decisions, evidence gaps, planning inputs to preserve, the next safe discussion action, and override path.
 - UI interaction discussion covers the user journey, screen or component responsibilities, states, accessibility, responsive behavior, and copy expectations that affect the requirement.
-- Pre-handoff readiness covers the likely verdict, proposed handoff goal, recommended consumer, package scope, excluded scope, readiness checks, default next action, and override path without writing or claiming `handoff-assessment.md`.
+- Pre-handoff readiness covers the likely verdict, proposed handoff goal, recommended consumer, package scope, excluded scope, readiness checks, default next action, and override path without creating a separate assessment artifact.
 - Draft handoff review covers the decision requested, recommended route, scope to approve, excluded scope, readiness checks, package paths, and allowed approval or change-request responses without becoming a path receipt.
 - Handoff-ready closeout covers the handoff goal, selected direction, target boundary, Must-Preserve coverage, hard unknown and conflict counts, quality gate state, source-contract integrity, and exact downstream consumption path.
 - Blocked or evidence-conflict replies state the blocker, the smallest useful partial draft/checklist/evidence plan, and the user-owned decision or external condition required to continue.
@@ -207,6 +209,7 @@ Forbidden next-step wording before `handoff-ready`: do not tell the user their n
 
 - Continue by default when a safe default exists.
 - Do not ask for continuation, permission to proceed, or agreement with the recommendation.
+- Digest-bound handoff approval is not routine permission. Present the complete review and ask once for confirmation of that named revision; never replace this required gate by telling the user to invoke `sp-specify`.
 - Do not ask for option selection when one option is clearly recommended and reversible.
 - Ask only when user judgment is genuinely required and no safe default exists.
 - When recommending, include enough concrete content for the user to judge the recommendation without another round trip.
@@ -239,7 +242,7 @@ Each option must distinguish evidence-backed facts from assumptions. If an optio
 
 ## Optional UI and Interaction Discussion
 
-When functional discussion is stable, no explicit handoff request is active, and UI-facing behavior affects the requirement, offer `ui-interaction-discussion`. If handoff was requested, run `handoff-assessment.md` first and reopen UI only when UI decisions block readiness or the user asks.
+When functional discussion is stable, no explicit handoff request is active, and UI-facing behavior affects the requirement, offer `ui-interaction-discussion`. If handoff was requested, assess handoff readiness first and reopen UI only when UI decisions block readiness or the user asks.
 
 - Set `ui_discussion_status: offered | accepted | completed | skipped | deferred` at semantic checkpoints.
 - When accepted, advise as a senior UI and interaction designer with 15 years of delivery experience. Cover only implementation-shaping journey, layout/hierarchy, required states, responsive behavior, accessibility/focus/keyboard behavior, and user-facing copy.

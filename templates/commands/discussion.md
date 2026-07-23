@@ -4,7 +4,7 @@ workflow_contract:
   when_to_use: A rough idea or requirement needs product/technical discussion before it is ready for sp-specify.
   primary_objective: Build a durable discussion package that matures the idea into requirements and technical implementation options.
   primary_outputs: 'Canonical `.specify/discussions/<slug>/discussion-state.json`, compact `discussion-log.jsonl`, checkpoint artifacts only when their meaning changes, and exactly one agent-only `.specify/discussions/<slug>/handoff-to-specify.json` requirement contract after explicit handoff request and boundary lock. The JSON contract becomes handoff-ready only after exact validation, self-review, and user confirmation of its protected revision.'
-  default_handoff: Stay in sp-discussion until the user explicitly asks to hand off or continue the next stage; then run boundary-aware handoff assessment and either produce one agent-only draft JSON contract for review through the visible reply or continue discussion. Mark handoff-ready only after self-review and user confirmation.
+  default_handoff: Stay in sp-discussion across topical follow-up turns until the user explicitly asks to hand off or contextually confirms a named handoff action. Write and draft-validate one JSON contract, present its digest for review, bind exact user confirmation with confirm-handoff, then mark it ready. Mention sp-specify only after status is handoff-ready.
 ---
 
 {{spec-kit-include: ../command-partials/discussion/shell.md}}
@@ -34,11 +34,12 @@ You are a senior product-engineering advisor: a senior technical expert and seni
 - Do not create feature branches/directories, formal feature artifacts, code, tests, implementation fixes, split workflows, or candidate-specific handoffs.
 - Do not create the JSON handoff before explicit request plus a locked Context Boundary Gate, or invoke/recommend `sp-specify` before self-review and user confirmation of the protected revision.
 - Until then, keep the visible next action inside handoff assessment, review, or repair in `sp-discussion`; `specification-input.md` is not a substitute handoff.
+- Do not treat an already-active discussion as a new automatic workflow entry. A topical follow-up, acknowledgement, or contextual confirmation continues the invoked discussion even when the user does not repeat the skill name.
 
 
 ## Session Store
 
-All state lives under `.specify/discussions/<slug>/`. Use the project-pinned `{{specify-subcmd:discussion --help}}` lifecycle surface for `init`, `list`, `resume`, `checkpoint`, `write-handoff`, `validate-handoff`, `mark-ready`, `mark-consumed`, `close`, and `archive` instead of reconstructing state by hand.
+All state lives under `.specify/discussions/<slug>/`. Use the project-pinned `{{specify-subcmd:discussion --help}}` lifecycle surface for `init`, `list`, `resume`, `checkpoint`, `write-handoff`, `validate-handoff`, `confirm-handoff`, `mark-ready`, `mark-consumed`, `close`, and `archive` instead of reconstructing state by hand.
 
 Required files:
 
@@ -52,7 +53,6 @@ Checkpoint artifacts, created or refreshed only when their meaning changes:
 - `technical-options.md`
 - `project-context.md`
 - `open-questions.md`
-- `handoff-assessment.md` only after explicit user request to hand off or continue to the next stage
 - `handoff-to-specify.json` as the canonical, agent-only `discussion_requirement_contract` conforming to `templates/discussion-handoff-schema.json`
 
 Do not create separate split planning artifacts or candidate-specific handoff files. Complex directions stay inside the single handoff through `capability_map`, `dependencies`, `deferred_scope`, `planning_constraints`, and `reopen_conditions`, or remain in `continue-discussion` until the user confirms a unified scope. Do not fill discussion handoffs with an ordered execution sequence.
@@ -87,9 +87,11 @@ Use the shared discussion runtime to initialize state and render `discussion-sta
 3. Use project cognition only as advisory navigation; prove facts from live evidence.
 4. Answer with the unified frontstage contract.
 5. Persist only at semantic checkpoints, user-triggered checkpoints/saves, compaction risk, or lifecycle transitions. After several unsaved ordinary turns, optionally append a short frontstage note with the unsaved turn count and suggest `checkpoint, continue`; the suggestion is prompt-only and must not write files by itself.
-6. Draft exactly one agent-only `discussion_requirement_contract` JSON only after explicit handoff request and boundary lock. It carries `consumer_eligibility`, `recommended_consumer`, `planning_constraints`, and `discussion_decision_digest`.
-7. Self-review and ask for user confirmation before marking handoff ready.
-8. Mention the downstream `sp-specify` invocation only after the JSON contract exists, self-review has passed, `quality_gate.status` is user-confirmed, and the discussion is `handoff-ready`; otherwise keep the next action inside `sp-discussion`.
+6. On an explicit handoff request, or a contextual confirmation such as `yes`, `ok`, or `可以` that directly answers a named handoff action, assess readiness in memory. Continue discussion if boundary, evidence, product judgment, hard unknowns, or conflicts remain; do not create a separate assessment artifact.
+7. When ready for review, author one complete draft from `templates/discussion-handoff-template.json`, including `consumer_eligibility`, `recommended_consumer`, `planning_constraints`, and `discussion_decision_digest`; record agent self-review, then run `{{specify-subcmd:discussion write-handoff <slug> --input <draft-json-path> --json}}` followed by `{{specify-subcmd:discussion validate-handoff <slug> --mode draft --json}}`.
+8. Present the returned `review_digest` with the selected direction, scope, exclusions, protected obligations, and non-blocking assumptions. Stop for this named human approval; it is the required exception to continue-by-default guidance.
+9. Only when the user confirms that exact revision, run `{{specify-subcmd:discussion confirm-handoff <slug> --digest <review-digest> --json}}`, then `{{specify-subcmd:discussion mark-ready <slug> --json}}`.
+10. Before every final response that names `sp-specify`, read the current discussion status. Mention the downstream invocation only when status is `handoff-ready`; otherwise keep the next action inside `sp-discussion` assessment, draft review, or repair.
 
 ## Detailed References
 

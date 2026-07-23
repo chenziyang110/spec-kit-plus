@@ -8,7 +8,7 @@
     {"kind": "persistence", "source_excerpt": "semantic checkpoints", "target": "templates/command-references/discussion/frontstage-backstage-persistence.md"},
     {"kind": "contract", "source_excerpt": "Agent-Facing Requirement Contract", "target": "templates/command-references/discussion/handoff-contract.md"},
     {"kind": "contract", "source_excerpt": "discussion_requirement_contract", "target": "templates/command-references/discussion/handoff-contract.md"},
-    {"kind": "review", "source_excerpt": "Deterministic Self-Review", "target": "templates/command-references/discussion/handoff-review-and-repair.md"},
+    {"kind": "review", "source_excerpt": "Deterministic Draft Review", "target": "templates/command-references/discussion/handoff-review-and-repair.md"},
     {"kind": "repair", "source_excerpt": "blocked_by_handoff_integrity", "target": "templates/command-references/discussion/handoff-review-and-repair.md"},
     {"kind": "downstream", "source_excerpt": "not fallback handoffs", "target": "templates/command-references/discussion/downstream-consumption.md"},
     {"kind": "closeout", "source_excerpt": "Handoff-ready closeout", "target": "templates/command-references/discussion/quality-and-closeout.md"}

@@ -116,17 +116,16 @@
 
 ## Handoff Assessment
 
-- handoff_assessment_status: not-run | ready-for-handoff | continue-discussion
-- handoff_assessment_path: handoff-assessment.md | none
+- handoff_assessment_status: not-run | ready-for-contract | continue-discussion | blocked
 - handoff_assessment_decided_at: [ISO-8601 timestamp or none]
 - handoff_scope_shape: unified | blocked
 
 ## Handoff Review
 
-- handoff_review_status: not-started | draft | self-review-passed | user-confirmed | blocked
+- handoff_review_status: not-started | draft | self-reviewed | user-confirmed | blocked
 - handoff_user_confirmed_at: [ISO-8601 timestamp or none]
 - handoff_blocker_reason: none
-- handoff_quality_gate: draft | self_review_passed | user_confirmed | blocked
+- handoff_quality_gate: draft | self_reviewed | user_confirmed | blocked
 - handoff_consumption_status: not_consumed | consumed
 - consumed_at: [ISO-8601 timestamp or none]
 - consumed_by_feature_dir: [FEATURE_DIR that consumed this handoff, or none]
@@ -140,7 +139,6 @@
 - technical-options.md
 - project-context.md
 - open-questions.md
-- handoff-assessment.md only after explicit user request
 - handoff-to-specify.json draft after explicit user request and boundary lock; mark handoff-ready only after self-review pass and user confirmation
 
 ## Forbidden Actions
@@ -169,7 +167,6 @@
 - technical-options.md
 - project-context.md
 - open-questions.md
-- handoff-assessment.md when present
 - handoff-to-specify.json as the canonical agent-only handoff contract
 
 ## Senior Consequence Analysis
@@ -188,6 +185,6 @@
 - handoff_goal: none
 - consumer_eligibility: sp-specify=blocked; sp-quick=blocked
 - recommended_consumer: continue-discussion | sp-specify | sp-quick
-- quality_gate_status: draft | self_review_passed | user_confirmed | blocked
+- quality_gate_status: draft | self_reviewed | user_confirmed | blocked
 - handoff_requested_by_user: false
 - next_command: none

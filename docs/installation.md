@@ -228,7 +228,9 @@ Current discussion state is Agent-native: `discussion-state.json` is canonical,
 `discussion-log.jsonl` records semantic checkpoints. The Context Boundary Gate
 locks the target project root before technical claims. Human replies stay
 natural; the handoff is JSON-only and approval/consumption bind to
-`review_digest`.
+`review_digest`. Draft validation runs before approval; `specify discussion
+confirm-handoff <slug> --digest <review-digest>` records exact confirmation,
+and only then may `mark-ready` expose the downstream workflow.
 
 The discussion output is one canonical Agent-only JSON contract shared by eligible consumers.
 

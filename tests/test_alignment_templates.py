@@ -1366,7 +1366,7 @@ def test_discussion_command_locks_context_boundary_before_technicalization() -> 
     assert "senior technical expert" in lowered
     assert "context-grounding" in content
     assert "technical-options" in content
-    assert "handoff-assessment" in content
+    assert "handoff assessment" in content.lower()
     assert "context_boundary" in content
     assert "implementation_target" in content
     assert "quality_gate" in content
@@ -1594,8 +1594,7 @@ def test_discussion_handoff_assessment_preview_precedes_artifact_writes() -> Non
     assert "`prepare`" in content
     assert "prepare | review" in state
     assert "pre-handoff readiness" in lowered
-    assert "without writing or claiming `handoff-assessment.md`" in lowered
-    assert "without writing or claiming `handoff-assessment.md`" in lowered
+    assert "without creating a separate assessment artifact" in lowered
     assert "likely verdict" in lowered
     assert "proposed handoff goal" in lowered
     assert "recommended consumer" in lowered
@@ -1605,7 +1604,7 @@ def test_discussion_handoff_assessment_preview_precedes_artifact_writes() -> Non
     assert "blocking readiness checklist" in lowered
     assert "do not close with only a next-step label" in lowered
     assert "updated-artifact lists" in lowered
-    assert "without writing or claiming `handoff-assessment.md`" in lowered
+    assert "separate assessment" in lowered
 
 
 def test_discussion_does_not_route_to_specify_before_ready_handoff_pair() -> None:
@@ -1626,6 +1625,36 @@ def test_discussion_does_not_route_to_specify_before_ready_handoff_pair() -> Non
     assert "specification-input.md` is not a substitute handoff" in lowered
     assert "the next action is `sp-discussion` handoff creation, review, or repair" in lowered
     assert "ready json contract exists" in lowered
+
+
+def test_discussion_handoff_prompt_uses_executable_digest_bound_transition() -> None:
+    classic = _read("templates/commands/discussion.md")
+    shell = _read("templates/command-partials/discussion/shell.md")
+    advanced = _read("templates/advanced-skills/spx-discussion/SKILL.md")
+    closeout = _read("templates/command-references/discussion/quality-and-closeout.md")
+    combined = "\n".join([classic, shell, advanced, closeout]).lower()
+
+    assert "validate-handoff <slug> --mode draft --json" in combined
+    assert "confirm-handoff <slug> --digest <review-digest> --json" in combined
+    assert "mark-ready <slug> --json" in combined
+    assert "a contextual confirmation such as `yes`, `ok`, or `可以`" in combined
+    assert "before every final response that names `sp-specify`" in combined
+    assert "do not treat an already-active discussion as a new automatic workflow entry" in combined
+    assert "ready-for-contract" in combined
+    assert "decide `ready-for-handoff`" not in combined
+
+
+def test_managed_context_preserves_active_discussion_across_follow_up_turns() -> None:
+    source = _read("src/specify_cli/__init__.py")
+    bash = _read("scripts/bash/update-agent-context.sh")
+    powershell = _read("scripts/powershell/update-agent-context.ps1")
+    routing = _read("templates/passive-skills/spec-kit-workflow-routing/SKILL.md")
+    combined = "\n".join([source, bash, powershell, routing]).lower()
+
+    assert "continuing an already-invoked incomplete workflow is not auto-entry" in combined
+    assert "before recommending `sp-specify`" in combined
+    assert "not `handoff-ready`" in combined
+    assert "resume `sp-discussion`" in combined
 
 
 def test_discussion_readiness_summary_does_not_plan_execution_phases() -> None:
@@ -1737,12 +1766,12 @@ def test_discussion_offers_optional_ui_interaction_stage_for_ui_requirements() -
     assert "ui_discussion_status" in content
     assert "after functional discussion is stable" in content_lower
     assert "no explicit handoff request is active" in content_lower
-    assert "handoff-assessment.md` first" in content
+    assert "assess handoff readiness first" in content_lower
     assert "only when no explicit handoff request is active" in content_lower
-    assert "handoff-assessment.md` first" in content.split("`ui-interaction-discussion`", 1)[1]
+    assert "assess handoff readiness first" in content.split("`ui-interaction-discussion`", 1)[1].lower()
     assert "optional ui and interaction discussion" in content_lower
     assert "ui decisions block readiness" in content_lower
-    assert ui_section.index("handoff-assessment.md` first") < ui_section.index("reopen ui")
+    assert ui_section.index("assess handoff readiness first") < ui_section.index("reopen ui")
     assert "ui_discussion_status: offered | accepted | completed | skipped | deferred" in content
     assert "senior ui and interaction designer" in content_lower
     assert "15 years" in content
@@ -1926,7 +1955,7 @@ def test_discussion_state_template_is_independent_from_feature_workflow_state() 
     assert "external_systems:" in content
     assert "boundary_blockers:" in content
     assert "## Handoff Review" in content
-    assert "handoff_review_status: not-started | draft | self-review-passed | user-confirmed | blocked" in content
+    assert "handoff_review_status: not-started | draft | self-reviewed | user-confirmed | blocked" in content
     assert "handoff_user_confirmed_at:" in content
     assert "handoff_blocker_reason:" in content
     assert "handoff_consumption_status: not_consumed | consumed" in content

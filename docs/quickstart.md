@@ -350,7 +350,8 @@ Use the lightweight routing rules consistently:
   - Command shape: `specify discussion resume <slug>`
   - Command shape: `specify discussion checkpoint <slug> --summary <summary> [--phase <phase>]`
   - Command shape: `specify discussion write-handoff <slug> --input <draft.json>`
-  - Command shape: `specify discussion validate-handoff <slug>`
+  - Command shape: `specify discussion validate-handoff <slug> --mode draft|ready`
+  - Command shape: `specify discussion confirm-handoff <slug> --digest <review-digest>`
   - Command shape: `specify discussion mark-ready <slug>`
   - Command shape: `specify discussion close <slug> --status completed|abandoned`
   - Command shape: `specify discussion mark-consumed <slug> --feature-dir <feature-dir>`

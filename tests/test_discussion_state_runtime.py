@@ -139,6 +139,7 @@ def _write_confirmed_handoff(runtime, project: Path, slug: str) -> tuple[Path, s
     }
     written = runtime.write_handoff(project, slug, payload)
     review_digest = written["review_digest"]
+    runtime.confirm_handoff(project, slug, review_digest)
     return json_path, review_digest
 
 
@@ -291,6 +292,94 @@ def test_validate_and_mark_ready_require_exact_confirmed_digest(runtime, tmp_pat
     assert ready["discussion"]["lifecycle_phase"] == "ready"
     handoff = json.loads(json_path.read_text(encoding="utf-8"))
     assert handoff["status"] == "handoff-ready"
+
+
+def test_draft_validation_and_digest_confirmation_are_separate_transitions(runtime, tmp_path: Path):
+    project = _setup_project(tmp_path)
+    initialized = runtime.initialize_discussion(project, "Review first", "Review before confirmation")
+    json_path, _old_digest = _write_confirmed_handoff(runtime, project, initialized["slug"])
+    payload = json.loads(json_path.read_text(encoding="utf-8"))
+    payload["quality_gate"].update(
+        {
+            "status": "self_reviewed",
+            "self_reviewed_at": "2026-07-22T00:00:00Z",
+            "user_confirmed_at": None,
+            "confirmed_digest": None,
+        }
+    )
+
+    written = runtime.write_handoff(project, initialized["slug"], payload)
+    review_digest = written["review_digest"]
+    draft_validation = runtime.validate_handoff(
+        project,
+        initialized["slug"],
+        validation_mode="draft",
+    )
+    ready_validation = runtime.validate_handoff(
+        project,
+        initialized["slug"],
+        validation_mode="ready",
+    )
+
+    assert draft_validation["valid"] is True
+    assert ready_validation["valid"] is False
+    assert "handoff_not_user_confirmed" in ready_validation["error_codes"]
+
+    confirmation = runtime.confirm_handoff(project, initialized["slug"], review_digest)
+    confirmed_payload = json.loads(json_path.read_text(encoding="utf-8"))
+
+    assert confirmation["review_digest"] == review_digest
+    assert confirmed_payload["quality_gate"]["status"] == "user_confirmed"
+    assert confirmed_payload["quality_gate"]["confirmed_digest"] == review_digest
+    assert confirmed_payload["quality_gate"]["user_confirmed_at"]
+    assert runtime.validate_handoff(
+        project,
+        initialized["slug"],
+        validation_mode="ready",
+    )["valid"] is True
+
+
+def test_semantic_handoff_write_invalidates_earlier_confirmation(runtime, tmp_path: Path):
+    project = _setup_project(tmp_path)
+    initialized = runtime.initialize_discussion(project, "Changed draft", "Changed draft")
+    json_path, _review_digest = _write_confirmed_handoff(runtime, project, initialized["slug"])
+    payload = json.loads(json_path.read_text(encoding="utf-8"))
+
+    runtime.write_handoff(project, initialized["slug"], payload)
+    rewritten = json.loads(json_path.read_text(encoding="utf-8"))
+
+    assert rewritten["quality_gate"]["status"] == "self_reviewed"
+    assert rewritten["quality_gate"]["confirmed_digest"] is None
+    assert rewritten["quality_gate"]["user_confirmed_at"] is None
+
+
+def test_confirm_handoff_rejects_a_stale_review_digest(runtime, tmp_path: Path):
+    project = _setup_project(tmp_path)
+    initialized = runtime.initialize_discussion(project, "Stale digest", "Stale digest")
+    json_path, old_digest = _write_confirmed_handoff(runtime, project, initialized["slug"])
+    payload = json.loads(json_path.read_text(encoding="utf-8"))
+    payload["handoff_goal"] = "A materially revised handoff goal."
+
+    rewritten = runtime.write_handoff(project, initialized["slug"], payload)
+
+    assert rewritten["review_digest"] != old_digest
+    with pytest.raises(ValueError, match="does not match the current handoff"):
+        runtime.confirm_handoff(project, initialized["slug"], old_digest)
+
+
+def test_confirm_handoff_retry_does_not_reopen_a_ready_discussion(runtime, tmp_path: Path):
+    project = _setup_project(tmp_path)
+    initialized = runtime.initialize_discussion(project, "Confirm retry", "Confirm retry")
+    _json_path, review_digest = _write_confirmed_handoff(
+        runtime, project, initialized["slug"]
+    )
+    runtime.mark_ready(project, initialized["slug"])
+
+    retried = runtime.confirm_handoff(project, initialized["slug"], review_digest)
+
+    assert retried["discussion"]["status"] == "handoff-ready"
+    assert retried["discussion"]["lifecycle_phase"] == "ready"
+    assert retried["discussion"]["next_command"] == "sp-specify"
 
 
 def test_review_digest_ignores_confirmation_metadata_but_tracks_protected_changes(runtime, tmp_path: Path):
@@ -446,7 +535,11 @@ def test_runtime_main_dispatches_complete_lifecycle(runtime, tmp_path: Path, mon
     json_path, _digest = _write_confirmed_handoff(runtime, project, slug)
     written = call("write-handoff", slug, str(json_path))
     assert written["review_digest"]
-    assert call("validate-handoff", slug)["valid"] is True
+    assert call("validate-handoff", slug, "draft")["valid"] is True
+    assert call("confirm-handoff", slug, written["review_digest"])["review_digest"] == written[
+        "review_digest"
+    ]
+    assert call("validate-handoff", slug, "ready")["valid"] is True
     assert call("mark-ready", slug)["discussion"]["status"] == "handoff-ready"
 
     feature_dir = project / ".specify" / "features" / "001-dispatcher"

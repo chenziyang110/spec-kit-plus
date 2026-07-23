@@ -1433,9 +1433,11 @@ def _render_spec_kit_managed_block(*, project_root: Path, newline: str) -> str:
             "",
             "## Workflow Recommendations",
             "",
-            "- Do not auto-enter an `sp-*` workflow unless the user invokes it.",
+            "- Do not auto-enter an `sp-*` workflow unless the user invokes it. Continuing an already-invoked incomplete workflow is not auto-entry.",
             "- Recommend `sp-discussion` for open-ended requirement exploration, `sp-specify` for formal alignment, `sp-deep-research` for feasibility proof, and `sp-debug` for root-cause diagnosis.",
             "- If the user invokes an `sp-*` workflow, follow that workflow's own contract.",
+            "- When a topical follow-up, acknowledgement, or contextual confirmation continues an active discussion, resume `sp-discussion` from durable state even when the user does not repeat the workflow name.",
+            "- Before recommending `sp-specify`, inspect the matching discussion status. If it is not `handoff-ready`, resume `sp-discussion` assessment, draft review, or repair; only a ready contract may route downstream.",
             "",
             "## Command Surface Rules",
             "",
@@ -2060,18 +2062,31 @@ def discussion_checkpoint(
 @discussion_app.command("validate-handoff")
 def discussion_validate_handoff(
     slug: str = typer.Argument(..., help="Discussion slug"),
+    mode: str = typer.Option(
+        "ready",
+        "--mode",
+        help="Validation gate: draft checks reviewable content; ready also requires exact user confirmation",
+    ),
     json_output: bool = typer.Option(
         False, "--json", help="Print field-level validation as JSON"
     ),
 ):
     """Validate the canonical discussion handoff without changing lifecycle state."""
     _require_spec_kit_plus_project(Path.cwd())
-    payload = _run_discussion_helper("validate-handoff", slug=slug)
+    normalized_mode = mode.strip().lower()
+    if normalized_mode not in {"draft", "ready"}:
+        console.print("[red]Error:[/red] --mode must be draft or ready")
+        raise typer.Exit(2)
+    payload = _run_discussion_helper(
+        "validate-handoff",
+        slug=slug,
+        status=normalized_mode,
+    )
     if json_output:
         print_json(payload, indent=2)
     elif payload.get("valid"):
         console.print(
-            f"Discussion {slug} handoff is valid and ready for the ready transition."
+            f"Discussion {slug} handoff passed the {normalized_mode} validation gate."
         )
     else:
         messages = [
@@ -2107,6 +2122,35 @@ def discussion_write_handoff(
     console.print(
         f"Prepared handoff for {slug}. Review digest: {payload.get('review_digest')}\n"
         f"Contract: {payload.get('json_path')}"
+    )
+
+
+@discussion_app.command("confirm-handoff")
+def discussion_confirm_handoff(
+    slug: str = typer.Argument(..., help="Discussion slug"),
+    digest: str = typer.Option(
+        ...,
+        "--digest",
+        help="Exact review digest confirmed by the user",
+    ),
+    json_output: bool = typer.Option(
+        False,
+        "--json",
+        help="Print confirmation state as JSON",
+    ),
+):
+    """Bind explicit user confirmation to the current reviewed handoff digest."""
+    _require_spec_kit_plus_project(Path.cwd())
+    payload = _run_discussion_helper(
+        "confirm-handoff",
+        slug=slug,
+        status=digest.strip(),
+    )
+    if json_output:
+        print_json(payload, indent=2)
+        return
+    console.print(
+        f"Confirmed handoff revision for {slug}: {payload.get('review_digest')}"
     )
 
 

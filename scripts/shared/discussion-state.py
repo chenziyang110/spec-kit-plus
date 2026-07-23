@@ -22,6 +22,7 @@ STATE_VERSION = 2
 HANDOFF_VERSION = 4
 TERMINAL_STATUSES = {"completed", "abandoned"}
 INCOMPLETE_STATUSES = {"active", "blocked", "handoff-ready"}
+HANDOFF_VALIDATION_MODES = {"draft", "ready"}
 LIFECYCLE_PHASES = {
     "explore",
     "ground",
@@ -596,19 +597,29 @@ def write_handoff(
         {
             "version": HANDOFF_VERSION,
             "handoff_kind": "discussion_requirement_contract",
+            "status": "draft",
             "entry_source": "sp-discussion",
             "discussion_slug": slug,
             "source_contract": f".specify/discussions/{slug}/handoff-to-specify.json",
+            "handoff_integrity": "not-checked",
+        }
+    )
+    quality_gate = payload.get("quality_gate")
+    if not isinstance(quality_gate, dict):
+        quality_gate = {}
+        payload["quality_gate"] = quality_gate
+    quality_gate.update(
+        {
+            "status": "self_reviewed"
+            if quality_gate.get("self_reviewed_at")
+            else "draft",
+            "user_review_required": True,
+            "user_confirmed_at": None,
+            "confirmed_digest": None,
         }
     )
     review_digest = compute_review_digest(payload)
     payload["review_digest"] = review_digest
-    quality_gate = payload.get("quality_gate")
-    if isinstance(quality_gate, dict) and quality_gate.get("status") in {
-        "user_confirmed",
-        "user-confirmed",
-    }:
-        quality_gate["confirmed_digest"] = review_digest
     json_path = workspace / "handoff-to-specify.json"
     _atomic_write_json(json_path, payload)
     timestamp = now_utc()
@@ -618,20 +629,18 @@ def write_handoff(
     state["turn_packet"].update(
         {
             "lifecycle_phase": "review",
+            "context_boundary": copy.deepcopy(payload.get("context_boundary")),
             "persistence_mode": "lifecycle-transition",
             "allowed_actions": ["review-handoff", "request-changes", "mark-ready"],
-            "next_gate": "handoff-validation",
+            "next_gate": "handoff-draft-validation",
         }
     )
     state["handoff"].update(
         {
-            "review_status": "user-confirmed"
-            if isinstance(quality_gate, dict)
-            and quality_gate.get("status") in {"user_confirmed", "user-confirmed"}
+            "review_status": "self-reviewed"
+            if quality_gate.get("status") == "self_reviewed"
             else "draft",
-            "quality_gate_status": quality_gate.get("status", "draft")
-            if isinstance(quality_gate, dict)
-            else "draft",
+            "quality_gate_status": quality_gate.get("status", "draft"),
             "review_digest": review_digest,
             "contract_path": payload["source_contract"],
             "recommended_consumer": payload.get(
@@ -639,6 +648,7 @@ def write_handoff(
             ),
         }
     )
+    state["next_command"] = "none"
     _persist_state(workspace, state)
     _write_index(project_root)
     return {
@@ -684,31 +694,40 @@ def _handoff_paths(project_root: Path, slug: str) -> tuple[Path, Path]:
     return workspace, workspace / "handoff-to-specify.json"
 
 
-def validate_handoff(project_root: Path, slug: str) -> dict[str, Any]:
+def validate_handoff(
+    project_root: Path,
+    slug: str,
+    *,
+    validation_mode: str = "ready",
+) -> dict[str, Any]:
+    normalized_mode = str(validation_mode or "ready").strip().lower()
+    if normalized_mode not in HANDOFF_VALIDATION_MODES:
+        raise ValueError("handoff validation mode must be 'draft' or 'ready'")
     workspace, json_path = _handoff_paths(project_root, slug)
     errors: list[dict[str, str]] = []
     if not json_path.is_file():
         errors.append(_error("missing_handoff_json", "handoff JSON is required"))
     if errors:
-        return _validation_payload(workspace, errors, None)
+        return _validation_payload(workspace, errors, None, normalized_mode)
     try:
         payload = json.loads(json_path.read_text(encoding="utf-8"))
     except json.JSONDecodeError:
         errors.append(_error("invalid_handoff_json", "handoff JSON is not valid JSON"))
-        return _validation_payload(workspace, errors, None)
+        return _validation_payload(workspace, errors, None, normalized_mode)
     if not isinstance(payload, dict):
         errors.append(
             _error("invalid_handoff_payload", "handoff JSON must be an object")
         )
-        return _validation_payload(workspace, errors, None)
-    _validate_handoff_fields(payload, slug, errors)
-    return _validation_payload(workspace, errors, payload)
+        return _validation_payload(workspace, errors, None, normalized_mode)
+    _validate_handoff_fields(payload, slug, errors, normalized_mode)
+    return _validation_payload(workspace, errors, payload, normalized_mode)
 
 
 def _validate_handoff_fields(
     payload: dict[str, Any],
     slug: str,
     errors: list[dict[str, str]],
+    validation_mode: str,
 ) -> None:
     expected_values = {
         "version": HANDOFF_VERSION,
@@ -747,7 +766,7 @@ def _validate_handoff_fields(
             _error("legacy_recommended_sequence", "recommended_sequence is not allowed")
         )
     _validate_consumers(payload, errors)
-    _validate_review_digest(payload, errors)
+    _validate_review_digest(payload, errors, validation_mode)
 
 
 def _validate_boundary(boundary: Any, errors: list[dict[str, str]]) -> None:
@@ -799,6 +818,7 @@ def _validate_consumers(payload: dict[str, Any], errors: list[dict[str, str]]) -
 def _validate_review_digest(
     payload: dict[str, Any],
     errors: list[dict[str, str]],
+    validation_mode: str,
 ) -> None:
     review_digest = str(payload.get("review_digest") or "")
     computed_digest = compute_review_digest(payload)
@@ -810,10 +830,24 @@ def _validate_review_digest(
             )
         )
     quality_gate = payload.get("quality_gate")
-    if not isinstance(quality_gate, dict) or quality_gate.get("status") not in {
+    if not isinstance(quality_gate, dict):
+        errors.append(_error("missing_quality_gate", "quality gate is required"))
+        return
+    if quality_gate.get("status") not in {
+        "self_reviewed",
+        "self-reviewed",
         "user_confirmed",
         "user-confirmed",
-    }:
+    } or not quality_gate.get("self_reviewed_at"):
+        errors.append(
+            _error(
+                "handoff_not_self_reviewed",
+                "quality gate must record agent self-review",
+            )
+        )
+    if validation_mode == "draft":
+        return
+    if quality_gate.get("status") not in {"user_confirmed", "user-confirmed"}:
         errors.append(
             _error(
                 "handoff_not_user_confirmed",
@@ -821,9 +855,7 @@ def _validate_review_digest(
             )
         )
         return
-    if not quality_gate.get("self_reviewed_at") or not quality_gate.get(
-        "user_confirmed_at"
-    ):
+    if not quality_gate.get("user_confirmed_at"):
         errors.append(
             _error(
                 "incomplete_quality_gate",
@@ -843,9 +875,11 @@ def _validation_payload(
     workspace: Path,
     errors: list[dict[str, str]],
     payload: dict[str, Any] | None,
+    validation_mode: str,
 ) -> dict[str, Any]:
     return {
         "valid": not errors,
+        "validation_mode": validation_mode,
         "workspace_path": str(workspace.resolve()),
         "review_digest": payload.get("review_digest") if payload else None,
         "error_codes": [error["code"] for error in errors],
@@ -853,8 +887,89 @@ def _validation_payload(
     }
 
 
+def confirm_handoff(
+    project_root: Path,
+    slug: str,
+    review_digest: str,
+) -> dict[str, Any]:
+    expected_digest = str(review_digest or "").strip()
+    if not expected_digest:
+        raise ValueError("review digest is required")
+    validation = validate_handoff(
+        project_root,
+        slug,
+        validation_mode="draft",
+    )
+    if not validation["valid"]:
+        codes = ", ".join(validation["error_codes"])
+        raise ValueError(f"discussion handoff draft is not reviewable: {codes}")
+    if validation["review_digest"] != expected_digest:
+        raise ValueError("review digest does not match the current handoff revision")
+
+    workspace, json_path = _handoff_paths(project_root, slug)
+    state, _legacy = _load_state(workspace)
+    handoff = json.loads(json_path.read_text(encoding="utf-8"))
+    quality_gate = handoff["quality_gate"]
+    if (
+        quality_gate.get("status") in {"user_confirmed", "user-confirmed"}
+        and quality_gate.get("user_confirmed_at")
+        and quality_gate.get("confirmed_digest") == expected_digest
+    ):
+        return {
+            "discussion": {
+                **_record(workspace, state, False),
+                **copy.deepcopy(state),
+            },
+            "review_digest": expected_digest,
+            "json_path": str(json_path.resolve()),
+        }
+    quality_gate.update(
+        {
+            "status": "user_confirmed",
+            "user_confirmed_at": now_utc(),
+            "confirmed_digest": expected_digest,
+        }
+    )
+    _atomic_write_json(json_path, handoff)
+    timestamp = now_utc()
+    state.update(
+        {"status": "active", "lifecycle_phase": "review", "updated_at": timestamp}
+    )
+    state["turn_packet"].update(
+        {
+            "lifecycle_phase": "review",
+            "persistence_mode": "lifecycle-transition",
+            "allowed_actions": ["mark-ready", "request-changes", "review-handoff"],
+            "next_gate": "handoff-ready-validation",
+        }
+    )
+    state["handoff"].update(
+        {
+            "review_status": "user-confirmed",
+            "quality_gate_status": "user_confirmed",
+            "review_digest": expected_digest,
+            "contract_path": handoff["source_contract"],
+            "recommended_consumer": handoff.get(
+                "recommended_consumer", "continue-discussion"
+            ),
+        }
+    )
+    state["next_command"] = "none"
+    _persist_state(workspace, state)
+    _write_index(project_root)
+    return {
+        "discussion": {**_record(workspace, state, False), **copy.deepcopy(state)},
+        "review_digest": expected_digest,
+        "json_path": str(json_path.resolve()),
+    }
+
+
 def mark_ready(project_root: Path, slug: str) -> dict[str, Any]:
-    validation = validate_handoff(project_root, slug)
+    validation = validate_handoff(
+        project_root,
+        slug,
+        validation_mode="ready",
+    )
     if not validation["valid"]:
         codes = ", ".join(validation["error_codes"])
         raise ValueError(f"discussion handoff is not ready: {codes}")
@@ -1108,7 +1223,13 @@ def main() -> int:
             raise ValueError("handoff input must be a JSON object")
         result = write_handoff(project_root, slug, handoff_payload)
     elif mode == "validate-handoff":
-        result = validate_handoff(project_root, slug)
+        result = validate_handoff(
+            project_root,
+            slug,
+            validation_mode=value or "ready",
+        )
+    elif mode == "confirm-handoff":
+        result = confirm_handoff(project_root, slug, value)
     elif mode == "mark-ready":
         result = mark_ready(project_root, slug)
     elif mode == "mark-consumed":

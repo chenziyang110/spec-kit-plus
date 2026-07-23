@@ -16,7 +16,7 @@ consumer eligibility, persistence mode, and confirmation as orthogonal fields:
    proves. External targets require their own root and evidence.
 3. `decide`: map adjacent decisions, compare only materially distinct options,
    recommend the best direction, and record confirmed or rejected choices.
-4. `prepare`: when explicit handoff is requested, decide `ready-for-handoff` or
+4. `prepare`: when explicit handoff is requested, decide `ready-for-contract` or
    `continue-discussion`. If ready, assemble one canonical JSON payload from the
    selected scope.
 5. `review`: validate exact schema/source-contract integrity, Must-Preserve and

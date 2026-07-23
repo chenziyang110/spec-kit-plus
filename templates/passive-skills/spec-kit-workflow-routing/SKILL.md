@@ -15,7 +15,13 @@ assuming one universal slash-style syntax.
 
 ## Workflow Recommendation Discipline
 
-Do not auto-enter an `sp-*` workflow unless the user invokes it. For ordinary
+Do not auto-enter an `sp-*` workflow unless the user invokes it. Continuing
+an already-invoked incomplete workflow is not auto-entry. When a topical
+follow-up, acknowledgement, or contextual confirmation continues an active
+discussion, resume `sp-discussion` from durable state even when the user does
+not repeat the workflow name. Before recommending `sp-specify`, inspect the
+matching discussion status; when it is not `handoff-ready`, resume
+`sp-discussion` assessment, draft review, or repair instead. For ordinary
 natural-language tasks, answer or work in the current mode while using always-on
 project cognition and Project Learning when they matter. You may recommend a
 workflow when it would materially improve the outcome.

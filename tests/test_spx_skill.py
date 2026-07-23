@@ -270,6 +270,7 @@ def test_spx_skills_keep_runtime_reuse_and_safety_boundaries() -> None:
 
     assert "discussion resume" in skills["spx-discussion"]
     assert "discussion mark-ready" in skills["spx-discussion"]
+    assert "discussion confirm-handoff" in skills["spx-discussion"]
     assert "do not create feature state" in skills["spx-discussion"]
 
     assert "remain read-only" in skills["spx-explain"]

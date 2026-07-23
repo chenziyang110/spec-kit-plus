@@ -188,7 +188,8 @@ def _assert_discussion_contract(skill_content: str) -> None:
     assert "sp-discussion" in skill_content
     assert ".specify/discussions/<slug>/" in skill_content
     assert "discussion-state.md" in skill_content
-    assert "handoff-assessment.md" in skill_content
+    assert "without creating a separate assessment artifact" in skill_content.lower()
+    assert "confirm-handoff" in skill_content
     assert "Turn Classifier" in skill_content
     assert "Question Evidence Gate" in skill_content
     assert "Cognition Advisory, Code Authority" in skill_content

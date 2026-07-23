@@ -232,6 +232,55 @@ def test_discussion_validate_and_mark_ready_json_use_runtime_gate(tmp_path: Path
     assert json.loads(ready.stdout)["discussion"]["status"] == "handoff-ready"
 
 
+def test_discussion_cli_reviews_then_confirms_exact_handoff_digest(tmp_path: Path):
+    project, _discussion_root = _setup_project(tmp_path)
+    runtime = _load_discussion_runtime()
+    initialized = runtime.initialize_discussion(project, "cli-review", "CLI review")
+    json_path, _old_digest = _write_confirmed_handoff(runtime, project, initialized["slug"])
+    payload = json.loads(json_path.read_text(encoding="utf-8"))
+    payload["quality_gate"].update(
+        {
+            "status": "self_reviewed",
+            "user_confirmed_at": None,
+            "confirmed_digest": None,
+        }
+    )
+    written = runtime.write_handoff(project, initialized["slug"], payload)
+
+    draft_validation = _invoke_in_project(
+        project,
+        [
+            "discussion",
+            "validate-handoff",
+            initialized["slug"],
+            "--mode",
+            "draft",
+            "--json",
+        ],
+    )
+    confirmation = _invoke_in_project(
+        project,
+        [
+            "discussion",
+            "confirm-handoff",
+            initialized["slug"],
+            "--digest",
+            written["review_digest"],
+            "--json",
+        ],
+    )
+    ready = _invoke_in_project(
+        project,
+        ["discussion", "mark-ready", initialized["slug"], "--json"],
+    )
+
+    assert draft_validation.exit_code == 0, draft_validation.stdout
+    assert confirmation.exit_code == 0, confirmation.stdout
+    assert ready.exit_code == 0, ready.stdout
+    assert json.loads(confirmation.stdout)["review_digest"] == written["review_digest"]
+    assert json.loads(ready.stdout)["discussion"]["next_command"] == "sp-specify"
+
+
 def test_discussion_list_defaults_to_unclosed_discussions(tmp_path: Path):
     project, discussion_root = _setup_project(tmp_path)
     _write_discussion(

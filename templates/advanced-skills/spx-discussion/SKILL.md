@@ -32,11 +32,20 @@ implementation-path, or verification claims. For cross-project work, lock
 
 Persist compact semantic checkpoints only when meaning changes; do not store a
 transcript. Stay in discussion until the user explicitly requests a handoff.
+Do not treat an already-active discussion as a new automatic workflow entry;
+topical acknowledgements and follow-ups continue this stage without requiring
+the user to repeat `$spx-discussion`. A contextual confirmation such as `yes`,
+`ok`, or `可以` authorizes handoff only when it directly answers a named handoff
+action, and authorizes readiness only when it confirms the displayed digest.
 Then draft exactly one agent-only contract and write it with
 `{{specify-subcmd:discussion write-handoff <slug> --input <draft-json-path> --json}}`.
-Run `{{specify-subcmd:discussion validate-handoff <slug> --json}}`, review its
-boundary against confirmed decisions, and ask the user to confirm that exact
-revision before `{{specify-subcmd:discussion mark-ready <slug> --json}}`.
+Run `{{specify-subcmd:discussion validate-handoff <slug> --mode draft --json}}`,
+review its boundary against confirmed decisions, and ask the user to confirm
+that exact revision. Then run
+`{{specify-subcmd:discussion confirm-handoff <slug> --digest <review-digest> --json}}`
+before `{{specify-subcmd:discussion mark-ready <slug> --json}}`. Before every
+final response that names `sp-specify`, read canonical status and withhold the
+downstream invocation unless it is `handoff-ready`.
 
 Do not create feature state, a spec, plan, tasks, or production changes. A ready
 handoff continues through `$spx-specify`; mark it consumed only after the

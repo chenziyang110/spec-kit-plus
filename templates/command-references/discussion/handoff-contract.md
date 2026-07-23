@@ -6,7 +6,7 @@ Preserved Contract: the handoff is user-confirmed, consumer-neutral, schema-vali
 
 ## Agent-Facing Requirement Contract
 
-Write `.specify/discussions/<slug>/handoff-to-specify.json` from `templates/discussion-handoff-template.json`. The filename is compatibility-only; the payload is one `discussion_requirement_contract` that may select `sp-specify` or `sp-quick`.
+Author a complete draft from `templates/discussion-handoff-template.json`, record agent self-review, and write it with `{{specify-subcmd:discussion write-handoff <slug> --input <draft-json-path> --json}}`. The canonical result is `.specify/discussions/<slug>/handoff-to-specify.json`; the filename is compatibility-only, and the payload is one `discussion_requirement_contract` that may select `sp-specify` or `sp-quick`.
 
 Do not write a Markdown companion, consumer-specific copy, reviewer guide, transcript, or pointer-only substitute. Human review is a visible response generated from the canonical JSON and bound to its `review_digest`.
 
@@ -31,7 +31,7 @@ Store the protected digest under `discussion_decision_digest`: `locked_direction
 
 Compute `review_digest` from protected semantic content only. Exclude status transitions, timestamps, confirmation bookkeeping, and integrity fields so approval binds to meaning.
 
-Self-review the JSON contract, present a concise human-facing review in the conversation, and require confirmation of the current digest. A semantic edit invalidates confirmation and requires a new digest; bookkeeping-only changes do not.
+Run `{{specify-subcmd:discussion validate-handoff <slug> --mode draft --json}}`, present a concise human-facing review in the conversation, and require confirmation of the returned digest. Bind approval with `{{specify-subcmd:discussion confirm-handoff <slug> --digest <review-digest> --json}}`. A semantic write invalidates confirmation and requires a new digest; bookkeeping-only confirmation does not change the digest.
 
 Do not ask for a bare yes/no confirmation without review criteria. An unrelated prompt is not approval of the protected digest.
 

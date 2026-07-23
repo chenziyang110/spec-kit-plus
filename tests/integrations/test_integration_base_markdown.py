@@ -183,7 +183,8 @@ def _assert_discussion_contract(command_content: str) -> None:
     assert "sp-discussion" in command_content
     assert ".specify/discussions/<slug>/" in command_content
     assert "discussion-state.md" in command_content
-    assert "handoff-assessment.md" in command_content
+    assert "without creating a separate assessment artifact" in command_content.lower()
+    assert "confirm-handoff" in command_content
     assert "Turn Classifier" in command_content
     assert "Question Evidence Gate" in command_content
     assert "Cognition Advisory, Code Authority" in command_content

@@ -84,7 +84,8 @@ def test_spx_discussion_preserves_truth_consequence_and_ui_handoff_inputs() -> N
     content = _text("spx-discussion", "discussion-contract.md")
 
     assert "discussion write-handoff <slug> --input <draft-json-path> --json" in content
-    assert "discussion validate-handoff <slug> --json" in content
+    assert "discussion validate-handoff <slug> --mode draft --json" in content
+    assert "discussion confirm-handoff <slug> --digest <review-digest> --json" in content
     assert "references/consequence-gate.md" in content
     assert "truth pass" in content
     assert "target_project_root" in content
@@ -97,7 +98,7 @@ def test_spx_discussion_preserves_truth_consequence_and_ui_handoff_inputs() -> N
 def test_spx_specify_fails_closed_on_handoff_and_artifact_validation() -> None:
     content = _text("spx-specify", "discussion-handoff.md")
 
-    assert "discussion validate-handoff <slug> --json" in content
+    assert "discussion validate-handoff <slug> --mode ready --json" in content
     assert "status: handoff-ready" in content
     assert "planning_gate_status: ready" in content
     assert "quality_gate.status: user_confirmed" in content
