@@ -54,6 +54,13 @@ design_system:
       body.family:
         value: "system-ui"
         usage: body text
+    motion:
+      duration.fast:
+        value: "140ms"
+        usage: direct control feedback
+      easing.standard:
+        value: "cubic-bezier(.2, .8, .2, 1)"
+        usage: continuous state change
   components:
     button:
       required_states:
@@ -291,6 +298,11 @@ def test_export_design_system_tailwind_maps_supported_token_categories(tmp_path:
     assert payload["theme"]["extend"]["spacing"]["scale-4"] == "16px"
     assert payload["theme"]["extend"]["borderRadius"]["control"] == "6px"
     assert payload["theme"]["extend"]["fontFamily"]["body-family"] == "system-ui"
+    assert payload["theme"]["extend"]["transitionDuration"]["duration-fast"] == "140ms"
+    assert (
+        payload["theme"]["extend"]["transitionTimingFunction"]["easing-standard"]
+        == "cubic-bezier(.2, .8, .2, 1)"
+    )
 
 
 def test_export_design_system_allows_explicit_legacy_structural_escape_hatch(
