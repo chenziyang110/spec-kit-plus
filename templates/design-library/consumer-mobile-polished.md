@@ -71,6 +71,16 @@ design_system:
       heading.weight:
         value: "700"
         usage: polished app hierarchy
+    motion:
+      duration.fast:
+        value: "140ms"
+        usage: direct touch feedback
+      duration.base:
+        value: "280ms"
+        usage: sheets and state transitions
+      easing.standard:
+        value: "cubic-bezier(.2, .8, .2, 1)"
+        usage: native-feeling continuous motion
   components:
     button:
       required_states:
@@ -110,6 +120,7 @@ design_system:
     contrast_intent: WCAG AA for ordinary text where platform rendering allows
     focus_visible: required
     keyboard_navigation: required
+    reduced_motion: required
 ---
 
 # Consumer Mobile Polished

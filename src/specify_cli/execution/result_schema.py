@@ -33,6 +33,17 @@ class UIVerification:
     visual_comparison: str = "unavailable"
     fidelity_status: str = "not-applicable"
     reviewer: str = "agent"
+    approved_visual_ref: str = ""
+    approved_preview_sha256: str = ""
+    approved_manifest_sha256: str = ""
+    comparison_report_ref: str = ""
+    comparison_report_sha256: str = ""
+    implementation_capture_refs: list[str] = field(default_factory=list)
+    covered_decision_ids: list[str] = field(default_factory=list)
+    structural_differences: list[str] = field(default_factory=list)
+    visual_differences: list[str] = field(default_factory=list)
+    comparison_tolerance: str = ""
+    accepted_deviations: list[dict[str, str]] = field(default_factory=list)
 
 
 @dataclass(slots=True)

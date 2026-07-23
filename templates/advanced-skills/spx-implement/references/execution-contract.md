@@ -114,7 +114,10 @@ concrete drift while budget remains, then recapture in a later epoch. Check
 overflow, console, keyboard/focus, and accessibility when applicable. Persist
 typed structure/visual/runtime evidence with `evidence_scope: integrated`, plus
 difference inventory and accepted deviations for approximate/high fidelity.
-Tests passed is not visual acceptance; unavailable comparison is
+Every passing comparison persists a `spec-kit-visual-comparison-v1` report
+binding approved preview/manifest digests, real-entrypoint captures, the
+complete applicable `DS-*` decision set, comparison tolerance, and approved
+deviations. Tests passed is not visual acceptance; unavailable comparison is
 `pending-human-review` with an exact review target and blocks verified closeout.
 
 Perform task-level review on drift, parallel joins, write-scope changes,

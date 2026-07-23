@@ -7,8 +7,12 @@ design_system:
   approval:
     status: unapproved
     direction: null
+    review_round: null
     source_refs: []
     visual_refs: []
+    preview_sha256: null
+    manifest_sha256: null
+    decision_ids: []
   product_context:
     subject: null
     audience: null
@@ -18,6 +22,8 @@ design_system:
     content_thesis: null
     interaction_thesis: null
     signature_element: null
+    safe_system_choices: []
+    creative_risks: []
   platforms:
     - select-during-sp-design
   tokens:
@@ -25,11 +31,32 @@ design_system:
     spacing: {}
     radius: {}
     typography: {}
+    motion: {}
+    elevation: {}
+    sizing: {}
+    layout: {}
+  color_modes: {}
   components: {}
+  responsive:
+    breakpoints: {}
+    adaptations: []
+  content:
+    voice_rules: []
+    real_content_sources: []
+    imagery_rules: []
+  decisions: []
+  verification:
+    required_viewports: []
+    required_states: []
+    visual_tolerance: null
+    accepted_deviations: []
   accessibility:
     contrast_intent: WCAG AA for ordinary text where platform rendering allows
     focus_visible: required
     keyboard_navigation: required
+    reduced_motion: required
+    touch_target: platform appropriate
+    forced_colors: supported where the platform exposes it
 ---
 
 # Project Design System
@@ -49,6 +76,18 @@ or component style to copy. Select them from product context and live evidence.
 Record the subject, audience, single user job, visual/content/interaction
 theses, signature element, and the inspectable visual artifact the user
 approved. A prose label alone is not visual approval.
+
+## Visual And Interaction Signature
+
+Record the recognizable project-specific element and the safe system choices or
+deliberate risks that create it. Every implementable statement should map to a
+stable `DS-*` decision ID.
+
+## Foundations
+
+Define semantic color modes, typography hierarchy, spacing, geometry,
+elevation, sizing, layout, and motion. Record resolved font behavior and
+foreground/background contrast pairs instead of relying on aesthetic labels.
 
 ## Platforms
 
@@ -74,6 +113,22 @@ approved. A prose label alone is not visual approval.
 - The approved project-level HTML preview is the visual motion reference;
   feature-level targets still define concrete composition and state coverage.
 
+## Responsive Behavior
+
+- Define content-driven breakpoints and the navigation, density, hierarchy,
+  overflow, and input changes at each boundary.
+- Record the required viewport and state matrix under `verification`.
+- Treat mobile as an adaptation of priorities, not a uniformly shrunken desktop.
+
+## Content And Imagery
+
+- Name real content sources, long-copy or localization stress cases, and visible
+  data-volume expectations.
+- Record owned/licensed image sources, crop behavior, aspect ratios, and missing
+  asset recovery.
+- Do not silently substitute lorem ipsum, generic stock art, or decorative
+  placeholders that hide layout risk.
+
 ## Anti-Patterns
 
 - Do not ship generic gradient-heavy screens that ignore product context.
@@ -91,6 +146,17 @@ approved. A prose label alone is not visual approval.
 - Evidence captures structure, visual output, runtime diagnostics, and comparison
   at real entry points; browser evidence maps these to accessibility snapshots,
   screenshots, console/runtime output, and visual comparison or human review.
+
+## Reference Fidelity
+
+Record each source, use intent, adopted decision IDs, permitted adaptation, and
+forbidden copying. The approved preview reference, manifest digest, and
+direction must resolve to the same immutable approval sidecar.
+
+## Planned Gaps and Exceptions
+
+Record only explicit, owned gaps with a revisit condition and affected decision
+IDs. Absence from the contract is not permission to reinterpret the design.
 
 ## Design Change Policy
 

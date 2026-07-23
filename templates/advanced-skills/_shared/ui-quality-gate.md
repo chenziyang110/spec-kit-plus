@@ -22,18 +22,23 @@ inspectable approved visual reference; a narrow existing-pattern exception must
 name its live governing surface. Reuse approved tokens and components.
 When `sp-design` produced a project-level HTML preview, preserve the exact
 immutable `round-NN.html#direction-id` reference and its motion/reduced-motion
-contract. Do not replace it with a prose summary or the later feature target.
+contract, preview/manifest SHA-256 values, and approved `DS-*` decision IDs.
+Do not replace them with a prose summary or the later feature target.
 
 ## Delivery chain
 
 For substantive UI work preserve one contract through the workflow:
 
-`DESIGN.md + approved design preview + original references -> ui-brief.md -> plan ui_design_contract -> task ui_contract -> real-entrypoint evidence`
+`DESIGN.md + approved design preview/sidecar + original references -> ui-brief.md -> plan ui_design_contract -> task ui_contract -> comparison report + real-entrypoint evidence`
 
 The UI brief is required for substantive UI work even without external
 references. It identifies entry points, required states and viewports,
 must-preserve/may-adapt/must-not decisions, responsive/accessibility rules, and
-visual acceptance evidence. Preserve real content/image plans. When references
+visual acceptance evidence. Preserve the approval hashes, required design
+decision IDs, component anatomy, color modes, motion contract, viewport/state
+matrix, and real content/image plans. Each UI task carries only its applicable
+decision subset; all UI tasks together must cover the plan's required set.
+When references
 exist, keep the original inspectable assets and assign each a use intent; prose
 alone is not a fidelity source. Default reference fidelity is
 `approximate`; `high` requires comparison and a difference/deviation record.
@@ -45,7 +50,10 @@ artwork, trade dress, or proprietary implementation.
 Do not stop at code correctness. Run the real entry point, capture the required
 representative viewport/state matrix, inspect it against `DESIGN.md`, the UI
 brief, prior surfaces, and original references, fix concrete drift, then
-recapture. For web UI also check overflow, console errors, keyboard/focus, and
+recapture. Produce a structured comparison report that binds the approved
+preview digest to implementation captures and records structural differences,
+visual differences, tolerance, covered decision IDs, and explicitly accepted
+deviations. For web UI also check overflow, console errors, keyboard/focus, and
 accessibility when applicable. For mobile include safe areas, touch targets,
 platform navigation, and device states; for desktop include resize, high-DPI,
 keyboard shortcuts, and window states; for TUI include representative terminal

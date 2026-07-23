@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import re
 
 import pytest
 from typer.testing import CliRunner
@@ -9,6 +10,7 @@ from typer.testing import CliRunner
 from specify_cli import app
 from specify_cli.design import (
     DesignLintError,
+    approve_design_preview,
     export_design_system,
     import_design_reference,
     lint_design_file,
@@ -17,6 +19,8 @@ from specify_cli.design import (
 
 
 runner = CliRunner()
+REPO_ROOT = Path(__file__).resolve().parents[1]
+PREVIEW_TEMPLATE = REPO_ROOT / "templates" / "design-preview-template.html"
 
 
 VALID_DESIGN = """---
@@ -27,11 +31,35 @@ design_system:
   status: approved
   approval:
     status: approved
-    direction: purposeful-compact
+    direction: direction-a
+    review_round: 1
     source_refs:
       - src/app/page.tsx
     visual_refs:
       - .specify/design/previews/round-01.html#direction-a
+    preview_sha256: PREVIEW_SHA256
+    manifest_sha256: MANIFEST_SHA256
+    decision_ids:
+      - DS-COLOR-001
+      - DS-TYPE-001
+      - DS-SPACE-001
+      - DS-COMP-001
+      - DS-MOTION-001
+      - DS-RESP-001
+      - DS-CONTENT-001
+  product_context:
+    subject: account settings
+    audience: account owners
+    single_job: update preferences
+  direction_contract:
+    visual_thesis: compact hierarchy
+    content_thesis: real preference values
+    interaction_thesis: immediate local feedback
+    signature_element: section progress rail
+    safe_system_choices:
+      - semantic tokens
+    creative_risks:
+      - compact density
   platforms:
     - web
   tokens:
@@ -61,6 +89,21 @@ design_system:
       easing.standard:
         value: "cubic-bezier(.2, .8, .2, 1)"
         usage: continuous state change
+    elevation:
+      surface:
+        value: "0 8px 24px rgb(0 0 0 / 12%)"
+        usage: raised surfaces
+    sizing:
+      control.default:
+        value: "44px"
+        usage: controls
+    layout:
+      content.max:
+        value: "1200px"
+        usage: application content
+  color_modes:
+    light:
+      canvas: "{color.surface.canvas}"
   components:
     button:
       required_states:
@@ -72,10 +115,73 @@ design_system:
       token_refs:
         background: "{color.surface.canvas}"
         text: "{color.text.primary}"
+      decision_refs:
+        - DS-COMP-001
+        - DS-COLOR-001
+  responsive:
+    breakpoints:
+      compact: "680px"
+    adaptations:
+      - collapse navigation before content
+  content:
+    voice_rules:
+      - concise and actionable
+    real_content_sources:
+      - src/app/page.tsx
+    imagery_rules: []
+  decisions:
+    - id: DS-COLOR-001
+      kind: color
+      statement: use accessible semantic color pairs
+      source_ref: .specify/design/previews/round-01.html#direction-a
+      verification: contrast report and visual capture
+    - id: DS-TYPE-001
+      kind: typography
+      statement: preserve compact readable hierarchy
+      source_ref: .specify/design/previews/round-01.html#direction-a
+      verification: resolved font and visual capture
+    - id: DS-SPACE-001
+      kind: spacing
+      statement: preserve the spacing rhythm
+      source_ref: .specify/design/previews/round-01.html#direction-a
+      verification: computed tokens and visual capture
+    - id: DS-COMP-001
+      kind: component
+      statement: preserve component anatomy and states
+      source_ref: .specify/design/previews/round-01.html#direction-a
+      verification: state matrix and structure snapshot
+    - id: DS-MOTION-001
+      kind: motion
+      statement: preserve purposeful feedback and reduced motion
+      source_ref: .specify/design/previews/round-01.html#direction-a
+      verification: runtime capture
+    - id: DS-RESP-001
+      kind: responsive
+      statement: preserve hierarchy across target widths
+      source_ref: .specify/design/previews/round-01.html#direction-a
+      verification: viewport matrix
+    - id: DS-CONTENT-001
+      kind: content
+      statement: preserve representative content density
+      source_ref: .specify/design/previews/round-01.html#direction-a
+      verification: content evidence and visual capture
+  verification:
+    required_viewports:
+      - "390"
+      - "1024"
+    required_states:
+      - default
+      - loading
+      - error
+    visual_tolerance: no unapproved structural drift; rendering variance documented
+    accepted_deviations: []
   accessibility:
     contrast_intent: WCAG AA
     focus_visible: required
     keyboard_navigation: required
+    reduced_motion: required
+    touch_target: 44px minimum
+    forced_colors: supported
 ---
 
 # Design
@@ -84,6 +190,18 @@ design_system:
 
 Purposeful and compact.
 
+## Design Direction
+
+Direction A is approved.
+
+## Visual And Interaction Signature
+
+Use the section progress rail.
+
+## Foundations
+
+Use the approved semantic tokens and modes.
+
 ## Platforms
 
 Web only.
@@ -91,6 +209,18 @@ Web only.
 ## Component Rules
 
 Use the tokens.
+
+## Motion Rules
+
+Use purposeful motion and a reduced-motion equivalent.
+
+## Responsive Behavior
+
+Collapse navigation before content.
+
+## Content And Imagery
+
+Use representative content and owned imagery.
 
 ## Anti-Patterns
 
@@ -103,7 +233,41 @@ Update this file through `sp-design`.
 ## UI QA Checklist
 
 Capture screenshots.
+
+## Reference Fidelity
+
+Bind evidence to the approved preview digest.
+
+## Planned Gaps and Exceptions
+
+None.
 """
+
+
+def _configured_preview() -> str:
+    content = PREVIEW_TEMPLATE.read_text(encoding="utf-8")
+    content = content.replace("__ROUND_NUMBER__", "1")
+    content = content.replace(
+        'data-preview-status="scaffold"',
+        'data-preview-status="candidate"',
+    )
+    content = content.replace('"configured": false', '"configured": true')
+    content = content.replace(
+        '"status": "scaffold",\n    "approved_direction": null',
+        '"status": "candidate",\n    "approved_direction": null',
+    )
+    return re.sub(r"__[A-Z0-9_]+__", "Configured design content", content)
+
+
+def _ready_design_text(tmp_path: Path, content: str = VALID_DESIGN) -> str:
+    preview = tmp_path / ".specify" / "design" / "previews" / "round-01.html"
+    preview.parent.mkdir(parents=True, exist_ok=True)
+    preview.write_text(_configured_preview(), encoding="utf-8")
+    approval = approve_design_preview(preview, direction_id="direction-a")
+    return (
+        content.replace("PREVIEW_SHA256", approval["html_sha256"])
+        .replace("MANIFEST_SHA256", approval["manifest_sha256"])
+    )
 
 
 def test_parse_design_markdown_reads_yaml_front_matter() -> None:
@@ -128,8 +292,14 @@ def test_ready_lint_rejects_bootstrap_design_but_structural_lint_accepts_it(
 ) -> None:
     design_file = tmp_path / "DESIGN.md"
     bootstrap = VALID_DESIGN.replace("name: test-system", "name: bootstrap-design-seed").replace(
-        "status: approved\n  approval:\n    status: approved\n    direction: purposeful-compact\n    source_refs:\n      - src/app/page.tsx",
-        "status: bootstrap\n  approval:\n    status: unapproved\n    direction: null\n    source_refs: []",
+        "  status: approved\n"
+        "  approval:\n"
+        "    status: approved\n"
+        "    direction: direction-a\n",
+        "  status: bootstrap\n"
+        "  approval:\n"
+        "    status: unapproved\n"
+        "    direction: null\n",
     )
     design_file.write_text(bootstrap, encoding="utf-8")
 
@@ -143,9 +313,12 @@ def test_ready_lint_rejects_bootstrap_design_but_structural_lint_accepts_it(
 def test_ready_lint_rejects_non_string_approval_source_refs(tmp_path: Path) -> None:
     design_file = tmp_path / "DESIGN.md"
     design_file.write_text(
-        VALID_DESIGN.replace(
-            "    source_refs:\n      - src/app/page.tsx",
-            "    source_refs:\n      - {}",
+        _ready_design_text(
+            tmp_path,
+            VALID_DESIGN.replace(
+                "    source_refs:\n      - src/app/page.tsx",
+                "    source_refs:\n      - {}",
+            ),
         ),
         encoding="utf-8",
     )
@@ -160,10 +333,13 @@ def test_ready_lint_requires_an_inspectable_approved_visual_reference(
 ) -> None:
     design_file = tmp_path / "DESIGN.md"
     design_file.write_text(
-        VALID_DESIGN.replace(
-            "    visual_refs:\n"
-            "      - .specify/design/previews/round-01.html#direction-a\n",
-            "    visual_refs: []\n",
+        _ready_design_text(
+            tmp_path,
+            VALID_DESIGN.replace(
+                "    visual_refs:\n"
+                "      - .specify/design/previews/round-01.html#direction-a\n",
+                "    visual_refs: []\n",
+            ),
         ),
         encoding="utf-8",
     )
@@ -259,20 +435,7 @@ def test_lint_design_file_reports_non_mapping_token_refs(tmp_path: Path) -> None
 
 def test_export_design_system_json_returns_normalized_tokens(tmp_path: Path) -> None:
     design_file = tmp_path / "DESIGN.md"
-    enriched_design = VALID_DESIGN.replace(
-        "  platforms:\n",
-        "  product_context:\n"
-        "    subject: account settings\n"
-        "    audience: account owners\n"
-        "    single_job: update preferences\n"
-        "  direction_contract:\n"
-        "    visual_thesis: compact hierarchy\n"
-        "    content_thesis: real preference values\n"
-        "    interaction_thesis: immediate local feedback\n"
-        "    signature_element: section progress rail\n"
-        "  platforms:\n",
-    )
-    design_file.write_text(enriched_design, encoding="utf-8")
+    design_file.write_text(_ready_design_text(tmp_path), encoding="utf-8")
 
     exported = export_design_system(design_file, export_format="json")
     payload = json.loads(exported)
@@ -289,7 +452,7 @@ def test_export_design_system_json_returns_normalized_tokens(tmp_path: Path) -> 
 
 def test_export_design_system_tailwind_maps_supported_token_categories(tmp_path: Path) -> None:
     design_file = tmp_path / "DESIGN.md"
-    design_file.write_text(VALID_DESIGN, encoding="utf-8")
+    design_file.write_text(_ready_design_text(tmp_path), encoding="utf-8")
 
     exported = export_design_system(design_file, export_format="tailwind")
     payload = json.loads(exported)
@@ -309,17 +472,7 @@ def test_export_design_system_allows_explicit_legacy_structural_escape_hatch(
     tmp_path: Path,
 ) -> None:
     design_file = tmp_path / "DESIGN.md"
-    legacy_design = VALID_DESIGN.replace(
-        "  status: approved\n"
-        "  approval:\n"
-        "    status: approved\n"
-        "    direction: purposeful-compact\n"
-        "    source_refs:\n"
-        "      - src/app/page.tsx\n"
-        "    visual_refs:\n"
-        "      - .specify/design/previews/round-01.html#direction-a\n",
-        "",
-    )
+    legacy_design = VALID_DESIGN.replace("  status: approved\n", "", 1)
     design_file.write_text(legacy_design, encoding="utf-8")
 
     with pytest.raises(DesignLintError, match="design-not-approved"):
@@ -374,7 +527,7 @@ def test_design_lint_cli_ready_accepts_approved_project_design(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.chdir(tmp_path)
-    Path("DESIGN.md").write_text(VALID_DESIGN, encoding="utf-8")
+    Path("DESIGN.md").write_text(_ready_design_text(tmp_path), encoding="utf-8")
 
     result = runner.invoke(app, ["design", "lint", "--level", "ready"])
 
@@ -403,7 +556,7 @@ def test_design_export_cli_json_prints_design_schema(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.chdir(tmp_path)
-    Path("DESIGN.md").write_text(VALID_DESIGN, encoding="utf-8")
+    Path("DESIGN.md").write_text(_ready_design_text(tmp_path), encoding="utf-8")
 
     result = runner.invoke(app, ["design", "export", "--format", "json"])
 
@@ -416,17 +569,7 @@ def test_design_export_cli_allows_explicit_unapproved_legacy_migration(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.chdir(tmp_path)
-    legacy_design = VALID_DESIGN.replace(
-        "  status: approved\n"
-        "  approval:\n"
-        "    status: approved\n"
-        "    direction: purposeful-compact\n"
-        "    source_refs:\n"
-        "      - src/app/page.tsx\n"
-        "    visual_refs:\n"
-        "      - .specify/design/previews/round-01.html#direction-a\n",
-        "",
-    )
+    legacy_design = VALID_DESIGN.replace("  status: approved\n", "", 1)
     Path("DESIGN.md").write_text(legacy_design, encoding="utf-8")
 
     blocked = runner.invoke(app, ["design", "export", "--format", "json"])

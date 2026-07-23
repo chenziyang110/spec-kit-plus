@@ -69,6 +69,16 @@ design_system:
       heading.weight:
         value: "650"
         usage: compact hierarchy
+    motion:
+      duration.fast:
+        value: "120ms"
+        usage: direct keyboard and pointer feedback
+      duration.base:
+        value: "220ms"
+        usage: compact state transitions
+      easing.standard:
+        value: "cubic-bezier(.2, .8, .2, 1)"
+        usage: continuous state change
   components:
     button:
       required_states:
@@ -108,6 +118,7 @@ design_system:
     contrast_intent: WCAG AA for ordinary text where platform rendering allows
     focus_visible: required
     keyboard_navigation: required
+    reduced_motion: required
 ---
 
 # Workbench Precision

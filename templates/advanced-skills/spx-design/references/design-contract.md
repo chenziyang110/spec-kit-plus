@@ -31,9 +31,13 @@ Every direction defines motion purpose plus duration, easing, distance or
 spatial behavior, and a `prefers-reduced-motion` equivalent. Compare all three
 with the same content and state matrix. If none is satisfactory, incorporate
 the user's named feedback into a new immutable round. Approval identifies the
-exact round path and direction ID; carry that reference unchanged through
-`approval.visual_refs`, the feature UI brief, plan/task UI contracts, and final
-visual comparison.
+exact round path and direction ID. Freeze it with
+`{{specify-subcmd:design approve <round-path> --direction <direction-id> --format json}}`;
+the resulting sidecar, preview SHA-256, manifest SHA-256, review round, and
+approved decision IDs are the approval truth. Carry those values unchanged
+through `DESIGN.md`, the feature UI brief, plan/task UI contracts, and final
+visual comparison. A verbal hybrid is not approvable; render it as a new
+direction in a new immutable round.
 
 For a new or high-visibility direction, persist an inspectable approved visual
 reference in `approval.visual_refs`. Assign each source an explicit use intent;
@@ -45,6 +49,14 @@ Name existing implementation owners and planned gaps without pretending a
 planned token or component already exists. When auditing, cite concrete live
 surfaces and distinguish contract drift from intentional exception. Avoid
 generic aesthetic prose that cannot guide or verify downstream work.
+
+The embedded preview manifest and visible specimen must agree. Canonical
+`DS-<KIND>-NNN` decisions cover color, typography, spacing, component anatomy,
+motion/reduced motion, responsive adaptation, and representative content as
+applicable. Each decision names its source, affected surfaces, implementation
+token or owner, and verification method. Export the approved `DESIGN.md` to
+`.specify/design/design-system.json`; downstream work consumes that stable
+shape instead of re-authoring the design from prose.
 
 The project-level design preview and feature-level `ui-target.html` are
 different artifacts. The preview approves reusable visual, component, state,

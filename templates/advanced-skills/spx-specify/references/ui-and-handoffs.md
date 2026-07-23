@@ -13,7 +13,8 @@ in the relevant design/fidelity refs. Record:
 - subject, audience, single job, visual/content/interaction theses, signature,
   and the approved visual ref;
 - when supplied by design, the exact immutable project-level
-  `round-NN.html#direction-id`, its motion tokens, and reduced-motion
+  `round-NN.html#direction-id`, approval sidecar, preview/manifest SHA-256
+  values, applicable `DS-*` decisions, motion tokens, and reduced-motion
   equivalent;
 - real entry points, surface/platform classification, experience intent, and
   information hierarchy;
@@ -38,3 +39,7 @@ inputs to prose when downstream implementation needs to inspect them. If
 and route to `$spx-design` instead of inheriting starter aesthetics.
 Do not substitute feature-level `ui-target.html` for an approved project-level
 design preview; preserve both references when both apply.
+When a feature target materially reduces ambiguity, scaffold it with
+`{{specify-subcmd:design ui-target --out <FEATURE_DIR>/ui-target.html}}`, configure its
+embedded manifest and candidate status, and require
+`{{specify-subcmd:design ui-target-lint <FEATURE_DIR>/ui-target.html --level ready}}`.

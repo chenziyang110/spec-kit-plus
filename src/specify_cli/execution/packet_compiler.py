@@ -256,6 +256,18 @@ def _mapping_string(payload: dict[str, object], *keys: str) -> str:
     return ""
 
 
+def _mapping_dict(payload: dict[str, object], key: str) -> dict[str, object]:
+    value = payload.get(key)
+    return dict(value) if isinstance(value, dict) else {}
+
+
+def _context_read_path(value: str) -> str:
+    normalized = value.strip().replace("\\", "/")
+    if "://" in normalized:
+        return normalized
+    return normalized.split("#", 1)[0].strip()
+
+
 def _dict_list(value: object) -> list[dict[str, object]]:
     if not isinstance(value, list):
         return []
@@ -315,12 +327,36 @@ def _ui_contract_from_task_entry(
         interaction_thesis=_mapping_string(payload, "interaction_thesis"),
         signature_element=_mapping_string(payload, "signature_element"),
         approved_visual_ref=_mapping_string(payload, "approved_visual_ref"),
+        approved_preview_sha256=_mapping_string(
+            payload, "approved_preview_sha256"
+        ),
+        approved_manifest_sha256=_mapping_string(
+            payload, "approved_manifest_sha256"
+        ),
+        design_decision_ids=_unique(
+            _string_list(payload.get("design_decision_ids"))
+        ),
         design_sources=_unique(_string_list(payload.get("design_sources"))),
         reference_notes=_mapping_string(payload, "reference_notes"),
         visual_target=_mapping_string(payload, "visual_target"),
         reference_intents=_unique_dicts(_dict_list(payload.get("reference_intents"))),
         real_content_plan=_unique_dicts(_dict_list(payload.get("real_content_plan"))),
         image_plan=_unique_dicts(_dict_list(payload.get("image_plan"))),
+        color_modes=_unique(_string_list(payload.get("color_modes"))),
+        component_contracts=_unique_dicts(
+            _dict_list(payload.get("component_contracts"))
+        ),
+        responsive_matrix=_unique_dicts(
+            _dict_list(payload.get("responsive_matrix"))
+        ),
+        motion_contract=_mapping_dict(payload, "motion_contract"),
+        visual_acceptance_matrix=_unique_dicts(
+            _dict_list(payload.get("visual_acceptance_matrix"))
+        ),
+        comparison_tolerance=_mapping_string(payload, "comparison_tolerance"),
+        accepted_deviations=_unique_dicts(
+            _dict_list(payload.get("accepted_deviations"))
+        ),
         fidelity_level=_mapping_string(payload, "fidelity_level") or "none",
         must_preserve=_unique(_string_list(payload.get("must_preserve"))),
         may_adapt=_unique(_string_list(payload.get("may_adapt"))),
@@ -568,8 +604,8 @@ def _context_bundle_from_project_docs(
         read_order += 1
 
     for reference in required_references:
-        normalized = reference.path.replace("\\", "/")
-        if normalized in seen:
+        normalized = _context_read_path(reference.path)
+        if not normalized or normalized in seen:
             continue
         seen.add(normalized)
         items.append(
@@ -817,6 +853,7 @@ def compile_worker_task_packet(
         if item["kind"] != "minimal_live_read":
             continue
         path = item["value"]
+        path = _context_read_path(path)
         if not path or "://" in path or path in existing_context_paths:
             continue
         context_bundle.append(

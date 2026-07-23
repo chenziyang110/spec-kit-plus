@@ -1,3 +1,4 @@
+import hashlib
 import json
 from pathlib import Path
 
@@ -21,6 +22,9 @@ def _current_ui_task() -> dict[str, object]:
             "interaction_thesis": "edit then save with explicit feedback",
             "signature_element": "persistent save state",
             "approved_visual_ref": "DESIGN.md#settings",
+            "approved_preview_sha256": "",
+            "approved_manifest_sha256": "",
+            "design_decision_ids": ["DS-COMP-001", "DS-RESP-001"],
             "design_sources": ["DESIGN.md", "ui-brief.md"],
             "reference_notes": "Preserve the approved hierarchy.",
             "visual_target": "Match the approved settings direction.",
@@ -29,6 +33,26 @@ def _current_ui_task() -> dict[str, object]:
                 {"source_ref": "src/data/settings.ts", "usage": "field labels"}
             ],
             "image_plan": [],
+            "color_modes": ["light", "dark"],
+            "component_contracts": [
+                {
+                    "component": "settings form",
+                    "decision_ids": ["DS-COMP-001"],
+                    "required_states": ["loading", "error", "saved"],
+                }
+            ],
+            "responsive_matrix": [
+                {"viewport": "390", "adaptation": "stack settings sections"}
+            ],
+            "motion_contract": {
+                "purpose": "show save feedback",
+                "reduced_motion": "instant state change",
+            },
+            "visual_acceptance_matrix": [
+                {"viewport": "390", "state": "saved", "evidence": "visual_capture"}
+            ],
+            "comparison_tolerance": "no unapproved structural drift",
+            "accepted_deviations": [],
             "fidelity_level": "high",
             "must_preserve": ["settings hierarchy"],
             "may_adapt": ["spacing within tokens"],
@@ -129,6 +153,52 @@ def test_assess_integration_readiness_requires_integrated_ui_evidence(tmp_path: 
     evidence_dir.mkdir()
     for name in ("a11y.json", "screen.png", "console.txt"):
         (evidence_dir / name).write_text("evidence\n", encoding="utf-8")
+    comparison_content = json.dumps(
+        {
+                "schema": "spec-kit-visual-comparison-v1",
+                "task_id": "T001",
+                "entry_point": "/settings",
+                "approved": {
+                    "visual_ref": "DESIGN.md#settings",
+                    "preview_sha256": "",
+                    "manifest_sha256": "",
+                    "direction_id": "settings",
+                    "decision_ids": ["DS-COMP-001", "DS-RESP-001"],
+                },
+                "implementation": {
+                    "revision": "main@abc123",
+                    "capture_refs": ["evidence/screen.png"],
+                    "structure_snapshot_refs": ["evidence/a11y.json"],
+                    "runtime_diagnostic_refs": ["evidence/console.txt"],
+                },
+                "matrix": [
+                    {
+                        "viewport": "390",
+                        "color_mode": "light",
+                        "motion_mode": "reduced",
+                        "state": "saved",
+                        "approved_target": "DESIGN.md#settings",
+                        "implementation_capture_ref": "evidence/screen.png",
+                        "covered_decision_ids": [
+                            "DS-COMP-001",
+                            "DS-RESP-001",
+                        ],
+                        "structural_differences": [],
+                        "visual_differences": [],
+                        "result": "passed",
+                    }
+                ],
+                "comparison_tolerance": "no unapproved structural drift",
+                "accepted_deviations": [],
+                "decision_coverage": [],
+                "verdict": "passed",
+                "reviewer": "agent",
+        }
+    )
+    (evidence_dir / "comparison.json").write_text(
+        comparison_content,
+        encoding="utf-8",
+    )
     (feature_dir / "task-index.json").write_text(
         json.dumps(
             {
@@ -158,6 +228,19 @@ def test_assess_integration_readiness_requires_integrated_ui_evidence(tmp_path: 
             "runtime_evidence": "passed",
             "visual_comparison": "passed",
             "fidelity_status": "passed",
+            "approved_visual_ref": "DESIGN.md#settings",
+            "approved_preview_sha256": "",
+            "approved_manifest_sha256": "",
+            "comparison_report_ref": "evidence/comparison.json",
+            "comparison_report_sha256": hashlib.sha256(
+                comparison_content.encode("utf-8")
+            ).hexdigest(),
+            "implementation_capture_refs": ["evidence/screen.png"],
+            "covered_decision_ids": ["DS-COMP-001", "DS-RESP-001"],
+            "structural_differences": [],
+            "visual_differences": [],
+            "comparison_tolerance": "no unapproved structural drift",
+            "accepted_deviations": [],
         },
     }
     lifecycle_path = lifecycle_dir / "T001.json"
@@ -189,6 +272,17 @@ def test_assess_integration_readiness_requires_integrated_ui_evidence(tmp_path: 
     lifecycle["ui_verification"]["integration_base_ref"] = "main@abc123"
     lifecycle_path.write_text(json.dumps(lifecycle), encoding="utf-8")
     assert assess_integration_readiness(tmp_path, lane).ready is True
+
+    comparison_sha = lifecycle["ui_verification"]["comparison_report_sha256"]
+    lifecycle["ui_verification"]["comparison_report_sha256"] = "0" * 64
+    lifecycle_path.write_text(json.dumps(lifecycle), encoding="utf-8")
+    tampered_comparison = assess_integration_readiness(tmp_path, lane)
+    assert tampered_comparison.ready is False
+    assert any(
+        "comparison_report_sha256" in check["detail"]
+        for check in tampered_comparison.checks
+    )
+    lifecycle["ui_verification"]["comparison_report_sha256"] = comparison_sha
 
     lifecycle["status"] = "pending"
     lifecycle_path.write_text(json.dumps(lifecycle), encoding="utf-8")

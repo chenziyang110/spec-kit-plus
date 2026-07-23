@@ -27,6 +27,12 @@ Translate the approved specification package into explicit implementation design
 
 - Write the minimum sufficient implementation plan artifact set needed by `/sp-tasks`.
 - Write `plan-contract.json` so route, intent, complexity, must-preserve invariants, and allowed optimization scope survive as machine-readable truth.
+- For UI-bearing work, preserve the exact approved visual reference,
+  preview/manifest SHA-256 values, design decision IDs, component contracts,
+  color modes, responsive and motion contracts, viewport/state acceptance
+  matrix, comparison tolerance, and accepted deviations from
+  `spec-contract.json` into `ui_design_contract`. Planning may assign these to
+  implementation owners but may not summarize, rename, or weaken them.
 - When delegated planning lanes are used, persist one compact lane manifest plus each required lane result. Do not create evidence indexes or checkpoint logs for leader-inline work.
 - Consume every accepted planning handoff before final synthesis: each accepted handoff must be integrated into `plan.md`, `research.md`, `quickstart.md`, `data-model.md`, `contracts/`, or `plan-contract.json`, or explicitly recorded as deferred or blocked with a reason.
 - Surface risks, unresolved decisions, and planning-time constitution/guardrail requirements explicitly.

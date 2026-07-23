@@ -146,8 +146,9 @@ present in a test project.
 
 - The product goal is better implemented UI, not merely more UI documentation.
   Both profiles must preserve this executable chain for substantive UI work:
-  `approved DESIGN.md + original references -> feature ui-brief.md -> plan
-  ui_design_contract -> per-task ui_contract -> real-entrypoint visual evidence`.
+  `approved immutable preview + original references -> approved DESIGN.md ->
+  feature ui-brief.md -> plan ui_design_contract -> per-task ui_contract ->
+  real-entrypoint captures + visual comparison report`.
 - UI applicability is broader than reference-image intake. New or changed
   screens, components, layouts, navigation/interaction flows, responsive
   behavior, visual states, desktop/mobile surfaces, TUI layouts, and CLI
@@ -157,6 +158,15 @@ present in a test project.
   generic starter palette, typography, density, or component choices. New or
   high-visibility UI requires a project-specific approved design contract;
   narrow existing-pattern fixes may record a bounded exception.
+- Every substantive design round presents exactly three comparable,
+  self-contained HTML directions with stable deep links, component/state
+  specimens, independent color and motion systems, responsive targets, and an
+  embedded machine-readable manifest. Combining or revising directions creates
+  a new inspected round; never mutate an approved round in place.
+- `specify design approve` is the approval truth boundary. It freezes one exact
+  direction with a byte-bound sidecar, preview and manifest SHA-256 digests,
+  review round, and stable `DS-*` decision IDs. Ready lint and export must reject
+  a `DESIGN.md` whose approval fields do not match that immutable sidecar.
 - Classic keeps the explicit UI lane, full command references, passive
   `spec-kit-ui-design`/`frontend-design` guidance, worker prompts, and verbose
   evidence mapping. Advanced must not install that passive bundle; its essential
@@ -169,8 +179,16 @@ present in a test project.
 - The single current UI contract separates work type, surface type, and platform. It preserves
   subject, audience, single job, visual/content/interaction theses, a signature
   element, an inspectable approved visual reference, per-reference use intent,
-  and task-relevant real-content/image plans through the Classic and Advanced
-  artifact chain. Do not collapse those dimensions into one enum or prose.
+  task-relevant real-content/image plans, approval digests, decision subsets,
+  color modes, component contracts, responsive and motion rules, visual
+  acceptance rows, comparison tolerance, and approved deviations through the
+  Classic and Advanced artifact chain. Do not collapse those dimensions into
+  one enum or prose.
+- A feature `ui-target.html` is a self-contained composition/state target bound
+  to the approved project design digests and task decisions. It may contain
+  bounded review-only interaction JavaScript, but no network calls, persistence,
+  production data access, external runtime dependency, or replacement approval
+  authority for the project-level preview.
 - UI implementation system review requires a real-entrypoint convergence loop
   before human acceptance:
   run, capture representative viewport/state evidence, visually inspect against
@@ -182,6 +200,12 @@ present in a test project.
   maps those kinds to accessibility/DOM structure, viewport screenshots, and
   console/runtime output. Integrated lanes must recapture them with
   `evidence_scope: integrated`; isolated task evidence cannot close the lane.
+- A passing visual comparison requires a hashed
+  `spec-kit-visual-comparison-v1` report bound to the approved visual reference,
+  approval digests, exact task decision set, implementation captures,
+  viewport/state matrix, comparison tolerance, and approved deviations.
+  Unavailable or incomplete comparison remains `pending-human-review`; automated
+  tests or unbound screenshots cannot substitute for this report.
 - UI contract versions are not a compatibility surface. Do not emit or accept
   `ui_contract_version`, `contract_version`, `ui_fidelity_requirements`,
   `ui_fidelity_evidence`, lifecycle `evidence_refs`, or legacy evidence-kind

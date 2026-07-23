@@ -1,53 +1,465 @@
 <!doctype html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>UI Target - Feature</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Feature UI target</title>
   <style>
-    /* Local CSS only. No external dependencies. This file is a disposable visual target, not production code. */
-    :root {
-      color-scheme: light;
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      background: #ffffff;
-      color: #111827;
+    @layer reset, tokens, base, target, responsive;
+
+    @layer reset {
+      *, *::before, *::after { box-sizing: border-box; }
+      body, h1, h2, h3, p { margin: 0; }
+      button, input { font: inherit; }
     }
-    body {
-      margin: 0;
-      padding: 24px;
-      background: #f6f7f9;
+
+    @layer tokens {
+      :root {
+        color-scheme: light;
+        --canvas: #eef1f4;
+        --surface: #ffffff;
+        --surface-muted: #f7f8fa;
+        --ink: #17202a;
+        --muted: #5d6975;
+        --line: #cbd3dc;
+        --accent: #155eef;
+        --accent-ink: #ffffff;
+        --danger: #b42318;
+        --radius-control: 8px;
+        --radius-surface: 14px;
+        --space: 8px;
+        --duration: 180ms;
+        --easing: cubic-bezier(.2, .8, .2, 1);
+      }
     }
-    main {
-      display: grid;
-      gap: 24px;
+
+    @layer base {
+      body {
+        min-height: 100vh;
+        padding: clamp(12px, 3vw, 32px);
+        color: var(--ink);
+        font-family: ui-sans-serif, system-ui, sans-serif;
+        background: var(--canvas);
+      }
+
+      button {
+        min-height: 44px;
+        padding-inline: 14px;
+        color: var(--ink);
+        border: 1px solid var(--line);
+        border-radius: var(--radius-control);
+        background: var(--surface);
+        cursor: pointer;
+      }
+
+      button[aria-pressed="true"],
+      .primary {
+        color: var(--accent-ink);
+        border-color: var(--accent);
+        background: var(--accent);
+      }
+
+      :focus-visible {
+        outline: 3px solid color-mix(in oklab, var(--accent) 72%, white);
+        outline-offset: 3px;
+      }
+
+      .eyebrow {
+        color: var(--accent);
+        font-size: .72rem;
+        font-weight: 800;
+        letter-spacing: .1em;
+        text-transform: uppercase;
+      }
+
+      .muted { color: var(--muted); }
+      .mono { font-family: ui-monospace, monospace; }
     }
-    section {
-      border: 1px solid #d8dee8;
-      background: #ffffff;
-      padding: 16px;
+
+    @layer target {
+      main {
+        width: min(100%, 1440px);
+        margin-inline: auto;
+      }
+
+      .target-header {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 24px;
+        align-items: end;
+        margin-block-end: 20px;
+      }
+
+      .target-header h1 {
+        margin-block: 6px;
+        font-size: clamp(2rem, 5vw, 4.5rem);
+        letter-spacing: -.05em;
+        line-height: .95;
+      }
+
+      .target-controls {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        justify-content: flex-end;
+      }
+
+      .contract-strip {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px 18px;
+        margin-block-end: 20px;
+        padding: 12px 14px;
+        color: var(--muted);
+        font-size: .78rem;
+        border: 1px solid var(--line);
+        border-radius: var(--radius-surface);
+        background: var(--surface);
+      }
+
+      .viewport-stage {
+        overflow-x: auto;
+        padding: 16px;
+        border: 1px dashed var(--line);
+        border-radius: var(--radius-surface);
+        background: color-mix(in oklab, var(--canvas) 72%, white);
+      }
+
+      .viewport {
+        width: min(100%, var(--target-width, 1024px));
+        min-width: min(100%, 320px);
+        margin-inline: auto;
+        overflow: clip;
+        border: 1px solid var(--line);
+        border-radius: var(--radius-surface);
+        background: var(--surface);
+        box-shadow: 0 24px 70px rgb(23 32 42 / 14%);
+        container: feature / inline-size;
+        transition: width var(--duration) var(--easing);
+      }
+
+      .feature-shell {
+        display: grid;
+        grid-template-columns: 14rem minmax(0, 1fr);
+        min-height: 34rem;
+      }
+
+      .feature-nav {
+        padding: 18px;
+        border-inline-end: 1px solid var(--line);
+        background: var(--surface-muted);
+      }
+
+      .feature-nav strong {
+        display: block;
+        margin-block-end: 18px;
+      }
+
+      .feature-nav span {
+        display: block;
+        margin-block: 4px;
+        padding: 9px 10px;
+        color: var(--muted);
+        border-radius: var(--radius-control);
+      }
+
+      .feature-nav span:first-of-type {
+        color: var(--ink);
+        background: color-mix(in oklab, var(--accent) 10%, transparent);
+      }
+
+      .feature-main {
+        min-width: 0;
+        padding: clamp(18px, 4cqi, 42px);
+      }
+
+      .feature-heading {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 16px;
+        align-items: end;
+        justify-content: space-between;
+        margin-block-end: 24px;
+      }
+
+      .feature-heading h2 {
+        margin-block-start: 5px;
+        font-size: clamp(1.7rem, 4cqi, 3rem);
+        letter-spacing: -.04em;
+      }
+
+      .feature-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      .feature-card,
+      .state-panel {
+        min-height: 9rem;
+        padding: 16px;
+        border: 1px solid var(--line);
+        border-radius: var(--radius-surface);
+        background: var(--surface);
+      }
+
+      .state-panel {
+        display: none;
+        grid-column: 1 / -1;
+        min-height: 16rem;
+        place-items: center;
+        text-align: center;
+      }
+
+      .viewport[data-state="empty"] .feature-card,
+      .viewport[data-state="error"] .feature-card,
+      .viewport[data-state="loading"] .feature-card {
+        display: none;
+      }
+
+      .viewport[data-state="empty"] [data-state-panel="empty"],
+      .viewport[data-state="error"] [data-state-panel="error"],
+      .viewport[data-state="loading"] [data-state-panel="loading"] {
+        display: grid;
+      }
+
+      [data-state-panel="error"] h3 { color: var(--danger); }
+
+      .decision-map {
+        margin-block-start: 20px;
+        padding: 16px;
+        border: 1px solid var(--line);
+        border-radius: var(--radius-surface);
+        background: var(--surface);
+      }
+
+      .decision-map ul {
+        display: grid;
+        gap: 8px;
+        padding-inline-start: 20px;
+      }
+
+      body[data-capture="true"] .target-controls,
+      body[data-capture="true"] .contract-strip,
+      body[data-capture="true"] .decision-map {
+        display: none;
+      }
+
+      body[data-capture="true"] *,
+      body[data-capture="true"] *::before,
+      body[data-capture="true"] *::after {
+        animation: none !important;
+        transition: none !important;
+      }
+    }
+
+    @layer responsive {
+      @container feature (max-width: 680px) {
+        .feature-shell { grid-template-columns: 1fr; }
+        .feature-nav {
+          display: flex;
+          gap: 6px;
+          overflow-x: auto;
+          border-inline-end: 0;
+          border-block-end: 1px solid var(--line);
+        }
+        .feature-nav strong { margin: 0 12px 0 0; }
+        .feature-nav span { flex: 0 0 auto; }
+        .feature-grid { grid-template-columns: 1fr; }
+      }
+
+      @media (max-width: 760px) {
+        .target-header { grid-template-columns: 1fr; }
+        .target-controls { justify-content: flex-start; }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        *, *::before, *::after {
+          scroll-behavior: auto !important;
+          animation-duration: .01ms !important;
+          animation-iteration-count: 1 !important;
+          transition-duration: .01ms !important;
+        }
+      }
     }
   </style>
 </head>
-<body>
-  <main data-ui-target="feature-name" data-fidelity="approximate">
-    <section data-viewport="desktop-1440">
-      <h1>Desktop target composition</h1>
-      <p>Preserve layout, density, information hierarchy, and visible data volume.</p>
+<body data-capture="false">
+  <main
+    data-ui-target-schema="spec-kit-ui-target-v1"
+    data-ui-target="__FEATURE_NAME__"
+    data-fidelity="__FIDELITY_MODE__"
+    data-status="draft"
+  >
+    <header class="target-header">
+      <div>
+        <p class="eyebrow">Feature composition and state target</p>
+        <h1 data-bind="feature.title">Feature title</h1>
+        <p class="muted" data-bind="feature.job">Single feature job</p>
+      </div>
+      <div class="target-controls" aria-label="UI target controls">
+        <button type="button" data-width="390" aria-pressed="false">390</button>
+        <button type="button" data-width="768" aria-pressed="false">768</button>
+        <button type="button" data-width="1024" aria-pressed="true">1024</button>
+        <button type="button" data-width="1440" aria-pressed="false">1440</button>
+        <button type="button" data-state="default" aria-pressed="true">Default</button>
+        <button type="button" data-state="loading" aria-pressed="false">Loading</button>
+        <button type="button" data-state="empty" aria-pressed="false">Empty</button>
+        <button type="button" data-state="error" aria-pressed="false">Error</button>
+      </div>
+    </header>
+
+    <div class="contract-strip">
+      <span>Approved design: <strong data-bind="approval.ref"></strong></span>
+      <span>Preview SHA: <strong class="mono" data-bind="approval.preview_sha256"></strong></span>
+      <span>Direction: <strong data-bind="approval.direction_id"></strong></span>
+      <span>Viewport/state: <strong class="mono" id="target-readout">1024 · default</strong></span>
+    </div>
+
+    <section class="viewport-stage" aria-label="Feature target viewport">
+      <article class="viewport" id="target-viewport" data-state="default" style="--target-width: 1024px">
+        <div class="feature-shell">
+          <nav class="feature-nav" aria-label="Feature target navigation">
+            <strong data-bind="feature.short_name">Product</strong>
+            <span data-bind="content.nav_primary">Overview</span>
+            <span data-bind="content.nav_secondary">Activity</span>
+            <span data-bind="content.nav_tertiary">Settings</span>
+          </nav>
+          <div class="feature-main">
+            <header class="feature-heading">
+              <div>
+                <p class="eyebrow" data-bind="content.eyebrow">Current priority</p>
+                <h2 data-bind="content.heading">Representative heading</h2>
+              </div>
+              <button class="primary" type="button" data-bind="content.primary_action">Primary action</button>
+            </header>
+
+            <div class="feature-grid">
+              <article class="feature-card" data-bind="content.card_one">Representative content one</article>
+              <article class="feature-card" data-bind="content.card_two">Representative content two</article>
+              <article class="feature-card" data-bind="content.card_three">Representative content three</article>
+
+              <section class="state-panel" data-state-panel="loading" aria-live="polite">
+                <div><h3>Loading</h3><p data-bind="states.loading">Explain what is progressing.</p></div>
+              </section>
+              <section class="state-panel" data-state-panel="empty">
+                <div><h3>Empty</h3><p data-bind="states.empty">Explain the first useful action.</p></div>
+              </section>
+              <section class="state-panel" data-state-panel="error">
+                <div><h3>Error</h3><p data-bind="states.error">Explain recovery without losing context.</p></div>
+              </section>
+            </div>
+          </div>
+        </div>
+      </article>
     </section>
 
-    <section data-viewport="mobile-390">
-      <h1>Mobile target composition</h1>
-      <p>Preserve priority and interaction intent in the narrow layout.</p>
-    </section>
-
-    <section data-state="empty">
-      <h1>Empty state</h1>
-      <p>Show the empty condition without changing the overall layout pattern.</p>
-    </section>
-
-    <section data-state="error">
-      <h1>Error state</h1>
-      <p>Show the error condition with a clear recovery action.</p>
+    <section class="decision-map">
+      <h2>Design decisions carried into this feature</h2>
+      <ul id="decision-list"></ul>
     </section>
   </main>
+
+  <script type="application/json" id="ui-target-manifest">
+{
+  "schema": "spec-kit-ui-target-manifest-v1",
+  "configured": false,
+  "feature": {
+    "name": "__FEATURE_NAME__",
+    "short_name": "__PROJECT_SHORT_NAME__",
+    "title": "__FEATURE_TITLE__",
+    "job": "__FEATURE_SINGLE_JOB__"
+  },
+  "approval": {
+    "ref": "__APPROVED_VISUAL_REF__",
+    "direction_id": "__APPROVED_DIRECTION_ID__",
+    "preview_sha256": "__APPROVED_PREVIEW_SHA256__",
+    "manifest_sha256": "__APPROVED_MANIFEST_SHA256__"
+  },
+  "content": {
+    "nav_primary": "__NAV_PRIMARY__",
+    "nav_secondary": "__NAV_SECONDARY__",
+    "nav_tertiary": "__NAV_TERTIARY__",
+    "eyebrow": "__FEATURE_EYEBROW__",
+    "heading": "__FEATURE_HEADING__",
+    "primary_action": "__FEATURE_PRIMARY_ACTION__",
+    "card_one": "__FEATURE_CARD_ONE__",
+    "card_two": "__FEATURE_CARD_TWO__",
+    "card_three": "__FEATURE_CARD_THREE__"
+  },
+  "states": {
+    "loading": "__FEATURE_LOADING_STATE__",
+    "empty": "__FEATURE_EMPTY_STATE__",
+    "error": "__FEATURE_ERROR_STATE__"
+  },
+  "decision_ids": ["__DESIGN_DECISION_IDS__"],
+  "viewports": [390, 768, 1024, 1440],
+  "required_states": ["default", "loading", "empty", "error"]
+}
+  </script>
+
+  <script>
+    (() => {
+      "use strict";
+      const manifest = JSON.parse(document.querySelector("#ui-target-manifest").textContent);
+      const viewport = document.querySelector("#target-viewport");
+      const readout = document.querySelector("#target-readout");
+      const query = new URLSearchParams(location.search);
+
+      const getPath = (source, path) => path
+        .split(".")
+        .reduce((value, key) => value?.[key], source);
+
+      document.querySelectorAll("[data-bind]").forEach((node) => {
+        const value = getPath(manifest, node.dataset.bind);
+        if (value !== undefined && value !== null) node.textContent = String(value);
+      });
+      document.title = `${manifest.feature.title} · UI target`;
+      document.querySelector("#decision-list").replaceChildren(
+        ...manifest.decision_ids.map((decisionId) => {
+          const item = document.createElement("li");
+          item.textContent = decisionId;
+          return item;
+        }),
+      );
+
+      const updateReadout = () => {
+        readout.textContent =
+          `${parseInt(getComputedStyle(viewport).getPropertyValue("--target-width"), 10)} · ${viewport.dataset.state}`;
+      };
+
+      const setWidth = (width) => {
+        viewport.style.setProperty("--target-width", `${width}px`);
+        document.querySelectorAll("[data-width]").forEach((button) => {
+          button.setAttribute("aria-pressed", String(button.dataset.width === String(width)));
+        });
+        updateReadout();
+      };
+
+      const setState = (state) => {
+        viewport.dataset.state = state;
+        document.querySelectorAll("button[data-state]").forEach((button) => {
+          button.setAttribute("aria-pressed", String(button.dataset.state === state));
+        });
+        history.replaceState(null, "", `#${state}`);
+        updateReadout();
+      };
+
+      document.querySelectorAll("[data-width]").forEach((button) => {
+        button.addEventListener("click", () => setWidth(button.dataset.width));
+      });
+      document.querySelectorAll("button[data-state]").forEach((button) => {
+        button.addEventListener("click", () => setState(button.dataset.state));
+      });
+
+      document.body.dataset.capture = String(query.get("capture") === "1");
+      setWidth(query.get("viewport") ?? 1024);
+      setState(location.hash.slice(1) || query.get("state") || "default");
+      window.addEventListener("hashchange", () => {
+        const state = location.hash.slice(1);
+        if (manifest.required_states.includes(state)) setState(state);
+      });
+    })();
+  </script>
 </body>
 </html>

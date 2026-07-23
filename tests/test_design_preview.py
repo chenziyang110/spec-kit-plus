@@ -9,6 +9,8 @@ from typer.testing import CliRunner
 from specify_cli import app
 from specify_cli.design import (
     DesignLintError,
+    approve_design_preview,
+    design_preview_approval_path,
     lint_design_preview_file,
     scaffold_design_preview,
 )
@@ -24,6 +26,11 @@ def _candidate_preview() -> str:
     content = content.replace(
         'data-preview-status="scaffold"',
         'data-preview-status="candidate"',
+    )
+    content = content.replace('"configured": false', '"configured": true')
+    content = content.replace(
+        '"status": "scaffold",\n    "approved_direction": null',
+        '"status": "candidate",\n    "approved_direction": null',
     )
     return re.sub(r"__[A-Z0-9_]+__", "Configured design content", content)
 
@@ -48,8 +55,16 @@ def test_design_preview_template_is_a_modern_three_direction_board() -> None:
     assert "document.startViewTransition" in content
     assert "--motion-duration-fast" in content
     assert "--motion-easing-emphasized" in content
-    assert '<body data-active-direction="direction-a">' in content
+    assert 'data-active-direction="direction-a"' in content
     assert "document.body.dataset.activeDirection = directionId" in content
+    assert 'id="design-preview-manifest"' in content
+    assert '"modes": {' in content
+    assert '"high-contrast": {' in content
+    assert 'id="direction-a"' in content
+    assert "location.hash" in content
+    assert "hashchange" in content
+    assert 'id="direction-comparison"' in content
+    assert 'id="simulated-viewport"' in content
     assert "https://" not in content
     assert "http://" not in content
     assert "<script src=" not in content
@@ -125,9 +140,9 @@ def test_scaffold_design_preview_copies_template_without_overwriting(
     written = scaffold_design_preview(output, template_path=PREVIEW_TEMPLATE)
 
     assert written == output
-    assert output.read_text(encoding="utf-8") == PREVIEW_TEMPLATE.read_text(
-        encoding="utf-8"
-    )
+    output_content = output.read_text(encoding="utf-8")
+    assert 'data-review-round="1"' in output_content
+    assert '"round": "1"' in output_content
     with pytest.raises(DesignLintError, match="already exists"):
         scaffold_design_preview(output, template_path=PREVIEW_TEMPLATE)
 
@@ -136,12 +151,10 @@ def test_scaffold_design_preview_never_overwrites_an_approved_round(
     tmp_path: Path,
 ) -> None:
     output = tmp_path / ".specify" / "design" / "previews" / "round-01.html"
-    approved = _candidate_preview().replace(
-        'data-preview-status="candidate"',
-        'data-preview-status="approved" data-approved-direction="direction-a"',
-    )
     output.parent.mkdir(parents=True)
-    output.write_text(approved, encoding="utf-8")
+    output.write_text(_candidate_preview(), encoding="utf-8")
+    approve_design_preview(output, direction_id="direction-a")
+    approved = output.read_text(encoding="utf-8")
 
     with pytest.raises(DesignLintError, match="approved"):
         scaffold_design_preview(
@@ -151,6 +164,50 @@ def test_scaffold_design_preview_never_overwrites_an_approved_round(
         )
 
     assert output.read_text(encoding="utf-8") == approved
+
+
+def test_approve_design_preview_freezes_direction_and_binds_sidecar(
+    tmp_path: Path,
+) -> None:
+    preview = tmp_path / "round-03.html"
+    preview.write_text(_candidate_preview(), encoding="utf-8")
+
+    payload = approve_design_preview(preview, direction_id="direction-b")
+    content = preview.read_text(encoding="utf-8")
+    approval_path = design_preview_approval_path(preview)
+
+    assert payload["direction_id"] == "direction-b"
+    assert payload["decision_ids"]
+    assert 'data-preview-status="approved"' in content
+    assert 'data-approved-direction="direction-b"' in content
+    assert '"status": "approved"' in content
+    assert '"approved_direction": "direction-b"' in content
+    assert approval_path.is_file()
+    assert lint_design_preview_file(preview, level="ready") == []
+
+    preview.write_text(content.replace("Compare all", "Compare directions"), encoding="utf-8")
+    diagnostics = lint_design_preview_file(preview, level="ready")
+
+    assert any(item.code == "preview-stale-approval-sidecar" for item in diagnostics)
+
+
+def test_design_preview_approve_cli_writes_immutable_approval(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    preview = Path(".specify/design/previews/round-02.html")
+    preview.parent.mkdir(parents=True)
+    preview.write_text(_candidate_preview(), encoding="utf-8")
+
+    result = runner.invoke(
+        app,
+        ["design", "approve", str(preview), "--direction", "direction-c", "--format", "json"],
+    )
+
+    assert result.exit_code == 0
+    assert design_preview_approval_path(preview).is_file()
+    assert '"direction_id": "direction-c"' in result.output
 
 
 def test_design_preview_cli_scaffolds_and_lints_candidate(

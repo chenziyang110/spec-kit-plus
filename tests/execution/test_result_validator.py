@@ -692,6 +692,14 @@ def test_feature_epoch_worker_still_requires_cheap_consumer_wiring_evidence(
 def test_validate_worker_task_result_requires_current_ui_evidence_triad(
     sample_packet: WorkerTaskPacket,
 ) -> None:
+    sample_packet.ui_contract.approved_visual_ref = "DESIGN.md#settings"
+    sample_packet.ui_contract.design_decision_ids = [
+        "DS-COMP-001",
+        "DS-RESP-001",
+    ]
+    sample_packet.ui_contract.comparison_tolerance = (
+        "no unapproved structural drift"
+    )
     sample_packet.ui_contract.required_evidence = [
         "structure_snapshot",
         "visual_capture",
@@ -724,6 +732,12 @@ def test_validate_worker_task_result_requires_current_ui_evidence_triad(
             runtime_evidence="pass",
             visual_comparison="passed",
             fidelity_status="passed",
+            approved_visual_ref="DESIGN.md#settings",
+            comparison_report_ref="artifacts/ui/comparison.json",
+            comparison_report_sha256="c" * 64,
+            implementation_capture_refs=["artifacts/ui/settings.png"],
+            covered_decision_ids=["DS-COMP-001", "DS-RESP-001"],
+            comparison_tolerance="no unapproved structural drift",
         ),
         ui_evidence=[
             {"kind": "structure_snapshot", "ref": "artifacts/ui/a11y.json"},
@@ -738,6 +752,10 @@ def test_validate_worker_task_result_requires_current_ui_evidence_triad(
         {"kind": "runtime_diagnostics", "ref": "artifacts/ui/console.txt"}
     )
     assert validate_worker_task_result(result, sample_packet) is result
+
+    result.ui_verification.covered_decision_ids = ["DS-COMP-001"]
+    with pytest.raises(PacketValidationError, match="decision coverage"):
+        validate_worker_task_result(result, sample_packet)
 
 
 def test_validate_worker_task_result_rejects_missing_ui_evidence_for_approximate_ui_contract(

@@ -97,8 +97,13 @@ description: "Task list template for feature implementation"
   that deterministic shape and fill it from the approved plan; do not reconstruct
   the schema from prose or from this human projection.
 - Preserve the exact work/surface/platform axes, subject/audience/single job,
-  three theses, signature element, approved visual ref, and task-relevant
+  three theses, signature element, approved visual ref plus preview/manifest
+  SHA-256 values, and task-relevant design decision IDs,
   `reference_intents`, `real_content_plan`, and `image_plan`.
+- Carry component anatomy/state contracts, color modes, responsive matrix,
+  motion/reduced-motion contract, viewport/state acceptance matrix, comparison
+  tolerance, and only explicitly approved deviations. Across the UI task set,
+  the decision-ID union must exactly cover the plan's required design decisions.
 - Required evidence is the typed triad `structure_snapshot`,
   `visual_capture`, and `runtime_diagnostics`, plus
   `visual_comparison_or_human_review` as a verification status. Preserve
@@ -123,11 +128,13 @@ description: "Task list template for feature implementation"
 | ui_contract_ref | task-index.json#/tasks/T###/ui_contract |
 | schema_ref | .specify/templates/task-packet-template.json#/ui_contract |
 | direction_core | [ui_work_type; surface_type; platforms; subject; audience; single_job] |
-| approved_direction | [visual_thesis; content_thesis; interaction_thesis; signature_element; approved_visual_ref; motion/reduced-motion contract location] |
-| task_inputs | [design_sources; reference_intents; real_content_plan; image_plan] |
+| approved_direction | [visual_thesis; content_thesis; interaction_thesis; signature_element; approved_visual_ref; approved_preview_sha256; approved_manifest_sha256] |
+| task_inputs | [design_sources; design_decision_ids; reference_intents; real_content_plan; image_plan] |
+| implementation_contracts | [color_modes; component_contracts; responsive_matrix; motion_contract] |
 | fidelity_level | [approximate | high | inspiration] |
 | adaptation_rules | [must_preserve; may_adapt; must_not] |
 | required_states | [loading, empty, error, selected, disabled, permission-limited as applicable] |
+| visual_acceptance | [visual_acceptance_matrix; comparison_tolerance; accepted_deviations] |
 | required_evidence | [structure_snapshot; visual_capture; runtime_diagnostics; visual_comparison_or_human_review] |
 ```
 

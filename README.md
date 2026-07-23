@@ -572,7 +572,11 @@ when the `classic` profile is selected.
   Init's generic `status: bootstrap` file is a structural seed, not approved
   product direction. Use the design workflow for new product UI, redesigns,
   rebrands, core workflow experience, multi-platform interface decisions, and
-  high-visibility customer-facing surfaces.
+  high-visibility customer-facing surfaces. New directions are reviewed as
+  three comparable, self-contained HTML specimens; approval freezes one exact
+  direction with a sidecar plus preview/manifest digests and stable `DS-*`
+  decision IDs. Rejecting, combining, or revising those directions produces a
+  new review round; an approved round is never edited in place.
 
 Substantive feature UI is handled during `sp-specify`/`$spx-specify` even when
 no screenshot is supplied: it produces a feature `ui-brief.md` that carries
@@ -1164,11 +1168,21 @@ Maintainer note:
 
 - `specify design lint --level structural` checks schema and reference shape;
   `specify design lint --level ready` additionally requires an approved,
-  project-specific direction with provenance and applicable components.
+  project-specific direction whose HTML preview, sidecar, hashes, design
+  decisions, modes, responsive/content rules, and verification contract agree.
+- `specify design preview --out .specify/design/previews/round-NN.html`
+  scaffolds the universal three-direction review board;
+  `specify design preview-lint PATH --level ready` validates a configured
+  candidate; `specify design approve PATH --direction direction-X` freezes the
+  selected direction and writes its byte-bound approval sidecar.
 - `specify design export --format json` exports normalized design tokens and component token references after ready validation.
 - `specify design export --format tailwind` exports supported token categories into Tailwind theme fields after ready validation.
 - Existing projects can use `--allow-unapproved` as a temporary structural-compatibility export while `sp-design`/`spx-design` records project-specific approval and provenance.
 - `specify design import SOURCE_REFERENCE` writes `.specify/design/references.md` as input for `sp-design`; it does not overwrite `DESIGN.md`.
+- `specify design ui-target --out FEATURE_DIR/ui-target.html` scaffolds a
+  feature-level composition/state target, and `specify design ui-target-lint
+  PATH --level ready` validates its manifest, review controls, approved design
+  digests, decision IDs, responsive states, and self-contained runtime boundary.
 - Substantive UI changes always produce or preserve `ui-brief.md`; supplied
   screenshots, mockups, code references, design exports, URLs, existing pages,
   or "make it like this" language additionally route through Classic's writable
@@ -1177,7 +1191,10 @@ Maintainer note:
 - Classic and Advanced use one current structured UI contract from spec through
   lifecycle evidence. Older UI version fields, duplicate fidelity payloads,
   untyped lifecycle evidence refs, and evidence-kind aliases are rejected;
-  regenerate stale UI artifacts before continuing.
+  regenerate stale UI artifacts before continuing. A fidelity pass also writes
+  `spec-kit-visual-comparison-v1`, binding the approved digests and design
+  decision set to real-entrypoint captures, differences, tolerance, and
+  pre-approved deviations.
 
 Result helper command shapes:
 

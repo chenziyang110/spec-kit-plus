@@ -97,11 +97,14 @@ from specify_cli.command_catalog import list_command_catalog, show_catalog_comma
 from specify_cli.design import (
     DesignDiagnostic,
     DesignLintError,
+    approve_design_preview,
     export_design_system,
     import_design_reference,
     lint_design_preview_file,
     lint_design_file,
+    lint_ui_target_file,
     scaffold_design_preview,
+    scaffold_ui_target,
 )
 from specify_cli.specify_runtime import (
     SpecifyRuntimeError,
@@ -839,6 +842,102 @@ def design_preview_lint(
     for diagnostic in diagnostics:
         console.print(f"{diagnostic.code}: {diagnostic.message}")
     raise typer.Exit(1)
+
+
+@design_app.command("ui-target")
+def design_ui_target(
+    out: Path = typer.Option(
+        Path("ui-target.html"),
+        "--out",
+        help="Write the feature-level UI target scaffold to this path",
+    ),
+    force: bool = typer.Option(
+        False,
+        "--force",
+        help="Replace an existing UI target scaffold",
+    ),
+) -> None:
+    """Create a self-contained feature composition and state target."""
+
+    try:
+        out_path = scaffold_ui_target(out, force=force)
+    except DesignLintError as exc:
+        console.print(f"[red]Error:[/red] {exc}")
+        raise typer.Exit(1)
+    print(f"Wrote {_display_path(out_path)}")
+
+
+@design_app.command("ui-target-lint")
+def design_ui_target_lint(
+    path: Path = typer.Argument(..., help="Path to a feature UI target HTML file"),
+    output_format: TextJsonFormat = typer.Option(
+        TextJsonFormat.text,
+        "--format",
+        help="Output format: text or json",
+    ),
+    level: str = typer.Option(
+        "structural",
+        "--level",
+        help="Validation level: structural or ready",
+    ),
+) -> None:
+    """Validate a self-contained feature UI target."""
+
+    normalized_level = level.lower()
+    if normalized_level not in {"structural", "ready"}:
+        console.print(
+            "[red]Error:[/red] unsupported UI target lint level: "
+            f"{normalized_level}"
+        )
+        raise typer.Exit(2)
+    diagnostics = lint_ui_target_file(path, level=normalized_level)
+    if output_format.lower() == "json":
+        print_json(_diagnostics_payload(diagnostics))
+        if diagnostics:
+            raise typer.Exit(1)
+        return
+    if not diagnostics:
+        console.print(
+            f"{_display_path(path)} is valid at {normalized_level} level"
+        )
+        return
+    for diagnostic in diagnostics:
+        console.print(f"{diagnostic.code}: {diagnostic.message}")
+    raise typer.Exit(1)
+
+
+@design_app.command("approve")
+def design_approve(
+    path: Path = typer.Argument(..., help="Path to a ready design preview HTML file"),
+    direction: str = typer.Option(
+        ...,
+        "--direction",
+        help="Exact direction ID approved by the user",
+    ),
+    output_format: TextJsonFormat = typer.Option(
+        TextJsonFormat.text,
+        "--format",
+        help="Output format: text or json",
+    ),
+) -> None:
+    """Freeze one user-approved direction and write its approval sidecar."""
+
+    try:
+        payload = approve_design_preview(path, direction_id=direction)
+    except DesignLintError as exc:
+        if output_format.lower() == "json":
+            print_json({"ok": False, "error": str(exc)})
+        else:
+            console.print(f"[red]Error:[/red] {exc}")
+        raise typer.Exit(1)
+    if output_format.lower() == "json":
+        print_json({"ok": True, "approval": payload})
+        return
+    approval_path = path.with_suffix(".approval.json")
+    console.print(
+        f"Approved {_display_path(path)}#{direction}; "
+        f"wrote {_display_path(approval_path)}"
+    )
 
 
 @design_app.command("export")

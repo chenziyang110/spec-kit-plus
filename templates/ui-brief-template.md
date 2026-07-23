@@ -25,6 +25,9 @@
 - Signature element:
 - Approved project-level visual reference: .specify/design/previews/round-NN.html#direction-id | live governing surface
 - Approved direction ID and review round:
+- Approved preview SHA-256:
+- Approved manifest SHA-256:
+- Applicable design decision IDs:
 - Safe system choices:
 - Deliberate creative risks, gain, and cost:
 
@@ -77,6 +80,7 @@
 - Disabled:
 - Permission-limited:
 - Success or failure feedback:
+- Component anatomy/variant decision IDs:
 
 ## Interactions
 
@@ -93,6 +97,13 @@
 - Desktop or primary viewport:
 - Mobile or narrow viewport:
 - Overflow behavior:
+- Breakpoint/adaptation matrix: [boundary | regions changed | hierarchy rule | density rule | evidence]
+
+## Color Modes And Content Stress
+
+- Required color modes: light | dark | high-contrast
+- Locale, long-copy, RTL, zoom, and visible-data-volume cases:
+- Font source and accepted fallback behavior:
 
 ## Accessibility And Keyboard Requirements
 
@@ -138,6 +149,8 @@
 - Accepted deviations and approver:
 - Motion and reduced-motion runtime check:
 - Visual acceptance matrix: [entry point | viewport | state | expected result | evidence path]
+- Decision coverage matrix: [decision ID | task IDs | entry point | viewport/state | comparison evidence]
+- Comparison report: [approved ref + preview SHA | implementation capture | structure difference | visual difference | tolerance | accepted deviation]
 - Human review requirement:
 
 ## Worker Contract

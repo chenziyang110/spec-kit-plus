@@ -78,7 +78,10 @@ viewport/state capture loop per Txx. In a Leader-owned epoch, run the integrated
 real surface once per applicable fingerprint and record `structure_snapshot`,
 `visual_capture`, and `runtime_diagnostics` with
 `evidence_scope: integrated`; visually inspect, repair drift when budget remains,
-and recapture in the next epoch. Record behavior checks separately from
+and recapture in the next epoch. A passing comparison uses
+`visual-comparison-template.json` to bind approved preview/manifest digests to
+captures, cover every applicable `DS-*` decision, and preserve the task's
+tolerance and accepted deviations. Record behavior checks separately from
 visual/interaction acceptance. Missing or bootstrap design sources hand off to
 `$spx-design` and stop; unavailable comparison remains `pending-human-review`,
 never an implicit pass.

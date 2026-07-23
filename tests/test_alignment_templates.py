@@ -150,12 +150,15 @@ def test_design_template_declares_v1_schema_and_required_guidance() -> None:
         "content_thesis",
         "interaction_thesis",
         "signature_element",
+        "safe_system_choices",
+        "creative_risks",
     }
     assert set((design_system.get("tokens") or {})) >= {
         "color",
         "spacing",
         "radius",
         "typography",
+        "motion",
     }
     assert all(not entries for entries in design_system["tokens"].values())
     assert design_system.get("components") == {}
@@ -5759,6 +5762,7 @@ def test_ui_reference_artifact_templates_define_strict_formats() -> None:
         "## Components And States",
         "## Interactions",
         "## Responsive Behavior",
+        "## Color Modes And Content Stress",
         "## Accessibility And Keyboard Requirements",
         "## Must Preserve",
         "## May Adapt",
@@ -5768,15 +5772,19 @@ def test_ui_reference_artifact_templates_define_strict_formats() -> None:
     ]
 
     assert "<!doctype html>" in target_lower
-    assert 'data-ui-target="' in target
-    assert 'data-fidelity="approximate"' in target
-    assert 'data-viewport="desktop-1440"' in target
-    assert 'data-viewport="mobile-390"' in target
+    assert 'data-ui-target-schema="spec-kit-ui-target-v1"' in target
+    assert 'data-fidelity="__FIDELITY_MODE__"' in target
+    assert 'data-width="1440"' in target
+    assert 'data-width="390"' in target
     assert 'data-state="empty"' in target
     assert 'data-state="error"' in target
-    assert "No external dependencies" in target
-    assert "not production code" in target
-    assert "<script" not in target_lower
+    assert "spec-kit-ui-target-manifest-v1" in target
+    assert 'id="ui-target-manifest"' in target
+    assert "<script" in target_lower
+    assert "URLSearchParams" in target
+    assert "location.hash" in target
+    assert "addEventListener" in target
+    assert not re.search(r"\son[a-z]+\s*=", target_lower)
     assert "<link" not in target_lower
     assert "@import" not in target_lower
     assert "src=" not in target_lower
@@ -5785,12 +5793,11 @@ def test_ui_reference_artifact_templates_define_strict_formats() -> None:
     assert "http://" not in target_lower
     assert "https://" not in target_lower
     assert "cdn" not in target_lower
-    assert "static HTML/CSS only" in specify
-    assert "no `<script>`" in specify
-    assert "no inline event handlers" in specify
+    assert "ui-target-lint" in specify
+    assert "bounded inline JavaScript" in specify
+    assert "no inline event-handler" in specify
     assert "onclick" in specify_lower
-    assert "no JS-driven behavior" in specify
-    assert "no external CSS/JS" in specify
-    assert "no CDN" in specify
-    assert "no remote runtime dependencies" in specify
-    assert "no production-source claim" in specify
+    assert "external CSS/JS" in specify
+    assert "network calls" in specify
+    assert "persistence" in specify
+    assert "production-source claim" in specify

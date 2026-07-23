@@ -8,8 +8,16 @@ design_brief:
   single_job: null
   surface_types: []
   platforms: []
+  modules: []
+  locales: []
+  color_modes: []
+  required_viewports: []
+  required_states: []
+  decisions: []
   approved_direction: null
   approved_visual_ref: null
+  approved_preview_sha256: null
+  approved_manifest_sha256: null
 ---
 
 # Design Brief
@@ -37,6 +45,21 @@ design system rather than unrelated content:
 - Representative information density:
 - Review viewports:
 - Real or representative content:
+- Surface modules:
+- Color mode used for direction comparison:
+- Additional modes to validate after selection:
+
+## Direction Axes
+
+Keep the task and evidence baseline stable, but allow meaningful bounded
+differences in component anatomy, hierarchy, density, navigation, responsive
+adaptation, and motion. For each direction record:
+
+| Direction | Visual | Content | Interaction | Signature | Gain | Cost |
+| --- | --- | --- | --- | --- | --- | --- |
+| A |  |  |  |  |  |  |
+| B |  |  |  |  |  |  |
+| C |  |  |  |  |  |  |
 
 ## Motion Contract
 
@@ -64,10 +87,19 @@ design system rather than unrelated content:
 Keep only unresolved questions that can materially change the three directions,
 approval scope, or downstream implementation.
 
+Use one record per unresolved or inferred decision:
+
+| Decision ID | Status | Source | Rationale | Affects | Acceptance method |
+| --- | --- | --- | --- | --- | --- |
+| DS-... | confirmed / assumed / open / not-applicable |  |  |  |  |
+
 ## Approval
 
 - Status: unapproved
 - Review round:
 - Direction ID:
 - Exact visual ref:
+- Preview SHA-256:
+- Manifest SHA-256:
+- Approved decision IDs:
 - User-requested revisions:

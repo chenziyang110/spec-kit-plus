@@ -44,7 +44,7 @@ Prove that the integrated implementation is an operable product from its officia
    the unchanged fingerprint. The third failed epoch blocks with exact evidence
    and recovery criteria; never start a fourth validation epoch.
 
-UI-bearing scenarios require real-entrypoint `structure_snapshot`, `visual_capture`, and `runtime_diagnostics` evidence with `evidence_scope: integrated`. Group the viewport/state matrix by integrated surface and source fingerprint; do not run the full viewport/state capture loop per Txx. Validate interaction, navigation, loading, empty, error, permission, persistence/reload, responsive, keyboard/focus, console, network, and runtime states when applicable. Automated behavior checks remain distinct from visual and interaction acceptance.
+UI-bearing scenarios require real-entrypoint `structure_snapshot`, `visual_capture`, and `runtime_diagnostics` evidence with `evidence_scope: integrated`. Group the viewport/state matrix by integrated surface and source fingerprint; do not run the full viewport/state capture loop per Txx. Validate interaction, navigation, loading, empty, error, permission, persistence/reload, responsive, keyboard/focus, console, network, and runtime states when applicable. A passing visual judgment also requires a `spec-kit-visual-comparison-v1` report derived from `.specify/templates/visual-comparison-template.json`: it binds approved preview/manifest digests to implementation captures, covers every applicable `DS-*` decision, applies the preserved tolerance, and lists only approved deviations. Automated behavior checks remain distinct from visual and interaction acceptance.
 
 ## Delegation
 

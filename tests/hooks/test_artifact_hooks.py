@@ -1236,6 +1236,9 @@ def test_current_ui_direction_contract_continues_from_spec_to_task_index(
         "interaction_thesis": "immediate local feedback",
         "signature_element": "persistent section progress",
         "approved_visual_ref": "DESIGN.md#settings",
+        "approved_preview_sha256": "",
+        "approved_manifest_sha256": "",
+        "design_decision_ids": ["DS-COMP-001", "DS-RESP-001"],
         "reference_intents": [
             {"ref": "DESIGN.md#settings", "intent": "preserve-structure"},
             {"ref": "ui-brief.md#interaction", "intent": "exact"},
@@ -1247,6 +1250,26 @@ def test_current_ui_direction_contract_continues_from_spec_to_task_index(
             }
         ],
         "image_plan": [],
+        "color_modes": ["light", "dark"],
+        "component_contracts": [
+            {
+                "component": "settings form",
+                "decision_ids": ["DS-COMP-001"],
+                "required_states": ["loading", "ready", "error"],
+            }
+        ],
+        "responsive_matrix": [
+            {"viewport": "390", "adaptation": "stack settings sections"}
+        ],
+        "motion_contract": {
+            "purpose": "show preference save feedback",
+            "reduced_motion": "instant state change",
+        },
+        "visual_acceptance_matrix": [
+            {"viewport": "390", "state": "ready", "evidence": "visual_capture"}
+        ],
+        "comparison_tolerance": "no unapproved structural drift",
+        "accepted_deviations": [],
         "required_evidence": [
             "structure_snapshot",
             "visual_capture",
@@ -1383,6 +1406,9 @@ def _write_ui_continuity_fixture(
         "interaction_thesis": "immediate local feedback",
         "signature_element": "persistent section progress",
         "approved_visual_ref": "DESIGN.md#settings",
+        "approved_preview_sha256": "",
+        "approved_manifest_sha256": "",
+        "design_decision_ids": ["DS-COMP-001", "DS-RESP-001"],
         "reference_intents": [
             {"ref": "DESIGN.md#settings", "intent": "preserve-structure"}
         ],
@@ -1393,6 +1419,26 @@ def _write_ui_continuity_fixture(
             }
         ],
         "image_plan": [],
+        "color_modes": ["light", "dark"],
+        "component_contracts": [
+            {
+                "component": "settings form",
+                "decision_ids": ["DS-COMP-001"],
+                "required_states": ["loading", "ready", "error"],
+            }
+        ],
+        "responsive_matrix": [
+            {"viewport": "390", "adaptation": "stack settings sections"}
+        ],
+        "motion_contract": {
+            "purpose": "show preference save feedback",
+            "reduced_motion": "instant state change",
+        },
+        "visual_acceptance_matrix": [
+            {"viewport": "390", "state": "ready", "evidence": "visual_capture"}
+        ],
+        "comparison_tolerance": "no unapproved structural drift",
+        "accepted_deviations": [],
         "required_evidence": [
             "structure_snapshot",
             "visual_capture",
@@ -1522,6 +1568,26 @@ def test_task_ui_contract_rejects_plan_constraint_drift(
     errors = _validate_tasks_ui_contract(feature_dir)
 
     assert any(field in error for error in errors)
+
+
+def test_task_ui_contract_requires_exact_design_decision_coverage(
+    tmp_path: Path,
+) -> None:
+    feature_dir = tmp_path / "specs" / "005-ui-decision-coverage"
+    _, _, task_contract = _write_ui_continuity_fixture(feature_dir)
+    task_contract["design_decision_ids"] = ["DS-COMP-001"]
+    (feature_dir / "task-index.json").write_text(
+        json.dumps(
+            {"version": 2, "tasks": [{"id": "T001", "ui_contract": task_contract}]}
+        ),
+        encoding="utf-8",
+    )
+
+    errors = _validate_tasks_ui_contract(feature_dir)
+
+    assert any(
+        "must cover plan design_decision_ids" in error for error in errors
+    )
 
 
 def _write_human_acceptance_universe(

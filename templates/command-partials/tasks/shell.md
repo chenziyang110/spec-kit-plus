@@ -31,6 +31,11 @@ Exact delegated packet shape lives in `templates/task-packet-template.json`. `sp
 
 - Light non-UI: compact `tasks.md` unless a graph adds real resume value.
 - Any UI-bearing work: minimal canonical `task-index.json` plus task-local UI contracts in rendered `tasks.md`.
+- For UI tasks, project the plan's approved reference and digests plus an
+  applicable `DS-*` decision subset, component/color-mode/responsive/motion
+  contracts, viewport/state acceptance rows, comparison tolerance, and the
+  unchanged accepted-deviation ledger. The union across UI tasks must exactly
+  cover every plan design decision and acceptance row.
 - Standard/heavy: canonical `task-index.json` plus rendered `tasks.md`.
 - Delegated decomposition only: one lane manifest plus lane results.
 - Consume every accepted task-generation lane result into a task, edge, batch, join point, guardrail, or explicit blocker/deferral; chat-only lane output is not handoff truth.

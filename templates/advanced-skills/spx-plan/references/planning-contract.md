@@ -16,12 +16,15 @@ it. Explicitly set `ui_applicable: true`, preserve `ui_brief_ref`, and record
 `design_readiness: approved` or a bounded `narrow-existing-pattern-exception`.
 Map its work/surface/platform types, subject/audience/job, three theses,
 signature, approved visual ref, reference intents, real content/image plans,
-entry points, approved design tokens/components, required states,
+preview/manifest SHA-256 values, approved `DS-*` decision IDs, entry points,
+approved design tokens/components, color modes, component anatomy/state
+contracts, responsive/motion contracts, required states,
 responsive/accessibility rules, fidelity constraints, and
 must-preserve/may-adapt/must-not decisions into
 `plan-contract.json#/ui_design_contract`. The verification plan names the
 representative viewport/state matrix, screenshot or platform capture routes,
-the structure/visual/runtime evidence triad, visual comparison, and accepted
+the structure/visual/runtime evidence triad, visual comparison, comparison
+tolerance, accepted deviations, decision coverage, and accepted
 deviation or pending-human-review boundary. Carry verified cognition routes for
 entry points, owners, reusable patterns, and visual tests in the context capsule.
 

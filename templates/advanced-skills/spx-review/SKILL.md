@@ -48,8 +48,11 @@ state propagation, and blocking runtime diagnostics.
 Execute every required scenario from its official real entrypoint inside the
 current Leader-owned epoch. UI-bearing scenarios
 must capture fresh integrated `structure_snapshot`, `visual_capture`, and
-`runtime_diagnostics` evidence and visually inspect the required states. Passing
-unit tests, existing files, synthetic-only checks, or an isolated component do
+`runtime_diagnostics` evidence and visually inspect the required states. A
+passing comparison persists a `spec-kit-visual-comparison-v1` report binding
+approved preview/manifest digests to captures and exactly covering applicable
+`DS-*` decisions under the preserved tolerance/deviation contract. Passing unit
+tests, existing files, synthetic-only checks, or an isolated component do
 not prove the product works. Group capture by integrated surface and source
 fingerprint; do not run the full viewport/state capture loop per Txx.
 

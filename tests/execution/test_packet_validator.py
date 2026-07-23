@@ -256,8 +256,28 @@ def test_validate_worker_task_packet_requires_complete_current_ui_contract(
         interaction_thesis="immediate local feedback",
         signature_element="persistent section progress",
         approved_visual_ref="DESIGN.md#settings",
+        design_decision_ids=["DS-COMP-001", "DS-RESP-001"],
         design_sources=["DESIGN.md", "ui-brief.md"],
         real_content_plan=[{"source_ref": "src/settings/schema.ts"}],
+        color_modes=["light", "dark"],
+        component_contracts=[
+            {
+                "component": "settings form",
+                "decision_ids": ["DS-COMP-001"],
+                "required_states": ["ready", "error"],
+            }
+        ],
+        responsive_matrix=[
+            {"viewport": "390", "adaptation": "stack settings sections"}
+        ],
+        motion_contract={
+            "purpose": "show saved-state feedback",
+            "reduced_motion": "instant state change",
+        },
+        visual_acceptance_matrix=[
+            {"viewport": "390", "state": "ready", "evidence": "visual_capture"}
+        ],
+        comparison_tolerance="no unapproved structural drift",
         required_states=["ready", "error"],
         required_evidence=[
             "structure_snapshot",

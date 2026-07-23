@@ -52,9 +52,11 @@ Use this template when the leader dispatches a concrete implementation lane for 
   helper, or hand-built state evidence does not satisfy integrated proof.
 - If the packet includes `ui_contract`, follow it as binding UI implementation scope. Do not reinterpret the original screenshot, HTML, or UI code reference into a different layout pattern.
 - For the current UI contract, preserve work/surface/platform classification, direction
-  theses, signature, and approved visual ref. Apply each reference only according
-  to its intent, use the named real content/image sources, and do not invent
-  placeholder content that hides layout failure.
+  theses, signature, approved visual ref and digests, applicable `DS-*`
+  decisions, component/mode/responsive/motion contracts, comparison tolerance,
+  and accepted deviations. Apply each reference only according to its intent,
+  use the named real content/image sources, and do not invent placeholder
+  content that hides layout failure.
 - If the packet names a PNG, screenshot, mockup, design export, or reference image, inspect the original visual input before implementing visual structure. If it is missing or inaccessible, return `NEEDS_CONTEXT` or `BLOCKED`; do not implement from a controller summary alone.
 - If the packet includes `ui_contract.visual_target`, treat `ui-target.html` as a disposable visual target, not production source.
 - For UI-bearing work, inspect the original inputs and preserve the task's UI
@@ -68,6 +70,12 @@ Use this template when the leader dispatches a concrete implementation lane for 
   existing reference inspection and cheap structural evidence; do not
   manufacture integrated proof.
 - If the packet requires `visual_comparison_or_human_review` and you cannot perform visual comparison, return `ui_verification.fidelity_status: pending-human-review` instead of claiming visual match.
+- When the Leader performs a passing comparison, use
+  `.specify/templates/visual-comparison-template.json`. Bind the approved
+  preview/manifest digests to real-entrypoint captures, cover every task design
+  decision ID, record structural and visual differences against the task
+  tolerance, and copy only pre-approved deviations. A screenshot path without
+  this comparison record is not a fidelity pass.
 - Report back in this exact status family: `DONE | DONE_WITH_CONCERNS | BLOCKED | NEEDS_CONTEXT`.
 - Prefer `DONE_WITH_CONCERNS` over silent guessing when the work is complete but confidence is mixed.
 

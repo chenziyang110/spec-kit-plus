@@ -125,6 +125,12 @@ def test_compile_worker_task_packet_prefers_structured_task_index_ui_contract(
                             "interaction_thesis": "changes provide immediate local feedback",
                             "signature_element": "persistent section progress rail",
                             "approved_visual_ref": "DESIGN.md#settings-direction",
+                            "approved_preview_sha256": "",
+                            "approved_manifest_sha256": "",
+                            "design_decision_ids": [
+                                "DS-COMP-001",
+                                "DS-RESP-001",
+                            ],
                             "design_sources": [
                                 "DESIGN.md",
                                 "specs/001-ui-feature/ui-brief.md",
@@ -144,6 +150,33 @@ def test_compile_worker_task_packet_prefers_structured_task_index_ui_contract(
                                 }
                             ],
                             "image_plan": [],
+                            "color_modes": ["light", "dark"],
+                            "component_contracts": [
+                                {
+                                    "component": "settings form",
+                                    "decision_ids": ["DS-COMP-001"],
+                                    "required_states": ["loading", "error", "success"],
+                                }
+                            ],
+                            "responsive_matrix": [
+                                {
+                                    "viewport": "390",
+                                    "adaptation": "stack settings sections",
+                                }
+                            ],
+                            "motion_contract": {
+                                "purpose": "show saved-state feedback",
+                                "reduced_motion": "instant state change",
+                            },
+                            "visual_acceptance_matrix": [
+                                {
+                                    "viewport": "390",
+                                    "state": "loading",
+                                    "evidence": "visual_capture",
+                                }
+                            ],
+                            "comparison_tolerance": "no unapproved structural drift",
+                            "accepted_deviations": [],
                             "fidelity_level": "high",
                             "must_preserve": ["compact two-column hierarchy"],
                             "may_adapt": ["framework markup"],
@@ -196,6 +229,7 @@ def test_compile_worker_task_packet_prefers_structured_task_index_ui_contract(
         "visual_test_route",
     }
     assert "src/ui/theme.ts" in {item.path for item in packet.context_bundle}
+    assert all("#" not in item.path for item in packet.context_bundle)
     reference_paths = [item.path for item in packet.required_references]
     assert "DESIGN.md" in reference_paths
     assert "specs/001-ui-feature/ui-brief.md" in reference_paths
@@ -230,6 +264,12 @@ def test_compile_worker_task_packet_prefers_structured_task_index_ui_contract(
             runtime_evidence="pass",
             visual_comparison="passed",
             fidelity_status="passed",
+            approved_visual_ref="DESIGN.md#settings-direction",
+            comparison_report_ref="artifacts/ui/settings-comparison.json",
+            comparison_report_sha256="c" * 64,
+            implementation_capture_refs=["artifacts/ui/settings.png"],
+            covered_decision_ids=["DS-COMP-001", "DS-RESP-001"],
+            comparison_tolerance="no unapproved structural drift",
         ),
         summary="Implemented and visually verified the settings surface.",
         rule_acknowledgement=RuleAcknowledgement(

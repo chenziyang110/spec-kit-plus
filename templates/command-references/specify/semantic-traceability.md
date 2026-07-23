@@ -125,7 +125,15 @@ For `recoverable-user-input`, make required interaction explicit: consumer/state
 - For `approximate` and `high`, native subagents are required by default; if native subagents are unavailable, follow the decision from `choose_ui_reference_lane_dispatch` and proceed inline only when it returns a gated `leader-inline` fallback with explicit user approval recorded, otherwise block with the missing capability instead of guessing.
 - For `inspiration`, inline fallback may proceed only after `choose_ui_reference_lane_dispatch` returns a gated `leader-inline` soft-risk decision with safe lane and contract-ready state satisfied.
 - Dispatch the UI reference lane to write only `ui-reference-notes.md`, `ui-brief.md`, and optional `ui-target.html`.
-- Validate that `ui-target.html`, when present, is static HTML/CSS only: single-file, low-dependency, no `<script>`, no inline event handlers such as `onclick`, no JS-driven behavior, no external CSS/JS, no CDN, no remote runtime dependencies, no production-source claim, and preserves information density over decorative polish.
+- Validate `ui-target.html`, when present, with
+  `specify design ui-target-lint <path> --level ready`. It is a single-file,
+  low-dependency review artifact with an embedded
+  `spec-kit-ui-target-manifest-v1`; bounded inline JavaScript may only drive
+  viewport/state controls, keyboard review navigation, deep links, capture
+  mode, and purposeful motion replay. It must have no inline event-handler
+  attributes, external CSS/JS, CDN, network calls, persistence, analytics,
+  business logic, or production-source claim, and must bind approved digests
+  plus applicable `DS-*` decisions.
 - For `approximate` and `high`, activate the `Reference-Implementation` profile contract, require `Fidelity Requirements`, and persist canonical `required_evidence` terms: `reference source evidence`, `fidelity criteria`, `verification entry points`, `difference inventory`, and `accepted deviations`; for `high`, require a deviation log as an artifact form for `difference inventory` / `accepted deviations`.
 - Persist only the canonical reference-evidence labels and current structured UI
   evidence kinds. Do not emit shorthand aliases or translate them downstream.

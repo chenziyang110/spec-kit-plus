@@ -265,6 +265,7 @@ def test_wheel_force_include_bundles_structured_workflow_contract_templates() ->
         "task-lifecycle-template.json",
         "task-lifecycle-schema.json",
         "task-packet-template.json",
+        "visual-comparison-template.json",
     ):
         assert (
             f'"templates/{template}" = '
@@ -285,6 +286,7 @@ def test_ui_reference_artifact_templates_are_packaged() -> None:
     assert '"templates/ui-reference-notes-template.md" = "specify_cli/core_pack/templates/ui-reference-notes-template.md"' in pyproject
     assert '"templates/ui-brief-template.md" = "specify_cli/core_pack/templates/ui-brief-template.md"' in pyproject
     assert '"templates/ui-target-template.html" = "specify_cli/core_pack/templates/ui-target-template.html"' in pyproject
+    assert '"templates/visual-comparison-template.json" = "specify_cli/core_pack/templates/visual-comparison-template.json"' in pyproject
 
 
 def test_lossless_specify_state_templates_are_force_included() -> None:
@@ -383,6 +385,7 @@ def test_install_shared_infra_copies_split_core_pack_template_dirs(tmp_path, mon
     (core_pack / "templates" / "ui-reference-notes-template.md").write_text("# UI Reference Notes\n", encoding="utf-8")
     (core_pack / "templates" / "ui-brief-template.md").write_text("# UI Brief\n", encoding="utf-8")
     (core_pack / "templates" / "ui-target-template.html").write_text("<!doctype html>\n", encoding="utf-8")
+    (core_pack / "templates" / "visual-comparison-template.json").write_text("{}\n", encoding="utf-8")
     (core_pack / "templates" / "design-library").mkdir(parents=True)
     (core_pack / "templates" / "design-library" / "workbench-precision.md").write_text(
         "# Workbench Precision\n",
@@ -424,6 +427,7 @@ def test_install_shared_infra_copies_split_core_pack_template_dirs(tmp_path, mon
     assert (project_root / ".specify" / "templates" / "ui-reference-notes-template.md").exists()
     assert (project_root / ".specify" / "templates" / "ui-brief-template.md").exists()
     assert (project_root / ".specify" / "templates" / "ui-target-template.html").exists()
+    assert (project_root / ".specify" / "templates" / "visual-comparison-template.json").exists()
     assert (
         project_root
         / ".specify"

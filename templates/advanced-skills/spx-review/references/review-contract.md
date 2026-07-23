@@ -78,6 +78,9 @@ at the real entrypoint. Cover:
 For UI scenarios, evidence uses only canonical kinds
 `structure_snapshot`, `visual_capture`, and `runtime_diagnostics`, with
 `evidence_scope: integrated`, plus visual comparison or explicit human review.
+Persist a `spec-kit-visual-comparison-v1` report for every pass; bind the
+approved preview/manifest digests, required captures, applicable `DS-*`
+decisions, comparison tolerance, and approved deviations.
 Use stable real content and the required viewport/state matrix. Isolated task
 evidence may guide Review but cannot close a system scenario. Group the matrix
 by integrated surface and fingerprint; do not run the full viewport/state

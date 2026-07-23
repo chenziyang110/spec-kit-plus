@@ -1,0 +1,37 @@
+{
+  "schema": "spec-kit-visual-comparison-v1",
+  "task_id": null,
+  "entry_point": null,
+  "approved": {
+    "visual_ref": null,
+    "preview_sha256": null,
+    "manifest_sha256": null,
+    "direction_id": null,
+    "decision_ids": []
+  },
+  "implementation": {
+    "revision": null,
+    "capture_refs": [],
+    "structure_snapshot_refs": [],
+    "runtime_diagnostic_refs": []
+  },
+  "matrix": [
+    {
+      "viewport": null,
+      "color_mode": null,
+      "motion_mode": null,
+      "state": null,
+      "approved_target": null,
+      "implementation_capture_ref": null,
+      "covered_decision_ids": [],
+      "structural_differences": [],
+      "visual_differences": [],
+      "result": "pending"
+    }
+  ],
+  "comparison_tolerance": null,
+  "accepted_deviations": [],
+  "decision_coverage": [],
+  "verdict": "pending-human-review",
+  "reviewer": null
+}

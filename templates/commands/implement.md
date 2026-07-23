@@ -38,7 +38,12 @@ scripts:
    Txx. Group the matrix by integrated surface and capture typed
    `structure_snapshot`, `visual_capture`, and `runtime_diagnostics` evidence
    with `evidence_scope: integrated` in a Leader-owned epoch. Bind the applicable
-   shared evidence refs into each task lifecycle's `ui_verification`; this is
+   shared evidence refs into each task lifecycle's `ui_verification`. For every
+   passing visual comparison, render
+   `.specify/templates/visual-comparison-template.json`, bind the approved
+   preview/manifest digests to implementation captures, and prove exact
+   coverage of the task's `DS-*` decisions under its comparison tolerance and
+   accepted deviations. This is
    evidence reuse, not permission to recapture or rerun the matrix per task. Unavailable
    objective comparison remains `pending-human-review`, never an implicit pass.
    Route an invalid, bootstrap, or missing design source to `sp-design` instead

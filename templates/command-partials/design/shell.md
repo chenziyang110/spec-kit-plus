@@ -21,7 +21,7 @@ Follow the phase lock, intake, synthesis, review, and closeout steps below. Keep
   - `active_command: sp-design`
   - `phase_mode: design-only`
   - `current_stage: context-intake`
-  - `allowed_writes: DESIGN.md, .specify/design/design-state.md, .specify/design/design-brief.md, .specify/design/references.md, .specify/design/options.md, .specify/design/previews/*.html, .specify/design/review.md, .specify/memory/project-rules.md`
+  - `allowed_writes: DESIGN.md, .specify/design/design-state.md, .specify/design/design-brief.md, .specify/design/design-system.json, .specify/design/references.md, .specify/design/options.md, .specify/design/previews/*.html, .specify/design/previews/*.approval.json, .specify/design/review.md, .specify/memory/project-rules.md`
   - `forbidden_actions: edit source code, edit tests, write CSS/theme implementation files, create UI components, create feature specs, create plan artifacts, create task artifacts`
 - When resuming after compaction, read `.specify/design/design-state.md` before continuing.
 
@@ -30,9 +30,11 @@ Follow the phase lock, intake, synthesis, review, and closeout steps below. Keep
 - `DESIGN.md`
 - `.specify/design/design-state.md`
 - `.specify/design/design-brief.md`
+- `.specify/design/design-system.json`
 - `.specify/design/references.md`
 - `.specify/design/options.md`
 - `.specify/design/previews/*.html`
+- `.specify/design/previews/*.approval.json`
 - `.specify/design/review.md`
 - stable design rules in `.specify/memory/project-rules.md` when they should become shared project defaults
 
@@ -91,11 +93,16 @@ If the mode is ambiguous, choose the smallest safe mode and state the assumption
    review carrier. Ask about a technical constraint only when it changes the
    target platform or the visual/interaction result.
 5. Before generating directions, confirm the product subject, audience, single
-   user job, platform/viewports, real or representative content, required
-   component/state coverage, meaningful motion moments, reduced-motion
-   equivalent, references, and Must Preserve / May Adapt / Must Not boundaries.
+   user job, modules, locales, color modes, platform/viewports, real or
+   representative content, required component/state coverage, meaningful
+   motion moments, reduced-motion equivalent, references, and Must Preserve /
+   May Adapt / Must Not boundaries.
 6. Continue the question loop until those decisions are either confirmed or
    explicitly represented as bounded differences among the three directions.
+7. Record each confirmed choice as a stable design decision (`DS-<KIND>-NNN`)
+   with its statement, source, status, affected surfaces, and verification
+   method. The brief is the decision ledger; do not leave important choices
+   trapped only in conversation prose.
 
 ## Three-Direction Preview Loop
 
@@ -108,6 +115,8 @@ If the mode is ambiguous, choose the smallest safe mode and state the assumption
   example content, and viewports identical across all three so the comparison
   isolates visual, density, and motion decisions.
 - Replace every scaffold placeholder, set `data-preview-status="candidate"`,
+  configure the embedded `spec-kit-design-preview-manifest-v1` with the same
+  content, directions, boundaries, tokens, decision IDs, modes, and viewports,
   and run
   `{{specify-subcmd:design preview-lint .specify/design/previews/round-NN.html --level ready}}`.
 - Inspect the board in a real browser at representative desktop and mobile
@@ -116,14 +125,21 @@ If the mode is ambiguous, choose the smallest safe mode and state the assumption
 - Present the exact round path plus all three direction IDs and tradeoffs. Ask
   the user to select one, combine named elements, or describe what remains
   wrong. Approval must refer to the inspected HTML and one direction ID.
+- A requested combination is a fourth, new composition: encode it as a named
+  direction in the next immutable round and have the user inspect that result.
+  Never approve a verbal mix of fragments from different directions.
 - If the user is not satisfied, update the design brief and generate the next
   `round-NN.html`. Continue until the user approves. Do not overwrite a prior
   review round, and never reinterpret criticism as approval.
-- Once approved, freeze that round, record
+- Once the user explicitly approves, freeze it with
+  `{{specify-subcmd:design approve .specify/design/previews/round-NN.html --direction <direction-id> --format json}}`.
+  This command changes the candidate to approved, embeds the selected
+  direction, and writes the immutable `.approval.json` sidecar. Record
   `approved_visual_ref: .specify/design/previews/round-NN.html#<direction-id>`
-  in the design brief and review, and use the same exact reference in
-  `DESIGN.md` `approval.visual_refs`. Later revisions require a new round and
-  renewed approval.
+  plus the returned preview SHA-256, manifest SHA-256, review round, and exact
+  decision IDs in the brief and review. Use the same values in `DESIGN.md`
+  `approval`. Later revisions require a new round and renewed approval; an
+  edited approved file or stale/missing sidecar is invalid.
 
 ## Preview Technology And Content Contract
 
@@ -133,15 +149,22 @@ If the mode is ambiguous, choose the smallest safe mode and state the assumption
   changing its product boundary.
 - Use modern native web capabilities deliberately: semantic HTML, CSS custom
   properties, cascade layers, fluid `clamp()` scales, container queries,
-  progressive view transitions, and a small inline script only for review
-  navigation, keyboard support, and motion replay.
+  progressive view transitions, URL-addressable direction/state controls, and
+  a small inline script only for review navigation, keyboard support, live
+  viewport/state switching, comparison, and motion replay.
 - Keep the artifact a single HTML file with no framework, CDN, remote font,
   external CSS/JavaScript, network call, persistence, analytics, or business
   logic. Modernity comes from expressive layout and motion, not dependency
   weight.
 - Show foundations, buttons, inputs, navigation, list/data density, feedback,
   default/hover/focus/pressed/loading/disabled/empty/error/success states,
-  responsive adaptations, and implementation-facing handoff boundaries.
+  light/dark/high-contrast modes, responsive adaptations at agreed widths,
+  representative content stress, direction tradeoffs, and
+  implementation-facing handoff boundaries.
+- Keep the visible specimen and embedded manifest in sync. Every approved
+  color, type, spacing, component, motion, responsive, and content rule needs a
+  stable decision ID and an implementation token or named owner. The preview
+  is executable design evidence, not merely a styled gallery.
 - Motion must reveal hierarchy, reinforce action, or explain state change.
   Define duration/easing/distance tokens and an equivalent
   `prefers-reduced-motion` experience. Do not scatter decorative animation.
@@ -168,9 +191,12 @@ If the mode is ambiguous, choose the smallest safe mode and state the assumption
 - Normalize approved direction into `spec-kit-design-v1` YAML front matter plus readable Markdown guidance.
 - Set `design_system.status: approved` and record
   `design_system.approval.status`, the selected direction, and concrete product
-  or repository `source_refs`, plus `approval.visual_refs`. Record
-  `product_context` and `direction_contract`. Remove unresolved placeholders and generic
-  starter choices that are not justified by those sources.
+  or repository `source_refs`, plus `approval.visual_refs`, review round,
+  preview/manifest SHA-256 values, and approved decision IDs. Record
+  `product_context`, `direction_contract`, color modes, responsive/content
+  contracts, decisions, and verification matrices. Remove unresolved
+  placeholders and generic starter choices that are not justified by those
+  sources.
 
 ## Output Contract
 
@@ -183,16 +209,29 @@ references, options, and review artifacts.
 `DESIGN.md` must contain:
 
 - YAML front matter with `design_system.schema: spec-kit-design-v1`
-- `design_system.status: approved` plus approval direction and source refs
+- `design_system.status: approved` plus approval direction, source refs,
+  immutable visual reference, review round, preview/manifest SHA-256 values,
+  and approved decision IDs
 - product subject, audience, single job, and approved visual reference
-- visual, content, and interaction theses plus one signature element
+- visual, content, and interaction theses; one signature element; safe system
+  choices; and deliberate creative risks
 - `design_system.name`
 - `design_system.version`
 - `design_system.platforms`
-- token categories for `color`, `spacing`, `radius`, and `typography`
-- component required states and token references
-- accessibility intent
-- Markdown sections for `Product Feel`, `Platforms`, `Component Rules`, `Anti-Patterns`, `UI QA Checklist`, and `Design Change Policy`
+- non-empty token categories for `color`, `spacing`, `radius`, `typography`, and
+  `motion`, plus applicable elevation, sizing, and layout tokens
+- color-mode contracts, including required accessibility modes
+- component required states, token references, and design decision references
+- responsive breakpoints/adaptations and real-content/imagery rules
+- canonical design decisions with verification methods
+- required viewport/state evidence, visual tolerance, and accepted deviations
+- accessibility intent for contrast, focus, keyboard, reduced motion, touch,
+  and forced colors
+- Markdown sections for `Product Feel`, `Design Direction`, `Visual And
+  Interaction Signature`, `Foundations`, `Platforms`, `Component Rules`,
+  `Motion Rules`, `Responsive Behavior`, `Content And Imagery`,
+  `Anti-Patterns`, `Design Change Policy`, `UI QA Checklist`, `Reference
+  Fidelity`, and `Planned Gaps and Exceptions`
 
 ## Review
 
@@ -201,7 +240,10 @@ Before closeout:
 1. Run the active round's
    `{{specify-subcmd:design preview-lint .specify/design/previews/round-NN.html --level ready}}`,
    then run `{{specify-subcmd:design lint --level ready}}` when the CLI helpers
-   are available.
+   are available. Export the same approved contract with
+   `{{specify-subcmd:design export DESIGN.md --format json --out .specify/design/design-system.json}}`
+   so implementation consumes deterministic data rather than reconstructing
+   YAML prose.
 2. Write `.specify/design/review.md` with:
    - selected mode
    - inputs read
@@ -209,6 +251,8 @@ Before closeout:
    - preview round and validation result
    - approved direction
    - exact `approved_visual_ref`
+   - preview/manifest SHA-256 values and approval sidecar
+   - approved design decision IDs
    - requested revisions from rejected rounds
    - platforms covered
    - design-system risks
@@ -226,5 +270,7 @@ Close with the design-system status, changed files, lint result, and exactly one
 - Inline HTML/CSS and bounded review-only JavaScript inside
   `.specify/design/previews/*.html` are design artifacts allowed by this
   workflow; they are not application implementation.
+- Never hand-edit an approved preview or its sidecar. Generate a new numbered
+  candidate round, obtain approval, and let `design approve` freeze it.
 - Do not clone protected brands or copy third-party design files into `DESIGN.md`; synthesize project-owned design principles and tokens.
 - Do not let downstream workflows treat an unaudited or contradictory `DESIGN.md` as locked input.

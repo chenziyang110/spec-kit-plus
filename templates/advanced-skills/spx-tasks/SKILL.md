@@ -83,8 +83,12 @@ For every UI-bearing task, render its detailed block from `assets/ui-task.md`
 and copy `assets/ui-task-index-entry.json` into the canonical task-index entry,
 filling the complete `ui_contract` as the only UI packet contract. Do not rely on a
 global UI coverage table: the just-in-time packet compiler must receive design
-sources, task-specific visual constraints, states, and evidence without
-re-inferring them.
+sources, approved reference/digests, an applicable `DS-*` decision subset,
+component/color-mode/responsive/motion contracts, viewport/state acceptance
+rows, comparison tolerance, the unchanged accepted-deviation ledger,
+task-specific visual constraints, states, and evidence without re-inferring
+them. Across UI tasks, require exact coverage of the plan's design decision and
+acceptance rows.
 
 Before handoff, run
 `{{specify-subcmd:hook validate-artifacts --command tasks --feature-dir <feature-dir> --format json}}`

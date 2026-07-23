@@ -9,6 +9,11 @@ from .packet_schema import UI_CONTRACT_FIELDS, UIContract, WorkerTaskPacket
 
 
 MP_ID_RE = re.compile(r"^MP-\d{3}$")
+DESIGN_DECISION_ID_RE = re.compile(r"^DS-[A-Z]+-\d{3}$")
+SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
+APPROVED_PREVIEW_REF_RE = re.compile(
+    r"round-\d+\.html#direction-[a-z0-9-]+$", re.IGNORECASE
+)
 UI_WORK_TYPES = {"existing-pattern", "feature-extension", "reference-implementation"}
 UI_SURFACE_TYPES = {
     "landing",
@@ -102,6 +107,27 @@ def validate_ui_contract(contract: UIContract) -> None:
             )
     if not contract.design_sources or _has_blank_entry(contract.design_sources):
         raise PacketValidationError("DP1", "UI contract requires design_sources")
+    if not contract.design_decision_ids or any(
+        not DESIGN_DECISION_ID_RE.fullmatch(item)
+        for item in contract.design_decision_ids
+    ):
+        raise PacketValidationError(
+            "DP1", "UI contract requires canonical design_decision_ids"
+        )
+    for field_name in ("approved_preview_sha256", "approved_manifest_sha256"):
+        value = str(getattr(contract, field_name) or "").strip()
+        if value and not SHA256_RE.fullmatch(value):
+            raise PacketValidationError(
+                "DP1", f"UI contract {field_name} must be a SHA-256 digest"
+            )
+    if APPROVED_PREVIEW_REF_RE.search(contract.approved_visual_ref) and (
+        not SHA256_RE.fullmatch(contract.approved_preview_sha256)
+        or not SHA256_RE.fullmatch(contract.approved_manifest_sha256)
+    ):
+        raise PacketValidationError(
+            "DP1",
+            "approved HTML preview requires preview and manifest SHA-256 digests",
+        )
     if not contract.required_states or _has_blank_entry(contract.required_states):
         raise PacketValidationError("DP1", "UI contract requires required_states")
     if not contract.real_content_plan:
@@ -132,6 +158,73 @@ def validate_ui_contract(contract: UIContract) -> None:
             raise PacketValidationError(
                 "DP1", "UI contract image_plan entries require ref and role"
             )
+    if not contract.color_modes or _has_blank_entry(contract.color_modes):
+        raise PacketValidationError("DP1", "UI contract requires color_modes")
+    if not contract.component_contracts:
+        raise PacketValidationError(
+            "DP1", "UI contract requires component_contracts"
+        )
+    for item in contract.component_contracts:
+        decision_ids = item.get("decision_ids") if isinstance(item, dict) else None
+        if (
+            not isinstance(item, dict)
+            or not str(item.get("component") or "").strip()
+            or not isinstance(decision_ids, list)
+            or not decision_ids
+            or any(
+                not isinstance(decision_id, str)
+                or decision_id not in contract.design_decision_ids
+                for decision_id in decision_ids
+            )
+        ):
+            raise PacketValidationError(
+                "DP1",
+                "UI contract component_contracts require component and known decision_ids",
+            )
+    if not contract.responsive_matrix or any(
+        not isinstance(item, dict)
+        or not str(item.get("viewport") or "").strip()
+        or not str(item.get("adaptation") or "").strip()
+        for item in contract.responsive_matrix
+    ):
+        raise PacketValidationError(
+            "DP1",
+            "UI contract responsive_matrix entries require viewport and adaptation",
+        )
+    if (
+        not isinstance(contract.motion_contract, dict)
+        or not str(contract.motion_contract.get("purpose") or "").strip()
+        or not str(contract.motion_contract.get("reduced_motion") or "").strip()
+    ):
+        raise PacketValidationError(
+            "DP1",
+            "UI contract motion_contract requires purpose and reduced_motion",
+        )
+    if not contract.visual_acceptance_matrix or any(
+        not isinstance(item, dict)
+        or not str(item.get("viewport") or "").strip()
+        or not str(item.get("state") or "").strip()
+        or not str(item.get("evidence") or "").strip()
+        for item in contract.visual_acceptance_matrix
+    ):
+        raise PacketValidationError(
+            "DP1",
+            "UI contract visual_acceptance_matrix entries require viewport, state, and evidence",
+        )
+    if not contract.comparison_tolerance.strip():
+        raise PacketValidationError(
+            "DP1", "UI contract requires comparison_tolerance"
+        )
+    if any(
+        not isinstance(item, dict)
+        or not str(item.get("decision_id") or "").strip()
+        or not str(item.get("reason") or "").strip()
+        for item in contract.accepted_deviations
+    ):
+        raise PacketValidationError(
+            "DP1",
+            "UI contract accepted_deviations entries require decision_id and reason",
+        )
     evidence = {item.strip() for item in contract.required_evidence}
     if evidence != UI_REQUIRED_EVIDENCE:
         raise PacketValidationError(

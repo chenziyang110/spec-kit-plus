@@ -42,8 +42,9 @@ Turn a new or changed feature request into a reviewed, planning-ready specificat
   `sp-design`; do not inherit its generic starter tokens as product intent.
 - When approved design provenance names
   `.specify/design/previews/round-NN.html#<direction-id>`, inspect and preserve
-  that exact project-level visual reference, including its component/state,
-  density, motion-token, and reduced-motion decisions. A later feature-level
+  that exact project-level visual reference, approval sidecar,
+  preview/manifest SHA-256 values, and applicable `DS-*` decisions, including
+  component/state, density, motion-token, and reduced-motion rules. A later feature-level
   `ui-target.html` refines concrete composition and does not replace it.
 - Detect screenshots, HTML/CSS mockups, Tailwind/shadcn/React/Vue/Svelte snippets, Figma exports, reference URLs, existing product pages, or matching-language such as "make it like this", "basically the same", "copy this layout", or "use this as the design".
 - When UI reference input exists, ask for the fidelity mode unless the user already stated it:
@@ -67,7 +68,11 @@ Turn a new or changed feature request into a reviewed, planning-ready specificat
 - When compatibility requires `brainstorming/handoff-to-specify.json`, generate it as a pointer-only agent transition with `source_contract`, `review_digest`, `semantic_delta`, `required_refs`, blockers, and next action; do not copy the requirement contract.
 - When UI reference input exists, require `ui-reference-notes.md`; for every
   substantive concrete UI surface, require `ui-brief.md` whether or not a
-  reference was supplied; create `ui-target.html` only when a disposable visual target materially reduces ambiguity.
+  reference was supplied; create `ui-target.html` only when a disposable visual
+  target materially reduces ambiguity. Scaffold it with
+  `{{specify-subcmd:design ui-target --out <FEATURE_DIR>/ui-target.html}}`,
+  configure its embedded manifest and candidate status, then require
+  `{{specify-subcmd:design ui-target-lint <FEATURE_DIR>/ui-target.html --level ready}}`.
 - For `approximate` and `high` UI reference fidelity, activate `Reference-Implementation`, populate `Fidelity Requirements`, persist canonical Reference-Implementation `required_evidence`, and record UI-specific labels only as aliases/mapping notes.
 - `alignment.md` must record `Semantic Term Decisions`, `Upstream Intent Disposition`, and `Out-Of-Scope Conflicts` when relevant.
 - Do not recommend `/sp.plan` while a capability-like upstream signal lacks disposition, an ambiguous high-impact term lacks confirmation, or an out-of-scope conflict lacks user confirmation.

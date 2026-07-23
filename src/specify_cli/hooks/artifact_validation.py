@@ -3019,13 +3019,25 @@ UI_CONTRACT_SCALAR_FIELDS = (
     "interaction_thesis",
     "signature_element",
     "approved_visual_ref",
+    "comparison_tolerance",
 )
 UI_CONTRACT_LIST_FIELDS = (
     "platforms",
+    "design_decision_ids",
     "reference_intents",
     "real_content_plan",
     "image_plan",
+    "color_modes",
+    "component_contracts",
+    "responsive_matrix",
+    "visual_acceptance_matrix",
+    "accepted_deviations",
     "required_evidence",
+)
+UI_CONTRACT_OBJECT_FIELDS = ("motion_contract",)
+UI_APPROVAL_DIGEST_FIELDS = (
+    "approved_preview_sha256",
+    "approved_manifest_sha256",
 )
 UI_SPEC_PLAN_CONTINUITY_LIST_FIELDS = (
     "entry_points",
@@ -3059,12 +3071,20 @@ UI_CONTRACT_EVIDENCE = {
     "runtime_diagnostics",
     "visual_comparison_or_human_review",
 }
+UI_DESIGN_DECISION_ID_RE = re.compile(r"^DS-[A-Z]+-\d{3}$")
+UI_SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
+UI_APPROVED_PREVIEW_REF_RE = re.compile(
+    r"round-\d+\.html#direction-[a-z0-9-]+$", re.IGNORECASE
+)
 
 
 def _canonical_ui_continuity_value(field: str, value: Any) -> Any:
     """Normalize order-insensitive UI collections for continuity checks."""
 
-    if field not in UI_CONTINUITY_LIST_FIELDS or not isinstance(value, list):
+    if (
+        field not in UI_CONTINUITY_LIST_FIELDS
+        and field not in UI_CONTRACT_OBJECT_FIELDS
+    ):
         return value
 
     def canonical(item: Any) -> Any:
@@ -3079,8 +3099,12 @@ def _canonical_ui_continuity_value(field: str, value: Any) -> Any:
             return item.strip()
         return item
 
-    normalized = [canonical(item) for item in value]
-    return tuple(sorted(normalized, key=repr))
+    if isinstance(value, list):
+        normalized = [canonical(item) for item in value]
+        return tuple(sorted(normalized, key=repr))
+    if isinstance(value, dict):
+        return canonical(value)
+    return value
 
 
 def _normalized_ui_string_values(field: str, contract: dict[str, Any]) -> set[str]:
@@ -3120,6 +3144,32 @@ def _validate_ui_contract_shape(contract: dict[str, Any], label: str) -> list[st
     for field in UI_CONTRACT_LIST_FIELDS:
         if not isinstance(contract.get(field), list):
             errors.append(f"{label}.{field} must be a list")
+    for field in UI_CONTRACT_OBJECT_FIELDS:
+        if not isinstance(contract.get(field), dict):
+            errors.append(f"{label}.{field} must be an object")
+    approved_ref = str(contract.get("approved_visual_ref") or "").strip()
+    for field in UI_APPROVAL_DIGEST_FIELDS:
+        digest = str(contract.get(field) or "").strip()
+        if digest and not UI_SHA256_RE.fullmatch(digest):
+            errors.append(f"{label}.{field} must be a SHA-256 digest")
+    if UI_APPROVED_PREVIEW_REF_RE.search(approved_ref) and any(
+        not UI_SHA256_RE.fullmatch(str(contract.get(field) or "").strip())
+        for field in UI_APPROVAL_DIGEST_FIELDS
+    ):
+        errors.append(
+            f"{label} approved HTML preview requires preview and manifest SHA-256 digests"
+        )
+    design_decision_ids = contract.get("design_decision_ids")
+    if (
+        not isinstance(design_decision_ids, list)
+        or not design_decision_ids
+        or any(
+            not isinstance(item, str)
+            or not UI_DESIGN_DECISION_ID_RE.fullmatch(item.strip())
+            for item in design_decision_ids
+        )
+    ):
+        errors.append(f"{label}.design_decision_ids must contain canonical DS-* IDs")
     reference_intents = contract.get("reference_intents")
     if isinstance(reference_intents, list):
         for item in reference_intents:
@@ -3149,6 +3199,77 @@ def _validate_ui_contract_shape(contract: dict[str, Any], label: str) -> list[st
         for item in image_plan
     ):
         errors.append(f"{label}.image_plan entries require ref and role")
+    color_modes = contract.get("color_modes")
+    if not isinstance(color_modes, list) or not any(
+        isinstance(item, str) and item.strip() for item in color_modes
+    ):
+        errors.append(f"{label}.color_modes must be non-empty")
+    component_contracts = contract.get("component_contracts")
+    decision_id_set = {
+        str(item).strip()
+        for item in design_decision_ids or []
+        if isinstance(item, str) and item.strip()
+    }
+    if not isinstance(component_contracts, list) or not component_contracts:
+        errors.append(f"{label}.component_contracts must be non-empty")
+    elif any(
+        not isinstance(item, dict)
+        or not str(item.get("component") or "").strip()
+        or not isinstance(item.get("decision_ids"), list)
+        or not item.get("decision_ids")
+        or any(
+            not isinstance(decision_id, str) or decision_id not in decision_id_set
+            for decision_id in item.get("decision_ids") or []
+        )
+        for item in component_contracts
+    ):
+        errors.append(
+            f"{label}.component_contracts entries require component and known decision_ids"
+        )
+    responsive_matrix = contract.get("responsive_matrix")
+    if not isinstance(responsive_matrix, list) or not responsive_matrix:
+        errors.append(f"{label}.responsive_matrix must be non-empty")
+    elif any(
+        not isinstance(item, dict)
+        or not str(item.get("viewport") or "").strip()
+        or not str(item.get("adaptation") or "").strip()
+        for item in responsive_matrix
+    ):
+        errors.append(
+            f"{label}.responsive_matrix entries require viewport and adaptation"
+        )
+    motion_contract = contract.get("motion_contract")
+    if (
+        not isinstance(motion_contract, dict)
+        or not str(motion_contract.get("purpose") or "").strip()
+        or not str(motion_contract.get("reduced_motion") or "").strip()
+    ):
+        errors.append(
+            f"{label}.motion_contract requires purpose and reduced_motion"
+        )
+    visual_matrix = contract.get("visual_acceptance_matrix")
+    if not isinstance(visual_matrix, list) or not visual_matrix:
+        errors.append(f"{label}.visual_acceptance_matrix must be non-empty")
+    elif any(
+        not isinstance(item, dict)
+        or not str(item.get("viewport") or "").strip()
+        or not str(item.get("state") or "").strip()
+        or not str(item.get("evidence") or "").strip()
+        for item in visual_matrix
+    ):
+        errors.append(
+            f"{label}.visual_acceptance_matrix entries require viewport, state, and evidence"
+        )
+    accepted_deviations = contract.get("accepted_deviations")
+    if isinstance(accepted_deviations, list) and any(
+        not isinstance(item, dict)
+        or not str(item.get("decision_id") or "").strip()
+        or not str(item.get("reason") or "").strip()
+        for item in accepted_deviations
+    ):
+        errors.append(
+            f"{label}.accepted_deviations entries require decision_id and reason"
+        )
     required_evidence = contract.get("required_evidence")
     evidence = (
         {
@@ -3287,6 +3408,8 @@ def _validate_plan_ui_contract(feature_dir: Path) -> list[str]:
             "fidelity_mode",
             *UI_CONTRACT_SCALAR_FIELDS,
             *UI_CONTRACT_LIST_FIELDS,
+            *UI_CONTRACT_OBJECT_FIELDS,
+            *UI_APPROVAL_DIGEST_FIELDS,
             *UI_SPEC_PLAN_CONTINUITY_LIST_FIELDS,
         ):
             if _canonical_ui_continuity_value(
@@ -3352,6 +3475,11 @@ def _validate_tasks_ui_contract(feature_dir: Path) -> list[str]:
         )
     if plan_applies and isinstance(plan_contract, dict):
         covered_required_states: set[str] = set()
+        covered_design_decisions: set[str] = set()
+        covered_color_modes: set[str] = set()
+        covered_component_contracts: set[Any] = set()
+        covered_responsive_matrix: set[Any] = set()
+        covered_visual_acceptance_matrix: set[Any] = set()
         for task_id, task_entry in task_index_ui_contracts(feature_dir).items():
             task_contract = task_entry.get("ui_contract")
             if not isinstance(task_contract, dict):
@@ -3382,7 +3510,13 @@ def _validate_tasks_ui_contract(feature_dir: Path) -> list[str]:
                     errors.append(
                         f"task-index.json UI task {task_id} ui_contract.{field} must be non-empty"
                     )
-            for field in ("ui_work_type", "surface_type", *UI_CONTRACT_SCALAR_FIELDS):
+            for field in (
+                "ui_work_type",
+                "surface_type",
+                *UI_CONTRACT_SCALAR_FIELDS,
+                *UI_CONTRACT_OBJECT_FIELDS,
+                *UI_APPROVAL_DIGEST_FIELDS,
+            ):
                 if task_contract.get(field) != plan_contract.get(field):
                     errors.append(
                         f"task-index.json UI task {task_id} must preserve plan {field}"
@@ -3408,6 +3542,37 @@ def _validate_tasks_ui_contract(feature_dir: Path) -> list[str]:
                     f"task-index.json UI task {task_id} required_states must be a plan subset"
                 )
 
+            for field, covered in (
+                ("design_decision_ids", covered_design_decisions),
+                ("color_modes", covered_color_modes),
+            ):
+                plan_values = _normalized_ui_string_values(field, plan_contract)
+                task_values = _normalized_ui_string_values(field, task_contract)
+                covered.update(task_values)
+                if not task_values or not task_values <= plan_values:
+                    errors.append(
+                        f"task-index.json UI task {task_id} {field} must be a non-empty plan subset"
+                    )
+
+            for field, covered in (
+                ("component_contracts", covered_component_contracts),
+                ("responsive_matrix", covered_responsive_matrix),
+                ("visual_acceptance_matrix", covered_visual_acceptance_matrix),
+            ):
+                raw_plan_values = plan_contract.get(field)
+                raw_task_values = task_contract.get(field)
+                plan_values = set(
+                    _canonical_ui_continuity_value(field, raw_plan_values) or ()
+                )
+                task_values = set(
+                    _canonical_ui_continuity_value(field, raw_task_values) or ()
+                )
+                covered.update(task_values)
+                if not task_values or not task_values <= plan_values:
+                    errors.append(
+                        f"task-index.json UI task {task_id} {field} must be a non-empty plan subset"
+                    )
+
             plan_preserve = _normalized_ui_string_values("must_preserve", plan_contract)
             task_preserve = _normalized_ui_string_values("must_preserve", task_contract)
             if not plan_preserve <= task_preserve:
@@ -3428,6 +3593,14 @@ def _validate_tasks_ui_contract(feature_dir: Path) -> list[str]:
                 errors.append(
                     f"task-index.json UI task {task_id} must_not must include plan prohibitions"
                 )
+            if _canonical_ui_continuity_value(
+                "accepted_deviations", task_contract.get("accepted_deviations")
+            ) != _canonical_ui_continuity_value(
+                "accepted_deviations", plan_contract.get("accepted_deviations")
+            ):
+                errors.append(
+                    f"task-index.json UI task {task_id} accepted_deviations must preserve plan approvals"
+                )
         plan_required_states = {
             str(item).strip()
             for item in plan_contract.get("required_states") or []
@@ -3439,6 +3612,22 @@ def _validate_tasks_ui_contract(feature_dir: Path) -> list[str]:
                 "task-index.json UI tasks must cover plan required_states: "
                 + ", ".join(missing_states)
             )
+        for field, covered in (
+            ("design_decision_ids", covered_design_decisions),
+            ("color_modes", covered_color_modes),
+            ("component_contracts", covered_component_contracts),
+            ("responsive_matrix", covered_responsive_matrix),
+            ("visual_acceptance_matrix", covered_visual_acceptance_matrix),
+        ):
+            expected = _canonical_ui_continuity_value(
+                field, plan_contract.get(field)
+            )
+            expected_set = set(expected or ())
+            missing = expected_set - covered
+            if missing:
+                errors.append(
+                    f"task-index.json UI tasks must cover plan {field}"
+                )
     return errors
 
 

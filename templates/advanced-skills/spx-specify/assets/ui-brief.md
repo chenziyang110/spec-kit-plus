@@ -15,6 +15,9 @@
 - approved_visual_ref: .specify/design/previews/round-NN.html#direction-id | live governing surface
 - approved_direction_id:
 - design_review_round:
+- approved_preview_sha256:
+- approved_manifest_sha256:
+- design_decision_ids: []
 - entry_points:
 - user_job_and_experience_intent:
 - visual_or_interaction_signature:
@@ -22,6 +25,13 @@
 - reference_intents: [{ref:, intent: exact | preserve-structure | inspiration | extract-tokens | do-not-copy}]
 - real_content_plan: [{source_ref:, applies_to_states: []}]
 - image_plan: [{ref:, role:, responsive_behavior:}]
+- color_modes: []
+- component_contracts: [{component:, anatomy:, required_states: [], decision_ids: []}]
+- responsive_matrix: [{viewport:, state:, adaptation:}]
+- motion_contract: {purpose:, duration_easing:, reduced_motion:}
+- visual_acceptance_matrix: [{viewport:, state:, evidence:}]
+- comparison_tolerance:
+- accepted_deviations: [{decision_id:, reason:, approval_ref:}]
 - fidelity_mode: approximate | high | inspiration
 - layout_and_information_hierarchy:
 - tokens_and_components:

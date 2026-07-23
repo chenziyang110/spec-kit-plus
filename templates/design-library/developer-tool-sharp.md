@@ -70,6 +70,16 @@ design_system:
       heading.weight:
         value: "650"
         usage: sharp hierarchy without display scale
+    motion:
+      duration.fast:
+        value: "100ms"
+        usage: keyboard-first control feedback
+      duration.base:
+        value: "180ms"
+        usage: panel and state transitions
+      easing.standard:
+        value: "cubic-bezier(.2, .8, .2, 1)"
+        usage: direct technical state change
   components:
     button:
       required_states:
@@ -109,6 +119,7 @@ design_system:
     contrast_intent: WCAG AA for ordinary text where platform rendering allows
     focus_visible: required
     keyboard_navigation: required
+    reduced_motion: required
 ---
 
 # Developer Tool Sharp

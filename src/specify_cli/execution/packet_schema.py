@@ -108,12 +108,22 @@ class UIContract:
     interaction_thesis: str = ""
     signature_element: str = ""
     approved_visual_ref: str = ""
+    approved_preview_sha256: str = ""
+    approved_manifest_sha256: str = ""
+    design_decision_ids: list[str] = field(default_factory=list)
     design_sources: list[str] = field(default_factory=list)
     reference_notes: str = ""
     visual_target: str = ""
     reference_intents: list[dict[str, str]] = field(default_factory=list)
     real_content_plan: list[dict[str, object]] = field(default_factory=list)
     image_plan: list[dict[str, str]] = field(default_factory=list)
+    color_modes: list[str] = field(default_factory=list)
+    component_contracts: list[dict[str, object]] = field(default_factory=list)
+    responsive_matrix: list[dict[str, object]] = field(default_factory=list)
+    motion_contract: dict[str, object] = field(default_factory=dict)
+    visual_acceptance_matrix: list[dict[str, object]] = field(default_factory=list)
+    comparison_tolerance: str = ""
+    accepted_deviations: list[dict[str, object]] = field(default_factory=list)
     fidelity_level: UIFidelityLevel = "none"
     must_preserve: list[str] = field(default_factory=list)
     may_adapt: list[str] = field(default_factory=list)

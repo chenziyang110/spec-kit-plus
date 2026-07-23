@@ -79,6 +79,7 @@ packages = ["src/specify_cli"]
 "templates/ui-reference-notes-template.md" = "specify_cli/core_pack/templates/ui-reference-notes-template.md"
 "templates/ui-brief-template.md" = "specify_cli/core_pack/templates/ui-brief-template.md"
 "templates/ui-target-template.html" = "specify_cli/core_pack/templates/ui-target-template.html"
+"templates/visual-comparison-template.json" = "specify_cli/core_pack/templates/visual-comparison-template.json"
 "templates/task-index-template.json" = "specify_cli/core_pack/templates/task-index-template.json"
 "templates/task-lifecycle-template.json" = "specify_cli/core_pack/templates/task-lifecycle-template.json"
 "templates/task-lifecycle-schema.json" = "specify_cli/core_pack/templates/task-lifecycle-schema.json"

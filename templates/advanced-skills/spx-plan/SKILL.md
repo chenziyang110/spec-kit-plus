@@ -51,8 +51,11 @@ For UI-bearing work, consume `DESIGN.md`, `ui-brief.md`, original fidelity
 sources, and the spec design contract. Set `ui_design_contract.ui_applicable:
 true`, preserve `ui_brief_ref`, and record `design_readiness`. Populate it with
 the current direction contract, surface/platform classification, approved visual,
-reference intents, real content/image plans, design-system adoption, required
-states, must-preserve rules, real entry points, and the evidence triad. Carry
+preview/manifest SHA-256 values, `DS-*` decisions, component/color-mode/
+responsive/motion contracts, reference intents, real content/image plans,
+design-system adoption, required states, must-preserve rules, real entry points,
+viewport/state acceptance matrix, comparison tolerance, accepted deviations,
+and the evidence triad. Carry
 verified cognition routes into the compact context capsule. Do not defer these
 decisions to tasks.
 

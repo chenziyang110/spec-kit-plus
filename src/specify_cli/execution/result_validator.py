@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import json
+import re
+
 from .evidence import (
     PLACEHOLDER_VALUES,
     has_any_evidence,
@@ -127,6 +130,16 @@ def _has_human_ui_approval(result: WorkerTaskResult) -> bool:
 
 def _has_ui_review_artifact(result: WorkerTaskResult) -> bool:
     return has_any_evidence(result.manual_evidence)
+
+
+def _canonical_records(values: list[dict[str, object]]) -> tuple[str, ...]:
+    return tuple(
+        sorted(
+            json.dumps(value, sort_keys=True, separators=(",", ":"), default=str)
+            for value in values
+            if isinstance(value, dict)
+        )
+    )
 
 
 def _has_manual_ui_approval_artifact(result: WorkerTaskResult) -> bool:
@@ -360,6 +373,99 @@ def validate_worker_task_result(
                     "DP3",
                     "visual_comparison_or_human_review has unknown visual comparison status",
                 )
+            if (
+                visual_comparison in _PASSING_VISUAL_COMPARISON_STATUSES
+                and packet.ui_contract.design_decision_ids
+            ):
+                verification = result.ui_verification
+                if not verification.comparison_report_ref.strip():
+                    raise PacketValidationError(
+                        "DP3",
+                        "passing visual comparison requires comparison_report_ref",
+                    )
+                if not re.fullmatch(
+                    r"[0-9a-f]{64}",
+                    verification.comparison_report_sha256.strip(),
+                ):
+                    raise PacketValidationError(
+                        "DP3",
+                        "passing visual comparison requires comparison_report_sha256",
+                    )
+                if (
+                    verification.approved_visual_ref.strip()
+                    != packet.ui_contract.approved_visual_ref.strip()
+                ):
+                    raise PacketValidationError(
+                        "DP3",
+                        "visual comparison must bind the task approved_visual_ref",
+                    )
+                if (
+                    packet.ui_contract.approved_preview_sha256
+                    and verification.approved_preview_sha256.strip()
+                    != packet.ui_contract.approved_preview_sha256.strip()
+                ):
+                    raise PacketValidationError(
+                        "DP3",
+                        "visual comparison must bind the approved preview SHA-256",
+                    )
+                if (
+                    packet.ui_contract.approved_manifest_sha256
+                    and verification.approved_manifest_sha256.strip()
+                    != packet.ui_contract.approved_manifest_sha256.strip()
+                ):
+                    raise PacketValidationError(
+                        "DP3",
+                        "visual comparison must bind the approved manifest SHA-256",
+                    )
+                expected_decisions = set(packet.ui_contract.design_decision_ids)
+                covered_decisions = {
+                    item.strip()
+                    for item in verification.covered_decision_ids
+                    if isinstance(item, str) and item.strip()
+                }
+                if covered_decisions != expected_decisions:
+                    raise PacketValidationError(
+                        "DP3",
+                        "visual comparison decision coverage must exactly match the task design_decision_ids",
+                    )
+                capture_refs = {
+                    str(item.get("ref") or "").strip()
+                    for item in result.ui_evidence
+                    if isinstance(item, dict)
+                    and _normalize_ui_evidence_kind(
+                        str(item.get("kind") or "")
+                    )
+                    == "visual_capture"
+                    and str(item.get("ref") or "").strip()
+                }
+                comparison_captures = {
+                    item.strip()
+                    for item in verification.implementation_capture_refs
+                    if isinstance(item, str) and item.strip()
+                }
+                if (
+                    not comparison_captures
+                    or not comparison_captures <= capture_refs
+                ):
+                    raise PacketValidationError(
+                        "DP3",
+                        "visual comparison implementation captures must reference visual_capture evidence",
+                    )
+                if (
+                    verification.comparison_tolerance.strip()
+                    != packet.ui_contract.comparison_tolerance.strip()
+                ):
+                    raise PacketValidationError(
+                        "DP3",
+                        "visual comparison must preserve the task comparison_tolerance",
+                    )
+                if _canonical_records(
+                    verification.accepted_deviations
+                ) != _canonical_records(packet.ui_contract.accepted_deviations):
+                    raise PacketValidationError(
+                        "DP3",
+                        "visual comparison accepted_deviations must preserve task approvals",
+                    )
             if requires_ui_evidence and not has_any_evidence(result.ui_evidence):
                 raise PacketValidationError(
                     "DP3", "worker result is missing ui evidence"
