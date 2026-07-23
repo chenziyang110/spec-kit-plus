@@ -792,7 +792,7 @@ func TestPrepareCreatesBoundedConcretePacketSkeleton(t *testing.T) {
 	}
 
 	universe := readJSONObject(t, filepath.Join(paths.RuntimeDir, "workbench", "repository-universe.json"))
-	if universe["schema_version"] != float64(1) {
+	if universe["schema_version"] != float64(2) {
 		t.Fatalf("repository-universe schema_version = %v", universe["schema_version"])
 	}
 	if got := stringSlice(t, universe["included_paths"]); !equalStrings(got, []string{"README.md", "src/a.go", "src/z.go"}) {
@@ -830,8 +830,162 @@ func TestPrepareCreatesBoundedConcretePacketSkeleton(t *testing.T) {
 	}
 }
 
+func TestPrepareClassifiesRepresentativePathsByValueAndDisposition(t *testing.T) {
+	files := []string{
+		"cmd/server/main.go",
+		"internal/auth/service.go",
+		"internal/build/build.go",
+		"go.mod",
+		"tests/math/service_test.go",
+		"tests/auth/policy_integration_test.go",
+		"docs/usage.md",
+		"dist/app.bundle.js",
+	}
+	paths := newScanPaths(t, files)
+
+	if _, err := Prepare(paths, PrepareInput{PacketSize: len(files)}); err != nil {
+		t.Fatalf("Prepare returned error: %v", err)
+	}
+
+	universe := readJSONObject(t, filepath.Join(paths.RuntimeDir, "workbench", "repository-universe.json"))
+	rowsByPath := rowsByPath(t, universe["candidate_universe"])
+
+	tests := []struct {
+		path         string
+		valueTier    string
+		disposition  string
+		scanDecision string
+	}{
+		{"cmd/server/main.go", "P0", "deep_read", "scan"},
+		{"internal/auth/service.go", "P0", "deep_read", "scan"},
+		{"internal/build/build.go", "P1", "deep_read", "scan"},
+		{"go.mod", "P1", "deep_read", "scan"},
+		{"tests/math/service_test.go", "P2", "sampled", "sample"},
+		{"tests/auth/policy_integration_test.go", "P1", "deep_read", "scan"},
+		{"docs/usage.md", "P2", "sampled", "sample"},
+		{"dist/app.bundle.js", "P3", "inventory_only", "inventory_only"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.path, func(t *testing.T) {
+			row, ok := rowsByPath[tt.path]
+			if !ok {
+				t.Fatalf("candidate_universe lacks path %q", tt.path)
+			}
+			if row["value_tier"] != tt.valueTier {
+				t.Fatalf("%s value_tier = %v, want %s", tt.path, row["value_tier"], tt.valueTier)
+			}
+			if row["disposition"] != tt.disposition {
+				t.Fatalf("%s disposition = %v, want %s", tt.path, row["disposition"], tt.disposition)
+			}
+			if row["scan_decision"] != tt.scanDecision {
+				t.Fatalf("%s scan_decision = %v, want %s", tt.path, row["scan_decision"], tt.scanDecision)
+			}
+		})
+	}
+}
+
+func TestPrepareDoesNotResetWorkbenchWhenClassificationHasNoDispatchTargets(t *testing.T) {
+	paths := newScanPaths(t, []string{"dist/app.bundle.js"})
+	sentinelPath := filepath.Join(paths.RuntimeDir, "workbench", "sentinel.txt")
+	if err := os.MkdirAll(filepath.Dir(sentinelPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(sentinelPath, []byte("preserve"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := Prepare(paths, PrepareInput{PacketSize: 25, Force: true})
+	if err == nil || !strings.Contains(err.Error(), "no scan-eligible files") {
+		t.Fatalf("Prepare error = %v, want no scan-eligible files", err)
+	}
+	if got, readErr := os.ReadFile(sentinelPath); readErr != nil || string(got) != "preserve" {
+		t.Fatalf("classification failure reset existing workbench: content=%q err=%v", got, readErr)
+	}
+}
+
+func TestPrepareWritesConsistentRepositoryUniverseAndScanTargetsMaps(t *testing.T) {
+	files := []string{
+		"cmd/server/main.go",
+		"go.mod",
+		"tests/math/service_test.go",
+		"dist/app.bundle.js",
+	}
+	paths := newScanPaths(t, files)
+
+	if _, err := Prepare(paths, PrepareInput{PacketSize: len(files)}); err != nil {
+		t.Fatalf("Prepare returned error: %v", err)
+	}
+
+	universe := readJSONObject(t, filepath.Join(paths.RuntimeDir, "workbench", "repository-universe.json"))
+	targets := readJSONObject(t, filepath.Join(paths.RuntimeDir, "workbench", "scan-targets.json"))
+	for _, key := range []string{"schema_version", "selection_policy"} {
+		if _, ok := targets[key]; !ok {
+			t.Fatalf("scan-targets.json lacks %s", key)
+		}
+	}
+	if targets["selection_policy"] != "value_weighted" {
+		t.Fatalf("scan-targets selection_policy = %v, want value_weighted", targets["selection_policy"])
+	}
+
+	universeRows := rowsByPath(t, universe["candidate_universe"])
+	targetValueTiers := stringMap(t, targets["value_tier"])
+	targetDecisions := stringMap(t, targets["scan_decision"])
+	targetDispositions := stringMap(t, targets["disposition"])
+	targetCriticality := stringMap(t, targets["criticality"])
+	targetReasons := stringMap(t, targets["classification_reasons"])
+	selectedPaths := stringSlice(t, targets["selected_paths"])
+	queue := readJSONObject(t, filepath.Join(paths.RuntimeDir, "workbench", "scan-queue.json"))
+	queuePaths := []string{}
+	for _, packet := range objectRows(t, queue["packets"]) {
+		queuePaths = append(queuePaths, stringSlice(t, packet["assigned_paths"])...)
+	}
+	if !sameStringSet(selectedPaths, queuePaths) {
+		t.Fatalf("scan queue paths = %v, want selected_paths %v", queuePaths, selectedPaths)
+	}
+	if containsString(selectedPaths, "dist/app.bundle.js") {
+		t.Fatal("P3 inventory-only path must not be dispatched in selected_paths")
+	}
+
+	for _, path := range stringSlice(t, universe["included_paths"]) {
+		row, ok := universeRows[path]
+		if !ok {
+			t.Fatalf("included path %s lacks candidate_universe row", path)
+		}
+		for _, key := range []string{"extension", "size_bytes", "directory_family", "decision_source"} {
+			if _, ok := row[key]; !ok {
+				t.Fatalf("candidate_universe row %s lacks documented metadata %s", path, key)
+			}
+		}
+		if targetValueTiers[path] != row["value_tier"] {
+			t.Fatalf("scan-targets value_tier[%s] = %q, want %v", path, targetValueTiers[path], row["value_tier"])
+		}
+		if targetDecisions[path] != row["scan_decision"] {
+			t.Fatalf("scan-targets scan_decision[%s] = %q, want %v", path, targetDecisions[path], row["scan_decision"])
+		}
+		if targetDispositions[path] != row["disposition"] {
+			t.Fatalf("scan-targets disposition[%s] = %q, want %v", path, targetDispositions[path], row["disposition"])
+		}
+		if targetCriticality[path] != row["criticality"] {
+			t.Fatalf("scan-targets criticality[%s] = %q, want %v", path, targetCriticality[path], row["criticality"])
+		}
+		if targetReasons[path] == "" {
+			t.Fatalf("scan-targets classification_reasons[%s] is empty", path)
+		}
+	}
+}
+
+func containsString(values []string, want string) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
+}
+
 func TestAcceptMergesPacketAndProducesBuildableScanPackage(t *testing.T) {
-	paths := newScanPaths(t, []string{"src/app.go"})
+	paths := newScanPaths(t, []string{"src/app.go", "dist/app.bundle.js"})
 	if _, err := Prepare(paths, PrepareInput{PacketSize: 25}); err != nil {
 		t.Fatal(err)
 	}
@@ -871,6 +1025,51 @@ func TestAcceptMergesPacketAndProducesBuildableScanPackage(t *testing.T) {
 	nodeRows := objectRows(t, nodes["nodes"])
 	if got := stringSlice(t, nodeRows[0]["paths"]); !equalStrings(got, []string{"src/app.go"}) {
 		t.Fatalf("nodes[].paths = %v; path_index source was lost", got)
+	}
+	coverage := readJSONObject(t, filepath.Join(paths.RuntimeDir, "coverage.json"))
+	if got := objectRows(t, coverage["rows"]); len(got) != 1 || got[0]["path"] != "src/app.go" {
+		t.Fatalf("inventory-only path leaked into worker coverage: %#v", got)
+	}
+}
+
+func TestValidateScanRejectsTamperedScanTargetProjection(t *testing.T) {
+	paths := newScanPaths(t, []string{"src/app.go"})
+	if _, err := Prepare(paths, PrepareInput{PacketSize: 25}); err != nil {
+		t.Fatal(err)
+	}
+	lease := mustLeasePacket(t, paths, "lane-001")
+	resultPath := filepath.Join(t.TempDir(), "lane-001.json")
+	writeJSON(t, resultPath, bindWorkerResultToLease(acceptedWorkerResult("lane-001", "src/app.go"), lease))
+	if _, err := Accept(paths, AcceptInput{PacketID: "lane-001", AttemptID: lease.AttemptID, ResultPath: resultPath}); err != nil {
+		t.Fatal(err)
+	}
+
+	targetPath := filepath.Join(paths.RuntimeDir, "workbench", "scan-targets.json")
+	targets := readJSONObject(t, targetPath)
+	decisions := targets["scan_decision"].(map[string]any)
+	decisions["src/app.go"] = "inventory_only"
+	writeJSON(t, targetPath, targets)
+
+	gate := validation.ValidateScan(paths)
+	if gate.Status != "blocked" || !containsError(gate.Errors, "scan-targets path src/app.go scan_decision conflicts with repository-universe") {
+		t.Fatalf("tampered scan-target projection was not rejected: %#v", gate)
+	}
+}
+
+func TestValidateScanRejectsMismatchedScanTargetSchema(t *testing.T) {
+	paths := newScanPaths(t, []string{"src/app.go"})
+	if _, err := Prepare(paths, PrepareInput{PacketSize: 25}); err != nil {
+		t.Fatal(err)
+	}
+
+	targetPath := filepath.Join(paths.RuntimeDir, "workbench", "scan-targets.json")
+	targets := readJSONObject(t, targetPath)
+	targets["schema_version"] = 1
+	writeJSON(t, targetPath, targets)
+
+	gate := validation.ValidateScan(paths)
+	if gate.Status != "blocked" || !containsError(gate.Errors, "scan-targets schema_version 1 must match repository-universe schema_version 2") {
+		t.Fatalf("mismatched scan-target schema was not rejected: %#v", gate)
 	}
 }
 
@@ -1497,6 +1696,40 @@ func objectRows(t *testing.T, value any) []map[string]any {
 	return rows
 }
 
+func rowsByPath(t *testing.T, value any) map[string]map[string]any {
+	t.Helper()
+	rows := objectRows(t, value)
+	byPath := make(map[string]map[string]any, len(rows))
+	for _, row := range rows {
+		path, ok := row["path"].(string)
+		if !ok || path == "" {
+			t.Fatalf("row lacks path: %#v", row)
+		}
+		if _, exists := byPath[path]; exists {
+			t.Fatalf("duplicate candidate_universe path %q", path)
+		}
+		byPath[path] = row
+	}
+	return byPath
+}
+
+func stringMap(t *testing.T, value any) map[string]string {
+	t.Helper()
+	raw, ok := value.(map[string]any)
+	if !ok {
+		t.Fatalf("value is not a string map: %#v", value)
+	}
+	result := make(map[string]string, len(raw))
+	for key, item := range raw {
+		text, ok := item.(string)
+		if !ok {
+			t.Fatalf("map value for %s is not a string: %#v", key, item)
+		}
+		result[key] = text
+	}
+	return result
+}
+
 func stringSlice(t *testing.T, value any) []string {
 	t.Helper()
 	if typed, ok := value.([]string); ok {
@@ -1527,6 +1760,15 @@ func equalStrings(left []string, right []string) bool {
 		}
 	}
 	return true
+}
+
+func containsError(errors []string, want string) bool {
+	for _, item := range errors {
+		if item == want {
+			return true
+		}
+	}
+	return false
 }
 
 func cloneTestObject(value map[string]any) map[string]any {

@@ -94,7 +94,10 @@ path-level accounting pass, not a content scan.
 `scan-prepare` materializes
 `.specify/project-cognition/workbench/repository-universe.json` with one row per
 candidate path from `.specify/project-cognition/tmp/scan-files.json`; the leader
-must not hand-write it.
+must not hand-write it. The runtime applies the deterministic value classifier
+and writes the boundary row plus every aggregate projection from that single
+classification result. The leader audits the output and reports a classifier
+defect; it does not repair field names or reclassify paths by editing JSON.
 Runtime-excluded paths may be recorded only in boundary accounting when the
 runtime exposes them through a debug/explain path; the default agent-facing
 scan-set handoff intentionally contains only included files. Each included or
@@ -124,9 +127,11 @@ Value tier rules:
 - `P1`: package/build/config manifests, CI/release scripts, migrations/schemas,
   adapter boundaries, feature gates, runtime wiring, verification entrypoints,
   and docs that define behavior or operator contracts.
-- `P2`: tests, examples, secondary docs, story/demo files, and usage samples.
-  Scan them when they prove behavior, expected contracts, or verification
-  reachability; otherwise sample or inventory them.
+- `P2`: ordinary unit tests, examples, secondary docs, story/demo files, and
+  usage samples. Scan them when they prove behavior, expected contracts, or
+  verification reachability; otherwise sample them. Auth, security, payment,
+  integration, end-to-end, contract, and smoke verification paths are promoted
+  to `P1` and deep-read.
 - `P3`: vendored dependencies, generated bundles, cache/build/dist output,
   binary/static assets, lockfiles that do not define behavior beyond dependency
   identity, archived material, and large low-signal files. Keep these as
@@ -137,7 +142,7 @@ Value tier rules:
 for packet dispatch. It includes:
 
 - `schema_version`
-- `selection_policy: "value_weighted"`
+- `selection_policy`: `"value_weighted"`
 - `selected_paths`
 - `sampled_paths`
 - `inventory_only_paths`
@@ -148,7 +153,9 @@ for packet dispatch. It includes:
 
 High-value coverage is more important than raw path-count coverage. A scan can
 validly leave many `P3` paths inventory-only, but it must not leave unexplained
-`P0` or `P1` gaps.
+`P0` or `P1` gaps. `selected_paths` is exactly the union of paths assigned to
+runtime packets. `inventory_only_paths` remains in full boundary accounting but
+is disjoint from packet assignment and graph-facing coverage.
 
 ## Machine-Readable Blocked State
 
@@ -313,6 +320,9 @@ but new scan artifacts must write `rows`; do not maintain separate `rows` and
 - Every scan packet draws concrete `assigned_paths` from the runtime-owned target
   set, not broad directory globs, unclassified path lists, or a leader-created
   manifest.
+- The queue's assigned-path union must equal `scan-targets.json.selected_paths`.
+  `inventory_only_paths` is accounted for by the boundary and receives no scan
+  packet, worker result, evidence row, or graph-facing coverage row.
 - The leader loop is: inspect compact `scan-status`, lease a packet, dispatch its
   CLI-generated task brief, let the worker submit packet-local checkpoints,
   accept or yield the attempt through the CLI, then use the updated runtime
@@ -323,8 +333,9 @@ but new scan artifacts must write `rows`; do not maintain separate `rows` and
   together only when the complete estimated task fits.
 - An interrupted, explicitly requeued, yielded, or capacity-exhausted `P0`/`P1` attempt preserves
   runtime-accepted checkpoints and requeues every unaccepted remaining path.
-  Only low-risk `P3` or justified `P2` paths may become accepted nonblocking
-  inventory gaps.
+  Only justified `P2` packet paths may become accepted nonblocking gaps. `P3`
+  inventory-only paths are already complete as boundary accounting and are not
+  packet gaps.
 - The CLI-generated pending result/checkpoint skeleton is authoritative. Workers
   may fill that packet-local shape but must not invent aliases, update global
   artifacts, or self-approve with a top-level outcome or acceptance claim.
@@ -351,7 +362,10 @@ but new scan artifacts must write `rows`; do not maintain separate `rows` and
 - Disposition is separate from criticality; value tier adds another classification axis. Value tier remains `P0`, `P1`, `P2`, or `P3`; criticality remains `critical`, `important`, or `low_risk`.
 - `scan_decision` is the execution intent derived from value tier and disposition. Use `scan` for deep-read packets, `sample` for sampled proof, `inventory_only` for accounted low-value surfaces, `exclude` for boundary exclusions, and `blocked` when no safe decision can be made.
 - sampled and inventory_only are not free-form convenience labels; they must align with the recorded disposition and criticality in `repository-universe.json`.
-- Critical entrypoints, shared state, configuration, tests, verification surfaces, generated-surface propagation chains, and any `P0`/`P1` path should not pass as `sampled` or `inventory_only` unless the boundary artifact already records an explicit accepted gap or an equally explicit lower-depth decision.
+- Critical entrypoints, shared state, configuration, auth/security/payment tests,
+  integration/end-to-end/contract/smoke verification surfaces, generated-surface
+  propagation chains, and any `P0`/`P1` path must not pass as `sampled` or
+  `inventory_only`.
 - `sampled` and `inventory_only` are acceptable only when the disposition and criticality together justify them, with value tier confirming the lower-depth decision.
 - Excluded paths must not appear in graph-facing `coverage.json` rows, evidence rows, provisional nodes, provisional edges, observations, path indexes, route indexes, alias indexes, or `minimal_live_reads`.
 - `MapScanPacket` must include bounded `assigned_paths`.
@@ -376,9 +390,11 @@ but new scan artifacts must write `rows`; do not maintain separate `rows` and
   assigned paths minus runtime-accepted terminal paths.
 - A top-level `coverage.json` or `coverage-ledger.json` row is not proof that a
   path was scanned. Before closing the scan, the runtime computes
-  `included_paths - assigned_paths - accepted_nonblocking_gap_paths` and checks
-  every assigned path against accepted packet-local path results; any non-empty
-  set blocks completion.
+  `selected_paths - assigned_paths` and
+  `assigned_paths - accepted_terminal_paths - accepted_nonblocking_gap_paths`.
+  It derives accepted terminal paths only from accepted packet-local path results.
+  Any non-empty set blocks completion. `inventory_only_paths` is
+  validated against the canonical boundary instead of packet-local coverage.
 - If assigned paths no longer fit the effective context budget, the subagent
   checkpoints useful completed work and yields. The runtime preserves the
   accepted subset, splits/requeues the remaining paths, and the leader must
@@ -401,7 +417,8 @@ but new scan artifacts must write `rows`; do not maintain separate `rows` and
 - generate a full project-relevant inventory from the runtime-resolved scan set across nested directories, then add Git tracking status and directory metadata during classification
 - have `scan-prepare` materialize `.specify/project-cognition/workbench/repository-universe.json` with `included_paths` and any available `excluded_paths`; default `scan-set` output is intentionally minimal and does not require per-path exclusion details unless an explicit explain/debug mode was used
 - have `scan-prepare` materialize `.specify/project-cognition/workbench/scan-targets.json` with the value-weighted execution target set
-- classify project-relevant repository surfaces
+- audit the runtime classification of project-relevant repository surfaces;
+  do not hand-edit its schema or per-path projections
 - gather evidence first from high-value committed source, runtime entrypoints, tests that prove behavior, scripts, configs, docs that define behavior, templates, generated-surface sources, and `.git` history
 - construct provisional nodes and candidate edges
 - record uncertainty, blockers, and missing evidence explicitly

@@ -1,6 +1,7 @@
 package scanartifacts
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -2784,6 +2785,28 @@ func containsString(values []string, want string) bool {
 		}
 	}
 	return false
+}
+
+func TestCompactValidationErrorsPreservesCountAndBoundsAgentOutput(t *testing.T) {
+	result := newResult(nil)
+	for index := 0; index < maxReportedValidationErrors+7; index++ {
+		result.Errors = append(result.Errors, fmt.Sprintf("error-%03d", index))
+	}
+
+	compactValidationErrors(&result)
+
+	if got := len(result.Errors); got != maxReportedValidationErrors+1 {
+		t.Fatalf("reported errors = %d, want %d plus summary", got, maxReportedValidationErrors)
+	}
+	if result.Details["validation_error_count"] != maxReportedValidationErrors+7 {
+		t.Fatalf("validation_error_count = %#v", result.Details["validation_error_count"])
+	}
+	if result.Details["suppressed_validation_error_count"] != 7 {
+		t.Fatalf("suppressed_validation_error_count = %#v", result.Details["suppressed_validation_error_count"])
+	}
+	if !strings.Contains(result.Errors[len(result.Errors)-1], "7 additional validation errors suppressed") {
+		t.Fatalf("summary error = %q", result.Errors[len(result.Errors)-1])
+	}
 }
 
 func containsError(errors []string, want string) bool {

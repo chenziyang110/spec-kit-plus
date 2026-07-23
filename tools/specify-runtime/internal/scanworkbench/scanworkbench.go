@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -69,6 +70,21 @@ type AcceptPayload struct {
 
 type scanSetFile struct {
 	Files []string `json:"files"`
+}
+
+type pathClassification struct {
+	Path                 string
+	PathKind             string
+	Extension            string
+	SizeBytes            int64
+	DirectoryFamily      string
+	GitTracked           bool
+	ValueTier            string
+	ScanDecision         string
+	Disposition          string
+	Criticality          string
+	ClassificationReason string
+	DecisionSource       string
 }
 
 type queueFile struct {
@@ -136,8 +152,9 @@ type workerResult struct {
 	Acceptance    string           `json:"acceptance"`
 }
 
-// Prepare converts the runtime-produced scan set into a deterministic,
-// exhaustive packet queue. Every path is concrete and assigned exactly once.
+// Prepare converts the runtime-produced scan set into deterministic boundary,
+// target, and queue projections. Every dispatch-eligible path is concrete and
+// assigned exactly once; inventory-only paths remain boundary accounting.
 func Prepare(paths rt.Paths, input PrepareInput) (PreparePayload, error) {
 	if err := validateRuntimeControlDir(paths); err != nil {
 		return PreparePayload{}, err
@@ -199,6 +216,25 @@ func prepareUnlocked(paths rt.Paths, input PrepareInput) (PreparePayload, error)
 		return PreparePayload{}, err
 	}
 
+	classifications, err := classifyRepositoryPaths(paths.Root, files)
+	if err != nil {
+		return PreparePayload{}, err
+	}
+	packetPaths := scanPacketPaths(classifications)
+	if len(packetPaths) == 0 {
+		return PreparePayload{}, fmt.Errorf("canonical scan set contains no scan-eligible files after value classification")
+	}
+	plans, err := planPackets(paths.Root, packetPaths, packetPlanningBudget{
+		MaxPaths: maxPaths, MaxBytes: maxBytes, MaxTokens: workerBudgetTokens,
+	})
+	if err != nil {
+		return PreparePayload{}, err
+	}
+	generationID, err := scanGenerationID(paths.Root, files)
+	if err != nil {
+		return PreparePayload{}, err
+	}
+
 	if err := resetWorkbench(paths); err != nil {
 		return PreparePayload{}, err
 	}
@@ -206,17 +242,7 @@ func prepareUnlocked(paths rt.Paths, input PrepareInput) (PreparePayload, error)
 		return PreparePayload{}, err
 	}
 
-	plans, err := planPackets(paths.Root, files, packetPlanningBudget{
-		MaxPaths: maxPaths, MaxBytes: maxBytes, MaxTokens: workerBudgetTokens,
-	})
-	if err != nil {
-		return PreparePayload{}, err
-	}
 	packetIDs := make([]string, 0, len(plans))
-	generationID, err := scanGenerationID(paths.Root, files)
-	if err != nil {
-		return PreparePayload{}, err
-	}
 	queue := queueFile{
 		Protocol: workbenchProtocolV2, GenerationID: generationID,
 		ScanSetPath: filepath.ToSlash(relScanSet), Packets: []queuePacket{},
@@ -262,8 +288,8 @@ func prepareUnlocked(paths rt.Paths, input PrepareInput) (PreparePayload, error)
 		path  string
 		value any
 	}{
-		{filepath.Join(workbench, "repository-universe.json"), repositoryUniverse(files)},
-		{filepath.Join(workbench, "scan-targets.json"), scanTargets(files)},
+		{filepath.Join(workbench, "repository-universe.json"), repositoryUniverse(classifications)},
+		{filepath.Join(workbench, "scan-targets.json"), scanTargets(classifications)},
 		{filepath.Join(workbench, "scan-queue.json"), queue},
 		{filepath.Join(workbench, "handoff-ledger.json"), handoffs},
 		{filepath.Join(workbench, "coverage-ledger.json"), coverageLedgerFile{Rows: []map[string]any{}, OpenGaps: []map[string]any{}}},
@@ -1142,55 +1168,252 @@ func writePreparedStatus(paths rt.Paths) error {
 	return rt.WriteStatus(paths, status)
 }
 
-func repositoryUniverse(files []string) map[string]any {
-	candidates := make([]map[string]any, 0, len(files))
+func repositoryUniverse(classifications []pathClassification) map[string]any {
+	candidates := make([]map[string]any, 0, len(classifications))
+	includedPaths := make([]string, 0, len(classifications))
+	excludedPaths := []string{}
+	ambiguousPaths := []string{}
 	dispositions := map[string]string{}
 	criticality := map[string]string{}
+	valueTier := map[string]string{}
+	scanDecision := map[string]string{}
+	pathKinds := map[string]string{}
 	reasons := map[string]string{}
 	decisionSource := map[string]string{}
-	for _, path := range files {
+	for _, classification := range classifications {
+		path := classification.Path
 		candidates = append(candidates, map[string]any{
-			"path":          path,
-			"disposition":   "deep_read",
-			"criticality":   "important",
-			"value_tier":    "P1",
-			"scan_decision": "scan",
-			"path_kind":     pathKind(path),
+			"path":                   path,
+			"path_kind":              classification.PathKind,
+			"extension":              classification.Extension,
+			"size_bytes":             classification.SizeBytes,
+			"directory_family":       classification.DirectoryFamily,
+			"git_tracked":            classification.GitTracked,
+			"ignored_by_cognition":   false,
+			"matched_ignore_rule":    nil,
+			"value_tier":             classification.ValueTier,
+			"scan_decision":          classification.ScanDecision,
+			"disposition":            classification.Disposition,
+			"criticality":            classification.Criticality,
+			"classification_reasons": classification.ClassificationReason,
+			"decision_source":        classification.DecisionSource,
 		})
-		dispositions[path] = "deep_read"
-		criticality[path] = "important"
-		reasons[path] = "canonical_scan_set"
-		decisionSource[path] = "specify-runtime cognition scan-prepare"
+		switch classification.Disposition {
+		case "excluded":
+			excludedPaths = append(excludedPaths, path)
+		case "blocked":
+			ambiguousPaths = append(ambiguousPaths, path)
+		default:
+			includedPaths = append(includedPaths, path)
+		}
+		dispositions[path] = classification.Disposition
+		criticality[path] = classification.Criticality
+		valueTier[path] = classification.ValueTier
+		scanDecision[path] = classification.ScanDecision
+		pathKinds[path] = classification.PathKind
+		reasons[path] = classification.ClassificationReason
+		decisionSource[path] = classification.DecisionSource
 	}
 	return map[string]any{
-		"schema_version":         1,
+		"schema_version":         2,
 		"candidate_universe":     candidates,
-		"included_paths":         files,
-		"excluded_paths":         []string{},
-		"ambiguous_paths":        []string{},
+		"included_paths":         includedPaths,
+		"excluded_paths":         excludedPaths,
+		"ambiguous_paths":        ambiguousPaths,
 		"dispositions":           dispositions,
 		"criticality":            criticality,
+		"value_tier":             valueTier,
+		"scan_decision":          scanDecision,
+		"path_kind":              pathKinds,
 		"classification_reasons": reasons,
 		"decision_source":        decisionSource,
 	}
 }
 
-func scanTargets(files []string) map[string]any {
+func scanTargets(classifications []pathClassification) map[string]any {
+	selectedPaths := []string{}
+	sampledPaths := []string{}
+	inventoryOnlyPaths := []string{}
+	excludedPaths := []string{}
+	blockedPaths := []string{}
 	valueTier := map[string]string{}
 	decision := map[string]string{}
-	for _, path := range files {
-		valueTier[path] = "P1"
-		decision[path] = "scan"
+	dispositions := map[string]string{}
+	criticality := map[string]string{}
+	reasons := map[string]string{}
+	for _, classification := range classifications {
+		path := classification.Path
+		switch classification.ScanDecision {
+		case "scan":
+			selectedPaths = append(selectedPaths, path)
+		case "sample":
+			selectedPaths = append(selectedPaths, path)
+			sampledPaths = append(sampledPaths, path)
+		case "inventory_only":
+			inventoryOnlyPaths = append(inventoryOnlyPaths, path)
+		case "exclude":
+			excludedPaths = append(excludedPaths, path)
+		case "blocked":
+			blockedPaths = append(blockedPaths, path)
+		}
+		valueTier[path] = classification.ValueTier
+		decision[path] = classification.ScanDecision
+		dispositions[path] = classification.Disposition
+		criticality[path] = classification.Criticality
+		reasons[path] = classification.ClassificationReason
 	}
 	return map[string]any{
-		"selected_paths":       files,
-		"sampled_paths":        []string{},
-		"inventory_only_paths": []string{},
-		"excluded_paths":       []string{},
-		"blocked_paths":        []string{},
-		"value_tier":           valueTier,
-		"scan_decision":        decision,
+		"schema_version":         2,
+		"selection_policy":       "value_weighted",
+		"selected_paths":         selectedPaths,
+		"sampled_paths":          sampledPaths,
+		"inventory_only_paths":   inventoryOnlyPaths,
+		"excluded_paths":         excludedPaths,
+		"blocked_paths":          blockedPaths,
+		"value_tier":             valueTier,
+		"scan_decision":          decision,
+		"disposition":            dispositions,
+		"criticality":            criticality,
+		"classification_reasons": reasons,
 	}
+}
+
+func classifyRepositoryPaths(root string, files []string) ([]pathClassification, error) {
+	tracked := gitTrackedPaths(root)
+	classifications := make([]pathClassification, 0, len(files))
+	for _, path := range files {
+		info, err := os.Stat(filepath.Join(root, filepath.FromSlash(path)))
+		if err != nil {
+			return nil, fmt.Errorf("classify scan path %s: %w", path, err)
+		}
+		kind := pathKind(path)
+		tier, reason := classifyValueTier(path, kind)
+		disposition, decision, criticality := classificationPolicy(tier)
+		classifications = append(classifications, pathClassification{
+			Path:                 path,
+			PathKind:             kind,
+			Extension:            strings.TrimPrefix(strings.ToLower(filepath.Ext(path)), "."),
+			SizeBytes:            info.Size(),
+			DirectoryFamily:      directoryFamily(path),
+			GitTracked:           tracked[path],
+			ValueTier:            tier,
+			ScanDecision:         decision,
+			Disposition:          disposition,
+			Criticality:          criticality,
+			ClassificationReason: reason,
+			DecisionSource:       "specify-runtime cognition scan-prepare",
+		})
+	}
+	return classifications, nil
+}
+
+func scanPacketPaths(classifications []pathClassification) []string {
+	paths := make([]string, 0, len(classifications))
+	for _, classification := range classifications {
+		if classification.ScanDecision == "scan" || classification.ScanDecision == "sample" {
+			paths = append(paths, classification.Path)
+		}
+	}
+	return paths
+}
+
+func classifyValueTier(path string, kind string) (string, string) {
+	lower := strings.ToLower(filepath.ToSlash(path))
+	base := strings.ToLower(filepath.Base(lower))
+	switch kind {
+	case "vendor", "build_output", "generated", "asset", "lockfile":
+		return "P3", "generated_vendor_asset_or_low_signal"
+	case "test":
+		if highRiskValidationPath(lower) {
+			return "P1", "critical_integration_or_security_verification"
+		}
+		return "P2", "test_or_verification_example"
+	case "doc":
+		if !strings.Contains(lower, "/") && base == "readme.md" {
+			return "P1", "root_behavioral_documentation"
+		}
+		return "P2", "secondary_documentation_or_usage"
+	case "config", "script", "template":
+		return "P1", "configuration_build_release_or_template"
+	}
+	if highValueSourcePath(lower, base) {
+		return "P0", "runtime_entrypoint_or_critical_surface"
+	}
+	return "P1", "project_source_or_runtime_support"
+}
+
+func classificationPolicy(valueTier string) (string, string, string) {
+	switch valueTier {
+	case "P0":
+		return "deep_read", "scan", "critical"
+	case "P1":
+		return "deep_read", "scan", "important"
+	case "P2":
+		return "sampled", "sample", "low_risk"
+	default:
+		return "inventory_only", "inventory_only", "low_risk"
+	}
+}
+
+func highRiskValidationPath(path string) bool {
+	return matchesPathSegment(path, "auth", "security", "payment", "payments", "integration", "e2e", "contract", "smoke") ||
+		strings.Contains(path, "_integration_test.") ||
+		strings.Contains(path, ".integration.") ||
+		strings.Contains(path, ".e2e.") ||
+		strings.Contains(path, ".contract.")
+}
+
+func highValueSourcePath(lower string, base string) bool {
+	if matchesPathSegment(lower, "cmd", "api", "routes", "router", "controllers", "handlers", "auth", "security", "payment", "payments", "services", "workflow", "workflows", "state", "states") {
+		return true
+	}
+	name := strings.TrimSuffix(base, filepath.Ext(base))
+	switch name {
+	case "main", "index", "app", "server", "router", "routes", "service":
+		return true
+	default:
+		return false
+	}
+}
+
+func matchesPathSegment(path string, values ...string) bool {
+	segments := strings.Split(strings.Trim(path, "/"), "/")
+	for _, segment := range segments {
+		for _, value := range values {
+			if segment == value {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func directoryFamily(path string) string {
+	normalized := strings.Trim(filepath.ToSlash(path), "/")
+	if normalized == "" {
+		return "."
+	}
+	if index := strings.Index(normalized, "/"); index >= 0 {
+		return normalized[:index]
+	}
+	return "."
+}
+
+func gitTrackedPaths(root string) map[string]bool {
+	tracked := map[string]bool{}
+	cmd := exec.Command("git", "ls-files", "-z", "--")
+	cmd.Dir = root
+	data, err := cmd.Output()
+	if err != nil {
+		return tracked
+	}
+	for _, path := range strings.Split(string(data), "\x00") {
+		path = filepath.ToSlash(strings.TrimSpace(path))
+		if path != "" {
+			tracked[path] = true
+		}
+	}
+	return tracked
 }
 
 func renderPacket(packetID string, paths []string) string {
@@ -1237,9 +1460,21 @@ func renderHumanState(paths rt.Paths, queue queueFile, ledger coverageLedgerFile
 }
 
 func pathKind(path string) string {
-	lower := strings.ToLower(path)
+	lower := strings.ToLower(filepath.ToSlash(path))
 	base := strings.ToLower(filepath.Base(path))
 	switch {
+	case matchesPathSegment(lower, "vendor", "third_party", "node_modules"):
+		return "vendor"
+	case matchesPathSegment(lower, "dist", "coverage", ".next", ".nuxt", ".output", "__pycache__"):
+		return "build_output"
+	case matchesPathSegment(lower, "generated", "gen") || strings.Contains(base, ".generated.") || strings.HasPrefix(base, "generated_"):
+		return "generated"
+	case isLockfile(base):
+		return "lockfile"
+	case isAssetFile(lower):
+		return "asset"
+	case matchesPathSegment(lower, "templates", "template") || strings.HasSuffix(lower, ".tmpl") || strings.HasSuffix(lower, ".tpl"):
+		return "template"
 	case strings.Contains(lower, "/test/") || strings.Contains(lower, "/tests/") || strings.Contains(base, "test"):
 		return "test"
 	case base == "readme.md" || strings.HasSuffix(lower, ".md"):
@@ -1250,6 +1485,24 @@ func pathKind(path string) string {
 		return "script"
 	default:
 		return "source"
+	}
+}
+
+func isLockfile(base string) bool {
+	switch base {
+	case "package-lock.json", "pnpm-lock.yaml", "yarn.lock", "go.sum", "cargo.lock", "poetry.lock", "uv.lock", "composer.lock", "gemfile.lock":
+		return true
+	default:
+		return false
+	}
+}
+
+func isAssetFile(path string) bool {
+	switch strings.ToLower(filepath.Ext(path)) {
+	case ".png", ".jpg", ".jpeg", ".gif", ".webp", ".ico", ".svg", ".woff", ".woff2", ".ttf", ".otf", ".mp3", ".mp4", ".mov", ".pdf":
+		return true
+	default:
+		return false
 	}
 }
 

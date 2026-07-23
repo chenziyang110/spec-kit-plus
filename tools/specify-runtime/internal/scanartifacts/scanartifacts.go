@@ -20,6 +20,8 @@ type ValidateOptions struct {
 	RequireStatusJSON bool
 }
 
+const maxReportedValidationErrors = 50
+
 type Result struct {
 	Status       string         `json:"status"`
 	Gate         string         `json:"gate"`
@@ -50,19 +52,27 @@ type Boundary struct {
 	AmbiguousPaths        map[string]bool
 	Dispositions          map[string]string
 	Criticality           map[string]string
+	ValueTier             map[string]string
+	ScanDecision          map[string]string
+	PathKind              map[string]string
 	ClassificationReasons map[string]string
 	DecisionSource        map[string]string
 }
 
 type ScanTargets struct {
-	Present            bool
-	SelectedPaths      map[string]bool
-	SampledPaths       map[string]bool
-	InventoryOnlyPaths map[string]bool
-	ExcludedPaths      map[string]bool
-	BlockedPaths       map[string]bool
-	ValueTier          map[string]string
-	ScanDecision       map[string]string
+	Present               bool
+	SchemaVersion         int
+	SelectionPolicy       string
+	SelectedPaths         map[string]bool
+	SampledPaths          map[string]bool
+	InventoryOnlyPaths    map[string]bool
+	ExcludedPaths         map[string]bool
+	BlockedPaths          map[string]bool
+	ValueTier             map[string]string
+	ScanDecision          map[string]string
+	Disposition           map[string]string
+	Criticality           map[string]string
+	ClassificationReasons map[string]string
 }
 
 type PathIndexRequirements struct {
@@ -218,8 +228,19 @@ func Load(paths rt.Paths, opts ValidateOptions) (Package, Result) {
 	loadClaims(paths, &pkg, &result)
 	loadCoverage(paths, &pkg, &result)
 	boundary := loadBoundary(paths, &result)
+	scanTargets := loadScanTargets(paths, &result)
+	if boundary.SchemaVersion >= 2 && !scanTargets.Present {
+		result.Errors = append(result.Errors, "scan-targets.json is required for repository-universe schema v2")
+	} else if boundary.SchemaVersion >= 2 && scanTargets.SchemaVersion != boundary.SchemaVersion {
+		result.Errors = append(result.Errors, fmt.Sprintf(
+			"scan-targets schema_version %d must match repository-universe schema_version %d",
+			scanTargets.SchemaVersion,
+			boundary.SchemaVersion,
+		))
+	}
 	pkg.AcceptedGaps = acceptedNonblockingGapPaths(paths, boundary)
 	queue := loadQueueState(paths, &result)
+	validateScanTargetsAgainstBoundary(boundary, scanTargets, queue, &result)
 	validateBoundaryCoverage(boundary, pkg, queue, &result)
 	validateScanPacketQueueFiles(paths, boundary, pkg, queue, &result)
 	packetSummary := validateWorkerResults(paths, boundary, pkg, queue, &result)
@@ -243,6 +264,7 @@ func Load(paths rt.Paths, opts ValidateOptions) (Package, Result) {
 	canonicalNodePathCount, compatibilityNodePathCount := nodePathCounts(pkg.Nodes)
 	result.Details["canonical_node_path_count"] = canonicalNodePathCount
 	result.Details["compatibility_derived_node_path_count"] = compatibilityNodePathCount
+	compactValidationErrors(&result)
 	return pkg, result
 }
 
@@ -907,6 +929,9 @@ func loadBoundary(paths rt.Paths, result *Result) Boundary {
 		ExcludedPaths:         map[string]bool{},
 		AmbiguousPaths:        map[string]bool{},
 		Dispositions:          map[string]string{},
+		ValueTier:             map[string]string{},
+		ScanDecision:          map[string]string{},
+		PathKind:              map[string]string{},
 		ClassificationReasons: map[string]string{},
 		DecisionSource:        map[string]string{},
 		Criticality:           map[string]string{},
@@ -939,20 +964,27 @@ func loadBoundary(paths rt.Paths, result *Result) Boundary {
 	boundary.AmbiguousPaths = boundaryPathsFromValue(obj["ambiguous_paths"])
 	boundary.Dispositions = boundaryDispositionsFromObject(obj, boundary.CandidatePaths)
 	boundary.Criticality = boundaryDispositionMap(obj["criticality"])
+	boundary.ValueTier = upperDispositionMap(obj["value_tier"])
+	boundary.ScanDecision = boundaryDispositionMap(obj["scan_decision"])
+	boundary.PathKind = boundaryDispositionMap(obj["path_kind"])
 	boundary.ClassificationReasons = boundaryDispositionMap(obj["classification_reasons"])
 	boundary.DecisionSource = boundaryDispositionMap(obj["decision_source"])
+	validateBoundaryV2ProjectionIntegrity(obj, boundary, result)
 	return boundary
 }
 
 func loadScanTargets(paths rt.Paths, result *Result) ScanTargets {
 	targets := ScanTargets{
-		SelectedPaths:      map[string]bool{},
-		SampledPaths:       map[string]bool{},
-		InventoryOnlyPaths: map[string]bool{},
-		ExcludedPaths:      map[string]bool{},
-		BlockedPaths:       map[string]bool{},
-		ValueTier:          map[string]string{},
-		ScanDecision:       map[string]string{},
+		SelectedPaths:         map[string]bool{},
+		SampledPaths:          map[string]bool{},
+		InventoryOnlyPaths:    map[string]bool{},
+		ExcludedPaths:         map[string]bool{},
+		BlockedPaths:          map[string]bool{},
+		ValueTier:             map[string]string{},
+		ScanDecision:          map[string]string{},
+		Disposition:           map[string]string{},
+		Criticality:           map[string]string{},
+		ClassificationReasons: map[string]string{},
 	}
 	path := filepath.Join(paths.RuntimeDir, "workbench", "scan-targets.json")
 	if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
@@ -972,6 +1004,8 @@ func loadScanTargets(paths rt.Paths, result *Result) ScanTargets {
 		return targets
 	}
 	targets.Present = true
+	targets.SchemaVersion = intFromValue(obj["schema_version"])
+	targets.SelectionPolicy = normalizedString(obj["selection_policy"])
 	targets.SelectedPaths = boundaryPathsFromValue(obj["selected_paths"])
 	targets.SampledPaths = boundaryPathsFromValue(obj["sampled_paths"])
 	targets.InventoryOnlyPaths = boundaryPathsFromValue(obj["inventory_only_paths"])
@@ -979,6 +1013,10 @@ func loadScanTargets(paths rt.Paths, result *Result) ScanTargets {
 	targets.BlockedPaths = boundaryPathsFromValue(obj["blocked_paths"])
 	targets.ValueTier = upperDispositionMap(obj["value_tier"])
 	targets.ScanDecision = boundaryDispositionMap(obj["scan_decision"])
+	targets.Disposition = boundaryDispositionMap(obj["disposition"])
+	targets.Criticality = boundaryDispositionMap(obj["criticality"])
+	targets.ClassificationReasons = boundaryDispositionMap(obj["classification_reasons"])
+	validateScanTargetShapes(obj, targets, result)
 	return targets
 }
 
@@ -1061,6 +1099,174 @@ func validateVersionedBoundaryShapes(obj map[string]any, result *Result) {
 			result.Errors = append(result.Errors, fmt.Sprintf("repository-universe %s must be an object", key))
 		}
 	}
+	if intFromValue(schemaVersion) >= 2 {
+		for _, key := range []string{"value_tier", "scan_decision", "path_kind"} {
+			if _, ok := obj[key].(map[string]any); !ok {
+				result.Errors = append(result.Errors, fmt.Sprintf("repository-universe %s must be an object", key))
+			}
+		}
+	}
+}
+
+func validateBoundaryV2ProjectionIntegrity(obj map[string]any, boundary Boundary, result *Result) {
+	if boundary.SchemaVersion < 2 {
+		return
+	}
+	rows, _ := obj["candidate_universe"].([]any)
+	for _, rawRow := range rows {
+		row, ok := rawRow.(map[string]any)
+		if !ok {
+			result.Errors = append(result.Errors, "repository-universe schema v2 candidate rows must be objects")
+			continue
+		}
+		path := normalizedString(row["path"])
+		if path == "" {
+			result.Errors = append(result.Errors, "repository-universe schema v2 candidate row path is required")
+			continue
+		}
+		for _, key := range []string{"extension", "size_bytes", "directory_family", "git_tracked", "ignored_by_cognition"} {
+			if _, exists := row[key]; !exists {
+				result.Errors = append(result.Errors, fmt.Sprintf("repository-universe candidate path %s is missing %s", path, key))
+			}
+		}
+		validateProjectedClassification(path, "disposition", normalizedString(row["disposition"]), boundary.Dispositions[path], result)
+		validateProjectedClassification(path, "criticality", normalizedString(row["criticality"]), boundary.Criticality[path], result)
+		validateProjectedClassification(path, "value_tier", strings.ToUpper(normalizedString(row["value_tier"])), boundary.ValueTier[path], result)
+		validateProjectedClassification(path, "scan_decision", normalizedString(row["scan_decision"]), boundary.ScanDecision[path], result)
+		validateProjectedClassification(path, "path_kind", normalizedString(row["path_kind"]), boundary.PathKind[path], result)
+		validateProjectedClassification(path, "classification_reasons", normalizedString(row["classification_reasons"]), boundary.ClassificationReasons[path], result)
+		validateProjectedClassification(path, "decision_source", normalizedString(row["decision_source"]), boundary.DecisionSource[path], result)
+	}
+}
+
+func validateProjectedClassification(path string, field string, rowValue string, projectedValue string, result *Result) {
+	if rowValue == "" || projectedValue == "" {
+		result.Errors = append(result.Errors, fmt.Sprintf("repository-universe candidate path %s must define %s in both row and projection", path, field))
+		return
+	}
+	if rowValue != projectedValue {
+		result.Errors = append(result.Errors, fmt.Sprintf("repository-universe candidate path %s %s conflicts with projected value", path, field))
+	}
+}
+
+func validateScanTargetShapes(obj map[string]any, targets ScanTargets, result *Result) {
+	rawSchemaVersion, hasSchemaVersion := obj["schema_version"]
+	if hasSchemaVersion && !isNumericSchemaVersion(rawSchemaVersion) {
+		result.Errors = append(result.Errors, "scan-targets schema_version must be a number")
+		return
+	}
+	if targets.SchemaVersion < 2 {
+		return
+	}
+	if targets.SelectionPolicy != "value_weighted" {
+		result.Errors = append(result.Errors, "scan-targets selection_policy must be value_weighted")
+	}
+	for _, key := range []string{"selected_paths", "sampled_paths", "inventory_only_paths", "excluded_paths", "blocked_paths"} {
+		if _, ok := obj[key].([]any); !ok {
+			result.Errors = append(result.Errors, fmt.Sprintf("scan-targets %s must be an array", key))
+			continue
+		}
+		validateConcretePathArray("scan-targets", key, obj[key], result)
+	}
+	for _, key := range []string{"value_tier", "scan_decision", "disposition", "criticality", "classification_reasons"} {
+		if _, ok := obj[key].(map[string]any); !ok {
+			result.Errors = append(result.Errors, fmt.Sprintf("scan-targets %s must be an object", key))
+		}
+	}
+}
+
+func validateScanTargetsAgainstBoundary(boundary Boundary, targets ScanTargets, queue queueState, result *Result) {
+	if !targets.Present || targets.SchemaVersion < 2 || boundary.SchemaVersion < 2 {
+		return
+	}
+	for _, targetSet := range []map[string]bool{
+		targets.SelectedPaths,
+		targets.SampledPaths,
+		targets.InventoryOnlyPaths,
+		targets.ExcludedPaths,
+		targets.BlockedPaths,
+	} {
+		for path := range targetSet {
+			if _, ok := boundary.CandidatePaths[path]; !ok {
+				result.Errors = append(result.Errors, fmt.Sprintf("scan-targets path %s is not in repository-universe candidate_universe", path))
+			}
+		}
+	}
+	for path := range boundary.CandidatePaths {
+		validateTargetProjection(path, "value_tier", boundary.ValueTier[path], targets.ValueTier[path], result)
+		validateTargetProjection(path, "scan_decision", boundary.ScanDecision[path], targets.ScanDecision[path], result)
+		validateTargetProjection(path, "disposition", boundary.Dispositions[path], targets.Disposition[path], result)
+		validateTargetProjection(path, "criticality", boundary.Criticality[path], targets.Criticality[path], result)
+		validateTargetProjection(path, "classification_reasons", boundary.ClassificationReasons[path], targets.ClassificationReasons[path], result)
+		validateTargetListMembership(path, targets, result)
+	}
+	if len(queue.rowsByPacket) > 0 && !samePathSet(targets.SelectedPaths, queue.assignedPaths) {
+		result.Errors = append(result.Errors, "scan-queue assigned path union must match scan-targets selected_paths")
+	}
+}
+
+func validateTargetProjection(path string, field string, boundaryValue string, targetValue string, result *Result) {
+	if boundaryValue == "" || targetValue == "" {
+		result.Errors = append(result.Errors, fmt.Sprintf("scan-targets path %s must define %s consistently with repository-universe", path, field))
+		return
+	}
+	if boundaryValue != targetValue {
+		result.Errors = append(result.Errors, fmt.Sprintf("scan-targets path %s %s conflicts with repository-universe", path, field))
+	}
+}
+
+func validateTargetListMembership(path string, targets ScanTargets, result *Result) {
+	decision := targets.ScanDecision[path]
+	selected := targets.SelectedPaths[path]
+	sampled := targets.SampledPaths[path]
+	inventoryOnly := targets.InventoryOnlyPaths[path]
+	excluded := targets.ExcludedPaths[path]
+	blocked := targets.BlockedPaths[path]
+	valid := false
+	switch decision {
+	case "scan":
+		valid = selected && !sampled && !inventoryOnly && !excluded && !blocked
+	case "sample":
+		valid = selected && sampled && !inventoryOnly && !excluded && !blocked
+	case "inventory_only":
+		valid = !selected && !sampled && inventoryOnly && !excluded && !blocked
+	case "exclude":
+		valid = !selected && !sampled && !inventoryOnly && excluded && !blocked
+	case "blocked":
+		valid = !selected && !sampled && !inventoryOnly && !excluded && blocked
+	}
+	if !valid {
+		result.Errors = append(result.Errors, fmt.Sprintf("scan-targets path %s list membership conflicts with scan_decision %s", path, decision))
+	}
+}
+
+func samePathSet(left map[string]bool, right map[string]bool) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for path := range left {
+		if !right[path] {
+			return false
+		}
+	}
+	return true
+}
+
+func compactValidationErrors(result *Result) {
+	total := len(result.Errors)
+	result.Details["validation_error_count"] = total
+	if total <= maxReportedValidationErrors {
+		result.Details["suppressed_validation_error_count"] = 0
+		return
+	}
+	suppressed := total - maxReportedValidationErrors
+	compacted := append([]string{}, result.Errors[:maxReportedValidationErrors]...)
+	compacted = append(compacted, fmt.Sprintf(
+		"%d additional validation errors suppressed; repair the reported schema or queue errors and rerun validate-scan",
+		suppressed,
+	))
+	result.Errors = compacted
+	result.Details["suppressed_validation_error_count"] = suppressed
 }
 
 func isNumericSchemaVersion(value any) bool {
@@ -2084,7 +2290,7 @@ func gapPaths(gapObj map[string]any) []string {
 
 func includedDispositionRequiresCoverage(disposition string) bool {
 	switch disposition {
-	case "deep_read", "sampled", "inventory_only":
+	case "deep_read", "sampled":
 		return true
 	default:
 		return false

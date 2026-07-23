@@ -1004,8 +1004,32 @@ func TestRunBlocksV2WorkbenchWithoutValidatedScanReceipt(t *testing.T) {
 	if !strings.Contains(joined, "scan-receipt.json") || !strings.Contains(joined, "validate-scan") {
 		t.Fatalf("Run errors = %#v, want missing receipt with validate-scan recovery", payload.Errors)
 	}
+	if payload.RecoveryAction != "run specify-runtime cognition validate-scan --format json" {
+		t.Fatalf("RecoveryAction = %q, want canonical validate-scan command", payload.RecoveryAction)
+	}
 	if _, err := os.Stat(paths.DatabasePath); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("build without receipt created or touched graph store: %v", err)
+	}
+}
+
+func TestRunRoutesInvalidScanPackageBackToValidateScan(t *testing.T) {
+	paths := writeMinimalScanPackage(t)
+	if err := os.Remove(filepath.Join(paths.RuntimeDir, "coverage.json")); err != nil {
+		t.Fatal(err)
+	}
+
+	payload, err := Run(paths)
+	if err != nil {
+		t.Fatalf("Run returned operational error: %v", err)
+	}
+	if payload.Status != "blocked" {
+		t.Fatalf("Status = %q, want blocked", payload.Status)
+	}
+	if payload.RecoveryAction != "run specify-runtime cognition validate-scan --format json" {
+		t.Fatalf("RecoveryAction = %q, want canonical validate-scan command", payload.RecoveryAction)
+	}
+	if _, err := os.Stat(paths.DatabasePath); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("invalid scan package created graph store: %v", err)
 	}
 }
 

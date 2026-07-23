@@ -11,9 +11,18 @@ Generate a complete graph-native evidence baseline for the current codebase.
 - Legacy atlas artifacts such as `PROJECT-HANDBOOK.md` may be read only when explicitly relevant to migration or export parity; they must not become scan targets.
 - `.specify/**` is workflow/runtime state, not project graph evidence; `.specify/**` paths may be read only for command operation or validation and must not become scan targets or graph paths.
 - Resolve the candidate scan set through `specify-runtime cognition scan-set` before repository inventory, evidence, coverage, or packet scope. The runtime applies project cognition ignore rules from root `.cognitionignore` and `.specify/project-cognition/.cognitionignore`, built-in low-signal exclusions, binary-file suppression, and obvious secret-path suppression. These rules are for project cognition only.
-- Before subagent dispatch, write the canonical boundary in `.specify/project-cognition/workbench/repository-universe.json` from the resolved scan-set file; do not substitute raw `rg --files`, broad directory globs, or free-form agent judgment about what to omit.
+- Before subagent dispatch, run `scan-prepare` so the runtime materializes the
+  canonical boundary and value-weighted target set from the resolved scan-set
+  file. Audit those projections, but do not hand-write or repair them. Do not
+  substitute raw `rg --files`, broad directory globs, or free-form agent
+  judgment about what to omit.
 - [AGENT] Treat `scan-queue.json` and `handoff-ledger.json` as required scan workbench artifacts before `validate-scan`.
-- Stage the canonical boundary artifact before dispatch, then accept scan packets only after the leader verifies packet-local ledger accounting for every assigned path and a `worker-results/<packet-id>.json` handoff whose `paths_read` is a non-empty concrete path array.
+- Require the runtime-materialized canonical boundary and target artifacts
+  before dispatch. Then accept scan packets only after the leader verifies
+  packet-local ledger accounting for every assigned path and a
+  `worker-results/<packet-id>.json` handoff whose `paths_read` is a non-empty
+  concrete path array. Inventory-only paths receive no packet or graph-facing
+  coverage row.
 - Machine contract: each `worker-results/<packet-id>.json` handoff must put the packet-local ledger in top-level `ledger` with `todo`, `doing`, `done`, `blocked`, and `overflow`; do not write `packet_local_ledger`, `packet-local-ledger`, or Markdown-only ledger sections.
 - Treat `.cognitionignore` and `scan-set` runtime exclusions as boundary sources recorded in `decision_source`; excluded paths stay in boundary accounting and out of graph-facing coverage.
 - The resulting evidence baseline must let `sp-map-build` reconstruct the project cognition graph from live-surface evidence without inventing scan scope.

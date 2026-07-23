@@ -129,7 +129,9 @@ def test_map_scan_template_defines_complete_scan_package_contract() -> None:
     assert "globs such as `jzwinrenew/*.cpp`" in lowered
     assert "directory patterns, absolute paths, and summary labels are invalid" in lowered
     assert "a top-level `coverage.json` or `coverage-ledger.json` row is not proof that a path was scanned" in lowered
-    assert "included_paths - assigned_paths - accepted_nonblocking_gap_paths" in content
+    assert "selected_paths - assigned_paths" in content
+    assert "assigned_paths - accepted_terminal_paths - accepted_nonblocking_gap_paths" in content
+    assert "inventory_only_paths` is validated against the canonical boundary" in lowered
     assert "accepted packet-local path results" in lowered
     assert "runtime-generated packet-local task ledger and result skeleton" in lowered
     assert "do not reproduce a stable json schema in the prompt" in lowered
@@ -386,6 +388,68 @@ def test_map_scan_template_requires_canonical_boundary_contract() -> None:
     assert "assigned_paths`, queue rows, worker path results, and worker coverage paths" in content
     assert "concrete repository file paths enumerated from `repository-universe.json`" in lowered
     assert "a top-level `coverage.json` or `coverage-ledger.json` row is not proof" in lowered
+
+
+def test_classic_map_scan_template_only_documents_runtime_materialized_boundary_fields() -> None:
+    scan_template = _read("templates/commands/map-scan.md")
+    runtime_source = _read("tools/specify-runtime/internal/scanworkbench/scanworkbench.go")
+
+    documented_boundary_fields = [
+        "path",
+        "path_kind",
+        "extension",
+        "size_bytes",
+        "directory_family",
+        "git_tracked",
+        "ignored_by_cognition",
+        "value_tier",
+        "scan_decision",
+        "disposition",
+        "criticality",
+        "classification_reasons",
+        "decision_source",
+    ]
+
+    for field in documented_boundary_fields:
+        assert f"`{field}`" in scan_template
+        assert f'"{field}"' in runtime_source
+
+    documented_target_fields = [
+        "schema_version",
+        "selection_policy",
+        "selected_paths",
+        "sampled_paths",
+        "inventory_only_paths",
+        "excluded_paths",
+        "blocked_paths",
+        "value_tier",
+        "scan_decision",
+        "disposition",
+        "criticality",
+        "classification_reasons",
+    ]
+
+    for field in documented_target_fields:
+        assert f"`{field}`" in scan_template
+        assert f'"{field}"' in runtime_source
+
+    lowered = scan_template.lower()
+    assert "runtime applies the deterministic value classifier" in lowered
+    assert "must not hand-write it" in lowered
+    assert "queue's assigned-path union must equal `scan-targets.json.selected_paths`" in lowered
+    assert "`inventory_only_paths` remains in full boundary accounting" in lowered
+
+
+def test_advanced_map_scan_uses_the_same_runtime_owned_value_boundary() -> None:
+    content = _read("templates/advanced-skills/spx-map-scan/references/scan-gates.md")
+    lowered = " ".join(content.lower().split())
+
+    assert "`scan-prepare` applies the deterministic value classifier" in lowered
+    assert "owns `repository-universe.json`, `scan-targets.json`, and the queue" in lowered
+    assert "queue assigned-path union must exactly equal `scan-targets.json.selected_paths`" in lowered
+    assert "`inventory_only_paths` must be disjoint" in lowered
+    assert "receive no packet, evidence, or graph-facing coverage" in lowered
+    assert "auth, security, payment, integration, end-to-end, contract, and smoke" in lowered
 
 
 def test_map_scan_template_requires_packet_ledger_contract() -> None:

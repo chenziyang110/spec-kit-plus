@@ -6,9 +6,14 @@ explicit full rebuild. A localized stale route belongs in `$spx-map-update`.
 
 Respect root and runtime `.cognitionignore`; secrets, vendor/build output,
 binaries, and `.specify/**` are not ordinary graph evidence. The runtime's scan
-set is the authoritative already-filtered universe. Every assigned path must be
-accounted for by a packet result; cost control comes from bounded low-tier
-workers, not silent sampling.
+set is the authoritative already-filtered universe. `scan-prepare` applies the
+deterministic value classifier and owns `repository-universe.json`,
+`scan-targets.json`, and the queue. Audit those projections, but do not
+hand-write, rename fields in, or reclassify them. Every assigned path must be
+accounted for by a packet result; low-value `P3` paths remain inventory-only
+boundary accounting and receive no packet, evidence, or graph-facing coverage.
+Auth, security, payment, integration, end-to-end, contract, and smoke
+verification paths are deep-read rather than silently sampled.
 
 `scan-prepare` owns packet IDs, queue, result skeletons, and the canonical
 workbench. It sizes packets by the effective worker context budget after
@@ -16,6 +21,11 @@ instruction, inherited-context, reasoning, tool-output, checkpoint,
 result-output, and safety reserves. Estimated token cost is the primary packing
 constraint; path count and bytes are secondary guards. Preparation never
 replaces an existing workbench by default.
+
+The queue assigned-path union must exactly equal
+`scan-targets.json.selected_paths`; `inventory_only_paths` must be disjoint.
+`validate-scan` verifies both target projections against the canonical boundary
+before it evaluates packet evidence.
 
 When model capacity is known, pass `--context-window-tokens` and the actual
 inherited/system-skill/reasoning/tool/result reserves to `scan-prepare`. Use
