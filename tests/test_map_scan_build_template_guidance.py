@@ -353,7 +353,7 @@ def test_map_scan_worker_contract_requires_runtime_skeleton_and_partial_acceptan
 def test_classic_and_spx_map_build_flow_is_runtime_only_without_model_authored_build_lanes() -> None:
     classic_build = _read("templates/commands/map-build.md").lower()
     classic_partial = _read("templates/command-partials/map-build/shell.md").lower()
-    spx_build = _read("templates/advanced-skills/spx-map-build/skill.md").lower()
+    spx_build = _read("templates/advanced-skills/spx-map-build/SKILL.md").lower()
     spx_gates = _read("templates/advanced-skills/spx-map-build/references/build-gates.md").lower()
 
     for content in (classic_build, spx_build, spx_gates):
