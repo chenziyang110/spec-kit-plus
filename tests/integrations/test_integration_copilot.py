@@ -36,6 +36,11 @@ PROJECT_SPECIFY_LAUNCHER = (
     if os.name == "nt"
     else ".specify/scripts/shared/specify-launcher"
 )
+PROJECT_SPECIFY_RUNTIME = (
+    ".specify/bin/specify-runtime.exe"
+    if os.name == "nt"
+    else ".specify/bin/specify-runtime"
+)
 
 
 class TestCopilotIntegration:
@@ -82,6 +87,8 @@ class TestCopilotIntegration:
             [
                 "DESIGN.md",
                 ".vscode/settings.json",
+                ".specify/bin/.gitignore",
+                PROJECT_SPECIFY_RUNTIME,
                 ".specify/config.json",
                 ".specify/integration.json",
                 ".specify/init-options.json",

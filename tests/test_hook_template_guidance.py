@@ -127,7 +127,7 @@ def test_required_phase_boundaries_use_one_deterministic_artifact_validation() -
     for path, command in PHASE_ARTIFACT_VALIDATION_TEMPLATES.items():
         content = read_command_with_references(Path(path).stem)
         invocation = (
-            "{{specify-subcmd:hook validate-artifacts "
+            "{{specify-subcmd:specify-runtime hook validate-artifacts "
             f"--command {command} --feature-dir <feature-dir> --format json}}"
         )
         assert content.count(invocation) == 1, path

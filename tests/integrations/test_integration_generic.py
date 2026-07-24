@@ -15,6 +15,11 @@ PROJECT_SPECIFY_LAUNCHER = (
     if os.name == "nt"
     else ".specify/scripts/shared/specify-launcher"
 )
+PROJECT_SPECIFY_RUNTIME = (
+    ".specify/bin/specify-runtime.exe"
+    if os.name == "nt"
+    else ".specify/bin/specify-runtime"
+)
 
 
 class TestGenericIntegration:
@@ -56,6 +61,8 @@ class TestGenericIntegration:
             "DESIGN.md",
             *(f".myagent/commands/sp.{stem}.md" for stem in cls._command_stems()),
             *cls._command_reference_files(),
+            ".specify/bin/.gitignore",
+            PROJECT_SPECIFY_RUNTIME,
             ".specify/config.json",
             ".specify/init-options.json",
             ".specify/integration.json",
