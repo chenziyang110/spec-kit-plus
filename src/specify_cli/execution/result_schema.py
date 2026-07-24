@@ -46,6 +46,11 @@ class UIVerification:
     accepted_deviations: list[dict[str, str]] = field(default_factory=list)
 
 
+CURRENT_UI_VERIFICATION_FIELDS = frozenset(
+    item.name for item in fields(UIVerification)
+)
+
+
 @dataclass(slots=True)
 class WorkerTaskResult:
     task_id: str
@@ -112,8 +117,9 @@ def _validate_current_ui_payload(payload: dict[str, object]) -> None:
     if raw_verification is not None:
         if not isinstance(raw_verification, dict):
             raise ValueError("ui_verification must be an object")
-        allowed_verification = {item.name for item in fields(UIVerification)}
-        unknown_verification = set(raw_verification) - allowed_verification
+        unknown_verification = (
+            set(raw_verification) - CURRENT_UI_VERIFICATION_FIELDS
+        )
         if unknown_verification:
             raise ValueError(
                 "ui_verification contains unsupported fields: "

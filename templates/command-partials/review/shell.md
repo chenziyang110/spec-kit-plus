@@ -9,40 +9,51 @@ Prove that the integrated implementation is an operable product from its officia
 ## Intake And Runtime Ownership
 
 - Resolve exactly one feature and inspect `specify-runtime workflow show` before mutation. Transition from completed `implement` to `review` with the runtime-returned revision; do not hand-edit `workflow.json`.
-- Run `{{specify-subcmd:review prepare --feature-dir <feature-dir> --expected-revision <revision> --format json}}`. Treat `implementation-handoff.json` as the implementation-to-review source contract and `review-state.json` as Review's resumable truth. When `accept route-repair` reopens Review, preparation creates a new cycle bound to the prior approved Review digest and routed acceptance finding; never edit or reapprove the old cycle.
+- Run `{{specify-subcmd:review prepare --feature-dir <feature-dir> --expected-revision <revision> --format json}}`. Treat `implementation-handoff.json` as the implementation-to-review source contract and `review-state.json` as Review's resumable truth. If preparation reports stale or malformed Review-owned state outside an acceptance-repair cycle, rerun the same command with `--restart-stale`; the runtime archives the exact old bytes under `review-history/` and creates a fresh evidence cycle. When `accept route-repair` reopens Review, preparation creates a new cycle bound to the prior approved Review digest and routed acceptance finding; never restart, edit, or reapprove the old accepted cycle.
+- Read `implementation-handoff.json.user_confirmed_deferrals` before allocation.
+  Every DEF is unresolved scope transferred from Implement: restore its exact
+  blocker/task/acceptance/validation refs, keep its listed claims withheld, and
+  rerun it in Review. Resolve its `review-state.json.implementation_deferrals`
+  entry only with `status: resolved`, outcome `passed|fixed`, a nonblank summary,
+  current-cycle evidence refs and byte digests, current `review_cycle_id`, and
+  the final implementation fingerprint. A DEF is never prior PASS evidence and
+  cannot be silently carried into Review approval.
 - The Leader owns `review-state.json`, the official runtime instances, ports, test data, finding lifecycle, repair acceptance, and final verdict.
-- Continue the validation-epoch ledger shared across Implement and Review. Do
-  not reset it on Review entry, resume, or repair-cycle creation. The combined
-  flow permits at most three heavyweight epochs bound to source fingerprints.
+- Continue the validation ledger shared across Implement and Review. Do not
+  reset it on Review entry, resume, or repair-cycle creation. It has at most
+  three logical gates; Review retries stay inside the delivery gate.
 - The canonical ledger is
   `implementation-review/validation-runs.json`. Before Review work run
   `{{specify-subcmd:implement validation-status --feature-dir <feature-dir> --format json}}`.
   Before the Leader starts a delivery scenario wave, run
   `{{specify-subcmd:implement validation-start --feature-dir <feature-dir> --stage review --purpose delivery --command '<cmd>' [--command '<cmd2>'] [--task-id T001] [--task-id T002] [--fingerprint <sha>] --format json}}`;
   omit `--fingerprint` to bind the current implementation snapshot. Afterward run
-  `{{specify-subcmd:implement validation-finish --feature-dir <feature-dir> --run-id <Vn> --status <passed|failed> --evidence-ref <ref> [--evidence-ref <ref2>] --summary '<text>' --format json}}`.
+  `{{specify-subcmd:implement validation-finish --feature-dir <feature-dir> --run-id <Vn> --status <passed|failed|interrupted> [--failure-kind <assertion|verification|harness|environment|runner_timeout|runner_terminated|cancelled|unknown>] --evidence-ref <ref> [--evidence-ref <ref2>] --summary '<text>' --format json}}`.
   Use the runtime-returned ids and budget; never hand-edit the file.
 - On resume, run `{{specify-subcmd:review resume-audit --feature-dir <feature-dir> --format json}}` when available. Continue from the exact scenario/finding cursor and invalidate evidence whose implementation fingerprint, source revision, or Review cycle is stale. Repair-cycle evidence belongs under `review-evidence/cycle-<n>/` and packet/results under `review-results/cycle-<n>/`; an earlier cycle cannot close the current one.
 
 ## System Review Loop
 
 1. Compile the Review Universe and use independent coverage discovery to reconcile authoritative obligations with actual consumer and runtime surfaces.
-2. Open the next Leader-owned validation epoch, start each official entrypoint,
+2. Open the Leader-owned delivery gate attempt, start each official entrypoint,
    then run a read-only Review/Audit wave whose workers inspect assigned coverage
    slices and return evidence/findings without edits. All commands, scenarios,
-   and captures against that fingerprint share the one epoch.
+   and captures against that fingerprint share the one gate attempt.
 3. The Leader joins all audit packets, rejects stale or incomplete results, resolves coverage gaps, and freezes the accepted finding set.
-4. Run a separate Fix wave for accepted findings only when another validation
-   epoch remains. Fix workers receive isolated write scopes, run cheap task
+4. Run a separate Fix wave for accepted findings. Fix workers receive isolated write scopes, run cheap task
    checks, return test impact, and may change implementation/tests but never
    upstream truth or execute heavyweight gates.
-5. Join and inspect every repair, then open the next remaining epoch, restart the
+5. Join and inspect every repair, then open a new attempt in the same delivery gate, restart the
    real product, and run an independent revalidation wave. The repair author must
    not verify its own finding.
-6. Continue only while budget remains. A source change invalidates prior proof
-   and requires another epoch for approval. Never retry a failed command against
-   the unchanged fingerprint. The third failed epoch blocks with exact evidence
-   and recovery criteria; never start a fourth validation epoch.
+6. A source change invalidates prior proof and requires another attempt for
+   approval. Retry an interrupted attempt in the same gate/fingerprint; retry a
+   real assertion or verification failure only after a new fingerprint. Never
+   record runner timeout/termination as failed or passed: interrupted is not
+   failed. After timeout, isolate the last active scenario/test with
+   open-handle/process-exit diagnostics; repair a hang, or split a legitimately
+   long matrix into deterministic bounded shards inside the same delivery gate.
+   Never open a fourth logical gate.
 
 UI-bearing scenarios require real-entrypoint `structure_snapshot`, `visual_capture`, and `runtime_diagnostics` evidence with `evidence_scope: integrated`. Group the viewport/state matrix by integrated surface and source fingerprint; do not run the full viewport/state capture loop per Txx. Validate interaction, navigation, loading, empty, error, permission, persistence/reload, responsive, keyboard/focus, console, network, and runtime states when applicable. A passing visual judgment also requires a `spec-kit-visual-comparison-v1` report derived from `.specify/templates/visual-comparison-template.json`: it binds approved preview/manifest digests to implementation captures, covers every applicable `DS-*` decision, applies the preserved tolerance, and lists only approved deviations. Automated behavior checks remain distinct from visual and interaction acceptance.
 
@@ -53,8 +64,8 @@ UI-bearing scenarios require real-entrypoint `structure_snapshot`, `visual_captu
 - Compile each `SystemReviewPacket` just in time from current state and live code. Never dispatch a raw checklist or the entire feature package.
 - Serialize paths sharing one browser session, database state, service instance, port, or write set. Integrate worker results before accepting a repair.
 - A worker result is evidence only. A worker cannot declare coverage complete or the whole system approved; the Leader owns all joins, zero-uncovered coverage, repair acceptance, and the final verdict after an integrated restart and required regression.
-- Workers do not open validation epochs. The Leader may coordinate read-only
-  observation slices inside one already-open epoch, but must not let scenario,
+- Workers do not open logical gates or validation attempts. The Leader may coordinate read-only
+  observation slices inside one already-open attempt, but must not let scenario,
   worker, or Txx boundaries multiply heavyweight runs.
 
 ## Output Contract
@@ -71,6 +82,7 @@ UI-bearing scenarios require real-entrypoint `structure_snapshot`, `visual_captu
 - Review remains the stage owner through diagnosis, repair, and revalidation. Only a proven requirement truth, design truth, or architecture truth gap may produce an upstream handoff; missing code is not an upstream truth gap.
 - Keep the existing event-triggered task review embedded in `sp-implement`; do not duplicate its task lifecycle ledger here.
 - Do not claim success because the build passes, tasks are checked, files exist, or a worker says PASS.
-- Do not let a passive testing skill, worker, resume, or completion claim start an
-  extra epoch. Review must consume only the remaining shared budget.
+- Do not let a passive testing skill, worker, resume, or completion claim start
+  an extra logical gate or attempt. Review owns the reserved delivery gate and
+  retries only inside it.
 - Do not push, deploy, modify protected systems, use real customer data, or perform external writes without explicit authority. Use isolated test data and the shared blocker contract for genuine external boundaries.

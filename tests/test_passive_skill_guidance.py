@@ -310,11 +310,11 @@ def test_project_learning_focuses_on_memory_triggers_storage_and_promotion() -> 
     assert "durable workflow state" in content
 
 
-def test_subagent_implementer_prompt_defers_heavy_tdd_to_feature_epoch() -> None:
+def test_subagent_implementer_prompt_defers_heavy_tdd_to_leader_gate() -> None:
     content = _read("templates/passive-skills/subagent-driven-development/implementer-prompt.md").lower()
 
     assert "workflow-owned validation" in content
-    assert "accepted change-set" in content and "baseline epoch ref" in content
+    assert "accepted change-set" in content and "baseline gate-attempt ref" in content
     assert "cheap task checks" in content and "test impact" in content
     assert "do not run a test suite" in content
     assert "per txx" in content

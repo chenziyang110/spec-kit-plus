@@ -13,22 +13,22 @@ Record an orthogonal `gap_classification`: `implementation_gap` when approved be
 - Only a proven upstream truth gap is a handoff-and-stop boundary: missing or contradictory requirement truth routes to `sp-clarify`/`sp-specify`, missing or contradictory design truth routes to `sp-design`, and architecture truth that must change before any conforming fix is possible routes to `sp-plan`.
 - Human/external authority, credentials, protected service, physical device, or unavailable comparison: persist a structured blocker and full Human Action Guide with observable unblock criteria and exact Review resume point.
 
-Continue the validation-epoch ledger shared across Implement and Review; do not
-reset it. After the audit join, run a separate Fix wave with finding-bound write
-scopes only when a later epoch remains. Fix workers perform cheap task checks and
-return test impact, but must not run heavyweight validation per Txx. Join the
-complete repair batch before the Leader opens one next epoch; do not open an
-epoch per finding or per repair. The Leader restarts the official real entrypoint
+Continue the validation ledger shared across Implement and Review; do not reset
+it. After the audit join, run a separate Fix wave with finding-bound write
+scopes. Fix workers perform cheap task checks and return test impact, but must
+not run heavyweight validation per Txx. Join the complete repair batch before
+the Leader opens a new attempt in the delivery gate; do not open an attempt per
+finding or per repair. The Leader restarts the official real entrypoint
 when process/configuration state may be affected, and runs an independent
 revalidation wave over the exact failed action sequence, all scenarios depending
 on the repaired surface, and the smallest credible regression set. That subset
 scopes finding-level attribution only. Approval after any Fix requires every
 required Review scenario and must recapture all required evidence records against the one final reviewed
-snapshot in that epoch; no pre-Fix scenario evidence can close Review. A repair
+snapshot in that attempt; no pre-Fix scenario evidence can close Review. A repair
 author must not verify its own finding; use the Leader or a different read-only
 subagent. A source diff, unit test, or worker assertion alone cannot resolve the
-finding. The third failed epoch blocks with exact evidence and recovery criteria;
-never start a fourth validation epoch.
+finding. Runner interruption retries inside the delivery gate; a real failure
+requires repair and a new fingerprint. Never open a fourth logical gate.
 
 When any Fix assignment exists, persist one final full-matrix revalidation record. Its `fix_assignment_ids` and canonical `fix_assignments_sha256` cover the complete accepted Fix set; `scenario_ids` is exactly every required Review scenario; `snapshot_sha256` and `review_cycle_id` bind the final snapshot/cycle; and `evidence_manifest_ref` names a current-cycle JSON manifest also listed and byte-bound in `evidence_refs` / `evidence_sha256`. The manifest contains exactly `version`, `revalidation_id`, `review_cycle_id`, `snapshot_sha256`, `fix_assignments_sha256`, and `scenario_evidence`; the final array has one `{scenario_id, kind, path, artifact_sha256}` item for every required evidence kind of every required scenario. Recompute the Fix-set digest and manifest from the joined records. Missing, extra, stale, partial, or relabeled evidence blocks approval.
 

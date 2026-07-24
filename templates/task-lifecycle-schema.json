@@ -51,8 +51,39 @@
             "external_baseline_maintenance",
             "follow_up_risk"
           ]
+        },
+        "disposition": {
+          "enum": [
+            "active_hard_block",
+            "parked",
+            "transferred",
+            "user_confirmed_deferral",
+            "resolved"
+          ]
+        },
+        "disposition_ref": {
+          "type": ["string", "null"]
         }
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "disposition": {"const": "user_confirmed_deferral"}
+            },
+            "required": ["disposition"]
+          },
+          "then": {
+            "required": ["disposition_ref"],
+            "properties": {
+              "disposition_ref": {
+                "type": "string",
+                "pattern": "^implementation-review/deferrals/DEF-[0-9a-f]{12}\\.json$"
+              }
+            }
+          }
+        }
+      ]
     }
   }
 }

@@ -56,6 +56,11 @@ func (service *WorkflowService) Closeout(request WorkflowCloseoutRequest) Envelo
 	if err := validateAcceptedHumanAcceptance(acceptanceRaw); err != nil {
 		return workflowStateBlocked(feature, state, "human acceptance has not passed", "human-acceptance-not-passed", err.Error())
 	}
+	gate := service.validateStageArtifacts(feature, "accept")
+	if gate.Status != "ok" && gate.Status != "warn" && gate.Status != "repaired" {
+		addWorkflowStateData(&gate, state)
+		return gate
+	}
 	digest := fmt.Sprintf("%x", sha256.Sum256(acceptanceRaw))
 	snapshotPath, err := secureProjectPath(service.projectRoot, feature.Rel+"/.human-acceptance-terminal.json")
 	if err != nil {

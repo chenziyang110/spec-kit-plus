@@ -1941,7 +1941,9 @@ def validate_human_acceptance(
             if runtime_target_id is not None
             else None
         )
-        if verdict == "pass" or status in {"ready", "in_progress", "accepted"}:
+        if verdict == "pass" or (
+            required and status in {"ready", "in_progress", "accepted"}
+        ):
             if target is None or target.get("acceptance_status") != "ready":
                 errors.append(
                     f"{prefix} requires a ready runtime target bound to approved Review"

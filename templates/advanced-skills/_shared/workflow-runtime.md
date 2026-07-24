@@ -54,7 +54,11 @@ an existing blocker with fresh evidence first. Failed acceptance uses
 `accept route-repair`; a completed acceptance is immutable and new scope starts
 a distinct feature workflow.
 
-After safe agent recovery is exhausted, obtain the stable input contract with
+Task-local `parked` blockers stay in task lifecycle state while another
+dependency-safe lane can run; they do not justify a feature-wide runtime block.
+Use a human-confirmed DEF transfer only through the owning workflow's
+deterministic deferral commands, and never treat it as passed. After safe agent
+recovery is exhausted **and no ready work remains**, obtain the stable input contract with
 `{{specify-subcmd:api schema workflow-block-input --format json}}`, then persist
 the detailed blocker through
 `{{specify-subcmd:specify-runtime workflow block --input <blocker-json-or-> --format json}}`.

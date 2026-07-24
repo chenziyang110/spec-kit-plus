@@ -21,7 +21,9 @@
     "budget_ref": "implementation-review/validation-runs.json",
     "max_epochs": 3,
     "used_epochs": 0,
-    "active_run_id": null
+    "used_attempts": 0,
+    "active_run_id": null,
+    "active_attempt_id": null
   },
   "review_window_policy": {
     "max_completed_tasks_before_review": 5,

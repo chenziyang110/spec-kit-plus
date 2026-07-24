@@ -41,7 +41,9 @@ Set root `validation_policy` to `mode: feature_epochs`, `max_epochs: 3`,
 `heavy_gate_owner: leader`. Keep full-suite, build, integration, E2E, and
 visual commands as shared verification gates. Put only cheap changed-scope
 checks safe for one Txx in `task_checks`; only those checks compile into a
-worker packet.
+worker packet. The three epochs are logical `baseline`, `convergence`, and
+`delivery` gates. Retries, timeout recovery, and deterministic shards remain
+attempts inside their gate and do not consume another epoch.
 
 At the task-index root, require `acceptance_refs` to be the complete unique
 ordered list `plan-contract.json#/acceptance_refs/0..N-1`; a ready version-2

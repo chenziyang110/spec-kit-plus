@@ -77,7 +77,11 @@ def _feature(tmp_path: Path) -> tuple[Path, Path]:
 
 
 def _install_approved_review(
-    project: Path, feature: Path, *, source_revision: int = 1
+    project: Path,
+    feature: Path,
+    *,
+    source_revision: int = 1,
+    include_optional_unbound_scenario: bool = False,
 ) -> None:
     task_index = {
         "version": 2,
@@ -146,6 +150,62 @@ def _install_approved_review(
             }
         ],
     }
+    if include_optional_unbound_scenario:
+        task_index["system_review_scenarios"].append(
+            {
+                "id": "SR-OPTIONAL-001",
+                "kind": "interaction",
+                "title": "Inspect the optional diagnostics path",
+                "required": False,
+                "entrypoint_id": "demo-app",
+                "preconditions": ["The Demo application is installed."],
+                "actions": ["Open optional diagnostics."],
+                "expected_results": ["Optional diagnostics can be inspected."],
+                "required_evidence": ["runtime_diagnostics"],
+            }
+        )
+        task_index["review_obligations"].append(
+            {
+                "id": "RO-OPTIONAL-001",
+                "kind": "user-journey",
+                "source_ref": "plan-contract.json#/acceptance_refs/0",
+                "surface": "Optional diagnostics",
+                "required": False,
+                "scenario_ids": ["SR-OPTIONAL-001"],
+            }
+        )
+        task_index["human_acceptance_obligations"].append(
+            {
+                "id": "HAO-OPTIONAL-001",
+                "source_ref": "plan-contract.json#/acceptance_refs/0",
+                "change_kind": "changed",
+                "user_outcome": "A human may inspect optional diagnostics.",
+                "required": False,
+                "scenario_ids": ["HA-OPTIONAL-001"],
+            }
+        )
+        task_index["human_acceptance_scenarios"].append(
+            {
+                "id": "HA-OPTIONAL-001",
+                "title": "Inspect optional diagnostics",
+                "user_value": "Optional diagnostics are available for inspection.",
+                "actor": "human user",
+                "required": False,
+                "obligation_ids": ["HAO-OPTIONAL-001"],
+                "entrypoint_id": "demo-app",
+                "review_scenario_ids": ["SR-OPTIONAL-001"],
+                "start_state": "The reviewed Demo home screen is visible.",
+                "steps": [
+                    {
+                        "id": "HA-OPTIONAL-001-S01",
+                        "action": "Open optional diagnostics.",
+                        "expected_result": "The diagnostics view opens.",
+                        "evidence_requirement": "Human observation.",
+                        "risk": "low",
+                    }
+                ],
+            }
+        )
     (feature / "task-index.json").write_text(
         json.dumps(task_index, indent=2) + "\n", encoding="utf-8"
     )
@@ -204,6 +264,10 @@ def _install_approved_review(
     )
 
     for scenario in scenarios:
+        if scenario.get("required") is False:
+            scenario["result"] = "pending"
+            scenario["evidence"] = []
+            continue
         scenario["result"] = "pass"
         scenario["evidence"] = []
         for kind in scenario["required_evidence"]:
@@ -253,7 +317,11 @@ def _install_approved_review(
                 for evidence in scenario["evidence"]
                 if evidence["kind"] == "runtime_diagnostics"
             ],
-            "review_scenario_ids": [scenario["id"] for scenario in scenarios],
+            "review_scenario_ids": [
+                scenario["id"]
+                for scenario in scenarios
+                if scenario.get("required") is True
+            ],
         }
     ]
     _attach_runtime_identity_evidence(
@@ -796,6 +864,56 @@ def test_human_acceptance_v2_has_frozen_scope_runtime_identity_and_human_decisio
     assert state["repair_history"] == []
     assert state["overall"]["human_decision"] == "pending"
     assert state["overall"]["decision_evidence"] == []
+
+
+def test_optional_pending_acceptance_scenario_does_not_require_runtime_target(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "project"
+    feature = project / ".specify" / "features" / "001-demo"
+    feature.mkdir(parents=True)
+    install_passing_workflow_gate(project)
+    (feature / "implementation-summary.md").write_text(
+        "# Implementation Summary\n\nDemo feature complete.\n",
+        encoding="utf-8",
+    )
+    _install_approved_review(
+        project,
+        feature,
+        include_optional_unbound_scenario=True,
+    )
+    prepare_human_acceptance(project, feature)
+    state_path = feature / "human-acceptance.json"
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    state["status"] = "ready"
+    state["orientation"] = {
+        "outcome": "The user can complete the demo flow.",
+        "why_it_matters": "The primary path is ready for human review.",
+        "user_visible_changes": ["A new Demo action is available."],
+        "not_in_scope": ["Optional diagnostics are not required."],
+        "prerequisites": ["Open the demo workspace."],
+        "start_here": "Open the application and select Demo.",
+    }
+    for target in state["runtime_targets"]:
+        target["acceptance_status"] = "ready"
+        target["acceptance_ready_evidence"] = ["agent: Demo home screen ready"]
+        target["agent_actions"] = ["Started the official Demo entrypoint."]
+    optional = next(
+        scenario
+        for scenario in state["scenarios"]
+        if scenario["id"] == "HA-OPTIONAL-001"
+    )
+    assert optional["required"] is False
+    assert optional["runtime_target_id"] is None
+    assert optional["verdict"] == "pending"
+    state_path.write_text(
+        json.dumps(state, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+    validation = validate_human_acceptance(project, feature)
+
+    assert validation["valid"] is True, validation["errors"]
 
 
 def test_acceptance_failure_routes_are_review_first_only() -> None:

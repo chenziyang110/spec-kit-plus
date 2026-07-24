@@ -41,7 +41,7 @@ def load_packet(packet_path: Path) -> WorkerTaskPacket:
 
 def build_result_template(packet: WorkerTaskPacket) -> dict[str, object]:
     critical_note = (
-        "Replace the pending placeholder with real task-check evidence and test-impact notes; Leader-owned epoch evidence remains deferred."
+        "Replace the pending placeholder with real task-check evidence and test-impact notes; Leader-owned logical-gate evidence remains deferred."
         if packet.validation_policy.mode == "feature_epochs"
         else "Replace the pending placeholder with the real RED/GREEN or validation evidence before returning success."
     )

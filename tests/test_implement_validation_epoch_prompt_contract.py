@@ -43,7 +43,7 @@ ADVANCED_REVIEW = (
 )
 
 
-def test_implement_profiles_define_one_shared_three_epoch_budget() -> None:
+def test_implement_profiles_define_three_logical_gates_with_retryable_attempts() -> None:
     for paths in (CLASSIC_IMPLEMENT, ADVANCED_IMPLEMENT):
         content = _flat(*paths)
 
@@ -57,17 +57,31 @@ def test_implement_profiles_define_one_shared_three_epoch_budget() -> None:
         assert "implement validation-start --feature-dir <feature-dir> --stage implement" in content
         assert "--purpose <baseline|convergence>" in content
         assert "implement validation-finish --feature-dir <feature-dir> --run-id <vn>" in content
-        assert "--status <passed|failed>" in content
-        assert "validation epoch" in content
-        assert "at most three" in content
+        assert "--status <passed|failed|interrupted>" in content
+        assert "logical gates" in content
+        assert "attempts inside" in content or "attempts against" in content
+        assert "at most three" in content or "three logical gates" in content
         assert "shared across implement and review" in content
         assert "source fingerprint" in content
         assert "expected pre-change failure" in content
-        assert "third failed epoch blocks" in content
-        assert "never start a fourth" in content
+        assert "runner_timeout" in content
+        assert "rerun the full command" in content
+        assert "open-handle" in content and "process-exit" in content
+        assert "deterministic bounded shards" in content
+        assert "agent-owned" in content
+        assert "human" in content and "skip them" in content
+        assert "interrupted" in content and (
+            "not failed" in content or "never a test failure" in content
+        )
+        assert "real assertion or verification failure" in content
+        assert "new fingerprint" in content
+        assert "never open a fourth" in content or "never start a fourth" in content
+        assert "deferral-propose" in content and "deferral-confirm" in content
+        assert "never means passed" in content or "never accepted" in content
+        assert "expires at review" in content
 
 
-def test_review_profiles_continue_the_implement_epoch_ledger() -> None:
+def test_review_profiles_continue_the_ledger_and_resolve_transferred_scope() -> None:
     for paths in (CLASSIC_REVIEW, ADVANCED_REVIEW):
         content = _flat(*paths)
 
@@ -76,13 +90,22 @@ def test_review_profiles_continue_the_implement_epoch_ledger() -> None:
         assert "implement validation-start --feature-dir <feature-dir> --stage review" in content
         assert "--purpose delivery" in content
         assert "implement validation-finish --feature-dir <feature-dir> --run-id <vn>" in content
-        assert "--status <passed|failed>" in content
-        assert "validation epoch" in content
+        assert "--status <passed|failed|interrupted>" in content
+        assert "delivery gate" in content
+        assert "attempt" in content
         assert "shared across implement and review" in content
         assert "do not reset" in content
-        assert "third failed epoch blocks" in content
-        assert "never start a fourth" in content
+        assert "interrupted" in content and "not failed" in content
+        assert "open-handle" in content and "process-exit" in content
+        assert "deterministic bounded shards" in content
+        assert "new fingerprint" in content
+        assert "never open a fourth" in content
         assert "official real entrypoint" in content
+        assert "implementation_deferrals" in content
+        assert "status: resolved" in content
+        assert "--restart-stale" in content
+        assert "malformed" in content
+        assert "exact old bytes" in content
 
 
 def test_task_workers_only_run_cheap_checks_and_leader_owns_heavy_gates() -> None:
@@ -92,7 +115,7 @@ def test_task_workers_only_run_cheap_checks_and_leader_owns_heavy_gates() -> Non
         assert "task checks" in content
         assert "cheap" in content
         assert "heavyweight" in content
-        assert "leader" in content and "validation epoch" in content
+        assert "leader" in content and "validation attempt" in content
         assert "must not run" in content and "per txx" in content
         assert "test impact" in content
         assert "created but not wired" in content
@@ -107,10 +130,10 @@ def test_task_workers_only_run_cheap_checks_and_leader_owns_heavy_gates() -> Non
     assert "validation_gates" in classic_packet
     assert "verify_commands" in classic_packet
     assert "required_validation" in classic_packet
-    assert "remain inputs to the leader-owned epoch" in classic_packet
+    assert "remain inputs to the leader-owned gate attempt" in classic_packet
 
 
-def test_ui_capture_is_integrated_in_an_epoch_not_repeated_per_microtask() -> None:
+def test_ui_capture_is_integrated_in_an_attempt_not_repeated_per_microtask() -> None:
     for paths in (CLASSIC_IMPLEMENT + CLASSIC_REVIEW, ADVANCED_IMPLEMENT + ADVANCED_REVIEW):
         content = _flat(*paths)
 
@@ -121,15 +144,15 @@ def test_ui_capture_is_integrated_in_an_epoch_not_repeated_per_microtask() -> No
         assert "runtime_diagnostics" in content
 
 
-def test_review_batches_repairs_before_spending_another_epoch() -> None:
+def test_review_batches_repairs_before_opening_another_attempt() -> None:
     for paths in (CLASSIC_REVIEW, ADVANCED_REVIEW):
         content = _flat(*paths)
 
         assert "complete repair batch" in content
-        assert "do not open an epoch per finding or per repair" in content
+        assert "do not open an attempt per finding or per repair" in content
 
 
-def test_passive_testing_guidance_defers_to_workflow_epoch_ownership() -> None:
+def test_passive_testing_guidance_defers_to_workflow_gate_ownership() -> None:
     passive_paths = (
         "templates/passive-skills/tdd-workflow/SKILL.md",
         "templates/passive-skills/test-driven-development/SKILL.md",
@@ -143,8 +166,11 @@ def test_passive_testing_guidance_defers_to_workflow_epoch_ownership() -> None:
         content = _flat(path)
 
         assert "workflow-owned validation" in content, path
-        assert "validation epoch" in content, path
-        assert "must not start an extra validation epoch" in content, path
+        assert "validation" in content and "attempt" in content, path
+        assert (
+            "must not start an extra gate or" in content
+            or "must not start an extra logical gate or" in content
+        ), path
 
     verification = _flat(
         "templates/passive-skills/verification-before-completion/SKILL.md"

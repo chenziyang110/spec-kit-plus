@@ -36,11 +36,11 @@ When delegation is selected, the leader compiles the current packet, dispatches,
 - A successful worker result must include `must_preserve_evidence` for every packet obligation that affects acceptance, references, forbidden drift, or conflict/reopen conditions.
 - Packets project only cheap `task_checks` into worker `validation_gates` or
   `verify_commands`. Canonical task-index `verification` and
-  `required_validation` remain inputs to the Leader-owned epoch. Workers return
+  `required_validation` remain inputs to the Leader-owned gate attempt. Workers return
   test impact: changed behavior, affected test targets, required heavy gates,
   and expected regression scope. They must not run a test suite, full build,
   service startup, E2E flow, or browser/viewport capture per Txx. The Leader
-  alone owns the shared validation epoch and source fingerprint.
+  alone owns the shared logical gate, validation attempt, and source fingerprint.
 - If implementation discovers a conflict with an `MP-*` obligation, stop and return a blocked result; do not silently rewrite the product goal, non-goal, selected decision, or reference obligation.
 - [AGENT] The leader must wait for and consume the structured handoff before closing the join point, declaring completion, requesting shutdown, or interrupting subagent execution
 - Idle subagent is not an accepted result
@@ -51,7 +51,7 @@ Accept a delegated lane only through a `WorkerTaskResult`-compatible payload con
 
 Cheap producer-to-consumer wiring evidence remains task-local and required when
 the packet names a consumer surface. Only runtime real-entrypoint proof is
-deferred to the Leader-owned epoch; do not defer a static "created but not
+deferred to the Leader-owned attempt; do not defer a static "created but not
 wired" check merely because `mode: feature_epochs` is active.
 
 ### Autonomous Blocker Recovery
@@ -67,8 +67,8 @@ If technical blockers arise (build errors, missing toolchain components, environ
 - Do not dispatch a subagent when required packet fields or required references are missing — repair the packet first or stop as `subagent-blocked`
 - Do not dispatch image-backed UI implementation when the worker cannot inspect the original visual input and the task depends on fidelity. Repair the packet/handoff first, or stop as `subagent-blocked` with the missing image handoff reason.
 - Do not bypass lifecycle truth, result handoffs, or verification gates.
-- Do not let a worker, passive skill, task transition, join, or resume start an
-  extra validation epoch. The epoch ledger is shared across Implement and Review,
-  permits at most three, and is never reset. The third failed epoch blocks;
-  never start a fourth.
+- Do not let a worker, passive skill, task transition, join, or resume open an
+  extra logical gate. The ledger has three logical gates shared across Implement
+  and Review; physical retries remain attempts inside the owning gate. Workers
+  never open attempts.
 - Do not declare completion because tasks look checked off if the implementation contract is not actually satisfied

@@ -1,6 +1,6 @@
 ---
 name: tdd-workflow
-description: Use this skill for test-first design in standalone changes or when the owning workflow selects TDD. Defers test execution to workflow-owned validation epochs when sp-implement feature batching is active.
+description: Use this skill for test-first design in standalone changes or when the owning workflow selects TDD. Defers test execution to workflow-owned logical gates and attempts when sp-implement feature batching is active.
 origin: ECC
 ---
 
@@ -13,12 +13,12 @@ This skill ensures all code development follows TDD principles with comprehensiv
 When `sp-implement` activates `task-index.validation_policy.mode:
 feature_epochs`, its validation contract owns test execution. Keep tests authored
 before their change-set's production edits, but let the Leader combine them into
-one RED/baseline epoch and one later convergence epoch. Per-Txx workers run only
+one RED/baseline gate and one later convergence gate. Per-Txx workers run only
 cheap task checks and return test impact; they do not run RED/GREEN, a full suite,
 coverage, build, startup, E2E, or UI capture themselves.
 
-The validation epoch budget is shared across Implement and Review. This passive
-skill must not start an extra validation epoch before a task transition,
+The logical-gate ledger is shared across Implement and Review. This passive
+skill must not start an extra gate or validation attempt before a task transition,
 delegation, commit, status message, or completion claim. Reuse the canonical
 `implementation-review/validation-runs.json` evidence for the unchanged source
 fingerprint. The generic steps below apply directly only when no owning workflow
@@ -117,8 +117,8 @@ npm test
 # Tests should fail - we haven't implemented yet
 ```
 
-For standalone work this step is the RED gate. In workflow-owned feature-epoch
-execution, the Leader runs one combined RED/baseline epoch for the mapped
+For standalone work this step is the RED gate. In workflow-owned feature-gate
+execution, the Leader runs one combined RED/baseline gate attempt for the mapped
 change-set instead of repeating this command per Txx.
 
 Before modifying business logic or other production code, you must verify a valid RED state via one of these paths:
@@ -134,7 +134,7 @@ Before modifying business logic or other production code, you must verify a vali
 
 A test that was only written but not compiled and executed does not count as
 RED; a worker's test-authoring result therefore remains pending until the
-Leader-owned epoch records it.
+Leader-owned attempt records it.
 
 Do not edit production code until this RED state is confirmed.
 

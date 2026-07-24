@@ -143,7 +143,7 @@ def test_legacy_packet_keeps_per_task_validation_behavior(tmp_path: Path) -> Non
         validate_worker_task_packet(packet)
 
 
-def test_validation_budget_reuses_identical_epoch_and_blocks_a_fourth(
+def test_validation_budget_counts_logical_gates_and_retries_inside_delivery(
     tmp_path: Path,
 ) -> None:
     project_root, feature_dir = _write_packet_project(
@@ -198,20 +198,24 @@ def test_validation_budget_reuses_identical_epoch_and_blocks_a_fourth(
             summary=f"{purpose} passed",
         )
 
-    with pytest.raises(ValidationBudgetError, match="maximum of 3"):
-        reserve_validation_epoch(
-            project_root,
-            feature_dir,
-            stage="review",
-            purpose="delivery",
-            fingerprint="sha-d",
-            commands=["pytest -q"],
-            covered_task_ids=["T001"],
-        )
+    retry = reserve_validation_epoch(
+        project_root,
+        feature_dir,
+        stage="review",
+        purpose="delivery",
+        fingerprint="sha-d",
+        commands=["pytest -q"],
+        covered_task_ids=["T001"],
+    )
+    assert retry["run_id"] == "V3"
+    assert retry["attempt_id"] == "V3-A2"
+    assert retry["used_epochs"] == 3
+    assert retry["used_attempts"] == 4
 
     status = validation_budget_status(project_root, feature_dir)
     assert status["used_epochs"] == 3
     assert status["remaining_epochs"] == 0
+    assert status["used_attempts"] == 4
     assert [run["purpose"] for run in status["runs"]] == [
         "baseline",
         "convergence",
@@ -234,7 +238,7 @@ def test_failed_epoch_cannot_be_retried_without_a_new_fingerprint(
         commands=["pytest -q"],
         covered_task_ids=["T001"],
     )
-    complete_validation_epoch(
+    failed = complete_validation_epoch(
         project_root,
         feature_dir,
         run_id=run["run_id"],
@@ -242,6 +246,7 @@ def test_failed_epoch_cannot_be_retried_without_a_new_fingerprint(
         evidence_refs=["logs/failure.txt"],
         summary="One test failed",
     )
+    assert "Diagnose and repair" in failed["next_action"]
 
     with pytest.raises(ValidationBudgetError, match="unchanged fingerprint"):
         reserve_validation_epoch(
@@ -253,6 +258,501 @@ def test_failed_epoch_cannot_be_retried_without_a_new_fingerprint(
             commands=["pytest -q"],
             covered_task_ids=["T001"],
         )
+
+
+def test_interrupted_attempt_retries_same_logical_epoch_without_consuming_review(
+    tmp_path: Path,
+) -> None:
+    project_root, feature_dir = _write_packet_project(
+        tmp_path, feature_epochs=True
+    )
+    first = reserve_validation_epoch(
+        project_root,
+        feature_dir,
+        stage="implement",
+        purpose="convergence",
+        fingerprint="sha-a",
+        commands=["pytest -q"],
+        covered_task_ids=["T001"],
+    )
+    interrupted = complete_validation_epoch(
+        project_root,
+        feature_dir,
+        run_id=first["run_id"],
+        status="interrupted",
+        failure_kind="runner_timeout",
+        evidence_refs=["logs/runner-timeout.txt"],
+        summary="The execution host terminated the command before a verdict.",
+    )
+    assert "Do not rerun the whole gate blindly" in interrupted["next_action"]
+    assert "bounded shards" in interrupted["next_action"]
+
+    retry = reserve_validation_epoch(
+        project_root,
+        feature_dir,
+        stage="implement",
+        purpose="convergence",
+        fingerprint="sha-a",
+        commands=["pytest -q"],
+        covered_task_ids=["T001"],
+    )
+
+    assert retry["run_id"] == first["run_id"]
+    assert retry["attempt_id"] == "V1-A2"
+    assert retry["used_epochs"] == 1
+    assert retry["used_attempts"] == 2
+    assert retry["remaining_epochs"] == 2
+
+    complete_validation_epoch(
+        project_root,
+        feature_dir,
+        run_id=retry["run_id"],
+        status="passed",
+        evidence_refs=["logs/convergence-pass.txt"],
+        summary="Convergence passed after runner recovery.",
+    )
+    delivery = reserve_validation_epoch(
+        project_root,
+        feature_dir,
+        stage="review",
+        purpose="delivery",
+        fingerprint="sha-a",
+        commands=["pytest -q"],
+        covered_task_ids=["T001"],
+    )
+    assert delivery["run_id"] == "V2"
+    assert delivery["remaining_epochs"] == 1
+
+
+@pytest.mark.parametrize(
+    ("status", "failure_kind", "message"),
+    (
+        ("failed", "runner_timeout", "runner, harness, and environment loss"),
+        ("interrupted", "assertion", "must be failed, not interrupted"),
+    ),
+)
+def test_validation_outcome_rejects_failure_kind_misclassification(
+    tmp_path: Path,
+    status: str,
+    failure_kind: str,
+    message: str,
+) -> None:
+    project_root, feature_dir = _write_packet_project(
+        tmp_path, feature_epochs=True
+    )
+    run = reserve_validation_epoch(
+        project_root,
+        feature_dir,
+        stage="implement",
+        purpose="convergence",
+        fingerprint="sha-a",
+        commands=["pytest -q"],
+        covered_task_ids=["T001"],
+    )
+
+    with pytest.raises(ValidationBudgetError, match=message):
+        complete_validation_epoch(
+            project_root,
+            feature_dir,
+            run_id=run["run_id"],
+            status=status,
+            failure_kind=failure_kind,
+            evidence_refs=["logs/outcome.txt"],
+            summary="The caller supplied the wrong outcome class.",
+        )
+
+
+def test_validation_rejects_a_nonlatest_running_attempt(
+    tmp_path: Path,
+) -> None:
+    project_root, feature_dir = _write_packet_project(
+        tmp_path, feature_epochs=True
+    )
+    run = reserve_validation_epoch(
+        project_root,
+        feature_dir,
+        stage="implement",
+        purpose="convergence",
+        fingerprint="sha-a",
+        commands=["pytest -q"],
+        covered_task_ids=["T001"],
+    )
+    complete_validation_epoch(
+        project_root,
+        feature_dir,
+        run_id=run["run_id"],
+        status="interrupted",
+        failure_kind="runner_timeout",
+        evidence_refs=["logs/runner-timeout.txt"],
+        summary="The runner timed out.",
+    )
+    reserve_validation_epoch(
+        project_root,
+        feature_dir,
+        stage="implement",
+        purpose="convergence",
+        fingerprint="sha-a",
+        commands=["pytest -q"],
+        covered_task_ids=["T001"],
+    )
+    ledger_path = (
+        feature_dir / "implementation-review" / "validation-runs.json"
+    )
+    ledger = json.loads(ledger_path.read_text(encoding="utf-8"))
+    ledger["runs"][0]["attempts"][0]["status"] = "running"
+    ledger["runs"][0]["attempts"][0]["failure_kind"] = None
+    ledger["runs"][0]["attempts"][0]["evidence_refs"] = []
+    ledger["runs"][0]["attempts"][0]["summary"] = ""
+    ledger["runs"][0]["attempts"][0]["completed_at"] = ""
+    ledger_path.write_text(json.dumps(ledger), encoding="utf-8")
+
+    with pytest.raises(ValidationBudgetError, match="latest attempt may be running"):
+        validation_budget_status(project_root, feature_dir)
+
+
+def test_validation_rejects_late_baseline_and_non_three_gate_policy(
+    tmp_path: Path,
+) -> None:
+    project_root, feature_dir = _write_packet_project(
+        tmp_path, feature_epochs=True
+    )
+    convergence = reserve_validation_epoch(
+        project_root,
+        feature_dir,
+        stage="implement",
+        purpose="convergence",
+        fingerprint="sha-a",
+        commands=["pytest -q"],
+        covered_task_ids=["T001"],
+    )
+    complete_validation_epoch(
+        project_root,
+        feature_dir,
+        run_id=convergence["run_id"],
+        status="passed",
+        evidence_refs=["logs/convergence.txt"],
+        summary="Convergence passed.",
+    )
+    with pytest.raises(ValidationBudgetError, match="early optional gate"):
+        reserve_validation_epoch(
+            project_root,
+            feature_dir,
+            stage="implement",
+            purpose="baseline",
+            fingerprint="sha-a",
+            commands=["pytest -q"],
+            covered_task_ids=["T001"],
+        )
+
+    task_index_path = feature_dir / "task-index.json"
+    task_index = json.loads(task_index_path.read_text(encoding="utf-8"))
+    task_index["validation_policy"]["max_epochs"] = 2
+    task_index_path.write_text(json.dumps(task_index), encoding="utf-8")
+    with pytest.raises(ValidationBudgetError, match="must equal 3"):
+        validation_budget_status(project_root, feature_dir)
+
+
+@pytest.mark.parametrize(
+    ("active_stage", "requested_stage", "purpose"),
+    (
+        ("review", "implement", "convergence"),
+        ("implement", "review", "delivery"),
+    ),
+)
+def test_validation_gate_requires_active_stage_ownership(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    active_stage: str,
+    requested_stage: str,
+    purpose: str,
+) -> None:
+    project_root, feature_dir = _write_packet_project(
+        tmp_path, feature_epochs=True
+    )
+    (feature_dir / "workflow.json").write_text("{}\n", encoding="utf-8")
+    monkeypatch.setattr(
+        "specify_cli.workflow_runtime.show_workflow",
+        lambda _feature: {
+            "data": {"stage": active_stage, "status": "active"}
+        },
+    )
+
+    with pytest.raises(ValidationBudgetError, match="workflow ownership"):
+        reserve_validation_epoch(
+            project_root,
+            feature_dir,
+            stage=requested_stage,
+            purpose=purpose,
+            fingerprint="sha-a",
+            commands=["pytest -q"],
+            covered_task_ids=["T001"],
+        )
+
+
+def test_running_attempt_cannot_be_finished_after_stage_ownership_changes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project_root, feature_dir = _write_packet_project(
+        tmp_path, feature_epochs=True
+    )
+    attempt = reserve_validation_epoch(
+        project_root,
+        feature_dir,
+        stage="implement",
+        purpose="convergence",
+        fingerprint="sha-a",
+        commands=["pytest -q"],
+        covered_task_ids=["T001"],
+    )
+    (feature_dir / "workflow.json").write_text("{}\n", encoding="utf-8")
+    monkeypatch.setattr(
+        "specify_cli.workflow_runtime.show_workflow",
+        lambda _feature: {
+            "data": {"stage": "review", "status": "active"}
+        },
+    )
+
+    with pytest.raises(ValidationBudgetError, match="workflow ownership"):
+        complete_validation_epoch(
+            project_root,
+            feature_dir,
+            run_id=attempt["run_id"],
+            status="passed",
+            evidence_refs=["logs/convergence.txt"],
+            summary="Convergence passed.",
+        )
+
+
+def test_assertion_failure_retries_same_gate_only_after_fingerprint_changes(
+    tmp_path: Path,
+) -> None:
+    project_root, feature_dir = _write_packet_project(
+        tmp_path, feature_epochs=True
+    )
+    first = reserve_validation_epoch(
+        project_root,
+        feature_dir,
+        stage="implement",
+        purpose="convergence",
+        fingerprint="sha-a",
+        commands=["pytest -q"],
+        covered_task_ids=["T001"],
+    )
+    complete_validation_epoch(
+        project_root,
+        feature_dir,
+        run_id=first["run_id"],
+        status="failed",
+        failure_kind="assertion",
+        evidence_refs=["logs/assertion.txt"],
+        summary="One assertion failed.",
+    )
+
+    retry = reserve_validation_epoch(
+        project_root,
+        feature_dir,
+        stage="implement",
+        purpose="convergence",
+        fingerprint="sha-b",
+        commands=["pytest -q"],
+        covered_task_ids=["T001"],
+    )
+
+    assert retry["run_id"] == "V1"
+    assert retry["attempt_id"] == "V1-A2"
+    assert retry["used_epochs"] == 1
+    assert retry["used_attempts"] == 2
+
+
+def test_legacy_timeout_status_is_migrated_to_retryable_interruption(
+    tmp_path: Path,
+) -> None:
+    project_root, feature_dir = _write_packet_project(
+        tmp_path, feature_epochs=True
+    )
+    ledger_path = feature_dir / "implementation-review" / "validation-runs.json"
+    ledger_path.parent.mkdir(parents=True)
+    ledger_path.write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "mode": "feature_epochs",
+                "budget_scope": "implement-review",
+                "max_epochs": 3,
+                "runs": [
+                    {
+                        "run_id": "V1",
+                        "stage": "implement",
+                        "purpose": "convergence-and-available-real-evidence",
+                        "fingerprint": "sha-a",
+                        "commands": ["pytest -q"],
+                        "covered_task_ids": ["T001"],
+                        "status": "failed-timeout",
+                        "evidence_refs": ["logs/timeout.txt"],
+                        "summary": "Runner stopped after 124 seconds.",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    status = validation_budget_status(project_root, feature_dir)
+
+    assert status["version"] == 2
+    assert status["runs"][0]["purpose"] == "convergence"
+    assert status["runs"][0]["status"] == "interrupted"
+    assert status["runs"][0]["failure_kind"] == "runner_timeout"
+    retry = reserve_validation_epoch(
+        project_root,
+        feature_dir,
+        stage="implement",
+        purpose="convergence",
+        fingerprint="sha-a",
+        commands=["pytest -q"],
+        covered_task_ids=["T001"],
+    )
+    assert retry["run_id"] == "V1"
+    assert retry["attempt_id"] == "V1-A2"
+
+
+def test_migrated_legacy_history_cannot_be_rewritten(tmp_path: Path) -> None:
+    project_root, feature_dir = _write_packet_project(
+        tmp_path, feature_epochs=True
+    )
+    ledger_path = feature_dir / "implementation-review" / "validation-runs.json"
+    ledger_path.parent.mkdir(parents=True)
+    ledger_path.write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "mode": "feature_epochs",
+                "budget_scope": "implement-review",
+                "max_epochs": 3,
+                "runs": [
+                    {
+                        "run_id": "V1",
+                        "stage": "implement",
+                        "purpose": "convergence",
+                        "fingerprint": "sha-a",
+                        "commands": ["pytest -q"],
+                        "covered_task_ids": ["T001"],
+                        "status": "failed-timeout",
+                        "evidence_refs": ["logs/timeout.txt"],
+                        "summary": "Runner stopped after 124 seconds.",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    reserve_validation_epoch(
+        project_root,
+        feature_dir,
+        stage="implement",
+        purpose="convergence",
+        fingerprint="sha-a",
+        commands=["pytest -q"],
+        covered_task_ids=["T001"],
+    )
+    ledger = json.loads(ledger_path.read_text(encoding="utf-8"))
+    ledger["runs"][0]["attempts"][0]["fingerprint"] = "rewritten"
+    ledger_path.write_text(json.dumps(ledger), encoding="utf-8")
+
+    with pytest.raises(ValidationBudgetError, match="migrated attempt history"):
+        validation_budget_status(project_root, feature_dir)
+
+
+def test_validation_ledger_rejects_reordered_logical_gates(
+    tmp_path: Path,
+) -> None:
+    project_root, feature_dir = _write_packet_project(
+        tmp_path, feature_epochs=True
+    )
+    for purpose, stage, fingerprint in (
+        ("convergence", "implement", "sha-a"),
+        ("delivery", "review", "sha-b"),
+    ):
+        run = reserve_validation_epoch(
+            project_root,
+            feature_dir,
+            stage=stage,
+            purpose=purpose,
+            fingerprint=fingerprint,
+            commands=["pytest -q"],
+            covered_task_ids=["T001"],
+        )
+        complete_validation_epoch(
+            project_root,
+            feature_dir,
+            run_id=run["run_id"],
+            status="passed",
+            evidence_refs=[f"logs/{purpose}.txt"],
+            summary=f"{purpose} passed.",
+        )
+    ledger_path = feature_dir / "implementation-review" / "validation-runs.json"
+    ledger = json.loads(ledger_path.read_text(encoding="utf-8"))
+    ledger["runs"].reverse()
+    for index, run in enumerate(ledger["runs"], start=1):
+        run["run_id"] = f"V{index}"
+        for attempt_index, attempt in enumerate(run["attempts"], start=1):
+            attempt["attempt_id"] = f"V{index}-A{attempt_index}"
+        run["attempt_id"] = run["attempts"][-1]["attempt_id"]
+    ledger_path.write_text(json.dumps(ledger), encoding="utf-8")
+
+    with pytest.raises(ValidationBudgetError, match="must remain ordered"):
+        validation_budget_status(project_root, feature_dir)
+
+
+def test_validation_ledger_rejects_unknown_run_status(tmp_path: Path) -> None:
+    project_root, feature_dir = _write_packet_project(
+        tmp_path, feature_epochs=True
+    )
+    ledger_path = feature_dir / "implementation-review" / "validation-runs.json"
+    ledger_path.parent.mkdir(parents=True)
+    ledger_path.write_text(
+        json.dumps(
+            {
+                "version": 2,
+                "mode": "feature_epochs",
+                "budget_scope": "implement-review",
+                "max_epochs": 3,
+                "runs": [
+                    {
+                        "run_id": "V1",
+                        "stage": "implement",
+                        "purpose": "convergence",
+                        "fingerprint": "sha-a",
+                        "commands": ["pytest -q"],
+                        "covered_task_ids": ["T001"],
+                        "status": "failed-timeout",
+                        "failure_kind": None,
+                        "evidence_refs": [],
+                        "summary": "",
+                        "attempts": [
+                            {
+                                "attempt_id": "V1-A1",
+                                "fingerprint": "sha-a",
+                                "commands": ["pytest -q"],
+                                "covered_task_ids": ["T001"],
+                                "status": "failed-timeout",
+                                "failure_kind": None,
+                                "evidence_refs": [],
+                                "summary": "",
+                                "started_at": "",
+                                "completed_at": "",
+                            }
+                        ],
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValidationBudgetError, match="unsupported status"):
+        validation_budget_status(project_root, feature_dir)
 
 
 def test_validation_budget_allows_only_one_running_epoch(tmp_path: Path) -> None:
@@ -379,6 +879,7 @@ def test_validation_budget_rejects_rewritten_handoff_history(tmp_path: Path) -> 
     ledger_path = feature_dir / "implementation-review" / "validation-runs.json"
     ledger = json.loads(ledger_path.read_text(encoding="utf-8"))
     ledger["runs"][0]["summary"] = "rewritten history"
+    ledger["runs"][0]["attempts"][-1]["summary"] = "rewritten history"
     ledger_path.write_text(json.dumps(ledger), encoding="utf-8")
 
     with pytest.raises(ValidationBudgetError, match="history digest"):
@@ -414,7 +915,9 @@ def test_structured_templates_share_one_three_epoch_validation_budget() -> None:
         "budget_ref": "implementation-review/validation-runs.json",
         "max_epochs": 3,
         "used_epochs": 0,
+        "used_attempts": 0,
         "active_run_id": None,
+        "active_attempt_id": None,
     }
 
 
@@ -438,3 +941,6 @@ def test_task_generation_surfaces_separate_task_checks_from_shared_gates() -> No
         assert "task_checks" in surface
         assert "max_epochs" in surface
         assert "implement-review" in surface
+        assert "logical" in surface
+        assert "attempt" in surface
+        assert "timeout" in surface

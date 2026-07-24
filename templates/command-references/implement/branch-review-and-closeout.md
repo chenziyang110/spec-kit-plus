@@ -16,7 +16,7 @@ Preserved Contract: implementation is task-driven, uses validated packets for de
 5. For delegated work, compile and validate a WorkerTaskPacket just in time from the current task, live code, and stable contract refs. Never dispatch raw task text.
 6. Establish one change-set RED/repro baseline when required, implement within
    scope, run only cheap task checks per Txx, and record test impact for the next
-   Leader-owned validation epoch.
+   Leader-owned validation gate attempt.
 7. Run event-triggered review when repository/task drift, parallel join, write-scope drift, validation failure, worker concern, obligation conflict, real-entrypoint gap, or review-window threshold requires it.
 8. Update one task lifecycle record, execution state, and canonical task status. Continue automatically until complete or genuinely blocked.
 
@@ -28,7 +28,7 @@ Worker results contain status, changed paths, cheap task checks, test impact,
 task-relevant obligation evidence, concerns, and recovery when failed/blocked.
 The leader validates results and may advance dependency-safe work, but records
 feature verification as pending; a worker result never consumes or approves a
-heavyweight epoch.
+heavyweight gate attempt.
 
 ## Obligation And Boundary Integrity
 
@@ -49,21 +49,21 @@ Before completion:
 
 - reconcile task graph, execution state, lifecycle records, worker results, and actual changed paths;
 - verify every acceptance criterion and open `MP-*`/`CA-###` obligation;
-- reconcile the validation-epoch ledger shared across Implement and Review,
+- reconcile the validation ledger shared across Implement and Review,
   including each source fingerprint, result, covered Txx ids, and remaining
-  budget; the combined workflow allows at most three epochs;
+  attempt history; the combined workflow allows at most three logical gates;
 - run required focused and broader validation once for the integrated change-set
-  in the next Leader-owned epoch rather than once per Txx;
+  in the next Leader-owned attempt rather than once per Txx;
 - confirm real-entrypoint evidence and no unresolved blocker/open gap;
 - perform a broad diff review only when a review trigger fired or the changed surface is high risk; otherwise reuse accepted task validation and lifecycle evidence;
-- for UI work, run a visual convergence loop in a coordinated integrated epoch
+- for UI work, run a visual convergence loop in a coordinated integrated attempt
   rather than per microtask: open the real entry point once per applicable
   surface/fingerprint, capture the required viewport/state matrix,
   inspect it against `DESIGN.md`, `ui-brief.md`, and original fidelity refs,
   repair observable drift, and recapture. Use Playwright screenshots or
   representative output as applicable; check overflow, browser
   console, keyboard/focus, and accessibility when triggered; distinguish tests passed from visual/interaction acceptance;
-- task lifecycles preserve UI contract coverage and reference the shared epoch;
+- task lifecycles preserve UI contract coverage and reference the shared attempt;
   persist typed evidence with `evidence_scope: integrated`. Do not run the full
   viewport/state capture loop per Txx. `pending-human-review` blocks verified
   closeout;
@@ -72,9 +72,9 @@ Before completion:
 
 Write `implementation-handoff.json` for the mandatory system Review. Derive it deterministically from accepted lifecycle evidence, actual changed paths, the implementation fingerprint/source revision, official real entrypoints with ready signals, and required system-review scenarios. Validate it against the live Spec, Plan, and Tasks and preserve their exact complete `acceptance_refs` denominator, `acceptance_denominator_sha256`, and frozen Human Acceptance Universe (`human_acceptance_obligations`, `human_acceptance_scenarios`, and `human_acceptance_contract_sha256`) unchanged. Never omit an item, downgrade `required`, or reconstruct the frozen contract from prose. Each Review scenario carries stable acceptance refs, preconditions, actions, observable expected results, and evidence kinds. Keep agent-only lifecycle details by reference instead of reconstructing them in prose.
 
-Carry the validation-epoch ledger and remaining budget into that handoff without
-resetting it. Review consumes only the remaining shared budget. The third failed
-epoch blocks; never start a fourth.
+Carry the validation ledger, logical gates, and attempt history into that
+handoff without resetting it. Review owns the delivery gate. Interrupted
+attempts may retry inside their gate; never open a fourth logical gate.
 
 Implement does not own runtime identity for human acceptance. Do not create, infer, or prefill `reviewed_runtime_targets`; only `sp-review` creates immutable reviewed targets after the final integrated restart, evidence capture, and snapshot validation.
 

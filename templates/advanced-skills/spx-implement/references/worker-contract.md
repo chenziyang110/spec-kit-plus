@@ -10,8 +10,8 @@ Provide the worker:
 - full task outcome and authoritative contract refs;
 - allowed read/write paths and forbidden paths;
 - dependencies, must-preserve and consequence obligations;
-- acceptance, accepted change-set RED/baseline epoch ref or
-  test-authoring-only status, cheap task checks, deferred epoch gates, and
+- acceptance, accepted change-set RED/baseline gate-attempt ref or
+  test-authoring-only status, cheap task checks, deferred logical gates, and
   required real-entrypoint coverage;
 - exact structured result destination or return shape.
 
@@ -21,7 +21,7 @@ required states, and the integrated evidence triad. Return changed surfaces,
 state/viewport requirements, and visual risks; do not run the full viewport/state
 capture loop per Txx. The Leader records canonical `structure_snapshot`,
 `visual_capture`, and `runtime_diagnostics` with `evidence_scope: integrated`
-during a validation epoch. Before dispatch, the leader ensures the worker can
+during a Leader-owned validation attempt. Before dispatch, the leader ensures the worker can
 read the installed skill-local `references/ui-quality-gate.md` and names it in
 the dispatch context; the worker may not replace inspectable sources with a
 prose summary.
@@ -30,9 +30,9 @@ Require a result containing status, changed paths, cheap task checks, test
 impact, consumer or UI coverage notes when triggered, blockers, failed
 assumptions, and recovery guidance. Workers must not run a test suite, full
 build, service startup, E2E journey, or browser capture per Txx, and they cannot
-open or increment a validation epoch.
+open a logical gate or validation attempt.
 Cheap producer-to-consumer wiring evidence remains task-local when a consumer
-surface is named. Defer only runtime real-entrypoint proof to the Leader epoch;
+surface is named. Defer only runtime real-entrypoint proof to the Leader attempt;
 do not defer the static "created but not wired" check.
 Validate packet/result with the installed hook helpers when available. Do not
 accept idle execution, an unwritten handoff, or synthetic-only proof for a
@@ -40,8 +40,9 @@ real-entrypoint requirement.
 
 The leader must not edit an active worker write scope. After the join, inspect
 the integrated diff and collect the task's gates into one change-set validation
-epoch. The epoch ledger is shared across Implement and Review, permits at most
-three, and is never reset. The third failed epoch blocks; never start a fourth.
+attempt. The ledger has three logical gates shared across Implement and Review;
+physical retries remain attempts inside the owning gate and workers never open
+them.
 Prefer targeted
 edits that preserve approved working structure; do not replace whole UI files
 when a bounded change can converge safely. A worker may report

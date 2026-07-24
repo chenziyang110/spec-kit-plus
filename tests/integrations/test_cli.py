@@ -93,6 +93,9 @@ class TestInitIntegrationFlag:
             == ".specify/templates/task-lifecycle-schema.json#/$defs/blocker"
         )
         assert (project / ".specify" / "templates" / "task-lifecycle-schema.json").is_file()
+        assert (
+            project / ".specify" / "templates" / "implementation-deferral-schema.json"
+        ).is_file()
         assert (project / ".specify" / "project-cognition").is_dir()
         status = json.loads(
             (project / ".specify" / "project-cognition" / "status.json").read_text(

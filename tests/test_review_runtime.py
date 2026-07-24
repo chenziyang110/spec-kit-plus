@@ -7,6 +7,7 @@ from pathlib import Path
 from types import ModuleType
 
 import pytest
+from jsonschema import Draft202012Validator
 from tests.conftest import install_passing_workflow_gate
 
 from specify_cli.workflow_runtime import (
@@ -22,6 +23,30 @@ pytestmark = pytest.mark.usefixtures("unified_runtime_env")
 
 def _review_runtime() -> ModuleType:
     return importlib.import_module("specify_cli.review_runtime")
+
+
+def _sample_implementation_deferral() -> dict[str, object]:
+    return {
+        "deferral_id": "DEF-123456789abc",
+        "deferral_ref": (
+            "implementation-review/deferrals/DEF-123456789abc.json"
+        ),
+        "proposal_sha256": "a" * 64,
+        "confirmation_id": "HC-" + "b" * 24,
+        "implementation_fingerprint": "c" * 64,
+        "blocker_refs": ["T001-B01"],
+        "affected_task_ids": ["T001"],
+        "affected_acceptance_refs": ["FR-001"],
+        "deferred_validation_purposes": [],
+        "exact_excluded_behavior": "Remote device proof was unavailable.",
+        "residual_risk": "The device path was not yet observed.",
+        "risk_severity": "medium",
+        "claims_withheld": ["device path verified"],
+        "reopen_or_stop_condition": "Review must run the device path.",
+        "downstream_artifact": "implementation-handoff.json",
+        "downstream_owner": "review",
+        "defer_until": "review",
+    }
 
 
 def _mock_workflow_stage(
@@ -52,6 +77,121 @@ def test_review_findings_require_orthogonal_gap_classification() -> None:
         "finding SRF-MISSING requires gap_classification",
         "finding SRF-INVALID has unsupported gap_classification task_gap",
     ]
+
+
+def test_review_state_schema_requires_complete_implementation_deferrals() -> None:
+    root = Path(__file__).resolve().parents[1]
+    schema = json.loads(
+        (root / "templates" / "review-state-schema.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    Draft202012Validator.check_schema(schema)
+    assert "implementation_deferrals" in schema["required"]
+    item_schema = schema["properties"]["implementation_deferrals"]["items"]
+    validator = Draft202012Validator(item_schema)
+    complete_deferral = {
+        **_sample_implementation_deferral(),
+        "status": "pending",
+        "resolution": None,
+    }
+    assert list(validator.iter_errors(complete_deferral)) == []
+
+    resolution = {
+        "outcome": "passed",
+        "summary": "Review observed the deferred device path.",
+        "evidence_refs": ["review-evidence/deferral.json"],
+        "evidence_sha256": {"review-evidence/deferral.json": "d" * 64},
+        "review_cycle_id": "e" * 64,
+        "implementation_fingerprint": "f" * 64,
+    }
+    resolved_deferral = {
+        **_sample_implementation_deferral(),
+        "status": "resolved",
+        "resolution": resolution,
+    }
+    assert list(validator.iter_errors(resolved_deferral)) == []
+
+    invalid_resolved_deferral = {
+        **_sample_implementation_deferral(),
+        "status": "resolved",
+        "resolution": None,
+    }
+    assert list(validator.iter_errors(invalid_resolved_deferral))
+
+    invalid_pending_deferral = {
+        **_sample_implementation_deferral(),
+        "status": "pending",
+        "resolution": resolution,
+    }
+    assert list(validator.iter_errors(invalid_pending_deferral))
+
+    incomplete_deferral = {
+        "deferral_id": "DEF-123456789abc",
+        "status": "pending",
+        "resolution": None,
+    }
+    assert any(
+        error.validator == "required"
+        and "deferral_ref" in error.validator_value
+        for error in validator.iter_errors(incomplete_deferral)
+    )
+
+
+def test_review_must_resolve_implement_deferral_with_current_cycle_evidence(
+    tmp_path: Path,
+) -> None:
+    runtime = _review_runtime()
+    feature_dir = tmp_path / "feature"
+    evidence_path = feature_dir / "review-evidence" / "deferral.json"
+    evidence_path.parent.mkdir(parents=True)
+    evidence_path.write_text('{"result":"pass"}\n', encoding="utf-8")
+    deferral = _sample_implementation_deferral()
+    handoff = {"user_confirmed_deferrals": [deferral]}
+    state = {
+        "implementation_deferrals": runtime._new_review_deferral_states(
+            [deferral]
+        )
+    }
+
+    pending_errors, pending_fresh = runtime._review_deferral_resolution_errors(
+        state,
+        handoff,
+        feature_dir=feature_dir,
+        expected_snapshot="d" * 64,
+        review_cycle=1,
+        review_cycle_id="e" * 64,
+    )
+    assert pending_fresh is True
+    assert any("must be resolved in Review" in error for error in pending_errors)
+
+    state["implementation_deferrals"][0].update(
+        {
+            "status": "resolved",
+            "resolution": {
+                "outcome": "passed",
+                "summary": "Review observed the deferred device path.",
+                "evidence_refs": ["review-evidence/deferral.json"],
+                "evidence_sha256": {
+                    "review-evidence/deferral.json": hashlib.sha256(
+                        evidence_path.read_bytes()
+                    ).hexdigest()
+                },
+                "review_cycle_id": "e" * 64,
+                "implementation_fingerprint": "d" * 64,
+            },
+        }
+    )
+    errors, fresh = runtime._review_deferral_resolution_errors(
+        state,
+        handoff,
+        feature_dir=feature_dir,
+        expected_snapshot="d" * 64,
+        review_cycle=1,
+        review_cycle_id="e" * 64,
+    )
+    assert errors == []
+    assert fresh is True
 
 
 def _feature_at_review(tmp_path: Path) -> tuple[Path, Path, int]:
@@ -557,6 +697,7 @@ def test_prepare_review_compiles_handoff_into_resumable_review_state(
     assert state["review_assignments"] == []
     assert state["fix_assignments"] == []
     assert state["revalidations"] == []
+    assert state["implementation_deferrals"] == []
     assert state["coverage"]["blind_audit_complete"] is False
     assert state["leader"]["strategy"] == "pending"
     assert state["cursor"]["scenario_id"] == "SR-START-001"
@@ -566,6 +707,91 @@ def test_prepare_review_compiles_handoff_into_resumable_review_state(
     assert [item["id"] for item in state["human_acceptance_scenarios"]] == [
         "HA-DEMO-001"
     ]
+
+
+def test_prepare_review_can_archive_and_restart_stale_state(
+    tmp_path: Path,
+) -> None:
+    runtime, project_root, feature_dir, revision, _prepared = _prepare(
+        tmp_path
+    )
+    state_path = feature_dir / "review-state.json"
+    previous_bytes = state_path.read_bytes()
+    previous_digest = hashlib.sha256(previous_bytes).hexdigest()
+
+    restarted = runtime.prepare_review(
+        project_root,
+        feature_dir,
+        expected_revision=revision,
+        restart_stale=True,
+    )
+
+    assert restarted["status"] == "ok"
+    history_ref = restarted["data"]["archived_review_state_ref"]
+    assert history_ref == (
+        f"review-history/review-state-{previous_digest}.json"
+    )
+    assert (feature_dir / history_ref).read_bytes() == previous_bytes
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    assert state["source"]["review_cycle"] == 2
+    assert state["source"]["restart_reason"] == "stale-review-restart"
+    assert (
+        state["source"]["previous_review_state_sha256"] == previous_digest
+    )
+    assert state["rounds"][-1]["status"] == "restarted-stale"
+    assert state["scenarios"][0]["result"] == "pending"
+
+
+def test_restart_stale_archives_malformed_cycle_metadata_instead_of_crashing(
+    tmp_path: Path,
+) -> None:
+    runtime, project_root, feature_dir, revision, _prepared = _prepare(
+        tmp_path
+    )
+    state_path = feature_dir / "review-state.json"
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    state["source"]["review_cycle"] = "not-an-integer"
+    state["rounds"] = {"malformed": True}
+    state_path.write_text(json.dumps(state), encoding="utf-8")
+
+    restarted = runtime.prepare_review(
+        project_root,
+        feature_dir,
+        expected_revision=revision,
+        restart_stale=True,
+    )
+
+    assert restarted["status"] == "ok"
+    recovered = json.loads(state_path.read_text(encoding="utf-8"))
+    assert recovered["source"]["review_cycle"] == 2
+    assert len(recovered["rounds"]) == 1
+    assert recovered["rounds"][0]["status"] == "restarted-stale"
+
+
+def test_restart_stale_archives_invalid_json_bytes_and_recovers(
+    tmp_path: Path,
+) -> None:
+    runtime, project_root, feature_dir, revision, _prepared = _prepare(
+        tmp_path
+    )
+    state_path = feature_dir / "review-state.json"
+    invalid_bytes = b'{"status": "gathering"'
+    state_path.write_bytes(invalid_bytes)
+
+    restarted = runtime.prepare_review(
+        project_root,
+        feature_dir,
+        expected_revision=revision,
+        restart_stale=True,
+    )
+
+    assert restarted["status"] == "ok"
+    history_ref = restarted["data"]["archived_review_state_ref"]
+    assert (feature_dir / history_ref).read_bytes() == invalid_bytes
+    recovered = json.loads(state_path.read_text(encoding="utf-8"))
+    assert recovered["source"]["review_cycle"] == 2
+    assert recovered["rounds"][0]["status"] == "restarted-stale"
+    assert "invalid review-state.json" in recovered["rounds"][0]["restart_error"]
 
 
 def test_build_implementation_handoff_carries_the_human_acceptance_universe(
@@ -931,6 +1157,55 @@ def test_validate_review_rejects_failed_scenario_and_open_finding(
     assert validation["fresh"] is True
     assert any("SR-START-001" in error for error in validation["errors"])
     assert any("SRF-001" in error for error in validation["errors"])
+
+
+def test_optional_pending_review_scenario_does_not_require_fake_evidence(
+    tmp_path: Path,
+) -> None:
+    runtime = _review_runtime()
+    project_root, feature_dir, revision = _feature_at_review(tmp_path)
+    handoff_path = _write_implementation_handoff(feature_dir, revision)
+    handoff = json.loads(handoff_path.read_text(encoding="utf-8"))
+    handoff["system_review_scenarios"].append(
+        {
+            "id": "SR-OPTIONAL-001",
+            "kind": "interaction",
+            "title": "Inspect an optional secondary path",
+            "required": False,
+            "entrypoint_id": "web",
+            "preconditions": ["The product is ready."],
+            "actions": ["Open the optional path."],
+            "expected_results": ["The optional path can be inspected."],
+            "required_evidence": ["runtime_diagnostics"],
+        }
+    )
+    handoff_path.write_text(
+        json.dumps(handoff, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    runtime.prepare_review(
+        project_root,
+        feature_dir,
+        expected_revision=revision,
+    )
+    state_path = runtime.review_state_path(feature_dir)
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    _write_scenario_evidence(feature_dir, state)
+    optional = next(
+        item for item in state["scenarios"] if item["id"] == "SR-OPTIONAL-001"
+    )
+    optional["result"] = "pending"
+    optional["evidence"] = []
+    _complete_leader_review(state, feature_dir=feature_dir)
+    state["status"] = "approved"
+    state_path.write_text(
+        json.dumps(state, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+    validation = runtime.validate_review(project_root, feature_dir)
+
+    assert validation["valid"] is True, validation["errors"]
 
 
 def test_approved_review_requires_a_snapshot_bound_runtime_target(

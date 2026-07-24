@@ -1,0 +1,142 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": ".specify/templates/implementation-deferral-schema.json",
+  "title": "Human-confirmed Implement-to-Review deferral",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "schema_ref",
+    "deferral_id",
+    "status",
+    "source_stage",
+    "source_fingerprint",
+    "proposal",
+    "proposal_sha256",
+    "confirmation"
+  ],
+  "properties": {
+    "version": {"const": 1},
+    "schema_ref": {"const": ".specify/templates/implementation-deferral-schema.json"},
+    "deferral_id": {"type": "string", "pattern": "^DEF-[0-9a-f]{12}$"},
+    "status": {"enum": ["proposed", "confirmed"]},
+    "source_stage": {"const": "implement"},
+    "source_fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "proposal_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "proposal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "blocker_refs",
+        "affected_task_ids",
+        "affected_acceptance_refs",
+        "deferred_validation_purposes",
+        "exact_excluded_behavior",
+        "residual_risk",
+        "risk_severity",
+        "claims_withheld",
+        "reopen_or_stop_condition",
+        "downstream_artifact",
+        "downstream_owner",
+        "defer_until"
+      ],
+      "properties": {
+        "blocker_refs": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^(T\\d+-B\\d{2}|VALIDATION-(BASELINE|CONVERGENCE))$"
+          }
+        },
+        "affected_task_ids": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"type": "string", "pattern": "^T\\d+$"}
+        },
+        "affected_acceptance_refs": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "deferred_validation_purposes": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"enum": ["baseline", "convergence"]}
+        },
+        "exact_excluded_behavior": {"type": "string", "minLength": 1},
+        "residual_risk": {"type": "string", "minLength": 1},
+        "risk_severity": {"enum": ["low", "medium"]},
+        "claims_withheld": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "reopen_or_stop_condition": {"type": "string", "minLength": 1},
+        "downstream_artifact": {"const": "implementation-handoff.json"},
+        "downstream_owner": {"const": "review"},
+        "defer_until": {"const": "review"}
+      }
+    },
+    "confirmation": {
+      "oneOf": [
+        {"type": "null"},
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "actor",
+            "source",
+            "statement",
+            "confirmation_id",
+            "confirmed_payload_sha256",
+            "implementation_fingerprint"
+          ],
+          "properties": {
+            "actor": {"const": "human"},
+            "source": {"type": "string", "minLength": 1},
+            "statement": {"type": "string", "minLength": 1},
+            "confirmation_id": {"type": "string", "pattern": "^HC-[0-9a-f]{24}$"},
+            "confirmed_payload_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+            "implementation_fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+          }
+        }
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {"status": {"const": "proposed"}},
+        "required": ["status"]
+      },
+      "then": {
+        "properties": {"confirmation": {"type": "null"}}
+      }
+    },
+    {
+      "if": {
+        "properties": {"status": {"const": "confirmed"}},
+        "required": ["status"]
+      },
+      "then": {
+        "properties": {
+          "confirmation": {
+            "type": "object",
+            "required": [
+              "actor",
+              "source",
+              "statement",
+              "confirmation_id",
+              "confirmed_payload_sha256",
+              "implementation_fingerprint"
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

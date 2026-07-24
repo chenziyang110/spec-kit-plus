@@ -262,6 +262,7 @@ def test_wheel_force_include_bundles_structured_workflow_contract_templates() ->
     for template in (
         "plan-contract-template.json",
         "task-index-template.json",
+        "implementation-deferral-schema.json",
         "task-lifecycle-template.json",
         "task-lifecycle-schema.json",
         "task-packet-template.json",

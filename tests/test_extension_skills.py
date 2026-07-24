@@ -501,9 +501,9 @@ class TestBuiltInSkillGeneration:
         assert "validated `workertaskpacket`" in implement_body.lower()
         assert "dispatch only from validated `workertaskpacket`" in implement_body.lower() or "raw task text alone" in implement_body.lower()
         assert "select the smallest tests/repro checks before production edits" in implement_body.lower()
-        assert "optional red/baseline epoch" in implement_body.lower()
+        assert "optional red/baseline gate" in implement_body.lower()
         assert "leader opens one convergence" in implement_body.lower()
-        assert "no agent may reset the ledger or ever start a fourth" in implement_body.lower()
+        assert "reset the ledger or open a fourth logical gate" in implement_body.lower()
 
         analyze_body = _skill_body("sp-analyze")
         assert "Boundary Guardrail Gaps" in analyze_body

@@ -258,6 +258,7 @@ class AcceptedResidualRisk:
     reason: str
     owner: str
     finding_source: TaskReviewFindingSource = "findings"
+    decision_ref: str = ""
 
 
 @dataclass(slots=True)
@@ -266,6 +267,7 @@ class FollowUpWork:
     description: str
     target: str
     finding_source: TaskReviewFindingSource = "findings"
+    decision_ref: str = ""
 
 
 @dataclass(slots=True)
@@ -539,6 +541,25 @@ def task_review_acceptance_errors(record: TaskReviewRecord) -> list[str]:
                 "accepted_residual_risks references "
                 f"{risk.finding_source} {risk.finding_index} with disposition {target.disposition}"
             )
+        else:
+            if target.severity in {"high", "critical"}:
+                errors.append(
+                    "high/critical finding cannot be closed as accepted_residual_risk"
+                )
+            if (
+                target.category
+                in {
+                    "spec",
+                    "evidence",
+                    "ui_fidelity",
+                    "plan_mandated_defect",
+                }
+                and not risk.decision_ref.strip()
+            ):
+                errors.append(
+                    "delivery-affecting accepted_residual_risk requires a "
+                    "confirmed DEF decision_ref"
+                )
     for work in record.follow_up_work:
         target = findings_by_ref.get((work.finding_source, work.finding_index))
         if target is None:
@@ -550,6 +571,25 @@ def task_review_acceptance_errors(record: TaskReviewRecord) -> list[str]:
                 "follow_up_work references "
                 f"{work.finding_source} {work.finding_index} with disposition {target.disposition}"
             )
+        else:
+            if target.severity in {"high", "critical"}:
+                errors.append(
+                    "high/critical finding cannot be closed as follow_up"
+                )
+            if (
+                target.category
+                in {
+                    "spec",
+                    "evidence",
+                    "ui_fidelity",
+                    "plan_mandated_defect",
+                }
+                and not work.decision_ref.strip()
+            ):
+                errors.append(
+                    "delivery-affecting follow_up requires a "
+                    "confirmed DEF decision_ref"
+                )
 
     if record.ui_fidelity_result == "fail":
         errors.append("ui_fidelity_result fail blocks acceptance")

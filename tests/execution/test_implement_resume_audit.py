@@ -21,6 +21,11 @@ from specify_cli.implementation_summary import (
     build_implementation_summary,
     implementation_closeout_blockers,
 )
+from specify_cli.implementation_deferrals import (
+    ImplementationDeferralError,
+    confirm_implementation_deferral,
+    propose_implementation_deferral,
+)
 from specify_cli.review_runtime import implementation_snapshot_sha256
 from specify_cli.validation_budget import (
     complete_validation_epoch,
@@ -541,6 +546,118 @@ def test_active_resume_audit_surfaces_mandatory_external_task_blocker(
     assert payload["trusted_terminal_state"] is False
     assert any(
         "T001" in gap and "mandatory_for_completion" in gap
+        for gap in payload["open_gaps"]
+    )
+
+
+def test_terminal_modern_lifecycle_rejects_unchecked_undisposed_task(
+    tmp_path: Path,
+) -> None:
+    feature_dir = tmp_path / "specs" / "001-undisposed"
+    _write_basic_feature(feature_dir)
+    (feature_dir / "tasks.md").write_text(
+        "# Tasks\n\n- [ ] T001 Validate external device\n",
+        encoding="utf-8",
+    )
+    (feature_dir / "task-index.json").write_text(
+        json.dumps(
+            {
+                "version": 2,
+                "status": "ready",
+                "tasks": [{"id": "T001"}],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    payload = audit_implement_resume(tmp_path, feature_dir)
+
+    assert payload["trusted_terminal_state"] is False
+    assert any(
+        "T001 is unchecked" in gap and "deferred lifecycle" in gap
+        for gap in payload["open_gaps"]
+    )
+
+
+def test_terminal_modern_lifecycle_accepts_human_confirmed_review_transfer(
+    tmp_path: Path,
+) -> None:
+    feature_dir = tmp_path / "specs" / "001-deferred"
+    _write_basic_feature(feature_dir)
+    (feature_dir / "tasks.md").write_text(
+        "# Tasks\n\n- [ ] T001 Validate external device\n",
+        encoding="utf-8",
+    )
+    (feature_dir / "task-index.json").write_text(
+        json.dumps(
+            {
+                "version": 2,
+                "status": "ready",
+                "acceptance_refs": ["FR-001"],
+                "tasks": [{"id": "T001"}],
+            }
+        ),
+        encoding="utf-8",
+    )
+    lifecycle_dir = feature_dir / "implementation-review" / "tasks"
+    lifecycle_dir.mkdir(parents=True)
+    (lifecycle_dir / "T001.json").write_text(
+        json.dumps(
+            {
+                "task_id": "T001",
+                "status": "blocked",
+                "changed_paths": [],
+                "validation": [],
+                "blockers": [
+                    {
+                        "classification": "external",
+                        "owner": "user",
+                        "evidence": "Device is unavailable.",
+                        "exact_next_action": "Run the device flow in Review.",
+                        "approval_question": "Transfer this device check to Review?",
+                        "unblock_criteria": "Review records device evidence.",
+                        "implementation_can_continue": True,
+                        "completion_impact": "mandatory_for_completion",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    proposed = propose_implementation_deferral(
+        tmp_path,
+        feature_dir,
+        {
+            "blocker_refs": ["T001-B01"],
+            "affected_task_ids": ["T001"],
+            "affected_acceptance_refs": ["FR-001"],
+            "deferred_validation_purposes": [],
+            "exact_excluded_behavior": "Device evidence is unavailable.",
+            "residual_risk": "Device-specific drift may remain.",
+            "risk_severity": "medium",
+            "claims_withheld": ["device verified"],
+            "reopen_or_stop_condition": "Review must run the device flow.",
+            "downstream_artifact": "implementation-handoff.json",
+            "downstream_owner": "review",
+            "defer_until": "review",
+        },
+    )
+    confirm_implementation_deferral(
+        tmp_path,
+        feature_dir,
+        deferral_id=proposed["deferral_id"],
+        proposal_sha256=proposed["proposal_sha256"],
+        confirmation_source="human-reply",
+        statement="同意暂时移交 Review，不算通过。",
+    )
+
+    payload = audit_implement_resume(tmp_path, feature_dir)
+
+    assert not any(
+        "T001 is unchecked" in gap for gap in payload["open_gaps"]
+    )
+    assert not any(
+        "T001: parked" in gap or "T001: active_hard_block" in gap
         for gap in payload["open_gaps"]
     )
 
@@ -1836,6 +1953,49 @@ def test_resolved_packetized_state_with_accepted_concern_task_review_passes(
     assert payload["trusted_terminal_state"] is True
 
 
+def test_delivery_affecting_task_review_cannot_use_an_arbitrary_decision_ref(
+    tmp_path: Path,
+) -> None:
+    feature_dir = (
+        tmp_path / "project" / ".specify" / "features" / "001-demo"
+    )
+    feature_dir.mkdir(parents=True)
+    record = TaskReviewRecord(
+        task_id="T001",
+        spec_verdict="pass",
+        quality_verdict="concerns",
+        findings=[
+            TaskReviewFinding(
+                severity="medium",
+                category="spec",
+                file="src/demo.py",
+                line=1,
+                summary="A scoped behavior remains unverified.",
+                required_fix="Obtain an exact human-confirmed DEF.",
+                disposition="accepted_residual_risk",
+            )
+        ],
+        accepted_residual_risks=[
+            AcceptedResidualRisk(
+                finding_index=0,
+                reason="Track after Implement.",
+                owner="maintainer",
+                decision_ref="BACKLOG-123",
+            )
+        ],
+        final_assessment="accepted",
+    )
+
+    gaps = implement_audit_module._task_review_deferral_reference_gaps(
+        feature_dir,
+        "T001",
+        record,
+        review_relative="implementation-review/task-reviews/T001.json",
+    )
+
+    assert any("not a fresh confirmed DEF record" in gap for gap in gaps)
+
+
 def test_resolved_packetized_state_with_accepted_ledger_and_branch_review_passes(
     tmp_path: Path,
 ) -> None:
@@ -2441,6 +2601,30 @@ def test_implementation_summary_records_completed_work_changes_and_verification(
     assert "Added the demo command and regression coverage" in report
     assert "src/specify_cli/demo.py" in report
     assert "pytest tests/test_demo.py -q" in report
+
+
+def test_implementation_summary_surfaces_invalid_deferral_state(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    feature_dir = tmp_path / ".specify" / "features" / "001-demo"
+    _write_basic_feature(feature_dir)
+
+    def _invalid_deferrals(*_args: object, **_kwargs: object) -> list[dict[str, object]]:
+        raise ImplementationDeferralError("DEF-deadbeefcafe proposal was modified")
+
+    monkeypatch.setattr(
+        "specify_cli.implementation_deferrals.confirmed_implementation_deferrals",
+        _invalid_deferrals,
+    )
+
+    payload = build_implementation_summary(tmp_path, feature_dir)
+
+    assert payload["status"] == "blocked"
+    assert payload["blockers"][0]["blocker_id"] == "IMPLEMENT-DEFERRAL-STATE"
+    assert "proposal was modified" in payload["blockers"][0]["evidence"][0]
+    report = (feature_dir / "implementation-summary.md").read_text(encoding="utf-8")
+    assert "Implementation deferral state is invalid or tampered" in report
 
 
 def test_implementation_summary_exposes_pending_ui_human_review(tmp_path: Path) -> None:

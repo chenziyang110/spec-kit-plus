@@ -967,6 +967,10 @@ def compile_worker_task_packet(
         ),
         handoff_requirements=handoff_requirements,
         platform_guardrails=platform_guardrails,
+        user_confirmed_deferral_refs=_unique(
+            _string_list(task_index.get("user_confirmed_deferral_refs"))
+            + _string_list(task_entry.get("user_confirmed_deferral_refs"))
+        ),
         validation_policy=validation_policy,
         context_nav=context_nav,
         anti_goals=_task_contract_bullet_values(task_detail, "Anti-Goals"),

@@ -290,6 +290,14 @@ func TestWorkflowArtifactGateIsFailClosedForCompleteAndTransition(t *testing.T) 
 	if completed.Status != "ok" {
 		t.Fatalf("passing complete gate = %#v", completed)
 	}
+	feature, err := service.resolveFeature(featureRel, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	acceptGate := service.validateStageArtifacts(feature, "accept")
+	if acceptGate.Status != "ok" {
+		t.Fatalf("accept gate must carry terminal validation intent: %#v", acceptGate)
+	}
 
 	setWorkflowGateStatus(t, projectRoot, "blocked")
 	transitionBlocked := service.Transition(WorkflowTransitionRequest{FeatureDir: featureRel, To: "plan", ExpectedRevision: 2})
@@ -504,7 +512,7 @@ func TestWorkflowCloseoutCommitsAcceptanceSnapshotAndDigest(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	result := NewWorkflowService(projectRoot).Closeout(WorkflowCloseoutRequest{
+	result := newPassingCloseoutService(projectRoot).Closeout(WorkflowCloseoutRequest{
 		FeatureDir:       featureRel,
 		ExpectedRevision: 11,
 		Summary:          "Human acceptance passed.",
@@ -560,6 +568,35 @@ func TestWorkflowCloseoutFailureDoesNotMutateStateOrSnapshot(t *testing.T) {
 	}
 }
 
+func TestWorkflowCloseoutFailsClosedWhenCanonicalAcceptanceGateBlocks(t *testing.T) {
+	projectRoot, featureDir, featureRel := newWorkflowFeature(t, "001-gated-closeout")
+	writeWorkflowStateFixture(t, featureDir, "001-gated-closeout", 5, "accept", "active", nil)
+	acceptance := []byte(`{"status":"accepted","overall":{"verdict":"pass"}}`)
+	if err := os.WriteFile(filepath.Join(featureDir, "human-acceptance.json"), acceptance, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	service := NewWorkflowService(projectRoot)
+	service.workflowArtifactGateRunner = func(feature workflowFeature, stage string) Envelope {
+		env := NewEnvelope("blocked", "canonical acceptance validation failed")
+		env.Data["feature_id"] = feature.ID
+		env.Data["stage"] = stage
+		return env
+	}
+	before := readWorkflowBytes(t, projectRoot, featureRel)
+
+	result := service.Closeout(WorkflowCloseoutRequest{FeatureDir: featureRel, ExpectedRevision: 5})
+
+	if result.Status != "blocked" || result.Data["stage"] != "accept" {
+		t.Fatalf("gated closeout = %#v, want blocked accept gate", result)
+	}
+	if !reflect.DeepEqual(before, readWorkflowBytes(t, projectRoot, featureRel)) {
+		t.Fatal("blocked acceptance gate changed workflow state")
+	}
+	if _, err := os.Stat(filepath.Join(featureDir, ".human-acceptance-terminal.json")); !os.IsNotExist(err) {
+		t.Fatalf("blocked acceptance gate left terminal snapshot: %v", err)
+	}
+}
+
 func TestWorkflowCloseoutValidatesExistingTerminalSnapshot(t *testing.T) {
 	t.Run("matching snapshot is recovery-safe", func(t *testing.T) {
 		projectRoot, featureDir, featureRel := newWorkflowFeature(t, "001-existing-match")
@@ -571,7 +608,7 @@ func TestWorkflowCloseoutValidatesExistingTerminalSnapshot(t *testing.T) {
 		if err := os.WriteFile(filepath.Join(featureDir, ".human-acceptance-terminal.json"), acceptance, 0o444); err != nil {
 			t.Fatal(err)
 		}
-		result := NewWorkflowService(projectRoot).Closeout(WorkflowCloseoutRequest{FeatureDir: featureRel, ExpectedRevision: 6})
+		result := newPassingCloseoutService(projectRoot).Closeout(WorkflowCloseoutRequest{FeatureDir: featureRel, ExpectedRevision: 6})
 		if result.Status != "ok" {
 			t.Fatalf("matching existing snapshot = %#v", result)
 		}
@@ -589,7 +626,7 @@ func TestWorkflowCloseoutValidatesExistingTerminalSnapshot(t *testing.T) {
 		}
 		beforeState := readWorkflowBytes(t, projectRoot, featureRel)
 		beforeSnapshot, _ := os.ReadFile(filepath.Join(featureDir, ".human-acceptance-terminal.json"))
-		result := NewWorkflowService(projectRoot).Closeout(WorkflowCloseoutRequest{FeatureDir: featureRel, ExpectedRevision: 6})
+		result := newPassingCloseoutService(projectRoot).Closeout(WorkflowCloseoutRequest{FeatureDir: featureRel, ExpectedRevision: 6})
 		if result.Status != "blocked" {
 			t.Fatalf("mismatched existing snapshot = %#v, want blocked", result)
 		}
@@ -607,6 +644,7 @@ func TestWorkflowCloseoutRollsBackSnapshotWhenStateCommitFails(t *testing.T) {
 		t.Fatal(err)
 	}
 	service := NewWorkflowService(projectRoot)
+	service.workflowArtifactGateRunner = passingWorkflowArtifactGate
 	service.beforeCloseoutStateWrite = func() error { return errors.New("injected state commit failure") }
 	before := readWorkflowBytes(t, projectRoot, featureRel)
 
@@ -654,7 +692,7 @@ func TestWorkflowConcurrentTransitionAndCloseoutHaveOneCASWinner(t *testing.T) {
 		for index := 0; index < contenders; index++ {
 			go func() {
 				<-start
-				results <- NewWorkflowService(projectRoot).Closeout(WorkflowCloseoutRequest{FeatureDir: featureRel, ExpectedRevision: 9})
+				results <- newPassingCloseoutService(projectRoot).Closeout(WorkflowCloseoutRequest{FeatureDir: featureRel, ExpectedRevision: 9})
 			}()
 		}
 		close(start)
@@ -665,6 +703,19 @@ func TestWorkflowConcurrentTransitionAndCloseoutHaveOneCASWinner(t *testing.T) {
 			t.Fatalf("concurrent terminal snapshot = %q, %v", snapshot, err)
 		}
 	})
+}
+
+func passingWorkflowArtifactGate(feature workflowFeature, stage string) Envelope {
+	env := NewEnvelope("ok", "test artifact gate passed")
+	env.Data["feature_id"] = feature.ID
+	env.Data["stage"] = stage
+	return env
+}
+
+func newPassingCloseoutService(projectRoot string) *WorkflowService {
+	service := NewWorkflowService(projectRoot)
+	service.workflowArtifactGateRunner = passingWorkflowArtifactGate
+	return service
 }
 
 func TestWorkflowArtifactGateHelper(t *testing.T) {
@@ -684,7 +735,11 @@ func TestWorkflowArtifactGateHelper(t *testing.T) {
 	if separator >= 0 {
 		gateArgs = args[separator+1:]
 	}
-	valid = valid && gateArgs[0] == "hook" && gateArgs[1] == "validate-artifacts" && optionValue(gateArgs, "--command", "") != "" && optionValue(gateArgs, "--feature-dir", "") != "" && optionValue(gateArgs, "--format", "") == "json"
+	commandName := optionValue(gateArgs, "--command", "")
+	valid = valid && gateArgs[0] == "hook" && gateArgs[1] == "validate-artifacts" && commandName != "" && optionValue(gateArgs, "--feature-dir", "") != "" && optionValue(gateArgs, "--format", "") == "json"
+	if commandName == "accept" {
+		valid = valid && containsString(gateArgs, "--require-accepted")
+	}
 	status := "ok"
 	if raw, err := os.ReadFile(filepath.Join(".specify", "test-workflow-gate-status")); err == nil {
 		status = strings.TrimSpace(string(raw))

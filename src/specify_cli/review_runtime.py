@@ -14,7 +14,12 @@ from typing import Any
 import pathspec
 
 from .agent_api import envelope
-from .atomic_io import atomic_write_text, interprocess_lock, read_local_state_bytes
+from .atomic_io import (
+    atomic_write_bytes,
+    atomic_write_text,
+    interprocess_lock,
+    read_local_state_bytes,
+)
 from .workflow_runtime import MissingWorkflowState, show_workflow
 
 
@@ -70,7 +75,28 @@ SNAPSHOT_EXCLUDED_FEATURE_NAMES = frozenset(
 SNAPSHOT_EXCLUDED_FEATURE_PREFIXES = (
     "review-evidence/",
     "review-results/",
+    "review-history/",
+    "implementation-review/deferrals/",
     "implementation-review/validation-evidence/",
+)
+IMPLEMENTATION_DEFERRAL_CONTRACT_FIELDS = (
+    "deferral_id",
+    "deferral_ref",
+    "proposal_sha256",
+    "confirmation_id",
+    "implementation_fingerprint",
+    "blocker_refs",
+    "affected_task_ids",
+    "affected_acceptance_refs",
+    "deferred_validation_purposes",
+    "exact_excluded_behavior",
+    "residual_risk",
+    "risk_severity",
+    "claims_withheld",
+    "reopen_or_stop_condition",
+    "downstream_artifact",
+    "downstream_owner",
+    "defer_until",
 )
 
 
@@ -375,10 +401,24 @@ def build_implementation_handoff(
             "task_index_sha256": task_index_digest,
         }
     )
+    implementation_fingerprint = implementation_snapshot_sha256(root, feature)
+    from .implementation_deferrals import (
+        confirmed_implementation_deferrals,
+        implementation_deferral_handoff_projection,
+    )
+
+    confirmed_deferrals = confirmed_implementation_deferrals(
+        root,
+        feature,
+        current_fingerprint=implementation_fingerprint,
+    )
+    deferral_projection = implementation_deferral_handoff_projection(
+        confirmed_deferrals
+    )
     payload: dict[str, Any] = {
         "version": 1,
         "source_revision": source_revision,
-        "implementation_fingerprint": implementation_snapshot_sha256(root, feature),
+        "implementation_fingerprint": implementation_fingerprint,
         "fingerprint_algorithm": "git-working-tree-v1",
         "official_entrypoints": entrypoints,
         "system_review_scenarios": scenarios,
@@ -393,6 +433,13 @@ def build_implementation_handoff(
         "human_acceptance_scenarios": human_acceptance_scenarios,
         "human_acceptance_contract_sha256": human_acceptance_contract_sha256,
         "human_acceptance_contract_origin": "task-index-v2",
+        "user_confirmed_deferral_refs": [
+            item["deferral_ref"] for item in deferral_projection
+        ],
+        "user_confirmed_deferrals": deferral_projection,
+        "user_confirmed_deferrals_sha256": _canonical_payload_sha256(
+            {"user_confirmed_deferrals": deferral_projection}
+        ),
     }
     if isinstance(raw_validation_policy, Mapping):
         payload["validation_policy"] = deepcopy(dict(raw_validation_policy))
@@ -438,6 +485,9 @@ def build_implementation_handoff(
                 "human_acceptance_scenarios",
                 "human_acceptance_contract_sha256",
                 "human_acceptance_contract_origin",
+                "user_confirmed_deferral_refs",
+                "user_confirmed_deferrals",
+                "user_confirmed_deferrals_sha256",
                 "validation_policy",
                 "validation_budget",
             )
@@ -465,6 +515,7 @@ def build_implementation_handoff(
         "human_acceptance_scenarios": len(human_acceptance_scenarios),
         "human_acceptance_contract_sha256": human_acceptance_contract_sha256,
         "acceptance_denominator_sha256": acceptance_denominator_sha256,
+        "user_confirmed_deferrals": len(deferral_projection),
     }
 
 
@@ -589,6 +640,36 @@ def _validate_handoff_against_live_sources(
         "human_acceptance_scenarios": expected_human_scenarios,
         "human_acceptance_contract_sha256": expected_human_sha256,
     }
+    deferral_dir = feature / "implementation-review" / "deferrals"
+    if deferral_dir.is_dir() or "user_confirmed_deferrals" in handoff:
+        from .implementation_deferrals import (
+            confirmed_implementation_deferrals,
+            infer_project_root,
+            implementation_deferral_handoff_projection,
+        )
+
+        project_root = infer_project_root(feature)
+        deferral_records = confirmed_implementation_deferrals(
+            project_root,
+            feature,
+            current_fingerprint=str(
+                handoff.get("implementation_fingerprint") or ""
+            ),
+        )
+        deferral_projection = implementation_deferral_handoff_projection(
+            deferral_records
+        )
+        expected.update(
+            {
+                "user_confirmed_deferral_refs": [
+                    item["deferral_ref"] for item in deferral_projection
+                ],
+                "user_confirmed_deferrals": deferral_projection,
+                "user_confirmed_deferrals_sha256": _canonical_payload_sha256(
+                    {"user_confirmed_deferrals": deferral_projection}
+                ),
+            }
+        )
     live_validation_policy = task_index.get("validation_policy")
     if isinstance(live_validation_policy, Mapping):
         expected["validation_policy"] = dict(live_validation_policy)
@@ -1433,6 +1514,55 @@ def _normalized_handoff(
     )
 
 
+def implementation_handoff_completion_errors(
+    project_root: Path,
+    feature_dir: Path | str,
+    *,
+    expected_review_revision: int,
+) -> list[str]:
+    """Validate the frozen Implement-to-Review handoff before stage completion."""
+
+    root = project_root.resolve(strict=False)
+    feature = _resolve_feature_dir(root, feature_dir)
+    errors: list[str] = []
+    summary_path = feature / "implementation-summary.md"
+    if not summary_path.is_file():
+        errors.append(
+            "implementation-summary.md is required before Implement stage completion"
+        )
+    else:
+        try:
+            if not summary_path.read_text(encoding="utf-8").strip():
+                errors.append(
+                    "implementation-summary.md must not be empty before Implement stage completion"
+                )
+        except (OSError, UnicodeError) as exc:
+            errors.append(f"implementation-summary.md cannot be read: {exc}")
+    handoff_path = implementation_handoff_path(feature)
+    if not handoff_path.is_file():
+        errors.append(
+            "implementation-handoff.json is required before Implement stage completion"
+        )
+        return errors
+    try:
+        handoff = _read_json_object(
+            handoff_path, label=IMPLEMENTATION_HANDOFF_FILENAME
+        )
+        _normalized_handoff(
+            handoff,
+            expected_revision=expected_review_revision,
+        )
+        _validate_handoff_against_live_sources(feature, handoff)
+        current_fingerprint = implementation_snapshot_sha256(root, feature)
+        if handoff.get("implementation_fingerprint") != current_fingerprint:
+            errors.append(
+                "implementation-handoff.json is stale for the current implementation fingerprint"
+            )
+    except (OSError, UnicodeError, json.JSONDecodeError, ReviewRuntimeError) as exc:
+        errors.append(f"implementation-handoff.json is invalid: {exc}")
+    return errors
+
+
 def _review_cycle_id(
     *,
     workflow_revision: int,
@@ -1605,6 +1735,22 @@ def _acceptance_origin_review_finding_contract(
     }
 
 
+def _new_review_deferral_states(
+    deferrals: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    return [
+        {
+            **{
+                field: deepcopy(deferral.get(field))
+                for field in IMPLEMENTATION_DEFERRAL_CONTRACT_FIELDS
+            },
+            "status": "pending",
+            "resolution": None,
+        }
+        for deferral in deferrals
+    ]
+
+
 def _new_review_state(
     *,
     expected_revision: int,
@@ -1615,8 +1761,10 @@ def _new_review_state(
     obligations: list[dict[str, Any]],
     human_acceptance_obligations: list[dict[str, Any]],
     human_acceptance_scenarios: list[dict[str, Any]],
+    implementation_deferrals: list[dict[str, Any]],
     review_cycle: int,
     previous_review_state_sha256: str = "",
+    restart_reason: str = "",
     acceptance_repair: Mapping[str, Any] | None = None,
     previous_rounds: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
@@ -1669,6 +1817,9 @@ def _new_review_state(
         "obligations": deepcopy(obligations),
         "human_acceptance_obligations": deepcopy(human_acceptance_obligations),
         "human_acceptance_scenarios": deepcopy(human_acceptance_scenarios),
+        "implementation_deferrals": _new_review_deferral_states(
+            implementation_deferrals
+        ),
         "reviewed_runtime_targets": [],
         "review_assignments": [],
         "fix_assignments": [],
@@ -1720,6 +1871,8 @@ def _new_review_state(
             "runtime_targets_sha256": "",
         },
     }
+    if restart_reason:
+        state["source"]["restart_reason"] = restart_reason
     return state
 
 
@@ -1728,6 +1881,7 @@ def prepare_review(
     feature_dir: Path | str,
     *,
     expected_revision: int,
+    restart_stale: bool = False,
 ) -> dict[str, Any]:
     """Create or resume the system review state from a trusted implementation handoff."""
 
@@ -1760,12 +1914,32 @@ def prepare_review(
         human_acceptance_scenarios,
         _,
     ) = _normalized_handoff(handoff, expected_revision=handoff_revision)
+    raw_implementation_deferrals = handoff.get("user_confirmed_deferrals", [])
+    if not isinstance(raw_implementation_deferrals, list) or any(
+        not isinstance(item, dict) for item in raw_implementation_deferrals
+    ):
+        raise ReviewRuntimeError(
+            "implementation-handoff.json user_confirmed_deferrals must be a list "
+            "of objects"
+        )
+    implementation_deferrals = [
+        deepcopy(item) for item in raw_implementation_deferrals
+    ]
     handoff_digest = _sha256(handoff_file)
     state_file = review_state_path(feature)
 
     with interprocess_lock(feature / ".review-state.lock"):
         if state_file.is_file():
-            existing = _read_json_object(state_file, label=REVIEW_STATE_FILENAME)
+            invalid_existing_error = ""
+            try:
+                existing = _read_json_object(
+                    state_file, label=REVIEW_STATE_FILENAME
+                )
+            except ReviewRuntimeError as exc:
+                if is_acceptance_repair or not restart_stale:
+                    raise
+                existing = {}
+                invalid_existing_error = str(exc)
             source = existing.get("source")
             if (
                 is_acceptance_repair
@@ -1821,6 +1995,7 @@ def prepare_review(
                     obligations=obligations,
                     human_acceptance_obligations=human_acceptance_obligations,
                     human_acceptance_scenarios=human_acceptance_scenarios,
+                    implementation_deferrals=implementation_deferrals,
                     review_cycle=previous_cycle + 1,
                     previous_review_state_sha256=previous_digest,
                     acceptance_repair=repair_context,
@@ -1837,15 +2012,101 @@ def prepare_review(
                 isinstance(source, Mapping)
                 and source.get("implementation_handoff_sha256") == handoff_digest
                 and source.get("workflow_revision") == expected_revision
+                and not restart_stale
             ):
                 return envelope(
                     "ok",
                     "System review state is already prepared.",
                     data=existing,
                 )
-            raise ReviewRuntimeError(
-                "existing review state is stale; preserve its evidence and explicitly restart review"
+            if not restart_stale:
+                raise ReviewRuntimeError(
+                    "existing review state is stale; preserve its evidence and rerun "
+                    "review prepare with --restart-stale"
+                )
+            previous_bytes = read_local_state_bytes(state_file, root=feature)
+            previous_digest = hashlib.sha256(previous_bytes).hexdigest()
+            history_ref = (
+                Path("review-history")
+                / f"review-state-{previous_digest}.json"
             )
+            history_path = feature / history_ref
+            if history_path.is_file():
+                if read_local_state_bytes(
+                    history_path, root=feature
+                ) != previous_bytes:
+                    raise ReviewRuntimeError(
+                        "review history digest collision; preserve the current "
+                        "state and inspect review-history"
+                    )
+            else:
+                atomic_write_bytes(history_path, previous_bytes)
+            previous_source = existing.get("source")
+            raw_previous_cycle = (
+                previous_source.get("review_cycle")
+                if isinstance(previous_source, Mapping)
+                else None
+            )
+            previous_cycle = (
+                raw_previous_cycle
+                if isinstance(raw_previous_cycle, int)
+                and not isinstance(raw_previous_cycle, bool)
+                and raw_previous_cycle >= 1
+                else 1
+            )
+            previous_final = existing.get("final")
+            raw_previous_rounds = existing.get("rounds")
+            previous_rounds = [
+                deepcopy(dict(item))
+                for item in (
+                    raw_previous_rounds
+                    if isinstance(raw_previous_rounds, list)
+                    else []
+                )
+                if isinstance(item, Mapping)
+            ]
+            archived_round = {
+                "review_cycle": previous_cycle,
+                "review_state_sha256": previous_digest,
+                "reviewed_snapshot_sha256": (
+                    str(previous_final.get("reviewed_snapshot_sha256") or "")
+                    if isinstance(previous_final, Mapping)
+                    else ""
+                ),
+                "status": "restarted-stale",
+                "history_ref": history_ref.as_posix(),
+            }
+            if invalid_existing_error:
+                archived_round["restart_error"] = invalid_existing_error
+            previous_rounds.append(archived_round)
+            state = _new_review_state(
+                expected_revision=expected_revision,
+                handoff_digest=handoff_digest,
+                fingerprint=fingerprint,
+                entrypoints=entrypoints,
+                scenarios=scenarios,
+                obligations=obligations,
+                human_acceptance_obligations=human_acceptance_obligations,
+                human_acceptance_scenarios=human_acceptance_scenarios,
+                implementation_deferrals=implementation_deferrals,
+                review_cycle=previous_cycle + 1,
+                previous_review_state_sha256=previous_digest,
+                restart_reason="stale-review-restart",
+                previous_rounds=previous_rounds,
+            )
+            atomic_write_text(
+                state_file,
+                json.dumps(state, ensure_ascii=False, indent=2) + "\n",
+            )
+            response = envelope(
+                "ok",
+                "Stale system review state was archived and restarted.",
+                data=state,
+            )
+            response["data"]["archived_review_state_ref"] = (
+                history_ref.as_posix()
+            )
+            return response
 
         if is_acceptance_repair:
             raise ReviewRuntimeError(
@@ -1862,6 +2123,7 @@ def prepare_review(
             obligations=obligations,
             human_acceptance_obligations=human_acceptance_obligations,
             human_acceptance_scenarios=human_acceptance_scenarios,
+            implementation_deferrals=implementation_deferrals,
             review_cycle=1,
         )
         atomic_write_text(
@@ -2264,6 +2526,147 @@ def _validate_review_runtime_targets(
     return targets, errors, fresh
 
 
+def _review_deferral_resolution_errors(
+    state: Mapping[str, Any],
+    handoff: Mapping[str, Any],
+    *,
+    feature_dir: Path,
+    expected_snapshot: str,
+    review_cycle: object,
+    review_cycle_id: object,
+) -> tuple[list[str], bool]:
+    errors: list[str] = []
+    fresh = True
+    canonical_raw = handoff.get("user_confirmed_deferrals", [])
+    if not isinstance(canonical_raw, list) or any(
+        not isinstance(item, Mapping) for item in canonical_raw
+    ):
+        return [
+            "implementation handoff user_confirmed_deferrals must be a list of objects"
+        ], False
+    canonical = {
+        str(item.get("deferral_id") or ""): item
+        for item in canonical_raw
+        if isinstance(item, Mapping)
+    }
+    if len(canonical) != len(canonical_raw) or "" in canonical:
+        errors.append(
+            "implementation handoff deferrals require unique nonblank deferral_id values"
+        )
+    state_raw = state.get("implementation_deferrals", [])
+    if not isinstance(state_raw, list) or any(
+        not isinstance(item, Mapping) for item in state_raw
+    ):
+        return ["review implementation_deferrals must be a list of objects"], False
+    actual = {
+        str(item.get("deferral_id") or ""): item
+        for item in state_raw
+        if isinstance(item, Mapping)
+    }
+    if len(actual) != len(state_raw) or "" in actual:
+        errors.append(
+            "review implementation_deferrals require unique nonblank deferral_id values"
+        )
+    if set(actual) != set(canonical):
+        errors.append(
+            "review implementation_deferrals must preserve every frozen Implement deferral"
+        )
+    for deferral_id, expected in canonical.items():
+        recorded = actual.get(deferral_id)
+        if recorded is None:
+            continue
+        expected_contract = {
+            field: deepcopy(expected.get(field))
+            for field in IMPLEMENTATION_DEFERRAL_CONTRACT_FIELDS
+        }
+        actual_contract = {
+            field: deepcopy(recorded.get(field))
+            for field in IMPLEMENTATION_DEFERRAL_CONTRACT_FIELDS
+        }
+        if actual_contract != expected_contract:
+            errors.append(
+                f"implementation deferral {deferral_id} contract drifted in Review"
+            )
+        if recorded.get("status") != "resolved":
+            errors.append(
+                f"implementation deferral {deferral_id} must be resolved in Review; "
+                "Implement transfer is not PASS evidence"
+            )
+            continue
+        resolution = recorded.get("resolution")
+        if not isinstance(resolution, Mapping):
+            errors.append(
+                f"implementation deferral {deferral_id} requires a resolution object"
+            )
+            continue
+        if resolution.get("outcome") not in {"passed", "fixed"}:
+            errors.append(
+                f"implementation deferral {deferral_id} resolution outcome must be "
+                "passed or fixed"
+            )
+        if not str(resolution.get("summary") or "").strip():
+            errors.append(
+                f"implementation deferral {deferral_id} resolution requires a summary"
+            )
+        if resolution.get("review_cycle_id") != review_cycle_id:
+            fresh = False
+            errors.append(
+                f"implementation deferral {deferral_id} resolution must bind the "
+                "current review_cycle_id"
+            )
+        if resolution.get("implementation_fingerprint") != expected_snapshot:
+            fresh = False
+            errors.append(
+                f"implementation deferral {deferral_id} resolution fingerprint is stale"
+            )
+        evidence_refs = resolution.get("evidence_refs")
+        evidence_refs = evidence_refs if isinstance(evidence_refs, list) else []
+        evidence_sha256 = resolution.get("evidence_sha256")
+        evidence_sha256 = (
+            evidence_sha256 if isinstance(evidence_sha256, Mapping) else {}
+        )
+        if not evidence_refs:
+            errors.append(
+                f"implementation deferral {deferral_id} resolution requires evidence"
+            )
+        for evidence_ref in evidence_refs:
+            in_cycle = _ref_is_in_review_cycle(
+                feature_dir,
+                evidence_ref,
+                root="review-evidence",
+                cycle=review_cycle,
+            ) or _ref_is_in_review_cycle(
+                feature_dir,
+                evidence_ref,
+                root="review-results",
+                cycle=review_cycle,
+            )
+            if not in_cycle:
+                fresh = False
+                errors.append(
+                    f"implementation deferral {deferral_id} evidence must belong "
+                    "to the current Review cycle"
+                )
+                continue
+            evidence_path = (
+                feature_dir / Path(str(evidence_ref))
+            ).resolve(strict=False)
+            recorded_digest = str(
+                evidence_sha256.get(str(evidence_ref)) or ""
+            )
+            if (
+                not evidence_path.is_file()
+                or not re.fullmatch(r"[0-9a-f]{64}", recorded_digest)
+                or _sha256(evidence_path) != recorded_digest
+            ):
+                fresh = False
+                errors.append(
+                    f"implementation deferral {deferral_id} evidence_sha256 must "
+                    "bind current evidence bytes"
+                )
+    return errors, fresh
+
+
 def _review_validation_errors(
     state: Mapping[str, Any],
     handoff: Mapping[str, Any],
@@ -2307,6 +2710,7 @@ def _review_validation_errors(
         previous_review_state_sha256 = str(
             source.get("previous_review_state_sha256") or ""
         )
+        restart_reason = str(source.get("restart_reason") or "")
         acceptance_finding_id = str(source.get("acceptance_finding_id") or "")
         acceptance_finding_sha256 = str(source.get("acceptance_finding_sha256") or "")
         if (
@@ -2351,6 +2755,23 @@ def _review_validation_errors(
                 errors.append(
                     "acceptance repair cycle requires acceptance_finding_sha256"
                 )
+        elif restart_reason == "stale-review-restart":
+            if (
+                not isinstance(review_cycle, int)
+                or isinstance(review_cycle, bool)
+                or review_cycle < 2
+            ):
+                errors.append("stale Review restart must use review_cycle 2 or later")
+            if not re.fullmatch(r"[0-9a-f]{64}", previous_review_state_sha256):
+                errors.append(
+                    "stale Review restart requires previous_review_state_sha256"
+                )
+            if acceptance_finding_sha256:
+                errors.append(
+                    "stale Review restart must not declare an acceptance finding digest"
+                )
+        elif restart_reason:
+            errors.append(f"unsupported review restart_reason: {restart_reason}")
         elif previous_review_state_sha256 or acceptance_finding_sha256:
             errors.append(
                 "initial Review must not declare prior Review or acceptance finding digests"
@@ -2480,6 +2901,16 @@ def _review_validation_errors(
     current_review_cycle_id = (
         source.get("review_cycle_id") if isinstance(source, Mapping) else None
     )
+    deferral_errors, deferrals_fresh = _review_deferral_resolution_errors(
+        state,
+        handoff,
+        feature_dir=feature_dir,
+        expected_snapshot=expected_snapshot,
+        review_cycle=current_review_cycle,
+        review_cycle_id=current_review_cycle_id,
+    )
+    errors.extend(deferral_errors)
+    fresh = fresh and deferrals_fresh
     scenarios = state.get("scenarios")
     if not isinstance(scenarios, list) or not scenarios:
         errors.append("review state requires at least one scenario")
@@ -2499,6 +2930,10 @@ def _review_validation_errors(
             errors.append(
                 f"required scenario {scenario_id} must pass before review closeout"
             )
+        requires_scenario_evidence = bool(raw.get("required", True)) or result not in {
+            "pending",
+            "not_run",
+        }
         evidence = raw.get("evidence")
         evidence_items = evidence if isinstance(evidence, list) else []
         evidence_by_kind = {
@@ -2506,7 +2941,11 @@ def _review_validation_errors(
             for item in evidence_items
             if isinstance(item, Mapping)
         }
-        for kind in raw.get("required_evidence") or []:
+        for kind in (
+            raw.get("required_evidence") or []
+            if requires_scenario_evidence
+            else []
+        ):
             item = evidence_by_kind.get(str(kind))
             if item is None:
                 errors.append(f"scenario {scenario_id} is missing {kind} evidence")
@@ -3219,7 +3658,7 @@ def _shared_delivery_epoch_errors(
         isinstance(run, Mapping) and run.get("status") == "running"
         for run in budget["runs"]
     ):
-        errors.append("shared validation has an unfinished running epoch")
+        errors.append("shared validation has an unfinished running attempt")
     final = state.get("final")
     final = final if isinstance(final, Mapping) else {}
     expected_fingerprint = str(
@@ -3357,6 +3796,7 @@ __all__ = [
     "ReviewRuntimeError",
     "closeout_review",
     "build_implementation_handoff",
+    "implementation_handoff_completion_errors",
     "implementation_handoff_path",
     "implementation_snapshot_sha256",
     "prepare_review",

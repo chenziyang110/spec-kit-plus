@@ -4,11 +4,11 @@ Use this template when dispatching an implementer subagent.
 
 ## Workflow-Owned Validation
 
-Under `sp-implement` feature epochs, the worker runs only cheap task checks and
-returns test impact. The Leader owns the validation epoch budget shared across
-Implement and Review. This prompt must not start an extra validation epoch for a
+Under `sp-implement` feature gates, the worker runs only cheap task checks and
+returns test impact. The Leader owns the logical-gate ledger shared across
+Implement and Review. This prompt must not start an extra gate or attempt for a
 Txx or handoff. A behavior-changing packet must provide an accepted change-set
-RED/baseline epoch ref or explicitly be test-authoring-only.
+RED/baseline gate-attempt ref or explicitly be test-authoring-only.
 
 ```
 Task tool (general-purpose):
@@ -39,9 +39,9 @@ Task tool (general-purpose):
     Once you're clear on requirements:
     1. Implement exactly what the task specifies
     2. Preserve change-set test-first ordering: author tests only when assigned, or
-       require the accepted RED/baseline epoch ref before production edits
+       require the accepted RED/baseline gate-attempt ref before production edits
     3. Run only cheap task checks and return test impact; defer heavyweight gates
-       to the Leader-owned epoch
+       to the Leader-owned attempt
     4. Commit your work
     5. Self-review (see below)
     6. Report back
@@ -51,7 +51,7 @@ Task tool (general-purpose):
     **While you work:** If you encounter something unexpected or unclear, **ask questions**.
     It's always OK to pause and clarify. Don't guess or make assumptions.
     Do not edit production code until the packet names the accepted change-set
-    baseline epoch. Do not run a test suite, full build, service startup, E2E, or
+    baseline gate attempt. Do not run a test suite, full build, service startup, E2E, or
     browser capture per Txx.
 
     ## Code Organization
@@ -105,7 +105,7 @@ Task tool (general-purpose):
 
     **Testing:**
     - Do tests actually verify behavior (not just mock behavior)?
-    - Does this lane preserve the change-set test-first order and accepted epoch ref?
+    - Does this lane preserve the change-set test-first order and accepted gate-attempt ref?
     - Did I record cheap task checks and complete test impact for the Leader?
     - Are tests comprehensive?
 

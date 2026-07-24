@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
@@ -5780,6 +5781,64 @@ def validate_artifacts_hook(
         validation_errors.extend(
             _validate_packetized_implement_review_artifacts(feature_dir)
         )
+        try:
+            workflow = show_workflow(feature_dir)
+        except (MissingWorkflowState, ValueError):
+            workflow = None
+        except WorkflowRuntimeError as exc:
+            validation_errors.append(
+                f"workflow state could not be validated: {exc}"
+            )
+            workflow = None
+        if workflow is not None:
+            from specify_cli.implement_audit import audit_implement_resume
+            from specify_cli.review_runtime import (
+                implementation_handoff_completion_errors,
+            )
+
+            audit = audit_implement_resume(project_root, feature_dir)
+            if (
+                audit.get("status") in {"fail", "conflict"}
+                or not audit.get("trusted_terminal_state", False)
+            ):
+                gaps = [
+                    str(item)
+                    for item in audit.get("open_gaps", [])
+                    if str(item).strip()
+                ]
+                validation_errors.append(
+                    "Implement stage completion requires a trusted resume audit"
+                    + (": " + "; ".join(gaps) if gaps else "")
+                )
+            workflow_data = workflow.get("data")
+            if not isinstance(workflow_data, Mapping):
+                validation_errors.append(
+                    "Implement stage completion cannot read workflow ownership"
+                )
+            elif workflow_data.get("stage") != "implement" or workflow_data.get(
+                "status"
+            ) not in {"active", "completed"}:
+                validation_errors.append(
+                    "Implement artifact validation requires active or completed "
+                    "Implement workflow ownership"
+                )
+            else:
+                revision = workflow_data.get("revision")
+                if isinstance(revision, bool) or not isinstance(revision, int):
+                    validation_errors.append(
+                        "Implement workflow revision must be an integer"
+                    )
+                else:
+                    expected_review_revision = revision + (
+                        2 if workflow_data.get("status") == "active" else 1
+                    )
+                    validation_errors.extend(
+                        implementation_handoff_completion_errors(
+                            project_root,
+                            feature_dir,
+                            expected_review_revision=expected_review_revision,
+                        )
+                    )
     if command_name == "review":
         from specify_cli.review_runtime import validate_review
 

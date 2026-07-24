@@ -1,18 +1,20 @@
 Trigger: before code-writing, test execution, or validation closeout.
 
-Purpose: preserve change-set RED-first expectations, cheap task checks, bounded validation epochs, validation evidence, and no-greenwashing rules.
+Purpose: preserve change-set RED-first expectations, cheap task checks, bounded logical validation gates, retryable attempts, validation evidence, and no-greenwashing rules.
 
 Preserved Contract: implementation must prove a truthful change-set baseline before behavior changes and verify completed work without multiplying heavyweight gates per Txx.
 
-## Shared Validation-Epoch Budget
+## Shared Logical-Gate Budget
 
-Use one durable validation-epoch ledger shared across Implement and Review. An
-epoch is one Leader-authorized heavyweight verification wave against one source
-fingerprint; it may contain multiple coordinated commands and scenarios, but
-splitting them across workers does not create independent budgets. Persist its
-id, owner, source fingerprint, scope, commands/scenarios, result, failure
-summary, and cumulative consumed count in execution state and carry it unchanged
-in `implementation-handoff.json`.
+Use one durable validation ledger shared across Implement and Review. The budget
+counts three logical gates (`baseline`, `convergence`, `delivery`), not physical
+tool invocations. Each gate owns one or more attempts against source
+fingerprints. Runner timeout, process termination, cancellation, harness
+failure, or environment loss closes only the current attempt as `interrupted`;
+it does not consume another logical gate or become a test failure. Persist gate
+id, attempt id, owner, source fingerprint, scope, commands/scenarios, verdict or
+interruption kind, evidence, and cumulative gate/attempt counts. Carry this
+ledger unchanged in `implementation-handoff.json`.
 
 Require `task-index.validation_policy` to declare exactly:
 
@@ -40,30 +42,55 @@ Omit `--fingerprint` to bind the current implementation snapshot automatically.
 Immediately after the wave, run:
 
 ```text
-{{specify-subcmd:implement validation-finish --feature-dir <feature-dir> --run-id <Vn> --status <passed|failed> --evidence-ref <ref> [--evidence-ref <ref2>] --summary '<text>' --format json}}
+{{specify-subcmd:implement validation-finish --feature-dir <feature-dir> --run-id <Vn> --status <passed|failed|interrupted> [--failure-kind <assertion|verification|harness|environment|runner_timeout|runner_terminated|cancelled|unknown>] --evidence-ref <ref> [--evidence-ref <ref2>] --summary '<text>' --format json}}
 ```
 
-Use the returned run id, remaining budget, and ledger ref; never hand-edit the
-ledger or infer capacity from chat history.
+Use the returned gate id, attempt id, counts, recovery action, and ledger ref;
+never hand-edit the ledger or infer capacity from chat history.
 
-The combined workflow may consume at most three epochs:
+The combined workflow may open at most three logical gates:
 
 1. optional change-set RED or credible baseline before production edits;
 2. Implement convergence over the affected test/build surface;
-3. integrated system Review or, when an earlier epoch was skipped, the final
-   post-repair revalidation.
+3. integrated system Review delivery.
 
-Allocate them dynamically; do not run an optional epoch merely to fill a slot.
-For a RED/baseline epoch, `passed` means the expected pre-change failure or
+Allocate them dynamically; do not open an optional gate merely to fill a slot.
+For a RED/baseline gate, `passed` means the expected pre-change failure or
 credible before-state was observed; reserve `failed` for an inconclusive,
 misconfigured, or unexpectedly behaving baseline.
-Only the Leader opens or closes an epoch. Resumes, joins, task transitions,
-subagents, and passive skills reuse the ledger and must not start another run.
-A failed epoch may lead to a bounded repair only when another epoch remains.
-Do not retry a failed command against the unchanged fingerprint; change the
-source/configuration first or preserve the failure as blocking evidence.
-The third failed epoch blocks with evidence and exact recovery criteria. Never
-start a fourth validation epoch.
+Only the Leader opens or closes a gate attempt. Resumes, joins, task
+transitions, subagents, and passive skills reuse the ledger. An
+`interrupted` attempt may retry the same gate and fingerprint. A real assertion
+or verification failure may retry the same gate only after source/configuration
+changes produce a new fingerprint. A passed gate may also receive a fresh
+attempt when later repairs change that fingerprint. Attempts never steal the
+reserved delivery gate. Never open a fourth logical gate, and never record a
+timeout or runner kill as `failed` or `passed`.
+
+After `runner_timeout`, do not immediately rerun the full command. First decide
+whether the suite legitimately exceeds the execution ceiling or stopped making
+progress. Preserve the last completed shard/test and the first incomplete test
+in evidence. Run that test in isolation with the runner's open-handle,
+process-exit, leaked-service, or equivalent diagnostics. Repair a local hang,
+fixture defect, or orphan process as agent-owned work. If the suite is simply
+long, split the same gate command into deterministic bounded shards and record
+all shard commands under the same attempt/gate; sharding is not another logical
+gate or validation attempt.
+
+If the evidence cannot be obtained now, keep dependency-safe work moving. A
+human may explicitly transfer a precisely scoped low/medium-risk blocker to
+Review by first proposing
+`{{specify-subcmd:implement deferral-propose --feature-dir <feature-dir> --input <proposal.json> --format json}}`
+and, only after the human confirms that exact proposal digest, recording
+`{{specify-subcmd:implement deferral-confirm --feature-dir <feature-dir> --deferral-id <DEF-id> --proposal-sha256 <sha> --confirmation-source <source> --statement '<exact-human-statement>' --format json}}`.
+The proposal must identify blocker/task/acceptance refs, exact excluded
+behavior, residual risk, claims withheld, and the Review reopen condition.
+Deferral means unresolved and transferred to Review; it never means passed and
+expires at Review. It cannot waive high/critical, security, data-integrity,
+core-startup, or required acceptance failures. Local assertion failures,
+fixable test fixtures, leaked processes, and diagnosable hangs remain
+agent-owned and are not eligible merely because a human is willing to skip
+them.
 
 ## Current Task Gate
 
@@ -77,16 +104,16 @@ Before code changes:
    validation target. Serialize overlapping work.
 3. Group related behavior-changing Txx items into a coherent change-set. Write or
    select the smallest tests/repro checks before production edits, then let the
-   Leader execute them together in the optional RED/baseline epoch. One honest
+   Leader execute them together in the optional RED/baseline gate. One honest
    expected failure may cover several mapped Txx items; record the mapping.
 4. If an honest RED state cannot be produced without spending a disproportionate
-   epoch, record the credible before-state, reason, and residual risk. Block when
+   gate, record the credible before-state, reason, and residual risk. Block when
    acceptance cannot ultimately be proven.
 5. Per-Txx task checks are cheap, deterministic, and local: inspect the diff,
    parse/format touched files, validate schemas/contracts, or perform an
    equivalent non-suite static check. They do not start services, browsers,
    builds, test suites, coverage, integration tests, or E2E. Record test impact
-   and the gates the Leader must include in the next epoch.
+   and the checks the Leader must include in the next gate attempt.
 
 ## Convergence And Closeout
 
@@ -96,13 +123,13 @@ After the change:
    and join review, record bounded implementation completion and continue with
    dependency-safe work while feature verification remains pending.
 2. After the coherent change-set is integrated, the Leader opens one convergence
-   epoch and runs the mapped affected tests/build gates once against its source
+   gate and runs the mapped affected tests/build checks once in an attempt against its source
    fingerprint. Cache or reuse exact command results only for that unchanged
    fingerprint.
 3. Record commands, outcomes, changed paths, covered Txx ids, and remaining
-   manual checks once in the epoch ledger; task lifecycles reference that epoch
+   manual checks once in the ledger; task lifecycles reference that gate attempt
    instead of copying command output.
-4. Real-entrypoint and UI matrices belong to a coordinated integrated epoch, not
+4. Real-entrypoint and UI matrices belong to a coordinated integrated attempt, not
    every microtask. Do not run the full viewport/state capture loop per Txx.
 5. Do not claim success from task markers, worker narration, unrelated passing
    tests, or stale fingerprint evidence.

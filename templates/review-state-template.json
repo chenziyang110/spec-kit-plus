@@ -17,6 +17,7 @@
   "obligations": [],
   "human_acceptance_obligations": [],
   "human_acceptance_scenarios": [],
+  "implementation_deferrals": [],
   "reviewed_runtime_targets": [],
   "review_assignments": [],
   "fix_assignments": [],

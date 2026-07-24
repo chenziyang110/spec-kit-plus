@@ -284,6 +284,7 @@ def test_task_review_concerns_are_accepted_only_with_mapped_dispositions() -> No
                 finding_index=1,
                 reason="External service unavailable",
                 owner="maintainer",
+                decision_ref="RISK-external-service-edge",
             )
         ],
         follow_up_work=[
@@ -305,6 +306,7 @@ def test_task_review_concerns_are_accepted_only_with_mapped_dispositions() -> No
                 finding_index=1,
                 reason="External service unavailable",
                 owner="maintainer",
+                decision_ref="RISK-external-service-edge",
             )
         ],
         final_assessment="accepted",
@@ -510,7 +512,7 @@ def test_task_review_disposition_references_do_not_cross_finding_sources() -> No
     assert not task_review_is_accepted(record)
 
 
-def test_task_review_disposition_references_accept_plan_mandated_defects_explicitly() -> (
+def test_task_review_disposition_requires_real_authority_for_plan_mandated_defects() -> (
     None
 ):
     accepted_risk = TaskReviewRecord(
@@ -559,15 +561,52 @@ def test_task_review_disposition_references_accept_plan_mandated_defects_explici
                 finding_index=0,
                 description="Complete plan cleanup",
                 target="backlog",
+                decision_ref="implementation-review/deferrals/DEF-deadbeefcafe.json",
             )
         ],
         final_assessment="accepted",
     )
 
-    assert task_review_acceptance_errors(accepted_risk) == []
-    assert task_review_is_accepted(accepted_risk)
+    assert "high/critical finding cannot be closed as accepted_residual_risk" in (
+        task_review_acceptance_errors(accepted_risk)
+    )
+    assert not task_review_is_accepted(accepted_risk)
     assert task_review_acceptance_errors(follow_up) == []
     assert task_review_is_accepted(follow_up)
+
+
+def test_plan_mandated_follow_up_without_decision_ref_is_not_accepted() -> None:
+    record = TaskReviewRecord(
+        task_id="T001",
+        spec_verdict="pass",
+        quality_verdict="pass",
+        plan_mandated_defects=[
+            TaskReviewFinding(
+                severity="medium",
+                category="plan_mandated_defect",
+                file="src/example.py",
+                line=31,
+                summary="Plan behavior remains incomplete",
+                required_fix="Track an explicitly authorized deferral",
+                disposition="follow_up",
+            )
+        ],
+        follow_up_work=[
+            FollowUpWork(
+                finding_source="plan_mandated_defects",
+                finding_index=0,
+                description="Complete the plan behavior",
+                target="review",
+            )
+        ],
+        final_assessment="accepted",
+    )
+
+    assert (
+        "delivery-affecting follow_up requires a confirmed DEF decision_ref"
+        in task_review_acceptance_errors(record)
+    )
+    assert not task_review_is_accepted(record)
 
 
 def test_task_review_rejects_orphan_residual_risk_and_follow_up_references() -> None:

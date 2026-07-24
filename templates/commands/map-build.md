@@ -33,6 +33,9 @@ For this command, mandatory subagent lanes are read-only verification lanes only
 The leader invokes the deterministic runtime build chain. Subagents must not
 create or edit scan artifacts, normalize worker results, construct graph rows,
 write SQLite data, or replace any runtime command with a helper script.
+If a required verification lane cannot be safely packetized or delegated,
+record `subagent-blocked` and stop for escalation or recovery; do not fall back
+to leader-authored verification.
 
 ## Objective
 
@@ -197,6 +200,7 @@ The only canonical runtime outputs for this command are:
 - `.specify/project-cognition/project-cognition.db`
 - query/update helper readiness metadata
 
+The deterministic runtime owns queryable task-local bundle generation.
 Do not publish handbook-first runtime truth from this command. Do not publish raw graph JSON artifacts or slices as runtime truth.
 
 ## Guardrails

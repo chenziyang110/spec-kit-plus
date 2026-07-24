@@ -7,6 +7,7 @@ from typing import Any
 
 from .result_schema import (
     CURRENT_UI_EVIDENCE_KINDS,
+    CURRENT_UI_VERIFICATION_FIELDS,
     RuleAcknowledgement,
     UIVerification,
     ValidationResult,
@@ -40,15 +41,6 @@ _OBSOLETE_UI_RESULT_FIELDS = {
     "uiEvidence",
     "uiVerification",
 }
-_CURRENT_UI_VERIFICATION_FIELDS = {
-    "contract_check",
-    "runtime_evidence",
-    "visual_comparison",
-    "fidelity_status",
-    "reviewer",
-}
-
-
 def _as_str_list(value: object) -> list[str]:
     if value is None:
         return []
@@ -139,7 +131,7 @@ def _normalize_ui_verification(payload: dict[str, Any]) -> UIVerification:
         return UIVerification()
     if not isinstance(raw, dict):
         raise ValueError("ui_verification must be an object")
-    unsupported_fields = sorted(set(raw) - _CURRENT_UI_VERIFICATION_FIELDS)
+    unsupported_fields = sorted(set(raw) - CURRENT_UI_VERIFICATION_FIELDS)
     if unsupported_fields:
         raise ValueError(
             "ui_verification contains unsupported fields: "
@@ -151,6 +143,29 @@ def _normalize_ui_verification(payload: dict[str, Any]) -> UIVerification:
         visual_comparison=str(raw.get("visual_comparison") or "unavailable"),
         fidelity_status=str(raw.get("fidelity_status") or "not-applicable"),
         reviewer=str(_pick(raw, "reviewer") or "agent"),
+        approved_visual_ref=str(raw.get("approved_visual_ref") or ""),
+        approved_preview_sha256=str(
+            raw.get("approved_preview_sha256") or ""
+        ),
+        approved_manifest_sha256=str(
+            raw.get("approved_manifest_sha256") or ""
+        ),
+        comparison_report_ref=str(raw.get("comparison_report_ref") or ""),
+        comparison_report_sha256=str(
+            raw.get("comparison_report_sha256") or ""
+        ),
+        implementation_capture_refs=_as_str_list(
+            raw.get("implementation_capture_refs")
+        ),
+        covered_decision_ids=_as_str_list(raw.get("covered_decision_ids")),
+        structural_differences=_as_str_list(
+            raw.get("structural_differences")
+        ),
+        visual_differences=_as_str_list(raw.get("visual_differences")),
+        comparison_tolerance=str(raw.get("comparison_tolerance") or ""),
+        accepted_deviations=_normalize_evidence_items(
+            raw.get("accepted_deviations")
+        ),
     )
 
 

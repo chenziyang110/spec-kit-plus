@@ -51,6 +51,9 @@ func (service *WorkflowService) validateStageArtifacts(feature workflowFeature, 
 		"--feature-dir", feature.Rel,
 		"--format", "json",
 	}
+	if stage == "accept" {
+		gateArgs = append(gateArgs, "--require-accepted")
+	}
 	commandArgs := append(append([]string{}, launcher[1:]...), gateArgs...)
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()

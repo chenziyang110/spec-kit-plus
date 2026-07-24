@@ -322,7 +322,7 @@ def _shared_implement_validation_gaps(
     ]
     gaps = []
     if running:
-        gaps.append("shared validation has an unfinished running epoch")
+        gaps.append("shared validation has an unfinished running attempt")
     fingerprint = implementation_snapshot_sha256(project_root, feature_dir)
     matching = [
         run
@@ -340,8 +340,25 @@ def _shared_implement_validation_gaps(
         }
     ]
     if not matching:
+        from .implementation_deferrals import (
+            ImplementationDeferralError,
+            confirmed_deferral_for_validation,
+        )
+
+        try:
+            deferral = confirmed_deferral_for_validation(
+                project_root,
+                feature_dir,
+                purpose="convergence",
+                covered_task_ids=checked_task_ids,
+            )
+        except ImplementationDeferralError as exc:
+            gaps.append(f"shared validation deferral is invalid: {exc}")
+            deferral = None
+        if deferral is not None:
+            return gaps, ""
         gaps.append(
-            "shared validation requires a fresh passed implement/convergence epoch "
+            "shared validation requires a fresh passed Implement/convergence gate "
             "covering every checked task"
         )
         return gaps, ""
@@ -419,7 +436,9 @@ def _has_nonempty_blocker_evidence(value: object) -> bool:
     return False
 
 
-def _task_lifecycle_blocker_gaps(feature_dir: Path) -> list[str]:
+def _task_lifecycle_blocker_gaps(
+    project_root: Path, feature_dir: Path
+) -> list[str]:
     """Validate and surface open task-local blockers, including active tasks."""
 
     lifecycle_dir = feature_dir / "implementation-review" / "tasks"
@@ -461,6 +480,7 @@ def _task_lifecycle_blocker_gaps(feature_dir: Path) -> list[str]:
             continue
         for index, blocker in enumerate(blockers, start=1):
             label = f"{relative} blocker {index}"
+            blocker_ref = f"{task_id}-B{index:02d}"
             if not isinstance(blocker, dict):
                 gaps.append(f"{label} must be an object")
                 continue
@@ -503,9 +523,58 @@ def _task_lifecycle_blocker_gaps(feature_dir: Path) -> list[str]:
             ):
                 gaps.append(f"{label} approval_question is required for owner {owner}")
 
+            disposition = str(
+                blocker.get("disposition")
+                or (
+                    "parked"
+                    if blocker.get("implementation_can_continue") is True
+                    else "active_hard_block"
+                )
+            ).strip()
+            if disposition == "user_confirmed_deferral":
+                from .implementation_deferrals import (
+                    ImplementationDeferralError,
+                    confirmed_deferral_for_blocker,
+                    deferral_relative_ref,
+                )
+
+                disposition_ref = str(
+                    blocker.get("disposition_ref") or ""
+                ).strip()
+                try:
+                    deferral = confirmed_deferral_for_blocker(
+                        project_root, feature_dir, blocker_ref
+                    )
+                except ImplementationDeferralError as exc:
+                    gaps.append(f"{label} deferral is invalid: {exc}")
+                    continue
+                if deferral is None:
+                    gaps.append(
+                        f"{label} references no fresh human-confirmed deferral"
+                    )
+                    continue
+                expected_ref = deferral_relative_ref(
+                    str(deferral["deferral_id"])
+                )
+                if disposition_ref != expected_ref:
+                    gaps.append(
+                        f"{label} disposition_ref must equal {expected_ref}"
+                    )
+                continue
+            if disposition not in {
+                "active_hard_block",
+                "parked",
+                "transferred",
+                "resolved",
+            }:
+                gaps.append(f"{label} has invalid disposition: {disposition}")
+                continue
+            if disposition == "resolved":
+                continue
             gaps.append(
-                f"{task_id}: unresolved {classification or 'unknown'} blocker owned by "
-                f"{owner or 'unknown'} ({completion_impact or 'unknown'})"
+                f"{task_id}: {disposition} {classification or 'unknown'} blocker "
+                f"owned by {owner or 'unknown'} "
+                f"({completion_impact or 'unknown'})"
             )
     return gaps
 
@@ -556,6 +625,52 @@ def _uses_agent_native_task_lifecycle(feature_dir: Path) -> bool:
         return False
     version = payload.get("version")
     return isinstance(version, int) and not isinstance(version, bool) and version >= 2
+
+
+def _deferred_task_lifecycle_gap(
+    project_root: Path,
+    feature_dir: Path,
+    task_id: str,
+) -> str | None:
+    """Return None only for an unchecked task transferred by a fresh DEF record."""
+
+    relative = f"implementation-review/tasks/{task_id}.json"
+    path = feature_dir / relative
+    if not path.is_file():
+        return f"{task_id} is unchecked and has no deferred lifecycle: {relative}"
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        return f"{relative} is malformed: {exc}"
+    if not isinstance(payload, dict) or payload.get("status") != "deferred":
+        return (
+            f"{task_id} is unchecked and must be accepted or explicitly deferred "
+            "before terminal closeout"
+        )
+    blockers = payload.get("blockers")
+    if not isinstance(blockers, list) or not blockers:
+        return f"{relative} deferred status requires a blocker bound to DEF evidence"
+    from .implementation_deferrals import (
+        ImplementationDeferralError,
+        confirmed_deferral_for_blocker,
+    )
+
+    for index, blocker in enumerate(blockers, start=1):
+        if (
+            isinstance(blocker, dict)
+            and blocker.get("disposition") == "user_confirmed_deferral"
+        ):
+            try:
+                record = confirmed_deferral_for_blocker(
+                    project_root,
+                    feature_dir,
+                    f"{task_id}-B{index:02d}",
+                )
+            except ImplementationDeferralError as exc:
+                return f"{relative} deferral is invalid: {exc}"
+            if record is not None:
+                return None
+    return f"{relative} deferred status has no fresh human-confirmed DEF record"
 
 
 def _packetized_review_gaps(
@@ -823,7 +938,89 @@ def _task_review_gaps(
 
     if not review_accepted:
         return [f"{task_id} task review is not accepted at {review_relative}"]
-    return []
+    return _task_review_deferral_reference_gaps(
+        feature_dir,
+        task_id,
+        record,
+        review_relative=review_relative,
+    )
+
+
+def _task_review_deferral_reference_gaps(
+    feature_dir: Path,
+    task_id: str,
+    record: TaskReviewRecord,
+    *,
+    review_relative: str,
+) -> list[str]:
+    delivery_categories = {
+        "spec",
+        "evidence",
+        "ui_fidelity",
+        "plan_mandated_defect",
+    }
+    findings = {
+        ("findings", index): finding
+        for index, finding in enumerate(record.findings)
+    }
+    findings.update(
+        {
+            ("plan_mandated_defects", index): finding
+            for index, finding in enumerate(record.plan_mandated_defects)
+        }
+    )
+    refs: list[str] = []
+    for risk in record.accepted_residual_risks:
+        target = findings.get((risk.finding_source, risk.finding_index))
+        if target is not None and target.category in delivery_categories:
+            refs.append(risk.decision_ref)
+    for work in record.follow_up_work:
+        target = findings.get((work.finding_source, work.finding_index))
+        if target is not None and target.category in delivery_categories:
+            refs.append(work.decision_ref)
+    if not refs:
+        return []
+
+    from .implementation_deferrals import (
+        ImplementationDeferralError,
+        confirmed_implementation_deferrals,
+        deferral_relative_ref,
+        infer_project_root,
+    )
+
+    try:
+        records = confirmed_implementation_deferrals(
+            infer_project_root(feature_dir),
+            feature_dir,
+        )
+    except ImplementationDeferralError as exc:
+        return [
+            f"{task_id} task review deferral is invalid at "
+            f"{review_relative}: {exc}"
+        ]
+    by_ref = {
+        deferral_relative_ref(str(item["deferral_id"])): item
+        for item in records
+    }
+    errors: list[str] = []
+    for decision_ref in sorted(set(refs)):
+        deferral = by_ref.get(decision_ref)
+        if deferral is None:
+            errors.append(
+                f"{task_id} task review decision_ref is not a fresh confirmed "
+                f"DEF record at {review_relative}: {decision_ref}"
+            )
+            continue
+        affected_tasks = {
+            str(value).upper()
+            for value in deferral["proposal"]["affected_task_ids"]
+        }
+        if task_id not in affected_tasks:
+            errors.append(
+                f"{task_id} task review decision_ref does not cover this task "
+                f"at {review_relative}: {decision_ref}"
+            )
+    return errors
 
 
 def _safe_task_review_path(
@@ -1021,6 +1218,14 @@ def _accepted_residual_risks_from_payload(value: object) -> list[AcceptedResidua
                 finding_source=_optional_payload_choice(
                     item, "finding_source", TASK_REVIEW_FINDING_SOURCES, "findings"
                 ),
+                decision_ref=str(
+                    (
+                        item.decision_ref
+                        if isinstance(item, AcceptedResidualRisk)
+                        else item.get("decision_ref")
+                    )
+                    or ""
+                ).strip(),
             )
         )
     return risks
@@ -1041,6 +1246,14 @@ def _follow_up_work_from_payload(value: object) -> list[FollowUpWork]:
                 finding_source=_optional_payload_choice(
                     item, "finding_source", TASK_REVIEW_FINDING_SOURCES, "findings"
                 ),
+                decision_ref=str(
+                    (
+                        item.decision_ref
+                        if isinstance(item, FollowUpWork)
+                        else item.get("decision_ref")
+                    )
+                    or ""
+                ).strip(),
             )
         )
     return work_items
@@ -1090,6 +1303,18 @@ def audit_implement_resume(project_root: Path, feature_dir: Path) -> dict[str, A
     evidence_gaps: list[str] = []
     if terminal and not tasks:
         evidence_gaps.append("tasks.md has no task checklist evidence")
+    if terminal and _uses_agent_native_task_lifecycle(resolved_feature_dir):
+        for task in tasks:
+            if task["checked"]:
+                continue
+            task_id = str(task["task_id"]).upper()
+            gap = _deferred_task_lifecycle_gap(
+                resolved_project_root,
+                resolved_feature_dir,
+                task_id,
+            )
+            if gap:
+                evidence_gaps.append(gap)
     for task in checked_tasks:
         missing: list[str] = []
         result, result_gaps = _load_worker_result(
@@ -1151,7 +1376,11 @@ def audit_implement_resume(project_root: Path, feature_dir: Path) -> dict[str, A
             checked_task_ids,
         )
         evidence_gaps.extend(shared_gaps)
-    evidence_gaps.extend(_task_lifecycle_blocker_gaps(resolved_feature_dir))
+    evidence_gaps.extend(
+        _task_lifecycle_blocker_gaps(
+            resolved_project_root, resolved_feature_dir
+        )
+    )
     evidence_gaps.extend(
         _packetized_review_gaps(
             resolved_feature_dir,

@@ -11,14 +11,15 @@ requires an Analyze Gate, that gate is active/blocked or stale, or task-index
 `source_revision` and current plan/task consistency cannot be trusted. Do not
 run it inline. `gate_status: not-run` alone remains optional.
 
-## Shared validation epochs
+## Shared logical validation gates
 
-Use one durable validation-epoch ledger shared across Implement and Review. An
-epoch is a Leader-authorized heavyweight verification wave against one source
-fingerprint, even when it coordinates multiple commands or read-only observation
-lanes. Persist id, owner, fingerprint, scope, commands/scenarios, result, failure,
-covered Txx ids, and cumulative count. Carry the ledger unchanged through
-`implementation-handoff.json`; do not reset it on resume or phase transition.
+Use one durable validation ledger shared across Implement and Review. The budget
+counts the three logical gates `baseline`, `convergence`, and `delivery`; a gate
+may contain multiple physical attempts. Persist gate/attempt ids, owner,
+fingerprint, scope, commands/scenarios, verdict or interruption kind, covered
+Txx ids, evidence, and cumulative gate/attempt counts. Carry the ledger
+unchanged through `implementation-handoff.json`; do not reset it on resume or
+phase transition.
 
 Require `task-index.validation_policy` to declare exactly:
 
@@ -43,28 +44,36 @@ Omit `--fingerprint` to bind the current implementation snapshot automatically.
 Immediately after the wave, call:
 
 ```text
-{{specify-subcmd:implement validation-finish --feature-dir <feature-dir> --run-id <Vn> --status <passed|failed> --evidence-ref <ref> [--evidence-ref <ref2>] --summary '<text>' --format json}}
+{{specify-subcmd:implement validation-finish --feature-dir <feature-dir> --run-id <Vn> --status <passed|failed|interrupted> [--failure-kind <assertion|verification|harness|environment|runner_timeout|runner_terminated|cancelled|unknown>] --evidence-ref <ref> [--evidence-ref <ref2>] --summary '<text>' --format json}}
 ```
 
-Trust the returned run id, remaining budget, and ledger ref; do not hand-edit the
-ledger.
+Trust the returned gate id, attempt id, counts, recovery action, and ledger ref;
+do not hand-edit the ledger.
 
-The combined workflow permits at most three epochs: optional change-set
-RED/baseline, Implement convergence, and integrated Review or final post-repair
-revalidation. Allocate them dynamically. For a RED/baseline epoch, `passed`
+The combined workflow permits at most three logical gates: optional change-set
+RED/baseline, Implement convergence, and integrated Review delivery. Allocate
+them dynamically. For a RED/baseline gate, `passed`
 means the expected pre-change failure or credible before-state was observed;
-`failed` means that baseline was inconclusive, misconfigured, or unexpected. A
-failed epoch may be repaired only if
-another remains. Do not retry a failed command against the unchanged
-fingerprint; change the source/configuration first or keep the failure as
-blocking evidence. The third failed epoch blocks with exact evidence and
-recovery criteria. Never start a fourth validation epoch.
+`failed` means a real assertion or verification verdict. Tool timeout,
+termination, cancellation, harness failure, or environment loss is
+`interrupted`, never a test failure. Retry an interrupted attempt inside the
+same gate and fingerprint; retry a real failure only after a new fingerprint.
+Attempts do not consume another gate or steal Review delivery capacity. Never
+start a fourth logical gate.
+
+After `runner_timeout`, do not blindly rerun the full command. Determine whether
+the suite exceeds the execution ceiling or has stopped progressing; preserve
+the last completed shard/test and first incomplete test. Isolate that test with
+open-handle, process-exit, leaked-service, or equivalent runner diagnostics.
+Repair local hangs and fixture defects as agent-owned work. If duration is
+legitimate, split the recorded command into deterministic bounded shards inside
+the same gate; sharding is not another logical gate or validation attempt.
 
 For each ready task:
 
 - confirm authoritative inputs, dependencies, acceptance, likely write scope,
   and must-preserve obligations;
-- map behavior changes to the coherent change-set RED/baseline epoch, or stage a
+- map behavior changes to the coherent change-set RED/baseline gate, or stage a
   test-authoring-only lane before production edits;
 - implement the complete outcome and update generated/mirrored consumers;
 - run only cheap task checks such as bounded diff inspection,
@@ -74,9 +83,9 @@ For each ready task:
   remains pending.
 
 Workers must not run a test suite, full build, startup, E2E flow, or browser
-capture per Txx. The Leader opens one convergence epoch after integrating the
-change-set and runs affected gates once. Task lifecycles reference the resulting
-epoch instead of copying its command output.
+capture per Txx. The Leader opens one convergence gate after integrating the
+change-set and runs affected checks in one attempt. Task lifecycles reference
+the resulting attempt instead of copying its command output.
 
 ## External and human verification blockers
 
@@ -90,6 +99,20 @@ Keep the feature `executing` or `validating` while another dependency-safe task
 can continue; mark the feature blocked only when no ready work remains. A
 `mandatory_for_completion` blocker must not be converted to `accepted`, checked
 off, or `resolved` before its evidence exists.
+
+When the evidence cannot be supplied now, a human may explicitly transfer a
+precisely scoped low/medium-risk blocker to Review. Create an immutable proposal
+with
+`{{specify-subcmd:implement deferral-propose --feature-dir <feature-dir> --input <proposal.json> --format json}}`;
+after the human confirms that exact digest, bind the exact statement with
+`{{specify-subcmd:implement deferral-confirm --feature-dir <feature-dir> --deferral-id <DEF-id> --proposal-sha256 <sha> --confirmation-source <source> --statement '<exact-human-statement>' --format json}}`.
+Record `status: deferred`, never `accepted`, and carry the DEF ref, exact
+excluded behavior, residual risk, affected acceptance refs, claims withheld,
+and Review reopen condition into the handoff. The deferral expires at Review;
+it cannot waive high/critical, security, data-integrity, core-startup, or
+required acceptance failures. Local assertion failures, fixable fixtures,
+leaked processes, and diagnosable hangs remain agent-owned even when a human
+offers to skip them.
 
 Do not push, trigger remote CI, or perform another external write without the
 required authorization. For a commit needed to obtain mandatory protected-CI
@@ -107,10 +130,10 @@ For UI tasks, apply the packet `ui_contract` as binding scope. Workers inspect
 the original references and return changed surfaces, required states/viewports,
 and visual risks. Do not run the full viewport/state capture loop per Txx.
 Instead, run the visual convergence loop once for the integrated surface/source
-fingerprint in a Leader-owned epoch: render the matrix at the official real
+fingerprint in a Leader-owned gate attempt: render the matrix at the official real
 entry point, capture stable screenshots or platform output, inspect against
 `DESIGN.md`, `ui-brief.md`, prior surfaces, and original references, repair
-concrete drift while budget remains, then recapture in a later epoch. Check
+concrete drift, then recapture in a new attempt inside the same gate. Check
 overflow, console, keyboard/focus, and accessibility when applicable. Persist
 typed structure/visual/runtime evidence with `evidence_scope: integrated`, plus
 difference inventory and accepted deviations for approximate/high fidelity.
@@ -147,14 +170,14 @@ when available.
 
 Successful closeout must return a trusted `implementation_handoff` with its
 source revision, implementation fingerprint, official entrypoints, and required
-system Review scenarios, plus the validation-epoch ledger and remaining budget.
+system Review scenarios, plus the validation ledger and gate/attempt history.
 Revalidate the handoff against the live Spec, Plan,
 and Tasks and preserve their exact complete `acceptance_refs` denominator,
 `acceptance_denominator_sha256`, and frozen Human Acceptance Universe
 (`human_acceptance_obligations`, `human_acceptance_scenarios`, and
 `human_acceptance_contract_sha256`) unchanged;
 never omit an item, downgrade `required`, or reconstruct the contract from
-prose. Review must continue the shared epoch ledger and must not reset it.
+prose. Review must continue the shared ledger and must not reset it.
 Implement must not create, infer, or prefill `reviewed_runtime_targets`;
 only `$spx-review` creates those immutable targets after final integrated
 evidence and snapshot validation. Hand off to `$spx-review` and stop. Do not route

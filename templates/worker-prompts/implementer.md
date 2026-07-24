@@ -12,7 +12,7 @@ Use this template when the leader dispatches a concrete implementation lane for 
 - Provide the compiled worker packet or an equivalent summary of:
   - hard rules
   - required references
-  - cheap task checks and Leader-owned epoch validation gates
+  - cheap task checks and Leader-owned logical validation gates
   - done criteria
 - Provide platform guardrails and completion-handoff expectations explicitly when the lane depends on supported-platform constraints, conditional compilation, runtime-managed result channels, or a promised result handoff path.
 - Tell the worker that the current validated packet and its stable refs are the authoritative contract for the lane.
@@ -20,10 +20,11 @@ Use this template when the leader dispatches a concrete implementation lane for 
 - Do not reduce an original visual reference to prose-only instructions when the worker must make layout, spacing, color, hierarchy, or fidelity decisions.
 - Name the write set, shared surfaces, and forbidden drift explicitly.
 - For a behavior-changing task, provide either the accepted change-set RED/baseline
-  epoch ref or an explicit test-authoring-only lane. Never ask the worker to run
+  gate-attempt ref or an explicit test-authoring-only lane. Never ask the worker to run
   RED/GREEN or another heavyweight gate per Txx.
-- Name the shared validation-epoch ledger position. It is shared across Implement
-  and Review, permits at most three epochs, and only the Leader may consume one.
+- Name the shared validation ledger gate/attempt. It is shared across Implement
+  and Review, has at most three logical gates, and only the Leader may open an
+  attempt.
 
 ## Worker Contract
 
@@ -33,15 +34,15 @@ Use this template when the leader dispatches a concrete implementation lane for 
 - For behavior changes, bug fixes, and refactors, preserve test-first intent at
   change-set scope. If this is a test-authoring lane, write/select the tests and
   stop before production edits so the Leader can run one combined RED/baseline
-  epoch. If this is an implementation lane, require the packet's accepted
-  baseline epoch ref before production edits.
+  gate attempt. If this is an implementation lane, require the packet's accepted
+  baseline gate-attempt ref before production edits.
 - Run only the packet's cheap task checks: bounded static inspection,
   parse/format/schema checks, or an equivalent non-suite local check. Return test
   impact for the Leader: changed behavior, affected tests, required heavyweight
   gates, likely regression scope, and any setup constraints.
 - You must not run a test suite, full build, service startup, integration/E2E
-  journey, coverage job, or browser capture per Txx. You may not open, reset, or
-  increment a validation epoch.
+  journey, coverage job, or browser capture per Txx. You may not open or reset a
+  logical gate or validation attempt.
 - For any task that creates a reusable surface such as a UI component, route, provider, registry entry, factory branch, config field, API handler, or test file, return consumer evidence showing where that surface is imported, registered, rendered, executed, or included. A created but not wired file is not complete.
 - If the packet's `required_evidence` includes `real_entrypoint_evidence`, always
   return cheap task-local `consumer_evidence` for producer-to-consumer wiring.
@@ -63,7 +64,7 @@ Use this template when the leader dispatches a concrete implementation lane for 
   contract, then return changed surfaces, required states/viewports, and likely
   visual risks for the integrated matrix. Do not run the full viewport/state
   capture loop per Txx. The Leader runs the real entrypoint once per applicable
-  surface/source fingerprint in a validation epoch and records
+  surface/source fingerprint in a Leader-owned attempt and records
   `structure_snapshot`, `visual_capture`, and `runtime_diagnostics` with
   `evidence_scope: integrated`.
 - If the packet requests task-local UI evidence, use `ui_evidence` only for
@@ -93,8 +94,8 @@ Treat these fields as binding execution inputs from the current worker packet an
 - What changed
 - Files changed
 - Cheap task checks actually run
-- Test impact and the heavyweight gates deferred to the Leader-owned epoch
-- Accepted RED/baseline epoch ref, or `test-authoring-only` when production edits
+- Test impact and the heavyweight gates deferred to the Leader-owned attempt
+- Accepted RED/baseline gate-attempt ref, or `test-authoring-only` when production edits
   have not started
 - Visual inputs inspected when the task used original PNGs, screenshots, mockups, design exports, or reference images
 - UI changed-surface/state matrix and visual-risk notes when the packet carries
@@ -114,9 +115,10 @@ Treat these fields as binding execution inputs from the current worker packet an
 - Do not ignore platform guardrails or conditional-compilation requirements carried by the packet.
 - Do not claim verification that was not run.
 - Do not edit production code for a behavior-changing lane until the packet names
-  the accepted change-set RED/baseline epoch ref.
-- Do not start an extra validation epoch. The third failed epoch blocks and no
-  worker may ever start a fourth; report the exact blocked state to the Leader.
+  the accepted change-set RED/baseline gate-attempt ref.
+- Do not open an extra logical gate. A runner interruption retries inside the
+  same gate; a real failure requires repair and a new fingerprint. Workers never
+  open attempts; report the exact result to the Leader.
 - If a required decision is missing, stop and return `NEEDS_CONTEXT`.
 
 ## Inline Project Cognition Handoff

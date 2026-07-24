@@ -2482,7 +2482,9 @@ def implement_validation_start(
         ..., "--purpose", help="baseline, convergence, or delivery"
     ),
     command: list[str] = typer.Option(
-        ..., "--command", help="Validation command; repeat for the same epoch"
+        ...,
+        "--command",
+        help="Validation command; repeat to record bounded shards in this gate attempt",
     ),
     task_id: list[str] = typer.Option(
         [], "--task-id", help="Covered task ID; repeat as needed"
@@ -2494,7 +2496,7 @@ def implement_validation_start(
     ),
     output_format: TextJsonFormat = typer.Option(TextJsonFormat.text, "--format"),
 ):
-    """Reserve one shared implement/review validation epoch."""
+    """Reserve one attempt inside a shared Implement/Review validation gate."""
     from .review_runtime import implementation_snapshot_sha256
     from .validation_budget import ValidationBudgetError, reserve_validation_epoch
 
@@ -2526,6 +2528,7 @@ def implement_validation_start(
     else:
         console.print(
             f"Reserved shared validation {payload['run_id']} "
+            f"attempt {payload['attempt_id']} "
             f"({payload['purpose']}, {payload['status']})."
         )
 
@@ -2534,14 +2537,24 @@ def implement_validation_start(
 def implement_validation_finish(
     feature_dir: str = typer.Option(..., "--feature-dir"),
     run_id: str = typer.Option(..., "--run-id"),
-    status: str = typer.Option(..., "--status", help="passed or failed"),
+    status: str = typer.Option(
+        ..., "--status", help="passed, failed, or interrupted"
+    ),
+    failure_kind: str | None = typer.Option(
+        None,
+        "--failure-kind",
+        help=(
+            "For failed/interrupted attempts: assertion, verification, harness, "
+            "environment, runner_timeout, runner_terminated, cancelled, or unknown"
+        ),
+    ),
     evidence_ref: list[str] = typer.Option(
         ..., "--evidence-ref", help="Evidence reference; repeat as needed"
     ),
     summary: str = typer.Option(..., "--summary"),
     output_format: TextJsonFormat = typer.Option(TextJsonFormat.text, "--format"),
 ):
-    """Finish a reserved validation epoch with reusable evidence."""
+    """Finish the active attempt in a shared logical validation gate."""
     from .validation_budget import ValidationBudgetError, complete_validation_epoch
 
     project_root = Path.cwd()
@@ -2553,6 +2566,7 @@ def implement_validation_finish(
             resolved_feature_dir,
             run_id=run_id,
             status=status,
+            failure_kind=failure_kind,
             evidence_refs=evidence_ref,
             summary=summary,
         )
@@ -2567,7 +2581,8 @@ def implement_validation_finish(
         print_json(payload, indent=2)
     else:
         console.print(
-            f"Finished shared validation {payload['run_id']}: {payload['status']}."
+            f"Finished shared validation {payload['run_id']} "
+            f"attempt {payload['attempt_id']}: {payload['status']}."
         )
 
 
@@ -2595,8 +2610,105 @@ def implement_validation_status(
         print_json(payload, indent=2)
     else:
         console.print(
-            f"Validation epochs: {payload['used_epochs']}/{payload['max_epochs']} "
-            f"used ({payload['remaining_epochs']} remaining)."
+            f"Validation gates: {payload['used_epochs']}/{payload['max_epochs']} "
+            f"opened ({payload['remaining_epochs']} remaining); "
+            f"{payload['used_attempts']} attempt(s) recorded."
+        )
+        console.print(f"Next action: {payload['next_action']}")
+
+
+@implement_app.command("deferral-propose")
+def implement_deferral_propose(
+    feature_dir: str = typer.Option(..., "--feature-dir"),
+    input_path: Path = typer.Option(
+        ..., "--input", help="Project-contained JSON deferral proposal"
+    ),
+    output_format: TextJsonFormat = typer.Option(TextJsonFormat.text, "--format"),
+):
+    """Propose a scoped Implement-to-Review deferral without activating it."""
+    from .implementation_deferrals import (
+        ImplementationDeferralError,
+        propose_implementation_deferral,
+    )
+
+    project_root = Path.cwd().resolve(strict=False)
+    _require_spec_kit_plus_project(project_root)
+    resolved_feature_dir = _resolve_feature_dir(project_root, feature_dir)
+    resolved_input = input_path.resolve(strict=False)
+    try:
+        resolved_input.relative_to(project_root)
+        proposal = json.loads(resolved_input.read_text(encoding="utf-8"))
+        if not isinstance(proposal, dict):
+            raise ImplementationDeferralError(
+                "deferral proposal must contain a JSON object"
+            )
+        payload = propose_implementation_deferral(
+            project_root, resolved_feature_dir, proposal
+        )
+    except (
+        ImplementationDeferralError,
+        OSError,
+        UnicodeError,
+        json.JSONDecodeError,
+        ValueError,
+    ) as exc:
+        payload = {"status": "blocked", "errors": [str(exc)]}
+        if output_format.lower() == "json":
+            print_json(payload, indent=2)
+        else:
+            console.print(f"[red]Error:[/red] {exc}")
+        raise typer.Exit(10)
+    if output_format.lower() == "json":
+        print_json(payload, indent=2)
+    else:
+        console.print(
+            f"Prepared {payload['deferral_id']} ({payload['proposal_sha256']}). "
+            "It has no effect until the human confirms this exact digest."
+        )
+
+
+@implement_app.command("deferral-confirm")
+def implement_deferral_confirm(
+    feature_dir: str = typer.Option(..., "--feature-dir"),
+    deferral_id: str = typer.Option(..., "--deferral-id"),
+    proposal_sha256: str = typer.Option(..., "--proposal-sha256"),
+    confirmation_source: str = typer.Option(..., "--confirmation-source"),
+    statement: str = typer.Option(
+        ..., "--statement", help="Exact human confirmation statement"
+    ),
+    output_format: TextJsonFormat = typer.Option(TextJsonFormat.text, "--format"),
+):
+    """Confirm an exact deferral and transfer its unresolved scope to Review."""
+    from .implementation_deferrals import (
+        ImplementationDeferralError,
+        confirm_implementation_deferral,
+    )
+
+    project_root = Path.cwd()
+    _require_spec_kit_plus_project(project_root)
+    resolved_feature_dir = _resolve_feature_dir(project_root, feature_dir)
+    try:
+        payload = confirm_implementation_deferral(
+            project_root,
+            resolved_feature_dir,
+            deferral_id=deferral_id,
+            proposal_sha256=proposal_sha256,
+            confirmation_source=confirmation_source,
+            statement=statement,
+        )
+    except ImplementationDeferralError as exc:
+        payload = {"status": "blocked", "errors": [str(exc)]}
+        if output_format.lower() == "json":
+            print_json(payload, indent=2)
+        else:
+            console.print(f"[red]Error:[/red] {exc}")
+        raise typer.Exit(10)
+    if output_format.lower() == "json":
+        print_json(payload, indent=2)
+    else:
+        console.print(
+            f"Confirmed {payload['deferral_id']} and transferred it to Review. "
+            "No deferred check was marked passed."
         )
 
 
@@ -2815,6 +2927,11 @@ def _current_review_revision(feature_dir: Path, expected_revision: int | None) -
 def review_prepare(
     feature_dir: str = typer.Option(..., "--feature-dir"),
     expected_revision: int | None = typer.Option(None, "--expected-revision"),
+    restart_stale: bool = typer.Option(
+        False,
+        "--restart-stale",
+        help="Archive stale Review state and start a fresh evidence cycle",
+    ),
     output_format: TextJsonFormat = typer.Option(TextJsonFormat.text, "--format"),
 ):
     """Prepare resumable system-review state from the implementation handoff."""
@@ -2829,6 +2946,7 @@ def review_prepare(
             project_root,
             resolved_feature_dir,
             expected_revision=revision,
+            restart_stale=restart_stale,
         )
     except ReviewRuntimeError as exc:
         payload = {
@@ -7777,6 +7895,11 @@ def hook_validate_artifacts_command(
     feature_dir: str = typer.Option(
         ..., "--feature-dir", help="Feature directory path"
     ),
+    require_accepted: bool = typer.Option(
+        False,
+        "--require-accepted",
+        help="Require terminal human acceptance when validating accept",
+    ),
     output_format: str = HOOK_JSON_FORMAT_OPTION,
 ):
     """Validate required workflow artifacts and return JSON."""
@@ -7789,6 +7912,7 @@ def hook_validate_artifacts_command(
         {
             "command_name": command_name,
             "feature_dir": _normalize_optional_repo_path(project_root, feature_dir),
+            "require_accepted": require_accepted,
         },
     )
 

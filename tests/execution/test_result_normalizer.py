@@ -163,6 +163,52 @@ def test_normalize_worker_task_result_payload_preserves_ui_fields() -> None:
     assert result.ui_verification.fidelity_status == "pending-human-review"
 
 
+def test_normalize_worker_task_result_payload_preserves_current_visual_contract() -> None:
+    digest = "a" * 64
+    result = normalize_worker_task_result_payload(
+        {
+            "task_id": "T106",
+            "status": "success",
+            "summary": "validated the approved visual contract",
+            "ui_verification": {
+                "contract_check": "pass",
+                "runtime_evidence": "pass",
+                "visual_comparison": "pass",
+                "fidelity_status": "pass",
+                "reviewer": "agent",
+                "approved_visual_ref": "design/approved.html",
+                "approved_preview_sha256": digest,
+                "approved_manifest_sha256": digest,
+                "comparison_report_ref": "evidence/visual-report.json",
+                "comparison_report_sha256": digest,
+                "implementation_capture_refs": ["evidence/desktop.png"],
+                "covered_decision_ids": ["DS-001"],
+                "structural_differences": ["none"],
+                "visual_differences": ["none"],
+                "comparison_tolerance": "pixel-diff <= 1%",
+                "accepted_deviations": [
+                    {"decision_id": "DS-001", "reason": "approved copy change"}
+                ],
+            },
+        }
+    )
+
+    verification = result.ui_verification
+    assert verification.approved_visual_ref == "design/approved.html"
+    assert verification.approved_preview_sha256 == digest
+    assert verification.approved_manifest_sha256 == digest
+    assert verification.comparison_report_ref == "evidence/visual-report.json"
+    assert verification.comparison_report_sha256 == digest
+    assert verification.implementation_capture_refs == ["evidence/desktop.png"]
+    assert verification.covered_decision_ids == ["DS-001"]
+    assert verification.structural_differences == ["none"]
+    assert verification.visual_differences == ["none"]
+    assert verification.comparison_tolerance == "pixel-diff <= 1%"
+    assert verification.accepted_deviations == [
+        {"decision_id": "DS-001", "reason": "approved copy change"}
+    ]
+
+
 def test_normalize_worker_task_result_payload_rejects_camel_case_ui_evidence() -> None:
     with pytest.raises(ValueError, match="uiEvidence"):
         normalize_worker_task_result_payload(

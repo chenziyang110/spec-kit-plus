@@ -164,6 +164,7 @@ class WorkerTaskPacket:
     done_criteria: list[str]
     handoff_requirements: list[str]
     platform_guardrails: list[str] = field(default_factory=list)
+    user_confirmed_deferral_refs: list[str] = field(default_factory=list)
     intent: ExecutionIntent = field(default_factory=ExecutionIntent)
     dispatch_policy: DispatchPolicy = field(default_factory=DispatchPolicy)
     validation_policy: ValidationPolicy = field(default_factory=ValidationPolicy)

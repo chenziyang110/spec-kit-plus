@@ -58,6 +58,7 @@ packages = ["src/specify_cli"]
 "templates/discussion-handoff-schema.json" = "specify_cli/core_pack/templates/discussion-handoff-schema.json"
 "templates/discussion-handoff-template.json" = "specify_cli/core_pack/templates/discussion-handoff-template.json"
 "templates/implement-execution-state-template.json" = "specify_cli/core_pack/templates/implement-execution-state-template.json"
+"templates/implementation-deferral-schema.json" = "specify_cli/core_pack/templates/implementation-deferral-schema.json"
 "templates/human-acceptance-state-schema.json" = "specify_cli/core_pack/templates/human-acceptance-state-schema.json"
 "templates/human-acceptance-state-template.json" = "specify_cli/core_pack/templates/human-acceptance-state-template.json"
 "templates/plan-contract-template.json" = "specify_cli/core_pack/templates/plan-contract-template.json"

@@ -185,9 +185,9 @@ def _agent_teams_task_description(packet: Any, *, request_id: str) -> str:
     ordered_context = sorted(packet.context_bundle, key=lambda item: (item.read_order, item.path))
     if packet.validation_policy.mode == "feature_epochs":
         execution_instructions = [
-            "Validation policy: feature_epochs; only the Leader may consume the shared implement-review epoch budget.",
+            "Validation policy: feature_epochs; only the Leader may open or close attempts in the three shared Implement/Review logical gates.",
             "Run only the listed task_checks/validation gates. Do not run Leader-owned tests, builds, startup, E2E, real-entrypoint checks, or visual capture.",
-            "Integrated real-entrypoint, acceptance, manual, and UI evidence is deferred to the Leader epoch. Return cheap task-local consumer/wiring, must-preserve, and consequence evidence plus changed surfaces, states, and test impact.",
+            "Integrated real-entrypoint, acceptance, manual, and UI evidence is deferred to a Leader-owned gate attempt. Return cheap task-local consumer/wiring, must-preserve, and consequence evidence plus changed surfaces, states, and test impact.",
         ]
     else:
         execution_instructions = [

@@ -13,10 +13,10 @@ confirmation, broad or independent `sp-debug` evidence lanes, `sp-map-scan`,
 
 ## Workflow-Owned Validation
 
-When `sp-implement` uses feature validation epochs, packets carry cheap
+When `sp-implement` uses feature validation gates, packets carry cheap
 `task_checks`, accepted baseline refs when needed, and test impact. The Leader
-owns every heavyweight validation epoch shared across Implement and Review.
-Workers and this passive skill must not start an extra validation epoch for a
+owns every logical gate and validation attempt shared across Implement and Review.
+Workers and this passive skill must not start an extra gate or attempt for a
 Txx, dispatch, join, resume, or completion handoff.
 
 ## Core Rule
@@ -60,7 +60,7 @@ Route first, choose the lightest safe execution surface, then packetize only sel
    `leader-inline` only as the owning workflow's selected mode.
 4. **Join on evidence**: Wait for every subagent's structured handoff. The
    handoff must name changed files, cheap task checks, test impact, accepted
-   epoch refs, failures, open risks, and any spec or plan gaps. An idle or silent
+   gate-attempt refs, failures, open risks, and any spec or plan gaps. An idle or silent
    subagent is not completed work.
 5. **Review on triggers**: Run the single task reviewer only for drift, parallel
    joins, scope violations, validation failure, worker concerns, obligation
@@ -76,7 +76,7 @@ A subagent prompt must include:
 - Exact write set and paths the worker must not touch.
 - Stable authoritative refs from the current task, plan/spec contracts, live code,
   and memory rules actually needed by the lane.
-- Accepted change-set RED/baseline epoch ref or test-authoring-only status,
+- Accepted change-set RED/baseline gate-attempt ref or test-authoring-only status,
   cheap task checks, and test impact for Leader-owned convergence.
 - For scan, build, PRD scan, and map-update evidence lanes, include explicit `assigned_paths` or changed paths. A subagent must not silently narrow assigned scope; if the set does not fit, the worker result returns top-level `acceptance=fail_gap`, marks affected paths with path-level `coverage[].outcome="overflow"` or `coverage[].outcome="blocked"`, and includes the smallest safe split or recovery suggestion. `overflow` and `blocked` are path or queue states, not top-level worker result acceptance values.
 - Worker results for mutable work must include changed paths, behavior surfaces, generated surfaces, state contracts, verification, known unknowns, and confidence notes so the parent workflow can build the inline project cognition update payload.
@@ -112,7 +112,7 @@ packet before dispatch.
   in the current runtime.
 - Treating an idle subagent as done work.
 - Accepting a handoff that lacks changed-file summary, cheap task-check evidence,
-  test impact, or its required epoch ref.
+  test impact, or its required gate-attempt ref.
 - Skipping event-triggered review when the workflow records a review trigger.
 - Updating `tasks.md`, quick status, or workflow state as complete before the
   structured handoff and validation evidence exist.

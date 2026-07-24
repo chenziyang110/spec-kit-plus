@@ -283,10 +283,12 @@ def validate_worker_task_packet(packet: WorkerTaskPacket) -> WorkerTaskPacket:
         if (
             isinstance(policy.max_epochs, bool)
             or not isinstance(policy.max_epochs, int)
-            or not 1 <= policy.max_epochs <= 3
+            or policy.max_epochs != 3
         ):
             raise PacketValidationError(
-                "DP1", "feature_epochs validation_policy max_epochs must be 1..3"
+                "DP1",
+                "feature_epochs validation_policy max_epochs must equal 3 so "
+                "Review retains its delivery gate",
             )
         if policy.budget_scope != "implement-review":
             raise PacketValidationError(
@@ -317,6 +319,10 @@ def validate_worker_task_packet(packet: WorkerTaskPacket) -> WorkerTaskPacket:
     if not packet.platform_guardrails:
         raise PacketValidationError(
             "DP2", "platform_guardrails must be compiled into the packet"
+        )
+    if _has_blank_entry(packet.user_confirmed_deferral_refs):
+        raise PacketValidationError(
+            "DP1", "user_confirmed_deferral_refs cannot contain blank entries"
         )
     if any(SURFACE_LIMIT_ANTI_GOAL_RE.search(goal) for goal in packet.anti_goals):
         if not packet.does_not_remove:

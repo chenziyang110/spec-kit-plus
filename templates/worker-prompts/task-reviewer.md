@@ -52,7 +52,7 @@ Allowed values:
 - `ui_fidelity_result`: `not_applicable`, `pass`, `fail`, `needs_visual_or_human_review`
 - `final_assessment`: `accepted`, `fixes_required`, `controller_check_required`
 
-Use the same finding object fields for both `findings` and `plan_mandated_defects`: `severity`, `category`, `file`, `line`, `summary`, `required_fix`, and `disposition`. For a plan-mandated defect, set `category=plan_mandated_defect`. When a disposition is `accepted_residual_risk` or `follow_up`, add an entry to `accepted_residual_risks` or `follow_up_work` with `finding_source` set to `findings` or `plan_mandated_defects`, `finding_index` set to that list index, and the required reason, owner, description, or target.
+Use the same finding object fields for both `findings` and `plan_mandated_defects`: `severity`, `category`, `file`, `line`, `summary`, `required_fix`, and `disposition`. For a plan-mandated defect, set `category=plan_mandated_defect`. When a disposition is `accepted_residual_risk` or `follow_up`, add an entry to `accepted_residual_risks` or `follow_up_work` with `finding_source` set to `findings` or `plan_mandated_defects`, `finding_index` set to that list index, and the required reason, owner, description, or target. High/critical findings cannot use either disposition. A `spec`, `evidence`, `ui_fidelity`, or `plan_mandated_defect` disposition also requires `decision_ref` to name a fresh human-confirmed `implementation-review/deferrals/DEF-*.json` that covers this task; an arbitrary ticket or backlog string is not authorization.
 
 ## Acceptance Rules
 

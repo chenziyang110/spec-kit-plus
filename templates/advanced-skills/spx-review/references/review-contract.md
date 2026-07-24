@@ -5,15 +5,28 @@
 Review starts only after implementation closeout has produced a trusted
 `implementation-handoff.json` and the CLI runtime permits the `implement` to
 `review` transition. The handoff identifies the implementation fingerprint,
-official entrypoints, required system Review scenarios, and the validation-epoch
+official entrypoints, required system Review scenarios, and the validation
 ledger shared across Implement and Review. Reject a missing,
 ambiguous, or stale handoff; do not infer completion from task checkboxes.
 
-Continue that ledger without resetting its consumed count. The combined flow
-permits at most three Leader-owned heavyweight epochs bound to source
-fingerprints. Commands, scenarios, and read-only observation lanes against one
-fingerprint share the same epoch. The third failed epoch blocks with exact
-evidence and recovery criteria; never start a fourth validation epoch.
+Read any `user_confirmed_deferrals` in the handoff before allocation. Each DEF
+is unresolved scope whose ownership expires into Review. Restore its exact
+blocker/task/acceptance/validation refs, keep the listed claims withheld, and
+rerun it. Resolve its `review-state.json.implementation_deferrals` entry only
+with `status: resolved`, outcome `passed|fixed`, a nonblank summary,
+current-cycle evidence refs and byte digests, current `review_cycle_id`, and the
+final implementation fingerprint. A DEF is not prior PASS evidence and cannot
+be forwarded silently to Accept.
+
+Continue that ledger without resetting it. The combined flow owns three logical
+gates (`baseline`, `convergence`, `delivery`), while physical retries are
+attempts inside a gate. Commands, scenarios, and read-only observation lanes
+against one fingerprint share one attempt. Runner timeout/termination is
+`interrupted`, not failed; it may retry the same delivery gate and fingerprint.
+A real failure requires repair and a new fingerprint. Never open a fourth
+logical gate. After timeout, isolate the last active scenario/test with
+open-handle/process-exit diagnostics; repair a hang, or split a legitimately
+long matrix into deterministic bounded shards inside the same delivery gate.
 
 Its canonical ref is `implementation-review/validation-runs.json`. Call
 `{{specify-subcmd:implement validation-status --feature-dir <feature-dir> --format json}}`
@@ -21,12 +34,15 @@ before Review work. Before the Leader starts a delivery scenario wave, call
 `{{specify-subcmd:implement validation-start --feature-dir <feature-dir> --stage review --purpose delivery --command '<cmd>' [--command '<cmd2>'] [--task-id T001] [--task-id T002] [--fingerprint <sha>] --format json}}`;
 omit `--fingerprint` to bind the current implementation snapshot. After the wave,
 call
-`{{specify-subcmd:implement validation-finish --feature-dir <feature-dir> --run-id <Vn> --status <passed|failed> --evidence-ref <ref> [--evidence-ref <ref2>] --summary '<text>' --format json}}`.
-Use the runtime-returned run id and remaining budget; do not hand-edit or
+`{{specify-subcmd:implement validation-finish --feature-dir <feature-dir> --run-id <Vn> --status <passed|failed|interrupted> [--failure-kind <assertion|verification|harness|environment|runner_timeout|runner_terminated|cancelled|unknown>] --evidence-ref <ref> [--evidence-ref <ref2>] --summary '<text>' --format json}}`.
+Use the runtime-returned gate/attempt ids and counts; do not hand-edit or
 reconstruct the ledger.
 
 `review prepare` compiles or freshness-checks the resumable
-`review-state.json`. The installed template/schema and runtime are authoritative
+`review-state.json`. If it reports stale or malformed Review-owned state
+outside an acceptance-repair cycle, rerun with `--restart-stale`; the runtime
+archives the exact old bytes under `review-history/` and creates a fresh
+evidence cycle. The installed template/schema and runtime are authoritative
 for stable fields. Review owns that state, `review-evidence/**`, Review result
 records, bounded source/test repairs, and Review-owned rich workflow-state
 fields. It must not silently rewrite specification, plan, tasks, task lifecycle
@@ -127,11 +143,11 @@ scenario revalidation.
 
 ## Revalidation and approval
 
-After the audit join, use a separate Fix wave for accepted findings only when a
-later validation epoch remains. Fix workers run cheap task checks, return test
-impact, and must not execute heavyweight gates per Txx. Join the complete repair
-batch before the Leader opens one next epoch; do not open an epoch per finding
-or per repair. Run that independent revalidation wave over the exact failed step, its
+After the audit join, use a separate Fix wave for accepted findings. Fix workers
+run cheap task checks, return test impact, and must not execute heavyweight
+gates per Txx. Join the complete repair batch before the Leader opens a new
+attempt in the delivery gate; do not open an attempt per finding or per repair.
+Run that independent revalidation wave over the exact failed step, its
 complete user journey, every scenario sharing the changed dependency, and the
 smallest credible regression set. A repair author must not verify its own
 finding; use the leader or a different read-only subagent. Recapture stale
@@ -140,10 +156,10 @@ any Fix, restart from a clean supported state, rerun every required Review
 scenario, and recapture every required evidence record against the single final
 reviewed snapshot. No pre-Fix scenario evidence can satisfy approval.
 
-If a failed epoch consumed the final slot, preserve the findings and block
-without making an unprovable repair. Any source change requires a later epoch
-before approval; do not reset the ledger to manufacture capacity or retry a
-failed command against the unchanged fingerprint.
+A real failure remains blocking until a repaired fingerprint passes a later
+delivery attempt. Any source change requires a later attempt before approval;
+do not reset the ledger or retry a real failure against the unchanged
+fingerprint. Runner interruption may retry the same fingerprint.
 
 If the Fix set is non-empty, write one final full-matrix revalidation. Its
 `fix_assignment_ids` and canonical `fix_assignments_sha256` cover every accepted
@@ -170,8 +186,8 @@ subtrees.
 - required evidence exists, is integrated, and matches the current snapshot;
 - startup/readiness and material runtime diagnostics pass;
 - each repair has fresh revalidation evidence;
-- the shared validation-epoch ledger contains at most three entries, was not
-  reset after Implement, and its latest required epoch passed;
+- the shared validation ledger contains at most three logical gates, was not
+  reset after Implement, and its latest delivery attempt passed;
 - the final source fingerprint is current;
 - every required Human Acceptance scenario has a ready reviewed runtime target
   whose immutable identity, linked Review scenarios, and ready evidence match

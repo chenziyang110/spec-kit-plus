@@ -34,6 +34,7 @@ def test_compile_worker_task_packet_prefers_canonical_task_index_for_jit_packet(
             {
                 "version": 2,
                 "status": "ready",
+                "user_confirmed_deferral_refs": ["DEC-001"],
                 "tasks": [
                     {
                         "id": "T017",
@@ -48,6 +49,7 @@ def test_compile_worker_task_packet_prefers_canonical_task_index_for_jit_packet(
                         "consequence_obligation_refs": ["CA-001"],
                         "capability_operation_refs": ["CAP-auth"],
                         "required_consumer_evidence": ["real_entrypoint_evidence"],
+                        "user_confirmed_deferral_refs": ["DEC-002"],
                     }
                 ],
             }
@@ -68,6 +70,7 @@ def test_compile_worker_task_packet_prefers_canonical_task_index_for_jit_packet(
     assert packet.acceptance_criteria == ["Auth flow passes the real service test"]
     assert packet.capability_operations == ["CAP-auth"]
     assert packet.required_evidence == ["real_entrypoint_evidence"]
+    assert packet.user_confirmed_deferral_refs == ["DEC-001", "DEC-002"]
     assert [item.id for item in packet.must_preserve_obligations] == ["MP-001"]
     assert [item.obligation_id for item in packet.consequence_obligations] == ["CA-001"]
 

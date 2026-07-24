@@ -36,12 +36,12 @@ User task → Is it static HTML?
 
 ### Workflow-Owned Validation
 
-For UI-affecting `sp-implement` work under feature epochs, workers inspect
+For UI-affecting `sp-implement` work under the `feature_epochs` policy, workers inspect
 design inputs and return changed surfaces, required states/viewports, and visual
-risks. They must not start an extra validation epoch or run browser capture per
+risks. They must not start an extra logical gate or validation attempt, or run browser capture per
 Txx. The Leader groups the matrix and runs browser verification once per
 integrated surface/source fingerprint inside the shared Implement/Review
-validation epoch budget.
+validation ledger.
 
 That integrated browser verification must produce visual evidence as well as
 functional assertions. Capture the required viewport/state matrix with

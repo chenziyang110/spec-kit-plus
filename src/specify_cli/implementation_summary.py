@@ -69,7 +69,35 @@ def build_implementation_summary(
     behavior_surfaces = _behavior_surfaces(changed_from_results)
     review_artifacts = _review_artifacts(resolved_feature_dir, tasks, root)
     system_review = _system_review_summary(resolved_feature_dir, root)
-    blockers = _implementation_blockers(resolved_feature_dir)
+    blockers = _implementation_blockers(resolved_feature_dir, project_root=root)
+    from .implementation_deferrals import (
+        ImplementationDeferralError,
+        confirmed_implementation_deferrals,
+    )
+
+    try:
+        confirmed_deferrals = confirmed_implementation_deferrals(
+            root, resolved_feature_dir
+        )
+    except ImplementationDeferralError as exc:
+        confirmed_deferrals = []
+        blockers.append(
+            _implementation_gate_blocker(
+                blocker_id="IMPLEMENT-DEFERRAL-STATE",
+                category="artifact-or-state",
+                summary="Implementation deferral state is invalid or tampered.",
+                evidence=[str(exc)],
+                exact_next_action=(
+                    "Repair or replace the invalid DEF record, then rerun the "
+                    "implementation resume audit."
+                ),
+                unblock_criteria=(
+                    "Every confirmed DEF record is canonical, hash-bound, fresh "
+                    "for the current implementation, and bound to its task blockers."
+                ),
+                resume_argv=_implementation_resume_argv(resolved_feature_dir),
+            )
+        )
     human_needed_checks = [
         str(item["summary"])
         for item in blockers
@@ -98,6 +126,20 @@ def build_implementation_summary(
             "name_status": git_comparison["name_status"],
         },
         "human_needed_checks": human_needed_checks,
+        "confirmed_deferrals": [
+            {
+                "deferral_id": item["deferral_id"],
+                "exact_excluded_behavior": item["proposal"][
+                    "exact_excluded_behavior"
+                ],
+                "claims_withheld": list(item["proposal"]["claims_withheld"]),
+                "downstream_owner": item["proposal"]["downstream_owner"],
+                "reopen_or_stop_condition": item["proposal"][
+                    "reopen_or_stop_condition"
+                ],
+            }
+            for item in confirmed_deferrals
+        ],
         "blockers": blockers,
         "unresolved_gaps": [str(item["summary"]) for item in blockers],
         "human_acceptance": {
@@ -252,10 +294,24 @@ def _load_worker_results(feature_dir: Path) -> list[dict[str, Any]]:
     return results
 
 
-def _implementation_blockers(feature_dir: Path) -> list[dict[str, Any]]:
+def _implementation_blockers(
+    feature_dir: Path, *, project_root: Path | None = None
+) -> list[dict[str, Any]]:
     lifecycle_dir = feature_dir / "implementation-review" / "tasks"
     if not lifecycle_dir.is_dir():
         return []
+    from .implementation_deferrals import (
+        ImplementationDeferralError,
+        confirmed_deferral_for_blocker,
+        deferral_relative_ref,
+        infer_project_root,
+    )
+
+    root = (
+        project_root.resolve(strict=False)
+        if project_root is not None
+        else infer_project_root(feature_dir)
+    )
     blockers: list[dict[str, Any]] = []
     for lifecycle_path in sorted(lifecycle_dir.glob("*.json")):
         try:
@@ -267,6 +323,26 @@ def _implementation_blockers(feature_dir: Path) -> list[dict[str, Any]]:
         task_id = str(payload.get("task_id") or lifecycle_path.stem).upper()
         for index, raw_blocker in enumerate(payload.get("blockers") or [], start=1):
             if isinstance(raw_blocker, dict):
+                if raw_blocker.get("disposition") == "user_confirmed_deferral":
+                    blocker_ref = f"{task_id}-B{index:02d}"
+                    try:
+                        deferral = confirmed_deferral_for_blocker(
+                            root, feature_dir, blocker_ref
+                        )
+                    except ImplementationDeferralError as exc:
+                        blockers.append(
+                            _invalid_lifecycle_blocker_detail(
+                                feature_dir,
+                                task_id,
+                                index,
+                                [f"invalid deferral: {exc}"],
+                            )
+                        )
+                        continue
+                    if deferral is not None and raw_blocker.get(
+                        "disposition_ref"
+                    ) == deferral_relative_ref(str(deferral["deferral_id"])):
+                        continue
                 source_errors = _lifecycle_blocker_source_errors(raw_blocker)
                 if source_errors:
                     blockers.append(
@@ -1134,6 +1210,36 @@ def _render_markdown(payload: dict[str, Any]) -> str:
         lines.append(
             "- No git working-tree changes were detected when this summary was generated."
         )
+
+    lines.extend(["", "## Confirmed Deferrals", ""])
+    deferrals = [
+        item
+        for item in (payload.get("confirmed_deferrals") or [])
+        if isinstance(item, dict)
+    ]
+    if deferrals:
+        for item in deferrals:
+            lines.append(
+                f"- `{item.get('deferral_id', 'DEF')}` transferred to "
+                f"`{item.get('downstream_owner', 'review')}`: "
+                f"{item.get('exact_excluded_behavior', 'scope not recorded')}"
+            )
+            claims = item.get("claims_withheld") or []
+            if claims:
+                lines.append(
+                    "  - Claims withheld: "
+                    + "; ".join(str(claim) for claim in claims)
+                )
+            lines.append(
+                "  - Reopen/stop condition: "
+                + str(item.get("reopen_or_stop_condition") or "not recorded")
+            )
+        lines.append(
+            "- These items are unresolved and were not counted as passed; "
+            "Review owns their next verification."
+        )
+    else:
+        lines.append("- None recorded.")
 
     lines.extend(["", "## Blockers", ""])
     blockers = [

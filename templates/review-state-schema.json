@@ -13,6 +13,7 @@
     "obligations",
     "human_acceptance_obligations",
     "human_acceptance_scenarios",
+    "implementation_deferrals",
     "reviewed_runtime_targets",
     "review_assignments",
     "fix_assignments",
@@ -43,7 +44,8 @@
         "review_cycle_id": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
         "previous_review_state_sha256": { "type": "string", "pattern": "^$|^[0-9a-f]{64}$" },
         "acceptance_finding_id": { "type": "string" },
-        "acceptance_finding_sha256": { "type": "string", "pattern": "^$|^[0-9a-f]{64}$" }
+        "acceptance_finding_sha256": { "type": "string", "pattern": "^$|^[0-9a-f]{64}$" },
+        "restart_reason": { "enum": ["stale-review-restart"] }
       },
       "additionalProperties": false
     },
@@ -187,6 +189,184 @@
             }
           }
         },
+        "additionalProperties": false
+      }
+    },
+    "implementation_deferrals": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "deferral_id",
+          "deferral_ref",
+          "proposal_sha256",
+          "confirmation_id",
+          "implementation_fingerprint",
+          "blocker_refs",
+          "affected_task_ids",
+          "affected_acceptance_refs",
+          "deferred_validation_purposes",
+          "exact_excluded_behavior",
+          "residual_risk",
+          "risk_severity",
+          "claims_withheld",
+          "reopen_or_stop_condition",
+          "downstream_artifact",
+          "downstream_owner",
+          "defer_until",
+          "status",
+          "resolution"
+        ],
+        "properties": {
+          "deferral_id": {
+            "type": "string",
+            "pattern": "^DEF-[0-9a-f]{12}$"
+          },
+          "deferral_ref": {
+            "type": "string",
+            "pattern": "^implementation-review/deferrals/DEF-[0-9a-f]{12}\\.json$"
+          },
+          "proposal_sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "confirmation_id": {
+            "type": "string",
+            "pattern": "^HC-[0-9a-f]{24}$"
+          },
+          "implementation_fingerprint": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "blocker_refs": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "pattern": "^(T\\d+-B\\d{2}|VALIDATION-(BASELINE|CONVERGENCE))$"
+            }
+          },
+          "affected_task_ids": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {"type": "string", "pattern": "^T\\d+$"}
+          },
+          "affected_acceptance_refs": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {"type": "string", "minLength": 1}
+          },
+          "deferred_validation_purposes": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {"enum": ["baseline", "convergence"]}
+          },
+          "exact_excluded_behavior": {
+            "type": "string",
+            "minLength": 1
+          },
+          "residual_risk": {
+            "type": "string",
+            "minLength": 1
+          },
+          "risk_severity": {
+            "enum": ["low", "medium"]
+          },
+          "claims_withheld": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {"type": "string", "minLength": 1}
+          },
+          "reopen_or_stop_condition": {
+            "type": "string",
+            "minLength": 1
+          },
+          "downstream_artifact": {
+            "const": "implementation-handoff.json"
+          },
+          "downstream_owner": {
+            "const": "review"
+          },
+          "defer_until": {
+            "const": "review"
+          },
+          "status": {
+            "enum": ["pending", "resolving", "resolved"]
+          },
+          "resolution": {
+            "oneOf": [
+              {"type": "null"},
+              {
+                "type": "object",
+                "required": [
+                  "outcome",
+                  "summary",
+                  "evidence_refs",
+                  "evidence_sha256",
+                  "review_cycle_id",
+                  "implementation_fingerprint"
+                ],
+                "properties": {
+                  "outcome": {"enum": ["passed", "fixed"]},
+                  "summary": {"type": "string", "minLength": 1},
+                  "evidence_refs": {
+                    "type": "array",
+                    "minItems": 1,
+                    "uniqueItems": true,
+                    "items": {"type": "string", "minLength": 1}
+                  },
+                  "evidence_sha256": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    }
+                  },
+                  "review_cycle_id": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  },
+                  "implementation_fingerprint": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  }
+                },
+                "additionalProperties": false
+              }
+            ]
+          }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "status": {"const": "resolved"}
+              },
+              "required": ["status"]
+            },
+            "then": {
+              "properties": {
+                "resolution": {"type": "object"}
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "status": {"enum": ["pending", "resolving"]}
+              },
+              "required": ["status"]
+            },
+            "then": {
+              "properties": {
+                "resolution": {"type": "null"}
+              }
+            }
+          }
+        ],
         "additionalProperties": false
       }
     },

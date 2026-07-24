@@ -5649,6 +5649,62 @@ def test_implement_closeout_blocks_false_resolved_state(tmp_path: Path):
     assert payload["blockers"]
 
 
+@pytest.mark.usefixtures("unified_runtime_env")
+def test_raw_implement_artifact_gate_requires_closeout_handoff(
+    tmp_path: Path,
+) -> None:
+    project = _create_project(tmp_path)
+    feature_dir = project / ".specify" / "features" / "001-demo"
+    feature_dir.mkdir(parents=True)
+    install_passing_workflow_gate(project)
+    entered = enter_workflow(feature_dir, stage="specify", expected_revision=0)
+    revision = int(entered["data"]["revision"])
+    for target_stage in ("plan", "tasks", "implement"):
+        completed = complete_workflow_stage(
+            feature_dir,
+            expected_revision=revision,
+        )
+        transitioned = transition_workflow(
+            feature_dir,
+            target_stage=target_stage,
+            expected_revision=int(completed["data"]["revision"]),
+        )
+        revision = int(transitioned["data"]["revision"])
+    (feature_dir / "workflow-state.md").write_text(
+        "# Workflow State\n\n## Next Command\n\n- `/sp.implement`\n",
+        encoding="utf-8",
+    )
+    (feature_dir / "tasks.md").write_text(
+        "- [X] T001 [US1] Create provider form in apps/web/src/Form.tsx\n",
+        encoding="utf-8",
+    )
+    (feature_dir / "implement-tracker.md").write_text(
+        "---\nstatus: resolved\nfeature: 001-demo\nresume_decision: resolved\n"
+        "---\n\n## Current Focus\nnext_action: report completion\n",
+        encoding="utf-8",
+    )
+
+    result = _invoke_in_project(
+        project,
+        [
+            "hook",
+            "validate-artifacts",
+            "--command",
+            "implement",
+            "--feature-dir",
+            str(feature_dir),
+        ],
+    )
+
+    assert result.exit_code == 10
+    payload = json.loads(result.output)
+    assert payload["status"] == "blocked"
+    assert any(
+        "implementation-handoff.json" in error
+        for error in payload["errors"]
+    ), payload
+
+
 def test_implement_closeout_blocks_readable_nonterminal_state(tmp_path: Path):
     project = _create_project(tmp_path)
     feature_dir = project / ".specify" / "features" / "001-demo"
@@ -5985,6 +6041,20 @@ def test_implement_closeout_writes_review_handoff_without_preparing_acceptance(
     assert "## Version Comparison" in report
     assert "## Review Artifacts" in report
     assert "## Human Product Acceptance" in report
+
+    artifact_gate = _invoke_in_project(
+        project,
+        [
+            "hook",
+            "validate-artifacts",
+            "--command",
+            "implement",
+            "--feature-dir",
+            str(feature_dir),
+        ],
+    )
+    assert artifact_gate.exit_code == 0, artifact_gate.output
+    assert json.loads(artifact_gate.output)["status"] == "ok"
 
     repeated = _invoke_in_project(
         project,
