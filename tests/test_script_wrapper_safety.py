@@ -48,7 +48,7 @@ def _pwsh() -> str:
 
 
 def _run_bash_cognition(repo: Path, dirty_scope_paths_json: str) -> subprocess.CompletedProcess[str]:
-    fake = repo / ".specify" / "bin" / "project-cognition-fake.sh"
+    fake = repo / ".specify" / "bin" / "specify-runtime"
     fake.parent.mkdir(parents=True, exist_ok=True)
     fake.write_text(
         "#!/usr/bin/env bash\n"
@@ -59,7 +59,7 @@ def _run_bash_cognition(repo: Path, dirty_scope_paths_json: str) -> subprocess.C
         newline="\n",
     )
     fake.chmod(fake.stat().st_mode | 0o111)
-    command = "SPECIFY_RUNTIME_BIN=.specify/bin/project-cognition-fake.sh " + shlex.join(
+    command = shlex.join(
         [
             "scripts/bash/project-cognition-freshness.sh",
             ".",
@@ -94,6 +94,17 @@ def _run_powershell_cognition(repo: Path, dirty_scope_paths_json: str) -> subpro
         encoding="utf-8",
         newline="\n",
     )
+    (repo / ".specify" / "config.json").write_text(
+        json.dumps(
+            {
+                "runtime_launcher": {
+                    "command": str(fake),
+                    "argv": [str(fake.relative_to(repo))],
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
     return subprocess.run(
         [
             _pwsh(),
@@ -121,7 +132,7 @@ def _run_powershell_cognition(repo: Path, dirty_scope_paths_json: str) -> subpro
         check=False,
         capture_output=True,
         text=True,
-        env={**os.environ, "SPECIFY_RUNTIME_BIN": str(fake)},
+        env={key: value for key, value in os.environ.items() if key != "SPECIFY_RUNTIME_BIN"},
     )
 
 

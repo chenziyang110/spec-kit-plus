@@ -19,18 +19,12 @@ usage() {
 
 normalize_configured_path() {
     local configured="$1"
-    if [[ "$configured" =~ ^[A-Za-z]:[\\/] ]]; then
-        if command -v cygpath >/dev/null 2>&1; then
-            configured="$(cygpath -u "$configured")"
-        elif command -v wslpath >/dev/null 2>&1; then
-            configured="$(wslpath -u "$configured")"
-        else
-            return 1
-        fi
-    elif [[ "$configured" != /* ]]; then
-        configured="$REPO_ROOT/$configured"
-    fi
-    printf '%s\n' "$configured"
+    configured="${configured//\\//}"
+    configured="${configured#./}"
+    [[ "$configured" == .specify/bin/* ]] || return 1
+    local executable_name="${configured#.specify/bin/}"
+    [[ -n "$executable_name" && "$executable_name" != */* && "$executable_name" != "." && "$executable_name" != ".." ]] || return 1
+    printf '%s\n' "$REPO_ROOT/$configured"
 }
 
 specify_runtime_config_value() {
@@ -104,16 +98,17 @@ specify_runtime_bin() {
         printf '%s\n' "$configured"
         return 0
     fi
-    if [[ -n "${SPECIFY_RUNTIME_BIN:-}" ]]; then
-        printf '%s\n' "$SPECIFY_RUNTIME_BIN"
-        return 0
-    fi
-    if command -v specify-runtime >/dev/null 2>&1; then
-        command -v specify-runtime
-        return 0
-    fi
-    echo "Cannot run project cognition: no usable runtime_launcher is pinned in .specify/config.json." >&2
-    echo "Run the project-pinned Specify launcher with 'check', then 'integration repair', or set SPECIFY_RUNTIME_BIN." >&2
+    local project_runtime
+    for project_runtime in \
+        "$REPO_ROOT/.specify/bin/specify-runtime" \
+        "$REPO_ROOT/.specify/bin/specify-runtime.exe"; do
+        if [[ -f "$project_runtime" ]]; then
+            printf '%s\n' "$project_runtime"
+            return 0
+        fi
+    done
+    echo "Cannot run project cognition: the project-local .specify/bin/specify-runtime binding is unavailable." >&2
+    echo "A human must rerun the trusted Specify bootstrap/upgrade flow; agent helpers do not fall back to SPECIFY_RUNTIME_BIN or PATH." >&2
     return 127
 }
 

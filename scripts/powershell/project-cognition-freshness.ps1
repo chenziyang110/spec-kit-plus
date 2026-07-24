@@ -24,28 +24,36 @@ function Get-SpecifyRuntimeBin {
             $config = Get-Content -LiteralPath $configPath -Raw | ConvertFrom-Json
             $configured = $config.runtime_launcher.argv[0]
             if (-not [string]::IsNullOrWhiteSpace($configured)) {
-                if (-not [System.IO.Path]::IsPathRooted($configured)) {
-                    $configured = Join-Path $RepoRoot $configured
+                $normalized = $configured.Replace('\', '/')
+                if ($normalized.StartsWith('./')) {
+                    $normalized = $normalized.Substring(2)
                 }
+                $prefix = '.specify/bin/'
+                if (-not $normalized.StartsWith($prefix)) {
+                    throw "runtime_launcher must use the project-local .specify/bin entrypoint"
+                }
+                $executableName = $normalized.Substring($prefix.Length)
+                if ([string]::IsNullOrWhiteSpace($executableName) -or $executableName.Contains('/') -or $executableName -in @('.', '..')) {
+                    throw "runtime_launcher must name one executable directly under .specify/bin"
+                }
+                $configured = Join-Path $RepoRoot $normalized
                 if (Test-Path -LiteralPath $configured -PathType Leaf) {
                     return (Resolve-Path -LiteralPath $configured).Path
                 }
             }
         } catch {
-            # Invalid launcher config falls through to PATH and deterministic repair guidance.
+            # Invalid launcher config falls through only to the canonical project-local entrypoint.
         }
     }
 
-    if (-not [string]::IsNullOrWhiteSpace($env:SPECIFY_RUNTIME_BIN)) {
-        return $env:SPECIFY_RUNTIME_BIN
+    foreach ($runtimeName in @('specify-runtime.exe', 'specify-runtime')) {
+        $projectRuntime = Join-Path $RepoRoot ".specify/bin/$runtimeName"
+        if (Test-Path -LiteralPath $projectRuntime -PathType Leaf) {
+            return (Resolve-Path -LiteralPath $projectRuntime).Path
+        }
     }
 
-    $specifyRuntime = Get-Command specify-runtime -ErrorAction SilentlyContinue
-    if ($specifyRuntime) {
-        return $specifyRuntime.Source
-    }
-
-    Write-Error "Cannot run project cognition: no usable runtime_launcher is pinned in .specify/config.json. Run the project-pinned Specify launcher with 'check', then 'integration repair', or set SPECIFY_RUNTIME_BIN."
+    Write-Error "Cannot run project cognition: the project-local .specify/bin/specify-runtime.exe binding is unavailable. A human must rerun the trusted Specify bootstrap/upgrade flow; agent helpers do not fall back to SPECIFY_RUNTIME_BIN or PATH."
     exit 127
 }
 

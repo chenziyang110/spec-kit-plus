@@ -117,11 +117,12 @@ def _run_bash_cognition(repo: Path, *args: str, project_cognition_bin: Path) -> 
     scripts_dir.mkdir(parents=True, exist_ok=True)
     shutil.copy(BASH_COMMON, scripts_dir / "common.sh")
     shutil.copy(BASH_COGNITION_HELPER, scripts_dir / "project-cognition-freshness.sh")
+    project_runtime = repo / ".specify" / "bin" / "specify-runtime"
+    project_runtime.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy(project_cognition_bin, project_runtime)
+    project_runtime.chmod(project_runtime.stat().st_mode | 0o111)
     quoted_args = " ".join(shlex.quote(arg) for arg in args)
-    command = (
-        f"SPECIFY_RUNTIME_BIN={shlex.quote(project_cognition_bin.relative_to(repo).as_posix())} "
-        f"scripts/bash/project-cognition-freshness.sh . {quoted_args}"
-    ).strip()
+    command = f"scripts/bash/project-cognition-freshness.sh . {quoted_args}".strip()
     result = subprocess.run(
         ["bash", "-lc", command],
         cwd=repo,
@@ -145,14 +146,18 @@ def _run_bash_cognition_from_project_launcher(
     scripts_dir.mkdir(parents=True, exist_ok=True)
     shutil.copy(BASH_COMMON, scripts_dir / "common.sh")
     shutil.copy(BASH_COGNITION_HELPER, scripts_dir / "project-cognition-freshness.sh")
+    project_runtime = repo / ".specify" / "bin" / "specify-runtime"
+    project_runtime.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy(project_cognition_bin, project_runtime)
+    project_runtime.chmod(project_runtime.stat().st_mode | 0o111)
     config = repo / ".specify" / "config.json"
     config.parent.mkdir(parents=True, exist_ok=True)
     config.write_text(
         json.dumps(
             {
                 "runtime_launcher": {
-                    "command": project_cognition_bin.as_posix(),
-                    "argv": [project_cognition_bin.relative_to(repo).as_posix()],
+                    "command": ".specify/bin/specify-runtime",
+                    "argv": [".specify/bin/specify-runtime"],
                 }
             }
         ),
@@ -235,6 +240,19 @@ def _run_powershell_cognition(repo: Path, *args: str, project_cognition_bin: Pat
     scripts_dir.mkdir(parents=True, exist_ok=True)
     shutil.copy(PS_COMMON, scripts_dir / "common.ps1")
     shutil.copy(PS_COGNITION_HELPER, scripts_dir / "project-cognition-freshness.ps1")
+    config = repo / ".specify" / "config.json"
+    config.parent.mkdir(parents=True, exist_ok=True)
+    config.write_text(
+        json.dumps(
+            {
+                "runtime_launcher": {
+                    "command": str(project_cognition_bin),
+                    "argv": [str(project_cognition_bin.relative_to(repo))],
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
     result = subprocess.run(
         [
             shell,
@@ -252,7 +270,7 @@ def _run_powershell_cognition(repo: Path, *args: str, project_cognition_bin: Pat
         check=True,
         capture_output=True,
         text=True,
-        env={**os.environ, "PYTHONPATH": str(PROJECT_ROOT / "src"), "SPECIFY_RUNTIME_BIN": str(project_cognition_bin)},
+        env={key: value for key, value in os.environ.items() if key != "SPECIFY_RUNTIME_BIN"},
     )
     return json.loads(result.stdout)
 
@@ -275,8 +293,8 @@ def _run_powershell_cognition_from_project_launcher(
         json.dumps(
             {
                 "runtime_launcher": {
-                    "command": str(project_cognition_bin),
-                    "argv": [str(project_cognition_bin)],
+                    "command": str(project_cognition_bin.relative_to(repo)),
+                    "argv": [str(project_cognition_bin.relative_to(repo))],
                 }
             }
         ),
@@ -308,7 +326,7 @@ def _write_powershell_fake_project_cognition(repo: Path) -> Path | None:
     shell = shutil.which("pwsh") or shutil.which("powershell")
     if not shell:
         return None
-    binary_path = repo / "scripts" / "powershell" / "project-cognition-fake.ps1"
+    binary_path = repo / ".specify" / "bin" / "project-cognition-fake.ps1"
     binary_path.parent.mkdir(parents=True, exist_ok=True)
     binary_path.write_text(
         """
