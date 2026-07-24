@@ -16,7 +16,12 @@ from urllib.request import urlretrieve
 
 from packaging.version import InvalidVersion, Version
 
-from specify_cli.atomic_io import atomic_write_text, interprocess_lock, read_local_state_text
+from specify_cli.atomic_io import (
+    atomic_write_text,
+    interprocess_lock,
+    read_local_state_text,
+    safe_local_state_path,
+)
 from specify_cli.launcher import (
     resolve_runtime_launcher_argv,
     write_runtime_launcher_config,
@@ -29,12 +34,115 @@ RUNTIME_LAUNCHER_BINDING_VERSION = 1
 REQUIRED_CAPABILITIES = (
     "api.handshake",
     "api.list",
+    "api.schema",
+    "api.show",
+    "accept.closeout",
+    "accept.prepare",
+    "accept.route-repair",
+    "accept.validate",
     "artifact.catalog",
     "artifact.prepare",
     "artifact.scaffold",
     "artifact.show",
     "artifact.submit",
+    "cognition.build-from-scan",
+    "cognition.changes",
+    "cognition.claim-reconcile.apply",
+    "cognition.claim-reconcile.prepare",
+    "cognition.clear-dirty",
+    "cognition.closeout-plan",
+    "cognition.compass",
+    "cognition.complete-refresh",
+    "cognition.delta.append",
+    "cognition.delta.begin",
+    "cognition.delta.status",
+    "cognition.discover",
+    "cognition.expand",
+    "cognition.generate-ignore",
+    "cognition.init-empty",
+    "cognition.lexicon",
+    "cognition.mark-dirty",
+    "cognition.query",
+    "cognition.read",
+    "cognition.record-refresh",
     "cognition.run",
+    "cognition.scan-accept",
+    "cognition.scan-checkpoint",
+    "cognition.scan-lease",
+    "cognition.scan-prepare",
+    "cognition.scan-requeue",
+    "cognition.scan-set",
+    "cognition.scan-status",
+    "cognition.scan-yield",
+    "cognition.semantic-audit",
+    "cognition.semantic-audit-resume",
+    "cognition.semantic-intake",
+    "cognition.status",
+    "cognition.update",
+    "cognition.validate-build",
+    "cognition.validate-scan",
+    "design.approve",
+    "design.export",
+    "design.import",
+    "design.lint",
+    "design.preview",
+    "design.preview-lint",
+    "design.ui-target",
+    "design.ui-target-lint",
+    "discussion.archive",
+    "discussion.checkpoint",
+    "discussion.close",
+    "discussion.confirm-handoff",
+    "discussion.init",
+    "discussion.list",
+    "discussion.mark-consumed",
+    "discussion.mark-ready",
+    "discussion.resume",
+    "discussion.status",
+    "discussion.validate-handoff",
+    "discussion.write-handoff",
+    "doctor.check",
+    "hook.validate-artifacts",
+    "hook.validate-commit",
+    "hook.validate-state",
+    "implement.closeout",
+    "implement.deferral-confirm",
+    "implement.deferral-propose",
+    "implement.resume-audit",
+    "implement.validation-finish",
+    "implement.validation-start",
+    "implement.validation-status",
+    "integrate.close",
+    "integrate.discover",
+    "lane.resolve",
+    "learning.capture",
+    "learning.capture-auto",
+    "learning.list",
+    "learning.promote",
+    "learning.show",
+    "learning.start",
+    "prd-build.status",
+    "prd-scan.init",
+    "prd-scan.status",
+    "quick.archive",
+    "quick.close",
+    "quick.list",
+    "quick.resume",
+    "quick.status",
+    "result.path",
+    "result.submit",
+    "review.closeout",
+    "review.prepare",
+    "review.resume-audit",
+    "review.validate",
+    "sp-teams.auto-dispatch",
+    "sp-teams.complete-batch",
+    "sp-teams.doctor",
+    "sp-teams.live-probe",
+    "sp-teams.result-template",
+    "sp-teams.status",
+    "sp-teams.submit-result",
+    "sp-teams.sync-back",
     "validate.spec",
     "workflow.show",
     "workflow.enter",
@@ -50,6 +158,7 @@ RUNTIME_COMMAND = "specify-runtime"
 RUNTIME_ENV = "SPECIFY_RUNTIME_BIN"
 RUNTIME_CACHE_ENV = "SPECIFY_RUNTIME_CACHE_DIR"
 ALLOW_DIRTY_ENV = "SPECIFY_RUNTIME_ALLOW_DIRTY"
+PROJECT_RUNTIME_RELATIVE_DIR = Path(".specify") / "bin"
 
 
 def default_runtime_version() -> str:
@@ -104,6 +213,130 @@ def cache_dir() -> Path:
 def cached_executable() -> Path:
     name = f"{RUNTIME_COMMAND}.exe" if platform.system().lower() == "windows" else RUNTIME_COMMAND
     return cache_dir() / name
+
+
+def runtime_executable_name() -> str:
+    """Return the platform-native runtime executable filename."""
+
+    return f"{RUNTIME_COMMAND}.exe" if platform.system().lower() == "windows" else RUNTIME_COMMAND
+
+
+def project_runtime_relative_path() -> Path:
+    """Return the stable project-relative runtime entrypoint path."""
+
+    return PROJECT_RUNTIME_RELATIVE_DIR / runtime_executable_name()
+
+
+def project_runtime_launcher_arg() -> str:
+    """Return a shell-usable short runtime argv entry for generated guidance."""
+
+    relative = project_runtime_relative_path()
+    if platform.system().lower() == "windows":
+        windows_relative = str(relative).replace("/", "\\")
+        return f".\\{windows_relative}"
+    return f"./{relative.as_posix()}"
+
+
+def project_runtime_entrypoint_path(project_root: Path) -> Path:
+    """Return the materialized runtime executable owned by one project."""
+
+    root = Path(os.path.abspath(os.fspath(project_root.expanduser())))
+    return safe_local_state_path(
+        root / project_runtime_relative_path(),
+        root=root,
+    )
+
+
+def content_addressed_runtime_path(digest: str) -> Path:
+    """Return the immutable user-cache location for a runtime content digest."""
+
+    normalized = digest.strip().lower()
+    if len(normalized) != 64 or any(character not in "0123456789abcdef" for character in normalized):
+        raise ValueError("runtime digest must be a lowercase SHA-256 value")
+    return cache_dir() / "runtimes" / normalized / runtime_executable_name()
+
+
+def _atomic_link_or_copy(source: Path, destination: Path) -> None:
+    """Materialize one regular file atomically, preferring a hardlink."""
+
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    descriptor, temporary_name = tempfile.mkstemp(
+        prefix=f".{destination.name}.",
+        suffix=".candidate",
+        dir=destination.parent,
+    )
+    os.close(descriptor)
+    temporary = Path(temporary_name)
+    temporary.unlink(missing_ok=True)
+    try:
+        try:
+            os.link(source, temporary)
+        except OSError:
+            shutil.copy2(source, temporary)
+        if platform.system().lower() != "windows":
+            os.chmod(temporary, temporary.stat().st_mode | 0o111)
+        os.replace(temporary, destination)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def _ensure_project_runtime_gitignore(project_root: Path) -> None:
+    """Keep the materialized binary out of source control without hiding other helpers."""
+
+    ignore_path = project_root / PROJECT_RUNTIME_RELATIVE_DIR / ".gitignore"
+    ignored_names = (RUNTIME_COMMAND, f"{RUNTIME_COMMAND}.exe")
+    try:
+        existing = ignore_path.read_text(encoding="utf-8") if ignore_path.is_file() else ""
+    except OSError:
+        existing = ""
+    lines = existing.splitlines()
+    present = {line.strip() for line in lines}
+    changed = False
+    for name in ignored_names:
+        if name not in present:
+            lines.append(name)
+            changed = True
+    if changed or not ignore_path.exists():
+        content = "\n".join(lines).strip() + "\n"
+        atomic_write_text(ignore_path, content)
+
+
+def materialize_project_runtime_entrypoint(project_root: Path, binary: str | Path) -> Path:
+    """Pin a compatible runtime into the user cache and one project-local short path."""
+
+    requested_source = Path(binary).expanduser()
+    if requested_source.is_symlink():
+        raise SpecifyRuntimeError(
+            f"{RUNTIME_COMMAND} source must not be a symbolic link: {requested_source}"
+        )
+    source = requested_source.resolve(strict=True)
+    if not source.is_file():
+        raise SpecifyRuntimeError(f"{RUNTIME_COMMAND} source must be a regular file: {source}")
+
+    digest = _sha256_file(source)
+    cached = content_addressed_runtime_path(digest)
+    if not cached.is_file() or cached.is_symlink() or _sha256_file(cached) != digest:
+        _atomic_link_or_copy(source, cached)
+    if cached.is_symlink() or not cached.is_file() or _sha256_file(cached) != digest:
+        raise SpecifyRuntimeError(f"{RUNTIME_COMMAND} cache materialization failed integrity check")
+
+    project_binary = project_runtime_entrypoint_path(project_root)
+    if (
+        not project_binary.is_file()
+        or project_binary.is_symlink()
+        or _sha256_file(project_binary) != digest
+    ):
+        _atomic_link_or_copy(cached, project_binary)
+    if (
+        project_binary.is_symlink()
+        or not project_binary.is_file()
+        or _sha256_file(project_binary) != digest
+    ):
+        raise SpecifyRuntimeError(f"{RUNTIME_COMMAND} project entrypoint failed integrity check")
+    if platform.system().lower() != "windows":
+        os.chmod(project_binary, project_binary.stat().st_mode | 0o111)
+    _ensure_project_runtime_gitignore(project_root)
+    return project_binary
 
 
 def download_url(version: str = DEFAULT_VERSION) -> str:
@@ -591,6 +824,6 @@ def ensure_binary(version: str = DEFAULT_VERSION, force: bool = False) -> Path:
 
 
 def write_project_launcher_config(project_root: Path, binary: Path) -> Path | None:
-    """Persist the downloaded runtime path for generated workflow commands."""
+    """Materialize and persist the project-local runtime entrypoint."""
 
     return write_runtime_launcher_config(project_root, binary)

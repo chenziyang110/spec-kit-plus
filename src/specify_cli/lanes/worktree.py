@@ -8,6 +8,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
+from specify_cli.launcher import (
+    resolve_runtime_launcher_argv,
+    write_runtime_launcher_config,
+)
+
 from .models import LaneRecord
 
 LANE_WORKTREE_RELATIVE_ROOT = Path(".specify") / "lanes" / "worktrees"
@@ -94,12 +99,33 @@ def _worktree_checkout_mode(worktree_root: Path) -> Literal["branch", "detached"
     return "branch" if probe.stdout.strip() else "detached"
 
 
+def _provision_runtime_binding(project_root: Path, worktree_root: Path) -> None:
+    """Materialize the source project's pinned runtime inside one lane worktree."""
+
+    runtime_argv = resolve_runtime_launcher_argv(project_root)
+    if runtime_argv is None:
+        return
+    written = write_runtime_launcher_config(worktree_root, runtime_argv[0])
+    if written is None:
+        raise RuntimeError("lane worktree runtime config is invalid")
+
+
 def materialize_lane_worktree(project_root: Path, lane: LaneRecord) -> LaneWorktreeResult:
     """Ensure a real git worktree exists for the lane when git state permits it."""
 
     target = lane_worktree_path(project_root, lane_id=lane.lane_id)
 
     if target.exists():
+        try:
+            _provision_runtime_binding(project_root, target)
+        except (OSError, RuntimeError, ValueError) as exc:
+            return LaneWorktreeResult(
+                lane_id=lane.lane_id,
+                worktree_path=str(target),
+                status="blocked",
+                checkout_mode=_worktree_checkout_mode(target),
+                reason=f"runtime provisioning failed: {exc}",
+            )
         return LaneWorktreeResult(
             lane_id=lane.lane_id,
             worktree_path=str(target),
@@ -154,6 +180,17 @@ def materialize_lane_worktree(project_root: Path, lane: LaneRecord) -> LaneWorkt
             status="blocked",
             checkout_mode="none",
             reason=result.stderr.strip() or result.stdout.strip() or "git worktree add failed",
+        )
+
+    try:
+        _provision_runtime_binding(project_root, target)
+    except (OSError, RuntimeError, ValueError) as exc:
+        return LaneWorktreeResult(
+            lane_id=lane.lane_id,
+            worktree_path=str(target),
+            status="blocked",
+            checkout_mode=checkout_mode,
+            reason=f"runtime provisioning failed: {exc}",
         )
 
     return LaneWorktreeResult(

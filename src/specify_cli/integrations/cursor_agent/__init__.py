@@ -271,7 +271,7 @@ class CursorAgentIntegration(SkillsIntegration):
             "- Use `leader-inline-fallback` only after native subagents and the managed-team path are unavailable or unsafe, and record the fallback reason in `STATUS.md`.\n"
             f"- Result contract: {descriptor.result_contract_hint}\n"
             f"- Result file handoff path: {descriptor.result_handoff_hint}\n"
-            "- For filesystem handoffs, use `{{specify-subcmd:result path --help}}` with the concrete workflow identifiers such as `--feature-dir`/`--task-id`, `--workspace`/`--lane-id`, or `--session-slug`/`--lane-id`.\n"
+            "- For filesystem handoffs, use `{{specify-subcmd:specify-runtime result path --help}}` with the concrete workflow identifiers such as `--feature-dir`/`--task-id`, `--workspace`/`--lane-id`, or `--session-slug`/`--lane-id`.\n"
             "- The result-path command emits JSON and does not accept `--format`; do not append `--format`.\n"
             "- Re-check strategy after every join point and continue automatically until the quick task is complete or blocked.\n"
             "- Keep validation and final quick-task summary on the leader path even when execution fan-out is delegated.\n"

@@ -257,7 +257,7 @@ def test_agent_payload_binding_stops_at_an_unconfigured_nested_project(tmp_path)
     assert bound == payload
 
 
-def test_agent_payload_binds_nested_runtime_argv_to_absolute_project_launcher(
+def test_agent_payload_binds_nested_runtime_argv_to_short_project_launcher(
     tmp_path,
 ):
     project = tmp_path / "runtime-project"
@@ -266,19 +266,7 @@ def test_agent_payload_binds_nested_runtime_argv_to_absolute_project_launcher(
     runtime = (tmp_path / "runtime tools" / "specify-runtime.exe").resolve()
     runtime.parent.mkdir()
     runtime.write_bytes(b"runtime fixture")
-    config_path = project / ".specify" / "config.json"
-    config_path.parent.mkdir(parents=True)
-    config_path.write_text(
-        json.dumps(
-            {
-                "runtime_launcher": {
-                    "command": render_command((str(runtime),)),
-                    "argv": [str(runtime)],
-                }
-            }
-        ),
-        encoding="utf-8",
-    )
+    launcher_module.write_runtime_launcher_config(project, runtime)
     original = [
         "specify-runtime",
         "workflow",
@@ -303,9 +291,12 @@ def test_agent_payload_binds_nested_runtime_argv_to_absolute_project_launcher(
 
     bound = bind_project_launcher_payload(payload, nested)
 
-    expected = [str(runtime), *original[1:]]
+    from specify_cli.specify_runtime import project_runtime_launcher_arg
+
+    expected_runtime = project_runtime_launcher_arg()
+    expected = [expected_runtime, *original[1:]]
     expected_rendered = render_command(tuple(expected))
-    assert bound["next_argv"] == [str(runtime), "workflow", "show"]
+    assert bound["next_argv"] == [expected_runtime, "workflow", "show"]
     assert bound["data"]["resolution_action"]["base_argv"] == expected
     assert bound["blockers"][0]["resume"]["argv"] == expected
     assert bound["blockers"][0]["resume"]["command"] == expected_rendered
@@ -487,13 +478,37 @@ def test_source_bound_config_rejects_non_full_commit_ids(
 def test_runtime_config_rebuilds_untrusted_command(tmp_path):
     binary_name = "specify-runtime.exe" if os.name == "nt" else "specify-runtime"
     binary = tmp_path / binary_name
+    binary.write_text("runtime", encoding="utf-8")
+    if os.name != "nt":
+        binary.chmod(binary.stat().st_mode | stat.S_IXUSR)
+    launcher_module.write_runtime_launcher_config(tmp_path, binary)
+    config_path = tmp_path / ".specify" / "config.json"
+    payload = json.loads(config_path.read_text(encoding="utf-8"))
+    payload["runtime_launcher"]["command"] = "pwsh -Command INJECTED_SECOND_COMMAND"
+    config_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    launcher = launcher_module.load_runtime_launcher(tmp_path)
+
+    assert launcher is not None
+    from specify_cli.specify_runtime import project_runtime_launcher_arg
+
+    expected_runtime = project_runtime_launcher_arg()
+    assert launcher.argv == (expected_runtime,)
+    assert launcher.command == render_command((expected_runtime,))
+    assert "INJECTED" not in launcher.command
+
+
+def test_runtime_config_rejects_legacy_absolute_launcher(tmp_path):
+    binary = tmp_path / "legacy" / "specify-runtime.exe"
+    binary.parent.mkdir()
+    binary.write_bytes(b"runtime fixture")
     config_path = tmp_path / ".specify" / "config.json"
     config_path.parent.mkdir(parents=True)
     config_path.write_text(
         json.dumps(
             {
                 "runtime_launcher": {
-                    "command": "pwsh -Command INJECTED_SECOND_COMMAND",
+                    "command": str(binary),
                     "argv": [str(binary)],
                 }
             }
@@ -501,12 +516,37 @@ def test_runtime_config_rebuilds_untrusted_command(tmp_path):
         encoding="utf-8",
     )
 
-    launcher = launcher_module.load_runtime_launcher(tmp_path)
+    assert launcher_module.load_runtime_launcher(tmp_path) is None
+    rendered = render_project_launcher_placeholders(
+        tmp_path,
+        "Run `{{specify-subcmd:specify-runtime workflow show --format json}}`.",
+    )
+    assert str(binary) not in rendered
+    assert (
+        "SPECIFY_RUNTIME_LAUNCHER_UNAVAILABLE:specify-runtime workflow show --format json"
+        in rendered
+    )
 
-    assert launcher is not None
-    assert launcher.argv == (str(binary),)
-    assert launcher.command == render_command((str(binary),))
-    assert "INJECTED" not in launcher.command
+
+def test_runtime_config_rejects_short_launcher_without_digest_binding(tmp_path):
+    from specify_cli.specify_runtime import project_runtime_launcher_arg
+
+    config_path = tmp_path / ".specify" / "config.json"
+    config_path.parent.mkdir(parents=True)
+    config_path.write_text(
+        json.dumps(
+            {
+                "runtime_launcher": {
+                    "command": project_runtime_launcher_arg(),
+                    "argv": [project_runtime_launcher_arg()],
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    assert launcher_module.load_runtime_launcher(tmp_path) is None
+    assert runtime_launcher_is_compatible(tmp_path) is False
 
 
 def test_write_runtime_launcher_config_persists_source_bound_binding_metadata(
@@ -515,6 +555,9 @@ def test_write_runtime_launcher_config_persists_source_bound_binding_metadata(
 ):
     binary_name = "specify-runtime.exe" if os.name == "nt" else "specify-runtime"
     binary = tmp_path / binary_name
+    binary.write_text("runtime", encoding="utf-8")
+    if os.name != "nt":
+        binary.chmod(binary.stat().st_mode | stat.S_IXUSR)
     config_path = tmp_path / ".specify" / "config.json"
     config_path.parent.mkdir(parents=True)
     config_path.write_text(json.dumps({}), encoding="utf-8")
@@ -535,8 +578,17 @@ def test_write_runtime_launcher_config_persists_source_bound_binding_metadata(
 
     assert written == config_path
     payload = json.loads(config_path.read_text(encoding="utf-8"))
-    assert payload[RUNTIME_LAUNCHER_CONFIG_KEY]["argv"] == [str(binary.resolve())]
-    assert payload[RUNTIME_LAUNCHER_BINDING_CONFIG_KEY] == metadata
+    from specify_cli import specify_runtime as runtime_module
+
+    expected_runtime_arg = runtime_module.project_runtime_launcher_arg()
+    assert payload[RUNTIME_LAUNCHER_CONFIG_KEY]["argv"] == [expected_runtime_arg]
+    assert payload[RUNTIME_LAUNCHER_BINDING_CONFIG_KEY] == {
+        **metadata,
+        "runtime_binary_sha256": runtime_module._sha256_file(
+            runtime_module.project_runtime_entrypoint_path(tmp_path)
+        ),
+        "runtime_entrypoint": expected_runtime_arg,
+    }
 
 
 def test_runtime_launcher_is_incompatible_when_source_bound_binding_drifted(
@@ -1328,19 +1380,11 @@ def test_render_project_launcher_placeholders_expands_cli_and_subcommand(tmp_pat
 
 
 def test_render_project_launcher_rebinds_bare_unified_runtime_calls(tmp_path):
-    config_dir = tmp_path / ".specify"
-    config_dir.mkdir(parents=True)
-    (config_dir / "config.json").write_text(
-        json.dumps(
-            {
-                "runtime_launcher": {
-                    "command": "C:/trusted/specify-runtime.exe",
-                    "argv": ["C:/trusted/specify-runtime.exe"],
-                }
-            }
-        ),
-        encoding="utf-8",
-    )
+    binary_name = "specify-runtime.exe" if os.name == "nt" else "specify-runtime"
+    binary = tmp_path / "source" / binary_name
+    binary.parent.mkdir()
+    binary.write_bytes(b"runtime fixture")
+    launcher_module.write_runtime_launcher_config(tmp_path, binary)
 
     rendered = render_project_launcher_placeholders(
         tmp_path,
@@ -1349,12 +1393,17 @@ def test_render_project_launcher_rebinds_bare_unified_runtime_calls(tmp_path):
         "Run `specify-runtime cognition scan-set --format json`.\n",
     )
 
+    from specify_cli.specify_runtime import project_runtime_launcher_arg
+
+    expected_runtime = project_runtime_launcher_arg()
     assert (
-        "`C:/trusted/specify-runtime.exe workflow show --feature-dir "
+        f"`{expected_runtime} workflow show --feature-dir "
         ".specify/features/001-demo --format json`" in rendered
     )
-    assert "C:/trusted/specify-runtime.exe artifact show --kind spec --format json" in rendered
-    assert "`C:/trusted/specify-runtime.exe cognition scan-set --format json`" in rendered
+    assert (
+        f"{expected_runtime} artifact show --kind spec --format json" in rendered
+    )
+    assert f"`{expected_runtime} cognition scan-set --format json`" in rendered
     assert "`specify-runtime workflow show" not in rendered
 
 
@@ -1447,18 +1496,6 @@ def test_runtime_launcher_resolves_project_relative_binary(
     binary.write_text("binary", encoding="utf-8")
     if os.name != "nt":
         binary.chmod(binary.stat().st_mode | stat.S_IXUSR)
-    config_path = tmp_path / ".specify" / "config.json"
-    config_path.write_text(
-        json.dumps(
-            {
-                "runtime_launcher": {
-                    "command": f".specify/bin/{binary_name}",
-                    "argv": [f".specify/bin/{binary_name}"],
-                }
-            }
-        ),
-        encoding="utf-8",
-    )
     captured: dict[str, object] = {}
 
     def compatible(argv, *, cwd=None):
@@ -1474,6 +1511,7 @@ def test_runtime_launcher_resolves_project_relative_binary(
         "specify_cli.specify_runtime.current_runtime_binding_metadata",
         lambda: {"source_build_required": False},
     )
+    launcher_module.write_runtime_launcher_config(tmp_path, binary)
 
     resolved = resolve_runtime_launcher_argv(tmp_path)
 
@@ -1527,17 +1565,8 @@ def test_diagnose_project_runtime_compatibility_rejects_corrupt_runtime_binary(
     binary.write_text("not an executable", encoding="utf-8")
     if os.name != "nt":
         binary.chmod(binary.stat().st_mode | stat.S_IXUSR)
-    (tmp_path / ".specify" / "config.json").write_text(
-        json.dumps(
-            {
-                "runtime_launcher": {
-                    "command": str(binary),
-                    "argv": [str(binary)],
-                }
-            }
-        ),
-        encoding="utf-8",
-    )
+    launcher_module.write_runtime_launcher_config(tmp_path, binary)
+    binary.write_text("corrupt after binding", encoding="utf-8")
 
     issues = diagnose_project_runtime_compatibility(tmp_path)
 
@@ -1820,9 +1849,24 @@ def test_unified_runtime_rebinding_covers_namespaces_and_non_executable_contexts
 @pytest.mark.parametrize(
     "runtime_args",
     (
+        "accept prepare --feature-dir feature",
         "api handshake",
         "artifact show --kind spec",
         "cognition status",
+        "design lint --level ready",
+        "discussion list",
+        "doctor --format json",
+        "hook validate-state --command plan",
+        "implement resume-audit --feature-dir feature",
+        "integrate --feature-dir feature",
+        "lane resolve --command plan",
+        "learning start --command plan",
+        "prd-build status",
+        "prd-scan status",
+        "quick list",
+        "result path --command implement",
+        "review prepare --feature-dir feature",
+        "sp-teams status",
         "validate spec --path feature/spec.md",
         "version",
         "workflow show",
@@ -1846,19 +1890,11 @@ def test_runtime_diagnostics_report_unbound_unified_runtime_namespaces(
     tmp_path,
     namespace,
 ):
-    config_path = tmp_path / ".specify" / "config.json"
-    config_path.parent.mkdir(parents=True)
-    config_path.write_text(
-        json.dumps(
-            {
-                "runtime_launcher": {
-                    "command": "C:/trusted/specify-runtime.exe",
-                    "argv": ["C:/trusted/specify-runtime.exe"],
-                }
-            }
-        ),
-        encoding="utf-8",
-    )
+    binary_name = "specify-runtime.exe" if os.name == "nt" else "specify-runtime"
+    binary = tmp_path / "source" / binary_name
+    binary.parent.mkdir()
+    binary.write_bytes(b"runtime fixture")
+    launcher_module.write_runtime_launcher_config(tmp_path, binary)
     monkeypatch.setattr(
         launcher_module,
         "runtime_launcher_is_compatible",

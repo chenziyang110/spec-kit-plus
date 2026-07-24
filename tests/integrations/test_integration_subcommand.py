@@ -17,7 +17,9 @@ from specify_cli.launcher import (
     SpecifyLauncherSpec,
     render_claude_hook_launcher,
     resolve_specify_launcher_spec,
+    write_runtime_launcher_config,
 )
+from specify_cli.specify_runtime import project_runtime_launcher_arg
 
 
 runner = CliRunner()
@@ -605,19 +607,7 @@ class TestIntegrationRepair:
         binary = project / "runtime" / "specify-runtime.exe"
         binary.parent.mkdir(parents=True)
         binary.write_text("runtime", encoding="utf-8")
-        config = project / ".specify" / "config.json"
-        config.parent.mkdir(parents=True)
-        config.write_text(
-            json.dumps(
-                {
-                    "runtime_launcher": {
-                        "command": str(binary),
-                        "argv": [str(binary)],
-                    }
-                }
-            ),
-            encoding="utf-8",
-        )
+        write_runtime_launcher_config(project, binary)
         target = project / ".claude" / "skills" / "sp-plan" / "SKILL.md"
         target.parent.mkdir(parents=True)
         target.write_text(
@@ -634,7 +624,8 @@ class TestIntegrationRepair:
 
         content = target.read_text(encoding="utf-8")
         assert target in repaired
-        assert str(binary) in content
+        assert project_runtime_launcher_arg() in content
+        assert str(binary) not in content
         assert f"`specify-runtime {namespace} status" not in content
         assert target.relative_to(project).as_posix() not in (
             integration._last_repair_skipped_modified

@@ -5,6 +5,8 @@ import pytest
 
 from specify_cli.integrations import get_integration
 from specify_cli.integrations.manifest import IntegrationManifest
+from specify_cli.launcher import write_runtime_launcher_config
+from specify_cli.specify_runtime import project_runtime_launcher_arg
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -93,15 +95,12 @@ def test_rendered_classic_runtime_gates_use_structured_actions_and_pinned_cognit
                 "specify",
             ],
         },
-        "runtime_launcher": {
-            "command": str(cognition),
-            "argv": [str(cognition)],
-        },
     }
     (project / ".specify" / "config.json").write_text(
         json.dumps(config, indent=2) + "\n",
         encoding="utf-8",
     )
+    write_runtime_launcher_config(project, cognition)
     integration = get_integration(integration_key)
     assert integration is not None
     manifest = IntegrationManifest(integration_key, project)
@@ -128,5 +127,5 @@ def test_rendered_classic_runtime_gates_use_structured_actions_and_pinned_cognit
         assert "recommended_next_action.action_id" in content
         assert "complete_scan_packets" in content
         assert "project_cognition.repair_status" in content
-        assert cognition.name in content
+        assert Path(project_runtime_launcher_arg()).name in content
         assert "{{specify-subcmd:" not in content

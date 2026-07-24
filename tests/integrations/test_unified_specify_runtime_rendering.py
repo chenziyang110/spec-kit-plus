@@ -34,6 +34,40 @@ _PYTHON_WORKFLOW_COMMAND = re.compile(
     r")\b",
     re.IGNORECASE,
 )
+_SPECIFY_SUBCMD = re.compile(r"\{\{specify-subcmd:(?P<command>[^}]+)}}")
+_INLINE_CODE = re.compile(r"`(?P<command>[^`\r\n]+)`")
+_RUNTIME_CALL = re.compile(
+    r"(?:\bSPECIFY_RUNTIME_LAUNCHER_UNAVAILABLE:)?\bspecify-runtime(?:\.exe)?\s+"
+    r"(?P<namespace>[a-z][a-z0-9-]*)(?:\s+(?P<verb>[a-z][a-z0-9-]*))?"
+    r"(?:\s+(?P<nested_verb>[a-z][a-z0-9-]*))?",
+    re.IGNORECASE,
+)
+_EXECUTABLE_PREFIX = re.compile(
+    r"^\s*(?:\$|PS>|Run\s+|Use\s+|Only\s+|Executing:\s+|To execute:\s+|"
+    r"SPECIFY_RUNTIME_LAUNCHER_UNAVAILABLE:|specify-runtime(?:\.exe)?\b|"
+    r"uvx\b|python(?:3)?\b|py\b|[A-Za-z]:[\\/]|/(?:Users|home)/)",
+    re.IGNORECASE,
+)
+_NEGATIVE_EXECUTION_CONTEXT = re.compile(
+    r"\b(?:do not|don't|never|must not|not required|not executable|"
+    r"documentation-only|display-only|literal|example only)\b",
+    re.IGNORECASE,
+)
+_FORBIDDEN_RENDERED_RUNTIME_LAUNCHER = re.compile(
+    r"\buvx\s+--from\b|"
+    r"\bspecify\s+specify-runtime\b|"
+    r"\b(?:python(?:3)?|py)\s+(?:-[A-Za-z]\s+)*-m\s+specify_cli\b|"
+    r"\b(?:python(?:3)?|py)\s+[^`\r\n]*(?:specify_cli|specify-runtime)\b|"
+    r"(?:[A-Za-z]:[\\/](?:Users|Documents and Settings)[^`\r\n]*specify-runtime(?:\.exe)?\b)|"
+    r"(?:/(?:Users|home)/[^`\r\n]*specify-runtime\b)",
+    re.IGNORECASE,
+)
+_CAPABILITY_LITERAL = re.compile(r'"([a-z][a-z0-9-]*(?:\.[a-z][a-z0-9-]*)+)"')
+
+_COGNITION_NESTED_VERBS = {
+    "claim-reconcile",
+    "delta",
+}
 
 
 CLASSIC_ARTIFACT_SURFACES = {
@@ -126,6 +160,116 @@ def _read_generated_tree(root: Path) -> str:
     )
     assert files, f"expected generated text files under {root}"
     return "\n".join(path.read_text(encoding="utf-8") for path in files).lower()
+
+
+def _generated_text_files(root: Path) -> list[Path]:
+    return sorted(
+        path
+        for path in root.rglob("*")
+        if path.is_file() and path.suffix.lower() in _TEXT_SUFFIXES
+    )
+
+
+def _executable_snippets(content: str) -> list[tuple[int, str]]:
+    snippets: list[tuple[int, str]] = []
+    in_fence = False
+    fence_language = ""
+    for line_number, line in enumerate(content.splitlines(), start=1):
+        stripped = line.strip()
+        if stripped.startswith(("```", "~~~")):
+            if in_fence:
+                in_fence = False
+                fence_language = ""
+            else:
+                in_fence = True
+                fence_language = stripped[3:].strip().lower()
+            continue
+
+        for match in _SPECIFY_SUBCMD.finditer(line):
+            command = match.group("command").strip()
+            if command:
+                snippets.append((line_number, command))
+
+        if _NEGATIVE_EXECUTION_CONTEXT.search(line):
+            continue
+
+        for match in _INLINE_CODE.finditer(line):
+            command = match.group("command").strip()
+            if _EXECUTABLE_PREFIX.search(command):
+                snippets.append((line_number, command))
+
+        if in_fence and fence_language in {"", "bash", "sh", "shell", "powershell", "ps1"}:
+            if stripped and _EXECUTABLE_PREFIX.search(stripped):
+                snippets.append((line_number, stripped))
+    return snippets
+
+
+def _runtime_capability_for_call(command: str) -> str | None:
+    match = _RUNTIME_CALL.search(command)
+    if match is None:
+        return None
+    namespace = match.group("namespace").lower()
+    verb = (match.group("verb") or "").lower()
+    nested_verb = (match.group("nested_verb") or "").lower()
+    if not verb:
+        return None
+    if namespace == "cognition" and verb in _COGNITION_NESTED_VERBS and nested_verb:
+        return f"{namespace}.{verb}.{nested_verb}"
+    return f"{namespace}.{verb}"
+
+
+def _declared_runtime_capability_ids() -> set[str]:
+    runtime_main = Path(__file__).resolve().parents[2] / "tools" / "specify-runtime" / "main.go"
+    content = runtime_main.read_text(encoding="utf-8")
+    start = content.index("func defaultCapabilities() []string")
+    end = content.index("func defaultCapabilityCards()", start)
+    return set(_CAPABILITY_LITERAL.findall(content[start:end]))
+
+
+def _all_rendered_surface_calls(
+    generated_agent_surfaces: dict[str, Path],
+) -> list[tuple[str, int, str, str | None]]:
+    calls: list[tuple[str, int, str, str | None]] = []
+    for surface, root in generated_agent_surfaces.items():
+        for path in _generated_text_files(root):
+            content = path.read_text(encoding="utf-8")
+            relative = f"{surface}:{path.relative_to(root).as_posix()}"
+            for line_number, command in _executable_snippets(content):
+                capability = _runtime_capability_for_call(command)
+                if capability is not None or _FORBIDDEN_RENDERED_RUNTIME_LAUNCHER.search(command):
+                    calls.append((relative, line_number, command, capability))
+    return calls
+
+
+def test_agent_facing_source_placeholders_use_only_unified_runtime() -> None:
+    repository_root = Path(__file__).resolve().parents[2]
+    source_roots = (
+        repository_root / "templates",
+        repository_root / "src" / "specify_cli" / "integrations",
+    )
+    violations: list[str] = []
+    for source_root in source_roots:
+        for path in _generated_text_files(source_root):
+            relative = path.relative_to(repository_root).as_posix()
+            for line_number, line in enumerate(
+                path.read_text(encoding="utf-8").splitlines(),
+                start=1,
+            ):
+                for match in _SPECIFY_SUBCMD.finditer(line):
+                    command = match.group("command").strip()
+                    if command.startswith("specify-runtime") or command.startswith("init "):
+                        continue
+                    # Native hook adapter documentation still describes the
+                    # human/bootstrap Python compatibility surface; generated
+                    # sp-* and spx-* workflow calls may not use it.
+                    if "/hooks/readme.md" in relative.lower():
+                        continue
+                    violations.append(f"{relative}:{line_number}: {command}")
+
+    assert not violations, (
+        "Agent-facing specify-subcmd placeholders must route through the unified "
+        "project runtime only:\n" + "\n".join(violations)
+    )
 
 
 def _runtime_contract_errors(
@@ -310,3 +454,35 @@ def test_generated_phase_control_uses_only_unified_runtime(
         assert "never required-stage authority" in content, profile
         assert "only completed `accept` is terminal" in content, profile
         assert "unresolved blocker" in content, profile
+
+
+def test_agent_facing_runtime_calls_do_not_embed_uvx_python_or_user_paths(
+    generated_agent_surfaces: dict[str, Path],
+) -> None:
+    offenders = [
+        f"{relative}:{line_number}: {command}"
+        for relative, line_number, command, _capability in _all_rendered_surface_calls(
+            generated_agent_surfaces
+        )
+        if _FORBIDDEN_RENDERED_RUNTIME_LAUNCHER.search(command)
+    ]
+
+    assert offenders == [], "\n".join(offenders[:40])
+
+
+def test_every_rendered_runtime_namespace_verb_is_declared_by_runtime_api(
+    generated_agent_surfaces: dict[str, Path],
+) -> None:
+    declared = _declared_runtime_capability_ids()
+    calls = _all_rendered_surface_calls(generated_agent_surfaces)
+    capabilities = sorted({capability for *_prefix, capability in calls if capability})
+    missing = [
+        f"{capability}: {relative}:{line_number}: {command}"
+        for relative, line_number, command, capability in calls
+        if capability and capability not in declared
+    ]
+
+    assert "artifact.show" in capabilities
+    assert "workflow.show" in capabilities
+    assert any(capability.startswith("cognition.") for capability in capabilities)
+    assert missing == [], "\n".join(missing[:80])

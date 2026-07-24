@@ -203,9 +203,24 @@ _SPECIFY_RUNTIME_ROOTS = frozenset(
 )
 _UNIFIED_RUNTIME_NAMESPACES = frozenset(
     {
+        "accept",
         "api",
         "artifact",
         "cognition",
+        "design",
+        "discussion",
+        "doctor",
+        "hook",
+        "implement",
+        "integrate",
+        "lane",
+        "learning",
+        "prd-build",
+        "prd-scan",
+        "quick",
+        "result",
+        "review",
+        "sp-teams",
         "validate",
         "version",
         "workflow",
@@ -1325,8 +1340,44 @@ def load_runtime_launcher(project_root: Path) -> SpecifyLauncherSpec | None:
     payload = _load_config(config_path)
     if payload is None:
         return None
-    return _normalize_runtime_launcher_payload(
+    launcher = _normalize_runtime_launcher_payload(
         payload.get(RUNTIME_LAUNCHER_CONFIG_KEY)
+    )
+    if launcher is None:
+        return None
+    from .specify_runtime import (
+        _sha256_file,
+        project_runtime_entrypoint_path,
+        project_runtime_launcher_arg,
+    )
+
+    expected = project_runtime_launcher_arg()
+    if launcher.argv != (expected,):
+        return None
+    persisted_binding = payload.get(RUNTIME_LAUNCHER_BINDING_CONFIG_KEY)
+    if not isinstance(persisted_binding, dict):
+        return None
+    if persisted_binding.get("runtime_entrypoint") != expected:
+        return None
+    expected_digest = persisted_binding.get("runtime_binary_sha256")
+    if (
+        not isinstance(expected_digest, str)
+        or re.fullmatch(r"[0-9a-f]{64}", expected_digest) is None
+    ):
+        return None
+    try:
+        project_binary = project_runtime_entrypoint_path(project_root)
+        if (
+            project_binary.is_symlink()
+            or not project_binary.is_file()
+            or _sha256_file(project_binary) != expected_digest
+        ):
+            return None
+    except (OSError, ValueError):
+        return None
+    return SpecifyLauncherSpec(
+        command=render_command((expected,)),
+        argv=(expected,),
     )
 
 
@@ -1374,16 +1425,31 @@ def runtime_launcher_is_compatible(
     if argv is None:
         return False
     from .specify_runtime import (
+        _sha256_file,
         current_runtime_binding_metadata,
         launcher_supports_required_commands,
+        project_runtime_launcher_arg,
         runtime_binding_metadata_matches,
     )
 
     if not launcher_supports_required_commands(argv, cwd=project_root):
         return False
     payload = _load_config(project_root / SPECIFY_CONFIG_FILE) or {}
+    persisted_binding = payload.get(RUNTIME_LAUNCHER_BINDING_CONFIG_KEY)
+    if not isinstance(persisted_binding, dict):
+        return False
+    if persisted_binding.get("runtime_entrypoint") != project_runtime_launcher_arg():
+        return False
+    expected_digest = persisted_binding.get("runtime_binary_sha256")
+    if not isinstance(expected_digest, str) or len(expected_digest) != 64:
+        return False
+    try:
+        if _sha256_file(Path(argv[0])) != expected_digest:
+            return False
+    except OSError:
+        return False
     return runtime_binding_metadata_matches(
-        payload.get(RUNTIME_LAUNCHER_BINDING_CONFIG_KEY),
+        persisted_binding,
         current_runtime_binding_metadata(),
     )
 
@@ -2006,14 +2072,18 @@ def write_project_specify_launcher_config(
 def write_runtime_launcher_config(project_root: Path, binary: str | Path) -> Path | None:
     """Persist the preferred ``specify-runtime`` binary into ``.specify/config.json``."""
 
-    from .specify_runtime import current_runtime_binding_metadata
+    from .specify_runtime import (
+        _sha256_file,
+        current_runtime_binding_metadata,
+        materialize_project_runtime_entrypoint,
+        project_runtime_launcher_arg,
+    )
 
-    binary_path = Path(binary).expanduser()
-    if not binary_path.is_absolute():
-        binary_path = binary_path.resolve()
+    project_binary = materialize_project_runtime_entrypoint(project_root, binary)
+    launcher_arg = project_runtime_launcher_arg()
     launcher = SpecifyLauncherSpec(
-        command=render_command((str(binary_path),)),
-        argv=(str(binary_path),),
+        command=render_command((launcher_arg,)),
+        argv=(launcher_arg,),
     )
     config_path = project_root / SPECIFY_CONFIG_FILE
     payload = _load_config(config_path)
@@ -2021,7 +2091,11 @@ def write_runtime_launcher_config(project_root: Path, binary: str | Path) -> Pat
         return None
 
     desired = _launcher_payload(launcher)
-    binding = current_runtime_binding_metadata()
+    binding = {
+        **current_runtime_binding_metadata(),
+        "runtime_binary_sha256": _sha256_file(project_binary),
+        "runtime_entrypoint": launcher_arg,
+    }
     if (
         payload.get(RUNTIME_LAUNCHER_CONFIG_KEY) == desired
         and payload.get(RUNTIME_LAUNCHER_BINDING_CONFIG_KEY) == binding
@@ -2066,6 +2140,10 @@ def diagnose_project_runtime_compatibility(project_root: Path) -> list[dict[str,
     raw_launcher_present = (
         isinstance(launcher_config, dict)
         and SPECIFY_LAUNCHER_CONFIG_KEY in launcher_config
+    )
+    raw_runtime_launcher_present = (
+        isinstance(launcher_config, dict)
+        and RUNTIME_LAUNCHER_CONFIG_KEY in launcher_config
     )
     launcher = load_project_specify_launcher(project_root)
     if raw_launcher_present and launcher is None:
@@ -2178,7 +2256,7 @@ def diagnose_project_runtime_compatibility(project_root: Path) -> list[dict[str,
                 {
                     "code": (
                         "broken-specify-runtime-launcher"
-                        if runtime_launcher
+                        if runtime_launcher or raw_runtime_launcher_present
                         else "missing-specify-runtime-launcher"
                     ),
                     "summary": "The project-pinned specify-runtime launcher is unavailable.",

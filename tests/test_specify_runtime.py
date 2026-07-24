@@ -2,8 +2,9 @@ import ast
 import importlib
 import json
 import os
-from pathlib import Path
+import re
 import stat
+from pathlib import Path
 from types import ModuleType, SimpleNamespace
 
 import pytest
@@ -56,6 +57,23 @@ def test_required_runtime_contract_uses_the_current_workflow_surface() -> None:
     assert "workflow.status" not in runtime.REQUIRED_CAPABILITIES
 
 
+def test_required_runtime_contract_matches_the_shipped_agent_surface() -> None:
+    runtime = _load_runtime()
+    source = (PROJECT_ROOT / "tools" / "specify-runtime" / "main.go").read_text(
+        encoding="utf-8"
+    )
+    start = source.index("func defaultCapabilities() []string")
+    end = source.index("func defaultCapabilityCards()", start)
+    shipped = set(
+        re.findall(
+            r'"([a-z][a-z0-9-]*(?:\.[a-z][a-z0-9-]*)+)"',
+            source[start:end],
+        )
+    )
+
+    assert set(runtime.REQUIRED_CAPABILITIES) == shipped
+
+
 def test_runtime_resolver_prefers_project_fixed_launcher(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -67,18 +85,17 @@ def test_runtime_resolver_prefers_project_fixed_launcher(
     env_binary = _write_executable(tmp_path / "env" / RUNTIME_BINARY_NAME)
     path_binary = _write_executable(tmp_path / "path" / RUNTIME_BINARY_NAME)
     legacy_binary = _write_executable(tmp_path / "legacy" / LEGACY_BINARY_NAME)
+    runtime.write_project_launcher_config(tmp_path, project_binary)
+    config_path = tmp_path / ".specify" / "config.json"
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+    config["runtime_launcher"]["command"] = "pwsh -Command SHOULD_NOT_BE_TRUSTED"
+    config["project_cognition_launcher"] = {
+        "command": str(legacy_binary),
+        "argv": [str(legacy_binary)],
+    }
     _write_config(
         tmp_path,
-        {
-            "runtime_launcher": {
-                "command": "pwsh -Command SHOULD_NOT_BE_TRUSTED",
-                "argv": [project_binary.relative_to(tmp_path).as_posix()],
-            },
-            "project_cognition_launcher": {
-                "command": str(legacy_binary),
-                "argv": [str(legacy_binary)],
-            },
-        },
+        config,
     )
     monkeypatch.setenv("SPECIFY_RUNTIME_BIN", str(env_binary))
     monkeypatch.setenv("PROJECT_COGNITION_BIN", str(legacy_binary))

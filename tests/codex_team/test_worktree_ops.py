@@ -1,12 +1,18 @@
 """Tests for worktree planning and bootstrap instructions."""
 
 import subprocess
+import os
 
 import pytest
 
 from specify_cli.codex_team import tmux_backend, worktree_ops, worker_bootstrap
 from specify_cli.lanes.models import LaneRecord
 from specify_cli.lanes.worktree import materialize_lane_worktree
+from specify_cli import specify_runtime
+from specify_cli.launcher import load_runtime_launcher, resolve_runtime_launcher_argv
+
+
+RUNTIME_NAME = "specify-runtime.exe" if os.name == "nt" else "specify-runtime"
 
 
 def test_worker_worktree_path_is_rooted_within_project(codex_team_project_root):
@@ -113,3 +119,39 @@ def test_materialize_lane_worktree_creates_worktree_when_head_exists(tmp_path):
     assert result.status == "created"
     assert result.checkout_mode == "branch"
     assert (project / ".specify" / "lanes" / "worktrees" / "lane-001").exists()
+
+
+def test_materialize_lane_worktree_provisions_project_runtime_binding(tmp_path):
+    project = tmp_path / "lane-runtime"
+    project.mkdir()
+    subprocess.run(["git", "init", "-q"], cwd=project, check=True)
+    subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=project, check=True)
+    subprocess.run(["git", "config", "user.name", "Test User"], cwd=project, check=True)
+    (project / "README.md").write_text("# test\n", encoding="utf-8")
+    subprocess.run(["git", "add", "README.md"], cwd=project, check=True)
+    subprocess.run(["git", "commit", "-m", "init", "-q"], cwd=project, check=True)
+    source_runtime = tmp_path / "cache" / RUNTIME_NAME
+    source_runtime.parent.mkdir(parents=True)
+    source_runtime.write_text("runtime", encoding="utf-8")
+    if os.name != "nt":
+        source_runtime.chmod(0o755)
+    specify_runtime.write_project_launcher_config(project, source_runtime)
+    lane = LaneRecord(
+        lane_id="lane-001",
+        feature_id="001-demo",
+        feature_dir="specs/001-demo",
+        branch_name="001-demo",
+        worktree_path=".specify/lanes/worktrees/lane-001",
+        last_command="specify",
+    )
+
+    result = materialize_lane_worktree(project, lane)
+
+    assert result.status == "created"
+    worktree = project / ".specify" / "lanes" / "worktrees" / "lane-001"
+    launcher = load_runtime_launcher(worktree)
+    assert launcher is not None
+    assert launcher.argv == (specify_runtime.project_runtime_launcher_arg(),)
+    assert resolve_runtime_launcher_argv(worktree) == (
+        str(specify_runtime.project_runtime_entrypoint_path(worktree)),
+    )

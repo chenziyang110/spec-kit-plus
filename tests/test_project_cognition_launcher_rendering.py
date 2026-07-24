@@ -9,6 +9,7 @@ from specify_cli.launcher import (
     render_project_launcher_placeholders,
     write_runtime_launcher_config,
 )
+from specify_cli.specify_runtime import project_runtime_launcher_arg
 
 
 @pytest.mark.parametrize(
@@ -16,6 +17,9 @@ from specify_cli.launcher import (
     (
         ("api", "handshake", "--format", "json"),
         ("artifact", "show", "--kind", "spec", "--format", "json"),
+        ("discussion", "list", "--json"),
+        ("learning", "start", "--command", "plan", "--format", "json"),
+        ("result", "path", "--command", "implement"),
         ("cognition", "status", "--format", "json"),
         ("validate", "spec", "--path", "feature/spec.md", "--format", "json"),
         ("version",),
@@ -36,13 +40,16 @@ def test_unified_runtime_subcommand_renders_recoverable_marker_without_config(
     assert "(" not in rendered
 
 
-def test_non_project_cognition_subcommand_keeps_specify_launcher_behavior(tmp_path: Path):
+def test_agent_learning_subcommand_never_falls_back_to_specify_launcher(tmp_path: Path):
     rendered = render_project_launcher_placeholders(
         tmp_path,
-        "{{specify-subcmd:learning start --command plan --format json}}",
+        "{{specify-subcmd:specify-runtime learning start --command plan --format json}}",
     )
 
-    assert rendered == "specify learning start --command plan --format json"
+    assert rendered == (
+        "SPECIFY_RUNTIME_LAUNCHER_UNAVAILABLE:"
+        "specify-runtime learning start --command plan --format json"
+    )
 
 
 @pytest.mark.parametrize(
@@ -50,6 +57,9 @@ def test_non_project_cognition_subcommand_keeps_specify_launcher_behavior(tmp_pa
     (
         ("api", "handshake", "--format", "json"),
         ("artifact", "show", "--kind", "spec", "--format", "json"),
+        ("discussion", "list", "--json"),
+        ("learning", "start", "--command", "plan", "--format", "json"),
+        ("result", "path", "--command", "implement"),
         ("cognition", "status", "--format", "json"),
         ("validate", "spec", "--path", "feature/spec.md", "--format", "json"),
         ("version",),
@@ -71,10 +81,13 @@ def test_unified_runtime_subcommands_use_persisted_binary(
         f"{{{{specify-subcmd:{command}}}}}",
     )
 
-    assert rendered == render_command((str(binary), *runtime_args))
+    assert rendered == render_command((project_runtime_launcher_arg(), *runtime_args))
 
 
-@pytest.mark.parametrize("namespace", ("workflow", "artifact", "cognition"))
+@pytest.mark.parametrize(
+    "namespace",
+    ("workflow", "artifact", "cognition", "discussion", "learning", "result"),
+)
 def test_unified_runtime_subcommand_ignores_persisted_specify_launcher(
     tmp_path: Path,
     namespace: str,
@@ -118,7 +131,7 @@ def test_project_cognition_compass_subcommand_uses_persisted_binary(tmp_path: Pa
     query_arg = '--query="$ARGUMENTS"' if os.name == "nt" else "--query=$ARGUMENTS"
     assert rendered == render_command(
         (
-            str(binary),
+            project_runtime_launcher_arg(),
             "cognition",
             "compass",
             "--intent",
@@ -141,4 +154,7 @@ def test_project_cognition_expand_subcommand_uses_persisted_binary(tmp_path: Pat
         "{{specify-subcmd:specify-runtime cognition expand --id exp-qf-test --section raw_candidates --format json}}",
     )
 
-    assert rendered == f"{binary} cognition expand --id exp-qf-test --section raw_candidates --format json"
+    assert rendered == (
+        f"{project_runtime_launcher_arg()} cognition expand "
+        "--id exp-qf-test --section raw_candidates --format json"
+    )

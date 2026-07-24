@@ -112,7 +112,8 @@ def _assert_compact_managed_context(content: str) -> None:
     assert "when existing-system truth matters" in lower
     assert "before broad source inspection" in lower
     assert "narrow live reads" in lower
-    assert "learning start --command <workflow> --format json" in content
+    assert "learning start --command '<workflow>' --format json" in content
+    assert ".specify" in content and "specify-runtime" in content
     assert "show_argv" in content
     assert ".specify/memory/learnings/INDEX.md" not in content
     assert "## Workflow Recommendations" in content
@@ -122,7 +123,9 @@ def _assert_compact_managed_context(content: str) -> None:
     assert "`sp-deep-research` for feasibility proof" in lower
     assert "`sp-debug` for root-cause diagnosis" in lower
     assert "## Command Surface Rules" in content
-    assert "--help" in content
+    assert "api list --format json" in content
+    assert "api show workflow.block --format json" in content
+    assert "api schema workflow-block-input --format json" in content
     assert "{{specify-cli}}" not in content
     assert "generated create-feature script" in lower
     assert "## Durable State" in content
@@ -351,7 +354,8 @@ def _assert_design_contract(content: str) -> None:
 
     assert "sp-design" in content
     assert "DESIGN.md" in content
-    assert "specify design lint" in content
+    assert "specify-runtime" in content
+    assert "design lint" in content
     assert "Forbidden Writes" in content or "forbidden writes" in lowered
     assert "CSS or theme implementation files" in content
 

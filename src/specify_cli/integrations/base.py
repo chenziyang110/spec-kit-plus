@@ -1108,7 +1108,7 @@ class IntegrationBase(ABC):
             "\n"
             "Before implementation actions:\n"
             "- Read canonical `task-index.json` or the light direct task list, compact execution state, and the current task's required refs.\n"
-            "- **Resume Audit**: If the tracker is `resolved`, all tasks appear checked, or the previous session exit is unknown, run `{{specify-subcmd:implement resume-audit --feature-dir \"$FEATURE_DIR\" --format json}}` before trusting completion.\n"
+            "- **Resume Audit**: If the tracker is `resolved`, all tasks appear checked, or the previous session exit is unknown, run `{{specify-subcmd:specify-runtime implement resume-audit --feature-dir \"$FEATURE_DIR\" --format json}}` before trusting completion.\n"
             "- Treat completed task markers as claims until changed paths, validation, required consumer evidence, review status, and mutation closeout prove them.\n"
             "- Choose `leader-direct` for a small or tightly coupled ready task when delegation adds no quality or critical-path benefit and no high-risk trigger calls for an independent lane.\n"
             "- Choose `one-subagent` for one independent bounded task and `parallel-subagents` only for validated lanes with isolated write sets and an explicit join point.\n"
@@ -1147,13 +1147,13 @@ class IntegrationBase(ABC):
         if "<request-id>" in descriptor.result_handoff_hint:
             result_cli_guidance = (
                 "- Runtime-managed result paths require a dispatch request id; compute the path with "
-                f"`{{{{specify-subcmd:result path --command {command_name} --request-id <request-id>}}}}` and report final completion "
+                f"`{{{{specify-subcmd:specify-runtime result path --command {command_name} --request-id <request-id>}}}}` and report final completion "
                 "through the active runtime-managed result channel for that request id.\n"
-                "- `{{specify-subcmd:result path --help}}` documents a JSON-only command; do not append `--format`.\n"
+                "- `{{specify-subcmd:specify-runtime result path --help}}` documents a JSON-only command; do not append `--format`.\n"
             )
         else:
             result_cli_guidance = (
-                "- For filesystem handoffs, use `{{specify-subcmd:result path --help}}` with the concrete workflow identifiers "
+                "- For filesystem handoffs, use `{{specify-subcmd:specify-runtime result path --help}}` with the concrete workflow identifiers "
                 "such as `--feature-dir`/`--task-id`, `--workspace`/`--lane-id`, or `--session-slug`/`--lane-id`.\n"
                 "- The result-path command emits JSON and does not accept `--format`; do not append `--format`.\n"
             )
