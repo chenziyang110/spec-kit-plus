@@ -16,7 +16,7 @@ Advance the current feature through tracked implementation batches while keeping
 ## Process
 
 - Recover compact execution state, validate the task-graph revision, and identify the current ready batch.
-- If the feature lane is not explicit, run `{{specify-subcmd:lane resolve --command implement --ensure-worktree}}`; use the returned execution context/materialized worktree and stop on `uncertain`.
+- If the feature lane is not explicit, run `{{specify-subcmd:specify-runtime lane resolve --command implement --ensure-worktree}}`; use the returned execution context/materialized worktree and stop on `uncertain`.
 - Read `FEATURE_DIR/workflow-state.md` when present. If its canonical `next_command` still points to `/sp.analyze`, stop and honor that pending diagnostic gate rather than self-authorizing implementation from chat memory.
 - On resume, audit terminal-looking tracker/task state before trusting completion; checked tasks are claims until validation, handoff, join point, and consumer evidence prove them. When `real_entrypoint_evidence` is required, synthetic-only consumer proof is not sufficient.
 - Carry every `CA-###` consequence obligation from packets into dispatch, implementation evidence, result acceptance, tracker open gaps, and stop-and-reopen routing.

@@ -107,7 +107,7 @@ If the mode is ambiguous, choose the smallest safe mode and state the assumption
 ## Three-Direction Preview Loop
 
 - For `create`, `synthesize`, or any unresolved high-visibility `refine`, use
-  `{{specify-subcmd:design preview --out .specify/design/previews/round-NN.html}}`
+  `{{specify-subcmd:specify-runtime design preview --out .specify/design/previews/round-NN.html}}`
   or copy `.specify/templates/design-preview-template.html` when the helper is
   unavailable.
 - Each review round contains exactly three project-specific directions in one
@@ -118,7 +118,7 @@ If the mode is ambiguous, choose the smallest safe mode and state the assumption
   configure the embedded `spec-kit-design-preview-manifest-v1` with the same
   content, directions, boundaries, tokens, decision IDs, modes, and viewports,
   and run
-  `{{specify-subcmd:design preview-lint .specify/design/previews/round-NN.html --level ready}}`.
+  `{{specify-subcmd:specify-runtime design preview-lint .specify/design/previews/round-NN.html --level ready}}`.
 - Inspect the board in a real browser at representative desktop and mobile
   widths. Verify direction switching, keyboard operation, overflow, component
   states, meaningful animation, and `prefers-reduced-motion`.
@@ -132,7 +132,7 @@ If the mode is ambiguous, choose the smallest safe mode and state the assumption
   `round-NN.html`. Continue until the user approves. Do not overwrite a prior
   review round, and never reinterpret criticism as approval.
 - Once the user explicitly approves, freeze it with
-  `{{specify-subcmd:design approve .specify/design/previews/round-NN.html --direction <direction-id> --format json}}`.
+  `{{specify-subcmd:specify-runtime design approve .specify/design/previews/round-NN.html --direction <direction-id> --format json}}`.
   This command changes the candidate to approved, embeds the selected
   direction, and writes the immutable `.approval.json` sidecar. Record
   `approved_visual_ref: .specify/design/previews/round-NN.html#<direction-id>`
@@ -238,10 +238,10 @@ references, options, and review artifacts.
 Before closeout:
 
 1. Run the active round's
-   `{{specify-subcmd:design preview-lint .specify/design/previews/round-NN.html --level ready}}`,
-   then run `{{specify-subcmd:design lint --level ready}}` when the CLI helpers
+   `{{specify-subcmd:specify-runtime design preview-lint .specify/design/previews/round-NN.html --level ready}}`,
+   then run `{{specify-subcmd:specify-runtime design lint --level ready}}` when the CLI helpers
    are available. Export the same approved contract with
-   `{{specify-subcmd:design export DESIGN.md --format json --out .specify/design/design-system.json}}`
+   `{{specify-subcmd:specify-runtime design export DESIGN.md --format json --out .specify/design/design-system.json}}`
    so implementation consumes deterministic data rather than reconstructing
    YAML prose.
 2. Write `.specify/design/review.md` with:

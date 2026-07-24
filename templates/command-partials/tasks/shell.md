@@ -12,7 +12,7 @@ Compile a ready plan contract into the smallest dependency-safe execution graph 
 
 ## Process
 
-- If `FEATURE_DIR` is not explicit, run `{{specify-subcmd:lane resolve --command tasks --ensure-worktree}}`; honor a materialized worktree and stop on `uncertain`.
+- If `FEATURE_DIR` is not explicit, run `{{specify-subcmd:specify-runtime lane resolve --command tasks --ensure-worktree}}`; honor a materialized worktree and stop on `uncertain`.
 - Validate plan revision, target boundary, complete confirmed scope, interfaces, acceptance, `MP-*`, `CA-###`, capability, fidelity, and stop/reopen refs.
 - Reject a target that silently falls back to the current repository when another implementation target was confirmed.
 - Select `light`, `standard`, or `heavy`; delegate only isolated decomposition lanes whose benefit exceeds handoff cost.

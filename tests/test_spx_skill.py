@@ -16,9 +16,9 @@ from specify_cli.integrations.manifest import IntegrationManifest
 from specify_cli.launcher import (
     SpecifyLauncherSpec,
     diagnose_project_runtime_compatibility,
-    render_command,
     write_runtime_launcher_config,
 )
+from specify_cli.specify_runtime import project_runtime_launcher_arg
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -776,14 +776,15 @@ def test_advanced_local_references_use_the_project_pinned_launcher(tmp_path) -> 
         json.dumps(
             {
                 "specify_launcher": _test_specify_launcher_payload(),
-                "runtime_launcher": {
-                    "command": "C:/tools/specify-runtime.exe",
-                    "argv": ["C:/tools/specify-runtime.exe"],
-                },
             }
         ),
         encoding="utf-8",
     )
+    binary_name = "specify-runtime.exe" if os.name == "nt" else "specify-runtime"
+    runtime_source = tmp_path / "runtime-source" / binary_name
+    runtime_source.parent.mkdir()
+    runtime_source.write_bytes(b"runtime fixture")
+    write_runtime_launcher_config(project, runtime_source)
     manifest = IntegrationManifest("codex", project)
 
     integration.setup(
@@ -812,11 +813,14 @@ def test_advanced_local_references_use_the_project_pinned_launcher(tmp_path) -> 
         / "project-cognition.md"
     ).read_text(encoding="utf-8")
 
-    assert f"{TEST_SPECIFY_COMMAND} implement resume-audit" in execution
-    assert f"{TEST_SPECIFY_COMMAND} sp-teams auto-dispatch" in teams
-    assert "C:\\tools\\specify-runtime.exe" in cognition or (
-        "C:/tools/specify-runtime.exe" in cognition
-    )
+    normalized_execution = execution.replace("\\", "/")
+    normalized_teams = teams.replace("\\", "/")
+    normalized_cognition = cognition.replace("\\", "/")
+    runtime_command = project_runtime_launcher_arg().replace("\\", "/")
+    assert f"{runtime_command} implement resume-audit" in normalized_execution
+    assert f"{runtime_command} sp-teams auto-dispatch" in normalized_teams
+    assert runtime_command in normalized_cognition
+    assert TEST_SPECIFY_COMMAND not in execution + teams + cognition
     assert "{{specify-subcmd:" not in execution + teams + cognition
 
 
@@ -871,24 +875,27 @@ def _fresh_codex_init(monkeypatch, tmp_path, profile: str):
     assert initialized.exit_code == 0, initialized.output
     context = (project / "AGENTS.md").read_text(encoding="utf-8")
     assert (
-        f"`{pinned_launcher.command} learning start --command <workflow> --format json`"
+        "SPECIFY_RUNTIME_LAUNCHER_UNAVAILABLE:specify-runtime learning start "
+        "--command '<workflow>' --format json"
     ) in context
-    assert f"`{pinned_launcher.command} --help`" in context
-    assert f"{pinned_launcher.command} check\n" in context
-    assert f"{pinned_launcher.command} --help\n" in context
-    assert "`specify learning start" not in context
-    assert "`specify --help`" not in context
-    assert "\nspecify check\n" not in context
-    assert "\nspecify --help\n" not in context
+    assert (
+        "SPECIFY_RUNTIME_LAUNCHER_UNAVAILABLE:specify-runtime api list --format json"
+        in context
+    )
+    managed = context.split("<!-- SPEC-KIT:BEGIN -->", 1)[1].split(
+        "<!-- SPEC-KIT:END -->",
+        1,
+    )[0]
+    assert pinned_launcher.command not in managed
+    assert "Python `specify` is human-only for bootstrap" in context
     return project, pinned_launcher
 
 
-def test_fresh_advanced_codex_init_binds_root_discussion_skill_to_source_launcher(
+def test_fresh_advanced_codex_init_keeps_agent_flows_off_source_launcher(
     monkeypatch,
     tmp_path,
 ) -> None:
     project, pinned_launcher = _fresh_codex_init(monkeypatch, tmp_path, "advanced")
-    pinned_command = pinned_launcher.command
     config = json.loads(
         (project / ".specify" / "config.json").read_text(encoding="utf-8")
     )
@@ -904,27 +911,19 @@ def test_fresh_advanced_codex_init_binds_root_discussion_skill_to_source_launche
         / "references"
         / "project-learning.md"
     ).read_text(encoding="utf-8")
-    assert f"{pinned_command} discussion list --json" in discussion
     assert (
-        render_command(
-            (*pinned_launcher.argv, "discussion", "init", "<slug>", "--json")
-        )
+        "SPECIFY_RUNTIME_LAUNCHER_UNAVAILABLE:specify-runtime discussion list --json"
         in discussion
     )
     assert (
-        render_command(
-            (
-                *pinned_launcher.argv,
-                "learning",
-                "start",
-                "--command",
-                "<classic-command-name>",
-                "--format",
-                "json",
-            )
-        )
-        in learning
-    )
+        "SPECIFY_RUNTIME_LAUNCHER_UNAVAILABLE:specify-runtime discussion init "
+        "'<slug>' --json"
+    ) in discussion
+    assert (
+        "SPECIFY_RUNTIME_LAUNCHER_UNAVAILABLE:specify-runtime learning start "
+        "--command '<classic-command-name>' --format json"
+    ) in learning
+    assert pinned_launcher.command not in discussion + learning
     assert "`specify discussion" not in discussion
     assert "\nspecify learning" not in learning
     manifest = IntegrationManifest.load("codex", project)
@@ -937,7 +936,7 @@ def test_fresh_advanced_codex_init_binds_root_discussion_skill_to_source_launche
     assert "unbound-generated-specify-launcher" not in diagnostic_codes
 
 
-def test_fresh_classic_codex_init_binds_all_runtime_commands_to_source_launcher(
+def test_fresh_classic_codex_init_keeps_all_agent_flows_off_source_launcher(
     monkeypatch,
     tmp_path,
 ) -> None:
@@ -947,18 +946,10 @@ def test_fresh_classic_codex_init_binds_all_runtime_commands_to_source_launcher(
         project / ".codex" / "skills" / "sp-discussion" / "SKILL.md"
     ).read_text(encoding="utf-8")
     assert (
-        render_command(
-            (
-                *pinned_launcher.argv,
-                "discussion",
-                "mark-consumed",
-                "<slug>",
-                "--feature-dir",
-                "<feature-dir>",
-            )
-        )
-        in discussion
-    )
+        "SPECIFY_RUNTIME_LAUNCHER_UNAVAILABLE:specify-runtime discussion "
+        "mark-consumed '<slug>' --feature-dir '<feature-dir>'"
+    ) in discussion
+    assert pinned_launcher.command not in discussion
     assert "{{specify-subcmd:" not in discussion
 
     map_scan = (
@@ -996,7 +987,7 @@ def test_fresh_classic_codex_init_binds_all_runtime_commands_to_source_launcher(
     assert "unbound-generated-specify-launcher" not in diagnostic_codes
 
 
-def test_runtime_repair_rebinds_unmodified_manifest_owned_source_launcher(
+def test_runtime_repair_does_not_rebind_agent_flows_to_changed_source_launcher(
     monkeypatch,
     tmp_path,
 ) -> None:
@@ -1015,18 +1006,20 @@ def test_runtime_repair_rebinds_unmodified_manifest_owned_source_launcher(
     )
     config_path.write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")
     discussion = project / ".codex" / "skills" / "spx-discussion" / "SKILL.md"
-    assert old_launcher.command in discussion.read_text(encoding="utf-8")
+    original = discussion.read_text(encoding="utf-8")
+    assert old_launcher.command not in original
+    assert "SPECIFY_RUNTIME_LAUNCHER_UNAVAILABLE:specify-runtime" in original
 
-    repaired = integration.repair_runtime_assets(
+    integration.repair_runtime_assets(
         project,
         manifest,
         script_type="sh",
     )
 
     content = discussion.read_text(encoding="utf-8")
-    assert discussion in repaired
     assert old_launcher.command not in content
-    assert new_command in content
+    assert new_command not in content
+    assert "SPECIFY_RUNTIME_LAUNCHER_UNAVAILABLE:specify-runtime" in content
     assert manifest.check_modified() == []
     assert not any(
         issue["code"]
@@ -1068,7 +1061,7 @@ def test_runtime_repair_preserves_modified_source_bound_guidance(
 
     assert discussion not in repaired
     assert discussion.read_text(encoding="utf-8") == original
-    assert old_launcher.command in original
+    assert old_launcher.command not in original
     assert ".codex/skills/spx-discussion/SKILL.md" in getattr(
         integration,
         "_last_repair_skipped_modified",
@@ -1105,12 +1098,11 @@ def test_advanced_local_references_without_cognition_launcher_use_recovery_contr
     assert len(set(cognition_references)) == 1
     cognition = cognition_references[0]
     assert "SPECIFY_RUNTIME_LAUNCHER_UNAVAILABLE" in cognition
-    assert f"{TEST_SPECIFY_COMMAND} check" in cognition
-    assert f"{TEST_SPECIFY_COMMAND} integration repair" in cognition
-    assert "specify cognition" in cognition
+    assert "SPECIFY_RUNTIME_LAUNCHER_UNAVAILABLE:specify-runtime doctor --format json" in cognition
+    assert TEST_SPECIFY_COMMAND not in cognition
+    assert "human" in cognition.lower()
+    assert "bootstrap" in cognition.lower()
     assert "do not" in cognition.lower()
-    assert "(requires project-cognition" not in cognition
-    assert "`specify-runtime cognition compass" not in cognition
     assert "{{specify-subcmd:" not in cognition
 
 
@@ -1158,7 +1150,9 @@ def test_advanced_runtime_repair_rebinds_unavailable_cognition_references(
     ]
     assert set(references).issubset(set(repaired))
     assert len(set(repaired_references)) == 1
-    assert all(str(binary) in content for content in repaired_references)
+    runtime_command = project_runtime_launcher_arg()
+    assert all(runtime_command in content for content in repaired_references)
+    assert all(str(binary) not in content for content in repaired_references)
     assert all(
         "SPECIFY_RUNTIME_LAUNCHER_UNAVAILABLE" not in content
         for content in repaired_references
@@ -1277,7 +1271,12 @@ def test_advanced_integration_repair_installs_and_rebinds_missing_cognition_runt
     project_config = json.loads(
         (project / ".specify" / "config.json").read_text(encoding="utf-8")
     )
-    assert project_config["runtime_launcher"]["argv"] == [str(binary)]
+    runtime_command = project_runtime_launcher_arg()
+    assert project_config["runtime_launcher"]["argv"] == [runtime_command]
+    project_runtime = project / ".specify" / "bin" / (
+        "specify-runtime.exe" if os.name == "nt" else "specify-runtime"
+    )
+    assert project_runtime.exists()
     assert (project / "DESIGN.md").read_text(encoding="utf-8") == (
         "# Approved project design\n\nDo not replace this contract.\n"
     )
@@ -1288,7 +1287,8 @@ def test_advanced_integration_repair_installs_and_rebinds_missing_cognition_runt
         )
     ]
     assert cognition_references
-    assert all(str(binary) in content for content in cognition_references)
+    assert all(runtime_command in content for content in cognition_references)
+    assert all(str(binary) not in content for content in cognition_references)
     assert all(
         "SPECIFY_RUNTIME_LAUNCHER_UNAVAILABLE" not in content
         for content in cognition_references
@@ -1325,9 +1325,13 @@ def test_classic_missing_cognition_launcher_has_equivalent_recovery_and_rebinds(
         in implement_content
     )
     assert "SPECIFY_RUNTIME_LAUNCHER_UNAVAILABLE" in cognition_gate
-    assert f"{TEST_SPECIFY_COMMAND} check" in cognition_gate
-    assert f"{TEST_SPECIFY_COMMAND} integration repair" in cognition_gate
-    assert "specify cognition" in cognition_gate
+    assert (
+        "SPECIFY_RUNTIME_LAUNCHER_UNAVAILABLE:specify-runtime doctor --format json"
+        in cognition_gate
+    )
+    assert TEST_SPECIFY_COMMAND not in cognition_gate
+    assert "human" in cognition_gate.lower()
+    assert "bootstrap" in cognition_gate.lower()
     assert "do not" in cognition_gate.lower()
 
     binary = project / ".specify" / "bin" / "specify-runtime"
@@ -1343,7 +1347,11 @@ def test_classic_missing_cognition_launcher_has_equivalent_recovery_and_rebinds(
     assert implement in repaired
     repaired_implement = implement.read_text(encoding="utf-8")
     assert "SPECIFY_RUNTIME_LAUNCHER_UNAVAILABLE" not in repaired_implement
-    assert f"{binary} cognition compass --intent implement" in repaired_implement
+    assert (
+        f"{project_runtime_launcher_arg()} cognition compass --intent implement"
+        in repaired_implement
+    )
+    assert str(binary) not in repaired_implement
 
 
 def test_markdown_command_integration_installs_and_rebinds_cognition_recovery(
@@ -1368,9 +1376,13 @@ def test_markdown_command_integration_installs_and_rebinds_cognition_recovery(
     ).read_text(encoding="utf-8")
     assert "SPECIFY_RUNTIME_LAUNCHER_UNAVAILABLE:specify-runtime cognition" in implement
     assert "SPECIFY_RUNTIME_LAUNCHER_UNAVAILABLE" in semantic_contract
-    assert f"{TEST_SPECIFY_COMMAND} check" in semantic_contract
-    assert f"{TEST_SPECIFY_COMMAND} integration repair" in semantic_contract
-    assert "specify cognition" in semantic_contract
+    assert (
+        "SPECIFY_RUNTIME_LAUNCHER_UNAVAILABLE:specify-runtime doctor --format json"
+        in semantic_contract
+    )
+    assert TEST_SPECIFY_COMMAND not in semantic_contract
+    assert "human" in semantic_contract.lower()
+    assert "bootstrap" in semantic_contract.lower()
     assert "do not" in semantic_contract.lower()
 
     binary = project / ".specify" / "bin" / "specify-runtime"
@@ -1388,7 +1400,11 @@ def test_markdown_command_integration_installs_and_rebinds_cognition_recovery(
     assert implement_path in repaired
     repaired_implement = implement_path.read_text(encoding="utf-8")
     assert "SPECIFY_RUNTIME_LAUNCHER_UNAVAILABLE" not in repaired_implement
-    assert f"{binary} cognition compass --intent implement" in repaired_implement
+    assert (
+        f"{project_runtime_launcher_arg()} cognition compass --intent implement"
+        in repaired_implement
+    )
+    assert str(binary) not in repaired_implement
 
 
 def test_toml_command_integration_rebinds_cognition_recovery_as_valid_toml(
@@ -1426,7 +1442,11 @@ def test_toml_command_integration_rebinds_cognition_recovery_as_valid_toml(
     assert implement_path in repaired
     repaired_payload = tomllib.loads(implement_path.read_text(encoding="utf-8"))
     assert "SPECIFY_RUNTIME_LAUNCHER_UNAVAILABLE" not in repaired_payload["prompt"]
-    assert f"{binary} cognition compass --intent implement" in repaired_payload["prompt"]
+    assert (
+        f"{project_runtime_launcher_arg()} cognition compass --intent implement"
+        in repaired_payload["prompt"]
+    )
+    assert str(binary) not in repaired_payload["prompt"]
 
 
 def test_advanced_upgrade_prunes_only_unmodified_retired_spx_files(tmp_path) -> None:
@@ -1560,10 +1580,10 @@ def test_advanced_source_commands_use_launcher_placeholders() -> None:
         content = path.read_text(encoding="utf-8")
         assert bare_command.search(content) is None, path
 
-    assert "{{specify-subcmd:implement resume-audit" in (
+    assert "{{specify-subcmd:specify-runtime implement resume-audit" in (
         ADVANCED_SKILLS / "spx-implement" / "references" / "execution-contract.md"
     ).read_text(encoding="utf-8")
-    assert "{{specify-subcmd:sp-teams auto-dispatch" in (
+    assert "{{specify-subcmd:specify-runtime sp-teams auto-dispatch" in (
         ADVANCED_SKILLS / "spx-implement-teams" / "references" / "codex-teams.md"
     ).read_text(encoding="utf-8")
 

@@ -15,9 +15,9 @@ Read `references/ui-quality-gate.md` when product experience, interface
 direction, screen hierarchy, or interaction behavior is part of the decision.
 
 Discover or create the session with the project launcher-backed
-`{{specify-subcmd:discussion list --json}}` and
-`{{specify-subcmd:discussion init <slug> --json}}` helpers. Resume existing
-state with `{{specify-subcmd:discussion resume <slug> --json}}` instead of
+`{{specify-subcmd:specify-runtime discussion list --json}}` and
+`{{specify-subcmd:specify-runtime discussion init <slug> --json}}` helpers. Resume existing
+state with `{{specify-subcmd:specify-runtime discussion resume <slug> --json}}` instead of
 reconstructing it from chat memory.
 
 Use the live repository only to ground product boundaries, current behavior,
@@ -38,12 +38,12 @@ the user to repeat `$spx-discussion`. A contextual confirmation such as `yes`,
 `ok`, or `可以` authorizes handoff only when it directly answers a named handoff
 action, and authorizes readiness only when it confirms the displayed digest.
 Then draft exactly one agent-only contract and write it with
-`{{specify-subcmd:discussion write-handoff <slug> --input <draft-json-path> --json}}`.
-Run `{{specify-subcmd:discussion validate-handoff <slug> --mode draft --json}}`,
+`{{specify-subcmd:specify-runtime discussion write-handoff <slug> --input <draft-json-path> --json}}`.
+Run `{{specify-subcmd:specify-runtime discussion validate-handoff <slug> --mode draft --json}}`,
 review its boundary against confirmed decisions, and ask the user to confirm
 that exact revision. Then run
-`{{specify-subcmd:discussion confirm-handoff <slug> --digest <review-digest> --json}}`
-before `{{specify-subcmd:discussion mark-ready <slug> --json}}`. Before every
+`{{specify-subcmd:specify-runtime discussion confirm-handoff <slug> --digest <review-digest> --json}}`
+before `{{specify-subcmd:specify-runtime discussion mark-ready <slug> --json}}`. Before every
 final response that names `sp-specify`, read canonical status and withhold the
 downstream invocation unless it is `handoff-ready`.
 

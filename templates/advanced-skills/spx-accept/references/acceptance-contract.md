@@ -125,7 +125,7 @@ a Human Action Guide. A separately stated new-scope request belongs to a later
 feature workflow; it is not a repair route for a failed observation.
 
 For every non-human failed observation, first run
-`{{specify-subcmd:accept route-repair --feature-dir <feature-dir> --finding-id <finding-id> --route <review-route> --expected-revision <revision> --evidence <sanitized-evidence> --format json}}`.
+`{{specify-subcmd:specify-runtime accept route-repair --feature-dir <feature-dir> --finding-id <finding-id> --route <review-route> --expected-revision <revision> --evidence <sanitized-evidence> --format json}}`.
 The runtime invalidates the prior verdict and every human result, preserves the
 failed scenario as the first retest cursor, and reopens `review`. Invoke `repair_handoff_command` separately and
 stop. Review remains the stage owner for the acceptance finding; only a proven

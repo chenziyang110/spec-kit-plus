@@ -68,7 +68,7 @@ If any check fails, refuse the handoff, persist the failed checks and blocker in
 `workflow-state.md`, and report the smallest recovery route.
 
 Run
-`{{specify-subcmd:hook validate-artifacts --command deep-research --feature-dir <feature-dir> --format json}}`
+`{{specify-subcmd:specify-runtime hook validate-artifacts --command deep-research --feature-dir <feature-dir> --format json}}`
 before reporting readiness. Repair the research artifact or remain blocked on a
 non-OK result; surface presence alone is not a valid handoff.
 

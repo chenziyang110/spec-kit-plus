@@ -40,6 +40,6 @@ and route to `$spx-design` instead of inheriting starter aesthetics.
 Do not substitute feature-level `ui-target.html` for an approved project-level
 design preview; preserve both references when both apply.
 When a feature target materially reduces ambiguity, scaffold it with
-`{{specify-subcmd:design ui-target --out <FEATURE_DIR>/ui-target.html}}`, configure its
+`{{specify-subcmd:specify-runtime design ui-target --out <FEATURE_DIR>/ui-target.html}}`, configure its
 embedded manifest and candidate status, and require
-`{{specify-subcmd:design ui-target-lint <FEATURE_DIR>/ui-target.html --level ready}}`.
+`{{specify-subcmd:specify-runtime design ui-target-lint <FEATURE_DIR>/ui-target.html --level ready}}`.

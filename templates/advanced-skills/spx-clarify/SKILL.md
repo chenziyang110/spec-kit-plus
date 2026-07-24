@@ -30,7 +30,7 @@ Create or resume rich workflow-owned `workflow-state.md` before substantive
 work, using the installed workflow-state template only when it is absent. Record
 `active_command: sp-clarify`, `phase_mode: planning-only`, the source revision,
 target boundary, current blocker, and next route without copying spec truth.
-Run `{{specify-subcmd:hook validate-state --command clarify --feature-dir <feature-dir> --autofix --format json}}`
+Run `{{specify-subcmd:specify-runtime hook validate-state --command clarify --feature-dir <feature-dir> --autofix --format json}}`
 and fail closed if the repaired state still does not validate.
 
 Identify decisions whose alternatives materially change behavior, acceptance,
@@ -49,7 +49,7 @@ named artifact section, explicit deferral, or blocker. Ensure every planning
 blocker is resolved, explicitly retained, or routed to `$spx-deep-research`.
 
 Run
-`{{specify-subcmd:hook validate-artifacts --command clarify --feature-dir <feature-dir> --format json}}`
+`{{specify-subcmd:specify-runtime hook validate-artifacts --command clarify --feature-dir <feature-dir> --format json}}`
 before reporting planning readiness. Repair owned artifacts or fail closed on a
 non-OK result.
 

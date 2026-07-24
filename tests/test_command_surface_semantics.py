@@ -227,7 +227,7 @@ def test_passive_workflow_skills_enforce_real_specify_command_surface() -> None:
     cognition_gate = read_template("templates/passive-skills/spec-kit-project-cognition-gate/SKILL.md").lower()
 
     for content in (routing, cognition_gate):
-        assert "{{specify-subcmd:--help}}" in content
+        assert "{{specify-subcmd:specify-runtime api list --format json}}" in content
         assert "generated\ncreate-feature script" in content or "generated create-feature script" in content
         assert ".specify/scripts/bash/create-new-feature.sh" in content
         assert ".specify/scripts/powershell/create-new-feature.ps1" in content
@@ -274,7 +274,7 @@ def test_command_surfaces_require_help_verification_and_do_not_invent_feature_co
         assert (
             "specify --help" in content
             or "{{specify-cli}} --help" in content
-            or "{{specify-subcmd:--help}}" in content
+            or "{{specify-subcmd:specify-runtime api list --format json}}" in content
         ), f"{name} is missing launcher-aware help verification"
 
 
@@ -294,7 +294,7 @@ def test_specify_template_points_feature_creation_to_sp_specify_and_generated_sc
     assert "generated create-feature script" in lowered
     assert "run `{script}` from the repo root" in lowered
     assert "if the feature-creation script exits non-zero" in lowered
-    assert "do not call `specify lane register`" in lowered
+    assert "lane register" not in lowered
     assert "specify branch" not in lowered
 
 
@@ -417,7 +417,7 @@ def test_generated_codex_sp_specify_skill_exposes_create_feature_command_and_sto
     assert ".specify/scripts/bash/create-new-feature.sh" in content
     assert "run `.specify/scripts/bash/create-new-feature.sh \"$arguments\"` from the repo root" in content
     assert "if the feature-creation script exits non-zero" in content
-    assert "do not call `specify lane register`" in content
+    assert "lane register" not in content
 
 
 def test_generated_codex_passive_routing_skills_expose_create_feature_helper_paths(tmp_path: Path):
@@ -578,25 +578,25 @@ def test_readme_and_quickstart_label_remaining_helper_command_shapes() -> None:
     readme = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8").lower()
     quickstart = (PROJECT_ROOT / "docs" / "quickstart.md").read_text(encoding="utf-8").lower()
 
-    assert "specify implement closeout --feature-dir <feature-dir> --format json" in readme
+    assert "specify-runtime implement closeout --feature-dir <feature-dir> --format json" in readme
     assert "implementation-summary.md" in readme
     assert "implementation_summary" in readme
     assert "git diff --stat" in readme
     assert "git diff --name-status" in readme
     assert "command shape:" in readme
-    assert "specify result path --command implement --feature-dir <feature-dir> --task-id <task-id>" in readme
-    assert "specify result path --command quick --workspace .planning/quick/<id>-<slug> --lane-id <lane-id>" in readme
-    assert "specify result path --command debug --session-slug <session-slug> --lane-id <lane-id>" in readme
-    assert "specify result path --command <workflow> --request-id <request-id>" in readme
+    assert "specify-runtime result path --command implement --feature-dir <feature-dir> --task-id <task-id>" in readme
+    assert "specify-runtime result path --command quick --workspace .planning/quick/<id>-<slug> --lane-id <lane-id>" in readme
+    assert "specify-runtime result path --command debug --session-slug <session-slug> --lane-id <lane-id>" in readme
+    assert "specify-runtime result path --command <workflow> --request-id <request-id>" in readme
     assert "sp-teams submit-result --request-id <request-id> --result-file <path>" in readme
-    assert "specify result path` emits json directly and does not accept `--format`" in readme
+    assert "specify-runtime result path` emits json directly and does not accept `--format`" in readme
     assert "result helper command shapes:" in readme
-    assert "specify quick status <id>" in readme
+    assert "specify-runtime quick status <id>" in readme
     assert "quick-task helper command shapes:" in readme
-    assert "command shape: `specify quick status <id>`" in readme
+    assert "command shape: `specify-runtime quick status <id>`" in readme
     assert "discussion helper command shapes:" in readme
-    assert "command shape: `specify discussion close <slug> --status completed|abandoned`" in readme
-    assert "command shape: `specify discussion mark-consumed <slug> --feature-dir <feature-dir>`" in readme
+    assert "command shape: `specify-runtime discussion close <slug> --status completed|abandoned`" in readme
+    assert "command shape: `specify-runtime discussion mark-consumed <slug> --feature-dir <feature-dir>`" in readme
     assert "command shape: `specify hook mark-dirty --reason " not in readme
     assert "command shape: `specify-runtime cognition mark-dirty --reason " in readme
     assert "command shape: `specify project-map mark-dirty --reason " not in readme
@@ -605,9 +605,9 @@ def test_readme_and_quickstart_label_remaining_helper_command_shapes() -> None:
     assert "--origin-feature-dir <dir>" in readme
     assert "--packet-file <packet-json>" in readme
 
-    assert "specify implement closeout --feature-dir <feature-dir> --format json" in quickstart
+    assert "specify-runtime implement closeout --feature-dir <feature-dir> --format json" in quickstart
     assert "codex runtime-managed result paths require the dispatch request id" in quickstart
-    assert "specify result path` emits json directly and does not accept `--format`" in quickstart
+    assert "specify-runtime result path` emits json directly and does not accept `--format`" in quickstart
     assert "implementation-summary.md" in quickstart
     assert "implementation_summary" in quickstart
     assert "git diff --stat" in quickstart
@@ -616,10 +616,10 @@ def test_readme_and_quickstart_label_remaining_helper_command_shapes() -> None:
     assert "specify eval create --recurrence-key <key> --summary" in quickstart
     assert "specify eval create --recurrence-key <key> ..." not in quickstart
     assert "quick-task helper command shapes:" in quickstart
-    assert "command shape: `specify quick status <id>`" in quickstart
+    assert "command shape: `specify-runtime quick status <id>`" in quickstart
     assert "discussion helper command shapes:" in quickstart
-    assert "command shape: `specify discussion close <slug> --status completed|abandoned`" in quickstart
-    assert "command shape: `specify discussion mark-consumed <slug> --feature-dir <feature-dir>`" in quickstart
+    assert "command shape: `specify-runtime discussion close <slug> --status completed|abandoned`" in quickstart
+    assert "command shape: `specify-runtime discussion mark-consumed <slug> --feature-dir <feature-dir>`" in quickstart
 
 
 def test_discussion_workflow_uses_recommendation_first_decision_progression() -> None:

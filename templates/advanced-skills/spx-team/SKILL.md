@@ -12,9 +12,9 @@ status or lifecycle operations; use it only when the question includes
 repository impact or workflow routing.
 
 This skill operates the Codex-only runtime; it does not replace
-`$spx-implement-teams`. Start with `{{specify-subcmd:sp-teams status}}`. Use
-`{{specify-subcmd:sp-teams doctor}}` for configuration/state diagnostics and
-`{{specify-subcmd:sp-teams live-probe}}` only when install or runtime health
+`$spx-implement-teams`. Start with `{{specify-subcmd:specify-runtime sp-teams status}}`. Use
+`{{specify-subcmd:specify-runtime sp-teams doctor}}` for configuration/state diagnostics and
+`{{specify-subcmd:specify-runtime sp-teams live-probe}}` only when install or runtime health
 needs an active proof.
 
 Inspection and diagnosis authorize only `status` and `doctor`. Never run

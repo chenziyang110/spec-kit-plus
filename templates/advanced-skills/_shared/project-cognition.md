@@ -19,11 +19,13 @@ using the intent named by the active skill. This placeholder resolves to the
 project-pinned cognition binary during installation. If it instead resolves to
 an all-caps unavailable-launcher marker, treat that token as a non-executable
 status marker: do not run it and do not probe "specify cognition" or
-"specify project-cognition". Run `{{specify-subcmd:check}}` for the pinned
-project diagnosis, then use `{{specify-subcmd:integration repair}}` as the
-deterministic runtime recovery entry. Re-open this installed reference after
-repair; if the marker remains, report cognition unavailable and navigate from
-live repository evidence within the active skill's safety boundary.
+"specify project-cognition". Run
+`{{specify-subcmd:specify-runtime doctor --format json}}` for the project-local
+binding diagnosis. If it reports `bootstrap_required`, stop at that human-owned
+bootstrap boundary; never invoke `uvx`, Python `specify`, or a user-level
+runtime from the agent workflow. Re-open this installed reference after the
+human repair; if the marker remains, report cognition unavailable and navigate
+from live repository evidence within the active skill's safety boundary.
 
 When cognition is available, consume only what helps the task:
 `epistemic_contract`, `minimal_live_reads`, lane `first_pass_paths`,

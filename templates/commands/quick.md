@@ -1,7 +1,7 @@
 ---
 description: Use when a task is small but non-trivial and needs lightweight tracked planning, validation, or resumable execution outside the full workflow.
 workflow_contract:
-  when_to_use: The task is too large or risky for `sp-fast` but does not justify the full `{{specify-subcmd:-> plan -> tasks -> implement}}` flow.
+  when_to_use: The task is too large or risky for `sp-fast` but does not justify the full `sp-specify -> sp-plan -> sp-tasks -> sp-implement` flow.
   primary_objective: Keep the task resumable and tracked while applying only the minimum planning, research, and validation depth it needs.
   primary_outputs: '`.planning/quick/<id>-<slug>/STATUS.md`, quick-task summary artifacts, and the scoped implementation changes for the task.'
   default_handoff: 'Resume the quick task until resolved, or escalate to /sp.specify if the scope grows into multi-capability or acceptance-criteria-heavy work.'

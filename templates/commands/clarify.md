@@ -81,7 +81,7 @@ Goal: Strengthen an existing spec package after `/sp.specify` by closing plannin
 {{spec-kit-include: ../command-partials/common/learning-layer.md}}
 
 1. Run `{SCRIPT}` from repo root once (`--json --paths-only` / `-Json -PathsOnly`). Parse:
-   - If `FEATURE_DIR` is not already explicit, prefer `{{specify-subcmd:lane resolve --command clarify --ensure-worktree}}` before guessing from branch-only context.
+   - If `FEATURE_DIR` is not already explicit, prefer `{{specify-subcmd:specify-runtime lane resolve --command clarify --ensure-worktree}}` before guessing from branch-only context.
    - When lane resolution returns a materialized lane worktree, continue clarification from that isolated worktree context so the repaired spec package stays bound to the active feature lane.
    - `FEATURE_DIR`
    - `FEATURE_SPEC`

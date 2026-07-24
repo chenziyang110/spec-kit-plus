@@ -18,7 +18,7 @@ Transition from the validated `specify` stage into `plan` through the workflow
 runtime. Only after the transition succeeds, run the installed
 `.specify/scripts/bash/setup-plan.sh --json` or PowerShell equivalent to create
 or preserve the plan skeleton. Run
-`{{specify-subcmd:hook validate-state --command plan --feature-dir <feature-dir> --autofix --format json}}`
+`{{specify-subcmd:specify-runtime hook validate-state --command plan --feature-dir <feature-dir> --autofix --format json}}`
 and stop if it remains invalid.
 
 Require `spec-contract.json` with `status: planning-ready`, a ready transition
@@ -76,7 +76,7 @@ and live owners. Do not create tasks or task artifacts such as `tasks.md` or
 `task-index.json`; also do not create checklists, issues, production source,
 tests, migrations, or runtime configuration in this workflow. Preserve canonical
 `/sp.*` state identifiers. This invocation authorizes only this workflow stage.
-Run `{{specify-subcmd:hook validate-artifacts --command plan --feature-dir <feature-dir> --format json}}`
+Run `{{specify-subcmd:specify-runtime hook validate-artifacts --command plan --feature-dir <feature-dir> --format json}}`
 and repair or block on a non-OK result.
 Stop after reporting the validated plan and recommend `$spx-tasks` when ready.
 Do not invoke `$spx-tasks` in this run; a handoff is not authorization to execute

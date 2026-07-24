@@ -29,12 +29,12 @@ open-handle/process-exit diagnostics; repair a hang, or split a legitimately
 long matrix into deterministic bounded shards inside the same delivery gate.
 
 Its canonical ref is `implementation-review/validation-runs.json`. Call
-`{{specify-subcmd:implement validation-status --feature-dir <feature-dir> --format json}}`
+`{{specify-subcmd:specify-runtime implement validation-status --feature-dir <feature-dir> --format json}}`
 before Review work. Before the Leader starts a delivery scenario wave, call
-`{{specify-subcmd:implement validation-start --feature-dir <feature-dir> --stage review --purpose delivery --command '<cmd>' [--command '<cmd2>'] [--task-id T001] [--task-id T002] [--fingerprint <sha>] --format json}}`;
+`{{specify-subcmd:specify-runtime implement validation-start --feature-dir <feature-dir> --stage review --purpose delivery --command '<cmd>' [--command '<cmd2>'] [--task-id T001] [--task-id T002] [--fingerprint <sha>] --format json}}`;
 omit `--fingerprint` to bind the current implementation snapshot. After the wave,
 call
-`{{specify-subcmd:implement validation-finish --feature-dir <feature-dir> --run-id <Vn> --status <passed|failed|interrupted> [--failure-kind <assertion|verification|harness|environment|runner_timeout|runner_terminated|cancelled|unknown>] --evidence-ref <ref> [--evidence-ref <ref2>] --summary '<text>' --format json}}`.
+`{{specify-subcmd:specify-runtime implement validation-finish --feature-dir <feature-dir> --run-id <Vn> --status <passed|failed|interrupted> [--failure-kind <assertion|verification|harness|environment|runner_timeout|runner_terminated|cancelled|unknown>] --evidence-ref <ref> [--evidence-ref <ref2>] --summary '<text>' --format json}}`.
 Use the runtime-returned gate/attempt ids and counts; do not hand-edit or
 reconstruct the ledger.
 
@@ -56,7 +56,7 @@ repair changed covered source, or another actor changed the product after
 validation, mark prior approval stale and rerun every affected scenario. The
 final reviewed fingerprint covers the integrated source/configuration snapshot
 after all Review repairs; it is the input trust boundary for human acceptance.
-Use `{{specify-subcmd:review resume-audit --feature-dir <feature-dir> --format json}}`
+Use `{{specify-subcmd:specify-runtime review resume-audit --feature-dir <feature-dir> --format json}}`
 to recover the exact cursor and freshness gaps; do not infer them from prose.
 An acceptance repair creates cycle 2 or later and seeds a Review finding linked
 to the routed human finding. Assign it to an accepted read-only diagnostic

@@ -10,7 +10,7 @@ Read `references/project-cognition.md` only for its evidence boundary, then read
 `references/prd-build-contract.md`. Do not run cognition intake in this phase:
 the frozen scan package is the only allowed product-fact source.
 
-Inspect the run with `{{specify-subcmd:prd-build <run-id> --json}}` and consume
+Inspect the run with `{{specify-subcmd:specify-runtime prd-build <run-id> --json}}` and consume
 its machine result `status: ready | blocked`,
 `readiness: ready-to-build | complete | blocked`, `errors`, and `recovery`.
 Treat `blocked` as a hard refusal and follow its stage-local recovery; never
@@ -43,7 +43,7 @@ critical evidence depth, and the final workflow state. Delegation is optional
 and limited to independent synthesis or validation lanes over the same frozen
 scan package. The leader accepts joins and owns final consistency.
 
-Rerun `{{specify-subcmd:prd-build <run-id> --json}}` after writing outputs. Mark
+Rerun `{{specify-subcmd:specify-runtime prd-build <run-id> --json}}` after writing outputs. Mark
 workflow state complete only when it returns `readiness: complete`; otherwise
 persist its errors and recovery without claiming the suite complete.
 

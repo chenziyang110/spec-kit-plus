@@ -32,7 +32,7 @@ spatial behavior, and a `prefers-reduced-motion` equivalent. Compare all three
 with the same content and state matrix. If none is satisfactory, incorporate
 the user's named feedback into a new immutable round. Approval identifies the
 exact round path and direction ID. Freeze it with
-`{{specify-subcmd:design approve <round-path> --direction <direction-id> --format json}}`;
+`{{specify-subcmd:specify-runtime design approve <round-path> --direction <direction-id> --format json}}`;
 the resulting sidecar, preview SHA-256, manifest SHA-256, review round, and
 approved decision IDs are the approval truth. Carry those values unchanged
 through `DESIGN.md`, the feature UI brief, plan/task UI contracts, and final

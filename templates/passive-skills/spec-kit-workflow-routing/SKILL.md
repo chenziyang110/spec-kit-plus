@@ -38,14 +38,14 @@ chat or coding is enough. This command-routing rule does not authorize product-s
 
 ## Command Surface Discipline
 
-Treat the live `{{specify-subcmd:--help}}` output as the only authoritative CLI command
-surface.
+Treat the live `{{specify-subcmd:specify-runtime api list --format json}}`
+output as the authoritative agent-facing runtime surface.
 
-Before suggesting or running a `specify <subcommand>` invocation, verify that it
-exists in `{{specify-subcmd:--help}}` or `{{specify-subcmd:<subcommand> --help}}`.
+Before running a runtime operation, verify that its capability ID is present
+there. Never fall back to Python `specify`, `uvx`, or a user-level binary from
+an agent workflow.
 
-Do not invent, paraphrase, or "normalize" unsupported CLI names such as
-`specify create-feature`.
+Do not invent, paraphrase, or normalize unsupported runtime operations.
 
 Feature creation must stay on `{{invoke:specify}}` plus the generated
 create-feature script at `.specify/scripts/bash/create-new-feature.sh` or

@@ -39,7 +39,7 @@ You are a senior product-engineering advisor: a senior technical expert and seni
 
 ## Session Store
 
-All state lives under `.specify/discussions/<slug>/`. Use the project-pinned `{{specify-subcmd:discussion --help}}` lifecycle surface for `init`, `list`, `resume`, `checkpoint`, `write-handoff`, `validate-handoff`, `confirm-handoff`, `mark-ready`, `mark-consumed`, `close`, and `archive` instead of reconstructing state by hand.
+All state lives under `.specify/discussions/<slug>/`. Use the project-pinned `{{specify-subcmd:specify-runtime discussion --help}}` lifecycle surface for `init`, `list`, `resume`, `checkpoint`, `write-handoff`, `validate-handoff`, `confirm-handoff`, `mark-ready`, `mark-consumed`, `close`, and `archive` instead of reconstructing state by hand.
 
 Required files:
 
@@ -72,8 +72,8 @@ Use the shared discussion runtime to initialize state and render `discussion-sta
 - Valid statuses are `active | blocked | handoff-ready | completed | abandoned`.
 - Incomplete statuses are `active`, `blocked`, and `handoff-ready`.
 - `handoff-ready` is intentionally still resumable until consumed. It means the handoff can be consumed by `sp-specify`; it does not mean the discussion is archived or hidden from default resume selection.
-- After `sp-specify` consumes the handoff into a feature workspace, mark the source discussion consumed/completed so future `sp-auto` runs do not treat stale handoff-ready state as a live candidate. Use `{{specify-subcmd:discussion mark-consumed <slug> --feature-dir <feature-dir>}}` when the generated project has the Specify CLI helper surface available.
-- To remove a no-longer-needed discussion from default resume candidates without consumption, close it as `completed` or `abandoned` after the user confirms the topic should be dropped, then archive it. Use `{{specify-subcmd:discussion close <slug> --status completed|abandoned}}` followed by `{{specify-subcmd:discussion archive <slug>}}` when the generated project has the Specify CLI helper surface available.
+- After `sp-specify` consumes the handoff into a feature workspace, mark the source discussion consumed/completed so future `sp-auto` runs do not treat stale handoff-ready state as a live candidate. Use `{{specify-subcmd:specify-runtime discussion mark-consumed <slug> --feature-dir <feature-dir>}}` when the generated project has the Specify CLI helper surface available.
+- To remove a no-longer-needed discussion from default resume candidates without consumption, close it as `completed` or `abandoned` after the user confirms the topic should be dropped, then archive it. Use `{{specify-subcmd:specify-runtime discussion close <slug> --status completed|abandoned}}` followed by `{{specify-subcmd:specify-runtime discussion archive <slug>}}` when the generated project has the Specify CLI helper surface available.
 - Do not archive `active`, `blocked`, or `handoff-ready` discussions directly.
 - If the user specifies a slug, resume or create that slug according to the user's wording.
 - If no slug is specified and exactly one incomplete discussion exists, resume it.
@@ -88,9 +88,9 @@ Use the shared discussion runtime to initialize state and render `discussion-sta
 4. Answer with the unified frontstage contract.
 5. Persist only at semantic checkpoints, user-triggered checkpoints/saves, compaction risk, or lifecycle transitions. After several unsaved ordinary turns, optionally append a short frontstage note with the unsaved turn count and suggest `checkpoint, continue`; the suggestion is prompt-only and must not write files by itself.
 6. On an explicit handoff request, or a contextual confirmation such as `yes`, `ok`, or `可以` that directly answers a named handoff action, assess readiness in memory. Continue discussion if boundary, evidence, product judgment, hard unknowns, or conflicts remain; do not create a separate assessment artifact.
-7. When ready for review, author one complete draft from `templates/discussion-handoff-template.json`, including `consumer_eligibility`, `recommended_consumer`, `planning_constraints`, and `discussion_decision_digest`; record agent self-review, then run `{{specify-subcmd:discussion write-handoff <slug> --input <draft-json-path> --json}}` followed by `{{specify-subcmd:discussion validate-handoff <slug> --mode draft --json}}`.
+7. When ready for review, author one complete draft from `templates/discussion-handoff-template.json`, including `consumer_eligibility`, `recommended_consumer`, `planning_constraints`, and `discussion_decision_digest`; record agent self-review, then run `{{specify-subcmd:specify-runtime discussion write-handoff <slug> --input <draft-json-path> --json}}` followed by `{{specify-subcmd:specify-runtime discussion validate-handoff <slug> --mode draft --json}}`.
 8. Present the returned `review_digest` with the selected direction, scope, exclusions, protected obligations, and non-blocking assumptions. Stop for this named human approval; it is the required exception to continue-by-default guidance.
-9. Only when the user confirms that exact revision, run `{{specify-subcmd:discussion confirm-handoff <slug> --digest <review-digest> --json}}`, then `{{specify-subcmd:discussion mark-ready <slug> --json}}`.
+9. Only when the user confirms that exact revision, run `{{specify-subcmd:specify-runtime discussion confirm-handoff <slug> --digest <review-digest> --json}}`, then `{{specify-subcmd:specify-runtime discussion mark-ready <slug> --json}}`.
 10. Before every final response that names `sp-specify`, read the current discussion status. Mention the downstream invocation only when status is `handoff-ready`; otherwise keep the next action inside `sp-discussion` assessment, draft review, or repair.
 
 ## Detailed References

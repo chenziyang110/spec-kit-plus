@@ -20,7 +20,7 @@ matching target digest. If Review is
 missing, blocked, stale, or not approved, hand off to `$spx-review` and stop;
 do not bypass Review by routing directly to `$spx-implement`. Transition from the validated `review`
 stage into `accept` through the workflow runtime. Only then run
-`{{specify-subcmd:accept prepare --feature-dir <feature-dir> --format json}}`
+`{{specify-subcmd:specify-runtime accept prepare --feature-dir <feature-dir> --format json}}`
 to create or freshness-check `human-acceptance.json`.
 
 Treat the human as returning later with no useful chat memory. Read the summary,
@@ -45,7 +45,7 @@ Fill only session `acceptance_status`, `acceptance_ready_evidence`, and
 perform an irreversible external side effect.
 
 Validate the acceptance-owned rich resume/evidence state with
-`{{specify-subcmd:hook validate-state --command accept --feature-dir
+`{{specify-subcmd:specify-runtime hook validate-state --command accept --feature-dir
 <feature-dir> --format json}}`. A changed Review digest, final source
 fingerprint, or implementation-summary fingerprint makes the guide stale; hand
 off to `$spx-review` to revalidate current product evidence before continuing.
@@ -95,7 +95,7 @@ the full Human Action Guide.
 
 After the human explicitly accepts all required scenarios, set the durable state
 to `accepted`, run
-`{{specify-subcmd:accept closeout --feature-dir <feature-dir> --format json}}`,
+`{{specify-subcmd:specify-runtime accept closeout --feature-dir <feature-dir> --format json}}`,
 then execute that successful response's `next_argv` verbatim; it is the
 revision-bound workflow-runtime closeout command, so do not reconstruct it,
 and report what they personally verified, residual risk, the state path, and the

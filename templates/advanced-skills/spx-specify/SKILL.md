@@ -34,7 +34,7 @@ the contract rather than reconstructing phase state. Create or resume rich
 `workflow-state.md` from the installed template for specification evidence,
 resume details, and Learning; it does not own phase order or runtime revision.
 Run
-`{{specify-subcmd:hook validate-state --command specify --feature-dir <feature-dir> --autofix --format json}}`
+`{{specify-subcmd:specify-runtime hook validate-state --command specify --feature-dir <feature-dir> --autofix --format json}}`
 and stop if the repaired state remains invalid.
 Create only specification-stage outputs here: `spec-contract.json`, `spec.md`,
 a triggered `ui-brief.md`, and specification evidence or workflow-owned rich state.
@@ -56,7 +56,7 @@ planning-blocking unknowns; ask only the smallest decision batch needed. Run the
 available and preserve canonical `/sp.*` transition values required by the
 runtime.
 Before reporting planning-ready, run
-`{{specify-subcmd:hook validate-artifacts --command specify --feature-dir <feature-dir> --format json}}`;
+`{{specify-subcmd:specify-runtime hook validate-artifacts --command specify --feature-dir <feature-dir> --format json}}`;
 fail closed on any blocked result and repair the owning artifact or upstream
 handoff.
 

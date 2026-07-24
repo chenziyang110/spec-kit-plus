@@ -67,7 +67,7 @@ Before completion:
   persist typed evidence with `evidence_scope: integrated`. Do not run the full
   viewport/state capture loop per Txx. `pending-human-review` blocks verified
   closeout;
-- run `{{specify-subcmd:implement closeout --feature-dir "$FEATURE_DIR" --format json}}` when available;
+- run `{{specify-subcmd:specify-runtime implement closeout --feature-dir "$FEATURE_DIR" --format json}}` when available;
 - update project cognition once from final changed paths and verification evidence when project truth changed.
 
 Write `implementation-handoff.json` for the mandatory system Review. Derive it deterministically from accepted lifecycle evidence, actual changed paths, the implementation fingerprint/source revision, official real entrypoints with ready signals, and required system-review scenarios. Validate it against the live Spec, Plan, and Tasks and preserve their exact complete `acceptance_refs` denominator, `acceptance_denominator_sha256`, and frozen Human Acceptance Universe (`human_acceptance_obligations`, `human_acceptance_scenarios`, and `human_acceptance_contract_sha256`) unchanged. Never omit an item, downgrade `required`, or reconstruct the frozen contract from prose. Each Review scenario carries stable acceptance refs, preconditions, actions, observable expected results, and evidence kinds. Keep agent-only lifecycle details by reference instead of reconstructing them in prose.

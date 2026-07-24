@@ -11,9 +11,9 @@ or `.planning/learnings/**` directly during normal workflow execution.
 
 ## Consume With Progressive Disclosure
 
-1. Run `{{specify-subcmd:learning start --command <classic-command-name> --format json}}`.
+1. Run `{{specify-subcmd:specify-runtime learning start --command <classic-command-name> --format json}}`.
 2. Use the returned compact cards to identify matching trigger signals.
-3. If more summaries are needed, run `{{specify-subcmd:learning list --command <classic-command-name> --format json}}`. Use `--query`, `--type`, `--status`, `--cursor`, or `--all` only when needed.
+3. If more summaries are needed, run `{{specify-subcmd:specify-runtime learning list --command <classic-command-name> --format json}}`. Use `--query`, `--type`, `--status`, `--cursor`, or `--all` only when needed.
 4. Run the selected card's `show_argv` for one Learning at a time. Do not expand every detail.
 5. Apply guidance only when its applicability and trigger signals match live evidence. Current repository evidence overrides stale Learning.
 
@@ -22,7 +22,7 @@ point, run a contextual second pass from current code, tests, and task/contract
 evidence:
 
 ```text
-{{specify-subcmd:learning list --command <classic-command-name> --context operation_owner=<owner> --context consumer_owner=<consumer> --context outcome=<result-family> --format json}}
+{{specify-subcmd:specify-runtime learning list --command <classic-command-name> --context operation_owner=<owner> --context consumer_owner=<consumer> --context outcome=<result-family> --format json}}
 ```
 
 Do not derive context facets from archived specifications. Exact operation
@@ -36,8 +36,8 @@ spec contract. Give every candidate one `applied`, `not_applicable`, or
 Learning traces to requirement/consequence refs, not-applicable needs current
 evidence, and deferred needs an explicit deferral ref.
 
-Command shape: `{{specify-subcmd:learning list --command <command> --format json}}`
-and then `{{specify-subcmd:learning show --ref <ref> --format json}}`.
+Command shape: `{{specify-subcmd:specify-runtime learning list --command <command> --format json}}`
+and then `{{specify-subcmd:specify-runtime learning show --ref <ref> --format json}}`.
 
 SPX names map to the same Classic namespace: `spx-implement` consumes
 `--command implement`; `spx-research` consumes `--command deep-research`.
@@ -50,7 +50,7 @@ or promote Learning.
 Prefer deterministic capture from durable workflow state:
 
 ```text
-{{specify-subcmd:learning capture-auto --command <command> <state locator> --format json}}
+{{specify-subcmd:specify-runtime learning capture-auto --command <command> <state locator> --format json}}
 ```
 
 Use manual capture only when durable state cannot express the lesson. Supply a

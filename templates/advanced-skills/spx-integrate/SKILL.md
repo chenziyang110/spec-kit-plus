@@ -12,7 +12,7 @@ when integration crosses a shared state, migration, compatibility, security, or
 generated-consumer boundary. Read `references/ui-quality-gate.md` when any lane
 is UI-bearing.
 
-Discover candidates with `{{specify-subcmd:integrate}}`. For each selected lane,
+Discover candidates with `{{specify-subcmd:specify-runtime integrate}}`. For each selected lane,
 inspect its recorded ownership, feature/workflow state, branch and worktree,
 implementation closeout evidence, current diff, dependency order, overlapping
 writes, drift from mainline, unresolved conflicts, and required combined
@@ -39,7 +39,7 @@ drift needs source edits, hand off to `$spx-implement` and stop; unresolved
 comparison remains `pending-human-review`.
 Only
 when readiness and verification pass may you close a lane with
-`{{specify-subcmd:integrate --feature-dir <feature-dir> --close}}`. Preserve a
+`{{specify-subcmd:specify-runtime integrate --feature-dir <feature-dir> --close}}`. Preserve a
 blocked lane and its recovery evidence instead of forcing terminal state.
 
 For actual integrated repository changes, run

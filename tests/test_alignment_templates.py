@@ -555,7 +555,7 @@ def test_design_workflow_is_not_an_implementation_workflow() -> None:
     assert "source code" in lowered
     assert "css or theme implementation files" in lowered
     assert "ask the user to approve a direction" in lowered
-    assert "{{specify-subcmd:design lint" in lowered
+    assert "{{specify-subcmd:specify-runtime design lint" in lowered
     assert "write the project's own `design.md`" in lowered
 
 
@@ -2261,7 +2261,7 @@ def _legacy_specify_alignment_first_contract():
     assert "When resuming after compaction, re-read `WORKFLOW_STATE_FILE` before proceeding." in content
     assert ".specify/memory/project-rules.md" in content
     _assert_learning_index_detail_model(content)
-    assert "{{specify-subcmd:learning start --command specify --format json}}" in content
+    assert "{{specify-subcmd:specify-runtime learning start --command specify --format json}}" in content
     assert "Required options: `--command`, `--type`, `--summary`, `--evidence`" in content
     assert ".specify/project-cognition/status.json" in content
     assert ".specify/project-map/index/status.json" not in content
@@ -2739,7 +2739,7 @@ def _legacy_plan_template_requires_alignment_report_before_planning():
     assert "When resuming after compaction, re-read `WORKFLOW_STATE_FILE` before proceeding." in content
     assert ".specify/memory/project-rules.md" in content
     _assert_learning_index_detail_model(content)
-    assert "{{specify-subcmd:learning start --command plan --format json}}" in content
+    assert "{{specify-subcmd:specify-runtime learning start --command plan --format json}}" in content
     assert "Required options: `--command`, `--type`, `--summary`, `--evidence`" in content
     assert ".specify/project-cognition/status.json" in content
     assert ".specify/project-map/index/status.json" not in content
@@ -3527,12 +3527,12 @@ def test_plan_tasks_and_implement_templates_prefer_lane_resolution_when_feature_
     clarify = _read("templates/commands/clarify.md")
     explain = _read("templates/commands/explain.md")
 
-    assert "{{specify-subcmd:lane resolve --command plan --ensure-worktree}}" in plan
-    assert "{{specify-subcmd:lane resolve --command tasks --ensure-worktree}}" in tasks
-    assert "{{specify-subcmd:lane resolve --command implement --ensure-worktree}}" in implement
-    assert "{{specify-subcmd:lane resolve --command deep-research --ensure-worktree}}" in deep_research
-    assert "{{specify-subcmd:lane resolve --command clarify --ensure-worktree}}" in clarify
-    assert "{{specify-subcmd:lane resolve --command explain --ensure-worktree}}" in explain
+    assert "{{specify-subcmd:specify-runtime lane resolve --command plan --ensure-worktree}}" in plan
+    assert "{{specify-subcmd:specify-runtime lane resolve --command tasks --ensure-worktree}}" in tasks
+    assert "{{specify-subcmd:specify-runtime lane resolve --command implement --ensure-worktree}}" in implement
+    assert "{{specify-subcmd:specify-runtime lane resolve --command deep-research --ensure-worktree}}" in deep_research
+    assert "{{specify-subcmd:specify-runtime lane resolve --command clarify --ensure-worktree}}" in clarify
+    assert "{{specify-subcmd:specify-runtime lane resolve --command explain --ensure-worktree}}" in explain
     assert "materialized worktree" in plan.lower()
     assert "materialized worktree" in tasks.lower()
     assert "materialized worktree" in implement.lower()
@@ -3543,7 +3543,7 @@ def test_analyze_template_requires_lane_resolution_before_branch_guessing() -> N
     content = _read("templates/commands/analyze.md")
     lowered = content.lower()
 
-    assert "{{specify-subcmd:lane resolve --command analyze --ensure-worktree}}" in content
+    assert "{{specify-subcmd:specify-runtime lane resolve --command analyze --ensure-worktree}}" in content
     assert "if `feature_dir` is not already explicit" in lowered
     assert "before guessing from branch-only context" in lowered
     assert "when lane resolution returns a materialized lane worktree" in lowered
@@ -4153,7 +4153,7 @@ def _legacy_implement_template_supports_capability_aware_parallel_batches():
     assert "PROJECT-HANDBOOK.md" not in content
     assert ".specify/memory/project-rules.md" in content
     _assert_learning_index_detail_model(content)
-    assert "{{specify-subcmd:learning start --command implement --format json}}" in content
+    assert "{{specify-subcmd:specify-runtime learning start --command implement --format json}}" in content
     assert "Required options: `--command`, `--type`, `--summary`, `--evidence`" in content
     assert ".specify/project-map/root/ARCHITECTURE.md" not in content
     assert ".specify/project-map/root/STRUCTURE.md" not in content
@@ -4178,9 +4178,9 @@ def _legacy_implement_template_supports_capability_aware_parallel_batches():
     assert "ordinary post-task review" in lowered
     assert "runtime-managed result channel" in lowered
     assert "feature_dir/worker-results/<task-id>.json" in lowered
-    assert '{{specify-subcmd:result path --command implement --feature-dir "$feature_dir" --task-id <task-id>}}' in lowered
-    assert '{{specify-subcmd:result submit --command implement --feature-dir "$feature_dir" --task-id <task-id> --result-file <path>}}' in lowered
-    assert "{{specify-subcmd:result path --command implement --request-id <request-id>}}" in lowered
+    assert '{{specify-subcmd:specify-runtime result path --command implement --feature-dir "$feature_dir" --task-id <task-id>}}' in lowered
+    assert '{{specify-subcmd:specify-runtime result submit --command implement --feature-dir "$feature_dir" --task-id <task-id> --result-file <path>}}' in lowered
+    assert "{{specify-subcmd:specify-runtime result path --command implement --request-id <request-id>}}" in lowered
     assert "active runtime-managed result channel for that request id" in lowered
     assert "does not accept `--format`" in lowered
     assert "reported_status" in lowered
@@ -4636,8 +4636,8 @@ def test_debug_and_quick_templates_reference_shared_worker_prompt_assets() -> No
     assert "delegation_confidence" in quick_content.lower()
     assert ".planning/debug/results/<session-slug>/<lane-id>.json" in debug_content.lower()
     assert ".planning/quick/<id>-<slug>/worker-results/<lane-id>.json" in quick_content.lower()
-    assert "{{specify-subcmd:result submit" in debug_content.lower()
-    assert "{{specify-subcmd:result submit" in quick_content.lower()
+    assert "{{specify-subcmd:specify-runtime result submit" in debug_content.lower()
+    assert "{{specify-subcmd:specify-runtime result submit" in quick_content.lower()
     assert "reported_status" in debug_content.lower()
     assert "reported_status" in quick_content.lower()
     assert "idle subagent is not an accepted result" in debug_content.lower()
@@ -4969,16 +4969,24 @@ def test_project_cognition_freshness_scripts_are_launcher_backed_and_map_free():
     for content in (sh_freshness, ps_freshness):
         assert "specify-runtime" in content
         assert "SPECIFY_RUNTIME_BIN" in content
+        assert ".specify/bin" in content
         assert ".specify/config.json" in content
         assert "runtime_launcher" in content
-        assert "integration repair" in content
+        assert "do not fall back" in content
+        assert "integration repair" not in content
         assert ".specify/project-map" not in content
         assert "project-map-freshness" not in content
     assert "command -v node" in sh_freshness
     assert "command -v jq" in sh_freshness
     assert "awk '" in sh_freshness
-    assert "cygpath -u" in sh_freshness
-    assert "wslpath -u" in sh_freshness
+    assert 'configured" == .specify/bin/*' in sh_freshness
+    assert "cygpath -u" not in sh_freshness
+    assert "wslpath -u" not in sh_freshness
+    assert "command -v specify-runtime" not in sh_freshness
+    assert "${SPECIFY_RUNTIME_BIN:-}" not in sh_freshness
+    assert "[System.IO.Path]::IsPathRooted" not in ps_freshness
+    assert "Get-Command specify-runtime" not in ps_freshness
+    assert "$env:SPECIFY_RUNTIME_BIN" not in ps_freshness
 
 
 def test_update_agent_context_emitters_share_managed_block_v2_contract() -> None:

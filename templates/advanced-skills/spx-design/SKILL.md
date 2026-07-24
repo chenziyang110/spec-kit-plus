@@ -51,14 +51,14 @@ network call, persistence, analytics, or business behavior.
 
 Replace all placeholders, set candidate status, configure the embedded
 `spec-kit-design-preview-manifest-v1` to match the visible specimen, and run
-`{{specify-subcmd:design preview-lint .specify/design/previews/round-NN.html --level ready}}`,
+`{{specify-subcmd:specify-runtime design preview-lint .specify/design/previews/round-NN.html --level ready}}`,
 and inspect direction switching, keyboard operation, responsive widths, state
 coverage, motion, and reduced motion in a real browser. Present the exact round
 path, direction IDs, and tradeoffs. Treat a requested hybrid as a new
 inspectable composition in the next round. Iterate new numbered rounds until
 the user approves; do not overwrite prior rounds or treat criticism as
 approval. Freeze the approved round with
-`{{specify-subcmd:design approve .specify/design/previews/round-NN.html --direction <direction-id> --format json}}`
+`{{specify-subcmd:specify-runtime design approve .specify/design/previews/round-NN.html --direction <direction-id> --format json}}`
 and record
 `approved_visual_ref: .specify/design/previews/round-NN.html#<direction-id>` in
 the brief, review, and `DESIGN.md` `approval.visual_refs`, together with the
@@ -76,9 +76,9 @@ verifiable.
 Set `design_system.status: approved`, record the selected direction and
 product/repository source refs plus `approval.visual_refs`, review round,
 preview/manifest SHA-256 values, and decision IDs. Replace every asset
-placeholder, run `{{specify-subcmd:design lint --level ready}}`, then export the
+placeholder, run `{{specify-subcmd:specify-runtime design lint --level ready}}`, then export the
 deterministic implementation contract with
-`{{specify-subcmd:design export DESIGN.md --format json --out .specify/design/design-system.json}}`.
+`{{specify-subcmd:specify-runtime design export DESIGN.md --format json --out .specify/design/design-system.json}}`.
 Do not hand off a structurally valid but generic or unapproved seed.
 
 Write `.specify/design/review.md` with the mode, inputs, approved direction,

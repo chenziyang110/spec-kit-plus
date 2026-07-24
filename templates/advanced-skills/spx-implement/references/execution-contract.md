@@ -3,7 +3,7 @@
 Treat task checkboxes and prior status as claims until the live diff, required
 evidence, and fresh verification support them. On an uncertain resume or a
 terminal-looking tracker, run
-`{{specify-subcmd:implement resume-audit --feature-dir <feature-dir> --format json}}`
+`{{specify-subcmd:specify-runtime implement resume-audit --feature-dir <feature-dir> --format json}}`
 before editing.
 
 On entry or resume, stop and hand off to `$spx-analyze` when persisted state
@@ -32,19 +32,19 @@ heavy_gate_owner: leader
 ```
 
 Call
-`{{specify-subcmd:implement validation-status --feature-dir <feature-dir> --format json}}`
+`{{specify-subcmd:specify-runtime implement validation-status --feature-dir <feature-dir> --format json}}`
 before allocation. Immediately before a Leader-owned baseline or convergence
 wave, call:
 
 ```text
-{{specify-subcmd:implement validation-start --feature-dir <feature-dir> --stage implement --purpose <baseline|convergence> --command '<cmd>' [--command '<cmd2>'] [--task-id T001] [--task-id T002] [--fingerprint <sha>] --format json}}
+{{specify-subcmd:specify-runtime implement validation-start --feature-dir <feature-dir> --stage implement --purpose <baseline|convergence> --command '<cmd>' [--command '<cmd2>'] [--task-id T001] [--task-id T002] [--fingerprint <sha>] --format json}}
 ```
 
 Omit `--fingerprint` to bind the current implementation snapshot automatically.
 Immediately after the wave, call:
 
 ```text
-{{specify-subcmd:implement validation-finish --feature-dir <feature-dir> --run-id <Vn> --status <passed|failed|interrupted> [--failure-kind <assertion|verification|harness|environment|runner_timeout|runner_terminated|cancelled|unknown>] --evidence-ref <ref> [--evidence-ref <ref2>] --summary '<text>' --format json}}
+{{specify-subcmd:specify-runtime implement validation-finish --feature-dir <feature-dir> --run-id <Vn> --status <passed|failed|interrupted> [--failure-kind <assertion|verification|harness|environment|runner_timeout|runner_terminated|cancelled|unknown>] --evidence-ref <ref> [--evidence-ref <ref2>] --summary '<text>' --format json}}
 ```
 
 Trust the returned gate id, attempt id, counts, recovery action, and ledger ref;
@@ -103,9 +103,9 @@ off, or `resolved` before its evidence exists.
 When the evidence cannot be supplied now, a human may explicitly transfer a
 precisely scoped low/medium-risk blocker to Review. Create an immutable proposal
 with
-`{{specify-subcmd:implement deferral-propose --feature-dir <feature-dir> --input <proposal.json> --format json}}`;
+`{{specify-subcmd:specify-runtime implement deferral-propose --feature-dir <feature-dir> --input <proposal.json> --format json}}`;
 after the human confirms that exact digest, bind the exact statement with
-`{{specify-subcmd:implement deferral-confirm --feature-dir <feature-dir> --deferral-id <DEF-id> --proposal-sha256 <sha> --confirmation-source <source> --statement '<exact-human-statement>' --format json}}`.
+`{{specify-subcmd:specify-runtime implement deferral-confirm --feature-dir <feature-dir> --deferral-id <DEF-id> --proposal-sha256 <sha> --confirmation-source <source> --statement '<exact-human-statement>' --format json}}`.
 Record `status: deferred`, never `accepted`, and carry the DEF ref, exact
 excluded behavior, residual risk, affected acceptance refs, claims withheld,
 and Review reopen condition into the handoff. The deferral expires at Review;
@@ -117,7 +117,7 @@ offers to skip them.
 Do not push, trigger remote CI, or perform another external write without the
 required authorization. For a commit needed to obtain mandatory protected-CI
 evidence, first validate the checkpoint explicitly with
-`{{specify-subcmd:hook validate-commit --commit-message <message> --feature-dir <feature-dir> --commit-intent external-evidence-checkpoint}}`.
+`{{specify-subcmd:specify-runtime hook validate-commit --commit-message <message> --feature-dir <feature-dir> --commit-intent external-evidence-checkpoint}}`.
 Proceed only when that validation passes. On Claude or Gemini native hooks,
 carry the same intent on the actual commit as
 `git -c specify.commitIntent=external-evidence-checkpoint commit -m "<message>"`;
@@ -165,7 +165,7 @@ team execution to `$spx-implement-teams`, and independent lane closeout to
 `$spx-integrate`; do not run any of them inline in this invocation.
 
 Before completion, run
-`{{specify-subcmd:implement closeout --feature-dir <feature-dir> --format json}}`
+`{{specify-subcmd:specify-runtime implement closeout --feature-dir <feature-dir> --format json}}`
 when available.
 
 Successful closeout must return a trusted `implementation_handoff` with its

@@ -31,8 +31,9 @@ Preserved Contract: UI reference work must preserve lane dispatch, static target
   production-source claim. Preserve information density over decorative
   polish and bind the approved preview/direction digests plus applicable
   `DS-*` decision IDs. Scaffold and validate it with
-  `specify design ui-target --out <FEATURE_DIR>/ui-target.html` and
-  `specify design ui-target-lint <FEATURE_DIR>/ui-target.html --level ready`.
+  `{{specify-subcmd:specify-runtime design ui-target --out <FEATURE_DIR>/ui-target.html}}`
+  and
+  `{{specify-subcmd:specify-runtime design ui-target-lint <FEATURE_DIR>/ui-target.html --level ready}}`.
 - For `approximate` and `high`, activate the `Reference-Implementation` profile contract, require `Fidelity Requirements`, and persist canonical `required_evidence` terms: `reference source evidence`, `fidelity criteria`, `verification entry points`, `difference inventory`, and `accepted deviations`; for `high`, require a deviation log as an artifact form for `difference inventory` / `accepted deviations`.
 - The task contract uses canonical platform-neutral evidence kinds
   `structure_snapshot`, `visual_capture`, and `runtime_diagnostics`; for web,

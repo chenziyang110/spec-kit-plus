@@ -114,7 +114,7 @@ judgment in an established Spec Kit Plus repository:
   `minimal_live_reads`, `first_pass_paths`, `coverage_diagnostics`, missing coverage, evidence traces, verification routes,
   ambiguity, conflicts, and weak coverage.
 - Treat project cognition under `.specify/project-cognition/` as an advisory navigation surface. Legacy project-map exports are not evidence for current project behavior and `templates/project-map/**` is historical compatibility/export only.
-- Consume project rules and reusable Learning through `{{specify-subcmd:learning start --command <command> --format json}}`, then its returned list/show actions; do not parse Learning storage as part of cognition intake.
+- Consume project rules and reusable Learning through `{{specify-subcmd:specify-runtime learning start --command <command> --format json}}`, then its returned list/show actions; do not parse Learning storage as part of cognition intake.
 
 ## Cross-Project Reference Directories
 
@@ -147,9 +147,12 @@ judgment in an established Spec Kit Plus repository:
 
 ## Command Surface Discipline
 
-- Treat the live `{{specify-subcmd:--help}}` output as the only authoritative CLI command surface.
-- Before suggesting or running a `specify <subcommand>` invocation while satisfying this gate, verify that it exists in `{{specify-subcmd:--help}}` or `{{specify-subcmd:<subcommand> --help}}`.
-- Do not invent, paraphrase, or "normalize" unsupported CLI names such as `specify create-feature`.
+- Treat the live `{{specify-subcmd:specify-runtime api list --format json}}`
+  output as the authoritative agent-facing runtime surface.
+- Before running a runtime operation while satisfying this gate, verify its
+  capability ID is present there. Never fall back to Python `specify`, `uvx`,
+  or a user-level binary from an agent workflow.
+- Do not invent, paraphrase, or normalize unsupported runtime operations.
 - Feature creation remains `{{invoke:specify}}` plus the generated create-feature script at `.specify/scripts/bash/create-new-feature.sh` or `.specify/scripts/powershell/create-new-feature.ps1`, not a separate branch-creation command. Default feature workspace names use `YYYY-MM-DD-<slug>`; numeric prefixes are legacy and require the script's explicit numeric option.
 
 ## Missing Runtime Launcher Recovery
@@ -159,11 +162,13 @@ judgment in an established Spec Kit Plus repository:
   command as non-executable. The suffix only preserves the intended cognition
   subcommand so managed guidance can be rebound after repair.
 - Do not probe `specify cognition` or `specify project-cognition`. Run
-  `{{specify-subcmd:check}}` for project-pinned diagnostics, then run
-  `{{specify-subcmd:integration repair}}` as the deterministic recovery entry.
-  Re-open the active installed skill after repair; if the marker remains,
-  report cognition unavailable and continue from live repository evidence only
-  where the workflow's safety boundary permits degraded advisory navigation.
+  `{{specify-subcmd:specify-runtime doctor --format json}}` for project-local
+  binding diagnostics. If it reports `bootstrap_required`, stop at that
+  human-owned bootstrap boundary; never invoke `uvx`, Python `specify`, or a
+  user-level runtime from the agent workflow. Re-open the active installed
+  skill after human repair; if the marker remains, report cognition unavailable
+  and continue from live repository evidence only where the workflow's safety
+  boundary permits degraded advisory navigation.
 
 ## Freshness State Guidance
 

@@ -22,7 +22,7 @@ missing or stale, stop and route to `$spx-plan`, `$spx-clarify`, or
 `$spx-deep-research`; do not hide design work inside a task.
 
 Run
-`{{specify-subcmd:hook validate-state --command tasks --feature-dir <feature-dir> --autofix --format json}}`
+`{{specify-subcmd:specify-runtime hook validate-state --command tasks --feature-dir <feature-dir> --autofix --format json}}`
 and stop if it remains invalid. Require the plan's ready transition to
 `sp-tasks`, locked target boundary, current revision, and zero unresolved
 planning blockers.
@@ -93,7 +93,7 @@ them. Across UI tasks, require exact coverage of the plan's design decision and
 acceptance rows.
 
 Before handoff, run
-`{{specify-subcmd:hook validate-artifacts --command tasks --feature-dir <feature-dir> --format json}}`
+`{{specify-subcmd:specify-runtime hook validate-artifacts --command tasks --feature-dir <feature-dir> --format json}}`
 and repair the task graph or reopen its owning upstream phase on failure.
 
 Do not implement or edit production source/tests. This invocation authorizes

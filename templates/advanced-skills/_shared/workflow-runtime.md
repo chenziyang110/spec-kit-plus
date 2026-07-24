@@ -59,7 +59,7 @@ dependency-safe lane can run; they do not justify a feature-wide runtime block.
 Use a human-confirmed DEF transfer only through the owning workflow's
 deterministic deferral commands, and never treat it as passed. After safe agent
 recovery is exhausted **and no ready work remains**, obtain the stable input contract with
-`{{specify-subcmd:api schema workflow-block-input --format json}}`, then persist
+`{{specify-subcmd:specify-runtime api schema workflow-block-input --format json}}`, then persist
 the detailed blocker through
 `{{specify-subcmd:specify-runtime workflow block --input <blocker-json-or-> --format json}}`.
 Honor its owner, exact recovery, novice human guide when required, evidence to

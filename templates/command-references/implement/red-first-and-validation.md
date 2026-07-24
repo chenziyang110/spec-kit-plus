@@ -29,20 +29,20 @@ heavy_gate_owner: leader
 Before allocating work, run:
 
 ```text
-{{specify-subcmd:implement validation-status --feature-dir <feature-dir> --format json}}
+{{specify-subcmd:specify-runtime implement validation-status --feature-dir <feature-dir> --format json}}
 ```
 
 Immediately before a Leader-owned baseline or convergence wave, run:
 
 ```text
-{{specify-subcmd:implement validation-start --feature-dir <feature-dir> --stage implement --purpose <baseline|convergence> --command '<cmd>' [--command '<cmd2>'] [--task-id T001] [--task-id T002] [--fingerprint <sha>] --format json}}
+{{specify-subcmd:specify-runtime implement validation-start --feature-dir <feature-dir> --stage implement --purpose <baseline|convergence> --command '<cmd>' [--command '<cmd2>'] [--task-id T001] [--task-id T002] [--fingerprint <sha>] --format json}}
 ```
 
 Omit `--fingerprint` to bind the current implementation snapshot automatically.
 Immediately after the wave, run:
 
 ```text
-{{specify-subcmd:implement validation-finish --feature-dir <feature-dir> --run-id <Vn> --status <passed|failed|interrupted> [--failure-kind <assertion|verification|harness|environment|runner_timeout|runner_terminated|cancelled|unknown>] --evidence-ref <ref> [--evidence-ref <ref2>] --summary '<text>' --format json}}
+{{specify-subcmd:specify-runtime implement validation-finish --feature-dir <feature-dir> --run-id <Vn> --status <passed|failed|interrupted> [--failure-kind <assertion|verification|harness|environment|runner_timeout|runner_terminated|cancelled|unknown>] --evidence-ref <ref> [--evidence-ref <ref2>] --summary '<text>' --format json}}
 ```
 
 Use the returned gate id, attempt id, counts, recovery action, and ledger ref;
@@ -80,9 +80,9 @@ gate or validation attempt.
 If the evidence cannot be obtained now, keep dependency-safe work moving. A
 human may explicitly transfer a precisely scoped low/medium-risk blocker to
 Review by first proposing
-`{{specify-subcmd:implement deferral-propose --feature-dir <feature-dir> --input <proposal.json> --format json}}`
+`{{specify-subcmd:specify-runtime implement deferral-propose --feature-dir <feature-dir> --input <proposal.json> --format json}}`
 and, only after the human confirms that exact proposal digest, recording
-`{{specify-subcmd:implement deferral-confirm --feature-dir <feature-dir> --deferral-id <DEF-id> --proposal-sha256 <sha> --confirmation-source <source> --statement '<exact-human-statement>' --format json}}`.
+`{{specify-subcmd:specify-runtime implement deferral-confirm --feature-dir <feature-dir> --deferral-id <DEF-id> --proposal-sha256 <sha> --confirmation-source <source> --statement '<exact-human-statement>' --format json}}`.
 The proposal must identify blocker/task/acceptance refs, exact excluded
 behavior, residual risk, claims withheld, and the Review reopen condition.
 Deferral means unresolved and transferred to Review; it never means passed and

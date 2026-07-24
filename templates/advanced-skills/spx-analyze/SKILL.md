@@ -30,7 +30,7 @@ Create or resume rich workflow-owned `workflow-state.md` before substantive
 analysis, using the installed workflow-state template only when absent. Record
 `active_command: sp-analyze`, `phase_mode: analysis-only`, source revision,
 target boundary, blocker, and next route. Run
-`{{specify-subcmd:hook validate-state --command analyze --feature-dir <feature-dir> --autofix --format json}}`
+`{{specify-subcmd:specify-runtime hook validate-state --command analyze --feature-dir <feature-dir> --autofix --format json}}`
 and stop if the repaired state remains invalid.
 Compare confirmed requirements, design decisions, task coverage, dependencies,
 write boundaries, consequence obligations, and real-entrypoint verification
@@ -64,4 +64,4 @@ inside the analysis pass. This invocation authorizes only this workflow stage;
 report the repair or continuation handoff, but do not invoke another workflow
 in this run.
 Validate the final state with
-`{{specify-subcmd:hook validate-artifacts --command analyze --feature-dir <feature-dir> --format json}}`.
+`{{specify-subcmd:specify-runtime hook validate-artifacts --command analyze --feature-dir <feature-dir> --format json}}`.

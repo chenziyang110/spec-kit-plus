@@ -51,7 +51,7 @@ handoff mechanism; this command does not apply the follow-up work.
 
 ## Process
 
-- Run `{{specify-subcmd:learning start --command constitution --format json}}`
+- Run `{{specify-subcmd:specify-runtime learning start --command constitution --format json}}`
   and expand only selected matching Learning through `show_argv`.
 - Load the current constitution before broader repository context. Do not parse
   Learning storage files directly.
@@ -127,8 +127,8 @@ as pending follow-up items in the Sync Impact Report instead of applying them.
 **Note**: If `.specify/memory/constitution.md` does not exist yet, it should
 have been initialized from `.specify/templates/constitution-template.md`
 during project setup. That project-local template may be the default product
-constitution or a built-in profile selected during `{{specify-subcmd:init}}`. If it is
-missing, copy the template first.
+constitution or a built-in profile selected during human project bootstrap. If
+it is missing, copy the template first.
 
 {{spec-kit-include: ../command-partials/common/learning-layer.md}}
 

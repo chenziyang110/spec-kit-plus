@@ -33,8 +33,8 @@ and fill only the returned semantic anchors. Resume an existing
 `.planning/quick/<id>-<slug>/STATUS.md` instead of replacing it. The bundled
 `assets/status.md` remains a compatibility example, not the authoritative
 scaffold. Use the project launcher-backed
-`{{specify-subcmd:quick list}}`, `{{specify-subcmd:quick status <id>}}`, and
-`{{specify-subcmd:quick resume <id>}}` helpers for deterministic discovery.
+`{{specify-subcmd:specify-runtime quick list}}`, `{{specify-subcmd:specify-runtime quick status <id>}}`, and
+`{{specify-subcmd:specify-runtime quick resume <id>}}` helpers for deterministic discovery.
 Keep state compact and ask the user only for decisions the repository cannot
 supply.
 
@@ -71,7 +71,7 @@ visual direction to `$spx-design` and multi-surface or acceptance-heavy UI to
 
 Update `STATUS.md` at meaningful transitions and render `SUMMARY.md` from
 `assets/summary.md` on completion or blockage. Close with
-`{{specify-subcmd:quick close <id>}}` only after terminal truth is recorded;
+`{{specify-subcmd:specify-runtime quick close <id>}}` only after terminal truth is recorded;
 archive is a separate explicit action.
 After verified repository changes, run
 `{{specify-subcmd:specify-runtime cognition closeout-plan --workflow sp-quick --intent implement --format json}}`

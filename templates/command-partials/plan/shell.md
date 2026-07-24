@@ -13,7 +13,7 @@ Translate the approved specification package into explicit implementation design
 ## Process
 
 - Recover the active feature context and validate that the specification package is ready for planning.
-- If `FEATURE_DIR` is not explicit, run `{{specify-subcmd:lane resolve --command plan --ensure-worktree}}`; honor a materialized worktree and stop on `uncertain` instead of guessing from branch state.
+- If `FEATURE_DIR` is not explicit, run `{{specify-subcmd:specify-runtime lane resolve --command plan --ensure-worktree}}`; honor a materialized worktree and stop on `uncertain` instead of guessing from branch state.
 - Validate `spec-contract.json.status: planning-ready` and its source revision. Do not revalidate the original discussion contract unless the revision changed or the spec contract reports a semantic or evidence delta.
 - Stop when the spec contract is not planning-ready, its context capsule lacks the required target boundary, hard unknowns remain open, or conflicts remain open.
 - For cross-project implementation, plan from the target project context and record that current project cognition cannot prove target-project implementation facts.

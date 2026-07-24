@@ -9,7 +9,7 @@ files directly during normal execution.
 For every non-trivial workflow, run:
 
 ```text
-{{specify-subcmd:learning start --command <classic-command-name> --format json}}
+{{specify-subcmd:specify-runtime learning start --command <classic-command-name> --format json}}
 ```
 
 SPX and Classic share one namespace: pass `implement` for `spx-implement` and
@@ -23,7 +23,7 @@ point, rerun targeted recall from current code, tests, and task/contract
 evidence:
 
 ```text
-{{specify-subcmd:learning list --command <classic-command-name> --context operation_owner=<owner> --context consumer_owner=<consumer> --context outcome=<result-family> --format json}}
+{{specify-subcmd:specify-runtime learning list --command <classic-command-name> --context operation_owner=<owner> --context consumer_owner=<consumer> --context outcome=<result-family> --format json}}
 ```
 
 Do not derive context facets from archived specifications. An exact operation

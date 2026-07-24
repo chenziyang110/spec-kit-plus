@@ -35,7 +35,7 @@ agent_scripts:
 
 ## Main Flow
 
-1. Resolve `FEATURE_DIR` without creating `plan.md`, using the explicit feature argument or `{{specify-subcmd:lane resolve --command plan --ensure-worktree}}`. Enter `plan` with the deterministic `specify-runtime workflow transition` command and stop on exit `10`; do not edit source/runtime/test files.
+1. Resolve `FEATURE_DIR` without creating `plan.md`, using the explicit feature argument or `{{specify-subcmd:specify-runtime lane resolve --command plan --ensure-worktree}}`. Enter `plan` with the deterministic `specify-runtime workflow transition` command and stop on exit `10`; do not edit source/runtime/test files.
 2. Only after the transition succeeds, run `{SCRIPT}` to create the plan skeleton or report `STATUS=noop` without overwriting existing work.
 3. Read canonical `spec-contract.json` first. Reuse its context capsule, evidence refs, and `semantic_delta`; open `spec.md`, alignment/context views, memory, or live project files only when a required reference or stale-evidence condition demands it.
 4. Preserve complete-first scope: do not split confirmed scope into MVP, future-work slices, `v1/v2`, `P0/P1`, or a smaller delivery unless the user confirmed the deferral contract.
@@ -46,7 +46,7 @@ agent_scripts:
    theses and approved visual, reference intents, real content/image plans, and
    evidence triad exactly; carry verified cognition-selected UI routes in the
    compact plan context capsule for worker packet compilation.
-8. Re-check constitution, complexity, risk, locked planning decisions, and deep-research `PH-###` traceability, then run `{{specify-subcmd:hook validate-artifacts --command plan --feature-dir <feature-dir> --format json}}` and fail closed on an incomplete planning package. Run `{AGENT_SCRIPT}` to refresh the generated Agent context before recommending `{{invoke:tasks}}`.
+8. Re-check constitution, complexity, risk, locked planning decisions, and deep-research `PH-###` traceability, then run `{{specify-subcmd:specify-runtime hook validate-artifacts --command plan --feature-dir <feature-dir> --format json}}` and fail closed on an incomplete planning package. Run `{AGENT_SCRIPT}` to refresh the generated Agent context before recommending `{{invoke:tasks}}`.
 
 Do not create `tasks.md` or `task-index.json`; the separately invoked task workflow owns them. Do not edit production source, tests, migrations, or runtime configuration during planning.
 

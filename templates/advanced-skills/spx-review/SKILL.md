@@ -17,7 +17,7 @@ Resolve exactly one implementation-complete feature. Require a trusted
 official real entrypoint. Initial Review transitions from validated `implement`;
 an acceptance repair arrives through CLI-owned `accept route-repair` with
 `review` already active. Then run
-`{{specify-subcmd:review prepare --feature-dir <feature-dir> --expected-revision <revision> --format json}}`.
+`{{specify-subcmd:specify-runtime review prepare --feature-dir <feature-dir> --expected-revision <revision> --format json}}`.
 Treat the resulting `review-state.json` as the canonical resumable Review state;
 if preparation reports stale or malformed Review-owned state outside an
 acceptance-repair cycle, rerun it with `--restart-stale` so the runtime archives
@@ -36,7 +36,7 @@ same fingerprint; a real failure requires repair and a new fingerprint. Never
 open a fourth logical gate.
 
 On an uncertain or terminal-looking resume, run
-`{{specify-subcmd:review resume-audit --feature-dir <feature-dir> --format json}}`
+`{{specify-subcmd:specify-runtime review resume-audit --feature-dir <feature-dir> --format json}}`
 before reusing evidence or editing. Continue from its exact scenario/finding
 cursor and repair every reported freshness gap.
 
@@ -116,7 +116,7 @@ structured blocker and exact Review resume point.
 
 Before approval, run fresh integrated regression from a restarted entrypoint,
 then run
-`{{specify-subcmd:review validate --feature-dir <feature-dir> --format json}}`.
+`{{specify-subcmd:specify-runtime review validate --feature-dir <feature-dir> --format json}}`.
 Approval requires the Review Universe at zero uncovered, all packets joined,
 every mandatory scenario passed, zero blocking findings, required evidence
 present, every Implement DEF resolved with current-cycle byte-bound evidence,
@@ -161,7 +161,7 @@ After verified Review-owned changes, run
 with explicit Review-owned paths, fill returned agent-owned fields, and execute
 structured `update_argv`. Apply the receipt-bound finalizer gate in
 `references/project-cognition.md` before any clean claim; then run
-`{{specify-subcmd:review closeout --feature-dir <feature-dir> --expected-revision <revision> --format json}}`.
+`{{specify-subcmd:specify-runtime review closeout --feature-dir <feature-dir> --expected-revision <revision> --format json}}`.
 Execute only the successful response's revision-bound workflow completion argv.
 Recommend `$spx-accept` and stop; do not run human acceptance inline. Never
 claim completion from worker reports, stale evidence, skipped required

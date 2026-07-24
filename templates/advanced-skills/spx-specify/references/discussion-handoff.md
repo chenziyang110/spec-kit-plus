@@ -5,7 +5,7 @@ must feed the specification. Prefer the installed deterministic discussion
 commands for init, resume, handoff validation, ready, and consumed state.
 
 Before consuming, run
-`{{specify-subcmd:discussion validate-handoff <slug> --mode ready --json}}`. Require `status:
+`{{specify-subcmd:specify-runtime discussion validate-handoff <slug> --mode ready --json}}`. Require `status:
 handoff-ready`, `planning_gate_status: ready`, `quality_gate.status:
 user_confirmed`, matching `quality_gate.confirmed_digest` and `review_digest`,
 zero hard unknowns, zero open conflicts, complete protected obligations, and a

@@ -118,7 +118,7 @@ When recommending manual implementation resumption to the user, tell them to run
 
 Run `{SCRIPT}` once from repo root and parse JSON for FEATURE_DIR and AVAILABLE_DOCS. Derive absolute paths:
 
-- If `FEATURE_DIR` is not already explicit, prefer `{{specify-subcmd:lane resolve --command analyze --ensure-worktree}}` before guessing from branch-only context.
+- If `FEATURE_DIR` is not already explicit, prefer `{{specify-subcmd:specify-runtime lane resolve --command analyze --ensure-worktree}}` before guessing from branch-only context.
 - When lane resolution returns a materialized lane worktree, continue analysis from that isolated worktree context so downstream gate decisions stay attached to the same lane boundary.
 
 - SPEC_CONTRACT = FEATURE_DIR/spec-contract.json

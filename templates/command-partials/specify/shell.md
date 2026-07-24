@@ -19,7 +19,7 @@ Turn a new or changed feature request into a reviewed, planning-ready specificat
 - Derive the feature description from `handoff_goal` plus the implementation target summary. Do not pass the raw handoff path, JSON path, or slug to the create-feature script as the feature description.
 - Explore project context only enough to understand ownership, constraints, adjacent surfaces, and source evidence.
 - If invoked from `sp-discussion`, read the canonical contract once, reuse its context capsule and decision digest, and inspect supporting discussion files only when a named evidence reference is stale, missing, or contradictory.
-- If invoked from `sp-discussion`, keep the source discussion slug from the contract; after `spec-contract.json` is written and self-reviewed, run `{{specify-subcmd:discussion mark-consumed <slug> --feature-dir "$FEATURE_DIR"}}` or update the equivalent consumption state.
+- If invoked from `sp-discussion`, keep the source discussion slug from the contract; after `spec-contract.json` is written and self-reviewed, run `{{specify-subcmd:specify-runtime discussion mark-consumed <slug> --feature-dir "$FEATURE_DIR"}}` or update the equivalent consumption state.
 - Extract every upstream capability-like signal from those sources and assign exactly one disposition: `preserved`, `in_scope`, `deferred`, `dropped`, or `clarification_blocker`.
 - Ask one high-impact question at a time when the answer can change scope, acceptance, architecture, compatibility, security, data shape, external integration, or downstream planning.
 - Decompose ambiguous terms such as capability, real, usable, works, end-to-end, fetch, probe, health, model, endpoint, integration, auth, `new` command, `<tool> new`, create, scaffold, authoring, template creation, authoring workflow, CLI path, TUI path, `能力`, `真实`, and `可用` before compiling the spec.
@@ -70,9 +70,9 @@ Turn a new or changed feature request into a reviewed, planning-ready specificat
   substantive concrete UI surface, require `ui-brief.md` whether or not a
   reference was supplied; create `ui-target.html` only when a disposable visual
   target materially reduces ambiguity. Scaffold it with
-  `{{specify-subcmd:design ui-target --out <FEATURE_DIR>/ui-target.html}}`,
+  `{{specify-subcmd:specify-runtime design ui-target --out <FEATURE_DIR>/ui-target.html}}`,
   configure its embedded manifest and candidate status, then require
-  `{{specify-subcmd:design ui-target-lint <FEATURE_DIR>/ui-target.html --level ready}}`.
+  `{{specify-subcmd:specify-runtime design ui-target-lint <FEATURE_DIR>/ui-target.html --level ready}}`.
 - For `approximate` and `high` UI reference fidelity, activate `Reference-Implementation`, populate `Fidelity Requirements`, persist canonical Reference-Implementation `required_evidence`, and record UI-specific labels only as aliases/mapping notes.
 - `alignment.md` must record `Semantic Term Decisions`, `Upstream Intent Disposition`, and `Out-Of-Scope Conflicts` when relevant.
 - Do not recommend `/sp.plan` while a capability-like upstream signal lacks disposition, an ambiguous high-impact term lacks confirmation, or an out-of-scope conflict lacks user confirmation.

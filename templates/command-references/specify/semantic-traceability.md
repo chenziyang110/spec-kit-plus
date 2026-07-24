@@ -126,7 +126,8 @@ For `recoverable-user-input`, make required interaction explicit: consumer/state
 - For `inspiration`, inline fallback may proceed only after `choose_ui_reference_lane_dispatch` returns a gated `leader-inline` soft-risk decision with safe lane and contract-ready state satisfied.
 - Dispatch the UI reference lane to write only `ui-reference-notes.md`, `ui-brief.md`, and optional `ui-target.html`.
 - Validate `ui-target.html`, when present, with
-  `specify design ui-target-lint <path> --level ready`. It is a single-file,
+  `{{specify-subcmd:specify-runtime design ui-target-lint <path> --level ready}}`.
+  It is a single-file,
   low-dependency review artifact with an embedded
   `spec-kit-ui-target-manifest-v1`; bounded inline JavaScript may only drive
   viewport/state controls, keyboard review navigation, deep links, capture

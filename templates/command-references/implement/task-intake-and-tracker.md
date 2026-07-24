@@ -31,6 +31,6 @@ Keep compact agent state with status, current batch/task, next action, completed
 
 ## Resume Audit
 
-On uncertain or terminal-looking resume, treat checked tasks as claims. Run `{{specify-subcmd:implement resume-audit --feature-dir "$FEATURE_DIR" --format json}}` when available and validate result, required consumer evidence, validation, obligations, open gaps, and worker handoff freshness.
+On uncertain or terminal-looking resume, treat checked tasks as claims. Run `{{specify-subcmd:specify-runtime implement resume-audit --feature-dir "$FEATURE_DIR" --format json}}` when available and validate result, required consumer evidence, validation, obligations, open gaps, and worker handoff freshness.
 
 If audit fails, move to recovery/validation and continue from the smallest executable repair. Do not preserve resolved status from appearance alone.

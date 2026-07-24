@@ -10,7 +10,7 @@ Read `references/project-cognition.md`, using cognition intent `research`, and
 `references/prd-scan-contract.md`.
 
 Initialize or resume the run with
-`{{specify-subcmd:prd-scan <run-slug> --json}}`; inspect existing status before
+`{{specify-subcmd:specify-runtime prd-scan <run-slug> --json}}`; inspect existing status before
 creating a new workspace. Project source, tests, configuration, and docs are
 read-only. The `.specify/prd-runs/<run-id>/` evidence workspace is writable and
 must remain resumable.
