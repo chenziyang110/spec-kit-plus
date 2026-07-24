@@ -7,12 +7,14 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	goruntime "runtime"
 	"sort"
 	"strconv"
 	"strings"
 
 	"github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/buildinfo"
 	cognitioncli "github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/cli"
+	runtimepaths "github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/runtime"
 )
 
 var version = "dev"
@@ -38,12 +40,42 @@ func Run(args []string, stdout, stderr io.Writer, cliVersion string) int {
 		return runAPI(args[1:], stdout, stderr, cliVersion)
 	case "artifact":
 		return runArtifact(args[1:], stdout)
+	case "result":
+		return runResult(args[1:], stdout)
 	case "workflow":
 		return runWorkflow(args[1:], stdout)
 	case "validate":
 		return runValidate(args[1:], stdout)
 	case "cognition":
 		return runCognition(args[1:], stdout, stderr, cliVersion)
+	case "discussion":
+		return runDiscussion(args[1:], stdout)
+	case "design":
+		return runDesign(args[1:], stdout)
+	case "doctor":
+		return runDoctor(args[1:], stdout)
+	case "hook":
+		return runHook(args[1:], stdout)
+	case "integrate":
+		return runIntegrate(args[1:], stdout)
+	case "implement":
+		return runImplement(args[1:], stdout)
+	case "review":
+		return runReview(args[1:], stdout)
+	case "accept":
+		return runAccept(args[1:], stdout)
+	case "sp-teams":
+		return runTeams(args[1:], stdout)
+	case "learning":
+		return runLearning(args[1:], stdout)
+	case "lane":
+		return runLane(args[1:], stdout)
+	case "prd-build":
+		return runPRDBuild(args[1:], stdout)
+	case "prd-scan":
+		return runPRDScan(args[1:], stdout)
+	case "quick":
+		return runQuick(args[1:], stdout)
 	default:
 		env := NewEnvelope("usage-error", fmt.Sprintf("unknown command %q", args[0]))
 		return writeEnvelope(stdout, env)
@@ -52,7 +84,29 @@ func Run(args []string, stdout, stderr io.Writer, cliVersion string) int {
 
 func writeHelp(stdout io.Writer) int {
 	_, _ = fmt.Fprintln(stdout, "specify-runtime commands:")
-	for _, name := range []string{"api", "artifact", "cognition", "validate", "version", "workflow"} {
+	for _, name := range []string{
+		"api",
+		"artifact",
+		"cognition",
+		"discussion",
+		"design",
+		"doctor",
+		"hook",
+		"integrate",
+		"implement",
+		"review",
+		"accept",
+		"sp-teams",
+		"learning",
+		"lane",
+		"prd-build",
+		"prd-scan",
+		"quick",
+		"result",
+		"validate",
+		"version",
+		"workflow",
+	} {
 		_, _ = fmt.Fprintf(stdout, "  %s\n", name)
 	}
 	return 0
@@ -90,6 +144,10 @@ func runAPI(args []string, stdout, stderr io.Writer, cliVersion string) int {
 			env.Items = append(env.Items, card)
 		}
 		return writeEnvelope(stdout, env)
+	case "schema":
+		return runAPISchema(args[1:], stdout)
+	case "show":
+		return runAPIShow(args[1:], stdout)
 	default:
 		_ = stderr
 		return writeEnvelope(stdout, NewEnvelope("usage-error", fmt.Sprintf("unknown api subcommand %q", args[0])))
@@ -517,6 +575,9 @@ func bindEnvelopeRuntimeArgv(env *Envelope) {
 	if absolute, absErr := filepath.Abs(executable); absErr == nil {
 		executable = absolute
 	}
+	if cwd, cwdErr := os.Getwd(); cwdErr == nil {
+		executable = projectLocalRuntimeInvocation(cwd, executable)
+	}
 	bind := func(argv []string) []string {
 		if len(argv) > 0 && argv[0] == "specify-runtime" {
 			result := append([]string{}, argv...)
@@ -530,6 +591,35 @@ func bindEnvelopeRuntimeArgv(env *Envelope) {
 	env.Data = bindRuntimeArgvValue(env.Data, executable).(map[string]any)
 	env.Items = bindRuntimeArgvValue(env.Items, executable).([]any)
 	env.Blockers = bindRuntimeArgvValue(env.Blockers, executable).([]any)
+}
+
+func projectLocalRuntimeInvocation(cwd, fallback string) string {
+	root, err := runtimepaths.FindProjectRoot(cwd)
+	if err != nil {
+		return fallback
+	}
+	executableName := "specify-runtime"
+	if goruntime.GOOS == "windows" {
+		executableName += ".exe"
+	}
+	entrypoint := filepath.Join(root, ".specify", "bin", executableName)
+	info, err := os.Lstat(entrypoint)
+	if err != nil || !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 {
+		return fallback
+	}
+	relative, err := filepath.Rel(cwd, entrypoint)
+	if err != nil || filepath.IsAbs(relative) {
+		return fallback
+	}
+	currentPrefix := "." + string(filepath.Separator)
+	parentPrefix := ".." + string(filepath.Separator)
+	if relative != "." &&
+		relative != ".." &&
+		!strings.HasPrefix(relative, currentPrefix) &&
+		!strings.HasPrefix(relative, parentPrefix) {
+		relative = "." + string(filepath.Separator) + relative
+	}
+	return relative
 }
 
 func bindRuntimeArgvValue(value any, executable string) any {
@@ -564,12 +654,115 @@ func defaultCapabilities() []string {
 	capabilities := []string{
 		"api.handshake",
 		"api.list",
+		"api.schema",
+		"api.show",
 		"artifact.catalog",
 		"artifact.prepare",
 		"artifact.scaffold",
 		"artifact.show",
 		"artifact.submit",
+		"cognition.build-from-scan",
+		"cognition.changes",
+		"cognition.claim-reconcile.apply",
+		"cognition.claim-reconcile.prepare",
+		"cognition.clear-dirty",
+		"cognition.closeout-plan",
+		"cognition.compass",
+		"cognition.complete-refresh",
+		"cognition.delta.append",
+		"cognition.delta.begin",
+		"cognition.delta.status",
+		"cognition.discover",
+		"cognition.expand",
+		"cognition.generate-ignore",
+		"cognition.init-empty",
+		"cognition.lexicon",
+		"cognition.mark-dirty",
+		"cognition.query",
+		"cognition.read",
+		"cognition.record-refresh",
 		"cognition.run",
+		"cognition.scan-accept",
+		"cognition.scan-checkpoint",
+		"cognition.scan-lease",
+		"cognition.scan-prepare",
+		"cognition.scan-requeue",
+		"cognition.scan-set",
+		"cognition.scan-status",
+		"cognition.scan-yield",
+		"cognition.semantic-audit",
+		"cognition.semantic-audit-resume",
+		"cognition.semantic-intake",
+		"cognition.status",
+		"cognition.update",
+		"cognition.validate-build",
+		"cognition.validate-scan",
+		"design.approve",
+		"design.export",
+		"design.import",
+		"design.lint",
+		"design.preview",
+		"design.preview-lint",
+		"design.ui-target",
+		"design.ui-target-lint",
+		"discussion.archive",
+		"discussion.checkpoint",
+		"discussion.close",
+		"discussion.confirm-handoff",
+		"discussion.init",
+		"discussion.list",
+		"discussion.mark-consumed",
+		"discussion.mark-ready",
+		"discussion.resume",
+		"discussion.status",
+		"discussion.validate-handoff",
+		"discussion.write-handoff",
+		"doctor.check",
+		"hook.validate-artifacts",
+		"hook.validate-commit",
+		"hook.validate-state",
+		"integrate.close",
+		"integrate.discover",
+		"implement.closeout",
+		"implement.deferral-confirm",
+		"implement.deferral-propose",
+		"implement.resume-audit",
+		"implement.validation-finish",
+		"implement.validation-start",
+		"implement.validation-status",
+		"review.closeout",
+		"review.prepare",
+		"review.resume-audit",
+		"review.validate",
+		"accept.closeout",
+		"accept.prepare",
+		"accept.route-repair",
+		"accept.validate",
+		"sp-teams.auto-dispatch",
+		"sp-teams.complete-batch",
+		"sp-teams.doctor",
+		"sp-teams.live-probe",
+		"sp-teams.result-template",
+		"sp-teams.status",
+		"sp-teams.submit-result",
+		"sp-teams.sync-back",
+		"learning.capture",
+		"learning.capture-auto",
+		"learning.list",
+		"learning.promote",
+		"learning.show",
+		"learning.start",
+		"lane.resolve",
+		"prd-build.status",
+		"prd-scan.init",
+		"prd-scan.status",
+		"quick.archive",
+		"quick.close",
+		"quick.list",
+		"quick.resume",
+		"quick.status",
+		"result.path",
+		"result.submit",
 		"validate.spec",
 		"workflow.block",
 		"workflow.closeout",
