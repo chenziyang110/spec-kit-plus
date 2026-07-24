@@ -91,10 +91,13 @@ uvx --refresh --from git+https://github.com/chenziyang110/spec-kit-plus.git spec
 Generated Agent workflows call the standalone `specify-runtime` binary for
 fixed artifacts, typed workflow state, specification validation, and the
 namespaced project cognition commands. Releases publish prebuilt binaries for
-Windows, Linux, and macOS. `specify init` best-effort downloads the matching release asset into
-`~/.specify/bin/` and pins that executable in the generated project's
-`.specify/config.json`. If automatic download is unavailable, use the
-installers below or set `SPECIFY_RUNTIME_BIN` to a custom binary path.
+Windows, Linux, and macOS. `specify init` best-effort downloads the matching
+release asset into a content-addressed user cache, then hardlinks or copies it
+to `.specify/bin/specify-runtime` (`.exe` on Windows). The generated project's
+`.specify/config.json` stores only that relative entrypoint and its digest. If
+automatic download is unavailable, a human may use the installers below or set
+`SPECIFY_RUNTIME_BIN` as a bootstrap seed; that user-scoped value is not
+persisted or rendered into agent commands.
 The same binary exposes `cognition semantic-audit-resume` for persisted semantic audit
 state checks. The command compares a saved audit input/output pair against
 workflow state; it does not authorize source changes or final claims, and does not grant P3/P4. Multiple `authorized_claims` require one `active_claim_type`, and failed,
@@ -150,9 +153,9 @@ Go users can also install from source:
 go install github.com/chenziyang110/spec-kit-plus/tools/specify-runtime@latest
 ```
 
-Generated helper scripts prefer the project-pinned `runtime_launcher` in
-`.specify/config.json`, then `SPECIFY_RUNTIME_BIN`, and finally
-`specify-runtime` from PATH.
+Generated helper scripts use the project-relative `runtime_launcher` in
+`.specify/config.json`. `SPECIFY_RUNTIME_BIN` and PATH are considered only by
+human bootstrap, upgrade, or repair while provisioning that local entrypoint.
 
 The same binary owns canonical Agent artifact access. Use `specify-runtime artifact catalog` to inspect deterministic scaffold kinds, `specify-runtime artifact scaffold --kind <plan-contract|quick-status> --path <project-relative-path> --vars <compact-json>` for create-only stable boilerplate, and the `artifact show` or `artifact prepare` -> `artifact submit` path for progressive reads and leased writes.
 
@@ -227,7 +230,7 @@ Current discussion state is Agent-native: `discussion-state.json` is canonical,
 `discussion-log.jsonl` records semantic checkpoints. The Context Boundary Gate
 locks the target project root before technical claims. Human replies stay
 natural; the handoff is JSON-only and approval/consumption bind to
-`review_digest`. Draft validation runs before approval; `specify discussion
+`review_digest`. Draft validation runs before approval; `specify-runtime discussion
 confirm-handoff <slug> --digest <review-digest>` records exact confirmation,
 and only then may `mark-ready` expose the downstream workflow.
 
@@ -237,7 +240,7 @@ Across the full pipeline, the canonical Agent authorities are `handoff-to-specif
 
 When `sp-specify` consumes the contract, it writes `spec-contract.json` and preserves the decision digest by reference. `sp-quick` reuses the confirmed digest when its own semantic delta is empty.
 
-Discussion sessions remain visible to resume while their status is `active`, `blocked`, or unconsumed `handoff-ready`. After a handoff has been consumed, `specify discussion mark-consumed <slug> --feature-dir <feature-dir>` writes `handoff_consumption_status: consumed`, `consumed_by_feature_dir`, `status: completed`, and `next_command: none`; then `specify discussion archive <slug>` can move it under `.specify/discussions/archive/`. If the user abandons the topic before consumption, use `specify discussion close <slug> --status abandoned` and then archive it.
+Discussion sessions remain visible to resume while their status is `active`, `blocked`, or unconsumed `handoff-ready`. After a handoff has been consumed, `specify-runtime discussion mark-consumed <slug> --feature-dir <feature-dir>` writes `handoff_consumption_status: consumed`, `consumed_by_feature_dir`, `status: completed`, and `next_command: none`; then `specify-runtime discussion archive <slug>` can move it under `.specify/discussions/archive/`. If the user abandons the topic before consumption, use `specify-runtime discussion close <slug> --status abandoned` and then archive it.
 
 The `.specify/scripts` directory will contain both `.sh` and `.ps1` scripts.
 

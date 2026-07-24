@@ -34,8 +34,10 @@ When `specify init` comes from a trusted source-bound launcher such as the
 that launcher in `.specify/config.json` as `specify_launcher`. Runtime helper
 instructions inside generated workflows should follow the project launcher when
 it exists instead of blindly trusting whichever `specify` happens to be first on
-PATH. Agent workflow helpers use the separate unified `specify-runtime`
-launcher, resolved from `runtime_launcher`, `SPECIFY_RUNTIME_BIN`, or PATH.
+PATH. Agent workflow helpers use only the relative project-local
+`.specify/bin/specify-runtime` (`.exe` on Windows) recorded by
+`runtime_launcher`. `SPECIFY_RUNTIME_BIN` and PATH may seed human init/upgrade,
+but are never rendered into agent commands.
 That runtime also owns fixed Agent artifact reads and writes: `artifact show` is progressive, `artifact prepare` -> `artifact submit` is lease-bound, and `artifact scaffold` emits registered create-only boilerplate for `plan-contract` and `quick-status`.
 The generated project navigation section below covers empty-project cognition
 bootstrap behavior and brownfield first-baseline routing.
@@ -237,7 +239,7 @@ When the feature touches an established boundary pattern in the target project, 
 - Subagent packets should carry platform guardrails when the lane depends on supported-platform constraints, conditional compilation, or environment-sensitive runtime assumptions.
 - If the active integration exposes a runtime-managed result channel, subagents should use it; Codex runtime-managed result paths require the dispatch request id and use `.specify/teams/state/results/<request-id>.json`.
 - Otherwise they should write normalized result envelopes to the workflow-specific worker-results path.
-- When the local `specify` CLI is available and no runtime-managed result channel exists, subagents should prefer `specify result path` and `specify result submit` instead of inventing ad-hoc result locations or payload shapes. `specify result path` emits JSON directly and does not accept `--format`.
+- When no runtime-managed result channel exists, subagents use the project-local `specify-runtime result path` and `specify-runtime result submit` instead of inventing ad-hoc result locations or payload shapes. `specify-runtime result path` emits JSON directly and does not accept `--format`.
 - Preserve the raw `reported_status` when subagent language such as `DONE_WITH_CONCERNS` or `NEEDS_CONTEXT` is normalized into canonical orchestration state.
 - Top-level `tasks.md` items should usually fit one coffee-break-sized implementation slice, roughly 10-20 minutes, while subagents may still break them into smaller 2-5 minute atomic steps internally.
 - Keep decomposition progressive: refine only the current executable window after each join point instead of over-specifying later batches too early.
@@ -336,26 +338,26 @@ Use the lightweight routing rules consistently:
 - If the work is a bug fix or regression and the root cause is still unknown, route to `debug` instead of using `quick` for a symptom-only patch.
 - Quick workspaces live under `.planning/quick/<id>-<slug>/`, with `STATUS.md` as the source of truth and `.planning/quick/index.json` as a derived management index.
 - Invoking `quick` with no arguments should resume unfinished quick work when possible. If exactly one unfinished quick task exists, continue it automatically. `blocked` quick tasks remain resumable.
-- Use `specify quick list` to inspect unfinished quick tasks by default.
+- Use `specify-runtime quick list` to inspect unfinished quick tasks by default.
 - Quick-task helper command shapes:
-  - Command shape: `specify quick status <id>`
-  - Command shape: `specify quick resume <id>`
-  - Command shape: `specify quick close <id> --status resolved|blocked`
-  - Command shape: `specify quick archive <id>`
-- Discussion sessions live under `.specify/discussions/<slug>/`, with canonical typed state in `discussion-state.json`, a short derived compatibility view in `discussion-state.md`, compact semantic events in `discussion-log.jsonl`, and a derived management index in `.specify/discussions/index.json`. `handoff-ready` remains resumable until an eligible consumer records matching source paths and `review_digest`; after verified consumption, `specify discussion mark-consumed <slug> --feature-dir <feature-dir>` closes the source discussion so old handoffs do not block `sp-auto`.
-- Use `specify discussion list` to inspect unclosed discussions by default.
+  - Command shape: `specify-runtime quick status <id>`
+  - Command shape: `specify-runtime quick resume <id>`
+  - Command shape: `specify-runtime quick close <id> --status resolved|blocked`
+  - Command shape: `specify-runtime quick archive <id>`
+- Discussion sessions live under `.specify/discussions/<slug>/`, with canonical typed state in `discussion-state.json`, a short derived compatibility view in `discussion-state.md`, compact semantic events in `discussion-log.jsonl`, and a derived management index in `.specify/discussions/index.json`. `handoff-ready` remains resumable until an eligible consumer records matching source paths and `review_digest`; after verified consumption, `specify-runtime discussion mark-consumed <slug> --feature-dir <feature-dir>` closes the source discussion so old handoffs do not block `sp-auto`.
+- Use `specify-runtime discussion list` to inspect unclosed discussions by default.
 - Discussion helper command shapes:
-  - Command shape: `specify discussion init <topic> [--slug <slug>]`
-  - Command shape: `specify discussion status <slug>`
-  - Command shape: `specify discussion resume <slug>`
-  - Command shape: `specify discussion checkpoint <slug> --summary <summary> [--phase <phase>]`
-  - Command shape: `specify discussion write-handoff <slug> --input <draft.json>`
-  - Command shape: `specify discussion validate-handoff <slug> --mode draft|ready`
-  - Command shape: `specify discussion confirm-handoff <slug> --digest <review-digest>`
-  - Command shape: `specify discussion mark-ready <slug>`
-  - Command shape: `specify discussion close <slug> --status completed|abandoned`
-  - Command shape: `specify discussion mark-consumed <slug> --feature-dir <feature-dir>`
-  - Command shape: `specify discussion archive <slug>`
+  - Command shape: `specify-runtime discussion init <topic> [--slug <slug>]`
+  - Command shape: `specify-runtime discussion status <slug>`
+  - Command shape: `specify-runtime discussion resume <slug>`
+  - Command shape: `specify-runtime discussion checkpoint <slug> --summary <summary> [--phase <phase>]`
+  - Command shape: `specify-runtime discussion write-handoff <slug> --input <draft.json>`
+  - Command shape: `specify-runtime discussion validate-handoff <slug> --mode draft|ready`
+  - Command shape: `specify-runtime discussion confirm-handoff <slug> --digest <review-digest>`
+  - Command shape: `specify-runtime discussion mark-ready <slug>`
+  - Command shape: `specify-runtime discussion close <slug> --status completed|abandoned`
+  - Command shape: `specify-runtime discussion mark-consumed <slug> --feature-dir <feature-dir>`
+  - Command shape: `specify-runtime discussion archive <slug>`
 - Upgrade to `specify` when the request spans multiple independent capabilities, carries compatibility or rollout risk, or needs explicit acceptance criteria before implementation.
 
 Required action markers:
@@ -375,29 +377,29 @@ Project Learning lifecycle:
 - Low-level helper commands:
   - `specify learning ensure --format json`
   - `specify learning status --format json`
-  - `specify learning start`
-    - Command shape: `specify learning start --command <workflow> --format json`
-  - `specify learning list`
-    - Command shape: `specify learning list --command <workflow> --format json`
+  - `specify-runtime learning start`
+    - Command shape: `specify-runtime learning start --command <workflow> --format json`
+  - `specify-runtime learning list`
+    - Command shape: `specify-runtime learning list --command <workflow> --format json`
     - Use `--all` for all matching summaries or execute `pagination.next_argv` to continue a page at a time.
-  - `specify learning show`
-    - Command shape: `specify learning show --ref <recurrence-key-or-id> --format json`
-  - `specify learning capture`
+  - `specify-runtime learning show`
+    - Command shape: `specify-runtime learning show --ref <recurrence-key-or-id> --format json`
+  - `specify-runtime learning capture`
     - Required options: `--command`, `--type`, `--summary`, `--evidence`
     - Agent guidance options: `--problem`, `--action`, `--trigger`, `--success`, `--avoid`, `--exception`
-  - `specify learning capture-auto`
-    - Command shape: `specify learning capture-auto --command <workflow> (--feature-dir <dir> | --workspace <dir> | --session-file <file>) --format json`
-  - `specify implement closeout`
-    - Command shape: `specify implement closeout --feature-dir <feature-dir> --format json`
+  - `specify-runtime learning capture-auto`
+    - Command shape: `specify-runtime learning capture-auto --command <workflow> (--feature-dir <dir> | --workspace <dir> | --session-file <file>) --format json`
+  - `specify-runtime implement closeout`
+    - Command shape: `specify-runtime implement closeout --feature-dir <feature-dir> --format json`
     - Records the implementation baseline with `git diff --stat` and `git diff --name-status`. Writes `FEATURE_DIR/implementation-summary.md` and `FEATURE_DIR/implementation-handoff.json` (response fields: `implementation_summary`, `implementation_handoff`), then hands off to `sp-review` / `spx-review`. Review closeout refreshes the summary, prepares fingerprinted `FEATURE_DIR/human-acceptance.json`, and returns the `sp-accept` / `spx-accept` handoff.
-  - `specify review prepare|validate|resume-audit|closeout`
+  - `specify-runtime review prepare|validate|resume-audit|closeout`
     - Owns resumable system Review state, integrated evidence and fingerprint gates between implementation and human acceptance.
-  - `specify accept prepare|validate|closeout`
-    - Command shape: `specify accept validate --feature-dir <feature-dir> --format json`
+  - `specify-runtime accept prepare|validate|closeout`
+    - Command shape: `specify-runtime accept validate --feature-dir <feature-dir> --format json`
     - Keeps contextless-human orientation, one-step scenarios, resume cursor, observations, findings, source freshness, and explicit human verdict mechanically checkable.
   - `specify learning aggregate --format json`
-  - `specify learning promote`
-    - Command shape: `specify learning promote --recurrence-key <key> --target learning|rule`
+  - `specify-runtime learning promote`
+    - Command shape: `specify-runtime learning promote --recurrence-key <key> --target learning|rule`
 - `specify learning aggregate --format json` groups repeated patterns so operators can decide what to promote into confirmed Learning or project rules.
 - Treat this as a passive internal/runtime lifecycle, not as a separate daily slash workflow.
 - Durable eval helpers exist once a rule should become executable proof instead of only remembered guidance:

@@ -103,14 +103,14 @@ Also inspect the selected agent directory, such as `.codex/`, `.claude/`,
 
 Current generated projects record trusted launchers in `.specify/config.json`:
 
-- `specify_launcher` binds project helpers and native hooks to the intended
-  Python CLI source;
-- `runtime_launcher` binds workflow helpers to the project-pinned
-  `specify-runtime` binary.
+- `specify_launcher` records the trusted human bootstrap/upgrade source;
+- `runtime_launcher` binds every agent-facing workflow helper to the relative
+  project entrypoint `.specify/bin/specify-runtime` (`.exe` on Windows).
 
-Generated helpers prefer `runtime_launcher`, then `SPECIFY_RUNTIME_BIN`, then a
-`specify-runtime` executable on `PATH`. If `specify check` reports stale or
-missing launchers, run repair from a trusted external CLI installation:
+Generated helpers do not fall back to user-scoped environment variables or
+PATH. Run `specify-runtime doctor --format json`; when it returns
+`bootstrap_required`, a human should repair from a trusted external CLI
+installation:
 
 ```bash
 uvx --refresh --from git+https://github.com/chenziyang110/spec-kit-plus.git specify integration repair
@@ -185,7 +185,7 @@ Recovery:
 | Generated scripts or hooks are stale | Run `specify check`, `specify integration repair`, then `specify check` again. |
 | Agent does not show refreshed workflows | Confirm the integration/profile in `.specify/config.json`, restart the agent/IDE, and inspect the generated agent directory. |
 | Advanced skills are absent | Confirm the integration is skills-based and rerun init with `--workflow-profile advanced`. |
-| Runtime helper cannot start | Check `runtime_launcher`, `SPECIFY_RUNTIME_BIN`, and `specify-runtime` on `PATH`, in that order. |
+| Runtime helper cannot start | Run project-local `specify-runtime doctor --format json`; if it reports `bootstrap_required`, use the trusted human bootstrap/upgrade flow to reprovision `.specify/bin/specify-runtime`. |
 | Project Cognition reports `unsupported_legacy_runtime` | Archive the incompatible store and use the empty-project or brownfield recovery above. |
 | CLI upgrade appears unchanged | Compare both `specify version` and `specify --help`; `.dev0` alone cannot distinguish development commits. |
 

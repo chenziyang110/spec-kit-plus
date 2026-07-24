@@ -81,7 +81,7 @@ def test_docs_describe_design_workflow_and_design_md() -> None:
         assert "sp-design" in content
         assert "DESIGN.md" in content
         assert "design-system" in content.lower()
-        assert "specify design lint" in content
+        assert "specify-runtime design lint" in content
         assert "ui-brief.md" in content
         assert "ui-reference-notes.md" in content
         assert "ui-reference-artifact" in content
@@ -160,10 +160,12 @@ def test_primary_docs_teach_progressive_agent_cli_discovery_and_stage_guards() -
         lowered = content.casefold()
         assert "specify-runtime api handshake" in lowered
         assert "specify-runtime api list" in lowered
-        assert "specify api commands" in lowered
-        assert "specify api command" in lowered
         assert "specify-runtime workflow transition" in lowered
         assert "exit code `10`" in lowered
+
+    readme = _read("README.md").casefold()
+    assert "specify api commands" in readme
+    assert "specify api command" in readme
 
 
 def test_quickstart_declares_integration_specific_invocation_syntax():
@@ -235,34 +237,17 @@ def test_upgrade_doc_mentions_project_launcher_binding():
     assert "runtime" in upgrade.lower()
 
 
-def test_helper_docs_preserve_runtime_launcher_precedence() -> None:
+def test_helper_docs_keep_user_scoped_runtime_sources_bootstrap_only() -> None:
     for rel_path in ("README.md", ".github/workflows/release.yml"):
         content = _read(rel_path)
-        candidates = [
-            paragraph
-            for paragraph in content.split("\n\n")
-            if "helper" in paragraph.lower()
-            and "SPECIFY_RUNTIME_BIN" in paragraph
-            and "PATH" in paragraph
-        ]
-        assert candidates, f"{rel_path} must document helper launcher precedence"
-
-        for paragraph in candidates:
-            normalized = " ".join(paragraph.split())
-            priority = normalized[normalized.lower().index("helper") :]
-            env_index = priority.index("SPECIFY_RUNTIME_BIN")
-            pin_markers = ("runtime_launcher", ".specify/config.json")
-            pin_indexes = [
-                priority.index(marker)
-                for marker in pin_markers
-                if marker in priority
-            ]
-            assert pin_indexes, (
-                f"{rel_path} helper precedence must include the pinned launcher"
-            )
-            pin_index = min(pin_indexes)
-            path_index = priority.index("PATH", pin_index)
-            assert pin_index < env_index < path_index
+        normalized = " ".join(content.split())
+        assert ".specify/bin/specify-runtime" in normalized
+        assert "SPECIFY_RUNTIME_BIN" in normalized
+        assert "bootstrap" in normalized.lower()
+        assert (
+            "never rendered into agent commands" in normalized.lower()
+            or "not persisted or rendered into agent commands" in normalized.lower()
+        )
 
 
 def test_repo_docs_explain_adaptive_plan_tasks_dispatch_contract() -> None:

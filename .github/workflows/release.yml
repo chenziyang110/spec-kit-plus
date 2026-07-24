@@ -120,7 +120,7 @@ jobs:
           \$env:SPECIFY_RUNTIME_VERSION="${VERSION}"; irm https://raw.githubusercontent.com/chenziyang110/spec-kit-plus/main/tools/specify-runtime/install.ps1 | iex
           \`\`\`
 
-          Generated helpers prefer the project-pinned \`.specify/config.json\` \`runtime_launcher\`, then \`SPECIFY_RUNTIME_BIN\`, and finally \`specify-runtime\` from PATH.
+          Generated helpers use only the project-local \`.specify/bin/specify-runtime\` (or \`.exe\`) recorded by \`.specify/config.json\` \`runtime_launcher\`. \`SPECIFY_RUNTIME_BIN\` and PATH are human bootstrap/repair seeds and are never rendered into agent commands.
 
           NOTES_EOF
 
@@ -187,7 +187,17 @@ jobs:
           ./dist/release-tools/specify-runtime-linux-amd64 --help | grep -q "artifact"
           ./dist/release-tools/specify-runtime-linux-amd64 --help | grep -q "workflow"
           ./dist/release-tools/specify-runtime-linux-amd64 --help | grep -q "validate"
+          ./dist/release-tools/specify-runtime-linux-amd64 --help | grep -q "discussion"
+          ./dist/release-tools/specify-runtime-linux-amd64 --help | grep -q "learning"
+          ./dist/release-tools/specify-runtime-linux-amd64 --help | grep -q "design"
+          ./dist/release-tools/specify-runtime-linux-amd64 --help | grep -q "implement"
+          ./dist/release-tools/specify-runtime-linux-amd64 --help | grep -q "review"
+          ./dist/release-tools/specify-runtime-linux-amd64 --help | grep -q "accept"
+          ./dist/release-tools/specify-runtime-linux-amd64 --help | grep -q "sp-teams"
           ./dist/release-tools/specify-runtime-linux-amd64 version --format json | grep -q '"protocol_version":"specify-runtime.v1"'
+          ./dist/release-tools/specify-runtime-linux-amd64 api handshake --format json | grep -q '"discussion.init"'
+          ./dist/release-tools/specify-runtime-linux-amd64 api handshake --format json | grep -q '"learning.start"'
+          ./dist/release-tools/specify-runtime-linux-amd64 api handshake --format json | grep -q '"sp-teams.submit-result"'
           ./dist/release-tools/specify-runtime-linux-amd64 artifact catalog --format json | grep -q '"quick-status"'
           ./dist/release-tools/specify-runtime-linux-amd64 artifact catalog --format json | grep -q '"plan-contract"'
           workflow_help="$(./dist/release-tools/specify-runtime-linux-amd64 workflow --help 2>&1)"
