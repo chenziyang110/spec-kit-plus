@@ -970,6 +970,85 @@ def _is_state_repair_path(
     ) == _normalized_path_for_compare(project_root, state_file)
 
 
+def _claude_personal_skill_shadow_names(project_root: Path) -> list[str]:
+    manifest_path = (
+        project_root
+        / ".specify"
+        / "integrations"
+        / "claude.manifest.json"
+    )
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return []
+    files = manifest.get("files") if isinstance(manifest, dict) else None
+    if not isinstance(files, dict):
+        return []
+
+    configured_root = str(os.environ.get("CLAUDE_CONFIG_DIR") or "").strip()
+    try:
+        claude_root = (
+            Path(configured_root).expanduser()
+            if configured_root
+            else Path.home() / ".claude"
+        ).resolve(strict=False)
+        resolved_project_root = project_root.resolve(strict=False)
+    except (OSError, RuntimeError):
+        return []
+    personal_skills_root = claude_root / "skills"
+    project_skills_root = resolved_project_root / ".claude" / "skills"
+    if personal_skills_root == project_skills_root:
+        return []
+
+    collisions: list[str] = []
+    for relative in files:
+        parts = str(relative).replace("\\", "/").split("/")
+        if (
+            len(parts) != 4
+            or parts[:2] != [".claude", "skills"]
+            or parts[3] != "SKILL.md"
+            or parts[2] in {"", ".", ".."}
+        ):
+            continue
+        skill_name = parts[2]
+        if not skill_name.startswith(("sp-", "spx-")):
+            continue
+        project_skill = project_skills_root / skill_name / "SKILL.md"
+        personal_skill = personal_skills_root / skill_name / "SKILL.md"
+        if not project_skill.is_file() or not personal_skill.is_file():
+            continue
+        try:
+            if project_skill.samefile(personal_skill):
+                continue
+        except OSError:
+            pass
+        collisions.append(skill_name)
+    map_priority = {
+        "sp-map-scan": 0,
+        "sp-map-build": 1,
+        "sp-map-update": 2,
+    }
+    return sorted(
+        set(collisions),
+        key=lambda name: (map_priority.get(name, 3), name),
+    )
+
+
+def _claude_personal_skill_shadow_advisory(project_root: Path) -> str:
+    collisions = _claude_personal_skill_shadow_names(project_root)
+    if not collisions:
+        return ""
+    preview = ", ".join(f"/{name}" for name in collisions[:8])
+    if len(collisions) > 8:
+        preview += f", +{len(collisions) - 8} more"
+    return (
+        "BLOCKED: a personal Claude skill shadows the project-installed Spec Kit "
+        f"workflow ({preview}). Do not run the shadowed command. Back up and move "
+        "the matching personal skill directory outside Claude's skills directory, "
+        "fully restart Claude Code, and rerun `specify check` before resuming."
+    )
+
+
 def _runtime_owned_cognition_write_denial(
     project_root: Path, target_path: str
 ) -> str:
@@ -995,7 +1074,9 @@ def _runtime_owned_cognition_write_denial(
         except ValueError:
             continue
 
-    return "runtime-owned project cognition path requires runtime-managed updates"
+    reason = "runtime-owned project cognition path requires runtime-managed updates"
+    shadow_advisory = _claude_personal_skill_shadow_advisory(project_root)
+    return f"{reason}. {shadow_advisory}" if shadow_advisory else reason
 
 
 def _iter_transcript_user_texts(transcript_path: Path) -> list[str]:
@@ -1453,9 +1534,17 @@ def _handle_pre_tool_bash(
 def _handle_session_start(
     project_root: Path, _payload: dict[str, Any]
 ) -> dict[str, Any] | None:
+    shadow_advisory = _claude_personal_skill_shadow_advisory(project_root)
     context = _infer_active_context(project_root)
     if not context:
-        return None
+        if not shadow_advisory:
+            return None
+        return {
+            "hookSpecificOutput": {
+                "hookEventName": "SessionStart",
+                "additionalContext": shadow_advisory,
+            }
+        }
 
     args = ["render-statusline", "--command", context["command_name"]]
     if "feature_dir" in context:
@@ -1467,7 +1556,14 @@ def _handle_session_start(
 
     shared = _run_shared_hook(project_root, args)
     if not shared:
-        return None
+        if not shadow_advisory:
+            return None
+        return {
+            "hookSpecificOutput": {
+                "hookEventName": "SessionStart",
+                "additionalContext": shadow_advisory,
+            }
+        }
     statusline = str(shared.get("data", {}).get("statusline") or "").strip()
     resume_context = _compaction_resume_context(
         project_root,
@@ -1478,7 +1574,7 @@ def _handle_session_start(
         prefer_summary=True,
     )
     additional_context = " ".join(
-        part for part in [statusline, resume_context] if part
+        part for part in [shadow_advisory, statusline, resume_context] if part
     ).strip()
     if not additional_context:
         return None

@@ -719,6 +719,48 @@ class TestIntegrationRepair:
             for issue in report.remaining_issues
         )
 
+    def test_repair_keeps_claude_personal_skill_shadow_as_remaining_issue(
+        self,
+        tmp_path,
+        monkeypatch,
+    ):
+        project = tmp_path / "project"
+        (project / ".specify").mkdir(parents=True)
+        collision = {
+            "code": "claude-personal-skills-shadow-project",
+            "severity": "repairable-block",
+            "summary": "Claude personal skills shadow project skills: sp-map-scan.",
+            "repair": "Move the personal skill outside Claude's skills directory.",
+        }
+        monkeypatch.setattr(
+            "specify_cli.launcher.write_project_specify_launcher_config",
+            lambda project_root: None,
+        )
+        monkeypatch.setattr(
+            "specify_cli.launcher.load_runtime_launcher",
+            lambda project_root: object(),
+        )
+        monkeypatch.setattr(
+            "specify_cli.launcher.runtime_launcher_is_compatible",
+            lambda project_root, launcher: True,
+        )
+        monkeypatch.setattr(
+            "specify_cli.launcher.diagnose_project_runtime_compatibility",
+            lambda project_root: [collision],
+        )
+        monkeypatch.setattr(
+            cli_module,
+            "_install_shared_infra",
+            lambda *args, **kwargs: True,
+        )
+
+        report = cli_module._repair_active_integration_runtime_assets(
+            project,
+            script_type="ps",
+        )
+
+        assert report.remaining_issues == (collision,)
+
     def test_repair_rechecks_runtime_when_binding_drifted(
         self,
         tmp_path,
@@ -813,6 +855,50 @@ class TestIntegrationRepair:
         assert f"{external} integration repair --script ps" in normalized_output
         assert "copy the exact `specify_launcher.command`" not in result.output
         assert wrapper in result.output
+
+    def test_partial_repair_prints_safe_claude_shadow_recovery(
+        self,
+        tmp_path,
+        monkeypatch,
+    ):
+        project = tmp_path / "project"
+        (project / ".specify").mkdir(parents=True)
+        repair_text = (
+            "Back up and move the matching personal skill directory outside "
+            "Claude's `skills` directory, fully restart Claude Code, then rerun "
+            "`specify check`."
+        )
+        report = cli_module.IntegrationRepairReport(
+            active_key="claude",
+            tracked_files=1,
+            remaining_issues=(
+                {
+                    "code": "claude-personal-skills-shadow-project",
+                    "severity": "repairable-block",
+                    "summary": "Claude personal skills shadow project skills.",
+                    "repair": repair_text,
+                },
+            ),
+        )
+        monkeypatch.setattr(
+            cli_module,
+            "_repair_active_integration_runtime_assets",
+            lambda project_root, script_type: report,
+        )
+        old_cwd = os.getcwd()
+        try:
+            os.chdir(project)
+            result = runner.invoke(
+                app,
+                ["integration", "repair", "--script", "ps"],
+                catch_exceptions=False,
+            )
+        finally:
+            os.chdir(old_cwd)
+
+        assert result.exit_code == 10, result.output
+        assert repair_text in " ".join(result.output.split())
+        assert "never include tokens or secrets" not in result.output
 
     def test_repair_upgrades_direct_claude_hook_commands_to_shared_launcher(self, tmp_path):
         project = _init_project(tmp_path, "claude")

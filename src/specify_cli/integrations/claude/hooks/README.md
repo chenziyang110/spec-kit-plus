@@ -12,6 +12,7 @@ Managed native hook coverage:
 - `SessionStart` renders active workflow orientation through `{{specify-subcmd:hook render-statusline}}`.
 - `SessionStart` renders active workflow orientation and bounded resume cues.
 - `SessionStart` injects the structured recovery summary for active resumable workflows.
+- `SessionStart` warns when a personal Claude workflow skill (`sp-*` / `spx-*`) shadows a same-named project-installed skill and directs the user to non-destructive recovery.
 - `UserPromptSubmit` applies shared prompt-bypass guards and workflow-policy checks.
 - `UserPromptSubmit` handles prompt-entry phase drift with a redirect-first workflow-policy response.
 - `PreToolUse` applies shared workflow-policy checks, read-boundary checks, and inline commit-message guards.

@@ -381,9 +381,14 @@ specify integration repair
 - missing or broken persisted project launchers
 - stale generated PowerShell workflow scripts that still rely on exact branch-to-feature-dir matching
 - stale Claude hook commands that still use shell-parsed direct Python, POSIX, cmd, or PowerShell-style launchers instead of the shell-free Node launcher
+- personal Claude workflow skills (`sp-*` / `spx-*`) whose names collide with project-installed Spec Kit skills; Claude gives the personal copy precedence, so this is a repairable block rather than a harmless duplicate
 
 `specify integration repair` refreshes shared/runtime-managed generated assets in place
-without overwriting user-edited workflow or skill content.
+without overwriting user-edited workflow or skill content. It never moves or
+rewrites personal Claude skills. When a collision is reported, back up and move
+the matching directory out of `~/.claude/skills/` (or
+`$CLAUDE_CONFIG_DIR/skills/`), fully restart Claude Code, and rerun
+`specify check`.
 
 Validate the installation:
 

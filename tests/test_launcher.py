@@ -74,6 +74,136 @@ def _write_pinned_launcher_config(project_root):
     return pinned_command
 
 
+def _write_claude_skill_manifest(project_root: Path, *skill_names: str) -> None:
+    files: dict[str, str] = {}
+    for skill_name in skill_names:
+        relative = f".claude/skills/{skill_name}/SKILL.md"
+        skill_path = project_root / Path(relative)
+        skill_path.parent.mkdir(parents=True, exist_ok=True)
+        skill_path.write_text(f"# Project {skill_name}\n", encoding="utf-8")
+        files[relative] = "test-digest"
+    manifest = (
+        project_root
+        / ".specify"
+        / "integrations"
+        / "claude.manifest.json"
+    )
+    manifest.parent.mkdir(parents=True, exist_ok=True)
+    manifest.write_text(
+        json.dumps(
+            {
+                "integration": "claude",
+                "version": "test",
+                "files": files,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
+def test_diagnose_reports_claude_personal_skills_shadowing_project_skills(
+    tmp_path,
+    monkeypatch,
+):
+    project = tmp_path / "project"
+    claude_config = tmp_path / "Claude Config With Spaces"
+    _write_claude_skill_manifest(project, "sp-map-scan", "sp-map-build")
+    for skill_name in ("sp-map-scan", "sp-map-build"):
+        personal_skill = claude_config / "skills" / skill_name / "SKILL.md"
+        personal_skill.parent.mkdir(parents=True, exist_ok=True)
+        personal_skill.write_text(f"# Personal {skill_name}\n", encoding="utf-8")
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(claude_config))
+
+    issues = diagnose_project_runtime_compatibility(project)
+
+    issue = next(
+        item
+        for item in issues
+        if item["code"] == "claude-personal-skills-shadow-project"
+    )
+    assert issue["severity"] == "repairable-block"
+    assert "sp-map-build" in issue["summary"]
+    assert "sp-map-scan" in issue["summary"]
+    assert str(claude_config / "skills") in issue["repair"]
+    assert "outside Claude's `skills` directory" in issue["repair"]
+    assert "fully restart Claude Code" in issue["repair"]
+    assert "`specify check`" in issue["repair"]
+    assert "delete" not in issue["repair"].lower()
+
+
+def test_diagnose_treats_same_content_personal_skill_as_shadowing(
+    tmp_path,
+    monkeypatch,
+):
+    project = tmp_path / "project"
+    claude_config = tmp_path / "claude-config"
+    _write_claude_skill_manifest(project, "sp-map-scan")
+    project_skill = project / ".claude" / "skills" / "sp-map-scan" / "SKILL.md"
+    personal_skill = claude_config / "skills" / "sp-map-scan" / "SKILL.md"
+    personal_skill.parent.mkdir(parents=True, exist_ok=True)
+    personal_skill.write_bytes(project_skill.read_bytes())
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(claude_config))
+
+    issues = diagnose_project_runtime_compatibility(project)
+
+    assert any(
+        issue["code"] == "claude-personal-skills-shadow-project"
+        for issue in issues
+    )
+
+
+def test_diagnose_ignores_personal_skills_without_claude_manifest(
+    tmp_path,
+    monkeypatch,
+):
+    project = tmp_path / "project"
+    project_skill = project / ".claude" / "skills" / "sp-map-scan" / "SKILL.md"
+    project_skill.parent.mkdir(parents=True, exist_ok=True)
+    project_skill.write_text("# Project skill\n", encoding="utf-8")
+    personal_skill = (
+        tmp_path
+        / "claude-config"
+        / "skills"
+        / "sp-map-scan"
+        / "SKILL.md"
+    )
+    personal_skill.parent.mkdir(parents=True, exist_ok=True)
+    personal_skill.write_text("# Personal skill\n", encoding="utf-8")
+    monkeypatch.setenv(
+        "CLAUDE_CONFIG_DIR",
+        str(tmp_path / "claude-config"),
+    )
+
+    issues = diagnose_project_runtime_compatibility(project)
+
+    assert not any(
+        issue["code"] == "claude-personal-skills-shadow-project"
+        for issue in issues
+    )
+
+
+def test_diagnose_ignores_nonworkflow_claude_skill_collisions(
+    tmp_path,
+    monkeypatch,
+):
+    project = tmp_path / "project"
+    claude_config = tmp_path / "claude-config"
+    _write_claude_skill_manifest(project, "frontend-design")
+    personal_skill = (
+        claude_config / "skills" / "frontend-design" / "SKILL.md"
+    )
+    personal_skill.parent.mkdir(parents=True, exist_ok=True)
+    personal_skill.write_text("# Personal frontend design\n", encoding="utf-8")
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(claude_config))
+
+    issues = diagnose_project_runtime_compatibility(project)
+
+    assert not any(
+        issue["code"] == "claude-personal-skills-shadow-project"
+        for issue in issues
+    )
+
+
 def test_agent_payload_argv_and_derived_commands_bind_from_nested_cwd(tmp_path):
     project = tmp_path / "project 项目 & $literal"
     nested = project / "nested" / "work"

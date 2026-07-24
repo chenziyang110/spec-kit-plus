@@ -69,6 +69,22 @@ def isolate_project_launcher_bindings(tmp_path_factory):
             os.environ[name] = previous
 
 
+@pytest.fixture(scope="session", autouse=True)
+def isolate_claude_config_dir(tmp_path_factory: pytest.TempPathFactory):
+    """Keep personal Claude skills from changing project compatibility tests."""
+
+    name = "CLAUDE_CONFIG_DIR"
+    previous = os.environ.get(name)
+    os.environ[name] = str(tmp_path_factory.mktemp("claude-config"))
+    try:
+        yield
+    finally:
+        if previous is None:
+            os.environ.pop(name, None)
+        else:
+            os.environ[name] = previous
+
+
 @pytest.fixture(scope="session")
 def built_unified_runtime(tmp_path_factory: pytest.TempPathFactory) -> Path:
     """Build the shared Go runtime once for Python-to-Go integration tests."""

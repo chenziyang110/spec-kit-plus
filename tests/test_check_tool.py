@@ -8,7 +8,9 @@ Covers issue https://github.com/github/spec-kit/issues/550:
 import os
 from unittest.mock import patch, MagicMock
 
-from specify_cli import check_tool, _command_path_candidates
+from typer.testing import CliRunner
+
+from specify_cli import app, check_tool, _command_path_candidates
 
 
 class TestCheckToolClaude:
@@ -118,3 +120,59 @@ class TestSpecifyPathDiagnostics:
             str((first / executable_name).resolve()),
             str((second / executable_name).resolve()),
         ]
+
+
+class TestProjectCompatibilityCheck:
+    def test_check_blocks_when_claude_personal_skill_shadows_project(
+        self,
+        tmp_path,
+        monkeypatch,
+    ):
+        project = tmp_path / "project"
+        project_skill = (
+            project / ".claude" / "skills" / "sp-map-scan" / "SKILL.md"
+        )
+        project_skill.parent.mkdir(parents=True)
+        project_skill.write_text("# Project map scan\n", encoding="utf-8")
+        manifest = (
+            project
+            / ".specify"
+            / "integrations"
+            / "claude.manifest.json"
+        )
+        manifest.parent.mkdir(parents=True)
+        manifest.write_text(
+            """{
+  "integration": "claude",
+  "files": {
+    ".claude/skills/sp-map-scan/SKILL.md": "test-digest"
+  }
+}
+""",
+            encoding="utf-8",
+        )
+        claude_config = tmp_path / "claude-config"
+        personal_skill = (
+            claude_config / "skills" / "sp-map-scan" / "SKILL.md"
+        )
+        personal_skill.parent.mkdir(parents=True)
+        personal_skill.write_text("# Stale personal map scan\n", encoding="utf-8")
+        monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(claude_config))
+        monkeypatch.chdir(project)
+
+        def available(tool, *, tracker=None):
+            if tracker is not None:
+                tracker.complete(tool, "available")
+            return True
+
+        with patch("specify_cli.check_tool", side_effect=available), patch(
+            "specify_cli._command_path_candidates",
+            return_value=[],
+        ):
+            result = CliRunner().invoke(app, ["check"], catch_exceptions=False)
+
+        assert result.exit_code == 10, result.output
+        assert "Claude personal skills shadow" in result.output
+        assert "sp-map-scan" in result.output
+        assert "project is not ready" in result.output.lower()
+        assert "Specify CLI is ready to use!" not in result.output

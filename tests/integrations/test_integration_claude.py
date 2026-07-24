@@ -1516,6 +1516,47 @@ class TestClaudeIntegration:
             in result["hookSpecificOutput"]["permissionDecisionReason"]
         )
 
+    def test_claude_hook_cognition_denial_explains_personal_skill_shadow(
+        self,
+        tmp_path,
+        monkeypatch,
+    ):
+        integration = get_integration("claude")
+        manifest = IntegrationManifest("claude", tmp_path)
+        integration.setup(tmp_path, manifest, script_type="sh")
+        manifest.save()
+        claude_config = tmp_path / "personal-claude"
+        personal_skill = (
+            claude_config / "skills" / "sp-map-scan" / "SKILL.md"
+        )
+        personal_skill.parent.mkdir(parents=True)
+        personal_skill.write_text("# Stale personal map scan\n", encoding="utf-8")
+        monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(claude_config))
+
+        module = _load_claude_hook_dispatch_module()
+        cognition_dir = tmp_path / ".specify" / "project-cognition"
+        workbench_dir = cognition_dir / "workbench"
+        workbench_dir.mkdir(parents=True, exist_ok=True)
+        (workbench_dir / "map-state.md").write_text(
+            "---\nactive_command: sp-map-scan\nstatus: scanning\n---\n",
+            encoding="utf-8",
+        )
+        result = module._handle_pre_tool_write(
+            tmp_path,
+            {
+                "tool_name": "Write",
+                "tool_input": {
+                    "file_path": str(cognition_dir / "status.json")
+                },
+            },
+        )
+
+        assert result is not None
+        reason = result["hookSpecificOutput"]["permissionDecisionReason"]
+        assert "runtime-owned project cognition path" in reason
+        assert "personal Claude skill shadows" in reason
+        assert "/sp-map-scan" in reason
+
     def test_claude_hook_dispatch_blocks_packet_local_project_cognition_worker_result_write(
         self, tmp_path
     ):
@@ -2062,6 +2103,33 @@ class TestClaudeIntegration:
         assert "planning-only" in additional_context
         assert "/sp.plan" in additional_context
         assert compaction_path.exists()
+
+    def test_claude_hook_session_start_warns_about_personal_skill_shadow(
+        self,
+        tmp_path,
+        monkeypatch,
+    ):
+        integration = get_integration("claude")
+        manifest = IntegrationManifest("claude", tmp_path)
+        integration.setup(tmp_path, manifest, script_type="sh")
+        manifest.save()
+        claude_config = tmp_path / "personal-claude"
+        personal_skill = (
+            claude_config / "skills" / "sp-map-scan" / "SKILL.md"
+        )
+        personal_skill.parent.mkdir(parents=True)
+        personal_skill.write_text("# Stale personal map scan\n", encoding="utf-8")
+        monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(claude_config))
+
+        module = _load_claude_hook_dispatch_module()
+        output = module._handle_session_start(tmp_path, {})
+
+        assert output is not None
+        hook_output = output["hookSpecificOutput"]
+        assert hook_output["hookEventName"] == "SessionStart"
+        assert "personal Claude skill" in hook_output["additionalContext"]
+        assert "sp-map-scan" in hook_output["additionalContext"]
+        assert "fully restart Claude Code" in hook_output["additionalContext"]
 
     def test_claude_hook_dispatch_adds_session_state_warning_on_post_tool_use(
         self, tmp_path

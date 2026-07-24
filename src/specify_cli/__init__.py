@@ -5236,6 +5236,24 @@ def _install_codex_team_assets_if_needed(
     )
 
 
+def _print_claude_skill_shadow_warning(project_root: Path) -> bool:
+    """Show the non-destructive recovery boundary for Claude skill precedence."""
+
+    from .launcher import diagnose_claude_personal_skill_shadows
+
+    issues = diagnose_claude_personal_skill_shadows(project_root)
+    if not issues:
+        return False
+    lines = [
+        "[red]Action required before running project-installed Claude skills.[/red]",
+    ]
+    for issue in issues:
+        lines.extend([issue["summary"], "", issue["repair"]])
+    console.print()
+    console.print(_open_block("Claude Skill Conflict", lines, accent="red"))
+    return True
+
+
 @app.command()
 def init(
     project_name: str = typer.Argument(
@@ -6012,6 +6030,11 @@ def init(
                 )
             )
 
+    claude_skill_conflict = (
+        resolved_integration.key == "claude"
+        and _print_claude_skill_shadow_warning(project_path)
+    )
+
     steps_lines = []
     if not here:
         steps_lines.append(
@@ -6021,6 +6044,12 @@ def init(
     else:
         steps_lines.append("1. You're already in the project directory!")
         step_num = 2
+    if claude_skill_conflict:
+        steps_lines.append(
+            f"{step_num}. Resolve the Claude personal-skill conflict shown above, "
+            "fully restart Claude Code, and run [cyan]specify check[/cyan]"
+        )
+        step_num += 1
 
     # Determine skill display mode for the next-steps panel.
     # Skills integrations should advertise the installed skills directory and
@@ -8510,6 +8539,7 @@ def check():
             )
 
     project_root = Path.cwd()
+    blocking_compatibility_issues: list[dict[str, str]] = []
     project_config = project_root / ".specify" / "config.json"
     if project_config.exists():
         try:
@@ -8563,6 +8593,11 @@ def check():
 
         compatibility_issues = diagnose_project_runtime_compatibility(project_root)
         if compatibility_issues:
+            blocking_compatibility_issues = [
+                issue
+                for issue in compatibility_issues
+                if issue.get("severity") == "repairable-block"
+            ]
             console.print()
             rows = [
                 ("Project", f"[dim]{project_root}[/dim]"),
@@ -8578,6 +8613,13 @@ def check():
             for issue in compatibility_issues:
                 console.print(f"- [yellow]{issue['summary']}[/yellow]")
                 console.print(f"  [dim]{issue['repair']}[/dim]")
+
+    if blocking_compatibility_issues:
+        console.print(
+            "\n[bold yellow]Specify CLI is installed, but this project is not ready "
+            "until the repairable compatibility block above is resolved.[/bold yellow]"
+        )
+        raise typer.Exit(10)
 
     console.print("\n[bold green]Specify CLI is ready to use![/bold green]")
 
@@ -9216,6 +9258,8 @@ def integration_install(
 
     name = (integration.config or {}).get("name", key)
     console.print(f"\n[green]✓[/green] Integration '{name}' installed successfully")
+    if integration.key == "claude":
+        _print_claude_skill_shadow_warning(project_root)
 
 
 def _parse_integration_options(
@@ -9390,6 +9434,7 @@ def _repair_active_integration_runtime_assets(
                 "unbound-generated-specify-launcher",
                 "unrebound-specify-runtime-launcher",
                 "unbound-generated-specify-runtime-launcher",
+                "claude-personal-skills-shadow-project",
             }
         ]
         if launcher_conflicts:
@@ -9477,6 +9522,7 @@ def _repair_active_integration_runtime_assets(
             "unbound-generated-specify-launcher",
             "unrebound-specify-runtime-launcher",
             "unbound-generated-specify-runtime-launcher",
+            "claude-personal-skills-shadow-project",
         }
     ]
     if launcher_conflicts:
@@ -9782,6 +9828,8 @@ def integration_switch(
 
     name = (target_integration.config or {}).get("name", target)
     console.print(f"\n[green]✓[/green] Switched to integration '{name}'")
+    if target_integration.key == "claude":
+        _print_claude_skill_shadow_warning(project_root)
 
 
 @integration_app.command("repair")
@@ -9804,6 +9852,31 @@ def integration_repair(
     )
 
     if report.skipped_modified or report.remaining_issues:
+        claude_shadow_issues = [
+            issue
+            for issue in report.remaining_issues
+            if issue.get("code") == "claude-personal-skills-shadow-project"
+        ]
+        other_remaining_issues = [
+            issue
+            for issue in report.remaining_issues
+            if issue.get("code") != "claude-personal-skills-shadow-project"
+        ]
+        if (
+            claude_shadow_issues
+            and not other_remaining_issues
+            and not report.skipped_modified
+        ):
+            console.print(
+                "[yellow]PARTIAL[/yellow] Project-managed assets were repaired, but "
+                "Claude personal skill precedence still blocks the project skill surface."
+            )
+            console.print("\n[bold]Human repair tutorial[/bold]")
+            for issue in claude_shadow_issues:
+                console.print(Text(f"- {issue.get('summary')}"))
+                console.print(Text(str(issue.get("repair") or "")))
+            raise typer.Exit(10)
+
         from .launcher import (
             SPECIFY_PROJECT_LAUNCHER_POSIX,
             SPECIFY_PROJECT_LAUNCHER_WINDOWS,
@@ -9832,6 +9905,12 @@ def integration_repair(
             console.print("\n[bold]Remaining diagnostics[/bold]")
             for issue in report.remaining_issues:
                 console.print(Text(f"- {issue.get('code')}: {issue.get('summary')}"))
+                if (
+                    issue.get("code")
+                    == "claude-personal-skills-shadow-project"
+                    and issue.get("repair")
+                ):
+                    console.print(Text(f"  {issue.get('repair')}"))
         console.print("\n[bold]Human repair tutorial[/bold]")
         steps = [
             "1. Prerequisite: commit or back up the listed files. Expected: `git status` clearly separates your edits. If not, stop and make a backup first.",

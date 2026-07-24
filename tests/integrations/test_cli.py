@@ -1050,6 +1050,53 @@ def test_check_reports_workflow_contract_drift(tmp_path):
         for command in ("list", "status", "resume", "close", "archive"):
             assert command in result.output
 
+def test_claude_init_warns_when_personal_skill_shadows_project_skill(
+    tmp_path,
+    monkeypatch,
+):
+    claude_config = tmp_path / "claude-config"
+    personal_skill = claude_config / "skills" / "sp-map-scan" / "SKILL.md"
+    personal_skill.parent.mkdir(parents=True)
+    personal_skill.write_text("# Stale personal map scan\n", encoding="utf-8")
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(claude_config))
+    monkeypatch.setattr(
+        "specify_cli.launcher.write_project_specify_launcher_config",
+        lambda project_root, **kwargs: None,
+    )
+
+    project = tmp_path / "claude-shadow-warning"
+    project.mkdir()
+    old_cwd = os.getcwd()
+    try:
+        os.chdir(project)
+        result = CliRunner().invoke(
+            app,
+            [
+                "init",
+                "--here",
+                "--ai",
+                "claude",
+                "--script",
+                "sh",
+                "--no-git",
+                "--ignore-agent-tools",
+            ],
+            catch_exceptions=False,
+        )
+    finally:
+        os.chdir(old_cwd)
+
+    assert result.exit_code == 0, result.output
+    normalized_output = " ".join(result.output.split())
+    assert "Claude Skill Conflict" in normalized_output
+    assert "sp-map-scan" in normalized_output
+    assert "fully restart Claude Code" in normalized_output
+    assert "Resolve the Claude personal-skill conflict" in normalized_output
+    assert personal_skill.read_text(encoding="utf-8") == (
+        "# Stale personal map scan\n"
+    )
+
+
 def test_init_installs_shared_worker_prompt_templates(tmp_path):
     from typer.testing import CliRunner
     from specify_cli import app

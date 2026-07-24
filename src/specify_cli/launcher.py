@@ -1699,6 +1699,113 @@ def _generated_guidance_text(project_root: Path, path: Path, text: str) -> str:
     return blocks[0] if len(blocks) == 1 else ""
 
 
+def diagnose_claude_personal_skill_shadows(
+    project_root: Path,
+) -> list[dict[str, str]]:
+    """Report personal Claude skills that take precedence over managed project skills."""
+
+    manifest = _load_config(
+        project_root
+        / ".specify"
+        / "integrations"
+        / "claude.manifest.json"
+    )
+    if not isinstance(manifest, dict):
+        return []
+    files = manifest.get("files")
+    if not isinstance(files, dict):
+        return []
+
+    configured_root = str(os.environ.get("CLAUDE_CONFIG_DIR") or "").strip()
+    try:
+        claude_root = (
+            Path(configured_root).expanduser()
+            if configured_root
+            else Path.home() / ".claude"
+        ).resolve(strict=False)
+        resolved_project_root = project_root.resolve(strict=False)
+    except (OSError, RuntimeError):
+        return []
+    personal_skills_root = claude_root / "skills"
+    project_skills_root = resolved_project_root / ".claude" / "skills"
+    if personal_skills_root == project_skills_root:
+        return []
+
+    collisions: list[str] = []
+    for relative in files:
+        normalized = str(relative).replace("\\", "/")
+        parts = normalized.split("/")
+        if (
+            len(parts) != 4
+            or parts[:2] != [".claude", "skills"]
+            or parts[3] != "SKILL.md"
+            or parts[2] in {"", ".", ".."}
+        ):
+            continue
+        skill_name = parts[2]
+        if not skill_name.startswith(("sp-", "spx-")):
+            continue
+        project_skill = project_skills_root / skill_name / "SKILL.md"
+        personal_skill = personal_skills_root / skill_name / "SKILL.md"
+        if not project_skill.is_file() or not personal_skill.is_file():
+            continue
+        try:
+            if project_skill.samefile(personal_skill):
+                continue
+        except OSError:
+            pass
+        collisions.append(skill_name)
+
+    if not collisions:
+        return []
+
+    map_priority = {
+        "sp-map-scan": 0,
+        "sp-map-build": 1,
+        "sp-map-update": 2,
+    }
+    collisions = sorted(
+        set(collisions),
+        key=lambda name: (map_priority.get(name, 3), name),
+    )
+    preview = ", ".join(f"/{name}" for name in collisions[:8])
+    if len(collisions) > 8:
+        preview += f", +{len(collisions) - 8} more"
+    affected_directories = ", ".join(collisions)
+    return [
+        {
+            "code": "claude-personal-skills-shadow-project",
+            "severity": "repairable-block",
+            "summary": (
+                "Claude personal skills shadow "
+                f"{len(collisions)} project-installed Spec Kit skill(s): {preview}. "
+                "Claude resolves personal skills before project skills, so the "
+                "project-managed workflow is not authoritative."
+            ),
+            "repair": (
+                "1. Pause Claude Code and choose a new backup location outside "
+                f"Claude's `skills` directory (`{personal_skills_root}`). Do not "
+                "remove an original without a recoverable copy.\n"
+                "2. Move these personal workflow directories from that `skills` "
+                f"directory into the backup: {affected_directories}. Expected: each "
+                "listed directory exists in the backup and no longer exists under "
+                f"`{personal_skills_root}`. If a destination already exists or any "
+                "move fails, stop and use a fresh backup directory so neither copy "
+                "is overwritten.\n"
+                "3. Then fully restart Claude Code from the project root. Expected: "
+                f"project skills are discovered from `{project_skills_root}`. If "
+                "they are not, verify `CLAUDE_CONFIG_DIR` and the project root.\n"
+                "4. Run `specify check`. Expected: diagnostic "
+                "`claude-personal-skills-shadow-project` is absent. If it remains, "
+                "return that diagnostic and its sanitized paths.\n"
+                "5. Resume the interrupted `/sp-*` or `/spx-*` command from its "
+                "normal entrypoint. For map work, discard hand-authored cognition "
+                "artifacts from the shadowed run and resume at `/sp-map-scan`."
+            ),
+        }
+    ]
+
+
 def project_specify_subcommand(
     project_root: Path,
     args: list[str] | tuple[str, ...],
@@ -1935,6 +2042,7 @@ def diagnose_project_runtime_compatibility(project_root: Path) -> list[dict[str,
     """Inspect persisted launcher and generated runtime surfaces for stale or broken state."""
 
     issues: list[dict[str, str]] = []
+    issues.extend(diagnose_claude_personal_skill_shadows(project_root))
     learning_index = project_root / ".specify" / "memory" / "learnings" / "INDEX.md"
 
     def _read_text_if_exists(path: Path) -> str:
