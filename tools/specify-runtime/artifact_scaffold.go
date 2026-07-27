@@ -154,11 +154,18 @@ func ArtifactScaffoldCatalog() Envelope {
 	env := NewEnvelope("ok", "artifact scaffold catalog")
 	for _, name := range []string{"plan-contract", "quick-status"} {
 		kind := artifactScaffoldKinds[name]
+		allowedPaths := make([]string, 0, len(kind.AllowedPaths))
+		for _, pattern := range kind.AllowedPaths {
+			allowedPaths = append(allowedPaths, strings.Join(pattern, "/"))
+		}
 		env.Items = append(env.Items, map[string]any{
 			"agent_fill_required":     kind.AgentFillRequired,
+			"allowed_paths":           allowedPaths,
 			"estimated_token_savings": kind.EstimatedTokenSavings,
 			"fill_targets":            kind.FillTargets,
 			"kind":                    kind.Kind,
+			"required_options":        []string{"--kind", "--path"},
+			"usage":                   "specify-runtime artifact scaffold --kind " + kind.Kind + " --path <project-relative-path> --vars <json> --format json",
 		})
 	}
 	return env

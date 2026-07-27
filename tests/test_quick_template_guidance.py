@@ -160,6 +160,7 @@ def test_quick_template_uses_fixed_status_scaffold() -> None:
     assert "## status.md scaffold" in content
     assert "specify-runtime artifact scaffold --kind quick-status" in content
     assert '--path ".planning/quick/<id>-<slug>/status.md"' in content
+    assert "--out" not in content
     assert "--vars" in content
     assert "project-relative" in content
     assert "do not pass an absolute path" in content

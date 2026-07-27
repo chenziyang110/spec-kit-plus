@@ -259,6 +259,23 @@ def test_rich_workflow_state_uses_the_artifact_boundary_not_phase_authority() ->
         assert "specify-runtime artifact prepare" in content, relative
         assert "specify-runtime artifact submit" in content, relative
         assert "CLI-owned `workflow.json`" in content, relative
+        assert "same `usage-error`" in content, relative
+        assert "do not vary argument values" in content.lower(), relative
+        assert "api show" in content, relative
+        assert "--help" in content, relative
+
+
+def test_classic_review_closeout_is_revision_bound() -> None:
+    expected = (
+        "specify-runtime review closeout --feature-dir <feature-dir> "
+        "--expected-revision <revision> --format json"
+    )
+    for relative in (
+        "templates/commands/review.md",
+        "templates/command-partials/review/shell.md",
+        "templates/command-references/review/final-claim-and-handoff.md",
+    ):
+        assert expected in _read(relative), relative
 
 
 def test_plan_and_accept_resolve_then_gate_before_their_first_owned_write() -> None:

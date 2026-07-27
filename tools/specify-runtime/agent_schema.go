@@ -3,41 +3,114 @@ package main
 import (
 	"fmt"
 	"io"
+	"strings"
 )
 
 func runAPISchema(args []string, stdout io.Writer) int {
-	if len(args) == 0 {
-		return writeEnvelope(stdout, NewEnvelope("usage-error", "missing schema id"))
+	schemaID, env, ok := apiObjectID(args, "schema")
+	if !ok {
+		return writeEnvelope(stdout, env)
 	}
-	schemaID := args[0]
-	if schemaID != "workflow-block-input" {
+	var schema map[string]any
+	var capabilityID string
+	switch schemaID {
+	case "workflow-block-input":
+		schema = workflowBlockInputSchema()
+		capabilityID = "workflow.block"
+	case "artifact-scaffold-input":
+		schema = artifactScaffoldInputSchema()
+		capabilityID = "artifact.scaffold"
+	default:
 		return writeEnvelope(stdout, NewEnvelope("usage-error", fmt.Sprintf("unknown schema %q", schemaID)))
 	}
-	env := NewEnvelope("ok", fmt.Sprintf("Schema %s expanded.", schemaID))
+	env = NewEnvelope("ok", fmt.Sprintf("Schema %s expanded.", schemaID))
 	env.Data["schema_id"] = schemaID
 	env.Data["schema_version"] = 1
-	env.Data["schema"] = workflowBlockInputSchema()
-	env.ShowArgv = []string{"specify-runtime", "api", "show", "workflow.block", "--format", "json"}
+	env.Data["schema"] = schema
+	env.ShowArgv = []string{"specify-runtime", "api", "show", capabilityID, "--format", "json"}
 	return writeEnvelope(stdout, env)
 }
 
 func runAPIShow(args []string, stdout io.Writer) int {
-	if len(args) == 0 {
-		return writeEnvelope(stdout, NewEnvelope("usage-error", "missing capability id"))
+	capabilityID, env, ok := apiObjectID(args, "capability")
+	if !ok {
+		return writeEnvelope(stdout, env)
 	}
-	if args[0] != "workflow.block" {
-		return writeEnvelope(stdout, NewEnvelope("usage-error", fmt.Sprintf("unknown capability %q", args[0])))
+	if !containsCapability(defaultCapabilities(), capabilityID) {
+		return writeEnvelope(stdout, NewEnvelope("usage-error", fmt.Sprintf("unknown capability %q", capabilityID)))
 	}
-	env := NewEnvelope("ok", "Capability workflow.block expanded.")
-	env.Data["capability"] = map[string]any{
-		"id":           "workflow.block",
-		"summary":      "Record a resumable blocker and novice human action guide.",
-		"input_schema": "workflow-block-input",
-		"side_effect":  "writes-workflow",
-		"command":      []string{"specify-runtime", "workflow", "block"},
+	parts := strings.Split(capabilityID, ".")
+	command := append([]string{"specify-runtime"}, parts...)
+	capability := map[string]any{
+		"id":      capabilityID,
+		"summary": capabilitySummary(capabilityID),
+		"command": command,
 	}
-	env.ShowArgv = []string{"specify-runtime", "api", "schema", "workflow-block-input", "--format", "json"}
+	env = NewEnvelope("ok", fmt.Sprintf("Capability %s expanded.", capabilityID))
+	switch capabilityID {
+	case "workflow.block":
+		capability["summary"] = "Record a resumable blocker and novice human action guide."
+		capability["input_schema"] = "workflow-block-input"
+		capability["side_effect"] = "writes-workflow"
+		env.ShowArgv = []string{"specify-runtime", "api", "schema", "workflow-block-input", "--format", "json"}
+	case "artifact.scaffold":
+		capability["input_schema"] = "artifact-scaffold-input"
+		capability["side_effect"] = "creates-artifact"
+		capability["usage"] = "specify-runtime artifact scaffold --kind <kind> --path <project-relative-path> --vars <json> --format json"
+		env.ShowArgv = []string{"specify-runtime", "api", "schema", "artifact-scaffold-input", "--format", "json"}
+		env.NextArgv = []string{"specify-runtime", "artifact", "catalog", "--format", "json"}
+	case "artifact.catalog":
+		capability["side_effect"] = "read-only"
+		capability["usage"] = "specify-runtime artifact catalog --format json"
+	}
+	env.Data["capability"] = capability
 	return writeEnvelope(stdout, env)
+}
+
+func apiObjectID(args []string, kind string) (string, Envelope, bool) {
+	if len(args) == 0 {
+		return "", NewEnvelope("usage-error", "missing "+kind+" id"), false
+	}
+	if args[0] == "--id" {
+		if len(args) < 2 || strings.HasPrefix(args[1], "--") {
+			return "", NewEnvelope("usage-error", "--id requires a "+kind+" id"), false
+		}
+		return strings.TrimSpace(args[1]), Envelope{}, true
+	}
+	if strings.HasPrefix(args[0], "--") {
+		env := NewEnvelope("usage-error", fmt.Sprintf("unknown %s selector %q", kind, args[0]))
+		env.Blockers = append(env.Blockers, "pass the id positionally or use --id <id>")
+		return "", env, false
+	}
+	return strings.TrimSpace(args[0]), Envelope{}, true
+}
+
+func containsCapability(capabilities []string, want string) bool {
+	for _, capability := range capabilities {
+		if capability == want {
+			return true
+		}
+	}
+	return false
+}
+
+func artifactScaffoldInputSchema() map[string]any {
+	nonEmptyString := func() map[string]any {
+		return map[string]any{"type": "string", "minLength": 1}
+	}
+	return map[string]any{
+		"$schema":              "https://json-schema.org/draft/2020-12/schema",
+		"$id":                  "specify://schemas/artifact-scaffold-input/v1",
+		"type":                 "object",
+		"additionalProperties": false,
+		"required":             []string{"kind", "path"},
+		"properties": map[string]any{
+			"kind": nonEmptyString(),
+			"path": nonEmptyString(),
+			"vars": map[string]any{"type": "object"},
+		},
+		"x-compatibility-aliases": map[string]any{"out": "path"},
+	}
 }
 
 func workflowBlockInputSchema() map[string]any {

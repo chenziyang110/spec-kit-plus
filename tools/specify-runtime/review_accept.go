@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/json"
 	"errors"
@@ -67,7 +68,7 @@ func runReview(args []string, stdout io.Writer) int {
 		if !ok {
 			return writeEnvelope(stdout, usageEnvelope("review prepare requires --expected-revision"))
 		}
-		env = service.prepareReview(optionValue(args, "--feature-dir", ""), expected)
+		env = service.prepareReview(optionValue(args, "--feature-dir", ""), expected, hasFlag(args, "--restart-stale"))
 	case "resume-audit":
 		env = service.resumeReviewAudit(optionValue(args, "--feature-dir", ""))
 	case "validate":
@@ -164,7 +165,7 @@ type routeHumanAcceptanceRepairRequest struct {
 	humanActionReason string
 }
 
-func (service reviewAcceptService) prepareReview(featureDir string, expectedRevision int) Envelope {
+func (service reviewAcceptService) prepareReview(featureDir string, expectedRevision int, restartStale bool) Envelope {
 	root, feature, env, ok := service.resolveFeature(featureDir)
 	if !ok {
 		return env
@@ -179,13 +180,17 @@ func (service reviewAcceptService) prepareReview(featureDir string, expectedRevi
 	if revision, ok := jsonInteger(workflow.Data["revision"]); !ok || revision != expectedRevision {
 		return blockedEnvelope("review prepare revision mismatch", "expected revision does not match workflow revision")
 	}
+	lastReopen, _ := workflow.Data["last_reopen"].(map[string]any)
+	isAcceptanceRepair := lastReopen != nil &&
+		stringField(lastReopen, "source_stage") == "accept" &&
+		stringField(lastReopen, "target_stage") == "review"
 	handoffPath := filepath.Join(feature.abs, implementationHandoffFilename)
 	handoff, err := readJSONObject(handoffPath)
 	if err != nil {
 		return blockedEnvelope("implementation handoff is unavailable", err.Error())
 	}
 	sourceRevision, ok := jsonInteger(handoff["source_revision"])
-	if !ok || sourceRevision != expectedRevision {
+	if !ok || (!isAcceptanceRepair && sourceRevision != expectedRevision) {
 		return blockedEnvelope("implementation handoff revision mismatch", "implementation-handoff.json source_revision must match expected revision")
 	}
 	handoffSHA, err := fileSHA256(handoffPath)
@@ -208,50 +213,228 @@ func (service reviewAcceptService) prepareReview(featureDir string, expectedRevi
 		return lockEnv
 	}
 	defer release()
-	if existing, err := readJSONObject(statePath); err == nil {
-		if source, ok := existing["source"].(map[string]any); ok &&
+	previousRaw, readErr := os.ReadFile(statePath)
+	if readErr == nil {
+		var existing map[string]any
+		decodeErr := json.Unmarshal(previousRaw, &existing)
+		if decodeErr != nil || existing == nil {
+			if isAcceptanceRepair || !restartStale {
+				return blockedEnvelope("existing review state is malformed", "preserve review-state.json and rerun review prepare with --restart-stale: "+decodeErrorText(decodeErr))
+			}
+			return service.restartReviewState(feature, handoff, expectedRevision, handoffSHA, fingerprint, previousRaw, nil, decodeErrorText(decodeErr))
+		}
+		source, _ := existing["source"].(map[string]any)
+		if isAcceptanceRepair {
+			findingID := stringField(lastReopen, "finding_id")
+			if source != nil &&
+				stringField(source, "implementation_handoff_sha256") == handoffSHA &&
+				intField(source, "workflow_revision") == expectedRevision &&
+				stringField(source, "acceptance_finding_id") == findingID {
+				return preparedReviewEnvelope(feature.rel, existing, "acceptance repair Review cycle is already prepared")
+			}
+			if existing["status"] != "approved" {
+				return blockedEnvelope("acceptance repair requires the previous Review to be approved", "preserve the previous approved review-state.json")
+			}
+			if source == nil || stringField(source, "implementation_handoff_sha256") != handoffSHA {
+				return blockedEnvelope("acceptance repair implementation handoff is stale", "restore the handoff reviewed by the previous approved Review")
+			}
+			previousDigest := fmt.Sprintf("%x", sha256.Sum256(previousRaw))
+			context, contextErr := service.acceptanceRepairContext(feature, lastReopen, existing, previousDigest)
+			if contextErr != nil {
+				return blockedEnvelope("acceptance repair context is invalid", contextErr.Error())
+			}
+			previousCycle := intField(source, "review_cycle")
+			if previousCycle < 1 {
+				previousCycle = 1
+			}
+			rounds := clonedReviewRounds(existing)
+			rounds = append(rounds, map[string]any{
+				"review_cycle":             previousCycle,
+				"review_state_sha256":      previousDigest,
+				"reviewed_snapshot_sha256": nestedString(existing, "final", "reviewed_snapshot_sha256"),
+				"status":                   "superseded-by-acceptance-repair",
+				"acceptance_finding_id":    context["finding_id"],
+			})
+			state := newReviewState(feature, handoff, expectedRevision, handoffSHA, fingerprint, previousCycle+1, previousDigest, "", rounds, context)
+			if err := writeReviewAcceptJSONAtomic(statePath, state); err != nil {
+				return errorEnvelope("failed to write acceptance repair review state", err)
+			}
+			return preparedReviewEnvelope(feature.rel, state, "acceptance repair Review cycle prepared")
+		}
+		if source != nil &&
 			stringField(source, "implementation_handoff_sha256") == handoffSHA &&
-			intField(source, "workflow_revision") == expectedRevision {
+			intField(source, "workflow_revision") == expectedRevision && !restartStale {
 			if upgradeReviewExceptionContract(existing) {
 				if err := writeReviewAcceptJSONAtomic(statePath, existing); err != nil {
 					return errorEnvelope("failed to upgrade review state", err)
 				}
 			}
-			env := NewEnvelope("ok", "system review state is already prepared")
-			env.Data = existing
-			env.ShowArgv = reviewShowArgv(feature.rel)
-			env.NextArgv = []string{"specify-runtime", "review", "validate", "--feature-dir", feature.rel, "--format", "json"}
-			return env
+			return preparedReviewEnvelope(feature.rel, existing, "system review state is already prepared")
 		}
-		return blockedEnvelope("existing review state is stale", "preserve existing review-state.json or restart through the Python runtime with --restart-stale")
+		if !restartStale {
+			return blockedEnvelope("existing review state is stale", "preserve review-state.json and rerun review prepare with --restart-stale")
+		}
+		return service.restartReviewState(feature, handoff, expectedRevision, handoffSHA, fingerprint, previousRaw, existing, "")
 	}
+	if !os.IsNotExist(readErr) {
+		return blockedEnvelope("review state cannot be inspected", readErr.Error())
+	}
+	if isAcceptanceRepair {
+		return blockedEnvelope("acceptance repair is missing the previous Review", "restore the previous approved review-state.json")
+	}
+	state := newReviewState(feature, handoff, expectedRevision, handoffSHA, fingerprint, 1, "", "", nil, nil)
+	if err := writeReviewAcceptJSONAtomic(statePath, state); err != nil {
+		return errorEnvelope("failed to write review state", err)
+	}
+	return preparedReviewEnvelope(feature.rel, state, "system review state prepared")
+}
+
+func decodeErrorText(err error) string {
+	if err == nil {
+		return "review-state.json must contain a JSON object"
+	}
+	return err.Error()
+}
+
+func preparedReviewEnvelope(featureRel string, state map[string]any, summary string) Envelope {
+	env := NewEnvelope("ok", summary)
+	env.Data = state
+	env.ShowArgv = reviewShowArgv(featureRel)
+	env.NextArgv = []string{"specify-runtime", "review", "validate", "--feature-dir", featureRel, "--format", "json"}
+	return env
+}
+
+func (service reviewAcceptService) restartReviewState(feature reviewAcceptFeature, handoff map[string]any, expectedRevision int, handoffSHA, fingerprint string, previousRaw []byte, existing map[string]any, restartError string) Envelope {
+	previousDigest := fmt.Sprintf("%x", sha256.Sum256(previousRaw))
+	historyRef := filepath.ToSlash(filepath.Join("review-history", "review-state-"+previousDigest+".json"))
+	historyPath := filepath.Join(feature.abs, filepath.FromSlash(historyRef))
+	if err := os.MkdirAll(filepath.Dir(historyPath), 0o755); err != nil {
+		return errorEnvelope("failed to create review history", err)
+	}
+	if archived, err := os.ReadFile(historyPath); err == nil {
+		if !bytes.Equal(archived, previousRaw) {
+			return blockedEnvelope("review history digest collision", "preserve review-state.json and inspect review-history")
+		}
+	} else if !os.IsNotExist(err) {
+		return errorEnvelope("failed to inspect review history", err)
+	} else if err := atomicWriteFile(historyPath, previousRaw, 0o644); err != nil {
+		return errorEnvelope("failed to archive stale review state", err)
+	}
+	previousCycle := 1
+	if source, ok := existing["source"].(map[string]any); ok && intField(source, "review_cycle") >= 1 {
+		previousCycle = intField(source, "review_cycle")
+	}
+	rounds := clonedReviewRounds(existing)
+	archivedRound := map[string]any{
+		"review_cycle":             previousCycle,
+		"review_state_sha256":      previousDigest,
+		"reviewed_snapshot_sha256": nestedString(existing, "final", "reviewed_snapshot_sha256"),
+		"status":                   "restarted-stale",
+		"history_ref":              historyRef,
+	}
+	if strings.TrimSpace(restartError) != "" {
+		archivedRound["restart_error"] = restartError
+	}
+	rounds = append(rounds, archivedRound)
+	state := newReviewState(feature, handoff, expectedRevision, handoffSHA, fingerprint, previousCycle+1, previousDigest, "stale-review-restart", rounds, nil)
+	if err := writeReviewAcceptJSONAtomic(filepath.Join(feature.abs, reviewStateFilename), state); err != nil {
+		return errorEnvelope("failed to write restarted review state", err)
+	}
+	env := preparedReviewEnvelope(feature.rel, state, "stale system review state was archived and restarted")
+	env.Data["archived_review_state_ref"] = historyRef
+	return env
+}
+
+func clonedReviewRounds(state map[string]any) []any {
+	if state == nil {
+		return []any{}
+	}
+	raw, ok := state["rounds"].([]any)
+	if !ok {
+		return []any{}
+	}
+	cloned, ok := cloneAny(raw).([]any)
+	if !ok {
+		return []any{}
+	}
+	return cloned
+}
+
+func newReviewState(feature reviewAcceptFeature, handoff map[string]any, expectedRevision int, handoffSHA, fingerprint string, cycle int, previousReviewSHA, restartReason string, rounds []any, acceptanceRepair map[string]any) map[string]any {
+	findingID := stringField(acceptanceRepair, "finding_id")
+	findingSHA := stringField(acceptanceRepair, "finding_sha256")
+	cycleID := reviewCycleID(expectedRevision, handoffSHA, cycle, previousReviewSHA, findingID, findingSHA)
+	source := map[string]any{
+		"workflow_revision":             expectedRevision,
+		"implementation_handoff_sha256": handoffSHA,
+		"implementation_fingerprint":    fingerprint,
+		"review_cycle":                  cycle,
+		"review_cycle_id":               cycleID,
+		"previous_review_state_sha256":  previousReviewSHA,
+		"acceptance_finding_id":         findingID,
+		"acceptance_finding_sha256":     findingSHA,
+	}
+	if restartReason != "" {
+		source["restart_reason"] = restartReason
+	}
+	findings := []any{}
+	repairCycles := []any{}
+	if acceptanceRepair != nil {
+		findings = append(findings, acceptanceOriginReviewFinding(acceptanceRepair))
+		repairCycle := cloneAny(acceptanceRepair).(map[string]any)
+		repairCycle["review_cycle"] = cycle
+		repairCycle["review_cycle_id"] = cycleID
+		repairCycle["status"] = "reviewing"
+		repairCycles = append(repairCycles, repairCycle)
+	}
+	obligations := cloneAny(handoff["review_obligations"])
+	scenarios := cloneAny(handoff["review_scenarios"])
 	state := map[string]any{
-		"version":    reviewStateVersion,
-		"schema_ref": reviewSchemaRef,
-		"status":     "gathering",
-		"source": map[string]any{
-			"workflow_revision":                expectedRevision,
-			"implementation_handoff":           implementationHandoffFilename,
-			"implementation_handoff_sha256":    handoffSHA,
-			"implementation_fingerprint":       fingerprint,
-			"fingerprint_algorithm":            valueOr(handoff["fingerprint_algorithm"], implementationFingerprintAlgorith),
-			"implementation_summary_sha256":    optionalFileSHA256(filepath.Join(feature.abs, humanAcceptanceSummaryFilename)),
-			"review_cycle":                     1,
-			"review_cycle_id":                  reviewCycleID(expectedRevision, handoffSHA, 1, "", "", ""),
-			"human_acceptance_contract_sha256": nestedString(handoff, "human_acceptance_contract", "sha256"),
-		},
+		"version":                      reviewStateVersion,
+		"schema_ref":                   reviewSchemaRef,
+		"status":                       "gathering",
+		"source":                       source,
 		"entrypoints":                  cloneAny(handoff["entrypoints"]),
-		"scenarios":                    cloneAny(handoff["review_scenarios"]),
-		"obligations":                  cloneAny(handoff["review_obligations"]),
+		"scenarios":                    scenarios,
+		"obligations":                  obligations,
 		"human_acceptance_scenarios":   cloneAny(handoff["human_acceptance_scenarios"]),
 		"human_acceptance_obligations": cloneAny(handoff["human_acceptance_obligations"]),
-		"user_confirmed_deferrals":     cloneAny(handoff["user_confirmed_deferrals"]),
+		"implementation_deferrals":     newReviewDeferralStates(handoff["user_confirmed_deferrals"]),
 		"review_exceptions":            []any{},
-		"findings":                     []any{},
-		"reviewed_runtime_targets":     cloneAny(handoff["runtime_targets"]),
-		"evidence":                     []any{},
-		"rounds":                       []any{},
-		"blocker":                      nil,
+		"reviewed_runtime_targets":     []any{},
+		"review_assignments":           []any{},
+		"fix_assignments":              []any{},
+		"revalidations":                []any{},
+		"coverage": map[string]any{
+			"discovery_complete":       false,
+			"blind_audit_complete":     false,
+			"uncovered_obligation_ids": requiredReviewObligationIDs(obligations),
+			"uncovered_surface_ids":    []any{},
+			"final_gap_scan":           "pending",
+		},
+		"leader": map[string]any{
+			"strategy":                    "pending",
+			"review_plan_complete":        false,
+			"all_review_results_joined":   false,
+			"fix_plan_complete":           false,
+			"all_fix_results_joined":      false,
+			"final_revalidation_complete": false,
+			"verdict":                     "pending",
+		},
+		"rounds":        append([]any{}, rounds...),
+		"findings":      findings,
+		"repair_cycles": repairCycles,
+		"validation": map[string]any{
+			"startup":                  "pending",
+			"real_entrypoint_journeys": "pending",
+			"regression":               "pending",
+			"ui_verification":          "pending",
+		},
+		"cursor": map[string]any{
+			"scenario_id": firstReviewScenarioID(scenarios, acceptanceRepair),
+			"next_action": "Run the current scenario from its official entrypoint.",
+		},
+		"blocker": nil,
 		"final": map[string]any{
 			"verdict":                       "pending",
 			"coverage_verdict":              "pending",
@@ -259,19 +442,172 @@ func (service reviewAcceptService) prepareReview(featureDir string, expectedRevi
 			"integration_verdict":           "pending",
 			"all_packets_joined":            false,
 			"reviewed_snapshot_sha256":      "",
-			"implementation_summary_sha256": optionalFileSHA256(filepath.Join(feature.abs, humanAcceptanceSummaryFilename)),
+			"implementation_summary_sha256": "",
 			"runtime_targets_sha256":        "",
 			"review_exceptions_sha256":      reviewExceptionsSHA256([]any{}),
 		},
 	}
-	if err := writeReviewAcceptJSONAtomic(statePath, state); err != nil {
-		return errorEnvelope("failed to write review state", err)
+	return state
+}
+
+func newReviewDeferralStates(value any) []any {
+	fields := []string{
+		"deferral_id", "deferral_ref", "proposal_sha256", "confirmation_id",
+		"implementation_fingerprint", "blocker_refs", "affected_task_ids",
+		"affected_acceptance_refs", "deferred_validation_purposes",
+		"exact_excluded_behavior", "residual_risk", "risk_severity",
+		"claims_withheld", "reopen_or_stop_condition", "downstream_artifact",
+		"downstream_owner", "defer_until",
 	}
-	env = NewEnvelope("ok", "system review state prepared")
-	env.Data = state
-	env.ShowArgv = reviewShowArgv(feature.rel)
-	env.NextArgv = []string{"specify-runtime", "review", "validate", "--feature-dir", feature.rel, "--format", "json"}
-	return env
+	result := []any{}
+	items, _ := value.([]any)
+	for _, raw := range items {
+		deferral, ok := raw.(map[string]any)
+		if !ok {
+			continue
+		}
+		state := map[string]any{}
+		for _, field := range fields {
+			state[field] = cloneAny(deferral[field])
+		}
+		state["status"] = "pending"
+		state["resolution"] = nil
+		result = append(result, state)
+	}
+	return result
+}
+
+func requiredReviewObligationIDs(value any) []any {
+	result := []any{}
+	items, _ := value.([]any)
+	for _, raw := range items {
+		item, ok := raw.(map[string]any)
+		if !ok {
+			continue
+		}
+		required, exists := item["required"].(bool)
+		if exists && !required {
+			continue
+		}
+		if id := stringField(item, "id"); id != "" {
+			result = append(result, id)
+		}
+	}
+	return result
+}
+
+func firstReviewScenarioID(value any, acceptanceRepair map[string]any) any {
+	if id := stringField(acceptanceRepair, "review_scenario_id"); id != "" {
+		return id
+	}
+	items, _ := value.([]any)
+	for _, raw := range items {
+		if item, ok := raw.(map[string]any); ok {
+			if id := stringField(item, "id"); id != "" {
+				return id
+			}
+		}
+	}
+	return nil
+}
+
+func acceptanceFindingSHA256(finding map[string]any) string {
+	return canonicalJSONSHA256(finding)
+}
+
+func (service reviewAcceptService) acceptanceRepairContext(feature reviewAcceptFeature, lastReopen, previousReview map[string]any, previousReviewSHA string) (map[string]any, error) {
+	findingID := stringField(lastReopen, "finding_id")
+	if findingID == "" {
+		return nil, errors.New("acceptance repair finding_id is missing")
+	}
+	acceptancePath := filepath.Join(feature.abs, humanAcceptanceFilename)
+	acceptance, err := readJSONObject(acceptancePath)
+	if err != nil {
+		return nil, err
+	}
+	repairResume, _ := acceptance["repair_resume"].(map[string]any)
+	if repairResume == nil || stringField(repairResume, "finding_id") != findingID {
+		return nil, errors.New("human-acceptance.json repair_resume does not match the routed finding")
+	}
+	if stringField(repairResume, "previous_review_state_sha256") != previousReviewSHA {
+		return nil, errors.New("previous approved Review changed after acceptance repair routing")
+	}
+	finding := findAcceptanceFinding(acceptance, findingID)
+	if finding == nil || stringField(finding, "status") != "open" {
+		return nil, errors.New("routed acceptance finding is missing or no longer open")
+	}
+	findingSHA := acceptanceFindingSHA256(finding)
+	if stringField(repairResume, "finding_contract_sha256") != findingSHA {
+		return nil, errors.New("routed acceptance finding changed after repair routing")
+	}
+	humanScenarioID := stringField(finding, "scenario_id")
+	humanScenario := findObjectByID(previousReview["human_acceptance_scenarios"], humanScenarioID)
+	if humanScenario == nil {
+		return nil, errors.New("routed acceptance scenario is absent from the frozen Human Acceptance Universe")
+	}
+	reviewScenarioIDs, err := anyStringList(humanScenario["review_scenario_ids"], "review_scenario_ids", true)
+	if err != nil || len(reviewScenarioIDs) == 0 {
+		return nil, errors.New("routed acceptance scenario has no linked Review scenario")
+	}
+	reviewScenarioID := reviewScenarioIDs[0]
+	reviewScenario := findObjectByID(previousReview["scenarios"], reviewScenarioID)
+	if reviewScenario == nil {
+		return nil, errors.New("routed acceptance finding references an unknown Review scenario")
+	}
+	obligationIDs, _ := anyStringList(reviewScenario["obligation_ids"], "obligation_ids", false)
+	return map[string]any{
+		"acceptance_state_sha256": optionalFileSHA256(acceptancePath),
+		"finding_id":              findingID,
+		"finding_sha256":          findingSHA,
+		"route":                   stringField(finding, "route"),
+		"human_scenario_id":       humanScenarioID,
+		"human_step_id":           stringField(finding, "step_id"),
+		"review_scenario_id":      reviewScenarioID,
+		"review_obligation_ids":   stringSliceToAny(obligationIDs),
+		"expected":                stringField(finding, "expected"),
+		"observed":                stringField(finding, "observed"),
+		"evidence":                cloneAny(finding["evidence"]),
+	}, nil
+}
+
+func findAcceptanceFinding(acceptance map[string]any, findingID string) map[string]any {
+	return findObjectByID(acceptance["findings"], findingID)
+}
+
+func findObjectByID(value any, id string) map[string]any {
+	items, _ := value.([]any)
+	for _, raw := range items {
+		if item, ok := raw.(map[string]any); ok && stringField(item, "id") == id {
+			return item
+		}
+	}
+	return nil
+}
+
+func acceptanceOriginReviewFinding(context map[string]any) map[string]any {
+	findingID := stringField(context, "finding_id")
+	fragment := sha256String(findingID)
+	if len(fragment) > 12 {
+		fragment = fragment[:12]
+	}
+	return map[string]any{
+		"id":                                 "SRF-ACCEPT-" + fragment,
+		"scenario_id":                        stringField(context, "review_scenario_id"),
+		"obligation_ids":                     cloneAny(context["review_obligation_ids"]),
+		"classification":                     "interaction",
+		"gap_classification":                 "implementation_gap",
+		"severity":                           "high",
+		"blocking":                           true,
+		"summary":                            "Human acceptance observed a mismatch; Review must diagnose, fix, and independently revalidate it.",
+		"expected":                           stringField(context, "expected"),
+		"observed":                           stringField(context, "observed"),
+		"evidence":                           cloneAny(context["evidence"]),
+		"origin_acceptance_finding_id":       findingID,
+		"discovered_by_review_assignment_id": "",
+		"status":                             "open",
+		"fix_assignment_id":                  "",
+		"revalidation_ids":                   []any{},
+	}
 }
 
 func reviewExceptionsSHA256(value any) string {
@@ -864,6 +1200,24 @@ func (service reviewAcceptService) routeHumanAcceptanceRepair(request routeHuman
 		env.ShowArgv = acceptShowArgv(feature.rel)
 		return env
 	}
+	finding := findAcceptanceFinding(state, findingID)
+	if finding == nil {
+		return blockedEnvelope("acceptance finding route is unavailable", "routed finding is missing")
+	}
+	reviewRaw, err := os.ReadFile(filepath.Join(feature.abs, reviewStateFilename))
+	if err != nil {
+		return blockedEnvelope("approved Review state is unavailable", err.Error())
+	}
+	previousReviewSHA := fmt.Sprintf("%x", sha256.Sum256(reviewRaw))
+	if source, ok := state["source"].(map[string]any); ok {
+		if bound := stringField(source, "review_state_sha256"); bound != "" && bound != previousReviewSHA {
+			return blockedEnvelope("human acceptance is stale", "review-state.json changed after acceptance preparation")
+		}
+		if bound := stringField(source, "implementation_handoff_sha256"); bound != "" && bound != optionalFileSHA256(filepath.Join(feature.abs, implementationHandoffFilename)) {
+			return blockedEnvelope("human acceptance is stale", "implementation-handoff.json changed after acceptance preparation")
+		}
+	}
+	findingSHA := acceptanceFindingSHA256(finding)
 	backupPath := filepath.Join(feature.abs, humanAcceptanceRepairBackupName)
 	journalPath := filepath.Join(feature.abs, humanAcceptanceRepairJournalName)
 	originalRaw, err := os.ReadFile(statePath)
@@ -875,11 +1229,13 @@ func (service reviewAcceptService) routeHumanAcceptanceRepair(request routeHuman
 	}
 	state["status"] = "draft"
 	state["repair_resume"] = map[string]any{
-		"finding_id":        findingID,
-		"route":             route,
-		"target_stage":      "review",
-		"expected_revision": request.expectedRevision,
-		"evidence":          nonEmptyStrings(request.evidence),
+		"finding_id":                   findingID,
+		"finding_contract_sha256":      findingSHA,
+		"previous_review_state_sha256": previousReviewSHA,
+		"route":                        route,
+		"target_stage":                 "review",
+		"expected_revision":            request.expectedRevision,
+		"evidence":                     nonEmptyStrings(request.evidence),
 	}
 	state["repair_history"] = appendAny(state["repair_history"], map[string]any{
 		"finding_id": findingID,
@@ -906,6 +1262,8 @@ func (service reviewAcceptService) routeHumanAcceptanceRepair(request routeHuman
 		"route":                         route,
 		"target_stage":                  "review",
 		"expected_revision":             request.expectedRevision,
+		"finding_contract_sha256":       findingSHA,
+		"previous_review_state_sha256":  previousReviewSHA,
 		"invalidated_acceptance_sha256": invalidatedSHA,
 		"acceptance_file":               humanAcceptanceFilename,
 		"backup_file":                   humanAcceptanceRepairBackupName,
@@ -1119,7 +1477,9 @@ func (service reviewAcceptService) validateReview(feature reviewAcceptFeature) r
 		if expectedFingerprint != "" && expectedFingerprint != currentFingerprint {
 			errors = append(errors, "review source implementation_fingerprint is stale")
 		}
-		if handoffRevision, ok := jsonInteger(handoff["source_revision"]); ok && intField(source, "workflow_revision") != handoffRevision {
+		if handoffRevision, ok := jsonInteger(handoff["source_revision"]); ok &&
+			intField(source, "workflow_revision") != handoffRevision &&
+			stringField(source, "acceptance_finding_id") == "" {
 			errors = append(errors, "review source workflow_revision does not match implementation handoff")
 		}
 	}

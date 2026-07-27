@@ -1379,6 +1379,27 @@ def test_render_project_launcher_placeholders_expands_cli_and_subcommand(tmp_pat
     )
 
 
+def test_launcher_placeholder_arguments_use_platform_neutral_quote_syntax() -> None:
+    tokens = launcher_module._split_launcher_placeholder_args(
+        'specify-runtime artifact scaffold --kind quick-status '
+        '--path ".planning/quick/<id>-<slug>/STATUS.md" '
+        '--vars "<compact-json>"'
+    )
+
+    assert tokens == (
+        "specify-runtime",
+        "artifact",
+        "scaffold",
+        "--kind",
+        "quick-status",
+        "--path",
+        ".planning/quick/<id>-<slug>/STATUS.md",
+        "--vars",
+        "<compact-json>",
+    )
+    assert all(not token.startswith(('"', "'")) for token in tokens)
+
+
 def test_render_project_launcher_rebinds_bare_unified_runtime_calls(tmp_path):
     binary_name = "specify-runtime.exe" if os.name == "nt" else "specify-runtime"
     binary = tmp_path / "source" / binary_name

@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -11,10 +12,94 @@ import (
 	"testing"
 )
 
+func TestReviewPrepareRestartStaleArchivesExactState(t *testing.T) {
+	projectRoot, featureDir, featureRel := newWorkflowFeature(t, "106-review-restart")
+	writeWorkflowStateFixture(t, featureDir, "106-review-restart", 4, "review", "active", nil)
+	mustWriteReviewAcceptJSON(t, filepath.Join(featureDir, implementationHandoffFilename), reviewAcceptHandoffFixture(4))
+
+	var out bytes.Buffer
+	args := []string{"prepare", "--project-root", projectRoot, "--feature-dir", featureRel, "--expected-revision", "4", "--format", "json"}
+	if code := runReview(args, &out); code != 0 {
+		t.Fatalf("initial prepare exit = %d output = %s", code, out.String())
+	}
+	statePath := filepath.Join(featureDir, reviewStateFilename)
+	stale := readReviewAcceptJSON(t, statePath)
+	stale["source"].(map[string]any)["workflow_revision"] = 3
+	mustWriteReviewAcceptJSON(t, statePath, stale)
+	previousRaw, err := os.ReadFile(statePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	previousDigest := fmt.Sprintf("%x", sha256.Sum256(previousRaw))
+
+	out.Reset()
+	if code := runReview(args, &out); code != 10 {
+		t.Fatalf("stale prepare without restart exit = %d output = %s", code, out.String())
+	}
+	afterBlocked, _ := os.ReadFile(statePath)
+	if !bytes.Equal(afterBlocked, previousRaw) {
+		t.Fatal("blocked stale prepare changed review-state.json")
+	}
+
+	out.Reset()
+	restartArgs := append(append([]string{}, args...), "--restart-stale")
+	if code := runReview(restartArgs, &out); code != 0 {
+		t.Fatalf("restart stale exit = %d output = %s", code, out.String())
+	}
+	restarted := readReviewAcceptEnvelope(t, out.Bytes())
+	if restarted.Data["archived_review_state_ref"] != "review-history/review-state-"+previousDigest+".json" {
+		t.Fatalf("restart archive ref = %#v", restarted.Data["archived_review_state_ref"])
+	}
+	archived, err := os.ReadFile(filepath.Join(featureDir, "review-history", "review-state-"+previousDigest+".json"))
+	if err != nil || !bytes.Equal(archived, previousRaw) {
+		t.Fatalf("archived state mismatch: err=%v", err)
+	}
+	state := readReviewAcceptJSON(t, statePath)
+	source := state["source"].(map[string]any)
+	if int(source["review_cycle"].(float64)) != 2 || source["previous_review_state_sha256"] != previousDigest || source["restart_reason"] != "stale-review-restart" {
+		t.Fatalf("restarted source = %#v", source)
+	}
+}
+
+func TestReviewPrepareRestartStalePreservesMalformedState(t *testing.T) {
+	projectRoot, featureDir, featureRel := newWorkflowFeature(t, "107-review-restart-malformed")
+	writeWorkflowStateFixture(t, featureDir, "107-review-restart-malformed", 4, "review", "active", nil)
+	mustWriteReviewAcceptJSON(t, filepath.Join(featureDir, implementationHandoffFilename), reviewAcceptHandoffFixture(4))
+	statePath := filepath.Join(featureDir, reviewStateFilename)
+	malformed := []byte("{not-json\n")
+	if err := os.WriteFile(statePath, malformed, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var out bytes.Buffer
+	args := []string{"prepare", "--project-root", projectRoot, "--feature-dir", featureRel, "--expected-revision", "4", "--format", "json"}
+	if code := runReview(args, &out); code != 10 {
+		t.Fatalf("malformed prepare without restart exit = %d output = %s", code, out.String())
+	}
+	if current, _ := os.ReadFile(statePath); !bytes.Equal(current, malformed) {
+		t.Fatal("blocked malformed prepare changed review-state.json")
+	}
+
+	out.Reset()
+	if code := runReview(append(args, "--restart-stale"), &out); code != 0 {
+		t.Fatalf("malformed restart exit = %d output = %s", code, out.String())
+	}
+	digest := fmt.Sprintf("%x", sha256.Sum256(malformed))
+	archived, err := os.ReadFile(filepath.Join(featureDir, "review-history", "review-state-"+digest+".json"))
+	if err != nil || !bytes.Equal(archived, malformed) {
+		t.Fatalf("malformed archive mismatch: err=%v", err)
+	}
+	state := readReviewAcceptJSON(t, statePath)
+	rounds := state["rounds"].([]any)
+	if len(rounds) != 1 || strings.TrimSpace(fmt.Sprint(rounds[0].(map[string]any)["restart_error"])) == "" {
+		t.Fatalf("malformed restart rounds = %#v", rounds)
+	}
+}
+
 func TestReviewPrepareValidateAndCloseout(t *testing.T) {
 	projectRoot, featureDir, featureRel := newWorkflowFeature(t, "101-review")
 	writeWorkflowStateFixture(t, featureDir, "101-review", 4, "review", "active", nil)
 	mustWriteReviewAcceptJSON(t, filepath.Join(featureDir, implementationHandoffFilename), reviewAcceptHandoffFixture(4))
+	writeTextFile(t, filepath.Join(featureDir, humanAcceptanceSummaryFilename), "stale summary\n")
 
 	var out bytes.Buffer
 	if code := runReview([]string{"prepare", "--project-root", projectRoot, "--feature-dir", featureRel, "--expected-revision", "4", "--format", "json"}, &out); code != 0 {
@@ -27,6 +112,12 @@ func TestReviewPrepareValidateAndCloseout(t *testing.T) {
 	state := readReviewAcceptJSON(t, filepath.Join(featureDir, reviewStateFilename))
 	if state["status"] != "gathering" || int(state["version"].(float64)) != reviewStateVersion {
 		t.Fatalf("prepared state = %#v", state)
+	}
+	if targets := state["reviewed_runtime_targets"].([]any); len(targets) != 0 {
+		t.Fatalf("prepared Review inherited unreviewed runtime targets: %#v", targets)
+	}
+	if summarySHA := state["final"].(map[string]any)["implementation_summary_sha256"]; summarySHA != "" {
+		t.Fatalf("prepared Review inherited stale implementation summary digest: %#v", summarySHA)
 	}
 
 	out.Reset()
@@ -238,9 +329,13 @@ func TestAcceptPrepareValidateCloseoutAndRouteRepair(t *testing.T) {
 
 	rejected := cloneAny(acceptance).(map[string]any)
 	rejected["status"] = "rejected"
-	rejected["findings"] = []any{map[string]any{"id": "HA-1", "route": "sp-review", "status": "open"}}
+	rejected["findings"] = []any{map[string]any{
+		"id": "HA-1", "route": "sp-review", "status": "open", "scenario_id": "HA-S-1", "step_id": "step-1",
+		"expected": "The accepted action succeeds.", "observed": "The accepted action failed.", "evidence": []any{"sanitized failed acceptance scenario"},
+	}}
 	rejected["overall"] = map[string]any{"verdict": "fail", "human_decision": "reject", "next_command": "sp-review"}
 	mustWriteReviewAcceptJSON(t, filepath.Join(featureDir, humanAcceptanceFilename), rejected)
+	previousReviewSHA := optionalFileSHA256(filepath.Join(featureDir, reviewStateFilename))
 	out.Reset()
 	if code := runAccept([]string{"route-repair", "--project-root", projectRoot, "--feature-dir", featureRel, "--finding-id", "HA-1", "--route", "sp-review", "--expected-revision", "9", "--evidence", "sanitized failed acceptance scenario", "--format", "json"}, &out); code != 0 {
 		t.Fatalf("route-repair exit = %d output = %s", code, out.String())
@@ -259,6 +354,34 @@ func TestAcceptPrepareValidateCloseoutAndRouteRepair(t *testing.T) {
 	if invalidated["status"] != "draft" {
 		t.Fatalf("invalidated acceptance = %#v", invalidated)
 	}
+	handoffPath := filepath.Join(featureDir, implementationHandoffFilename)
+	originalHandoff, err := os.ReadFile(handoffPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	changedHandoff := readReviewAcceptJSON(t, handoffPath)
+	changedHandoff["post_acceptance_change"] = true
+	mustWriteReviewAcceptJSON(t, handoffPath, changedHandoff)
+	out.Reset()
+	if code := runReview([]string{"prepare", "--project-root", projectRoot, "--feature-dir", featureRel, "--expected-revision", "10", "--format", "json"}, &out); code != 10 {
+		t.Fatalf("stale acceptance repair handoff exit = %d output = %s", code, out.String())
+	}
+	if err := os.WriteFile(handoffPath, originalHandoff, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	out.Reset()
+	if code := runReview([]string{"prepare", "--project-root", projectRoot, "--feature-dir", featureRel, "--expected-revision", "10", "--format", "json"}, &out); code != 0 {
+		t.Fatalf("acceptance repair review prepare exit = %d output = %s", code, out.String())
+	}
+	repairReview := readReviewAcceptJSON(t, filepath.Join(featureDir, reviewStateFilename))
+	repairSource := repairReview["source"].(map[string]any)
+	if int(repairSource["review_cycle"].(float64)) != 2 || repairSource["previous_review_state_sha256"] != previousReviewSHA || repairSource["acceptance_finding_id"] != "HA-1" {
+		t.Fatalf("acceptance repair review source = %#v", repairSource)
+	}
+	if findings := repairReview["findings"].([]any); len(findings) != 1 || findings[0].(map[string]any)["origin_acceptance_finding_id"] != "HA-1" {
+		t.Fatalf("acceptance repair findings = %#v", findings)
+	}
 }
 
 func approvedReviewStateFixture(t *testing.T, projectRoot, featureDir, featureRel string, revision int) map[string]any {
@@ -274,8 +397,11 @@ func approvedReviewStateFixture(t *testing.T, projectRoot, featureDir, featureRe
 			"implementation_fingerprint":    sourceTreeFingerprint(projectRoot, featureDir),
 			"review_cycle":                  1,
 		},
-		"findings":                 []any{},
-		"reviewed_runtime_targets": []any{"http://localhost:3000"},
+		"scenarios":                  []any{map[string]any{"id": "RS-1", "required": true, "obligation_ids": []any{"RO-1"}}},
+		"obligations":                []any{map[string]any{"id": "RO-1", "required": true, "scenario_ids": []any{"RS-1"}}},
+		"human_acceptance_scenarios": []any{map[string]any{"id": "HA-S-1", "required": true, "review_scenario_ids": []any{"RS-1"}}},
+		"findings":                   []any{},
+		"reviewed_runtime_targets":   []any{"http://localhost:3000"},
 		"final": map[string]any{
 			"verdict":                       "pass",
 			"coverage_verdict":              "pass",
@@ -298,9 +424,9 @@ func reviewAcceptHandoffFixture(revision int) map[string]any {
 		"fingerprint_algorithm":        implementationFingerprintAlgorith,
 		"entrypoints":                  []any{"web"},
 		"runtime_targets":              []any{"http://localhost:3000"},
-		"review_scenarios":             []any{map[string]any{"id": "RS-1", "required": true}},
-		"review_obligations":           []any{map[string]any{"id": "RO-1", "required": true}},
-		"human_acceptance_scenarios":   []any{map[string]any{"id": "HA-S-1", "required": true}},
+		"review_scenarios":             []any{map[string]any{"id": "RS-1", "required": true, "obligation_ids": []any{"RO-1"}}},
+		"review_obligations":           []any{map[string]any{"id": "RO-1", "required": true, "scenario_ids": []any{"RS-1"}}},
+		"human_acceptance_scenarios":   []any{map[string]any{"id": "HA-S-1", "required": true, "review_scenario_ids": []any{"RS-1"}}},
 		"human_acceptance_obligations": []any{map[string]any{"id": "HA-O-1", "required": true}},
 		"human_acceptance_contract":    map[string]any{"sha256": "contract"},
 	}

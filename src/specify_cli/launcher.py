@@ -1906,7 +1906,7 @@ def render_project_launcher_placeholders(project_root: Path, body: str) -> str:
         if not args_text:
             return match.group(0)
         try:
-            tokens = tuple(shlex.split(args_text, posix=os.name != "nt"))
+            tokens = _split_launcher_placeholder_args(args_text)
         except ValueError:
             return match.group(0)
         if not tokens:
@@ -1947,6 +1947,12 @@ def render_project_launcher_placeholders(project_root: Path, body: str) -> str:
         runtime_command,
     )
     return rendered
+
+
+def _split_launcher_placeholder_args(args_text: str) -> tuple[str, ...]:
+    """Parse platform-neutral template argv before host-specific rendering."""
+
+    return tuple(shlex.split(args_text, posix=True))
 
 
 def rebind_unavailable_specify_runtime_commands(

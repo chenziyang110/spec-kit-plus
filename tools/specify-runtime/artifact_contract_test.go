@@ -647,6 +647,77 @@ func TestArtifactScaffoldCLIUsesUnifiedEnvelope(t *testing.T) {
 	}
 }
 
+func TestArtifactScaffoldCLIAcceptsDeprecatedOutAlias(t *testing.T) {
+	projectRoot := t.TempDir()
+	installScaffoldTemplate(t, projectRoot, "artifacts/quick-status.md")
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{
+		"artifact", "scaffold",
+		"--project-root", projectRoot,
+		"--kind", "quick-status",
+		"--out", ".planning/quick/001-demo/STATUS.md",
+		"--vars", `{"id":"001","slug":"001-demo","title":"Demo","trigger":"manual"}`,
+		"--format", "json",
+	}, &stdout, &stderr, "test")
+	if code != 0 {
+		t.Fatalf("artifact scaffold alias code = %d stderr=%q stdout=%q", code, stderr.String(), stdout.String())
+	}
+	payload := decodeJSONObject(t, stdout.Bytes())
+	data := requireObject(t, payload, "data")
+	compatibility := requireObject(t, data, "compatibility")
+	if compatibility["deprecated_option"] != "--out" || compatibility["replacement"] != "--path" {
+		t.Fatalf("artifact scaffold compatibility = %#v", compatibility)
+	}
+}
+
+func TestArtifactScaffoldCLIRejectsUnknownOptionsBeforePathValidation(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{
+		"artifact", "scaffold", "--kind", "quick-status", "--ouut", ".planning/quick/001-demo/STATUS.md", "--format", "json",
+	}, &stdout, &stderr, "test")
+	if code != 2 {
+		t.Fatalf("artifact scaffold typo code = %d stdout=%q", code, stdout.String())
+	}
+	payload := decodeJSONObject(t, stdout.Bytes())
+	if payload["status"] != "usage-error" || !strings.Contains(fmt.Sprint(payload["blockers"]), "unknown option \"--ouut\"") {
+		t.Fatalf("artifact scaffold typo payload = %#v", payload)
+	}
+	if !strings.Contains(fmt.Sprint(payload["blockers"]), "--out") || !strings.Contains(fmt.Sprint(payload["blockers"]), "--path") {
+		t.Fatalf("artifact scaffold typo lacks compatibility guidance: %#v", payload)
+	}
+	if show := requireStringArray(t, payload, "show_argv"); len(show) < 4 || show[1] != "api" || show[2] != "show" || show[3] != "artifact.scaffold" {
+		t.Fatalf("artifact scaffold typo show_argv = %#v", show)
+	}
+	if next := requireStringArray(t, payload, "next_argv"); len(next) < 3 || next[1] != "artifact" || next[2] != "catalog" {
+		t.Fatalf("artifact scaffold typo next_argv = %#v", next)
+	}
+}
+
+func TestArtifactScaffoldCLIReportsMissingPathPrecisely(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"artifact", "scaffold", "--kind", "quick-status", "--format", "json"}, &stdout, &stderr, "test")
+	if code != 2 {
+		t.Fatalf("artifact scaffold missing path code = %d stdout=%q", code, stdout.String())
+	}
+	payload := decodeJSONObject(t, stdout.Bytes())
+	if payload["status"] != "usage-error" || !strings.Contains(fmt.Sprint(payload["summary"]), "requires --path") {
+		t.Fatalf("artifact scaffold missing path payload = %#v", payload)
+	}
+}
+
+func TestArtifactScaffoldHelpDescribesCanonicalInvocation(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"artifact", "scaffold", "--help"}, &stdout, &stderr, "test")
+	if code != 0 {
+		t.Fatalf("artifact scaffold help code = %d stderr=%q stdout=%q", code, stderr.String(), stdout.String())
+	}
+	for _, want := range []string{"--kind <kind>", "--path <project-relative-path>", "--out", "artifact catalog"} {
+		if !strings.Contains(stdout.String(), want) {
+			t.Fatalf("artifact scaffold help = %q, want %q", stdout.String(), want)
+		}
+	}
+}
+
 func TestArtifactScaffoldCatalogPublishesOnlyImplementedKinds(t *testing.T) {
 	result := ArtifactScaffoldCatalog()
 	if result.Status != "ok" || len(result.Items) != 2 {
@@ -661,6 +732,12 @@ func TestArtifactScaffoldCatalogPublishesOnlyImplementedKinds(t *testing.T) {
 		kinds[entry["kind"].(string)] = true
 		if entry["estimated_token_savings"].(int) <= 0 {
 			t.Fatalf("catalog item has no savings estimate: %#v", entry)
+		}
+		if strings.TrimSpace(fmt.Sprint(entry["usage"])) == "" {
+			t.Fatalf("catalog item has no usage: %#v", entry)
+		}
+		if len(entry["allowed_paths"].([]string)) == 0 {
+			t.Fatalf("catalog item has no allowed paths: %#v", entry)
 		}
 	}
 	if !kinds["plan-contract"] || !kinds["quick-status"] {

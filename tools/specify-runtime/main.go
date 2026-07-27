@@ -158,12 +158,24 @@ func runArtifact(args []string, stdout io.Writer) int {
 	if len(args) == 0 {
 		return writeEnvelope(stdout, NewEnvelope("usage-error", "missing artifact subcommand"))
 	}
+	if args[0] == "--help" || args[0] == "-h" || args[0] == "help" {
+		return writeArtifactHelp(stdout, "")
+	}
+	if len(args) > 1 && (args[1] == "--help" || args[1] == "-h") {
+		return writeArtifactHelp(stdout, args[0])
+	}
 	projectRoot := optionValue(args, "--project-root", ".")
 	service := NewArtifactService(projectRoot)
 	switch args[0] {
 	case "catalog":
+		if env, ok := validateArtifactOptions(args, "--format", "--project-root"); !ok {
+			return writeEnvelope(stdout, env)
+		}
 		return writeEnvelope(stdout, ArtifactScaffoldCatalog())
 	case "prepare":
+		if env, ok := validateArtifactOptions(args, "--feature", "--format", "--kind", "--path", "--project-root"); !ok {
+			return writeEnvelope(stdout, env)
+		}
 		env := service.Prepare(ArtifactPrepareRequest{
 			FeatureID: optionValue(args, "--feature", ""),
 			Kind:      optionValue(args, "--kind", ""),
@@ -171,25 +183,59 @@ func runArtifact(args []string, stdout io.Writer) int {
 		})
 		return writeEnvelope(stdout, env)
 	case "scaffold":
+		if env, ok := validateArtifactOptions(args, "--format", "--kind", "--out", "--path", "--project-root", "--vars"); !ok {
+			return writeEnvelope(stdout, env)
+		}
+		kind := strings.TrimSpace(optionValue(args, "--kind", ""))
+		if kind == "" {
+			return writeEnvelope(stdout, artifactUsageEnvelope("scaffold", "artifact scaffold requires --kind"))
+		}
+		pathValue := strings.TrimSpace(optionValue(args, "--path", ""))
+		outValue := strings.TrimSpace(optionValue(args, "--out", ""))
+		if pathValue != "" && outValue != "" {
+			env := artifactUsageEnvelope("scaffold", "artifact scaffold accepts either --path or deprecated --out, not both")
+			env.Blockers = append(env.Blockers, "use --path for the canonical invocation")
+			return writeEnvelope(stdout, env)
+		}
+		if pathValue == "" {
+			pathValue = outValue
+		}
+		if pathValue == "" {
+			env := artifactUsageEnvelope("scaffold", "artifact scaffold requires --path")
+			env.Blockers = append(env.Blockers, "use --path <project-relative-path>; --out remains a deprecated compatibility alias")
+			return writeEnvelope(stdout, env)
+		}
 		variables := map[string]any{}
 		varsJSON := optionValue(args, "--vars", "{}")
 		if err := json.Unmarshal([]byte(varsJSON), &variables); err != nil {
-			env := NewEnvelope("usage-error", "artifact scaffold variables are invalid")
+			env := artifactUsageEnvelope("scaffold", "artifact scaffold variables are invalid")
 			env.Blockers = append(env.Blockers, "--vars must be a JSON object: "+err.Error())
 			return writeEnvelope(stdout, env)
 		}
 		if variables == nil {
-			env := NewEnvelope("usage-error", "artifact scaffold variables are invalid")
+			env := artifactUsageEnvelope("scaffold", "artifact scaffold variables are invalid")
 			env.Blockers = append(env.Blockers, "--vars must be a JSON object")
 			return writeEnvelope(stdout, env)
 		}
 		env := service.Scaffold(ArtifactScaffoldRequest{
-			Kind:      optionValue(args, "--kind", ""),
-			Path:      optionValue(args, "--path", ""),
+			Kind:      kind,
+			Path:      pathValue,
 			Variables: variables,
 		})
+		if env.Status != "ok" {
+			bindArtifactUsage(&env, "scaffold")
+		}
+		if outValue != "" {
+			env.Data["compatibility"] = map[string]any{
+				"deprecated_option": "--out",
+				"replacement":       "--path",
+			}
+		}
 		return writeEnvelope(stdout, env)
 	case "submit":
+		if env, ok := validateArtifactOptions(args, "--content", "--content-file", "--format", "--lease", "--project-root"); !ok {
+			return writeEnvelope(stdout, env)
+		}
 		contentFile := optionValue(args, "--content-file", "")
 		var content any = optionValue(args, "--content", "")
 		if contentFile != "" {
@@ -207,6 +253,9 @@ func runArtifact(args []string, stdout io.Writer) int {
 		})
 		return writeEnvelope(stdout, env)
 	case "show":
+		if env, ok := validateArtifactOptions(args, "--feature", "--format", "--kind", "--path", "--project-root", "--view"); !ok {
+			return writeEnvelope(stdout, env)
+		}
 		env := service.Show(ArtifactShowRequest{
 			FeatureID: optionValue(args, "--feature", ""),
 			Kind:      optionValue(args, "--kind", ""),
@@ -216,6 +265,70 @@ func runArtifact(args []string, stdout io.Writer) int {
 		return writeEnvelope(stdout, env)
 	default:
 		return writeEnvelope(stdout, NewEnvelope("usage-error", fmt.Sprintf("unknown artifact subcommand %q", args[0])))
+	}
+}
+
+func writeArtifactHelp(stdout io.Writer, subcommand string) int {
+	switch subcommand {
+	case "":
+		_, _ = fmt.Fprintln(stdout, "specify-runtime artifact commands:")
+		for _, command := range []string{"catalog", "prepare", "scaffold", "show", "submit"} {
+			_, _ = fmt.Fprintf(stdout, "  %s\n", command)
+		}
+	case "scaffold":
+		_, _ = fmt.Fprintln(stdout, "Usage: specify-runtime artifact scaffold --kind <kind> --path <project-relative-path> [--vars <json>] [--format json]")
+		_, _ = fmt.Fprintln(stdout, "  --path is canonical; --out is a deprecated compatibility alias.")
+		_, _ = fmt.Fprintln(stdout, "  Run specify-runtime artifact catalog --format json for registered kinds and paths.")
+	default:
+		_, _ = fmt.Fprintf(stdout, "Usage: specify-runtime artifact %s [options]\n", subcommand)
+		_, _ = fmt.Fprintln(stdout, "  Run specify-runtime api show artifact."+subcommand+" --format json for capability details.")
+	}
+	return 0
+}
+
+func validateArtifactOptions(args []string, allowed ...string) (Envelope, bool) {
+	allowedSet := make(map[string]bool, len(allowed))
+	for _, name := range allowed {
+		allowedSet[name] = true
+	}
+	seen := map[string]bool{}
+	for index := 1; index < len(args); index++ {
+		name := args[index]
+		if !strings.HasPrefix(name, "--") || !allowedSet[name] {
+			env := artifactUsageEnvelope(args[0], fmt.Sprintf("artifact %s options are invalid", args[0]))
+			message := fmt.Sprintf("unknown option %q", name)
+			if args[0] == "scaffold" {
+				message += "; use --path (canonical) or --out (deprecated compatibility alias)"
+			}
+			env.Blockers = append(env.Blockers, message)
+			return env, false
+		}
+		if seen[name] {
+			env := artifactUsageEnvelope(args[0], fmt.Sprintf("artifact %s option %s was repeated", args[0], name))
+			return env, false
+		}
+		seen[name] = true
+		if index+1 >= len(args) {
+			env := artifactUsageEnvelope(args[0], fmt.Sprintf("artifact %s option %s requires a value", args[0], name))
+			return env, false
+		}
+		index++
+	}
+	return Envelope{}, true
+}
+
+func artifactUsageEnvelope(subcommand, summary string) Envelope {
+	env := usageEnvelope(summary)
+	bindArtifactUsage(&env, subcommand)
+	return env
+}
+
+func bindArtifactUsage(env *Envelope, subcommand string) {
+	if len(env.ShowArgv) == 0 {
+		env.ShowArgv = []string{"specify-runtime", "api", "show", "artifact." + subcommand, "--format", "json"}
+	}
+	if subcommand == "scaffold" && len(env.NextArgv) == 0 {
+		env.NextArgv = []string{"specify-runtime", "artifact", "catalog", "--format", "json"}
 	}
 }
 
