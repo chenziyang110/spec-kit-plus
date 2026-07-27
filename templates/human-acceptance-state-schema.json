@@ -50,6 +50,10 @@
         "verdict": {"enum": ["pending", "pass", "fail"]}
       }
     },
+    "review_exceptions": {
+      "type": "array",
+      "items": {"type": "object"}
+    },
     "runtime_targets": {"type": "array", "items": {"$ref": "#/$defs/runtime_target"}},
     "scenarios": {"type": "array", "items": {"$ref": "#/$defs/scenario"}},
     "cursor": {

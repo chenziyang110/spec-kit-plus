@@ -33,8 +33,20 @@ heavy_gate_owner: leader
 
 Call
 `{{specify-subcmd:specify-runtime implement validation-status --feature-dir <feature-dir> --format json}}`
-before allocation. Immediately before a Leader-owned baseline or convergence
-wave, call:
+before allocation. Treat its `attempt_decision` as the allocation authority:
+
+- `resume_running_attempt`: resume or finish the named running attempt;
+- `retry_same_gate`: start the returned next attempt inside the same gate;
+- `repair_before_retry`: do not start until repair changes the fingerprint;
+- `open_logical_gate`: allocate only the named unopened gate; and
+- `validation_complete`: create no attempt.
+
+`remaining_epochs` is a compatibility count of unopened logical gates and
+`remaining_gate_slots` has the same scope. Neither is a retry counter. Never
+stop or blindly rerun because the raw count is zero; when
+`attempt_decision.can_start_attempt` is true, continue the progress-bound
+attempt in the existing gate. Immediately before a Leader-owned baseline or
+convergence wave, call:
 
 ```text
 {{specify-subcmd:specify-runtime implement validation-start --feature-dir <feature-dir> --stage implement --purpose <baseline|convergence> --command '<cmd>' [--command '<cmd2>'] [--task-id T001] [--task-id T002] [--fingerprint <sha>] --format json}}
@@ -58,6 +70,9 @@ means the expected pre-change failure or credible before-state was observed;
 termination, cancellation, harness failure, or environment loss is
 `interrupted`, never a test failure. Retry an interrupted attempt inside the
 same gate and fingerprint; retry a real failure only after a new fingerprint.
+A passed baseline is immutable; later source changes advance to convergence
+instead of rewriting the before-state. A passed convergence or delivery gate
+may receive another attempt after a later repair changes the fingerprint.
 Attempts do not consume another gate or steal Review delivery capacity. Never
 start a fourth logical gate.
 

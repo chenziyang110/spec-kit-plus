@@ -883,6 +883,9 @@ def _system_review_summary(feature_dir: Path, project_root: Path) -> dict[str, A
         }
     scenarios = state.get("scenarios") if isinstance(state, dict) else []
     findings = state.get("findings") if isinstance(state, dict) else []
+    review_exceptions = (
+        state.get("review_exceptions") if isinstance(state, dict) else []
+    )
     return {
         "status": str(state.get("status") or "unknown") if isinstance(state, dict) else "invalid",
         "state_path": _display_path(state_path, project_root),
@@ -902,6 +905,20 @@ def _system_review_summary(feature_dir: Path, project_root: Path) -> dict[str, A
                 "status": str(item.get("status") or ""),
             }
             for item in findings or []
+            if isinstance(item, dict)
+        ],
+        "review_exceptions": [
+            {
+                "exception_id": str(item.get("exception_id") or ""),
+                "kind": str(item.get("kind") or ""),
+                "required_resource": str(item.get("required_resource") or ""),
+                "scenario_ids": list(item.get("scenario_ids") or []),
+                "claims_withheld": list(item.get("claims_withheld") or []),
+                "residual_risk": str(item.get("residual_risk") or ""),
+                "risk_severity": str(item.get("risk_severity") or ""),
+                "status": str(item.get("status") or ""),
+            }
+            for item in review_exceptions or []
             if isinstance(item, dict)
         ],
     }
@@ -1175,6 +1192,40 @@ def _render_markdown(payload: dict[str, Any]) -> str:
             )
     else:
         lines.append("- Blocking findings: None recorded.")
+    review_exceptions = [
+        item
+        for item in (system_review.get("review_exceptions") or [])
+        if item.get("status") == "confirmed"
+    ]
+    if review_exceptions:
+        lines.extend(["", "### Confirmed Review Waivers", ""])
+        for item in review_exceptions:
+            lines.append(
+                f"- `{item.get('exception_id', 'REX')}`: "
+                f"{item.get('required_resource', 'required hardware')} unavailable; "
+                f"status `{item.get('status', 'unknown')}`, risk "
+                f"`{item.get('risk_severity', 'unknown')}`."
+            )
+            scenario_ids = item.get("scenario_ids") or []
+            if scenario_ids:
+                lines.append(
+                    "  - Waived scenarios: "
+                    + ", ".join(f"`{value}`" for value in scenario_ids)
+                )
+            claims = item.get("claims_withheld") or []
+            if claims:
+                lines.append(
+                    "  - Claims explicitly withheld: "
+                    + "; ".join(str(value) for value in claims)
+                )
+            lines.append(
+                "  - Residual risk: "
+                + str(item.get("residual_risk") or "not recorded")
+            )
+        lines.append(
+            "- Waived checks were not counted as passed; the human confirmation "
+            "accepted only the documented residual risk."
+        )
 
     lines.extend(["", "## How To Verify", ""])
     evidence = payload.get("verification_evidence") or []

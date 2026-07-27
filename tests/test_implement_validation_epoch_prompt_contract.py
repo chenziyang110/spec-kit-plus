@@ -54,6 +54,16 @@ def test_implement_profiles_define_three_logical_gates_with_retryable_attempts()
         assert "implementation-review/validation-runs.json" in content
         assert "heavy_gate_owner: leader" in content
         assert "implement validation-status --feature-dir <feature-dir> --format json" in content
+        assert "attempt_decision" in content
+        assert "remaining_epochs" in content
+        assert "remaining_gate_slots" in content
+        assert "resume_running_attempt" in content
+        assert "retry_same_gate" in content
+        assert "repair_before_retry" in content
+        assert "open_logical_gate" in content
+        assert "validation_complete" in content
+        assert "raw count" in content
+        assert "zero" in content and "can_start_attempt" in content
         assert "implement validation-start --feature-dir <feature-dir> --stage implement" in content
         assert "--purpose <baseline|convergence>" in content
         assert "implement validation-finish --feature-dir <feature-dir> --run-id <vn>" in content
@@ -75,6 +85,8 @@ def test_implement_profiles_define_three_logical_gates_with_retryable_attempts()
         )
         assert "real assertion or verification failure" in content
         assert "new fingerprint" in content
+        assert "passed baseline is immutable" in content
+        assert "advance" in content and "convergence" in content
         assert "never open a fourth" in content or "never start a fourth" in content
         assert "deferral-propose" in content and "deferral-confirm" in content
         assert "never means passed" in content or "never accepted" in content

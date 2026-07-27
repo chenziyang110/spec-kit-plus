@@ -731,6 +731,8 @@ func defaultCapabilities() []string {
 		"implement.validation-start",
 		"implement.validation-status",
 		"review.closeout",
+		"review.exception-confirm",
+		"review.exception-propose",
 		"review.prepare",
 		"review.resume-audit",
 		"review.validate",

@@ -400,6 +400,26 @@ func TestWorkflowReopenAndAcceptanceRepairMode(t *testing.T) {
 		}
 	})
 
+	t.Run("review keeps implementation repair", func(t *testing.T) {
+		projectRoot, featureDir, featureRel := newWorkflowFeature(t, "001-review-repair")
+		writeWorkflowStateFixture(t, featureDir, "001-review-repair", 8, "review", "active", nil)
+		result := NewWorkflowService(projectRoot).Reopen(WorkflowReopenRequest{
+			FeatureDir:           featureRel,
+			To:                   "implement",
+			ExpectedRevision:     8,
+			Reason:               "A Review journey exposed a wiring defect.",
+			Evidence:             []string{"finding SRF-001"},
+			InvalidatedArtifacts: []string{"review-state.json"},
+		})
+		if result.Status != "blocked" || result.Data["error_code"] != "review-repair-owned-by-review" {
+			t.Fatalf("review-to-implement reopen = %#v, want Review-owned repair block", result)
+		}
+		state := readWorkflowStateMap(t, filepath.Join(featureDir, "workflow.json"))
+		if state["stage"] != "review" || state["revision"] != float64(8) {
+			t.Fatalf("blocked reopen changed state: %#v", state)
+		}
+	})
+
 	t.Run("same stage requires completed", func(t *testing.T) {
 		projectRoot, featureDir, featureRel := newWorkflowFeature(t, "002-same")
 		writeWorkflowStateFixture(t, featureDir, "002-same", 4, "plan", "active", nil)

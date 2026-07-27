@@ -16,6 +16,16 @@ Advance the current feature through tracked implementation batches while keeping
 ## Process
 
 - Recover compact execution state, validate the task-graph revision, and identify the current ready batch.
+- Before allocating a Leader-owned validation wave, run
+  `{{specify-subcmd:specify-runtime implement validation-status --feature-dir <feature-dir> --format json}}`
+  and obey `attempt_decision`. Resume `resume_running_attempt`; start the
+  progress-bound attempt returned by `retry_same_gate`; for
+  `repair_before_retry`, repair first and require the implementation fingerprint
+  to change; use `open_logical_gate` only for a genuinely unopened logical
+  gate; and create no attempt for `validation_complete`. `remaining_epochs` is
+  a compatibility count of unopened logical gates, as is
+  `remaining_gate_slots`; zero is not a retry-exhaustion signal. Never stop or
+  blindly rerun from the raw count alone.
 - If the feature lane is not explicit, run `{{specify-subcmd:specify-runtime lane resolve --command implement --ensure-worktree}}`; use the returned execution context/materialized worktree and stop on `uncertain`.
 - Read `FEATURE_DIR/workflow-state.md` when present. If its canonical `next_command` still points to `/sp.analyze`, stop and honor that pending diagnostic gate rather than self-authorizing implementation from chat memory.
 - On resume, audit terminal-looking tracker/task state before trusting completion; checked tasks are claims until validation, handoff, join point, and consumer evidence prove them. When `real_entrypoint_evidence` is required, synthetic-only consumer proof is not sufficient.
@@ -55,5 +65,9 @@ Advance the current feature through tracked implementation batches while keeping
   completion claim open an extra logical gate. Interruptions retry inside their
   gate; real failures require repair and a new fingerprint. Never open a fourth
   logical gate.
+- Do not convert `remaining_epochs: 0` into a hard stop when
+  `attempt_decision.can_start_attempt` is true. Logical-gate cost control limits
+  new validation scope; it does not suppress a repaired or interrupted attempt
+  needed to finish the current gate.
 - Do not declare completion because tasks look checked off if the implementation contract is not actually satisfied.
 - Do not treat the later system Review as a dumping ground. Complete known entrypoint and consumer wiring during implementation; Review is an independent integrated proof-and-repair gate.

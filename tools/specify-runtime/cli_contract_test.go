@@ -398,6 +398,8 @@ func generatedRuntimeVerbCapabilities() []string {
 		"result.path",
 		"result.submit",
 		"review.closeout",
+		"review.exception-confirm",
+		"review.exception-propose",
 		"review.prepare",
 		"review.resume-audit",
 		"review.validate",

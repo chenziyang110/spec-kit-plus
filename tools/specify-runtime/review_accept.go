@@ -3,10 +3,14 @@ package main
 import (
 	"crypto/sha256"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"reflect"
+	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -25,6 +29,24 @@ const (
 	reviewStateVersion                = 2
 	humanAcceptanceStateVersion       = 2
 	implementationFingerprintAlgorith = "git-working-tree-v1"
+)
+
+var (
+	reviewExceptionIDRE                = regexp.MustCompile(`^REX-[0-9a-f]{12}$`)
+	reviewExceptionConfirmationSources = map[string]bool{
+		"human-reply": true, "interactive-input": true, "attached-evidence": true,
+	}
+	reviewExceptionInputFields = []string{
+		"kind", "scenario_ids", "obligation_ids", "required_resource",
+		"unavailable_evidence_refs", "attempted_alternatives", "claims_withheld",
+		"residual_risk", "risk_severity",
+	}
+	reviewExceptionProposalFields = []string{
+		"kind", "scenario_ids", "obligation_ids", "required_resource",
+		"unavailable_evidence_refs", "unavailable_evidence_sha256",
+		"attempted_alternatives", "claims_withheld", "residual_risk", "risk_severity",
+		"review_cycle_id", "implementation_fingerprint",
+	}
 )
 
 type reviewAcceptFeature struct {
@@ -50,6 +72,28 @@ func runReview(args []string, stdout io.Writer) int {
 		env = service.resumeReviewAudit(optionValue(args, "--feature-dir", ""))
 	case "validate":
 		env = service.validateReviewEnvelope(optionValue(args, "--feature-dir", ""))
+	case "exception-propose":
+		input := strings.TrimSpace(optionValue(args, "--input", ""))
+		if input == "" {
+			return writeEnvelope(stdout, usageEnvelope("review exception-propose requires --input"))
+		}
+		inputPath, err := resolveProjectContainedPath(service.projectRoot, input)
+		if err != nil {
+			return writeEnvelope(stdout, usageEnvelope("review exception input path is invalid: "+err.Error()))
+		}
+		proposal, err := readJSONObject(inputPath)
+		if err != nil {
+			return writeEnvelope(stdout, blockedEnvelope("review exception proposal is unreadable", err.Error()))
+		}
+		env = service.proposeReviewException(optionValue(args, "--feature-dir", ""), proposal)
+	case "exception-confirm":
+		env = service.confirmReviewException(
+			optionValue(args, "--feature-dir", ""),
+			optionValue(args, "--exception-id", ""),
+			optionValue(args, "--proposal-sha256", ""),
+			optionValue(args, "--confirmation-source", ""),
+			optionValue(args, "--statement", ""),
+		)
 	case "closeout":
 		expected, ok := intOption(args, "--expected-revision")
 		if !ok {
@@ -168,6 +212,11 @@ func (service reviewAcceptService) prepareReview(featureDir string, expectedRevi
 		if source, ok := existing["source"].(map[string]any); ok &&
 			stringField(source, "implementation_handoff_sha256") == handoffSHA &&
 			intField(source, "workflow_revision") == expectedRevision {
+			if upgradeReviewExceptionContract(existing) {
+				if err := writeReviewAcceptJSONAtomic(statePath, existing); err != nil {
+					return errorEnvelope("failed to upgrade review state", err)
+				}
+			}
 			env := NewEnvelope("ok", "system review state is already prepared")
 			env.Data = existing
 			env.ShowArgv = reviewShowArgv(feature.rel)
@@ -188,6 +237,7 @@ func (service reviewAcceptService) prepareReview(featureDir string, expectedRevi
 			"fingerprint_algorithm":            valueOr(handoff["fingerprint_algorithm"], implementationFingerprintAlgorith),
 			"implementation_summary_sha256":    optionalFileSHA256(filepath.Join(feature.abs, humanAcceptanceSummaryFilename)),
 			"review_cycle":                     1,
+			"review_cycle_id":                  reviewCycleID(expectedRevision, handoffSHA, 1, "", "", ""),
 			"human_acceptance_contract_sha256": nestedString(handoff, "human_acceptance_contract", "sha256"),
 		},
 		"entrypoints":                  cloneAny(handoff["entrypoints"]),
@@ -196,6 +246,7 @@ func (service reviewAcceptService) prepareReview(featureDir string, expectedRevi
 		"human_acceptance_scenarios":   cloneAny(handoff["human_acceptance_scenarios"]),
 		"human_acceptance_obligations": cloneAny(handoff["human_acceptance_obligations"]),
 		"user_confirmed_deferrals":     cloneAny(handoff["user_confirmed_deferrals"]),
+		"review_exceptions":            []any{},
 		"findings":                     []any{},
 		"reviewed_runtime_targets":     cloneAny(handoff["runtime_targets"]),
 		"evidence":                     []any{},
@@ -210,6 +261,7 @@ func (service reviewAcceptService) prepareReview(featureDir string, expectedRevi
 			"reviewed_snapshot_sha256":      "",
 			"implementation_summary_sha256": optionalFileSHA256(filepath.Join(feature.abs, humanAcceptanceSummaryFilename)),
 			"runtime_targets_sha256":        "",
+			"review_exceptions_sha256":      reviewExceptionsSHA256([]any{}),
 		},
 	}
 	if err := writeReviewAcceptJSONAtomic(statePath, state); err != nil {
@@ -219,6 +271,410 @@ func (service reviewAcceptService) prepareReview(featureDir string, expectedRevi
 	env.Data = state
 	env.ShowArgv = reviewShowArgv(feature.rel)
 	env.NextArgv = []string{"specify-runtime", "review", "validate", "--feature-dir", feature.rel, "--format", "json"}
+	return env
+}
+
+func reviewExceptionsSHA256(value any) string {
+	raw, ok := value.([]any)
+	if !ok {
+		raw = []any{}
+	}
+	items := make([]map[string]any, 0, len(raw))
+	for _, entry := range raw {
+		if item, ok := entry.(map[string]any); ok {
+			items = append(items, cloneAny(item).(map[string]any))
+		}
+	}
+	sort.Slice(items, func(i, j int) bool {
+		return fmt.Sprint(items[i]["exception_id"]) < fmt.Sprint(items[j]["exception_id"])
+	})
+	normalized := make([]any, len(items))
+	for index, item := range items {
+		normalized[index] = item
+	}
+	return canonicalJSONSHA256(map[string]any{"review_exceptions": normalized})
+}
+
+func reviewCycleID(workflowRevision int, handoffSHA string, cycle int, previousReviewSHA, findingID, findingSHA string) string {
+	return canonicalJSONSHA256(map[string]any{
+		"acceptance_finding_id":        findingID,
+		"acceptance_finding_sha256":    findingSHA,
+		"handoff_sha256":               handoffSHA,
+		"previous_review_state_sha256": previousReviewSHA,
+		"review_cycle":                 cycle,
+		"workflow_revision":            workflowRevision,
+	})
+}
+
+func upgradeReviewExceptionContract(state map[string]any) bool {
+	changed := false
+	if _, exists := state["review_exceptions"]; !exists {
+		state["review_exceptions"] = []any{}
+		changed = true
+	}
+	if final, ok := state["final"].(map[string]any); ok {
+		if _, exists := final["review_exceptions_sha256"]; !exists {
+			final["review_exceptions_sha256"] = reviewExceptionsSHA256(state["review_exceptions"])
+			changed = true
+		}
+	}
+	if source, ok := state["source"].(map[string]any); ok && stringField(source, "review_cycle_id") == "" {
+		workflowRevision, revisionOK := numberAsInt(source["workflow_revision"])
+		cycle, cycleOK := numberAsInt(source["review_cycle"])
+		handoffSHA := strings.TrimSpace(fmt.Sprint(source["implementation_handoff_sha256"]))
+		if revisionOK && cycleOK && cycle >= 1 && handoffSHA != "" {
+			source["review_cycle_id"] = reviewCycleID(workflowRevision, handoffSHA, cycle, "", "", "")
+			changed = true
+		}
+	}
+	return changed
+}
+
+func reviewExceptionConfirmationID(value string) string {
+	digest := sha256.Sum256([]byte(value))
+	return fmt.Sprintf("%x", digest[:])[:24]
+}
+
+func reviewExceptionProposalPayload(record map[string]any) map[string]any {
+	payload := map[string]any{}
+	for _, field := range reviewExceptionProposalFields {
+		payload[field] = cloneAny(record[field])
+	}
+	return payload
+}
+
+func reviewExceptionInputPayload(record map[string]any) map[string]any {
+	payload := map[string]any{}
+	for _, field := range reviewExceptionInputFields {
+		payload[field] = cloneAny(record[field])
+	}
+	return payload
+}
+
+func reviewExceptionEvidencePath(feature reviewAcceptFeature, ref string, cycle int) (string, error) {
+	if err := validateSafeRelativeSlashPath(ref); err != nil {
+		return "", errors.New("hardware unavailability evidence must be a safe feature-relative path")
+	}
+	expectedPrefix := "review-evidence/"
+	if cycle > 1 {
+		expectedPrefix = fmt.Sprintf("review-evidence/cycle-%d/", cycle)
+	}
+	if !strings.HasPrefix(ref, expectedPrefix) {
+		return "", errors.New("hardware unavailability evidence must belong to the current Review cycle")
+	}
+	path := filepath.Join(feature.abs, filepath.FromSlash(ref))
+	rel, err := filepath.Rel(feature.abs, path)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return "", errors.New("hardware unavailability evidence escapes the feature directory")
+	}
+	if info, err := os.Stat(path); err != nil || info.IsDir() {
+		return "", fmt.Errorf("hardware unavailability evidence file does not exist: %s", ref)
+	}
+	return path, nil
+}
+
+func normalizeReviewExceptionProposal(feature reviewAcceptFeature, state, raw map[string]any, fingerprint string) (map[string]any, error) {
+	allowed := map[string]bool{}
+	for _, field := range reviewExceptionInputFields {
+		allowed[field] = true
+	}
+	for field := range raw {
+		if !allowed[field] {
+			return nil, fmt.Errorf("review exception proposal contains unsupported field: %s", field)
+		}
+	}
+	if strings.TrimSpace(fmt.Sprint(raw["kind"])) != "hardware_unavailable" {
+		return nil, errors.New("review exception kind must be hardware_unavailable")
+	}
+	scenarioIDs, err := anyStringList(raw["scenario_ids"], "scenario_ids", true)
+	if err != nil {
+		return nil, err
+	}
+	obligationIDs, err := anyStringList(raw["obligation_ids"], "obligation_ids", true)
+	if err != nil {
+		return nil, err
+	}
+	scenarios, _ := state["scenarios"].([]any)
+	knownScenarios := map[string]map[string]any{}
+	for _, value := range scenarios {
+		if scenario, ok := value.(map[string]any); ok {
+			knownScenarios[strings.TrimSpace(fmt.Sprint(scenario["id"]))] = scenario
+		}
+	}
+	for _, scenarioID := range scenarioIDs {
+		scenario := knownScenarios[scenarioID]
+		if scenario == nil || scenario["required"] == false {
+			return nil, fmt.Errorf("review exception may reference only required Review scenarios: %s", scenarioID)
+		}
+	}
+	selectedScenarios := map[string]bool{}
+	for _, scenarioID := range scenarioIDs {
+		selectedScenarios[scenarioID] = true
+	}
+	impacted := []string{}
+	obligations, _ := state["obligations"].([]any)
+	for _, value := range obligations {
+		obligation, ok := value.(map[string]any)
+		if !ok || obligation["required"] == false {
+			continue
+		}
+		linked, _ := anyStringList(obligation["scenario_ids"], "scenario_ids", false)
+		for _, scenarioID := range linked {
+			if selectedScenarios[scenarioID] {
+				impacted = append(impacted, strings.TrimSpace(fmt.Sprint(obligation["id"])))
+				break
+			}
+		}
+	}
+	sort.Strings(impacted)
+	sortedObligationIDs := append([]string{}, obligationIDs...)
+	sort.Strings(sortedObligationIDs)
+	if !reflect.DeepEqual(impacted, sortedObligationIDs) {
+		return nil, errors.New("obligation_ids must exactly name every required obligation affected by the waived scenarios")
+	}
+	evidenceRefs, err := anyStringList(raw["unavailable_evidence_refs"], "unavailable_evidence_refs", true)
+	if err != nil {
+		return nil, err
+	}
+	attemptedAlternatives, err := anyStringList(raw["attempted_alternatives"], "attempted_alternatives", true)
+	if err != nil {
+		return nil, err
+	}
+	claimsWithheld, err := anyStringList(raw["claims_withheld"], "claims_withheld", true)
+	if err != nil {
+		return nil, err
+	}
+	requiredResource := strings.TrimSpace(fmt.Sprint(raw["required_resource"]))
+	residualRisk := strings.TrimSpace(fmt.Sprint(raw["residual_risk"]))
+	severity := strings.TrimSpace(fmt.Sprint(raw["risk_severity"]))
+	if requiredResource == "" || residualRisk == "" {
+		return nil, errors.New("required_resource and residual_risk must be non-empty strings")
+	}
+	if severity != "low" && severity != "medium" && severity != "high" {
+		return nil, errors.New("risk_severity must be low, medium, or high")
+	}
+	source, _ := state["source"].(map[string]any)
+	cycle, ok := numberAsInt(source["review_cycle"])
+	if !ok || cycle < 1 {
+		return nil, errors.New("review source review_cycle is invalid")
+	}
+	cycleID := strings.TrimSpace(fmt.Sprint(source["review_cycle_id"]))
+	if cycleID == "" {
+		return nil, errors.New("review source review_cycle_id is required")
+	}
+	evidenceDigests := map[string]any{}
+	for _, ref := range evidenceRefs {
+		path, err := reviewExceptionEvidencePath(feature, ref, cycle)
+		if err != nil {
+			return nil, err
+		}
+		digest, err := fileSHA256(path)
+		if err != nil {
+			return nil, err
+		}
+		evidenceDigests[ref] = digest
+	}
+	return map[string]any{
+		"kind": "hardware_unavailable", "scenario_ids": stringSliceToAny(scenarioIDs),
+		"obligation_ids": stringSliceToAny(obligationIDs), "required_resource": requiredResource,
+		"unavailable_evidence_refs": stringSliceToAny(evidenceRefs), "unavailable_evidence_sha256": evidenceDigests,
+		"attempted_alternatives": stringSliceToAny(attemptedAlternatives), "claims_withheld": stringSliceToAny(claimsWithheld),
+		"residual_risk": residualRisk, "risk_severity": severity,
+		"review_cycle_id": cycleID, "implementation_fingerprint": fingerprint,
+	}, nil
+}
+
+func (service reviewAcceptService) proposeReviewException(featureDir string, raw map[string]any) Envelope {
+	root, feature, env, ok := service.resolveFeature(featureDir)
+	if !ok {
+		return env
+	}
+	workflow := NewWorkflowService(root).Show(WorkflowShowRequest{FeatureDir: feature.rel})
+	if workflow.Status != "ok" || workflow.Data["stage"] != "review" || workflow.Data["status"] != "active" {
+		return blockedEnvelope("review exception requires active Review", "workflow stage must be active review")
+	}
+	release, lockEnv, locked := acquireReviewAcceptLock(filepath.Join(feature.abs, ".review-state.lock"))
+	if !locked {
+		return lockEnv
+	}
+	defer release()
+	statePath := filepath.Join(feature.abs, reviewStateFilename)
+	state, err := readJSONObject(statePath)
+	if err != nil {
+		return blockedEnvelope("review state is unavailable", err.Error())
+	}
+	status := strings.TrimSpace(fmt.Sprint(state["status"]))
+	if status != "gathering" && status != "reviewing" && status != "repairing" && status != "validating" {
+		return blockedEnvelope("review exception proposal is not allowed", "exceptions may be proposed only during active Review work")
+	}
+	source, _ := state["source"].(map[string]any)
+	currentFingerprint := sourceTreeFingerprint(root, feature.abs)
+	if source == nil || strings.TrimSpace(fmt.Sprint(source["implementation_fingerprint"])) != currentFingerprint {
+		return blockedEnvelope("review exception proposal is stale", "current implementation fingerprint differs from Review source")
+	}
+	normalized, err := normalizeReviewExceptionProposal(feature, state, raw, currentFingerprint)
+	if err != nil {
+		return blockedEnvelope("review exception proposal is invalid", err.Error())
+	}
+	proposalSHA := canonicalJSONSHA256(normalized)
+	exceptionID := "REX-" + proposalSHA[:12]
+	exceptions, ok := state["review_exceptions"].([]any)
+	if !ok {
+		return blockedEnvelope("review exception state is invalid", "review_exceptions must be an array")
+	}
+	for _, value := range exceptions {
+		existing, ok := value.(map[string]any)
+		if !ok {
+			continue
+		}
+		if existing["proposal_sha256"] == proposalSHA {
+			env := NewEnvelope("ok", "review exception proposal already exists")
+			env.Data = map[string]any{
+				"status": existing["status"], "reused": true, "exception_id": existing["exception_id"],
+				"proposal_sha256": proposalSHA, "confirmation_required": existing["status"] != "confirmed",
+			}
+			return env
+		}
+		if existing["exception_id"] == exceptionID {
+			return blockedEnvelope("review exception id collision", exceptionID)
+		}
+	}
+	record := map[string]any{"exception_id": exceptionID}
+	for key, value := range normalized {
+		record[key] = value
+	}
+	record["proposal_sha256"] = proposalSHA
+	record["status"] = "proposed"
+	record["confirmation"] = nil
+	exceptions = append(exceptions, record)
+	state["review_exceptions"] = exceptions
+	if final, ok := state["final"].(map[string]any); ok {
+		final["review_exceptions_sha256"] = reviewExceptionsSHA256(exceptions)
+	}
+	if err := writeReviewAcceptJSONAtomic(statePath, state); err != nil {
+		return errorEnvelope("failed to write Review exception proposal", err)
+	}
+	env = NewEnvelope("ok", "review exception proposal prepared")
+	env.Data = map[string]any{
+		"status": "proposed", "reused": false, "exception_id": exceptionID,
+		"proposal_sha256": proposalSHA, "confirmation_required": true,
+	}
+	return env
+}
+
+func (service reviewAcceptService) confirmReviewException(featureDir, exceptionID, proposalSHA, confirmationSource, statement string) Envelope {
+	root, feature, env, ok := service.resolveFeature(featureDir)
+	if !ok {
+		return env
+	}
+	exceptionID = strings.TrimSpace(exceptionID)
+	proposalSHA = strings.TrimSpace(proposalSHA)
+	confirmationSource = strings.TrimSpace(confirmationSource)
+	statement = strings.TrimSpace(statement)
+	if !reviewExceptionIDRE.MatchString(exceptionID) || proposalSHA == "" || !reviewExceptionConfirmationSources[confirmationSource] || statement == "" {
+		return usageEnvelope("exception-confirm requires a valid exception id, proposal digest, human confirmation source, and statement")
+	}
+	workflow := NewWorkflowService(root).Show(WorkflowShowRequest{FeatureDir: feature.rel})
+	if workflow.Status != "ok" || workflow.Data["stage"] != "review" || workflow.Data["status"] != "active" {
+		return blockedEnvelope("review exception requires active Review", "workflow stage must be active review")
+	}
+	release, lockEnv, locked := acquireReviewAcceptLock(filepath.Join(feature.abs, ".review-state.lock"))
+	if !locked {
+		return lockEnv
+	}
+	defer release()
+	statePath := filepath.Join(feature.abs, reviewStateFilename)
+	state, err := readJSONObject(statePath)
+	if err != nil {
+		return blockedEnvelope("review state is unavailable", err.Error())
+	}
+	status := strings.TrimSpace(fmt.Sprint(state["status"]))
+	if status != "gathering" && status != "reviewing" && status != "repairing" && status != "validating" {
+		return blockedEnvelope("review exception confirmation is not allowed", "exceptions may be confirmed only during active Review work")
+	}
+	source, _ := state["source"].(map[string]any)
+	currentFingerprint := sourceTreeFingerprint(root, feature.abs)
+	exceptions, _ := state["review_exceptions"].([]any)
+	var record map[string]any
+	for _, value := range exceptions {
+		candidate, ok := value.(map[string]any)
+		if ok && candidate["exception_id"] == exceptionID {
+			record = candidate
+			break
+		}
+	}
+	if record == nil {
+		return blockedEnvelope("review exception is unknown", exceptionID)
+	}
+	actualSHA := canonicalJSONSHA256(reviewExceptionProposalPayload(record))
+	if record["proposal_sha256"] != actualSHA || proposalSHA != actualSHA {
+		return blockedEnvelope("review exception proposal digest mismatch", "proposal sha256 does not match the immutable exception proposal")
+	}
+	if source == nil || record["review_cycle_id"] != source["review_cycle_id"] || record["implementation_fingerprint"] != currentFingerprint {
+		return blockedEnvelope("review exception proposal is stale", "create a new proposal for the current Review cycle and implementation")
+	}
+	normalized, err := normalizeReviewExceptionProposal(feature, state, reviewExceptionInputPayload(record), currentFingerprint)
+	if err != nil || canonicalJSONSHA256(normalized) != actualSHA {
+		detail := "review exception evidence or affected scope changed after proposal"
+		if err != nil {
+			detail = err.Error()
+		}
+		return blockedEnvelope("review exception proposal is stale", detail)
+	}
+	if record["status"] == "confirmed" {
+		confirmation, _ := record["confirmation"].(map[string]any)
+		if confirmation != nil && confirmation["source"] == confirmationSource && confirmation["statement"] == statement {
+			env := NewEnvelope("ok", "review exception confirmation already exists")
+			env.Data = map[string]any{
+				"status": "confirmed", "reused": true, "exception_id": exceptionID,
+				"proposal_sha256": actualSHA, "confirmation_id": confirmation["confirmation_id"],
+			}
+			return env
+		}
+		return blockedEnvelope("confirmed Review exception is immutable", "create a new proposal for a different human decision")
+	}
+	if record["status"] != "proposed" || record["confirmation"] != nil {
+		return blockedEnvelope("review exception cannot be confirmed", fmt.Sprintf("current status is %v", record["status"]))
+	}
+	cycleID := fmt.Sprint(source["review_cycle_id"])
+	confirmationID := "HC-" + reviewExceptionConfirmationID(actualSHA+"\x00"+confirmationSource+"\x00"+statement+"\x00"+cycleID+"\x00"+currentFingerprint)
+	record["status"] = "confirmed"
+	record["confirmation"] = map[string]any{
+		"actor": "human", "source": confirmationSource, "statement": statement,
+		"confirmation_id": confirmationID, "confirmed_payload_sha256": actualSHA,
+		"review_cycle_id": cycleID, "implementation_fingerprint": currentFingerprint,
+	}
+	selectedScenarios := map[string]bool{}
+	for _, scenarioID := range record["scenario_ids"].([]any) {
+		selectedScenarios[scenarioID.(string)] = true
+	}
+	for _, value := range state["scenarios"].([]any) {
+		if scenario, ok := value.(map[string]any); ok && selectedScenarios[fmt.Sprint(scenario["id"])] {
+			scenario["result"] = "waived"
+			scenario["evidence"] = []any{}
+		}
+	}
+	selectedObligations := map[string]bool{}
+	for _, obligationID := range record["obligation_ids"].([]any) {
+		selectedObligations[obligationID.(string)] = true
+	}
+	for _, value := range state["obligations"].([]any) {
+		if obligation, ok := value.(map[string]any); ok && selectedObligations[fmt.Sprint(obligation["id"])] {
+			obligation["status"] = "waived"
+		}
+	}
+	if final, ok := state["final"].(map[string]any); ok {
+		final["review_exceptions_sha256"] = reviewExceptionsSHA256(exceptions)
+	}
+	if err := writeReviewAcceptJSONAtomic(statePath, state); err != nil {
+		return errorEnvelope("failed to write Review exception confirmation", err)
+	}
+	env = NewEnvelope("ok", "review hardware exception confirmed")
+	env.Data = map[string]any{
+		"status": "confirmed", "reused": false, "exception_id": exceptionID,
+		"proposal_sha256": actualSHA, "confirmation_id": confirmationID,
+		"disposition": "explicit_review_waiver",
+	}
 	return env
 }
 
@@ -518,6 +974,122 @@ type reviewValidationResult struct {
 	currentFingerprint string
 }
 
+func validateReviewExceptions(feature reviewAcceptFeature, state map[string]any, currentFingerprint string) ([]string, int) {
+	errorsOut := []string{}
+	rawExceptions, ok := state["review_exceptions"].([]any)
+	if !ok {
+		return []string{"review_exceptions must be an array"}, 0
+	}
+	source, _ := state["source"].(map[string]any)
+	cycleID := strings.TrimSpace(fmt.Sprint(source["review_cycle_id"]))
+	confirmedScenarios := map[string]bool{}
+	confirmedObligations := map[string]bool{}
+	seenIDs := map[string]bool{}
+	confirmedCount := 0
+	for index, value := range rawExceptions {
+		record, ok := value.(map[string]any)
+		if !ok {
+			errorsOut = append(errorsOut, fmt.Sprintf("review exception %d must be an object", index+1))
+			continue
+		}
+		exceptionID := strings.TrimSpace(fmt.Sprint(record["exception_id"]))
+		proposalSHA := canonicalJSONSHA256(reviewExceptionProposalPayload(record))
+		if !reviewExceptionIDRE.MatchString(exceptionID) || exceptionID != "REX-"+proposalSHA[:12] {
+			errorsOut = append(errorsOut, fmt.Sprintf("review exception %d id does not bind its proposal", index+1))
+		}
+		if seenIDs[exceptionID] {
+			errorsOut = append(errorsOut, "duplicate review exception id: "+exceptionID)
+		}
+		seenIDs[exceptionID] = true
+		if record["proposal_sha256"] != proposalSHA {
+			errorsOut = append(errorsOut, exceptionID+" proposal_sha256 does not bind its proposal")
+		}
+		if record["review_cycle_id"] != cycleID || record["implementation_fingerprint"] != currentFingerprint {
+			errorsOut = append(errorsOut, exceptionID+" is stale for the current Review cycle or implementation")
+		}
+		normalized, err := normalizeReviewExceptionProposal(feature, state, reviewExceptionInputPayload(record), currentFingerprint)
+		if err != nil || canonicalJSONSHA256(normalized) != proposalSHA {
+			detail := "proposal evidence or affected scope changed"
+			if err != nil {
+				detail = err.Error()
+			}
+			errorsOut = append(errorsOut, exceptionID+" "+detail)
+		}
+		status := strings.TrimSpace(fmt.Sprint(record["status"]))
+		if status == "proposed" {
+			if record["confirmation"] != nil {
+				errorsOut = append(errorsOut, exceptionID+" proposed exception cannot contain confirmation")
+			}
+			if state["status"] == "approved" {
+				errorsOut = append(errorsOut, exceptionID+" requires explicit human confirmation before approval")
+			}
+			continue
+		}
+		if status != "confirmed" {
+			errorsOut = append(errorsOut, exceptionID+" status must be proposed or confirmed")
+			continue
+		}
+		confirmation, ok := record["confirmation"].(map[string]any)
+		if !ok {
+			errorsOut = append(errorsOut, exceptionID+" requires explicit human confirmation")
+			continue
+		}
+		confirmationSource := strings.TrimSpace(fmt.Sprint(confirmation["source"]))
+		statement := strings.TrimSpace(fmt.Sprint(confirmation["statement"]))
+		expectedConfirmationID := "HC-" + reviewExceptionConfirmationID(proposalSHA+"\x00"+confirmationSource+"\x00"+statement+"\x00"+cycleID+"\x00"+currentFingerprint)
+		if confirmation["actor"] != "human" || !reviewExceptionConfirmationSources[confirmationSource] || statement == "" || confirmation["confirmed_payload_sha256"] != proposalSHA || confirmation["review_cycle_id"] != cycleID || confirmation["implementation_fingerprint"] != currentFingerprint || confirmation["confirmation_id"] != expectedConfirmationID {
+			errorsOut = append(errorsOut, exceptionID+" human confirmation is invalid or stale")
+			continue
+		}
+		confirmedCount++
+		scenarioIDs, _ := anyStringList(record["scenario_ids"], "scenario_ids", true)
+		for _, scenarioID := range scenarioIDs {
+			if confirmedScenarios[scenarioID] {
+				errorsOut = append(errorsOut, "Review scenario belongs to multiple confirmed exceptions: "+scenarioID)
+			}
+			confirmedScenarios[scenarioID] = true
+		}
+		obligationIDs, _ := anyStringList(record["obligation_ids"], "obligation_ids", true)
+		for _, obligationID := range obligationIDs {
+			if confirmedObligations[obligationID] {
+				errorsOut = append(errorsOut, "Review obligation belongs to multiple confirmed exceptions: "+obligationID)
+			}
+			confirmedObligations[obligationID] = true
+		}
+	}
+	if scenarios, ok := state["scenarios"].([]any); ok {
+		for _, value := range scenarios {
+			if scenario, ok := value.(map[string]any); ok {
+				id := fmt.Sprint(scenario["id"])
+				if scenario["result"] == "waived" && !confirmedScenarios[id] {
+					errorsOut = append(errorsOut, "waived scenario requires explicit human confirmation: "+id)
+				}
+				if confirmedScenarios[id] && scenario["result"] != "waived" {
+					errorsOut = append(errorsOut, "confirmed exception scenario must record result waived: "+id)
+				}
+			}
+		}
+	}
+	if obligations, ok := state["obligations"].([]any); ok {
+		for _, value := range obligations {
+			if obligation, ok := value.(map[string]any); ok {
+				id := fmt.Sprint(obligation["id"])
+				if obligation["status"] == "waived" && !confirmedObligations[id] {
+					errorsOut = append(errorsOut, "waived obligation requires explicit human confirmation: "+id)
+				}
+				if confirmedObligations[id] && obligation["status"] != "waived" {
+					errorsOut = append(errorsOut, "confirmed exception obligation must record status waived: "+id)
+				}
+			}
+		}
+	}
+	final, _ := state["final"].(map[string]any)
+	if final == nil || final["review_exceptions_sha256"] != reviewExceptionsSHA256(rawExceptions) {
+		errorsOut = append(errorsOut, "final review_exceptions_sha256 must bind the complete exception ledger")
+	}
+	return errorsOut, confirmedCount
+}
+
 func (service reviewAcceptService) validateReview(feature reviewAcceptFeature) reviewValidationResult {
 	statePath := filepath.Join(feature.abs, reviewStateFilename)
 	handoffPath := filepath.Join(feature.abs, implementationHandoffFilename)
@@ -525,6 +1097,7 @@ func (service reviewAcceptService) validateReview(feature reviewAcceptFeature) r
 	if err != nil {
 		return reviewValidationResult{errors: []string{err.Error()}}
 	}
+	upgradeReviewExceptionContract(state)
 	handoff, err := readJSONObject(handoffPath)
 	if err != nil {
 		return reviewValidationResult{state: state, errors: []string{err.Error()}}
@@ -552,10 +1125,21 @@ func (service reviewAcceptService) validateReview(feature reviewAcceptFeature) r
 	}
 	if state["status"] == "approved" {
 		final, _ := state["final"].(map[string]any)
+		exceptionErrors, confirmedExceptionCount := validateReviewExceptions(feature, state, currentFingerprint)
+		errors = append(errors, exceptionErrors...)
 		if final == nil {
 			errors = append(errors, "approved Review requires final verdict metadata")
 		} else {
-			for _, key := range []string{"verdict", "coverage_verdict", "repair_verdict", "integration_verdict"} {
+			expectedOverall := "pass"
+			if confirmedExceptionCount > 0 {
+				expectedOverall = "pass_with_waivers"
+			}
+			for _, key := range []string{"verdict", "coverage_verdict"} {
+				if stringField(final, key) != expectedOverall {
+					errors = append(errors, "approved Review requires final."+key+"="+expectedOverall)
+				}
+			}
+			for _, key := range []string{"repair_verdict", "integration_verdict"} {
 				if stringField(final, key) != "pass" {
 					errors = append(errors, "approved Review requires final."+key+"=pass")
 				}
@@ -567,6 +1151,9 @@ func (service reviewAcceptService) validateReview(feature reviewAcceptFeature) r
 		if open := openFindings(state); len(open) > 0 {
 			errors = append(errors, "approved Review cannot contain open findings")
 		}
+	} else {
+		exceptionErrors, _ := validateReviewExceptions(feature, state, currentFingerprint)
+		errors = append(errors, exceptionErrors...)
 	}
 	return reviewValidationResult{
 		valid:              len(errors) == 0,
@@ -657,11 +1244,12 @@ func newHumanAcceptanceState(feature reviewAcceptFeature, handoff, reviewState m
 			"obligations": cloneAny(handoff["human_acceptance_obligations"]),
 			"scenarios":   cloneAny(handoff["human_acceptance_scenarios"]),
 		},
-		"runtime_targets": cloneAny(reviewState["reviewed_runtime_targets"]),
-		"scenarios":       cloneAny(handoff["human_acceptance_scenarios"]),
-		"findings":        []any{},
-		"repair_resume":   nil,
-		"repair_history":  []any{},
+		"review_exceptions": cloneAny(reviewState["review_exceptions"]),
+		"runtime_targets":   cloneAny(reviewState["reviewed_runtime_targets"]),
+		"scenarios":         cloneAny(handoff["human_acceptance_scenarios"]),
+		"findings":          []any{},
+		"repair_resume":     nil,
+		"repair_history":    []any{},
 		"overall": map[string]any{
 			"verdict":        "pending",
 			"human_decision": "pending",
@@ -807,37 +1395,7 @@ func optionalFileSHA256(path string) string {
 }
 
 func sourceTreeFingerprint(projectRoot, featureAbs string) string {
-	reviewOwned := map[string]bool{
-		reviewStateFilename:              true,
-		humanAcceptanceFilename:          true,
-		humanAcceptanceRepairJournalName: true,
-		humanAcceptanceRepairBackupName:  true,
-		".review-state.lock":             true,
-		".human-acceptance.lock":         true,
-	}
-	h := sha256.New()
-	_ = filepath.WalkDir(featureAbs, func(path string, d os.DirEntry, err error) error {
-		if err != nil || d.IsDir() {
-			return nil
-		}
-		if reviewOwned[filepath.Base(path)] {
-			return nil
-		}
-		rel, err := filepath.Rel(projectRoot, path)
-		if err != nil {
-			return nil
-		}
-		raw, err := os.ReadFile(path)
-		if err != nil {
-			return nil
-		}
-		_, _ = h.Write([]byte(filepath.ToSlash(rel)))
-		_, _ = h.Write([]byte{0})
-		_, _ = h.Write(raw)
-		_, _ = h.Write([]byte{0})
-		return nil
-	})
-	return fmt.Sprintf("%x", h.Sum(nil))
+	return implementSnapshotSHA256(projectRoot, featureAbs)
 }
 
 func cloneAny(value any) any {

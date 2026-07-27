@@ -374,6 +374,132 @@ def _migrate_v1_ledger(
     return migrated
 
 
+def _transitional_v2_has_duplicate_gates(ledger: Mapping[str, Any]) -> bool:
+    runs = ledger.get("runs")
+    if not isinstance(runs, list):
+        return False
+    seen: set[tuple[str, str]] = set()
+    for raw in runs:
+        if not isinstance(raw, Mapping):
+            return False
+        gate = (
+            str(raw.get("stage") or "").strip(),
+            str(raw.get("purpose") or "").strip(),
+        )
+        if gate in seen:
+            return True
+        seen.add(gate)
+    return False
+
+
+def _migrate_transitional_v2_ledger(
+    ledger: dict[str, Any], policy: dict[str, Any]
+) -> dict[str, Any]:
+    """Coalesce pre-logical-gate v2 rows into attempts without losing history.
+
+    Early v2 writers emitted a new row for every physical retry.  Those rows
+    already contain attempt objects, but duplicate their stage/purpose gate.
+    Preserve their exact bytes in migration provenance and renumber only the
+    normalized logical gates and attempts.
+    """
+
+    raw_runs = ledger.get("runs")
+    if not isinstance(raw_runs, list) or any(
+        not isinstance(item, dict) for item in raw_runs
+    ):
+        raise ValidationBudgetError("validation ledger runs must be a list of objects")
+    gates: list[dict[str, Any]] = []
+    by_gate: dict[tuple[str, str], dict[str, Any]] = {}
+    normalization_codes: list[str] = []
+    purpose_order = {"baseline": 0, "convergence": 1, "delivery": 2}
+    last_order = -1
+    for raw_index, raw in enumerate(raw_runs, start=1):
+        legacy_run_id = str(raw.get("run_id") or f"V{raw_index}")
+        stage = str(raw.get("stage") or "").strip()
+        purpose = str(raw.get("purpose") or "").strip()
+        if stage not in _VALID_STAGES or purpose not in _VALID_PURPOSES:
+            raise ValidationBudgetError(
+                f"transitional validation {legacy_run_id} has unsupported stage/purpose"
+            )
+        if (stage == "review") != (purpose == "delivery"):
+            raise ValidationBudgetError(
+                f"transitional validation {legacy_run_id} has incompatible stage/purpose"
+            )
+        current_order = purpose_order[purpose]
+        if current_order < last_order:
+            raise ValidationBudgetError(
+                "validation logical gates must remain ordered as "
+                "baseline, convergence, then delivery"
+            )
+        last_order = current_order
+        raw_attempts = raw.get("attempts")
+        if not isinstance(raw_attempts, list) or not raw_attempts or any(
+            not isinstance(item, dict) for item in raw_attempts
+        ):
+            raise ValidationBudgetError(
+                f"transitional validation {legacy_run_id} attempts must be a non-empty list of objects"
+            )
+        for attempt_index, raw_attempt in enumerate(raw_attempts, start=1):
+            _validate_attempt(
+                raw_attempt,
+                run_id=legacy_run_id,
+                attempt_index=attempt_index,
+            )
+        latest = raw_attempts[-1]
+        for field in (
+            "attempt_id",
+            "fingerprint",
+            "commands",
+            "covered_task_ids",
+            "status",
+            "failure_kind",
+            "evidence_refs",
+            "summary",
+            "started_at",
+            "completed_at",
+        ):
+            if raw.get(field) != latest.get(field):
+                raise ValidationBudgetError(
+                    f"transitional validation {legacy_run_id} {field} must match its latest attempt"
+                )
+        gate_key = (stage, purpose)
+        gate = by_gate.get(gate_key)
+        if gate is None:
+            gate = {
+                "run_id": f"V{len(gates) + 1}",
+                "stage": stage,
+                "purpose": purpose,
+                "attempts": [],
+            }
+            gates.append(gate)
+            by_gate[gate_key] = gate
+        else:
+            normalization_codes.append(
+                f"{legacy_run_id}:duplicate-logical-gate->{gate['run_id']}"
+            )
+        for raw_attempt in raw_attempts:
+            attempt = deepcopy(raw_attempt)
+            attempt["attempt_id"] = (
+                f"{gate['run_id']}-A{len(gate['attempts']) + 1}"
+            )
+            gate["attempts"].append(attempt)
+            _sync_run_from_attempt(gate, attempt)
+    return {
+        "version": LEDGER_VERSION,
+        "mode": "feature_epochs",
+        "budget_scope": "implement-review",
+        "max_epochs": policy["max_epochs"],
+        "runs": gates,
+        "migration": {
+            "from_version": 2,
+            "legacy_run_count": len(raw_runs),
+            "legacy_runs_sha256": _runs_sha256(raw_runs),
+            "legacy_runs": deepcopy(raw_runs),
+            "normalization_codes": normalization_codes,
+        },
+    }
+
+
 def _validate_attempt(
     attempt: dict[str, Any],
     *,
@@ -572,7 +698,10 @@ def _validate_migration_provenance(
     migration = ledger.get("migration")
     if migration is None:
         return
-    if not isinstance(migration, Mapping) or migration.get("from_version") != 1:
+    if not isinstance(migration, Mapping) or migration.get("from_version") not in {
+        1,
+        2,
+    }:
         raise ValidationBudgetError(
             "validation ledger migration provenance is invalid"
         )
@@ -591,7 +720,19 @@ def _validate_migration_provenance(
         raise ValidationBudgetError(
             "validation ledger migration legacy history digest is invalid"
         )
-    expected = _migrate_v1_ledger({"runs": deepcopy(legacy_runs)}, policy)
+    if migration.get("from_version") == 1:
+        expected = _migrate_v1_ledger({"runs": deepcopy(legacy_runs)}, policy)
+    else:
+        expected = _migrate_transitional_v2_ledger(
+            {
+                "version": 2,
+                "mode": "feature_epochs",
+                "budget_scope": "implement-review",
+                "max_epochs": policy["max_epochs"],
+                "runs": deepcopy(legacy_runs),
+            },
+            policy,
+        )
     expected_runs = expected["runs"]
     actual_runs = ledger.get("runs")
     if not isinstance(actual_runs, list) or len(actual_runs) < len(expected_runs):
@@ -656,17 +797,17 @@ def _validate_handoff_history(
         )
     runs: list[dict[str, Any]] = ledger["runs"]
     migration = ledger.get("migration")
+    expected_digest = str(floor.get("consumed_runs_sha256") or "").strip()
+    legacy_runs = migration.get("legacy_runs") if isinstance(migration, dict) else None
     legacy_floor_matches = (
-        isinstance(migration, dict)
-        and migration.get("legacy_run_count") == used_epochs
-        and str(migration.get("legacy_runs_sha256") or "").strip()
-        == str(floor.get("consumed_runs_sha256") or "").strip()
+        isinstance(legacy_runs, list)
+        and len(legacy_runs) >= used_epochs
+        and _runs_sha256(legacy_runs[:used_epochs]) == expected_digest
     )
     if len(runs) < used_epochs and not legacy_floor_matches:
         raise ValidationBudgetError(
             "validation ledger was reset below the implementation handoff floor"
         )
-    expected_digest = str(floor.get("consumed_runs_sha256") or "").strip()
     if (
         expected_digest
         and _runs_sha256(runs[:used_epochs]) != expected_digest
@@ -686,6 +827,8 @@ def _load_ledger(path: Path, *, feature: Path, policy: dict[str, Any]) -> dict[s
     version = ledger.get("version")
     if version == 1:
         ledger = _migrate_v1_ledger(ledger, policy)
+    elif version == LEDGER_VERSION and _transitional_v2_has_duplicate_gates(ledger):
+        ledger = _migrate_transitional_v2_ledger(ledger, policy)
     elif version != LEDGER_VERSION:
         raise ValidationBudgetError(
             f"validation ledger version must be 1 or {LEDGER_VERSION}"
@@ -732,9 +875,117 @@ def _validation_next_action(run: Mapping[str, Any] | None) -> str:
     )
 
 
+def _validation_attempt_decision(
+    runs: list[Mapping[str, Any]],
+    *,
+    max_epochs: int,
+    current_fingerprint: str,
+    active_stage: str = "",
+) -> dict[str, Any]:
+    """Separate logical-gate capacity from progress-aware physical retries."""
+
+    if not runs:
+        return {
+            "action": "open_logical_gate",
+            "can_start_attempt": True,
+            "gate_id": "",
+            "next_attempt_id": "V1-A1",
+            "requires_new_fingerprint": False,
+            "reason_code": "no-validation-history",
+        }
+    run = runs[-1]
+    run_id = str(run.get("run_id") or "")
+    attempts = run.get("attempts")
+    attempt_count = len(attempts) if isinstance(attempts, list) else 1
+    next_attempt_id = f"{run_id}-A{attempt_count + 1}"
+    status = str(run.get("status") or "")
+    recorded_fingerprint = str(run.get("fingerprint") or "")
+    fingerprint_changed = bool(
+        current_fingerprint and current_fingerprint != recorded_fingerprint
+    )
+    if status == "running":
+        return {
+            "action": "resume_running_attempt",
+            "can_start_attempt": False,
+            "gate_id": run_id,
+            "next_attempt_id": str(run.get("attempt_id") or ""),
+            "requires_new_fingerprint": False,
+            "reason_code": "attempt-already-running",
+        }
+    if status == "interrupted":
+        return {
+            "action": "retry_same_gate",
+            "can_start_attempt": True,
+            "gate_id": run_id,
+            "next_attempt_id": next_attempt_id,
+            "requires_new_fingerprint": False,
+            "reason_code": "attempt-interrupted",
+        }
+    if status == "failed":
+        if fingerprint_changed:
+            return {
+                "action": "retry_same_gate",
+                "can_start_attempt": True,
+                "gate_id": run_id,
+                "next_attempt_id": next_attempt_id,
+                "requires_new_fingerprint": False,
+                "reason_code": "failed-attempt-repaired",
+            }
+        return {
+            "action": "repair_before_retry",
+            "can_start_attempt": False,
+            "gate_id": run_id,
+            "next_attempt_id": next_attempt_id,
+            "requires_new_fingerprint": True,
+            "reason_code": "failed-attempt-unchanged-fingerprint",
+        }
+    if (
+        status == "passed"
+        and fingerprint_changed
+        and active_stage == "review"
+        and run.get("purpose") == "convergence"
+        and len(runs) < max_epochs
+    ):
+        return {
+            "action": "open_logical_gate",
+            "can_start_attempt": True,
+            "gate_id": "",
+            "next_attempt_id": f"V{len(runs) + 1}-A1",
+            "requires_new_fingerprint": False,
+            "reason_code": "review-owned-repair-needs-delivery-proof",
+        }
+    if status == "passed" and fingerprint_changed and run.get("purpose") != "baseline":
+        return {
+            "action": "retry_same_gate",
+            "can_start_attempt": True,
+            "gate_id": run_id,
+            "next_attempt_id": next_attempt_id,
+            "requires_new_fingerprint": False,
+            "reason_code": "snapshot-changed-after-pass",
+        }
+    if len(runs) < max_epochs and run.get("purpose") != "delivery":
+        return {
+            "action": "open_logical_gate",
+            "can_start_attempt": True,
+            "gate_id": "",
+            "next_attempt_id": f"V{len(runs) + 1}-A1",
+            "requires_new_fingerprint": False,
+            "reason_code": "next-logical-gate-available",
+        }
+    return {
+        "action": "validation_complete",
+        "can_start_attempt": False,
+        "gate_id": run_id,
+        "next_attempt_id": "",
+        "requires_new_fingerprint": False,
+        "reason_code": "latest-gate-passed",
+    }
+
+
 def _run_response(
     run: dict[str, Any],
     *,
+    runs: list[Mapping[str, Any]],
     reused: bool,
     policy: dict[str, Any],
     used_epochs: int,
@@ -747,8 +998,16 @@ def _run_response(
         "max_epochs": policy["max_epochs"],
         "used_epochs": used_epochs,
         "remaining_epochs": policy["max_epochs"] - used_epochs,
+        "remaining_gate_slots": policy["max_epochs"] - used_epochs,
+        "new_gate_budget_exhausted": used_epochs >= policy["max_epochs"],
         "used_attempts": used_attempts,
         "next_action": _validation_next_action(run),
+        "attempt_decision": _validation_attempt_decision(
+            runs,
+            max_epochs=policy["max_epochs"],
+            current_fingerprint=str(run.get("fingerprint") or ""),
+            active_stage=str(run.get("stage") or ""),
+        ),
     }
 
 
@@ -820,6 +1079,7 @@ def reserve_validation_epoch(
                     )
                 return _run_response(
                     gate,
+                    runs=runs,
                     reused=True,
                     policy=policy,
                     used_epochs=len(runs),
@@ -832,10 +1092,15 @@ def reserve_validation_epoch(
             if gate.get("status") == "passed" and same_scope:
                 return _run_response(
                     gate,
+                    runs=runs,
                     reused=True,
                     policy=policy,
                     used_epochs=len(runs),
                     used_attempts=used_attempts,
+                )
+            if gate.get("status") == "passed" and purpose == "baseline":
+                raise ValidationBudgetError(
+                    "passed baseline is immutable; open the convergence gate instead"
                 )
             if (
                 gate.get("status") == "failed"
@@ -862,6 +1127,7 @@ def reserve_validation_epoch(
             _write_ledger(path, ledger)
             return _run_response(
                 gate,
+                runs=runs,
                 reused=False,
                 policy=policy,
                 used_epochs=len(runs),
@@ -922,6 +1188,7 @@ def reserve_validation_epoch(
         _write_ledger(path, ledger)
         return _run_response(
             run,
+            runs=runs,
             reused=False,
             policy=policy,
             used_epochs=len(runs),
@@ -1007,6 +1274,7 @@ def complete_validation_epoch(
             ):
                 return _run_response(
                     run,
+                    runs=ledger["runs"],
                     reused=True,
                     policy=policy,
                     used_epochs=len(ledger["runs"]),
@@ -1026,6 +1294,7 @@ def complete_validation_epoch(
         _write_ledger(path, ledger)
         return _run_response(
             run,
+            runs=ledger["runs"],
             reused=False,
             policy=policy,
             used_epochs=len(ledger["runs"]),
@@ -1034,7 +1303,11 @@ def complete_validation_epoch(
 
 
 def validation_budget_status(
-    project_root: Path, feature_dir: Path | str
+    project_root: Path,
+    feature_dir: Path | str,
+    *,
+    current_fingerprint: str | None = None,
+    active_stage: str | None = None,
 ) -> dict[str, Any]:
     """Return the shared implement/review budget and its compact run ledger."""
 
@@ -1047,14 +1320,41 @@ def validation_budget_status(
     runs = [dict(item) for item in ledger["runs"]]
     used = len(runs)
     used_attempts = sum(len(run["attempts"]) for run in runs)
+    if current_fingerprint is None:
+        try:
+            from .review_runtime import implementation_snapshot_sha256
+
+            current_fingerprint = implementation_snapshot_sha256(root, feature)
+        except (OSError, ValueError):
+            current_fingerprint = ""
+    normalized_current_fingerprint = str(current_fingerprint or "").strip()
+    normalized_active_stage = str(active_stage or "").strip()
+    if active_stage is None and (feature / "workflow.json").is_file():
+        try:
+            from .workflow_runtime import show_workflow
+
+            workflow = show_workflow(feature).get("data")
+            if isinstance(workflow, Mapping) and workflow.get("status") == "active":
+                normalized_active_stage = str(workflow.get("stage") or "").strip()
+        except (OSError, ValueError):
+            normalized_active_stage = ""
     return {
         **ledger,
         "used_epochs": used,
         "remaining_epochs": policy["max_epochs"] - used,
+        "remaining_gate_slots": policy["max_epochs"] - used,
+        "new_gate_budget_exhausted": used >= policy["max_epochs"],
         "used_attempts": used_attempts,
         "ledger_ref": policy["budget_ref"],
         "runs_sha256": _runs_sha256(runs),
         "next_action": _validation_next_action(runs[-1] if runs else None),
+        "current_fingerprint": normalized_current_fingerprint,
+        "attempt_decision": _validation_attempt_decision(
+            runs,
+            max_epochs=policy["max_epochs"],
+            current_fingerprint=normalized_current_fingerprint,
+            active_stage=normalized_active_stage,
+        ),
         "runs": runs,
     }
 

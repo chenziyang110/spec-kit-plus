@@ -12,10 +12,12 @@ Read `references/project-cognition.md`, using cognition intent `ask`. Read
 `references/ui-quality-gate.md` when any acceptance scenario is UI-bearing.
 
 Resolve exactly one system-reviewed feature and require a trusted
-`review-state.json` with fresh `approved` verdict, its final reviewed
+`review-state.json` with fresh `approved` status and either a passing or
+qualified `pass_with_waivers` verdict, its final reviewed
 fingerprint, the Review-refreshed `implementation-summary.md`, and a
 Review-to-Accept handoff containing `human_acceptance_obligations`,
-`human_acceptance_scenarios`, non-empty `reviewed_runtime_targets`, and a
+`human_acceptance_scenarios`, immutable `review_exceptions`, non-empty
+`reviewed_runtime_targets`, and a
 matching target digest. If Review is
 missing, blocked, stale, or not approved, hand off to `$spx-review` and stop;
 do not bypass Review by routing directly to `$spx-implement`. Transition from the validated `review`
@@ -30,6 +32,11 @@ zero uncovered required obligations and reject deleted, downgraded, unmapped,
 or source-drifted items. Fill only acceptance-owned progress and orientation in
 the installed template/schema; do not invent a smaller scenario set or ask the
 human to inspect source, diffs, test logs, specs, plans, or task state.
+
+During orientation, disclose each confirmed Review hardware waiver, its absent
+resource, affected scope, withheld claims, and residual risk. Preserve it
+read-only, never relabel it PASS, and do not block Accept merely because Review
+used the already human-confirmed exception lane.
 
 `accept prepare` materializes `runtime_targets` as an exact immutable projection
 of Review's approved `source`, `build`, `deployment`, or `device` targets and

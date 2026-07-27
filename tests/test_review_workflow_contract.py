@@ -252,6 +252,63 @@ def test_review_only_hands_off_for_upstream_truth_changes(
     assert "missing code" in flat and "not an upstream truth gap" in flat
 
 
+@pytest.mark.parametrize(
+    ("profile", "combined"), _review_profile_contracts(), ids=("classic", "advanced")
+)
+def test_review_epoch_capacity_never_blocks_same_gate_progress_retry(
+    profile: str,
+    combined: str,
+) -> None:
+    del profile
+    flat = _flat(combined)
+
+    assert "attempt_decision" in flat
+    assert "remaining_epochs" in flat
+    assert "remaining_gate_slots" in flat
+    assert "retry_same_gate" in flat
+    assert "repair_before_retry" in flat
+    assert "review-owned-repair-needs-delivery-proof" in flat
+    assert "never retry convergence" in flat or "rather than retrying convergence" in flat
+    assert "zero" in flat and "new" in flat and "logical gate" in flat
+    assert "never stop from the raw count" in flat or "do not infer a stop from the raw epoch count" in flat
+
+
+@pytest.mark.parametrize(
+    ("profile", "combined"), _review_profile_contracts(), ids=("classic", "advanced")
+)
+def test_review_hardware_waiver_is_human_confirmed_and_never_pass(
+    profile: str,
+    combined: str,
+) -> None:
+    del profile
+    flat = _flat(combined)
+
+    assert "hardware_unavailable" in flat
+    assert "review exception-propose" in flat
+    assert "review exception-confirm" in flat
+    assert "human-confirmed" in flat or "human confirmation" in flat
+    assert "waived" in flat
+    assert "pass_with_waivers" in flat
+    assert "claims_withheld" in flat or "withheld claims" in flat
+    assert "residual risk" in flat
+    assert "never pass" in flat or "never records pass" in flat or "not passed" in flat
+
+
+@pytest.mark.parametrize(
+    ("profile", "combined"), _review_profile_contracts(), ids=("classic", "advanced")
+)
+def test_review_never_reopens_implement_for_its_own_findings(
+    profile: str,
+    combined: str,
+) -> None:
+    del profile
+    flat = _flat(combined)
+
+    assert "never reopen `implement`" in flat
+    assert "runtime rejects" in flat
+    assert "diagnos" in flat and "fix" in flat and "revalidation" in flat
+
+
 def test_implement_hands_off_to_review_instead_of_acceptance() -> None:
     classic = _read("templates/commands/implement.md")
     advanced = _read("templates/advanced-skills/spx-implement/SKILL.md")

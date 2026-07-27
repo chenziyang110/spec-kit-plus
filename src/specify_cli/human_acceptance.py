@@ -104,6 +104,7 @@ def new_human_acceptance_state() -> dict[str, Any]:
             "uncovered_obligation_ids": [],
             "verdict": "pending",
         },
+        "review_exceptions": [],
         "runtime_targets": [],
         "scenarios": [],
         "cursor": {"scenario_id": None, "step_id": None},
@@ -410,6 +411,7 @@ def _approved_review_acceptance_contract(
         "scenarios": canonical_scenarios,
         "entrypoint_ids": entrypoint_ids,
         "runtime_targets": runtime_targets,
+        "review_exceptions": deepcopy(state.get("review_exceptions") or []),
     }
 
 
@@ -1351,6 +1353,12 @@ def _prepare_human_acceptance_locked(
             universe.get("obligations") if isinstance(universe, dict) else None
         )
         actual_scenarios = state.get("scenarios")
+        if (
+            "review_exceptions" not in state
+            and review_contract["review_exceptions"] == []
+        ):
+            state["review_exceptions"] = []
+        actual_review_exceptions = state.get("review_exceptions")
         contract_drift = actual_obligations != canonical_obligations
         if isinstance(actual_scenarios, list):
             actual_contract_scenarios = [
@@ -1364,6 +1372,9 @@ def _prepare_human_acceptance_locked(
             )
         else:
             contract_drift = True
+        contract_drift = contract_drift or (
+            actual_review_exceptions != review_contract["review_exceptions"]
+        )
         if contract_drift:
             return {
                 "status": "conflict",
@@ -1493,6 +1504,9 @@ def _prepare_human_acceptance_locked(
                 _materialize_runtime_target(item)
                 for item in review_contract["runtime_targets"]
             ]
+            state["review_exceptions"] = deepcopy(
+                review_contract["review_exceptions"]
+            )
             for scenario in state.get("scenarios", []):
                 if isinstance(scenario, dict):
                     scenario["runtime_target_id"] = _runtime_target_id_for_scenario(
@@ -1597,6 +1611,7 @@ def _prepare_human_acceptance_locked(
     state["runtime_targets"] = [
         _materialize_runtime_target(item) for item in review_contract["runtime_targets"]
     ]
+    state["review_exceptions"] = deepcopy(review_contract["review_exceptions"])
     contract_sha256 = review_contract["acceptance_universe_sha256"]
     for scenario in state["scenarios"]:
         scenario["runtime_target_id"] = _runtime_target_id_for_scenario(
@@ -1785,6 +1800,10 @@ def validate_human_acceptance(
         ):
             errors.append("canonical Human Acceptance Universe scenario contract drift")
         entrypoint_ids = set(review_contract["entrypoint_ids"])
+        if state.get("review_exceptions", []) != review_contract["review_exceptions"]:
+            errors.append(
+                "review_exceptions must exactly preserve the approved Review waiver ledger"
+            )
     else:
         entrypoint_ids = set()
 

@@ -433,6 +433,14 @@ func (service *WorkflowService) Reopen(request WorkflowReopenRequest) Envelope {
 	if state.Stage == "accept" {
 		return workflowStateBlocked(feature, state, "acceptance may only reopen through the acceptance repair transaction", "acceptance-repair-required")
 	}
+	if state.Stage == "review" && target == "implement" {
+		return workflowStateBlocked(
+			feature,
+			state,
+			"Review owns implementation diagnostics, repair, join, and revalidation; only a proven requirement, design, or architecture truth gap may reopen an earlier truth-owning stage",
+			"review-repair-owned-by-review",
+		)
+	}
 	sourceIndex := workflowStageIndex(state.Stage)
 	targetIndex := workflowStageIndex(target)
 	if targetIndex > sourceIndex || (targetIndex == sourceIndex && state.Status != "completed") {

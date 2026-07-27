@@ -20,6 +20,11 @@ The coverage gate is zero uncovered: no required obligation, official entrypoint
 
 Every mandatory scenario has a stable id, source acceptance refs, entrypoint, preconditions, safe test data, actions, observable expected results, required evidence, result, and exact resume point. Cover startup, reachability, interaction, state change/persistence, error or permission behavior, and cross-component integration when applicable.
 
+The only non-executed terminal result is `waived` for a current,
+hash-bound, human-confirmed `hardware_unavailable` exception. Its absent
+hardware, attempted alternatives, withheld claims, and residual risk remain
+explicit; it is never treated as PASS or used to waive a non-hardware failure.
+
 Operate the software. A passing test suite, present component, compiled route, implemented handler, or registered-looking provider does not prove that a user can reach and use it. Exercise buttons, links, menus, forms, shortcuts, and commands, then trace their real route-handler-provider/factory-service-persistence/feedback chain when an observation fails or consumer wiring is at risk. Flag dead controls, unreachable pages, orphan implementations, unregistered consumers, swallowed errors, missing feedback, and state that disappears unexpectedly.
 
 For UI scenarios, capture the current real entrypoint and representative viewport/state matrix. Required lifecycle evidence kinds are `structure_snapshot`, `visual_capture`, and `runtime_diagnostics`, each with `evidence_scope: integrated`. Treat blocking browser console errors, failed network calls, application exceptions, inaccessible interactions, and material visual drift as findings rather than residual notes.

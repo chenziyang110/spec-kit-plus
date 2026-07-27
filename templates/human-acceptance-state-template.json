@@ -28,6 +28,7 @@
     "uncovered_obligation_ids": [],
     "verdict": "pending"
   },
+  "review_exceptions": [],
   "runtime_targets": [],
   "scenarios": [],
   "cursor": {

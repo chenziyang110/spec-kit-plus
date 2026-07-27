@@ -67,6 +67,170 @@ func TestImplementValidationRecordsInterruptionAndReusesGate(t *testing.T) {
 	}
 }
 
+func TestImplementValidationExhaustedGateSlotsStillAllowDeliveryRetry(t *testing.T) {
+	project, feature, _ := newImplementFeatureProject(t)
+	writeTextFile(t, filepath.Join(project, "src", "demo.txt"), "before\n")
+	fingerprint := implementSnapshotSHA256(project, feature)
+	for _, gate := range []struct {
+		stage, purpose, status string
+	}{
+		{"implement", "baseline", "passed"},
+		{"implement", "convergence", "passed"},
+		{"review", "delivery", "failed"},
+	} {
+		if gate.stage == "review" {
+			workflow := readImplementJSONFile(t, filepath.Join(feature, "workflow.json"))
+			workflow["stage"] = "review"
+			writeImplementJSONFile(t, filepath.Join(feature, "workflow.json"), workflow)
+		}
+		started, err := reserveImplementValidationEpoch(project, feature, gate.stage, gate.purpose, fingerprint, []string{"pytest -q"}, []string{"T001"})
+		if err != nil {
+			t.Fatalf("start %s: %v", gate.purpose, err)
+		}
+		finish := implementValidationFinishRequest{
+			RunID: started["run_id"].(string), Status: gate.status,
+			EvidenceRefs: []string{"logs/" + gate.purpose + ".txt"}, Summary: gate.purpose + " " + gate.status,
+		}
+		if gate.status == "failed" {
+			finish.FailureKind = "assertion"
+		}
+		completed, err := completeImplementValidationEpoch(project, feature, finish)
+		if err != nil {
+			t.Fatalf("finish %s: %v", gate.purpose, err)
+		}
+		if gate.purpose == "convergence" {
+			decision := completed["attempt_decision"].(map[string]any)
+			if decision["action"] != "open_logical_gate" || decision["next_attempt_id"] != "V3-A1" {
+				t.Fatalf("convergence completion decision = %#v", decision)
+			}
+		}
+	}
+
+	unchanged, err := implementValidationBudgetStatus(project, feature)
+	if err != nil {
+		t.Fatal(err)
+	}
+	decision := unchanged["attempt_decision"].(map[string]any)
+	if unchanged["remaining_gate_slots"] != 0 || decision["action"] != "repair_before_retry" || decision["can_start_attempt"] != false {
+		t.Fatalf("unchanged decision = %#v", unchanged)
+	}
+
+	writeTextFile(t, filepath.Join(project, "src", "demo.txt"), "after repair\n")
+	repairedFingerprint := implementSnapshotSHA256(project, feature)
+	repaired, err := implementValidationBudgetStatus(project, feature)
+	if err != nil {
+		t.Fatal(err)
+	}
+	decision = repaired["attempt_decision"].(map[string]any)
+	if decision["action"] != "retry_same_gate" || decision["can_start_attempt"] != true || decision["next_attempt_id"] != "V3-A2" {
+		t.Fatalf("repaired decision = %#v", decision)
+	}
+	retry, err := reserveImplementValidationEpoch(project, feature, "review", "delivery", repairedFingerprint, []string{"pytest -q"}, []string{"T001"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if retry["run_id"] != "V3" || retry["attempt_id"] != "V3-A2" || retry["used_epochs"] != 3 {
+		t.Fatalf("retry = %#v", retry)
+	}
+}
+
+func TestImplementValidationPassedBaselineWithChangedSourceOpensConvergence(t *testing.T) {
+	project, feature, _ := newImplementFeatureProject(t)
+	baseline, err := reserveImplementValidationEpoch(project, feature, "implement", "baseline", "sha-before", []string{"pytest -q"}, []string{"T001"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := completeImplementValidationEpoch(project, feature, implementValidationFinishRequest{
+		RunID: baseline["run_id"].(string), Status: "passed",
+		EvidenceRefs: []string{"logs/baseline.txt"}, Summary: "Expected pre-change baseline observed.",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	decision := implementValidationAttemptDecision([]any{readImplementJSONFile(t, filepath.Join(feature, "implementation-review", "validation-runs.json"))["runs"].([]any)[0]}, 3, "sha-after", "implement")
+	if decision["action"] != "open_logical_gate" || decision["next_attempt_id"] != "V2-A1" {
+		t.Fatalf("baseline decision = %#v", decision)
+	}
+	if _, err := reserveImplementValidationEpoch(project, feature, "implement", "baseline", "sha-after", []string{"pytest -q"}, []string{"T001"}); err == nil || !strings.Contains(err.Error(), "baseline is immutable") {
+		t.Fatalf("passed baseline retry error = %v", err)
+	}
+}
+
+func TestImplementValidationReviewRepairAfterConvergenceOpensDelivery(t *testing.T) {
+	project, feature, _ := newImplementFeatureProject(t)
+	convergence, err := reserveImplementValidationEpoch(project, feature, "implement", "convergence", "sha-before-review", []string{"pytest -q"}, []string{"T001"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := completeImplementValidationEpoch(project, feature, implementValidationFinishRequest{
+		RunID: convergence["run_id"].(string), Status: "passed",
+		EvidenceRefs: []string{"logs/convergence.txt"}, Summary: "Implement convergence passed.",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	workflow := readImplementJSONFile(t, filepath.Join(feature, "workflow.json"))
+	workflow["stage"] = "review"
+	writeImplementJSONFile(t, filepath.Join(feature, "workflow.json"), workflow)
+	writeTextFile(t, filepath.Join(project, "src", "review-fix.txt"), "review-owned repair\n")
+
+	status, err := implementValidationBudgetStatus(project, feature)
+	if err != nil {
+		t.Fatal(err)
+	}
+	decision := status["attempt_decision"].(map[string]any)
+	if decision["action"] != "open_logical_gate" || decision["next_attempt_id"] != "V2-A1" || decision["reason_code"] != "review-owned-repair-needs-delivery-proof" {
+		t.Fatalf("review repair decision = %#v", decision)
+	}
+}
+
+func TestImplementValidationMigratesTransitionalV2DuplicateGates(t *testing.T) {
+	project, feature, _ := newImplementFeatureProject(t)
+	legacyRun := func(runID, stage, purpose, fingerprint, status string) map[string]any {
+		failureKind := any(nil)
+		if status == "failed" {
+			failureKind = "assertion"
+		}
+		attempt := map[string]any{
+			"attempt_id": runID + "-A1", "fingerprint": fingerprint,
+			"commands": []any{"pytest -q"}, "covered_task_ids": []any{"T001"},
+			"status": status, "failure_kind": failureKind,
+			"evidence_refs": []any{"logs/" + runID + ".txt"}, "summary": runID + " " + status,
+			"started_at": "2026-07-27T00:00:00Z", "completed_at": "2026-07-27T00:01:00Z",
+		}
+		run := map[string]any{"run_id": runID, "stage": stage, "purpose": purpose, "attempts": []any{attempt}}
+		for key, value := range attempt {
+			run[key] = value
+		}
+		return run
+	}
+	writeImplementJSONFile(t, filepath.Join(feature, "implementation-review", "validation-runs.json"), map[string]any{
+		"version": 2, "mode": "feature_epochs", "budget_scope": "implement-review", "max_epochs": 3,
+		"runs": []any{
+			legacyRun("V1", "implement", "convergence", "sha-a", "passed"),
+			legacyRun("V2", "implement", "convergence", "sha-b", "passed"),
+			legacyRun("V3", "review", "delivery", "sha-c", "failed"),
+		},
+	})
+
+	status, err := implementValidationBudgetStatus(project, feature)
+	if err != nil {
+		t.Fatal(err)
+	}
+	runs := status["runs"].([]any)
+	if usedAttempts, ok := numberAsInt(status["used_attempts"]); len(runs) != 2 || !ok || usedAttempts != 3 {
+		t.Fatalf("migrated status = %#v", status)
+	}
+	convergence := runs[0].(map[string]any)
+	if len(convergence["attempts"].([]any)) != 2 || convergence["attempt_id"] != "V1-A2" {
+		t.Fatalf("migrated convergence = %#v", convergence)
+	}
+	migration := status["migration"].(map[string]any)
+	fromVersion, fromOK := numberAsInt(migration["from_version"])
+	legacyCount, countOK := numberAsInt(migration["legacy_run_count"])
+	if !fromOK || !countOK || fromVersion != 2 || legacyCount != 3 {
+		t.Fatalf("migration provenance = %#v", migration)
+	}
+}
+
 func TestImplementDeferralRequiresExactConfirmationDigest(t *testing.T) {
 	project, feature, rel := newImplementFeatureProject(t)
 	withCwd(t, project)

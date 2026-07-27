@@ -27,6 +27,13 @@ A real failure requires repair and a new fingerprint. Never open a fourth
 logical gate. After timeout, isolate the last active scenario/test with
 open-handle/process-exit diagnostics; repair a hang, or split a legitimately
 long matrix into deterministic bounded shards inside the same delivery gate.
+`remaining_epochs` and `remaining_gate_slots` count unopened logical gates,
+not retry permission. Always follow `validation-status.attempt_decision`: zero
+slots with `retry_same_gate` continues inside delivery; `repair_before_retry`
+requires diagnosis and a changed fingerprint. When the reason is
+`review-owned-repair-needs-delivery-proof`, open delivery at the Review-repaired
+fingerprint rather than retrying convergence or reopening Implement. Never stop
+from the raw count.
 
 Its canonical ref is `implementation-review/validation-runs.json`. Call
 `{{specify-subcmd:specify-runtime implement validation-status --feature-dir <feature-dir> --format json}}`
@@ -132,8 +139,27 @@ repair and revalidation. Only a proven upstream truth gap may leave Review.
   contradictory requirement truth routes to `$spx-specify`; missing or
   contradictory design truth routes to `$spx-design`; architecture truth that
   must change before any conforming fix routes to `$spx-plan`.
-- Human-only system, account, device, protected CI, or visual judgment: retain a
-  blocked Review with the full Human Action Guide and exact resume point.
+- Missing account authority, protected CI, credentials, or visual judgment:
+  retain a blocked Review with the full Human Action Guide and exact resume
+  point. Physical hardware absence has one narrower exception lane below.
+
+### Human-confirmed hardware exception
+
+Only a required scenario whose named physical hardware is genuinely absent is
+eligible. First exhaust bounded emulation/substitution checks and write
+current-cycle evidence of the unavailable resource. Create a proposal JSON
+with `kind: hardware_unavailable`, exact scenario/obligation ids,
+`required_resource`, `unavailable_evidence_refs`, `attempted_alternatives`,
+`claims_withheld`, `residual_risk`, and `risk_severity`; then run
+`{{specify-subcmd:specify-runtime review exception-propose --feature-dir <feature-dir> --input <proposal.json> --format json}}`.
+Show the human the exact proposal digest and consequences. Continue only after
+an explicit decision bound through
+`{{specify-subcmd:specify-runtime review exception-confirm --feature-dir <feature-dir> --exception-id <REX-id> --proposal-sha256 <sha> --confirmation-source human-reply --statement '<exact human statement>' --format json}}`.
+The scenario/obligation become `waived`, not passed; final verdict and coverage
+are `pass_with_waivers`, and `final.review_exceptions_sha256` binds the ledger.
+Exclude only confirmed waived scenarios from executable full-matrix evidence.
+Preserve withheld claims and residual risk in the implementation summary and
+Accept handoff. An unconfirmed, stale, or modified proposal blocks approval.
 
 For a proven truth gap, use the runtime-provided reopen argv when present.
 Otherwise use `specify-runtime workflow reopen` with current revision, compact reason,
@@ -181,7 +207,8 @@ subtrees.
 `review validate` may approve only when:
 
 - the Review Universe has zero uncovered obligations/surfaces and all packets joined;
-- every required scenario is `pass`;
+- every required scenario is `pass`, or is `waived` by a current
+  human-confirmed hardware exception;
 - no blocking finding remains open or merely asserted resolved;
 - required evidence exists, is integrated, and matches the current snapshot;
 - startup/readiness and material runtime diagnostics pass;
@@ -221,8 +248,9 @@ implementation snapshot and a byte-matching `artifact_sha256`; it must not live
 under `review-evidence/`, `review-results/`, or another snapshot-excluded path,
 and it must exist before the final fingerprint is captured.
 The Review-to-Accept handoff contains
-`human_acceptance_obligations`, `human_acceptance_scenarios`, those targets, and
-their final digest. Accept preserves both identity-evidence fields read-only
+`human_acceptance_obligations`, `human_acceptance_scenarios`, those targets,
+the confirmed Review exception ledger and withheld claims, and their final
+digests. Accept preserves the waiver ledger and both identity-evidence fields read-only
 and may add only session readiness/actions; it does not
 prefill human PASS or duplicate the System Review matrix. After an acceptance
 repair, reset every human scenario and preserve no earlier PASS. Execute only the returned

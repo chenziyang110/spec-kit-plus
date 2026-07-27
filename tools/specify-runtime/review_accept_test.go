@@ -3,8 +3,11 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -45,6 +48,7 @@ func TestReviewPrepareValidateAndCloseout(t *testing.T) {
 		"reviewed_snapshot_sha256":      "",
 		"implementation_summary_sha256": "",
 		"runtime_targets_sha256":        "",
+		"review_exceptions_sha256":      canonicalJSONSHA256(map[string]any{"review_exceptions": []any{}}),
 	}
 	mustWriteReviewAcceptJSON(t, filepath.Join(featureDir, reviewStateFilename), state)
 
@@ -55,6 +59,134 @@ func TestReviewPrepareValidateAndCloseout(t *testing.T) {
 	closed := readReviewAcceptEnvelope(t, out.Bytes())
 	if closed.Status != "ok" || !equalStringSlices(closed.NextArgv[1:], []string{"workflow", "complete-stage", "--feature-dir", featureRel, "--expected-revision", "4", "--format", "json"}) {
 		t.Fatalf("closeout = %#v", closed)
+	}
+}
+
+func TestReviewPrepareUpgradesPreExceptionV2StateInPlace(t *testing.T) {
+	projectRoot, featureDir, featureRel := newWorkflowFeature(t, "104-review-upgrade")
+	writeWorkflowStateFixture(t, featureDir, "104-review-upgrade", 4, "review", "active", nil)
+	mustWriteReviewAcceptJSON(t, filepath.Join(featureDir, implementationHandoffFilename), reviewAcceptHandoffFixture(4))
+
+	var out bytes.Buffer
+	args := []string{"prepare", "--project-root", projectRoot, "--feature-dir", featureRel, "--expected-revision", "4", "--format", "json"}
+	if code := runReview(args, &out); code != 0 {
+		t.Fatalf("initial prepare exit = %d output = %s", code, out.String())
+	}
+	statePath := filepath.Join(featureDir, reviewStateFilename)
+	legacy := readReviewAcceptJSON(t, statePath)
+	delete(legacy, "review_exceptions")
+	delete(legacy["final"].(map[string]any), "review_exceptions_sha256")
+	delete(legacy["source"].(map[string]any), "review_cycle_id")
+	mustWriteReviewAcceptJSON(t, statePath, legacy)
+
+	out.Reset()
+	if code := runReview(args, &out); code != 0 {
+		t.Fatalf("resume prepare exit = %d output = %s", code, out.String())
+	}
+	upgraded := readReviewAcceptJSON(t, statePath)
+	if !reflect.DeepEqual(upgraded["review_exceptions"], []any{}) {
+		t.Fatalf("review_exceptions = %#v", upgraded["review_exceptions"])
+	}
+	final := upgraded["final"].(map[string]any)
+	wantDigest := reviewExceptionsSHA256([]any{})
+	if final["review_exceptions_sha256"] != wantDigest {
+		t.Fatalf("review_exceptions_sha256 = %v, want %s", final["review_exceptions_sha256"], wantDigest)
+	}
+	upgradedSource := upgraded["source"].(map[string]any)
+	wantCycleID := reviewCycleID(4, fmt.Sprint(upgradedSource["implementation_handoff_sha256"]), 1, "", "", "")
+	if upgradedSource["review_cycle_id"] != wantCycleID {
+		t.Fatalf("review_cycle_id = %v, want %s", upgradedSource["review_cycle_id"], wantCycleID)
+	}
+	legacySource := cloneAny(legacy["source"]).(map[string]any)
+	legacySource["review_cycle_id"] = wantCycleID
+	if !reflect.DeepEqual(upgraded["source"], legacySource) || !reflect.DeepEqual(upgraded["scenarios"], legacy["scenarios"]) {
+		t.Fatal("compatibility upgrade changed existing Review evidence")
+	}
+}
+
+func TestReviewFingerprintTracksProductButIgnoresReviewEvidence(t *testing.T) {
+	projectRoot, featureDir, _ := newWorkflowFeature(t, "105-review-fingerprint")
+	mustMkdir(t, filepath.Join(projectRoot, "src"))
+	writeTextFile(t, filepath.Join(projectRoot, "src", "product.txt"), "before\n")
+	before := sourceTreeFingerprint(projectRoot, featureDir)
+
+	mustMkdir(t, filepath.Join(featureDir, "review-evidence"))
+	writeTextFile(t, filepath.Join(featureDir, "review-evidence", "diagnostic.json"), "{}\n")
+	if afterEvidence := sourceTreeFingerprint(projectRoot, featureDir); afterEvidence != before {
+		t.Fatalf("Review-owned evidence changed implementation fingerprint: %s != %s", afterEvidence, before)
+	}
+
+	writeTextFile(t, filepath.Join(projectRoot, "src", "product.txt"), "after repair\n")
+	if afterProduct := sourceTreeFingerprint(projectRoot, featureDir); afterProduct == before {
+		t.Fatal("product repair did not change implementation fingerprint")
+	}
+}
+
+func TestReviewHardwareExceptionRequiresExactHumanConfirmation(t *testing.T) {
+	projectRoot, featureDir, featureRel := newWorkflowFeature(t, "103-review-hardware")
+	writeWorkflowStateFixture(t, featureDir, "103-review-hardware", 4, "review", "active", nil)
+	handoff := reviewAcceptHandoffFixture(4)
+	handoff["review_scenarios"] = []any{map[string]any{
+		"id": "RS-HW-1", "required": true, "result": "pending", "evidence": []any{},
+	}}
+	handoff["review_obligations"] = []any{map[string]any{
+		"id": "RO-HW-1", "required": true, "scenario_ids": []any{"RS-HW-1"},
+		"status": "pending", "review_assignment_ids": []any{"RA-1"},
+	}}
+	mustWriteReviewAcceptJSON(t, filepath.Join(featureDir, implementationHandoffFilename), handoff)
+
+	var out bytes.Buffer
+	if code := runReview([]string{"prepare", "--project-root", projectRoot, "--feature-dir", featureRel, "--expected-revision", "4", "--format", "json"}, &out); code != 0 {
+		t.Fatalf("prepare exit = %d output = %s", code, out.String())
+	}
+	mustMkdir(t, filepath.Join(featureDir, "review-evidence"))
+	evidenceRef := "review-evidence/hardware-unavailable.json"
+	writeTextFile(t, filepath.Join(featureDir, filepath.FromSlash(evidenceRef)), "{\"observed_devices\":[]}\n")
+	proposalRef := "review-evidence/hardware-exception-proposal.json"
+	mustWriteReviewAcceptJSON(t, filepath.Join(featureDir, filepath.FromSlash(proposalRef)), map[string]any{
+		"kind": "hardware_unavailable", "scenario_ids": []any{"RS-HW-1"},
+		"obligation_ids": []any{"RO-HW-1"}, "required_resource": "USB security key model X",
+		"unavailable_evidence_refs": []any{evidenceRef},
+		"attempted_alternatives":    []any{"Enumerated attached USB devices."},
+		"claims_withheld":           []any{"physical security key behavior verified"},
+		"residual_risk":             "The physical interaction remains unobserved.", "risk_severity": "medium",
+	})
+
+	out.Reset()
+	if code := runReview([]string{"exception-propose", "--project-root", projectRoot, "--feature-dir", featureRel, "--input", filepath.ToSlash(filepath.Join(featureRel, proposalRef)), "--format", "json"}, &out); code != 0 {
+		t.Fatalf("propose exit = %d output = %s", code, out.String())
+	}
+	proposal := readReviewAcceptEnvelope(t, out.Bytes()).Data
+	if proposal["status"] != "proposed" {
+		t.Fatalf("proposal = %#v", proposal)
+	}
+
+	out.Reset()
+	if code := runReview([]string{"exception-confirm", "--project-root", projectRoot, "--feature-dir", featureRel, "--exception-id", proposal["exception_id"].(string), "--proposal-sha256", strings.Repeat("0", 64), "--confirmation-source", "human-reply", "--statement", "Proceed without this unavailable hardware.", "--format", "json"}, &out); code != 10 {
+		t.Fatalf("wrong digest should block: exit=%d output=%s", code, out.String())
+	}
+
+	out.Reset()
+	if code := runReview([]string{"exception-confirm", "--project-root", projectRoot, "--feature-dir", featureRel, "--exception-id", proposal["exception_id"].(string), "--proposal-sha256", proposal["proposal_sha256"].(string), "--confirmation-source", "human-reply", "--statement", "Proceed without this unavailable hardware.", "--format", "json"}, &out); code != 0 {
+		t.Fatalf("confirm exit = %d output = %s", code, out.String())
+	}
+
+	state := readReviewAcceptJSON(t, filepath.Join(featureDir, reviewStateFilename))
+	if state["scenarios"].([]any)[0].(map[string]any)["result"] != "waived" || state["obligations"].([]any)[0].(map[string]any)["status"] != "waived" {
+		t.Fatalf("confirmed exception did not mark explicit waivers: %#v", state)
+	}
+	state["status"] = "approved"
+	final := state["final"].(map[string]any)
+	final["verdict"] = "pass_with_waivers"
+	final["coverage_verdict"] = "pass_with_waivers"
+	final["repair_verdict"] = "pass"
+	final["integration_verdict"] = "pass"
+	final["all_packets_joined"] = true
+	mustWriteReviewAcceptJSON(t, filepath.Join(featureDir, reviewStateFilename), state)
+
+	out.Reset()
+	if code := runReview([]string{"closeout", "--project-root", projectRoot, "--feature-dir", featureRel, "--expected-revision", "4", "--format", "json"}, &out); code != 0 {
+		t.Fatalf("waived closeout exit = %d output = %s", code, out.String())
 	}
 }
 
@@ -153,8 +285,10 @@ func approvedReviewStateFixture(t *testing.T, projectRoot, featureDir, featureRe
 			"reviewed_snapshot_sha256":      "",
 			"implementation_summary_sha256": "",
 			"runtime_targets_sha256":        "",
+			"review_exceptions_sha256":      canonicalJSONSHA256(map[string]any{"review_exceptions": []any{}}),
 		},
-		"feature_dir": featureRel,
+		"review_exceptions": []any{},
+		"feature_dir":       featureRel,
 	}
 }
 

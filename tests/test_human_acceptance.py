@@ -348,6 +348,7 @@ def _install_approved_review(
         "obligations": obligations,
         "human_acceptance_obligations": human_obligations,
         "human_acceptance_scenarios": human_scenarios,
+        "review_exceptions": [],
         "reviewed_runtime_targets": reviewed_runtime_targets,
         "review_assignments": [
             {
@@ -412,6 +413,9 @@ def _install_approved_review(
             ).hexdigest(),
             "runtime_targets_sha256": review_runtime_module._review_runtime_targets_sha256(
                 reviewed_runtime_targets
+            ),
+            "review_exceptions_sha256": review_runtime_module._review_exceptions_sha256(
+                []
             ),
         },
     }
@@ -658,6 +662,9 @@ def _approve_current_acceptance_repair_review(
         ).hexdigest(),
         "runtime_targets_sha256": review_runtime_module._review_runtime_targets_sha256(
             state["reviewed_runtime_targets"]
+        ),
+        "review_exceptions_sha256": review_runtime_module._review_exceptions_sha256(
+            state["review_exceptions"]
         ),
     }
     state_path.write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
@@ -1249,6 +1256,27 @@ def test_prepare_materializes_the_frozen_human_acceptance_universe(
         == state["source"]["reviewed_snapshot_sha256"]
     )
     assert state["runtime_targets"][0]["acceptance_status"] == "pending"
+
+
+def test_pre_waiver_acceptance_state_resumes_as_an_empty_waiver_ledger(
+    tmp_path: Path,
+) -> None:
+    project, feature = _feature(tmp_path)
+    prepare_human_acceptance(project, feature)
+    state_path = feature / "human-acceptance.json"
+    legacy_state = json.loads(state_path.read_text(encoding="utf-8"))
+    legacy_state.pop("review_exceptions")
+    state_path.write_text(
+        json.dumps(legacy_state, indent=2) + "\n", encoding="utf-8"
+    )
+
+    resumed = prepare_human_acceptance(project, feature)
+    validation = validate_human_acceptance(project, feature)
+    migrated = json.loads(state_path.read_text(encoding="utf-8"))
+
+    assert resumed["status"] == "draft"
+    assert migrated["review_exceptions"] == []
+    assert not any("review_exceptions" in error for error in validation["errors"])
 
 
 @pytest.mark.parametrize(

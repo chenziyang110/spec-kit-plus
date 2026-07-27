@@ -10,6 +10,7 @@ from typing import Any
 import pytest
 
 from specify_cli.workflow_runtime import (
+    InvalidTransition,
     RevisionConflict,
     block_workflow,
     closeout_workflow,
@@ -248,3 +249,26 @@ def test_real_runtime_acceptance_repair_uses_guarded_go_reopen(
     assert repaired["data"]["status"] == "active"
     assert repaired["data"]["revision"] == revision + 1
     assert repaired["data"]["last_reopen"]["repair_route"] == "sp-review"
+
+
+def test_review_cannot_reopen_implement_for_routine_repair(tmp_path: Path) -> None:
+    _root, feature = _project(tmp_path, "005-review-owned-repair")
+    entered = enter_workflow(feature, stage="specify", expected_revision=0)
+    revision = _advance(
+        feature,
+        revision=int(entered["data"]["revision"]),
+        targets=("plan", "tasks", "implement", "review"),
+    )
+
+    with pytest.raises(InvalidTransition) as exc_info:
+        reopen_workflow(
+            feature,
+            target_stage="implement",
+            expected_revision=revision,
+            reason="A system journey exposed a wiring defect.",
+            evidence=["finding SRF-001"],
+            invalidated_artifacts=["review-state.json"],
+        )
+
+    assert exc_info.value.code == "review-repair-owned-by-review"
+    assert show_workflow(feature)["data"]["stage"] == "review"

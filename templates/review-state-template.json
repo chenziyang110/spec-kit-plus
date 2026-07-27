@@ -18,6 +18,7 @@
   "human_acceptance_obligations": [],
   "human_acceptance_scenarios": [],
   "implementation_deferrals": [],
+  "review_exceptions": [],
   "reviewed_runtime_targets": [],
   "review_assignments": [],
   "fix_assignments": [],
@@ -60,6 +61,7 @@
     "all_packets_joined": false,
     "reviewed_snapshot_sha256": "",
     "implementation_summary_sha256": "",
-    "runtime_targets_sha256": ""
+    "runtime_targets_sha256": "",
+    "review_exceptions_sha256": "986607c0fc9ed8bea566c22b8cd08a1dd5c53cf3b9707673df7ad5e93a3e6652"
   }
 }

@@ -223,6 +223,169 @@ def test_validation_budget_counts_logical_gates_and_retries_inside_delivery(
     ]
 
 
+def test_exhausted_gate_slots_still_allow_progress_bound_delivery_retry(
+    tmp_path: Path,
+) -> None:
+    project_root, feature_dir = _write_packet_project(
+        tmp_path, feature_epochs=True
+    )
+    for purpose, stage, fingerprint, terminal_status in (
+        ("baseline", "implement", "sha-a", "passed"),
+        ("convergence", "implement", "sha-b", "passed"),
+        ("delivery", "review", "sha-c", "failed"),
+    ):
+        run = reserve_validation_epoch(
+            project_root,
+            feature_dir,
+            stage=stage,
+            purpose=purpose,
+            fingerprint=fingerprint,
+            commands=["pytest -q"],
+            covered_task_ids=["T001"],
+        )
+        completed = complete_validation_epoch(
+            project_root,
+            feature_dir,
+            run_id=run["run_id"],
+            status=terminal_status,
+            evidence_refs=[f"logs/{purpose}.txt"],
+            summary=f"{purpose} {terminal_status}.",
+        )
+        if purpose == "convergence":
+            assert completed["attempt_decision"]["action"] == "open_logical_gate"
+            assert completed["attempt_decision"]["next_attempt_id"] == "V3-A1"
+
+    unchanged = validation_budget_status(
+        project_root,
+        feature_dir,
+        current_fingerprint="sha-c",
+    )
+    assert unchanged["remaining_epochs"] == 0
+    assert unchanged["remaining_gate_slots"] == 0
+    assert unchanged["attempt_decision"] == {
+        "action": "repair_before_retry",
+        "can_start_attempt": False,
+        "gate_id": "V3",
+        "next_attempt_id": "V3-A2",
+        "requires_new_fingerprint": True,
+        "reason_code": "failed-attempt-unchanged-fingerprint",
+    }
+
+    repaired = validation_budget_status(
+        project_root,
+        feature_dir,
+        current_fingerprint="sha-d",
+    )
+    assert repaired["remaining_epochs"] == 0
+    assert repaired["attempt_decision"] == {
+        "action": "retry_same_gate",
+        "can_start_attempt": True,
+        "gate_id": "V3",
+        "next_attempt_id": "V3-A2",
+        "requires_new_fingerprint": False,
+        "reason_code": "failed-attempt-repaired",
+    }
+
+    retry = reserve_validation_epoch(
+        project_root,
+        feature_dir,
+        stage="review",
+        purpose="delivery",
+        fingerprint="sha-d",
+        commands=["pytest -q"],
+        covered_task_ids=["T001"],
+    )
+    assert retry["run_id"] == "V3"
+    assert retry["attempt_id"] == "V3-A2"
+    assert retry["used_epochs"] == 3
+
+
+def test_passed_baseline_with_changed_source_opens_convergence_gate(
+    tmp_path: Path,
+) -> None:
+    project_root, feature_dir = _write_packet_project(
+        tmp_path, feature_epochs=True
+    )
+    baseline = reserve_validation_epoch(
+        project_root,
+        feature_dir,
+        stage="implement",
+        purpose="baseline",
+        fingerprint="sha-before",
+        commands=["pytest -q"],
+        covered_task_ids=["T001"],
+    )
+    complete_validation_epoch(
+        project_root,
+        feature_dir,
+        run_id=baseline["run_id"],
+        status="passed",
+        evidence_refs=["logs/baseline.txt"],
+        summary="Expected pre-change baseline observed.",
+    )
+
+    status = validation_budget_status(
+        project_root,
+        feature_dir,
+        current_fingerprint="sha-after",
+    )
+
+    assert status["attempt_decision"]["action"] == "open_logical_gate"
+    assert status["attempt_decision"]["next_attempt_id"] == "V2-A1"
+
+    with pytest.raises(ValidationBudgetError, match="baseline is immutable"):
+        reserve_validation_epoch(
+            project_root,
+            feature_dir,
+            stage="implement",
+            purpose="baseline",
+            fingerprint="sha-after",
+            commands=["pytest -q"],
+            covered_task_ids=["T001"],
+        )
+
+
+def test_review_owned_repair_after_convergence_opens_delivery_not_implement_retry(
+    tmp_path: Path,
+) -> None:
+    project_root, feature_dir = _write_packet_project(
+        tmp_path, feature_epochs=True
+    )
+    convergence = reserve_validation_epoch(
+        project_root,
+        feature_dir,
+        stage="implement",
+        purpose="convergence",
+        fingerprint="sha-before-review",
+        commands=["pytest -q"],
+        covered_task_ids=["T001"],
+    )
+    complete_validation_epoch(
+        project_root,
+        feature_dir,
+        run_id=convergence["run_id"],
+        status="passed",
+        evidence_refs=["logs/convergence.txt"],
+        summary="Implement convergence passed.",
+    )
+
+    status = validation_budget_status(
+        project_root,
+        feature_dir,
+        current_fingerprint="sha-after-review-repair",
+        active_stage="review",
+    )
+
+    assert status["attempt_decision"] == {
+        "action": "open_logical_gate",
+        "can_start_attempt": True,
+        "gate_id": "",
+        "next_attempt_id": "V2-A1",
+        "requires_new_fingerprint": False,
+        "reason_code": "review-owned-repair-needs-delivery-proof",
+    }
+
+
 def test_failed_epoch_cannot_be_retried_without_a_new_fingerprint(
     tmp_path: Path,
 ) -> None:
@@ -615,6 +778,122 @@ def test_legacy_timeout_status_is_migrated_to_retryable_interruption(
     )
     assert retry["run_id"] == "V1"
     assert retry["attempt_id"] == "V1-A2"
+
+
+def test_transitional_v2_duplicate_gates_are_coalesced_without_losing_handoff_history(
+    tmp_path: Path,
+) -> None:
+    project_root, feature_dir = _write_packet_project(
+        tmp_path, feature_epochs=True
+    )
+
+    def attempt(
+        run_id: str,
+        fingerprint: str,
+        *,
+        stage: str,
+        purpose: str,
+        status: str = "passed",
+    ) -> dict[str, object]:
+        attempt_payload: dict[str, object] = {
+            "attempt_id": f"{run_id}-A1",
+            "fingerprint": fingerprint,
+            "commands": ["pytest -q"],
+            "covered_task_ids": ["T001"],
+            "status": status,
+            "failure_kind": "assertion" if status == "failed" else None,
+            "evidence_refs": [f"logs/{run_id}.txt"],
+            "summary": f"{run_id} {status}.",
+            "started_at": "2026-07-27T00:00:00Z",
+            "completed_at": "2026-07-27T00:01:00Z",
+        }
+        return {
+            "run_id": run_id,
+            "stage": stage,
+            "purpose": purpose,
+            "attempts": [attempt_payload],
+            **attempt_payload,
+        }
+
+    raw_runs = [
+        attempt("V1", "sha-a", stage="implement", purpose="convergence"),
+        attempt("V2", "sha-b", stage="implement", purpose="convergence"),
+        attempt(
+            "V3",
+            "sha-c",
+            stage="review",
+            purpose="delivery",
+            status="failed",
+        ),
+    ]
+    ledger_path = feature_dir / "implementation-review" / "validation-runs.json"
+    ledger_path.parent.mkdir(parents=True)
+    ledger_path.write_text(
+        json.dumps(
+            {
+                "version": 2,
+                "mode": "feature_epochs",
+                "budget_scope": "implement-review",
+                "max_epochs": 3,
+                "runs": raw_runs,
+            }
+        ),
+        encoding="utf-8",
+    )
+    consumed_prefix_sha256 = __import__("hashlib").sha256(
+        json.dumps(
+            raw_runs[:2],
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()
+    (feature_dir / "implementation-handoff.json").write_text(
+        json.dumps(
+            {
+                "validation_budget": {
+                    "mode": "feature_epochs",
+                    "max_epochs": 3,
+                    "budget_scope": "implement-review",
+                    "ledger_ref": "implementation-review/validation-runs.json",
+                    "used_epochs": 2,
+                    "consumed_runs_sha256": consumed_prefix_sha256,
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    status = validation_budget_status(
+        project_root,
+        feature_dir,
+        current_fingerprint="sha-d",
+    )
+
+    assert status["used_epochs"] == 2
+    assert status["used_attempts"] == 3
+    assert [run["purpose"] for run in status["runs"]] == [
+        "convergence",
+        "delivery",
+    ]
+    assert [
+        item["attempt_id"] for item in status["runs"][0]["attempts"]
+    ] == ["V1-A1", "V1-A2"]
+    assert status["migration"]["from_version"] == 2
+    assert status["migration"]["legacy_run_count"] == 3
+    assert status["attempt_decision"]["can_start_attempt"] is True
+
+    retry = reserve_validation_epoch(
+        project_root,
+        feature_dir,
+        stage="review",
+        purpose="delivery",
+        fingerprint="sha-d",
+        commands=["pytest -q"],
+        covered_task_ids=["T001"],
+    )
+    assert retry["run_id"] == "V2"
+    assert retry["attempt_id"] == "V2-A2"
 
 
 def test_migrated_legacy_history_cannot_be_rewritten(tmp_path: Path) -> None:

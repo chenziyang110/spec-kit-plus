@@ -139,7 +139,7 @@ def _runtime_error(
         "revision" in lowered and ("conflict" in lowered or "stale" in lowered)
     ):
         error_type = RevisionConflict
-    elif any(
+    elif code == "review-repair-owned-by-review" or any(
         marker in lowered
         for marker in (
             "transition",

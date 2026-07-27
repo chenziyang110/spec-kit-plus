@@ -38,7 +38,29 @@ REVIEW_STATUSES = frozenset(
         "stale",
     }
 )
-SCENARIO_RESULTS = frozenset({"pending", "pass", "fail", "blocked", "not_run"})
+SCENARIO_RESULTS = frozenset(
+    {"pending", "pass", "fail", "blocked", "not_run", "waived"}
+)
+REVIEW_EXCEPTION_KINDS = frozenset({"hardware_unavailable"})
+REVIEW_EXCEPTION_STATUSES = frozenset({"proposed", "confirmed"})
+REVIEW_EXCEPTION_CONFIRMATION_SOURCES = frozenset(
+    {"human-reply", "interactive-input", "attached-evidence"}
+)
+REVIEW_EXCEPTION_ID_RE = re.compile(r"^REX-[0-9a-f]{12}$")
+REVIEW_EXCEPTION_PROPOSAL_FIELDS = (
+    "kind",
+    "scenario_ids",
+    "obligation_ids",
+    "required_resource",
+    "unavailable_evidence_refs",
+    "unavailable_evidence_sha256",
+    "attempted_alternatives",
+    "claims_withheld",
+    "residual_risk",
+    "risk_severity",
+    "review_cycle_id",
+    "implementation_fingerprint",
+)
 FINDING_STATUSES = frozenset(
     {"open", "repairing", "fixed", "verified", "accepted_residual_risk"}
 )
@@ -737,6 +759,47 @@ def _canonical_payload_sha256(payload: Mapping[str, Any]) -> str:
         separators=(",", ":"),
     )
     return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
+
+
+def _review_exception_proposal_payload(
+    value: Mapping[str, Any],
+) -> dict[str, Any]:
+    return {
+        field: deepcopy(value.get(field))
+        for field in REVIEW_EXCEPTION_PROPOSAL_FIELDS
+    }
+
+
+def _review_exceptions_sha256(value: object) -> str:
+    exceptions = value if isinstance(value, list) else []
+    normalized = [
+        deepcopy(dict(item)) for item in exceptions if isinstance(item, Mapping)
+    ]
+    normalized.sort(key=lambda item: str(item.get("exception_id") or ""))
+    return _canonical_payload_sha256({"review_exceptions": normalized})
+
+
+def _upgrade_review_exception_contract(state: dict[str, Any]) -> bool:
+    """Add the empty exception ledger to pre-feature Review v2 state.
+
+    Review exception support is a backward-compatible extension of the v2
+    state contract.  Existing evidence remains authoritative; the upgrade only
+    materializes the two deterministic empty-ledger fields that older writers
+    could not have produced.
+    """
+
+    changed = False
+    if "review_exceptions" not in state:
+        state["review_exceptions"] = []
+        changed = True
+
+    final = state.get("final")
+    if isinstance(final, dict) and "review_exceptions_sha256" not in final:
+        final["review_exceptions_sha256"] = _review_exceptions_sha256(
+            state.get("review_exceptions")
+        )
+        changed = True
+    return changed
 
 
 def _acceptance_finding_sha256(value: Mapping[str, Any]) -> str:
@@ -1820,6 +1883,7 @@ def _new_review_state(
         "implementation_deferrals": _new_review_deferral_states(
             implementation_deferrals
         ),
+        "review_exceptions": [],
         "reviewed_runtime_targets": [],
         "review_assignments": [],
         "fix_assignments": [],
@@ -1869,6 +1933,7 @@ def _new_review_state(
             "reviewed_snapshot_sha256": "",
             "implementation_summary_sha256": "",
             "runtime_targets_sha256": "",
+            "review_exceptions_sha256": _review_exceptions_sha256([]),
         },
     }
     if restart_reason:
@@ -1948,6 +2013,11 @@ def prepare_review(
                 and source.get("acceptance_finding_id") == last_reopen.get("finding_id")
                 and source.get("implementation_handoff_sha256") == handoff_digest
             ):
+                if _upgrade_review_exception_contract(existing):
+                    atomic_write_text(
+                        state_file,
+                        json.dumps(existing, ensure_ascii=False, indent=2) + "\n",
+                    )
                 return envelope(
                     "ok",
                     "Acceptance repair Review cycle is already prepared.",
@@ -1957,6 +2027,11 @@ def prepare_review(
                 if existing.get("status") != "approved":
                     raise ReviewRuntimeError(
                         "acceptance repair cycle requires the previous Review to be approved"
+                    )
+                if _upgrade_review_exception_contract(existing):
+                    atomic_write_text(
+                        state_file,
+                        json.dumps(existing, ensure_ascii=False, indent=2) + "\n",
                     )
                 previous_digest = _sha256(state_file)
                 repair_context = _acceptance_repair_context(
@@ -2014,6 +2089,11 @@ def prepare_review(
                 and source.get("workflow_revision") == expected_revision
                 and not restart_stale
             ):
+                if _upgrade_review_exception_contract(existing):
+                    atomic_write_text(
+                        state_file,
+                        json.dumps(existing, ensure_ascii=False, indent=2) + "\n",
+                    )
                 return envelope(
                     "ok",
                     "System review state is already prepared.",
@@ -2130,6 +2210,411 @@ def prepare_review(
             state_file, json.dumps(state, ensure_ascii=False, indent=2) + "\n"
         )
     return envelope("ok", "System review state prepared.", data=state)
+
+
+def _review_exception_text(value: object, label: str) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise ReviewRuntimeError(f"{label} must be a non-empty string")
+    return value.strip()
+
+
+def _review_exception_strings(
+    value: object, label: str, *, required: bool = True
+) -> list[str]:
+    if not isinstance(value, list):
+        raise ReviewRuntimeError(f"{label} must be a list")
+    result: list[str] = []
+    for item in value:
+        normalized = _review_exception_text(item, label)
+        if normalized not in result:
+            result.append(normalized)
+    if required and not result:
+        raise ReviewRuntimeError(f"{label} must not be empty")
+    return result
+
+
+def _review_exception_current_fingerprint(
+    root: Path,
+    feature: Path,
+    handoff: Mapping[str, Any],
+    source: Mapping[str, Any],
+) -> str:
+    if handoff.get("fingerprint_algorithm") == "git-working-tree-v1":
+        return implementation_snapshot_sha256(root, feature)
+    return str(source.get("implementation_fingerprint") or "").strip()
+
+
+def _normalize_review_exception_proposal(
+    feature: Path,
+    raw: Mapping[str, Any],
+    *,
+    state: Mapping[str, Any],
+    implementation_fingerprint: str,
+) -> dict[str, Any]:
+    allowed = {
+        "kind",
+        "scenario_ids",
+        "obligation_ids",
+        "required_resource",
+        "unavailable_evidence_refs",
+        "attempted_alternatives",
+        "claims_withheld",
+        "residual_risk",
+        "risk_severity",
+    }
+    extras = sorted(str(key) for key in raw if key not in allowed)
+    if extras:
+        raise ReviewRuntimeError(
+            "review exception proposal contains unsupported fields: "
+            + ", ".join(extras)
+        )
+    kind = _review_exception_text(raw.get("kind"), "kind")
+    if kind not in REVIEW_EXCEPTION_KINDS:
+        raise ReviewRuntimeError(
+            "review exception kind must be hardware_unavailable"
+        )
+    scenario_ids = _review_exception_strings(raw.get("scenario_ids"), "scenario_ids")
+    obligation_ids = _review_exception_strings(
+        raw.get("obligation_ids"), "obligation_ids"
+    )
+    scenarios = _indexed_objects(state.get("scenarios"))
+    obligations = _indexed_objects(state.get("obligations"))
+    unknown_scenarios = sorted(set(scenario_ids) - set(scenarios))
+    if unknown_scenarios:
+        raise ReviewRuntimeError(
+            "review exception references unknown scenarios: "
+            + ", ".join(unknown_scenarios)
+        )
+    if any(not bool(scenarios[item].get("required", True)) for item in scenario_ids):
+        raise ReviewRuntimeError(
+            "review exceptions may waive only required Review scenarios"
+        )
+    impacted_obligation_ids = sorted(
+        obligation_id
+        for obligation_id, obligation in obligations.items()
+        if bool(obligation.get("required", True))
+        and set(str(item) for item in (obligation.get("scenario_ids") or []))
+        & set(scenario_ids)
+    )
+    if sorted(obligation_ids) != impacted_obligation_ids:
+        raise ReviewRuntimeError(
+            "obligation_ids must exactly name every required obligation affected "
+            "by the waived scenarios"
+        )
+    evidence_refs = _review_exception_strings(
+        raw.get("unavailable_evidence_refs"), "unavailable_evidence_refs"
+    )
+    source = state.get("source")
+    if not isinstance(source, Mapping):
+        raise ReviewRuntimeError("review state source metadata is missing")
+    review_cycle = source.get("review_cycle")
+    review_cycle_id = _review_exception_text(
+        source.get("review_cycle_id"), "review_cycle_id"
+    )
+    evidence_sha256: dict[str, str] = {}
+    for evidence_ref in evidence_refs:
+        if not _safe_feature_ref(feature, evidence_ref):
+            raise ReviewRuntimeError(
+                f"hardware unavailability evidence is not a safe feature-relative file: {evidence_ref}"
+            )
+        if not _ref_is_in_review_cycle(
+            feature,
+            evidence_ref,
+            root="review-evidence",
+            cycle=review_cycle,
+        ):
+            raise ReviewRuntimeError(
+                f"hardware unavailability evidence must belong to the current Review cycle: {evidence_ref}"
+            )
+        evidence_path = (feature / evidence_ref).resolve(strict=False)
+        if not evidence_path.is_file():
+            raise ReviewRuntimeError(
+                f"hardware unavailability evidence file does not exist: {evidence_ref}"
+            )
+        evidence_sha256[evidence_ref] = _sha256(evidence_path)
+    severity = _review_exception_text(raw.get("risk_severity"), "risk_severity")
+    if severity not in HUMAN_ACCEPTANCE_RISKS:
+        raise ReviewRuntimeError("risk_severity must be low, medium, or high")
+    return {
+        "kind": kind,
+        "scenario_ids": scenario_ids,
+        "obligation_ids": obligation_ids,
+        "required_resource": _review_exception_text(
+            raw.get("required_resource"), "required_resource"
+        ),
+        "unavailable_evidence_refs": evidence_refs,
+        "unavailable_evidence_sha256": evidence_sha256,
+        "attempted_alternatives": _review_exception_strings(
+            raw.get("attempted_alternatives"), "attempted_alternatives"
+        ),
+        "claims_withheld": _review_exception_strings(
+            raw.get("claims_withheld"), "claims_withheld"
+        ),
+        "residual_risk": _review_exception_text(
+            raw.get("residual_risk"), "residual_risk"
+        ),
+        "risk_severity": severity,
+        "review_cycle_id": review_cycle_id,
+        "implementation_fingerprint": implementation_fingerprint,
+    }
+
+
+def propose_review_exception(
+    project_root: Path,
+    feature_dir: Path | str,
+    proposal: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Record a hardware-only exception proposal with no effect before confirmation."""
+
+    root = project_root.resolve(strict=False)
+    feature = _resolve_feature_dir(root, feature_dir)
+    state_file = review_state_path(feature)
+    handoff = _read_json_object(
+        implementation_handoff_path(feature),
+        label=IMPLEMENTATION_HANDOFF_FILENAME,
+    )
+    with interprocess_lock(feature / ".review-state.lock"):
+        state = _read_json_object(state_file, label=REVIEW_STATE_FILENAME)
+        if state.get("status") not in {"reviewing", "repairing", "validating"}:
+            raise ReviewRuntimeError(
+                "review exceptions may be proposed only during active Review work"
+            )
+        source = state.get("source")
+        if not isinstance(source, Mapping):
+            raise ReviewRuntimeError("review state source metadata is missing")
+        revision = source.get("workflow_revision")
+        if isinstance(revision, bool) or not isinstance(revision, int):
+            raise ReviewRuntimeError("review source workflow_revision is invalid")
+        _validate_workflow_owner(feature, revision)
+        current_fingerprint = _review_exception_current_fingerprint(
+            root, feature, handoff, source
+        )
+        if current_fingerprint != source.get("implementation_fingerprint"):
+            raise ReviewRuntimeError(
+                "review exception proposal is stale for the current implementation snapshot"
+            )
+        normalized = _normalize_review_exception_proposal(
+            feature,
+            proposal,
+            state=state,
+            implementation_fingerprint=current_fingerprint,
+        )
+        proposal_sha256 = _canonical_payload_sha256(normalized)
+        exception_id = f"REX-{proposal_sha256[:12]}"
+        raw_exceptions = state.get("review_exceptions")
+        if not isinstance(raw_exceptions, list):
+            raise ReviewRuntimeError(
+                "review state review_exceptions must be an array; restart stale Review state"
+            )
+        for existing in raw_exceptions:
+            if not isinstance(existing, Mapping):
+                continue
+            if existing.get("proposal_sha256") == proposal_sha256:
+                return {
+                    "status": existing.get("status"),
+                    "reused": True,
+                    "exception_id": existing.get("exception_id"),
+                    "proposal_sha256": proposal_sha256,
+                    "confirmation_required": existing.get("status") != "confirmed",
+                }
+            if existing.get("exception_id") == exception_id:
+                raise ReviewRuntimeError(
+                    f"review exception id collision for {exception_id}"
+                )
+        record = {
+            "exception_id": exception_id,
+            **normalized,
+            "proposal_sha256": proposal_sha256,
+            "status": "proposed",
+            "confirmation": None,
+        }
+        raw_exceptions.append(record)
+        final = state.get("final")
+        if isinstance(final, dict):
+            final["review_exceptions_sha256"] = _review_exceptions_sha256(
+                raw_exceptions
+            )
+        atomic_write_text(
+            state_file,
+            json.dumps(state, ensure_ascii=False, indent=2) + "\n",
+        )
+    return {
+        "status": "proposed",
+        "reused": False,
+        "exception_id": exception_id,
+        "proposal_sha256": proposal_sha256,
+        "confirmation_required": True,
+    }
+
+
+def confirm_review_exception(
+    project_root: Path,
+    feature_dir: Path | str,
+    *,
+    exception_id: str,
+    proposal_sha256: str,
+    confirmation_source: str,
+    statement: str,
+) -> dict[str, Any]:
+    """Bind a human decision to one exact hardware-unavailability proposal."""
+
+    root = project_root.resolve(strict=False)
+    feature = _resolve_feature_dir(root, feature_dir)
+    normalized_id = _review_exception_text(exception_id, "exception_id")
+    if not REVIEW_EXCEPTION_ID_RE.fullmatch(normalized_id):
+        raise ReviewRuntimeError("exception_id must match REX-<12 lowercase hex>")
+    normalized_sha = _review_exception_text(proposal_sha256, "proposal_sha256")
+    source_name = _review_exception_text(
+        confirmation_source, "confirmation_source"
+    )
+    if source_name not in REVIEW_EXCEPTION_CONFIRMATION_SOURCES:
+        raise ReviewRuntimeError(
+            "confirmation_source must be human-reply, interactive-input, or attached-evidence"
+        )
+    confirmation_statement = _review_exception_text(statement, "statement")
+    state_file = review_state_path(feature)
+    handoff = _read_json_object(
+        implementation_handoff_path(feature),
+        label=IMPLEMENTATION_HANDOFF_FILENAME,
+    )
+    with interprocess_lock(feature / ".review-state.lock"):
+        state = _read_json_object(state_file, label=REVIEW_STATE_FILENAME)
+        if state.get("status") not in {"reviewing", "repairing", "validating"}:
+            raise ReviewRuntimeError(
+                "review exceptions may be confirmed only during active Review work"
+            )
+        source = state.get("source")
+        if not isinstance(source, Mapping):
+            raise ReviewRuntimeError("review state source metadata is missing")
+        revision = source.get("workflow_revision")
+        if isinstance(revision, bool) or not isinstance(revision, int):
+            raise ReviewRuntimeError("review source workflow_revision is invalid")
+        _validate_workflow_owner(feature, revision)
+        current_fingerprint = _review_exception_current_fingerprint(
+            root, feature, handoff, source
+        )
+        raw_exceptions = state.get("review_exceptions")
+        if not isinstance(raw_exceptions, list):
+            raise ReviewRuntimeError("review state review_exceptions must be an array")
+        record = next(
+            (
+                item
+                for item in raw_exceptions
+                if isinstance(item, dict)
+                and item.get("exception_id") == normalized_id
+            ),
+            None,
+        )
+        if record is None:
+            raise ReviewRuntimeError(f"unknown review exception: {normalized_id}")
+        actual_sha = _canonical_payload_sha256(
+            _review_exception_proposal_payload(record)
+        )
+        if actual_sha != record.get("proposal_sha256") or actual_sha != normalized_sha:
+            raise ReviewRuntimeError(
+                "proposal sha256 does not match the immutable Review exception proposal"
+            )
+        if (
+            record.get("review_cycle_id") != source.get("review_cycle_id")
+            or record.get("implementation_fingerprint") != current_fingerprint
+        ):
+            raise ReviewRuntimeError(
+                "review exception proposal is stale; create a new proposal for the current cycle"
+            )
+        normalized = _normalize_review_exception_proposal(
+            feature,
+            {
+                key: deepcopy(record.get(key))
+                for key in (
+                    "kind",
+                    "scenario_ids",
+                    "obligation_ids",
+                    "required_resource",
+                    "unavailable_evidence_refs",
+                    "attempted_alternatives",
+                    "claims_withheld",
+                    "residual_risk",
+                    "risk_severity",
+                )
+            },
+            state=state,
+            implementation_fingerprint=current_fingerprint,
+        )
+        if _canonical_payload_sha256(normalized) != actual_sha:
+            raise ReviewRuntimeError(
+                "review exception evidence or affected scope changed after proposal"
+            )
+        existing_confirmation = record.get("confirmation")
+        if record.get("status") == "confirmed":
+            if (
+                isinstance(existing_confirmation, Mapping)
+                and existing_confirmation.get("source") == source_name
+                and existing_confirmation.get("statement") == confirmation_statement
+            ):
+                return {
+                    "status": "confirmed",
+                    "reused": True,
+                    "exception_id": normalized_id,
+                    "proposal_sha256": actual_sha,
+                    "confirmation_id": existing_confirmation.get("confirmation_id"),
+                }
+            raise ReviewRuntimeError(
+                "confirmed Review exceptions are immutable; create a new proposal"
+            )
+        if record.get("status") != "proposed" or existing_confirmation is not None:
+            raise ReviewRuntimeError(
+                f"review exception cannot be confirmed from status {record.get('status')}"
+            )
+        review_cycle_id = str(source.get("review_cycle_id") or "")
+        confirmation_id = "HC-" + hashlib.sha256(
+            (
+                actual_sha
+                + "\0"
+                + source_name
+                + "\0"
+                + confirmation_statement
+                + "\0"
+                + review_cycle_id
+                + "\0"
+                + current_fingerprint
+            ).encode("utf-8")
+        ).hexdigest()[:24]
+        record["status"] = "confirmed"
+        record["confirmation"] = {
+            "actor": "human",
+            "source": source_name,
+            "statement": confirmation_statement,
+            "confirmation_id": confirmation_id,
+            "confirmed_payload_sha256": actual_sha,
+            "review_cycle_id": review_cycle_id,
+            "implementation_fingerprint": current_fingerprint,
+        }
+        scenario_ids = set(record["scenario_ids"])
+        obligation_ids = set(record["obligation_ids"])
+        for scenario in state.get("scenarios", []):
+            if isinstance(scenario, dict) and scenario.get("id") in scenario_ids:
+                scenario["result"] = "waived"
+                scenario["evidence"] = []
+        for obligation in state.get("obligations", []):
+            if isinstance(obligation, dict) and obligation.get("id") in obligation_ids:
+                obligation["status"] = "waived"
+        final = state.get("final")
+        if isinstance(final, dict):
+            final["review_exceptions_sha256"] = _review_exceptions_sha256(
+                raw_exceptions
+            )
+        atomic_write_text(
+            state_file,
+            json.dumps(state, ensure_ascii=False, indent=2) + "\n",
+        )
+    return {
+        "status": "confirmed",
+        "reused": False,
+        "exception_id": normalized_id,
+        "proposal_sha256": actual_sha,
+        "confirmation_id": confirmation_id,
+        "disposition": "explicit_review_waiver",
+    }
 
 
 def _scenario_contract(value: Mapping[str, Any]) -> dict[str, Any]:
@@ -2667,6 +3152,261 @@ def _review_deferral_resolution_errors(
     return errors, fresh
 
 
+def _review_exception_validation(
+    state: Mapping[str, Any],
+    *,
+    feature_dir: Path,
+    expected_snapshot: str,
+    review_cycle: object,
+    review_cycle_id: object,
+) -> tuple[list[str], set[str], set[str], bool]:
+    errors: list[str] = []
+    fresh = True
+    raw_exceptions = state.get("review_exceptions")
+    if not isinstance(raw_exceptions, list):
+        return (
+            [
+                "review_exceptions must be an array; restart Review to migrate "
+                "pre-exception state"
+            ],
+            set(),
+            set(),
+            False,
+        )
+    scenarios = _indexed_objects(state.get("scenarios"))
+    obligations = _indexed_objects(state.get("obligations"))
+    confirmed_scenarios: set[str] = set()
+    confirmed_obligations: set[str] = set()
+    seen_ids: set[str] = set()
+    proposed_ids: list[str] = []
+    for index, raw in enumerate(raw_exceptions, start=1):
+        label = f"review exception {index}"
+        if not isinstance(raw, Mapping):
+            errors.append(f"{label} must be an object")
+            continue
+        exception_id = str(raw.get("exception_id") or "").strip()
+        if not REVIEW_EXCEPTION_ID_RE.fullmatch(exception_id):
+            errors.append(f"{label} exception_id is invalid")
+        elif exception_id in seen_ids:
+            errors.append(f"duplicate review exception id: {exception_id}")
+        seen_ids.add(exception_id)
+        if raw.get("kind") not in REVIEW_EXCEPTION_KINDS:
+            errors.append(
+                f"{exception_id or label} kind must be hardware_unavailable"
+            )
+        list_fields: dict[str, list[str]] = {}
+        for field in (
+            "scenario_ids",
+            "obligation_ids",
+            "unavailable_evidence_refs",
+            "attempted_alternatives",
+            "claims_withheld",
+        ):
+            value = raw.get(field)
+            if (
+                not isinstance(value, list)
+                or not value
+                or any(not isinstance(item, str) or not item.strip() for item in value)
+                or len(value) != len(set(value))
+            ):
+                errors.append(
+                    f"{exception_id or label} {field} must contain unique nonblank strings"
+                )
+                list_fields[field] = []
+            else:
+                list_fields[field] = list(value)
+        for field in ("required_resource", "residual_risk"):
+            if not isinstance(raw.get(field), str) or not str(raw.get(field)).strip():
+                errors.append(f"{exception_id or label} {field} is required")
+        if raw.get("risk_severity") not in HUMAN_ACCEPTANCE_RISKS:
+            errors.append(
+                f"{exception_id or label} risk_severity must be low, medium, or high"
+            )
+        scenario_ids = list_fields.get("scenario_ids", [])
+        obligation_ids = list_fields.get("obligation_ids", [])
+        if any(
+            item not in scenarios
+            or not bool(scenarios[item].get("required", True))
+            for item in scenario_ids
+        ):
+            errors.append(
+                f"{exception_id or label} may reference only required Review scenarios"
+            )
+        impacted_obligation_ids = sorted(
+            obligation_id
+            for obligation_id, obligation in obligations.items()
+            if bool(obligation.get("required", True))
+            and set(str(item) for item in (obligation.get("scenario_ids") or []))
+            & set(scenario_ids)
+        )
+        if sorted(obligation_ids) != impacted_obligation_ids:
+            errors.append(
+                f"{exception_id or label} obligation_ids do not exactly cover affected required obligations"
+            )
+        if raw.get("review_cycle_id") != review_cycle_id:
+            fresh = False
+            errors.append(
+                f"{exception_id or label} must bind the current review_cycle_id"
+            )
+        if raw.get("implementation_fingerprint") != expected_snapshot:
+            fresh = False
+            errors.append(
+                f"{exception_id or label} implementation fingerprint is stale"
+            )
+        evidence_refs = list_fields.get("unavailable_evidence_refs", [])
+        evidence_sha256 = raw.get("unavailable_evidence_sha256")
+        if not isinstance(evidence_sha256, Mapping) or set(evidence_sha256) != set(
+            evidence_refs
+        ):
+            errors.append(
+                f"{exception_id or label} unavailable evidence digest map must exactly match its refs"
+            )
+            evidence_sha256 = {}
+        for evidence_ref in evidence_refs:
+            if not _ref_is_in_review_cycle(
+                feature_dir,
+                evidence_ref,
+                root="review-evidence",
+                cycle=review_cycle,
+            ):
+                fresh = False
+                errors.append(
+                    f"{exception_id or label} unavailable evidence must belong to the current Review cycle"
+                )
+                continue
+            evidence_path = (feature_dir / evidence_ref).resolve(strict=False)
+            digest = str(evidence_sha256.get(evidence_ref) or "")
+            if (
+                not evidence_path.is_file()
+                or not re.fullmatch(r"[0-9a-f]{64}", digest)
+                or _sha256(evidence_path) != digest
+            ):
+                fresh = False
+                errors.append(
+                    f"{exception_id or label} unavailable evidence_sha256 must bind current bytes"
+                )
+        proposal_payload = _review_exception_proposal_payload(raw)
+        actual_proposal_sha256 = _canonical_payload_sha256(proposal_payload)
+        if raw.get("proposal_sha256") != actual_proposal_sha256:
+            errors.append(
+                f"{exception_id or label} proposal_sha256 does not bind its immutable proposal"
+            )
+        if exception_id and exception_id != f"REX-{actual_proposal_sha256[:12]}":
+            errors.append(
+                f"{exception_id or label} exception_id does not bind its proposal"
+            )
+        exception_status = str(raw.get("status") or "")
+        confirmation = raw.get("confirmation")
+        if exception_status == "proposed":
+            proposed_ids.append(exception_id or label)
+            if confirmation is not None:
+                errors.append(
+                    f"{exception_id or label} proposed exception cannot contain confirmation"
+                )
+            continue
+        if exception_status != "confirmed":
+            errors.append(
+                f"{exception_id or label} status must be proposed or confirmed"
+            )
+            continue
+        if not isinstance(confirmation, Mapping):
+            errors.append(
+                f"{exception_id or label} requires explicit human confirmation"
+            )
+            continue
+        confirmation_source = str(confirmation.get("source") or "")
+        confirmation_statement = str(confirmation.get("statement") or "")
+        if confirmation.get("actor") != "human":
+            errors.append(f"{exception_id or label} confirmation actor must be human")
+        if confirmation_source not in REVIEW_EXCEPTION_CONFIRMATION_SOURCES:
+            errors.append(f"{exception_id or label} confirmation source is invalid")
+        if not confirmation_statement.strip():
+            errors.append(
+                f"{exception_id or label} confirmation statement is required"
+            )
+        if confirmation.get("confirmed_payload_sha256") != actual_proposal_sha256:
+            errors.append(
+                f"{exception_id or label} confirmation does not bind proposal_sha256"
+            )
+        if confirmation.get("review_cycle_id") != review_cycle_id:
+            fresh = False
+            errors.append(
+                f"{exception_id or label} confirmation must bind the current review_cycle_id"
+            )
+        if confirmation.get("implementation_fingerprint") != expected_snapshot:
+            fresh = False
+            errors.append(
+                f"{exception_id or label} confirmation fingerprint is stale"
+            )
+        expected_confirmation_id = "HC-" + hashlib.sha256(
+            (
+                actual_proposal_sha256
+                + "\0"
+                + confirmation_source
+                + "\0"
+                + confirmation_statement
+                + "\0"
+                + str(review_cycle_id or "")
+                + "\0"
+                + expected_snapshot
+            ).encode("utf-8")
+        ).hexdigest()[:24]
+        if confirmation.get("confirmation_id") != expected_confirmation_id:
+            errors.append(
+                f"{exception_id or label} confirmation_id does not bind the human decision"
+            )
+        overlaps = confirmed_scenarios & set(scenario_ids)
+        if overlaps:
+            errors.append(
+                f"Review scenarios may belong to only one confirmed exception: {', '.join(sorted(overlaps))}"
+            )
+        obligation_overlaps = confirmed_obligations & set(obligation_ids)
+        if obligation_overlaps:
+            errors.append(
+                "Review obligations may belong to only one confirmed exception: "
+                + ", ".join(sorted(obligation_overlaps))
+            )
+        confirmed_scenarios.update(scenario_ids)
+        confirmed_obligations.update(obligation_ids)
+    for scenario_id, scenario in scenarios.items():
+        if scenario.get("result") == "waived" and scenario_id not in confirmed_scenarios:
+            errors.append(
+                f"waived scenario {scenario_id} requires explicit human confirmation"
+            )
+        if scenario_id in confirmed_scenarios and scenario.get("result") != "waived":
+            errors.append(
+                f"confirmed exception scenario {scenario_id} must record result waived"
+            )
+    for obligation_id, obligation in obligations.items():
+        if obligation.get("status") == "waived" and obligation_id not in confirmed_obligations:
+            errors.append(
+                f"waived obligation {obligation_id} requires explicit human confirmation"
+            )
+        if (
+            obligation_id in confirmed_obligations
+            and obligation.get("status") != "waived"
+        ):
+            errors.append(
+                f"confirmed exception obligation {obligation_id} must record status waived"
+            )
+    if state.get("status") == "approved" and proposed_ids:
+        errors.append(
+            "approved Review cannot contain unconfirmed exception proposals: "
+            + ", ".join(proposed_ids)
+        )
+    final = state.get("final")
+    recorded_digest = (
+        str(final.get("review_exceptions_sha256") or "")
+        if isinstance(final, Mapping)
+        else ""
+    )
+    if recorded_digest != _review_exceptions_sha256(raw_exceptions):
+        errors.append(
+            "final review_exceptions_sha256 must bind the complete exception ledger"
+        )
+    return errors, confirmed_scenarios, confirmed_obligations, fresh
+
+
 def _review_validation_errors(
     state: Mapping[str, Any],
     handoff: Mapping[str, Any],
@@ -2911,6 +3651,20 @@ def _review_validation_errors(
     )
     errors.extend(deferral_errors)
     fresh = fresh and deferrals_fresh
+    (
+        exception_errors,
+        confirmed_exception_scenario_ids,
+        confirmed_exception_obligation_ids,
+        exceptions_fresh,
+    ) = _review_exception_validation(
+        state,
+        feature_dir=feature_dir,
+        expected_snapshot=expected_snapshot,
+        review_cycle=current_review_cycle,
+        review_cycle_id=current_review_cycle_id,
+    )
+    errors.extend(exception_errors)
+    fresh = fresh and exceptions_fresh
     scenarios = state.get("scenarios")
     if not isinstance(scenarios, list) or not scenarios:
         errors.append("review state requires at least one scenario")
@@ -2926,14 +3680,17 @@ def _review_validation_errors(
                 f"scenario {scenario_id} has unsupported result {result or 'missing'}"
             )
             continue
-        if bool(raw.get("required", True)) and result != "pass":
+        valid_required_result = result == "pass" or (
+            result == "waived" and scenario_id in confirmed_exception_scenario_ids
+        )
+        if bool(raw.get("required", True)) and not valid_required_result:
             errors.append(
-                f"required scenario {scenario_id} must pass before review closeout"
+                f"required scenario {scenario_id} must pass or carry a confirmed hardware exception before review closeout"
             )
-        requires_scenario_evidence = bool(raw.get("required", True)) or result not in {
-            "pending",
-            "not_run",
-        }
+        requires_scenario_evidence = result != "waived" and (
+            bool(raw.get("required", True))
+            or result not in {"pending", "not_run"}
+        )
         evidence = raw.get("evidence")
         evidence_items = evidence if isinstance(evidence, list) else []
         evidence_by_kind = {
@@ -3102,21 +3859,36 @@ def _review_validation_errors(
             for assignment_id in assignment_ids
         )
         covered_by_scenario = bool(scenario_ids) and all(
-            str(actual_scenarios.get(str(scenario_id), {}).get("result") or "")
-            == "pass"
+            (
+                str(actual_scenarios.get(str(scenario_id), {}).get("result") or "")
+                == "pass"
+            )
+            or (
+                str(actual_scenarios.get(str(scenario_id), {}).get("result") or "")
+                == "waived"
+                and str(scenario_id) in confirmed_exception_scenario_ids
+            )
             for scenario_id in scenario_ids
         )
+        expected_obligation_status = (
+            "waived"
+            if obligation_id in confirmed_exception_obligation_ids
+            else "covered"
+        )
         if (
-            obligation.get("status") != "covered"
+            obligation.get("status") != expected_obligation_status
             or not covered_by_assignment
             or not covered_by_scenario
         ):
             errors.append(
-                f"required obligation {obligation_id} needs accepted subagent review and passing scenarios"
+                f"required obligation {obligation_id} needs accepted subagent review and passing or explicitly waived scenarios"
             )
 
     leader = state.get("leader")
     leader = leader if isinstance(leader, Mapping) else {}
+    expected_leader_verdict = (
+        "pass_with_waivers" if confirmed_exception_scenario_ids else "pass"
+    )
     required_leader_values = {
         "strategy": "leader-plus-subagents",
         "review_plan_complete": True,
@@ -3124,7 +3896,7 @@ def _review_validation_errors(
         "fix_plan_complete": True,
         "all_fix_results_joined": True,
         "final_revalidation_complete": True,
-        "verdict": "pass",
+        "verdict": expected_leader_verdict,
     }
     if any(leader.get(key) != value for key, value in required_leader_values.items()):
         errors.append(
@@ -3506,6 +4278,7 @@ def _review_validation_errors(
             scenario_id
             for scenario_id, scenario in actual_scenarios.items()
             if bool(scenario.get("required", True))
+            and scenario_id not in confirmed_exception_scenario_ids
         )
         expected_scenario_evidence: list[dict[str, str]] = []
         for scenario_id in required_scenario_ids:
@@ -3618,9 +4391,12 @@ def _review_validation_errors(
 
     final = state.get("final")
     final = final if isinstance(final, Mapping) else {}
+    expected_final_verdict = (
+        "pass_with_waivers" if confirmed_exception_scenario_ids else "pass"
+    )
     required_final_values = {
-        "verdict": "pass",
-        "coverage_verdict": "pass",
+        "verdict": expected_final_verdict,
+        "coverage_verdict": expected_final_verdict,
         "repair_verdict": "pass",
         "integration_verdict": "pass",
         "all_packets_joined": True,
@@ -3628,7 +4404,9 @@ def _review_validation_errors(
     if status == "approved" and any(
         final.get(key) != value for key, value in required_final_values.items()
     ):
-        errors.append("final Review verdicts and packet joins must all pass")
+        errors.append(
+            "final Review verdicts must pass with an explicit waiver qualifier when applicable, and all packet joins must pass"
+        )
     return errors, fresh
 
 
@@ -3702,6 +4480,7 @@ def validate_review(project_root: Path, feature_dir: Path | str) -> dict[str, An
     handoff_file = implementation_handoff_path(feature)
     try:
         state = _read_json_object(state_file, label=REVIEW_STATE_FILENAME)
+        _upgrade_review_exception_contract(state)
         handoff = _read_json_object(handoff_file, label=IMPLEMENTATION_HANDOFF_FILENAME)
         try:
             workflow = show_workflow(feature).get("data")
@@ -3794,12 +4573,14 @@ __all__ = [
     "REVIEW_SCHEMA_REF",
     "REVIEW_STATE_FILENAME",
     "ReviewRuntimeError",
+    "confirm_review_exception",
     "closeout_review",
     "build_implementation_handoff",
     "implementation_handoff_completion_errors",
     "implementation_handoff_path",
     "implementation_snapshot_sha256",
     "prepare_review",
+    "propose_review_exception",
     "review_state_path",
     "validate_review",
 ]

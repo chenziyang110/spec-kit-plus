@@ -14,6 +14,7 @@
     "human_acceptance_obligations",
     "human_acceptance_scenarios",
     "implementation_deferrals",
+    "review_exceptions",
     "reviewed_runtime_targets",
     "review_assignments",
     "fix_assignments",
@@ -84,7 +85,7 @@
             "items": { "enum": ["structure_snapshot", "visual_capture", "runtime_diagnostics", "invocation", "side_effect"] }
           },
           "obligation_ids": { "type": "array", "items": { "type": "string", "minLength": 1 } },
-          "result": { "enum": ["pending", "pass", "fail", "blocked", "not_run"] },
+          "result": { "enum": ["pending", "pass", "fail", "blocked", "not_run", "waived"] },
           "evidence": {
             "type": "array",
             "items": {
@@ -119,7 +120,7 @@
           "required": { "type": "boolean" },
           "scenario_ids": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
           "review_assignment_ids": { "type": "array", "items": { "type": "string", "minLength": 1 } },
-          "status": { "enum": ["pending", "covered", "blocked"] }
+          "status": { "enum": ["pending", "covered", "blocked", "waived"] }
         },
         "additionalProperties": true
       }
@@ -370,6 +371,60 @@
         "additionalProperties": false
       }
     },
+    "review_exceptions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["exception_id", "kind", "scenario_ids", "obligation_ids", "required_resource", "unavailable_evidence_refs", "unavailable_evidence_sha256", "attempted_alternatives", "claims_withheld", "residual_risk", "risk_severity", "review_cycle_id", "implementation_fingerprint", "proposal_sha256", "status", "confirmation"],
+        "properties": {
+          "exception_id": { "type": "string", "pattern": "^REX-[0-9a-f]{12}$" },
+          "kind": { "const": "hardware_unavailable" },
+          "scenario_ids": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
+          "obligation_ids": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
+          "required_resource": { "type": "string", "minLength": 1 },
+          "unavailable_evidence_refs": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
+          "unavailable_evidence_sha256": { "type": "object", "minProperties": 1, "additionalProperties": { "type": "string", "pattern": "^[0-9a-f]{64}$" } },
+          "attempted_alternatives": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
+          "claims_withheld": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
+          "residual_risk": { "type": "string", "minLength": 1 },
+          "risk_severity": { "enum": ["low", "medium", "high"] },
+          "review_cycle_id": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+          "implementation_fingerprint": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+          "proposal_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+          "status": { "enum": ["proposed", "confirmed"] },
+          "confirmation": {
+            "oneOf": [
+              { "type": "null" },
+              {
+                "type": "object",
+                "required": ["actor", "source", "statement", "confirmation_id", "confirmed_payload_sha256", "review_cycle_id", "implementation_fingerprint"],
+                "properties": {
+                  "actor": { "const": "human" },
+                  "source": { "enum": ["human-reply", "interactive-input", "attached-evidence"] },
+                  "statement": { "type": "string", "minLength": 1 },
+                  "confirmation_id": { "type": "string", "pattern": "^HC-[0-9a-f]{24}$" },
+                  "confirmed_payload_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+                  "review_cycle_id": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+                  "implementation_fingerprint": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+                },
+                "additionalProperties": false
+              }
+            ]
+          }
+        },
+        "allOf": [
+          {
+            "if": { "properties": { "status": { "const": "proposed" } }, "required": ["status"] },
+            "then": { "properties": { "confirmation": { "type": "null" } } }
+          },
+          {
+            "if": { "properties": { "status": { "const": "confirmed" } }, "required": ["status"] },
+            "then": { "properties": { "confirmation": { "type": "object" } } }
+          }
+        ],
+        "additionalProperties": false
+      }
+    },
     "reviewed_runtime_targets": {
       "type": "array",
       "items": {
@@ -488,7 +543,7 @@
         "fix_plan_complete": { "type": "boolean" },
         "all_fix_results_joined": { "type": "boolean" },
         "final_revalidation_complete": { "type": "boolean" },
-        "verdict": { "enum": ["pending", "pass", "fail", "blocked"] }
+        "verdict": { "enum": ["pending", "pass", "pass_with_waivers", "fail", "blocked"] }
       },
       "additionalProperties": false
     },
@@ -515,16 +570,17 @@
     "blocker": { "type": ["object", "null"] },
     "final": {
       "type": "object",
-      "required": ["verdict", "coverage_verdict", "repair_verdict", "integration_verdict", "all_packets_joined", "reviewed_snapshot_sha256", "implementation_summary_sha256", "runtime_targets_sha256"],
+      "required": ["verdict", "coverage_verdict", "repair_verdict", "integration_verdict", "all_packets_joined", "reviewed_snapshot_sha256", "implementation_summary_sha256", "runtime_targets_sha256", "review_exceptions_sha256"],
       "properties": {
-        "verdict": { "enum": ["pending", "pass", "fail", "blocked"] },
-        "coverage_verdict": { "enum": ["pending", "pass", "fail", "blocked"] },
+        "verdict": { "enum": ["pending", "pass", "pass_with_waivers", "fail", "blocked"] },
+        "coverage_verdict": { "enum": ["pending", "pass", "pass_with_waivers", "fail", "blocked"] },
         "repair_verdict": { "enum": ["pending", "pass", "fail", "blocked"] },
         "integration_verdict": { "enum": ["pending", "pass", "fail", "blocked"] },
         "all_packets_joined": { "type": "boolean" },
         "reviewed_snapshot_sha256": { "type": "string" },
         "implementation_summary_sha256": { "type": "string" },
-        "runtime_targets_sha256": { "type": "string" }
+        "runtime_targets_sha256": { "type": "string" },
+        "review_exceptions_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
       },
       "additionalProperties": false
     }

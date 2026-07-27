@@ -62,10 +62,12 @@ Only the Leader opens or closes a gate attempt. Resumes, joins, task
 transitions, subagents, and passive skills reuse the ledger. An
 `interrupted` attempt may retry the same gate and fingerprint. A real assertion
 or verification failure may retry the same gate only after source/configuration
-changes produce a new fingerprint. A passed gate may also receive a fresh
-attempt when later repairs change that fingerprint. Attempts never steal the
-reserved delivery gate. Never open a fourth logical gate, and never record a
-timeout or runner kill as `failed` or `passed`.
+changes produce a new fingerprint. A passed convergence or delivery gate may
+also receive a fresh attempt when later repairs change that fingerprint. A
+passed baseline is immutable; later changes advance to convergence rather than
+rewriting the before-state. Attempts never steal the reserved delivery gate.
+Never open a fourth logical gate, and never record a timeout or runner kill as
+`failed` or `passed`.
 
 After `runner_timeout`, do not immediately rerun the full command. First decide
 whether the suite legitimately exceeds the execution ceiling or stopped making

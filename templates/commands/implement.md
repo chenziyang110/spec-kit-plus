@@ -33,7 +33,12 @@ scripts:
    verification failure requires repair and a new fingerprint. No agent may
    reset the ledger or open a fourth logical gate. Per-Txx workers run only
    cheap task checks and return test impact; the Leader owns every heavyweight
-   test, build, startup, E2E, and real-entrypoint validation attempt.
+   test, build, startup, E2E, and real-entrypoint validation attempt. Before
+   each allocation, follow `validation-status.attempt_decision`:
+   `resume_running_attempt`, `retry_same_gate`, `repair_before_retry`,
+   `open_logical_gate`, or `validation_complete`. `remaining_epochs` and
+   `remaining_gate_slots` count only unopened logical gates; zero never blocks
+   a progress-bound attempt inside an existing gate.
 7. For UI work, preserve task-local design inputs, states, changed surfaces, and
    capture requirements, but do not run the full viewport/state capture loop per
    Txx. Group the matrix by integrated surface and capture typed

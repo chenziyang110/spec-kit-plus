@@ -2610,9 +2610,15 @@ def implement_validation_status(
         print_json(payload, indent=2)
     else:
         console.print(
-            f"Validation gates: {payload['used_epochs']}/{payload['max_epochs']} "
-            f"opened ({payload['remaining_epochs']} remaining); "
+            f"Logical validation gates: {payload['used_epochs']}/{payload['max_epochs']} "
+            f"opened ({payload['remaining_gate_slots']} unopened slots); "
             f"{payload['used_attempts']} attempt(s) recorded."
+        )
+        decision = payload.get("attempt_decision") or {}
+        console.print(
+            "Attempt decision: "
+            f"{decision.get('action', 'unknown')} "
+            f"({decision.get('reason_code', 'no-reason')})."
         )
         console.print(f"Next action: {payload['next_action']}")
 
@@ -3009,6 +3015,95 @@ def review_validate(
             console.print(f"- {error}")
     if not payload["valid"]:
         raise typer.Exit(10)
+
+
+@review_app.command("exception-propose")
+def review_exception_propose(
+    feature_dir: str = typer.Option(..., "--feature-dir"),
+    input_path: Path = typer.Option(
+        ..., "--input", help="Project-contained JSON hardware exception proposal"
+    ),
+    output_format: TextJsonFormat = typer.Option(TextJsonFormat.text, "--format"),
+):
+    """Propose a hardware-only Review exception without activating it."""
+    from .review_runtime import ReviewRuntimeError, propose_review_exception
+
+    project_root = Path.cwd().resolve(strict=False)
+    _require_spec_kit_plus_project(project_root)
+    resolved_feature_dir = _resolve_feature_dir(project_root, feature_dir)
+    resolved_input = input_path.resolve(strict=False)
+    try:
+        resolved_input.relative_to(project_root)
+        proposal = json.loads(resolved_input.read_text(encoding="utf-8"))
+        if not isinstance(proposal, dict):
+            raise ReviewRuntimeError(
+                "Review exception proposal must contain a JSON object"
+            )
+        payload = propose_review_exception(
+            project_root, resolved_feature_dir, proposal
+        )
+    except (
+        ReviewRuntimeError,
+        OSError,
+        UnicodeError,
+        json.JSONDecodeError,
+        ValueError,
+    ) as exc:
+        payload = {"status": "blocked", "errors": [str(exc)]}
+        if output_format.lower() == "json":
+            print_json(payload, indent=2)
+        else:
+            console.print(f"[red]Error:[/red] {exc}")
+        raise typer.Exit(10)
+    if output_format.lower() == "json":
+        print_json(payload, indent=2)
+    else:
+        console.print(
+            f"Prepared {payload['exception_id']} ({payload['proposal_sha256']}). "
+            "It cannot waive a scenario until a human confirms this exact digest."
+        )
+
+
+@review_app.command("exception-confirm")
+def review_exception_confirm(
+    feature_dir: str = typer.Option(..., "--feature-dir"),
+    exception_id: str = typer.Option(..., "--exception-id"),
+    proposal_sha256: str = typer.Option(..., "--proposal-sha256"),
+    confirmation_source: str = typer.Option(..., "--confirmation-source"),
+    statement: str = typer.Option(
+        ..., "--statement", help="Exact human confirmation statement"
+    ),
+    output_format: TextJsonFormat = typer.Option(TextJsonFormat.text, "--format"),
+):
+    """Confirm a hardware exception without claiming the skipped check passed."""
+    from .review_runtime import ReviewRuntimeError, confirm_review_exception
+
+    project_root = Path.cwd().resolve(strict=False)
+    _require_spec_kit_plus_project(project_root)
+    resolved_feature_dir = _resolve_feature_dir(project_root, feature_dir)
+    try:
+        payload = confirm_review_exception(
+            project_root,
+            resolved_feature_dir,
+            exception_id=exception_id,
+            proposal_sha256=proposal_sha256,
+            confirmation_source=confirmation_source,
+            statement=statement,
+        )
+    except ReviewRuntimeError as exc:
+        payload = {"status": "blocked", "errors": [str(exc)]}
+        if output_format.lower() == "json":
+            print_json(payload, indent=2)
+        else:
+            console.print(f"[red]Error:[/red] {exc}")
+        raise typer.Exit(10)
+    if output_format.lower() == "json":
+        print_json(payload, indent=2)
+    else:
+        console.print(
+            f"Confirmed {payload['exception_id']} as an explicit Review waiver. "
+            "The affected check remains waived, never passed."
+        )
 
 
 @review_app.command("resume-audit")

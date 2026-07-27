@@ -11,7 +11,10 @@ Acceptance starts only after successful system Review closeout produced a fresh
 `review-state.json` with `status: approved`, a final reviewed source fingerprint,
 and a trusted `implementation-summary.md`. The Review-to-Accept handoff contains
 `human_acceptance_obligations`, `human_acceptance_scenarios`, non-empty
-`reviewed_runtime_targets`, and their digest; it does not prefill human PASS.
+`reviewed_runtime_targets`, immutable confirmed `review_exceptions`, and their
+digests; it does not prefill human PASS. A Review hardware waiver is disclosed
+with its withheld claims and residual risk, preserved read-only, and never
+relabeled as PASS or treated as a new Accept blocker.
 `accept prepare` records the Review digest, summary digest, reviewed evidence
 snapshot, target digest, and frozen obligation/scenario contracts while excluding acceptance-owned
 session progress. If the Review verdict is no longer approved or any

@@ -138,6 +138,22 @@ def test_review_state_schema_requires_complete_implementation_deferrals() -> Non
     )
 
 
+def test_review_state_schema_supports_human_confirmed_hardware_exceptions() -> None:
+    root = Path(__file__).resolve().parents[1]
+    schema = json.loads(
+        (root / "templates" / "review-state-schema.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    Draft202012Validator.check_schema(schema)
+    assert "review_exceptions" in schema["required"]
+    assert "waived" in schema["properties"]["scenarios"]["items"][
+        "properties"
+    ]["result"]["enum"]
+    assert "pass_with_waivers" in schema["properties"]["final"][
+        "properties"
+    ]["verdict"]["enum"]
+
 def test_review_must_resolve_implement_deferral_with_current_cycle_evidence(
     tmp_path: Path,
 ) -> None:
@@ -698,6 +714,7 @@ def test_prepare_review_compiles_handoff_into_resumable_review_state(
     assert state["fix_assignments"] == []
     assert state["revalidations"] == []
     assert state["implementation_deferrals"] == []
+    assert state["review_exceptions"] == []
     assert state["coverage"]["blind_audit_complete"] is False
     assert state["leader"]["strategy"] == "pending"
     assert state["cursor"]["scenario_id"] == "SR-START-001"
@@ -707,6 +724,56 @@ def test_prepare_review_compiles_handoff_into_resumable_review_state(
     assert [item["id"] for item in state["human_acceptance_scenarios"]] == [
         "HA-DEMO-001"
     ]
+
+
+def test_prepare_review_upgrades_pre_exception_v2_state_in_place(
+    tmp_path: Path,
+) -> None:
+    runtime, project_root, feature_dir, revision, _prepared = _prepare(tmp_path)
+    state_path = runtime.review_state_path(feature_dir)
+    legacy_state = json.loads(state_path.read_text(encoding="utf-8"))
+    legacy_state.pop("review_exceptions")
+    legacy_state["final"].pop("review_exceptions_sha256")
+    state_path.write_text(
+        json.dumps(legacy_state, indent=2) + "\n", encoding="utf-8"
+    )
+
+    resumed = runtime.prepare_review(
+        project_root,
+        feature_dir,
+        expected_revision=revision,
+    )
+
+    assert resumed["status"] == "ok"
+    assert resumed["data"]["review_exceptions"] == []
+    assert resumed["data"]["final"]["review_exceptions_sha256"] == (
+        runtime._review_exceptions_sha256([])
+    )
+    assert resumed["data"]["source"] == legacy_state["source"]
+    assert resumed["data"]["scenarios"] == legacy_state["scenarios"]
+
+
+def test_approved_pre_exception_v2_state_remains_valid_for_accept_handoff(
+    tmp_path: Path,
+) -> None:
+    runtime, project_root, feature_dir, _revision, _prepared = _prepare(tmp_path)
+    state_path = runtime.review_state_path(feature_dir)
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    _write_scenario_evidence(feature_dir, state)
+    _complete_leader_review(state, feature_dir=feature_dir)
+    state["status"] = "approved"
+    state["findings"] = []
+    state.pop("review_exceptions")
+    state["final"].pop("review_exceptions_sha256")
+    state_path.write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
+
+    validation = runtime.validate_review(project_root, feature_dir)
+
+    assert validation["valid"] is True, validation["errors"]
+    assert validation["state"]["review_exceptions"] == []
+    assert validation["state"]["final"]["review_exceptions_sha256"] == (
+        runtime._review_exceptions_sha256([])
+    )
 
 
 def test_prepare_review_can_archive_and_restart_stale_state(
@@ -1523,6 +1590,98 @@ def test_closeout_review_requires_approved_fresh_evidence_and_does_not_advance_w
     assert workflow["stage"] == "review"
     assert workflow["status"] == "active"
     assert workflow["revision"] == revision
+
+
+def test_confirmed_hardware_exception_is_explicit_and_does_not_block_review(
+    tmp_path: Path,
+) -> None:
+    runtime, project_root, feature_dir, _revision, _prepared = _prepare(tmp_path)
+    state_path = runtime.review_state_path(feature_dir)
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    _write_scenario_evidence(feature_dir, state)
+    state_path.write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
+
+    unavailable_ref = "review-evidence/hardware-unavailable.json"
+    unavailable_path = feature_dir / unavailable_ref
+    unavailable_path.parent.mkdir(parents=True, exist_ok=True)
+    unavailable_path.write_text(
+        json.dumps(
+            {
+                "required_resource": "USB security key model X",
+                "observed_devices": [],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    proposed = runtime.propose_review_exception(
+        project_root,
+        feature_dir,
+        {
+            "kind": "hardware_unavailable",
+            "scenario_ids": ["SR-UI-001"],
+            "obligation_ids": ["RO-UI-001"],
+            "required_resource": "USB security key model X",
+            "unavailable_evidence_refs": [unavailable_ref],
+            "attempted_alternatives": [
+                "Enumerated attached USB devices and checked the approved emulator lane."
+            ],
+            "claims_withheld": ["USB security key behavior verified"],
+            "residual_risk": (
+                "The physical-key interaction remains unobserved on this host."
+            ),
+            "risk_severity": "medium",
+        },
+    )
+    assert proposed["status"] == "proposed"
+
+    before_confirmation = json.loads(state_path.read_text(encoding="utf-8"))
+    exception = before_confirmation["review_exceptions"][0]
+    before_confirmation["scenarios"][1]["result"] = "waived"
+    before_confirmation["scenarios"][1]["evidence"] = []
+    before_confirmation["obligations"][1]["status"] = "waived"
+    before_confirmation["leader"]["verdict"] = "pass_with_waivers"
+    before_confirmation["final"]["verdict"] = "pass_with_waivers"
+    before_confirmation["final"]["coverage_verdict"] = "pass_with_waivers"
+    before_confirmation["final"]["review_exceptions_sha256"] = runtime._review_exceptions_sha256(
+        before_confirmation["review_exceptions"]
+    )
+    before_confirmation["status"] = "reviewing"
+    state_path.write_text(
+        json.dumps(before_confirmation, indent=2) + "\n", encoding="utf-8"
+    )
+
+    unconfirmed = runtime.validate_review(project_root, feature_dir)
+    assert unconfirmed["valid"] is False
+    assert any("confirmation" in error for error in unconfirmed["errors"])
+
+    confirmed = runtime.confirm_review_exception(
+        project_root,
+        feature_dir,
+        exception_id=proposed["exception_id"],
+        proposal_sha256=proposed["proposal_sha256"],
+        confirmation_source="human-reply",
+        statement="Proceed without the unavailable physical security key.",
+    )
+    assert confirmed["status"] == "confirmed"
+
+    final_state = json.loads(state_path.read_text(encoding="utf-8"))
+    _complete_leader_review(final_state, feature_dir=feature_dir)
+    final_state["obligations"][1]["status"] = "waived"
+    final_state["leader"]["verdict"] = "pass_with_waivers"
+    final_state["final"]["verdict"] = "pass_with_waivers"
+    final_state["final"]["coverage_verdict"] = "pass_with_waivers"
+    final_state["final"]["review_exceptions_sha256"] = runtime._review_exceptions_sha256(
+        final_state["review_exceptions"]
+    )
+    final_state["status"] = "approved"
+    state_path.write_text(json.dumps(final_state, indent=2) + "\n", encoding="utf-8")
+
+    validation = runtime.validate_review(project_root, feature_dir)
+    assert validation["valid"] is True, validation["errors"]
+    assert validation["state"]["scenarios"][1]["result"] == "waived"
+    assert validation["state"]["obligations"][1]["status"] == "waived"
+    assert validation["state"]["final"]["verdict"] == "pass_with_waivers"
 
 
 def test_closeout_review_preserves_state_when_review_is_not_approved(

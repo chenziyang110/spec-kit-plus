@@ -29,11 +29,19 @@ finding; never edit or reapprove the old cycle.
 Continue the validation ledger shared across Implement and Review; do not reset
 it on phase entry, resume, worker dispatch, or Review-cycle creation. It has
 three logical gates, while physical retries are attempts inside a gate. Before
+work, run
+`{{specify-subcmd:specify-runtime implement validation-status --feature-dir <feature-dir> --format json}}`
+and follow `attempt_decision`. `remaining_epochs`/`remaining_gate_slots` count
+only unopened logical gates: zero does not block `retry_same_gate`, while
+`repair_before_retry` requires diagnosis and a changed fingerprint. Before
 executing tests, builds, startup, E2E, real scenarios, or UI capture, the Leader
 opens an attempt in the delivery gate. Multiple commands and read-only
 observation slices against that fingerprint share it. Interruption may retry the
 same fingerprint; a real failure requires repair and a new fingerprint. Never
-open a fourth logical gate.
+open a fourth logical gate. A status reason of
+`review-owned-repair-needs-delivery-proof` means Review changed the product
+after convergence but before delivery: open delivery at that repaired
+fingerprint, never retry convergence or reopen Implement.
 
 On an uncertain or terminal-looking resume, run
 `{{specify-subcmd:specify-runtime review resume-audit --feature-dir <feature-dir> --format json}}`
@@ -86,6 +94,7 @@ root cause are not reasons to exit. For an unknown root cause, dispatch a
 read-only diagnostic packet; Review remains the stage owner, accepts the
 diagnosis, and directs its own Fix worker. Keep shared browser, database,
 account, registry, and runtime-instance writes serial.
+Never reopen `implement` for these defects; the runtime rejects that route.
 
 Join and inspect every repair result, then open a new attempt in the same
 delivery gate, restart the integrated product, and run an independent
@@ -102,6 +111,9 @@ partial, missing, extra, or relabeled evidence can satisfy approval. Apply path,
 cycle-id, and byte-digest validation to cycle 1 as well as later cycles.
 A real failure remains blocking until a repaired fingerprint passes a later
 delivery attempt; an interruption never becomes a pass or assertion failure.
+Exclude from that executable matrix only scenarios covered by a current
+human-confirmed `hardware_unavailable` exception; they remain `waived`, never
+PASS, and require the qualified `pass_with_waivers` final verdict.
 
 Only a proven upstream truth gap permits a handoff: missing or contradictory
 requirement truth routes to `$spx-specify`, missing or contradictory design
@@ -118,7 +130,8 @@ Before approval, run fresh integrated regression from a restarted entrypoint,
 then run
 `{{specify-subcmd:specify-runtime review validate --feature-dir <feature-dir> --format json}}`.
 Approval requires the Review Universe at zero uncovered, all packets joined,
-every mandatory scenario passed, zero blocking findings, required evidence
+every mandatory scenario passed or explicitly waived through the
+human-confirmed hardware-only lane in `references/review-contract.md`, zero blocking findings, required evidence
 present, every Implement DEF resolved with current-cycle byte-bound evidence,
 clean blocking diagnostics, and a fresh final source fingerprint after all
 Review repairs. It also requires a non-reset validation ledger with at most
@@ -164,5 +177,5 @@ structured `update_argv`. Apply the receipt-bound finalizer gate in
 `{{specify-subcmd:specify-runtime review closeout --feature-dir <feature-dir> --expected-revision <revision> --format json}}`.
 Execute only the successful response's revision-bound workflow completion argv.
 Recommend `$spx-accept` and stop; do not run human acceptance inline. Never
-claim completion from worker reports, stale evidence, skipped required
+claim completion from worker reports, stale evidence, unconfirmed skipped required
 scenarios, or unresolved blocking findings.

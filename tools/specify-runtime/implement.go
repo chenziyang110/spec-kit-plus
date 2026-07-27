@@ -283,13 +283,16 @@ func reserveImplementValidationEpoch(root, feature, stage, purpose, fingerprint 
 			if !sameScope {
 				return nil, fmt.Errorf("validation attempt %s is already running", gate["attempt_id"])
 			}
-			return implementRunResponse(gate, true, policy, len(runs), usedAttempts), nil
+			return implementRunResponse(gate, runs, true, policy, len(runs), usedAttempts), nil
 		}
 		if active != nil && active["run_id"] != gate["run_id"] {
 			return nil, fmt.Errorf("validation attempt %s is already running", active["attempt_id"])
 		}
 		if gate["status"] == "passed" && sameScope {
-			return implementRunResponse(gate, true, policy, len(runs), usedAttempts), nil
+			return implementRunResponse(gate, runs, true, policy, len(runs), usedAttempts), nil
+		}
+		if gate["status"] == "passed" && purpose == "baseline" {
+			return nil, errors.New("passed baseline is immutable; open the convergence gate instead")
 		}
 		if gate["status"] == "failed" && gate["fingerprint"] == fingerprint {
 			return nil, errors.New("failed validation cannot be retried with an unchanged fingerprint")
@@ -301,7 +304,7 @@ func reserveImplementValidationEpoch(root, feature, stage, purpose, fingerprint 
 		if err := writeJSONAtomic(path, ledger); err != nil {
 			return nil, err
 		}
-		return implementRunResponse(gate, false, policy, len(runs), usedAttempts+1), nil
+		return implementRunResponse(gate, runs, false, policy, len(runs), usedAttempts+1), nil
 	}
 	if active != nil {
 		return nil, fmt.Errorf("validation attempt %s is already running", active["attempt_id"])
@@ -333,7 +336,7 @@ func reserveImplementValidationEpoch(root, feature, stage, purpose, fingerprint 
 	if err := writeJSONAtomic(path, ledger); err != nil {
 		return nil, err
 	}
-	return implementRunResponse(run, false, policy, len(runs)+1, usedAttempts+1), nil
+	return implementRunResponse(run, ledger["runs"].([]any), false, policy, len(runs)+1, usedAttempts+1), nil
 }
 
 type implementValidationFinishRequest struct {
@@ -409,7 +412,7 @@ func completeImplementValidationEpoch(root, feature string, request implementVal
 	if run["status"] != "running" {
 		if run["status"] == status && run["failure_kind"] == failure && reflect.DeepEqual(run["evidence_refs"], stringSliceToAny(evidenceRefs)) && run["summary"] == summary {
 			runs := ledger["runs"].([]any)
-			return implementRunResponse(run, true, policy, len(runs), implementUsedAttempts(runs)), nil
+			return implementRunResponse(run, runs, true, policy, len(runs), implementUsedAttempts(runs)), nil
 		}
 		return nil, fmt.Errorf("validation run %s is already closed", runID)
 	}
@@ -428,7 +431,7 @@ func completeImplementValidationEpoch(root, feature string, request implementVal
 		return nil, err
 	}
 	runs := ledger["runs"].([]any)
-	return implementRunResponse(run, false, policy, len(runs), implementUsedAttempts(runs)), nil
+	return implementRunResponse(run, runs, false, policy, len(runs), implementUsedAttempts(runs)), nil
 }
 
 func implementValidationBudgetStatus(root, feature string) (map[string]any, error) {
@@ -448,6 +451,8 @@ func implementValidationBudgetStatus(root, feature string) (map[string]any, erro
 	payload := cloneImplementMap(ledger)
 	payload["used_epochs"] = len(runs)
 	payload["remaining_epochs"] = policy.MaxEpochs - len(runs)
+	payload["remaining_gate_slots"] = policy.MaxEpochs - len(runs)
+	payload["new_gate_budget_exhausted"] = len(runs) >= policy.MaxEpochs
 	payload["used_attempts"] = implementUsedAttempts(runs)
 	payload["ledger_ref"] = policy.BudgetRef
 	payload["runs_sha256"] = canonicalJSONSHA256(runs)
@@ -456,6 +461,12 @@ func implementValidationBudgetStatus(root, feature string) (map[string]any, erro
 		last = runs[len(runs)-1].(map[string]any)
 	}
 	payload["next_action"] = implementValidationNextAction(last)
+	payload["current_fingerprint"] = implementSnapshotSHA256(root, feature)
+	activeStage := ""
+	if workflow, err := readJSONObject(filepath.Join(feature, "workflow.json")); err == nil && workflow["status"] == "active" {
+		activeStage = strings.TrimSpace(fmt.Sprint(workflow["stage"]))
+	}
+	payload["attempt_decision"] = implementValidationAttemptDecision(runs, policy.MaxEpochs, payload["current_fingerprint"].(string), activeStage)
 	payload["runs"] = runs
 	return payload, nil
 }
@@ -507,6 +518,105 @@ func implementLedgerPath(feature string, policy implementPolicy) (string, error)
 	return target, nil
 }
 
+func implementLedgerHasDuplicateGates(ledger map[string]any) bool {
+	runs, ok := ledger["runs"].([]any)
+	if !ok {
+		return false
+	}
+	seen := map[string]bool{}
+	for _, raw := range runs {
+		run, ok := raw.(map[string]any)
+		if !ok {
+			return false
+		}
+		key := fmt.Sprint(run["stage"]) + "\x00" + fmt.Sprint(run["purpose"])
+		if seen[key] {
+			return true
+		}
+		seen[key] = true
+	}
+	return false
+}
+
+func migrateTransitionalImplementLedger(ledger map[string]any, policy implementPolicy) (map[string]any, error) {
+	rawRuns, ok := ledger["runs"].([]any)
+	if !ok {
+		return nil, errors.New("validation ledger runs must be a list of objects")
+	}
+	gates := []any{}
+	byGate := map[string]map[string]any{}
+	normalizationCodes := []any{}
+	purposeOrder := map[string]int{"baseline": 0, "convergence": 1, "delivery": 2}
+	lastOrder := -1
+	for rawIndex, value := range rawRuns {
+		raw, ok := value.(map[string]any)
+		if !ok {
+			return nil, errors.New("validation ledger runs must be a list of objects")
+		}
+		legacyRunID := strings.TrimSpace(fmt.Sprint(raw["run_id"]))
+		if legacyRunID == "" {
+			legacyRunID = fmt.Sprintf("V%d", rawIndex+1)
+		}
+		stage, purpose := fmt.Sprint(raw["stage"]), fmt.Sprint(raw["purpose"])
+		if !implementValidStages[stage] || !implementValidPurposes[purpose] || ((stage == "review") != (purpose == "delivery")) {
+			return nil, fmt.Errorf("transitional validation %s has incompatible stage/purpose", legacyRunID)
+		}
+		if purposeOrder[purpose] < lastOrder {
+			return nil, errors.New("validation logical gates must remain ordered as baseline, convergence, then delivery")
+		}
+		lastOrder = purposeOrder[purpose]
+		rawAttempts, ok := raw["attempts"].([]any)
+		if !ok || len(rawAttempts) == 0 {
+			return nil, fmt.Errorf("transitional validation %s attempts must be a non-empty list of objects", legacyRunID)
+		}
+		for attemptIndex, rawAttempt := range rawAttempts {
+			attempt, ok := rawAttempt.(map[string]any)
+			if !ok {
+				return nil, fmt.Errorf("transitional validation %s attempts must be a non-empty list of objects", legacyRunID)
+			}
+			if err := validateImplementAttempt(attempt, legacyRunID, attemptIndex+1); err != nil {
+				return nil, err
+			}
+		}
+		latest := rawAttempts[len(rawAttempts)-1].(map[string]any)
+		for _, field := range []string{"attempt_id", "fingerprint", "commands", "covered_task_ids", "status", "failure_kind", "evidence_refs", "summary", "started_at", "completed_at"} {
+			if !reflect.DeepEqual(raw[field], latest[field]) {
+				return nil, fmt.Errorf("transitional validation %s %s must match its latest attempt", legacyRunID, field)
+			}
+		}
+		gateKey := stage + "\x00" + purpose
+		gate := byGate[gateKey]
+		if gate == nil {
+			gate = map[string]any{
+				"run_id": fmt.Sprintf("V%d", len(gates)+1),
+				"stage":  stage, "purpose": purpose, "attempts": []any{},
+			}
+			gates = append(gates, gate)
+			byGate[gateKey] = gate
+		} else {
+			normalizationCodes = append(normalizationCodes, fmt.Sprintf("%s:duplicate-logical-gate->%s", legacyRunID, gate["run_id"]))
+		}
+		attempts := gate["attempts"].([]any)
+		for _, rawAttempt := range rawAttempts {
+			attempt := cloneImplementMap(rawAttempt.(map[string]any))
+			attempt["attempt_id"] = fmt.Sprintf("%s-A%d", gate["run_id"], len(attempts)+1)
+			attempts = append(attempts, attempt)
+			gate["attempts"] = attempts
+			syncImplementRunFromAttempt(gate, attempt)
+		}
+	}
+	return map[string]any{
+		"version": float64(implementValidationLedgerVersion),
+		"mode":    "feature_epochs", "budget_scope": "implement-review",
+		"max_epochs": float64(policy.MaxEpochs), "runs": gates,
+		"migration": map[string]any{
+			"from_version": float64(2), "legacy_run_count": float64(len(rawRuns)),
+			"legacy_runs_sha256": canonicalJSONSHA256(rawRuns),
+			"legacy_runs":        cloneAny(rawRuns), "normalization_codes": normalizationCodes,
+		},
+	}, nil
+}
+
 func loadImplementValidationLedger(path, feature string, policy implementPolicy) (map[string]any, error) {
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		return map[string]any{
@@ -520,6 +630,13 @@ func loadImplementValidationLedger(path, feature string, policy implementPolicy)
 	ledger, err := readImplementJSONMap(path)
 	if err != nil {
 		return nil, fmt.Errorf("invalid validation state at %s: %v", path, err)
+	}
+	version, _ := numberAsInt(ledger["version"])
+	if version == implementValidationLedgerVersion && implementLedgerHasDuplicateGates(ledger) {
+		ledger, err = migrateTransitionalImplementLedger(ledger, policy)
+		if err != nil {
+			return nil, err
+		}
 	}
 	if err := validateImplementLedger(ledger, policy); err != nil {
 		return nil, err
@@ -547,6 +664,9 @@ func validateImplementLedger(ledger map[string]any, policy implementPolicy) erro
 		return errors.New("validation ledger already exceeds its logical-gate budget")
 	}
 	running := 0
+	seenGates := map[string]bool{}
+	purposeOrder := map[string]int{"baseline": 0, "convergence": 1, "delivery": 2}
+	lastPurposeOrder := -1
 	for index, raw := range runs {
 		run, ok := raw.(map[string]any)
 		if !ok {
@@ -560,6 +680,15 @@ func validateImplementLedger(ledger map[string]any, policy implementPolicy) erro
 		if !implementValidStages[stage] || !implementValidPurposes[purpose] || ((stage == "review") != (purpose == "delivery")) {
 			return fmt.Errorf("validation %s has incompatible stage/purpose", runID)
 		}
+		if purposeOrder[purpose] <= lastPurposeOrder {
+			return errors.New("validation logical gates must remain ordered as baseline, convergence, then delivery")
+		}
+		lastPurposeOrder = purposeOrder[purpose]
+		gateKey := stage + "\x00" + purpose
+		if seenGates[gateKey] {
+			return fmt.Errorf("validation ledger has duplicate logical gate: %s/%s", stage, purpose)
+		}
+		seenGates[gateKey] = true
 		attempts, ok := run["attempts"].([]any)
 		if !ok || len(attempts) == 0 {
 			return fmt.Errorf("validation %s attempts must be a non-empty list of objects", runID)
@@ -663,16 +792,85 @@ func syncImplementRunFromAttempt(run, attempt map[string]any) {
 	}
 }
 
-func implementRunResponse(run map[string]any, reused bool, policy implementPolicy, usedEpochs, usedAttempts int) map[string]any {
+func implementRunResponse(run map[string]any, runs []any, reused bool, policy implementPolicy, usedEpochs, usedAttempts int) map[string]any {
 	payload := cloneImplementMap(run)
 	payload["reused"] = reused
 	payload["ledger_ref"] = policy.BudgetRef
 	payload["max_epochs"] = policy.MaxEpochs
 	payload["used_epochs"] = usedEpochs
 	payload["remaining_epochs"] = policy.MaxEpochs - usedEpochs
+	payload["remaining_gate_slots"] = policy.MaxEpochs - usedEpochs
+	payload["new_gate_budget_exhausted"] = usedEpochs >= policy.MaxEpochs
 	payload["used_attempts"] = usedAttempts
 	payload["next_action"] = implementValidationNextAction(run)
+	payload["attempt_decision"] = implementValidationAttemptDecision(runs, policy.MaxEpochs, fmt.Sprint(run["fingerprint"]), fmt.Sprint(run["stage"]))
 	return payload
+}
+
+func implementValidationAttemptDecision(runs []any, maxEpochs int, currentFingerprint, activeStage string) map[string]any {
+	if len(runs) == 0 {
+		return map[string]any{
+			"action": "open_logical_gate", "can_start_attempt": true,
+			"gate_id": "", "next_attempt_id": "V1-A1",
+			"requires_new_fingerprint": false, "reason_code": "no-validation-history",
+		}
+	}
+	run := runs[len(runs)-1].(map[string]any)
+	runID := fmt.Sprint(run["run_id"])
+	attemptCount := 1
+	if attempts, ok := run["attempts"].([]any); ok {
+		attemptCount = len(attempts)
+	}
+	nextAttemptID := fmt.Sprintf("%s-A%d", runID, attemptCount+1)
+	status := fmt.Sprint(run["status"])
+	recordedFingerprint := fmt.Sprint(run["fingerprint"])
+	fingerprintChanged := strings.TrimSpace(currentFingerprint) != "" && currentFingerprint != recordedFingerprint
+	decision := map[string]any{
+		"gate_id": runID, "next_attempt_id": nextAttemptID,
+		"requires_new_fingerprint": false,
+	}
+	switch {
+	case status == "running":
+		decision["action"] = "resume_running_attempt"
+		decision["can_start_attempt"] = false
+		decision["next_attempt_id"] = fmt.Sprint(run["attempt_id"])
+		decision["reason_code"] = "attempt-already-running"
+	case status == "interrupted":
+		decision["action"] = "retry_same_gate"
+		decision["can_start_attempt"] = true
+		decision["reason_code"] = "attempt-interrupted"
+	case status == "failed" && fingerprintChanged:
+		decision["action"] = "retry_same_gate"
+		decision["can_start_attempt"] = true
+		decision["reason_code"] = "failed-attempt-repaired"
+	case status == "failed":
+		decision["action"] = "repair_before_retry"
+		decision["can_start_attempt"] = false
+		decision["requires_new_fingerprint"] = true
+		decision["reason_code"] = "failed-attempt-unchanged-fingerprint"
+	case status == "passed" && fingerprintChanged && activeStage == "review" && run["purpose"] == "convergence" && len(runs) < maxEpochs:
+		decision["action"] = "open_logical_gate"
+		decision["can_start_attempt"] = true
+		decision["gate_id"] = ""
+		decision["next_attempt_id"] = fmt.Sprintf("V%d-A1", len(runs)+1)
+		decision["reason_code"] = "review-owned-repair-needs-delivery-proof"
+	case status == "passed" && fingerprintChanged && run["purpose"] != "baseline":
+		decision["action"] = "retry_same_gate"
+		decision["can_start_attempt"] = true
+		decision["reason_code"] = "snapshot-changed-after-pass"
+	case len(runs) < maxEpochs && run["purpose"] != "delivery":
+		decision["action"] = "open_logical_gate"
+		decision["can_start_attempt"] = true
+		decision["gate_id"] = ""
+		decision["next_attempt_id"] = fmt.Sprintf("V%d-A1", len(runs)+1)
+		decision["reason_code"] = "next-logical-gate-available"
+	default:
+		decision["action"] = "validation_complete"
+		decision["can_start_attempt"] = false
+		decision["next_attempt_id"] = ""
+		decision["reason_code"] = "latest-gate-passed"
+	}
+	return decision
 }
 
 func implementValidationNextAction(run map[string]any) string {

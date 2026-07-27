@@ -53,6 +53,15 @@ pending. Timeout, runner termination, cancellation, harness, or environment
 loss is an interrupted attempt and may retry the same gate/fingerprint. A real
 assertion or verification failure requires repair and a new fingerprint.
 
+Before every Leader allocation, read `validation-status.attempt_decision`.
+Resume `resume_running_attempt`; use `retry_same_gate` for its returned
+progress-bound attempt; satisfy `repair_before_retry` with an actual fingerprint
+change; allocate only the named `open_logical_gate`; and create nothing for
+`validation_complete`. `remaining_epochs` and `remaining_gate_slots` count
+unopened logical gates, not retry permission. Never stop or blindly retry from
+the raw count alone; zero still permits an attempt when
+`attempt_decision.can_start_attempt` is true.
+
 Run the relevant verification as attempts inside one convergence gate for the
 integrated change-set, not once per task. On interruption, repair the runner and
 retry the same fingerprint; on a real failure, repair the implementation and
