@@ -43,6 +43,8 @@ func Run(args []string, stdout, stderr io.Writer, cliVersion string) int {
 		return runArtifact(args[1:], stdout)
 	case "result":
 		return runResult(args[1:], stdout)
+	case "run":
+		return runRun(args[1:], stdout)
 	case "workflow":
 		return runWorkflow(args[1:], stdout)
 	case "validate":
@@ -110,6 +112,7 @@ func writeHelp(stdout io.Writer) int {
 		"prd-scan",
 		"quick",
 		"result",
+		"run",
 		"validate",
 		"version",
 		"workflow",
@@ -1066,6 +1069,10 @@ func defaultCapabilities() []string {
 		"review.resume-audit",
 		"review.target-bind",
 		"review.validate",
+		"run.cancel",
+		"run.create",
+		"run.events",
+		"run.show",
 		"accept.closeout",
 		"accept.prepare",
 		"accept.route-repair",
@@ -1218,6 +1225,14 @@ func capabilitySummary(id string) string {
 		return "Resolve a persisted workflow blocker with evidence."
 	case "workflow.closeout":
 		return "Atomically bind passed human acceptance to terminal workflow state."
+	case "run.create":
+		return "Record a new isolated workflow Run request in the repository control plane."
+	case "run.show":
+		return "Read the current revision, status, and fence for one Run."
+	case "run.events":
+		return "List the ordered lifecycle events for one Run."
+	case "run.cancel":
+		return "Cancel one revision-bound Run and advance its fence before cleanup."
 	default:
 		return "Runtime capability."
 	}

@@ -1,6 +1,6 @@
 package runcontrol
 
-const schemaVersion = 2
+const schemaVersion = 3
 
 const schemaSQL = `
 CREATE TABLE IF NOT EXISTS metadata (
@@ -27,7 +27,7 @@ CREATE TABLE IF NOT EXISTS runs (
     ),
     owner_epoch TEXT NOT NULL REFERENCES supervisor_instances(owner_epoch) ON DELETE RESTRICT,
     status TEXT NOT NULL CHECK (
-        status IN ('allocating', 'ready', 'active', 'parked', 'interrupted', 'sealed', 'cancelled', 'failed')
+        status IN ('queued', 'allocating', 'ready', 'active', 'parked', 'interrupted', 'sealed', 'cancelled', 'failed')
     ),
     revision INTEGER NOT NULL CHECK (revision >= 1),
     current_fence INTEGER NOT NULL DEFAULT 0 CHECK (current_fence >= 0),

@@ -98,28 +98,29 @@ func (store *Store) initialize(ctx context.Context) error {
 	if _, err := store.db.ExecContext(ctx, fmt.Sprintf(`PRAGMA busy_timeout = %d`, sqliteBusyTimeoutMS)); err != nil {
 		return fmt.Errorf("configure sqlite busy timeout: %w", err)
 	}
-	if _, err := store.db.ExecContext(ctx, `PRAGMA journal_mode = WAL`); err != nil {
+	if err := store.execInitializationPragma(ctx, `PRAGMA journal_mode = WAL`); err != nil {
 		return fmt.Errorf("enable sqlite WAL: %w", err)
 	}
 	if _, err := store.db.ExecContext(ctx, `PRAGMA synchronous = FULL`); err != nil {
 		return fmt.Errorf("configure sqlite synchronous mode: %w", err)
 	}
-	version, exists, err := existingSchemaVersion(ctx, store.db)
+	transaction, err := store.beginInitializationTransaction(ctx)
+	if err != nil {
+		return fmt.Errorf("begin run control initialization: %w", err)
+	}
+	defer func() { _ = transaction.Rollback() }()
+
+	version, exists, err := existingSchemaVersion(ctx, transaction)
 	if err != nil {
 		return err
 	}
 	if exists && version != schemaVersion {
 		return fmt.Errorf("%w: database has version %d, runtime requires %d", ErrUnsupportedSchema, version, schemaVersion)
 	}
-	if _, err := store.db.ExecContext(ctx, schemaSQL); err != nil {
+	if _, err := transaction.ExecContext(ctx, schemaSQL); err != nil {
 		return fmt.Errorf("initialize run control schema: %w", err)
 	}
 	now := time.Now().UTC().UnixMilli()
-	transaction, err := store.db.BeginTx(ctx, nil)
-	if err != nil {
-		return fmt.Errorf("begin run control initialization: %w", err)
-	}
-	defer func() { _ = transaction.Rollback() }()
 	if _, err := transaction.ExecContext(ctx, `
 		INSERT INTO metadata (key, value) VALUES ('schema_version', ?)
 		ON CONFLICT(key) DO NOTHING
@@ -140,6 +141,49 @@ func (store *Store) initialize(ctx context.Context) error {
 		return fmt.Errorf("commit run control initialization: %w", err)
 	}
 	return nil
+}
+
+func (store *Store) execInitializationPragma(ctx context.Context, statement string) error {
+	deadline := time.Now().Add(time.Duration(sqliteBusyTimeoutMS) * time.Millisecond)
+	for {
+		if _, err := store.db.ExecContext(ctx, statement); err != nil {
+			if !isSQLiteContention(err) || !time.Now().Before(deadline) {
+				return err
+			}
+			if err := waitForSQLiteRetry(ctx); err != nil {
+				return err
+			}
+			continue
+		}
+		return nil
+	}
+}
+
+func (store *Store) beginInitializationTransaction(ctx context.Context) (*sql.Tx, error) {
+	deadline := time.Now().Add(time.Duration(sqliteBusyTimeoutMS) * time.Millisecond)
+	for {
+		transaction, err := store.db.BeginTx(ctx, nil)
+		if err == nil {
+			return transaction, nil
+		}
+		if !isSQLiteContention(err) || !time.Now().Before(deadline) {
+			return nil, err
+		}
+		if err := waitForSQLiteRetry(ctx); err != nil {
+			return nil, err
+		}
+	}
+}
+
+func waitForSQLiteRetry(ctx context.Context) error {
+	timer := time.NewTimer(10 * time.Millisecond)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
 }
 
 func (store *Store) Close() error {
@@ -168,6 +212,17 @@ func (store *Store) Close() error {
 }
 
 func (store *Store) CreateRun(ctx context.Context, params CreateRunParams) (Run, error) {
+	return store.createRun(ctx, params, RunAllocating)
+}
+
+// EnqueueRun records durable execution intent without claiming that a
+// supervisor has started allocation. Queued Runs are neutral during owner
+// reconciliation and must be claimed explicitly before workspace allocation.
+func (store *Store) EnqueueRun(ctx context.Context, params CreateRunParams) (Run, error) {
+	return store.createRun(ctx, params, RunQueued)
+}
+
+func (store *Store) createRun(ctx context.Context, params CreateRunParams, status RunStatus) (Run, error) {
 	if err := validateCreateRunParams(params); err != nil {
 		return Run{}, err
 	}
@@ -180,7 +235,7 @@ func (store *Store) CreateRun(ctx context.Context, params CreateRunParams) (Run,
 		TargetRef:    params.TargetRef,
 		IntentSHA256: params.IntentSHA256,
 		OwnerEpoch:   store.ownerEpoch,
-		Status:       RunAllocating,
+		Status:       status,
 		Revision:     1,
 		CurrentFence: 0,
 		CreatedAtMS:  now,
@@ -210,6 +265,55 @@ func (store *Store) CreateRun(ctx context.Context, params CreateRunParams) (Run,
 	}
 	if err := transaction.Commit(); err != nil {
 		return Run{}, fmt.Errorf("commit create run: %w", err)
+	}
+	return run, nil
+}
+
+// ClaimRun transfers one queued request to the current supervisor. The status,
+// revision, owner epoch, and event are advanced atomically so reconciliation
+// can distinguish queued intent from abandoned allocation work.
+func (store *Store) ClaimRun(ctx context.Context, runID string, expectedRevision int64) (Run, error) {
+	if strings.TrimSpace(runID) == "" || expectedRevision <= 0 {
+		return Run{}, fmt.Errorf("%w: run id and positive expected revision are required", ErrInvalidArgument)
+	}
+	transaction, err := store.db.BeginTx(ctx, nil)
+	if err != nil {
+		return Run{}, fmt.Errorf("begin claim run: %w", err)
+	}
+	defer func() { _ = transaction.Rollback() }()
+
+	run, err := readRunTx(ctx, transaction, runID)
+	if err != nil {
+		return Run{}, err
+	}
+	if run.Revision != expectedRevision {
+		return Run{}, fmt.Errorf("%w: run %q is revision %d, expected %d", ErrRevisionConflict, run.RunID, run.Revision, expectedRevision)
+	}
+	if run.Status != RunQueued {
+		return Run{}, fmt.Errorf("%w: cannot claim run %q from %q", ErrInvalidTransition, run.RunID, run.Status)
+	}
+
+	nowMS := time.Now().UTC().UnixMilli()
+	result, err := transaction.ExecContext(ctx, `
+		UPDATE runs
+		SET status = ?, owner_epoch = ?, revision = revision + 1, updated_at_ms = ?
+		WHERE run_id = ? AND revision = ? AND current_fence = ? AND status = ?
+	`, RunAllocating, store.ownerEpoch, nowMS, run.RunID, run.Revision, run.CurrentFence, RunQueued)
+	if err != nil {
+		return Run{}, fmt.Errorf("claim run %q: %w", run.RunID, err)
+	}
+	if err := requireOneCASRow(result, ErrRevisionConflict, "claim run"); err != nil {
+		return Run{}, err
+	}
+	run.Status = RunAllocating
+	run.OwnerEpoch = store.ownerEpoch
+	run.Revision++
+	run.UpdatedAtMS = nowMS
+	if err := appendRunEventTx(ctx, transaction, run, RunEventClaimed, "run claimed for allocation"); err != nil {
+		return Run{}, err
+	}
+	if err := transaction.Commit(); err != nil {
+		return Run{}, fmt.Errorf("commit claim run: %w", err)
 	}
 	return run, nil
 }
@@ -384,6 +488,7 @@ func validateCreateRunParams(params CreateRunParams) error {
 
 func canTransitionRun(from, to RunStatus) bool {
 	transitions := map[RunStatus]map[RunStatus]bool{
+		RunQueued:      {},
 		RunAllocating:  {RunReady: true},
 		RunReady:       {RunParked: true},
 		RunActive:      {},
@@ -401,7 +506,7 @@ func canTransitionRun(from, to RunStatus) bool {
 	return knownTo && allowed[to]
 }
 
-func existingSchemaVersion(ctx context.Context, db *sql.DB) (int, bool, error) {
+func existingSchemaVersion(ctx context.Context, db rowQuerier) (int, bool, error) {
 	var tableCount int
 	if err := db.QueryRowContext(ctx, `
 		SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'metadata'

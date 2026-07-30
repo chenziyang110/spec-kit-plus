@@ -827,7 +827,7 @@ func requireOneCASRow(result sql.Result, conflict error, action string) error {
 
 func runCanBeCancelled(status RunStatus) bool {
 	switch status {
-	case RunAllocating, RunReady, RunActive, RunParked, RunInterrupted:
+	case RunQueued, RunAllocating, RunReady, RunActive, RunParked, RunInterrupted:
 		return true
 	default:
 		return false

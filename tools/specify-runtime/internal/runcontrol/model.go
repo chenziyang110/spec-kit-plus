@@ -35,6 +35,7 @@ var (
 type RunStatus string
 
 const (
+	RunQueued      RunStatus = "queued"
 	RunAllocating  RunStatus = "allocating"
 	RunReady       RunStatus = "ready"
 	RunActive      RunStatus = "active"
@@ -263,5 +264,6 @@ type Event struct {
 
 const (
 	RunEventCreated      = "run.created"
+	RunEventClaimed      = "run.claimed"
 	RunEventTransitioned = "run.transitioned"
 )

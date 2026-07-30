@@ -80,6 +80,20 @@ func OpenForRepository(ctx context.Context, cwd string, options ...OpenOption) (
 	return store, nil
 }
 
+// OpenViewForRepository opens a read-only run-control view shared by all
+// worktrees in the repository containing cwd.
+func OpenViewForRepository(ctx context.Context, cwd string) (*View, error) {
+	repository, err := ResolveRepository(ctx, cwd)
+	if err != nil {
+		return nil, err
+	}
+	view, err := OpenView(ctx, repository.DatabasePath)
+	if err != nil {
+		return nil, fmt.Errorf("open repository run control view: %w", err)
+	}
+	return view, nil
+}
+
 func runGitRevParse(ctx context.Context, directory string, argument string) (string, error) {
 	command := exec.CommandContext(ctx, "git", "rev-parse", argument)
 	command.Dir = directory

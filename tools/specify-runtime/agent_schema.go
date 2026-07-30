@@ -127,6 +127,20 @@ func runAPIShow(args []string, stdout io.Writer) int {
 	case "artifact.catalog":
 		capability["side_effect"] = "read-only"
 		capability["usage"] = "specify-runtime artifact catalog --format json"
+	case "run.create":
+		capability["side_effect"] = "writes-run-control"
+		capability["usage"] = "specify-runtime run create --run-id <id> --kind <kind> --subject-type <type> --subject-id <id> --target-ref <ref> --intent-sha256 <sha256> [--project-root <path>] --format json"
+		capability["input_contract"] = "records control-plane intent only; it does not allocate a workspace or launch an agent"
+	case "run.show":
+		capability["side_effect"] = "read-only"
+		capability["usage"] = "specify-runtime run show <run-id> [--project-root <path>] --format json"
+	case "run.events":
+		capability["side_effect"] = "read-only"
+		capability["usage"] = "specify-runtime run events <run-id> [--project-root <path>] --format json"
+	case "run.cancel":
+		capability["side_effect"] = "cancels-and-fences-run"
+		capability["usage"] = "specify-runtime run cancel <run-id> --expected-revision <revision> --reason <reason> [--project-root <path>] --format json"
+		capability["input_contract"] = "requires the exact observed Run revision; cancellation advances the fence before revoking execution authority"
 	}
 	env.Data["capability"] = capability
 	return writeEnvelope(stdout, env)
