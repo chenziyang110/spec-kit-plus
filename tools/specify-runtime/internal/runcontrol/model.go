@@ -22,6 +22,9 @@ var (
 	ErrUsableWorkspace     = errors.New("run already has a usable workspace")
 	ErrWorkspaceGeneration = errors.New("workspace generation must increase")
 	ErrWorkspaceNotUsable  = errors.New("workspace is not usable")
+	ErrWorkspaceBinding    = errors.New("workspace binding is not authoritative")
+	ErrWorkspaceConflict   = errors.New("workspace path or ref conflicts with recorded allocation")
+	ErrWorkspaceEscape     = errors.New("workspace path escapes the runtime-owned root")
 )
 
 // More specific names are aliases of ErrNotFound so both broad and

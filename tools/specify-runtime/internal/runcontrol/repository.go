@@ -1,6 +1,7 @@
 package runcontrol
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -20,6 +21,7 @@ var ErrNotGitRepository = errors.New("not a git repository")
 // and DatabasePath are shared by the main and linked worktrees.
 type Repository struct {
 	Root         string
+	PrimaryRoot  string
 	CommonDir    string
 	DatabasePath string
 }
@@ -58,9 +60,14 @@ func ResolveRepository(ctx context.Context, cwd string) (Repository, error) {
 	if err != nil {
 		return Repository{}, fmt.Errorf("resolve Git common directory: %w", err)
 	}
+	primaryRoot, err := resolvePrimaryWorktreeRoot(ctx, directory)
+	if err != nil {
+		return Repository{}, fmt.Errorf("resolve primary Git worktree root: %w", err)
+	}
 
 	return Repository{
 		Root:         root,
+		PrimaryRoot:  primaryRoot,
 		CommonDir:    commonDir,
 		DatabasePath: filepath.Join(commonDir, "specify-runtime", "run-control.sqlite"),
 	}, nil
@@ -109,6 +116,26 @@ func runGitRevParse(ctx context.Context, directory string, argument string) (str
 		return "", errors.New("Git returned an invalid path")
 	}
 	return value, nil
+}
+
+func resolvePrimaryWorktreeRoot(ctx context.Context, directory string) (string, error) {
+	command := exec.CommandContext(ctx, "git", "worktree", "list", "--porcelain", "-z")
+	command.Dir = directory
+	output, err := command.Output()
+	if err != nil {
+		if contextErr := ctx.Err(); contextErr != nil {
+			return "", contextErr
+		}
+		return "", err
+	}
+	for _, field := range bytes.Split(output, []byte{0}) {
+		const prefix = "worktree "
+		if bytes.HasPrefix(field, []byte(prefix)) {
+			value := string(field[len(prefix):])
+			return resolveGitPath(directory, value)
+		}
+	}
+	return "", errors.New("Git returned no primary worktree")
 }
 
 func isPlainNonGitDirectory(directory string, err error) bool {
