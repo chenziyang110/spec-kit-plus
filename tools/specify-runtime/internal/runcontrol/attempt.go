@@ -33,8 +33,28 @@ func (store *Store) IssueAttempt(ctx context.Context, params IssueAttemptParams)
 	if run.Revision != params.ExpectedRunRevision {
 		return Attempt{}, fmt.Errorf("%w: run %q revision is %d, expected %d", ErrRevisionConflict, run.RunID, run.Revision, params.ExpectedRunRevision)
 	}
-	if run.Status != RunReady && run.Status != RunInterrupted {
+	if run.Status != RunReady {
 		return Attempt{}, fmt.Errorf("%w: cannot issue an attempt while run %q is %q", ErrInvalidTransition, run.RunID, run.Status)
+	}
+	activity, err := readActivityTx(ctx, tx, params.ActivityID)
+	if err != nil {
+		return Attempt{}, err
+	}
+	workspace, err := readWorkspaceTx(ctx, tx, params.WorkspaceID)
+	if err != nil {
+		return Attempt{}, err
+	}
+	if activity.RunID != run.RunID || workspace.RunID != run.RunID {
+		return Attempt{}, fmt.Errorf("%w: activity and workspace must belong to run %q", ErrInvalidArgument, run.RunID)
+	}
+	if activity.Revision != params.ExpectedActivityRevision || workspace.Revision != params.ExpectedWorkspaceRevision {
+		return Attempt{}, fmt.Errorf("%w: activity or workspace revision changed", ErrRevisionConflict)
+	}
+	if activity.Status != ActivityReady {
+		return Attempt{}, fmt.Errorf("%w: activity %q is %q", ErrInvalidTransition, activity.ActivityID, activity.Status)
+	}
+	if workspace.Status != WorkspaceReady {
+		return Attempt{}, fmt.Errorf("%w: workspace %q is %q", ErrWorkspaceNotUsable, workspace.WorkspaceID, workspace.Status)
 	}
 
 	hasLiveAttempt, err := runHasLiveAttemptTx(ctx, tx, run.RunID)
@@ -72,26 +92,31 @@ func (store *Store) IssueAttempt(ctx context.Context, params IssueAttemptParams)
 	run.UpdatedAtMS = nowMS
 
 	attempt := Attempt{
-		AttemptID:     params.AttemptID,
-		RunID:         params.RunID,
-		Status:        AttemptIssued,
-		AdapterID:     params.AdapterID,
-		ExecutionMode: params.ExecutionMode,
-		OwnerEpoch:    store.ownerEpoch,
-		Fence:         nextFence,
-		LeaseUntilMS:  params.LeaseUntil.UTC().UnixMilli(),
-		HeartbeatAtMS: 0,
-		Revision:      1,
-		CreatedAtMS:   nowMS,
-		UpdatedAtMS:   nowMS,
+		AttemptID:           params.AttemptID,
+		RunID:               params.RunID,
+		ActivityID:          params.ActivityID,
+		WorkspaceID:         params.WorkspaceID,
+		WorkspaceGeneration: workspace.Generation,
+		Status:              AttemptIssued,
+		AdapterID:           params.AdapterID,
+		ExecutionMode:       params.ExecutionMode,
+		OwnerEpoch:          store.ownerEpoch,
+		Fence:               nextFence,
+		LeaseUntilMS:        params.LeaseUntil.UTC().UnixMilli(),
+		HeartbeatAtMS:       0,
+		Revision:            1,
+		CreatedAtMS:         nowMS,
+		UpdatedAtMS:         nowMS,
 	}
 	_, err = tx.ExecContext(ctx, `
 		INSERT INTO attempts (
-			attempt_id, run_id, status, adapter_id, execution_mode,
+			attempt_id, run_id, activity_id, workspace_id, workspace_generation,
+			status, adapter_id, execution_mode,
 			owner_epoch, fence, lease_until_ms, heartbeat_at_ms,
 			revision, created_at_ms, updated_at_ms
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-	`, attempt.AttemptID, attempt.RunID, attempt.Status, attempt.AdapterID,
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`, attempt.AttemptID, attempt.RunID, attempt.ActivityID, attempt.WorkspaceID,
+		attempt.WorkspaceGeneration, attempt.Status, attempt.AdapterID,
 		attempt.ExecutionMode, attempt.OwnerEpoch, attempt.Fence,
 		attempt.LeaseUntilMS, attempt.HeartbeatAtMS, attempt.Revision,
 		attempt.CreatedAtMS, attempt.UpdatedAtMS)
@@ -134,14 +159,25 @@ func (store *Store) ActivateAttempt(ctx context.Context, attemptID string, fence
 	if err != nil {
 		return Attempt{}, err
 	}
+	activity, err := readActivityTx(ctx, tx, attempt.ActivityID)
+	if err != nil {
+		return Attempt{}, err
+	}
+	workspace, err := readWorkspaceTx(ctx, tx, attempt.WorkspaceID)
+	if err != nil {
+		return Attempt{}, err
+	}
 	if err := validateAttemptAuthority(attempt, run, fence, store.ownerEpoch); err != nil {
 		return Attempt{}, err
 	}
 	if attempt.Status != AttemptIssued {
 		return Attempt{}, fmt.Errorf("%w: attempt %q is %q, expected %q", ErrInvalidTransition, attempt.AttemptID, attempt.Status, AttemptIssued)
 	}
-	if run.Status != RunReady && run.Status != RunInterrupted {
+	if run.Status != RunReady || activity.Status != ActivityReady || workspace.Status != WorkspaceReady {
 		return Attempt{}, fmt.Errorf("%w: cannot activate an attempt while run %q is %q", ErrInvalidTransition, run.RunID, run.Status)
+	}
+	if activity.RunID != run.RunID || workspace.RunID != run.RunID || workspace.Generation != attempt.WorkspaceGeneration {
+		return Attempt{}, fmt.Errorf("%w: attempt %q execution bindings are inconsistent", ErrStaleFence, attempt.AttemptID)
 	}
 
 	nowMS := time.Now().UTC().UnixMilli()
@@ -168,6 +204,38 @@ func (store *Store) ActivateAttempt(ctx context.Context, attemptID string, fence
 	run.UpdatedAtMS = nowMS
 
 	result, err = tx.ExecContext(ctx, `
+		UPDATE activities
+		SET status = ?, revision = revision + 1, updated_at_ms = ?
+		WHERE activity_id = ? AND run_id = ? AND revision = ? AND status = ?
+	`, ActivityActive, nowMS, activity.ActivityID, run.RunID, activity.Revision, ActivityReady)
+	if err != nil {
+		return Attempt{}, fmt.Errorf("activate activity: %w", err)
+	}
+	if err := requireOneCASRow(result, ErrRevisionConflict, "activate activity"); err != nil {
+		return Attempt{}, err
+	}
+	activity.Status = ActivityActive
+	activity.Revision++
+	activity.UpdatedAtMS = nowMS
+
+	result, err = tx.ExecContext(ctx, `
+		UPDATE workspaces
+		SET status = ?, revision = revision + 1, updated_at_ms = ?
+		WHERE workspace_id = ? AND run_id = ? AND generation = ?
+		  AND revision = ? AND status = ?
+	`, WorkspaceInUse, nowMS, workspace.WorkspaceID, run.RunID,
+		workspace.Generation, workspace.Revision, WorkspaceReady)
+	if err != nil {
+		return Attempt{}, fmt.Errorf("activate workspace: %w", err)
+	}
+	if err := requireOneCASRow(result, ErrRevisionConflict, "activate workspace"); err != nil {
+		return Attempt{}, err
+	}
+	workspace.Status = WorkspaceInUse
+	workspace.Revision++
+	workspace.UpdatedAtMS = nowMS
+
+	result, err = tx.ExecContext(ctx, `
 		UPDATE attempts
 		SET status = ?, lease_until_ms = ?, heartbeat_at_ms = ?,
 		    revision = revision + 1, updated_at_ms = ?
@@ -189,6 +257,12 @@ func (store *Store) ActivateAttempt(ctx context.Context, attemptID string, fence
 	attempt.UpdatedAtMS = nowMS
 
 	if err := appendRunEventTx(ctx, tx, run, "attempt.activated", attempt.AttemptID); err != nil {
+		return Attempt{}, err
+	}
+	if err := appendActivityEventTx(ctx, tx, activity, "activity.activated", attempt.AttemptID); err != nil {
+		return Attempt{}, err
+	}
+	if err := appendWorkspaceEventTx(ctx, tx, workspace, "workspace.in-use", attempt.AttemptID); err != nil {
 		return Attempt{}, err
 	}
 	if err := tx.Commit(); err != nil {
@@ -226,6 +300,14 @@ func (store *Store) Heartbeat(ctx context.Context, attemptID string, fence int64
 	if err != nil {
 		return Attempt{}, err
 	}
+	activity, err := readActivityTx(ctx, tx, attempt.ActivityID)
+	if err != nil {
+		return Attempt{}, err
+	}
+	workspace, err := readWorkspaceTx(ctx, tx, attempt.WorkspaceID)
+	if err != nil {
+		return Attempt{}, err
+	}
 	if err := validateAttemptAuthority(attempt, run, fence, store.ownerEpoch); err != nil {
 		return Attempt{}, err
 	}
@@ -234,6 +316,10 @@ func (store *Store) Heartbeat(ctx context.Context, attemptID string, fence int64
 	}
 	if run.Status != RunActive {
 		return Attempt{}, fmt.Errorf("%w: run %q is %q", ErrStaleFence, run.RunID, run.Status)
+	}
+	if activity.Status != ActivityActive || workspace.Status != WorkspaceInUse ||
+		activity.RunID != run.RunID || workspace.RunID != run.RunID || workspace.Generation != attempt.WorkspaceGeneration {
+		return Attempt{}, fmt.Errorf("%w: attempt %q execution bindings are no longer active", ErrStaleFence, attempt.AttemptID)
 	}
 
 	nowMS := time.Now().UTC().UnixMilli()
@@ -334,6 +420,11 @@ func (store *Store) CancelRun(ctx context.Context, runID string, expectedRevisio
 		if err := updateAttemptTerminalTx(ctx, tx, liveAttempt, AttemptRevoked, nowMS); err != nil {
 			return Run{}, err
 		}
+		if err := updateAttemptExecutionTx(ctx, tx, liveAttempt, ActivityCancelled, WorkspaceQuarantined, nowMS, reason); err != nil {
+			return Run{}, err
+		}
+	} else if err := updateOpenExecutionForRunTx(ctx, tx, run.RunID, ActivityCancelled, WorkspaceQuarantined, nowMS, reason); err != nil {
+		return Run{}, err
 	}
 	if err := appendRunEventTx(ctx, tx, run, "run.cancelled", reason); err != nil {
 		return Run{}, err
@@ -394,7 +485,8 @@ func (store *Store) interruptMatchingAttempts(
 	defer func() { _ = tx.Rollback() }()
 
 	query := `
-		SELECT a.attempt_id, a.run_id, a.status, a.adapter_id,
+		SELECT a.attempt_id, a.run_id, a.activity_id, a.workspace_id,
+		       a.workspace_generation, a.status, a.adapter_id,
 		       a.execution_mode, a.owner_epoch, a.fence,
 		       a.lease_until_ms, a.heartbeat_at_ms, a.revision,
 		       a.created_at_ms, a.updated_at_ms
@@ -460,6 +552,9 @@ func (store *Store) interruptMatchingAttempts(
 		run.UpdatedAtMS = nowMS
 
 		if err := updateAttemptTerminalTx(ctx, tx, attempt, terminalStatus, nowMS); err != nil {
+			return nil, err
+		}
+		if err := updateAttemptExecutionTx(ctx, tx, attempt, ActivityInterrupted, WorkspaceQuarantined, nowMS, reason); err != nil {
 			return nil, err
 		}
 		if err := appendRunEventTx(ctx, tx, run, "run.interrupted", reason+": "+attempt.AttemptID); err != nil {
@@ -542,6 +637,9 @@ func (store *Store) interruptMatchingAllocatingRuns(
 		if err := appendRunEventTx(ctx, tx, run, "run.interrupted", reason); err != nil {
 			return nil, err
 		}
+		if err := updateOpenExecutionForRunTx(ctx, tx, run.RunID, ActivityInterrupted, WorkspaceQuarantined, nowMS, reason); err != nil {
+			return nil, err
+		}
 		interrupted = append(interrupted, run)
 	}
 	if err := tx.Commit(); err != nil {
@@ -579,8 +677,14 @@ func validateIssueAttemptParams(params IssueAttemptParams) error {
 	if strings.TrimSpace(params.RunID) == "" {
 		return errors.New("run_id is required")
 	}
+	if strings.TrimSpace(params.ActivityID) == "" || strings.TrimSpace(params.WorkspaceID) == "" {
+		return fmt.Errorf("%w: activity_id and workspace_id are required", ErrInvalidArgument)
+	}
 	if params.ExpectedRunRevision <= 0 {
 		return errors.New("expected_run_revision must be positive")
+	}
+	if params.ExpectedActivityRevision <= 0 || params.ExpectedWorkspaceRevision <= 0 {
+		return fmt.Errorf("%w: expected activity and workspace revisions must be positive", ErrInvalidArgument)
 	}
 	if strings.TrimSpace(params.AdapterID) == "" {
 		return errors.New("adapter_id is required")
@@ -610,9 +714,17 @@ func runHasLiveAttemptTx(ctx context.Context, tx *sql.Tx, runID string) (bool, e
 	return exists != 0, nil
 }
 
-func readAttemptTx(ctx context.Context, tx *sql.Tx, attemptID string) (Attempt, error) {
-	row := tx.QueryRowContext(ctx, `
-		SELECT attempt_id, run_id, status, adapter_id, execution_mode,
+func (store *Store) GetAttempt(ctx context.Context, attemptID string) (Attempt, error) {
+	if strings.TrimSpace(attemptID) == "" {
+		return Attempt{}, fmt.Errorf("%w: attempt_id is required", ErrInvalidArgument)
+	}
+	return readAttemptTx(ctx, store.db, attemptID)
+}
+
+func readAttemptTx(ctx context.Context, querier rowQuerier, attemptID string) (Attempt, error) {
+	row := querier.QueryRowContext(ctx, `
+		SELECT attempt_id, run_id, activity_id, workspace_id,
+		       workspace_generation, status, adapter_id, execution_mode,
 		       owner_epoch, fence, lease_until_ms, heartbeat_at_ms,
 		       revision, created_at_ms, updated_at_ms
 		FROM attempts
@@ -634,6 +746,9 @@ func scanAttempt(scanner attemptScanner) (Attempt, error) {
 	err := scanner.Scan(
 		&attempt.AttemptID,
 		&attempt.RunID,
+		&attempt.ActivityID,
+		&attempt.WorkspaceID,
+		&attempt.WorkspaceGeneration,
 		&attempt.Status,
 		&attempt.AdapterID,
 		&attempt.ExecutionMode,
@@ -653,7 +768,8 @@ func scanAttempt(scanner attemptScanner) (Attempt, error) {
 
 func readLiveAttemptForFenceTx(ctx context.Context, tx *sql.Tx, runID string, fence int64) (Attempt, bool, error) {
 	row := tx.QueryRowContext(ctx, `
-		SELECT attempt_id, run_id, status, adapter_id, execution_mode,
+		SELECT attempt_id, run_id, activity_id, workspace_id,
+		       workspace_generation, status, adapter_id, execution_mode,
 		       owner_epoch, fence, lease_until_ms, heartbeat_at_ms,
 		       revision, created_at_ms, updated_at_ms
 		FROM attempts

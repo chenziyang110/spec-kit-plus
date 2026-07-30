@@ -32,16 +32,21 @@ func TestCanonicalLifecycleStatusValues(t *testing.T) {
 func TestSealingAttemptPreventsAnotherAttempt(t *testing.T) {
 	ctx := context.Background()
 	store := openTestStore(t, filepath.Join(t.TempDir(), "run-control.sqlite"))
-	run := createReadyRun(t, store, "run_sealing_live")
+	prepared := createPreparedExecution(t, store, "sealing_live", 1)
+	run := prepared.Run
 	now := time.Now().UTC()
 
 	if _, err := store.IssueAttempt(ctx, IssueAttemptParams{
-		AttemptID:           "att_sealing",
-		RunID:               run.RunID,
-		ExpectedRunRevision: run.Revision,
-		AdapterID:           "codex",
-		ExecutionMode:       ExecutionManaged,
-		LeaseUntil:          now.Add(time.Minute),
+		AttemptID:                 "att_sealing",
+		RunID:                     run.RunID,
+		ActivityID:                prepared.Activity.ActivityID,
+		WorkspaceID:               prepared.Workspace.WorkspaceID,
+		ExpectedRunRevision:       run.Revision,
+		ExpectedActivityRevision:  prepared.Activity.Revision,
+		ExpectedWorkspaceRevision: prepared.Workspace.Revision,
+		AdapterID:                 "codex",
+		ExecutionMode:             ExecutionManaged,
+		LeaseUntil:                now.Add(time.Minute),
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -56,12 +61,16 @@ func TestSealingAttemptPreventsAnotherAttempt(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, err = store.IssueAttempt(ctx, IssueAttemptParams{
-		AttemptID:           "att_must_not_start",
-		RunID:               run.RunID,
-		ExpectedRunRevision: current.Revision,
-		AdapterID:           "codex",
-		ExecutionMode:       ExecutionManaged,
-		LeaseUntil:          now.Add(time.Minute),
+		AttemptID:                 "att_must_not_start",
+		RunID:                     run.RunID,
+		ActivityID:                prepared.Activity.ActivityID,
+		WorkspaceID:               prepared.Workspace.WorkspaceID,
+		ExpectedRunRevision:       current.Revision,
+		ExpectedActivityRevision:  prepared.Activity.Revision,
+		ExpectedWorkspaceRevision: prepared.Workspace.Revision,
+		AdapterID:                 "codex",
+		ExecutionMode:             ExecutionManaged,
+		LeaseUntil:                now.Add(time.Minute),
 	})
 	if !errors.Is(err, ErrLiveAttempt) {
 		t.Fatalf("issue while sealing error = %v, want ErrLiveAttempt", err)
@@ -71,15 +80,20 @@ func TestSealingAttemptPreventsAnotherAttempt(t *testing.T) {
 func TestHeartbeatCannotResurrectExpiredLease(t *testing.T) {
 	ctx := context.Background()
 	store := openTestStore(t, filepath.Join(t.TempDir(), "run-control.sqlite"))
-	run := createReadyRun(t, store, "run_expired_heartbeat")
+	prepared := createPreparedExecution(t, store, "expired_heartbeat", 1)
+	run := prepared.Run
 	now := time.Now().UTC()
 	attempt, err := store.IssueAttempt(ctx, IssueAttemptParams{
-		AttemptID:           "att_expired_heartbeat",
-		RunID:               run.RunID,
-		ExpectedRunRevision: run.Revision,
-		AdapterID:           "codex",
-		ExecutionMode:       ExecutionManaged,
-		LeaseUntil:          now.Add(time.Minute),
+		AttemptID:                 "att_expired_heartbeat",
+		RunID:                     run.RunID,
+		ActivityID:                prepared.Activity.ActivityID,
+		WorkspaceID:               prepared.Workspace.WorkspaceID,
+		ExpectedRunRevision:       run.Revision,
+		ExpectedActivityRevision:  prepared.Activity.Revision,
+		ExpectedWorkspaceRevision: prepared.Workspace.Revision,
+		AdapterID:                 "codex",
+		ExecutionMode:             ExecutionManaged,
+		LeaseUntil:                now.Add(time.Minute),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -100,15 +114,20 @@ func TestHeartbeatCannotResurrectExpiredLease(t *testing.T) {
 func TestActivateCannotResurrectExpiredIssuedLease(t *testing.T) {
 	ctx := context.Background()
 	store := openTestStore(t, filepath.Join(t.TempDir(), "run-control.sqlite"))
-	run := createReadyRun(t, store, "run_expired_activation")
+	prepared := createPreparedExecution(t, store, "expired_activation", 1)
+	run := prepared.Run
 	now := time.Now().UTC()
 	attempt, err := store.IssueAttempt(ctx, IssueAttemptParams{
-		AttemptID:           "att_expired_activation",
-		RunID:               run.RunID,
-		ExpectedRunRevision: run.Revision,
-		AdapterID:           "codex",
-		ExecutionMode:       ExecutionManaged,
-		LeaseUntil:          now.Add(time.Minute),
+		AttemptID:                 "att_expired_activation",
+		RunID:                     run.RunID,
+		ActivityID:                prepared.Activity.ActivityID,
+		WorkspaceID:               prepared.Workspace.WorkspaceID,
+		ExpectedRunRevision:       run.Revision,
+		ExpectedActivityRevision:  prepared.Activity.Revision,
+		ExpectedWorkspaceRevision: prepared.Workspace.Revision,
+		AdapterID:                 "codex",
+		ExecutionMode:             ExecutionManaged,
+		LeaseUntil:                now.Add(time.Minute),
 	})
 	if err != nil {
 		t.Fatal(err)

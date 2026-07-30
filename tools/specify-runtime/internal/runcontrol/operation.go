@@ -46,6 +46,20 @@ func (store *Store) BeginOperation(ctx context.Context, params BeginOperationPar
 	if attempt.LeaseUntilMS <= now {
 		return Operation{}, false, fmt.Errorf("%w: attempt %q lease has expired", ErrStaleFence, attempt.AttemptID)
 	}
+	switch params.AggregateType {
+	case "run":
+		if params.AggregateID != run.RunID {
+			return Operation{}, false, fmt.Errorf("%w: run aggregate does not match attempt authority", ErrStaleFence)
+		}
+	case "activity":
+		if params.AggregateID != attempt.ActivityID {
+			return Operation{}, false, fmt.Errorf("%w: activity aggregate does not match attempt authority", ErrStaleFence)
+		}
+	case "workspace":
+		if params.AggregateID != attempt.WorkspaceID {
+			return Operation{}, false, fmt.Errorf("%w: workspace aggregate does not match attempt authority", ErrStaleFence)
+		}
+	}
 	operation := Operation{
 		OperationID:    params.OperationID,
 		Kind:           params.Kind,
@@ -53,6 +67,8 @@ func (store *Store) BeginOperation(ctx context.Context, params BeginOperationPar
 		AggregateID:    params.AggregateID,
 		RunID:          params.RunID,
 		AttemptID:      params.AttemptID,
+		ActivityID:     attempt.ActivityID,
+		WorkspaceID:    attempt.WorkspaceID,
 		OwnerEpoch:     store.ownerEpoch,
 		Fence:          params.Fence,
 		RunRevision:    params.ExpectedRunRevision,
@@ -66,13 +82,15 @@ func (store *Store) BeginOperation(ctx context.Context, params BeginOperationPar
 	result, err := transaction.ExecContext(ctx, `
 		INSERT INTO operations (
 			operation_id, kind, aggregate_type, aggregate_id,
-			run_id, attempt_id, owner_epoch, fence, run_revision,
+			run_id, attempt_id, activity_id, workspace_id,
+			owner_epoch, fence, run_revision,
 			idempotency_key, request_sha256, status, revision,
 			created_at_ms, updated_at_ms
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(idempotency_key) DO NOTHING
 	`, operation.OperationID, operation.Kind, operation.AggregateType, operation.AggregateID,
-		operation.RunID, operation.AttemptID, operation.OwnerEpoch, operation.Fence, operation.RunRevision,
+		operation.RunID, operation.AttemptID, operation.ActivityID, operation.WorkspaceID,
+		operation.OwnerEpoch, operation.Fence, operation.RunRevision,
 		operation.IdempotencyKey, operation.RequestSHA256, operation.Status, operation.Revision,
 		operation.CreatedAtMS, operation.UpdatedAtMS)
 	if err != nil {
@@ -90,7 +108,8 @@ func (store *Store) BeginOperation(ctx context.Context, params BeginOperationPar
 		if err != nil {
 			return Operation{}, false, fmt.Errorf("read idempotent operation replay: %w", err)
 		}
-		if !operationMatchesRequest(existing, params) {
+		if !operationMatchesRequest(existing, params) ||
+			existing.ActivityID != attempt.ActivityID || existing.WorkspaceID != attempt.WorkspaceID {
 			return Operation{}, false, fmt.Errorf("%w: key %q identifies a different request", ErrIdempotencyConflict, params.IdempotencyKey)
 		}
 		if err := transaction.Commit(); err != nil {
@@ -140,7 +159,8 @@ func readOperationByIdempotencyKey(ctx context.Context, querier interface {
 }, idempotencyKey string) (Operation, error) {
 	row := querier.QueryRowContext(ctx, `
 		SELECT operation_id, kind, aggregate_type, aggregate_id,
-		       run_id, attempt_id, owner_epoch, fence, run_revision,
+		       run_id, attempt_id, activity_id, workspace_id,
+		       owner_epoch, fence, run_revision,
 		       idempotency_key, request_sha256, status, revision,
 		       created_at_ms, updated_at_ms
 		FROM operations
@@ -154,6 +174,8 @@ func readOperationByIdempotencyKey(ctx context.Context, querier interface {
 		&operation.AggregateID,
 		&operation.RunID,
 		&operation.AttemptID,
+		&operation.ActivityID,
+		&operation.WorkspaceID,
 		&operation.OwnerEpoch,
 		&operation.Fence,
 		&operation.RunRevision,

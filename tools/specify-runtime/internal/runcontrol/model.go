@@ -18,6 +18,10 @@ var (
 	ErrIdempotencyConflict = errors.New("idempotency key identifies a different request")
 	ErrOwnerEpochConflict  = errors.New("supervisor owner epoch already exists")
 	ErrUnsupportedSchema   = errors.New("unsupported run control schema")
+	ErrOpenActivity        = errors.New("run already has an open activity")
+	ErrUsableWorkspace     = errors.New("run already has a usable workspace")
+	ErrWorkspaceGeneration = errors.New("workspace generation must increase")
+	ErrWorkspaceNotUsable  = errors.New("workspace is not usable")
 )
 
 // More specific names are aliases of ErrNotFound so both broad and
@@ -73,6 +77,93 @@ const (
 	ExecutionPromptOnly   ExecutionMode = "prompt_only"
 )
 
+type ActivityStatus string
+
+const (
+	ActivityPlanned     ActivityStatus = "planned"
+	ActivityReady       ActivityStatus = "ready"
+	ActivityActive      ActivityStatus = "active"
+	ActivityBlocked     ActivityStatus = "blocked"
+	ActivityInterrupted ActivityStatus = "interrupted"
+	ActivitySucceeded   ActivityStatus = "succeeded"
+	ActivityCancelled   ActivityStatus = "cancelled"
+	ActivityFailed      ActivityStatus = "failed"
+)
+
+type Activity struct {
+	ActivityID  string
+	RunID       string
+	Kind        string
+	Ordinal     int64
+	InputSHA256 string
+	Status      ActivityStatus
+	Revision    int64
+	CreatedAtMS int64
+	UpdatedAtMS int64
+}
+
+type CreateActivityParams struct {
+	ActivityID  string
+	RunID       string
+	Kind        string
+	InputSHA256 string
+}
+
+type WorkspaceStatus string
+
+const (
+	WorkspaceAllocating  WorkspaceStatus = "allocating"
+	WorkspaceReady       WorkspaceStatus = "ready"
+	WorkspaceInUse       WorkspaceStatus = "in_use"
+	WorkspaceQuarantined WorkspaceStatus = "quarantined"
+	WorkspaceSealed      WorkspaceStatus = "sealed"
+	WorkspaceReleased    WorkspaceStatus = "released"
+	WorkspaceFailed      WorkspaceStatus = "failed"
+)
+
+type Workspace struct {
+	WorkspaceID   string
+	RunID         string
+	Generation    int64
+	Kind          string
+	RootPath      string
+	RepoCommonDir string
+	BaseRef       string
+	BaseCommit    string
+	PrivateRef    string
+	Status        WorkspaceStatus
+	Revision      int64
+	CreatedAtMS   int64
+	UpdatedAtMS   int64
+}
+
+type CreateWorkspaceParams struct {
+	WorkspaceID   string
+	RunID         string
+	Generation    int64
+	Kind          string
+	RootPath      string
+	RepoCommonDir string
+	BaseRef       string
+	BaseCommit    string
+	PrivateRef    string
+}
+
+type PrepareExecutionParams struct {
+	RunID                     string
+	ActivityID                string
+	WorkspaceID               string
+	ExpectedRunRevision       int64
+	ExpectedActivityRevision  int64
+	ExpectedWorkspaceRevision int64
+}
+
+type PreparedExecution struct {
+	Run       Run
+	Activity  Activity
+	Workspace Workspace
+}
+
 type AttemptStatus string
 
 const (
@@ -86,27 +177,34 @@ const (
 )
 
 type Attempt struct {
-	AttemptID     string
-	RunID         string
-	Status        AttemptStatus
-	AdapterID     string
-	ExecutionMode ExecutionMode
-	OwnerEpoch    string
-	Fence         int64
-	LeaseUntilMS  int64
-	HeartbeatAtMS int64
-	Revision      int64
-	CreatedAtMS   int64
-	UpdatedAtMS   int64
+	AttemptID           string
+	RunID               string
+	ActivityID          string
+	WorkspaceID         string
+	WorkspaceGeneration int64
+	Status              AttemptStatus
+	AdapterID           string
+	ExecutionMode       ExecutionMode
+	OwnerEpoch          string
+	Fence               int64
+	LeaseUntilMS        int64
+	HeartbeatAtMS       int64
+	Revision            int64
+	CreatedAtMS         int64
+	UpdatedAtMS         int64
 }
 
 type IssueAttemptParams struct {
-	AttemptID           string
-	RunID               string
-	ExpectedRunRevision int64
-	AdapterID           string
-	ExecutionMode       ExecutionMode
-	LeaseUntil          time.Time
+	AttemptID                 string
+	RunID                     string
+	ActivityID                string
+	WorkspaceID               string
+	ExpectedRunRevision       int64
+	ExpectedActivityRevision  int64
+	ExpectedWorkspaceRevision int64
+	AdapterID                 string
+	ExecutionMode             ExecutionMode
+	LeaseUntil                time.Time
 }
 
 type OperationStatus string
@@ -126,6 +224,8 @@ type Operation struct {
 	AggregateID    string
 	RunID          string
 	AttemptID      string
+	ActivityID     string
+	WorkspaceID    string
 	OwnerEpoch     string
 	Fence          int64
 	RunRevision    int64

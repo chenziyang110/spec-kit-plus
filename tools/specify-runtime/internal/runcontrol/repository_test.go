@@ -68,8 +68,14 @@ func TestResolveRepositoryUsesSharedGitCommonDirectory(t *testing.T) {
 
 func TestResolveRepositoryRejectsNonGitDirectory(t *testing.T) {
 	ensureGitAvailable(t)
+	directory := t.TempDir()
+	// Stop Git discovery at this directory even when the platform temp root is
+	// itself inside an unrelated repository.
+	if err := os.WriteFile(filepath.Join(directory, ".git"), []byte("gitdir: missing\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
-	_, err := ResolveRepository(context.Background(), t.TempDir())
+	_, err := ResolveRepository(context.Background(), directory)
 	if !errors.Is(err, ErrNotGitRepository) {
 		t.Fatalf("ResolveRepository error = %v, want %v", err, ErrNotGitRepository)
 	}

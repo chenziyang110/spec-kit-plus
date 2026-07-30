@@ -35,9 +35,58 @@ CREATE TABLE IF NOT EXISTS runs (
     updated_at_ms INTEGER NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS activities (
+    activity_id TEXT PRIMARY KEY,
+    run_id TEXT NOT NULL REFERENCES runs(run_id) ON DELETE RESTRICT,
+    kind TEXT NOT NULL,
+    ordinal INTEGER NOT NULL CHECK (ordinal > 0),
+    input_sha256 TEXT NOT NULL DEFAULT '' CHECK (
+        input_sha256 = '' OR (length(input_sha256) = 64 AND input_sha256 NOT GLOB '*[^0-9a-f]*')
+    ),
+    status TEXT NOT NULL CHECK (
+        status IN ('planned', 'ready', 'active', 'blocked', 'interrupted', 'succeeded', 'cancelled', 'failed')
+    ),
+    revision INTEGER NOT NULL CHECK (revision >= 1),
+    created_at_ms INTEGER NOT NULL,
+    updated_at_ms INTEGER NOT NULL,
+    UNIQUE (activity_id, run_id),
+    UNIQUE (run_id, ordinal)
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS activities_one_open_per_run
+    ON activities(run_id)
+    WHERE status IN ('planned', 'ready', 'active', 'blocked', 'interrupted');
+
+CREATE TABLE IF NOT EXISTS workspaces (
+    workspace_id TEXT PRIMARY KEY,
+    run_id TEXT NOT NULL REFERENCES runs(run_id) ON DELETE RESTRICT,
+    generation INTEGER NOT NULL CHECK (generation > 0),
+    kind TEXT NOT NULL CHECK (kind IN ('git_worktree')),
+    root_path TEXT NOT NULL,
+    repo_common_dir TEXT NOT NULL,
+    base_ref TEXT NOT NULL,
+    base_commit TEXT NOT NULL,
+    private_ref TEXT NOT NULL,
+    status TEXT NOT NULL CHECK (
+        status IN ('allocating', 'ready', 'in_use', 'quarantined', 'sealed', 'released', 'failed')
+    ),
+    revision INTEGER NOT NULL CHECK (revision >= 1),
+    created_at_ms INTEGER NOT NULL,
+    updated_at_ms INTEGER NOT NULL,
+    UNIQUE (workspace_id, run_id),
+    UNIQUE (run_id, generation)
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS workspaces_one_usable_per_run
+    ON workspaces(run_id)
+    WHERE status IN ('allocating', 'ready', 'in_use');
+
 CREATE TABLE IF NOT EXISTS attempts (
     attempt_id TEXT PRIMARY KEY,
     run_id TEXT NOT NULL REFERENCES runs(run_id) ON DELETE RESTRICT,
+    activity_id TEXT NOT NULL,
+    workspace_id TEXT NOT NULL,
+    workspace_generation INTEGER NOT NULL CHECK (workspace_generation > 0),
     status TEXT NOT NULL CHECK (
         status IN ('issued', 'active', 'sealing', 'finished', 'revoked', 'lost', 'failed')
     ),
@@ -52,7 +101,9 @@ CREATE TABLE IF NOT EXISTS attempts (
     revision INTEGER NOT NULL CHECK (revision >= 1),
     created_at_ms INTEGER NOT NULL,
     updated_at_ms INTEGER NOT NULL,
-    UNIQUE (run_id, fence)
+    UNIQUE (run_id, fence),
+    FOREIGN KEY (activity_id, run_id) REFERENCES activities(activity_id, run_id) ON DELETE RESTRICT,
+    FOREIGN KEY (workspace_id, run_id) REFERENCES workspaces(workspace_id, run_id) ON DELETE RESTRICT
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS attempts_one_live_per_run
@@ -69,6 +120,8 @@ CREATE TABLE IF NOT EXISTS operations (
     aggregate_id TEXT NOT NULL,
     run_id TEXT NOT NULL REFERENCES runs(run_id) ON DELETE RESTRICT,
     attempt_id TEXT NOT NULL REFERENCES attempts(attempt_id) ON DELETE RESTRICT,
+    activity_id TEXT NOT NULL REFERENCES activities(activity_id) ON DELETE RESTRICT,
+    workspace_id TEXT NOT NULL REFERENCES workspaces(workspace_id) ON DELETE RESTRICT,
     owner_epoch TEXT NOT NULL REFERENCES supervisor_instances(owner_epoch) ON DELETE RESTRICT,
     fence INTEGER NOT NULL CHECK (fence > 0),
     run_revision INTEGER NOT NULL CHECK (run_revision >= 1),

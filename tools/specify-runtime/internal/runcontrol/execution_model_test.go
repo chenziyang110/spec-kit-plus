@@ -137,14 +137,14 @@ func TestAttemptLossAndCancellationPropagateToExecutionAggregates(t *testing.T) 
 	tests := []struct {
 		name         string
 		id           string
-		end          func(context.Context, *Store, string, Run, Attempt, time.Time) error
+		end          func(*testing.T, context.Context, *Store, string, Run, Attempt, time.Time) error
 		wantRun      RunStatus
 		wantActivity ActivityStatus
 	}{
 		{
 			name: "lease expiry",
 			id:   "lease_expiry",
-			end: func(ctx context.Context, store *Store, _ string, _ Run, _ Attempt, now time.Time) error {
+			end: func(_ *testing.T, ctx context.Context, store *Store, _ string, _ Run, _ Attempt, now time.Time) error {
 				_, err := store.ExpireLeases(ctx, now.Add(2*time.Minute))
 				return err
 			},
@@ -154,7 +154,7 @@ func TestAttemptLossAndCancellationPropagateToExecutionAggregates(t *testing.T) 
 		{
 			name: "owner takeover",
 			id:   "owner_takeover",
-			end: func(ctx context.Context, _ *Store, databasePath string, _ Run, _ Attempt, now time.Time) error {
+			end: func(t *testing.T, ctx context.Context, _ *Store, databasePath string, _ Run, _ Attempt, now time.Time) error {
 				takeover := openTestStore(t, databasePath, WithOwnerEpoch("takeover_new"))
 				_, err := takeover.ReconcileOwnerEpoch(ctx, now)
 				return err
@@ -165,7 +165,7 @@ func TestAttemptLossAndCancellationPropagateToExecutionAggregates(t *testing.T) 
 		{
 			name: "user cancellation",
 			id:   "user_cancellation",
-			end: func(ctx context.Context, store *Store, _ string, run Run, _ Attempt, _ time.Time) error {
+			end: func(_ *testing.T, ctx context.Context, store *Store, _ string, run Run, _ Attempt, _ time.Time) error {
 				_, err := store.CancelRun(ctx, run.RunID, run.Revision, "user cancelled")
 				return err
 			},
@@ -187,7 +187,7 @@ func TestAttemptLossAndCancellationPropagateToExecutionAggregates(t *testing.T) 
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := test.end(ctx, store, databasePath, active, attempt, now); err != nil {
+			if err := test.end(t, ctx, store, databasePath, active, attempt, now); err != nil {
 				t.Fatal(err)
 			}
 			assertExecutionStatuses(t, store, prepared.Run.RunID, prepared.Activity.ActivityID, prepared.Workspace.WorkspaceID,

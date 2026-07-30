@@ -53,16 +53,21 @@ func TestRunTransitionsRequireExpectedRevision(t *testing.T) {
 func TestCancelInvalidatesTheLiveAttemptFenceBeforeHeartbeat(t *testing.T) {
 	ctx := context.Background()
 	store := openTestStore(t, filepath.Join(t.TempDir(), "run-control.sqlite"))
-	run := createReadyRun(t, store, "run_cancel")
+	prepared := createPreparedExecution(t, store, "cancel", 1)
+	run := prepared.Run
 	now := time.Now().UTC()
 
 	attempt, err := store.IssueAttempt(ctx, IssueAttemptParams{
-		AttemptID:           "att_cancel_1",
-		RunID:               run.RunID,
-		ExpectedRunRevision: run.Revision,
-		AdapterID:           "codex",
-		ExecutionMode:       ExecutionManaged,
-		LeaseUntil:          now.Add(time.Minute),
+		AttemptID:                 "att_cancel_1",
+		RunID:                     run.RunID,
+		ActivityID:                prepared.Activity.ActivityID,
+		WorkspaceID:               prepared.Workspace.WorkspaceID,
+		ExpectedRunRevision:       run.Revision,
+		ExpectedActivityRevision:  prepared.Activity.Revision,
+		ExpectedWorkspaceRevision: prepared.Workspace.Revision,
+		AdapterID:                 "codex",
+		ExecutionMode:             ExecutionManaged,
+		LeaseUntil:                now.Add(time.Minute),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -90,7 +95,8 @@ func TestOnlyOneConcurrentAttemptCanBecomeLive(t *testing.T) {
 	ctx := context.Background()
 	databasePath := filepath.Join(t.TempDir(), "run-control.sqlite")
 	firstStore := openTestStore(t, databasePath)
-	run := createReadyRun(t, firstStore, "run_concurrent")
+	prepared := createPreparedExecution(t, firstStore, "concurrent", 1)
+	run := prepared.Run
 	secondStore := openTestStore(t, databasePath)
 	now := time.Now().UTC()
 
@@ -103,12 +109,16 @@ func TestOnlyOneConcurrentAttemptCanBecomeLive(t *testing.T) {
 			defer wait.Done()
 			<-start
 			_, err := store.IssueAttempt(ctx, IssueAttemptParams{
-				AttemptID:           []string{"att_concurrent_a", "att_concurrent_b"}[index],
-				RunID:               run.RunID,
-				ExpectedRunRevision: run.Revision,
-				AdapterID:           "codex",
-				ExecutionMode:       ExecutionManaged,
-				LeaseUntil:          now.Add(time.Minute),
+				AttemptID:                 []string{"att_concurrent_a", "att_concurrent_b"}[index],
+				RunID:                     run.RunID,
+				ActivityID:                prepared.Activity.ActivityID,
+				WorkspaceID:               prepared.Workspace.WorkspaceID,
+				ExpectedRunRevision:       run.Revision,
+				ExpectedActivityRevision:  prepared.Activity.Revision,
+				ExpectedWorkspaceRevision: prepared.Workspace.Revision,
+				AdapterID:                 "codex",
+				ExecutionMode:             ExecutionManaged,
+				LeaseUntil:                now.Add(time.Minute),
 			})
 			results <- err
 		}(index, store)
@@ -137,15 +147,20 @@ func TestOnlyOneConcurrentAttemptCanBecomeLive(t *testing.T) {
 func TestExpiredLeaseInterruptsRunAndInvalidatesFence(t *testing.T) {
 	ctx := context.Background()
 	store := openTestStore(t, filepath.Join(t.TempDir(), "run-control.sqlite"))
-	run := createReadyRun(t, store, "run_expiry")
+	prepared := createPreparedExecution(t, store, "expiry", 1)
+	run := prepared.Run
 	now := time.Now().UTC()
 	attempt, err := store.IssueAttempt(ctx, IssueAttemptParams{
-		AttemptID:           "att_expiry_1",
-		RunID:               run.RunID,
-		ExpectedRunRevision: run.Revision,
-		AdapterID:           "codex",
-		ExecutionMode:       ExecutionManaged,
-		LeaseUntil:          now.Add(time.Second),
+		AttemptID:                 "att_expiry_1",
+		RunID:                     run.RunID,
+		ActivityID:                prepared.Activity.ActivityID,
+		WorkspaceID:               prepared.Workspace.WorkspaceID,
+		ExpectedRunRevision:       run.Revision,
+		ExpectedActivityRevision:  prepared.Activity.Revision,
+		ExpectedWorkspaceRevision: prepared.Workspace.Revision,
+		AdapterID:                 "codex",
+		ExecutionMode:             ExecutionManaged,
+		LeaseUntil:                now.Add(time.Second),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -173,15 +188,20 @@ func TestSupervisorEpochTakeoverInterruptsAnOwnedAttempt(t *testing.T) {
 	ctx := context.Background()
 	databasePath := filepath.Join(t.TempDir(), "run-control.sqlite")
 	firstStore := openTestStore(t, databasePath, WithOwnerEpoch("supervisor_first"))
-	run := createReadyRun(t, firstStore, "run_takeover")
+	prepared := createPreparedExecution(t, firstStore, "takeover", 1)
+	run := prepared.Run
 	now := time.Now().UTC()
 	attempt, err := firstStore.IssueAttempt(ctx, IssueAttemptParams{
-		AttemptID:           "att_takeover_1",
-		RunID:               run.RunID,
-		ExpectedRunRevision: run.Revision,
-		AdapterID:           "codex",
-		ExecutionMode:       ExecutionManaged,
-		LeaseUntil:          now.Add(time.Minute),
+		AttemptID:                 "att_takeover_1",
+		RunID:                     run.RunID,
+		ActivityID:                prepared.Activity.ActivityID,
+		WorkspaceID:               prepared.Workspace.WorkspaceID,
+		ExpectedRunRevision:       run.Revision,
+		ExpectedActivityRevision:  prepared.Activity.Revision,
+		ExpectedWorkspaceRevision: prepared.Workspace.Revision,
+		AdapterID:                 "codex",
+		ExecutionMode:             ExecutionManaged,
+		LeaseUntil:                now.Add(time.Minute),
 	})
 	if err != nil {
 		t.Fatal(err)

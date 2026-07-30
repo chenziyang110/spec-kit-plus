@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -222,14 +223,18 @@ func TestCancelRacesHeartbeatWithoutUntypedFailure(t *testing.T) {
 func createAuthorityActiveRun(t *testing.T, store *Store, runID string, now time.Time) (Run, Attempt) {
 	t.Helper()
 	ctx := context.Background()
-	run := createReadyRun(t, store, runID)
+	prepared := createPreparedExecution(t, store, strings.TrimPrefix(runID, "run_"), 1)
 	attempt, err := store.IssueAttempt(ctx, IssueAttemptParams{
-		AttemptID:           runID + "_attempt",
-		RunID:               run.RunID,
-		ExpectedRunRevision: run.Revision,
-		AdapterID:           "codex",
-		ExecutionMode:       ExecutionManaged,
-		LeaseUntil:          now.Add(10 * time.Minute),
+		AttemptID:                 runID + "_attempt",
+		RunID:                     prepared.Run.RunID,
+		ActivityID:                prepared.Activity.ActivityID,
+		WorkspaceID:               prepared.Workspace.WorkspaceID,
+		ExpectedRunRevision:       prepared.Run.Revision,
+		ExpectedActivityRevision:  prepared.Activity.Revision,
+		ExpectedWorkspaceRevision: prepared.Workspace.Revision,
+		AdapterID:                 "codex",
+		ExecutionMode:             ExecutionManaged,
+		LeaseUntil:                now.Add(10 * time.Minute),
 	})
 	if err != nil {
 		t.Fatalf("IssueAttempt() error = %v", err)
@@ -238,7 +243,7 @@ func createAuthorityActiveRun(t *testing.T, store *Store, runID string, now time
 	if err != nil {
 		t.Fatalf("ActivateAttempt() error = %v", err)
 	}
-	active, err := store.GetRun(ctx, run.RunID)
+	active, err := store.GetRun(ctx, prepared.Run.RunID)
 	if err != nil {
 		t.Fatalf("GetRun(active) error = %v", err)
 	}
