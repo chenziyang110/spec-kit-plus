@@ -118,7 +118,7 @@ Workflow-owned mutation closeout is planner-first: source-changing `sp-*`
 workflows run
 `specify-runtime cognition closeout-plan --workflow "$ACTIVE_WORKFLOW" --format json`,
 passing `--delta-session "$DELTA_SESSION_ID"` when a delta session exists. The
-planner returns `update_mode=delta_session` or `update_mode=payload_file`,
+planner returns `update_mode=delta_session` or `update_mode=inline_json`,
 `required_agent_fields`, `unknown_path_dispositions`, display-only command
 templates, and structured execution fields. Agents execute via `update_argv`
 after writing a completed payload, or by completing
@@ -157,7 +157,7 @@ Generated helper scripts use the project-relative `runtime_launcher` in
 `.specify/config.json`. `SPECIFY_RUNTIME_BIN` and PATH are considered only by
 human bootstrap, upgrade, or repair while provisioning that local entrypoint.
 
-The same binary owns canonical Agent artifact access. Use `specify-runtime artifact catalog` to inspect deterministic scaffold kinds, `specify-runtime artifact scaffold --kind <plan-contract|quick-status> --path <project-relative-path> --vars <compact-json>` for create-only stable boilerplate, and the `artifact show` or `artifact prepare` -> `artifact submit` path for progressive reads and leased writes.
+The same binary owns canonical Agent artifact access. Use `specify-runtime artifact catalog` to inspect deterministic scaffold kinds, `specify-runtime artifact scaffold --kind <kind> --path <project-relative-path> --vars <compact-json>` for create-only stable boilerplate, and the `artifact show` or `artifact prepare` -> `artifact submit` path for progressive reads and leased writes.
 
 ## Verification
 
@@ -221,7 +221,7 @@ compiles from the scan package without a second repository scan. It remains a
 peer workflow path to `specify` and does not automatically hand off to `plan`.
 `prd` remains a deprecated compatibility entrypoint only.
 
-Use `discussion` for rough ideas that need product/technical shaping before formal specification or bounded quick execution. It persists meaning at semantic checkpoints, keeps human replies adaptive, and writes one canonical Agent-only `handoff-to-specify.json` only after explicit request, boundary lock, self-review, and user confirmation. `sp-specify` and `sp-quick` validate that JSON directly; no Markdown companion, reviewer guide, quick-specific handoff, or duplicated confirmation is required.
+Use `discussion` for rough ideas that need product/technical shaping before formal specification or direct Quick delivery. It persists meaning at semantic checkpoints, keeps human replies adaptive, and writes one canonical Agent-only `handoff-to-specify.json` only after explicit request, boundary lock, self-review, and user confirmation. The confirmed `recommended_consumer` selects `sp-specify` for a formal spec-first path or `sp-quick` for direct delivery of any size; no Markdown companion, reviewer guide, quick-specific handoff, or duplicated confirmation is required.
 
 Continue by default, do not ask for continuation, and ask only when user judgment is genuinely required and no safe default exists.
 
@@ -238,9 +238,9 @@ The discussion output is one canonical Agent-only JSON contract shared by eligib
 
 Across the full pipeline, the canonical Agent authorities are `handoff-to-specify.json`, `spec-contract.json`, `plan-contract.json`, `task-index.json`, per-task lifecycle records, and post-closeout `human-acceptance.json`. Conditional artifacts are generated only when their trigger is present; delegated packets are compiled just in time. `sp-accept` / `spx-accept` assumes the human returns without chat context, restores the product story, and guides one observable acceptance step at a time before recording the explicit human verdict.
 
-When `sp-specify` consumes the contract, it writes `spec-contract.json` and preserves the decision digest by reference. `sp-quick` reuses the confirmed digest when its own semantic delta is empty.
+When `sp-specify` consumes the formal-path contract, it writes `spec-contract.json` and preserves the decision digest by reference. `sp-quick` binds the direct-delivery contract and confirmed digest into task-local `STATUS.md`; task size or breadth does not force a switch to Specify.
 
-Discussion sessions remain visible to resume while their status is `active`, `blocked`, or unconsumed `handoff-ready`. After a handoff has been consumed, `specify-runtime discussion mark-consumed <slug> --feature-dir <feature-dir>` writes `handoff_consumption_status: consumed`, `consumed_by_feature_dir`, `status: completed`, and `next_command: none`; then `specify-runtime discussion archive <slug>` can move it under `.specify/discussions/archive/`. If the user abandons the topic before consumption, use `specify-runtime discussion close <slug> --status abandoned` and then archive it.
+Discussion sessions remain visible to resume while their status is `active`, `blocked`, or unconsumed `handoff-ready`. After a handoff has been consumed, `specify-runtime discussion mark-consumed <slug> --feature-dir <consumer-workspace>` writes `handoff_consumption_status: consumed`, the compatibility `consumed_by_feature_dir` field, `status: completed`, and `next_command: none`; the compatibility option accepts a Quick workspace. Then `specify-runtime discussion archive <slug>` can move it under `.specify/discussions/archive/`. If the user abandons the topic before consumption, use `specify-runtime discussion close <slug> --status abandoned` and then archive it.
 
 The `.specify/scripts` directory will contain both `.sh` and `.ps1` scripts.
 

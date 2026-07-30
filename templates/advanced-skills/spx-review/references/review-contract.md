@@ -9,7 +9,9 @@ official entrypoints, required system Review scenarios, and the validation
 ledger shared across Implement and Review. Reject a missing,
 ambiguous, or stale handoff; do not infer completion from task checkboxes.
 
-Read any `user_confirmed_deferrals` in the handoff before allocation. Each DEF
+Query `/user_confirmed_deferrals` through `specify-runtime artifact show --path
+<feature-dir>/implementation-handoff.json --json-pointer
+/user_confirmed_deferrals` before allocation. Each DEF
 is unresolved scope whose ownership expires into Review. Restore its exact
 blocker/task/acceptance/validation refs, keep the listed claims withheld, and
 rerun it. Resolve its `review-state.json.implementation_deferrals` entry only
@@ -67,10 +69,10 @@ Use `{{specify-subcmd:specify-runtime review resume-audit --feature-dir <feature
 to recover the exact cursor and freshness gaps; do not infer them from prose.
 An acceptance repair creates cycle 2 or later and seeds a Review finding linked
 to the routed human finding. Assign it to an accepted read-only diagnostic
-worker. `diagnostic` is the packet lane; persist the corresponding
-`review-state.json` assignment with `kind: scenario_review` and
-`read_only: true`, never `kind: diagnostic`. Store new scenario evidence under `review-evidence/cycle-<n>/` and all
-Review/Fix/revalidation packet results under `review-results/cycle-<n>/`;
+worker. `diagnostic` is the packet lane; patch the corresponding
+`review-state.json` assignment through leased `specify-runtime artifact patch` calls with `kind: scenario_review` and
+`read_only: true`, never `kind: diagnostic`. Import/register new scenario evidence through `specify-runtime evidence` for the current cycle, and submit all
+Review/Fix/revalidation packet results inline through `specify-runtime result submit --command review`;
 earlier-cycle evidence cannot close the current cycle.
 
 ## Mandatory scenario matrix
@@ -101,9 +103,7 @@ at the real entrypoint. Cover:
 For UI scenarios, evidence uses only canonical kinds
 `structure_snapshot`, `visual_capture`, and `runtime_diagnostics`, with
 `evidence_scope: integrated`, plus visual comparison or explicit human review.
-Persist a `spec-kit-visual-comparison-v1` report for every pass; bind the
-approved preview/manifest digests, required captures, applicable `DS-*`
-decisions, comparison tolerance, and approved deviations.
+For each task-bound passing comparison, call `specify-runtime evidence visual-compare --feature-dir <feature-dir> --task-id <Txxx> --input-json '<observed-comparison-json>' --format json` with observed entrypoint/revision, typed evidence refs, matrix differences, explicit verdict, and reviewer. The runtime derives the approved preview/manifest/handoff bindings, required captures, exact `DS-*`/`DH-*` coverage, tolerance, deviations, canonical report, and byte digest; never submit an authored report inline.
 Use stable real content and the required viewport/state matrix. Isolated task
 evidence may guide Review but cannot close a system scenario. Group the matrix
 by integrated surface and fingerprint; do not run the full viewport/state
@@ -151,7 +151,8 @@ current-cycle evidence of the unavailable resource. Create a proposal JSON
 with `kind: hardware_unavailable`, exact scenario/obligation ids,
 `required_resource`, `unavailable_evidence_refs`, `attempted_alternatives`,
 `claims_withheld`, `residual_risk`, and `risk_severity`; then run
-`{{specify-subcmd:specify-runtime review exception-propose --feature-dir <feature-dir> --input <proposal.json> --format json}}`.
+`{{specify-subcmd:specify-runtime review exception-propose --feature-dir <feature-dir> --input-json '<proposal-json>' --format json}}`.
+Build the proposal in memory; never create a proposal file.
 Show the human the exact proposal digest and consequences. Continue only after
 an explicit decision bound through
 `{{specify-subcmd:specify-runtime review exception-confirm --feature-dir <feature-dir> --exception-id <REX-id> --proposal-sha256 <sha> --confirmation-source human-reply --statement '<exact human statement>' --format json}}`.
@@ -223,26 +224,18 @@ subtrees.
 - every `build` or `deployment` target references an existing feature-relative
   artifact whose `artifact_sha256` matches its current bytes.
 
-After the final integrated validation, copy the deterministic
-`current_fingerprint` into `final.reviewed_snapshot_sha256`, then set
-`status: approved`. Do not approve from an earlier digest.
+After the final integrated validation and all target bindings, patch only
+agent-authored verdict fields and `status: approved` through the leased artifact
+CLI. Never patch `final.reviewed_snapshot_sha256`, target rows, identity fields,
+or `final.runtime_targets_sha256`; `review target-bind` derives them from the
+current fingerprint and exact bytes. Run `review validate` again after the
+status update and do not approve from an earlier digest.
 
 `review closeout` prepares or refreshes the final implementation summary and
 human-acceptance handoff, but it does not transition phase state itself. Before
 closeout, reconcile the frozen Human Acceptance Universe against every new or
 changed requirement and require zero uncovered required human obligations.
-Create `reviewed_runtime_targets` before validation. Each target records its
-official entrypoint, exact environment/instance/configuration, final snapshot,
-applicable artifact/deployment/version identity, linked Review scenarios, and
-existing fresh ready evidence. For every target, write an identity JSON claim
-under `review-evidence/` (`review-evidence/cycle-<n>/` in repair cycle 2+) that
-has top-level `version` equal to `1`, `status` equal to `"ready"`, and a `target`
-object containing exactly `id`, `mode`, `entrypoint_id`, `environment_ref`,
-`instance_ref`, `configuration_ref`, `reviewed_snapshot_sha256`, `artifact_ref`,
-`artifact_sha256`, `deployment_id`, `observed_version`, `review_scenario_ids`, and
-`ready_evidence_refs`, with each value copied exactly from the reviewed target.
-Record its feature-relative path as `identity_evidence_ref` and its current-byte
-SHA-256 as `identity_evidence_sha256`. For `build` and `deployment`, require an
+Before validation, call `specify-runtime review target-bind --feature-dir <feature-dir> --input-json '<compact-target-json>' --format json` once per required Human Acceptance target. Supply only id, mode, official entrypoint, exact environment/instance/configuration, optional artifact/deployment/version identity, test-data refs, linked Review scenarios, and existing fresh ready evidence. Never author `reviewed_runtime_targets`, identity JSON, snapshot, status, identity refs/digests, or the final target digest. The runtime verifies current-cycle evidence and atomically derives the canonical target plus its identity claim under `review-evidence/` (`review-evidence/cycle-<n>/` in repair cycle 2+). For `build` and `deployment`, require an
 existing feature-relative product/build `artifact_ref` included in the
 implementation snapshot and a byte-matching `artifact_sha256`; it must not live
 under `review-evidence/`, `review-results/`, or another snapshot-excluded path,

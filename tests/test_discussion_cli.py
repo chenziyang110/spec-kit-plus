@@ -12,6 +12,21 @@ from tests.test_discussion_state_runtime import RUNTIME_PATH, _write_confirmed_h
 runner = CliRunner()
 
 
+def test_mark_consumed_help_describes_quick_or_feature_consumer_workspace():
+    result = runner.invoke(
+        app,
+        ["discussion", "mark-consumed", "--help"],
+        catch_exceptions=False,
+        terminal_width=200,
+    )
+
+    assert result.exit_code == 0
+    output = " ".join(strip_ansi(result.output).lower().split())
+    assert "consumer workspace that bound the discussion" in output
+    assert "handoff (legacy option name)" in output
+    assert "--feature-dir" in output
+
+
 def _load_discussion_runtime():
     import importlib.util
 
@@ -190,17 +205,14 @@ def test_discussion_write_handoff_writes_agent_only_contract(tmp_path: Path):
             "status": "confirmed",
         }
     ]
-    input_path = project / "handoff-draft.json"
-    input_path.write_text(json.dumps(payload), encoding="utf-8")
-
     result = _invoke_in_project(
         project,
         [
             "discussion",
             "write-handoff",
             "canonical-handoff",
-            "--input",
-            str(input_path),
+            "--input-json",
+            json.dumps(payload),
             "--json",
         ],
     )

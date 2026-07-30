@@ -13,7 +13,7 @@ Read `references/ui-quality-gate.md` when the planning blocker concerns UI
 experience, design readiness, states, responsive behavior, or fidelity.
 
 Resolve the existing feature with the installed prerequisite script in
-paths-only mode. Do not create a new feature. Read `spec-contract.json` first,
+paths-only mode. Do not create a new feature. Query `spec-contract.json` first through `specify-runtime artifact show`,
 then only the views, discussion handoff, UI evidence, project rules, or live
 paths needed for the named gaps.
 
@@ -26,12 +26,27 @@ typed owner handoff containing the observed stage, expected owner, affected
 files, exact next action, unblock criteria, and resume argv. Never overwrite
 either state surface to force entry.
 
-Create or resume rich workflow-owned `workflow-state.md` before substantive
-work, using the installed workflow-state template only when it is absent. Record
+Create initial `workflow-state.md` through `specify-runtime artifact scaffold --kind workflow-state`; resume and mutate it only through targeted `artifact show` and leased `artifact patch` before substantive
+work. The runtime expands the installed template; never read and reproduce its
+stable skeleton. Record
 `active_command: sp-clarify`, `phase_mode: planning-only`, the source revision,
 target boundary, current blocker, and next route without copying spec truth.
 Run `{{specify-subcmd:specify-runtime hook validate-state --command clarify --feature-dir <feature-dir> --autofix --format json}}`
 and fail closed if the repaired state still does not validate.
+
+Recover a missing fixed spec-package view only through
+`specify-runtime artifact scaffold --kind alignment`, `specify-runtime artifact
+scaffold --kind specify-context`, or `specify-runtime artifact scaffold --kind
+references`; query existing views and patch named sections instead of replacing
+them. Before the first durable clarification event, create absent
+`clarification/evidence-index.json` with `specify-runtime artifact scaffold
+--kind clarification-evidence-index` and `clarification/checkpoints.ndjson` with
+`specify-runtime artifact scaffold --kind clarification-checkpoints`. Replace
+the bounded `/lanes` array through a fresh
+JSON-pointer patch at material joins and append each checkpoint only through
+`artifact patch --append-json`. Lane handoffs are materialized only by `result
+submit --command clarify`; never generically submit or directly create any of
+these state files.
 
 Identify decisions whose alternatives materially change behavior, acceptance,
 interfaces, lifecycle, security, compatibility, or scope. Resolve repository
@@ -43,8 +58,9 @@ Apply accepted answers to the authoritative spec contract and its referenced
 views. The complete clarification working set is `spec.md`, `alignment.md`,
 `context.md`, `references.md`, `workflow-state.md`,
 `clarification/handoffs/`, `clarification/evidence-index.json`, and
-`clarification/checkpoints.ndjson`; initialize missing clarification evidence
-surfaces, preserve existing records, and consume every accepted handoff into a
+`clarification/checkpoints.ndjson`; query them through `artifact show`, create
+or mutate them only through their registered runtime owner and a granted
+lease, preserve existing records, and consume every accepted handoff into a
 named artifact section, explicit deferral, or blocker. Ensure every planning
 blocker is resolved, explicitly retained, or routed to `$spx-deep-research`.
 

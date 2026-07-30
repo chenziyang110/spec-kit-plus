@@ -16,6 +16,13 @@ text response.
 
 Keep the Classic clarification evidence surfaces even when delegation is not
 needed: `clarification/handoffs/`, `clarification/evidence-index.json`, and
-`clarification/checkpoints.ndjson`. Preserve prior records. Every accepted lane
+`clarification/checkpoints.ndjson`. Initialize the index and event stream only
+with their registered scaffold kinds, and let `result submit --command clarify`
+alone materialize a lane handoff. Preserve prior records. Every accepted lane
 must name the `spec.md`, `alignment.md`, `context.md`, or `references.md`
 section that consumed it, or carry an explicit deferral/blocker disposition.
+When updating those surfaces, append checkpoints through leased
+`artifact patch --append-json`, replace the index's bounded `/lanes` array
+through an explicit JSON pointer, query `clarification/evidence-index.json`
+before final artifact updates, and query the accepted handoffs before
+integration updates.

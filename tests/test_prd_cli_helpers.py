@@ -93,7 +93,10 @@ def _run_json(cmd: list[str]) -> dict:
         check=False,
     )
     assert result.returncode == 0, result.stderr or result.stdout
-    return json.loads(result.stdout)
+    payload = json.loads(result.stdout)
+    if isinstance(payload, dict) and isinstance(payload.get("data"), dict):
+        return payload["data"]
+    return payload
 
 
 def _expected_surfaces(present_keys: tuple[str, ...]) -> dict[str, bool]:
@@ -183,7 +186,7 @@ def _assert_minimal_build_status(payload: dict, run_dir: Path) -> None:
 
 
 @pytest.mark.skipif(os.name == "nt", reason="direct bash helper path execution is POSIX-only")
-def test_bash_prd_init_creates_run_workspace_and_emits_json(tmp_path: Path):
+def test_bash_prd_init_creates_run_workspace_and_emits_json(tmp_path: Path, unified_runtime_env):
     project = _setup_project(tmp_path)
 
     payload = _run_json(["bash", str(BASH_HELPER), str(project), "init", "Checkout Audit"])
@@ -203,7 +206,7 @@ def test_bash_prd_init_creates_run_workspace_and_emits_json(tmp_path: Path):
 
 
 @pytest.mark.skipif(os.name == "nt", reason="direct bash helper path execution is POSIX-only")
-def test_bash_prd_status_reports_missing_and_present_surfaces(tmp_path: Path):
+def test_bash_prd_status_reports_missing_and_present_surfaces(tmp_path: Path, unified_runtime_env):
     project = _setup_project(tmp_path)
     run_dir = project / ".specify" / "prd-runs" / "260502-partial-prd"
     (run_dir / "evidence").mkdir(parents=True)
@@ -219,7 +222,7 @@ def test_bash_prd_status_reports_missing_and_present_surfaces(tmp_path: Path):
 
 
 @pytest.mark.skipif(os.name == "nt", reason="direct bash helper path execution is POSIX-only")
-def test_bash_prd_status_scan_reports_scan_mode_and_completion(tmp_path: Path):
+def test_bash_prd_status_scan_reports_scan_mode_and_completion(tmp_path: Path, unified_runtime_env):
     project = _setup_project(tmp_path)
     run_dir = _create_ready_scan_run(project)
 
@@ -229,7 +232,7 @@ def test_bash_prd_status_scan_reports_scan_mode_and_completion(tmp_path: Path):
 
 
 @pytest.mark.skipif(shutil.which("pwsh") is None, reason="pwsh is not available")
-def test_powershell_prd_helper_matches_bash_init_contract(tmp_path: Path):
+def test_powershell_prd_helper_matches_bash_init_contract(tmp_path: Path, unified_runtime_env):
     project = _setup_project(tmp_path)
 
     payload = _run_json(
@@ -259,7 +262,7 @@ def test_powershell_prd_helper_matches_bash_init_contract(tmp_path: Path):
 
 
 @pytest.mark.skipif(shutil.which("pwsh") is None, reason="pwsh is not available")
-def test_powershell_prd_status_scan_reports_scan_mode_and_completion(tmp_path: Path):
+def test_powershell_prd_status_scan_reports_scan_mode_and_completion(tmp_path: Path, unified_runtime_env):
     project = _setup_project(tmp_path)
     run_dir = _create_ready_scan_run(project)
 
@@ -278,7 +281,9 @@ def test_powershell_prd_status_scan_reports_scan_mode_and_completion(tmp_path: P
     _assert_ready_scan_status(payload, run_dir)
 
 
-def test_python_prd_helper_wrapper_runs_helper_from_current_project(tmp_path: Path, monkeypatch):
+def test_python_prd_helper_wrapper_runs_go_runtime_from_current_project(
+    tmp_path: Path, monkeypatch, unified_runtime_env
+):
     project = _setup_project(tmp_path)
     old_cwd = os.getcwd()
     try:
@@ -312,7 +317,7 @@ def test_python_prd_helper_wrapper_runs_helper_from_current_project(tmp_path: Pa
     _assert_workflow_state_scan_contract(state_path.read_text(encoding="utf-8"), "sp-prd")
 
 
-def test_python_prd_helper_wrapper_supports_prd_scan_mode(tmp_path: Path):
+def test_python_prd_helper_wrapper_supports_prd_scan_mode(tmp_path: Path, unified_runtime_env):
     project = _setup_project(tmp_path)
     old_cwd = os.getcwd()
     try:
@@ -345,7 +350,7 @@ def test_python_prd_helper_wrapper_supports_prd_scan_mode(tmp_path: Path):
     assert "- phase_mode: `analysis-only`" in state
 
 
-def test_python_prd_helper_wrapper_supports_prd_build_status(tmp_path: Path):
+def test_python_prd_helper_wrapper_supports_prd_build_status(tmp_path: Path, unified_runtime_env):
     project = _setup_project(tmp_path)
     run_dir = project / ".specify" / "prd-runs" / "260504-proxy-audit"
     (run_dir / "master").mkdir(parents=True)
@@ -372,7 +377,11 @@ def test_python_prd_helper_wrapper_supports_prd_build_status(tmp_path: Path):
         *HEAVY_BUILD_EXPORT_SURFACES,
     ):
         assert payload["surfaces"][key] is True
-    assert payload["complete"] is True
+    assert payload["surface_complete"] is True
+    assert payload["complete"] is False
+    assert payload["status"] == "blocked"
+    assert payload["readiness"] == "blocked"
+    assert any(".specify/prd/status.json" in error for error in payload["errors"])
 
 
 def test_prd_build_surfaces_include_package_readme_navigation_entry():
@@ -405,7 +414,7 @@ def test_prd_build_normalization_requires_package_readme():
 
 
 @pytest.mark.skipif(os.name == "nt", reason="direct bash helper path execution is POSIX-only")
-def test_bash_prd_helper_supports_prd_build_status(tmp_path: Path):
+def test_bash_prd_helper_supports_prd_build_status(tmp_path: Path, unified_runtime_env):
     project = _setup_project(tmp_path)
     run_dir = _create_minimal_build_run(project)
 
@@ -415,7 +424,7 @@ def test_bash_prd_helper_supports_prd_build_status(tmp_path: Path):
 
 
 @pytest.mark.skipif(shutil.which("pwsh") is None, reason="pwsh is not available")
-def test_powershell_prd_helper_supports_prd_build_status(tmp_path: Path):
+def test_powershell_prd_helper_supports_prd_build_status(tmp_path: Path, unified_runtime_env):
     project = _setup_project(tmp_path)
     run_dir = _create_minimal_build_run(project)
 
@@ -434,51 +443,37 @@ def test_powershell_prd_helper_supports_prd_build_status(tmp_path: Path):
     _assert_minimal_build_status(payload, run_dir)
 
 
-def test_prd_helper_uses_bundled_shared_runtime_in_one_utf8_python_process(
+def test_prd_helper_routes_through_go_runtime_without_python_helper(
     tmp_path: Path, monkeypatch
 ):
-    core_pack = tmp_path / "core_pack"
-    bundled_script = core_pack / "scripts" / ("powershell" if os.name == "nt" else "bash")
-    bundled_script.mkdir(parents=True)
-    bundled_shared = core_pack / "scripts" / "shared"
-    bundled_shared.mkdir(parents=True)
-    expected_script = bundled_script / ("prd-state.ps1" if os.name == "nt" else "prd-state.sh")
-    expected_script.write_text("# bundled prd helper\n", encoding="utf-8")
-    expected_shared = bundled_shared / "prd-state.py"
-    expected_shared.write_text("# bundled shared prd helper\n", encoding="utf-8")
-
-    source_root = tmp_path / "source-without-helper"
-    source_root.mkdir()
-    monkeypatch.setattr(specify_cli, "_locate_core_pack", lambda: core_pack)
-    monkeypatch.setattr(specify_cli, "_project_root_from_source", lambda: source_root)
-
     captured: dict[str, object] = {}
 
-    def fake_run(command, **kwargs):
-        captured["command"] = command
+    def fake_run(args, **kwargs):
+        captured["args"] = args
         captured["kwargs"] = kwargs
-        return subprocess.CompletedProcess(
-            command,
-            0,
-            stdout=json.dumps({"mode": "status"}),
-            stderr="",
-        )
+        return {"status": "ok", "data": {"mode": "status"}}
 
-    monkeypatch.setattr(specify_cli.subprocess, "run", fake_run)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(specify_cli, "run_specify_runtime", fake_run)
 
     payload = specify_cli._run_prd_helper("status", run_slug="cjk-path")
 
     assert payload == {"mode": "status"}
-    command = captured["command"]
-    assert isinstance(command, list)
-    assert command[:3] == [specify_cli.sys.executable, "-X", "utf8"]
-    assert Path(command[3]) == expected_shared
-    assert expected_script not in map(Path, command)
+    args = captured["args"]
+    assert args == [
+        "prd-scan",
+        "status",
+        "cjk-path",
+        "--project-root",
+        str(tmp_path),
+        "--format",
+        "json",
+    ]
 
     kwargs = captured["kwargs"]
     assert isinstance(kwargs, dict)
-    env = kwargs["env"]
-    assert env["PYTHONUTF8"] == "1"
-    assert env["PYTHONIOENCODING"] == "utf-8"
-    assert kwargs["encoding"] == "utf-8"
-    assert kwargs["errors"] == "strict"
+    assert kwargs == {
+        "cwd": tmp_path,
+        "check": False,
+        "install_if_missing": True,
+    }

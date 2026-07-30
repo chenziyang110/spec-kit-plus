@@ -8,13 +8,10 @@ from types import ModuleType
 
 import pytest
 from jsonschema import Draft202012Validator
-from tests.conftest import install_passing_workflow_gate
+from tests.conftest import seed_existing_workflow_state
 
 from specify_cli.workflow_runtime import (
-    complete_workflow_stage,
-    enter_workflow,
     show_workflow,
-    transition_workflow,
 )
 
 
@@ -214,17 +211,10 @@ def _feature_at_review(tmp_path: Path) -> tuple[Path, Path, int]:
     project_root = tmp_path / "project"
     feature_dir = project_root / ".specify" / "features" / "001-system-review"
     feature_dir.mkdir(parents=True)
-    install_passing_workflow_gate(project_root)
-    entered = enter_workflow(feature_dir, stage="specify", expected_revision=0)
-    revision = entered["data"]["revision"]
-    for target in ("plan", "tasks", "implement", "review"):
-        completed = complete_workflow_stage(feature_dir, expected_revision=revision)
-        transitioned = transition_workflow(
-            feature_dir,
-            target_stage=target,
-            expected_revision=completed["data"]["revision"],
-        )
-        revision = transitioned["data"]["revision"]
+    revision = 9
+    seed_existing_workflow_state(
+        feature_dir, stage="review", revision=revision
+    )
     return project_root, feature_dir, revision
 
 
@@ -1636,7 +1626,6 @@ def test_confirmed_hardware_exception_is_explicit_and_does_not_block_review(
     assert proposed["status"] == "proposed"
 
     before_confirmation = json.loads(state_path.read_text(encoding="utf-8"))
-    exception = before_confirmation["review_exceptions"][0]
     before_confirmation["scenarios"][1]["result"] = "waived"
     before_confirmation["scenarios"][1]["evidence"] = []
     before_confirmation["obligations"][1]["status"] = "waived"

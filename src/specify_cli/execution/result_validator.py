@@ -417,6 +417,23 @@ def validate_worker_task_result(
                         "DP3",
                         "visual comparison must bind the approved manifest SHA-256",
                     )
+                if (
+                    verification.approved_handoff_ref.strip()
+                    != packet.ui_contract.approved_handoff_ref.strip()
+                ):
+                    raise PacketValidationError(
+                        "DP3",
+                        "visual comparison must bind the approved handoff reference",
+                    )
+                if (
+                    packet.ui_contract.approved_handoff_sha256
+                    and verification.approved_handoff_sha256.strip()
+                    != packet.ui_contract.approved_handoff_sha256.strip()
+                ):
+                    raise PacketValidationError(
+                        "DP3",
+                        "visual comparison must bind the approved handoff SHA-256",
+                    )
                 expected_decisions = set(packet.ui_contract.design_decision_ids)
                 covered_decisions = {
                     item.strip()
@@ -427,6 +444,19 @@ def validate_worker_task_result(
                     raise PacketValidationError(
                         "DP3",
                         "visual comparison decision coverage must exactly match the task design_decision_ids",
+                    )
+                expected_handoff_contracts = set(
+                    packet.ui_contract.handoff_contract_ids
+                )
+                covered_handoff_contracts = {
+                    item.strip()
+                    for item in verification.covered_handoff_contract_ids
+                    if isinstance(item, str) and item.strip()
+                }
+                if covered_handoff_contracts != expected_handoff_contracts:
+                    raise PacketValidationError(
+                        "DP3",
+                        "visual comparison handoff coverage must exactly match the task handoff_contract_ids",
                     )
                 capture_refs = {
                     str(item.get("ref") or "").strip()
@@ -452,8 +482,8 @@ def validate_worker_task_result(
                         "visual comparison implementation captures must reference visual_capture evidence",
                     )
                 if (
-                    verification.comparison_tolerance.strip()
-                    != packet.ui_contract.comparison_tolerance.strip()
+                    verification.comparison_tolerance
+                    != packet.ui_contract.comparison_tolerance
                 ):
                     raise PacketValidationError(
                         "DP3",

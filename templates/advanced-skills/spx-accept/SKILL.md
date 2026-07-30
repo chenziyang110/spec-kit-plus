@@ -23,10 +23,11 @@ missing, blocked, stale, or not approved, hand off to `$spx-review` and stop;
 do not bypass Review by routing directly to `$spx-implement`. Transition from the validated `review`
 stage into `accept` through the workflow runtime. Only then run
 `{{specify-subcmd:specify-runtime accept prepare --feature-dir <feature-dir> --format json}}`
-to create or freshness-check `human-acceptance.json`.
+to create or freshness-check `human-acceptance.json`; record human session actions only through leased JSON-pointer `artifact patch` calls.
 
-Treat the human as returning later with no useful chat memory. Read the summary,
-frozen Human Acceptance Universe, and real entrypoint evidence. It covers every
+Treat the human as returning later with no useful chat memory. Query the summary,
+frozen Human Acceptance Universe, and real-entrypoint evidence through targeted
+`specify-runtime artifact show`/`evidence show` calls. It covers every
 new or changed requirement selected for human end-to-end verification; require
 zero uncovered required obligations and reject deleted, downgraded, unmapped,
 or source-drifted items. Fill only acceptance-owned progress and orientation in
@@ -72,10 +73,11 @@ and broad regression proof. Human performs the frozen new-or-changed requirement
 journey from the real entrypoint; Agent preparation, automation, or inspection
 never counts as human PASS.
 
-This workflow owns human product acceptance, not code review. It may write only
-`human-acceptance.json` through the launcher-bound `accept` CLI subcommands and acceptance-owned rich
-`workflow-state.md` fields through an `artifact prepare` / `artifact submit`
-lease. It never authors the compact `workflow.json` phase lock; only
+This workflow owns human product acceptance, not code review. It may mutate only
+`human-acceptance.json` through launcher-bound `specify-runtime accept` subcommands and acceptance-owned rich
+`workflow-state.md` fields through targeted `artifact show` plus a fresh leased
+`artifact patch` per changed section. It never submits or reconstructs the
+whole state document and never authors the compact `workflow.json` phase lock; only
 `specify-runtime workflow` may change it. Do not edit
 production source, tests, requirements, planning/task artifacts, or
 implementation lifecycle state; do not commit, push, deploy, or invoke a repair

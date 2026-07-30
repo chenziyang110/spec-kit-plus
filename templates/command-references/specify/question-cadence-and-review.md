@@ -7,7 +7,7 @@ Preserved Contract: user-owned scope, behavior, boundary, risk, and deferral cha
 ## Semantic Delta Review Gate
 
 - In discovery mode, ask one planning-critical question at a time when no safe default exists.
-- In compile mode, compare `spec-contract.json` with the confirmed requirement contract.
+- In compile mode, query `spec-contract.json` through `specify-runtime artifact show` and compare the returned contract with the confirmed requirement contract.
 - If `semantic_delta` is empty and deterministic review passes, do not repeat user review; continue to the single valid next route.
 - If a delta changes scope, product behavior, target boundary, risk acceptance, deferral, or another user-owned decision, present only that delta with the recommended resolution and meaningful alternatives.
 - Resolve repository facts with bounded evidence instead of asking the user to restate them.

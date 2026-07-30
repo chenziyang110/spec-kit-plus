@@ -127,22 +127,22 @@ RULES_TEMPLATE_TEXT = (
     "# Project Rules\n\n"
     "Shared defaults that later `sp-xxx` workflows should follow across specification,\n"
     "planning, implementation, debugging, and quick-task execution.\n\n"
-    "Promote only stable project rules through `specify learning promote --target rule`.\n"
+    "Promote only stable project rules through `specify-runtime learning promote --target rule`.\n"
     "Keep one-off observations as CLI-managed candidates until recurrence or explicit\n"
     "confirmation proves they belong in this shared rule layer.\n\n"
     "---\n"
 )
 CONFIRMED_LEARNINGS_TEMPLATE_TEXT = (
     "# Confirmed Project Learning\n\n"
-    "Runtime-maintained confirmed Learning behind `specify learning start`, `list`,\n"
+    "Runtime-maintained confirmed Learning behind `specify-runtime learning start`, `list`,\n"
     "and `show`. Agents should use those CLI surfaces instead of parsing this file.\n\n"
     "---\n"
 )
 LEARNING_INDEX_TEMPLATE_TEXT = (
     "# Project Learning Index\n\n"
-    "Runtime-maintained compact index behind `specify learning start` and\n"
-    "`specify learning list`. Agents should use those CLI surfaces and expand one\n"
-    "selected record with `specify learning show`; do not parse this file directly\n"
+    "Runtime-maintained compact index behind `specify-runtime learning start` and\n"
+    "`specify-runtime learning list`. Agents should use those CLI surfaces and expand one\n"
+    "selected record with `specify-runtime learning show`; do not parse this file directly\n"
     "during normal workflow execution.\n\n"
     "---\n\n"
     f"{MACHINE_BEGIN}\n[]\n{MACHINE_END}\n\n"

@@ -1,6 +1,6 @@
 ## Fixed Workflow Artifact Boundary
 
-Read canonical workflow artifacts only with `specify-runtime artifact show`. When the worker packet authorizes an artifact write, use `specify-runtime artifact prepare` followed by `specify-runtime artifact submit`; never overwrite the canonical path directly. Source and test files in the packet's write scope remain normal repository edits.
+Read canonical workflow artifacts only with `specify-runtime artifact show`. When the worker packet authorizes an artifact mutation, use the specialized owner named by the artifact registry or packet. Generic `artifact prepare` plus `artifact submit` is valid only when prepare explicitly grants submit for that type; fixed-shape artifacts use scaffold plus targeted patch, and result/evidence artifacts use their namespaces. Never overwrite the canonical path directly. Source and test files in the packet's write scope remain normal repository edits.
 
 # Task Reviewer Worker Prompt
 
@@ -12,11 +12,9 @@ You are a read-only event-triggered task reviewer. Review the current task ref o
 
 ## Required Inputs
 
-- Current task entry in `task-index.json` or the light direct task list
-- Current task lifecycle record and delegated packet when one exists
-- The canonical worker result path named by the lifecycle record. Examples:
-  - `FEATURE_DIR/worker-results/<task-id>.json`
-  - `.specify/teams/state/results/<request-id>.json`
+- Current task entry queried from canonical `task-index.json` through a targeted `specify-runtime artifact show`; light mode uses the same CLI-owned response
+- Current task lifecycle and delegated packet supplied by the leader or queried through `specify-runtime artifact show`; do not read their files directly
+- The canonical worker-result envelope supplied by the leader or queried from the lifecycle record's returned `show_argv`/registered runtime owner; never open a worker-result or Teams result path directly
 - The relevant diff or changed-file list named by the lifecycle record
 - Any UI, reference, real-entrypoint, or human-review evidence named by the task or packet
 

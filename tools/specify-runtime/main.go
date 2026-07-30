@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -52,12 +53,16 @@ func Run(args []string, stdout, stderr io.Writer, cliVersion string) int {
 		return runDiscussion(args[1:], stdout)
 	case "design":
 		return runDesign(args[1:], stdout)
+	case "evidence":
+		return runEvidence(args[1:], stdout)
 	case "doctor":
 		return runDoctor(args[1:], stdout)
 	case "hook":
 		return runHook(args[1:], stdout)
 	case "integrate":
 		return runIntegrate(args[1:], stdout)
+	case "tasks":
+		return runTasks(args[1:], stdout)
 	case "implement":
 		return runImplement(args[1:], stdout)
 	case "review":
@@ -91,8 +96,10 @@ func writeHelp(stdout io.Writer) int {
 		"discussion",
 		"design",
 		"doctor",
+		"evidence",
 		"hook",
 		"integrate",
+		"tasks",
 		"implement",
 		"review",
 		"accept",
@@ -172,6 +179,38 @@ func runArtifact(args []string, stdout io.Writer) int {
 			return writeEnvelope(stdout, env)
 		}
 		return writeEnvelope(stdout, ArtifactScaffoldCatalog())
+	case "checklist":
+		if env, ok := validateArtifactOptions(args, "--format", "--input-json", "--path", "--project-root"); !ok {
+			return writeEnvelope(stdout, env)
+		}
+		pathValue := strings.TrimSpace(optionValue(args, "--path", ""))
+		if pathValue == "" || !hasFlag(args, "--input-json") {
+			return writeEnvelope(stdout, artifactUsageEnvelope("checklist", "artifact checklist requires --path and --input-json"))
+		}
+		return writeEnvelope(stdout, service.UpsertChecklist(ArtifactChecklistRequest{
+			Path:      pathValue,
+			InputJSON: []byte(optionValue(args, "--input-json", "")),
+		}))
+	case "registry":
+		if env, ok := validateArtifactOptions(args, "--format", "--project-root"); !ok {
+			return writeEnvelope(stdout, env)
+		}
+		return writeEnvelope(stdout, ArtifactTypeCatalog())
+	case "list":
+		if env, ok := validateArtifactOptions(args, "--format", "--limit", "--owner", "--path-prefix", "--project-root", "--type"); !ok {
+			return writeEnvelope(stdout, env)
+		}
+		limit, err := parseArtifactPositiveInt(optionValue(args, "--limit", "50"), "--limit")
+		if err != nil {
+			return writeEnvelope(stdout, artifactUsageEnvelope("list", err.Error()))
+		}
+		env := service.ListArtifacts(ArtifactListRequest{
+			PathPrefix: optionValue(args, "--path-prefix", ""),
+			TypeID:     optionValue(args, "--type", ""),
+			Owner:      optionValue(args, "--owner", ""),
+			Limit:      limit,
+		})
+		return writeEnvelope(stdout, env)
 	case "prepare":
 		if env, ok := validateArtifactOptions(args, "--feature", "--format", "--kind", "--path", "--project-root"); !ok {
 			return writeEnvelope(stdout, env)
@@ -233,36 +272,123 @@ func runArtifact(args []string, stdout io.Writer) int {
 		}
 		return writeEnvelope(stdout, env)
 	case "submit":
-		if env, ok := validateArtifactOptions(args, "--content", "--content-file", "--format", "--lease", "--project-root"); !ok {
+		if env, ok := validateArtifactOptions(args, "--content", "--format", "--lease", "--project-root", "--recovery-file"); !ok {
 			return writeEnvelope(stdout, env)
 		}
-		contentFile := optionValue(args, "--content-file", "")
-		var content any = optionValue(args, "--content", "")
-		if contentFile != "" {
-			raw, err := os.ReadFile(contentFile)
-			if err != nil {
-				env := NewEnvelope("blocked", "artifact content file is unavailable")
-				env.Blockers = append(env.Blockers, err.Error())
-				return writeEnvelope(stdout, env)
-			}
-			content = raw
+		hasInlineContent := hasFlag(args, "--content")
+		hasRecoveryFile := hasFlag(args, "--recovery-file")
+		if hasInlineContent == hasRecoveryFile {
+			return writeEnvelope(stdout, artifactUsageEnvelope("submit", "provide exactly one of --content or --recovery-file"))
+		}
+		leaseID := optionValue(args, "--lease", "")
+		if hasRecoveryFile {
+			return writeEnvelope(stdout, service.SubmitRecoveryBackup(leaseID, optionValue(args, "--recovery-file", "")))
 		}
 		env := service.Submit(ArtifactSubmitRequest{
-			LeaseID: optionValue(args, "--lease", ""),
-			Content: content,
+			LeaseID: leaseID,
+			Content: optionValue(args, "--content", ""),
 		})
 		return writeEnvelope(stdout, env)
-	case "show":
-		if env, ok := validateArtifactOptions(args, "--feature", "--format", "--kind", "--path", "--project-root", "--view"); !ok {
+	case "delete":
+		if env, ok := validateArtifactOptions(args, "--format", "--lease", "--project-root"); !ok {
 			return writeEnvelope(stdout, env)
 		}
+		leaseID := strings.TrimSpace(optionValue(args, "--lease", ""))
+		if leaseID == "" {
+			return writeEnvelope(stdout, artifactUsageEnvelope("delete", "artifact delete requires --lease"))
+		}
+		return writeEnvelope(stdout, service.Delete(ArtifactDeleteRequest{LeaseID: leaseID}))
+	case "restore":
+		if env, ok := validateArtifactOptions(args, "--archive", "--format", "--project-root"); !ok {
+			return writeEnvelope(stdout, env)
+		}
+		archiveID := strings.TrimSpace(optionValue(args, "--archive", ""))
+		if archiveID == "" {
+			return writeEnvelope(stdout, artifactUsageEnvelope("restore", "artifact restore requires --archive"))
+		}
+		return writeEnvelope(stdout, service.Restore(ArtifactRestoreRequest{ArchiveID: archiveID}))
+	case "patch":
+		if env, ok := validateArtifactOptions(args, "--append-json", "--content", "--format", "--frontmatter-json", "--heading", "--json-pointer", "--lease", "--new-heading", "--preamble", "--project-root", "--section", "--value-json"); !ok {
+			return writeEnvelope(stdout, env)
+		}
+		jsonMode := hasFlag(args, "--json-pointer") || hasFlag(args, "--value-json")
+		sectionMode := hasFlag(args, "--section") || hasFlag(args, "--content")
+		frontmatterMode := hasFlag(args, "--frontmatter-json")
+		headingMode := hasFlag(args, "--heading") || hasFlag(args, "--new-heading")
+		preambleMode := hasFlag(args, "--preamble")
+		appendMode := hasFlag(args, "--append-json")
+		modeCount := 0
+		for _, enabled := range []bool{jsonMode, sectionMode, frontmatterMode, headingMode, preambleMode, appendMode} {
+			if enabled {
+				modeCount++
+			}
+		}
+		if modeCount != 1 || (jsonMode && (!hasFlag(args, "--json-pointer") || !hasFlag(args, "--value-json"))) || (sectionMode && (!hasFlag(args, "--section") || !hasFlag(args, "--content"))) || (headingMode && (!hasFlag(args, "--heading") || !hasFlag(args, "--new-heading"))) {
+			return writeEnvelope(stdout, artifactUsageEnvelope("patch", "choose exactly one complete patch mode: --json-pointer with --value-json, --section with --content, --frontmatter-json, --heading with --new-heading, --preamble, or --append-json"))
+		}
+		request := ArtifactPatchRequest{
+			LeaseID:     optionValue(args, "--lease", ""),
+			JSONPointer: optionValue(args, "--json-pointer", ""),
+			Section:     optionValue(args, "--section", ""),
+			Content:     optionValue(args, "--content", ""),
+			Heading:     optionValue(args, "--heading", ""),
+			NewHeading:  optionValue(args, "--new-heading", ""),
+		}
+		if preambleMode {
+			preamble := optionValue(args, "--preamble", "")
+			request.Preamble = &preamble
+		}
+		if jsonMode {
+			if err := json.Unmarshal([]byte(optionValue(args, "--value-json", "")), &request.Value); err != nil {
+				return writeEnvelope(stdout, artifactUsageEnvelope("patch", "--value-json must be valid JSON: "+err.Error()))
+			}
+		}
+		if frontmatterMode {
+			if err := json.Unmarshal([]byte(optionValue(args, "--frontmatter-json", "")), &request.Frontmatter); err != nil || request.Frontmatter == nil {
+				if err == nil {
+					err = fmt.Errorf("value must be a JSON object")
+				}
+				return writeEnvelope(stdout, artifactUsageEnvelope("patch", "--frontmatter-json is invalid: "+err.Error()))
+			}
+		}
+		if appendMode {
+			request.Append = true
+			if err := json.Unmarshal([]byte(optionValue(args, "--append-json", "")), &request.AppendJSON); err != nil {
+				return writeEnvelope(stdout, artifactUsageEnvelope("patch", "--append-json must be valid JSON: "+err.Error()))
+			}
+		}
+		return writeEnvelope(stdout, service.Patch(request))
+	case "show":
+		if env, ok := validateArtifactOptions(args, "--feature", "--format", "--json-pointer", "--kind", "--limit", "--path", "--project-root", "--section", "--view"); !ok {
+			return writeEnvelope(stdout, env)
+		}
+		limit := 0
+		if rawLimit := strings.TrimSpace(optionValue(args, "--limit", "")); rawLimit != "" {
+			var err error
+			limit, err = parseArtifactPositiveInt(rawLimit, "--limit")
+			if err != nil {
+				return writeEnvelope(stdout, artifactUsageEnvelope("show", err.Error()))
+			}
+		}
 		env := service.Show(ArtifactShowRequest{
-			FeatureID: optionValue(args, "--feature", ""),
-			Kind:      optionValue(args, "--kind", ""),
-			Path:      optionValue(args, "--path", ""),
-			View:      optionValue(args, "--view", "summary"),
+			FeatureID:   optionValue(args, "--feature", ""),
+			Kind:        optionValue(args, "--kind", ""),
+			Path:        optionValue(args, "--path", ""),
+			View:        optionValue(args, "--view", "summary"),
+			JSONPointer: optionValue(args, "--json-pointer", ""),
+			Section:     optionValue(args, "--section", ""),
+			Limit:       limit,
 		})
 		return writeEnvelope(stdout, env)
+	case "prune":
+		if env, ok := validateArtifactOptions(args, "--format", "--limit", "--project-root"); !ok {
+			return writeEnvelope(stdout, env)
+		}
+		limit, err := parseArtifactPositiveInt(optionValue(args, "--limit", "100"), "--limit")
+		if err != nil {
+			return writeEnvelope(stdout, artifactUsageEnvelope("prune", err.Error()))
+		}
+		return writeEnvelope(stdout, service.PruneLeases(ArtifactPruneRequest{Limit: limit}))
 	default:
 		return writeEnvelope(stdout, NewEnvelope("usage-error", fmt.Sprintf("unknown artifact subcommand %q", args[0])))
 	}
@@ -272,18 +398,39 @@ func writeArtifactHelp(stdout io.Writer, subcommand string) int {
 	switch subcommand {
 	case "":
 		_, _ = fmt.Fprintln(stdout, "specify-runtime artifact commands:")
-		for _, command := range []string{"catalog", "prepare", "scaffold", "show", "submit"} {
+		for _, command := range []string{"catalog", "checklist", "delete", "list", "patch", "prepare", "prune", "registry", "restore", "scaffold", "show", "submit"} {
 			_, _ = fmt.Fprintf(stdout, "  %s\n", command)
 		}
 	case "scaffold":
 		_, _ = fmt.Fprintln(stdout, "Usage: specify-runtime artifact scaffold --kind <kind> --path <project-relative-path> [--vars <json>] [--format json]")
 		_, _ = fmt.Fprintln(stdout, "  --path is canonical; --out is a deprecated compatibility alias.")
 		_, _ = fmt.Fprintln(stdout, "  Run specify-runtime artifact catalog --format json for registered kinds and paths.")
+	case "checklist":
+		_, _ = fmt.Fprintln(stdout, "Usage: specify-runtime artifact checklist --path <feature-dir>/checklists/<name>.md --input-json <object> [--format json]")
+		_, _ = fmt.Fprintln(stdout, "  Creates or appends categories atomically and assigns the next CHK identifiers.")
+	case "patch":
+		_, _ = fmt.Fprintln(stdout, "Usage: specify-runtime artifact patch --lease <id> (--json-pointer <pointer> --value-json <json> | --section <heading> --content <text> | --frontmatter-json <object> | --heading <current> --new-heading <replacement> | --preamble <text> | --append-json <json>)")
+	case "submit":
+		_, _ = fmt.Fprintln(stdout, "Usage: specify-runtime artifact submit --lease <id> --content <inline-payload> [--format json]")
+		_, _ = fmt.Fprintln(stdout, "  --recovery-file is reserved for a runtime-created human acceptance repair backup bound by its sibling journal.")
+	case "delete":
+		_, _ = fmt.Fprintln(stdout, "Usage: specify-runtime artifact delete --lease <id> [--format json]")
+		_, _ = fmt.Fprintln(stdout, "  Moves a generic artifact into the runtime-owned recoverable archive.")
+	case "restore":
+		_, _ = fmt.Fprintln(stdout, "Usage: specify-runtime artifact restore --archive <archive-id> [--format json]")
 	default:
 		_, _ = fmt.Fprintf(stdout, "Usage: specify-runtime artifact %s [options]\n", subcommand)
 		_, _ = fmt.Fprintln(stdout, "  Run specify-runtime api show artifact."+subcommand+" --format json for capability details.")
 	}
 	return 0
+}
+
+func parseArtifactPositiveInt(value, option string) (int, error) {
+	parsed, err := strconv.Atoi(strings.TrimSpace(value))
+	if err != nil || parsed <= 0 {
+		return 0, fmt.Errorf("%s must be a positive integer", option)
+	}
+	return parsed, nil
 }
 
 func validateArtifactOptions(args []string, allowed ...string) (Envelope, bool) {
@@ -402,7 +549,12 @@ func runWorkflow(args []string, stdout io.Writer) int {
 		})
 		return writeEnvelope(stdout, env)
 	case "block":
-		request, env, ok := readWorkflowBlockInput(projectRoot, optionValue(args, "--input", ""))
+		raw, err := readAgentJSONInput(args, projectRoot, "workflow block")
+		if err != nil {
+			env := workflowInvalid("workflow block input is invalid", "invalid-block-input", err)
+			return writeEnvelope(stdout, env)
+		}
+		request, env, ok := decodeWorkflowBlockInput(raw)
 		if !ok {
 			return writeEnvelope(stdout, env)
 		}
@@ -457,61 +609,8 @@ func workflowRevisionOption(args []string, name string, required bool, fallback 
 	return revision, Envelope{}, true
 }
 
-func readWorkflowBlockInput(projectRoot, input string) (WorkflowBlockRequest, Envelope, bool) {
+func decodeWorkflowBlockInput(raw []byte) (WorkflowBlockRequest, Envelope, bool) {
 	var request WorkflowBlockRequest
-	input = strings.TrimSpace(input)
-	if input == "" {
-		env := NewEnvelope("usage-error", "workflow block requires --input")
-		env.Data["error_code"] = "invalid-block-input"
-		return request, env, false
-	}
-	root, err := filepath.Abs(projectRoot)
-	if err == nil {
-		root, err = filepath.EvalSymlinks(root)
-	}
-	if err != nil {
-		env := workflowInvalid("workflow block project root is invalid", "invalid-block-input", err)
-		return request, env, false
-	}
-	inputPath := input
-	if !filepath.IsAbs(inputPath) && filepath.VolumeName(inputPath) == "" {
-		inputPath = filepath.Join(root, filepath.FromSlash(inputPath))
-	}
-	inputPath, err = filepath.Abs(inputPath)
-	if err != nil {
-		env := workflowInvalid("workflow block input path is invalid", "invalid-block-input", err)
-		return request, env, false
-	}
-	relative, err := filepath.Rel(root, inputPath)
-	if err != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
-		env := workflowInvalid("workflow block input must stay inside the project", "invalid-block-input", fmt.Errorf("--input must be a project-root-contained JSON file"))
-		return request, env, false
-	}
-	secureInput, err := secureProjectPath(root, filepath.ToSlash(relative))
-	if err != nil || !sameFilesystemPath(secureInput, inputPath) {
-		if err == nil {
-			err = fmt.Errorf("input path is not canonical")
-		}
-		env := workflowInvalid("workflow block input path is unsafe", "invalid-block-input", err)
-		return request, env, false
-	}
-	if !strings.EqualFold(filepath.Ext(secureInput), ".json") {
-		env := workflowInvalid("workflow block input type is invalid", "invalid-block-input", fmt.Errorf("--input must name a JSON file"))
-		return request, env, false
-	}
-	info, err := os.Stat(secureInput)
-	if err != nil || !info.Mode().IsRegular() {
-		if err == nil {
-			err = fmt.Errorf("--input must be a regular file")
-		}
-		env := workflowInvalid("workflow block input is unavailable", "invalid-block-input", err)
-		return request, env, false
-	}
-	raw, err := os.ReadFile(secureInput)
-	if err != nil {
-		env := workflowInvalid("workflow block input is unavailable", "invalid-block-input", err)
-		return request, env, false
-	}
 	var fields map[string]json.RawMessage
 	if err := json.Unmarshal(raw, &fields); err != nil {
 		env := workflowInvalid("workflow block input is invalid", "invalid-block-input", err)
@@ -566,6 +665,21 @@ func runCognition(args []string, stdout, stderr io.Writer, cliVersion string) in
 	if containsHelpFlag(args) {
 		return cognitioncli.Run(args, stdout, stderr, cliVersion)
 	}
+	cleanArgs, persistDir, persistErr := cognitionPersistenceOption(args)
+	if persistErr != nil {
+		return writeEnvelope(stdout, usageEnvelope(persistErr.Error()))
+	}
+	args = cleanArgs
+	var auditInput any
+	if persistDir != "" {
+		inputJSON := optionValue(args, "--input-json", "")
+		if !hasFlag(args, "--input-json") || strings.TrimSpace(inputJSON) == "" {
+			return writeEnvelope(stdout, usageEnvelope("cognition semantic-audit --persist-dir requires --input-json"))
+		}
+		if err := json.Unmarshal([]byte(inputJSON), &auditInput); err != nil {
+			return writeEnvelope(stdout, usageEnvelope("cognition semantic-audit --input-json must be valid JSON when --persist-dir is used"))
+		}
+	}
 
 	var rawStdout bytes.Buffer
 	var rawStderr bytes.Buffer
@@ -593,10 +707,88 @@ func runCognition(args []string, stdout, stderr io.Writer, cliVersion string) in
 	}
 	env := NewEnvelope(status, summary)
 	env.Data = payload
+	if persistDir != "" && code == 0 && status == "ok" {
+		persistence, err := persistSemanticAuditPair(persistDir, auditInput, payload)
+		if err != nil {
+			return writeEnvelope(stdout, errorEnvelope("semantic audit artifacts could not be persisted", err))
+		}
+		env.Data["persistence"] = persistence
+	}
 	if detail := strings.TrimSpace(rawStderr.String()); detail != "" {
 		env.Blockers = append(env.Blockers, detail)
 	}
 	return writeEnvelope(stdout, env)
+}
+
+func cognitionPersistenceOption(args []string) ([]string, string, error) {
+	if len(args) == 0 || args[0] != "semantic-audit" {
+		return args, "", nil
+	}
+	clean := make([]string, 0, len(args))
+	persistDir := ""
+	for index := 0; index < len(args); index++ {
+		if args[index] != "--persist-dir" {
+			clean = append(clean, args[index])
+			continue
+		}
+		if persistDir != "" {
+			return nil, "", errors.New("cognition semantic-audit accepts --persist-dir only once")
+		}
+		if index+1 >= len(args) || strings.HasPrefix(args[index+1], "--") {
+			return nil, "", errors.New("cognition semantic-audit --persist-dir requires a value")
+		}
+		persistDir = strings.TrimSpace(args[index+1])
+		index++
+	}
+	if persistDir != "" {
+		if filepath.IsAbs(persistDir) || filepath.VolumeName(persistDir) != "" || validateSafeRelativeSlashPath(filepath.ToSlash(persistDir)) != nil {
+			return nil, "", errors.New("cognition semantic-audit --persist-dir must be a safe project-relative path")
+		}
+	}
+	return clean, filepath.ToSlash(persistDir), nil
+}
+
+func persistSemanticAuditPair(persistDir string, input, output any) (map[string]any, error) {
+	root, err := filepath.Abs(".")
+	if err != nil {
+		return nil, err
+	}
+	inputRef := filepath.ToSlash(filepath.Join(persistDir, "semantic-audit-input.json"))
+	outputRef := filepath.ToSlash(filepath.Join(persistDir, "semantic-audit-output.json"))
+	for ref, typeID := range map[string]string{inputRef: "semantic-audit-input", outputRef: "semantic-audit-output"} {
+		metadata, ok := LookupArtifactType(ref)
+		if !ok || metadata.TypeID != typeID {
+			return nil, fmt.Errorf("semantic audit persistence path is not a registered %s artifact: %s", typeID, ref)
+		}
+	}
+	inputRaw, err := marshalReviewAcceptJSON(input)
+	if err != nil {
+		return nil, err
+	}
+	outputRaw, err := marshalReviewAcceptJSON(output)
+	if err != nil {
+		return nil, err
+	}
+	inputPath, err := secureProjectPath(root, inputRef)
+	if err != nil {
+		return nil, err
+	}
+	outputPath, err := secureProjectPath(root, outputRef)
+	if err != nil {
+		return nil, err
+	}
+	receipt, err := applyFileTransaction(root, "semantic-audit-persist", []fileTransactionUpdate{
+		{Path: inputPath, Content: inputRaw, Perm: 0o644},
+		{Path: outputPath, Content: outputRaw, Perm: 0o644},
+	})
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{
+		"input_ref": inputRef, "input_sha256": fileContentSHA256(inputRaw),
+		"output_ref": outputRef, "output_sha256": fileContentSHA256(outputRaw),
+		"transaction_receipt_ref": receipt.ReceiptRef,
+	}, nil
 }
 
 func containsHelpFlag(args []string) bool {
@@ -770,11 +962,19 @@ func defaultCapabilities() []string {
 		"api.schema",
 		"api.show",
 		"artifact.catalog",
+		"artifact.checklist",
+		"artifact.delete",
+		"artifact.list",
+		"artifact.patch",
 		"artifact.prepare",
+		"artifact.prune",
+		"artifact.registry",
+		"artifact.restore",
 		"artifact.scaffold",
 		"artifact.show",
 		"artifact.submit",
 		"cognition.build-from-scan",
+		"cognition.archive-incompatible-store",
 		"cognition.changes",
 		"cognition.claim-reconcile.apply",
 		"cognition.claim-reconcile.prepare",
@@ -798,6 +998,7 @@ func defaultCapabilities() []string {
 		"cognition.scan-accept",
 		"cognition.scan-checkpoint",
 		"cognition.scan-lease",
+		"cognition.scan-packet",
 		"cognition.scan-prepare",
 		"cognition.scan-requeue",
 		"cognition.scan-set",
@@ -815,10 +1016,13 @@ func defaultCapabilities() []string {
 		"design.import",
 		"design.lint",
 		"design.preview",
+		"design.preview-manifest",
 		"design.preview-lint",
+		"design.profiles",
 		"design.ui-target",
 		"design.ui-target-lint",
 		"discussion.archive",
+		"discussion.bind-consumer",
 		"discussion.checkpoint",
 		"discussion.close",
 		"discussion.confirm-handoff",
@@ -831,6 +1035,13 @@ func defaultCapabilities() []string {
 		"discussion.validate-handoff",
 		"discussion.write-handoff",
 		"doctor.check",
+		"evidence.allocate",
+		"evidence.import",
+		"evidence.register",
+		"evidence.show",
+		"evidence.visual-compare",
+		"evidence.verify",
+		"hook.extension-plan",
 		"hook.validate-artifacts",
 		"hook.validate-commit",
 		"hook.validate-state",
@@ -839,7 +1050,12 @@ func defaultCapabilities() []string {
 		"implement.closeout",
 		"implement.deferral-confirm",
 		"implement.deferral-propose",
+		"implement.packet-compile",
+		"implement.result-merge",
 		"implement.resume-audit",
+		"implement.task-accept",
+		"implement.task-next",
+		"implement.task-start",
 		"implement.validation-finish",
 		"implement.validation-start",
 		"implement.validation-status",
@@ -848,6 +1064,7 @@ func defaultCapabilities() []string {
 		"review.exception-propose",
 		"review.prepare",
 		"review.resume-audit",
+		"review.target-bind",
 		"review.validate",
 		"accept.closeout",
 		"accept.prepare",
@@ -869,7 +1086,13 @@ func defaultCapabilities() []string {
 		"learning.start",
 		"lane.resolve",
 		"prd-build.status",
+		"prd-build.scaffold",
+		"prd-scan.finalize",
 		"prd-scan.init",
+		"prd-scan.record-list",
+		"prd-scan.record-remove",
+		"prd-scan.record-show",
+		"prd-scan.record-upsert",
 		"prd-scan.status",
 		"quick.archive",
 		"quick.close",
@@ -878,6 +1101,12 @@ func defaultCapabilities() []string {
 		"quick.status",
 		"result.path",
 		"result.submit",
+		"tasks.build",
+		"tasks.finalize",
+		"tasks.handoff",
+		"tasks.remove",
+		"tasks.set-root",
+		"tasks.upsert",
 		"validate.spec",
 		"workflow.block",
 		"workflow.closeout",
@@ -913,14 +1142,60 @@ func capabilitySummary(id string) string {
 		return "List compact capability cards for agent discovery."
 	case "artifact.prepare":
 		return "Create a one-use lease for a canonical workflow artifact."
+	case "artifact.checklist":
+		return "Create or append a feature checklist from compact structured input and assign stable item identifiers."
+	case "artifact.delete":
+		return "Move a leased generic artifact into a runtime-owned recoverable archive."
+	case "artifact.restore":
+		return "Restore a recoverably archived generic artifact after integrity checks."
 	case "artifact.catalog":
 		return "List deterministic artifact scaffold kinds and fill targets."
 	case "artifact.scaffold":
 		return "Create a registered, create-only workflow artifact scaffold."
 	case "artifact.submit":
-		return "Write leased artifact content atomically."
+		return "Write inline leased artifact content atomically; file-backed input is limited to a journal-bound runtime recovery backup."
+	case "artifact.patch":
+		return "Patch one leased JSON pointer, Markdown section, frontmatter object, heading, or preamble atomically."
+	case "artifact.list":
+		return "List registered artifact instances without returning full content."
+	case "discussion.bind-consumer":
+		return "Bind a ready discussion digest into a runtime-owned feature compatibility pointer."
+	case "review.target-bind":
+		return "Atomically bind a compact reviewed runtime target, its exact identity evidence, snapshot, and digests."
+	case "cognition.semantic-audit":
+		return "Build a semantic routing audit and optionally persist its canonical input/output pair atomically."
+	case "evidence.visual-compare":
+		return "Materialize a task-bound visual comparison report from compact observed differences and captures."
+	case "prd-scan.record-upsert":
+		return "Create or replace one PRD scan contract record without rewriting its JSON document."
+	case "prd-scan.record-remove":
+		return "Remove one revision-bound PRD scan contract record atomically."
+	case "prd-scan.record-show":
+		return "Read one selected PRD scan contract record and its current file digest."
+	case "prd-scan.record-list":
+		return "List compact PRD scan contract record summaries without returning the full document."
+	case "prd-build.scaffold":
+		return "Create all missing PRD build documents from installed stable templates in one transaction."
+	case "hook.extension-plan":
+		return "Resolve enabled unconditional extension hooks without exposing project YAML to the agent."
+	case "artifact.registry":
+		return "List artifact types, owners, roles, schemas, and allowed operations."
+	case "artifact.prune":
+		return "Prune expired artifact leases."
+	case "evidence.allocate":
+		return "Allocate a runtime-owned evidence record and destination."
+	case "evidence.import":
+		return "Import a local evidence file into content-addressed storage."
+	case "evidence.register":
+		return "Register an inline evidence object without a temporary file."
+	case "evidence.show":
+		return "Read compact or full evidence metadata."
+	case "evidence.verify":
+		return "Verify evidence bytes and metadata against their digest."
 	case "cognition.run":
 		return "Run the namespaced project cognition command surface."
+	case "cognition.archive-incompatible-store":
+		return "Archive an incompatible cognition database using an optimistic SHA-256 guard and reset runtime status."
 	case "artifact.show":
 		return "Read compact or full artifact views."
 	case "validate.spec":

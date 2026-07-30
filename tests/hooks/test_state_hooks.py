@@ -208,7 +208,10 @@ def test_validate_state_exposes_profile_contract_fields(tmp_path: Path):
     assert checkpoint["activated_gates"] == ["security-review"]
     assert checkpoint["task_shaping_rules"] == ["Split schema and route work."]
     assert checkpoint["required_evidence"] == ["Contract test output"]
-    assert checkpoint["transition_policy"] == "Do not enter plan until API errors are specified."
+    assert (
+        checkpoint["transition_policy"]
+        == "Do not enter plan until API errors are specified."
+    )
 
 
 def test_validate_state_exposes_route_lock_and_reopen_fields(tmp_path: Path):
@@ -503,7 +506,9 @@ def test_validate_state_autofix_clarify_includes_clarification_surfaces(tmp_path
     assert "clarification/checkpoints.ndjson" in content
 
 
-def test_validate_state_profile_obligation_lists_respect_label_boundaries(tmp_path: Path):
+def test_validate_state_profile_obligation_lists_respect_label_boundaries(
+    tmp_path: Path,
+):
     project = _create_project(tmp_path)
     feature_dir = project / "specs" / "001-demo"
     feature_dir.mkdir(parents=True, exist_ok=True)
@@ -621,7 +626,9 @@ def test_validate_state_accepts_matching_deep_research_workflow_state(tmp_path: 
     assert result.errors == []
 
 
-def test_validate_state_accepts_research_alias_for_deep_research_workflow_state(tmp_path: Path):
+def test_validate_state_accepts_research_alias_for_deep_research_workflow_state(
+    tmp_path: Path,
+):
     project = _create_project(tmp_path)
     feature_dir = project / "specs" / "001-demo"
     feature_dir.mkdir(parents=True, exist_ok=True)
@@ -709,7 +716,9 @@ def test_validate_state_blocks_when_active_command_does_not_match(tmp_path: Path
     assert any("active_command" in message for message in result.errors)
 
 
-def test_validate_state_blocks_when_required_phase_contract_sections_are_missing(tmp_path: Path):
+def test_validate_state_blocks_when_required_phase_contract_sections_are_missing(
+    tmp_path: Path,
+):
     project = _create_project(tmp_path)
     feature_dir = project / "specs" / "001-demo"
     feature_dir.mkdir(parents=True, exist_ok=True)
@@ -752,7 +761,9 @@ def test_validate_state_blocks_when_required_phase_contract_sections_are_missing
     assert any("forbidden_actions" in message for message in result.errors)
 
 
-def test_validate_state_accepts_legacy_fixed_lifecycle_shape_for_specify(tmp_path: Path):
+def test_validate_state_accepts_legacy_fixed_lifecycle_shape_for_specify(
+    tmp_path: Path,
+):
     project = _create_project(tmp_path)
     feature_dir = project / "specs" / "001-demo"
     feature_dir.mkdir(parents=True, exist_ok=True)
@@ -808,7 +819,9 @@ def test_validate_state_accepts_legacy_fixed_lifecycle_shape_for_specify(tmp_pat
     assert checkpoint["current_domain"] == "goal-and-users"
 
 
-def test_validate_state_accepts_frontmatter_fallback_for_required_sections(tmp_path: Path):
+def test_validate_state_accepts_frontmatter_fallback_for_required_sections(
+    tmp_path: Path,
+):
     project = _create_project(tmp_path)
     feature_dir = project / "specs" / "001-demo"
     feature_dir.mkdir(parents=True, exist_ok=True)
@@ -892,6 +905,10 @@ def test_validate_state_reports_validated_path_and_autofix_command(tmp_path: Pat
     assert result.status == "blocked"
     assert result.data["validated_path"] == str(target.resolve())
     assert result.data["autofix"]["available"] is True
+    assert result.data["autofix"]["command"].startswith(
+        "specify-runtime hook validate-state"
+    )
+    assert "specify hook validate-state" not in result.data["autofix"]["command"]
     assert "--autofix" in result.data["autofix"]["command"]
     assert "Allowed Artifact Writes" in result.data["autofix"]["snippet"]
 
@@ -982,4 +999,6 @@ def test_validate_state_reports_lane_worktree_diagnostics(tmp_path: Path):
     lane_context = result.data["lane_context"]
     assert lane_context["lane_id"] == "lane-001"
     assert lane_context["worktree_path"] == ".specify/lanes/worktrees/lane-001"
-    assert lane_context["worktree_state_path"].endswith(".specify/lanes/worktrees/lane-001/specs/001-demo/workflow-state.md")
+    assert lane_context["worktree_state_path"].endswith(
+        ".specify/lanes/worktrees/lane-001/specs/001-demo/workflow-state.md"
+    )

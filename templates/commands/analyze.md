@@ -41,7 +41,7 @@ Identify inconsistencies, duplications, ambiguities, and underspecified items ac
 
 ## Operating Constraints
 
-**READ-ONLY FOR PLANNING ARTIFACTS**: Do **not** modify `spec.md`, `context.md`, `plan.md`, or `tasks.md`. Output a structured analysis report. This command may update `workflow-state.md` to record the cleared or blocked gate result. Offer an optional remediation plan (user must explicitly approve before any follow-up editing commands would be invoked manually).
+**READ-ONLY FOR PLANNING ARTIFACTS**: Do **not** modify `spec.md`, `context.md`, `plan.md`, or `tasks.md`. Output a structured analysis report. Persist the cleared/blocked gate only with a leased `specify-runtime artifact patch` against the relevant `workflow-state.md` section. Offer an optional remediation plan.
 
 Analyze must not switch branches, implicitly check out a "correct" feature branch, or mutate git state in order to determine scope. If the active feature cannot be identified safely through explicit `FEATURE_DIR` binding or lane resolution, fail closed and tell the user how to repair routing.
 
@@ -70,15 +70,13 @@ When recommending manual implementation resumption to the user, tell them to run
   active, hand off to its current owner without reopening; if completed,
   reactivate it through the same evidence-backed reopen command. An acceptance
   finding must use `accept route-repair`, never generic reopen.
-- [AGENT] Create or resume `WORKFLOW_STATE_FILE` before substantial analysis work begins.
-- Read `templates/workflow-state-template.md`.
-- If `WORKFLOW_STATE_FILE` is missing, recreate it from the template and the current artifact package instead of relying on chat memory alone.
-- Treat `WORKFLOW_STATE_FILE` as the gate-state source of truth for whether implementation may proceed.
+- [AGENT] Before substantial analysis, create missing `WORKFLOW_STATE_FILE` with `specify-runtime artifact scaffold --kind workflow-state --path <feature-dir>/workflow-state.md`; otherwise resume it through targeted `specify-runtime artifact show` calls. The runtime expands the installed template; never read and reproduce the stable skeleton.
+- Treat the CLI-returned `WORKFLOW_STATE_FILE` view as the gate-state source of truth for whether implementation may proceed.
 - Set or update the state for this run with at least:
   - `active_command: sp-analyze`
   - `phase_mode: analysis-only`
   - `forbidden_actions: edit source code, edit tests, edit planning artifacts, start implementation before the gate is cleared`
-- When resuming after compaction, re-read `WORKFLOW_STATE_FILE` before continuing.
+- When resuming after compaction, query `WORKFLOW_STATE_FILE` through `specify-runtime artifact show` before continuing.
 
 ## Analyze Gate Convergence Contract
 
@@ -87,7 +85,7 @@ When recommending manual implementation resumption to the user, tell them to run
 - Use stable finding IDs that survive revalidation. Category-only IDs such as `BG2` are too coarse, and run-local sequence numbers are not stable by themselves.
 - Use a fingerprint-first ID contract:
   - Build a canonical finding fingerprint from category, invalid stage, artifact, requirement or section key when available, normalized summary, and remediation requirement.
-  - Before assigning IDs, load the previous `Analyze Gate` ledger from `workflow-state.md` when it exists.
+- Before assigning IDs, query the previous `Analyze Gate` section with `specify-runtime artifact show --path <feature-dir>/workflow-state.md --section "Analyze Gate"` when it exists.
   - Match current findings to previous open or recently cleared findings by fingerprint first, and reuse the prior ID when the fingerprint matches.
   - Allocate a new ID only for a genuinely new fingerprint.
   - For new fingerprints, allocate the next unused category sequence after sorting by category, artifact, section key, and normalized summary.
@@ -123,7 +121,7 @@ Run `{SCRIPT}` once from repo root and parse JSON for FEATURE_DIR and AVAILABLE_
 
 - SPEC_CONTRACT = FEATURE_DIR/spec-contract.json
 - PLAN_CONTRACT = FEATURE_DIR/plan-contract.json
-- TASK_INDEX = FEATURE_DIR/task-index.json for standard/heavy work, otherwise TASKS = FEATURE_DIR/tasks.md
+- TASK_INDEX = FEATURE_DIR/task-index.json in every execution mode; TASKS = FEATURE_DIR/tasks.md is its derived project-facing projection
 - PLANNING_LANE_MANIFEST = FEATURE_DIR/planning/lane-manifest.json when present
 - TASK_GENERATION_LANE_MANIFEST = FEATURE_DIR/task-generation/lane-manifest.json when present
 
@@ -131,9 +129,7 @@ Abort with an error message if any required file is missing (instruct the user t
 For single quotes in args like "I'm Groot", use escape syntax: e.g 'I'\''m Groot' (or double-quote if possible: "I'm Groot").
 
 - Set `WORKFLOW_STATE_FILE` to `FEATURE_DIR/workflow-state.md`.
-- [AGENT] Create or resume `WORKFLOW_STATE_FILE` before substantial analysis work begins.
-- Read `templates/workflow-state-template.md`.
-- If `WORKFLOW_STATE_FILE` already exists, read it first and preserve still-valid authoritative file references and gate notes instead of relying on chat memory alone.
+- [AGENT] Create missing `WORKFLOW_STATE_FILE` through `specify-runtime artifact scaffold --kind workflow-state`; otherwise query it first with `specify-runtime artifact show` and preserve still-valid authoritative file references and gate notes. Mutate only through leased `specify-runtime artifact patch` calls.
 
 ### 2. Ensure project cognition runtime exists
 
@@ -168,7 +164,7 @@ Load only the minimal necessary context from each artifact:
 - Inspect only returned `minimal_live_reads` when the bundle does not fully cover ownership, propagation, or verification routes.
 - If topical coverage is missing, stale, too broad, or task-relevant coverage is insufficient, use `/sp-map-update` with changed paths or affected surfaces; rebuild through `/sp-map-scan` followed by `/sp-map-build` only for the explicit rebuild conditions above, then inspect the minimum live files still needed to replace guesswork with evidence
 
-**From spec-contract.json first (open spec.md/context.md only for a named detail or contradiction):**
+**From `specify-runtime artifact show --path <feature-dir>/spec-contract.json` first (query spec.md/context.md only for a named detail or contradiction):**
 
 - Overview/Context
 - Functional Requirements
@@ -185,7 +181,7 @@ Load only the minimal necessary context from each artifact:
 - Specific User Signals
 - Outstanding Questions
 
-**From plan-contract.json first (open plan.md or conditional design artifacts only for a named detail or contradiction):**
+**From plan-contract.json first (query plan.md or conditional design artifacts through targeted `specify-runtime artifact show` only for a named detail or contradiction):**
 
 - Architecture/stack choices
 - Locked Planning Decisions
@@ -205,19 +201,19 @@ Load only the minimal necessary context from each artifact:
 
 **From delegated planning lanes when present:**
 
-- Read `planning/lane-manifest.json` and only the accepted lane results it names.
+- Query `planning/lane-manifest.json` and only its named accepted results through targeted `specify-runtime artifact show` calls.
 - Verify each accepted result is consumed by `plan-contract.json` or a referenced conditional artifact, or is explicitly deferred or blocked.
 - Treat an accepted planning handoff with no downstream consumer as a plan-layer blocker, not harmless leftover evidence.
 
 **From delegated task-generation lanes when present:**
 
-- Read `task-generation/lane-manifest.json` and only the accepted lane results it names.
-- Verify each accepted result is consumed by `task-index.json` or the light direct task list, or is explicitly deferred, escalated, or blocked.
+- Query `task-generation/lane-manifest.json` and only its named accepted results through targeted `specify-runtime artifact show` calls.
+- Verify each accepted result is consumed by canonical `task-index.json` (including compact light mode), or is explicitly deferred, escalated, or blocked.
 - Treat an accepted task-generation handoff with no downstream consumer as a task-layer blocker before implementation can proceed.
 
 **From constitution:**
 
-- Load `.specify/memory/constitution.md` for principle validation
+- Query `.specify/memory/constitution.md` through `specify-runtime artifact show --path .specify/memory/constitution.md --view summary` for principle validation.
 
 ### 4. Build Semantic Models
 
@@ -405,11 +401,11 @@ Rules:
 - If the remaining issue is execution-only, the re-entry chain MUST begin at `{{invoke:implement}}` or `{{invoke:debug}}`.
 - Do not output multiple alternative re-entry chains for the same result.
 
-### 9.5 Persist Workflow Gate Result
+### 9.5 Persist Workflow Gate Result Through CLI
 
-Before the final completion text, write or update `WORKFLOW_STATE_FILE` so it records the gate outcome:
+Before the final completion text, query the existing `Analyze Gate` section through `specify-runtime artifact show`, build the replacement section in memory, and apply it through a fresh lease with `specify-runtime artifact patch --section`; never write or update `WORKFLOW_STATE_FILE` directly.
 
-Always update or preserve the `Analyze Gate` section in `WORKFLOW_STATE_FILE` with:
+The CLI-patched `Analyze Gate` section in `WORKFLOW_STATE_FILE` must preserve:
 - `gate_status: cleared | blocked`
 - `gate_cycle: [integer]`
 - `highest_invalid_stage: clarify | deep-research | plan | tasks | execution-only | none`
@@ -440,6 +436,8 @@ When revalidation finds a new blocker, record its attribution on that `blocker_b
 - If execution evidence must be repaired without upstream artifact drift:
   - `next_action: resume execution-side recovery with the recorded blocker context`
   - `next_command: /sp.implement` or `/sp.debug` as justified by the report
+
+After the leased patch, run `{{specify-subcmd:specify-runtime hook validate-artifacts --command analyze --feature-dir <feature-dir> --format json}}`. Do not present the analysis as complete unless the Go gate accepts the `sp-analyze`/`analysis-only` checkpoint and a terminal `cleared` or `blocked` Analyze Gate.
 
 ### 10. Offer Remediation
 

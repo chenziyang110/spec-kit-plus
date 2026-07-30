@@ -1,9 +1,9 @@
 ---
-description: Use when a query-backed project cognition baseline already exists and diff-based evidence refresh or user-supplied corrections must update it incrementally.
+description: Use when a query-backed baseline exists and `specify-runtime cognition update` must refresh it incrementally from diff-based evidence or user corrections.
 workflow_contract:
   when_to_use: A project cognition baseline exists and repository changes or user supplements must update the runtime without a full rebuild.
-  primary_objective: Compute impact closure, refresh affected evidence, update claims and conflicts, and update only the affected SQLite runtime records.
-  primary_outputs: '`.specify/project-cognition/status.json`, `.specify/project-cognition/project-cognition.db`, and query/update helper readiness metadata.'
+  primary_objective: Use `specify-runtime cognition changes|closeout-plan|update` to compute impact closure and update only affected runtime records.
+  primary_outputs: 'Runtime-owned cognition status, graph store, and readiness metadata, produced and queried only through `specify-runtime cognition`.'
   default_handoff: Return to the blocked workflow once the affected query scope is green or yellow.
 ---
 
@@ -48,10 +48,10 @@ Use `execution_surface: native-subagents`.
 
 - Start from Git, not memory: first run `{{specify-subcmd:specify-runtime cognition changes --format json}}` unless the caller supplied a narrower explicit changed-path list or commit range. For explicit paths, pass each path with `--changed-path`; for a commit range, pass `--since <base> --head <head>`.
 - Consume `next_action`, `changes[].path`, `ignored_paths`, `unknown_paths`, `baseline_commit`, and `head_commit` from the `changes` payload before querying or patching the runtime. Feed `changes[].path` values accepted by the boundary into graph-changing `changed_paths`. Preserve ignored paths only as audit-only `path_changes`; keep them out of `changed_paths`, known unknowns, `minimal_live_reads`, graph evidence, aliases, and route indexes.
-- Filter changed paths through `.cognitionignore` before querying or patching the runtime. The `changes` helper performs the first filter pass; if the agent adds user-supplied paths later, re-check root `.cognitionignore` and `.specify/project-cognition/.cognitionignore`. Both use gitignore-compatible syntax.
+- Filter changed paths through `.cognitionignore` before querying or patching the runtime. The `changes` helper performs the first filter pass; route any later user-supplied paths through `specify-runtime cognition scan-set --path <path> --format json` and consume its inclusion/exclusion accounting. Never open either ignore file directly.
 - User-supplied changed paths that match `.cognitionignore` are scope notes, not update targets. Report them as ignored unless a later `!` rule re-includes the path or the user explicitly changes the ignore rule.
 - Treat user-supplied changed paths, behavior surfaces, and corrections as authoritative scope hints unless repository evidence contradicts them.
-- Query `project-cognition.db` for each changed path before deciding update scope.
+- Query each changed path through `specify-runtime cognition compass|query|expand` before deciding update scope; never read the database directly.
 - For every changed path, look up current owner, consumers, lifecycle/state surfaces, shared mutable state, destructive-operation edges, generated-surface propagation, verification routes, conflicts, stale claims, and known unknowns.
 - Expand the update closure through owners, downstream consumers, state surfaces, workflow artifacts, generated surfaces, and verification routes that project cognition already knows.
 - Consume `affected_graph_claims` from structured update output. Changed paths must mark only graph claims linked through affected nodes or claim evidence as `stale`, preserve their prior state in the transition history, and leave unrelated claims unchanged.
@@ -87,9 +87,9 @@ schema failure, `explicit_rebuild_requested`, or `baseline_identity_invalid`.
 - `sp-map-update` is the normal maintenance entrypoint after baseline build.
 - It must accept both diff-driven and user-supplement-driven updates.
 - It must update the query-backed cognition runtime incrementally.
-- It must treat `.specify/project-cognition/status.json` plus `.specify/project-cognition/project-cognition.db` as the runtime truth source for post-update readiness.
+- It must treat the output of `specify-runtime cognition status --format json` plus bounded `compass|query|expand` calls as the runtime truth source for post-update readiness.
 - It must not silently escalate to a full rebuild without recording why.
-- Generic workflow verification or `result_state=ready` may refresh path coverage but must not re-promote stale or contradicted graph claims. After update returns `affected_graph_claims`, re-promotion is allowed only for an exact stable claim ID backed by decisive claim-specific bounded live evidence. Provide only reconciliation intent: workflow, stable `claim_id`, reason, repository-relative `source_path`, bounded line `span`, `supporting` or `contradicting` role, and optional claim-specific verification. Run `{{specify-subcmd:specify-runtime cognition claim-reconcile prepare --input <intent.json> --format json}}`; the runtime owns every integrity field and the prepared packet path. Execute the returned `apply_argv` exactly (`{{specify-subcmd:specify-runtime cognition claim-reconcile apply --input <prepared_packet_path> --format json}}`). Leave claims without this evidence stale. On ready, rerun Compass once; on partial or blocked output, preserve the stale/contradicted route and follow `recommended_next_action`.
+- Generic workflow verification or `result_state=ready` may refresh path coverage but must not re-promote stale or contradicted graph claims. After update returns `affected_graph_claims`, re-promotion is allowed only for an exact stable claim ID backed by decisive claim-specific bounded live evidence. Provide only an in-memory reconciliation intent: workflow, stable `claim_id`, reason, repository-relative `source_path`, bounded line `span`, `supporting` or `contradicting` role, and optional claim-specific verification. Run `{{specify-subcmd:specify-runtime cognition claim-reconcile prepare --input-json '<intent-json>' --format json}}`; never create an intent file. The runtime owns every integrity field and the prepared packet path. Execute the returned `apply_argv` exactly (`{{specify-subcmd:specify-runtime cognition claim-reconcile apply --input <prepared_packet_path> --format json}}`); that file is runtime-created, not agent-authored. Leave claims without this evidence stale. On ready, rerun Compass once; on partial or blocked output, preserve the stale/contradicted route and follow `recommended_next_action`.
 - When changed paths are missing from `path_index`, classify them before escalating: adoptable paths get provisional `path_index` and `alias_index` coverage, uncertain paths return `review` with `minimal_live_reads`, and existing-baseline ordinary gaps stay in `sp-map-update`.
 - Provisional adoption must write valid graph records: an adoption `evidence` row, a `path_index` row with `relation="provisional_path"` and graph confidence `weak` or `partial`, and alias rows for the adopted node title, path material, workflow/source terms, and behavior surfaces so future `specify-runtime cognition compass` and alias-catalog routing can rediscover the adopted path.
 - It must prefer metadata-only or single-slice updates when those are sufficient.
@@ -121,9 +121,8 @@ Use the returned `result_state` as the completion gate, not `status=ok` alone. F
 
 At minimum, read:
 
-- `.specify/project-cognition/status.json`
-- `.specify/project-cognition/project-cognition.db` through the
-  `project-cognition` query/update helpers
+- `specify-runtime cognition status --format json`
+- bounded `specify-runtime cognition compass|query|expand` output
 - changed paths or changed commit range
 - user supplement input if provided
 

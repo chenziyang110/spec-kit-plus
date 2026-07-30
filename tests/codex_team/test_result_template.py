@@ -3,12 +3,22 @@ from pathlib import Path
 
 import pytest
 
-from specify_cli.codex_team.runtime_bridge import bootstrap_runtime_session, dispatch_runtime_task
+from specify_cli.codex_team.runtime_bridge import (
+    bootstrap_runtime_session,
+    dispatch_runtime_task,
+)
 
 
 def _seed_dispatch(project_root: Path, *, request_id: str = "req-template") -> None:
     bootstrap_runtime_session(project_root, "default")
-    packet_path = project_root / ".specify" / "codex-team" / "state" / "packets" / f"{request_id}.json"
+    packet_path = (
+        project_root
+        / ".specify"
+        / "codex-team"
+        / "state"
+        / "packets"
+        / f"{request_id}.json"
+    )
     packet_path.parent.mkdir(parents=True, exist_ok=True)
     packet_path.write_text(
         json.dumps(
@@ -17,14 +27,22 @@ def _seed_dispatch(project_root: Path, *, request_id: str = "req-template") -> N
                 "task_id": "T701",
                 "story_id": "US1",
                 "objective": "Implement T701",
-                "scope": {"write_scope": ["src/t701.py"], "read_scope": ["src/contracts.py"]},
-                "required_references": [{"path": "src/contracts.py", "reason": "preserve contract"}],
+                "scope": {
+                    "write_scope": ["src/t701.py"],
+                    "read_scope": ["src/contracts.py"],
+                },
+                "required_references": [
+                    {"path": "src/contracts.py", "reason": "preserve contract"}
+                ],
                 "hard_rules": ["do not drift"],
                 "forbidden_drift": ["no parallel stack"],
                 "validation_gates": ["pytest -q"],
                 "done_criteria": ["works"],
                 "handoff_requirements": ["return changed files"],
-                "dispatch_policy": {"mode": "hard_fail", "must_acknowledge_rules": True},
+                "dispatch_policy": {
+                    "mode": "hard_fail",
+                    "must_acknowledge_rules": True,
+                },
                 "packet_version": 1,
             },
             ensure_ascii=False,
@@ -41,7 +59,9 @@ def _seed_dispatch(project_root: Path, *, request_id: str = "req-template") -> N
     )
 
 
-def test_build_request_result_template_uses_dispatched_packet(codex_team_project_root: Path):
+def test_build_request_result_template_uses_dispatched_packet(
+    codex_team_project_root: Path,
+):
     from specify_cli.codex_team.result_template import build_request_result_template
 
     _seed_dispatch(codex_team_project_root)
@@ -57,7 +77,9 @@ def test_build_request_result_template_uses_dispatched_packet(codex_team_project
     assert template["rule_acknowledgement"]["forbidden_drift_respected"] is False
 
 
-def test_normalize_result_submission_rejects_bom_prefixed_payload(codex_team_project_root: Path):
+def test_normalize_result_submission_rejects_bom_prefixed_payload(
+    codex_team_project_root: Path,
+):
     from specify_cli.codex_team.result_template import normalize_result_submission
 
     _seed_dispatch(codex_team_project_root, request_id="req-bom")
@@ -70,7 +92,9 @@ def test_normalize_result_submission_rejects_bom_prefixed_payload(codex_team_pro
         )
 
 
-def test_normalize_result_submission_requires_task_id_and_status(codex_team_project_root: Path):
+def test_normalize_result_submission_requires_task_id_and_status(
+    codex_team_project_root: Path,
+):
     from specify_cli.codex_team.result_template import normalize_result_submission
 
     _seed_dispatch(codex_team_project_root, request_id="req-missing")
@@ -83,12 +107,16 @@ def test_normalize_result_submission_requires_task_id_and_status(codex_team_proj
         )
 
 
-def test_normalize_result_submission_rejects_pending_template_payload(codex_team_project_root: Path):
+def test_normalize_result_submission_rejects_pending_template_payload(
+    codex_team_project_root: Path,
+):
     from specify_cli.codex_team.result_template import normalize_result_submission
 
     _seed_dispatch(codex_team_project_root, request_id="req-pending")
 
-    with pytest.raises(ValueError, match="Pending result templates cannot be submitted"):
+    with pytest.raises(
+        ValueError, match="Pending result templates cannot be submitted"
+    ):
         normalize_result_submission(
             codex_team_project_root,
             "req-pending",
@@ -117,8 +145,14 @@ def test_render_schema_help_describes_pending_template_defaults() -> None:
 
     assert "pending" in hint["accepted_status_values"]
     assert hint["canonical_template_defaults"]["status"] == "pending"
-    assert hint["canonical_template_defaults"]["validation_results"] == "skipped until real execution occurs"
+    assert (
+        hint["canonical_template_defaults"]["validation_results"]
+        == "skipped until real execution occurs"
+    )
     assert any("Do not submit" in rule for rule in hint["submission_rules"])
+    acknowledgement = hint["rule_acknowledgement"]
+    assert acknowledgement["paths_read"] == []
+    assert "runtime storage paths" in acknowledgement["critical_notes"][0]
 
 
 def test_render_schema_help_describes_validator_evidence_fields() -> None:
@@ -135,8 +169,18 @@ def test_render_schema_help_describes_validator_evidence_fields() -> None:
         "ui_evidence",
         "ui_verification",
     }
-    assert "mp_id" in hint["conditional_evidence_fields"]["must_preserve_evidence"]["required_item_fields"]
-    assert "obligation_id" in hint["conditional_evidence_fields"]["consequence_evidence"]["required_item_fields"]
+    assert (
+        "mp_id"
+        in hint["conditional_evidence_fields"]["must_preserve_evidence"][
+            "required_item_fields"
+        ]
+    )
+    assert (
+        "obligation_id"
+        in hint["conditional_evidence_fields"]["consequence_evidence"][
+            "required_item_fields"
+        ]
+    )
     assert {"kind", "ref"} <= set(
         hint["conditional_evidence_fields"]["ui_evidence"]["required_item_fields"]
     )

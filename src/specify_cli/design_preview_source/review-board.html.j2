@@ -1,0 +1,436 @@
+<body
+  data-active-direction="direction-a"
+  data-display-mode="light"
+  data-comparison-view="single"
+  data-motion-profile="full"
+  data-capture-mode="false"
+>
+  <main
+    id="design-preview"
+    data-design-preview-schema="spec-kit-design-preview-v1"
+    data-preview-status="scaffold"
+    data-review-round="0"
+    data-active-direction="direction-a"
+    data-approved-direction=""
+  >
+    <header class="hero">
+      <div>
+        <p class="eyebrow">Design direction review · Round <span data-bind="review.round">0</span></p>
+        <h1 data-bind="project.name">Project design</h1>
+        <p class="hero-copy" data-bind="project.brief">
+          Configure the embedded manifest to turn this universal specimen into a project-specific review.
+        </p>
+      </div>
+      <div class="context-grid" aria-label="Product context">
+        <div class="context-item">
+          <span class="eyebrow">Subject</span>
+          <strong data-bind="project.subject">Product subject</strong>
+        </div>
+        <div class="context-item">
+          <span class="eyebrow">Audience</span>
+          <strong data-bind="project.audience">Primary audience</strong>
+        </div>
+        <div class="context-item">
+          <span class="eyebrow">Single job</span>
+          <strong data-bind="project.single_job">Single user job</strong>
+        </div>
+      </div>
+    </header>
+
+    <section class="direction-shell" aria-label="Compare design directions">
+      <div class="review-bar">
+        <span>Same task, content, states, and viewports; compare the system decisions.</span>
+        <div class="review-actions">
+          <span class="review-status" id="review-status">Scaffold</span>
+          <button class="button button-quiet" id="toggle-comparison" type="button" aria-pressed="false">
+            Compare all
+          </button>
+          <button class="button button-quiet" id="copy-reference" type="button">
+            Copy reference
+          </button>
+        </div>
+      </div>
+      <div class="review-bar" role="group" aria-label="Preview controls">
+        <div class="control-group">
+          <span class="control-group-label">Mode</span>
+          <div class="segmented-control" id="mode-controls" role="group" aria-label="Color mode">
+            <button type="button" data-display-mode="light" aria-pressed="true">Light</button>
+            <button type="button" data-display-mode="dark" aria-pressed="false">Dark</button>
+            <button type="button" data-display-mode="high-contrast" aria-pressed="false">Contrast</button>
+          </div>
+        </div>
+        <div class="control-group">
+          <span class="control-group-label">Motion</span>
+          <div class="segmented-control" id="motion-controls" role="group" aria-label="Motion mode">
+            <button type="button" data-motion-profile="full" aria-pressed="true">Full</button>
+            <button type="button" data-motion-profile="reduced" aria-pressed="false">Reduced</button>
+            <button type="button" data-motion-profile="none" aria-pressed="false">None</button>
+          </div>
+          <button class="button button-quiet" id="replay-motion" type="button">Replay</button>
+          <span id="motion-preference" class="mono" aria-live="polite"></span>
+        </div>
+      </div>
+      <div class="direction-tabs" role="tablist" aria-label="Design directions">
+        <button
+          id="direction-a"
+          class="direction-tab"
+          type="button"
+          role="tab"
+          aria-selected="true"
+          tabindex="0"
+          data-direction-id="direction-a"
+          data-direction-name="Direction A"
+        >
+          <strong>A · Direction A</strong>
+          <span>Configure the embedded manifest.</span>
+        </button>
+        <button
+          id="direction-b"
+          class="direction-tab"
+          type="button"
+          role="tab"
+          aria-selected="false"
+          tabindex="-1"
+          data-direction-id="direction-b"
+          data-direction-name="Direction B"
+        >
+          <strong>B · Direction B</strong>
+          <span>Configure the embedded manifest.</span>
+        </button>
+        <button
+          id="direction-c"
+          class="direction-tab"
+          type="button"
+          role="tab"
+          aria-selected="false"
+          tabindex="-1"
+          data-direction-id="direction-c"
+          data-direction-name="Direction C"
+        >
+          <strong>C · Direction C</strong>
+          <span>Configure the embedded manifest.</span>
+        </button>
+      </div>
+      <div class="direction-detail" id="direction-detail">
+        <div>
+          <strong id="direction-signature">Signature element</strong>
+          <p id="direction-theses">Visual, content, and interaction theses appear here.</p>
+        </div>
+        <div class="direction-tradeoff">
+          <span><strong>Gain</strong> · <span id="direction-gain">—</span></span>
+          <span><strong>Cost</strong> · <span id="direction-cost">—</span></span>
+        </div>
+      </div>
+    </section>
+
+    <section class="comparison-board" id="direction-comparison" aria-labelledby="comparison-title">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">Direction matrix</p>
+          <h2 id="comparison-title">Compare without relying on memory</h2>
+        </div>
+        <p>All three directions use the same task, content, states, and viewports.</p>
+      </div>
+      <div class="comparison-grid" id="comparison-grid"></div>
+    </section>
+
+    <div class="board" id="preview-board">
+      <section
+        class="board-section"
+        data-preview-section="foundations"
+        style="--section-index: 0"
+      >
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">01 · Foundations</p>
+            <h2>Visual language</h2>
+          </div>
+          <p>
+            Typography, palette, geometry, elevation, and spacing are shown as
+            implementation-facing tokens rather than aesthetic adjectives.
+          </p>
+        </div>
+        <div class="grid-2">
+          <article class="token-card">
+            <h3>Type hierarchy</h3>
+            <div class="type-display">Make intent visible.</div>
+            <p class="type-body">
+              Body copy stays readable while the display face carries the
+              direction's signature. Measure, line height, and contrast remain
+              explicit handoff decisions.
+            </p>
+            <code class="token-value mono" id="type-token-value">Display / Body</code>
+          </article>
+          <article class="token-card">
+            <h3>Core palette</h3>
+            <div class="swatch-row" aria-label="Color token samples">
+              <div class="swatch swatch-canvas">Canvas</div>
+              <div class="swatch swatch-surface">Surface</div>
+              <div class="swatch swatch-ink">Ink</div>
+              <div class="swatch swatch-accent">Accent</div>
+              <div class="swatch swatch-support">Support</div>
+            </div>
+            <div class="contrast-results" id="contrast-results" aria-label="WCAG contrast checks"></div>
+          </article>
+          <article class="token-card">
+            <h3>Geometry and density</h3>
+            <div class="metric-list">
+              <div class="metric">
+                <span>Control radius</span>
+                <code class="mono" id="radius-control-value">--radius-control</code>
+              </div>
+              <div class="metric">
+                <span>Surface radius</span>
+                <code class="mono" id="radius-surface-value">--radius-surface</code>
+              </div>
+              <div class="metric">
+                <span>Spacing rhythm</span>
+                <code class="mono" id="space-unit-value">--space-unit</code>
+              </div>
+            </div>
+          </article>
+          <article class="token-card">
+            <h3>Elevation and edge</h3>
+            <div class="metric-list">
+              <div class="metric">
+                <span>Raised surface</span>
+                <code class="mono" id="shadow-value">--shadow</code>
+              </div>
+              <div class="metric">
+                <span>Interactive control</span>
+                <code class="mono" id="shadow-control-value">--shadow-control</code>
+              </div>
+              <div class="metric">
+                <span>Boundary</span>
+                <code class="mono">--line</code>
+              </div>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section
+        id="components"
+        class="board-section"
+        data-preview-section="components"
+        style="--section-index: 1"
+      >
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">02 · Components</p>
+            <h2>Capability specimens</h2>
+          </div>
+          <p>
+            The selected project profiles determine which comparable specimens
+            appear. HTML is the review carrier; the target surface owns the rules.
+          </p>
+        </div>
+        <div class="profile-review-bar">
+          <div>
+            <span class="control-group-label">Target profile</span>
+            <div class="segmented-control" id="profile-controls" role="group" aria-label="Target profile"></div>
+          </div>
+          <p id="profile-summary">Capability profile summary</p>
+        </div>
+        <div class="capability-strip" id="capability-strip" aria-label="Required capabilities"></div>
+        <div class="capability-specimen-grid" id="capability-specimen-grid"></div>
+      </section>
+
+      <section
+        class="board-section"
+        data-preview-section="states"
+        style="--section-index: 2"
+        id="states"
+      >
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">03 · States</p>
+            <h2>Profile state obligations</h2>
+          </div>
+          <p>
+            State coverage is derived from the active profile instead of assuming
+            browser hover, form controls, or responsive pixels apply everywhere.
+          </p>
+        </div>
+        <div class="capability-state-grid" id="capability-state-grid"></div>
+      </section>
+
+      <section
+        class="board-section"
+        data-preview-section="motion"
+        style="--section-index: 3"
+      >
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">04 · Motion</p>
+            <h2>Purposeful movement</h2>
+          </div>
+          <p>
+            Motion reveals hierarchy, confirms an action, or explains a state
+            change. Durations and easing are tokens; reduced motion is mandatory.
+          </p>
+        </div>
+        <div class="grid-3">
+          <article class="motion-card">
+            <h3>Entrance · reveal hierarchy</h3>
+            <div class="motion-stage">
+              <div class="motion-object motion-enter" aria-hidden="true"></div>
+            </div>
+            <div class="motion-meta">
+              <span class="mono">duration.slow</span>
+              <span class="mono">easing.emphasized</span>
+            </div>
+          </article>
+          <article class="motion-card">
+            <h3>Feedback · reinforce action</h3>
+            <div class="motion-stage">
+              <div class="motion-object motion-feedback" aria-hidden="true"></div>
+            </div>
+            <div class="motion-meta">
+              <span class="mono">duration.base</span>
+              <span class="mono">easing.emphasized</span>
+            </div>
+          </article>
+          <article class="motion-card">
+            <h3>Transition · explain change</h3>
+            <div class="motion-stage">
+              <div class="motion-object motion-state" aria-hidden="true"></div>
+            </div>
+            <div class="motion-meta">
+              <span class="mono">duration.slow</span>
+              <span class="mono">easing.standard</span>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section
+        class="board-section"
+        data-preview-section="responsive"
+        style="--section-index: 4"
+      >
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">05 · Responsive</p>
+            <h2>Presentation targets</h2>
+          </div>
+          <p>
+            Targets retain their production unit—pixel, point, or terminal cell—
+            while the HTML carrier uses a declared review width for comparison.
+          </p>
+        </div>
+        <div class="viewport-toolbar">
+          <div class="control-group">
+            <span class="control-group-label">Profile target</span>
+            <div class="segmented-control" id="viewport-controls" role="group" aria-label="Presentation target">
+              <button type="button" data-viewport-width="1024" aria-pressed="true">1024</button>
+            </div>
+          </div>
+          <span class="mono" id="viewport-readout">Target loading</span>
+        </div>
+        <div class="viewport-simulator">
+          <article class="simulated-viewport" id="simulated-viewport" style="--simulated-width: 1024px">
+            <div class="surface-shell" id="adaptive-surface"></div>
+          </article>
+        </div>
+      </section>
+
+      <section
+        class="board-section"
+        data-preview-section="handoff"
+        style="--section-index: 5"
+        id="handoff"
+      >
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">06 · Handoff</p>
+            <h2>Decision boundaries</h2>
+          </div>
+          <p>
+            Approval binds one direction ID in this exact review round. The
+            implementation may only deviate where the contract explicitly permits it.
+          </p>
+        </div>
+        <div class="grid-3">
+          <article class="handoff-card">
+            <h3>Must preserve</h3>
+            <ul id="must-preserve-list"></ul>
+          </article>
+          <article class="handoff-card">
+            <h3>May adapt</h3>
+            <ul id="may-adapt-list"></ul>
+          </article>
+          <article class="handoff-card">
+            <h3>Must not</h3>
+            <ul id="must-not-list"></ul>
+          </article>
+        </div>
+
+        <div class="token-card" style="margin-block-start: 1rem; overflow-x: auto">
+          <h3>Implementation token map</h3>
+          <table class="token-map">
+            <thead>
+              <tr>
+                <th>Design decision</th>
+                <th>Preview token</th>
+                <th>Production owner</th>
+                <th>Verification</th>
+              </tr>
+            </thead>
+            <tbody id="token-map-body"></tbody>
+          </table>
+        </div>
+
+        <div class="token-card" style="margin-block-start: 1rem; overflow-x: auto">
+          <h3>1:1 reproduction contract</h3>
+          <p id="reproduction-policy"></p>
+          <table class="token-map">
+            <thead>
+              <tr>
+                <th>Contract</th>
+                <th>Component</th>
+                <th>Anatomy</th>
+                <th>Required states</th>
+                <th>Must match</th>
+              </tr>
+            </thead>
+            <tbody id="component-contract-body"></tbody>
+          </table>
+        </div>
+
+        <div class="token-card" style="margin-block-start: 1rem; overflow-x: auto">
+          <h3>Responsive and visual acceptance matrix</h3>
+          <table class="token-map">
+            <thead>
+              <tr>
+                <th>Contract</th>
+                <th>Target</th>
+                <th>States / modes</th>
+                <th>Covered decisions</th>
+                <th>Required evidence</th>
+              </tr>
+            </thead>
+            <tbody id="acceptance-contract-body"></tbody>
+          </table>
+        </div>
+
+        <p class="artifact-note">
+          This board is project-level design approval evidence. It does not replace
+          the feature-level <span class="mono">ui-target.html</span>, real-entrypoint
+          screenshots, runtime diagnostics, or the final visual comparison loop.
+        </p>
+      </section>
+    </div>
+
+    <p id="direction-announcement" class="screen-reader-live" aria-live="polite"></p>
+  </main>
+
+  <script type="application/json" id="design-preview-manifest">
+{% include "manifest.json" %}
+  </script>
+
+  <script>
+{% include "runtime.js" %}
+  </script>
+</body>
+</html>

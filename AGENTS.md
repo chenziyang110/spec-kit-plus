@@ -30,8 +30,8 @@ For AI CLI workflows in this repository:
 
 ## Project Learning
 
-- Generated projects store Learning under `.specify/memory/**` and runtime candidates under `.planning/learnings/**`, but agents consume it through `specify learning start -> list -> show`, not by parsing storage files. Summary intake is compact; `show` expands one selected record.
-- Learning reads are read-only. Production uses `learning capture` / `capture-auto`; confirmation and project-rule promotion use explicit `learning promote`. Never auto-promote during workflow start.
+- Generated projects store Learning under `.specify/memory/**` and runtime candidates under `.planning/learnings/**`, but agents consume it through `specify-runtime learning start -> list -> show`, not by parsing storage files. Summary intake is compact; `show` expands one selected record.
+- Learning reads are read-only. Production uses `specify-runtime learning capture` / `capture-auto`; confirmation and project-rule promotion use explicit `specify-runtime learning promote`. Never auto-promote during workflow start.
 - Classic commands use the shared Learning partial/passive skill. Advanced skills use `_shared/project-learning.md`; SPX command names normalize to the same Classic runtime namespace.
 - This repository itself does not treat its root `.specify/` directory as committed source-of-truth content; local `.specify/` state here is disposable and may be regenerated.
 - Project Learning is available to later work in this repository, not just when a `sp-*` workflow is active.
@@ -55,7 +55,7 @@ For AI CLI workflows in this repository:
   - checking propagation across integrations,
   - or auditing the prompt/runtime product itself.
 - For normal maintenance of `spec-kit-plus`, follow the repository's actual source-of-truth surfaces: `AGENTS.md`, `PROJECT-HANDBOOK.md`, `templates/project-map/**`, `templates/project-handbook-template.md`, `tools/specify-runtime/**`, relevant source code under `src/specify_cli/**`, scripts, tests, and release/config files.
-- If a generated workflow says to read or write downstream project artifacts under `.specify/features/**`, legacy `.specify/specs/**`, `specs/**`, feature-local `workflow-state.md`, or similar generated-project state, do not treat that as this repository's required execution path unless the current task is explicitly to test or simulate downstream generated-project behavior.
+- If a generated workflow references downstream project artifacts under `.specify/features/**`, legacy `.specify/specs/**`, `specs/**`, feature-local `workflow-state.md`, or similar generated-project state, treat those registered CLI-owned surfaces as nongoverning for this repository unless the current task explicitly tests or simulates downstream generated-project behavior.
 
 ## Workflow Profile Contract: Classic vs Advanced
 
@@ -163,10 +163,12 @@ present in a test project.
   specimens, independent color and motion systems, responsive targets, and an
   embedded machine-readable manifest. Combining or revising directions creates
   a new inspected round; never mutate an approved round in place.
-- `specify design approve` is the approval truth boundary. It freezes one exact
-  direction with a byte-bound sidecar, preview and manifest SHA-256 digests,
-  review round, and stable `DS-*` decision IDs. Ready lint and export must reject
-  a `DESIGN.md` whose approval fields do not match that immutable sidecar.
+- `specify-runtime design approve` is the approval truth boundary. It freezes one exact
+  direction with a byte-bound approval sidecar, preview/manifest SHA-256
+  digests, a separate immutable handoff sidecar and digest, review round, stable
+  `DS-*` decision IDs, and stable `DH-*` implementation contract IDs. Ready lint
+  and export must reject a `DESIGN.md` whose approval fields do not match those
+  immutable artifacts.
 - Classic keeps the explicit UI lane, full command references, passive
   `spec-kit-ui-design`/`frontend-design` guidance, worker prompts, and verbose
   evidence mapping. Advanced must not install that passive bundle; its essential
@@ -179,13 +181,15 @@ present in a test project.
 - The single current UI contract separates work type, surface type, and platform. It preserves
   subject, audience, single job, visual/content/interaction theses, a signature
   element, an inspectable approved visual reference, per-reference use intent,
-  task-relevant real-content/image plans, approval digests, decision subsets,
-  color modes, component contracts, responsive and motion rules, visual
-  acceptance rows, comparison tolerance, and approved deviations through the
-  Classic and Advanced artifact chain. Do not collapse those dimensions into
-  one enum or prose.
+  task-relevant real-content/image plans, approval digests, decision and handoff
+  contract subsets, color modes, component contracts, responsive and motion
+  rules, visual acceptance rows, comparison tolerance, and approved deviations
+  through the Classic and Advanced artifact chain. Downstream stages select
+  immutable `DS-*`/`DH-*` rows by ID; they do not reauthor them as prose. Do not
+  collapse those dimensions into one enum or prose.
 - A feature `ui-target.html` is a self-contained composition/state target bound
-  to the approved project design digests and task decisions. It may contain
+  to the approved project design and handoff digests, task decisions, and
+  handoff contracts. It may contain
   bounded review-only interaction JavaScript, but no network calls, persistence,
   production data access, external runtime dependency, or replacement approval
   authority for the project-level preview.
@@ -764,7 +768,7 @@ managed `<!-- SPEC-KIT:BEGIN -->` block because
 - Schema v5 adds claim revisions to the auditable reconciliation record and current/superseded claim-evidence basis. Agents supply semantic reconciliation intent only; the runtime owns contract versions, generation/state/revision preconditions, time bounds, source kinds, hashes, repository snapshots, IDs, prepared packet paths, and `apply_argv`. Do not reintroduce old broad-schema tables such as `conflicts`, `conflict_claims`, `symbol_index`, `entrypoint_index`, `test_index`, `slice_members`, FTS tables, or `query_examples` as readiness requirements unless a deliberate design, runtime implementation, prompt update, and regression suite add them back together.
 - Graph claims are indexed assertions, use `graph_claim_type`, and have compiler-derived `candidate`, `supported`, `verified_in_graph_generation`, `contradicted`, or `stale` states. They never authorize source changes or set workflow `claim_ready=true`.
 - `alias_index` is the route vocabulary. `specify-runtime cognition lexicon --mode catalog` lists alias-backed candidates; the agent must normalize the user's prompt into project vocabulary, record `semantic_intake`, carry `lexicon_generation_id`, and call `specify-runtime cognition query --query-plan`. Top lexical or vector similarity alone is not route truth; live repository evidence still proves technical claims.
-- Schema v5 is current-only. v1 through v4 and old broad-schema DBs are diagnostic/inspect-only for normal workflows; `lexicon`, `query`, `claim-reconcile`, and `build-from-scan` require the complete current schema. The current runtime does not migrate schema v4 or older databases and does not archive or replace them. Remove the incompatible project-cognition.db explicitly, then run `sp-map-scan -> sp-map-build` with the current binary.
+- Schema v5 is current-only. v1 through v4 and old broad-schema DBs are diagnostic/inspect-only for normal workflows; `lexicon`, `query`, `claim-reconcile`, and `build-from-scan` require the complete current schema. The current runtime does not migrate schema v4 or older databases. Never move, remove, archive, or replace `project-cognition.db` directly. Run `specify-runtime cognition archive-incompatible-store --inspect --format json`, execute its hash-guarded `archive_argv`, then run `sp-map-scan -> sp-map-build` with the current binary.
 - Alias derivation should stay bounded: titles, types, paths, and bounded attrs/tags are valid sources; raw observation summaries should not become unbounded aliases.
 
 ### Workflow Family Map
@@ -834,7 +838,7 @@ When adding new agents:
 
 - Project cognition and Project Learning are always available, even without an active `sp-*` workflow.
 - When existing-system truth matters, use project cognition before broad source inspection and use its results to narrow live reads.
-- Run `specify learning start --command <workflow> --format json` before non-trivial decisions that depend on local conventions, constraints, or past lessons; expand only selected matching Learning through `show_argv`.
+- Run `specify-runtime learning start --command <workflow> --format json` before non-trivial decisions that depend on local conventions, constraints, or past lessons; expand only selected matching Learning through `show_argv`.
 
 ## Workflow Recommendations
 

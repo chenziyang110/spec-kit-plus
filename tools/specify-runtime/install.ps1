@@ -34,11 +34,18 @@ try {
     if (($LASTEXITCODE -ne 0) -or
         ($handshake -notmatch '"protocol_version":"specify-runtime\.v1"') -or
         ($handshake -notmatch '"artifact\.catalog"') -or
+        ($handshake -notmatch '"artifact\.checklist"') -or
+        ($handshake -notmatch '"artifact\.delete"') -or
+        ($handshake -notmatch '"artifact\.list"') -or
+        ($handshake -notmatch '"artifact\.patch"') -or
         ($handshake -notmatch '"artifact\.prepare"') -or
+        ($handshake -notmatch '"artifact\.restore"') -or
         ($handshake -notmatch '"artifact\.scaffold"') -or
         ($handshake -notmatch '"artifact\.show"') -or
         ($handshake -notmatch '"artifact\.submit"') -or
+        ($handshake -notmatch '"cognition\.archive-incompatible-store"') -or
         ($handshake -notmatch '"cognition\.run"') -or
+        ($handshake -notmatch '"cognition\.scan-packet"') -or
         ($handshake -notmatch '"validate\.spec"') -or
         ($handshake -notmatch '"workflow\.show"') -or
         ($handshake -notmatch '"workflow\.enter"') -or

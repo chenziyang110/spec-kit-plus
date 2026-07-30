@@ -204,8 +204,9 @@ def _assert_discussion_contract(command_content: str) -> None:
     assert "turn count alone is never a save trigger" in command_lower
     assert "semantic checkpoint is a durable meaning change" in command_lower
     assert "pending truth-pass state" in command_lower
-    assert "persist it to `discussion-state.md` only at semantic checkpoints or save triggers" in command_lower
-    assert "persist them to `open-questions.md` only when they materially change" in command_lower
+    assert "discussion checkpoint" in command_lower
+    assert "refreshes `discussion-state.md` only at semantic checkpoints or save triggers" in command_lower
+    assert "open-questions.md only when blocking or soft unknowns materially change" in command_lower
     assert "semantic checkpoints" in command_lower
     assert "agent-only" in command_lower
     assert "do not write a markdown companion" in command_lower
@@ -234,7 +235,8 @@ def _assert_discussion_contract(command_content: str) -> None:
     assert "do not split the work into p0/p1/p2" in command_lower
     assert "migration phases" in command_lower
     assert "task packets" in command_lower
-    assert "those belong to `sp-plan`, `sp-tasks`, or `sp-implement`" in command_lower
+    assert "those belong to `sp-quick` task-local planning when quick is selected" in command_lower
+    assert "`sp-plan`, `sp-tasks`, and `sp-implement` on the formal feature path" in command_lower
     assert "no parallel old-backend operation" in command_lower
     assert "no old-stack cutover fallback" in command_lower
     assert "no alternate product path" in command_lower
@@ -897,7 +899,9 @@ class TomlIntegrationTests:
             else:
                 assert "fallback path" in content
             assert "subagent result contract" in content
-            assert "result handoff path" in content
+            assert "inline result submission" in content
+            assert "runtime-owned compatibility path" in content
+            assert "never create a result file or use `--result-file`" in content
             assert "reported_status" in content
             assert "needs_context" in content
 

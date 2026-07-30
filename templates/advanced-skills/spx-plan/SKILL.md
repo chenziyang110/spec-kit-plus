@@ -33,7 +33,8 @@ list `spec-contract.json#/acceptance_criteria/0..N-1`, covering every live
 specification acceptance criterion exactly once; never select a subset,
 reconstruct prose labels, or reorder, duplicate, rename, or omit a criterion.
 
-When `deep-research.md` exists, read and validate it before choosing the design.
+When `deep-research.md` exists, query and validate it through
+`specify-runtime artifact show` before choosing the design.
 Consume every `PH-###` Planning Handoff item according to its mandatory,
 optional, or user-decision contract. Add a level-2 `## Deep Research
 Traceability Matrix` to `plan.md` with `Plan Decision`, `Handoff ID`, `Evidence
@@ -41,35 +42,56 @@ Traceability Matrix` to `plan.md` with `Plan Decision`, `Handoff ID`, `Evidence
 handoffs or untraceable evidence keep planning blocked; a validated
 `**Status**: Not needed` handoff carries no invented PH IDs.
 
-Render `plan-contract.json` and `plan.md` from
-the canonical machine template `.specify/templates/plan-contract-template.json`
-and this Skill's compact `assets/plan.md`. Cover affected components and files,
+Create `plan-contract.json` only with `specify-runtime artifact scaffold --kind
+plan-contract`, then fill it through leased JSON-pointer patches; never read or
+reproduce the installed JSON template. Treat this Skill's compact
+`assets/plan.md` as section guidance for the setup-created `plan.md` skeleton:
+query the skeleton through `artifact show` and fill only named sections through
+leased `artifact patch --section`; never emit or resubmit the full stable template. Cover affected components and files,
 interfaces and data, compatibility or migration, security, verification,
 rollout or rollback, and material risks only when relevant.
 
-For UI-bearing work, consume `DESIGN.md`, `ui-brief.md`, original fidelity
-sources, and the spec design contract. Set `ui_design_contract.ui_applicable:
-true`, preserve `ui_brief_ref`, and record `design_readiness`. Populate it with
-the current direction contract, surface/platform classification, approved visual,
-preview/manifest SHA-256 values, `DS-*` decisions, component/color-mode/
-responsive/motion contracts, reference intents, real content/image plans,
-design-system adoption, required states, must-preserve rules, real entry points,
+For UI-bearing work, query `.specify/design/design-system.json`, `DESIGN.md`,
+and `ui-brief.md` through targeted `specify-runtime artifact show` calls.
+Treat `.specify/design/design-system.json` as the machine-readable source of
+truth and `DESIGN.md` as its human-readable projection. Consume the returned
+contract sections, original fidelity sources, and the spec design contract. Set
+`ui_design_contract.ui_applicable: true`, preserve `ui_brief_ref`, and record
+`design_readiness`. Populate it with the current direction contract,
+surface/platform classification, approved visual,
+preview/manifest/handoff SHA-256 values, immutable handoff ref, selected `DS-*`
+decisions and `DH-*` contracts, component/color-mode/responsive/motion
+contracts, reference intents, real content/image plans, design-system
+adoption, required states, must-preserve rules, real entry points,
 viewport/state acceptance matrix, comparison tolerance, accepted deviations,
-and the evidence triad. Carry
-verified cognition routes into the compact context capsule. Do not defer these
-decisions to tasks.
+and the evidence triad. Carry verified cognition routes into the compact
+context capsule. Do not defer these decisions to tasks.
 
 If design-changing feasibility remains unproven, stop and route the named
 question to `$spx-deep-research`; do not hide research inside generic plan
 prose. Repair requirement contradictions through `$spx-clarify`.
 
-Create conditional outputs only when they carry independent design evidence:
-`research.md` for bounded implementation-shaping research, `data-model.md` for
-new data/state or persistence design, `contracts/` for external or protocol
-interfaces, and `quickstart.md` for a material end-to-end validation scenario.
-Otherwise record the skip reason in `plan-contract.json`. Refresh existing agent
+When bounded implementation-shaping research is triggered, create `research.md`
+with `specify-runtime artifact scaffold --kind research --path <feature-dir>/research.md`
+and fill only relevant sections through leased `artifact patch`; never reproduce
+the stable template in an inline submission. Create other fixed conditional
+outputs only as `data-model.md` through `artifact scaffold --kind data-model`
+for new data/state or persistence design and `quickstart.md` through `artifact
+scaffold --kind quickstart` for a material end-to-end validation scenario, then
+patch named sections. External or protocol
+files under `contracts/` are format-dependent and use `artifact prepare` plus
+inline `artifact submit` rather than a fake universal schema.
+Otherwise patch the skip reason into `plan-contract.json` through a leased JSON-pointer `artifact patch`. Refresh existing agent
 contexts with the installed `update-agent-context` script after the plan is
 valid.
+
+When isolated planning lanes are delegated, create an absent
+`planning/lane-manifest.json` with `artifact scaffold --kind planning-lane-manifest --path <feature-dir>/planning/lane-manifest.json` and
+query it on resume. Submit each compact lane result inline through `result
+submit --command plan`; the runtime alone writes its handoff. At material joins,
+replace the bounded `/lanes` array as a whole through a fresh leased JSON-pointer
+patch and patch `/status` separately at closeout. Never emulate array append,
+submit the manifest wholesale, or duplicate lane events.
 
 Validate the plan contract and compact plan view against confirmed requirements
 and live owners. Do not create tasks or task artifacts such as `tasks.md` or

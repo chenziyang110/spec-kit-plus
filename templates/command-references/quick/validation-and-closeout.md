@@ -6,11 +6,15 @@ Preserved Contract: quick completion requires changed surfaces, verification evi
 
 ## Completion Standard
 
-- Quick completion means a small, transparent closed loop: sweep the affected surfaces, make the required change, run at least one meaningful verification step, and record the resulting coverage truthfully.
+- Quick completion means a transparent closed loop over the complete confirmed outcome: sweep every affected surface, make the required changes across all planned batches, run meaningful verification at the required depth, and record the resulting coverage truthfully.
 - Completion requires all three:
   - the change itself is implemented in code, docs, config, or templates as needed
   - at least one smallest meaningful executable verification step has run
   - any unverified surface or remaining gap is called out explicitly instead of being implied away
+- For ordered multi-task work, completion additionally requires every confirmed
+  work item to have a terminal accepted status, its own mapped acceptance
+  evidence, and satisfied dependencies. A passing final check cannot hide a
+  skipped or failed work item.
 - The final `SUMMARY.md` must include `changed_code_paths` with modified, added, deleted, and renamed paths; `changed_behavior_surfaces` for affected commands, APIs, templates, generated assets, state files, tests, docs, validators, packets, or runtime assumptions; `verification_evidence`; and `project_cognition_refresh` with the inline update result or fallback `specify-runtime cognition mark-dirty` outcome whenever project cognition might be affected.
 - `should be fine`, `likely unaffected`, or `not expected to break` are not completion evidence.
 - If the change is implemented but verification or coverage is incomplete, do not claim the task is complete. Mark the remaining gap explicitly and continue the sweep or leave the task blocked with the concrete reason.
@@ -43,16 +47,18 @@ Preserved Contract: quick completion requires changed surfaces, verification evi
 ## Output Contract
 
 - Keep `STATUS.md` accurate enough that another session can resume without chat memory.
+- Keep the final ordered work-item ledger in `STATUS.md` and summarize every
+  work item's outcome and acceptance evidence in `SUMMARY.md`.
 - Produce scoped implementation changes, verification evidence, and a truthful resolved/blocked state for the quick task.
 - `SUMMARY.md` reports changed code paths, changed behavior surfaces, verification evidence, residual risk, and the `project_cognition_refresh` outcome when project cognition might be affected.
-- Preserve escalation history so it is clear why the task stayed quick or needed to grow.
+- Preserve scale-up and checkpoint-amendment history so it is clear how the task grew while remaining inside quick and which user-owned decisions were reconfirmed.
 
 ## Guardrails
 
 - Do not create a new full feature spec for quick tasks.
 - Keep quick-task tracking under `.planning/quick/`.
 - Preserve a lightweight planning and validation path rather than skipping discipline entirely.
-- Keep quick tasks atomic and self-contained.
+- Keep each quick task coherent and self-contained. A single quick task may contain multiple capabilities, lanes, batches, architecture decisions, migrations, and acceptance rows when they serve one confirmed outcome.
 - Keep leader responsibilities explicit: the leader owns scope, strategy selection, join points, validation, and summary while substantive task work remains packetized for subagent lanes.
 - Keep concrete execution on subagent lanes whenever possible. `subagent-blocked` is the final blocked status after recovery options are exhausted, not the default path.
 - Quick-task state must be resumable from `STATUS.md` without depending on chat history.

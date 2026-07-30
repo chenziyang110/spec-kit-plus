@@ -71,6 +71,32 @@ def test_build_teams_mcp_server_preserves_windows_absolute_paths_on_posix(monkey
     assert calls == [r"F:\project"]
 
 
+def test_teams_submit_result_forwards_inline_json(monkeypatch) -> None:
+    calls: list[dict[str, object]] = []
+
+    def fake_run(project_root: Path, operation: str, **kwargs):
+        calls.append({"operation": operation, **kwargs})
+        return {"operation": operation, "status": "ok"}
+
+    monkeypatch.setattr("specify_cli.mcp.teams_server.run_team_api_operation", fake_run)
+    server = build_teams_mcp_server(fastmcp_cls=FakeFastMCP)
+
+    server.tools["teams_submit_result"](
+        request_id="req-inline",
+        result_json='{"task_id":"T001","status":"success"}',
+        project_root=r"F:\project",
+    )
+
+    assert calls == [
+        {
+            "operation": "submit-result",
+            "request_id": "req-inline",
+            "result_json": '{"task_id":"T001","status":"success"}',
+            "session_id": "default",
+        }
+    ]
+
+
 def test_build_teams_mcp_server_registers_read_only_resources(monkeypatch) -> None:
     def fake_run(project_root: Path, operation: str, **kwargs):
         return {"operation": operation, "status": "ok", "payload": {"project_root": str(project_root)}}

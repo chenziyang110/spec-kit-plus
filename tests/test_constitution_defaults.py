@@ -2,7 +2,10 @@ from datetime import date
 from pathlib import Path
 import shutil
 
-from specify_cli import build_constitution_template_for_profile, ensure_constitution_from_template
+from specify_cli import (
+    build_constitution_template_for_profile,
+    ensure_constitution_from_template,
+)
 from specify_cli.learnings import ensure_learning_memory_from_templates
 
 
@@ -13,16 +16,28 @@ def _compact(text: str) -> str:
 def _assert_project_style_standard(content: str) -> None:
     compact = _compact(content)
     assert "Follow Project Style and Structure" in content
-    assert "current project's established style, file organization, naming conventions" in compact
+    assert (
+        "current project's established style, file organization, naming conventions"
+        in compact
+    )
     assert "helper APIs, framework patterns, and architecture boundaries" in compact
-    assert "present the recommendation, trade-offs, and expected impact to the user" in compact
+    assert (
+        "present the recommendation, trade-offs, and expected impact to the user"
+        in compact
+    )
 
 
 def _seed_constitution_template(project_path: Path) -> None:
-    source_template = Path(__file__).resolve().parents[1] / "templates" / "constitution-template.md"
-    target_template = project_path / ".specify" / "templates" / "constitution-template.md"
+    source_template = (
+        Path(__file__).resolve().parents[1] / "templates" / "constitution-template.md"
+    )
+    target_template = (
+        project_path / ".specify" / "templates" / "constitution-template.md"
+    )
     target_template.parent.mkdir(parents=True, exist_ok=True)
-    target_template.write_text(source_template.read_text(encoding="utf-8"), encoding="utf-8")
+    target_template.write_text(
+        source_template.read_text(encoding="utf-8"), encoding="utf-8"
+    )
 
 
 def _seed_constitution_profile_assets(project_path: Path) -> None:
@@ -44,7 +59,9 @@ def _seed_learning_templates(project_path: Path) -> None:
     ):
         source_template = templates_root / name
         target_template = target_root / name
-        target_template.write_text(source_template.read_text(encoding="utf-8"), encoding="utf-8")
+        target_template.write_text(
+            source_template.read_text(encoding="utf-8"), encoding="utf-8"
+        )
 
 
 def test_ensure_constitution_from_template_materializes_defaults(tmp_path):
@@ -68,12 +85,16 @@ def test_ensure_constitution_from_template_materializes_defaults(tmp_path):
     assert "Fallbacks Require Consent" in content
     assert "Encoding Preservation" in content
     assert "preserve the file's existing character encoding and BOM behavior" in content
-    assert ".specify/project-cognition/status.json" in content
-    assert "workflow-appropriate cognition query bundles" in content
+    assert ".specify/project-cognition/status.json" not in content
+    assert "specify-runtime cognition status|compass|query" in content
+    assert "not an agent file-read surface" in compact_content
     assert "advisory project cognition index" in content
     assert "Map points, code proves" in content
     assert "Project Cognition Before Existing-System Judgment" in content
-    assert "agents MUST query project cognition before broad source inspection" in compact_content
+    assert (
+        "agents MUST query project cognition before broad source inspection"
+        in compact_content
+    )
     assert "query result MUST guide routing, minimal live reads" in compact_content
     assert "Legacy handbook" in content
     assert "project-map exports" in content
@@ -81,7 +102,10 @@ def test_ensure_constitution_from_template_materializes_defaults(tmp_path):
     assert "map-update" in content
     assert "map-scan" in content
     assert "map-build" in content
-    assert "Maintain `DEBUG-HANDBOOK.md` and `BUILD-HANDBOOK.md` as the primary runtime atlas" not in content
+    assert (
+        "Maintain `DEBUG-HANDBOOK.md` and `BUILD-HANDBOOK.md` as the primary runtime atlas"
+        not in content
+    )
     lowered = content.lower()
     assert "workflow-owned mutation closeout" in lowered
     assert "run inline project cognition update" in lowered
@@ -125,7 +149,9 @@ def test_ensure_constitution_from_template_materializes_library_profile(tmp_path
 
     assert "# library-project Constitution" in content
     assert "### IV. Stable Public Surface" in content
-    assert "Public APIs, configuration keys, CLI flags, and file formats MUST" in content
+    assert (
+        "Public APIs, configuration keys, CLI flags, and file formats MUST" in content
+    )
     assert "SemVer and Release Discipline" in content
     assert "Examples and Upgrade Paths" in content
     assert "Project Cognition Before Existing-System Judgment" in content
@@ -235,13 +261,16 @@ def test_ensure_learning_memory_from_templates_materializes_defaults(tmp_path):
     assert "Confirmed Project Learning" in learnings_path.read_text(encoding="utf-8")
     index_content = index_path.read_text(encoding="utf-8")
     assert "Project Learning Index" in index_content
-    assert "specify learning start" in index_content
-    assert "specify learning show" in index_content
+    assert "specify-runtime learning start" in index_content
+    assert "specify-runtime learning show" in index_content
     assert "do not parse this file directly" in index_content
-    assert "Shared defaults that later `sp-xxx` workflows should follow" in rules_path.read_text(encoding="utf-8")
+    assert (
+        "Shared defaults that later `sp-xxx` workflows should follow"
+        in rules_path.read_text(encoding="utf-8")
+    )
     learnings_content = learnings_path.read_text(encoding="utf-8")
     assert "Runtime-maintained confirmed Learning" in learnings_content
-    assert "specify learning start" in learnings_content
+    assert "specify-runtime learning start" in learnings_content
 
 
 def test_ensure_learning_memory_from_templates_preserves_existing_files(tmp_path):

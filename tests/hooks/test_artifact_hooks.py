@@ -1,3 +1,4 @@
+import hashlib
 import json
 from pathlib import Path
 
@@ -11,8 +12,21 @@ from specify_cli.hooks.artifact_validation import (
     _validate_task_lifecycle_records,
     _validate_tasks_human_acceptance_contract,
     _validate_tasks_ui_contract,
+    _validate_ui_handoff_binding,
 )
 from specify_cli.workflow_runtime import WorkflowRuntimeError
+
+
+COMPARISON_TOLERANCE = {
+    "structure": "exact",
+    "content": "exact",
+    "tokens": "exact",
+    "geometry": {"unit": "px", "max_delta": 2},
+    "color": {"method": "delta-e-2000", "max_delta": 2},
+    "text_wrap": "exact",
+    "motion": {"unit": "ms", "max_delta": 16},
+    "platform_variance": "approved-deviation-only",
+}
 
 
 def _create_project(tmp_path: Path) -> Path:
@@ -1218,6 +1232,137 @@ def test_incomplete_ui_contract_is_not_accepted_as_a_legacy_shape(
     assert any("required_evidence" in error for error in errors)
 
 
+def test_ui_contract_binds_exact_immutable_design_handoff(tmp_path: Path) -> None:
+    project = _create_project(tmp_path)
+    feature_dir = project / ".specify" / "features" / "001-ui-handoff"
+    feature_dir.mkdir(parents=True)
+    handoff_path = (
+        project / ".specify" / "design" / "previews" / "round-01.handoff.json"
+    )
+    handoff_path.parent.mkdir(parents=True)
+    component_row = {
+        "id": "DH-COMP-001",
+        "component": "settings form",
+        "anatomy": ["label", "control", "feedback"],
+        "required_states": ["default", "error"],
+        "decision_ids": ["DS-COMP-001"],
+        "must_match": ["anatomy", "state language"],
+    }
+    visual_row = {
+        "id": "DH-VA-001",
+        "target_id": "DH-RESP-001",
+        "states": ["default", "error"],
+        "color_modes": ["light"],
+        "motion_modes": ["reduced"],
+        "decision_ids": ["DS-COMP-001"],
+        "must_match": ["structure", "state"],
+        "evidence": [
+            "structure_snapshot",
+            "visual_capture",
+            "runtime_diagnostics",
+            "visual_comparison_or_human_review",
+        ],
+        "approved_targets": [
+            {
+                "ref": "round-01.html?mode=light&motion=reduced&capture=1&viewport=390#direction-a",
+                "color_mode": "light",
+                "motion_mode": "reduced",
+            }
+        ],
+    }
+    tolerance = {
+        "structure": "exact",
+        "content": "exact",
+        "geometry": {"unit": "px", "max_delta": 2},
+    }
+    handoff = {
+        "schema": "spec-kit-design-handoff-v1",
+        "approval": {
+            "preview_ref": "round-01.html#direction-a",
+            "direction_id": "direction-a",
+            "preview_sha256": "a" * 64,
+            "manifest_sha256": "b" * 64,
+            "decision_ids": ["DS-COMP-001", "DS-RESP-001"],
+        },
+        "reproduction": {
+            "contract_ids": ["DH-COMP-001", "DH-RESP-001", "DH-VA-001"],
+            "component_contracts": [component_row],
+            "responsive_matrix": [],
+            "visual_acceptance_matrix": [visual_row],
+            "comparison_tolerance": tolerance,
+            "accepted_deviations": [],
+        },
+    }
+    handoff_bytes = json.dumps(
+        handoff, ensure_ascii=False, indent=2, sort_keys=True
+    ).encode("utf-8")
+    handoff_path.write_bytes(handoff_bytes)
+    contract = {
+        "approved_visual_ref": ".specify/design/previews/round-01.html#direction-a",
+        "approved_preview_sha256": "a" * 64,
+        "approved_manifest_sha256": "b" * 64,
+        "approved_handoff_ref": ".specify/design/previews/round-01.handoff.json",
+        "approved_handoff_sha256": hashlib.sha256(handoff_bytes).hexdigest(),
+        "design_decision_ids": ["DS-COMP-001"],
+        "handoff_contract_ids": ["DH-COMP-001", "DH-VA-001"],
+        "component_contracts": [component_row],
+        "responsive_matrix": [],
+        "visual_acceptance_matrix": [visual_row],
+        "comparison_tolerance": tolerance,
+        "accepted_deviations": [],
+    }
+
+    assert _validate_ui_handoff_binding(feature_dir, contract, "plan") == []
+
+    contract["approved_handoff_sha256"] = "c" * 64
+    errors = _validate_ui_handoff_binding(feature_dir, contract, "plan")
+    assert any("bind the immutable handoff bytes" in error for error in errors)
+
+    contract["approved_handoff_sha256"] = hashlib.sha256(handoff_bytes).hexdigest()
+    contract["component_contracts"] = [
+        {**component_row, "anatomy": ["agent-authored substitute"]}
+    ]
+    errors = _validate_ui_handoff_binding(feature_dir, contract, "plan")
+    assert any("exactly preserve immutable handoff row" in error for error in errors)
+
+
+def test_ui_contract_rejects_reauthored_handoff_ids(tmp_path: Path) -> None:
+    project = _create_project(tmp_path)
+    feature_dir = project / ".specify" / "features" / "001-ui-handoff"
+    feature_dir.mkdir(parents=True)
+    handoff_path = (
+        project / ".specify" / "design" / "previews" / "round-01.handoff.json"
+    )
+    handoff_path.parent.mkdir(parents=True)
+    handoff = {
+        "schema": "spec-kit-design-handoff-v1",
+        "approval": {
+            "preview_ref": "round-01.html#direction-a",
+            "direction_id": "direction-a",
+            "preview_sha256": "a" * 64,
+            "manifest_sha256": "b" * 64,
+            "decision_ids": ["DS-COMP-001"],
+        },
+        "reproduction": {"contract_ids": ["DH-COMP-001"]},
+    }
+    handoff_bytes = json.dumps(handoff, sort_keys=True).encode("utf-8")
+    handoff_path.write_bytes(handoff_bytes)
+    contract = {
+        "approved_visual_ref": ".specify/design/previews/round-01.html#direction-a",
+        "approved_preview_sha256": "a" * 64,
+        "approved_manifest_sha256": "b" * 64,
+        "approved_handoff_ref": ".specify/design/previews/round-01.handoff.json",
+        "approved_handoff_sha256": hashlib.sha256(handoff_bytes).hexdigest(),
+        "design_decision_ids": ["DS-INVENTED-999"],
+        "handoff_contract_ids": ["DH-INVENTED-999"],
+    }
+
+    errors = _validate_ui_handoff_binding(feature_dir, contract, "plan")
+
+    assert any("design_decision_ids" in error for error in errors)
+    assert any("handoff_contract_ids" in error for error in errors)
+
+
 def test_current_ui_direction_contract_continues_from_spec_to_task_index(
     tmp_path: Path,
 ) -> None:
@@ -1238,7 +1383,10 @@ def test_current_ui_direction_contract_continues_from_spec_to_task_index(
         "approved_visual_ref": "DESIGN.md#settings",
         "approved_preview_sha256": "",
         "approved_manifest_sha256": "",
+        "approved_handoff_ref": "",
+        "approved_handoff_sha256": "",
         "design_decision_ids": ["DS-COMP-001", "DS-RESP-001"],
+        "handoff_contract_ids": [],
         "reference_intents": [
             {"ref": "DESIGN.md#settings", "intent": "preserve-structure"},
             {"ref": "ui-brief.md#interaction", "intent": "exact"},
@@ -1268,7 +1416,7 @@ def test_current_ui_direction_contract_continues_from_spec_to_task_index(
         "visual_acceptance_matrix": [
             {"viewport": "390", "state": "ready", "evidence": "visual_capture"}
         ],
-        "comparison_tolerance": "no unapproved structural drift",
+        "comparison_tolerance": COMPARISON_TOLERANCE,
         "accepted_deviations": [],
         "required_evidence": [
             "structure_snapshot",
@@ -1408,7 +1556,10 @@ def _write_ui_continuity_fixture(
         "approved_visual_ref": "DESIGN.md#settings",
         "approved_preview_sha256": "",
         "approved_manifest_sha256": "",
+        "approved_handoff_ref": "",
+        "approved_handoff_sha256": "",
         "design_decision_ids": ["DS-COMP-001", "DS-RESP-001"],
+        "handoff_contract_ids": [],
         "reference_intents": [
             {"ref": "DESIGN.md#settings", "intent": "preserve-structure"}
         ],
@@ -1437,7 +1588,7 @@ def _write_ui_continuity_fixture(
         "visual_acceptance_matrix": [
             {"viewport": "390", "state": "ready", "evidence": "visual_capture"}
         ],
-        "comparison_tolerance": "no unapproved structural drift",
+        "comparison_tolerance": COMPARISON_TOLERANCE,
         "accepted_deviations": [],
         "required_evidence": [
             "structure_snapshot",
@@ -1585,9 +1736,7 @@ def test_task_ui_contract_requires_exact_design_decision_coverage(
 
     errors = _validate_tasks_ui_contract(feature_dir)
 
-    assert any(
-        "must cover plan design_decision_ids" in error for error in errors
-    )
+    assert any("must cover plan design_decision_ids" in error for error in errors)
 
 
 def _write_human_acceptance_universe(

@@ -57,7 +57,8 @@ def _assert_compact_managed_context(content: str) -> None:
     assert "## Workflow Recommendations" in content
     assert "do not auto-enter an `sp-*` workflow" in lower
     assert "recommend `sp-discussion`" in lower
-    assert "`sp-specify` for formal alignment" in lower
+    assert "`sp-quick` for tracked direct delivery of any size" in lower
+    assert "`sp-specify` for an explicitly selected formal spec-first path" in lower
     assert "`sp-deep-research` for feasibility proof" in lower
     assert "`sp-debug` for root-cause diagnosis" in lower
     assert "## Command Surface Rules" in content
@@ -84,7 +85,6 @@ def _assert_compact_managed_context(content: str) -> None:
     assert "## Project Cognition Usage" not in content
     assert "## Map Maintenance" not in content
     assert "sp-fast" not in lower
-    assert "sp-quick" not in lower
     assert "sp-test-scan" not in lower
     assert "sp-test-build" not in lower
 
@@ -1163,12 +1163,22 @@ class TestClaudeIntegration:
         assert ".env" in hook_output["permissionDecisionReason"]
         assert "additionalContext" not in hook_output
 
-    def test_claude_hook_dispatch_blocks_invalid_commit_message_via_shared_engine(
-        self, tmp_path
+    def test_claude_hook_dispatch_blocks_invalid_commit_message_via_runtime(
+        self, tmp_path, built_unified_runtime
     ):
         integration = get_integration("claude")
         manifest = IntegrationManifest("claude", tmp_path)
         integration.setup(tmp_path, manifest, script_type="sh")
+        (tmp_path / ".specify" / "config.json").write_text(
+            json.dumps(
+                {
+                    "runtime_launcher": {
+                        "argv": [str(built_unified_runtime)],
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
 
         env = os.environ.copy()
         repo_root = Path(__file__).resolve().parents[2]
@@ -1352,7 +1362,7 @@ class TestClaudeIntegration:
                 {
                     "tool_name": "Bash",
                     "tool_input": {
-                        "command": f'specify hook validate-state --command specify --feature-dir "{feature_dir}" --autofix'
+                        "command": f'specify-runtime hook validate-state --command specify --feature-dir "{feature_dir}" --autofix --format json'
                     },
                 }
             ),
@@ -1535,9 +1545,7 @@ class TestClaudeIntegration:
         integration.setup(tmp_path, manifest, script_type="sh")
         manifest.save()
         claude_config = tmp_path / "personal-claude"
-        personal_skill = (
-            claude_config / "skills" / "sp-map-scan" / "SKILL.md"
-        )
+        personal_skill = claude_config / "skills" / "sp-map-scan" / "SKILL.md"
         personal_skill.parent.mkdir(parents=True)
         personal_skill.write_text("# Stale personal map scan\n", encoding="utf-8")
         monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(claude_config))
@@ -1554,9 +1562,7 @@ class TestClaudeIntegration:
             tmp_path,
             {
                 "tool_name": "Write",
-                "tool_input": {
-                    "file_path": str(cognition_dir / "status.json")
-                },
+                "tool_input": {"file_path": str(cognition_dir / "status.json")},
             },
         )
 
@@ -1720,6 +1726,52 @@ class TestClaudeIntegration:
             "--prompt-stdin",
         ]
         assert seen_stdin.read_text(encoding="utf-8") == "continue"
+
+    def test_claude_runtime_owned_hooks_use_only_runtime_launcher(self, tmp_path):
+        module = _load_claude_hook_dispatch_module()
+        config_path = tmp_path / ".specify" / "config.json"
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        config_path.write_text(
+            json.dumps(
+                {
+                    "specify_launcher": {"argv": ["python-specify"]},
+                    "runtime_launcher": {"argv": [".specify/bin/specify-runtime"]},
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        for subcommand in (
+            "validate-state",
+            "validate-artifacts",
+            "validate-commit",
+        ):
+            args = [subcommand, "--format", "json"]
+            assert module._shared_hook_commands(tmp_path, args) == [
+                [
+                    ".specify/bin/specify-runtime",
+                    "hook",
+                    *args,
+                ]
+            ]
+
+        assert module._is_validate_state_autofix_command(
+            "specify-runtime hook validate-state --command plan "
+            "--feature-dir .specify/features/001-demo --autofix"
+        )
+        assert not module._is_validate_state_autofix_command(
+            "specify hook validate-state --command plan "
+            "--feature-dir .specify/features/001-demo --autofix"
+        )
+
+        assert module._shared_hook_commands(
+            tmp_path, ["validate-prompt", "--prompt-stdin"]
+        )[0] == [
+            "python-specify",
+            "hook",
+            "validate-prompt",
+            "--prompt-stdin",
+        ]
 
     def test_claude_shared_hook_timeout_fails_open(self, tmp_path, monkeypatch):
         module = _load_claude_hook_dispatch_module()
@@ -2123,9 +2175,7 @@ class TestClaudeIntegration:
         integration.setup(tmp_path, manifest, script_type="sh")
         manifest.save()
         claude_config = tmp_path / "personal-claude"
-        personal_skill = (
-            claude_config / "skills" / "sp-map-scan" / "SKILL.md"
-        )
+        personal_skill = claude_config / "skills" / "sp-map-scan" / "SKILL.md"
         personal_skill.parent.mkdir(parents=True)
         personal_skill.write_text("# Stale personal map scan\n", encoding="utf-8")
         monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(claude_config))
@@ -2280,7 +2330,9 @@ class TestClaudeIntegration:
             "record a learning review decision for `sp-plan`"
             in hook_output["additionalContext"]
         )
-        assert "specify learning capture-auto" in hook_output["additionalContext"]
+        assert (
+            "specify-runtime learning capture-auto" in hook_output["additionalContext"]
+        )
         assert (
             "do not edit Learning storage directly" in hook_output["additionalContext"]
         )
@@ -2500,10 +2552,34 @@ class TestClaudeIntegration:
         transcript_path.write_text(
             "\n".join(
                 [
-                    json.dumps({"type": "user", "message": {"content": [{"type": "text", "text": "先做 $sp-map-scan"}]}}),
-                    json.dumps({"type": "assistant", "message": {"content": [{"type": "text", "text": "ok"}]}}),
-                    json.dumps({"type": "user", "message": {"content": [{"type": "text", "text": "现在继续 $sp-map-build"}]}}),
-                ])
+                    json.dumps(
+                        {
+                            "type": "user",
+                            "message": {
+                                "content": [
+                                    {"type": "text", "text": "先做 $sp-map-scan"}
+                                ]
+                            },
+                        }
+                    ),
+                    json.dumps(
+                        {
+                            "type": "assistant",
+                            "message": {"content": [{"type": "text", "text": "ok"}]},
+                        }
+                    ),
+                    json.dumps(
+                        {
+                            "type": "user",
+                            "message": {
+                                "content": [
+                                    {"type": "text", "text": "现在继续 $sp-map-build"}
+                                ]
+                            },
+                        }
+                    ),
+                ]
+            )
             + "\n",
             encoding="utf-8",
         )
@@ -2608,9 +2684,7 @@ class TestClaudeIntegration:
                     "type": "message",
                     "message": {
                         "role": "user",
-                        "content": [
-                            {"type": "text", "text": "现在执行 $sp-map-build"}
-                        ],
+                        "content": [{"type": "text", "text": "现在执行 $sp-map-build"}],
                     },
                 }
             )
@@ -2679,7 +2753,9 @@ class TestClaudeIntegration:
         large_assistant_entry = json.dumps(
             {
                 "type": "assistant",
-                "message": {"content": "x" * (module.TRANSCRIPT_READ_LIMIT_BYTES + 1024)},
+                "message": {
+                    "content": "x" * (module.TRANSCRIPT_READ_LIMIT_BYTES + 1024)
+                },
             }
         )
         map_entry = json.dumps(
@@ -2966,7 +3042,7 @@ class TestClaudeIntegration:
             "record a learning review decision for `sp-plan`"
             in payload["systemMessage"]
         )
-        assert "specify learning capture-auto" in payload["systemMessage"]
+        assert "specify-runtime learning capture-auto" in payload["systemMessage"]
         assert "do not edit Learning storage directly" in payload["systemMessage"]
         assert "init --here --force ..." not in payload["systemMessage"]
 
@@ -3665,11 +3741,12 @@ def test_claude_generated_runtime_facing_skills_include_native_subagent_contract
         assert "native subagent capability discovery" in content
         assert "do not record `subagent-blocked`" in content
         assert "result contract" in content
-        assert "result handoff path" in content
+        assert "inline result submission" in content
+        assert "runtime-owned compatibility path" in content
         assert "wait for every subagent's structured handoff" in content
         assert "do not treat an idle subagent as done work" in content
         assert (
-            "do not interrupt or shut down subagent work before the handoff has been written"
+            "do not interrupt or shut down subagent work before the handoff has been returned inline"
             in content
         )
         assert "done_with_concerns" in content
@@ -3863,8 +3940,10 @@ def test_claude_generated_sp_implement_teams_skill_uses_agent_teams_surface(tmp_
     )
     assert "--query-plan" in lower
     assert "{{specify-subcmd:" not in content
-    assert ".specify/project-cognition/status.json" in lower
-    assert ".specify/project-cognition/project-cognition.db" in lower
+    assert "cognition status|compass" in lower
+    assert "underlying storage as runtime-owned without including or reading its paths" in lower
+    assert ".specify/project-cognition/status.json" not in lower
+    assert ".specify/project-cognition/project-cognition.db" not in lower
     assert "task-local bundle" in lower
     assert "minimal_live_reads" in lower
     assert "first_pass_paths" in lower
@@ -3884,7 +3963,7 @@ def test_claude_generated_sp_implement_teams_skill_uses_agent_teams_surface(tmp_
     )
     assert "write set and shared surfaces" in lower
     assert "explicit verification command or acceptance check" in lower
-    assert "canonical result handoff path" in lower
+    assert "exact inline result-submission owner" in lower
     assert (
         "completion protocol covering start, blocker, and final completion evidence"
         in lower
@@ -3937,7 +4016,8 @@ def test_claude_generated_sp_implement_teams_skill_uses_agent_teams_surface(tmp_
     assert "worker-results" in lower
     assert "subagent result contract" not in lower
     assert "subagent dispatch contract" not in lower
-    assert "result file handoff path" in lower
+    assert "inline result submission" in lower
+    assert "never create a result file or use `--result-file`" in lower
     assert "feature_dir/worker-results/<task-id>.json" in lower
     assert "core implementation complete" in lower
     assert "ready for integration testing" in lower

@@ -6,12 +6,17 @@ Require a clean leader workspace and healthy `.specify/teams/` runtime. Run
 health. Resume the existing feature session; never start a second leader.
 
 Use `{{specify-subcmd:specify-runtime sp-teams auto-dispatch --feature-dir <feature-dir>}}` for
-an explicit ready parallel batch so validated packets, requests, result paths,
+an explicit ready parallel batch so validated packets, requests, result channels,
 and batch state are compiled by the runtime. Observe with the supported status,
 await, or watch surfaces. For structured recovery, generate a handoff with
 `{{specify-subcmd:specify-runtime sp-teams result-template --request-id <id>}}` or inspect
 `{{specify-subcmd:specify-runtime sp-teams submit-result --print-schema}}`; a pending template
 is not a completed result.
+
+Workers submit the completed object inline with
+`specify-runtime sp-teams submit-result --request-id <id> --result-json
+'<inline-json>'`. Never create or overwrite a result file or canonical result
+path.
 
 Await every request and reject missing, stale, out-of-scope, or unverified
 results. Run `{{specify-subcmd:specify-runtime sp-teams complete-batch --batch-id <id>}}` only

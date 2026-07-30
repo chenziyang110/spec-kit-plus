@@ -73,7 +73,7 @@ Trigger this audit when a new or changed entry point reuses an existing operatio
 
 Inspect current live evidence before writing the result inventory: result/error definitions, current consumers, state transitions, tests and assertions, and UI/window/request/retry owners. Archived specifications are excluded from default discovery. Use one only for explicit lineage or provenance, identify the exact claim being traced, and verify that claim against current live evidence before relying on it; an archived document never proves current behavior by itself.
 
-Persist one `entrypoint_outcome_contract` in `spec-contract.json`:
+Patch one `entrypoint_outcome_contract` into `spec-contract.json` through a leased `specify-runtime artifact patch`:
 
 - `triggered`, `trigger_reasons`, and an explicit `stand_down_reason` when not triggered;
 - `inventory_complete` plus non-empty `inventory_evidence_refs` when triggered;
@@ -124,7 +124,7 @@ For `recoverable-user-input`, make required interaction explicit: consumer/state
 - Use `choose_ui_reference_lane_dispatch(command_name="specify", snapshot, workload_shape)` and record `lane_mode: ui-reference-artifact`.
 - For `approximate` and `high`, native subagents are required by default; if native subagents are unavailable, follow the decision from `choose_ui_reference_lane_dispatch` and proceed inline only when it returns a gated `leader-inline` fallback with explicit user approval recorded, otherwise block with the missing capability instead of guessing.
 - For `inspiration`, inline fallback may proceed only after `choose_ui_reference_lane_dispatch` returns a gated `leader-inline` soft-risk decision with safe lane and contract-ready state satisfied.
-- Dispatch the UI reference lane to write only `ui-reference-notes.md`, `ui-brief.md`, and optional `ui-target.html`.
+- Dispatch the UI reference lane with registered artifact owners for notes/brief and `specify-runtime design ui-target` for optional `ui-target.html`.
 - Validate `ui-target.html`, when present, with
   `{{specify-subcmd:specify-runtime design ui-target-lint <path> --level ready}}`.
   It is a single-file,

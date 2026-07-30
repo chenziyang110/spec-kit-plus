@@ -322,4 +322,12 @@ def test_classic_preimplementation_stages_forbid_downstream_owned_outputs() -> N
         in specify
     )
     for stage, content in (("specify", specify), ("plan", plan), ("tasks", tasks)):
-        assert f"hook validate-artifacts --command {stage}" in content
+        assert f"hook validate-artifacts --command {stage}" not in content
+        assert (
+            "{{spec-kit-include: ../command-partials/common/agent-phase-handoff.md}}"
+            in content
+        )
+
+    handoff = _read("templates/command-partials/common/agent-phase-handoff.md")
+    assert "specify-runtime workflow complete-stage" in handoff
+    assert "The runtime validates the stage artifacts" in handoff

@@ -31,7 +31,8 @@ def test_repo_quick_skill_mirror_has_codex_subagent_dispatch_contract(tmp_path: 
     assert ".planning/quick/<id>-<slug>/status.md" in body
     assert ".planning/quick/index.json" in full_body
     assert 'choose_subagent_dispatch(command_name="quick"' in full_body
-    assert "read `.specify/memory/constitution.md` first" in body
+    assert "query `.specify/memory/constitution.md` first through" in body
+    assert "specify-runtime artifact show" in body
     assert "understanding checkpoint" in body
     assert_quick_checkpoint_card_shape(body)
     assert "understanding_confirmed: true" in body
@@ -41,7 +42,8 @@ def test_repo_quick_skill_mirror_has_codex_subagent_dispatch_contract(tmp_path: 
     assert "parallel-subagents" in full_body
     assert "native-subagents" in full_body
     assert "subagent-blocked" in full_body
-    assert "constitution read is the first hard gate" in full_body
+    assert "first hard gate is a targeted" in full_body
+    assert "query of the constitution" in full_body
     assert "codex leader gate" in body
     assert "spawn_agent" in body
     assert "wait_agent" in body

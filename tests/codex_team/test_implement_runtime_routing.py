@@ -63,7 +63,11 @@ def test_sp_implement_continues_until_terminal_state() -> None:
     content = _read_template().lower()
 
     assert "continue automatically until complete or genuinely blocked" in content
-    assert "select the smallest ready task/batch whose dependencies are satisfied" in content
+    assert (
+        "call `specify-runtime implement task-next` for compact execution state and the next ready task"
+        in content
+    )
+    assert "select the smallest ready task/batch" not in content
     assert "do not declare completion because tasks look checked off" in content
     assert "plan_gap" in content
     assert "spec_gap" in content
@@ -73,7 +77,7 @@ def test_sp_implement_requires_user_facing_closeout_summary() -> None:
     content = _read_template().lower()
 
     assert "implementation-summary.md" in content
-    assert "implementation_summary" in content
-    assert "what changed, how to verify it, and what differs from the previous version" in content
-    assert "git diff --stat" in content
-    assert "git diff --name-status" in content
+    assert "exclusively derives and atomically writes" in content
+    assert "never author, patch, submit, or stage either artifact yourself" in content
+    assert "preliminary `implementation-summary.md`" in content
+    assert "mandatory system review" in content

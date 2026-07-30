@@ -15,8 +15,8 @@ validated. Run `git config --get remote.origin.url`, parse its canonical GitHub
 repository identity, and require that the exporter or connector target exactly
 matches that owner/repository. If the remote is missing, non-GitHub, ambiguous,
 or does not exactly match, do not create or update any issue; report the
-boundary and stop. Then confirm credentials/connector access. Read
-`task-index.json` when present, otherwise `tasks.md`. Do not publish secrets,
+boundary and stop. Then confirm credentials/connector access. Query
+`task-index.json` when present, otherwise `tasks.md`, through targeted `specify-runtime artifact show` calls. Do not publish secrets,
 private evidence, internal-only paths, or unstable draft tasks.
 
 Check existing issues and recorded task links before creating anything. Project

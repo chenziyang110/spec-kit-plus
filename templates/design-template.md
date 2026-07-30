@@ -12,7 +12,12 @@ design_system:
     visual_refs: []
     preview_sha256: null
     manifest_sha256: null
+    handoff_ref: null
+    handoff_sha256: null
     decision_ids: []
+    handoff_contract_ids: []
+    capability_profile_ids: []
+    specimen_ids: []
   product_context:
     subject: null
     audience: null
@@ -26,6 +31,8 @@ design_system:
     creative_risks: []
   platforms:
     - select-during-sp-design
+  capability_profiles: []
+  specimens: []
   tokens:
     color: {}
     spacing: {}
@@ -63,7 +70,8 @@ design_system:
 
 This file is a structurally valid bootstrap seed, not an approved product design.
 Before substantive new UI, run `sp-design`/`spx-design`, select a project-specific
-direction, replace generic starter choices, and set the approval metadata above.
+direction, and let `specify-runtime design export` replace the generic starter
+choices and bind the approval metadata above.
 Downstream agents must not treat `status: bootstrap` as locked visual truth.
 
 ## Product Feel
@@ -103,7 +111,8 @@ foreground/background contrast pairs instead of relying on aesthetic labels.
 - Inputs must have default, hover, focus, disabled, and error states.
 - Repeated cards may use `radius.panel`; controls should use `radius.control`.
 - Prefer existing component patterns before adding variants.
-- Do not invent styling outside the token set without updating this file.
+- Do not invent styling outside the token set; approve a new design round and
+  regenerate this file only through `specify-runtime design export`.
 
 ## Motion Rules
 
@@ -163,4 +172,6 @@ IDs. Absence from the contract is not permission to reinterpret the design.
 Promote this seed to `status: approved` only through `sp-design`/`spx-design`
 after a direction is selected from product and repository evidence. Later
 changes to product-wide style, brand, density, component rules, token values,
-or platform expectations must update this file and its approval provenance.
+or platform expectations require a new approved design round followed by
+`specify-runtime design export`; never edit this file or its approval provenance
+directly.

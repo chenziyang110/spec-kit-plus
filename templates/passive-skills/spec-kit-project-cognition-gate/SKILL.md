@@ -31,13 +31,13 @@ judgment in an established Spec Kit Plus repository:
   6. Treat `expansion_ref` as a normal continuation path. Run `specify-runtime cognition expand --id <id> --section claim_evidence --format json` when an active claim needs bounded `source_path`/`span` evidence; advanced `specify-runtime cognition query` may also return top-level `claim_signals` with bounded evidence refs.
   7. Do not infer final edit scope from `minimal_live_reads`, `first_pass_paths`, `claim_refs`, `claim_signals`, or `claim_evidence`.
   Compass applies graph claims only as a bounded rerank after repository-backed route eligibility is established. `match_score` remains the eligibility score; lane `claim_ranking.adjustment` may only move an already-matched candidate by `+1` for fresh `supported`/`verified_in_graph_generation`, `-1` for stale, or `-2` for contradicted. Claims cannot create candidates and cannot replace live verification. When `coverage_diagnostics` contains `stale_claim_signal` or `contradicted_claim_signal`, treat the packet as `usable_with_review`, follow `reconcile_claims_with_minimal_live_reads`, and complete the lane-specific refresh or reconciliation action against the live repository.
-  For decisive claim-specific evidence, provide only reconciliation intent: workflow, stable `claim_id`, reason, repository-relative `source_path`, bounded line `span`, `supporting` or `contradicting` role, and optional claim-specific verification. Run `specify-runtime cognition claim-reconcile prepare --input <intent.json> --format json`; the runtime owns every integrity field and the prepared packet path. Execute the returned `apply_argv` exactly (`specify-runtime cognition claim-reconcile apply --input <prepared_packet_path> --format json`). Generic workflow verification is insufficient. On ready, rerun Compass once; on partial or blocked, withhold the claim.
+  For decisive claim-specific evidence, provide only an in-memory reconciliation intent: workflow, stable `claim_id`, reason, repository-relative `source_path`, bounded line `span`, `supporting` or `contradicting` role, and optional claim-specific verification. Run `specify-runtime cognition claim-reconcile prepare --input-json '<intent-json>' --format json`; never create an intent file. The runtime owns every integrity field and the prepared packet path. Execute the returned `apply_argv` exactly (`specify-runtime cognition claim-reconcile apply --input <prepared_packet_path> --format json`); that file is runtime-created. Generic workflow verification is insufficient. On ready, rerun Compass once; on partial or blocked, withhold the claim.
   The `epistemic_contract` cannot authorize source changes and cannot prove current behavior. Carry `epistemic_contract` forward, withhold unverified claims, and let contradictory live evidence override the route candidate.
   Graph claims are indexed assertions. Even `verified_in_graph_generation` is only an active graph-generation state, not current repository truth; graph claims cannot authorize source changes and cannot set workflow `claim_ready=true`. Treat `candidate` and `supported` as navigation hypotheses, and `contradicted` or `stale` as negative-route or historical context until bounded live evidence is checked.
   Readiness values are `query_ready`, `review`, `needs_rebuild`, `blocked`, and `unsupported_runtime`. Compass-specific advice is in `compass_state` and `recommended_next_action`.
   Treat `recommended_next_action` as an object. Do not treat `recommended_next_action` as a string. Read `recommended_next_action.action_id` for every packet: `needs_rebuild` alone is not a rebuild route and can accompany a resumable action such as `complete_scan_packets`. Only for `action_id=project_cognition.rebuild`, inspect every entry in `rebuild_reasons[]`, preserve its stable `code`, human-readable `message`, and relevant `evidence`, then follow the canonical Classic sequence in `recommended_next_action.workflow_routes.classic.steps`. Project those canonical step names through this integration's invocation syntax instead of guessing from readiness or an internal action ID. Non-rebuild actions omit workflow routes and must be preserved by `action_id` alone.
   If a non-workflow action includes `recommended_next_action.argv`, execute that exact argv through the project-pinned cognition launcher. `project_cognition.repair_status` owns the deterministic `repair-status` action; never patch graph-store metadata by hand.
-  When `compass_state=needs_semantic_intake`, the agent writes `semantic_intake` from project vocabulary and reruns compass with `--semantic-intake-file`, or uses the advanced `lexicon -> semantic_intake -> query` path when explicit concept decisions are needed.
+  When `compass_state=needs_semantic_intake`, build `semantic_intake` in memory from project vocabulary and rerun compass with `--semantic-intake-json '<semantic-intake-json>'`, or use the advanced `lexicon -> semantic_intake -> query` path when explicit concept decisions are needed. Never create an intake file.
   Advanced routing remains available as `specify-runtime cognition lexicon --mode catalog`, agent-authored `semantic_intake` and `concept_decisions`, then `specify-runtime cognition query --query-plan`. Use it when the first compass packet is too draft-like, a workflow needs explicit concept decisions, or coverage cannot be resolved from the default packet.
   The current query contract is `claim_retrieval_contract_version=2` and `candidate_universe_version=2`; carry the latter from lexicon into every explicit query plan. Never parse missing or non-current versions as legacy input; rerun lexicon or compass with the current binary and repair the install if needed.
   The advanced path still requires `normalized_query`, `intent_facets`, `negative_constraints`, `alias_interpretations`, `selected_concepts`, `rejected_concepts`, `concept_decisions`, `covered_facets`, `missing_facets`, `match_sources`, `lexicon_generation_id`, `expanded_queries`, `repository_search_terms`, and facet coverage; do not trust top similarity alone.
@@ -68,8 +68,9 @@ judgment in an established Spec Kit Plus repository:
   whether backend/server/runtime code exists in the repository.
 - Treat the task-local project cognition compass packet as the task-local
   project navigation bundle. Treat raw graph JSON artifacts as obsolete runtime surfaces;
-  use `.specify/project-cognition/project-cognition.db`, the compass packet,
-  and bounded live evidence instead.
+  use `specify-runtime cognition compass|query|expand` for graph access and
+  combine the returned packet with bounded live evidence. Never read the
+  database directly.
 - Candidate selection must satisfy facet coverage for the active workflow. Each
   `concept_decisions` item should include `covered_facets`, `missing_facets`,
   `match_sources`, confidence, and risk. Do not trust top similarity alone:
@@ -118,20 +119,19 @@ judgment in an established Spec Kit Plus repository:
 
 ## Cross-Project Reference Directories
 
-- When inspecting or comparing another local directory, check whether that
-  directory or its children contain `.specify/` first. A referenced directory may
-  be a downstream Spec Kit project even when it is outside the current repo.
-- Prefer `specify-runtime cognition discover --root <path> --format json` to enumerate nested
+- When inspecting or comparing another local directory, run
+  `specify-runtime cognition discover --root <path> --format json`; never probe for
+  `.specify/` or its children yourself. A referenced directory may be a downstream
+  Spec Kit project even when it is outside the current repo.
+- Use the same discovery response to enumerate nested
   `.specify/` candidates before broad live reads. Treat its `projects` entries as
   specify-runtime cognition candidates and its `specify_candidates` entries as the
   broader set of Spec Kit-shaped directories.
-- Use another project's cognition only when
-  `.specify/project-cognition/status.json` exists,
-  `.specify/project-cognition/project-cognition.db` exists,
-  `reference_readiness` is `ready`, freshness is `fresh`, and `graph_ready` is
-  true.
-- For ready references, read only the fresh project cognition artifacts needed
-  for the comparison, then use the returned minimal read order before inspecting
+- Use another project's cognition only when the discovery response reports
+  `reference_readiness=ready`, `freshness=fresh`, and `graph_ready=true`; those
+  fields already include the runtime's storage-integrity checks.
+- For ready references, use only the bounded cognition response needed
+  for the comparison, then follow its returned minimal read order before inspecting
   more source files. Treat the reference map as supplemental navigation, not as
   evidence by itself.
 - For blocked, stale, or incomplete references, do not treat legacy
@@ -215,13 +215,14 @@ judgment in an established Spec Kit Plus repository:
   path_index rows outside `greenfield_empty`, missing or invalid `alias_index`,
   `explicit_rebuild_requested`, or `baseline_identity_invalid`.
   Schema v5 is current-only. The runtime does not migrate schema v4 or older
-  databases and does not archive or replace them. Remove the incompatible project-cognition.db
-  explicitly before `sp-map-scan -> sp-map-build` with the current binary.
+  databases. Run `specify-runtime cognition archive-incompatible-store --inspect --format json`,
+  then execute its guarded `archive_argv`; only that CLI may archive the
+  incompatible store before `sp-map-scan -> sp-map-build` with the current binary.
   Uncertain closure can be recorded by `sp-map-update` as partial/low-confidence
   facts, known unknowns, and `minimal_live_reads`.
 - Entry-time stale or weak cognition is still an advisory navigation concern unless the user explicitly requested map maintenance. A workflow may continue from live evidence when entry guidance allows it. That entry routing rule does not waive closeout ownership.
 - Workflow-owned mutation closeout is not an external map-maintenance handoff. If the active mutation workflow changed project-related source, runtime, templates, generated assets, config, tests, state contracts, or behavior-bearing docs, follow its rendered planner-first closeout command with the registry-owned literal `sp-*` workflow ID and explicit workflow-owned paths; never derive the ID from an environment variable.
-- When `DELTA_SESSION_ID` exists, pass `--delta-session "$DELTA_SESSION_ID"` to `closeout-plan`. Fill fields listed in `required_agent_fields` from live evidence; optional payload/delta fields such as `known_unknowns` and `boundary` are populated only when evidence supports them. Follow `update_mode=delta_session` by completing `delta_append_draft.argv_prefix` with evidence placeholders, appending the workflow closeout delta event, then running structured `update_argv`. Follow `update_mode=payload_file` by writing the completed `payload_draft`, then running structured `update_argv`. The display-only `update_command` and display-only `delta_append_command` placeholders are not execution strings.
+- When `DELTA_SESSION_ID` exists, pass `--delta-session "$DELTA_SESSION_ID"` to `closeout-plan`. Fill fields listed in `required_agent_fields` from live evidence; optional payload/delta fields such as `known_unknowns` and `boundary` are populated only when evidence supports them. Follow `update_mode=delta_session` by completing `delta_append_draft.argv_prefix` with evidence placeholders, appending the workflow closeout delta event, then running structured `update_argv`. Follow `update_mode=inline_json` by completing `payload_draft` in memory, substituting it for `<inline-json>` in `update_argv`, and never creating a payload file. The display-only `update_command` and display-only `delta_append_command` placeholders are not execution strings.
 - Use `known_unknowns` only for blockers that make the cognition update unsafe to trust. If the working tree contains unrelated dirty/untracked paths and the workflow uses explicit workflow-owned paths, record that as `confidence_notes` or `boundary.initial_dirty_paths`, not as a blocking `known_unknowns` item.
 - Before update recording, resolve `unknown_path_dispositions` by setting `agent_disposition` to `adoptable`, `review_only`, `ignored`, or `blocking_known_unknown`. Verified `adoptable` paths do not become blocking `known_unknowns`. Only `blocking_known_unknown` dispositions become payload or delta known unknowns. `agent_disposition=adoptable` is an agent accounting decision, not proof that runtime indexing already succeeded; after `update_argv` runs, inspect `result_state`, `adopted_paths`, `review_paths`, `minimal_live_reads`, and `partial_refresh_reasons`.
 - Clean closeout keys on `result_state`, not `status=ok`, `update_id`, `last_update_id`, or freshness alone; `recorded` is legacy recorded-only partial/blocked output. If `partial_refresh_reasons` includes `missing_passing_verification_result`, repair the payload or delta evidence and rerun `update_argv` before final closeout instead of routing to `sp-map-update`. Never run the `complete-refresh` or `clear-dirty` helper after `result_state=partial_refresh`, `needs_rebuild`, `blocked`, or legacy `recorded`. Use `specify-runtime cognition mark-dirty --reason "workflow-closeout-failed" --format json` only when planner/update is unavailable, fails before recording useful update data, cannot safely identify workflow-owned scope, is blocked by runtime state, or verification/workflow completion is not trustworthy.

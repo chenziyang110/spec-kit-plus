@@ -11,29 +11,33 @@ Preserved Contract: STATUS.md remains the source of truth and quick-task workspa
 - The minimum artifact set is:
   - `STATUS.md`: the source of truth for the current quick-task state.
   - `SUMMARY.md`: the final outcome, `changed_code_paths`, `changed_behavior_surfaces`, verification evidence, residual risk, and `project_cognition_refresh` outcome.
-  - Optional lightweight support artifacts only when needed for the task shape, such as `PLAN.md`, `RESEARCH.md`, or `DISCUSSION.md`.
+  - Optional task-local support artifacts when needed for the task shape, such as `PLAN.md`, `RESEARCH.md`, or `DISCUSSION.md`. Create an absent `PLAN.md` only with `specify-runtime artifact scaffold --kind quick-plan` and fill named sections through leased patches. `RESEARCH.md` and `DISCUSSION.md` carry flexible semantic content and therefore use `artifact prepare` plus inline `artifact submit`, followed by leased patches. Larger work should use the scaffolded `PLAN.md` for architecture, dependency batches, migration/rollout, consequence tables, and acceptance coverage while keeping active state compact in `STATUS.md`.
 - `STATUS.md` is the lifecycle source of truth for the quick task. `.planning/quick/index.json` is a derived projection for management and recovery commands.
 - The quick-task directory format is `<id>-<slug>`. Do not use slug-only workspace names for the enhanced quick flow.
-- Constitution read is the first hard gate. `STATUS.md` initialization comes immediately after it.
-- `STATUS.md` must stay compact and overwrite the active state rather than growing into a long log. It must always make these fields obvious:
+- The first hard gate is a targeted `specify-runtime artifact show` query of the Constitution. CLI-owned `STATUS.md` scaffolding comes immediately after it.
+- `STATUS.md` must stay compact; leased artifact patches replace only the active fields or sections instead of growing a long log. It must always make these fields obvious:
   - current focus
   - execution strategy
+  - confirmed ordered work items and per-item acceptance
+  - current work-item status and prerequisite evidence
   - active lane or batch
   - join point, if any
-  - blocked dispatch or escalation state, if any
+  - blocked dispatch or explicit workflow-change state, if any
   - next action
   - recovery action
   - retry attempts
   - blocker reason
   - blockers, if any
-- Update `STATUS.md` before each material phase transition: after scope lock, after planning, before delegation, after each join point, before validation, and before final summary.
+- Patch `STATUS.md` only through leased `specify-runtime artifact patch` calls at material phase transitions.
+- Each `work_item_status` value must be one of `pending`, `ready`, `in_progress`, `blocked`, or `accepted`. Only `accepted` satisfies a dependency; implementation completion without the item's required acceptance evidence does not unlock its dependents.
 - After the constitution gate, `STATUS.md` initialization is the next hard gate. Do not perform substantial repository analysis, implementation design, or code reading beyond scope-lock context until the workspace exists and the first lane is recorded.
-- When the quick task completes, preserve `SUMMARY.md` and move resolved state under `.planning/quick/resolved/` if the local project convention prefers archiving over keeping active quick-task folders in place.
+- When the quick task completes, create an absent `SUMMARY.md` with `specify-runtime artifact scaffold --kind quick-summary --path .planning/quick/<id>-<slug>/SUMMARY.md`, or query the existing digest with `artifact show`; patch only its named terminal sections through a fresh lease per section. Never submit or reconstruct the whole summary.
+- Close through `specify-runtime quick close`, and use `specify-runtime quick archive` when the local convention prefers archived resolved state. Never move or rename the workspace directly.
 
 ## STATUS.md Scaffold
 
-Use the fixed artifact scaffold instead of writing the fixed `STATUS.md` skeleton by hand.
-The scaffold renders the `STATUS.md template`; valid lifecycle values are
+Create an absent `STATUS.md` only with `specify-runtime artifact scaffold --kind quick-status`;
+the runtime renders the installed skeleton. Valid lifecycle values are
 `status: gathering | planned | executing | validating | blocked | resolved`.
 
 Command shape:
@@ -51,7 +55,7 @@ The compact JSON variables are:
 - `title`: short quick-task title
 - `trigger`: verbatim user input
 
-The generated scaffold initializes `understanding_confirmed: false`, `status: gathering`, `execution_model: subagent-mandatory`, `dispatch_shape: one-subagent | parallel-subagents`, and `execution_surface: native-subagents`. It also creates fixed sections for discussion handoff source, current focus, execution intent, understanding checkpoint, execution, validation, summary pointer, and senior consequence analysis. The agent must fill the semantic values through the returned `fill_targets` and keep `STATUS.md` compact.
+The generated scaffold initializes `understanding_confirmed: false`, `status: gathering`, `execution_model: subagent-mandatory`, `dispatch_shape: one-subagent | parallel-subagents`, and `execution_surface: native-subagents`. It also creates fixed sections for discussion handoff source, current focus, execution intent, understanding checkpoint, confirmed `ordered_work_items`, `work_item_acceptance`, execution `work_item_status`, `batches`, validation, summary pointer, and senior consequence analysis. The agent must fill the returned `fill_targets` only through leased `specify-runtime artifact patch` calls and keep `STATUS.md` compact.
 
 ## Recovery Routing
 

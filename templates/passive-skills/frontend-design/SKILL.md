@@ -11,10 +11,11 @@ The user provides frontend requirements: a component, page, application, or inte
 ## Spec Kit Plus Design-System Priority
 
 In a Spec Kit Plus project, frontend-design is subordinate to DESIGN.md. Before
-choosing a bold aesthetic direction, check whether `DESIGN.md` or an equivalent
-committed design-system source governs the UI. Follow that source for tokens,
-components, layout density, interaction states, accessibility, motion, and
-evidence expectations.
+choosing a bold aesthetic direction, query registered `DESIGN.md` through
+`specify-runtime artifact show --path DESIGN.md --view summary`; if the runtime
+reports it missing, use an equivalent committed design-system source when one
+governs the UI. Follow that source for tokens, components, layout density,
+interaction states, accessibility, motion, and evidence expectations.
 
 `design_system.status: bootstrap` is not a governing product direction. Do not
 let its generic starter palette or typography suppress a project-specific
@@ -22,8 +23,9 @@ solution. For substantive new UI, route through `sp-design`/`spx-design`; for a
 narrow existing-pattern change, ground the implementation in the live product
 surface and record the bounded design assumption.
 
-When `DESIGN.md` records an approved
-`.specify/design/previews/round-NN.html#<direction-id>`, inspect that exact
+When `specify-runtime artifact show --path DESIGN.md --view summary` reports an
+approved `.specify/design/previews/round-NN.html#<direction-id>`, inspect that
+exact board through the design/artifact CLI
 project-level design board before implementation. Carry its component states,
 density, motion tokens, and reduced-motion equivalent into the feature brief
 and real UI. A feature-level `ui-target.html` can refine composition, but cannot

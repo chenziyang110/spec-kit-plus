@@ -45,6 +45,7 @@ EPISTEMIC_CONTRACT_GUIDANCE = (
 # IntegrationOption
 # ---------------------------------------------------------------------------
 
+
 @dataclass(frozen=True)
 class IntegrationOption:
     """Declares an option that an integration accepts via ``--integration-options``.
@@ -67,6 +68,7 @@ class IntegrationOption:
 # ---------------------------------------------------------------------------
 # IntegrationBase — abstract base class
 # ---------------------------------------------------------------------------
+
 
 class IntegrationBase(ABC):
     """Abstract base class every integration must implement.
@@ -111,9 +113,7 @@ class IntegrationBase(ABC):
     )
     SUBAGENT_DISCOVERY_EXCLUDED_COMMANDS = frozenset({"fast"})
     PROJECT_COGNITION_WORKFLOW_TOKEN = "{{project-cognition-workflow}}"
-    PROJECT_COGNITION_WORKFLOW_REGISTRY = (
-        "project-cognition-workflow-registry.json"
-    )
+    PROJECT_COGNITION_WORKFLOW_REGISTRY = "project-cognition-workflow-registry.json"
     PROJECT_COGNITION_WORKFLOW_MODES = frozenset(
         {
             "mutation_closeout",
@@ -265,9 +265,13 @@ class IntegrationBase(ABC):
         if not isinstance(registry, dict):
             raise ValueError("Project cognition workflow registry must be an object")
         if registry.get("$schema") != "project-cognition-workflow-registry.schema.json":
-            raise ValueError("Project cognition workflow registry has an unknown schema")
+            raise ValueError(
+                "Project cognition workflow registry has an unknown schema"
+            )
         if registry.get("schema_version") != 1:
-            raise ValueError("Project cognition workflow registry must use schema_version 1")
+            raise ValueError(
+                "Project cognition workflow registry must use schema_version 1"
+            )
         workflows = registry.get("workflows")
         if not isinstance(workflows, dict) or not workflows:
             raise ValueError("Project cognition workflow registry requires workflows")
@@ -278,7 +282,9 @@ class IntegrationBase(ABC):
             ):
                 raise ValueError(f"Invalid workflow command name: {command_name!r}")
             if not isinstance(policy, dict):
-                raise ValueError(f"Workflow policy for {command_name!r} must be an object")
+                raise ValueError(
+                    f"Workflow policy for {command_name!r} must be an object"
+                )
             if set(policy) != {"mode", "canonical_workflow", "reason"}:
                 raise ValueError(
                     f"Workflow policy for {command_name!r} has invalid fields"
@@ -301,7 +307,10 @@ class IntegrationBase(ABC):
                 raise ValueError(
                     f"Workflow policy for {command_name!r} must not define a canonical workflow"
                 )
-            if not isinstance(policy.get("reason"), str) or not policy["reason"].strip():
+            if (
+                not isinstance(policy.get("reason"), str)
+                or not policy["reason"].strip()
+            ):
                 raise ValueError(
                     f"Workflow policy for {command_name!r} requires a reason"
                 )
@@ -332,9 +341,7 @@ class IntegrationBase(ABC):
             "command-partials",
         }
         topology_indices = [
-            index
-            for index, part in enumerate(parts)
-            if part in topology_directories
+            index for index, part in enumerate(parts) if part in topology_directories
         ]
         if not topology_indices:
             return None
@@ -632,7 +639,15 @@ class IntegrationBase(ABC):
         agent_name: str,
         command_name: str,
     ) -> str:
-        question_driven_commands = {"specify", "discussion", "clarify", "deep-research", "checklist", "quick", "debug"}
+        question_driven_commands = {
+            "specify",
+            "discussion",
+            "clarify",
+            "deep-research",
+            "checklist",
+            "quick",
+            "debug",
+        }
         if command_name not in question_driven_commands:
             return content
 
@@ -693,8 +708,7 @@ class IntegrationBase(ABC):
             )
         if option_fields:
             lines.append(
-                "- Option fields: "
-                + ", ".join(f"`{field}`" for field in option_fields)
+                "- Option fields: " + ", ".join(f"`{field}`" for field in option_fields)
             )
         for note in extra_notes:
             lines.append(f"- {note}")
@@ -716,7 +730,7 @@ class IntegrationBase(ABC):
             "\n"
             "## Semantic Traceability Guidance\n\n"
             "- Preserve the concise `sp-specify` flow: explore project context, ask one high-impact question at a time, compare two or three approaches, write artifacts, self-review, and ask for user review.\n"
-            "- When `sp-specify` comes from `sp-discussion`, compile canonical `spec-contract.json` from the confirmed requirement contract and preserve its decision digest by reference.\n"
+            "- When `sp-specify` comes from `sp-discussion`, initialize canonical `spec-contract.json` with `specify-runtime artifact scaffold --kind spec-contract` and fill it only through leased `artifact patch` calls using the confirmed requirement contract; preserve its decision digest by reference.\n"
             "- Read supporting discussion files only when a named evidence reference is stale, missing, or contradictory; record only the refs actually needed in the compact context capsule.\n"
             "- Compute `semantic_delta`; when it is empty and deterministic review passes, do not repeat upstream questions or user confirmation.\n"
             "- Decompose semantic terms before narrowing scope and keep unconfirmed narrowing out of planning-ready state.\n"
@@ -741,10 +755,10 @@ class IntegrationBase(ABC):
             "- Before drafting or asking clarification questions, identify the target need, scope boundary, key constraints, acceptance proof, known unknowns, and safest next step.\n"
             "- Keep guided requirement discovery concise and avoid reviving the deprecated fixed heavy discovery lifecycle.\n"
             "- Treat `final-handoff-decision` as a compatibility readiness check name only; do not restore the legacy staged handoff flow.\n"
-            "- In compile mode, reuse the confirmed discussion contract's context capsule and decision digest. Run one bounded `{{specify-subcmd:specify-runtime cognition compass --intent plan --query=\"$ARGUMENTS\" --format json}}` intake only when a planning facet is absent or outdated; preserve `{{specify-subcmd:specify-runtime cognition query --intent plan --query-plan \"<query_plan_json>\" --format json}}` as a precision escalation for an explicit unresolved concept.\n"
+            '- In compile mode, reuse the confirmed discussion contract\'s context capsule and decision digest. Run one bounded `{{specify-subcmd:specify-runtime cognition compass --intent plan --query="$ARGUMENTS" --format json}}` intake only when a planning facet is absent or outdated; preserve `{{specify-subcmd:specify-runtime cognition query --intent plan --query-plan "<query_plan_json>" --format json}}` as a precision escalation for an explicit unresolved concept.\n'
             "- Read top-level `minimal_live_reads` first and open live files only for the named gap. Do not build a second broad repository summary or infer final scope from first-pass paths.\n"
-            "- After `FEATURE_DIR` is known, use `{{specify-subcmd:specify-runtime workflow show --feature-dir <feature-dir> --format json}}`; when state is missing, run `{{specify-subcmd:specify-runtime workflow enter --command specify --feature-dir <feature-dir> --format json}}`. The deterministic workflow runtime owns `workflow.json` as required-stage state; do not author or advance it manually. Rich `workflow-state.md` remains specification evidence and resume state inside the fixed workflow artifact boundary: read it only through `{{specify-subcmd:specify-runtime artifact show --path <project-relative-workflow-state-path> --view summary}}`; write it only through an authorized `{{specify-subcmd:specify-runtime artifact prepare --path <project-relative-workflow-state-path>}}` then `{{specify-subcmd:specify-runtime artifact submit --lease <lease-id> --content-file <temporary-file>}}` lease. Never use rich state to skip runtime stages. Do not implement code, edit source files, edit tests, or run implementation-oriented fix loops from `sp-specify`.\n"
-            "- Write canonical `spec-contract.json` first. Render `spec.md`; write `alignment.md`, `context.md`, `references.md`, or diagnostics only when the triggered content has independent project-review value and cannot be represented by a stable ref.\n"
+            "- After `FEATURE_DIR` is known, use `{{specify-subcmd:specify-runtime workflow show --feature-dir <feature-dir> --format json}}`; when state is missing, run `{{specify-subcmd:specify-runtime workflow enter --command specify --feature-dir <feature-dir> --format json}}`. The deterministic workflow runtime owns `workflow.json` as required-stage state; do not author or advance it manually. Rich `workflow-state.md` remains specification evidence and resume state inside the fixed workflow artifact boundary: initialize it with `{{specify-subcmd:specify-runtime artifact scaffold --kind workflow-state --path <project-relative-workflow-state-path> --format json}}`, query it only through targeted `artifact show`, and mutate it only through leased `artifact patch` calls. Never create a temporary authoring file or use rich state to skip runtime stages. Do not implement code, edit source files, edit tests, or run implementation-oriented fix loops from `sp-specify`.\n"
+            "- Initialize canonical `spec-contract.json` first through `specify-runtime artifact scaffold --kind spec-contract` and fill it through leased `artifact patch` calls. Fill the prerequisite-created `spec.md` skeleton only through leased `specify-runtime artifact patch --section` calls; submit `alignment.md`, `context.md`, `references.md`, or diagnostics through `artifact prepare` plus inline `artifact submit` only when the triggered content has independent project-review value and cannot be represented by a stable ref.\n"
             "- Clarify only planning-critical ambiguity. Recommend `/sp.clarify` or `/sp.deep-research` only when the unresolved item belongs there.\n"
             "- Preserve this as an internal understand-before-acting pass; do not replace the one-question-at-a-time requirement discovery flow with a broad analysis report.\n"
         )
@@ -768,11 +782,10 @@ class IntegrationBase(ABC):
         addendum = (
             "\n"
             f"{marker}\n\n"
-            "- Use `.specify/project-cognition/status.json` to assess "
-            "Git-baseline freshness and "
-            "`.specify/project-cognition/project-cognition.db` only as advisory "
-            "navigation; prove planning facts from bounded live repository "
-            "evidence.\n"
+            "- Query `specify-runtime cognition status --format json` for "
+            "Git-baseline freshness and use `specify-runtime cognition compass` "
+            "only as advisory navigation; never inspect cognition storage, and "
+            "prove planning facts from bounded live repository evidence.\n"
             "- This planning-only section does not grant source-mutation authority "
             "or mutation-closeout execution. The current workflow remains "
             "artifact-only.\n"
@@ -799,8 +812,8 @@ class IntegrationBase(ABC):
         addendum = (
             "\n"
             f"{marker}\n\n"
-            "- Run `{{specify-subcmd:specify-runtime cognition compass --intent plan --query=\"$ARGUMENTS\" --format json}}` before shaping the checklist. Read top-level `minimal_live_reads` first, then use lane-level `first_pass_paths` reasons, `verification_hints`, `followup_surfaces`, and `before_fix_claim`; treat `coverage_diagnostics` as confidence and closeout signals and `expansion_ref` as a continuation path only when coverage state or live evidence requires it.\n"
-            "- Preserve the advanced `lexicon -> semantic_intake -> query` path with `{{specify-subcmd:specify-runtime cognition query --intent plan --query-plan \"<query_plan_json>\" --format json}}` when explicit concept decisions are needed; include `query_plan`, `semantic_intake`, `concept_decisions`, `covered_facets`, `missing_facets`, `match_sources`, `lexicon_generation_id`, and `repository_search_terms` there.\n"
+            '- Run `{{specify-subcmd:specify-runtime cognition compass --intent plan --query="$ARGUMENTS" --format json}}` before shaping the checklist. Read top-level `minimal_live_reads` first, then use lane-level `first_pass_paths` reasons, `verification_hints`, `followup_surfaces`, and `before_fix_claim`; treat `coverage_diagnostics` as confidence and closeout signals and `expansion_ref` as a continuation path only when coverage state or live evidence requires it.\n'
+            '- Preserve the advanced `lexicon -> semantic_intake -> query` path with `{{specify-subcmd:specify-runtime cognition query --intent plan --query-plan "<query_plan_json>" --format json}}` when explicit concept decisions are needed; include `query_plan`, `semantic_intake`, `concept_decisions`, `covered_facets`, `missing_facets`, `match_sources`, `lexicon_generation_id`, and `repository_search_terms` there.\n'
         )
         return content + addendum
 
@@ -824,7 +837,9 @@ class IntegrationBase(ABC):
             snapshot=snapshot,
         )
         managed_team_hint = descriptor.managed_team_hint
-        execution_model = "adaptive" if command_name == "implement" else "subagents-first"
+        execution_model = (
+            "adaptive" if command_name == "implement" else "subagents-first"
+        )
         local_route = (
             "- Leader-direct route: valid for a small or tightly coupled task when it independently passes the workflow safety gate; record the selected route in the current lifecycle record.\n"
             if command_name == "implement"
@@ -836,7 +851,7 @@ class IntegrationBase(ABC):
             f"- Execution model: `{execution_model}`\n"
             "- Dispatch shape: `one-subagent`, `parallel-subagents`, or `subagent-blocked`\n"
             "- Execution surface: `native-subagents`, `managed-team`, or `leader-inline`\n"
-            "- Delegation surface contract: preserve the native dispatch, fallback, worker result contract, and handoff path below.\n"
+            "- Delegation surface contract: preserve the native dispatch, fallback, worker result contract, and CLI-owned result channel below.\n"
             f"- Native subagent capability discovery: {descriptor.native_discovery_hint}\n"
             "- Do not record `subagent-blocked` until this capability discovery step is complete and the exact unavailable or unsafe surface is recorded.\n"
             f"- Native subagent dispatch: {descriptor.native_dispatch_hint}\n"
@@ -845,7 +860,8 @@ class IntegrationBase(ABC):
             f"{local_route}"
             f"- Worker result contract: {descriptor.result_contract_hint}\n"
             f"- Result contract: {descriptor.result_contract_hint}\n"
-            f"- Result handoff path: {descriptor.result_handoff_hint}\n"
+            f"- Inline result submission: {descriptor.result_submit_hint}\n"
+            f"- Runtime-owned compatibility path: `{descriptor.result_handoff_hint}`; never compute, create, or write it directly.\n"
         )
         return content + addendum
 
@@ -875,12 +891,14 @@ class IntegrationBase(ABC):
             "debug": "before any investigation or fixes",
             "quick": "before repository analysis or implementation",
         }[command_name]
-        query_gate = self._project_cognition_query_gate_line(command_name=command_name, command_step=command_step)
+        query_gate = self._project_cognition_query_gate_line(
+            command_name=command_name, command_step=command_step
+        )
         carry_forward = {
             "implement": "- Carry forward only the current task's selected capability, minimal live reads, boundary constraints, required references, validation route, and evidence gaps into its lifecycle record or just-in-time `WorkerTaskPacket`.\n",
             "review": "- Carry forward the selected user journeys, official entrypoints, affected runtime surfaces, minimal live reads, validation routes, and evidence gaps into `review-state.json` or the just-in-time review packet.\n",
-            "debug": "- Carry forward the selected capability or symptom, evidence routes, minimal reads, competing truths, and unresolved coverage gaps into debug session state before root-cause claims.\n",
-            "quick": "- Carry forward the selected capability, minimal reads, validation route, and known risk into quick-task `STATUS.md` before implementation proceeds.\n",
+            "debug": "- Carry forward the selected capability or symptom, evidence routes, minimal reads, competing truths, and unresolved coverage gaps through a fresh `specify-runtime artifact patch` lease before root-cause claims.\n",
+            "quick": "- Patch the selected capability, minimal reads, validation route, and known risk into quick-task `STATUS.md` through a fresh `specify-runtime artifact patch` lease before implementation proceeds.\n",
         }[command_name]
 
         addendum = (
@@ -912,7 +930,9 @@ class IntegrationBase(ABC):
             return content.replace(insert_before, addendum + f"\n{insert_before}", 1)
         return content + addendum
 
-    def _project_cognition_query_gate_line(self, *, command_name: str, command_step: str) -> str:
+    def _project_cognition_query_gate_line(
+        self, *, command_name: str, command_step: str
+    ) -> str:
         intent = {
             "debug": "debug",
             "implement": "implement",
@@ -923,24 +943,24 @@ class IntegrationBase(ABC):
             return (
                 "**Current-Task Navigation Repair**: Reuse the current task's required refs and live touched-area evidence. "
                 "Only when a required ref is stale, missing, or contradicted by live code, run at most one "
-                "`{{specify-subcmd:specify-runtime cognition compass --intent implement --query=\"$ARGUMENTS\" --format json}}` "
+                '`{{specify-subcmd:specify-runtime cognition compass --intent implement --query="$ARGUMENTS" --format json}}` '
                 f"{command_step}. {EPISTEMIC_CONTRACT_GUIDANCE} Use `compass_state`, `minimal_live_reads`, `first_pass_paths`, `coverage_diagnostics`, "
                 "and `expansion_ref` only to repair current-task context; they do not replace live proof or authorize "
                 "broader implementation scope."
             )
         return (
             "**Crucial First Step**: You MUST use project cognition compass first: "
-            f"run `{{{{specify-subcmd:specify-runtime cognition compass --intent {intent} --query=\"$ARGUMENTS\" --format json}}}}` "
+            f'run `{{{{specify-subcmd:specify-runtime cognition compass --intent {intent} --query="$ARGUMENTS" --format json}}}}` '
             f"{command_step}. {EPISTEMIC_CONTRACT_GUIDANCE} Read top-level `minimal_live_reads` first, then use lane-level `first_pass_paths` reasons, "
             "`verification_hints`, `followup_surfaces`, and `before_fix_claim`; treat `coverage_diagnostics` as confidence "
             "and closeout signals, never as route candidates. Treat `expansion_ref` as a normal continuation path and run "
             "`{{specify-subcmd:specify-runtime cognition expand --id <id> --section <section> --format json}}` only when coverage state or live evidence "
             "requires more map detail. Do not infer final edit scope from `minimal_live_reads` or `first_pass_paths`. "
             "Readiness values are `query_ready`, `review`, `needs_rebuild`, `blocked`, and `unsupported_runtime`. "
-            "When `compass_state=needs_semantic_intake`, write `semantic_intake` from project vocabulary and rerun compass "
-            "with `--semantic-intake-file`, or use the advanced `lexicon -> semantic_intake -> query` path when explicit "
+            "When `compass_state=needs_semantic_intake`, build `semantic_intake` in memory from project vocabulary and rerun compass "
+            "with `--semantic-intake-json '<semantic-intake-json>'`; never create an intake file. Alternatively use the advanced `lexicon -> semantic_intake -> query` path when explicit "
             "concept decisions are needed. Preserve advanced routing through "
-            f"`{{{{specify-subcmd:specify-runtime cognition query --intent {intent} --query-plan \"<query_plan_json>\" --format json}}}}` "
+            f'`{{{{specify-subcmd:specify-runtime cognition query --intent {intent} --query-plan "<query_plan_json>" --format json}}}}` '
             "for precision cases."
         )
 
@@ -968,9 +988,13 @@ class IntegrationBase(ABC):
         )
 
         if "## Investigation Protocol" in content:
-            return content.replace("## Investigation Protocol", addendum + "\n## Investigation Protocol", 1)
+            return content.replace(
+                "## Investigation Protocol", addendum + "\n## Investigation Protocol", 1
+            )
         if "## Session Lifecycle" in content:
-            return content.replace("## Session Lifecycle", addendum + "\n## Session Lifecycle", 1)
+            return content.replace(
+                "## Session Lifecycle", addendum + "\n## Session Lifecycle", 1
+            )
         return content + addendum
 
     def runtime_capability_snapshot(self) -> CapabilitySnapshot:
@@ -983,7 +1007,10 @@ class IntegrationBase(ABC):
         class_module = type(self).__module__
         package_name = class_module.rsplit(".", 1)[0]
         module_names = []
-        for module_name in (f"{class_module}.multi_agent", f"{package_name}.multi_agent"):
+        for module_name in (
+            f"{class_module}.multi_agent",
+            f"{package_name}.multi_agent",
+        ):
             if module_name not in module_names:
                 module_names.append(module_name)
 
@@ -1107,8 +1134,8 @@ class IntegrationBase(ABC):
             f"{self._project_cognition_query_gate_line(command_name='implement', command_step='before any implementation actions')}\n"
             "\n"
             "Before implementation actions:\n"
-            "- Read canonical `task-index.json` or the light direct task list, compact execution state, and the current task's required refs.\n"
-            "- **Resume Audit**: If the tracker is `resolved`, all tasks appear checked, or the previous session exit is unknown, run `{{specify-subcmd:specify-runtime implement resume-audit --feature-dir \"$FEATURE_DIR\" --format json}}` before trusting completion.\n"
+            '- Call `{{specify-subcmd:specify-runtime implement task-next --feature-dir "$FEATURE_DIR" --format json}}` for compact execution state and the next ready task; query only named additional fields through targeted `specify-runtime artifact show` calls. Light mode uses the same canonical task control plane.\n'
+            '- **Resume Audit**: If the tracker is `resolved`, all tasks appear checked, or the previous session exit is unknown, run `{{specify-subcmd:specify-runtime implement resume-audit --feature-dir "$FEATURE_DIR" --format json}}` before trusting completion.\n'
             "- Treat completed task markers as claims until changed paths, validation, required consumer evidence, review status, and mutation closeout prove them.\n"
             "- Choose `leader-direct` for a small or tightly coupled ready task when delegation adds no quality or critical-path benefit and no high-risk trigger calls for an independent lane.\n"
             "- Choose `one-subagent` for one independent bounded task and `parallel-subagents` only for validated lanes with isolated write sets and an explicit join point.\n"
@@ -1144,31 +1171,18 @@ class IntegrationBase(ABC):
             command_name=command_name,
             snapshot=snapshot,
         )
-        if "<request-id>" in descriptor.result_handoff_hint:
-            result_cli_guidance = (
-                "- Runtime-managed result paths require a dispatch request id; compute the path with "
-                f"`{{{{specify-subcmd:specify-runtime result path --command {command_name} --request-id <request-id>}}}}` and report final completion "
-                "through the active runtime-managed result channel for that request id.\n"
-                "- `{{specify-subcmd:specify-runtime result path --help}}` documents a JSON-only command; do not append `--format`.\n"
-            )
-        else:
-            result_cli_guidance = (
-                "- For filesystem handoffs, use `{{specify-subcmd:specify-runtime result path --help}}` with the concrete workflow identifiers "
-                "such as `--feature-dir`/`--task-id`, `--workspace`/`--lane-id`, or `--session-slug`/`--lane-id`.\n"
-                "- The result-path command emits JSON and does not accept `--format`; do not append `--format`.\n"
-            )
         addendum = (
             "\n"
             f"## {agent_name} Subagent Result Contract\n\n"
             "- Worker result contract: preserve the shared `WorkerTaskResult` semantics even when the runtime calls lanes subagents.\n"
             f"- Preferred result contract: {descriptor.result_contract_hint}\n"
-            f"- Result file handoff path: {descriptor.result_handoff_hint}\n"
-            f"{result_cli_guidance}"
+            f"- Inline result submission: {descriptor.result_submit_hint}\n"
+            f"- Runtime-owned compatibility path: `{descriptor.result_handoff_hint}`. The runtime derives and writes it; never create a result file or use `--result-file`.\n"
             "- Normalize subagent-reported statuses like `DONE`, `DONE_WITH_CONCERNS`, `BLOCKED`, and `NEEDS_CONTEXT` into the shared `WorkerTaskResult` contract before the leader accepts the handoff.\n"
             "- Keep `reported_status` when normalization occurs so runtime-specific subagent language can be reconciled with canonical orchestration state.\n"
             "- Wait for every subagent's structured handoff before accepting the join point, closing the batch, or declaring completion.\n"
             "- Do not treat an idle subagent as done work; idle without a consumed handoff means the result channel is still unresolved.\n"
-            "- Do not interrupt or shut down subagent work before the handoff has been written or explicitly reported as `BLOCKED` or `NEEDS_CONTEXT`.\n"
+            "- Do not interrupt or shut down subagent work before the handoff has been returned inline, submitted through its runtime result owner, or explicitly reported as `BLOCKED` or `NEEDS_CONTEXT`.\n"
             "- Treat `DONE_WITH_CONCERNS` as completed work plus follow-up concerns, not as silent success.\n"
             "- Treat `NEEDS_CONTEXT` as a blocked handoff that must carry the missing context or failed assumption explicitly.\n"
         )
@@ -1194,17 +1208,19 @@ class IntegrationBase(ABC):
             f"{self._project_cognition_query_gate_line(command_name='debug', command_step='before any investigation or fixes')}\n"
             "\n"
             "Before applying fixes or running investigation actions:\n"
-            "- Read the current debug session state and choose `execution_model: leader-inline | subagent-assisted | blocked` from the investigation shape.\n"
+            "- Query the current debug session through `specify-runtime artifact show`, then choose `execution_model: leader-inline | subagent-assisted | blocked` from the investigation shape.\n"
             "- Use `leader-inline` for a small focused investigation with one short evidence chain.\n"
             "- Use `subagent-assisted` when there are two or more independent evidence-gathering lanes, broad surface area, or meaningful parallelism.\n"
-            "- If the next step is unsafe, unavailable, or unpacketizable, record `subagent-blocked`, `execution_surface: none`, and a concrete `blocked_reason` before stopping.\n"
+            "- If the next step is unsafe, unavailable, or unpacketizable, persist `subagent-blocked`, `execution_surface: none`, and a concrete `blocked_reason` through a fresh `specify-runtime artifact patch` lease before stopping.\n"
             "- Rejoin only at the current investigation join point, then integrate returned results on the leader path.\n"
             "\n"
             "**Hard rule:** During `investigating`, the leader must not let subagents mutate the debug file, declare the root cause final, or advance the session state.\n"
         )
 
         if "## Session Lifecycle" in content:
-            return content.replace("## Session Lifecycle", gate_addendum + "\n## Session Lifecycle", 1)
+            return content.replace(
+                "## Session Lifecycle", gate_addendum + "\n## Session Lifecycle", 1
+            )
         return content + gate_addendum
 
     def _append_debug_routing_contract(
@@ -1238,9 +1254,9 @@ class IntegrationBase(ABC):
             "- Small focused investigation -> `leader-inline`.\n"
             "- One safe isolated evidence lane -> `one-subagent` when the current runtime supports it safely.\n"
             "- Two or more independent evidence lanes -> `parallel-subagents` when the current runtime supports it safely.\n"
-            "- Unsafe, unavailable, or unpacketizable next step -> `subagent-blocked` with `execution_surface: none` and `blocked_reason`.\n"
+            "- Unsafe, unavailable, or unpacketizable next step -> persist `subagent-blocked`, `execution_surface: none`, and `blocked_reason` through a fresh `specify-runtime artifact patch` lease.\n"
             "- Suitable subagent tasks include running targeted tests or repro commands, collecting logs and exit codes, searching for error text, tracing isolated code paths, and gathering evidence after diagnostic logging has been added.\n"
-            "- Read `diagnostic_profile` from the debug session before choosing subagent lanes.\n"
+            "- Query `diagnostic_profile` through `specify-runtime artifact show` before choosing subagent lanes.\n"
             "- Subagents must return facts, command results, and observations; they must not update the debug file, declare the root cause final, or transition the session state.\n"
             "- Keep fixing, verification, `awaiting_human_verify`, and final session resolution on the leader path.\n"
         )
@@ -1266,12 +1282,12 @@ class IntegrationBase(ABC):
             f"{self._project_cognition_query_gate_line(command_name='quick', command_step='before repository analysis or implementation')}\n"
             "\n"
             "Before code edits, test edits, or implementation commands:\n"
-            "- Read `.specify/memory/constitution.md` first if it exists.\n"
-            "- Read `STATUS.md` for the active quick-task workspace, or create it if this quick task is new.\n"
+            "- Query `.specify/memory/constitution.md` first through `specify-runtime artifact show` if it exists.\n"
+            "- Create a new quick-task `STATUS.md` only through `specify-runtime artifact scaffold --kind quick-status`, or resume it through targeted `artifact show` calls.\n"
             "- If `understanding_confirmed` is not `true`, present the Understanding Checkpoint and wait for user confirmation before implementation work.\n"
-            "- The user-facing checkpoint must use the fixed Quick Checkpoint Markdown table with `| Decision to confirm | Current understanding |` and rows for `Request and outcome`, `User-visible result`, `Scope`, `Recommended approach`, `Assumptions and risks`, `Completion evidence`, and `Reconfirmation trigger`; technical execution stays agent-owned, and prose bullets or partial field lists are not sufficient. For applicable UI work, append the independent UI Confirmation card and ask once for both decisions.\n"
-            "- Do not proceed to code edits, broad repository analysis, delegation, or validation commands until `understanding_confirmed: true` is recorded in `STATUS.md`.\n"
-            "- Before choosing the next lane, read `STATUS.md` and any quick-task summary artifacts so resume truth comes from durable state instead of chat narration.\n"
+            "- The user-facing checkpoint must use the fixed Quick Checkpoint Markdown table with `| Decision to confirm | Current understanding |` and rows for `Request and outcome`, `User-visible result`, `Scope`, `Ordered work items`, `Work-item acceptance`, `Recommended approach`, `Assumptions and risks`, `Completion evidence`, and `Reconfirmation trigger`. Use stable Q1/Q2 ids for one or many deliverables and confirm only deliverable-level order; internal implementation sequencing stays agent-owned, and prose bullets or partial field lists are not sufficient. For applicable UI work, append the independent UI Confirmation card and ask once for both decisions.\n"
+            "- Do not proceed to code edits, broad repository analysis, delegation, or validation commands until `understanding_confirmed: true` has been persisted in `STATUS.md` through a fresh `specify-runtime artifact patch` lease.\n"
+            "- Before choosing the next lane, query `STATUS.md` and any quick-task summary artifacts through targeted `artifact show` calls so resume truth comes from durable state instead of chat narration.\n"
             "- After understanding is confirmed, define the smallest safe delegated lane or ready batch, and choose the dispatch shape for that batch.\n"
             "- Dispatch `one-subagent` when one validated `WorkerTaskPacket` or equivalent execution contract preserves quality.\n"
             "- Dispatch `parallel-subagents` when two or more safe subagent lanes would materially improve throughput.\n"
@@ -1280,10 +1296,10 @@ class IntegrationBase(ABC):
             "- Use the current integration's join point to integrate returned results before choosing the next action.\n"
             "- Wait for every subagent's structured handoff before accepting the join point, closing the batch, or declaring completion.\n"
             "- Do not treat an idle subagent as done work; idle without a consumed handoff means the result channel is still unresolved.\n"
-            "- Do not interrupt or shut down subagent work before the handoff has been written or explicitly reported as `BLOCKED` or `NEEDS_CONTEXT`.\n"
+            "- Do not interrupt or shut down subagent work before the handoff has been returned inline, submitted through its runtime result owner, or explicitly reported as `BLOCKED` or `NEEDS_CONTEXT`.\n"
             "- Use `managed-team` only when durable team state is needed beyond one in-session subagent burst.\n"
             "- Use `subagent-blocked` only when subagent dispatch and the managed team workflow are both unavailable or unsafe.\n"
-            "- When `subagent-blocked` is used, you **MUST** write the concrete blocker reason into `STATUS.md` before escalating or stopping locally.\n"
+            "- When `subagent-blocked` is used, you **MUST** patch the concrete blocker reason into `STATUS.md` through a fresh `specify-runtime artifact patch` lease before escalating or stopping locally.\n"
             "\n"
             "**Hard rule:** The leader must keep scope control, strategy selection, join-point handling, validation, summary ownership, and `STATUS.md` accuracy while subagent execution is active.\n"
         )
@@ -1313,18 +1329,18 @@ class IntegrationBase(ABC):
         addendum = (
             "\n"
             f"## {agent_name} Quick Execution Routing\n\n"
-            f"When running `sp-quick` in {agent_name}, do not start execution routing until `STATUS.md` exists and `understanding_confirmed: true` is recorded.\n"
+            f"When running `sp-quick` in {agent_name}, do not start execution routing until targeted `specify-runtime artifact show` reports that CLI-owned `STATUS.md` has `understanding_confirmed: true`.\n"
             "- Dispatch shape: `one-subagent`, `parallel-subagents`, or `subagent-blocked`.\n"
             "- Execution surface: `native-subagents`, `managed-team`, or `leader-inline`.\n"
-            "- Understanding checkpoint: before dispatch, render the fixed Quick Checkpoint Markdown table with `| Decision to confirm | Current understanding |` and user-owned rows for request/outcome, visible result, scope, recommended approach, assumptions/risks, completion evidence, and reconfirmation trigger. Append the UI Confirmation proposal when applicable and use one combined confirmation.\n"
+            "- Understanding checkpoint: before dispatch, render the fixed Quick Checkpoint Markdown table with `| Decision to confirm | Current understanding |` and user-owned rows for request/outcome, visible result, scope, ordered work items, work-item acceptance, recommended approach, assumptions/risks, completion evidence, and reconfirmation trigger. Use stable Q1/Q2 ids for one or many deliverables; append the UI Confirmation proposal when applicable and use one combined confirmation.\n"
             f"- Subagent dispatch: {descriptor.native_dispatch_hint}\n"
             f"- Integration-native join point: {descriptor.native_join_hint}\n"
             f"- Fallback path: {managed_team_hint}\n"
             "- Once the first lane is chosen, dispatch it before continuing any leader-inline deep-dive analysis of the repository.\n"
             "- If multiple safe subagent lanes exist and they materially improve throughput, dispatch them in parallel.\n"
             "- Keep `.planning/quick/<id>-<slug>/STATUS.md` as the leader-owned source of truth.\n"
-            "- Before compaction-risk transitions or join points, update `STATUS.md` and any summary artifacts needed for clean resume.\n"
-            "- Subagents may return evidence, patches, and verification output, but they must not become the authority for resume state; the leader updates `STATUS.md` before and after each join point.\n"
+            "- Before compaction-risk transitions or join points, patch `STATUS.md` through a fresh `specify-runtime artifact patch` lease and submit any independently valuable summary through its registered artifact owner.\n"
+            "- Subagents may return evidence, patches, and verification output, but they must not become the authority for resume state; the leader patches `STATUS.md` through fresh `specify-runtime artifact patch` leases before and after each join point.\n"
             f"- Decision order for {agent_name} `sp-quick`: safe packetized subagents -> `managed-team` when durable state is needed -> `subagent-blocked` with reason.\n"
             "- Prefer subagent execution only when a validated `WorkerTaskPacket` or equivalent execution contract preserves quality.\n"
             "- Re-check strategy after every join point and continue automatically until the quick task is complete or blocked.\n"
@@ -1355,9 +1371,7 @@ class IntegrationBase(ABC):
                 chain = " -> ".join(str(path) for path in (*_stack, include_path))
                 raise ValueError(f"Template include cycle detected: {chain}")
             if not include_path.is_file():
-                raise FileNotFoundError(
-                    f"Template include not found: {include_path}"
-                )
+                raise FileNotFoundError(f"Template include not found: {include_path}")
 
             included = include_path.read_text(encoding="utf-8")
             return IntegrationBase.resolve_template_includes(
@@ -1468,7 +1482,9 @@ class IntegrationBase(ABC):
                 blocker_contract_path.is_file()
                 and "## Blocked Exit Contract" not in content
             ):
-                blocker_contract = blocker_contract_path.read_text(encoding="utf-8").strip()
+                blocker_contract = blocker_contract_path.read_text(
+                    encoding="utf-8"
+                ).strip()
                 frontmatter_text, body = IntegrationBase._split_frontmatter(content)
                 if frontmatter_text:
                     rendered_body = body.lstrip("\r\n")
@@ -1597,7 +1613,9 @@ class IntegrationBase(ABC):
             return ""
 
         references_dir = self.shared_command_references_dir()
-        workflow_dir = (references_dir / command_name).resolve() if references_dir else None
+        workflow_dir = (
+            (references_dir / command_name).resolve() if references_dir else None
+        )
         display_root = (
             workflow_dir
             if workflow_dir is not None and workflow_dir.is_dir()
@@ -1797,6 +1815,7 @@ class IntegrationBase(ABC):
         #    boundary rules stay consistent across the codebase.
         from specify_cli.agents import CommandRegistrar
         from specify_cli.launcher import render_project_launcher_placeholders
+
         content = CommandRegistrar.rewrite_project_relative_paths(content)
         content = CommandRegistrar.render_invocation_placeholders(agent_name, content)
         if project_root is not None:
@@ -1885,9 +1904,7 @@ class IntegrationBase(ABC):
         **opts: Any,
     ) -> list[Path]:
         """High-level install — calls ``setup()`` and returns created files."""
-        return self.setup(
-            project_root, manifest, parsed_options=parsed_options, **opts
-        )
+        return self.setup(project_root, manifest, parsed_options=parsed_options, **opts)
 
     def uninstall(
         self,
@@ -1979,8 +1996,7 @@ class IntegrationBase(ABC):
                     skipped_modified.append(relative)
                 continue
             marker_present = (
-                f"{SPECIFY_RUNTIME_UNAVAILABLE_MARKER}:specify-runtime"
-                in content
+                f"{SPECIFY_RUNTIME_UNAVAILABLE_MARKER}:specify-runtime" in content
             )
             _, bare_count = rebind_unbound_unified_runtime_calls(
                 content,
@@ -2052,9 +2068,7 @@ class IntegrationBase(ABC):
         project_root_resolved = project_root.resolve()
         modified = set(manifest.check_modified())
         context_relative = (
-            Path(self.context_file).as_posix()
-            if self.context_file
-            else None
+            Path(self.context_file).as_posix() if self.context_file else None
         )
         rebound: list[Path] = []
         skipped: list[str] = []
@@ -2100,6 +2114,7 @@ class IntegrationBase(ABC):
                 continue
             if relative in modified:
                 if relative == context_relative:
+
                     def rebind_managed_block(match: re.Match[str]) -> str:
                         block, _ = rebind_source_bound_specify_launchers(
                             match.group(0),
@@ -2146,6 +2161,7 @@ class IntegrationBase(ABC):
 # MarkdownIntegration — covers ~20 standard agents
 # ---------------------------------------------------------------------------
 
+
 class MarkdownIntegration(IntegrationBase):
     """Concrete base for integrations that use standard Markdown commands.
 
@@ -2186,7 +2202,11 @@ class MarkdownIntegration(IntegrationBase):
         dest.mkdir(parents=True, exist_ok=True)
 
         script_type = opts.get("script_type", "sh")
-        arg_placeholder = self.registrar_config.get("args", "$ARGUMENTS") if self.registrar_config else "$ARGUMENTS"
+        arg_placeholder = (
+            self.registrar_config.get("args", "$ARGUMENTS")
+            if self.registrar_config
+            else "$ARGUMENTS"
+        )
         runtime_snapshot = self.runtime_capability_snapshot()
         created: list[Path] = []
 
@@ -2204,7 +2224,11 @@ class MarkdownIntegration(IntegrationBase):
                 processed,
                 src_file.stem,
             )
-            agent_name = self.config.get("name", self.key.capitalize()) if self.config else self.key.capitalize()
+            agent_name = (
+                self.config.get("name", self.key.capitalize())
+                if self.config
+                else self.key.capitalize()
+            )
             processed = self._append_runtime_project_cognition_gate(
                 content=processed,
                 agent_name=agent_name.replace(" CLI", ""),
@@ -2261,6 +2285,7 @@ class MarkdownIntegration(IntegrationBase):
                 command_name=src_file.stem,
             )
             from specify_cli.launcher import render_project_launcher_placeholders
+
             processed = render_project_launcher_placeholders(project_root, processed)
             dst_name = self.command_filename(src_file.stem)
             dst_file = self.write_file_and_record(
@@ -2287,6 +2312,7 @@ class MarkdownIntegration(IntegrationBase):
 # ---------------------------------------------------------------------------
 # TomlIntegration — TOML-format agents (Gemini, Tabnine)
 # ---------------------------------------------------------------------------
+
 
 class TomlIntegration(IntegrationBase):
     """Concrete base for integrations that use TOML command format.
@@ -2369,7 +2395,9 @@ class TomlIntegration(IntegrationBase):
         toml_lines: list[str] = []
 
         if description:
-            toml_lines.append(f"description = {TomlIntegration._render_toml_string(description)}")
+            toml_lines.append(
+                f"description = {TomlIntegration._render_toml_string(description)}"
+            )
             toml_lines.append("")
 
         body = body.rstrip("\n")
@@ -2406,7 +2434,11 @@ class TomlIntegration(IntegrationBase):
         dest.mkdir(parents=True, exist_ok=True)
 
         script_type = opts.get("script_type", "sh")
-        arg_placeholder = self.registrar_config.get("args", "{{args}}") if self.registrar_config else "{{args}}"
+        arg_placeholder = (
+            self.registrar_config.get("args", "{{args}}")
+            if self.registrar_config
+            else "{{args}}"
+        )
         runtime_snapshot = self.runtime_capability_snapshot()
         created: list[Path] = []
 
@@ -2425,7 +2457,11 @@ class TomlIntegration(IntegrationBase):
                 processed,
                 src_file.stem,
             )
-            agent_name = self.config.get("name", self.key.capitalize()) if self.config else self.key.capitalize()
+            agent_name = (
+                self.config.get("name", self.key.capitalize())
+                if self.config
+                else self.key.capitalize()
+            )
             processed = self._append_runtime_project_cognition_gate(
                 content=processed,
                 agent_name=agent_name.replace(" CLI", ""),
@@ -2486,6 +2522,7 @@ class TomlIntegration(IntegrationBase):
                 command_name=src_file.stem,
             )
             from specify_cli.launcher import render_project_launcher_placeholders
+
             processed = render_project_launcher_placeholders(project_root, processed)
             _, body = self._split_frontmatter(processed)
             toml_content = self._render_toml(description, body)
@@ -2544,9 +2581,7 @@ class SkillsIntegration(IntegrationBase):
         Raises ``ValueError`` when ``config`` or ``folder`` is missing.
         """
         if not self.config:
-            raise ValueError(
-                f"{type(self).__name__}.config is not set."
-            )
+            raise ValueError(f"{type(self).__name__}.config is not set.")
         folder = self.config.get("folder")
         if not folder:
             raise ValueError(
@@ -2795,9 +2830,9 @@ class SkillsIntegration(IntegrationBase):
                 except ValueError:
                     relative = Path(reference_src.name)
                 destination = skill_dir / "references" / relative
-                rel_manifest_path = destination.resolve().relative_to(
-                    project_root_resolved
-                ).as_posix()
+                rel_manifest_path = (
+                    destination.resolve().relative_to(project_root_resolved).as_posix()
+                )
                 if rel_manifest_path not in manifest.files:
                     continue
                 if destination.exists():
@@ -2869,9 +2904,9 @@ class SkillsIntegration(IntegrationBase):
         restored: list[Path] = []
 
         def restore_file(source: Path, destination: Path, *, render: bool) -> None:
-            relative = destination.resolve().relative_to(
-                project_root_resolved
-            ).as_posix()
+            relative = (
+                destination.resolve().relative_to(project_root_resolved).as_posix()
+            )
             if relative not in manifest.files or destination.exists():
                 return
             destination.parent.mkdir(parents=True, exist_ok=True)
@@ -2972,9 +3007,7 @@ class SkillsIntegration(IntegrationBase):
         }
         advanced_dir = self.shared_advanced_skills_dir()
         shared_references = (
-            sorted((advanced_dir / "_shared").glob("*.md"))
-            if advanced_dir
-            else []
+            sorted((advanced_dir / "_shared").glob("*.md")) if advanced_dir else []
         )
         created: list[Path] = []
         for template_dir in self.list_advanced_skill_templates():
@@ -3011,8 +3044,7 @@ class SkillsIntegration(IntegrationBase):
                 if frontmatter_text:
                     rendered_body = body.lstrip("\r\n")
                     skill_content = (
-                        f"---\n{frontmatter_text}---\n\n"
-                        f"{boundary}{rendered_body}"
+                        f"---\n{frontmatter_text}---\n\n{boundary}{rendered_body}"
                     )
                 else:
                     skill_content = boundary + skill_content.lstrip()
@@ -3043,9 +3075,7 @@ class SkillsIntegration(IntegrationBase):
                         template_path=support_file,
                         project_root=project_root,
                     )
-                    support_content = self.render_advanced_invocations(
-                        support_content
-                    )
+                    support_content = self.render_advanced_invocations(support_content)
                     created.append(
                         self.write_file_and_record(
                             support_content,
@@ -3067,9 +3097,7 @@ class SkillsIntegration(IntegrationBase):
                     template_path=shared_reference,
                     project_root=project_root,
                 )
-                reference_content = self.render_advanced_invocations(
-                    reference_content
-                )
+                reference_content = self.render_advanced_invocations(reference_content)
                 created.append(
                     self.write_file_and_record(
                         reference_content,
@@ -3154,7 +3182,11 @@ class SkillsIntegration(IntegrationBase):
 
             # Derive the skill name from the template stem
             command_name = src_file.stem  # e.g. "plan"
-            skill_name = "sp-teams" if command_name == "team" else f"sp-{command_name.replace('.', '-')}"
+            skill_name = (
+                "sp-teams"
+                if command_name == "team"
+                else f"sp-{command_name.replace('.', '-')}"
+            )
 
             # Parse frontmatter for description
             frontmatter = self._parse_skill_frontmatter(raw)
@@ -3175,7 +3207,11 @@ class SkillsIntegration(IntegrationBase):
                 apply_invocation_conventions=True,
                 template_path=src_file,
             )
-            agent_name = self.config.get("name", self.key.capitalize()) if self.config else self.key.capitalize()
+            agent_name = (
+                self.config.get("name", self.key.capitalize())
+                if self.config
+                else self.key.capitalize()
+            )
             skill_content = self._append_runtime_project_cognition_gate(
                 content=skill_content,
                 agent_name=agent_name.replace(" CLI", ""),
@@ -3247,7 +3283,10 @@ class SkillsIntegration(IntegrationBase):
                 command_name=command_name,
             )
             from specify_cli.launcher import render_project_launcher_placeholders
-            skill_content = render_project_launcher_placeholders(project_root, skill_content)
+
+            skill_content = render_project_launcher_placeholders(
+                project_root, skill_content
+            )
 
             # Write sp-<name>/SKILL.md
             skill_dir = skills_dir / skill_name
@@ -3338,7 +3377,9 @@ class SkillsIntegration(IntegrationBase):
         content = skill_path.read_text(encoding="utf-8")
         if marker in content:
             return
-        self._write_augmented_skill(content + addendum, skill_path, project_root, manifest)
+        self._write_augmented_skill(
+            content + addendum, skill_path, project_root, manifest
+        )
 
     def _write_augmented_skill(
         self,
@@ -3448,16 +3489,18 @@ class SkillsIntegration(IntegrationBase):
                 f"{self._project_cognition_query_gate_line(command_name='debug', command_step='before any investigation or fixes')}\n"
                 "\n"
                 "Before applying fixes or running investigation actions:\n"
-                "- Read the current debug session state and choose `execution_model: leader-inline | subagent-assisted | blocked` from the investigation shape.\n"
+                "- Query the current debug session through `specify-runtime artifact show`, then choose `execution_model: leader-inline | subagent-assisted | blocked` from the investigation shape.\n"
                 "- Use `leader-inline` for a small focused investigation with one short evidence chain.\n"
                 "- Use `subagent-assisted` when there are two or more independent evidence-gathering lanes, broad surface area, or meaningful parallelism.\n"
-                "- If the next step is unsafe, unavailable, or unpacketizable, record `subagent-blocked`, `execution_surface: none`, and a concrete `blocked_reason` before stopping.\n"
+                "- If the next step is unsafe, unavailable, or unpacketizable, persist `subagent-blocked`, `execution_surface: none`, and a concrete `blocked_reason` through a fresh `specify-runtime artifact patch` lease before stopping.\n"
                 f"- Use `wait_agent` at the investigation join point, integrate returned results, and call `close_agent` for completed subagents.\n"
                 "\n"
                 "**Hard rule:** During `investigating`, the leader must not let subagents mutate the debug file, declare the root cause final, or advance the session state.\n"
             )
             if "## Session Lifecycle" in content:
-                content = content.replace("## Session Lifecycle", gate_addendum + "\n## Session Lifecycle", 1)
+                content = content.replace(
+                    "## Session Lifecycle", gate_addendum + "\n## Session Lifecycle", 1
+                )
             else:
                 content += gate_addendum
 
@@ -3480,13 +3523,13 @@ class SkillsIntegration(IntegrationBase):
                 "- The think subagent does NOT read source code and does NOT run commands — it is a pure reasoning agent.\n"
                 "- Use `wait_agent` to wait for the think subagent's result.\n"
                 "- The result is hybrid: free-text analysis followed by `---` and a YAML block.\n"
-                "- Parse the YAML block after `---` and populate these fields in the debug state:\n"
+                "- Parse the YAML block after `---` in memory, acquire a fresh debug-session lease with `specify-runtime artifact prepare`, and persist these fields with `specify-runtime artifact patch`:\n"
                 "  - `causal_map` (symptom_anchor, closed_loop_path, break_edges, bypass_paths, family_coverage, candidates, adjacent_risk_targets, dimension_scan, candidate_board)\n"
                 "- Ensure Stage 1A covers at least 3 families and every family includes a falsifier.\n"
                 "- These Stage 1A candidates are still the observer-framing alternative cause candidates; do not collapse them into one family too early.\n"
-                "- Set `causal_map_completed` to `True`.\n"
+                "- Persist `causal_map_completed: true` through that `specify-runtime artifact patch` lease.\n"
                 "- Then continue the debug session — the next GatheringNode run will request the contract planner stage.\n"
-                "- If Gathering returns `contract_subagent_prompt`, use it for the contract-planner subagent and feed its result back into `observer_framing`, `transition_memo`, `investigation_contract`, and top-level `log_investigation_plan`.\n"
+                "- If Gathering returns `contract_subagent_prompt`, use it for the contract-planner subagent and persist its result into `observer_framing`, `transition_memo`, `investigation_contract`, and top-level `log_investigation_plan` through a fresh `specify-runtime artifact patch` lease.\n"
                 "- Treat the causal-map output as Stage 1A and the contract-planner output as Stage 1B. Investigation starts only after both stages are complete, unless map-backed minimum intake already completed those fields.\n"
                 "- Stage 1B must still produce a primary suspected loop, a contrarian candidate, and a recommended first probe before investigation begins.\n"
                 "- Do NOT skip the think subagent once the runtime requested deep fallback. Context isolation is the purpose of that step.\n"
@@ -3511,24 +3554,24 @@ class SkillsIntegration(IntegrationBase):
             "- Small focused investigation -> `leader-inline`.\n"
             "- One safe isolated evidence lane -> `one-subagent` when the current runtime supports it safely.\n"
             "- Two or more independent evidence lanes -> `parallel-subagents` when the current runtime supports it safely.\n"
-            "- Unsafe, unavailable, or unpacketizable next step -> `subagent-blocked` with `execution_surface: none` and `blocked_reason`.\n"
+            "- Unsafe, unavailable, or unpacketizable next step -> persist `subagent-blocked`, `execution_surface: none`, and `blocked_reason` through a fresh `specify-runtime artifact patch` lease.\n"
             f"- If there are two or more independent evidence-gathering lanes, dispatch subagents through `spawn_agent` instead of doing manual sequential investigation.\n"
             "- Suitable subagent tasks include running targeted tests or repro commands, collecting logs and exit codes, searching for error text, tracing isolated code paths, and gathering evidence after diagnostic logging has been added.\n"
-            "- Read `diagnostic_profile` from the debug session before choosing subagent lanes.\n"
-            "- The leader **MUST** update the debug file's `Current Focus` before dispatching subagents and treat subagent work as evidence collection for the current hypothesis.\n"
+            "- Query `diagnostic_profile` through `specify-runtime artifact show` before choosing subagent lanes.\n"
+            "- The leader **MUST** replace the debug session's `Current Focus` through a fresh `specify-runtime artifact patch --section` lease before dispatching subagents and treat subagent work as evidence collection for the current hypothesis.\n"
             "- The think-subagent output is an investigation contract, not advisory prose.\n"
             "- The investigating stage must consume the candidate queue and primary candidate before freeform fixes begin.\n"
-            "- After two automated verification failures, switch the session into root-cause mode and stop layering point fixes.\n"
+            "- After two automated verification failures, persist root-cause mode through a fresh `specify-runtime artifact patch` lease and stop layering point fixes.\n"
             "- Do not close the session until nearest-neighbor related risk targets have been reviewed.\n"
             "- Subagents must return facts, command results, and observations; they must not update the debug file, declare the root cause final, or transition the session state.\n"
             "- Wait for every subagent's structured handoff before accepting the join point or changing the investigation stage.\n"
             "- Wait for every delegated lane's structured handoff before accepting the join point or changing the investigation stage.\n"
             "- Do not treat an idle subagent as done work; idle without a consumed handoff means the evidence lane is still unresolved.\n"
-            "- Do not interrupt or shut down subagent work before the handoff has been written or explicitly reported as `BLOCKED` or `NEEDS_CONTEXT`.\n"
+            "- Do not interrupt or shut down subagent work before the handoff has been returned inline, submitted through its runtime result owner, or explicitly reported as `BLOCKED` or `NEEDS_CONTEXT`.\n"
             f"- Use `wait_agent` only after the current investigation fan-out reaches its join point.\n"
             f"- Use `close_agent` after integrating finished subagent results.\n"
             "- Do not resolve the session directly from successful automated verification. Successful automated verification must hand off into formal human verification.\n"
-            "- If human feedback reports another problem, classify it as `same_issue`, `derived_issue`, or `unrelated_issue`.\n"
+            "- If human feedback reports another problem, classify it as `same_issue`, `derived_issue`, or `unrelated_issue` and persist the classification through a fresh `specify-runtime artifact patch` lease.\n"
             "- Default to `same_issue` unless strong evidence proves the other classes.\n"
             "- Keep fixing, agent verification, `awaiting_human_verify`, and final session resolution on the leader path.\n"
         )
@@ -3577,11 +3620,11 @@ class SkillsIntegration(IntegrationBase):
                 f"{self._project_cognition_query_gate_line(command_name='quick', command_step='before repository analysis or implementation')}\n"
                 "\n"
                 "Before code edits, test edits, or implementation commands:\n"
-                "- Read `.specify/memory/constitution.md` first if it exists.\n"
-                "- Read `STATUS.md` for the active quick-task workspace, or create it if this quick task is new.\n"
+                "- Query `.specify/memory/constitution.md` first through `specify-runtime artifact show` if it exists.\n"
+                "- Create a new quick-task `STATUS.md` only through `specify-runtime artifact scaffold --kind quick-status`, or resume it through targeted `artifact show` calls.\n"
                 "- If `understanding_confirmed` is not `true`, present the Understanding Checkpoint and wait for user confirmation before implementation work.\n"
-                "- The user-facing checkpoint must use the fixed Quick Checkpoint Markdown table with `| Decision to confirm | Current understanding |` and rows for `Request and outcome`, `User-visible result`, `Scope`, `Recommended approach`, `Assumptions and risks`, `Completion evidence`, and `Reconfirmation trigger`; technical execution stays agent-owned, and prose bullets or partial field lists are not sufficient. For applicable UI work, append the independent UI Confirmation card and ask once for both decisions.\n"
-                "- Do not proceed to code edits, broad repository analysis, delegation, or validation commands until `understanding_confirmed: true` is recorded in `STATUS.md`.\n"
+                "- The user-facing checkpoint must use the fixed Quick Checkpoint Markdown table with `| Decision to confirm | Current understanding |` and rows for `Request and outcome`, `User-visible result`, `Scope`, `Ordered work items`, `Work-item acceptance`, `Recommended approach`, `Assumptions and risks`, `Completion evidence`, and `Reconfirmation trigger`. Use stable Q1/Q2 ids for one or many deliverables and confirm only deliverable-level order; internal implementation sequencing stays agent-owned, and prose bullets or partial field lists are not sufficient. For applicable UI work, append the independent UI Confirmation card and ask once for both decisions.\n"
+                "- Do not proceed to code edits, broad repository analysis, delegation, or validation commands until `understanding_confirmed: true` has been persisted in `STATUS.md` through a fresh `specify-runtime artifact patch` lease.\n"
                 "- After understanding is confirmed, define the smallest safe delegated lane or ready batch, and choose the dispatch shape for that batch.\n"
                 "- Dispatch `one-subagent` when one validated `WorkerTaskPacket` or equivalent execution contract preserves quality.\n"
                 "- Dispatch `parallel-subagents` when two or more safe subagent lanes would materially improve throughput.\n"
@@ -3590,15 +3633,17 @@ class SkillsIntegration(IntegrationBase):
                 f"- Use `wait_agent` only at the current join point, integrate returned results, and call `close_agent` for completed subagents.\n"
                 "- Wait for every subagent's structured handoff before accepting the join point, closing the batch, or declaring completion.\n"
                 "- Do not treat an idle subagent as done work; idle without a consumed handoff means the result channel is still unresolved.\n"
-                "- Do not interrupt or shut down subagent work before the handoff has been written or explicitly reported as `BLOCKED` or `NEEDS_CONTEXT`.\n"
+                "- Do not interrupt or shut down subagent work before the handoff has been returned inline, submitted through its runtime result owner, or explicitly reported as `BLOCKED` or `NEEDS_CONTEXT`.\n"
                 "- Use `managed-team` only when durable team state is needed beyond one in-session subagent burst.\n"
                 "- Use `subagent-blocked` only when subagent dispatch and `sp-teams` are both unavailable or unsafe.\n"
-                "- When `subagent-blocked` is used, you **MUST** write the concrete blocker reason into `STATUS.md` before escalating or stopping locally.\n"
+                "- When `subagent-blocked` is used, you **MUST** patch the concrete blocker reason into `STATUS.md` through a fresh `specify-runtime artifact patch` lease before escalating or stopping locally.\n"
                 "\n"
                 "**Hard rule:** The leader must keep scope control, strategy selection, join-point handling, validation, summary ownership, and `STATUS.md` accuracy while subagent execution is active.\n"
             )
             if "## Process" in content:
-                content = content.replace("## Process", gate_addendum + "\n## Process", 1)
+                content = content.replace(
+                    "## Process", gate_addendum + "\n## Process", 1
+                )
             else:
                 content += gate_addendum
 
@@ -3618,17 +3663,17 @@ class SkillsIntegration(IntegrationBase):
         addendum = (
             "\n"
             f"## {agent_name} Quick-Task Subagent Execution\n\n"
-            f"When running `sp-quick` in {agent_name}, start execution routing only after `STATUS.md` exists and `understanding_confirmed: true` is recorded.\n"
-            "- Understanding checkpoint: before dispatch, render the fixed Quick Checkpoint Markdown table with `| Decision to confirm | Current understanding |` and user-owned rows for request/outcome, visible result, scope, recommended approach, assumptions/risks, completion evidence, and reconfirmation trigger. Append the UI Confirmation proposal when applicable and use one combined confirmation.\n"
+            f"When running `sp-quick` in {agent_name}, start execution routing only after targeted `specify-runtime artifact show` reports that CLI-owned `STATUS.md` has `understanding_confirmed: true`.\n"
+            "- Understanding checkpoint: before dispatch, render the fixed Quick Checkpoint Markdown table with `| Decision to confirm | Current understanding |` and user-owned rows for request/outcome, visible result, scope, ordered work items, work-item acceptance, recommended approach, assumptions/risks, completion evidence, and reconfirmation trigger. Use stable Q1/Q2 ids for one or many deliverables; append the UI Confirmation proposal when applicable and use one combined confirmation.\n"
             "- Dispatch `one-subagent` or `parallel-subagents` only after the Understanding Checkpoint is confirmed.\n"
-            "- Use `subagent-blocked` only after native subagents and the managed-team path are unavailable or unsafe, and record the blocker reason in `STATUS.md`.\n"
+            "- Use `subagent-blocked` only after native subagents and the managed-team path are unavailable or unsafe, and patch the blocker reason into `STATUS.md` through a fresh `specify-runtime artifact patch` lease.\n"
             f"- Use `spawn_agent` for bounded lanes such as focused repository analysis, targeted implementation, regression test updates, or validation command runs.\n"
             "- Once the first lane is chosen, dispatch it before continuing any leader-inline deep-dive analysis of the repository.\n"
             "- If multiple safe subagent lanes exist and they materially improve throughput, dispatch them in parallel.\n"
             f"- Use `wait_agent` only at the documented join point for the current quick-task batch.\n"
             f"- Use `close_agent` after integrating finished subagent results.\n"
             "- Keep `.planning/quick/<id>-<slug>/STATUS.md` as the leader-owned source of truth.\n"
-            "- Subagents may return evidence, patches, and verification output, but they must not become the authority for resume state; the leader updates `STATUS.md` before and after each join point.\n"
+            "- Subagents may return evidence, patches, and verification output, but they must not become the authority for resume state; the leader patches `STATUS.md` through fresh `specify-runtime artifact patch` leases before and after each join point.\n"
             f"- Decision order for {agent_name} `sp-quick`: safe packetized subagents -> `managed-team` when durable state is needed -> `subagent-blocked` with reason.\n"
             "- Prefer subagent execution only when a validated `WorkerTaskPacket` or equivalent execution contract preserves quality.\n"
             "- Re-check strategy after every join point and continue automatically until the quick task is complete or blocked.\n"
@@ -3667,7 +3712,9 @@ class SkillsIntegration(IntegrationBase):
             command_name="implement",
             snapshot=snapshot,
         )
-        self._write_augmented_skill(content, implement_teams_skill, project_root, manifest)
+        self._write_augmented_skill(
+            content, implement_teams_skill, project_root, manifest
+        )
 
     def _augment_implement_teams_shared_contract(
         self,
@@ -3699,14 +3746,14 @@ class SkillsIntegration(IntegrationBase):
             "2. compile and validate a `WorkerTaskPacket` just in time before assigning each team-managed execution task\n"
             "3. for implementation-oriented teams flows, preserve the user-visible fields `execution_model`, `dispatch_shape`, and `execution_surface`\n"
             "4. preserve explicit join behavior, blocker/recovery reporting, event-triggered review, and completion checks\n"
-            "5. preserve the team result contract and canonical result file handoff path\n"
+            "5. preserve the team result contract and CLI-owned inline result submission channel\n"
             "6. preserve final-completion truthfulness: do not describe `core implementation complete`, `implementation complete`, or `ready for integration testing` as overall feature completion while required E2E, Polish, documentation, quickstart, or validation work remains\n\n"
             "Every team-managed task in the teams-backed flow must still behave like an explicit execution packet, not a chat-only summary. Preserve these fields whenever the backend exposes task records, mailbox messages, or equivalent runtime-managed assignments:\n\n"
             "1. task id and subject\n"
             "2. write set and shared surfaces\n"
             "3. required references and forbidden drift\n"
             "4. explicit verification command or acceptance check\n"
-            "5. canonical result handoff path or runtime-managed result channel expectation\n"
+            "5. exact inline result-submission owner and required runtime identifiers\n"
             "6. completion-handoff protocol covering start, blocker, and final completion evidence\n"
             "7. platform guardrails such as supported platforms, conditional compilation requirements, or other environment-sensitive constraints\n\n"
             f"Before {backend_label} starts concrete work, ensure the current ready batch is prepared the same way `{canonical_command}` would prepare it:\n\n"
@@ -3715,7 +3762,7 @@ class SkillsIntegration(IntegrationBase):
             "3. join point expectations and result handoff expectations are explicit\n"
             "4. the team-managed lane cannot be treated as complete from a status flip alone; the leader still needs the promised completion handoff or result evidence\n\n"
             "Before assigning team-managed work, preserve the same project cognition compass contract that `sp-implement` uses:\n\n"
-            "1. run `{{specify-subcmd:specify-runtime cognition compass --intent implement --query=\"$ARGUMENTS\" --format json}}` and include the compass packet in the execution context bundle\n"
+            '1. run `{{specify-subcmd:specify-runtime cognition compass --intent implement --query="$ARGUMENTS" --format json}}` and include the compass packet in the execution context bundle\n'
             f"2. {EPISTEMIC_CONTRACT_GUIDANCE} Carry `epistemic_contract` in every teammate context packet.\n"
             "3. read top-level `minimal_live_reads` first, then use lane-level `first_pass_paths` reasons, evidence hints, `verification_hints`, `followup_surfaces`, and `before_fix_claim` checks\n"
             "4. preserve `coverage_diagnostics` as confidence and closeout signals, not route candidates\n"
@@ -3725,10 +3772,10 @@ class SkillsIntegration(IntegrationBase):
             "8. in that precision escalation, normalize user input and write a `semantic_intake` object with `workflow_intent`, `normalized_query`, `intent_facets`, `negative_constraints`, `alias_interpretations`, and `open_semantic_questions`\n"
             "9. treat `agent_normalization.required=true` as a non-intelligent CLI reminder to write `semantic_intake` from the alias catalog (raw lexicon ranking is only a bootstrap; action: write_semantic_intake_from_alias_catalog); if `agent_normalization` is omitted, treat it as `required=false`, not as proof that raw lexical ranking is authoritative\n"
             "10. keep CJK or mixed CJK/ASCII input in agent-owned normalization even when positive raw lexical matches exist because embedded project tokens do not translate the surrounding user language; the agent still owns translation and `agent_normalization` is advisory guidance, not a route decision\n"
-            "11. keep `alias_interpretations` object-shaped, for example `{\"alias\": \"<user term>\", \"meaning\": \"<project term>\", \"confidence\": \"medium\"}`, never as a string array\n"
+            '11. keep `alias_interpretations` object-shaped, for example `{"alias": "<user term>", "meaning": "<project term>", "confidence": "medium"}`, never as a string array\n'
             "12. build a `query_plan` with `selected_concepts`, `rejected_concepts`, `concept_decisions`, `covered_facets`, `missing_facets`, `match_sources`, `lexicon_generation_id`, `expanded_queries`, `repository_search_terms`, and justified `paths`\n"
             "13. derive project-language search terms from the alias catalog before source search; do not search only the raw user words; include component names, state names, file names, command names, UI labels, and route names from candidates, aliases, matched terms, returned paths, `normalized_query`, and `expanded_queries`\n"
-            "14. run `{{specify-subcmd:specify-runtime cognition query --intent implement --query-plan \"<query_plan_json>\" --format json}}` only for that precision escalation, and preserve returned readiness, `minimal_live_reads`, `first_pass_paths`, and the task-local bundle in every teammate context packet\n"
+            '14. run `{{specify-subcmd:specify-runtime cognition query --intent implement --query-plan "<query_plan_json>" --format json}}` only for that precision escalation, and preserve returned readiness, `minimal_live_reads`, `first_pass_paths`, and the task-local bundle in every teammate context packet\n'
             "15. if the query reports diagnostics, preserve `warnings`, `repair_hints`, normalized `query_plan`, structured `errors`, and `expected_shape` so the leader can repair the plan instead of losing the diagnostics in team chat\n\n"
             "The only intended difference is the dispatch path:\n\n"
             f"1. `{canonical_command}` may route the current ready batch through subagents first\n"
@@ -3737,7 +3784,11 @@ class SkillsIntegration(IntegrationBase):
         )
 
         if "## Execution Contract" in content:
-            content = content.replace("## Execution Contract", addendum + "\n## Execution Contract", 1)
+            content = content.replace(
+                "## Execution Contract", addendum + "\n## Execution Contract", 1
+            )
         else:
             content += addendum
-        self._write_augmented_skill(content, implement_teams_skill, project_root, manifest)
+        self._write_augmented_skill(
+            content, implement_teams_skill, project_root, manifest
+        )

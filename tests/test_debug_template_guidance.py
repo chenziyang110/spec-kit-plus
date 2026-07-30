@@ -78,7 +78,8 @@ def test_debug_template_documents_map_backed_intake_contract() -> None:
     assert "atlas.index.atlas" not in content
     assert "if the active session is `awaiting_human_verify`" in content
     assert "start a linked follow-up session" in content
-    assert "record the parent/child relationship" in content
+    assert "patch the parent/child relationship" in content
+    assert "specify-runtime artifact patch" in content
     assert "return to the parent session to finish the original human verification" in content
     assert "same_issue" in content
     assert "derived_issue" in content
@@ -121,7 +122,8 @@ def test_debug_template_documents_map_backed_intake_contract() -> None:
     assert "evidence-gathering" in content or "evidence-gathering tasks" in content
     assert "existing logs" in content
     assert "logs are a first-class evidence source" in content
-    assert "append it to `evidence` with `source_type: log`" in content
+    assert "add the finding in memory with `source_type: log`" in content
+    assert "replace the section through a fresh `artifact patch --section` lease" in content
     assert "observability as insufficient" in content
     assert "diagnostic logging" in content or "instrumentation" in content
     assert "truth ownership map" in content
@@ -147,7 +149,7 @@ def test_debug_template_documents_map_backed_intake_contract() -> None:
     assert "loop_break" in content
     assert "decisive_signal" in content
     assert "rejected surface fixes" in content
-    assert "if automated verification or human verification fails repeatedly" in content
+    assert "if automated or human verification fails repeatedly" in content
     assert ".planning/debug/[slug].research.md" in content
     assert "debug-local research checkpoint" in content
     assert "dispatches bounded evidence-gathering subagents" in content
@@ -160,7 +162,7 @@ def test_debug_template_documents_map_backed_intake_contract() -> None:
     assert "workflow-owned mutation closeout is not an external map-maintenance handoff" in content
     assert "specify-runtime cognition closeout-plan --workflow" in content
     assert "update_mode=delta_session" in content
-    assert "update_mode=payload_file" in content
+    assert "update_mode=inline_json" in content
     assert "update_argv" in content
     assert "delta_append_draft.argv_prefix" in content
     assert "unknown_path_dispositions" in content
@@ -185,18 +187,19 @@ def test_debug_template_documents_map_backed_intake_contract() -> None:
     assert "incremental freshness finalization" in content
     assert "do not run `complete-refresh` as a rebuild finalizer" in content
     assert "{{specify-subcmd:specify-runtime cognition mark-dirty --reason \"workflow-closeout-failed\" --format json}}" in content
-    assert "write the selected capability or symptom, evidence routes" in content
+    assert "persist the selected capability or symptom, evidence routes" in content
     assert "highest-signal" in content
     assert "write a failing automated repro test before changing production code" in content
     assert "do not modify production behavior until the red state is proven" in content
     assert "if no reliable automated test surface exists for the failing behavior" in content
-    assert "add the missing harness first or route through `/sp-quick` or `/sp-specify`" in content
+    assert "if that expands beyond the debug fix lane, route it through `/sp-quick`" in content
+    assert "use `/sp-specify` only when the user explicitly chooses a formal spec-first path" in content
     assert "senior consequence analysis gate" in content
     assert "dependency loop" in content
     assert "affected objects" in content
     assert "adjacent risk targets" in content
     assert "reject surface-only fixes" in content
-    assert "record which plausible causes were considered and which were ruled out" in content
+    assert "`session patch` which plausible causes were considered and which were ruled out" in content
     assert "surface-only" in content
     assert "cannot satisfy the debug contract" in content
     assert "loop restoration proof" in content

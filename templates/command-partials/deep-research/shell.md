@@ -38,12 +38,13 @@ direction it must preserve.
 
 ## Output Contract
 
-- Write or update `deep-research.md`.
-- Optionally write isolated scratch assets under `research-spikes/`.
-- Update `alignment.md`, `context.md`, `references.md`, and `workflow-state.md`
+- If `deep-research.md` is absent, create it with `artifact scaffold --kind deep-research` or `--kind deep-research-not-needed` as appropriate. Query an existing file with `artifact show` and mutate only named semantic sections through fresh leased `artifact patch` calls; never submit or reconstruct the whole document.
+- Optionally submit isolated text/code scratch assets under `research-spikes/` through the artifact CLI; import binary proof through the evidence CLI.
+- Mutate `alignment.md`, `context.md`, `references.md`, and `workflow-state.md` only through their registered artifact owner; prefer leased section/JSON-pointer patches
   when feasibility evidence changes planning readiness.
-- If this gate is not needed, still write a lightweight `deep-research.md`
-  with `**Status**: Not needed`, `Feasibility Decision`, `Planning Handoff`,
+- If this gate is not needed, create the lightweight fixed shape with
+  `artifact scaffold --kind deep-research-not-needed`, then patch only
+  `Metadata`, `Feasibility Decision`, `Planning Handoff`,
   and `Next Command`; do not invent `CAP/TRK/EVD/PH` IDs for already-proven
   work.
 - Include a `Planning Handoff` section that `/sp.plan` can consume directly for
@@ -57,7 +58,7 @@ direction it must preserve.
   `spike-required.md`.
 - Report which capabilities are proven, constrained, blocked, or no longer worth
   planning.
-- Persist accepted evidence packets as `FEATURE_DIR/research-evidence/<EVD-###>.json`.
+- Submit accepted evidence packets as `FEATURE_DIR/research-evidence/<EVD-###>.json` only through `specify-runtime artifact prepare` plus inline `artifact submit`, or refresh targeted fields through a leased `artifact patch`.
 
 ## Guardrails
 

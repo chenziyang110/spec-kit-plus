@@ -1,8 +1,8 @@
 # Project Learning Index
 
-Runtime-maintained compact index behind `specify learning start` and
-`specify learning list`. Agents should use those CLI surfaces and expand one
-selected record with `specify learning show`; do not parse this file directly
+Runtime-maintained compact index behind `specify-runtime learning start` and
+`specify-runtime learning list`. Agents should use those CLI surfaces and expand one
+selected record with `specify-runtime learning show`; do not parse this file directly
 during normal workflow execution.
 
 ---

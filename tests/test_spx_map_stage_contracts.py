@@ -44,8 +44,10 @@ def test_spx_map_scan_requires_runtime_result_skeleton_partial_acceptance_and_ex
 
     assert "use `--force` only after explicitly abandoning the old workbench" in scan
     assert "accepted and pending results are discarded" in scan
-    assert "copy the supplied json skeleton" in worker
-    assert "write only the designated packet-local pending result" in worker
+    assert "fill the supplied result shape in memory" in worker
+    assert "scan-checkpoint --result-json" in worker
+    assert "the runtime alone materializes pending-result and checkpoint files" in worker
+    assert "never create or edit them" in worker
     assert "keep worker-authored `acceptance` at `partial`" in worker
     assert "the runtime derives `pass` only after `scan-accept` validates the full result" in worker
     assert "do not self-declare `acceptance: pass`" in worker

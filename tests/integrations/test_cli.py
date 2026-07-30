@@ -40,7 +40,7 @@ def test_top_level_cli_exposes_discussion_entrypoint():
     discussion_output = re.sub(r"\s+", " ", strip_ansi(discussion_help.output).lower())
     assert "discussion" in root_help.output
     assert "resumable senior product-engineering" in discussion_output
-    assert "discussion before formal specification" in discussion_output
+    assert "discussion before direct quick delivery or formal specification" in discussion_output
     assert "workflow entrypoint and help surface" in strip_ansi(discussion_entrypoint.output).lower()
 
 

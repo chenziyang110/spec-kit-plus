@@ -9,11 +9,11 @@ Use when `sp-discussion` asks for final review, a user requests changes, or `sp-
 
 ## Authority
 
-Review `.specify/discussions/<slug>/handoff-to-specify.json`. It is the only handoff authority. Do not require, generate, or compare a Markdown companion.
+Review `.specify/discussions/<slug>/handoff-to-specify.json` only through `specify-runtime artifact show --path .specify/discussions/<slug>/handoff-to-specify.json --view full --format json`; use targeted JSON pointers if the bounded full view is too large. It is the only handoff authority. Do not require, generate, or compare a Markdown companion.
 
 Human-facing explanation belongs in the visible reply; the contract remains schema-first and agent-only.
 
-Read supporting `discussion-state.md`, `requirements.md`, `technical-options.md`, `project-context.md`, or `open-questions.md` only when a named source-evidence ref is stale, missing, contradictory, or required to repair a specific field. Do not sweep them by default.
+Query supporting `discussion-state.md`, `requirements.md`, `technical-options.md`, `project-context.md`, or `open-questions.md` only through targeted `specify-runtime artifact show` calls when a named source-evidence ref is stale, missing, contradictory, or required to repair a specific field. Do not sweep them by default.
 
 ## Review Order
 

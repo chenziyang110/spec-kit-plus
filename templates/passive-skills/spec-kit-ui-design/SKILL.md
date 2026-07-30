@@ -47,8 +47,9 @@ TUI, or CLI output quality affects the outcome.
   reference input.
 - In `sp-specify`, UI reference input requires
   `choose_ui_reference_lane_dispatch` and `lane_mode: ui-reference-artifact`.
-- The UI reference lane writes `ui-reference-notes.md`, `ui-brief.md`, and
-  optional `ui-target.html`.
+- The UI reference lane scaffolds `ui-reference-notes.md` and `ui-brief.md`
+  through `specify-runtime artifact`, patches their semantic fields, and creates
+  optional `ui-target.html` through `specify-runtime design ui-target`.
 - Keep the artifacts distinct: the project-level design preview approves the
   reusable design language, while feature-level `ui-target.html` describes one
   concrete feature composition.

@@ -3,8 +3,10 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"strings"
 	"testing"
@@ -26,6 +28,8 @@ design_system:
       - .specify/design/previews/round-01.html#direction-a
     preview_sha256: PREVIEW_SHA256
     manifest_sha256: MANIFEST_SHA256
+    handoff_ref: .specify/design/previews/round-01.handoff.json
+    handoff_sha256: HANDOFF_SHA256
     decision_ids:
       - DS-COLOR-001
       - DS-TYPE-001
@@ -34,6 +38,14 @@ design_system:
       - DS-MOTION-001
       - DS-RESP-001
       - DS-CONTENT-001
+    handoff_contract_ids:
+HANDOFF_CONTRACT_IDS
+    capability_profile_ids:
+      - web
+    specimen_ids:
+      - SP-WEB-WORKSPACE-001
+      - SP-WEB-CONTROLS-001
+      - SP-WEB-COLLECTION-001
   product_context:
     subject: account settings
     audience: account owners
@@ -49,6 +61,12 @@ design_system:
       - compact density
   platforms:
     - web
+  capability_profiles:
+    - web
+  specimens:
+    - SP-WEB-WORKSPACE-001
+    - SP-WEB-CONTROLS-001
+    - SP-WEB-COLLECTION-001
   tokens:
     color:
       surface.canvas:
@@ -229,10 +247,54 @@ func TestDesignPreviewApproveFreezesDirectionAndBindsSidecar(t *testing.T) {
 	if _, err := os.Stat(sidecar); err != nil {
 		t.Fatalf("approval sidecar missing: %v", err)
 	}
+	handoff := strings.TrimSuffix(preview, filepath.Ext(preview)) + ".handoff.json"
+	if _, err := os.Stat(handoff); err != nil {
+		t.Fatalf("handoff sidecar missing: %v", err)
+	}
+	if !hexDigestRE.MatchString(fmt.Sprint(approval["handoff_sha256"])) || len(stringList(approval["handoff_contract_ids"])) == 0 {
+		t.Fatalf("approval does not bind immutable handoff: %#v", approval)
+	}
+	if !reflect.DeepEqual(stringList(approval["capability_profile_ids"]), []string{"web"}) || len(stringList(approval["specimen_ids"])) != 3 {
+		t.Fatalf("approval does not bind capability profiles and specimens: %#v", approval)
+	}
+	var handoffPayload map[string]any
+	if err := json.Unmarshal([]byte(readFile(t, handoff)), &handoffPayload); err != nil {
+		t.Fatal(err)
+	}
+	direction, _ := handoffPayload["direction"].(map[string]any)
+	reproduction, _ := handoffPayload["reproduction"].(map[string]any)
+	if handoffPayload["schema"] != designHandoffSchema || direction["id"] != "direction-c" || len(stringList(reproduction["contract_ids"])) == 0 {
+		t.Fatalf("handoff does not freeze the selected direction contract: %#v", handoffPayload)
+	}
+	capabilityModel, _ := reproduction["capability_model"].(map[string]any)
+	if !reflect.DeepEqual(stringList(capabilityModel["profile_ids"]), []string{"web"}) {
+		t.Fatalf("handoff does not freeze the capability model: %#v", reproduction)
+	}
 	stdout.Reset()
 	exit = runDesign([]string{"preview-lint", preview, "--level", "ready"}, &stdout)
 	if exit != 0 {
 		t.Fatalf("approved preview should lint: exit=%d output=%s", exit, stdout.String())
+	}
+
+	originalHandoff, err := os.ReadFile(handoff)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mutatedHandoff := strings.Replace(string(originalHandoff), `"reproduction_mode": "exact"`, `"reproduction_mode": "platform-adapted"`, 1)
+	if err := os.WriteFile(handoff, []byte(mutatedHandoff), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	stdout.Reset()
+	exit = runDesign([]string{"preview-lint", preview, "--level", "ready"}, &stdout)
+	if exit != 2 {
+		t.Fatalf("tampered handoff exit = %d output=%s", exit, stdout.String())
+	}
+	env = decodeEnvelope(t, stdout.Bytes())
+	if !envelopeHasDiagnostic(env, "preview-stale-handoff-binding") || !envelopeHasDiagnostic(env, "preview-stale-handoff-content") {
+		t.Fatalf("expected tampered handoff diagnostics, got %#v", env.Items)
+	}
+	if err := os.WriteFile(handoff, originalHandoff, 0o644); err != nil {
+		t.Fatal(err)
 	}
 
 	mutated := strings.Replace(readFile(t, preview), "Compare all", "Compare directions", 1)
@@ -247,6 +309,145 @@ func TestDesignPreviewApproveFreezesDirectionAndBindsSidecar(t *testing.T) {
 	env = decodeEnvelope(t, stdout.Bytes())
 	if !envelopeHasDiagnostic(env, "preview-stale-approval-sidecar") {
 		t.Fatalf("expected stale sidecar diagnostic, got %#v", env.Items)
+	}
+}
+
+func TestDesignPreviewApproveRollsBackEveryArtifactWhenPromotionFails(t *testing.T) {
+	tmp := t.TempDir()
+	withCwd(t, tmp)
+	preview := filepath.Join(".specify", "design", "previews", "round-03.html")
+
+	var stdout bytes.Buffer
+	if exit := runDesign([]string{"preview", "--out", preview}, &stdout); exit != 0 {
+		t.Fatalf("preview scaffold failed: %d %s", exit, stdout.String())
+	}
+	configurePreviewCandidate(t, preview)
+	originalPreview := readFile(t, preview)
+
+	originalPromote := promoteTransactionFile
+	t.Cleanup(func() { promoteTransactionFile = originalPromote })
+	calls := 0
+	promoteTransactionFile = func(path string, content []byte, perm os.FileMode) error {
+		calls++
+		if calls == 2 {
+			return fmt.Errorf("injected design approval promote failure")
+		}
+		return atomicWriteFile(path, content, perm)
+	}
+
+	stdout.Reset()
+	exit := runDesign([]string{"approve", preview, "--direction", "direction-a"}, &stdout)
+	if exit == 0 {
+		t.Fatalf("approve unexpectedly succeeded: %s", stdout.String())
+	}
+	if current := readFile(t, preview); current != originalPreview {
+		t.Fatal("preview was not restored after failed approval")
+	}
+	for _, suffix := range []string{".approval.json", ".handoff.json"} {
+		path := strings.TrimSuffix(preview, filepath.Ext(preview)) + suffix
+		if _, err := os.Stat(path); !os.IsNotExist(err) {
+			t.Fatalf("partial approval artifact remains at %s: %v", path, err)
+		}
+	}
+}
+
+func TestDesignPreviewManifestRendersDeterministicCandidate(t *testing.T) {
+	tmp := t.TempDir()
+	withCwd(t, tmp)
+	manifest := filepath.Join(".specify", "design", "previews", "round-03.manifest.json")
+	preview := filepath.Join(".specify", "design", "previews", "round-03.html")
+	var stdout bytes.Buffer
+	if exit := runDesign([]string{"preview-manifest", "--out", manifest}, &stdout); exit != 0 {
+		t.Fatalf("preview-manifest failed: %d %s", exit, stdout.String())
+	}
+	configured := regexp.MustCompile(`__[A-Z0-9_]+__`).ReplaceAllString(readFile(t, manifest), "Configured design content")
+	if err := os.WriteFile(manifest, []byte(configured), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	stdout.Reset()
+	if exit := runDesign([]string{"preview", "--manifest", manifest, "--out", preview}, &stdout); exit != 0 {
+		t.Fatalf("preview render failed: %d %s", exit, stdout.String())
+	}
+	content := readFile(t, preview)
+	if !strings.Contains(content, `data-preview-status="candidate"`) || !strings.Contains(content, `data-review-round="3"`) {
+		t.Fatalf("rendered candidate did not bind round/status")
+	}
+	if exit := runDesign([]string{"preview-lint", preview, "--level", "ready"}, &stdout); exit != 0 {
+		t.Fatalf("rendered candidate should lint: %d %s", exit, stdout.String())
+	}
+}
+
+func TestDesignCapabilityProfilesProjectHybridAndRouteNoUI(t *testing.T) {
+	tmp := t.TempDir()
+	withCwd(t, tmp)
+	var stdout bytes.Buffer
+	if exit := runDesign([]string{"profiles"}, &stdout); exit != 0 {
+		t.Fatalf("profiles failed: %d %s", exit, stdout.String())
+	}
+	env := decodeEnvelope(t, stdout.Bytes())
+	profiles, _ := env.Data["profiles"].([]any)
+	if len(profiles) != 7 {
+		t.Fatalf("profile count = %d, want 7", len(profiles))
+	}
+
+	manifestPath := filepath.Join(".specify", "design", "previews", "round-12.manifest.json")
+	stdout.Reset()
+	if exit := runDesign([]string{"preview-manifest", "--profiles", "mobile,cli", "--out", manifestPath}, &stdout); exit != 0 {
+		t.Fatalf("hybrid manifest failed: %d %s", exit, stdout.String())
+	}
+	manifest := map[string]any{}
+	if err := json.Unmarshal([]byte(readFile(t, manifestPath)), &manifest); err != nil {
+		t.Fatal(err)
+	}
+	model, _ := manifest["capability_model"].(map[string]any)
+	if !reflect.DeepEqual(stringList(model["profile_ids"]), []string{"mobile", "cli"}) {
+		t.Fatalf("profile IDs = %#v", model["profile_ids"])
+	}
+	specimens, _ := model["specimens"].([]any)
+	if len(specimens) != 6 {
+		t.Fatalf("specimen count = %d, want 6", len(specimens))
+	}
+	for _, raw := range manifest["directions"].([]any) {
+		direction := raw.(map[string]any)
+		if len(stringList(direction["specimen_ids"])) != 6 {
+			t.Fatalf("direction specimen coverage = %#v", direction["specimen_ids"])
+		}
+	}
+
+	noUIPath := filepath.Join(".specify", "design", "previews", "round-13.manifest.json")
+	stdout.Reset()
+	if exit := runDesign([]string{"preview-manifest", "--profiles", "no-ui", "--out", noUIPath}, &stdout); exit == 0 {
+		t.Fatalf("no-ui unexpectedly produced a preview manifest: %s", stdout.String())
+	}
+	if _, err := os.Stat(noUIPath); !os.IsNotExist(err) {
+		t.Fatalf("no-ui manifest should not exist: %v", err)
+	}
+	if !strings.Contains(stdout.String(), "design_system_status") {
+		t.Fatalf("no-ui result lacks explicit route: %s", stdout.String())
+	}
+}
+
+func TestDesignTemplateLookupUsesGeneratedProjectTemplates(t *testing.T) {
+	tmp := t.TempDir()
+	withCwd(t, tmp)
+	template := filepath.Join(".specify", "templates", "design-preview-template.html")
+	if err := os.MkdirAll(filepath.Dir(template), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(template, []byte("project template"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	resolved, err := locateTemplate("design-preview-template.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want, err := filepath.Abs(template)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if filepath.Clean(resolved) != filepath.Clean(want) {
+		t.Fatalf("resolved template = %q, want %q", resolved, want)
 	}
 }
 
@@ -289,6 +490,12 @@ func TestDesignExportRendersApprovedDesignAndAllowsLegacyEscapeHatch(t *testing.
 	approval := decodeEnvelope(t, stdout.Bytes()).Data["approval"].(map[string]any)
 	design := strings.ReplaceAll(validDesignForRuntime, "PREVIEW_SHA256", approval["html_sha256"].(string))
 	design = strings.ReplaceAll(design, "MANIFEST_SHA256", approval["manifest_sha256"].(string))
+	design = strings.ReplaceAll(design, "HANDOFF_SHA256", approval["handoff_sha256"].(string))
+	var handoffYAML []string
+	for _, id := range stringList(approval["handoff_contract_ids"]) {
+		handoffYAML = append(handoffYAML, "      - "+id)
+	}
+	design = strings.ReplaceAll(design, "HANDOFF_CONTRACT_IDS", strings.Join(handoffYAML, "\n"))
 	if err := os.WriteFile("DESIGN.md", []byte(design), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -355,14 +562,17 @@ func configureUITargetCandidate(t *testing.T, path string) string {
 	t.Helper()
 	content := readFile(t, path)
 	replacements := map[string]string{
-		`data-status="draft"`:          `data-status="candidate"`,
-		"__FIDELITY_MODE__":            "high",
-		`"configured": false`:          `"configured": true`,
-		"__APPROVED_VISUAL_REF__":      ".specify/design/previews/round-01.html#direction-a",
-		"__APPROVED_DIRECTION_ID__":    "direction-a",
-		"__APPROVED_PREVIEW_SHA256__":  strings.Repeat("a", 64),
-		"__APPROVED_MANIFEST_SHA256__": strings.Repeat("b", 64),
-		"__DESIGN_DECISION_IDS__":      `DS-COMP-001", "DS-RESP-001`,
+		`data-status="draft"`:             `data-status="candidate"`,
+		"__FIDELITY_MODE__":               "high",
+		`"configured": false`:             `"configured": true`,
+		"__APPROVED_VISUAL_REF__":         ".specify/design/previews/round-01.html#direction-a",
+		"__APPROVED_DIRECTION_ID__":       "direction-a",
+		"__APPROVED_PREVIEW_SHA256__":     strings.Repeat("a", 64),
+		"__APPROVED_MANIFEST_SHA256__":    strings.Repeat("b", 64),
+		"__APPROVED_HANDOFF_REF__":        ".specify/design/previews/round-01.handoff.json",
+		"__APPROVED_HANDOFF_SHA256__":     strings.Repeat("c", 64),
+		"__DESIGN_DECISION_IDS__":         `DS-COMP-001", "DS-RESP-001`,
+		"__DESIGN_HANDOFF_CONTRACT_IDS__": `DH-COMP-001", "DH-RESP-COMPACT-001`,
 	}
 	for old, newValue := range replacements {
 		content = strings.ReplaceAll(content, old, newValue)

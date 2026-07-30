@@ -41,6 +41,8 @@ _OBSOLETE_UI_RESULT_FIELDS = {
     "uiEvidence",
     "uiVerification",
 }
+
+
 def _as_str_list(value: object) -> list[str]:
     if value is None:
         return []
@@ -79,7 +81,9 @@ def _normalize_validation_results(payload: dict[str, Any]) -> list[ValidationRes
         status = _VALIDATION_STATUS_ALIASES.get(raw_status, "failed")
         output = str(_pick(item, "output", "details", "message") or "")
         if command:
-            results.append(ValidationResult(command=command, status=status, output=output))
+            results.append(
+                ValidationResult(command=command, status=status, output=output)
+            )
     return results
 
 
@@ -137,6 +141,9 @@ def _normalize_ui_verification(payload: dict[str, Any]) -> UIVerification:
             "ui_verification contains unsupported fields: "
             + ", ".join(unsupported_fields)
         )
+    raw_tolerance = raw.get("comparison_tolerance")
+    if raw_tolerance is not None and not isinstance(raw_tolerance, dict):
+        raise ValueError("ui_verification.comparison_tolerance must be an object")
     return UIVerification(
         contract_check=str(raw.get("contract_check") or "not-run"),
         runtime_evidence=str(raw.get("runtime_evidence") or "not-run"),
@@ -144,28 +151,23 @@ def _normalize_ui_verification(payload: dict[str, Any]) -> UIVerification:
         fidelity_status=str(raw.get("fidelity_status") or "not-applicable"),
         reviewer=str(_pick(raw, "reviewer") or "agent"),
         approved_visual_ref=str(raw.get("approved_visual_ref") or ""),
-        approved_preview_sha256=str(
-            raw.get("approved_preview_sha256") or ""
-        ),
-        approved_manifest_sha256=str(
-            raw.get("approved_manifest_sha256") or ""
-        ),
+        approved_preview_sha256=str(raw.get("approved_preview_sha256") or ""),
+        approved_manifest_sha256=str(raw.get("approved_manifest_sha256") or ""),
+        approved_handoff_ref=str(raw.get("approved_handoff_ref") or ""),
+        approved_handoff_sha256=str(raw.get("approved_handoff_sha256") or ""),
         comparison_report_ref=str(raw.get("comparison_report_ref") or ""),
-        comparison_report_sha256=str(
-            raw.get("comparison_report_sha256") or ""
-        ),
+        comparison_report_sha256=str(raw.get("comparison_report_sha256") or ""),
         implementation_capture_refs=_as_str_list(
             raw.get("implementation_capture_refs")
         ),
         covered_decision_ids=_as_str_list(raw.get("covered_decision_ids")),
-        structural_differences=_as_str_list(
-            raw.get("structural_differences")
+        covered_handoff_contract_ids=_as_str_list(
+            raw.get("covered_handoff_contract_ids")
         ),
+        structural_differences=_as_str_list(raw.get("structural_differences")),
         visual_differences=_as_str_list(raw.get("visual_differences")),
-        comparison_tolerance=str(raw.get("comparison_tolerance") or ""),
-        accepted_deviations=_normalize_evidence_items(
-            raw.get("accepted_deviations")
-        ),
+        comparison_tolerance=dict(raw_tolerance or {}),
+        accepted_deviations=_normalize_evidence_items(raw.get("accepted_deviations")),
     )
 
 
@@ -195,7 +197,9 @@ def _normalize_ui_evidence(value: object) -> list[dict[str, str]]:
     return normalized
 
 
-def normalize_worker_task_result_payload(payload: WorkerTaskResult | dict[str, Any] | str) -> WorkerTaskResult:
+def normalize_worker_task_result_payload(
+    payload: WorkerTaskResult | dict[str, Any] | str,
+) -> WorkerTaskResult:
     """Normalize common worker result payload shapes into ``WorkerTaskResult``."""
 
     if isinstance(payload, WorkerTaskResult):
@@ -203,7 +207,9 @@ def normalize_worker_task_result_payload(payload: WorkerTaskResult | dict[str, A
     if isinstance(payload, str):
         payload = json.loads(payload)
     if not isinstance(payload, dict):
-        raise TypeError("worker result payload must be a WorkerTaskResult, dict, or JSON text")
+        raise TypeError(
+            "worker result payload must be a WorkerTaskResult, dict, or JSON text"
+        )
     obsolete_ui_fields = sorted(_OBSOLETE_UI_RESULT_FIELDS & payload.keys())
     if obsolete_ui_fields:
         raise ValueError(
@@ -211,15 +217,31 @@ def normalize_worker_task_result_payload(payload: WorkerTaskResult | dict[str, A
             + ", ".join(obsolete_ui_fields)
         )
 
-    raw_status = str(_pick(payload, "status", "reported_status", "result_status") or "").strip().lower()
+    raw_status = (
+        str(_pick(payload, "status", "reported_status", "result_status") or "")
+        .strip()
+        .lower()
+    )
     canonical_status = _STATUS_ALIASES.get(raw_status, "failed")
     summary = str(_pick(payload, "summary", "message", "output_summary") or "")
     blockers = _as_str_list(_pick(payload, "blockers", "blocking_reasons", "blocker"))
     failed_assumptions = _as_str_list(
-        _pick(payload, "failed_assumptions", "failedAssumptions", "missing_context", "assumptions")
+        _pick(
+            payload,
+            "failed_assumptions",
+            "failedAssumptions",
+            "missing_context",
+            "assumptions",
+        )
     )
     recovery_actions = _as_str_list(
-        _pick(payload, "suggested_recovery_actions", "recovery_actions", "recoveryActions", "next_steps")
+        _pick(
+            payload,
+            "suggested_recovery_actions",
+            "recovery_actions",
+            "recoveryActions",
+            "next_steps",
+        )
     )
     concerns = _as_str_list(_pick(payload, "concerns", "issues", "notes"))
 
@@ -234,27 +256,33 @@ def normalize_worker_task_result_payload(payload: WorkerTaskResult | dict[str, A
                 "required execution context was not available",
             ]
         if not recovery_actions:
-            recovery_actions = ["provide the missing context and resubmit the delegated task"]
+            recovery_actions = [
+                "provide the missing context and resubmit the delegated task"
+            ]
 
     if canonical_status == "blocked":
         if not blockers and summary.strip():
             blockers = [summary.strip()]
         if not failed_assumptions:
-            failed_assumptions = ["worker could not proceed with the available assumptions"]
+            failed_assumptions = [
+                "worker could not proceed with the available assumptions"
+            ]
         if not recovery_actions:
-            recovery_actions = ["inspect the blocker details and resubmit the delegated task"]
+            recovery_actions = [
+                "inspect the blocker details and resubmit the delegated task"
+            ]
 
     task_id = str(_pick(payload, "task_id", "taskId") or "").strip()
-    changed_files = _as_str_list(_pick(payload, "changed_files", "changedFiles", "files_changed"))
+    changed_files = _as_str_list(
+        _pick(payload, "changed_files", "changedFiles", "files_changed")
+    )
 
     return WorkerTaskResult(
         task_id=task_id,
         status=canonical_status,
         wave=str(_pick(payload, "wave") or "").strip(),
         packet_id=str(_pick(payload, "packet_id", "packetId") or "").strip(),
-        obligation_ids=_as_str_list(
-            _pick(payload, "obligation_ids", "obligationIds")
-        ),
+        obligation_ids=_as_str_list(_pick(payload, "obligation_ids", "obligationIds")),
         observations=_normalize_review_records(payload.get("observations")),
         findings=_normalize_review_records(payload.get("findings")),
         changed_files=changed_files,

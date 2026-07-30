@@ -5,9 +5,9 @@ reliable repository reading and structured output. The CLI-generated
 self-contained task brief is authoritative; do not reconstruct it from leader
 chat history.
 
-The packet's `packet_id`, concrete `assigned_paths`,
-`pending-results/<packet-id>.json` destination, and prefilled shape are
-authoritative, together with the attempt identity and effective context budget.
+The packet's `packet_id`, concrete `assigned_paths`, runtime-owned inline
+checkpoint argv, and prefilled result shape are authoritative, together with
+the attempt identity and effective context budget.
 
 - Read only `assigned_paths`; do not broaden with repository-wide search.
 - Work in coherent batches and account concretely for each path you finish as
@@ -24,10 +24,10 @@ authoritative, together with the attempt identity and effective context budget.
 - Preserve concrete `nodes[].paths`; coverage rows cannot replace path-backed
   nodes. Cross-packet edges may name an external concrete path while at least
   one endpoint remains packet-local.
-- Copy the supplied JSON skeleton and write only the designated packet-local
-  pending result. Submit coherent completed batches with the `scan-checkpoint`
-  command supplied by the task brief before context, tool-output, or
-  result-output capacity is exhausted.
+- Fill the supplied result shape in memory and submit coherent completed batches
+  with the task brief's `scan-checkpoint --result-json` command before context,
+  tool-output, or result-output capacity is exhausted. The runtime alone
+  materializes pending-result and checkpoint files; never create or edit them.
 - Keep worker-authored `acceptance` at `partial`, even for a complete packet;
   the runtime derives `pass` only after `scan-accept` validates the full result.
 - If the full assignment no longer fits, checkpoint the useful completed subset

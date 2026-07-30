@@ -375,6 +375,11 @@ def validate_lifecycle_ui_verification(
         for item in ui_contract.get("design_decision_ids", [])
         if isinstance(item, str) and item.strip()
     }
+    handoff_contract_ids = {
+        str(item).strip()
+        for item in ui_contract.get("handoff_contract_ids", [])
+        if isinstance(item, str) and item.strip()
+    }
     if (
         visual_comparison in PASSING_VISUAL_STATUSES
         and design_decision_ids
@@ -391,6 +396,8 @@ def validate_lifecycle_ui_verification(
         for field in (
             "approved_preview_sha256",
             "approved_manifest_sha256",
+            "approved_handoff_ref",
+            "approved_handoff_sha256",
             "comparison_tolerance",
         ):
             if str(verification.get(field) or "").strip() != str(
@@ -407,6 +414,15 @@ def validate_lifecycle_ui_verification(
         if covered_decision_ids != design_decision_ids:
             errors.append(
                 f"{relative} ui_verification.covered_decision_ids must exactly cover the task contract"
+            )
+        covered_handoff_contract_ids = {
+            str(item).strip()
+            for item in verification.get("covered_handoff_contract_ids", [])
+            if isinstance(item, str) and item.strip()
+        }
+        if covered_handoff_contract_ids != handoff_contract_ids:
+            errors.append(
+                f"{relative} ui_verification.covered_handoff_contract_ids must exactly cover the task contract"
             )
         visual_capture_refs = {
             str(item.get("ref") or "").strip()
@@ -490,6 +506,8 @@ def validate_lifecycle_ui_verification(
                     ("visual_ref", "approved_visual_ref"),
                     ("preview_sha256", "approved_preview_sha256"),
                     ("manifest_sha256", "approved_manifest_sha256"),
+                    ("handoff_ref", "approved_handoff_ref"),
+                    ("handoff_sha256", "approved_handoff_sha256"),
                 )
                 for report_field, contract_field in approved_pairs:
                     if str(approved.get(report_field) or "").strip() != str(
@@ -506,6 +524,15 @@ def validate_lifecycle_ui_verification(
                 if report_decision_ids != design_decision_ids:
                     errors.append(
                         f"{relative} comparison report approved.decision_ids must exactly cover the task contract"
+                    )
+                report_handoff_contract_ids = {
+                    str(item).strip()
+                    for item in approved.get("handoff_contract_ids", [])
+                    if isinstance(item, str) and item.strip()
+                }
+                if report_handoff_contract_ids != handoff_contract_ids:
+                    errors.append(
+                        f"{relative} comparison report approved.handoff_contract_ids must exactly cover the task contract"
                     )
                 implementation = comparison_report.get("implementation")
                 implementation = (
@@ -531,6 +558,7 @@ def validate_lifecycle_ui_verification(
                 matrix = comparison_report.get("matrix")
                 matrix = matrix if isinstance(matrix, list) else []
                 matrix_decision_ids: set[str] = set()
+                matrix_handoff_contract_ids: set[str] = set()
                 if not matrix:
                     errors.append(
                         f"{relative} comparison report matrix must be non-empty"
@@ -563,6 +591,12 @@ def validate_lifecycle_ui_verification(
                         if isinstance(value, str) and value.strip()
                     }
                     matrix_decision_ids.update(row_decisions)
+                    row_handoff_contracts = {
+                        str(value).strip()
+                        for value in item.get("covered_handoff_contract_ids", [])
+                        if isinstance(value, str) and value.strip()
+                    }
+                    matrix_handoff_contract_ids.update(row_handoff_contracts)
                     if (
                         str(item.get("result") or "")
                         .strip()
@@ -577,9 +611,13 @@ def validate_lifecycle_ui_verification(
                     errors.append(
                         f"{relative} comparison report matrix must exactly cover task design decisions"
                     )
-                if str(
-                    comparison_report.get("comparison_tolerance") or ""
-                ).strip() != str(ui_contract.get("comparison_tolerance") or "").strip():
+                if matrix_handoff_contract_ids != handoff_contract_ids:
+                    errors.append(
+                        f"{relative} comparison report matrix must exactly cover task handoff contracts"
+                    )
+                if comparison_report.get("comparison_tolerance") != ui_contract.get(
+                    "comparison_tolerance"
+                ):
                     errors.append(
                         f"{relative} comparison report comparison_tolerance must preserve the task contract"
                     )

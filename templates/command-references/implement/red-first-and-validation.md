@@ -82,7 +82,7 @@ gate or validation attempt.
 If the evidence cannot be obtained now, keep dependency-safe work moving. A
 human may explicitly transfer a precisely scoped low/medium-risk blocker to
 Review by first proposing
-`{{specify-subcmd:specify-runtime implement deferral-propose --feature-dir <feature-dir> --input <proposal.json> --format json}}`
+`{{specify-subcmd:specify-runtime implement deferral-propose --feature-dir <feature-dir> --input-json '<proposal-json>' --format json}}`; build the proposal in memory and never create a proposal file.
 and, only after the human confirms that exact proposal digest, recording
 `{{specify-subcmd:specify-runtime implement deferral-confirm --feature-dir <feature-dir> --deferral-id <DEF-id> --proposal-sha256 <sha> --confirmation-source <source> --statement '<exact-human-statement>' --format json}}`.
 The proposal must identify blocker/task/acceptance refs, exact excluded

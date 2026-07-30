@@ -1,9 +1,9 @@
 ---
-description: Use when `sp-map-scan` has produced a value-weighted evidence baseline and you need to reconstruct the project cognition SQLite runtime.
+description: Use when `sp-map-scan` has produced a value-weighted evidence baseline and `specify-runtime cognition build-from-scan` must reconstruct the SQLite runtime.
 workflow_contract:
   when_to_use: A scan baseline exists and the project cognition runtime must be built or rebuilt from that evidence.
-  primary_objective: Validate value-weighted scan evidence, reconstruct graph nodes, edges, observations, typed graph claims, path indexes, and alias indexes from high-value evidence into the schema v5 SQLite cognition database, derive revisioned claim lifecycle state, assign confidence, and publish queryable task-oriented cognition bundles.
-  primary_outputs: '`.specify/project-cognition/status.json`, `.specify/project-cognition/project-cognition.db`, and query/update helper readiness metadata.'
+  primary_objective: Use `specify-runtime cognition validate-scan|build-from-scan|validate-build` to reconstruct and publish the schema v5 cognition database and its queryable bundles.
+  primary_outputs: 'Runtime-owned cognition status, graph store, and readiness metadata, produced and queried only through `specify-runtime cognition`.'
   default_handoff: Return to the blocked brownfield workflow once the query-backed cognition baseline is ready.
 ---
 
@@ -57,7 +57,7 @@ smoke query succeeds. A blocked build gate sets `completion_allowed=false`,
 ## Process
 
 - Start with validation, not writing.
-- Update `map-state.md` before long-running reconstruction, join-point acceptance, compaction-risk transitions, or any stop where resume will depend on more than the visible conversation.
+- Update map workbench state only through the applicable `specify-runtime cognition` checkpoint/status command; never edit `map-state.md` directly.
 - Validate scan inputs before execution and treat the accepted workbench as the
   sole build input contract. Do not invent model-authored build packets or
   parallel graph-construction schemas.
@@ -109,24 +109,13 @@ activation. `low_risk_open_gap` may pass only with owner, reason,
 
 ## Required Inputs
 
-Before writing query-backed truth, read:
-
-- `.specify/project-cognition/status.json`
-- `.specify/project-cognition/evidence/`
-- `.specify/project-cognition/provisional/nodes.json`
-- `.specify/project-cognition/provisional/edges.json`
-- `.specify/project-cognition/provisional/observations.json`
-- optional `.specify/project-cognition/provisional/claims.json`
-- `.specify/project-cognition/coverage.json`
-- `.specify/project-cognition/workbench/repository-universe.json`
-- `.specify/project-cognition/workbench/scan-targets.json`
-- `.specify/project-cognition/workbench/coverage-ledger.json`
-- `.specify/project-cognition/workbench/scan-queue.json`
-- `.specify/project-cognition/workbench/handoff-ledger.json`
-- `.specify/project-cognition/workbench/scan-packets/`
-- `.specify/project-cognition/workbench/worker-results/<packet-id>.json`
-
-If those artifacts are missing, stop and route back to `/sp-map-scan`.
+Before writing query-backed truth, run
+`{{specify-subcmd:specify-runtime cognition validate-scan --format json}}` and consume
+only its readiness, typed errors, recovery route, and returned bounded references.
+The runtime validates and consumes the canonical status, evidence, provisional graph,
+coverage, repository-universe, target, ledger, queue, packet, and worker-result stores.
+Do not enumerate or open those stores. If validation reports missing or incomplete scan
+state, stop and follow its typed recovery route back to `/sp-map-scan`.
 
 ## Boundary Acceptance
 
@@ -151,9 +140,10 @@ If those artifacts are missing, stop and route back to `/sp-map-scan`.
 
 Schema v5 is current-only. `specify-runtime cognition build-from-scan --format json`
 creates schema v5 only for a missing database or consumes a complete current
-schema v5 database. The current runtime does not migrate schema v4 or older
-databases and does not archive or replace them. Remove the incompatible project-cognition.db
-explicitly, then run `sp-map-scan -> sp-map-build` with the current binary.
+schema v5 database. The runtime does not migrate schema v4 or older databases.
+Run `specify-runtime cognition archive-incompatible-store --inspect --format json`,
+then execute its guarded `archive_argv`; only that CLI may archive the incompatible
+store before `sp-map-scan -> sp-map-build` with the current binary.
 Schema v5 keeps the
 implemented runtime tables: `metadata`, `generations`, `evidence`, `nodes`,
 `node_evidence`, `edges`, `edge_evidence`, `observations`,

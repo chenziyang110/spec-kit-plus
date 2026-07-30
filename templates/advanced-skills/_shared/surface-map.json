@@ -59,7 +59,7 @@
     "spx-checklist": {
       "absorbs": ["checklist"],
       "references": ["spx-checklist/references/checklist-contract.md"],
-      "assets": ["spx-checklist/assets/checklist.md"],
+      "assets": [],
       "optimization": "focused unit tests for written requirements, never implementation tests"
     },
     "spx-clarify": {
@@ -80,7 +80,7 @@
         "spx-debug/references/investigation-contract.md",
         "spx-debug/references/investigator-worker.md"
       ],
-      "assets": ["spx-debug/assets/debug-session.md"],
+      "assets": [],
       "optimization": "ranked evidence-separating hypotheses replace a fixed multi-role chain"
     },
     "spx-deep-research": {
@@ -194,10 +194,7 @@
         "spx-quick/references/task-contract.md",
         "spx-quick/references/worker-contract.md"
       ],
-      "assets": [
-        "spx-quick/assets/status.md",
-        "spx-quick/assets/summary.md"
-      ],
+      "assets": [],
       "optimization": "compact resumable state with delegation only when it adds value"
     },
     "spx-review": {
@@ -232,7 +229,6 @@
       "absorbs": ["tasks"],
       "references": ["spx-tasks/references/task-graph-contract.md"],
       "assets": [
-        "spx-tasks/assets/tasks.md",
         "spx-tasks/assets/ui-task.md",
         "spx-tasks/assets/ui-task-index-entry.json"
       ],

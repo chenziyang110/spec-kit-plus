@@ -81,7 +81,8 @@ SEMANTIC_WORK_CONTRACT_TERMS = (
     "semantic-audit-resume",
     "optional runtime validator",
     "prefer the optional runtime validator",
-    "ephemeral resume-validation.json",
+    "build the resume-validation object in memory",
+    "never create a resume-validation file",
     "if the validator returns fresh",
     "if the validator is unavailable",
     "prompt fallback remains valid",
@@ -659,8 +660,8 @@ def test_shared_semantic_work_contract_partial_defines_permission_and_learning_g
     assert "does not authorize source changes" in content
     assert "does not raise permission above p2" in content
     assert "if semantic-audit is unavailable" in content
-    assert "manually produce the same semantic_audit_input fields" in content
-    assert "do not block on installing a newer runtime solely for semantic-audit" in content
+    assert "do not create or replace either canonical audit file" in content
+    assert "continue only under the lower available permission" in content
     assert "inspection_plan maps each missing facet or evidence need to a bounded target" in content
     assert "targeted_read only" in content
     assert "capture live_evidence_capture before raising permission" in content
@@ -682,17 +683,20 @@ def test_shared_semantic_work_contract_partial_defines_permission_and_learning_g
     assert "workflow authorization baseline" in content
     assert "claim-specific final claims" in content
     assert "audit state persistence" in content
-    assert "persist semantic-audit-input.json and semantic-audit-output.json next to the active workflow state" in content
+    assert "persist `semantic-audit-input.json` and `semantic-audit-output.json` next to the active workflow state only with" in content
+    assert "semantic-audit --persist-dir <workflow_state_dir>" in content
+    assert "never rebuild either file through generic artifact submission" in content
     assert "resume validation" in content
     assert "compare selected_candidate_ids, active_claim_type, claim_authorization_refs, and claim_verification_refs" in content
     assert "generated resume smoke" in content
-    assert "stale-state detection remains prompt-only" in content
+    assert "generated workflows must perform a prompt-level generated resume smoke" in content
     assert "semantic-audit-resume" in content
     assert "optional runtime validator" in content
     assert "prompt fallback remains valid" in content
     assert "does not authorize source edits, final claims, or p3/p4 permission" in content
     assert "semantic-audit-input.json.semantic_audit_input.route_decision" in content
-    assert "semantic-audit-output.json.workflow_authorization and semantic-audit-output.json.claim_readiness" in content
+    assert "`semantic-audit-output.json.workflow_authorization`" in content
+    assert "`semantic-audit-output.json.claim_readiness`" in content
     assert "fingerprint mismatches are route-changed" in content
     assert ".specify/templates/examples/semantic-audit-resume/scenarios.md" in content
     assert "semantic audit resume examples" in content
@@ -752,7 +756,7 @@ def test_semantic_work_contract_is_generated_for_all_project_cognition_workflows
 def test_semantic_resume_smoke_contract_is_generated_for_all_project_cognition_workflows() -> None:
     required_terms = (
         "generated resume smoke",
-        "stale-state detection remains prompt-only",
+        "generated workflows must perform a prompt-level generated resume smoke",
         "semantic-audit-resume",
         "optional runtime validator",
         "resume-validation.json",
@@ -762,7 +766,8 @@ def test_semantic_resume_smoke_contract_is_generated_for_all_project_cognition_w
         "resume-validation-claim-ref-mismatch.json",
         "resume-validation-verification-ref-mismatch.json",
         "prefer the optional runtime validator",
-        "ephemeral resume-validation.json",
+        "build the resume-validation object in memory",
+        "never create a resume-validation file",
         "if the validator returns fresh",
         "if the validator is unavailable",
         "prompt fallback remains valid",
@@ -772,7 +777,8 @@ def test_semantic_resume_smoke_contract_is_generated_for_all_project_cognition_w
         "grants_permission",
         "boundary",
         "semantic-audit-input.json.semantic_audit_input.route_decision",
-        "semantic-audit-output.json.workflow_authorization and semantic-audit-output.json.claim_readiness",
+        "`semantic-audit-output.json.workflow_authorization`",
+        "`semantic-audit-output.json.claim_readiness`",
         "fingerprint mismatches are route-changed",
         "semantic_audit_generated_resume_smoke",
         "semantic_audit_stale_reasons",
@@ -800,7 +806,7 @@ def test_semantic_work_contract_handoff_records_generated_downstream_smoke_bound
     assert "v1.3.8 semantic audit resume examples is locally closed" in content
     assert "semantic-audit-resume/scenarios.md" in content
     assert "v1.3.9 runtime resume validator is locally closed" in content
-    assert "semantic-audit-resume --input" in content
+    assert "semantic-audit-resume --input-json" in content
     assert "optional json comparator" in content
     assert "resume-validation.json" in content
     assert "resume-validation-route-changed.json" in content
@@ -809,7 +815,8 @@ def test_semantic_work_contract_handoff_records_generated_downstream_smoke_bound
     assert "resume-validation-claim-ref-mismatch.json" in content
     assert "resume-validation-verification-ref-mismatch.json" in content
     assert "prefer the optional runtime validator" in content
-    assert "ephemeral resume-validation.json" in content
+    assert "build the resume-validation object in memory" in content
+    assert "without creating a validation file" in content
     assert "if the validator returns fresh" in content
     assert "if the validator is unavailable" in content
     assert "can_reuse_persisted_claim_readiness" in content
@@ -877,7 +884,7 @@ def test_semantic_resume_validator_downstream_adoption_examples_are_documented()
     assert "resume-validation-verification-ref-mismatch.json" in content
     assert "semantic-audit-input.json" in content
     assert "semantic-audit-output.json" in content
-    assert "specify-runtime cognition semantic-audit-resume --input resume-validation.json --format json" in content
+    assert "specify-runtime cognition semantic-audit-resume --format json < resume-validation.json" in content
     assert "semantic_audit_generated_resume_smoke: passed" in content
     assert "semantic_audit_generated_resume_smoke: failed" in content
     assert "can_reuse_persisted_claim_readiness" in content

@@ -47,22 +47,25 @@ var currentUIEvidenceKinds = map[string]bool{
 }
 
 var currentUIVerificationFields = map[string]bool{
-	"contract_check":              true,
-	"runtime_evidence":            true,
-	"visual_comparison":           true,
-	"fidelity_status":             true,
-	"reviewer":                    true,
-	"approved_visual_ref":         true,
-	"approved_preview_sha256":     true,
-	"approved_manifest_sha256":    true,
-	"comparison_report_ref":       true,
-	"comparison_report_sha256":    true,
-	"implementation_capture_refs": true,
-	"covered_decision_ids":        true,
-	"structural_differences":      true,
-	"visual_differences":          true,
-	"comparison_tolerance":        true,
-	"accepted_deviations":         true,
+	"contract_check":               true,
+	"runtime_evidence":             true,
+	"visual_comparison":            true,
+	"fidelity_status":              true,
+	"reviewer":                     true,
+	"approved_visual_ref":          true,
+	"approved_preview_sha256":      true,
+	"approved_manifest_sha256":     true,
+	"approved_handoff_ref":         true,
+	"approved_handoff_sha256":      true,
+	"comparison_report_ref":        true,
+	"comparison_report_sha256":     true,
+	"implementation_capture_refs":  true,
+	"covered_decision_ids":         true,
+	"covered_handoff_contract_ids": true,
+	"structural_differences":       true,
+	"visual_differences":           true,
+	"comparison_tolerance":         true,
+	"accepted_deviations":          true,
 }
 
 func runResult(args []string, stdout io.Writer) int {
@@ -122,19 +125,14 @@ func runResultSubmit(args []string, stdout io.Writer) int {
 	if integration == "codex" && strings.ToLower(commandName) != "review" {
 		return writeResultError(stdout, "usage-error", "Codex projects must use `sp-teams submit-result` for runtime-managed result channels.")
 	}
-	resultFile := strings.TrimSpace(optionValue(args, "--result-file", ""))
-	if resultFile == "" {
-		return writeResultError(stdout, "usage-error", "--result-file is required")
+	resultJSON := strings.TrimSpace(optionValue(args, "--result-json", ""))
+	if hasFlag(args, "--result-file") {
+		return writeResultError(stdout, "usage-error", "result submit does not accept agent-authored result files; pass the result inline with --result-json")
 	}
-	sourcePath, err := resolveProjectContainedPath(projectRoot, resultFile)
-	if err != nil {
-		return writeResultError(stdout, "usage-error", fmt.Sprintf("result file path is invalid: %v", err))
+	if resultJSON == "" {
+		return writeResultError(stdout, "usage-error", "result submit requires --result-json")
 	}
-	raw, err := os.ReadFile(sourcePath)
-	if err != nil {
-		return writeResultError(stdout, "blocked", fmt.Sprintf("Result file not found: %s", sourcePath))
-	}
-	normalized, err := normalizeWorkerTaskResult(raw)
+	normalized, err := normalizeWorkerTaskResult([]byte(resultJSON))
 	if err != nil {
 		return writeResultError(stdout, "invalid", err.Error())
 	}
@@ -192,9 +190,35 @@ func buildResultHandoffPath(projectRoot string, request resultPathRequest) (stri
 			return "", err
 		}
 		return resolveProjectContainedPath(projectRoot, filepath.Join(featureDir, "review-results", laneID+".json"))
+	case commandName == "clarify" || commandName == "plan" || commandName == "tasks" || commandName == "deep-research":
+		featureDir, err := resolveProjectContainedPath(projectRoot, request.FeatureDir)
+		if err != nil || strings.TrimSpace(request.LaneID) == "" {
+			return "", fmt.Errorf("--feature-dir and --lane-id are required for %s result handoff", commandName)
+		}
+		laneID, err := resultPathSegment(request.LaneID, "lane-id")
+		if err != nil {
+			return "", err
+		}
+		directories := map[string]string{
+			"clarify":       "clarification/handoffs",
+			"plan":          "planning/handoffs",
+			"tasks":         "task-generation/handoffs",
+			"deep-research": "research/handoffs",
+		}
+		return resolveProjectContainedPath(projectRoot, filepath.Join(featureDir, directories[commandName], laneID+".json"))
+	case commandName == "prd-scan":
+		workspace, err := resolveProjectContainedPath(projectRoot, request.Workspace)
+		if err != nil || strings.TrimSpace(request.LaneID) == "" {
+			return "", fmt.Errorf("--workspace and --lane-id are required for prd-scan result handoff")
+		}
+		laneID, err := resultPathSegment(request.LaneID, "lane-id")
+		if err != nil {
+			return "", err
+		}
+		return resolveProjectContainedPath(projectRoot, filepath.Join(workspace, "worker-results", laneID+".json"))
 	case integrationKey == "codex":
 		if strings.TrimSpace(request.RequestID) == "" {
-			return "", fmt.Errorf("Codex result handoff paths are runtime-managed; pass --request-id <id> or use `sp-teams submit-result --request-id <id> --result-file <path>`.")
+			return "", fmt.Errorf("Codex result handoff paths are runtime-managed; pass --request-id <id> or use `sp-teams submit-result --request-id <id> --result-json '<inline-json>'`.")
 		}
 		requestID, err := resultPathSegment(request.RequestID, "request-id")
 		if err != nil {
@@ -444,14 +468,15 @@ func normalizeUIVerification(value any) (map[string]any, error) {
 	for _, key := range []string{
 		"contract_check", "runtime_evidence", "visual_comparison", "fidelity_status",
 		"reviewer", "approved_visual_ref", "approved_preview_sha256",
-		"approved_manifest_sha256", "comparison_report_ref",
-		"comparison_report_sha256", "comparison_tolerance",
+		"approved_manifest_sha256", "approved_handoff_ref",
+		"approved_handoff_sha256", "comparison_report_ref",
+		"comparison_report_sha256",
 	} {
 		if rawValue, exists := raw[key]; exists {
 			result[key] = asString(rawValue)
 		}
 	}
-	for _, key := range []string{"implementation_capture_refs", "covered_decision_ids", "structural_differences", "visual_differences"} {
+	for _, key := range []string{"implementation_capture_refs", "covered_decision_ids", "covered_handoff_contract_ids", "structural_differences", "visual_differences"} {
 		if rawValue, exists := raw[key]; exists {
 			result[key] = asStringList(rawValue)
 		}
@@ -459,27 +484,37 @@ func normalizeUIVerification(value any) (map[string]any, error) {
 	if rawValue, exists := raw["accepted_deviations"]; exists {
 		result["accepted_deviations"] = normalizeEvidenceItems(rawValue)
 	}
+	if rawValue, exists := raw["comparison_tolerance"]; exists {
+		tolerance, ok := rawValue.(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("ui_verification.comparison_tolerance must be an object")
+		}
+		result["comparison_tolerance"] = tolerance
+	}
 	return result, nil
 }
 
 func defaultUIVerification() map[string]any {
 	return map[string]any{
-		"contract_check":              "not-run",
-		"runtime_evidence":            "not-run",
-		"visual_comparison":           "unavailable",
-		"fidelity_status":             "not-applicable",
-		"reviewer":                    "agent",
-		"approved_visual_ref":         "",
-		"approved_preview_sha256":     "",
-		"approved_manifest_sha256":    "",
-		"comparison_report_ref":       "",
-		"comparison_report_sha256":    "",
-		"implementation_capture_refs": []string{},
-		"covered_decision_ids":        []string{},
-		"structural_differences":      []string{},
-		"visual_differences":          []string{},
-		"comparison_tolerance":        "",
-		"accepted_deviations":         []map[string]string{},
+		"contract_check":               "not-run",
+		"runtime_evidence":             "not-run",
+		"visual_comparison":            "unavailable",
+		"fidelity_status":              "not-applicable",
+		"reviewer":                     "agent",
+		"approved_visual_ref":          "",
+		"approved_preview_sha256":      "",
+		"approved_manifest_sha256":     "",
+		"approved_handoff_ref":         "",
+		"approved_handoff_sha256":      "",
+		"comparison_report_ref":        "",
+		"comparison_report_sha256":     "",
+		"implementation_capture_refs":  []string{},
+		"covered_decision_ids":         []string{},
+		"covered_handoff_contract_ids": []string{},
+		"structural_differences":       []string{},
+		"visual_differences":           []string{},
+		"comparison_tolerance":         map[string]any{},
+		"accepted_deviations":          []map[string]string{},
 	}
 }
 

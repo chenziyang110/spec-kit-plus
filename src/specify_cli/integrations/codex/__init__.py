@@ -188,7 +188,7 @@ class CodexIntegration(SkillsIntegration):
                 "- Use join points before section approval, before artifact self-review, and before the user review gate when delegated lanes are active.\n"
                 "- Launch all independent lanes in the current `parallel-subagents` wave before waiting.\n"
                 "- Suggested bounded lanes include discussion source sweep, targeted repository evidence, semantic-term challenge, upstream disposition review, and written artifact validation.\n"
-                "- Keep structured artifact discipline: Codex subagents may return evidence and challenges, but the leader updates `spec.md`, `alignment.md`, `context.md`, `workflow-state.md`, and `brainstorming/handoff-to-specify.json`.\n"
+                "- Keep structured artifact discipline: Codex subagents may return evidence and challenges, but the leader mutates `spec.md`, `alignment.md`, `context.md`, and `workflow-state.md` only through leased `specify-runtime artifact patch` calls, and binds the compatibility `brainstorming/handoff-to-specify.json` pointer only through `specify-runtime discussion bind-consumer`.\n"
                 f"- Use `wait_agent` only at explicit review join points and before final user review.\n"
                 f"- Use `close_agent` after integrating finished subagent results.\n"
                 "- Keep the shared workflow language integration-neutral in user-visible output.\n"
@@ -230,7 +230,7 @@ class CodexIntegration(SkillsIntegration):
                 "- Heavy or safety-critical blocked work records `dispatch_shape: subagent-blocked` and `execution_surface: none` with `blocked_reason`.\n"
                 "- Launch all independent lanes in the current `parallel-subagents` wave before waiting.\n"
                 "- Suggested bounded lanes include story and phase decomposition, dependency graph analysis, and write-set or parallel-safety analysis.\n"
-                f"- Use `wait_agent` only at the documented join points before writing `tasks.md` and before emitting canonical parallel batches and join points.\n"
+                f"- Use `wait_agent` only at the documented join points before calling `specify-runtime tasks finalize` and `specify-runtime tasks handoff`; `specify-runtime tasks finalize` renders `tasks.md`, and `specify-runtime tasks handoff` emits canonical parallel batches and join points.\n"
                 f"- Use `close_agent` after integrating finished subagent results.\n"
             ),
         )

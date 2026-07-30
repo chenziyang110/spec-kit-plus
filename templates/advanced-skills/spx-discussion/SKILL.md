@@ -1,6 +1,6 @@
 ---
 name: spx-discussion
-description: Resumable product and technical discussion for advanced coding models. Use when a rough idea needs durable decisions and options before formal specification.
+description: Resumable product and technical discussion for advanced coding models. Use when a rough idea needs durable decisions and options before direct Quick delivery or formal specification.
 ---
 
 # SPX Discussion
@@ -37,17 +37,31 @@ topical acknowledgements and follow-ups continue this stage without requiring
 the user to repeat `$spx-discussion`. A contextual confirmation such as `yes`,
 `ok`, or `可以` authorizes handoff only when it directly answers a named handoff
 action, and authorizes readiness only when it confirms the displayed digest.
-Then draft exactly one agent-only contract and write it with
-`{{specify-subcmd:specify-runtime discussion write-handoff <slug> --input <draft-json-path> --json}}`.
+Choose `recommended_consumer` from delivery intent, never task size:
+canonical `sp-quick` for direct delivery of any size, and canonical `sp-specify`
+only when the user explicitly selects a formal spec-first path; expose those as
+`$spx-quick` and `$spx-specify` invocations after readiness. Include an
+unconfirmed consumer choice in the protected digest review as a user-owned
+decision.
+Then build only one compact semantic contract input and submit it with
+`{{specify-subcmd:specify-runtime discussion write-handoff <slug> --input-json '<semantic-json>' --json}}`.
+The runtime expands the installed stable template, binds metadata and blocked
+defaults, and computes the review digest. Never read or reproduce the template
+and never create a draft JSON file; the discussion runtime alone materializes
+the canonical handoff.
 Run `{{specify-subcmd:specify-runtime discussion validate-handoff <slug> --mode draft --json}}`,
 review its boundary against confirmed decisions, and ask the user to confirm
 that exact revision. Then run
 `{{specify-subcmd:specify-runtime discussion confirm-handoff <slug> --digest <review-digest> --json}}`
 before `{{specify-subcmd:specify-runtime discussion mark-ready <slug> --json}}`. Before every
-final response that names `sp-specify`, read canonical status and withhold the
-downstream invocation unless it is `handoff-ready`.
+final response that names `$spx-quick` or `$spx-specify`, read canonical status
+and `recommended_consumer`; withhold the downstream invocation unless status is
+`handoff-ready` and the named workflow is the selected consumer.
 
 Do not create feature state, a spec, plan, tasks, or production changes. A ready
-handoff continues through `$spx-specify`; mark it consumed only after the
-specification successfully incorporates it. This invocation authorizes only
-this workflow stage; do not invoke another workflow in this run.
+handoff continues through its confirmed consumer: `$spx-quick` for direct
+delivery of any size or `$spx-specify` for a user-selected formal spec-first
+path. Mark it consumed only after that consumer writes evidence binding
+`source_contract` and `review_digest` into its Quick or feature workspace. This
+invocation authorizes only this workflow stage; do not invoke another workflow
+in this run.

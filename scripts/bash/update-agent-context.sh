@@ -155,20 +155,20 @@ render_speckit_managed_block() {
 
 - Project cognition and Project Learning are always available, even without an active `sp-*` workflow.
 - When existing-system truth matters, use project cognition before broad source inspection and use its results to narrow live reads.
-- Run `{{specify-cli}} learning start --command <workflow> --format json` before non-trivial decisions that depend on local conventions, constraints, or past lessons; expand only selected matching Learning through `show_argv`.
+- Run `{{specify-runtime-cli}} learning start --command <workflow> --format json` before non-trivial decisions that depend on local conventions, constraints, or past lessons; expand only selected matching Learning through `show_argv`.
 
 ## Workflow Recommendations
 
 - Do not auto-enter an `sp-*` workflow unless the user invokes it. Continuing an already-invoked incomplete workflow is not auto-entry.
-- Recommend `sp-discussion` for open-ended requirement exploration, `sp-specify` for formal alignment, `sp-deep-research` for feasibility proof, and `sp-debug` for root-cause diagnosis.
+- Recommend `sp-discussion` for open-ended requirement exploration, `sp-quick` for tracked direct delivery of any size, `sp-specify` for an explicitly selected formal spec-first path, `sp-deep-research` for feasibility proof, and `sp-debug` for root-cause diagnosis.
 - If the user invokes an `sp-*` workflow, follow that workflow's own contract.
 - When a topical follow-up, acknowledgement, or contextual confirmation continues an active discussion, resume `sp-discussion` from durable state even when the user does not repeat the workflow name.
-- Before recommending `sp-specify`, inspect the matching discussion status. If it is not `handoff-ready`, resume `sp-discussion` assessment, draft review, or repair; only a ready contract may route downstream.
+- Before recommending `sp-quick` or `sp-specify` from a discussion, run `{{specify-runtime-cli}} discussion status <slug> --format json` and consume its status and `recommended_consumer`. If it is not `handoff-ready` or the consumer does not match, resume `sp-discussion` assessment, draft review, or repair; only a ready confirmed route may continue downstream.
 
 ## Command Surface Rules
 
-- Treat live `{{specify-cli}} --help` output as the authoritative CLI surface.
-- Before suggesting or running a `{{specify-cli}} <subcommand>` invocation, verify that help exposes it.
+- Treat `{{specify-runtime-cli}} api list --format json` as the authoritative agent-facing CLI surface; use `{{specify-runtime-cli}} api show workflow.block --format json` and `{{specify-runtime-cli}} api schema workflow-block-input --format json` only for the blocked-exit contract.
+- Every agent-run helper command must use the project-local `specify-runtime`; Python `specify` is human-only for bootstrap, init, upgrade, repair, and legacy operator maintenance.
 - Do not invent unsupported CLI names such as `specify create-feature`.
 - Feature creation uses the generated create-feature script at `.specify/scripts/bash/create-new-feature.sh` or `.specify/scripts/powershell/create-new-feature.ps1`; default feature workspace names use `YYYY-MM-DD-<slug>`.
 
@@ -212,17 +212,25 @@ start = sys.argv[2]
 end = sys.argv[3]
 block = sys.argv[4]
 project_root = Path(sys.argv[5])
-launcher = "specify"
+runtime_launcher = "SPECIFY_RUNTIME_LAUNCHER_UNAVAILABLE:specify-runtime"
 try:
     payload = json.loads(
         (project_root / ".specify" / "config.json").read_text(encoding="utf-8")
     )
-    configured = payload.get("specify_launcher", {}).get("command", "")
-    if isinstance(configured, str) and configured.strip():
-        launcher = configured.strip()
+    configured = payload.get("runtime_launcher", {}).get("argv", [])
+    if isinstance(configured, list) and len(configured) == 1 and isinstance(configured[0], str):
+        candidate = configured[0].strip()
+        normalized = candidate.replace("\\", "/").lower()
+        if normalized.startswith("./"):
+            normalized = normalized[2:]
+        if normalized in {
+            ".specify/bin/specify-runtime",
+            ".specify/bin/specify-runtime.exe",
+        }:
+            runtime_launcher = candidate
 except (OSError, json.JSONDecodeError, AttributeError):
     pass
-block = block.replace("{{specify-cli}}", launcher)
+block = block.replace("{{specify-runtime-cli}}", runtime_launcher)
 
 content = path.read_text(encoding="utf-8") if path.exists() else ""
 

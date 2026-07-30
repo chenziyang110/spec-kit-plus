@@ -83,9 +83,16 @@ def test_runtime_installers_require_artifact_and_workflow_capabilities() -> None
     )
 
     for capability in (
+        "artifact.checklist",
+        "artifact.delete",
+        "artifact.list",
+        "artifact.patch",
+        "artifact.restore",
         "artifact.scaffold",
         "artifact.submit",
+        "cognition.archive-incompatible-store",
         "cognition.run",
+        "cognition.scan-packet",
         "workflow.show",
         "workflow.enter",
         "workflow.next",

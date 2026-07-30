@@ -34,6 +34,8 @@ def test_classic_quick_and_debug_cards_confirm_human_decisions_not_agent_interna
         assert agent_owned_row not in quick_lower
     assert "technical execution belongs to the agent" in quick_lower
     assert "for awareness, not as a request to approve technical details" in quick_lower
+    assert "deliverable-level order" in quick_lower
+    assert "internal implementation sequencing" in quick_lower
 
     debug_lower = debug.lower()
     for agent_owned_row in (
@@ -109,9 +111,8 @@ def test_advanced_quick_and_debug_use_the_same_human_confirmation_contract() -> 
 def test_confirmation_and_ui_decisions_persist_and_reach_workers() -> None:
     state_sources = (
         "templates/artifacts/quick-status.md",
+        "templates/artifacts/debug-session.md",
         "templates/debug.md",
-        "templates/advanced-skills/spx-quick/assets/status.md",
-        "templates/advanced-skills/spx-debug/assets/debug-session.md",
     )
     required_ui_fields = (
         "ui_confirmation",
@@ -132,6 +133,14 @@ def test_confirmation_and_ui_decisions_persist_and_reach_workers() -> None:
 
     quick_state = _read("templates/artifacts/quick-status.md").lower()
     assert "agent_execution_plan" in quick_state
+    for field in (
+        "ordered_work_items",
+        "work_item_acceptance",
+        "work_item_status",
+        "batches",
+    ):
+        assert field in quick_state
+
     debug_state = _read("templates/debug.md").lower()
     assert "agent_investigation_plan" in debug_state
 
@@ -144,6 +153,9 @@ def test_confirmation_and_ui_decisions_persist_and_reach_workers() -> None:
     )
     assert "confirmed ui confirmation" in quick_workers
     assert "must not redesign" in quick_workers
+    assert "work_item_id" in quick_workers
+    assert "depends_on" in quick_workers
+    assert "work-item acceptance" in quick_workers
 
     debug_workers = "\n".join(
         _read(path).lower()
@@ -184,5 +196,38 @@ def test_generated_quick_guidance_does_not_restore_the_legacy_approval_table() -
     assert "| item | current understanding |" not in combined
     assert "request and outcome" in combined
     assert "user-visible result" in combined
+    assert "ordered work items" in combined
+    assert "work-item acceptance" in combined
     assert "reconfirmation trigger" in combined
     assert "ui confirmation" in combined
+
+
+def test_quick_checkpoint_supports_ordered_multi_work_item_delivery() -> None:
+    contracts = (
+        _read("templates/command-partials/quick/checkpoint-card.md"),
+        _read("templates/advanced-skills/_shared/human-confirmation.md"),
+    )
+
+    for contract in contracts:
+        lowered = contract.lower()
+        assert "| ordered work items |" in lowered
+        assert "| work-item acceptance |" in lowered
+        assert "q1" in lowered
+        assert "depends on" in lowered
+        assert "single" in lowered
+        assert "multiple" in lowered
+        assert "deliverable-level order" in lowered
+        assert "internal implementation sequencing" in lowered
+
+    execution_contracts = "\n".join(
+        _read(path).lower()
+        for path in (
+            "templates/command-references/quick/packetized-work.md",
+            "templates/command-references/quick/validation-and-closeout.md",
+            "templates/advanced-skills/spx-quick/references/task-contract.md",
+        )
+    )
+    assert "ordered work items" in execution_contracts
+    assert "dependency order" in execution_contracts
+    assert "every work item" in execution_contracts
+    assert "one completed batch is progress, not task completion" in execution_contracts

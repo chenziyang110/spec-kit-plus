@@ -23,7 +23,7 @@
 - **Execution surface**: native-subagents
 - **Reason**: safe-one-subagent
 - **Selected tracks**:
-  - TRK-001 -> disposable spike write scope `research-spikes/webhook-retry-backoff/`
+  - TRK-001 -> disposable CLI-owned spike scope `research-spikes/webhook-retry-backoff/`
 - **Join points**:
   - before final conflict resolution
   - before writing `Synthesis Decisions`
@@ -39,7 +39,7 @@
 
 | Evidence ID | Supports | Source Tier | Source / Path | Reproduced Locally | Recency / Version | Confidence | Plan Impact | Limitations |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| SPK-001 | CAP-001 / PH-001 / PH-002 | runnable-spike | `research-spikes/webhook-retry-backoff/` | yes | 2026-04-29 | medium | constraining | Uses synthetic delays, not production queue load |
+| SPK-001 | CAP-001 / PH-001 / PH-002 | runnable-spike | `research-spikes/webhook-retry-backoff/` | yes | 2026-04-29 | medium | constraining | Uses synthetic delays, not production queue traffic |
 | EVD-001 | CAP-001 / PH-001 | repo-evidence | `src/scheduler/retry_policy.py` | not applicable | not time-sensitive | high | constraining | Shows current scheduler primitives, not final feature behavior |
 
 ## Implementation Chain Evidence

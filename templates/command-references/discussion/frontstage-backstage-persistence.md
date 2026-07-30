@@ -34,11 +34,11 @@ Do not persist only because an unsaved turn count changed. Recovery value and se
 
 At a natural pause or after several unsaved ordinary turns, the visible reply may end with one short note that names the unsaved turn count and suggests `checkpoint, continue` if the user wants to save progress and keep going. This note is not a receipt, does not expose file paths by default, and must not call write-capable tools.
 
-When the user says `checkpoint, continue` or an equivalent checkpoint-plus-continue phrase, append one compact event to `discussion-log.jsonl`, update canonical `discussion-state.json`, render the short compatibility Markdown, refresh only semantically changed optional artifacts, and continue with the next useful discussion content in the same reply. Do not stop after a save receipt or ask for permission to continue.
+When the user says `checkpoint, continue`, pass the compact semantic delta to `specify-runtime discussion checkpoint`; it atomically appends `discussion-log.jsonl`, updates canonical JSON, and renders compatibility Markdown. Never mutate those files directly.
 
 ## Recovery Flow
 
-When resuming a discussion, use `{{specify-subcmd:specify-runtime discussion resume <slug> --json}}` to receive the compact `DiscussionTurnPacket` and post-checkpoint events. Read canonical `discussion-state.json` directly only for recovery or diagnostics. Read `requirements.md`, `technical-options.md`, `project-context.md`, or `open-questions.md` only when the turn packet references them, is stale, is missing, or conflicts with recent events.
+When resuming, use `specify-runtime discussion resume` for the compact packet. Query canonical state and optional views only through `specify-runtime artifact show`, and only for recovery, a referenced stale field, or a conflict.
 
 ## Frontstage / Backstage Separation
 

@@ -436,24 +436,25 @@ def test_review_hands_off_the_frozen_human_acceptance_universe() -> None:
 def test_review_targets_are_bound_to_identity_and_artifact_bytes(profile: str) -> None:
     flat = _flat(dict(_review_profile_contracts())[profile])
 
+    assert "review target-bind" in flat
+    assert "--input-json" in flat
+    assert "never author" in flat and "identity json" in flat
+    assert "current-cycle" in flat
+    assert "atomically" in flat
     assert "identity_evidence_ref" in flat
     assert "identity_evidence_sha256" in flat
-    assert "review-evidence/cycle-<n>/" in flat
-    assert "top-level `version`" in flat and "status" in flat and "ready" in flat
-    for field in (
-        "environment_ref",
-        "instance_ref",
-        "configuration_ref",
-        "reviewed_snapshot_sha256",
-        "review_scenario_ids",
-        "ready_evidence_refs",
-    ):
-        assert field in flat
+    assert "reviewed_snapshot_sha256" in flat
+    assert "runtime_targets_sha256" in flat
     assert "artifact_ref" in flat and "artifact_sha256" in flat
     assert "build" in flat and "deployment" in flat
     assert "current bytes" in flat
     assert "implementation snapshot" in flat
     assert "review-evidence/" in flat and "review-results/" in flat
+    assert not (
+        "identity json projection" in flat
+        and "artifact prepare" in flat
+        and "artifact submit" in flat
+    )
 
 
 def test_accept_preserves_review_identity_evidence_fields_read_only() -> None:

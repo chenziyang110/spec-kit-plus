@@ -36,19 +36,20 @@ class UIVerification:
     approved_visual_ref: str = ""
     approved_preview_sha256: str = ""
     approved_manifest_sha256: str = ""
+    approved_handoff_ref: str = ""
+    approved_handoff_sha256: str = ""
     comparison_report_ref: str = ""
     comparison_report_sha256: str = ""
     implementation_capture_refs: list[str] = field(default_factory=list)
     covered_decision_ids: list[str] = field(default_factory=list)
+    covered_handoff_contract_ids: list[str] = field(default_factory=list)
     structural_differences: list[str] = field(default_factory=list)
     visual_differences: list[str] = field(default_factory=list)
-    comparison_tolerance: str = ""
+    comparison_tolerance: dict[str, object] = field(default_factory=dict)
     accepted_deviations: list[dict[str, str]] = field(default_factory=list)
 
 
-CURRENT_UI_VERIFICATION_FIELDS = frozenset(
-    item.name for item in fields(UIVerification)
-)
+CURRENT_UI_VERIFICATION_FIELDS = frozenset(item.name for item in fields(UIVerification))
 
 
 @dataclass(slots=True)
@@ -68,7 +69,9 @@ class WorkerTaskResult:
     blockers: list[str] = field(default_factory=list)
     failed_assumptions: list[str] = field(default_factory=list)
     suggested_recovery_actions: list[str] = field(default_factory=list)
-    rule_acknowledgement: RuleAcknowledgement = field(default_factory=RuleAcknowledgement)
+    rule_acknowledgement: RuleAcknowledgement = field(
+        default_factory=RuleAcknowledgement
+    )
     acceptance_evidence: list[dict[str, str]] = field(default_factory=list)
     consumer_evidence: list[dict[str, str]] = field(default_factory=list)
     manual_evidence: list[dict[str, str]] = field(default_factory=list)
@@ -78,7 +81,9 @@ class WorkerTaskResult:
     ui_verification: UIVerification = field(default_factory=UIVerification)
 
 
-def _filter_dataclass_payload(cls: type, payload: dict[str, object]) -> dict[str, object]:
+def _filter_dataclass_payload(
+    cls: type, payload: dict[str, object]
+) -> dict[str, object]:
     allowed = {item.name for item in fields(cls)}
     return {key: value for key, value in payload.items() if key in allowed}
 
@@ -117,14 +122,16 @@ def _validate_current_ui_payload(payload: dict[str, object]) -> None:
     if raw_verification is not None:
         if not isinstance(raw_verification, dict):
             raise ValueError("ui_verification must be an object")
-        unknown_verification = (
-            set(raw_verification) - CURRENT_UI_VERIFICATION_FIELDS
-        )
+        unknown_verification = set(raw_verification) - CURRENT_UI_VERIFICATION_FIELDS
         if unknown_verification:
             raise ValueError(
                 "ui_verification contains unsupported fields: "
                 + ", ".join(sorted(unknown_verification))
             )
+        if "comparison_tolerance" in raw_verification and not isinstance(
+            raw_verification["comparison_tolerance"], dict
+        ):
+            raise ValueError("ui_verification.comparison_tolerance must be an object")
 
     raw_evidence = payload.get("ui_evidence")
     if raw_evidence is None:
@@ -170,9 +177,7 @@ def worker_task_result_from_json(text: str) -> WorkerTaskResult:
         payload.get("rule_acknowledgement", {}),
     )
     raw_ack["paths_read"] = [
-        str(item).strip()
-        for item in raw_ack.get("paths_read", [])
-        if str(item).strip()
+        str(item).strip() for item in raw_ack.get("paths_read", []) if str(item).strip()
     ]
     raw_ack["critical_notes"] = [
         str(item).strip()
@@ -182,9 +187,7 @@ def worker_task_result_from_json(text: str) -> WorkerTaskResult:
     rule_acknowledgement = RuleAcknowledgement(**raw_ack)
     result_payload = _filter_dataclass_payload(WorkerTaskResult, payload)
     result_payload["wave"] = str(result_payload.get("wave") or "").strip()
-    result_payload["packet_id"] = str(
-        result_payload.get("packet_id") or ""
-    ).strip()
+    result_payload["packet_id"] = str(result_payload.get("packet_id") or "").strip()
     result_payload["obligation_ids"] = [
         str(item).strip()
         for item in result_payload.get("obligation_ids", [])
@@ -215,7 +218,9 @@ def worker_task_result_from_json(text: str) -> WorkerTaskResult:
         result_payload.get("ui_evidence", [])
     )
     result_payload["ui_verification"] = UIVerification(
-        **_filter_dataclass_payload(UIVerification, result_payload.get("ui_verification", {}))
+        **_filter_dataclass_payload(
+            UIVerification, result_payload.get("ui_verification", {})
+        )
     )
     result_payload["validation_results"] = validation_results
     result_payload["rule_acknowledgement"] = rule_acknowledgement

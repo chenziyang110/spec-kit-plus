@@ -31,6 +31,12 @@ def test_spx_deep_research_preserves_durable_stage_and_refusal_gates() -> None:
     assert "**Status**: Not needed" in classic
     assert "**Status**: Not needed" in content
     assert "hook validate-artifacts --command deep-research" in content
+    assert "PH-###" in content
+    assert "EVD-###" in content
+    assert "SPK-###" in content
+    assert "research-evidence/<EVD-###>.json" in content
+    assert "Do not hand-author either kind" in content
+    assert "evidence import` is reserved for external or binary proof" in content
 
 
 def test_spx_research_keeps_generic_web_research_out_of_feature_artifacts() -> None:
@@ -54,7 +60,7 @@ def test_spx_design_preserves_design_state_support_artifacts_and_final_review() 
         "allowed_writes",
     ):
         assert required in content
-    assert "Ask the user to review the written `DESIGN.md`" in content
+    assert "Ask the user to review the CLI-exported `DESIGN.md`" in content
 
 
 def test_spx_map_scan_persists_unavailable_worker_recovery() -> None:
@@ -83,6 +89,8 @@ def test_spx_prd_scan_preserves_resume_freshness_and_classification_state() -> N
         "targeted-stale",
         "full-stale",
         "ui | service | mixed",
+        "specify-runtime prd-scan finalize <run-id>",
+        "hook validate-artifacts --command prd-scan",
     ):
         assert required in content
 
@@ -98,6 +106,8 @@ def test_spx_prd_build_consumes_semantic_status_and_preserves_build_state() -> N
         "failed_reverse_coverage_checks",
         "ui | service | mixed",
         "classification-aware",
+        "hook validate-artifacts --command prd-build",
+        "surface presence alone is not completion",
     ):
         assert required in content
 
@@ -108,3 +118,10 @@ def test_spx_prd_compatibility_route_propagates_child_blockers() -> None:
     assert "If scan blocks, stop" in content
     assert "If build blocks, stop" in content
     assert "never report the compatibility route complete" in content
+
+
+def test_spx_constitution_uses_native_artifact_gate() -> None:
+    content = _skill("spx-constitution")
+
+    assert "specify-runtime hook validate-artifacts" in content
+    assert "--command constitution --feature-dir .specify/memory" in content

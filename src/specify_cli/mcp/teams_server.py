@@ -80,7 +80,7 @@ def build_teams_mcp_server(*, fastmcp_cls: type | None = None):
     @mcp.tool(name="teams_submit_result")
     def teams_submit_result(
         request_id: str,
-        result_file: str,
+        result_json: str,
         project_root: str | None = None,
         session_id: str = "default",
     ) -> dict[str, Any]:
@@ -88,7 +88,7 @@ def build_teams_mcp_server(*, fastmcp_cls: type | None = None):
             project_root,
             "submit-result",
             request_id=request_id,
-            result_file=result_file,
+            result_json=result_json,
             session_id=session_id,
         )
 

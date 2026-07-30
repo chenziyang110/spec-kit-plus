@@ -53,7 +53,7 @@ sets `completion_allowed=false`, `bypass_allowed=false`, and
 
 ## Process
 
-- Before repository inventory, run `{{specify-subcmd:specify-runtime cognition generate-ignore --format json}}`. If it creates `.specify/project-cognition/.cognitionignore`, ask the user to review the starter suggestions and wait for confirmation before continuing.
+- Before repository inventory, run `{{specify-subcmd:specify-runtime cognition generate-ignore --format json}}`. If it creates `.specify/project-cognition/.cognitionignore`, present the returned `suggested_patterns`, ask the user to review them, and wait for confirmation before continuing. Never open the runtime-owned ignore file directly.
 - After the ignore gate is clear, run `{{specify-subcmd:specify-runtime cognition scan-set --out .specify/project-cognition/tmp/scan-files.json --format json}}` and use the returned file list as the candidate scan set. The agent may choose scan intent and concrete `--scope` values, but `specify-runtime cognition scan-set` decides the initial included file list through deterministic runtime rules; do not let the agent freely decide which files to omit.
 - Run `{{specify-subcmd:specify-runtime cognition scan-prepare}}` against that scan set.
   It performs the cheap inventory/classification pass, estimates token cost,
@@ -87,8 +87,9 @@ sets `completion_allowed=false`, `bypass_allowed=false`, and
   estimate and lease it with `--worker-capacity-tokens <tokens>`, or stop and
   re-plan. Never knowingly assign more estimated work than the selected worker
   can consume.
-- Require the worker to submit bounded packet-local progress through
-  `{{specify-subcmd:specify-runtime cognition scan-checkpoint}}`. When it predicts that
+- Require the worker to query its brief through `specify-runtime cognition scan-packet`
+  and submit bounded packet-local progress through
+  `{{specify-subcmd:specify-runtime cognition scan-checkpoint --result-json '<inline-json>'}}`. When it predicts that
   context, tool-output, or result-output capacity will run out, it checkpoints
   completed work and uses `{{specify-subcmd:specify-runtime cognition scan-yield}}`; it
   must not guess, omit paths, or claim the whole packet complete.
@@ -254,8 +255,9 @@ Do not create handbook-first brownfield truth, alternate mapping trees, or canon
 
 ## Runtime-Owned Machine-Readable Scan Artifact Schema
 
-The CLI-generated result skeleton is the schema authority. Workers fill only
-their designated packet-local skeleton and submit it with `scan-checkpoint`;
+The CLI-generated result skeleton returned by `scan-packet` is the schema authority.
+Workers build the corresponding object in memory and submit it with
+`scan-checkpoint --result-json`; the runtime alone writes checkpoint artifacts;
 the leader must not copy this section into an improvised JSON contract. The
 runtime accepts a few legacy aliases when validating old inputs, but new packet
 results use the generated canonical shape so `sp-map-build` can reconstruct the
@@ -325,13 +327,13 @@ but new scan artifacts must write `rows`; do not maintain separate `rows` and
 - Natural-language completion claims, worker-authored `pass` values, and leader
   summaries are not acceptance evidence. Only a successful runtime checkpoint
   or accept transition establishes durable progress.
-- Workers write only the designated packet-local result/checkpoint surfaces and
-  submit them through the CLI. The leader and workers must not hand-write the
+- Workers submit packet-local results inline through the CLI; the runtime alone
+  materializes result/checkpoint surfaces. The leader and workers must not hand-write the
   global queue, handoff, coverage, evidence, provisional, and status artifacts,
   or create/patch SQLite as a scan/build shortcut.
 - Do not silently downgrade unknown or unclassified project-relevant surfaces.
 - `.specify/**` workflow/runtime state is excluded from default source/runtime scan targets; do not put `.specify/**` paths into project graph evidence, nodes, observations, graph claims, path_index, or alias_index.
-- Only read `.specify/**` for workflow operation, validation, migration, or when the requested scan is explicitly about generated workflow surfaces or spec-kit-plus itself; even then, classify it as workflow/reference support rather than source/runtime graph truth.
+- Access registered `.specify/**` workflow artifacts only through their `specify-runtime` owners. Direct file reads are limited to installed static templates/scripts when the requested scan explicitly targets generated workflow surfaces or spec-kit-plus itself; never raw-read state, handoff, task, evidence, lease, or ledger artifacts. Classify permitted static workflow/reference inputs as support rather than source/runtime graph truth.
 - Respect project cognition ignore rules from root `.cognitionignore` and `.specify/project-cognition/.cognitionignore`. These files use gitignore-compatible syntax, including comments, directory patterns, globs, `**`, and `!` re-includes.
 - `.cognitionignore` excludes project cognition scan/build/update targets only; it does not replace `.gitignore` or prove that ignored code is irrelevant to other tooling.
 - If the required scan lane cannot be safely packetized or delegated, record `subagent-blocked` and stop for escalation or recovery.
@@ -339,7 +341,7 @@ but new scan artifacts must write `rows`; do not maintain separate `rows` and
 ## Project Cognition Workbench State Protocol
 
 - `MAP_STATE_FILE=.specify/project-cognition/workbench/map-state.md`
-- Treat `.specify/project-cognition/workbench/map-state.md` as the refresh-workbench state surface for scan progress, accepted packets, and unresolved gaps.
+- Treat `.specify/project-cognition/workbench/map-state.md` as a CLI-owned projection; use `specify-runtime cognition scan-status|scan-checkpoint` for progress and gaps.
 - `scan-queue.json`, `scan-targets.json`, and `handoff-ledger.json` are
   runtime-owned projections. Every generated packet has one queue row, every
   leased attempt has matching dispatch/return events, and only runtime commands
@@ -401,11 +403,10 @@ but new scan artifacts must write `rows`; do not maintain separate `rows` and
   `repository-universe.json`; globs such as `JZWinReNew/*.cpp`, directory
   patterns, absolute paths, and summary labels are invalid.
 - Each packet carries a runtime-generated packet-local task ledger and result
-  skeleton. The worker records concrete path outcomes and confidence only in
-  that designated packet-local surface, then submits it through
-  `scan-checkpoint`; do not reproduce a stable JSON schema in the prompt.
-- Workers must copy the supplied JSON skeleton and write only the designated
-  packet-local pending result.
+  skeleton. The worker returns concrete outcomes as one in-memory object and
+  submits it with `specify-runtime cognition scan-checkpoint --result-json '<inline-json>'`;
+  the CLI alone materializes the designated pending result. Do not reproduce a
+  stable JSON schema in the prompt or create a temporary result file.
 - Worker-authored `acceptance` remains `partial` even when the packet-local work
   is complete. The runtime derives `pass` only after `scan-accept` validates the
   full attempt; workers must not self-declare `acceptance: pass`.
@@ -451,8 +452,8 @@ but new scan artifacts must write `rows`; do not maintain separate `rows` and
 
 - enumerate project-internal evidence comprehensively as value-weighted repository inventory, then scan evidence selectively by value
 - generate a full project-relevant inventory from the runtime-resolved scan set across nested directories, then add Git tracking status and directory metadata during classification
-- have `scan-prepare` materialize `.specify/project-cognition/workbench/repository-universe.json` with `included_paths` and any available `excluded_paths`; default `scan-set` output is intentionally minimal and does not require per-path exclusion details unless an explicit explain/debug mode was used
-- have `scan-prepare` materialize `.specify/project-cognition/workbench/scan-targets.json` with the value-weighted execution target set
+- have `specify-runtime cognition scan-prepare` materialize its runtime-owned repository universe with `included_paths` and any available `excluded_paths`; default `scan-set` output is intentionally minimal and does not require per-path exclusion details unless an explicit explain/debug mode was used
+- have `specify-runtime cognition scan-prepare` materialize its runtime-owned value-weighted execution target set
 - audit the runtime classification of project-relevant repository surfaces;
   do not hand-edit its schema or per-path projections
 - gather evidence first from high-value committed source, runtime entrypoints, tests that prove behavior, scripts, configs, docs that define behavior, templates, generated-surface sources, and `.git` history

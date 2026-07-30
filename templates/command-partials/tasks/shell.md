@@ -6,7 +6,8 @@ Compile a ready plan contract into the smallest dependency-safe execution graph 
 
 ## Context
 
-- Primary authority: `plan-contract.json`; `tasks.md` is the project-facing view and `task-index.json` is canonical for standard/heavy and all UI-bearing work.
+- Primary authority: `plan-contract.json`; `tasks.md` is the project-facing view and `task-index.json` is canonical in every execution mode.
+- Artifact authority: `specify-runtime tasks build|upsert|set-root|remove|finalize|handoff` exclusively owns both task projections and task transition handoffs. Read them through `specify-runtime artifact show`; never mutate them with an editor, shell redirection, or generic artifact submit.
 - Read conditional plan/spec views only through a required ref or stale condition.
 - Task generation is artifact-only and does not authorize source/test edits.
 
@@ -29,14 +30,17 @@ Exact delegated packet shape lives in `templates/task-packet-template.json`. `sp
 
 ## Output Contract
 
-- Light non-UI: compact `tasks.md` unless a graph adds real resume value.
+- Light non-UI: compact canonical `task-index.json` plus compact rendered `tasks.md`; light mode never bypasses the task control plane.
 - Any UI-bearing work: minimal canonical `task-index.json` plus task-local UI contracts in rendered `tasks.md`.
-- For UI tasks, project the plan's approved reference and digests plus an
-  applicable `DS-*` decision subset, component/color-mode/responsive/motion
-  contracts, viewport/state acceptance rows, comparison tolerance, and the
-  unchanged accepted-deviation ledger. The union across UI tasks must exactly
-  cover every plan design decision and acceptance row.
-- Standard/heavy: canonical `task-index.json` plus rendered `tasks.md`.
+- For UI tasks, project the plan's approved reference,
+  preview/manifest/handoff digests, immutable handoff ref, applicable `DS-*`
+  decision subset, applicable `DH-*` contract subset,
+  component/color-mode/responsive/motion contracts, viewport/state acceptance
+  rows, comparison tolerance, and the unchanged accepted-deviation ledger.
+  Copy structured values from targeted `specify-runtime artifact show` results
+  for the immutable handoff rather than reauthoring them. The unions across UI tasks must exactly cover every required plan
+  decision, handoff contract, and acceptance row.
+- Standard/heavy: the same canonical `task-index.json` plus rendered `tasks.md`, with richer graph fields as needed.
 - Delegated decomposition only: one lane manifest plus lane results.
 - Consume every accepted task-generation lane result into a task, edge, batch, join point, guardrail, or explicit blocker/deferral; chat-only lane output is not handoff truth.
 - Ready transition: canonical task ref, semantic delta, required refs, blockers/recovery, and exactly one next action.

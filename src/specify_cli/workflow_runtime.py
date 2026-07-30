@@ -11,7 +11,6 @@ from collections.abc import Mapping, Sequence
 from copy import deepcopy
 import json
 from pathlib import Path
-import tempfile
 from typing import Any
 
 from .agent_api import envelope
@@ -403,30 +402,15 @@ def block_workflow(
     if human_action_required is not None:
         payload["human_action_required"] = human_action_required
 
-    temp_dir = project_root / ".specify"
-    temp_dir.mkdir(parents=True, exist_ok=True)
-    input_path: Path | None = None
-    try:
-        with tempfile.NamedTemporaryFile(
-            mode="w",
-            encoding="utf-8",
-            prefix=".workflow-block-",
-            suffix=".json",
-            dir=temp_dir,
-            delete=False,
-        ) as handle:
-            json.dump(payload, handle, ensure_ascii=False, separators=(",", ":"))
-            handle.write("\n")
-            input_path = Path(handle.name)
-        return _invoke_workflow(
-            feature,
-            "block",
-            ("--input", str(input_path)),
-            allow_persisted_blocked=True,
-        )
-    finally:
-        if input_path is not None:
-            input_path.unlink(missing_ok=True)
+    return _invoke_workflow(
+        feature,
+        "block",
+        (
+            "--input-json",
+            json.dumps(payload, ensure_ascii=False, separators=(",", ":")),
+        ),
+        allow_persisted_blocked=True,
+    )
 
 
 def resolve_workflow_blocker(

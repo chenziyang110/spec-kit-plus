@@ -69,14 +69,16 @@ func TestTeamsResultTemplateAndSubmitResultUseRuntimeStatePaths(t *testing.T) {
 		t.Fatalf("unexpected template: %#v", template)
 	}
 
-	resultPath := filepath.Join(project, "result.json")
-	writeTeamsJSON(t, resultPath, map[string]any{
+	raw, err := json.Marshal(map[string]any{
 		"task_id": "T701", "status": "success", "changed_files": []any{"src/t701.py"},
 		"validation_results": []any{map[string]any{"command": "pytest -q", "status": "passed", "output": "PASS"}},
 		"summary":            "Implemented T701",
 	})
+	if err != nil {
+		t.Fatal(err)
+	}
 	stdout.Reset()
-	if exit := runTeams([]string{"submit-result", "--request-id", "req-template", "--result-file", "result.json"}, &stdout); exit != 0 {
+	if exit := runTeams([]string{"submit-result", "--request-id", "req-template", "--result-json", string(raw)}, &stdout); exit != 0 {
 		t.Fatalf("submit-result exit=%d output=%s", exit, stdout.String())
 	}
 	if _, err := os.Stat(teamsResultRecordPath(project, "req-template")); err != nil {
@@ -89,6 +91,36 @@ func TestTeamsResultTemplateAndSubmitResultUseRuntimeStatePaths(t *testing.T) {
 	}
 	if !strings.Contains(stdout.String(), "required_fields") {
 		t.Fatalf("schema missing required_fields: %s", stdout.String())
+	}
+}
+
+func TestTeamsSubmitResultRejectsAgentAuthoredResultFile(t *testing.T) {
+	project := newTeamsProject(t)
+	withCwd(t, project)
+	seedTeamsDispatch(t, project, "req-file", "T703")
+
+	var stdout bytes.Buffer
+	if exit := runTeams([]string{"submit-result", "--request-id", "req-file", "--result-file", "result.json"}, &stdout); exit == 0 {
+		t.Fatalf("result-file unexpectedly passed: %s", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "does not accept agent-authored result files") {
+		t.Fatalf("missing inline-only guidance: %s", stdout.String())
+	}
+}
+
+func TestTeamsSubmitResultAcceptsInlineJSON(t *testing.T) {
+	project := newTeamsProject(t)
+	withCwd(t, project)
+	seedTeamsDispatch(t, project, "req-inline", "T702")
+
+	var stdout bytes.Buffer
+	raw := `{"task_id":"T702","status":"success","summary":"inline"}`
+	if exit := runTeams([]string{"submit-result", "--request-id", "req-inline", "--result-json", raw}, &stdout); exit != 0 {
+		t.Fatalf("submit-result exit=%d output=%s", exit, stdout.String())
+	}
+	result := readTeamsJSON(t, teamsResultRecordPath(project, "req-inline"))
+	if result["summary"] != "inline" {
+		t.Fatalf("summary = %#v, want inline", result["summary"])
 	}
 }
 

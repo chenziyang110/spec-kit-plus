@@ -6,7 +6,7 @@ Preserved Contract: debug starts with a confirmed understanding and session stat
 
 ## Complexity-Based Debug Execution
 
-`sp-debug` is leader-owned and evidence-first. Choose the execution path from the shape of the investigation, then record the decision in the debug session file.
+`sp-debug` is leader-owned and evidence-first. Choose the execution path from the shape of the investigation, then patch the decision into the debug session file through a leased `specify-runtime artifact patch` call.
 
 Use `leader-inline` when the investigation is small, focused, and has a short evidence chain, such as one failing test, one clear error, one local module, or one reproduction path.
 
@@ -14,7 +14,7 @@ Use `subagent-assisted` when the investigation has multiple independent evidence
 
 Use `blocked` when the next safe step is unsafe, unavailable, or unpacketizable. Preserve the blocked state as `dispatch_shape: subagent-blocked`, `execution_surface: none`, and a concrete `blocked_reason`.
 
-Persist these fields in the debug session:
+Patch these fields into the debug session only through a leased `specify-runtime artifact patch` call:
 
 - `execution_model: leader-inline | subagent-assisted | blocked`
 - `dispatch_shape: leader-inline | one-subagent | parallel-subagents | subagent-blocked`
@@ -42,24 +42,24 @@ You are the debug session leader. Investigate a bug using a persistent, resumabl
 - **Find truth ownership before chasing symptoms**: Identify which layer owns the critical truth and which layers only reflect, cache, or project it.
 - **One active hypothesis at a time**: Parallel evidence gathering is allowed; parallel root-cause theories are not.
 - **Observability before speculation**: Read existing logs and outputs first. If they are too weak to explain the failure, improve logging or tracing before attempting a fix.
-- **Logs are a first-class evidence source**: When existing logs, stderr/stdout, test output, or trace files materially narrow the issue, append it to `Evidence` with `source_type: log` (or the closest concrete source type) and a concrete `source_ref`.
+- **Logs are a first-class evidence source**: When existing logs, stderr/stdout, test output, or trace files materially narrow the issue, query `Evidence` through `specify-runtime artifact show --section`, add the finding in memory with `source_type: log` (or the closest concrete source type) and a concrete `source_ref`, then replace the section through a fresh `artifact patch --section` lease.
 - **Existing logs first**: Before asking for new output or adding new probes, check whether the repository, runtime, deploy target, browser console, worker output, or prior test artifacts already contain decisive signals for the active candidate queue.
 - **Control state is not observation state**: Keep scheduling, admission, allocation, and ownership state separate from UI, logs, event streams, caches, and snapshots.
-- **Persistence is memory**: The debug session file in `.planning/debug/[slug].md` is the source of truth. Update it before each action.
+- **Persistence is memory**: The debug session file in `.planning/debug/[slug].md` is the source of truth. Query it through `specify-runtime artifact show` and patch it through a fresh lease before each action that changes durable meaning.
 - **Leader-led investigation**: The leader integrates evidence and decides what happens next. Delegated helpers only gather bounded facts.
 - **Project-map first**: When the project cognition compass packet returns usable task-local navigation, use it as the default intake surface instead of rebuilding a broad outsider map from scratch.
-- **Map-backed minimum intake**: A ready/review cognition bundle may directly populate a minimum causal map, investigation contract, log plan, transition memo, primary candidate, and contrarian candidate.
+- **Map-backed minimum intake**: A ready/review cognition bundle may supply a minimum causal map, investigation contract, log plan, transition memo, primary candidate, and contrarian candidate; persist that package only through a fresh `specify-runtime artifact patch` lease.
 - **Deep intake is fallback, not the default**: Use Stage 1A and Stage 1B only when project cognition is missing, stale, ambiguous, insufficient for the failing area, or the lightweight investigation exposes competing truth owners.
 - **Stage 1A: Causal Map**: In fallback/deep mode, the first subagent builds a family-spanning causal map before contract generation begins.
 - **Stage 1B: Investigation Contract**: In fallback/deep mode, the second subagent converts the causal map into the minimum contract the investigator must consume.
 - **The second stage must consume the candidate queue**: When deep intake is used, investigation cannot skip the Stage 1B contract and jump straight to freeform fixes.
 - **Family coverage scales with intake strength**: Map-backed intake needs a primary and contrarian candidate; deep fallback still needs broader family coverage and falsifiers.
-- **Observer framing remains the bridge artifact**: Whether map-backed or deep, record `primary suspected loop`, `recommended first probe`, and a `contrarian candidate` before evidence collection begins.
+- **Observer framing remains the bridge artifact**: Whether map-backed or deep, persist `primary suspected loop`, `recommended first probe`, and a `contrarian candidate` through a fresh `specify-runtime artifact patch` lease before evidence collection begins.
 - **Debug the loop, not just the point**: Validate the path from input event to control decision to resource allocation to state transition to external observation.
 - **Escalate diagnostics when the loop is still ambiguous**: If two investigation rounds do not converge, stop layering plausible small fixes and add decisive instrumentation.
 - **Root-cause mode is mandatory after repeated failure**: After two automated verification failures, stop adding point fixes and switch the session into `root-cause mode`.
 - **Related-risk review is part of closeout**: Do not close the session until nearest-neighbor related risk targets have been reviewed.
-- **Execution intent stays explicit**: Record the current verification outcome, active constraints, and required success evidence in the session file before and during verification so resume decisions do not depend on chat memory.
+- **Execution intent stays explicit**: Patch the current verification outcome, active constraints, and required success evidence through fresh `specify-runtime artifact patch` leases before and during verification so resume decisions do not depend on chat memory.
 
 {{spec-kit-include: ../../command-partials/common/learning-layer.md}}
 
@@ -67,9 +67,9 @@ You are the debug session leader. Investigate a bug using a persistent, resumabl
 
 - Confirm project cognition freshness and valid debug session entry before deeper investigation.
 - Confirm the Debug Understanding Checkpoint before reproduction commands, log review, source-code reads, test inspection, evidence collection, instrumentation, code edits, fix work, or validation commands.
-- Keep the debug session file current as the durable source of truth for evidence, active hypothesis, candidate queue, verification outcome, and terminal status.
+- Keep the debug session current only through leased artifact patches as the durable source of truth for evidence, active hypothesis, candidate queue, verification outcome, and terminal status.
 - Preserve evidence gates: do not skip observer framing, bypass decisive evidence, or accept a fix without recorded verification.
-- Update durable state before compaction-risk transitions, investigation join points, long evidence synthesis, or any stop where resume will depend on more than the visible conversation.
+- Patch durable state through a fresh `specify-runtime artifact patch` lease before compaction-risk transitions, investigation join points, long evidence synthesis, or any stop where resume will depend on more than the visible conversation.
 
 ### Required Context Inputs
 
@@ -77,12 +77,12 @@ You are the debug session leader. Investigate a bug using a persistent, resumabl
 - compact `learning start --command debug` results
 - selected `learning show` records whose triggers match the failure
 - the active feature's `spec.md`, `plan.md`, and `tasks.md`
-- if `context.md` exists for the active feature, read it before proposing a fix
+- if `context.md` exists, query its relevant section through `specify-runtime artifact show` before proposing a fix
 
 ## Session Lifecycle
 
 1. **Check for Active Session**
-   - Look for existing files in `.planning/debug/*.md` (excluding `resolved/`).
+   - List existing sessions through `specify-runtime artifact list --path-prefix .planning/debug` (excluding archived records).
    - If a session exists and no new issue is described, resume it.
    - If a new issue is described, start a new session.
    - If the active session is `awaiting_human_verify` and the user reports another problem, classify it as `same_issue`, `derived_issue`, or `unrelated_issue`.
@@ -91,20 +91,20 @@ You are the debug session leader. Investigate a bug using a persistent, resumabl
    - `derived_issue` starts a linked follow-up session instead of replacing the parent session.
    - In other words, when repository evidence supports `derived_issue`, start a linked follow-up session rather than reopening the parent directly.
    - `unrelated_issue` starts a separate session and does not auto-close the parent.
-   - Record the parent/child relationship in both session files, and after a `derived_issue` follow-up session is resolved, return to the parent session to finish the original human verification before archiving it.
+   - Patch the parent/child relationship into both sessions through fresh `specify-runtime artifact patch` leases. After a `derived_issue` follow-up session is resolved, return to the parent session to finish the original human verification before archiving it through recoverable `specify-runtime artifact delete`.
 
 2. **Initialize or Resume**
-   - [AGENT] Create or read the session file in `.planning/debug/[slug].md`.
+- [AGENT] Create `.planning/debug/[slug].md` with `specify-runtime artifact scaffold --kind debug-session --path .planning/debug/[slug].md`; resume it only through targeted `specify-runtime artifact show` calls.
    - Announce the current status, current hypothesis, and immediate next action.
-   - For a new session, write `understanding_confirmed: false`, present the Debug Understanding Checkpoint, and wait for confirmation before substantive investigation.
+   - The scaffold initializes `understanding_confirmed: false`; present the Debug Understanding Checkpoint, then persist confirmation through a fresh `specify-runtime artifact patch --frontmatter-json` lease before substantive investigation.
    - For a resumed session with `understanding_confirmed: false`, repair or confirm the checkpoint before reproduction, log review, source/test reads, evidence collection, subagent dispatch, instrumentation, code edits, or validation.
 
 3. **Run the Investigation Protocol**
    - Move through the investigation stages below, starting with the map-backed intake contract before evidence collection begins.
    - **Hard gate**: Do not enter reproduction, log review, test inspection, source-code reads, evidence collection, or fixing until the debug session records `understanding_confirmed: true`, `causal_map_completed: true`, `investigation_contract_completed: true`, `log_investigation_plan_completed: true`, and `observer_framing_completed: true`.
-   - Update the debug file before each action.
-   - Append every confirmed finding to `Evidence`.
-   - Append every disproven theory to `Eliminated`.
+   - Patch the debug session through a fresh `specify-runtime artifact patch` lease before each action that changes durable state.
+   - Query the `Evidence` section through `specify-runtime artifact show --section`, add every confirmed finding in memory, and replace that section through a fresh `artifact patch --section` lease.
+   - Query the `Eliminated` section through `specify-runtime artifact show --section`, add every disproven theory in memory, and replace that section through a fresh `artifact patch --section` lease.
 
 4. **Fix and Verify**
    - Apply the minimum code change needed to address the confirmed root cause when `execution_model: leader-inline`.
@@ -117,7 +117,7 @@ You are the debug session leader. Investigate a bug using a persistent, resumabl
    - The session closes only after explicit human confirmation or an evidence-backed classification into `same_issue`, `derived_issue`, or `unrelated_issue`.
 
 6. **Archive and Commit**
-   - After human confirmation, move the session file to `resolved/`.
+   - After human confirmation, mark the session resolved through a fresh `specify-runtime artifact patch` lease. If archival is requested, prepare a fresh delete lease and use recoverable `specify-runtime artifact delete`; never move or rename the session file directly.
    - Commit the fix and the debug documentation.
 
 ## Required Context Inputs
@@ -146,9 +146,9 @@ Use the returned readiness:
 - `review`: perform only the returned `minimal_live_reads` before continuing and inspect `coverage_diagnostics`.
 - `needs_rebuild`: route by `recommended_next_action.action_id`, not readiness alone. Preserve resumable actions such as `complete_scan_packets`; only `action_id=project_cognition.rebuild` may use `rebuild_reasons[]` and `recommended_next_action.workflow_routes.classic.steps` for the rebuild handoff.
 - `blocked`: report the blocking runtime issue and continue with live evidence only where this workflow allows degraded navigation.
-- **CARRY FORWARD**: Write the selected capability or symptom, evidence routes,
-  minimal reads, competing truths, and unresolved coverage gaps into debug
-  session state before making root-cause claims.
+- **CARRY FORWARD**: Persist the selected capability or symptom, evidence routes,
+  minimal reads, competing truths, and unresolved coverage gaps through a fresh
+  `specify-runtime artifact patch` lease before making root-cause claims.
 
 ## Debug Understanding Checkpoint
 
@@ -176,9 +176,9 @@ failure mechanism. Ask once after both cards.
 
 Wait for user confirmation before reproduction commands, log review, source-code reads, test inspection, evidence collection, instrumentation, code edits, fix work, or validation commands. If the user corrects the understanding, revise the checkpoint once with the corrected direction and ask for confirmation again.
 
-Create or update `.planning/debug/[slug].md` with `understanding_confirmed: false` before reproduction commands, log review, source-code reads, test inspection, evidence collection, subagent dispatch, instrumentation, code edits, fix work, or validation commands. Record the confirmed checkpoint in the debug session file and set `understanding_confirmed: true` before substantive investigation continues. `understanding_confirmed: false` blocks evidence investigation on resume. While it is false, only read the minimal session, memory, or specify-runtime cognition context needed to reconstruct or revise the checkpoint; you must not proceed to reproduction, log review, source/test reads, evidence collection, subagent dispatch, instrumentation, code edits, fixing, validation, `{{invoke:map-update}}`, `{{invoke:map-scan}}`, or `{{invoke:map-build}}` until the checkpoint is confirmed and the debug session is updated.
+Create `.planning/debug/[slug].md` with `specify-runtime artifact scaffold --kind debug-session --path .planning/debug/[slug].md` before reproduction commands, log review, source-code reads, test inspection, evidence collection, subagent dispatch, instrumentation, code edits, fix work, or validation commands. Patch the confirmed checkpoint and `understanding_confirmed: true` through leased `specify-runtime artifact patch` calls before substantive investigation continues. `understanding_confirmed: false` blocks evidence investigation on resume. While it is false, query only the minimal session through `artifact show`, Learning through its CLI, or cognition through `specify-runtime cognition`; do not proceed to reproduction, log review, source/test reads, evidence collection, subagent dispatch, instrumentation, code edits, fixing, validation, `{{invoke:map-update}}`, `{{invoke:map-scan}}`, or `{{invoke:map-build}}` until the checkpoint is confirmed and the debug session is patched.
 
-If project cognition readiness requires `{{invoke:map-update}}`, `{{invoke:map-scan}}`, or `{{invoke:map-build}}`, record that requirement in the debug session while `understanding_confirmed: false`, present the Debug Understanding Checkpoint, and only hand off to map maintenance after confirmation.
+If project cognition readiness requires `{{invoke:map-update}}`, `{{invoke:map-scan}}`, or `{{invoke:map-build}}`, persist that requirement through a fresh `specify-runtime artifact patch` lease while `understanding_confirmed: false`, present the Debug Understanding Checkpoint, and only hand off to map maintenance after confirmation.
 
 ## Debug Checkpoint Amendments
 
@@ -187,7 +187,7 @@ reopen confirmation merely because the active hypothesis changes, new
 reproduction, log, source, or test routes become relevant, or the minimum
 coherent fix reaches additional tightly coupled files inside the same causal
 chain and the confirmed symptom, boundary, risk, and authority remain intact.
-Update the debug session and continue.
+Patch the debug session through a fresh `specify-runtime artifact patch` lease and continue.
 
 Reopen confirmation only when evidence materially changes the problem
 definition or expected outcome, introduces a separate or derived defect,

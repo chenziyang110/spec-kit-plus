@@ -28,6 +28,51 @@ def describe_result_handoff_template(*, command_name: str, integration_key: str)
     return ".specify/worker-results/<lane-id>.json"
 
 
+def describe_result_submit_template(*, command_name: str, integration_key: str) -> str:
+    """Return the CLI-owned inline submission route for a delegated result."""
+
+    normalized_command = command_name.strip().lower()
+    normalized_integration = integration_key.strip().lower()
+
+    if normalized_command == "implement":
+        return (
+            "return the WorkerTaskResult inline; the leader runs "
+            "`specify-runtime implement result-merge --feature-dir <feature-dir> "
+            "--result-json '<inline-json>' --format json`"
+        )
+    if normalized_command == "review":
+        return (
+            "`specify-runtime result submit --command review --feature-dir <feature-dir> "
+            "--lane-id <lane-id> --result-json '<inline-json>'`"
+        )
+    if normalized_integration == "codex":
+        return (
+            "`specify-runtime sp-teams submit-result --request-id <request-id> "
+            "--result-json '<inline-json>'`"
+        )
+    if normalized_command in {"clarify", "plan", "tasks", "deep-research"}:
+        return (
+            f"`specify-runtime result submit --command {normalized_command} "
+            "--feature-dir <feature-dir> --lane-id <lane-id> "
+            "--result-json '<inline-json>'`"
+        )
+    if normalized_command in {"quick", "prd-scan"}:
+        return (
+            f"`specify-runtime result submit --command {normalized_command} "
+            "--workspace <workspace> --lane-id <lane-id> "
+            "--result-json '<inline-json>'`"
+        )
+    if normalized_command == "debug":
+        return (
+            "`specify-runtime result submit --command debug --session-slug "
+            "<session-slug> --lane-id <lane-id> --result-json '<inline-json>'`"
+        )
+    return (
+        f"`specify-runtime result submit --command {normalized_command or '<command>'} "
+        "--lane-id <lane-id> --result-json '<inline-json>'`"
+    )
+
+
 def build_result_handoff_path(
     project_root: Path,
     *,

@@ -4,7 +4,7 @@ Read this for any substantive user-visible UI change, not only when a screenshot
 was supplied. Confirmed discussion state is governed by
 `discussion-handoff.md`.
 
-Create `ui-brief.md` from `assets/ui-brief.md`. In `spec-contract.json`, set
+Create `ui-brief.md` through `specify-runtime artifact scaffold --kind ui-brief --path <feature-dir>/ui-brief.md`, then fill only its semantic sections through leased `artifact patch` calls; use `assets/ui-brief.md` only as compact field guidance, never as a block to reproduce. When original references exist, create `ui-reference-notes.md` through `artifact scaffold --kind ui-reference-notes` and patch its observed facts. Patch the related `spec-contract.json` fields through leased JSON-pointer `artifact patch`. Set
 `design_contract.ui_applicable: true`, `ui_work_type`,
 `surface_type`, `platforms`, `ui_brief_ref`, and the
 matching `design_system_status`; also carry the brief and original source paths
@@ -13,9 +13,9 @@ in the relevant design/fidelity refs. Record:
 - subject, audience, single job, visual/content/interaction theses, signature,
   and the approved visual ref;
 - when supplied by design, the exact immutable project-level
-  `round-NN.html#direction-id`, approval sidecar, preview/manifest SHA-256
-  values, applicable `DS-*` decisions, motion tokens, and reduced-motion
-  equivalent;
+  `round-NN.html#direction-id`, approval sidecar, preview/manifest/handoff
+  SHA-256 values, immutable handoff ref, applicable `DS-*` decisions and
+  `DH-*` handoff contracts, motion tokens, and reduced-motion equivalent;
 - real entry points, surface/platform classification, experience intent, and
   information hierarchy;
 - approved `DESIGN.md` rules, tokens/components, and any explicit extension;
@@ -39,6 +39,10 @@ inputs to prose when downstream implementation needs to inspect them. If
 and route to `$spx-design` instead of inheriting starter aesthetics.
 Do not substitute feature-level `ui-target.html` for an approved project-level
 design preview; preserve both references when both apply.
+Do not restate the approved handoff from memory. Select task-relevant `DH-*`
+IDs from the immutable handoff, copy their structured rows unchanged, and mark
+feature-only extensions with their own source instead of altering an approved
+row.
 When a feature target materially reduces ambiguity, scaffold it with
 `{{specify-subcmd:specify-runtime design ui-target --out <FEATURE_DIR>/ui-target.html}}`, configure its
 embedded manifest and candidate status, and require

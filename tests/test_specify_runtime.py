@@ -494,10 +494,12 @@ def test_python_callers_use_only_unified_runtime_namespaces() -> None:
 
     assert unresolved == []
     assert any(prefix[0] == "cognition" for prefix in prefixes)
+    assert any(prefix[0] == "prd-build" for prefix in prefixes)
+    assert any(prefix[0] == "prd-scan" for prefix in prefixes)
     assert any(prefix[:2] == ("validate", "spec") for prefix in prefixes)
     assert any(prefix[0] == "workflow" for prefix in prefixes)
     assert all(
-        prefix[0] in {"cognition", "workflow"}
+        prefix[0] in {"cognition", "prd-build", "prd-scan", "workflow"}
         or prefix[:2] == ("validate", "spec")
         for prefix in prefixes
     )

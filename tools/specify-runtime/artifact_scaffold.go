@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"unicode/utf8"
 )
@@ -26,6 +27,82 @@ type artifactScaffoldKind struct {
 }
 
 var artifactScaffoldKinds = map[string]artifactScaffoldKind{
+	"alignment": {
+		Kind:                  "alignment",
+		TemplatePath:          "alignment-template.md",
+		AllowedPaths:          [][]string{{"specs", "*", "alignment.md"}, {".specify", "features", "*", "alignment.md"}},
+		AgentFillRequired:     []string{"current_understanding", "confirmed_facts", "readiness_decision"},
+		EstimatedTokenSavings: 900,
+	},
+	"clarification-checkpoints": {
+		Kind:                  "clarification-checkpoints",
+		TemplatePath:          "artifacts/empty.ndjson",
+		AllowedPaths:          [][]string{{"specs", "*", "clarification", "checkpoints.ndjson"}, {".specify", "features", "*", "clarification", "checkpoints.ndjson"}},
+		EstimatedTokenSavings: 20,
+	},
+	"clarification-evidence-index": {
+		Kind:                  "clarification-evidence-index",
+		TemplatePath:          "artifacts/evidence-index.json",
+		AllowedPaths:          [][]string{{"specs", "*", "clarification", "evidence-index.json"}, {".specify", "features", "*", "clarification", "evidence-index.json"}},
+		AgentFillRequired:     []string{"lanes"},
+		FillTargets:           map[string]map[string]string{"lanes": {"type": "json_pointer", "pointer": "/lanes"}},
+		EstimatedTokenSavings: 80,
+	},
+	"constitution": {
+		Kind:                  "constitution",
+		TemplatePath:          "constitution-template.md",
+		AllowedPaths:          [][]string{{".specify", "memory", "constitution.md"}},
+		AgentFillRequired:     []string{"project_name", "governance_updates"},
+		EstimatedTokenSavings: 1500,
+	},
+	"design-brief": {
+		Kind:                  "design-brief",
+		TemplatePath:          "design-brief-template.md",
+		AllowedPaths:          [][]string{{".specify", "design", "design-brief.md"}},
+		AgentFillRequired:     []string{"subject", "audience", "single_job", "decisions"},
+		EstimatedTokenSavings: 700,
+	},
+	"design-review": {
+		Kind:                  "design-review",
+		TemplatePath:          "artifacts/design-review.md",
+		AllowedPaths:          [][]string{{".specify", "design", "review.md"}},
+		AgentFillRequired:     []string{"mode", "inputs", "approved_direction", "immutable_references", "contract_ids", "platforms", "risks", "validation", "next_workflow"},
+		EstimatedTokenSavings: 500,
+	},
+	"deep-research": {
+		Kind:         "deep-research",
+		TemplatePath: "artifacts/deep-research.md",
+		AllowedPaths: [][]string{
+			{"specs", "*", "deep-research.md"},
+			{".specify", "features", "*", "deep-research.md"},
+		},
+		AgentFillRequired:     []string{"metadata", "feasibility_decision", "capability_matrix", "orchestration", "agent_findings", "evidence_quality", "implementation_chain", "spike_evidence", "contradiction_resolution", "synthesis_decisions", "planning_handoff", "traceability", "capability_cards", "research_exclusions", "sources", "readiness_checklist", "next_command"},
+		EstimatedTokenSavings: 1400,
+	},
+	"deep-research-not-needed": {
+		Kind:         "deep-research-not-needed",
+		TemplatePath: "artifacts/deep-research-not-needed.md",
+		AllowedPaths: [][]string{
+			{"specs", "*", "deep-research.md"},
+			{".specify", "features", "*", "deep-research.md"},
+		},
+		AgentFillRequired:     []string{"metadata", "feasibility_decision", "planning_handoff", "next_command"},
+		EstimatedTokenSavings: 450,
+	},
+	"data-model": {
+		Kind:                  "data-model",
+		TemplatePath:          "artifacts/data-model.md",
+		AllowedPaths:          [][]string{{"specs", "*", "data-model.md"}, {".specify", "features", "*", "data-model.md"}},
+		AgentFillRequired:     []string{"scope_sources", "data_structures", "relationships_lifecycle", "invariants_migration", "integration_verification"},
+		EstimatedTokenSavings: 280,
+	},
+	"debug-session": {
+		Kind:                  "debug-session",
+		TemplatePath:          "artifacts/debug-session.md",
+		AllowedPaths:          [][]string{{".planning", "debug", "*.md"}},
+		AgentFillRequired:     []string{"understanding_checkpoint"},
+		EstimatedTokenSavings: 500,
+	},
 	"quick-status": {
 		Kind:         "quick-status",
 		TemplatePath: "artifacts/quick-status.md",
@@ -46,6 +123,43 @@ var artifactScaffoldKinds = map[string]artifactScaffoldKind{
 			},
 		},
 		EstimatedTokenSavings: 400,
+	},
+	"quick-plan": {
+		Kind:                  "quick-plan",
+		TemplatePath:          "artifacts/quick-plan.md",
+		AllowedPaths:          [][]string{{".planning", "quick", "*", "PLAN.md"}},
+		AgentFillRequired:     []string{"outcome_boundaries", "architecture_surfaces", "work_batches", "acceptance_verification"},
+		EstimatedTokenSavings: 350,
+	},
+	"quick-summary": {
+		Kind:                  "quick-summary",
+		TemplatePath:          "artifacts/quick-summary.md",
+		AllowedPaths:          [][]string{{".planning", "quick", "*", "SUMMARY.md"}},
+		AgentFillRequired:     []string{"outcome", "changed_paths", "verification", "skipped_or_failed_checks", "residual_risk", "recovery_state"},
+		EstimatedTokenSavings: 260,
+	},
+	"quickstart": {
+		Kind:                  "quickstart",
+		TemplatePath:          "artifacts/quickstart.md",
+		AllowedPaths:          [][]string{{"specs", "*", "quickstart.md"}, {".specify", "features", "*", "quickstart.md"}},
+		AgentFillRequired:     []string{"purpose", "preconditions", "scenario", "expected_results", "failure_recovery", "verification_evidence"},
+		EstimatedTokenSavings: 230,
+	},
+	"planning-lane-manifest": {
+		Kind:                  "planning-lane-manifest",
+		TemplatePath:          "artifacts/lane-manifest.json",
+		AllowedPaths:          [][]string{{"specs", "*", "planning", "lane-manifest.json"}, {".specify", "features", "*", "planning", "lane-manifest.json"}},
+		AgentFillRequired:     []string{"lanes"},
+		FillTargets:           map[string]map[string]string{"status": {"type": "json_pointer", "pointer": "/status"}, "lanes": {"type": "json_pointer", "pointer": "/lanes"}},
+		EstimatedTokenSavings: 220,
+	},
+	"task-generation-lane-manifest": {
+		Kind:                  "task-generation-lane-manifest",
+		TemplatePath:          "artifacts/lane-manifest.json",
+		AllowedPaths:          [][]string{{"specs", "*", "task-generation", "lane-manifest.json"}, {".specify", "features", "*", "task-generation", "lane-manifest.json"}},
+		AgentFillRequired:     []string{"lanes"},
+		FillTargets:           map[string]map[string]string{"status": {"type": "json_pointer", "pointer": "/status"}, "lanes": {"type": "json_pointer", "pointer": "/lanes"}},
+		EstimatedTokenSavings: 220,
 	},
 	"plan-contract": {
 		Kind:         "plan-contract",
@@ -71,6 +185,91 @@ var artifactScaffoldKinds = map[string]artifactScaffoldKind{
 			"review_risk_notes":           {"type": "json_pointer", "pointer": "/review_risk_notes"},
 		},
 		EstimatedTokenSavings: 362,
+	},
+	"research": {
+		Kind:         "research",
+		TemplatePath: "research-template.md",
+		AllowedPaths: [][]string{
+			{"specs", "*", "research.md"},
+			{".specify", "features", "*", "research.md"},
+			{".planning", "debug", "*.research.md"},
+		},
+		AgentFillRequired:     []string{"summary", "decisions", "sources"},
+		EstimatedTokenSavings: 350,
+	},
+	"references": {
+		Kind:                  "references",
+		TemplatePath:          "references-template.md",
+		AllowedPaths:          [][]string{{"specs", "*", "references.md"}, {".specify", "features", "*", "references.md"}},
+		AgentFillRequired:     []string{"source_files_read", "reference_entries"},
+		EstimatedTokenSavings: 500,
+	},
+	"spec-contract": {
+		Kind:         "spec-contract",
+		TemplatePath: "spec-contract-template.json",
+		AllowedPaths: [][]string{
+			{"specs", "*", "spec-contract.json"},
+			{".specify", "features", "*", "spec-contract.json"},
+		},
+		AgentFillRequired: []string{"target_need", "scope", "acceptance_criteria", "decisions"},
+		FillTargets: map[string]map[string]string{
+			"target_need":                 {"type": "json_pointer", "pointer": "/target_need"},
+			"scope":                       {"type": "json_pointer", "pointer": "/scope"},
+			"constraints":                 {"type": "json_pointer", "pointer": "/constraints"},
+			"acceptance_criteria":         {"type": "json_pointer", "pointer": "/acceptance_criteria"},
+			"decisions":                   {"type": "json_pointer", "pointer": "/decisions"},
+			"capability_operations":       {"type": "json_pointer", "pointer": "/capability_operations"},
+			"must_preserve_refs":          {"type": "json_pointer", "pointer": "/must_preserve_refs"},
+			"consequence_obligation_refs": {"type": "json_pointer", "pointer": "/consequence_obligation_refs"},
+			"design_contract":             {"type": "json_pointer", "pointer": "/design_contract"},
+			"context_capsule":             {"type": "json_pointer", "pointer": "/context_capsule"},
+			"open_items":                  {"type": "json_pointer", "pointer": "/open_items"},
+		},
+		EstimatedTokenSavings: 1800,
+	},
+	"specify-context": {
+		Kind:                  "specify-context",
+		TemplatePath:          "context-template.md",
+		AllowedPaths:          [][]string{{"specs", "*", "context.md"}, {".specify", "features", "*", "context.md"}},
+		AgentFillRequired:     []string{"planning_context", "repository_context", "integration_boundaries"},
+		EstimatedTokenSavings: 650,
+	},
+	"specify-draft": {
+		Kind:                  "specify-draft",
+		TemplatePath:          "specify-draft-template.md",
+		AllowedPaths:          [][]string{{"specs", "*", "specify-draft.md"}, {".specify", "features", "*", "specify-draft.md"}},
+		AgentFillRequired:     []string{"intent_analysis", "domain_progress"},
+		EstimatedTokenSavings: 1000,
+	},
+	"ui-reference-notes": {
+		Kind:         "ui-reference-notes",
+		TemplatePath: "ui-reference-notes-template.md",
+		AllowedPaths: [][]string{
+			{"specs", "*", "ui-reference-notes.md"},
+			{".specify", "features", "*", "ui-reference-notes.md"},
+		},
+		AgentFillRequired:     []string{"reference_inputs", "fidelity_mode", "visual_facts"},
+		EstimatedTokenSavings: 400,
+	},
+	"ui-brief": {
+		Kind:         "ui-brief",
+		TemplatePath: "ui-brief-template.md",
+		AllowedPaths: [][]string{
+			{"specs", "*", "ui-brief.md"},
+			{".specify", "features", "*", "ui-brief.md"},
+		},
+		AgentFillRequired:     []string{"source_design_system", "experience_core", "approved_direction"},
+		EstimatedTokenSavings: 900,
+	},
+	"workflow-state": {
+		Kind:         "workflow-state",
+		TemplatePath: "workflow-state-template.md",
+		AllowedPaths: [][]string{
+			{"specs", "*", "workflow-state.md"},
+			{".specify", "features", "*", "workflow-state.md"},
+		},
+		AgentFillRequired:     []string{"current_command", "stage_state", "next_command"},
+		EstimatedTokenSavings: 1200,
 	},
 }
 
@@ -152,7 +351,12 @@ func (service *ArtifactService) Scaffold(request ArtifactScaffoldRequest) Envelo
 
 func ArtifactScaffoldCatalog() Envelope {
 	env := NewEnvelope("ok", "artifact scaffold catalog")
-	for _, name := range []string{"plan-contract", "quick-status"} {
+	names := make([]string, 0, len(artifactScaffoldKinds))
+	for name := range artifactScaffoldKinds {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	for _, name := range names {
 		kind := artifactScaffoldKinds[name]
 		allowedPaths := make([]string, 0, len(kind.AllowedPaths))
 		for _, pattern := range kind.AllowedPaths {
@@ -185,6 +389,13 @@ func matchesScaffoldPath(path string, patterns [][]string) bool {
 		}
 		matches := true
 		for index, want := range pattern {
+			if strings.HasPrefix(want, "*.") {
+				if !safeSegment(parts[index]) || !strings.HasSuffix(parts[index], strings.TrimPrefix(want, "*")) {
+					matches = false
+					break
+				}
+				continue
+			}
 			if want != "*" && parts[index] != want {
 				matches = false
 				break
@@ -207,9 +418,193 @@ func renderArtifactScaffold(kind artifactScaffoldKind, template []byte, variable
 		return renderQuickStatusScaffold(kind, template, variables)
 	case "plan-contract":
 		return renderPlanContractScaffold(kind, template, variables)
+	case "spec-contract":
+		return renderSpecContractScaffold(kind, template, variables)
+	case "planning-lane-manifest", "task-generation-lane-manifest":
+		return renderLaneManifestScaffold(kind, template, variables)
+	case "clarification-evidence-index":
+		return renderEvidenceIndexScaffold(kind, template, variables)
+	case "alignment", "clarification-checkpoints", "constitution", "data-model", "debug-session", "deep-research", "deep-research-not-needed", "design-brief", "design-review", "quick-plan", "quick-summary", "quickstart", "references", "research", "specify-context", "specify-draft", "ui-brief", "ui-reference-notes", "workflow-state":
+		return renderStaticArtifactScaffold(kind, template, variables)
 	default:
 		return nil, fmt.Errorf("unsupported artifact scaffold kind %q", kind.Kind)
 	}
+}
+
+func renderEvidenceIndexScaffold(kind artifactScaffoldKind, template []byte, variables map[string]any) ([]byte, error) {
+	if len(variables) != 0 {
+		return nil, fmt.Errorf("%s does not accept scaffold variables; patch accepted lanes after creation", kind.Kind)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(template, &payload); err != nil {
+		return nil, fmt.Errorf("evidence-index template is invalid JSON: %w", err)
+	}
+	if intFromAny(payload["version"]) != 1 {
+		return nil, fmt.Errorf("evidence-index template must use version 1")
+	}
+	lanes, ok := payload["lanes"].([]any)
+	if !ok || len(lanes) != 0 {
+		return nil, fmt.Errorf("evidence-index template lanes must default to an empty array")
+	}
+	var output bytes.Buffer
+	encoder := json.NewEncoder(&output)
+	encoder.SetEscapeHTML(false)
+	encoder.SetIndent("", "  ")
+	if err := encoder.Encode(payload); err != nil {
+		return nil, err
+	}
+	return output.Bytes(), nil
+}
+
+func renderLaneManifestScaffold(kind artifactScaffoldKind, template []byte, variables map[string]any) ([]byte, error) {
+	if len(variables) != 0 {
+		return nil, fmt.Errorf("%s does not accept scaffold variables; patch semantic lane records after creation", kind.Kind)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(template, &payload); err != nil {
+		return nil, fmt.Errorf("lane-manifest template is invalid JSON: %w", err)
+	}
+	if intFromAny(payload["version"]) != 1 || payload["status"] != "draft" {
+		return nil, fmt.Errorf("lane-manifest template must use version 1 and draft status")
+	}
+	lanes, ok := payload["lanes"].([]any)
+	if !ok || len(lanes) != 0 {
+		return nil, fmt.Errorf("lane-manifest template lanes must default to an empty array")
+	}
+	if kind.Kind == "planning-lane-manifest" {
+		payload["command"] = "plan"
+	} else {
+		payload["command"] = "tasks"
+	}
+	if err := rejectUnsafeReadiness(payload); err != nil {
+		return nil, err
+	}
+	var output bytes.Buffer
+	encoder := json.NewEncoder(&output)
+	encoder.SetEscapeHTML(false)
+	encoder.SetIndent("", "  ")
+	if err := encoder.Encode(payload); err != nil {
+		return nil, err
+	}
+	return output.Bytes(), nil
+}
+
+func renderSpecContractScaffold(kind artifactScaffoldKind, template []byte, variables map[string]any) ([]byte, error) {
+	var payload map[string]any
+	if err := json.Unmarshal(template, &payload); err != nil {
+		return nil, fmt.Errorf("spec-contract template is invalid JSON: %w", err)
+	}
+	if payload["status"] != "draft" {
+		return nil, fmt.Errorf("spec-contract status must default to draft")
+	}
+	transition, ok := payload["transition"].(map[string]any)
+	if !ok || transition["status"] != "blocked" {
+		return nil, fmt.Errorf("spec-contract transition.status must default to blocked")
+	}
+	for target := range kind.FillTargets {
+		if _, exists := payload[target]; !exists {
+			return nil, fmt.Errorf("spec-contract template is missing fill target %q", target)
+		}
+	}
+	for key, value := range variables {
+		if _, allowed := kind.FillTargets[key]; !allowed {
+			return nil, fmt.Errorf("variable %q is not registered for spec-contract", key)
+		}
+		payload[key] = value
+	}
+	if err := rejectUnsafeReadiness(payload); err != nil {
+		return nil, err
+	}
+	var output bytes.Buffer
+	encoder := json.NewEncoder(&output)
+	encoder.SetEscapeHTML(false)
+	encoder.SetIndent("", "  ")
+	if err := encoder.Encode(payload); err != nil {
+		return nil, err
+	}
+	return output.Bytes(), nil
+}
+
+func renderStaticArtifactScaffold(kind artifactScaffoldKind, template []byte, variables map[string]any) ([]byte, error) {
+	if len(variables) != 0 {
+		return nil, fmt.Errorf("%s does not accept scaffold variables; create it from the stable template, then use leased artifact patches", kind.Kind)
+	}
+	if len(template) == 0 || !utf8.Valid(template) {
+		return nil, fmt.Errorf("%s template must be non-empty UTF-8", kind.Kind)
+	}
+	content := string(template)
+	requiredMarkers := map[string][]string{
+		"alignment":                 {"# Specification Alignment Report:", "## Current Understanding", "## Readiness Decision"},
+		"clarification-checkpoints": {},
+		"constitution":              {" Constitution", "## Core Principles", "## Governance"},
+		"data-model":                {"# Data Model", "## Data Structures and Ownership", "## Integration and Verification"},
+		"debug-session":             {"status: intake", "understanding_confirmed: false", "## Understanding Checkpoint"},
+		"deep-research":             {"# Deep Research", "**Status**: Pending", "## Feasibility Decision", "## Contradiction Resolution Log", "## Planning Handoff", "## Capability Cards", "## Research Exclusions", "## Planning Handoff Readiness Checklist", "## Next Command"},
+		"deep-research-not-needed":  {"# Deep Research", "**Status**: Pending", "## Feasibility Decision", "## Planning Handoff", "## Next Command"},
+		"design-brief":              {"design_brief:", "status: draft", "# Design Brief", "## Confirmed Experience", "## Approval"},
+		"design-review":             {"# Design Review", "## Approved Direction", "## Immutable References", "## Recommended Next Workflow"},
+		"quick-plan":                {"# Quick Task Plan", "## Outcome and Boundaries", "## Acceptance and Verification"},
+		"quick-summary":             {"# Quick Task Summary", "## Outcome", "## Verification", "## Residual Risk"},
+		"quickstart":                {"# Quickstart Validation", "## Preconditions", "## Expected Results", "## Verification Evidence"},
+		"references":                {"# Reference Memory:", "## Source Files Read", "## Reference Entries"},
+		"research":                  {"# Research:", "## Summary", "## Decisions", "## Sources"},
+		"specify-context":           {"# Planning Context:", "## Planning Context", "## Relevant Repository Context"},
+		"specify-draft":             {"# Specification Draft Ledger:", "## Intent Analysis Record", "## Domain Progress Ledger"},
+		"ui-brief":                  {"# UI Brief", "## Source Design System", "## Approved Direction"},
+		"ui-reference-notes":        {"# UI Reference Notes", "## Reference Inputs", "## Fidelity Mode", "## Risks And Gaps"},
+		"workflow-state":            {"# Workflow State:", "## Current Command", "## Next Command"},
+	}
+	for _, marker := range requiredMarkers[kind.Kind] {
+		if !strings.Contains(content, marker) {
+			return nil, fmt.Errorf("%s template is missing %q", kind.Kind, marker)
+		}
+	}
+	if map[string]bool{
+		"deep-research":            true,
+		"deep-research-not-needed": true,
+		"data-model":               true,
+		"design-review":            true,
+		"quick-plan":               true,
+		"quick-summary":            true,
+		"quickstart":               true,
+	}[kind.Kind] {
+		for _, target := range kind.AgentFillRequired {
+			anchor := "<!-- agent-fill:" + target + " -->"
+			if !strings.Contains(content, anchor) {
+				return nil, fmt.Errorf("%s template is missing %s", kind.Kind, anchor)
+			}
+		}
+	}
+	if kind.Kind == "debug-session" {
+		if err := validateReadinessText(content); err != nil {
+			return nil, err
+		}
+	}
+	if kind.Kind == "design-brief" {
+		if err := validateDesignBriefScaffoldTemplate(content); err != nil {
+			return nil, err
+		}
+	}
+	return append([]byte(nil), template...), nil
+}
+
+func validateDesignBriefScaffoldTemplate(content string) error {
+	for _, marker := range []string{
+		"  status: draft",
+		"  approved_direction: null",
+		"  approved_visual_ref: null",
+		"  approved_preview_sha256: null",
+		"  approved_manifest_sha256: null",
+		"  approved_handoff_ref: null",
+		"  approved_handoff_sha256: null",
+		"  approved_handoff_contract_ids: []",
+		"- Status: unapproved",
+	} {
+		if !strings.Contains(content, marker) {
+			return fmt.Errorf("design-brief template must preserve safe readiness default %q", strings.TrimSpace(marker))
+		}
+	}
+	return nil
 }
 
 func renderQuickStatusScaffold(kind artifactScaffoldKind, template []byte, variables map[string]any) ([]byte, error) {
@@ -381,6 +776,8 @@ func safeReadinessValue(value any) bool {
 func safeReadinessScalar(value string) bool {
 	switch strings.ToLower(strings.TrimSpace(value)) {
 	case "", "false", "blocked", "draft", "gathering", "none", "not applicable", "not-applicable", "not-needed", "not-triggered", "not_applicable", "not_needed", "null", "pending", "unknown":
+		return true
+	case "intake", "not_requested", "unapproved":
 		return true
 	default:
 		return false

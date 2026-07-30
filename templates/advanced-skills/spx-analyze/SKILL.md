@@ -10,7 +10,7 @@ Read `references/project-cognition.md`, using cognition intent `plan`, and
 `references/analysis-gate.md`.
 Read `references/ui-quality-gate.md` when the specification or plan is
 UI-bearing.
-Read `.specify/memory/constitution.md` as the highest local authority; a
+Query `.specify/memory/constitution.md` through `specify-runtime artifact show` as the highest local authority; a
 conflict is `CRITICAL` and routes to the artifact that violates it.
 
 Resolve the active feature with the installed prerequisite script using
@@ -26,8 +26,9 @@ the returned blocker or a typed owner handoff containing the observed stage,
 expected owner, highest invalid stage, exact next action, unblock criteria, and
 resume argv. Never rewrite phase order to make analysis fit.
 
-Create or resume rich workflow-owned `workflow-state.md` before substantive
-analysis, using the installed workflow-state template only when absent. Record
+Create initial `workflow-state.md` through `specify-runtime artifact scaffold --kind workflow-state`; resume and mutate it only through targeted `artifact show` and leased `artifact patch` before substantive
+analysis. The runtime expands the installed template; never read and reproduce
+its stable skeleton. Record
 `active_command: sp-analyze`, `phase_mode: analysis-only`, source revision,
 target boundary, blocker, and next route. Run
 `{{specify-subcmd:specify-runtime hook validate-state --command analyze --feature-dir <feature-dir> --autofix --format json}}`
@@ -40,8 +41,8 @@ through the plan `ui_design_contract`, every UI task contract, and required
 real-entrypoint evidence. Missing continuity is an upstream-owned finding.
 
 This is a non-destructive gate. Do not edit `spec.md`, `context.md`, `plan.md`,
-`tasks.md`, production source, or tests. You may update the existing
-`workflow-state.md` gate result so resume remains truthful. Report only
+`tasks.md`, production source, or tests. Patch the existing
+`workflow-state.md` gate result through a leased `specify-runtime artifact patch` call so resume remains truthful. Report only
 actionable findings with stable identity, severity, evidence, owner stage, and
 the smallest repair route.
 

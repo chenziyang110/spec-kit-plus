@@ -7,15 +7,15 @@ Preserved Contract: the debug file remains the durable source of truth for evide
 ## Debug File Protocol
 
 - **Location**: `.planning/debug/[slug].md`
-- **causal_map_completed**: `false` until the Stage 1A causal map, dimension scan, and candidate board are written.
-- **investigation_contract_completed**: `false` until the Stage 1B investigation contract is written.
-- **log_investigation_plan_completed**: `false` until the Stage 1B log investigation plan is written as its own section.
+- **causal_map_completed**: `false` until the Stage 1A causal map, dimension scan, and candidate board are persisted through leased `specify-runtime artifact patch` calls.
+- **investigation_contract_completed**: `false` until the Stage 1B investigation contract is persisted through a leased `specify-runtime artifact patch` call.
+- **log_investigation_plan_completed**: `false` until the Stage 1B log investigation plan is persisted as its own section through a leased `specify-runtime artifact patch` call.
 - **observer_framing_completed**: `false` until the canonical intake package is complete.
 - **legacy_session_needs_reintake**: `true` only when a resumed legacy session cannot safely satisfy the canonical intake gate.
-- **Current Focus**: OVERWRITE on every update. Reflects exactly what the leader is doing now.
-- **Evidence**: APPEND confirmed findings only.
-- **Eliminated**: APPEND disproven theories only.
-- **Update Rule**: Update the file before taking an action.
+- **Current Focus**: replace this section on every durable update through a fresh `specify-runtime artifact patch --section` lease. Reflect exactly what the leader is doing now.
+- **Evidence**: query the section through `specify-runtime artifact show --section`, add confirmed findings in memory, then replace it through a fresh `artifact patch --section` lease.
+- **Eliminated**: query the section through `specify-runtime artifact show --section`, add disproven theories in memory, then replace it through a fresh `artifact patch --section` lease.
+- **Update Rule**: mutate the session only through `specify-runtime artifact`; never edit, append, rename, move, or delete the file directly.
 - No source-code reads, test reads, log reads, or repro commands are allowed while `observer_framing_completed` is not `true`.
 
 The session file must always make it clear:
@@ -31,7 +31,7 @@ The session file must always make it clear:
 ## Session Lifecycle
 
 1. **Check for Active Session**
-   - Look for existing files in `.planning/debug/*.md` (excluding `resolved/`).
+   - List active records with `specify-runtime artifact list --path-prefix .planning/debug`; do not enumerate `.planning/debug/*.md` directly.
    - If a session exists and no new issue is described, resume it.
    - If a new issue is described, start a new session.
    - If the active session is `awaiting_human_verify` and the user reports another problem, classify it as `same_issue`, `derived_issue`, or `unrelated_issue`.
@@ -40,20 +40,20 @@ The session file must always make it clear:
    - `derived_issue` starts a linked follow-up session instead of replacing the parent session.
    - In other words, when repository evidence supports `derived_issue`, start a linked follow-up session rather than reopening the parent directly.
    - `unrelated_issue` starts a separate session and does not auto-close the parent.
-   - Record the parent/child relationship in both session files, and after a `derived_issue` follow-up session is resolved, return to the parent session to finish the original human verification before archiving it.
+   - Patch the parent/child relationship into both sessions through fresh `specify-runtime artifact patch` leases. After a `derived_issue` follow-up session is resolved, return to the parent session to finish the original human verification before archiving it through `specify-runtime artifact delete`.
 
 2. **Initialize or Resume**
-   - [AGENT] Create or read the session file in `.planning/debug/[slug].md`.
+- [AGENT] Create `.planning/debug/[slug].md` with `specify-runtime artifact scaffold --kind debug-session --path .planning/debug/[slug].md`; resume it only through targeted `specify-runtime artifact show` calls.
    - Announce the current status, current hypothesis, and immediate next action.
-   - For a new session, write `understanding_confirmed: false`, present the Debug Understanding Checkpoint, and wait for confirmation before substantive investigation.
+   - The scaffold initializes `understanding_confirmed: false`; present the Debug Understanding Checkpoint, then persist confirmation through a fresh `specify-runtime artifact patch --frontmatter-json` lease before substantive investigation.
    - For a resumed session with `understanding_confirmed: false`, repair or confirm the checkpoint before reproduction, log review, source/test reads, evidence collection, subagent dispatch, instrumentation, code edits, or validation.
 
 3. **Run the Investigation Protocol**
    - Move through the investigation stages below, starting with the map-backed intake contract before evidence collection begins.
    - **Hard gate**: Do not enter reproduction, log review, test inspection, source-code reads, evidence collection, or fixing until the debug session records `understanding_confirmed: true`, `causal_map_completed: true`, `investigation_contract_completed: true`, `log_investigation_plan_completed: true`, and `observer_framing_completed: true`.
-   - Update the debug file before each action.
-   - Append every confirmed finding to `Evidence`.
-   - Append every disproven theory to `Eliminated`.
+   - Patch the debug session through a fresh `specify-runtime artifact patch` lease before each action that changes durable state.
+   - Query `Evidence` through `artifact show --section`, add each confirmed finding in memory, and replace the section through `artifact patch --section`.
+   - Query `Eliminated` through `artifact show --section`, add each disproven theory in memory, and replace the section through `artifact patch --section`.
 
 4. **Fix and Verify**
    - Apply the minimum code change needed to address the confirmed root cause when `execution_model: leader-inline`.
@@ -66,5 +66,5 @@ The session file must always make it clear:
    - The session closes only after explicit human confirmation or an evidence-backed classification into `same_issue`, `derived_issue`, or `unrelated_issue`.
 
 6. **Archive and Commit**
-   - After human confirmation, move the session file to `resolved/`.
+   - After human confirmation, mark the session resolved through a leased `specify-runtime artifact patch`. If archival is requested, prepare a fresh lease and run recoverable `specify-runtime artifact delete`; never move or rename the file directly.
    - Commit the fix and the debug documentation.

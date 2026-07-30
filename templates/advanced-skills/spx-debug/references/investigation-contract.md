@@ -1,7 +1,9 @@
 # Investigation contract
 
-Create or resume a session from `assets/debug-session.md` on every invocation.
-It is the durable source of truth for intake, evidence, transitions, human
+Create an absent session with `specify-runtime artifact scaffold --kind
+debug-session --path .planning/debug/<slug>.md`, or resume it through targeted
+`artifact show`, on every invocation. Patch only named sections/frontmatter
+through fresh leases; never emit or submit the whole session. It is the durable source of truth for intake, evidence, transitions, human
 verification, interruption, and recovery. Keep the visible symptom, failure
 mechanism, and fix claim separate.
 
@@ -53,8 +55,9 @@ The reason-first explanation remains mandatory; do not replay either complete in
    test alone is insufficient.
 5. Before production edits, write and run a failing automated reproduction. If
    no reliable test surface exists, build the smallest viable test harness. If
-   that harness cannot remain bounded, hand off to `$spx-quick` or
-   `$spx-specify` and stop rather than weakening RED.
+   that expands beyond the debug fix lane, hand off to `$spx-quick` and stop
+   rather than weakening RED. Use `$spx-specify` only when the user explicitly
+   chooses a formal spec-first path.
 6. Apply the minimum coherent fix. Re-run the original reproduction and verify
    the regression plus adjacent and related-risk surfaces.
 

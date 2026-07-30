@@ -266,7 +266,7 @@ def learning_signal_hook(project_root: Path, payload: dict[str, object]) -> Hook
         severity="warning",
         actions=[
             f"before terminal reporting, record a learning review decision for `sp-{command_name}`: `none`, `captured`, or `deferred`",
-            "if the signal would change a future Agent's action, capture it through `specify learning capture-auto` or `learning capture`; do not edit Learning storage directly",
+            "if the signal would change a future Agent's action, capture it through `specify-runtime learning capture-auto` or `specify-runtime learning capture`; do not edit Learning storage directly",
         ],
         warnings=[
             f"learning pain score {score} crossed threshold {PAIN_THRESHOLD}; this workflow has reusable-learning signal"
@@ -304,7 +304,7 @@ def learning_review_hook(_project_root: Path, payload: dict[str, object]) -> Hoo
             actions=[
                 f"record a learning review decision for `sp-{command_name}` with status `{terminal_status}` before terminal reporting",
                 "when no reusable learning exists, record decision `none` with rationale `no reusable learning`",
-                "when this run exposed reusable friction, capture it through `specify learning capture-auto` or `learning capture`; do not edit Learning storage directly",
+                "when this run exposed reusable friction, capture it through `specify-runtime learning capture-auto` or `specify-runtime learning capture`; do not edit Learning storage directly",
             ],
             data={"command": f"sp-{command_name}", "terminal_status": terminal_status},
         )
@@ -351,7 +351,7 @@ def learning_review_hook(_project_root: Path, payload: dict[str, object]) -> Hoo
                     "recent friction signal indicates reusable learning value; `decision=none` is not allowed until the learning is captured or explicitly deferred"
                 ],
                 actions=[
-                    "preserve the reusable lesson through `specify learning capture-auto` or `learning capture`; do not edit Learning storage directly",
+                    "preserve the reusable lesson through `specify-runtime learning capture-auto` or `specify-runtime learning capture`; do not edit Learning storage directly",
                     f"or record a deferred learning review for `sp-{command_name}` with status `{terminal_status}` and rationale `capture deferred` when capture must wait",
                 ],
                 data={
@@ -433,8 +433,7 @@ def learning_capture_hook(project_root: Path, payload: dict[str, object]) -> Hoo
         injection_targets=injection_targets,
         promotion_hint=str(payload.get("promotion_hint") or "").strip(),
         problem=str(payload.get("problem") or "").strip() or None,
-        recommended_action=str(payload.get("recommended_action") or "").strip()
-        or None,
+        recommended_action=str(payload.get("recommended_action") or "").strip() or None,
         avoid=_coerce_str_list(payload.get("avoid")),
         trigger_signals=_coerce_str_list(payload.get("trigger_signals")),
         success_criteria=_coerce_str_list(payload.get("success_criteria")),

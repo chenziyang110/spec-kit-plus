@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/filelock"
 )
@@ -32,10 +33,13 @@ type ArtifactSubmitRequest struct {
 }
 
 type ArtifactShowRequest struct {
-	FeatureID string
-	Kind      string
-	Path      string
-	View      string
+	FeatureID   string
+	Kind        string
+	Path        string
+	View        string
+	JSONPointer string
+	Section     string
+	Limit       int
 }
 
 type artifactLease struct {
@@ -44,7 +48,15 @@ type artifactLease struct {
 	TargetExists  bool   `json:"target_exists"`
 	TargetSHA256  string `json:"target_sha256"`
 	Used          bool   `json:"used"`
+	CreatedAt     string `json:"created_at,omitempty"`
+	ExpiresAt     string `json:"expires_at,omitempty"`
 }
+
+const artifactLeaseTTL = 30 * 60
+
+// Expanded reads are agent-facing output. Keep them bounded so a single show
+// call cannot accidentally inject a large state file into model context.
+const maxArtifactExpandedViewBytes = 128 * 1024
 
 func NewArtifactService(projectRoot string) *ArtifactService {
 	return &ArtifactService{projectRoot: projectRoot}
@@ -55,6 +67,22 @@ func (service *ArtifactService) Prepare(request ArtifactPrepareRequest) Envelope
 	if err != nil {
 		env := NewEnvelope("invalid", "invalid artifact request")
 		env.Blockers = append(env.Blockers, err.Error())
+		return env
+	}
+	metadata, ok := LookupArtifactType(canonicalPath)
+	if !ok {
+		env := NewEnvelope("invalid", "workflow artifact type is not registered")
+		env.Blockers = append(env.Blockers, "register the artifact type and its owning CLI before creating or changing this path")
+		env.Data["canonical_path"] = canonicalPath
+		return env
+	}
+	if !artifactTypeAllows(metadata, "prepare") || (!artifactTypeAllows(metadata, "submit") && !artifactTypeAllows(metadata, "patch")) {
+		env := NewEnvelope("invalid", "workflow artifact is owned by a specialized CLI")
+		env.Blockers = append(env.Blockers, fmt.Sprintf("%s may be changed only through %s", canonicalPath, metadata.Owner))
+		env.Data["canonical_path"] = canonicalPath
+		env.Data["type_id"] = metadata.TypeID
+		env.Data["owner"] = metadata.Owner
+		env.Data["allowed_operations"] = metadata.Operations
 		return env
 	}
 	target, err := secureProjectPath(service.projectRoot, canonicalPath)
@@ -80,6 +108,8 @@ func (service *ArtifactService) Prepare(request ArtifactPrepareRequest) Envelope
 		CanonicalPath: canonicalPath,
 		TargetExists:  targetExists,
 		TargetSHA256:  targetSHA256,
+		CreatedAt:     nowUTC().Format(time.RFC3339),
+		ExpiresAt:     nowUTC().Add(time.Duration(artifactLeaseTTL) * time.Second).Format(time.RFC3339),
 	}
 	if err := service.writeLease(lease); err != nil {
 		env := NewEnvelope("error", "failed to create artifact lease")
@@ -91,11 +121,19 @@ func (service *ArtifactService) Prepare(request ArtifactPrepareRequest) Envelope
 	env.Data["canonical_path"] = canonicalPath
 	env.Data["target_exists"] = lease.TargetExists
 	env.Data["target_sha256"] = lease.TargetSHA256
-	env.NextArgv = []string{"specify-runtime", "artifact", "submit", "--lease", lease.ID, "--content-file", "<path>"}
+	if artifactTypeAllows(metadata, "submit") {
+		env.NextArgv = []string{"specify-runtime", "artifact", "submit", "--lease", lease.ID, "--content", "<inline-payload>"}
+	} else {
+		env.NextArgv = []string{"specify-runtime", "artifact", "patch", "--lease", lease.ID, "<patch-mode>"}
+	}
 	return env
 }
 
 func (service *ArtifactService) Submit(request ArtifactSubmitRequest) Envelope {
+	return service.submit(request, false)
+}
+
+func (service *ArtifactService) submit(request ArtifactSubmitRequest, allowAcceptanceRecovery bool) Envelope {
 	lease, claimPath, err := service.claimLease(request.LeaseID)
 	if err != nil {
 		env := NewEnvelope("blocked", "artifact lease is unavailable")
@@ -107,6 +145,19 @@ func (service *ArtifactService) Submit(request ArtifactSubmitRequest) Envelope {
 	}
 	// claimLease durably consumes the lease before any content or target work, so
 	// every later exit remains one-use, including validation and stale-target failures.
+	metadata, ok := LookupArtifactType(lease.CanonicalPath)
+	recoveryAllowed := allowAcceptanceRecovery && ok && metadata.TypeID == "feature-human-acceptance"
+	if !ok || (!artifactTypeAllows(metadata, "submit") && !recoveryAllowed) {
+		env := NewEnvelope("invalid", "workflow artifact is not generic-submit writable")
+		if ok {
+			env.Blockers = append(env.Blockers, fmt.Sprintf("%s may be changed only through %s", lease.CanonicalPath, metadata.Owner))
+			env.Data["type_id"] = metadata.TypeID
+			env.Data["owner"] = metadata.Owner
+		} else {
+			env.Blockers = append(env.Blockers, "the leased path has no registered workflow artifact owner")
+		}
+		return service.finishLease(lease, claimPath, env)
+	}
 	content, err := normalizeArtifactContent(request.Content)
 	if err != nil {
 		env := NewEnvelope("invalid", "artifact content is invalid")
@@ -228,6 +279,13 @@ func (service *ArtifactService) Show(request ArtifactShowRequest) Envelope {
 		env.Blockers = append(env.Blockers, err.Error())
 		return env
 	}
+	metadata, ok := LookupArtifactType(canonicalPath)
+	if !ok || !artifactTypeAllows(metadata, "show") {
+		env := NewEnvelope("invalid", "workflow artifact type is not registered for reading")
+		env.Blockers = append(env.Blockers, "use artifact registry to discover supported artifact types and owner commands")
+		env.Data["canonical_path"] = canonicalPath
+		return env
+	}
 	target, err := secureProjectPath(service.projectRoot, canonicalPath)
 	if err != nil {
 		env := NewEnvelope("blocked", "artifact path safety check failed")
@@ -245,16 +303,83 @@ func (service *ArtifactService) Show(request ArtifactShowRequest) Envelope {
 	env.Data["bytes"] = len(raw)
 	env.Data["sha256"] = fmt.Sprintf("%x", sha256.Sum256(raw))
 	env.Data["lines"] = strings.Count(string(raw), "\n") + 1
+	env.Data["type_id"] = metadata.TypeID
+	env.Data["owner"] = metadata.Owner
+	env.Data["role"] = metadata.Role
 	if request.Path != "" {
 		env.ShowArgv = []string{"specify-runtime", "artifact", "show", "--path", canonicalPath, "--view", "full"}
 	} else {
 		env.ShowArgv = []string{"specify-runtime", "artifact", "show", "--feature", request.FeatureID, "--kind", request.Kind, "--view", "full"}
 	}
-	if view == "full" {
+	if hasArtifactQuery(request) {
+		queryResult, err := artifactQueryResult(canonicalPath, raw, request)
+		if err != nil {
+			env := NewEnvelope("invalid", "artifact query is invalid")
+			env.Blockers = append(env.Blockers, err.Error())
+			return env
+		}
+		if artifactExpandedOutputBytes(queryResult) > maxArtifactExpandedViewBytes {
+			return blockOversizedArtifactRead(env, canonicalPath, request, "query result")
+		}
+		env.Data["query_result"] = queryResult
+		if request.JSONPointer != "" {
+			env.Data["json_pointer"] = request.JSONPointer
+		}
+		if request.Section != "" {
+			env.Data["section"] = request.Section
+		}
+		if request.Limit > 0 {
+			env.Data["limit"] = request.Limit
+		}
+	} else if view == "full" {
+		if len(raw) > maxArtifactExpandedViewBytes {
+			return blockOversizedArtifactRead(env, canonicalPath, request, "full view")
+		}
 		env.Data["content"] = string(raw)
 	} else {
 		addArtifactSummary(env.Data, canonicalPath, raw)
+		if len(raw) > maxArtifactExpandedViewBytes {
+			env.Data["full_view_requires_targeted_query"] = true
+			env.ShowArgv = []string{"specify-runtime", "artifact", "show", "--path", canonicalPath, "--limit", "50"}
+		}
 	}
+	return env
+}
+
+func artifactExpandedOutputBytes(value any) int {
+	if text, ok := value.(string); ok {
+		return len([]byte(text))
+	}
+	raw, err := json.Marshal(value)
+	if err != nil {
+		return maxArtifactExpandedViewBytes + 1
+	}
+	return len(raw)
+}
+
+func blockOversizedArtifactRead(env Envelope, canonicalPath string, request ArtifactShowRequest, outputKind string) Envelope {
+	env.Status = "blocked"
+	env.Summary = "artifact output exceeds the bounded agent read limit"
+	env.Blockers = append(env.Blockers,
+		fmt.Sprintf("%s exceeds %d bytes; use summary view and a narrower JSON pointer or Markdown section with --limit", outputKind, maxArtifactExpandedViewBytes),
+	)
+	env.Data["max_expanded_view_bytes"] = maxArtifactExpandedViewBytes
+	delete(env.Data, "content")
+	delete(env.Data, "query_result")
+	if request.JSONPointer != "" || request.Section != "" {
+		next := []string{"specify-runtime", "artifact", "show", "--path", canonicalPath}
+		if request.JSONPointer != "" {
+			next = append(next, "--json-pointer", request.JSONPointer)
+		}
+		if request.Section != "" {
+			next = append(next, "--section", request.Section)
+		}
+		next = append(next, "--limit", "25")
+		env.NextArgv = next
+	} else {
+		env.NextArgv = []string{"specify-runtime", "artifact", "show", "--path", canonicalPath, "--view", "summary"}
+	}
+	env.ShowArgv = append([]string(nil), env.NextArgv...)
 	return env
 }
 
@@ -288,6 +413,8 @@ var registeredArtifactRoots = []string{
 	".specify/memory/",
 	".specify/prd/",
 	".specify/prd-runs/",
+	".specify/teams/",
+	".specify/worker-results/",
 	"specs/",
 }
 
@@ -296,13 +423,31 @@ var registeredRootArtifacts = map[string]bool{
 }
 
 var registeredArtifactExtensions = map[string]bool{
-	".json":   true,
-	".jsonl":  true,
-	".md":     true,
-	".ndjson": true,
-	".toml":   true,
-	".yaml":   true,
-	".yml":    true,
+	".css":     true,
+	".csv":     true,
+	".go":      true,
+	".gql":     true,
+	".graphql": true,
+	".html":    true,
+	".js":      true,
+	".jsx":     true,
+	".json":    true,
+	".jsonl":   true,
+	".md":      true,
+	".ndjson":  true,
+	".proto":   true,
+	".ps1":     true,
+	".py":      true,
+	".scss":    true,
+	".sh":      true,
+	".sql":     true,
+	".txt":     true,
+	".ts":      true,
+	".tsx":     true,
+	".toml":    true,
+	".xml":     true,
+	".yaml":    true,
+	".yml":     true,
 }
 
 func registeredArtifactPath(requestedPath string) (string, error) {
@@ -353,6 +498,10 @@ func safeSegment(value string) bool {
 		return false
 	}
 	return true
+}
+
+var nowUTC = func() time.Time {
+	return time.Now().UTC()
 }
 
 func normalizeArtifactContent(content any) ([]byte, error) {
@@ -522,6 +671,17 @@ func (service *ArtifactService) claimLease(leaseID string) (artifactLease, strin
 	}
 	if lease.Used {
 		return lease, "", fmt.Errorf("artifact lease has already been claimed")
+	}
+	if lease.ExpiresAt != "" {
+		expiresAt, parseErr := time.Parse(time.RFC3339, lease.ExpiresAt)
+		if parseErr != nil {
+			return lease, "", fmt.Errorf("artifact lease expiry is invalid")
+		}
+		if !expiresAt.After(nowUTC()) {
+			lease.Used = true
+			_ = service.writeLease(lease)
+			return lease, "", fmt.Errorf("artifact lease has expired; prepare a new lease")
+		}
 	}
 	lease.Used = true
 	if err := service.writeLease(lease); err != nil {

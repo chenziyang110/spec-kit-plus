@@ -1,8 +1,8 @@
 Trigger: before quick-task execution, broad reads, delegation, or validation commands, and whenever a material discovery may invalidate the confirmed quick boundary.
 
-Purpose: preserve required context, understanding checkpoint, quick checkpoint, scope gate, escalation triggers, and consequence boundary.
+Purpose: preserve required context, understanding checkpoint, direct-delivery eligibility, in-workflow scale-up rules, and consequence coverage.
 
-Preserved Contract: quick work starts only after bounded scope, checkpoint confirmation, and escalation checks are satisfied.
+Preserved Contract: quick work starts only after scope and outcome confirmation, then scales its own planning, batches, and verification instead of requiring a formal-spec upgrade when the task grows.
 
 ## Required Context Inputs
 
@@ -26,8 +26,8 @@ write early quick-task state:
 - `review`: perform only the returned `minimal_live_reads` before continuing and inspect `coverage_diagnostics`.
 - `needs_rebuild`: route by `recommended_next_action.action_id`, not readiness alone. Preserve resumable actions such as `complete_scan_packets`; only `action_id=project_cognition.rebuild` may use `rebuild_reasons[]` and `recommended_next_action.workflow_routes.classic.steps` for the rebuild handoff.
 - `blocked`: report the blocking runtime issue and continue with live evidence only where this workflow allows degraded navigation.
-- **CARRY FORWARD**: Write the selected capability, minimal reads, validation route,
-  and known risk into quick-task `STATUS.md` before implementation
+- **CARRY FORWARD**: Patch the selected capability, minimal reads, validation route,
+  and known risk into quick-task `STATUS.md` through a leased `specify-runtime artifact patch` call before implementation
   proceeds.
 
 Treat task-relevant coverage as insufficient when the touched area still lacks
@@ -47,11 +47,15 @@ When the confirmed contract introduces no quick-stage `semantic_delta`, bind the
 After the constitution gate, quick workspace initialization, project cognition query, and any bounded `minimal_live_reads`, present one concise user-facing checkpoint card. Use the user's language for the card content and confirmation prompt when practical. Keep it compact, but do not omit important specifics: include concrete files, commands, workflows, constraints, validation evidence, and known uncertainty when they are already known. If a row is genuinely unknown, write `Unknown: [why it matters]` instead of leaving it vague.
 
 Use the exact card below. The main table contains only user-owned decisions:
-request and outcome, user-visible result, scope, recommended approach,
-assumptions and risks, completion evidence, and the reconfirmation trigger.
-Technical execution belongs to the agent. Put affected surfaces, implementation
-sequencing, and the next command in a short technical summary for awareness,
-not as a request to approve technical details. Keep the checkpoint plain text
+request and overall outcome, user-visible result, scope, ordered user-visible
+work items and their dependencies, acceptance for every work item, recommended
+approach, assumptions and risks, overall completion evidence, and the
+reconfirmation trigger. Use stable `Q1`, `Q2`, ... identifiers and list every
+confirmed deliverable; use `Q1` alone for a single work item. The table confirms
+deliverable-level order, not internal implementation choreography. Technical
+execution belongs to the agent. Put affected surfaces, implementation
+sequencing, lane/batch construction, and the next command in a short technical
+summary for awareness, not as a request to approve technical details. Keep the checkpoint plain text
 for terminal output: do not use HTML tags or inline line-break markup. Do not
 reuse the placeholder text as content; replace each bracketed item with
 task-specific facts.
@@ -66,21 +70,25 @@ or another named decision.
 
 Wait for user confirmation before code edits, broad repository analysis, delegation, implementation commands, or validation commands. If the user corrects the understanding, revise the checkpoint once with the corrected direction and ask for confirmation again.
 
-Create or update `STATUS.md` with `understanding_confirmed: false` before any map maintenance handoff, broad repository analysis, delegation, implementation command, or validation command. Record the confirmed checkpoint in `STATUS.md`. `understanding_confirmed: false` blocks substantive execution on resume. While it is false, only read the minimal context needed to reconstruct or revise the checkpoint; you must not proceed to code edits, broad repository analysis, delegation, validation commands, `{{invoke:map-update}}`, `{{invoke:map-scan}}`, or `{{invoke:map-build}}` until the checkpoint is confirmed and `STATUS.md` is updated.
+Create `STATUS.md` with `artifact scaffold --kind quick-status`, then set `understanding_confirmed` through `artifact prepare` plus `artifact patch --frontmatter-json '<inline-json>'` and replace the checkpoint section with `artifact patch --section`. Never edit the file directly.
+`understanding_confirmed: false` blocks substantive execution on entry and resume until the CLI-persisted checkpoint is confirmed.
+Before any map-maintenance handoff, use the artifact CLI to scaffold or patch `STATUS.md` with `understanding_confirmed: false`. Until the checkpoint is confirmed, you must not proceed to code edits, broad repository analysis, delegation, validation commands, or map maintenance; read only enough targeted context to revise it.
 
 ## Quick Checkpoint Amendments
 
 The confirmed checkpoint remains valid while repository evidence only adds
 files, call sites, tests, or implementation details needed to deliver the same
-confirmed outcome within the confirmed boundary, risk, and authority. Update
-`STATUS.md` and continue; do not reopen confirmation for that ordinary causal
+confirmed outcome within the confirmed boundary, risk, and authority. Patch
+`STATUS.md` through `specify-runtime artifact patch` and continue; do not reopen confirmation for that ordinary causal
 closure.
 
 Reopen confirmation only when new evidence materially changes the confirmed
-problem or outcome, an included or excluded boundary, user-visible behavior,
-risk, authority, migration or compatibility obligations, an independent
-capability, or an explicit stop condition. Set `understanding_confirmed: false`
-and pause substantive work before requesting the new decision.
+problem or outcome, an included or excluded boundary, a confirmed work item,
+deliverable-level order or dependency, work-item acceptance, user-visible
+behavior, risk, authority, migration or compatibility obligations, an
+independent capability, or an explicit stop condition. Set
+`understanding_confirmed: false` and pause substantive work before requesting
+the new decision.
 
 Before presenting the amendment, explain in user-facing prose:
 
@@ -110,44 +118,76 @@ comes before this delta; do not replay either complete initial table.
 - Keep `STATUS.md` current as the durable quick-task source of truth for scope, lane state, blockers, verification, and terminal status.
 - Validate each `WorkerTaskPacket` or equivalent execution contract before dispatch and require a structured handoff before accepting delegated work.
 - Update durable state before compaction-risk transitions, join points, delegated fan-out, or any stop where resume will depend on more than the visible conversation.
-- Read `.specify/memory/constitution.md` as governance, then use the Learning CLI summary intake before broader quick-task context. Expand only selected matching records with `learning show`.
+- Query `.specify/memory/constitution.md` through `specify-runtime artifact show` as governance, then use the Learning CLI summary intake before broader quick-task context. Expand only selected matching records with `learning show`.
 - Learning Reflex: before final closeout, run `learning capture-auto` from `STATUS.md` when a reusable signal exists; do not edit Learning storage files directly.
 
 ## Scope Gate
 
 Use `sp-quick` when all of these are true:
-- The task is bounded and clearly described.
-- The work is small but non-trivial.
-- A lightweight plan is useful, but a full spec package would be overhead.
-- Use this path when you want to skip the full `sp-specify -> sp-plan -> sp-tasks -> sp-implement` workflow for a bounded task.
-- The task does not require a new long-lived feature spec under `.specify/features/<feature>/`.
+- The user wants direct implementation rather than first producing a formal feature specification.
+- The requested outcome and current scope can be confirmed through the Understanding Checkpoint.
+- The work is non-trivial enough to benefit from resumable state, task-local planning, decomposition, or verification.
+- The workflow can preserve the complete confirmed scope, user-owned decisions, consequence obligations, and acceptance evidence in the quick workspace.
 
 If the task is trivial and local:
-- Use `{{invoke:fast}}`.
+- `{{invoke:fast}}` is the lower-overhead recommendation before a quick workspace exists; an already active quick task may still complete it without changing workflows.
 
-If the task changes architecture, introduces broad product decisions, or needs a durable feature specification:
-- Use `{{invoke:specify}}`.
+The following are **not** reasons to leave quick: task size, file count, module
+count, cross-cutting behavior, architecture work, multiple capabilities or user
+journeys, migration, compatibility, rollout, shared-state impact, long-lived
+implementation, or many acceptance criteria. Increase task-local planning and
+validation depth instead of shrinking the request or requiring
+`{{invoke:specify}}`.
+
+Quick can handle larger tasks through deeper task-local planning, multiple batches,
+explicit joins, and acceptance coverage, including multiple
+independent capabilities.
+
+`{{invoke:specify}}` remains a separate formal specification workflow. Mention
+or hand off to it only when the user explicitly chooses to replace the active
+quick workflow with a spec-first flow; never infer that choice from complexity,
+risk breadth, or artifact count.
+A move from Quick to Specify is not automatic.
 
 If the task is a bug fix or regression but the root cause is still unknown:
 - Use `{{invoke:debug}}` instead of treating `sp-quick` as a symptom-fix lane.
 
-## Escalation Triggers
+## Scale Up Within Quick
 
-Upgrade to `{{invoke:specify}}` immediately if:
-- The Senior Consequence Analysis Gate triggers and the work needs user-level lifecycle decisions, broad compatibility handling, multi-capability scope, destructive policy, shared-state semantics, downstream consumer negotiation, or acceptance criteria that cannot fit one bounded quick task.
-- The task changes architecture or introduces cross-cutting behavior across multiple modules, workflows, or shared surfaces.
-- The task touches a change-propagation hotspot, a truth-owning shared surface, or an area whose known unknowns make lightweight planning unsafe.
-- The request now spans multiple independent capabilities, release tracks, or user journeys that no longer fit one bounded quick-task workspace.
-- The work needs a new durable spec package, a long-lived feature boundary, or planning artifacts intended to survive beyond the quick task.
-- The change has rollout, migration, compatibility, or neighboring-workflow impact that must be locked before implementation.
-- The expected behavior cannot be stated with concrete acceptance criteria without first doing feature-level requirement alignment.
-- The work started as a bug fix, but root-cause analysis is still unresolved, competing causes are still plausible, or the next safe step is diagnostic investigation rather than a bounded repair. In that case, route to `{{invoke:debug}}`.
+When the task grows, preserve the same confirmed outcome and expand the quick
+workspace deliberately:
 
-## Quick Consequence Boundary
+- Create an absent task-local `PLAN.md` with `specify-runtime artifact scaffold --kind quick-plan`, then deepen it only through leased section patches when architecture, migration, rollout,
+  compatibility, multiple capabilities, or a long execution chain needs durable
+  design and sequencing.
+- Split execution into dependency-aware lanes and multiple ready batches. Record
+  joins, integration checks, and the acceptance slice each batch advances in
+  `STATUS.md`; a quick task is not limited to one batch or one capability.
+- Keep a concrete acceptance matrix and full affected-surface sweep for
+  acceptance-heavy work. Compact its active status in `STATUS.md` and put the
+  expanded evidence in the task-local plan or summary.
+- Use focused research and checkpoint amendments for newly discovered facts or
+  user-owned product decisions. A material decision pauses execution until it is
+  confirmed, but it does not change the workflow automatically.
+- Preserve the user's full scope. Complexity is a planning and dispatch input,
+  never a reason to invent a smaller quick outcome.
 
-Continue in quick only when the consequence model is bounded: affected objects are few, lifecycle choices are local, dependency impact is limited, recovery is obvious, validation can run inside the quick-task loop, and every `CA-###` obligation can be recorded in `STATUS.md`.
+The task becomes `blocked` only for a concrete unresolved decision, missing
+authority, unavailable external dependency, unsafe overlap, or failed recovery
+with no safe next action. Record the exact unblock and resume point. Size or
+planning depth alone is not a blocker.
 
-- If the gate stands down, record the stand-down reason in `STATUS.md`.
-- If the gate triggers but remains bounded, record affected objects, state behavior, dependency impact, recovery and validation, project cognition evidence, coverage gaps, and escalation decision before dispatch.
-- If consequence analysis reveals user-level lifecycle decisions, broad compatibility handling, multi-capability scope, destructive policy, shared-state semantics, or downstream consumer negotiation, upgrade to `{{invoke:specify}}` immediately.
-- If the task is a defect and the dependency loop is unknown, use `{{invoke:debug}}` rather than resolving consequence semantics inside `sp-quick`.
+## Quick Consequence Coverage
+
+Quick may own consequence models with many affected objects, user-level
+lifecycle decisions, non-local lifecycle choices, broad compatibility handling,
+multi-capability scope, shared-state semantics, destructive policy, or
+downstream consumer negotiation. Breadth changes the amount of
+planning and evidence required, not workflow eligibility.
+Broad consequential work remains in Quick once its outcome is confirmed.
+
+- If the Senior Consequence Analysis Gate stands down, patch the reason into the relevant `STATUS.md` section through a leased `specify-runtime artifact patch`.
+- If it triggers, record affected objects, state behavior, dependency impact, recovery and validation, project cognition evidence, coverage gaps, and every `CA-###` obligation before the owning execution batch starts.
+- Keep `STATUS.md` compact. When the consequence material is large, place the expanded tables in task-local `PLAN.md` and record stable references plus active statuses in `STATUS.md` and worker packets.
+- Resolve user-owned lifecycle, compatibility, migration, destructive-policy, shared-state, and downstream-consumer decisions through the Quick Checkpoint Amendment contract. Do not route them to `{{invoke:specify}}` merely because they are broad.
+- If the task is a defect and the dependency loop is unknown, use `{{invoke:debug}}` rather than guessing inside `sp-quick`.

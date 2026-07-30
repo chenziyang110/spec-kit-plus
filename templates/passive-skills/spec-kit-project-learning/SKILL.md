@@ -78,8 +78,9 @@ Use the smallest accurate machine type: `pitfall`, `recovery_path`,
 
 ## Trigger Rules
 
-When the workflow owns `workflow-state.md`, persist explicit semantic signals
-under `## Learning Triggers` as `kind: compact evidence`; `capture-auto` maps
+When the workflow owns `workflow-state.md`, patch explicit semantic signals
+under `## Learning Triggers` through leased `specify-runtime artifact patch --section`
+as `kind: compact evidence`; `capture-auto` maps
 the canonical kind to the appropriate Learning type and future action.
 
 Capture or review a candidate when any of these occurs:

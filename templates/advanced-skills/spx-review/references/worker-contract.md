@@ -14,7 +14,7 @@ delivery and real failures require repair plus a new fingerprint.
 Compile each just-in-time `SystemReviewPacket` from the current handoff and
 Review state. Mark its lane `audit`, `diagnostic`, `fix`, or `revalidation`; it
 is a delegation view, not a second source of truth. `diagnostic` is a packet
-lane only; persist its read-only `review-state.json` assignment with
+lane only; patch its read-only `review-state.json` assignment through leased `specify-runtime artifact patch` calls with
 `kind: scenario_review` and `read_only: true`, never `kind: diagnostic`. Include:
 
 - one scenario/lane outcome and authoritative acceptance references;

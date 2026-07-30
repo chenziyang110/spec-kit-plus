@@ -320,8 +320,9 @@ def test_non_mutation_workflows_do_not_conditionally_claim_mutation_closeout() -
             command_name=command_name,
         )
         assert "## Project Cognition Navigation (Planning Only)" in rendered
-        assert ".specify/project-cognition/status.json" in rendered
-        assert ".specify/project-cognition/project-cognition.db" in rendered
+        assert "specify-runtime cognition status --format json" in rendered
+        assert ".specify/project-cognition/status.json" not in rendered
+        assert ".specify/project-cognition/project-cognition.db" not in rendered
         assert "Git-baseline freshness" in rendered
         assert "specify-runtime cognition closeout-plan --workflow" not in rendered
         assert "run inline project cognition update" not in rendered

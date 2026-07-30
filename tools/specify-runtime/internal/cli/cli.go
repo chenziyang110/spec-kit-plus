@@ -80,6 +80,8 @@ func Run(args []string, stdout io.Writer, stderr io.Writer, version string) int 
 		return repairStatusCommand(args[1:], stdout, stderr, paths)
 	case "init-empty":
 		return initEmptyCommand(args[1:], stdout, stderr, paths)
+	case "archive-incompatible-store":
+		return archiveIncompatibleStoreCommand(args[1:], stdout, stderr, paths)
 	case "generate-ignore":
 		return generateIgnoreCommand(args[1:], stdout, stderr, paths)
 	case "scan-set":
@@ -88,6 +90,8 @@ func Run(args []string, stdout io.Writer, stderr io.Writer, version string) int 
 		return scanPrepareCommand(args[1:], stdout, stderr, paths)
 	case "scan-lease":
 		return scanLeaseCommand(args[1:], stdout, stderr, paths)
+	case "scan-packet":
+		return scanPacketCommand(args[1:], stdout, stderr, paths)
 	case "scan-checkpoint":
 		return scanCheckpointCommand(args[1:], stdout, stderr, paths)
 	case "scan-yield":
@@ -173,7 +177,7 @@ func versionCommand(args []string, stdout io.Writer, stderr io.Writer, version s
 func printHelp(w io.Writer, version string) {
 	fmt.Fprintf(w, "specify-runtime cognition %s\n\n", version)
 	fmt.Fprintln(w, "Usage: specify-runtime cognition <command> [options]")
-	fmt.Fprintln(w, "Commands: status, check, repair-status, init-empty, generate-ignore, scan-set, scan-prepare, scan-lease, scan-checkpoint, scan-yield, scan-requeue, scan-status, scan-accept, mark-dirty, clear-dirty, record-refresh, complete-refresh, refresh-topics, validate-scan, validate-build, build-from-scan, import-scan, rebuild-from-scan, publish-runtime-metadata, changes, closeout-plan, update, claim-reconcile prepare|apply, lexicon, query, semantic-intake, semantic-audit, semantic-audit-resume, compass, expand, discover, read, doctor, rebuild, delta")
+	fmt.Fprintln(w, "Commands: status, check, repair-status, init-empty, archive-incompatible-store, generate-ignore, scan-set, scan-prepare, scan-lease, scan-packet, scan-checkpoint, scan-yield, scan-requeue, scan-status, scan-accept, mark-dirty, clear-dirty, record-refresh, complete-refresh, refresh-topics, validate-scan, validate-build, build-from-scan, import-scan, rebuild-from-scan, publish-runtime-metadata, changes, closeout-plan, update, claim-reconcile prepare|apply, lexicon, query, semantic-intake, semantic-audit, semantic-audit-resume, compass, expand, discover, read, doctor, rebuild, delta")
 }
 
 func claimReconcileCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {
@@ -195,7 +199,7 @@ func claimReconcileCommand(args []string, stdout io.Writer, stderr io.Writer, pa
 func claimReconcilePrepareCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {
 	fs := flag.NewFlagSet("claim-reconcile prepare", flag.ContinueOnError)
 	fs.SetOutput(stderr)
-	inputFile := fs.String("input", "", "Claim reconciliation semantic intent JSON file; omit for stdin")
+	inputJSON := fs.String("input-json", "", "Inline claim reconciliation semantic intent JSON")
 	format := fs.String("format", "json", "Output format: json")
 	if err := fs.Parse(args); err != nil {
 		return 2
@@ -203,7 +207,7 @@ func claimReconcilePrepareCommand(args []string, stdout io.Writer, stderr io.Wri
 	if *format != "json" {
 		return writeErrorJSON(stdout, reconcile.PrepareBlockedPayload(fmt.Errorf("claim-reconcile prepare supports only --format json")))
 	}
-	data, err := readInputFileOrStdin(*inputFile)
+	data, err := readInlineJSONOrStdin(*inputJSON, flagWasSet(fs, "input-json"))
 	if err != nil {
 		return writeErrorJSON(stdout, reconcile.PrepareBlockedPayload(fmt.Errorf("read claim reconciliation prepare input: %w", err)))
 	}
@@ -279,11 +283,36 @@ func readRuntimePreparedReconciliationPacket(paths rt.Paths, inputFile string) (
 	return os.ReadFile(resolved)
 }
 
-func readInputFileOrStdin(inputFile string) ([]byte, error) {
-	if strings.TrimSpace(inputFile) != "" {
-		return os.ReadFile(inputFile)
+func readInlineJSONOrStdin(inputJSON string, inlineProvided bool) ([]byte, error) {
+	const maxInputBytes = int64(16 * 1024 * 1024)
+	if inlineProvided {
+		if inputJSON == "" {
+			return nil, fmt.Errorf("--input-json must not be empty")
+		}
+		if int64(len(inputJSON)) > maxInputBytes {
+			return nil, fmt.Errorf("--input-json exceeds the 16 MiB limit")
+		}
+		return []byte(inputJSON), nil
 	}
-	return io.ReadAll(os.Stdin)
+	reader := io.LimitReader(os.Stdin, maxInputBytes+1)
+	data, err := io.ReadAll(reader)
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(data)) > maxInputBytes {
+		return nil, fmt.Errorf("stdin input exceeds the 16 MiB limit")
+	}
+	return data, nil
+}
+
+func flagWasSet(fs *flag.FlagSet, name string) bool {
+	found := false
+	fs.Visit(func(item *flag.Flag) {
+		if item.Name == name {
+			found = true
+		}
+	})
+	return found
 }
 
 func statusCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {
@@ -599,13 +628,17 @@ func generateIgnoreCommand(args []string, stdout io.Writer, stderr io.Writer, pa
 	if created {
 		status = "created"
 	}
-	return writeJSON(stdout, map[string]any{
+	payload := map[string]any{
 		"status":          status,
 		"path":            rt.RelativeRuntimePath(paths, path),
 		"review_required": created,
 		"errors":          []string{},
 		"warnings":        []string{},
-	})
+	}
+	if created {
+		payload["suggested_patterns"] = ignore.StarterIgnoreSuggestions(paths.Root)
+	}
+	return writeJSON(stdout, payload)
 }
 
 func scanSetCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {
@@ -747,12 +780,31 @@ func scanLeaseCommand(args []string, stdout io.Writer, stderr io.Writer, paths r
 	return writeCompactJSON(stdout, payload)
 }
 
+func scanPacketCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {
+	fs := flag.NewFlagSet("scan-packet", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	packetID := fs.String("packet-id", "", "Prepared or leased scan packet identifier")
+	format := fs.String("format", "json", "Output format: json")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	if *format != "json" {
+		return writeCompactErrorJSON(stdout, fmt.Errorf("scan-packet supports only --format json"))
+	}
+	payload, err := scanworkbench.Packet(paths, *packetID)
+	if err != nil {
+		return writeCompactErrorJSON(stdout, err)
+	}
+	return writeCompactJSON(stdout, payload)
+}
+
 func scanCheckpointCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {
 	fs := flag.NewFlagSet("scan-checkpoint", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	packetID := fs.String("packet-id", "", "Leased packet identifier")
 	attemptID := fs.String("attempt-id", "", "Active lease attempt identifier")
 	resultPath := fs.String("result", "", "Cumulative checkpoint result JSON")
+	resultJSON := fs.String("result-json", "", "Inline cumulative checkpoint result JSON")
 	format := fs.String("format", "json", "Output format: json")
 	if err := fs.Parse(args); err != nil {
 		return 2
@@ -760,12 +812,21 @@ func scanCheckpointCommand(args []string, stdout io.Writer, stderr io.Writer, pa
 	if *format != "json" {
 		return writeCompactErrorJSON(stdout, fmt.Errorf("scan-checkpoint supports only --format json"))
 	}
-	canonicalResult, err := canonicalPendingScanResult(paths, *packetID, *resultPath, true)
-	if err != nil {
-		return writeCompactErrorJSON(stdout, err)
+	hasResultPath := strings.TrimSpace(*resultPath) != ""
+	hasResultJSON := strings.TrimSpace(*resultJSON) != ""
+	if hasResultPath == hasResultJSON {
+		return writeCompactErrorJSON(stdout, fmt.Errorf("scan-checkpoint requires exactly one of --result or --result-json"))
+	}
+	canonicalResult := ""
+	var err error
+	if hasResultPath {
+		canonicalResult, err = canonicalPendingScanResult(paths, *packetID, *resultPath, true)
+		if err != nil {
+			return writeCompactErrorJSON(stdout, err)
+		}
 	}
 	payload, err := scanworkbench.Checkpoint(paths, scanworkbench.CheckpointInput{
-		PacketID: *packetID, AttemptID: *attemptID, ResultPath: canonicalResult,
+		PacketID: *packetID, AttemptID: *attemptID, ResultPath: canonicalResult, ResultJSON: []byte(*resultJSON),
 	})
 	if err != nil {
 		return writeCompactErrorJSON(stdout, err)
@@ -1304,7 +1365,6 @@ func closeoutPlanCommand(args []string, stdout io.Writer, stderr io.Writer, path
 	intent := fs.String("intent", "", "Agent intent")
 	since := fs.String("since", "", "Baseline commit")
 	head := fs.String("head", "", "Head commit")
-	payloadPath := fs.String("payload-path", "", "Planned update payload path")
 	deltaSession := fs.String("delta-session", "", "Delta session id")
 	includeWorkingTree := fs.Bool("include-working-tree", true, "Include working tree changes")
 	includeUntracked := fs.Bool("include-untracked", true, "Include untracked paths")
@@ -1322,7 +1382,6 @@ func closeoutPlanCommand(args []string, stdout io.Writer, stderr io.Writer, path
 		IncludeUntracked:   *includeUntracked,
 		ExplicitPaths:      changed,
 		DeltaSessionID:     *deltaSession,
-		PayloadPath:        *payloadPath,
 	})
 	return writeCommandResult(stdout, stderr, paths, payload, err)
 }
@@ -1353,9 +1412,17 @@ func updateCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.P
 	workflow := fs.String("workflow", "", "Workflow name")
 	deltaSession := fs.String("delta-session", "", "Delta session id")
 	commitRange := fs.String("commit-range", "", "Commit range base..head")
-	payloadFile := fs.String("payload-file", "", "Structured update payload JSON file")
+	payloadJSON := fs.String("payload-json", "", "Inline structured update payload JSON")
 	_ = fs.String("format", "json", "Output format")
 	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	if flagWasSet(fs, "payload-json") && strings.TrimSpace(*payloadJSON) == "" {
+		fmt.Fprintln(stderr, "specify-runtime cognition: --payload-json must not be empty")
+		return 2
+	}
+	if len(*payloadJSON) > 16*1024*1024 {
+		fmt.Fprintln(stderr, "specify-runtime cognition: --payload-json exceeds the 16 MiB limit")
 		return 2
 	}
 	payload, err := update.RunUpdate(paths, update.UpdateInput{
@@ -1364,7 +1431,7 @@ func updateCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.P
 		Reason:            *reason,
 		DeltaSessionID:    *deltaSession,
 		CommitRange:       *commitRange,
-		PayloadFile:       *payloadFile,
+		PayloadJSON:       *payloadJSON,
 		Workflow:          *workflow,
 		BehaviorSurfaces:  behaviorSurfaces,
 		GeneratedSurfaces: generatedSurfaces,
@@ -1417,15 +1484,22 @@ func queryCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Pa
 	intent := fs.String("intent", "", "Intent")
 	text := fs.String("query", "", "Query text")
 	expanded := fs.String("expanded-query", "", "Expanded query")
-	planJSON := fs.String("query-plan", "", "Query plan JSON or @file")
-	planFile := fs.String("query-plan-file", "", "Query plan file")
+	planJSON := fs.String("query-plan", "", "Inline query plan JSON")
 	var pathHints stringList
 	fs.Var(&pathHints, "paths", "Path hint")
 	_ = fs.String("format", "json", "Output format")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
-	plan, diagnostics, err := query.ParsePlanWithDiagnostics(*planJSON, *planFile)
+	if strings.HasPrefix(strings.TrimSpace(*planJSON), "@") {
+		fmt.Fprintln(stderr, "specify-runtime cognition: query plan file input is disabled; pass bounded JSON inline with --query-plan")
+		return 2
+	}
+	if len(*planJSON) > 16*1024*1024 {
+		fmt.Fprintln(stderr, "specify-runtime cognition: --query-plan exceeds the 16 MiB limit")
+		return 2
+	}
+	plan, diagnostics, err := query.ParsePlanWithDiagnostics(*planJSON, "")
 	if err != nil {
 		var planErr *query.PlanParseError
 		if errors.As(err, &planErr) {
@@ -1450,26 +1524,16 @@ func queryCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Pa
 func semanticIntakeCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {
 	fs := flag.NewFlagSet("semantic-intake", flag.ContinueOnError)
 	fs.SetOutput(stderr)
-	inputFile := fs.String("input", "", "Semantic intake JSON input file")
+	inputJSON := fs.String("input-json", "", "Inline semantic intake JSON")
 	_ = fs.String("format", "json", "Output format")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
 
-	var data []byte
-	var err error
-	if strings.TrimSpace(*inputFile) != "" {
-		data, err = os.ReadFile(*inputFile)
-		if err != nil {
-			fmt.Fprintf(stderr, "specify-runtime cognition: read semantic-intake input: %v\n", err)
-			return 1
-		}
-	} else {
-		data, err = io.ReadAll(os.Stdin)
-		if err != nil {
-			fmt.Fprintf(stderr, "specify-runtime cognition: read semantic-intake stdin: %v\n", err)
-			return 1
-		}
+	data, err := readInlineJSONOrStdin(*inputJSON, flagWasSet(fs, "input-json"))
+	if err != nil {
+		fmt.Fprintf(stderr, "specify-runtime cognition: read semantic-intake input: %v\n", err)
+		return 1
 	}
 	request, err := query.ParseSemanticIntakeRequest(data)
 	if err != nil {
@@ -1483,26 +1547,16 @@ func semanticIntakeCommand(args []string, stdout io.Writer, stderr io.Writer, pa
 func semanticAuditCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {
 	fs := flag.NewFlagSet("semantic-audit", flag.ContinueOnError)
 	fs.SetOutput(stderr)
-	inputFile := fs.String("input", "", "Semantic audit JSON input file")
+	inputJSON := fs.String("input-json", "", "Inline semantic audit JSON")
 	_ = fs.String("format", "json", "Output format")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
 
-	var data []byte
-	var err error
-	if strings.TrimSpace(*inputFile) != "" {
-		data, err = os.ReadFile(*inputFile)
-		if err != nil {
-			fmt.Fprintf(stderr, "specify-runtime cognition: read semantic-audit input: %v\n", err)
-			return 1
-		}
-	} else {
-		data, err = io.ReadAll(os.Stdin)
-		if err != nil {
-			fmt.Fprintf(stderr, "specify-runtime cognition: read semantic-audit stdin: %v\n", err)
-			return 1
-		}
+	data, err := readInlineJSONOrStdin(*inputJSON, flagWasSet(fs, "input-json"))
+	if err != nil {
+		fmt.Fprintf(stderr, "specify-runtime cognition: read semantic-audit input: %v\n", err)
+		return 1
 	}
 	request, err := query.ParseSemanticAuditRequest(data)
 	if err != nil {
@@ -1516,29 +1570,18 @@ func semanticAuditCommand(args []string, stdout io.Writer, stderr io.Writer, pat
 func semanticAuditResumeCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {
 	fs := flag.NewFlagSet("semantic-audit-resume", flag.ContinueOnError)
 	fs.SetOutput(stderr)
-	inputFile := fs.String("input", "", "Semantic audit resume validation JSON input file")
+	inputJSON := fs.String("input-json", "", "Inline semantic audit resume validation JSON")
 	_ = fs.String("format", "json", "Output format")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
 
-	var data []byte
-	var err error
-	baseDir := "."
-	if strings.TrimSpace(*inputFile) != "" {
-		data, err = os.ReadFile(*inputFile)
-		if err != nil {
-			fmt.Fprintf(stderr, "specify-runtime cognition: read semantic-audit-resume input: %v\n", err)
-			return 1
-		}
-		baseDir = filepath.Dir(*inputFile)
-	} else {
-		data, err = io.ReadAll(os.Stdin)
-		if err != nil {
-			fmt.Fprintf(stderr, "specify-runtime cognition: read semantic-audit-resume stdin: %v\n", err)
-			return 1
-		}
+	data, err := readInlineJSONOrStdin(*inputJSON, flagWasSet(fs, "input-json"))
+	if err != nil {
+		fmt.Fprintf(stderr, "specify-runtime cognition: read semantic-audit-resume input: %v\n", err)
+		return 1
 	}
+	baseDir := paths.Root
 	request, missingFileValidation, err := parseSemanticAuditResumeCLIRequest(data, baseDir)
 	if err != nil {
 		fmt.Fprintf(stderr, "specify-runtime cognition: %v\n", err)
@@ -1646,8 +1689,8 @@ func compassCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.
 	fs.SetOutput(stderr)
 	intent := fs.String("intent", "", "Intent")
 	text := fs.String("query", "", "Query text")
-	semanticIntakeFile := fs.String("semantic-intake-file", "", "Semantic intake file")
-	planFile := fs.String("query-plan-file", "", "Query plan file")
+	semanticIntakeJSON := fs.String("semantic-intake-json", "", "Inline semantic intake JSON")
+	planJSON := fs.String("query-plan", "", "Inline query plan JSON")
 	_ = fs.String("format", "json", "Output format")
 	if err := fs.Parse(args); err != nil {
 		return 2
@@ -1656,9 +1699,21 @@ func compassCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.
 	inputMode := "query"
 	var plan query.Plan
 	var diagnostics query.PlanDiagnostics
-	if *planFile != "" {
+	if flagWasSet(fs, "semantic-intake-json") && flagWasSet(fs, "query-plan") {
+		fmt.Fprintln(stderr, "specify-runtime cognition: provide at most one of --semantic-intake-json or --query-plan")
+		return 2
+	}
+	if strings.HasPrefix(strings.TrimSpace(*planJSON), "@") {
+		fmt.Fprintln(stderr, "specify-runtime cognition: query plan file input is disabled; pass bounded JSON inline with --query-plan")
+		return 2
+	}
+	if len(*planJSON) > 16*1024*1024 || len(*semanticIntakeJSON) > 16*1024*1024 {
+		fmt.Fprintln(stderr, "specify-runtime cognition: inline semantic input exceeds the 16 MiB limit")
+		return 2
+	}
+	if *planJSON != "" {
 		var err error
-		plan, diagnostics, err = query.ParsePlanWithDiagnostics("", *planFile)
+		plan, diagnostics, err = query.ParsePlanWithDiagnostics(*planJSON, "")
 		if err != nil {
 			var planErr *query.PlanParseError
 			if errors.As(err, &planErr) {
@@ -1677,8 +1732,8 @@ func compassCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.
 			return 1
 		}
 		inputMode = "query_plan"
-	} else if *semanticIntakeFile != "" {
-		intake, err := query.ParseSemanticIntakeFile(*semanticIntakeFile)
+	} else if *semanticIntakeJSON != "" {
+		intake, err := query.ParseSemanticIntakeJSON([]byte(*semanticIntakeJSON))
 		if err != nil {
 			fmt.Fprintf(stderr, "specify-runtime cognition: %v\n", err)
 			return 1

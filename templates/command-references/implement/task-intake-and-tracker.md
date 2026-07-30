@@ -7,7 +7,7 @@ Preserved Contract: implementation remains resumable, task-driven, evidence-back
 ## Intake
 
 1. Resolve the active feature lane/worktree.
-2. Read execution state first, then canonical `task-index.json` or the light direct task list.
+2. Call `specify-runtime implement task-next` for compact execution state and the next ready task. Query any extra field with `specify-runtime artifact show --json-pointer`; do not parse the complete task index directly.
 3. Validate task-graph revision, current ready batch, dependencies, and relevant repository baseline.
 4. Load only the current task's required refs and live touched-area evidence.
 5. Load constitution/rules/learning details only when the task graph lacks a current ref or the selected area has a known relevant lesson.
@@ -25,9 +25,9 @@ Use `compass_state`, `minimal_live_reads`, `first_pass_paths`, `coverage_diagnos
 
 ## Execution State
 
-Keep compact agent state with status, current batch/task, next action, completed/failed task IDs, retry count, blockers, recovery, open gaps, validation state, and binding user execution notes. Update at semantic transitions: task start, result acceptance/failure, triggered review, validation, replanning, and terminal closeout—not every tool call.
+Keep compact agent state with status, current batch/task, next action, completed/failed task IDs, retry count, blockers, recovery, open gaps, validation state, and binding user execution notes. Update it only through `specify-runtime implement task-start`, `result-merge`, and `task-accept` at semantic transitions—not with direct file edits and not on every tool call.
 
-`implement-tracker.md` remains a compatibility state surface where required by existing hooks. Treat it as agent-only and avoid explanatory prose or duplicated upstream truth.
+`implement-tracker.md` remains a CLI-rendered compatibility projection where required by existing hooks. Never edit it directly.
 
 ## Resume Audit
 

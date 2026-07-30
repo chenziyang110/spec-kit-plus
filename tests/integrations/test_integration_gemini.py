@@ -567,12 +567,22 @@ class TestGeminiIntegration:
         assert payload["decision"] == "deny"
         assert ".env" in payload["reason"]
 
-    def test_gemini_hook_dispatch_blocks_invalid_commit_message_via_shared_engine(
-        self, tmp_path
+    def test_gemini_hook_dispatch_blocks_invalid_commit_message_via_runtime(
+        self, tmp_path, built_unified_runtime
     ):
         integration = get_integration("gemini")
         manifest = IntegrationManifest("gemini", tmp_path)
         integration.setup(tmp_path, manifest, script_type="sh")
+        (tmp_path / ".specify" / "config.json").write_text(
+            json.dumps(
+                {
+                    "runtime_launcher": {
+                        "argv": [str(built_unified_runtime)],
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
 
         env = os.environ.copy()
         repo_root = Path(__file__).resolve().parents[2]
@@ -832,6 +842,52 @@ class TestGeminiIntegration:
             "--prompt-stdin",
         ]
         assert seen_stdin.read_text(encoding="utf-8") == "continue"
+
+    def test_gemini_runtime_owned_hooks_use_only_runtime_launcher(self, tmp_path):
+        module = _load_gemini_hook_dispatch_module()
+        config_path = tmp_path / ".specify" / "config.json"
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        config_path.write_text(
+            json.dumps(
+                {
+                    "specify_launcher": {"argv": ["python-specify"]},
+                    "runtime_launcher": {"argv": [".specify/bin/specify-runtime"]},
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        for subcommand in (
+            "validate-state",
+            "validate-artifacts",
+            "validate-commit",
+        ):
+            args = [subcommand, "--format", "json"]
+            assert module._shared_hook_commands(tmp_path, args) == [
+                [
+                    ".specify/bin/specify-runtime",
+                    "hook",
+                    *args,
+                ]
+            ]
+
+        assert module._is_validate_state_autofix_command(
+            "specify-runtime hook validate-state --command plan "
+            "--feature-dir .specify/features/001-demo --autofix"
+        )
+        assert not module._is_validate_state_autofix_command(
+            "specify hook validate-state --command plan "
+            "--feature-dir .specify/features/001-demo --autofix"
+        )
+
+        assert module._shared_hook_commands(
+            tmp_path, ["validate-prompt", "--prompt-stdin"]
+        )[0] == [
+            "python-specify",
+            "hook",
+            "validate-prompt",
+            "--prompt-stdin",
+        ]
 
     def test_gemini_shared_hook_preserves_human_blocker_tutorial(self):
         module = _load_gemini_hook_dispatch_module()
@@ -1522,7 +1578,7 @@ class TestGeminiIntegration:
         assert (
             "record a learning review decision for `sp-implement`" in additional_context
         )
-        assert "specify learning capture-auto" in additional_context
+        assert "specify-runtime learning capture-auto" in additional_context
         assert "do not edit Learning storage directly" in additional_context
         assert "init --here --force ..." not in additional_context
 

@@ -60,23 +60,18 @@ def test_result_submit_normalizes_and_writes_quick_result(tmp_path: Path):
     project = _create_project(tmp_path, integration="cursor-agent")
     workspace = project / ".planning" / "quick" / "001-fix"
     workspace.mkdir(parents=True, exist_ok=True)
-    result_file = project / "worker-result.json"
-    result_file.write_text(
-        json.dumps(
-            {
-                "taskId": "T201",
-                "status": "DONE_WITH_CONCERNS",
-                "files_changed": ["src/feature.py"],
-                "message": "done with concerns",
-                "issues": ["follow-up cleanup remains"],
-                "validationResults": [
-                    {"command": "pytest -q", "status": "passed", "output": "1 passed"}
-                ],
-            },
-            ensure_ascii=False,
-            indent=2,
-        ),
-        encoding="utf-8",
+    result_json = json.dumps(
+        {
+            "taskId": "T201",
+            "status": "DONE_WITH_CONCERNS",
+            "files_changed": ["src/feature.py"],
+            "message": "done with concerns",
+            "issues": ["follow-up cleanup remains"],
+            "validationResults": [
+                {"command": "pytest -q", "status": "passed", "output": "1 passed"}
+            ],
+        },
+        ensure_ascii=False,
     )
 
     result = _invoke_in_project(
@@ -90,8 +85,8 @@ def test_result_submit_normalizes_and_writes_quick_result(tmp_path: Path):
             str(workspace),
             "--lane-id",
             "lane-a",
-            "--result-file",
-            str(result_file),
+            "--result-json",
+            result_json,
         ],
     )
 
@@ -108,18 +103,14 @@ def test_result_submit_rejects_obsolete_ui_result_fields(tmp_path: Path) -> None
     project = _create_project(tmp_path, integration="cursor-agent")
     workspace = project / ".planning" / "quick" / "001-fix"
     workspace.mkdir(parents=True, exist_ok=True)
-    result_file = project / "worker-result.json"
-    result_file.write_text(
-        json.dumps(
-            {
-                "task_id": "lane-a",
-                "status": "success",
-                "uiEvidence": [
-                    {"kind": "visual_capture", "ref": "evidence/screen.png"}
-                ],
-            }
-        ),
-        encoding="utf-8",
+    result_json = json.dumps(
+        {
+            "task_id": "lane-a",
+            "status": "success",
+            "uiEvidence": [
+                {"kind": "visual_capture", "ref": "evidence/screen.png"}
+            ],
+        }
     )
 
     result = _invoke_in_project(
@@ -133,8 +124,8 @@ def test_result_submit_rejects_obsolete_ui_result_fields(tmp_path: Path) -> None
             str(workspace),
             "--lane-id",
             "lane-a",
-            "--result-file",
-            str(result_file),
+            "--result-json",
+            result_json,
         ],
     )
 
@@ -145,11 +136,6 @@ def test_result_submit_rejects_obsolete_ui_result_fields(tmp_path: Path) -> None
 
 def test_result_submit_rejects_codex_projects_and_redirects_to_team_surface(tmp_path: Path):
     project = _create_project(tmp_path, integration="codex")
-    result_file = project / "worker-result.json"
-    result_file.write_text(
-        json.dumps({"task_id": "T001", "status": "success"}, ensure_ascii=False),
-        encoding="utf-8",
-    )
 
     result = _invoke_in_project(
         project,
@@ -162,8 +148,8 @@ def test_result_submit_rejects_codex_projects_and_redirects_to_team_surface(tmp_
             "specs/001-feature",
             "--task-id",
             "T001",
-            "--result-file",
-            str(result_file),
+            "--result-json",
+            json.dumps({"task_id": "T001", "status": "success"}),
         ],
     )
 

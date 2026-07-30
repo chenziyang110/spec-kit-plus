@@ -26,10 +26,10 @@ def test_project_handbook_template_exists_and_routes_to_project_cognition():
     assert "## Where To Read Next" in content
     assert "## Topic Map" in content
     assert "## Compatibility Export Model" in content
-    assert "`.specify/project-cognition/status.json`" in content
-    assert "`.specify/project-cognition/project-cognition.db`" in content
+    assert "specify-runtime cognition status" in content
     assert "specify-runtime cognition compass" in content
-    assert "conditional advanced project cognition query bundles" in content
+    assert "conditional `query`/`expand` responses" in content
+    assert "storage files are runtime implementation details" in content
     assert "`DEBUG-HANDBOOK.md`" in content
     assert "`BUILD-HANDBOOK.md`" in content
     assert "Legacy project-map artifacts" in content
@@ -157,8 +157,9 @@ def test_project_map_templates_require_full_detail_sections_for_high_value_facts
 def test_project_handbook_template_points_readers_to_project_cognition_first():
     content = _read("templates/project-handbook-template.md")
 
-    assert "`.specify/project-cognition/status.json` for freshness" in content
-    assert "`.specify/project-cognition/project-cognition.db` as the canonical graph store" in content
+    assert "`specify-runtime cognition status --format json` for freshness" in content
+    assert "its storage file is runtime-owned" in content
+    assert "agents do not read or write the database directly" in content
     assert "task-local `specify-runtime cognition compass` packet" in content
     assert "Advisory project cognition index" in content
     assert "Map points, code proves" in content
@@ -175,8 +176,10 @@ def test_project_handbook_template_defines_cross_project_cognition_reference_con
     assert "supplemental-only" in lowered
     assert "fresh-only" in lowered
     assert "minimal read" in lowered
-    assert "`.specify/project-cognition/status.json`" in content
-    assert "`.specify/project-cognition/project-cognition.db`" in content
+    assert "reference_readiness=ready" in content
+    assert "freshness=fresh" in content
+    assert "graph_ready=true" in content
+    assert "do not probe its status/database files" in lowered
     assert "specify-runtime cognition compass" in content
     assert "legacy project-map artifacts" in lowered
     assert "there is no python runtime alias" in lowered
@@ -201,7 +204,7 @@ def test_project_handbook_template_guides_architecture_level_summary_content():
 def test_project_handbook_template_routes_compatibility_export_model() -> None:
     content = _read("templates/project-handbook-template.md").lower()
     assert "compatibility export model" in content
-    assert ".specify/project-cognition/status.json" in content
+    assert "specify-runtime cognition status" in content
     assert "debug-handbook.md" in content
     assert "build-handbook.md" in content
     assert "compatibility/export" in content
@@ -210,7 +213,7 @@ def test_project_handbook_template_routes_compatibility_export_model() -> None:
 def test_project_handbook_routes_generated_status_to_project_cognition() -> None:
     content = _read("PROJECT-HANDBOOK.md")
 
-    assert "Generated-project `.specify/project-cognition/status.json` plus the `specify-runtime cognition compass` task-local packet" in content
+    assert "Generated-project `specify-runtime cognition status` response plus the task-local `specify-runtime cognition compass` packet" in content
     assert "Generated-project `.specify/project-map/index/status.json`: freshness and module coverage status." not in content
 
 

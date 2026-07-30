@@ -4,6 +4,8 @@ Purpose: preserve consequence loop, checkpoint protocol, regression validation, 
 
 Preserved Contract: debug closeout requires reproduction proof, related-risk review, verification evidence, and terminal state.
 
+Session mutation contract: `SESSION PATCH <fields-or-sections>` means build the bounded change in memory, run `specify-runtime artifact prepare --path .planning/debug/[slug].md`, then apply it with `specify-runtime artifact patch --lease <lease-id>` using `--frontmatter-json` or `--section`. Every debug-state update below means `SESSION PATCH`; never edit the Markdown file directly.
+
 ## Debug Consequence Loop
 
 When a defect touches lifecycle, running-state, shared-state, destructive behavior, downstream consumers, compatibility, security, or multiple plausible behavior choices, run the Senior Consequence Analysis Gate as part of the investigation contract.
@@ -13,7 +15,7 @@ When a defect touches lifecycle, running-state, shared-state, destructive behavi
 - Extend the State-Behavior Matrix with the failing lifecycle state and the expected behavior after the fix.
 - Use the Dependency Impact Table to identify adjacent risk targets and related-risk review scope before closeout.
 - Preserve the Recovery And Validation Contract as loop restoration proof, including repro, regression tests, observability, cleanup, idempotency, and rollback evidence.
-- Record Coverage Gaps and `CA-###` obligations when the debug session exposes missing product semantics that must be reopened upstream.
+- Persist Coverage Gaps and `CA-###` obligations through a fresh `specify-runtime artifact patch` lease when the debug session exposes missing product semantics that must be reopened upstream.
 - Reject surface-only fixes: a fix that only changes observation state without repairing the dependency loop, affected objects, or owning control state cannot satisfy the debug consequence loop.
 
 ## Checkpoint Protocol

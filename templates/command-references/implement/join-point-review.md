@@ -34,7 +34,7 @@ At a parallel join, execute the join point validation target and recorded valida
 
 ### Review Decisions
 
-Record exactly one decision in the current task lifecycle record or a separate review event when multiple tasks are affected:
+Merge exactly one structured decision through `specify-runtime implement result-merge` for the current task; when multiple tasks are affected, use the runtime-owned review event surface:
 
 - `cleared`
 - `repair-and-continue`
@@ -47,7 +47,7 @@ Record exactly one decision in the current task lifecycle record or a separate r
 
 ### Safe Repair Boundary
 
-Review may repair the canonical task graph, just-in-time packet, execution state, and current task lifecycle record. Snapshot only artifacts that will actually be rewritten by automatic repair.
+Review may repair the canonical task graph through `specify-runtime tasks`, regenerate a just-in-time packet with `specify-runtime implement packet-compile`, and update execution/lifecycle state through the task transition CLI. Never repair those projections directly. Snapshot only source artifacts that will actually be rewritten by automatic repair.
 
 Review must not rewrite upstream truth. If a protected requirement, decision, evidence obligation, or boundary is wrong, record the blocker and route to its owning workflow.
 

@@ -64,8 +64,8 @@ brief and downstream visual acceptance contract.
 ## Must-Preserve Discussion Inputs
 
 - **Source**: [Discussion handoff path when `entry_source: sp-discussion`]
-- **Coverage Status**: [coverage_status from `brainstorming/handoff-to-specify.json`]
-- **Planning Gate Status**: [planning_gate_status from `brainstorming/handoff-to-specify.json`]
+- **Coverage Status**: [coverage_status from a targeted `specify-runtime artifact show` result for `brainstorming/handoff-to-specify.json`]
+- **Planning Gate Status**: [planning_gate_status from the same CLI result]
 
 ### Mapped Must-Preserve Items
 

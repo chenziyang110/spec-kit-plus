@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 from jsonschema import Draft202012Validator
 from typer.testing import CliRunner
-from tests.conftest import install_passing_workflow_gate
+from tests.conftest import seed_existing_workflow_state
 
 from specify_cli import app
 from specify_cli import human_acceptance as human_acceptance_module
@@ -24,11 +24,9 @@ from specify_cli.human_acceptance import (
 from specify_cli.workflow_runtime import (
     WorkflowRuntimeError,
     block_workflow,
-    complete_workflow_stage,
     enter_workflow,
     resolve_workflow_blocker,
     show_workflow,
-    transition_workflow,
     workflow_runtime_path,
 )
 
@@ -68,7 +66,6 @@ def _feature(tmp_path: Path) -> tuple[Path, Path]:
     project = tmp_path / "project"
     feature = project / ".specify" / "features" / "001-demo"
     feature.mkdir(parents=True)
-    install_passing_workflow_gate(project)
     (feature / "implementation-summary.md").write_text(
         "# Implementation Summary\n\nDemo feature complete.\n", encoding="utf-8"
     )
@@ -686,13 +683,21 @@ def _complete_then_transition(
             feature,
             source_revision=revision + 2,
         )
-    completed = complete_workflow_stage(feature, expected_revision=revision)
-    transitioned = transition_workflow(
+    next_revision = revision + 2
+    seed_existing_workflow_state(
         feature,
-        target_stage=target_stage,
-        expected_revision=completed["data"]["revision"],
+        stage=target_stage,
+        revision=next_revision,
     )
-    return transitioned
+    return {
+        "status": "ok",
+        "data": {
+            "feature_id": feature.name,
+            "revision": next_revision,
+            "stage": target_stage,
+            "status": "active",
+        },
+    }
 
 
 def _accepted_state(state_path: Path) -> dict[str, object]:
@@ -879,7 +884,6 @@ def test_optional_pending_acceptance_scenario_does_not_require_runtime_target(
     project = tmp_path / "project"
     feature = project / ".specify" / "features" / "001-demo"
     feature.mkdir(parents=True)
-    install_passing_workflow_gate(project)
     (feature / "implementation-summary.md").write_text(
         "# Implementation Summary\n\nDemo feature complete.\n",
         encoding="utf-8",
@@ -2283,7 +2287,12 @@ def test_corrupt_acceptance_repair_backup_blocks_without_deleting_recovery_evide
     payload = captured.value.to_envelope()
     assert payload["data"]["error_code"] == "acceptance-repair-recovery-required"
     assert payload["blockers"][0]["human_action_required"] is True
-    assert len(payload["blockers"][0]["human_action_guide"]["steps"]) == 6
+    steps = payload["blockers"][0]["human_action_guide"]["steps"]
+    assert len(steps) == 7
+    commands = "\n".join(str(step.get("command") or "") for step in steps)
+    assert "specify-runtime evidence import" in commands
+    assert "--recovery-file" in commands
+    assert "--content-file" not in commands
     assert (feature / "human-acceptance.json").read_bytes() == acceptance_before
     assert workflow_runtime_path(feature).read_bytes() == workflow_before
     assert journal.read_bytes() == journal_before

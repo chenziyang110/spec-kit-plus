@@ -69,7 +69,7 @@ def test_fast_template_exists_and_defines_scope_gate() -> None:
     assert "workflow-owned mutation closeout is not an external map-maintenance handoff" in content
     assert "specify-runtime cognition closeout-plan --workflow" in content
     assert "update_mode=delta_session" in content
-    assert "update_mode=payload_file" in content
+    assert "update_mode=inline_json" in content
     assert "update_argv" in content
     assert "delta_append_draft.argv_prefix" in content
     assert "unknown_path_dispositions" in content
@@ -113,7 +113,7 @@ def test_fast_template_uses_leader_direct_contract() -> None:
     assert "delegate it through" not in content
 
 
-def test_fast_template_defines_explicit_upgrade_triggers() -> None:
+def test_fast_template_routes_all_non_fast_direct_delivery_to_quick() -> None:
     content = read_template("templates/commands/fast.md").lower()
 
     assert "upgrade to `/sp-quick` immediately if" in content
@@ -124,23 +124,24 @@ def test_fast_template_defines_explicit_upgrade_triggers() -> None:
     assert "safe direct execution unavailable" in content
     assert "safe packetized delegation unavailable" not in content
     assert "needs research" in content or "research or clarification" in content
-    assert "upgrade to `/sp-specify` immediately if" in content
+    assert "upgrade to `/sp-specify` immediately if" not in content
     assert "new workflow" in content
     assert "compatibility" in content
     assert "acceptance criteria" in content
+    assert "separate formal specification path selected explicitly by the user" in content
 
 
 def test_fast_template_routes_consequence_triggers_out_of_fast_path() -> None:
     content = read_template("templates/commands/fast.md").lower()
 
     assert "senior consequence analysis gate" in content
-    assert "upgrade to `/sp-quick` immediately if the gate triggers" in content
-    assert "upgrade to `/sp-specify` immediately if" in content
+    assert "upgrade to `/sp-quick` immediately whenever the gate triggers" in content
+    assert "upgrade to `/sp-specify` immediately if" not in content
     assert "lifecycle" in content
     assert "running-state" in content
     assert "shared-state" in content
     assert "destructive-operation" in content
-    assert "consumer impact" in content
+    assert "downstream-consumer" in content
     assert "stand-down reason" in content
     assert "do not add planning artifacts to satisfy this gate on the fast path" in content
 

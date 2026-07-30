@@ -6,7 +6,7 @@ description: "Task list template for feature implementation"
 # Tasks: [FEATURE NAME]
 
 **Input**: Canonical `plan-contract.json` plus only the project-facing or conditional artifacts named by its required refs.
-**Output authority**: `task-index.json` for standard/heavy and all UI-bearing work; this Markdown is the project-facing view. Light non-UI leader-direct work may use this file alone.
+**Output authority**: `task-index.json` is canonical for every execution mode; this Markdown is its deterministic project-facing view. Light non-UI leader-direct work keeps both projections compact rather than bypassing the index.
 
 **Tests**: The examples below include test tasks. Tests are expected by default for affected behavior changes and bug fixes. Only omit them when the plan explicitly justifies the omission.
 
@@ -24,7 +24,7 @@ description: "Task list template for feature implementation"
 - **Review-Risk Notes**: Preserve plan-approved residual risks, manual checks, UI/reference fidelity risks, and quality tradeoffs for task reviewers.
 - **Validation references**: Preserve `quickstart.md`, canonical references, and research-backed validation notes when they shape task ordering or completion criteria
 - **Must-preserve discussion obligations**: Preserve relevant `MP-*` and `CA-###` refs once in `task-index.json`; map each to a task, join/validation point, blocker, or user-confirmed deferral with its reopen condition.
-- **Capability operations**: Copy every preserved or in-scope operation-shaped capability from `spec.md`, `alignment.md`, `context.md`, `plan.md#Capability Preservation Plan`, `plan-contract.json`, and `brainstorming/handoff-to-specify.json`. Operation-shaped capabilities include new/create/scaffold/authoring/template creation, CLI path, TUI path, lifecycle action, API entry point, or any user workflow verb that changes implementation or validation shape.
+- **Capability operations**: Copy every preserved or in-scope operation-shaped capability from targeted `specify-runtime artifact show` results for `spec.md`, `alignment.md`, `context.md`, `plan.md#Capability Preservation Plan`, `plan-contract.json`, and `brainstorming/handoff-to-specify.json`. Operation-shaped capabilities include new/create/scaffold/authoring/template creation, CLI path, TUI path, lifecycle action, API entry point, or any user workflow verb that changes implementation or validation shape.
 - **User-observable paths**: For any UI, TUI, CLI, API route, installer, registry/factory/config wiring, or generated asset consumed by runtime behavior, record the real entrypoint path from producer data through transformer/state builder to the consumer surface and executor/boundary.
 - Do not silently drop a locked planning decision; if a user-confirmed deferral applies, record it in the phase or dependency notes with confirmation source, exact excluded behavior, residual risk, reopen or stop condition, and downstream artifact
 - Do not allow command-surface anti-goals to delete capability. Each anti-goal that limits commands, routes, APIs, lifecycle operations, or public surfaces must include a does-not-remove guard naming the preserved operation and selected entry point.
@@ -88,22 +88,25 @@ description: "Task list template for feature implementation"
 | Surface | UI Brief | Fidelity | Must Preserve | May Adapt | Must Not | Required Evidence | Task IDs |
 |---------|----------|----------|---------------|-----------|----------|-------------------|----------|
 
-- Every UI-bearing task derived from `ui-brief.md` must materialize
-  the complete current contract at
-  `task-index.json#/tasks/<task-id>/ui_contract`.
+- Every UI-bearing task derived from the artifact CLI's `ui-brief.md` view must
+  submit the complete current contract through `specify-runtime tasks build`/`upsert`,
+  which alone materializes `task-index.json#/tasks/<task-id>/ui_contract`.
 - Resolve the exact object shape from
   `.specify/templates/task-index-template.json#/ui_contract_schema_ref`, which
   points to `.specify/templates/task-packet-template.json#/ui_contract`. Copy
   that deterministic shape and fill it from the approved plan; do not reconstruct
   the schema from prose or from this human projection.
 - Preserve the exact work/surface/platform axes, subject/audience/single job,
-  three theses, signature element, approved visual ref plus preview/manifest
-  SHA-256 values, and task-relevant design decision IDs,
+  three theses, signature element, approved visual ref plus
+  preview/manifest/handoff SHA-256 values, immutable handoff ref, and
+  task-relevant design decision and handoff contract IDs,
   `reference_intents`, `real_content_plan`, and `image_plan`.
 - Carry component anatomy/state contracts, color modes, responsive matrix,
   motion/reduced-motion contract, viewport/state acceptance matrix, comparison
-  tolerance, and only explicitly approved deviations. Across the UI task set,
-  the decision-ID union must exactly cover the plan's required design decisions.
+  tolerance, and only explicitly approved deviations by selecting their exact
+  structured rows from the immutable handoff. Across the UI task set, the
+  decision-ID and handoff-contract-ID unions must exactly cover the plan's
+  required design decisions and handoff contracts.
 - Required evidence is the typed triad `structure_snapshot`,
   `visual_capture`, and `runtime_diagnostics`, plus
   `visual_comparison_or_human_review` as a verification status. Preserve
@@ -128,8 +131,8 @@ description: "Task list template for feature implementation"
 | ui_contract_ref | task-index.json#/tasks/T###/ui_contract |
 | schema_ref | .specify/templates/task-packet-template.json#/ui_contract |
 | direction_core | [ui_work_type; surface_type; platforms; subject; audience; single_job] |
-| approved_direction | [visual_thesis; content_thesis; interaction_thesis; signature_element; approved_visual_ref; approved_preview_sha256; approved_manifest_sha256] |
-| task_inputs | [design_sources; design_decision_ids; reference_intents; real_content_plan; image_plan] |
+| approved_direction | [visual_thesis; content_thesis; interaction_thesis; signature_element; approved_visual_ref; approved_preview_sha256; approved_manifest_sha256; approved_handoff_ref; approved_handoff_sha256] |
+| task_inputs | [design_sources; design_decision_ids; handoff_contract_ids; reference_intents; real_content_plan; image_plan] |
 | implementation_contracts | [color_modes; component_contracts; responsive_matrix; motion_contract] |
 | fidelity_level | [approximate | high | inspiration] |
 | adaptation_rules | [must_preserve; may_adapt; must_not] |
@@ -152,8 +155,8 @@ requirements when the implemented surface must be wired into a real entry point.
 
 ## Delegated Lane Integration
 
-- When task decomposition is delegated, write one `task-generation/lane-manifest.json` and one result per lane under `task-generation/handoffs/`.
-- Record each accepted result's consumer once in the manifest: task, edge, batch, join, guardrail, deferral, escalation, or blocker.
+- Delegated decomposition lanes have no direct workflow-artifact write scope. Create an absent `task-generation/lane-manifest.json` with `specify-runtime artifact scaffold --kind task-generation-lane-manifest`, replace its bounded `/lanes` array as a whole through fresh leased JSON-pointer patches, patch `/status` separately, and submit each lane result inline through `specify-runtime result submit --command tasks`. Never submit the manifest wholesale or emulate array append.
+- The runtime alone materializes `task-generation/handoffs/<lane-id>.json`. Patch each accepted result's consumer once in the manifest: task, edge, batch, join, guardrail, deferral, escalation, or blocker.
 - Do not create separate evidence-index and checkpoint logs for the same events.
 
 ## Reference Fidelity Mapping
@@ -190,14 +193,14 @@ Use this section only when regenerating tasks after a blocked or explicitly reco
 
 Allowed dispositions: `resolved`, `user_confirmed_deferral`, `not_applicable`, `escalated`.
 Compatibility label: `deferred` maps to `user_confirmed_deferral` and must still carry confirmation source, exact excluded behavior, residual risk, reopen or stop condition, and downstream artifact.
-If any finding is `escalated`, stop task generation and set `next_command` directly to `/sp.plan`, `/sp.clarify`, or `/sp.deep-research` in `workflow-state.md`.
+If any finding is `escalated`, stop task generation and patch `next_command` to `/sp.plan`, `/sp.clarify`, or `/sp.deep-research` through a leased `specify-runtime artifact patch` call against `workflow-state.md`.
 
 ## Task Shaping Rules
 
 - Each task should preserve one stable objective, a bounded expected write scope, and one shared verification path. Add `task_checks` only for cheap changed-scope checks that are safe to run for that Txx alone.
 - Stop decomposition once the current executable window is atomic.
 - Leave later execution phases at the coarser story or phase level only when their exact task shape depends on earlier join points, then refine them after the checkpoint inside the current confirmed delivery instead of guessing too early.
-- Store only task-shaping fields in `task-index.json`: objective, dependencies, expected write scope, required refs, forbidden drift, acceptance, verification, optional `task_checks`, obligation refs, join point, and packet mode. Root `validation_policy` is `feature_epochs` with `max_epochs: 3`, `budget_scope: implement-review`, shared budget ref, and leader-owned heavy gates. Those three epochs are logical baseline/convergence/delivery gates; retries, timeout recovery, and deterministic shards are attempts inside a gate. Do not copy full-suite/build/E2E/visual gates into Txx packets.
+- Submit only task-shaping fields to `specify-runtime tasks build`/`upsert`; the task CLI owns `task-index.json` and its `tasks.md` projection. Fields include objective, dependencies, expected write scope, required refs, forbidden drift, acceptance, verification, optional `task_checks`, obligation refs, join point, and packet mode. Root `validation_policy` is `feature_epochs` with `max_epochs: 3`, `budget_scope: implement-review`, shared budget ref, and leader-owned heavy gates. Those three epochs are logical baseline/convergence/delivery gates; retries, timeout recovery, and deterministic shards are attempts inside a gate. Do not copy full-suite/build/E2E/visual gates into Txx packets.
 - Carry interfaces, review risks, fidelity requirements, controller checks, and real-entrypoint evidence only when they affect the current task.
 - Tasks that appear in User-Observable Path Coverage MUST also include `consumer_surfaces` and `required_evidence` with `real_entrypoint_evidence` so `sp-implement` can reject synthetic-only consumer proof.
 - Before finalizing a task, confirm it can run leader-direct or be compiled into a bounded delegated packet from the task plus named refs and live code. If neither route is safe, refine or block it.
@@ -279,7 +282,7 @@ Audit status keywords should explicitly cover buildable `FR-*`, locked planning 
 
 **Purpose**: Freeze architecture constraints, scenario profile inputs, required evidence, and boundary references before any code-writing batch starts
 
-- [ ] T000 Read the boundary-defining files, contracts, and examples named in `plan.md` under `Required Implementation References`
+- [ ] T000 Query the `Required Implementation References` section of `plan.md` through `specify-runtime artifact show`, then inspect only the boundary-defining files, contracts, and examples it names
 - [ ] T001 Record the active implementation guardrails for this feature: framework ownership, preserved boundary pattern, forbidden drift, and review checks
 - [ ] T002 Confirm the active scenario profile, reference fidelity contract if present, allowed deviations, and required evidence before implementation batches begin
 - [ ] T003 Confirm the first implementation batch extends the existing boundary pattern instead of creating a parallel one

@@ -36,7 +36,7 @@ The Context Boundary Gate triggers semantically when the user request implies an
 - source of truth for existing behavior
 - evidence source needed before making technical claims
 
-When the gate triggers and the relevant boundary is not locked, `sp-discussion` may continue only with boundary clarification and product framing. It must not provide project-specific technical recommendations, name affected files, modules, APIs, or tests as facts, claim a target implementation path, write handoff files, mark the discussion `handoff-ready`, or tell the user to proceed to `sp-specify`.
+When the gate triggers and the relevant boundary is not locked, `sp-discussion` may continue only with boundary clarification and product framing. It must not provide project-specific technical recommendations, name affected files, modules, APIs, or tests as facts, claim a target implementation path, write handoff files, mark the discussion `handoff-ready`, or tell the user to proceed to `sp-quick` or `sp-specify`.
 
 For cross-project transfer requests, lock the target project root immediately. If the target root is unknown, continue only with goal, scope, non-goals, and success signals. The handoff must say whether the active repository is the implementation target, a reference source, both, or unrelated. Current project's cognition cannot prove another project's implementation facts.
 
@@ -64,7 +64,7 @@ Bounded source-code reads are allowed during the Truth Pass when they are needed
 
 Before `context-grounding`, `technical-options`, affected-surface analysis, or source-grounded recommendations, use project cognition only when current-project facts matter:
 
-1. Read `.specify/project-cognition/status.json` for advisory freshness and runtime metadata when present.
+1. Run `specify-runtime cognition status --format json` for advisory freshness and runtime metadata when present.
 2. Run the `specify-runtime cognition compass --intent discussion` route through `{{specify-subcmd:specify-runtime cognition compass --intent discussion --query="$ARGUMENTS" --format json}}`. Read top-level `minimal_live_reads` first, then use lane-level `first_pass_paths` reasons and `coverage_diagnostics`. Preserve the advanced `lexicon -> semantic_intake -> query` flow as a conditional escalation for explicit concept decisions.
 3. Run the advanced path only when `compass_state`, coverage diagnostics, localization, or live evidence requires explicit concept decisions. In that escalation, write `semantic_intake` from the alias catalog with `normalized_query`, `intent_facets`, `negative_constraints`, and `alias_interpretations`; select from the returned graph-backed project concept candidates by facet coverage and create a bounded `query_plan` with `semantic_intake`, `selected_concepts`, `rejected_concepts`, `concept_decisions` containing `covered_facets`, `missing_facets`, and `match_sources`, `lexicon_generation_id`, `expanded_queries`, `repository_search_terms`, justified `paths`, and `selection_reason`. Agent-owned semantic normalization is mandatory: raw lexicon ranking and `agent_normalization` are only bootstrap signals, not route decisions. If `agent_normalization.required=true`, every raw candidate is `score=0`, or the prompt is localized, mixed-language, CJK, colloquial, or symptom-first, extract embedded project terms and write `semantic_intake` from the alias catalog before selecting or rejecting concepts. If `agent_normalization` is omitted, treat it as `required=false`; CJK or mixed CJK/ASCII input still requires agent normalization even when positive raw lexical matches exist because embedded project tokens do not translate the surrounding user language. The agent still owns translation; `agent_normalization` is advisory guidance, not a route decision. This includes mixed-language or CJK text. (raw lexicon ranking is only a bootstrap; action: write_semantic_intake_from_alias_catalog) Derive project-language search terms from the alias catalog before source search. Do not search only the raw user words; include component names, state names, file names, command names, UI labels, and route names from candidates, aliases, matched_terms, colloquial_matches, returned paths, `normalized_query`, and `expanded_queries`. Use these project-language search terms before broad repository search. Do not trust top similarity alone.
 4. In that escalation, run `specify-runtime cognition query --query-plan "<query_plan_json>"` and use the returned readiness, route_pack, subgraph, missing coverage, and `minimal_live_reads` only as advisory navigation.
@@ -81,11 +81,11 @@ Readiness handling:
 - `needs_rebuild`: route by `recommended_next_action.action_id`, not readiness alone. Preserve resumable actions such as `complete_scan_packets`; only `action_id=project_cognition.rebuild` may use `rebuild_reasons[]` and `recommended_next_action.workflow_routes.classic.steps` for the rebuild handoff.
 - `readiness=blocked`: report project cognition as unavailable or degraded, continue with product framing or bounded live evidence when safe, and recommend a map maintenance workflow only when the user asks for map maintenance or handoff needs evidence that live reads cannot provide.
 
-If the idea is clearly greenfield or does not depend on existing project structure, keep the stand-down reason as pending project context and persist it to `project-context.md` only at the next semantic checkpoint; avoid existing-code placement claims.
+If the idea is clearly greenfield, submit the stand-down reason to the `project-context.md` registered artifact owner only at the next semantic checkpoint.
 
 ## Lightweight Recovery Log
 
-Ordinary turns do not write local files by default. Use deferred persistence: keep a compact pending context summary in the active conversation and flush one semantic event to `discussion-log.jsonl` only when a save trigger fires. Treat an existing discussion package as a recovery surface, not a reason to write more often.
+Ordinary turns do not write local files by default. Use deferred persistence: keep a compact pending context summary in the active conversation and submit one semantic event through `specify-runtime discussion checkpoint` only when a save trigger fires; that command alone appends the canonical log. Treat an existing discussion package as a recovery surface, not a reason to persist more often.
 
 Classify the persistence mode before any write-capable action:
 
@@ -112,11 +112,11 @@ Save triggers are:
 - context compaction risk is high
 - handoff assessment, handoff drafting, resume repair, or another durable lifecycle transition needs the pending summary
 
-When a save trigger fires, append one compact JSON object to `discussion-log.jsonl`. The event is not a transcript and records only durable meaning: event kind, summary, confirmed decisions, evidence used, open-question delta, save trigger, and resulting lifecycle phase.
+When a save trigger fires, pass one compact semantic event to `specify-runtime discussion checkpoint`; it alone appends `discussion-log.jsonl` and updates companion state.
 
 At a natural pause or when compaction would risk losing important decisions, optionally suggest `checkpoint, continue` to save progress and keep going. Do not expose or maintain a turn counter merely to trigger this suggestion.
 
-When the user says `checkpoint, continue` or an equivalent checkpoint-plus-continue phrase, flush the batched compact event first, refresh only semantically changed structured files, reset persisted unsaved counts inside that flush, and then continue with the next useful discussion content in the same visible reply instead of stopping at a file-write receipt.
+When the user says `checkpoint, continue` or an equivalent checkpoint-plus-continue phrase, submit the batched compact event through `specify-runtime discussion checkpoint` first; let that command reset persisted unsaved counts and update only its owned projections, then continue with the next useful discussion content in the same visible reply instead of stopping at a file-write receipt.
 
 Do not refresh all structured files on ordinary turns. The batched event log exists to survive context compaction while keeping normal discussion lightweight.
 

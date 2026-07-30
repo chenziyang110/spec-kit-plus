@@ -44,7 +44,7 @@ Goal: Read the current stage artifact, project cognition artifact, or explicitly
 
 2. Resolve the stage artifact deterministically:
    - If the user explicitly names a stage, honor it.
-   - If the user explicitly asks about project cognition, touched-area state, or brownfield runtime truth, resolve `.specify/project-cognition/status.json` and the smallest matching query-backed artifact first.
+   - If the user explicitly asks about project cognition, touched-area state, or brownfield runtime truth, run `specify-runtime cognition status --format json` and the smallest matching `compass|query|expand` call first.
    - Explain handbook artifacts only when the user explicitly requests the compatibility/export surfaces themselves.
    - If the user explicitly asks for a compatibility/export handbook, `PROJECT-HANDBOOK.md`, `architecture`, `structure`, `conventions`, `integrations`, `workflows`, `testing`, or `operations` artifact, resolve that artifact directly.
    - Explain the architecture, cognition, or compatibility/export atlas artifact directly instead of forcing a planning-stage fallback.
@@ -53,16 +53,16 @@ Goal: Read the current stage artifact, project cognition artifact, or explicitly
      - `plan` -> `FEATURE_DIR/plan.md`
      - `specify` -> `FEATURE_DIR/spec.md`
    - Supporting files:
-     - `specify`: also read `FEATURE_DIR/alignment.md` and `FEATURE_DIR/references.md` if present
-     - `clarify`: read `FEATURE_DIR/spec.md`, `FEATURE_DIR/alignment.md`, and `FEATURE_DIR/references.md` together, then explain the enhancement state as an extension of the current spec package
-     - `plan`: also read `FEATURE_DIR/research.md`, `FEATURE_DIR/data-model.md`, `FEATURE_DIR/contracts/`, and `FEATURE_DIR/quickstart.md` when present
-     - `tasks`: also read `FEATURE_DIR/plan.md` and `FEATURE_DIR/spec.md` when needed for explanation
+- `specify`: also query `FEATURE_DIR/alignment.md` and `FEATURE_DIR/references.md` through `specify-runtime artifact show` if present
+- `clarify`: query `FEATURE_DIR/spec.md`, `FEATURE_DIR/alignment.md`, and `FEATURE_DIR/references.md` through targeted `artifact show` calls, then explain the enhancement state
+- `plan`: also query `FEATURE_DIR/research.md`, `FEATURE_DIR/data-model.md`, `FEATURE_DIR/contracts/`, and `FEATURE_DIR/quickstart.md` through `specify-runtime artifact show/list` when present
+- `tasks`: also query `FEATURE_DIR/plan.md` and `FEATURE_DIR/spec.md` through `artifact show` when needed
      - `implement`: if there is no canonical implementation status artifact, explain that implementation status is unavailable from the current file set and fall back to the most recent planning artifact instead of guessing
-     - `project cognition`: read `.specify/project-cognition/status.json` plus the smallest matching slice needed to explain ownership, dependencies, lifecycle, change impact, or verification routes accurately
+     - `project cognition`: query `specify-runtime cognition status|compass|query|expand` for only the smallest matching slice needed to explain ownership, dependencies, lifecycle, change impact, or verification routes accurately
      - `compatibility/export atlas`: read the explicitly requested handbook plus the smallest supporting export files needed to explain ownership, dependencies, lifecycle, change impact, or verification routes accurately
 
-3. Read the resolved artifact and any immediately supporting artifact needed to explain it accurately.
-   - If present, also read `.specify/memory/constitution.md` so the explanation honors the project constitution and its constraints on the current stage artifact.
+3. Query registered workflow artifacts through targeted `specify-runtime artifact show` calls and read ordinary source/docs only when immediately needed for accuracy.
+   - If present, query `.specify/memory/constitution.md` through `specify-runtime artifact show` so the explanation honors its constraints.
 
 4. Before translating the artifact, assess workload shape and the current agent capability snapshot, then apply the shared policy contract: `choose_subagent_dispatch(command_name="explain", snapshot, workload_shape)`.
    - Persist the decision fields exactly: `execution_model: subagent-mandatory`, `dispatch_shape: one-subagent | parallel-subagents`, `execution_surface: native-subagents`.

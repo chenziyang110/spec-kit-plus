@@ -7,18 +7,18 @@ Preserved Contract: implementation is task-driven, uses validated packets for de
 ## Execution Loop
 
 1. Resolve the active feature lane/worktree and resume execution state.
-2. Read canonical `task-index.json` or the light leader-direct task list, then select the smallest ready task/batch whose dependencies are satisfied.
+2. Call `specify-runtime implement task-next` to select the smallest dependency-ready task. Query additional canonical fields with `specify-runtime artifact show`; do not load the complete task index through an ad-hoc script.
 3. Reuse the task graph's context capsule and required refs. Inspect live source for the current task. Run project cognition only when a selected ref is stale, missing, or the live repository contradicts the task-shaping evidence.
 4. Choose execution mode:
    - `leader-direct` for compact, tightly coupled, low-risk work;
    - one delegated lane when a validated current packet has clear benefit;
    - parallel delegated lanes only for isolated write sets and explicit join points.
-5. For delegated work, compile and validate a WorkerTaskPacket just in time from the current task, live code, and stable contract refs. Never dispatch raw task text.
+5. For delegated work, call `specify-runtime implement packet-compile` to compile and validate a WorkerTaskPacket just in time. Never dispatch raw task text or author the packet file directly.
 6. Establish one change-set RED/repro baseline when required, implement within
    scope, run only cheap task checks per Txx, and record test impact for the next
    Leader-owned validation gate attempt.
 7. Run event-triggered review when repository/task drift, parallel join, write-scope drift, validation failure, worker concern, obligation conflict, real-entrypoint gap, or review-window threshold requires it.
-8. Update one task lifecycle record, execution state, and canonical task status. Continue automatically until complete or genuinely blocked.
+8. Use `specify-runtime implement task-start`, `result-merge --result-json`, and `task-accept` to update the lifecycle, execution state, tracker, and canonical task status atomically. Never edit those files or stage a temporary result file. Continue automatically until complete or genuinely blocked.
 
 ## Minimum-Sufficient Packet And Result
 
@@ -56,10 +56,10 @@ Before completion:
   in the next Leader-owned attempt rather than once per Txx;
 - confirm real-entrypoint evidence and no unresolved blocker/open gap;
 - perform a broad diff review only when a review trigger fired or the changed surface is high risk; otherwise reuse accepted task validation and lifecycle evidence;
-- for UI work, run a visual convergence loop in a coordinated integrated attempt
+- for UI work, query `DESIGN.md` and `ui-brief.md` through targeted `specify-runtime artifact show` calls, then run a visual convergence loop in a coordinated integrated attempt
   rather than per microtask: open the real entry point once per applicable
   surface/fingerprint, capture the required viewport/state matrix,
-  inspect it against `DESIGN.md`, `ui-brief.md`, and original fidelity refs,
+  inspect it against the returned contracts and original fidelity refs,
   repair observable drift, and recapture. Use Playwright screenshots or
   representative output as applicable; check overflow, browser
   console, keyboard/focus, and accessibility when triggered; distinguish tests passed from visual/interaction acceptance;
@@ -70,7 +70,7 @@ Before completion:
 - run `{{specify-subcmd:specify-runtime implement closeout --feature-dir "$FEATURE_DIR" --format json}}` when available;
 - update project cognition once from final changed paths and verification evidence when project truth changed.
 
-Write `implementation-handoff.json` for the mandatory system Review. Derive it deterministically from accepted lifecycle evidence, actual changed paths, the implementation fingerprint/source revision, official real entrypoints with ready signals, and required system-review scenarios. Validate it against the live Spec, Plan, and Tasks and preserve their exact complete `acceptance_refs` denominator, `acceptance_denominator_sha256`, and frozen Human Acceptance Universe (`human_acceptance_obligations`, `human_acceptance_scenarios`, and `human_acceptance_contract_sha256`) unchanged. Never omit an item, downgrade `required`, or reconstruct the frozen contract from prose. Each Review scenario carries stable acceptance refs, preconditions, actions, observable expected results, and evidence kinds. Keep agent-only lifecycle details by reference instead of reconstructing them in prose.
+`specify-runtime implement closeout` exclusively writes `implementation-handoff.json` and `implementation-summary.md` for mandatory system Review. Do not construct, edit, submit, or stage either file yourself. The runtime derives them from accepted lifecycle evidence and live contracts, validates their denominators and frozen Human Acceptance Universe, and keeps agent-only lifecycle details by reference.
 
 Carry the validation ledger, logical gates, and attempt history into that
 handoff without resetting it. Review owns the delivery gate. Interrupted

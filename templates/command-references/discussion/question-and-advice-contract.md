@@ -12,7 +12,7 @@ Before asking a question, classify the user's latest input:
 - `current_project_fact`: a question or claim about the active repository's commands, files, workflows, runtime behavior, tests, templates, or docs.
 - `target_boundary`: ambiguity about whether the active repository, another local project, a reference project, or an external system is the implementation target.
 - `reference_boundary`: ambiguity about which source artifact, project, prior implementation, doc, or external system should be used as evidence.
-- `handoff_request`: explicit request to feed the result to `sp-specify`, continue to the next stage, or produce handoff artifacts.
+- `handoff_request`: explicit request to feed the result to `sp-quick` or `sp-specify`, continue to the selected next stage, or produce handoff artifacts.
 - `continuation_or_resume`: user wants to continue an existing discussion.
 
 A contextual confirmation such as `yes`, `ok`, or `可以` inherits the immediately preceding named decision. Classify it as `handoff_request` only when the prior visible request explicitly named handoff creation. Classify it as exact handoff approval only when the prior review named the current `review_digest`. Otherwise it confirms the ordinary product decision and remains inside `sp-discussion`.
@@ -46,9 +46,9 @@ The agent controls heading names, ordering, paragraph vs. bullet density, and wh
 
 ## Discussion Responsibility Boundary
 
-`sp-discussion` owns product and technical decision shaping before formal specification. It confirms the goal, context boundary, scope, non-goals, constraints, source-of-truth evidence, major trade-offs, user-owned decisions, and handoff readiness.
+`sp-discussion` owns product and technical decision shaping before direct Quick delivery or formal specification. It confirms the goal, context boundary, scope, non-goals, constraints, source-of-truth evidence, major trade-offs, user-owned decisions, downstream consumer choice, and handoff readiness.
 
-`sp-discussion` does not own implementation planning. Do not split the work into P0/P1/P2, migration phases, release batches, sprints, task packets, or ordered implementation steps. Those belong to `sp-plan`, `sp-tasks`, or `sp-implement` after the discussion handoff is approved.
+`sp-discussion` does not own implementation planning. Do not split the work into P0/P1/P2, migration phases, release batches, sprints, task packets, or ordered implementation steps. Those belong to `sp-quick` task-local planning when Quick is selected, or to `sp-plan`, `sp-tasks`, and `sp-implement` on the formal feature path after the discussion handoff is approved.
 
 When sequencing risk matters, record it as requirement-level planning input only: dependencies to preserve, constraints that downstream planning must respect, blocked decisions, evidence gaps, and stop-and-reopen conditions. Do not turn those notes into a plan-stage rollout.
 
@@ -60,7 +60,7 @@ If evidence is insufficient, say: "I cannot responsibly recommend an implementat
 
 ## Discussion Compass
 
-Maintain a compact current discussion compass so the user does not have to remember earlier turns.
+Maintain a compact current discussion compass so the user does not have to remember earlier turns; it should make "where we are" immediately clear without exposing workflow bookkeeping.
 
 The compass answers:
 
@@ -71,7 +71,7 @@ The compass answers:
 - what is the current recommended direction?
 - what is the next useful decision?
 
-Maintain the compass in active-conversation memory during ordinary turns, then refresh it in `discussion-state.md` only at semantic checkpoints or save triggers. In normal replies, include a short `Where we are` section when it helps orientation, especially after several turns on the same topic, a topic change, a confirmed product decision, a newly proven project fact, a changed recommendation, a handoff-readiness discussion, or when the user signals that context is becoming hard to track.
+Maintain the compass in active-conversation memory during ordinary turns, then submit it through `specify-runtime discussion checkpoint`; that command refreshes `discussion-state.md` only at semantic checkpoints or save triggers.
 
 Track compass fields as `discussion_compass_status`, `current_decision_frame`, `confirmed_decisions`, `changed_recommendations`, and `next_discussion_paths`.
 
@@ -127,7 +127,7 @@ You may add up to two optional follow-up questions when all of these are true:
 
 Use exactly one question, with no optional follow-ups, when the turn involves boundary ambiguity, evidence conflict, cross-project target selection, handoff readiness, destructive or lifecycle consequence, security or data-risk consequence, or a major product trade-off.
 
-Optional follow-ups are skippable. If the user answers only the primary question, continue normally and keep unanswered optional follow-ups as soft unknowns in active memory; persist them to `open-questions.md` only when they materially change at a semantic checkpoint or save trigger.
+Optional follow-ups are skippable. If the user answers only the primary question, continue normally and keep unanswered optional follow-ups as soft unknowns in active memory; patch them into `open-questions.md` through a leased `specify-runtime artifact patch` call only when they materially change at a semantic checkpoint or save trigger.
 
 Multiple-choice questions must include a recommended option and a short reason. Put the recommended option first when practical; otherwise mark it clearly with `Recommended`.
 
@@ -199,17 +199,17 @@ Stop short only when continuing would require user judgment, missing boundary ev
 
 ### Pre-Ready Handoff Next-Step Guard
 
-If a discussion is mature enough that the likely downstream consumer is `sp-specify`, but canonical `handoff-to-specify.json` is missing, draft-only, not self-reviewed, or not user-confirmed, the visible default next step must stay inside `sp-discussion`.
+If a discussion is mature enough for either downstream consumer, but canonical `handoff-to-specify.json` is missing, draft-only, not self-reviewed, not user-confirmed, or lacks a confirmed `recommended_consumer`, the visible default next step must stay inside `sp-discussion`.
 
 Allowed next-step wording before `handoff-ready`: handoff assessment, draft handoff review, or handoff repair, with the concrete assessment preview, draft-review summary, or repair checklist in the same reply.
 
-Forbidden next-step wording before `handoff-ready`: do not tell the user their next sentence can be `sp-specify`; do not tell them to run, enter, or proceed to `sp-specify`; do not ask `sp-specify` to use `specification-input.md`, `discussion-state.md`, or any other discussion source file as a substitute for the required JSON handoff contract.
+Forbidden next-step wording before `handoff-ready`: do not tell the user their next sentence can be `sp-quick` or `sp-specify`; do not tell them to run, enter, or proceed to either downstream consumer; do not ask either consumer to use `specification-input.md`, `discussion-state.md`, or any other discussion source file as a substitute for the required JSON handoff contract.
 
 ### High-Throughput Rules
 
 - Continue by default when a safe default exists.
 - Do not ask for continuation, permission to proceed, or agreement with the recommendation.
-- Digest-bound handoff approval is not routine permission. Present the complete review and ask once for confirmation of that named revision; never replace this required gate by telling the user to invoke `sp-specify`.
+- Digest-bound handoff approval is not routine permission. Present the complete review and ask once for confirmation of that named revision and consumer choice; never replace this required gate by telling the user to invoke `sp-quick` or `sp-specify`.
 - Do not ask for option selection when one option is clearly recommended and reversible.
 - Ask only when user judgment is genuinely required and no safe default exists.
 - When recommending, include enough concrete content for the user to judge the recommendation without another round trip.

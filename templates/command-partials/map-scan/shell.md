@@ -26,8 +26,8 @@ Generate a complete graph-native evidence baseline for the current codebase.
 - Machine contract: each `worker-results/<packet-id>.json` handoff must put the packet-local ledger in top-level `ledger` with `todo`, `doing`, `done`, `blocked`, and `overflow`; do not write `packet_local_ledger`, `packet-local-ledger`, or Markdown-only ledger sections.
 - Treat `.cognitionignore` and `scan-set` runtime exclusions as boundary sources recorded in `decision_source`; excluded paths stay in boundary accounting and out of graph-facing coverage.
 - The resulting evidence baseline must let `sp-map-build` reconstruct the project cognition graph from live-surface evidence without inventing scan scope.
-- Maintain `.specify/project-cognition/status.json` as the baseline state surface for graph-native cognition readiness.
-- If native subagent dispatch is unavailable or a substantive scan lane cannot complete, persist `subagent_blocked` in machine-readable state and block baseline activation until recovery. `coverage-ledger.json.open_gaps[]` may use `low_risk_open_gap` only with owner, reason, evidence expectation, and revisit condition.
+- Maintain `.specify/project-cognition/status.json` only through `specify-runtime cognition` status/checkpoint/finalization commands as the baseline state surface for graph-native cognition readiness.
+- If native subagent dispatch is unavailable or a substantive scan lane cannot complete, record `subagent_blocked` through a leased `specify-runtime artifact patch` against `workflow-state.md`; yield or requeue any active attempt through the cognition CLI and block baseline activation until recovery. Do not patch `coverage-ledger.json` directly; only runtime-accepted packet results may materialize an open gap, including `low_risk_open_gap` with owner, reason, evidence expectation, and revisit condition.
 
 ## Ignore Configuration Gate
 
@@ -37,7 +37,7 @@ Generate a complete graph-native evidence baseline for the current codebase.
 {{specify-subcmd:specify-runtime cognition generate-ignore --format json}}
 ```
 
-- If the command returns `status=created`, review `.specify/project-cognition/.cognitionignore` with the user and wait for confirmation before continuing to inventory, packet dispatch, or writing `repository-universe.json`.
+- If the command returns `status=created`, present its returned `suggested_patterns` to the user and wait for confirmation before continuing to inventory, packet dispatch, or writing `repository-universe.json`. Do not open `.specify/project-cognition/.cognitionignore` directly; creation and review intake stay on the cognition CLI response.
 - Treat commented starter suggestions as inactive. They are review prompts, not exclusions, until the user removes the comment marker.
 - Preserve root `.cognitionignore` and existing `.specify/project-cognition/.cognitionignore` content; `generate-ignore` must not overwrite an existing ignore file.
 

@@ -43,40 +43,13 @@ Use `execution_surface: native-subagents`.
 ## Pre-Execution Checks
 
 **Check for extension hooks (before clarification)**:
-- Check if `.specify/extensions.yml` exists in the project root.
-- If it exists, read it and look for entries under the `hooks.before_clarify` key.
-- If the YAML cannot be parsed or is invalid, skip hook checking silently and continue normally.
-- Filter out hooks where `enabled` is explicitly `false`. Treat hooks without an `enabled` field as enabled by default.
-- For each remaining hook, do **not** attempt to interpret or evaluate hook `condition` expressions:
-  - If the hook has no `condition` field, or it is null/empty, treat the hook as executable.
-  - If the hook defines a non-empty `condition`, skip the hook and leave condition evaluation to the HookExecutor implementation.
-- For each executable hook, output the following based on its `optional` flag:
-  - **Optional hook** (`optional: true`):
-    ```
-    ## Extension Hooks
-
-    **Optional Pre-Hook**: {extension}
-    Command: `/{command}`
-    Description: {description}
-
-    Prompt: {prompt}
-    To execute: `/{command}`
-    ```
-  - **Mandatory hook** (`optional: false`):
-    ```
-    ## Extension Hooks
-
-    **Automatic Pre-Hook**: {extension}
-    Executing: `/{command}`
-    EXECUTE_COMMAND: {command}
-
-    Wait for the result of the hook command before proceeding to the Outline.
-    ```
-- If no hooks are registered or `.specify/extensions.yml` does not exist, skip silently.
+- Run `{{specify-subcmd:specify-runtime hook extension-plan --event before_clarify --format json}}`; never inspect or parse extension storage directly.
+- Offer each returned `optional: true` invocation. Execute each returned `optional: false` invocation and wait for its result before proceeding.
+- If `actionable_count` is zero, continue silently.
 
 ## Outline
 
-Goal: Strengthen an existing spec package after `/sp.specify` by closing planning-critical gaps, correcting misunderstandings, absorbing reference material better, and writing the improved results back into `spec.md`, `alignment.md`, `context.md`, and `references.md`.
+Goal: Strengthen an existing spec package after `/sp.specify` by closing planning-critical gaps, correcting misunderstandings, absorbing reference material better, and submitting improved `spec.md`, `alignment.md`, `context.md`, and `references.md` sections only through their registered artifact CLI owners.
 
 {{spec-kit-include: ../command-partials/common/learning-layer.md}}
 
@@ -95,26 +68,22 @@ Goal: Strengthen an existing spec package after `/sp.specify` by closing plannin
    Before any artifact or rich-state write, run `{{specify-subcmd:specify-runtime workflow show --feature-dir <feature-dir> --format json}}`. `FEATURE_DIR/workflow.json` is CLI-owned and this auxiliary workflow must not write it. The expected required-stage owner is `specify`. If the runtime is missing, corrupt, at another stage, or already completed, stop with its blocker or a typed owner handoff naming the observed stage, expected owner, affected files, exact next action, unblock criteria, and resume argv; do not overwrite either state surface to force entry.
 
 2. Create or resume the workflow state:
-   - Read `templates/workflow-state-template.md`.
-   - If `WORKFLOW_STATE_FILE` already exists, read it first and preserve still-valid `next_action`, `exit_criteria`, and `next_command` details instead of relying on chat memory alone.
+   - Create it when absent with `{{specify-subcmd:specify-runtime artifact scaffold --kind workflow-state --path <feature-dir>/workflow-state.md --format json}}`; otherwise query it through targeted `artifact show` and preserve still-valid `next_action`, `exit_criteria`, and `next_command` details instead of relying on chat memory alone.
    - Treat `WORKFLOW_STATE_FILE` as the resume/evidence source of truth within
      `sp-clarify`; it does not own required-stage order or runtime revision.
-   - Persist at least these fields for the active pass:
+   - Persist at least these fields for the active pass only through fresh leased artifact patches:
      - `active_command: sp-clarify`
      - `phase_mode: planning-only`
-     - `allowed_artifact_writes: spec.md, alignment.md, context.md, references.md, clarification/handoffs/*.json, clarification/evidence-index.json, clarification/checkpoints.ndjson, workflow-state.md`
+     - `allowed_artifact_writes: spec.md, alignment.md, context.md, references.md, clarification/handoffs/*.json, clarification/evidence-index.json, clarification/checkpoints.ndjson, workflow-state.md` (scope declaration only; every mutation uses the registered CLI owner)
      - `forbidden_actions: edit source code, edit tests, fix build/tooling, implement behavior, run implementation-oriented fix loops`
      - `authoritative_files: spec.md, alignment.md, context.md, references.md, clarification/handoffs/*.json, clarification/evidence-index.json`
-   - When resuming after compaction, re-read `WORKFLOW_STATE_FILE` before proceeding.
+   - When resuming after compaction, query `WORKFLOW_STATE_FILE` through `artifact show` before proceeding.
+   - Recover any missing fixed spec-package view only through its scaffold owner: `specify-runtime artifact scaffold --kind alignment`, `specify-runtime artifact scaffold --kind specify-context`, or `specify-runtime artifact scaffold --kind references`. Query existing views and change only named sections through fresh leased patches; never submit a whole stable view.
+   - Before the first clarification checkpoint or lane result, create an absent `clarification/evidence-index.json` with `specify-runtime artifact scaffold --kind clarification-evidence-index` and an absent `clarification/checkpoints.ndjson` with `specify-runtime artifact scaffold --kind clarification-checkpoints`. On resume, query both through `artifact show`. Replace the bounded `/lanes` array as a whole through a fresh JSON-pointer patch after material joins and append checkpoint objects only through `artifact patch --append-json`; never initialize either file with generic submit or a raw write.
 
 3. Load the current spec package and repo context:
-   - `FEATURE_SPEC`
-   - `FEATURE_DIR/alignment.md` if present
-   - `FEATURE_DIR/context.md` if present
-   - `FEATURE_DIR/references.md` if present
-   - `.specify/memory/constitution.md` if present
-   - `.specify/memory/project-rules.md` if present
-   - compact `learning start --command clarify` results and only selected `learning show` records
+   - Query `FEATURE_SPEC`, `FEATURE_DIR/alignment.md`, `FEATURE_DIR/context.md`, `FEATURE_DIR/references.md`, and `.specify/memory/constitution.md` through `specify-runtime artifact show`, starting with summary and targeted sections.
+   - project rules, compact `learning start --command clarify` results, and only selected `learning show` records returned by `specify-runtime learning`; never probe Learning storage paths
    - **Project cognition gate:** query the active project's runtime before broad
      repository reads.
 
@@ -165,16 +134,16 @@ Goal: Strengthen an existing spec package after `/sp.specify` by closing plannin
    - parallelize only when the work naturally separates into independent research tracks
    - examples: external references, local codebase context, risk analysis, comparison of alternatives
    - keep the final output synthesized back into the main spec package instead of returning raw research noise
-   - before dispatching any clarification lane, persist a `clarification_checkpoint` record to `clarification/checkpoints.ndjson` with the lane id, lane type, authoritative inputs, expected handoff path, and current workflow-state summary
-   - each delegated clarification lane must persist the lane's structured handoff to `clarification/handoffs/<lane-id>.json` before the leader accepts the lane, waits at a join point, or updates `spec.md`, `alignment.md`, `context.md`, or `references.md`
-   - update `clarification/evidence-index.json` after each accepted lane handoff with lane id, handoff path, source artifacts inspected, questions or constraints resolved, affected artifact sections, blocker status, and integration status
-   - consume `clarification/evidence-index.json` before final artifact updates: for every accepted handoff, mark the handoff as `integrated`, `deferred`, or `blocked`, and name the target `spec.md`, `alignment.md`, `context.md`, or `references.md` section that consumed it
-   - do not update `spec.md`, `alignment.md`, `context.md`, or `references.md` from chat-only lane results; if a lane reports only prose, idle state, or an unwritten handoff, mark `subagent-blocked`, write the blocker to `workflow-state.md`, and stop or re-dispatch with a valid handoff path
-   - when resuming after compaction, re-read `workflow-state.md`, `clarification/checkpoints.ndjson`, `clarification/evidence-index.json`, and all accepted `clarification/handoffs/<lane-id>.json` files before continuing clarification synthesis
+- before dispatch, append one inline checkpoint object through a leased `artifact patch --append-json` against `clarification/checkpoints.ndjson`
+- each delegated lane submits its structured handoff inline through `specify-runtime result submit --command clarify --feature-dir <feature-dir> --lane-id <lane-id> --result-json '<inline-json>'`; never write `clarification/handoffs/<lane-id>.json` directly
+- patch only the accepted lane entry in `clarification/evidence-index.json` through a leased JSON-pointer `specify-runtime artifact patch`
+   - query `clarification/evidence-index.json` through `specify-runtime artifact show` before final CLI-owned artifact updates; for every accepted handoff, patch its `integrated`, `deferred`, or `blocked` disposition and the consuming `spec.md`, `alignment.md`, `context.md`, or `references.md` section through the artifact CLI
+- do not update planning artifacts from chat-only lane results; if a lane returns no structured handoff, patch the blocker section in `workflow-state.md` through `specify-runtime artifact patch`, then stop or re-dispatch
+- when resuming after compaction, use `specify-runtime artifact show` and `artifact list` to query `workflow-state.md`, `clarification/checkpoints.ndjson`, `clarification/evidence-index.json`, and accepted `clarification/handoffs/<lane-id>.json`; never parse them directly
 
 7a. Decide whether a separate feasibility gate is needed:
    - If the remaining issue is "what should the system do?", keep clarifying in this command.
-   - If the remaining issue is "can this capability work with the available APIs, libraries, platform behavior, performance envelope, or integration boundary?", update `alignment.md` and `workflow-state.md` to recommend `/sp.deep-research`.
+- If the remaining issue is feasibility, patch the route section in `workflow-state.md` through `specify-runtime artifact patch` to recommend `/sp.deep-research`; mutate any other workflow artifact through its registered owner only.
    - Prefer `/sp.deep-research` when a disposable demo under `FEATURE_DIR/research-spikes/` would prove the implementation chain before planning.
    - Record that `/sp.deep-research` must return a `Planning Handoff` with findings, demo evidence, constraints, rejected options, and recommended approach for `/sp.plan`.
    - Do not require `/sp.deep-research` for minor changes to existing capabilities that already have a clear implementation path in the repository.
@@ -187,18 +156,14 @@ Goal: Strengthen an existing spec package after `/sp.specify` by closing plannin
    - If a consequence obligation cannot be answered from repository evidence or user clarification, preserve it as open and route to `/sp.deep-research` or `/sp.plan` only when that downstream workflow can carry the unresolved obligation safely.
 
 8. Delegate artifact enhancements through a validated subagent lane:
-   - Build one bounded `WorkerTaskPacket` for the artifact update lane when the write scope is safe and packetized.
-   - Allowed writes are limited to `spec.md`, `alignment.md`, `context.md`, `references.md`, `workflow-state.md`, and the clarification evidence files under `clarification/` inside `FEATURE_DIR`.
-   - The packet must list authoritative inputs, exact artifact sections to strengthen, allowed writes, forbidden actions, acceptance checks, verification evidence, and structured handoff format.
-   - The subagent updates `spec.md`, `alignment.md`, `context.md`, `references.md`, and `workflow-state.md` as needed.
-   - The subagent strengthens `Locked Decisions`, `Claude Discretion`, `Canonical References`, and `Deferred / Future Ideas` in `spec.md` when relevant.
-   - The subagent strengthens `Locked Decisions For Planning`, `Outstanding Questions`, and `Planning Gate Recommendation` in `alignment.md`.
-   - The subagent strengthens feasibility / deep research gate status when an implementation-chain proof is needed before planning.
-   - The subagent strengthens `Locked Decisions`, `Claude Discretion`, `Canonical References`, `Existing Code Insights`, `Specific User Signals`, and `Outstanding Questions` in `context.md`.
+   - Build one bounded `WorkerTaskPacket` for an artifact-change proposal lane when the scope is safe and packetized.
+   - The subagent has no direct workflow-artifact write scope. Its packet lists authoritative inputs queried through CLI, exact sections to strengthen, forbidden paths, acceptance checks, verification evidence, and an inline structured result format.
+   - The subagent proposes replacement content for relevant sections of `spec.md`, `alignment.md`, `context.md`, `references.md`, and `workflow-state.md`; it submits that proposal through `specify-runtime result submit --command clarify --result-json` and never edits those files.
+   - The leader reviews accepted proposals and applies each bounded section or JSON-pointer change through a fresh artifact lease. Relevant targets include `Locked Decisions`, `Claude Discretion`, `Canonical References`, `Deferred / Future Ideas`, `Existing Code Insights`, planning-gate sections, feasibility status, repository insights, user signals, and outstanding questions.
    - The leader owns coordination, packet validation, user-question decisions, structured-handoff review, acceptance, final status, and state consistency.
-   - Each accepted artifact-update lane handoff must be referenced from `clarification/evidence-index.json`, and the final artifact updates must name the handoff paths that shaped resolved questions, retained risks, or escalations.
+- Bind each accepted lane through a leased `specify-runtime artifact patch --json-pointer` call against `clarification/evidence-index.json`; final CLI-owned updates reference the runtime-created handoff.
    - Do not mark clarification complete while `clarification/evidence-index.json` contains an accepted handoff without an explicit consuming artifact section, deferral, or blocker reason.
-   - If the artifact update lane cannot be safely packetized or delegated, record `subagent-blocked` in `workflow-state.md` with the escalation or recovery reason and stop instead of making the artifact edits.
+   - If the artifact update lane cannot be safely packetized or delegated, patch `subagent-blocked` and its escalation or recovery reason into `workflow-state.md` through `specify-runtime artifact patch`, then stop.
 
 9. Maintain a clean output contract:
    - preserve confirmed facts
@@ -207,6 +172,7 @@ Goal: Strengthen an existing spec package after `/sp.specify` by closing plannin
    - do not imply the spec package is planning-ready if planning-critical gaps still remain
 
 10. Report completion with:
+   - first run `{{specify-subcmd:specify-runtime hook validate-artifacts --command clarify --feature-dir <feature-dir> --format json}}`; refuse completion until the Go gate accepts the clarification checkpoints, evidence dispositions, and updated specification package
    - sections touched
    - whether multi-agent research was used
    - updated paths
@@ -216,7 +182,7 @@ Goal: Strengthen an existing spec package after `/sp.specify` by closing plannin
    - whether the spec package is now ready for `/sp.plan`, still needs more clarification, or needs `/sp.deep-research` feasibility proof first
    - whether another `/sp.specify` or `/sp.clarify` pass is still justified before planning
    - updated `workflow-state.md` path
-   - cognition follow-up: if artifact-only clarification work proves later implementation should refresh ownership, workflow, integration boundary, or verification-surface cognition, record that as an advisory in `workflow-state.md`, `alignment.md`, or `context.md`; do not mark project cognition dirty or require a refresh until actual source/runtime changes make the runtime truth out of date.
+- Artifact-only clarification work does not imply actual source/runtime changes. For cognition follow-up, submit any advisory to the owning artifact CLI (use a leased `artifact patch` for `workflow-state.md`); do not mark project cognition dirty until source/runtime truth changes.
 ## Presentation Contract
 
 When communicating findings and completion, use a structured terminal presentation built from open blocks with:
@@ -233,7 +199,7 @@ When communicating findings and completion, use a structured terminal presentati
 - Use the user's current language for user-visible output unless literal command names, file paths, or fixed status values must remain unchanged.
 - Do not re-run the entire `specify` flow from scratch unless the current spec is unusably wrong.
 - Prefer targeted enhancement over full restatement.
-- If new information materially changes scope or alignment, update `alignment.md` in the same pass.
+- If new information materially changes scope or alignment, patch the affected `alignment.md` section through its registered artifact CLI owner in the same pass.
 - Treat `/sp.clarify` as the default rescue lane and repair lane when planning-critical ambiguity remains after `/sp.specify`.
 - If high-impact ambiguity remains after enhancement, recommend another clarification pass instead of implying that `/sp.plan` is now safe.
 - If requirements are clear but feasibility is unproven, recommend `/sp.deep-research` instead of implying that `/sp.plan` is now safe.
@@ -241,31 +207,6 @@ When communicating findings and completion, use a structured terminal presentati
 ## Post-Execution Checks
 
 **Check for extension hooks (after clarification)**:
-- Check if `.specify/extensions.yml` exists in the project root.
-- If it exists, read it and look for entries under the `hooks.after_clarify` key.
-- If the YAML cannot be parsed or is invalid, skip hook checking silently and continue normally.
-- Filter out hooks where `enabled` is explicitly `false`. Treat hooks without an `enabled` field as enabled by default.
-- For each remaining hook, do **not** attempt to interpret or evaluate hook `condition` expressions:
-  - If the hook has no `condition` field, or it is null/empty, treat the hook as executable.
-  - If the hook defines a non-empty `condition`, skip the hook and leave condition evaluation to the HookExecutor implementation.
-- For each executable hook, output the following based on its `optional` flag:
-  - **Optional hook** (`optional: true`):
-    ```
-    ## Extension Hooks
-
-    **Optional Hook**: {extension}
-    Command: `/{command}`
-    Description: {description}
-
-    Prompt: {prompt}
-    To execute: `/{command}`
-    ```
-  - **Mandatory hook** (`optional: false`):
-    ```
-    ## Extension Hooks
-
-    **Automatic Hook**: {extension}
-    Executing: `/{command}`
-    EXECUTE_COMMAND: {command}
-    ```
-- If no hooks are registered or `.specify/extensions.yml` does not exist, skip silently.
+- Run `{{specify-subcmd:specify-runtime hook extension-plan --event after_clarify --format json}}`; never inspect or parse extension storage directly.
+- Offer each returned `optional: true` invocation. Execute each returned `optional: false` invocation and wait for its result before closing.
+- If `actionable_count` is zero, continue silently.

@@ -6,7 +6,7 @@ Preserved Contract: feature creation begins only from a ready, user-confirmed, p
 
 ## Contract Intake
 
-Classify arguments as a normal feature request, `.specify/discussions/<slug>/handoff-to-specify.json`, or a discussion slug. With no arguments and exactly one unconsumed `status: handoff-ready` discussion eligible for `sp-specify`, select it. If multiple unconsumed `handoff-ready` discussions exist, stop and ask for the slug; never guess.
+Classify arguments as a normal feature request, `.specify/discussions/<slug>/handoff-to-specify.json`, or a discussion slug. Use `specify-runtime discussion list --format json` for discovery and `discussion status <slug>` for selection. With no arguments and exactly one unconsumed `status: handoff-ready` discussion eligible for `sp-specify`, select it. If multiple unconsumed `handoff-ready` discussions exist, stop and ask for the slug; never guess.
 
 Set `SOURCE_CONTRACT` and `SOURCE_DISCUSSION_SLUG`. Require one canonical JSON contract. Do not require a Markdown companion and do not reconstruct the contract from `specification-input.md`, discussion state, logs, or checkpoint documents.
 
@@ -31,25 +31,25 @@ Derive the feature description from `handoff_goal` and implementation target, no
 
 A confirmed discussion contract enters compile mode:
 
-1. Read the canonical contract once.
+1. Query the canonical contract once through `specify-runtime artifact show`.
 2. Reuse its scope, decisions, tradeoffs, context capsule inputs, evidence refs, consumer boundary, and protected obligations.
    Preserve `discussion_decision_digest` by `decision_digest_ref`, including locked direction, relevant rejected alternatives, accepted tradeoffs, experience commitments, review criteria, and `must_not_dilute`.
-3. Produce `spec-contract.json` and compute `semantic_delta` between the confirmed requirement contract and the compiled specification.
-4. Read supporting discussion files only through a named evidence reference that is stale, missing, or contradictory.
+3. Create `spec-contract.json` with `specify-runtime artifact scaffold --kind spec-contract`, patch its semantic fields through leased `artifact patch` calls, and compute `semantic_delta` between the confirmed requirement contract and the compiled specification.
+4. Query supporting discussion artifacts only through their artifact/evidence CLI owner and only for a named evidence reference that is stale, missing, or contradictory.
 5. Do not repeat approach comparison, section approval, source-signal extraction, decision-digest construction, or user review when `semantic_delta` is empty.
 
 A non-empty delta must identify the affected ref and change. Ask the user only when the delta changes scope, behavior, target boundary, risk acceptance, deferral, or another user-owned decision. Repository-discoverable facts are resolved from bounded live evidence instead.
 
 ## Context Capsule
 
-Write the minimum sufficient context into `spec-contract.json.context_capsule`: boundary ref, selected capability refs, evidence refs, minimal live reads actually needed, validation routes, and precise stale conditions. Do not copy repository prose or full source files into the contract.
+Patch `/context_capsule` through a leased `specify-runtime artifact patch --json-pointer /context_capsule --value-json '<inline-json>'` with only the minimum context; do not rewrite `spec-contract.json` or copy repository prose.
 
 Project cognition is advisory navigation. Reuse fresh upstream evidence; run a new bounded intake only when the spec needs a missing facet or the upstream evidence is stale for the requested planning claim.
 
 ## Specification Outputs
 
-Write canonical `spec-contract.json` first. Render `spec.md` for project review. Create `alignment.md`, `context.md`, `references.md`, or a requirements diagnostic only when triggered content has independent value; otherwise store stable refs in the contract.
+Scaffold canonical `spec-contract.json` first with `specify-runtime artifact scaffold --kind spec-contract` and fill only targeted JSON pointers through fresh leased patches. Render `spec.md` and conditional views through their registered owners only when triggered content has independent value.
 
-When compatibility requires `brainstorming/handoff-to-specify.json`, generate a pointer-only transition containing `source_contract`, `review_digest`, `semantic_delta`, required refs, blockers, and next action. Do not copy the requirement contract.
+When compile mode requires `brainstorming/handoff-to-specify.json`, pass only `semantic_delta`, `required_refs`, `blockers`, and `recovery` inline to `specify-runtime discussion bind-consumer <slug> --feature-dir <feature-dir> --input-json '<transition-json>'`. The runtime validates the ready source contract and binds its digest, status, and next action; do not generate or patch the pointer directly.
 
 After deterministic schema, acceptance-coverage, traceability, contradiction, and scope-preservation checks pass, record the single next route. Mark the source discussion consumed only after canonical spec output exists and passes review.

@@ -85,12 +85,14 @@ def test_cursor_generated_sp_quick_confirms_understanding_before_execution(tmp_p
     assert "execution_surface: native-subagents" in content
     assert "cursor leader gate" in content
     assert "cursor subagent execution" in content
-    assert "do not proceed to code edits, broad repository analysis, delegation, or validation commands until `understanding_confirmed: true` is recorded" in content
+    assert "do not proceed to code edits, broad repository analysis, delegation, or validation commands until `understanding_confirmed: true` has been persisted" in content
     assert "subagent-blocked" in content
-    assert "read `.specify/memory/constitution.md` first if it exists" in content
+    assert "query `.specify/memory/constitution.md` first through" in content
+    assert "specify-runtime artifact show" in content
     assert "do **not** perform broad repository analysis" in content
     assert "use cursor's native subagent path for bounded lanes when available" in content
-    assert "start execution routing only after `status.md` exists and `understanding_confirmed: true` is recorded" in content
+    assert "start execution routing only after targeted" in content
+    assert "cli-owned `status.md` has `understanding_confirmed: true`" in content
     assert "materially improve throughput" in content
     assert "managed-team" in content
     assert "subagent-blocked" in content
@@ -102,7 +104,8 @@ def test_cursor_generated_sp_quick_confirms_understanding_before_execution(tmp_p
     assert "blocker_reason" in content
     assert "subagent dispatch contract" in content
     assert "subagent result contract" in content
-    assert "result handoff path" in content
+    assert "inline result submission" in content
+    assert "runtime-owned compatibility path" in content
     assert "done_with_concerns" in content
     assert "needs_context" in content
     assert "workertaskresult" in content

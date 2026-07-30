@@ -97,24 +97,19 @@ def test_result_path_resolves_codex_review_lane_without_request_id(
 
 def test_result_submit_rejects_pending_placeholder_payload(tmp_path: Path) -> None:
     project = _create_project(tmp_path)
-    result_file = project / "pending-result.json"
-    result_file.write_text(
-        json.dumps(
-            {
-                "task_id": "lane-a",
-                "status": "pending",
-                "validation_results": [
-                    {
-                        "command": "pytest -q",
-                        "status": "skipped",
-                        "output": "NOT RUN - replace with actual command output after execution",
-                    }
-                ],
-            },
-            ensure_ascii=False,
-            indent=2,
-        ),
-        encoding="utf-8",
+    result_json = json.dumps(
+        {
+            "task_id": "lane-a",
+            "status": "pending",
+            "validation_results": [
+                {
+                    "command": "pytest -q",
+                    "status": "skipped",
+                    "output": "NOT RUN - replace with actual command output after execution",
+                }
+            ],
+        },
+        ensure_ascii=False,
     )
 
     result = _invoke_in_project(
@@ -124,8 +119,8 @@ def test_result_submit_rejects_pending_placeholder_payload(tmp_path: Path) -> No
             "submit",
             "--command",
             "quick",
-            "--result-file",
-            str(result_file),
+            "--result-json",
+            result_json,
             "--workspace",
             ".planning/quick/001-fix",
             "--lane-id",

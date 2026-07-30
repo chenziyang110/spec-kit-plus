@@ -7,7 +7,11 @@ import sys
 from specify_cli.agents import CommandRegistrar
 from specify_cli.integrations.base import IntegrationBase
 
-from .template_utils import read_command_with_references, read_skill_with_references, read_template
+from .template_utils import (
+    read_command_with_references,
+    read_skill_with_references,
+    read_template,
+)
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
@@ -17,8 +21,12 @@ def _normalize_newlines(text: str) -> str:
 
 
 def _assert_managed_block_emitters_match_across_shells() -> None:
-    bash = (PROJECT_ROOT / "scripts" / "bash" / "update-agent-context.sh").read_text(encoding="utf-8")
-    ps = (PROJECT_ROOT / "scripts" / "powershell" / "update-agent-context.ps1").read_text(encoding="utf-8")
+    bash = (PROJECT_ROOT / "scripts" / "bash" / "update-agent-context.sh").read_text(
+        encoding="utf-8"
+    )
+    ps = (
+        PROJECT_ROOT / "scripts" / "powershell" / "update-agent-context.ps1"
+    ).read_text(encoding="utf-8")
 
     bash_match = re.search(
         r"render_speckit_managed_block\(\)\s*\{\s*cat <<'EOF'\n(?P<block>.*?)\nEOF",
@@ -36,12 +44,17 @@ def _assert_managed_block_emitters_match_across_shells() -> None:
 
     bash_block = _normalize_newlines(bash_match.group("block"))
     ps_block = _normalize_newlines(
-        "\n".join(s.replace("''", "'") for s in re.findall(r"'((?:''|[^'])*)'", ps_match.group("body")))
+        "\n".join(
+            s.replace("''", "'")
+            for s in re.findall(r"'((?:''|[^'])*)'", ps_match.group("body"))
+        )
     )
     assert bash_block == ps_block
 
 
-def test_init_generated_codex_skill_includes_invocation_note_and_projected_handoff(tmp_path: Path):
+def test_init_generated_codex_skill_includes_invocation_note_and_projected_handoff(
+    tmp_path: Path,
+):
     target = tmp_path / "codex-projection"
     env = os.environ.copy()
     env["PYTHONPATH"] = os.pathsep.join(
@@ -91,10 +104,7 @@ def test_init_generated_codex_skill_includes_invocation_note_and_projected_hando
 
 
 def test_apply_skill_invocation_conventions_projects_user_facing_examples_by_agent():
-    body = (
-        "- Run /sp-plan next.\n"
-        "- State token remains `next_command: /sp.plan`.\n"
-    )
+    body = "- Run /sp-plan next.\n- State token remains `next_command: /sp.plan`.\n"
 
     codex = CommandRegistrar.apply_skill_invocation_conventions("codex", body)
     kimi = CommandRegistrar.apply_skill_invocation_conventions("kimi", body)
@@ -200,10 +210,18 @@ def test_invoke_placeholder_does_not_rewrite_canonical_tokens():
 
 
 def test_workflow_routing_passive_skill_uses_placeholder_for_user_invocation_examples():
-    routing = read_template("templates/passive-skills/spec-kit-workflow-routing/SKILL.md")
-    cognition_gate = read_template("templates/passive-skills/spec-kit-project-cognition-gate/SKILL.md")
-    subagents = read_template("templates/passive-skills/subagent-driven-development/SKILL.md")
-    parallel = read_template("templates/passive-skills/dispatching-parallel-agents/SKILL.md")
+    routing = read_template(
+        "templates/passive-skills/spec-kit-workflow-routing/SKILL.md"
+    )
+    cognition_gate = read_template(
+        "templates/passive-skills/spec-kit-project-cognition-gate/SKILL.md"
+    )
+    subagents = read_template(
+        "templates/passive-skills/subagent-driven-development/SKILL.md"
+    )
+    parallel = read_template(
+        "templates/passive-skills/dispatching-parallel-agents/SKILL.md"
+    )
 
     assert "{{invoke:specify}}" in routing
     assert "{{invoke:map-scan}} -> {{invoke:map-build}}" in routing
@@ -223,12 +241,19 @@ def test_workflow_routing_passive_skill_uses_placeholder_for_user_invocation_exa
 
 
 def test_passive_workflow_skills_enforce_real_specify_command_surface() -> None:
-    routing = read_template("templates/passive-skills/spec-kit-workflow-routing/SKILL.md").lower()
-    cognition_gate = read_template("templates/passive-skills/spec-kit-project-cognition-gate/SKILL.md").lower()
+    routing = read_template(
+        "templates/passive-skills/spec-kit-workflow-routing/SKILL.md"
+    ).lower()
+    cognition_gate = read_template(
+        "templates/passive-skills/spec-kit-project-cognition-gate/SKILL.md"
+    ).lower()
 
     for content in (routing, cognition_gate):
         assert "{{specify-subcmd:specify-runtime api list --format json}}" in content
-        assert "generated\ncreate-feature script" in content or "generated create-feature script" in content
+        assert (
+            "generated\ncreate-feature script" in content
+            or "generated create-feature script" in content
+        )
         assert ".specify/scripts/bash/create-new-feature.sh" in content
         assert ".specify/scripts/powershell/create-new-feature.ps1" in content
         assert "run `specify create-feature`" not in content
@@ -241,13 +266,19 @@ def test_readme_does_not_teach_specify_branch_as_a_real_command() -> None:
     assert "specify branch" not in readme
 
 
-def test_command_surfaces_require_help_verification_and_do_not_invent_feature_commands() -> None:
+def test_command_surfaces_require_help_verification_and_do_not_invent_feature_commands() -> (
+    None
+):
     surfaces = {
         "README": (PROJECT_ROOT / "README.md").read_text(encoding="utf-8").lower(),
-        "quickstart": (PROJECT_ROOT / "docs" / "quickstart.md").read_text(encoding="utf-8").lower(),
+        "quickstart": (PROJECT_ROOT / "docs" / "quickstart.md")
+        .read_text(encoding="utf-8")
+        .lower(),
         "specify-template": read_command_with_references("specify").lower(),
         "managed-bash": read_template("scripts/bash/update-agent-context.sh").lower(),
-        "managed-powershell": read_template("scripts/powershell/update-agent-context.ps1").lower(),
+        "managed-powershell": read_template(
+            "scripts/powershell/update-agent-context.ps1"
+        ).lower(),
     }
 
     forbidden = (
@@ -268,13 +299,18 @@ def test_command_surfaces_require_help_verification_and_do_not_invent_feature_co
 
     for name, content in surfaces.items():
         for needle in forbidden:
-            assert needle not in content, f"{name} still teaches invented command surface: {needle}"
+            assert needle not in content, (
+                f"{name} still teaches invented command surface: {needle}"
+            )
         for needle in required:
-            assert needle in content, f"{name} is missing required command-surface guidance: {needle}"
+            assert needle in content, (
+                f"{name} is missing required command-surface guidance: {needle}"
+            )
         assert (
             "specify --help" in content
             or "{{specify-cli}} --help" in content
             or "{{specify-subcmd:specify-runtime api list --format json}}" in content
+            or "{{specify-runtime-cli}} api list --format json" in content
         ), f"{name} is missing launcher-aware help verification"
 
 
@@ -286,7 +322,9 @@ def test_upgrade_guide_uses_current_runtime_repair_language() -> None:
     assert "/speckit." not in content
 
 
-def test_specify_template_points_feature_creation_to_sp_specify_and_generated_script() -> None:
+def test_specify_template_points_feature_creation_to_sp_specify_and_generated_script() -> (
+    None
+):
     content = read_command_with_references("specify")
     lowered = content.lower()
 
@@ -309,15 +347,21 @@ def test_command_templates_do_not_declare_unused_script_frontmatter() -> None:
         agent_scripts = frontmatter.get("agent_scripts")
 
         if scripts:
-            assert "{SCRIPT}" in rendered_body, f"{path.name} declares scripts: but never consumes {{SCRIPT}}"
+            assert "{SCRIPT}" in rendered_body, (
+                f"{path.name} declares scripts: but never consumes {{SCRIPT}}"
+            )
         if agent_scripts:
-            assert "{AGENT_SCRIPT}" in rendered_body, f"{path.name} declares agent_scripts: but never consumes {{AGENT_SCRIPT}}"
+            assert "{AGENT_SCRIPT}" in rendered_body, (
+                f"{path.name} declares agent_scripts: but never consumes {{AGENT_SCRIPT}}"
+            )
 
 
 def test_ask_surface_is_read_only_stateless_and_has_no_specify_helper() -> None:
     command = read_template("templates/commands/ask.md")
     shell = read_template("templates/command-partials/ask/shell.md")
-    cognition_gate = read_template("templates/passive-skills/spec-kit-project-cognition-gate/SKILL.md")
+    cognition_gate = read_template(
+        "templates/passive-skills/spec-kit-project-cognition-gate/SKILL.md"
+    )
     combined = "\n".join([command, shell, cognition_gate])
     lowered = combined.lower()
 
@@ -338,12 +382,25 @@ def test_ask_surface_is_read_only_stateless_and_has_no_specify_helper() -> None:
     assert "git log" not in lowered
     assert "git show" not in lowered
     assert "only after you build a semantic intake or query plan" in lowered
-    assert "compass output or live evidence is ambiguous or has incomplete coverage" in lowered
+    assert (
+        "compass output or live evidence is ambiguous or has incomplete coverage"
+        in lowered
+    )
     assert "stale or localization-sensitive results are examples" in lowered
-    assert 'specify-runtime cognition query --intent ask --query-plan "<query_plan_json>" --format json' in combined
-    assert "specify-runtime cognition query --intent ask --query-plan-file <path> --format json" in combined
+    assert (
+        'specify-runtime cognition query --intent ask --query-plan "<query_plan_json>" --format json'
+        in combined
+    )
+    assert (
+        "specify-runtime cognition query --intent ask --query-plan '<inline-json>' --format json"
+        in combined
+    )
+    assert "never create a query-plan file" in lowered
     assert "only after the agent builds a semantic\n  intake or query plan" in combined
-    assert "compass output or live evidence is ambiguous\n  or has incomplete coverage" in combined
+    assert (
+        "compass output or live evidence is ambiguous\n  or has incomplete coverage"
+        in combined
+    )
     assert "Stale or localization-sensitive cases are examples" in combined
     assert "still require that ambiguity or incomplete-coverage reason" in combined
     assert "same-topic follow-up" in lowered
@@ -360,9 +417,14 @@ def test_ask_surface_is_read_only_stateless_and_has_no_specify_helper() -> None:
 
 def test_design_command_declares_design_system_workflow_contract() -> None:
     content = read_template("templates/commands/design.md")
-    raw = (PROJECT_ROOT / "templates" / "commands" / "design.md").read_text(encoding="utf-8")
+    raw = (PROJECT_ROOT / "templates" / "commands" / "design.md").read_text(
+        encoding="utf-8"
+    )
 
-    assert "description: Use when a project needs a DESIGN.md design-system contract" in content
+    assert (
+        "description: Use when a project needs `specify-runtime design` to produce a DESIGN.md design-system contract"
+        in content
+    )
     assert "primary_outputs" in content
     assert "DESIGN.md" in content
     assert ".specify/design/design-state.md" in content
@@ -376,10 +438,14 @@ def test_templates_include_design_quality_sections() -> None:
     assert "ui-brief.md" in read_template("templates/spec-template.md")
     assert "## Design System Adoption" in read_template("templates/plan-template.md")
     assert "Design Quality Coverage" in read_template("templates/tasks-template.md")
-    assert "design-system" in read_template("templates/workflow-state-template.md").lower()
+    assert (
+        "design-system" in read_template("templates/workflow-state-template.md").lower()
+    )
 
 
-def test_generated_codex_sp_specify_skill_exposes_create_feature_command_and_stop_gate(tmp_path: Path):
+def test_generated_codex_sp_specify_skill_exposes_create_feature_command_and_stop_gate(
+    tmp_path: Path,
+):
     target = tmp_path / "codex-specify-entrypoint"
     env = os.environ.copy()
     env["PYTHONPATH"] = os.pathsep.join(
@@ -415,12 +481,17 @@ def test_generated_codex_sp_specify_skill_exposes_create_feature_command_and_sto
     ).lower()
 
     assert ".specify/scripts/bash/create-new-feature.sh" in content
-    assert "run `.specify/scripts/bash/create-new-feature.sh \"$arguments\"` from the repo root" in content
+    assert (
+        'run `.specify/scripts/bash/create-new-feature.sh "$arguments"` from the repo root'
+        in content
+    )
     assert "if the feature-creation script exits non-zero" in content
     assert "lane register" not in content
 
 
-def test_generated_codex_passive_routing_skills_expose_create_feature_helper_paths(tmp_path: Path):
+def test_generated_codex_passive_routing_skills_expose_create_feature_helper_paths(
+    tmp_path: Path,
+):
     target = tmp_path / "codex-passive-skill-entrypoint"
     env = os.environ.copy()
     env["PYTHONPATH"] = os.pathsep.join(
@@ -472,14 +543,20 @@ def test_quickstart_uses_current_feature_creation_and_repair_guidance() -> None:
 
 
 def test_learning_surfaces_do_not_reference_removed_origin_artifact_option() -> None:
-    quickstart = (PROJECT_ROOT / "docs" / "quickstart.md").read_text(encoding="utf-8").lower()
+    quickstart = (
+        (PROJECT_ROOT / "docs" / "quickstart.md").read_text(encoding="utf-8").lower()
+    )
     learning_skill = (
-        PROJECT_ROOT
-        / "templates"
-        / "passive-skills"
-        / "spec-kit-project-learning"
-        / "SKILL.md"
-    ).read_text(encoding="utf-8").lower()
+        (
+            PROJECT_ROOT
+            / "templates"
+            / "passive-skills"
+            / "spec-kit-project-learning"
+            / "SKILL.md"
+        )
+        .read_text(encoding="utf-8")
+        .lower()
+    )
 
     assert "--origin-artifact" not in quickstart
     assert "--origin-artifact" not in learning_skill
@@ -491,11 +568,21 @@ def test_learning_surfaces_do_not_reference_removed_origin_artifact_option() -> 
     assert "run `{{specify-subcmd:hook capture-learning" not in learning_skill
 
 
-def test_learning_contract_surfaces_do_not_ship_fake_runnable_placeholder_commands() -> None:
+def test_learning_contract_surfaces_do_not_ship_fake_runnable_placeholder_commands() -> (
+    None
+):
     learning_surface_paths = (
         PROJECT_ROOT / "src" / "specify_cli" / "hooks" / "learning.py",
-        PROJECT_ROOT / "templates" / "command-partials" / "common" / "learning-layer.md",
-        PROJECT_ROOT / "templates" / "passive-skills" / "spec-kit-project-learning" / "SKILL.md",
+        PROJECT_ROOT
+        / "templates"
+        / "command-partials"
+        / "common"
+        / "learning-layer.md",
+        PROJECT_ROOT
+        / "templates"
+        / "passive-skills"
+        / "spec-kit-project-learning"
+        / "SKILL.md",
         PROJECT_ROOT / "docs" / "quickstart.md",
     )
     command_template_paths = (
@@ -535,29 +622,42 @@ def test_learning_contract_surfaces_do_not_ship_fake_runnable_placeholder_comman
     for path in (*learning_surface_paths, *command_template_paths):
         content = path.read_text(encoding="utf-8")
         for fragment in forbidden_fragments:
-            assert fragment not in content, f"{path} still contains fake runnable command fragment: {fragment}"
+            assert fragment not in content, (
+                f"{path} still contains fake runnable command fragment: {fragment}"
+            )
 
 
-def test_readme_learning_helper_surface_uses_command_shape_and_required_options() -> None:
+def test_readme_learning_helper_surface_uses_command_shape_and_required_options() -> (
+    None
+):
     readme = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8").lower()
 
     assert "command shape:" in readme
     assert "required options:" in readme
     assert "specify learning capture --command <workflow> ..." not in readme
     assert "specify hook signal-learning --command <workflow> ..." not in readme
-    assert "specify hook review-learning --command <workflow> --terminal-status <resolved|blocked> ..." not in readme
+    assert (
+        "specify hook review-learning --command <workflow> --terminal-status <resolved|blocked> ..."
+        not in readme
+    )
 
 
-def test_upgrade_guide_labels_agent_placeholder_upgrade_command_as_command_shape() -> None:
+def test_upgrade_guide_labels_agent_placeholder_upgrade_command_as_command_shape() -> (
+    None
+):
     upgrade = (PROJECT_ROOT / "docs" / "upgrade.md").read_text(encoding="utf-8")
 
     assert "Command shape:" in upgrade
     assert "specify init --here --force --ai <your-agent>" in upgrade
 
 
-def test_readme_and_quickstart_label_workflow_hook_helper_surfaces_as_command_shapes() -> None:
+def test_readme_and_quickstart_label_workflow_hook_helper_surfaces_as_command_shapes() -> (
+    None
+):
     readme = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8").lower()
-    quickstart = (PROJECT_ROOT / "docs" / "quickstart.md").read_text(encoding="utf-8").lower()
+    quickstart = (
+        (PROJECT_ROOT / "docs" / "quickstart.md").read_text(encoding="utf-8").lower()
+    )
 
     assert "specify hook preflight --command <workflow> ..." not in readme
     assert "specify hook validate-state --command <workflow> ..." not in readme
@@ -567,36 +667,69 @@ def test_readme_and_quickstart_label_workflow_hook_helper_surfaces_as_command_sh
     assert "command shape:" in readme
 
     assert "use `specify hook preflight --command <workflow> ...`" not in quickstart
-    assert "use `specify hook validate-state --command <workflow> ...`" not in quickstart
+    assert (
+        "use `specify hook validate-state --command <workflow> ...`" not in quickstart
+    )
     assert "use `specify hook checkpoint --command <workflow> ...`" not in quickstart
-    assert "use `specify hook monitor-context --command <workflow> ...`" not in quickstart
+    assert (
+        "use `specify hook monitor-context --command <workflow> ...`" not in quickstart
+    )
     assert "normal `sp-*` workflow steps should not call `specify hook" in quickstart
     assert "command shape:" in quickstart
 
 
 def test_readme_and_quickstart_label_remaining_helper_command_shapes() -> None:
     readme = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8").lower()
-    quickstart = (PROJECT_ROOT / "docs" / "quickstart.md").read_text(encoding="utf-8").lower()
+    quickstart = (
+        (PROJECT_ROOT / "docs" / "quickstart.md").read_text(encoding="utf-8").lower()
+    )
 
-    assert "specify-runtime implement closeout --feature-dir <feature-dir> --format json" in readme
+    assert (
+        "specify-runtime implement closeout --feature-dir <feature-dir> --format json"
+        in readme
+    )
     assert "implementation-summary.md" in readme
     assert "implementation_summary" in readme
     assert "git diff --stat" in readme
     assert "git diff --name-status" in readme
     assert "command shape:" in readme
-    assert "specify-runtime result path --command implement --feature-dir <feature-dir> --task-id <task-id>" in readme
-    assert "specify-runtime result path --command quick --workspace .planning/quick/<id>-<slug> --lane-id <lane-id>" in readme
-    assert "specify-runtime result path --command debug --session-slug <session-slug> --lane-id <lane-id>" in readme
-    assert "specify-runtime result path --command <workflow> --request-id <request-id>" in readme
-    assert "sp-teams submit-result --request-id <request-id> --result-file <path>" in readme
-    assert "specify-runtime result path` emits json directly and does not accept `--format`" in readme
+    assert (
+        "specify-runtime result path --command implement --feature-dir <feature-dir> --task-id <task-id>"
+        in readme
+    )
+    assert (
+        "specify-runtime result path --command quick --workspace .planning/quick/<id>-<slug> --lane-id <lane-id>"
+        in readme
+    )
+    assert (
+        "specify-runtime result path --command debug --session-slug <session-slug> --lane-id <lane-id>"
+        in readme
+    )
+    assert (
+        "specify-runtime result path --command <workflow> --request-id <request-id>"
+        in readme
+    )
+    assert (
+        "sp-teams submit-result --request-id <request-id> --result-json '<inline-json>'"
+        in readme
+    )
+    assert (
+        "specify-runtime result path` emits json directly and does not accept `--format`"
+        in readme
+    )
     assert "result helper command shapes:" in readme
     assert "specify-runtime quick status <id>" in readme
     assert "quick-task helper command shapes:" in readme
     assert "command shape: `specify-runtime quick status <id>`" in readme
     assert "discussion helper command shapes:" in readme
-    assert "command shape: `specify-runtime discussion close <slug> --status completed|abandoned`" in readme
-    assert "command shape: `specify-runtime discussion mark-consumed <slug> --feature-dir <feature-dir>`" in readme
+    assert (
+        "command shape: `specify-runtime discussion close <slug> --status completed|abandoned`"
+        in readme
+    )
+    assert (
+        "command shape: `specify-runtime discussion mark-consumed <slug> --feature-dir <feature-dir>`"
+        in readme
+    )
     assert "command shape: `specify hook mark-dirty --reason " not in readme
     assert "command shape: `specify-runtime cognition mark-dirty --reason " in readme
     assert "command shape: `specify project-map mark-dirty --reason " not in readme
@@ -605,9 +738,18 @@ def test_readme_and_quickstart_label_remaining_helper_command_shapes() -> None:
     assert "--origin-feature-dir <dir>" in readme
     assert "--packet-file <packet-json>" in readme
 
-    assert "specify-runtime implement closeout --feature-dir <feature-dir> --format json" in quickstart
-    assert "codex runtime-managed result paths require the dispatch request id" in quickstart
-    assert "specify-runtime result path` emits json directly and does not accept `--format`" in quickstart
+    assert (
+        "specify-runtime implement closeout --feature-dir <feature-dir> --format json"
+        in quickstart
+    )
+    assert (
+        "codex runtime-managed result paths require the dispatch request id"
+        in quickstart
+    )
+    assert (
+        "specify-runtime result path` emits json directly and does not accept `--format`"
+        in quickstart
+    )
     assert "implementation-summary.md" in quickstart
     assert "implementation_summary" in quickstart
     assert "git diff --stat" in quickstart
@@ -618,8 +760,14 @@ def test_readme_and_quickstart_label_remaining_helper_command_shapes() -> None:
     assert "quick-task helper command shapes:" in quickstart
     assert "command shape: `specify-runtime quick status <id>`" in quickstart
     assert "discussion helper command shapes:" in quickstart
-    assert "command shape: `specify-runtime discussion close <slug> --status completed|abandoned`" in quickstart
-    assert "command shape: `specify-runtime discussion mark-consumed <slug> --feature-dir <feature-dir>`" in quickstart
+    assert (
+        "command shape: `specify-runtime discussion close <slug> --status completed|abandoned`"
+        in quickstart
+    )
+    assert (
+        "command shape: `specify-runtime discussion mark-consumed <slug> --feature-dir <feature-dir>`"
+        in quickstart
+    )
 
 
 def test_discussion_workflow_uses_recommendation_first_decision_progression() -> None:
@@ -657,14 +805,18 @@ def test_discussion_workflow_uses_recommendation_first_decision_progression() ->
 
 
 def test_discussion_helper_uses_active_python_interpreter_with_utf8_contract() -> None:
-    cli = (PROJECT_ROOT / "src" / "specify_cli" / "__init__.py").read_text(encoding="utf-8")
-    bash = (PROJECT_ROOT / "scripts" / "bash" / "discussion-state.sh").read_text(encoding="utf-8")
-    powershell = (PROJECT_ROOT / "scripts" / "powershell" / "discussion-state.ps1").read_text(
+    cli = (PROJECT_ROOT / "src" / "specify_cli" / "__init__.py").read_text(
         encoding="utf-8"
     )
+    bash = (PROJECT_ROOT / "scripts" / "bash" / "discussion-state.sh").read_text(
+        encoding="utf-8"
+    )
+    powershell = (
+        PROJECT_ROOT / "scripts" / "powershell" / "discussion-state.ps1"
+    ).read_text(encoding="utf-8")
     pyproject = (PROJECT_ROOT / "pyproject.toml").read_text(encoding="utf-8")
     discussion_helper = cli.split("def _discussion_helper_script", 1)[1].split(
-        "def _prd_helper_script", 1
+        "def _run_prd_helper", 1
     )[0]
 
     assert 'return [sys.executable, "-X", "utf8"], script_path' in discussion_helper
@@ -679,11 +831,15 @@ def test_discussion_helper_uses_active_python_interpreter_with_utf8_contract() -
     assert "$pythonBin = if ($env:SPECIFY_PYTHON)" in powershell
 
 
-def test_update_agent_context_managed_block_emitters_remain_cross_shell_equivalent() -> None:
+def test_update_agent_context_managed_block_emitters_remain_cross_shell_equivalent() -> (
+    None
+):
     _assert_managed_block_emitters_match_across_shells()
 
 
-def test_update_agent_context_managed_block_uses_refresh_or_dirty_binary_and_memory_semantics() -> None:
+def test_update_agent_context_managed_block_uses_refresh_or_dirty_binary_and_memory_semantics() -> (
+    None
+):
     bash = read_template("scripts/bash/update-agent-context.sh").lower()
     powershell = read_template("scripts/powershell/update-agent-context.ps1").lower()
 
@@ -692,18 +848,29 @@ def test_update_agent_context_managed_block_uses_refresh_or_dirty_binary_and_mem
         assert "even without an active `sp-*` workflow" in content
         assert "when existing-system truth matters" in content
         assert "before broad source inspection" in content
-        assert "{{specify-cli}} learning start --command <workflow> --format json" in content
+        assert (
+            "{{specify-runtime-cli}} learning start --command <workflow> --format json"
+            in content
+        )
+        assert "{{specify-runtime-cli}} api list --format json" in content
+        assert "python `specify` is human-only" in content
         assert "show_argv" in content
         assert ".specify/memory/learnings/index.md" not in content
         assert "do not auto-enter an `sp-*` workflow" in content
         assert "recommend `sp-discussion`" in content
-        assert "`sp-specify` for formal alignment" in content
+        assert "`sp-quick` for tracked direct delivery of any size" in content
+        assert (
+            "`sp-specify` for an explicitly selected formal spec-first path" in content
+        )
         assert "`sp-deep-research` for feasibility proof" in content
         assert "`sp-debug` for root-cause diagnosis" in content
         assert "generated create-feature script" in content
         assert "prefer durable workflow state and explicit feature paths" in content
         assert "frontstage-only deferred persistence" in content
-        assert "do not write discussion files, counters, dirty markers, receipts, or status summaries for every user reply" in content
+        assert (
+            "do not write discussion files, counters, dirty markers, receipts, or status summaries for every user reply"
+            in content
+        )
         assert "suggest `checkpoint, continue`" in content
         assert "prompt does not write files by itself" in content
         assert "project cognition freshness truthful" in content
@@ -715,13 +882,18 @@ def test_update_agent_context_managed_block_uses_refresh_or_dirty_binary_and_mem
         assert "## project cognition usage" not in content
         assert "## map maintenance" not in content
         assert "sp-fast" not in content
-        assert "sp-quick" not in content
         assert "sp-test-scan" not in content
         assert "sp-test-build" not in content
         assert ("use `" + "project" + "-map complete-refresh`") not in content
         assert ("use `" + "project" + "-map mark-dirty`") not in content
-        assert "do not continue under known-stale handbook state without choosing one of those paths" not in content
-        assert "shared manual override/fallback before later brownfield work continues" not in content
+        assert (
+            "do not continue under known-stale handbook state without choosing one of those paths"
+            not in content
+        )
+        assert (
+            "shared manual override/fallback before later brownfield work continues"
+            not in content
+        )
         assert "map-level truth" not in content
         assert "possibly_stale" not in content
         assert "must_refresh_topics" not in content
@@ -739,12 +911,14 @@ def test_guidance_docs_document_refresh_readiness_state_vocabulary() -> None:
     assert "learning show" in readme
     assert "reading never auto-promotes" in readme
 
-    closed_rebuild_policy = " ".join((
-        "first/missing/unusable baseline, schema failure, schema v1 or old "
-        "broad-schema rebuild-required readiness, zero active-generation path_index "
-        "rows, missing or invalid alias_index, explicit_rebuild_requested, or "
-        "baseline_identity_invalid"
-    ).split())
+    closed_rebuild_policy = " ".join(
+        (
+            "first/missing/unusable baseline, schema failure, schema v1 or old "
+            "broad-schema rebuild-required readiness, zero active-generation path_index "
+            "rows, missing or invalid alias_index, explicit_rebuild_requested, or "
+            "baseline_identity_invalid"
+        ).split()
+    )
 
     for content in (readme, handbook, handbook_template):
         normalized = " ".join(content.replace("`", "").split())
@@ -758,16 +932,14 @@ def test_guidance_docs_document_refresh_readiness_state_vocabulary() -> None:
         assert "first brownfield cognition baseline" in content
         assert closed_rebuild_policy in normalized
 
-    assert "if the reference is blocked, stale, or incomplete" in readme
     normalized_readme = " ".join(readme.split())
+    assert "if the reference is blocked, stale, or incomplete" in normalized_readme
     assert "fall back to minimal live reads" in normalized_readme
     assert "recommend `map-update` for localized stale or weak reference" in readme
     assert "if the reference baseline is missing or unusable" in normalized_readme
     assert "recommend `map-scan -> map-build` only" in normalized_readme
     stale_reference_refresh = (
-        "refresh that "
-        + "reference with `map-scan -> map-build` or "
-        + "`map-update`"
+        "refresh that " + "reference with `map-scan -> map-build` or " + "`map-update`"
     )
     assert stale_reference_refresh not in readme
 
@@ -798,10 +970,32 @@ def test_docs_describe_greenfield_project_cognition_bootstrap() -> None:
         assert "baseline_kind=greenfield_empty" in normalized, path
         assert "baseline kind" in normalized, path
         assert "no business code yet" in normalized, path
-        assert "do not require map-scan -> map-build solely because the graph has no paths" in normalized, path
-        assert "projects with existing code still use map-scan -> map-build" in normalized, path
-        assert "first missing unusable baseline" in normalized or "first/missing/unusable baseline" in normalized, path
+        assert (
+            "do not require map-scan -> map-build solely because the graph has no paths"
+            in normalized
+        ), path
+        assert (
+            "projects with existing code still use map-scan -> map-build" in normalized
+        ), path
+        assert (
+            "first missing unusable baseline" in normalized
+            or "first/missing/unusable baseline" in normalized
+        ), path
 
         assert "fresh specify init" not in normalized, path
         assert "fresh generated" not in normalized, path
         assert "fresh project" not in normalized, path
+
+
+def test_classic_auxiliary_artifact_workflows_fail_closed_through_go_gate() -> None:
+    expected = {
+        "clarify": "--command clarify --feature-dir <feature-dir>",
+        "deep-research": "--command deep-research --feature-dir <feature-dir>",
+        "analyze": "--command analyze --feature-dir <feature-dir>",
+        "constitution": "--command constitution --feature-dir .specify/memory",
+    }
+
+    for command, invocation in expected.items():
+        content = read_template(f"templates/commands/{command}.md")
+        assert "specify-runtime hook validate-artifacts" in content
+        assert invocation in content

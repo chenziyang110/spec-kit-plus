@@ -533,7 +533,7 @@ def test_runtime_main_dispatches_complete_lifecycle(runtime, tmp_path: Path, mon
     assert checkpoint["discussion"]["lifecycle_phase"] == "prepare"
 
     json_path, _digest = _write_confirmed_handoff(runtime, project, slug)
-    written = call("write-handoff", slug, str(json_path))
+    written = call("write-handoff-json", slug, json_path.read_text(encoding="utf-8"))
     assert written["review_digest"]
     assert call("validate-handoff", slug, "draft")["valid"] is True
     assert call("confirm-handoff", slug, written["review_digest"])["review_digest"] == written[

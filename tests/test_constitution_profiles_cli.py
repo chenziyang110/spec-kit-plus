@@ -55,7 +55,8 @@ def test_init_defaults_to_product_constitution_profile(tmp_path):
 
     assert init_options["constitution_profile"] == "product"
     assert "### VII. No Unrequested Fallbacks" in constitution
-    assert ".specify/project-cognition/status.json" in constitution
+    assert ".specify/project-cognition/status.json" not in constitution
+    assert "specify-runtime cognition status|compass|query" in constitution
     assert "advisory project cognition index" in constitution
     assert "Map points, code proves" in constitution
     assert "Project Cognition Before Existing-System Judgment" in constitution

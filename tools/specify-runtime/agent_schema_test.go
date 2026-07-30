@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"strings"
 	"testing"
 )
 
@@ -79,6 +80,139 @@ func TestAPIShowArtifactScaffoldPublishesSchemaAndCatalogRoute(t *testing.T) {
 	}
 	if next := requireStringArray(t, payload, "next_argv"); len(next) < 3 || next[1] != "artifact" || next[2] != "catalog" {
 		t.Fatalf("artifact scaffold next_argv = %#v", next)
+	}
+}
+
+func TestAPIShowEvidenceRegisterPublishesInlineAndCanonicalObjectModes(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"api", "show", "evidence.register", "--format", "json"}, &stdout, &stderr, "test")
+	if code != 0 {
+		t.Fatalf("api show evidence.register exit code = %d; stdout=%s stderr=%s", code, stdout.String(), stderr.String())
+	}
+	payload := decodeJSONObject(t, stdout.Bytes())
+	capability := requireObject(t, requireObject(t, payload, "data"), "capability")
+	usage, _ := capability["usage"].(string)
+	if !strings.Contains(usage, "--content") || !strings.Contains(usage, "--object") {
+		t.Fatalf("evidence register capability = %#v", capability)
+	}
+	contract, _ := capability["input_contract"].(string)
+	if !strings.Contains(contract, "exactly one") {
+		t.Fatalf("evidence register input contract = %#v", capability)
+	}
+}
+
+func TestAPIShowHookExtensionPlanPublishesRuntimeOwnedConfigContract(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"api", "show", "hook.extension-plan", "--format", "json"}, &stdout, &stderr, "test")
+	if code != 0 {
+		t.Fatalf("api show hook.extension-plan exit code = %d; stdout=%s stderr=%s", code, stdout.String(), stderr.String())
+	}
+	payload := decodeJSONObject(t, stdout.Bytes())
+	capability := requireObject(t, requireObject(t, payload, "data"), "capability")
+	usage, _ := capability["usage"].(string)
+	if !strings.Contains(usage, "hook extension-plan --event") {
+		t.Fatalf("hook extension-plan capability = %#v", capability)
+	}
+	contract, _ := capability["input_contract"].(string)
+	if !strings.Contains(contract, "runtime reads and filters") || !strings.Contains(contract, "agents consume only") {
+		t.Fatalf("hook extension-plan input contract = %#v", capability)
+	}
+}
+
+func TestAPIShowDiscussionBindConsumerPublishesDerivedPointerContract(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"api", "show", "discussion.bind-consumer", "--format", "json"}, &stdout, &stderr, "test")
+	if code != 0 {
+		t.Fatalf("api show discussion.bind-consumer exit code = %d; stdout=%s stderr=%s", code, stdout.String(), stderr.String())
+	}
+	payload := decodeJSONObject(t, stdout.Bytes())
+	capability := requireObject(t, requireObject(t, payload, "data"), "capability")
+	usage, _ := capability["usage"].(string)
+	if !strings.Contains(usage, "discussion bind-consumer") || !strings.Contains(usage, "--input-json") {
+		t.Fatalf("discussion bind-consumer capability = %#v", capability)
+	}
+	contract, _ := capability["input_contract"].(string)
+	if !strings.Contains(contract, "runtime binds") || !strings.Contains(contract, "review digest") {
+		t.Fatalf("discussion bind-consumer input contract = %#v", capability)
+	}
+}
+
+func TestAPIShowReviewTargetBindPublishesCompactDerivedContract(t *testing.T) {
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	code := Run([]string{"api", "show", "review.target-bind", "--format", "json"}, &stdout, &stderr, "test")
+	if code != 0 {
+		t.Fatalf("api show review.target-bind exit code = %d; stdout=%s stderr=%s", code, stdout.String(), stderr.String())
+	}
+	env := decodeEnvelope(t, stdout.Bytes())
+	capability := env.Data["capability"].(map[string]any)
+	usage := capability["usage"].(string)
+	if !strings.Contains(usage, "review target-bind") || !strings.Contains(usage, "--input-json") {
+		t.Fatalf("review target-bind capability = %#v", capability)
+	}
+	contract := capability["input_contract"].(string)
+	if !strings.Contains(contract, "runtime derives ready status") || !strings.Contains(contract, "identity path and bytes") {
+		t.Fatalf("review target-bind input contract = %#v", capability)
+	}
+}
+
+func TestAPIShowSemanticAuditPublishesAtomicPersistenceContract(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"api", "show", "cognition.semantic-audit", "--format", "json"}, &stdout, &stderr, "test")
+	if code != 0 {
+		t.Fatalf("api show cognition.semantic-audit exit code = %d; stdout=%s stderr=%s", code, stdout.String(), stderr.String())
+	}
+	payload := decodeJSONObject(t, stdout.Bytes())
+	capability := requireObject(t, requireObject(t, payload, "data"), "capability")
+	usage, _ := capability["usage"].(string)
+	contract, _ := capability["input_contract"].(string)
+	if !strings.Contains(usage, "--persist-dir") || !strings.Contains(contract, "writes registered semantic-audit-input.json and semantic-audit-output.json together") || !strings.Contains(contract, "must not recreate") {
+		t.Fatalf("semantic audit persistence capability = %#v", capability)
+	}
+}
+
+func TestAPIShowVisualComparePublishesDerivedReportContract(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"api", "show", "evidence.visual-compare", "--format", "json"}, &stdout, &stderr, "test")
+	if code != 0 {
+		t.Fatalf("api show evidence.visual-compare exit code = %d; stdout=%s stderr=%s", code, stdout.String(), stderr.String())
+	}
+	payload := decodeJSONObject(t, stdout.Bytes())
+	capability := requireObject(t, requireObject(t, payload, "data"), "capability")
+	usage, _ := capability["usage"].(string)
+	contract, _ := capability["input_contract"].(string)
+	if !strings.Contains(usage, "evidence visual-compare") || !strings.Contains(contract, "runtime derives approved design and handoff bindings") || !strings.Contains(contract, "from task-index.json") {
+		t.Fatalf("visual compare capability = %#v", capability)
+	}
+}
+
+func TestAPIShowPRDRecordUpsertPublishesRecordOwnedContract(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"api", "show", "prd-scan.record-upsert", "--format", "json"}, &stdout, &stderr, "test")
+	if code != 0 {
+		t.Fatalf("api show prd-scan.record-upsert exit code = %d; stdout=%s stderr=%s", code, stdout.String(), stderr.String())
+	}
+	payload := decodeJSONObject(t, stdout.Bytes())
+	capability := requireObject(t, requireObject(t, payload, "data"), "capability")
+	usage, _ := capability["usage"].(string)
+	contract, _ := capability["input_contract"].(string)
+	if !strings.Contains(usage, "record-upsert") || !strings.Contains(usage, "--expected-sha256") || !strings.Contains(contract, "runtime owns the registered outer document") {
+		t.Fatalf("PRD record upsert capability = %#v", capability)
+	}
+}
+
+func TestAPIShowPRDBuildScaffoldPublishesTemplateOwnershipContract(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"api", "show", "prd-build.scaffold", "--format", "json"}, &stdout, &stderr, "test")
+	if code != 0 {
+		t.Fatalf("api show prd-build.scaffold exit code = %d; stdout=%s stderr=%s", code, stdout.String(), stderr.String())
+	}
+	payload := decodeJSONObject(t, stdout.Bytes())
+	capability := requireObject(t, requireObject(t, payload, "data"), "capability")
+	usage, _ := capability["usage"].(string)
+	contract, _ := capability["input_contract"].(string)
+	if !strings.Contains(usage, "prd-build scaffold") || !strings.Contains(contract, "expands installed PRD templates") || !strings.Contains(contract, "patch only semantic sections") {
+		t.Fatalf("PRD build scaffold capability = %#v", capability)
 	}
 }
 

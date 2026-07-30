@@ -13,7 +13,10 @@
     "approved_visual_ref": "{{approved_visual_ref}}",
     "approved_preview_sha256": "{{approved_preview_sha256_or_empty_for_live_pattern}}",
     "approved_manifest_sha256": "{{approved_manifest_sha256_or_empty_for_live_pattern}}",
+    "approved_handoff_ref": "{{approved_handoff_ref_or_empty_for_live_pattern}}",
+    "approved_handoff_sha256": "{{approved_handoff_sha256_or_empty_for_live_pattern}}",
     "design_decision_ids": ["{{task_applicable_design_decision_id}}"],
+    "handoff_contract_ids": ["{{task_applicable_handoff_contract_id}}"],
     "design_sources": ["DESIGN.md", "{{approved_visual_ref}}", "{{feature_dir}}/ui-brief.md"],
     "reference_notes": "{{reference_notes_or_empty}}",
     "visual_target": "{{visual_target_or_empty}}",
@@ -21,11 +24,52 @@
     "real_content_plan": [{"source_ref": "{{content_source_ref}}", "applies_to_states": ["{{content_state}}"]}],
     "image_plan": [],
     "color_modes": ["{{task_applicable_color_mode}}"],
-    "component_contracts": [{"component": "{{component}}", "decision_ids": ["{{component_decision_id}}"], "required_states": ["{{component_state}}"]}],
-    "responsive_matrix": [{"viewport": "{{viewport}}", "adaptation": "{{adaptation}}"}],
+    "component_contracts": [{
+      "id": "{{selected_handoff_component_id}}",
+      "component": "{{copy_exact_component_value}}",
+      "anatomy": ["{{copy_exact_anatomy_values}}"],
+      "required_states": ["{{copy_exact_required_state_values}}"],
+      "decision_ids": ["{{copy_exact_component_decision_ids}}"],
+      "must_match": ["{{copy_exact_component_must_match_values}}"]
+    }],
+    "responsive_matrix": [{
+      "id": "{{selected_handoff_responsive_id}}",
+      "label": "{{copy_exact_responsive_label}}",
+      "target": {
+        "width": "{{copy_exact_numeric_width}}",
+        "height": "{{copy_exact_numeric_height}}",
+        "unit": "{{copy_exact_target_unit}}"
+      },
+      "state": "{{copy_exact_responsive_state}}",
+      "adaptation": "{{copy_exact_adaptation}}",
+      "decision_ids": ["{{copy_exact_responsive_decision_ids}}"]
+    }],
     "motion_contract": {"purpose": "{{motion_purpose}}", "reduced_motion": "{{reduced_motion_equivalent}}"},
-    "visual_acceptance_matrix": [{"viewport": "{{viewport}}", "state": "{{state}}", "evidence": "visual_capture"}],
-    "comparison_tolerance": "{{comparison_tolerance}}",
+    "visual_acceptance_matrix": [{
+      "id": "{{selected_handoff_visual_acceptance_id}}",
+      "target_id": "{{copy_exact_target_id}}",
+      "approved_targets": [{
+        "ref": "{{copy_exact_approved_target_ref}}",
+        "color_mode": "{{copy_exact_color_mode}}",
+        "motion_mode": "{{copy_exact_motion_mode}}"
+      }],
+      "states": ["{{copy_exact_acceptance_states}}"],
+      "color_modes": ["{{copy_exact_acceptance_color_modes}}"],
+      "motion_modes": ["{{copy_exact_acceptance_motion_modes}}"],
+      "decision_ids": ["{{copy_exact_acceptance_decision_ids}}"],
+      "must_match": ["{{copy_exact_acceptance_must_match_values}}"],
+      "evidence": ["structure_snapshot", "visual_capture", "runtime_diagnostics", "visual_comparison_or_human_review"]
+    }],
+    "comparison_tolerance": {
+      "structure": "exact",
+      "content": "exact",
+      "tokens": "exact",
+      "geometry": {"unit": "{{copy_exact_geometry_unit}}", "max_delta": "{{copy_exact_numeric_geometry_delta}}"},
+      "color": {"method": "delta-e-2000", "max_delta": "{{copy_exact_numeric_color_delta}}"},
+      "text_wrap": "exact",
+      "motion": {"unit": "ms", "max_delta": "{{copy_exact_numeric_motion_delta}}"},
+      "platform_variance": "approved-deviation-only"
+    },
     "accepted_deviations": [],
     "fidelity_level": "{{approximate_or_high_or_inspiration}}",
     "must_preserve": ["{{task_specific_constraints}}", "{{motion_and_reduced_motion_constraints}}"],

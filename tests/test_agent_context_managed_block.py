@@ -29,7 +29,7 @@ def _bash_path(path: str | Path) -> str:
         [
             bash,
             "-lc",
-            'if [ -r /proc/version ] && grep -qi microsoft /proc/version; then printf wsl; else printf other; fi',
+            "if [ -r /proc/version ] && grep -qi microsoft /proc/version; then printf wsl; else printf other; fi",
         ],
         text=True,
         errors="replace",
@@ -112,14 +112,20 @@ def _write_pinned_launcher_config(repo: Path) -> None:
                 "specify_launcher": {
                     "command": "python -m specify_cli",
                     "argv": ["python", "-m", "specify_cli"],
-                }
+                },
+                "runtime_launcher": {
+                    "command": "./.specify/bin/specify-runtime",
+                    "argv": ["./.specify/bin/specify-runtime"],
+                },
             }
         ),
         encoding="utf-8",
     )
 
 
-def _run_bash_update(repo: Path, agent_type: str = "codex") -> subprocess.CompletedProcess[str]:
+def _run_bash_update(
+    repo: Path, agent_type: str = "codex"
+) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         ["bash", _bash_path(BASH_SCRIPT), agent_type],
         cwd=repo,
@@ -165,25 +171,34 @@ def _assert_managed_block_is_compact_always_on_context(content: str) -> None:
     assert "when existing-system truth matters" in lower
     assert "before broad source inspection" in lower
     assert "narrow live reads" in lower
-    assert "specify learning start --command <workflow> --format json" in content
+    assert (
+        "specify-runtime learning start --command <workflow> --format json" in content
+    )
     assert "show_argv" in content
     assert ".specify/memory/learnings/INDEX.md" not in content
     assert "## workflow recommendations" in lower
     assert "do not auto-enter an `sp-*` workflow" in lower
     assert "unless the user invokes it" in lower
     assert "recommend `sp-discussion`" in lower
-    assert "`sp-specify` for formal alignment" in lower
+    assert "`sp-specify` for an explicitly selected formal spec-first path" in lower
     assert "`sp-deep-research` for feasibility proof" in lower
     assert "`sp-debug` for root-cause diagnosis" in lower
     assert "## command surface rules" in lower
-    assert "specify --help" in lower
+    assert "api list --format json" in lower
+    assert "python `specify` is human-only" in lower
     assert "specify create-feature" in lower
     assert "generated create-feature script" in lower
     assert "## durable state" in lower
     assert "prefer durable workflow state and explicit feature paths" in lower
     assert "frontstage-only deferred persistence" in lower
-    assert "do not write discussion files, counters, dirty markers, receipts, or status summaries for every user reply" in lower
-    assert "semantic checkpoints, user-triggered checkpoints/saves, compaction risk, or lifecycle transitions" in lower
+    assert (
+        "do not write discussion files, counters, dirty markers, receipts, or status summaries for every user reply"
+        in lower
+    )
+    assert (
+        "semantic checkpoints, user-triggered checkpoints/saves, compaction risk, or lifecycle transitions"
+        in lower
+    )
     assert "suggest `checkpoint, continue`" in lower
     assert "prompt does not write files by itself" in lower
     assert "project cognition freshness truthful" in lower
@@ -199,7 +214,6 @@ def _assert_managed_block_is_compact_always_on_context(content: str) -> None:
     assert "## map maintenance" not in lower
     assert "## delegated execution defaults" not in lower
     assert "sp-fast" not in lower
-    assert "sp-quick" not in lower
     assert "sp-test-scan" not in lower
     assert "sp-test-build" not in lower
     assert ".specify/project-map/" not in lower
@@ -241,8 +255,12 @@ def test_bash_script_binds_managed_commands_to_project_launcher(tmp_path: Path) 
 
     assert result.returncode == 0, result.stderr
     content = (repo / "AGENTS.md").read_text(encoding="utf-8")
-    assert "`python -m specify_cli learning start --command <workflow> --format json`" in content
-    assert "`python -m specify_cli --help`" in content
+    assert (
+        "`./.specify/bin/specify-runtime learning start --command <workflow> --format json`"
+        in content
+    )
+    assert "`./.specify/bin/specify-runtime api list --format json`" in content
+    assert "python -m specify_cli learning" not in content
     assert "`specify learning start" not in content
     assert "`specify --help`" not in content
 
@@ -351,13 +369,9 @@ def test_powershell_script_replaces_existing_managed_block_only_and_preserves_su
     prefix = "# User Notes\r\n\r\nalpha\r\n\r\n"
     suffix = "\r\n\r\nomega\r\n\r\n"
     agents.write_bytes(
-        (
-            prefix
-            + BLOCK_START
-            + "\r\nold block\r\n"
-            + BLOCK_END
-            + suffix
-        ).encode("utf-8")
+        (prefix + BLOCK_START + "\r\nold block\r\n" + BLOCK_END + suffix).encode(
+            "utf-8"
+        )
     )
 
     result = _run_powershell_update(repo)
@@ -388,8 +402,12 @@ def test_powershell_script_binds_managed_commands_to_project_launcher(
 
     assert result.returncode == 0, result.stderr
     content = _read_utf8_without_bom(repo / "AGENTS.md")
-    assert "`python -m specify_cli learning start --command <workflow> --format json`" in content
-    assert "`python -m specify_cli --help`" in content
+    assert (
+        "`./.specify/bin/specify-runtime learning start --command <workflow> --format json`"
+        in content
+    )
+    assert "`./.specify/bin/specify-runtime api list --format json`" in content
+    assert "python -m specify_cli learning" not in content
     assert "`specify learning start" not in content
     assert "`specify --help`" not in content
 

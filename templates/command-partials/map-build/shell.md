@@ -6,7 +6,7 @@ Reconstruct or refresh the query-backed project cognition runtime from a complet
 
 ## Context
 
-- Primary inputs: `.specify/project-cognition/status.json`, `.specify/project-cognition/evidence/`, `.specify/project-cognition/provisional/nodes.json`, `.specify/project-cognition/provisional/edges.json`, `.specify/project-cognition/provisional/observations.json`, and live repository evidence.
+- Primary inputs: the accepted scan package and readiness returned by `specify-runtime cognition validate-scan --format json`, followed by `specify-runtime cognition build-from-scan --format json`. Those commands consume the runtime-owned status, evidence, provisional graph, coverage, queue, ledger, packet, and result stores; the agent never opens those stores directly.
 - This command owns the query-backed cognition runtime outputs: `.specify/project-cognition/status.json` and `.specify/project-cognition/project-cognition.db`.
 - Run `{{specify-subcmd:specify-runtime cognition build-from-scan --format json}}` after scan and package validation. It adapts the accepted canonical scan package into a versioned proposal and runs the deterministic cognition proposal compiler before any graph-store mutation; only a publishable result may continue to DB import, metadata, status publication, and DB/status agreement.
 - If `validate-scan` returns `status=blocked`, stop before `build-from-scan`.

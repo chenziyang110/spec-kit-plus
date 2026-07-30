@@ -33,7 +33,9 @@ def load_request_packet(project_root: Path, request_id: str) -> WorkerTaskPacket
     return worker_task_packet_from_json(packet_path.read_text(encoding="utf-8"))
 
 
-def build_request_result_template(project_root: Path, request_id: str) -> dict[str, object]:
+def build_request_result_template(
+    project_root: Path, request_id: str
+) -> dict[str, object]:
     return build_result_template(load_request_packet(project_root, request_id))
 
 
@@ -115,12 +117,9 @@ def worker_result_schema_hint() -> dict[str, object]:
             "required_references_read": True,
             "forbidden_drift_respected": True,
             "context_bundle_read": True,
-            "paths_read": [
-                ".specify/project-cognition/status.json",
-                ".specify/project-cognition/project-cognition.db",
-            ],
+            "paths_read": [],
             "critical_notes": [
-                "what key query readiness, task-local bundle signal, minimal_live_reads item, or verification rule you confirmed before execution"
+                "what task-local source/reference path or specify-runtime cognition response you confirmed before execution; never list runtime storage paths"
             ],
         },
         "aliases": {
@@ -169,13 +168,18 @@ def normalize_result_submission(
         raw_dict = raw_payload
         normalized = normalize_worker_task_result_payload(raw_payload)
     else:
-        raise TypeError("worker result payload must be a WorkerTaskResult, dict, or JSON text")
+        raise TypeError(
+            "worker result payload must be a WorkerTaskResult, dict, or JSON text"
+        )
 
     missing_fields: list[str] = []
     if not str(raw_dict.get("task_id") or raw_dict.get("taskId") or "").strip():
         missing_fields.append("task_id")
     if not str(
-        raw_dict.get("status") or raw_dict.get("reported_status") or raw_dict.get("result_status") or ""
+        raw_dict.get("status")
+        or raw_dict.get("reported_status")
+        or raw_dict.get("result_status")
+        or ""
     ).strip():
         missing_fields.append("status")
     if missing_fields:

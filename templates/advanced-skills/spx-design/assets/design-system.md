@@ -12,7 +12,12 @@ design_system:
     visual_refs: ["{{approved_visual_ref}}"]
     preview_sha256: "{{approved_preview_sha256}}"
     manifest_sha256: "{{approved_manifest_sha256}}"
+    handoff_ref: "{{approved_handoff_ref}}"
+    handoff_sha256: "{{approved_handoff_sha256}}"
     decision_ids: ["{{approved_decision_ids}}"]
+    handoff_contract_ids: ["{{approved_handoff_contract_ids}}"]
+    capability_profile_ids: ["{{approved_capability_profile_ids}}"]
+    specimen_ids: ["{{approved_specimen_ids}}"]
   product_context:
     subject: "{{subject}}"
     audience: "{{audience}}"
@@ -25,6 +30,8 @@ design_system:
     safe_system_choices: ["{{safe_system_choices}}"]
     creative_risks: ["{{creative_risks}}"]
   platforms: ["{{approved_platforms}}"]
+  capability_profiles: ["{{approved_capability_profile_ids}}"]
+  specimens: ["{{approved_specimen_ids}}"]
   tokens:
     color:
       surface.canvas: {value: "{{surface_canvas}}", usage: "{{surface_canvas_usage}}"}
@@ -114,7 +121,8 @@ critical foreground/background contrast pairs.
 ## Platforms
 
 List the actual platforms and their responsive, input, density, and evidence
-requirements. Keep `design_system.platforms` above in sync.
+requirements. Preserve the approved capability profile and specimen IDs from
+the immutable handoff; keep `design_system.platforms` above in sync.
 
 ## Component Rules
 

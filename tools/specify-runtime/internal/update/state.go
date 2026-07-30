@@ -90,6 +90,7 @@ type UpdateInput struct {
 	DeltaSessionID    string
 	CommitRange       string
 	PayloadFile       string
+	PayloadJSON       string
 	Workflow          string
 	BehaviorSurfaces  []string
 	GeneratedSurfaces []string
@@ -501,8 +502,18 @@ func RunUpdate(paths rt.Paths, input UpdateInput) (UpdatePayload, error) {
 	if err := blockSplitBrainBaseline(paths); err != nil {
 		return UpdatePayload{}, err
 	}
+	if input.PayloadFile != "" && input.PayloadJSON != "" {
+		return UpdatePayload{}, fmt.Errorf("provide at most one of payload file or inline payload JSON")
+	}
 	if input.PayloadFile != "" {
 		payload, err := loadPayloadFile(input.PayloadFile)
+		if err != nil {
+			return UpdatePayload{}, err
+		}
+		input = applyPayloadFileInput(input, payload)
+	}
+	if input.PayloadJSON != "" {
+		payload, err := parsePayloadInput([]byte(input.PayloadJSON), "inline update payload")
 		if err != nil {
 			return UpdatePayload{}, err
 		}
@@ -1181,9 +1192,13 @@ func loadPayloadFile(path string) (PayloadFileInput, error) {
 	if err != nil {
 		return PayloadFileInput{}, fmt.Errorf("read update payload file: %w", err)
 	}
+	return parsePayloadInput(data, "update payload file")
+}
+
+func parsePayloadInput(data []byte, label string) (PayloadFileInput, error) {
 	var payload PayloadFileInput
 	if err := json.Unmarshal(data, &payload); err != nil {
-		return PayloadFileInput{}, fmt.Errorf("parse update payload file: %w", err)
+		return PayloadFileInput{}, fmt.Errorf("parse %s: %w", label, err)
 	}
 	payload.ChangedPaths = normalizePaths(payload.ChangedPaths)
 	for index := range payload.PathChanges {

@@ -27,14 +27,14 @@ ARGUMENT_HINTS: dict[str, str] = {
     "design": "Optional design-system mode, reference, or UI readiness concern",
     "specify": "Describe the feature you want to specify",
     "ask": "Ask a read-only project question to answer from live evidence",
-    "discussion": "Describe the rough idea or discussion slug to create or resume before specification",
+    "discussion": "Describe the rough idea or discussion slug to create or resume before Quick delivery or specification",
     "clarify": "Describe what in the current spec package needs deeper analysis or correction",
     "deep-research": "Describe the feasibility question, research tracks, or demo proof needed before planning handoff",
     "research": "Describe the feasibility question; routes to sp-deep-research without separate artifacts",
     "explain": "Optionally name the stage or artifact you want explained",
     "debug": "Describe the bug to investigate, or leave blank to resume the most recent session",
     "fast": "Describe the trivial local fix, or leave blank to use the current fast-path context",
-    "quick": "Describe the bounded quick task, or leave blank to resume the current quick-task workspace",
+    "quick": "Describe the direct-delivery task, or leave blank to resume the current quick-task workspace",
     "auto": "Optional continue request or routing hint; leave blank to let repository state choose the next workflow",
     "plan": "Optional guidance for the planning phase",
     "tasks": "Optional task generation constraints",
@@ -512,14 +512,13 @@ class ClaudeIntegration(SkillsIntegration):
             "\n"
             "## Claude Code Subagent Result Contract\n\n"
             f"- Preferred result contract: {descriptor.result_contract_hint}\n"
-            f"- Result file handoff path: {descriptor.result_handoff_hint}\n"
-            "- For filesystem handoffs, use `{{specify-subcmd:specify-runtime result path --help}}` with the concrete workflow identifiers such as `--feature-dir`/`--task-id`, `--workspace`/`--lane-id`, or `--session-slug`/`--lane-id`.\n"
-            "- The result-path command emits JSON and does not accept `--format`; do not append `--format`.\n"
+            f"- Inline result submission: {descriptor.result_submit_hint}\n"
+            f"- Runtime-owned compatibility path: `{descriptor.result_handoff_hint}`. The runtime derives and writes it; never create a result file or use `--result-file`.\n"
             "- Normalize subagent-reported statuses like `DONE`, `DONE_WITH_CONCERNS`, `BLOCKED`, and `NEEDS_CONTEXT` into the shared `WorkerTaskResult` contract before the leader accepts the handoff.\n"
             "- Keep `reported_status` when normalization occurs so the leader can distinguish raw subagent language from canonical orchestration state.\n"
             "- Wait for every subagent's structured handoff before accepting the join point, closing the batch, or declaring completion.\n"
             "- Do not treat an idle subagent as done work; idle without a consumed handoff means the result channel is still unresolved.\n"
-            "- Do not interrupt or shut down subagent work before the handoff has been written or explicitly reported as `BLOCKED` or `NEEDS_CONTEXT`.\n"
+            "- Do not interrupt or shut down subagent work before the handoff has been returned inline, submitted through its runtime result owner, or explicitly reported as `BLOCKED` or `NEEDS_CONTEXT`.\n"
             "- Treat `DONE_WITH_CONCERNS` as completed work plus follow-up concerns, not as silent success.\n"
             "- Treat `NEEDS_CONTEXT` as a blocked handoff that must carry the missing context or failed assumption explicitly.\n"
         )
@@ -542,14 +541,13 @@ class ClaudeIntegration(SkillsIntegration):
             "\n"
             "## Claude Agent Teams Teammate Result Contract\n\n"
             f"- Preferred result contract: {descriptor.result_contract_hint}\n"
-            f"- Result file handoff path: {descriptor.result_handoff_hint}\n"
-            "- For filesystem handoffs, use `{{specify-subcmd:specify-runtime result path --help}}` with the concrete workflow identifiers such as `--feature-dir`/`--task-id`, `--workspace`/`--lane-id`, or `--session-slug`/`--lane-id`.\n"
-            "- The result-path command emits JSON and does not accept `--format`; do not append `--format`.\n"
+            f"- Inline result submission: {descriptor.result_submit_hint}\n"
+            f"- Runtime-owned compatibility path: `{descriptor.result_handoff_hint}`. The runtime derives and writes it; never create a result file or use `--result-file`.\n"
             "- Normalize teammate-reported statuses like `DONE`, `DONE_WITH_CONCERNS`, `BLOCKED`, and `NEEDS_CONTEXT` into the shared `WorkerTaskResult` contract before the leader accepts the handoff.\n"
             "- Keep `reported_status` when normalization occurs so the leader can distinguish raw teammate language from canonical orchestration state.\n"
             "- Wait for every Agent Teams teammate's structured handoff before accepting the join point, closing the team wave, or declaring completion.\n"
             "- Do not treat an idle teammate as done work; idle without a consumed handoff means the team result channel is still unresolved.\n"
-            "- Do not interrupt or shut down teammate work before the handoff has been written or explicitly reported as `BLOCKED` or `NEEDS_CONTEXT`.\n"
+            "- Do not interrupt or shut down teammate work before the handoff has been returned inline, submitted through its runtime result owner, or explicitly reported as `BLOCKED` or `NEEDS_CONTEXT`.\n"
             "- Treat `DONE_WITH_CONCERNS` as completed work plus follow-up concerns, not as silent success.\n"
             "- Treat `NEEDS_CONTEXT` as a blocked handoff that must carry the missing context or failed assumption explicitly.\n"
         )

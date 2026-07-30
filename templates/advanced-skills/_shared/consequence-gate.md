@@ -24,7 +24,12 @@ blocker owned by the current workflow. Do not leave it as generic "consider
 edge cases" prose. When no trigger applies, do not create a consequence matrix
 or placeholder section.
 
-Specify persists one `entrypoint_outcome_contract` with separate live-evidence
-inventory and product dispositions. Every preserved/adapted outcome maps to
-acceptance and `CA-###` refs. Plan and Tasks reuse the existing CA decision,
-task, and Review-scenario chain; they do not create a parallel outcome ledger.
+The owning workflow persists one outcome contract with separate live-evidence
+inventory and product dispositions. Specify writes
+`entrypoint_outcome_contract` in `spec-contract.json`; Quick writes the same
+inventory, dispositions, acceptance mapping, and `CA-###` refs in task-local
+`PLAN.md`, with active statuses and the artifact reference in `STATUS.md`.
+Plan and Tasks reuse Specify's CA decision, task, and Review-scenario chain;
+Quick carries its refs through batches, worker packets, and closeout without
+creating a feature spec. Consequence breadth alone never forces Quick to
+`spx-specify`.

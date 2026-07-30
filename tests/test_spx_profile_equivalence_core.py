@@ -26,7 +26,8 @@ def test_spx_auto_preserves_authoritative_resume_routing() -> None:
     assert "specify-runtime workflow show" in content
     assert "specify-runtime workflow next" in content
     assert "structured `next_argv`" in content
-    assert "`workflow-state.md` remains rich workflow-owned" in content
+    assert "`workflow-state.md` remains rich resume/evidence context" in content
+    assert "mutated only through leased `specify-runtime artifact patch`" in content
     assert "reconcile" in content
     assert "exactly one unique safe candidate" in content
     assert "`uncertain`" in content and "stop" in content
@@ -69,7 +70,8 @@ def test_spx_optional_feature_stages_separate_runtime_and_rich_resume_state() ->
         assert "must not write it" in content, skill
         assert "specify-runtime workflow show" in content, skill
         assert "typed owner handoff" in content, skill
-        assert "rich workflow-owned `workflow-state.md`" in content, skill
+        assert "artifact scaffold --kind workflow-state" in content, skill
+        assert "targeted `artifact show` and leased `artifact patch`" in content, skill
         assert f"`phase_mode: {phase}`" in content, skill
         assert "source revision" in content, skill
         assert "target boundary" in content, skill
@@ -83,7 +85,8 @@ def test_spx_optional_feature_stages_separate_runtime_and_rich_resume_state() ->
 def test_spx_discussion_preserves_truth_consequence_and_ui_handoff_inputs() -> None:
     content = _text("spx-discussion", "discussion-contract.md")
 
-    assert "discussion write-handoff <slug> --input <draft-json-path> --json" in content
+    assert "discussion write-handoff <slug> --input-json '<semantic-json>' --json" in content
+    assert "expands the installed stable template" in content
     assert "discussion validate-handoff <slug> --mode draft --json" in content
     assert "discussion confirm-handoff <slug> --digest <review-digest> --json" in content
     assert "references/consequence-gate.md" in content
@@ -100,6 +103,8 @@ def test_spx_specify_fails_closed_on_handoff_and_artifact_validation() -> None:
 
     assert "discussion validate-handoff <slug> --mode ready --json" in content
     assert "status: handoff-ready" in content
+    assert "recommended_consumer: sp-specify" in content
+    assert "consumer_eligibility.sp-specify.status: ready" in content
     assert "planning_gate_status: ready" in content
     assert "quality_gate.status: user_confirmed" in content
     assert "quality_gate.confirmed_digest" in content
@@ -133,6 +138,10 @@ def test_spx_plan_requires_ready_input_and_conditional_design_outputs() -> None:
     assert "deep-research `ph-###` traceability" in classic
     assert "deep-research.md" in content
     assert "deep research traceability matrix" in content
+    assert ".specify/design/design-system.json" in content
+    assert "machine-readable" in content
+    assert "design.md" in content
+    assert "human-readable projection" in content
     for column in (
         "plan decision",
         "handoff id",
@@ -157,6 +166,9 @@ def test_spx_clarify_preserves_classic_evidence_surfaces_and_runtime_gate() -> N
     ):
         assert artifact in classic
         assert artifact in content
+    assert "artifact patch --append-json" in content
+    assert "query `clarification/evidence-index.json` before final artifact updates" in content
+    assert "query the accepted handoffs before integration updates" in content
     assert (
         "hook validate-artifacts --command clarify --feature-dir <feature-dir> "
         "--format json"

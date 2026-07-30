@@ -12,7 +12,9 @@
 
 - UI work type: existing-pattern | feature-extension | reference-implementation
 - Surface type: landing | product-workspace | hybrid | existing-pattern-maintenance
-- Platforms: web | mobile | desktop | tui | cli
+- Platforms: web | mobile | desktop | tui | cli | content
+- Approved capability profile IDs:
+- Applicable specimen IDs:
 - Subject:
 - Audience:
 - Single user job:
@@ -27,7 +29,11 @@
 - Approved direction ID and review round:
 - Approved preview SHA-256:
 - Approved manifest SHA-256:
+- Immutable design handoff reference:
+- Approved handoff SHA-256:
 - Applicable design decision IDs:
+- Applicable handoff contract IDs:
+- Exact selected handoff rows (retain each `DH-*` ID and every structured value; never paraphrase):
 - Safe system choices:
 - Deliberate creative risks, gain, and cost:
 
@@ -150,7 +156,8 @@
 - Motion and reduced-motion runtime check:
 - Visual acceptance matrix: [entry point | viewport | state | expected result | evidence path]
 - Decision coverage matrix: [decision ID | task IDs | entry point | viewport/state | comparison evidence]
-- Comparison report: [approved ref + preview SHA | implementation capture | structure difference | visual difference | tolerance | accepted deviation]
+- Comparison report: [approved ref + preview/manifest/handoff SHA | handoff contract IDs | implementation capture | structure difference | visual difference | tolerance | accepted deviation]
+- Comparison tolerance: copy the complete structured handoff object; a prose summary is invalid
 - Human review requirement:
 
 ## Worker Contract
@@ -160,6 +167,7 @@
 - Required evidence kinds: `structure_snapshot`, `visual_capture`,
   `runtime_diagnostics`, `visual_comparison_or_human_review`
 - Visual convergence loop: run real entry point -> capture representative
-  viewport/state -> inspect against DESIGN.md/ui-brief/reference -> fix -> recapture
+  viewport/state -> query DESIGN.md/ui-brief through `specify-runtime artifact show`
+  -> inspect against the returned contract/reference -> fix -> recapture
 - Done condition: behavior checks and visual/interaction acceptance both pass
 - Stop and reopen condition:

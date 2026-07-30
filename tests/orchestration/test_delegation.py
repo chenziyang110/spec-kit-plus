@@ -40,6 +40,8 @@ def test_describe_delegation_surface_for_codex_implement_prefers_spawn_agent_con
     assert "wait_agent" in descriptor.native_join_hint
     assert "WorkerTaskResult" in descriptor.result_contract_hint
     assert ".specify/teams/state/results/<request-id>.json" in descriptor.result_handoff_hint
+    assert "implement result-merge" in descriptor.result_submit_hint
+    assert "--result-file" not in descriptor.result_submit_hint
     assert descriptor.structured_results_expected is True
 
 
@@ -65,6 +67,7 @@ def test_describe_delegation_surface_for_claude_debug_uses_evidence_contract() -
     assert "execution_surface: none" in descriptor.managed_team_hint.lower()
     assert "evidence payload" in descriptor.result_contract_hint.lower()
     assert ".planning/debug/results/<session-slug>/<lane-id>.json" in descriptor.result_handoff_hint
+    assert "result submit --command debug" in descriptor.result_submit_hint
     assert descriptor.structured_results_expected is True
 
 
@@ -87,6 +90,7 @@ def test_describe_delegation_surface_for_review_exposes_three_wave_contract() ->
     assert "independent revalidation" in descriptor.result_contract_hint.lower()
     assert "leader" in descriptor.native_join_hint.lower()
     assert "review-results/<lane-id>.json" in descriptor.result_handoff_hint
+    assert "result submit --command review" in descriptor.result_submit_hint
 
 
 def test_describe_delegation_surface_for_gemini_explains_no_native_subagent_surface() -> None:
@@ -107,6 +111,7 @@ def test_describe_delegation_surface_for_gemini_explains_no_native_subagent_surf
     assert "no known native subagent surface" in descriptor.native_discovery_hint.lower()
     assert "no managed team workflow" in descriptor.managed_team_hint.lower()
     assert ".planning/quick/<id>-<slug>/worker-results/<lane-id>.json" in descriptor.result_handoff_hint
+    assert "result submit --command quick" in descriptor.result_submit_hint
 
 
 def test_describe_delegation_surface_for_gemini_native_cli_names_agent_syntax() -> None:

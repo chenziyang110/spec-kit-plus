@@ -210,25 +210,21 @@ def test_implement_deferral_cli_requires_exact_confirmation_digest(
         ),
         encoding="utf-8",
     )
-    proposal_path = project / "deferral-proposal.json"
-    proposal_path.write_text(
-        json.dumps(
-            {
-                "blocker_refs": ["T001-B01"],
-                "affected_task_ids": ["T001"],
-                "affected_acceptance_refs": ["FR-001"],
-                "deferred_validation_purposes": [],
-                "exact_excluded_behavior": "Device evidence is unavailable.",
-                "residual_risk": "Review may find device-specific drift.",
-                "risk_severity": "medium",
-                "claims_withheld": ["device verified"],
-                "reopen_or_stop_condition": "Review must obtain device evidence.",
-                "downstream_artifact": "implementation-handoff.json",
-                "downstream_owner": "review",
-                "defer_until": "review",
-            }
-        ),
-        encoding="utf-8",
+    proposal_json = json.dumps(
+        {
+            "blocker_refs": ["T001-B01"],
+            "affected_task_ids": ["T001"],
+            "affected_acceptance_refs": ["FR-001"],
+            "deferred_validation_purposes": [],
+            "exact_excluded_behavior": "Device evidence is unavailable.",
+            "residual_risk": "Review may find device-specific drift.",
+            "risk_severity": "medium",
+            "claims_withheld": ["device verified"],
+            "reopen_or_stop_condition": "Review must obtain device evidence.",
+            "downstream_artifact": "implementation-handoff.json",
+            "downstream_owner": "review",
+            "defer_until": "review",
+        }
     )
 
     proposed = _run_in_project(
@@ -238,8 +234,8 @@ def test_implement_deferral_cli_requires_exact_confirmation_digest(
             "deferral-propose",
             "--feature-dir",
             relative_feature,
-            "--input",
-            str(proposal_path),
+            "--input-json",
+            proposal_json,
             "--format",
             "json",
         ],

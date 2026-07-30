@@ -1,17 +1,33 @@
 #!/usr/bin/env pwsh
 param(
     [string]$ProjectRoot = ".",
-    [ValidateSet("init", "status", "init-scan", "status-scan", "status-build")]
+    [ValidateSet("init", "status", "init-scan", "status-scan", "finalize", "finalize-scan", "status-build")]
     [string]$Mode = "status",
     [string]$RunSlug = ""
 )
 
-$sharedHelper = Join-Path $PSScriptRoot "../shared/prd-state.py"
-if (-not (Test-Path $sharedHelper)) {
-    Write-Error "shared PRD helper not found: $sharedHelper"
+$runtimeBin = $env:SPECIFY_RUNTIME_BIN
+if (-not $runtimeBin) {
+    $runtimeCandidates = @(
+        (Join-Path $ProjectRoot ".specify/bin/specify-runtime.exe"),
+        (Join-Path $ProjectRoot ".specify/bin/specify-runtime")
+    )
+    $runtimeBin = $runtimeCandidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1
+}
+if (-not $runtimeBin) {
+    $runtimeCommand = Get-Command specify-runtime -ErrorAction SilentlyContinue
+    if ($runtimeCommand) {
+        $runtimeBin = $runtimeCommand.Source
+    }
+}
+if (-not $runtimeBin) {
+    Write-Error "specify-runtime not found; install the project-local runtime first"
     exit 1
 }
 
-$pythonBin = if ($env:SPECIFY_PYTHON) { $env:SPECIFY_PYTHON } else { "python" }
-& $pythonBin $sharedHelper $ProjectRoot $Mode $RunSlug
+if ($Mode -eq "status-build") {
+    & $runtimeBin prd-build status-build $RunSlug --project-root $ProjectRoot --format json
+} else {
+    & $runtimeBin prd-scan $Mode $RunSlug --project-root $ProjectRoot --format json
+}
 exit $LASTEXITCODE

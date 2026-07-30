@@ -174,14 +174,19 @@ rm -rf .venv dist build *.egg-info
 
 ## 14. Passive Learning Layer Smoke Checks
 
-If you're working on the passive project learning layer, verify the low-level helper surface directly:
+If you're working on the passive project learning layer, verify the human/operator maintenance surface first:
 
 ```bash
 specify learning ensure --format json
 specify learning status --format json
-specify learning start --command specify --format json
-specify learning capture --command specify --type workflow_gap --summary "Example gap" --evidence "local smoke check"
-specify learning promote --recurrence-key workflow_gap.example-gap --target learning
 ```
 
-These commands are intentionally low-level. They support the passive learning lifecycle used by generated `sp-xxx` workflow templates, rather than introducing a new daily slash workflow.
+Then verify the agent-facing lifecycle through the project-local Go runtime:
+
+```bash
+specify-runtime learning start --command specify --format json
+specify-runtime learning capture --command specify --type workflow_gap --summary "Example gap" --evidence "local smoke check"
+specify-runtime learning promote --recurrence-key workflow_gap.example-gap --target learning
+```
+
+The Python `specify learning ensure|status|aggregate` commands are intentionally human/operator-only maintenance helpers. Generated `sp-xxx` workflows use `specify-runtime learning ...`; agents never use the Python maintenance surface or edit Learning storage directly.

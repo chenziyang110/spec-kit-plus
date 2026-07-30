@@ -157,22 +157,17 @@ func teamsSubmitResult(args []string, stdout io.Writer) int {
 		return writeEnvelope(stdout, env)
 	}
 	requestID := strings.TrimSpace(optionValue(args, "--request-id", ""))
-	resultFile := strings.TrimSpace(optionValue(args, "--result-file", ""))
+	resultJSON := strings.TrimSpace(optionValue(args, "--result-json", ""))
 	if requestID == "" {
 		return teamsWriteError(stdout, "usage-error", "--request-id is required unless --print-schema is used")
 	}
-	if resultFile == "" {
-		return teamsWriteError(stdout, "usage-error", "--result-file is required unless --print-schema is used")
+	if hasFlag(args, "--result-file") {
+		return teamsWriteError(stdout, "usage-error", "submit-result does not accept agent-authored result files; pass the result inline with --result-json")
 	}
-	resultPath, err := resolveProjectContainedPath(root, resultFile)
-	if err != nil {
-		return teamsWriteError(stdout, "usage-error", "result file path is invalid: "+err.Error())
+	if resultJSON == "" {
+		return teamsWriteError(stdout, "usage-error", "submit-result requires --result-json")
 	}
-	raw, err := os.ReadFile(resultPath)
-	if err != nil {
-		return teamsWriteError(stdout, "blocked", "Result file not found: "+resultPath)
-	}
-	normalized, err := teamsNormalizeResultSubmission(root, requestID, raw)
+	normalized, err := teamsNormalizeResultSubmission(root, requestID, []byte(resultJSON))
 	if err != nil {
 		return teamsWriteError(stdout, "invalid", err.Error())
 	}

@@ -23,8 +23,8 @@ source_files_read: []
 locked_direction: []
 must_preserve: []
 reopen_conditions: []
-quick_task_candidate:
-  bounded_scope: []
+handoff_delivery_contract:
+  delivery_scope: []
   excluded_scope: []
   validation_route: []
 
@@ -56,6 +56,14 @@ checkpoint:
   scope:
     include: []
     exclude: []
+  ordered_work_items:
+    - id: Q1
+      deliverable: ""
+      depends_on: []
+  work_item_acceptance:
+    - work_item_id: Q1
+      observable_result: ""
+      evidence: []
   recommended_approach: ""
   assumptions_and_risks: []
   completion_evidence: []
@@ -96,6 +104,11 @@ blockers: []
 blocked_dispatch:
   status: none
   reason: ""
+work_item_status:
+  - work_item_id: Q1
+    status: pending
+    acceptance_evidence: []
+batches: []
 lanes: []
 retry_attempts: 0
 recovery_action: none

@@ -14,7 +14,11 @@ from .packet_schema import (
     worker_task_packet_payload,
 )
 from .packet_validator import PacketValidationError, validate_worker_task_packet
-from .result_handoff import build_result_handoff_path, describe_result_handoff_template
+from .result_handoff import (
+    build_result_handoff_path,
+    describe_result_handoff_template,
+    describe_result_submit_template,
+)
 from .result_handoff import write_normalized_result_handoff
 from .result_normalizer import normalize_worker_task_result_payload
 from .result_schema import (
@@ -46,6 +50,7 @@ __all__ = [
     "build_result_handoff_path",
     "compile_worker_task_packet",
     "describe_result_handoff_template",
+    "describe_result_submit_template",
     "render_packet_summary",
     "normalize_worker_task_result_payload",
     "run_verification_commands",

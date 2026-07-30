@@ -14,13 +14,14 @@ Strengthen the current specification package just enough to remove planning-crit
 
 - Identify the specific planning-critical gaps or weak analysis that need improvement.
 - Deepen the relevant parts of the specification package through targeted analysis or bounded research.
-- Update the artifact set in place and reassess planning readiness.
+- Patch only targeted fields through their registered artifact CLI owners and reassess planning readiness.
 
 ## Output Contract
 
-- Write the improved spec package back to disk.
-- Persist clarification lane evidence before artifact updates: every delegated clarification lane writes `clarification/handoffs/<lane-id>.json`, the leader updates `clarification/evidence-index.json`, and checkpoint records go to `clarification/checkpoints.ndjson`.
-- Consume every accepted clarification handoff before final artifact updates: each accepted handoff must be integrated into `spec.md`, `alignment.md`, `context.md`, `references.md`, or explicitly recorded as deferred or blocked with a reason.
+- Submit every improved spec-package section through its registered artifact CLI owner.
+- Persist clarification lane evidence through CLI channels: workers use inline `result submit --command clarify`, the leader uses JSON-pointer `artifact patch` for `clarification/evidence-index.json`, and checkpoints use `artifact patch --append-json`.
+- Query `clarification/evidence-index.json` through `specify-runtime artifact show` before final CLI-owned artifact updates.
+- Query every accepted clarification handoff through `specify-runtime artifact show` before final updates; integrate it into `spec.md`, `alignment.md`, `context.md`, or `references.md` only through leased `artifact patch` calls, or patch an explicit deferral/blocker with its reason.
 - Report what changed, what risks remain, and whether the package is ready for `/sp-plan`.
 - Keep unresolved uncertainty explicit instead of implying false readiness.
 

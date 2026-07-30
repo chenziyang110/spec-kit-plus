@@ -7,8 +7,9 @@ current stage owner, while `specify-runtime workflow transition --to <stage>` ro
 destination and is passed through exactly. Never reconstruct runtime flags from
 prose or infer a successor from Markdown. Active `accept` returning
 `specify-runtime workflow closeout` routes to the current accept owner; only completed `accept`
-has no successor. `workflow-state.md` remains rich
-workflow-owned resume/evidence context; it may add an auxiliary gate but cannot
+has no successor. `workflow-state.md` remains rich resume/evidence context,
+queried only through `specify-runtime artifact show` and mutated only through
+leased `specify-runtime artifact patch`; it may add an auxiliary gate but cannot
 skip or reverse the runtime stage. Legacy `next_command`/`active_command`
 heuristics are fallback only for noncanonical auxiliary state when no runtime
 file exists.
@@ -33,6 +34,12 @@ outranks an implementation tracker or later artifact. Stop on an `uncertain`
 lane, conflicting states, or anything other than exactly one unique safe
 candidate; report the evidence and smallest repair instead of guessing.
 
+Discover candidates only through runtime indexes: `specify-runtime lane
+resolve`, `discussion list`, `quick list`, and bounded `artifact list` queries
+for feature, debug, Review, and Acceptance types. Query a selected record with
+`workflow show|next` or targeted `artifact show`. Never enumerate or parse the
+underlying `.specify/**` or `.planning/**` state directories directly.
+
 Choose the first applicable trustworthy route:
 
 - new/high-visibility UI direction, redesign, or UI work blocked by missing or
@@ -44,10 +51,11 @@ Choose the first applicable trustworthy route:
   stale, blocked, repairing, or not approved: `spx-review`;
 - completed independent lane awaiting closeout: `spx-integrate`;
 - active implementation lane or ready tracked feature work: `spx-implement`;
-- active bounded quick workspace: `spx-quick`;
+- active quick direct-delivery workspace: `spx-quick`;
 - active debug session or unknown failure mechanism/regression: `spx-debug`;
 - active discussion not yet handoff-ready: `spx-discussion`;
-- confirmed ready discussion handoff awaiting consumption: `spx-specify`;
+- confirmed ready discussion handoff awaiting its explicitly selected consumer:
+  `spx-quick` for direct delivery or `spx-specify` for a formal spec-first path;
 - active PRD reconstruction scan or evidence gap: `spx-prd-scan`;
 - reconstruction-ready PRD scan awaiting exports: `spx-prd-build`;
 - cognition baseline explicitly requires rebuild: `spx-map-rebuild`;
@@ -57,8 +65,8 @@ Choose the first applicable trustworthy route:
   `spx-map-update`;
 - existing feature has planning-blocking ambiguity or contradictory acceptance:
   `spx-clarify`;
-- new feature intent or acceptance is missing or not planning-ready:
-  `spx-specify`;
+- new feature request explicitly asks for a formal specification before
+  implementation: `spx-specify`;
 - planning-ready spec has unresolved implementation-chain feasibility:
   `spx-deep-research`;
 - planning-ready spec lacks a coherent technical design: `spx-plan`;
@@ -66,7 +74,8 @@ Choose the first applicable trustworthy route:
 - persisted consistency gate is required or stale: `spx-analyze`;
 - ready tasks remain and prerequisites agree: `spx-implement`;
 - new request is truly trivial and passes the fast gate: `spx-fast`;
-- new bounded non-trivial request needs lightweight state: `spx-quick`;
+- new non-trivial direct-delivery request needs resumable state, regardless of
+  size or capability count: `spx-quick`;
 - workflow-artifact explanation: `spx-explain`;
 - other read-only project question: `spx-ask`.
 

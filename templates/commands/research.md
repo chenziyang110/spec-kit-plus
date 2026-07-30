@@ -54,7 +54,7 @@ Route immediately to the canonical deep-research workflow without creating a sep
 
 - Do not write separate `sp-research` artifacts.
 - If a workflow state is written, it must use `active_command: sp-deep-research`.
-- If deep research is not needed, let the canonical `sp-deep-research` command write its lightweight not-needed handoff.
+- If deep research is not needed, let the canonical `sp-deep-research` command submit its lightweight not-needed handoff through the registered artifact CLI owner.
 
 ## Guardrails
 

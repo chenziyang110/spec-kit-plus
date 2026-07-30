@@ -56,7 +56,7 @@
 - Trusted recovery source: JSON stage artifacts plus `brainstorming/journal.ndjson`
 - Human-readable companion: this file
 - Markdown is not a trusted recovery source.
-- If this file disagrees with structured stage artifacts, regenerate or repair this file from the structured state.
+- If this file disagrees with structured stage artifacts, query the authoritative fields through their CLI owners and repair only named sections through a fresh `specify-runtime artifact patch` lease.
 
 ## Facts Lock Notes
 

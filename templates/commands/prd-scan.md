@@ -102,7 +102,7 @@ Each delegated lane produces a `PrdScanPacket`: a read-only evidence packet with
 ## PRD Run State Protocol
 
 - `workflow-state.md` under `.specify/prd-runs/<run-id>/` is the resumable state surface for `sp-prd-scan` and `sp-prd-build`.
-- [AGENT] Create or resume `workflow-state.md` before substantial scan work.
+- [AGENT] Let `specify-runtime prd-scan init` create the initial run state; resume it through targeted `artifact show` and mutate it only through fresh leased `artifact patch` calls before substantial work.
 - If `workflow-state.md` exists with `active_command: sp-prd-scan` and a non-terminal scan state, resume from it instead of rebuilding intent from chat memory.
 - Track at least:
   - `active_command: sp-prd-scan`
@@ -125,16 +125,16 @@ Each delegated lane produces a `PrdScanPacket`: a read-only evidence packet with
 
 ## Process
 
-1. Route and initialize the PRD run under `.specify/prd-runs/<run-id>/`.
+1. Route and initialize the PRD run only through `specify-runtime prd-scan init <run-slug>`; use returned canonical paths and submit any agent-authored run artifact through `specify-runtime artifact`.
 2. Load brownfield context and select the smallest relevant repository surfaces.
-3. Check `.specify/prd/status.json` freshness before scoping the scan.
+3. Check freshness only through `specify-runtime prd-scan status <run-id>` before scoping the scan.
 4. Route `fresh` status to status confirmation only unless the user explicitly requests a new run.
 5. Route `targeted-stale` status to a bounded scan of the changed source, test, and documentation surfaces plus any directly adjacent capability boundaries.
 6. Route `full-stale` status to a full reconstruction scan across command, workflow, integration, configuration, and shared-runtime surfaces.
 7. Triage `capability`, `artifact`, and `boundary` objects before broad synthesis.
 8. Assign each capability a tier: `critical`, `high`, `standard`, or `auxiliary`.
 9. Before broad scan fan-out begins, assess workload shape and the current agent capability snapshot, then apply the shared policy contract: `choose_subagent_dispatch(command_name="prd-scan", snapshot, workload_shape)`.
-10. Persist the decision fields exactly: `execution_model: subagent-mandatory`, `dispatch_shape: one-subagent | parallel-subagents`, `execution_surface: native-subagents`.
+10. Persist the decision fields exactly through leased `specify-runtime artifact patch` calls against `workflow-state.md`: `execution_model: subagent-mandatory`, `dispatch_shape: one-subagent | parallel-subagents`, `execution_surface: native-subagents`.
 11. Decision order is fixed:
     - One safe validated scan lane -> `one-subagent` on `native-subagents` when available.
     - Two or more safe read-only scan lanes -> `parallel-subagents` on `native-subagents` when available.
@@ -145,15 +145,16 @@ Each delegated lane produces a `PrdScanPacket`: a read-only evidence packet with
 15. Required join points:
     - before freezing ledgers and machine-readable contracts
     - before declaring the package ready for `sp-prd-build`
-16. The leader owns final ledger normalization, contract updates, and packet quality even when subagents help with scan work.
+16. The leader owns final ledger normalization, contract updates, and packet quality even when subagents help with scan work. Inspect only compact record summaries with `specify-runtime prd-scan record-list <run-id> --surface <surface>` and expand one selected row with `record-show`; use the `record_digests` returned by `prd-scan init|status` or the previous mutation for optimistic concurrency.
 17. For `critical` and `high` capabilities, capture stronger reconstruction detail: structure, producers, consumers, constraints, compatibility behavior, and failure behavior.
-18. Build `.specify/prd-runs/<run-id>/artifact-contracts.json` and `.specify/prd-runs/<run-id>/reconstruction-checklist.json`.
-19. Generate scan packets and evidence notes that explain structure, producers, consumers, constraints, and failure behavior while preserving `Evidence`, `Inference`, and `Unknown`.
+18. Submit each bounded semantic row through `specify-runtime prd-scan record-upsert <run-id> --surface <coverage|capability|artifact|reconstruction-check|entrypoint|config|protocol|state-machine|error|verification> --expected-sha256 <current-sha> --input-json '<record-with-stable-id>' --format json`. The PRD CLI owns all ten JSON envelopes, deterministic ordering, digest checks, and atomic replacement. Delete one obsolete row only with `record-remove` and its current digest. Never read, reconstruct, generically prepare/submit/patch, or directly write any of those ledger/contract JSON files.
+19. Submit scan packets through the artifact CLI, lane results inline through `specify-runtime result submit --command prd-scan --workspace <run-dir> --lane-id <lane-id> --result-json '<inline-json>'`, and evidence through `specify-runtime evidence register`/`import`. Never create packet, result, evidence, ledger, or contract files directly.
 20. Refuse handoff if any `critical` capability lacks reconstruction-ready support. `high` capabilities must not be waved through with path-only evidence; keep the status explicit as `blocked-by-gap` when evidence is insufficient.
+21. After the leased workflow-state patch records `status: ready-for-build`, `scan_status: complete`, `build_status: pending`, and `next_command: /sp.prd-build`, run `{{specify-subcmd:specify-runtime prd-scan finalize <run-id> --format json}}`. This is the only command allowed to seal `.specify/prd/status.json`; never create or patch that status file yourself. Then run `{{specify-subcmd:specify-runtime hook validate-artifacts --command prd-scan --feature-dir .specify/prd-runs/<run-id> --format json}}` and refuse handoff on any structural, freshness, source-binding, worker-result, coverage, or reconstruction-readiness blocker.
 
 ## Output Contract
 
-The scan phase writes only the reconstruction package:
+The scan phase materializes only the reconstruction package. The ten JSON ledger/contract paths below are exclusively mutated record-by-record by `prd-scan record-upsert|record-remove`; Markdown, packet, result, and evidence paths use their registered `artifact`, `result`, or `evidence` CLI owners. No listed path is written through raw agent filesystem operations:
 
 - `.specify/prd-runs/<run-id>/workflow-state.md`
 - `.specify/prd-runs/<run-id>/prd-scan.md`
@@ -201,9 +202,9 @@ These artifacts are the authoritative scan bundle for `sp-prd-build`; they are n
 
 - If no safe lane exists, the packet is incomplete, or delegation is unavailable, record `subagent-blocked` with the blocker and stop for escalation or recovery before broad scan work continues.
 - Raw inventory notes or raw chat summaries are not sufficient subagent inputs or outputs.
-- Each dispatched lane needs a validated `PrdScanPacket` and must return a structured handoff with inspected paths, key facts, confidence, blockers, and recommended contract updates.
+- Each dispatched lane needs a validated `PrdScanPacket` and must return its structured handoff inline through the runtime result-submit channel with inspected paths, key facts, confidence, blockers, and recommended contract updates. It never writes the handoff path itself.
 - Idle subagent output is not an accepted scan result.
-- The leader must wait for every dispatched lane and consume its structured handoff before finalizing ledgers, writing scan packets, or marking the scan complete.
+- The leader must wait for every dispatched lane and consume accepted handoffs through targeted `artifact show` before finalizing ledgers, submitting scan packets, or marking the scan complete.
 
 ## Worker Result Contract
 
@@ -231,6 +232,7 @@ Reject results that omit `paths_read`, collapse evidence into prose-only summary
 - Artifact Contract Gate: important structures must land in `artifact-contracts.json`.
 - Checklist Gate: recreation blockers and remaining `Unknown` items must be visible in `reconstruction-checklist.json`.
 - Evidence Label Gate: scan outputs must preserve `Evidence`, `Inference`, and `Unknown` labeling semantics.
+- Native Seal Gate: `prd-scan finalize` and the Go artifact hook must both pass for the exact run before `sp-prd-build` may be recommended.
 
 ## Guardrails
 

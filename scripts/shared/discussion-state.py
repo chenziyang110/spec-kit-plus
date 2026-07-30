@@ -1212,11 +1212,13 @@ def main() -> int:
             raise ValueError("checkpoint payload must be an object")
         result = checkpoint_discussion(project_root, slug, changes)
     elif mode == "write-handoff":
-        input_path = _safe_consumer_path(project_root, value)
-        if not input_path.is_file():
-            raise ValueError("handoff input must be an existing JSON file")
+        raise ValueError(
+            "write-handoff file input is disabled; pass the in-memory draft through "
+            "write-handoff-json"
+        )
+    elif mode == "write-handoff-json":
         try:
-            handoff_payload = json.loads(input_path.read_text(encoding="utf-8"))
+            handoff_payload = json.loads(value)
         except json.JSONDecodeError as exc:
             raise ValueError("handoff input is not valid JSON") from exc
         if not isinstance(handoff_payload, dict):

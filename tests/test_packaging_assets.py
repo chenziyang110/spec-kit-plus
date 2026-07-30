@@ -157,8 +157,25 @@ def test_semantic_audit_resume_validator_examples_execute_when_go_is_available()
     examples_dir = REPO_ROOT / "templates" / "examples" / "semantic-audit-resume"
     runtime_dir = REPO_ROOT / "tools" / "specify-runtime"
 
+    def inline_resume_payload(name: str) -> str:
+        payload = json.loads((examples_dir / name).read_text(encoding="utf-8"))
+        state = payload["workflow_state"]
+        for key in ("semantic_audit_input_path", "semantic_audit_output_path"):
+            state[key] = str((examples_dir / state[key]).resolve())
+        return json.dumps(payload, separators=(",", ":"))
+
     fresh = subprocess.run(
-        ["go", "run", ".", "cognition", "semantic-audit-resume", "--input", str(examples_dir / "resume-validation.json"), "--format", "json"],
+        [
+            "go",
+            "run",
+            ".",
+            "cognition",
+            "semantic-audit-resume",
+            "--input-json",
+            inline_resume_payload("resume-validation.json"),
+            "--format",
+            "json",
+        ],
         cwd=runtime_dir,
         capture_output=True,
         check=False,
@@ -181,8 +198,8 @@ def test_semantic_audit_resume_validator_examples_execute_when_go_is_available()
             ".",
             "cognition",
             "semantic-audit-resume",
-            "--input",
-            str(examples_dir / "resume-validation-route-changed.json"),
+            "--input-json",
+            inline_resume_payload("resume-validation-route-changed.json"),
             "--format",
             "json",
         ],
@@ -225,8 +242,8 @@ def test_semantic_audit_resume_validator_examples_execute_when_go_is_available()
                 ".",
                 "cognition",
                 "semantic-audit-resume",
-                "--input",
-                str(examples_dir / fixture),
+                "--input-json",
+                inline_resume_payload(fixture),
                 "--format",
                 "json",
             ],
@@ -278,7 +295,21 @@ def test_wheel_force_include_bundles_artifact_scaffold_templates() -> None:
     pyproject = (REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8")
 
     assert '"templates/artifacts" = "specify_cli/core_pack/templates/artifacts"' in pyproject
-    assert (REPO_ROOT / "templates" / "artifacts" / "quick-status.md").exists()
+    for name in (
+        "data-model.md",
+        "debug-session.md",
+        "deep-research-not-needed.md",
+        "deep-research.md",
+        "design-review.md",
+        "empty.ndjson",
+        "evidence-index.json",
+        "lane-manifest.json",
+        "quick-plan.md",
+        "quick-status.md",
+        "quick-summary.md",
+        "quickstart.md",
+    ):
+        assert (REPO_ROOT / "templates" / "artifacts" / name).exists()
 
 
 def test_ui_reference_artifact_templates_are_packaged() -> None:

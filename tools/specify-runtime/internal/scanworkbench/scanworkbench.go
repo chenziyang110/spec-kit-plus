@@ -1649,7 +1649,7 @@ func renderPacket(packetID string, paths []string) string {
 	var builder strings.Builder
 	builder.WriteString("---\npacket_id: ")
 	builder.WriteString(packetID)
-	builder.WriteString("\nmode: read_only\nresult_submission_path: .specify/project-cognition/workbench/pending-results/")
+	builder.WriteString("\nmode: read_only\nresult_submission_mode: inline_json\nruntime_owned_result_path: .specify/project-cognition/workbench/pending-results/")
 	builder.WriteString(packetID)
 	builder.WriteString(".json\nresult_handoff_path: ")
 	builder.WriteString(canonicalWorkerResultPath(packetID))
@@ -1665,7 +1665,7 @@ func renderPacket(packetID string, paths []string) string {
 	builder.WriteString("```json\n")
 	builder.Write(skeletonJSON)
 	builder.WriteString("\n```\n\n")
-	builder.WriteString("Treat this as a cumulative checkpoint skeleton. Move only concretely completed paths from ledger.todo to ledger.done, add matching paths_read, coverage, evidence, and nodes[].paths, increment sequence, and keep acceptance=partial even when every assigned path is complete; scan-accept derives pass only after runtime validation. Submit checkpoints through specify-runtime cognition scan-checkpoint; finish with scan-accept or yield remaining work with scan-yield. For a relationship proven by an assigned file but targeting another scan packet, one edge endpoint may be that other file's concrete repository path; at least one endpoint must remain packet-local. Do not read an unassigned target merely to strengthen the edge. Do not write product files or canonical cognition ledgers.\n")
+	builder.WriteString("Treat this as a cumulative checkpoint skeleton. Move only concretely completed paths from ledger.todo to ledger.done, add matching paths_read, coverage, evidence, and nodes[].paths, increment sequence, and keep acceptance=partial even when every assigned path is complete; scan-accept derives pass only after runtime validation. Submit the object inline through specify-runtime cognition scan-checkpoint --result-json; never create or edit the runtime-owned result path. Finish with scan-accept or yield remaining work with scan-yield. For a relationship proven by an assigned file but targeting another scan packet, one edge endpoint may be that other file's concrete repository path; at least one endpoint must remain packet-local. Do not read an unassigned target merely to strengthen the edge. Do not write product files or canonical cognition ledgers.\n")
 	return builder.String()
 }
 
@@ -1794,7 +1794,7 @@ func writeBytesAtomic(path string, data []byte) error {
 	if err := os.Chmod(tmpPath, 0o644); err != nil {
 		return err
 	}
-	return os.Rename(tmpPath, path)
+	return replaceWorkbenchFile(tmpPath, path)
 }
 
 func canonicalWorkerResultPath(packetID string) string {

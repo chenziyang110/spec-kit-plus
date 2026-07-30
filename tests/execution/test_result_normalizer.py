@@ -5,6 +5,18 @@ import pytest
 from specify_cli.execution.result_normalizer import normalize_worker_task_result_payload
 
 
+COMPARISON_TOLERANCE = {
+    "structure": "exact",
+    "content": "exact",
+    "tokens": "exact",
+    "geometry": {"unit": "px", "max_delta": 2},
+    "color": {"method": "delta-e-2000", "max_delta": 2},
+    "text_wrap": "exact",
+    "motion": {"unit": "ms", "max_delta": 16},
+    "platform_variance": "approved-deviation-only",
+}
+
+
 def test_normalize_worker_task_result_payload_accepts_canonical_payload() -> None:
     result = normalize_worker_task_result_payload(
         {
@@ -49,7 +61,9 @@ def test_normalize_worker_task_result_payload_preserves_consequence_evidence() -
     ]
 
 
-def test_normalize_worker_task_result_payload_preserves_must_preserve_evidence() -> None:
+def test_normalize_worker_task_result_payload_preserves_must_preserve_evidence() -> (
+    None
+):
     result = normalize_worker_task_result_payload(
         {
             "task_id": "T105",
@@ -163,7 +177,9 @@ def test_normalize_worker_task_result_payload_preserves_ui_fields() -> None:
     assert result.ui_verification.fidelity_status == "pending-human-review"
 
 
-def test_normalize_worker_task_result_payload_preserves_current_visual_contract() -> None:
+def test_normalize_worker_task_result_payload_preserves_current_visual_contract() -> (
+    None
+):
     digest = "a" * 64
     result = normalize_worker_task_result_payload(
         {
@@ -185,7 +201,7 @@ def test_normalize_worker_task_result_payload_preserves_current_visual_contract(
                 "covered_decision_ids": ["DS-001"],
                 "structural_differences": ["none"],
                 "visual_differences": ["none"],
-                "comparison_tolerance": "pixel-diff <= 1%",
+                "comparison_tolerance": COMPARISON_TOLERANCE,
                 "accepted_deviations": [
                     {"decision_id": "DS-001", "reason": "approved copy change"}
                 ],
@@ -203,10 +219,25 @@ def test_normalize_worker_task_result_payload_preserves_current_visual_contract(
     assert verification.covered_decision_ids == ["DS-001"]
     assert verification.structural_differences == ["none"]
     assert verification.visual_differences == ["none"]
-    assert verification.comparison_tolerance == "pixel-diff <= 1%"
+    assert verification.comparison_tolerance == COMPARISON_TOLERANCE
     assert verification.accepted_deviations == [
         {"decision_id": "DS-001", "reason": "approved copy change"}
     ]
+
+
+def test_normalize_worker_task_result_payload_rejects_prose_comparison_tolerance() -> (
+    None
+):
+    with pytest.raises(
+        ValueError, match="ui_verification.comparison_tolerance must be an object"
+    ):
+        normalize_worker_task_result_payload(
+            {
+                "task_id": "T102",
+                "status": "success",
+                "ui_verification": {"comparison_tolerance": "pixel close enough"},
+            }
+        )
 
 
 def test_normalize_worker_task_result_payload_rejects_camel_case_ui_evidence() -> None:
@@ -231,7 +262,9 @@ def test_normalize_worker_task_result_payload_rejects_camel_case_ui_evidence() -
         )
 
 
-def test_normalize_worker_task_result_payload_maps_done_with_concerns_to_success() -> None:
+def test_normalize_worker_task_result_payload_maps_done_with_concerns_to_success() -> (
+    None
+):
     result = normalize_worker_task_result_payload(
         {
             "taskId": "T101",
@@ -251,7 +284,9 @@ def test_normalize_worker_task_result_payload_maps_done_with_concerns_to_success
     assert result.concerns == ["existing file is oversized"]
 
 
-def test_normalize_worker_task_result_payload_maps_needs_context_to_blocked_with_defaults() -> None:
+def test_normalize_worker_task_result_payload_maps_needs_context_to_blocked_with_defaults() -> (
+    None
+):
     result = normalize_worker_task_result_payload(
         {
             "task_id": "T102",

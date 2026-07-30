@@ -64,7 +64,8 @@ def test_fast_requires_red_or_escalates_and_guards_sensitive_paths() -> None:
 
     assert "must run a failing automated test or executable repro" in content
     assert "no reliable automated test surface" in content
-    assert "hand off to $spx-quick or $spx-specify and stop" in content
+    assert "all expanding or larger direct-delivery work to $spx-quick" in content
+    assert "$spx-specify remains available only when the user explicitly selected" in content
     assert "resolved path remains inside the repository" in content
     assert "credential, secret, private key" in content
 
@@ -82,6 +83,10 @@ def test_quick_uses_scaffold_checkpoint_handoff_and_full_propagation_sweep() -> 
     assert "task-relevant learning only through" in content
     assert "must run and record red before production edits" in content
     assert "full affected-surface or callsite coverage" in content
+    assert "ordered_work_items" in content
+    assert "work_item_acceptance" in content
+    assert "pending, ready, in_progress, blocked, or accepted" in content
+    assert "only accepted satisfies a dependency" in content
     assert "quick close" in content and "terminal truth" in content
 
 

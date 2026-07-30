@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -41,19 +42,33 @@ type LeaseInput struct {
 }
 
 type LeasePayload struct {
-	Status                 string `json:"status"`
-	PacketID               string `json:"packet_id"`
-	AttemptID              string `json:"attempt_id"`
-	WorkerID               string `json:"worker_id"`
-	TaskPath               string `json:"task_path"`
-	ResultSubmissionPath   string `json:"result_submission_path"`
-	ResultHandoffPath      string `json:"result_handoff_path"`
-	ResultProtocol         string `json:"result_protocol"`
-	RequiredAcceptance     string `json:"required_acceptance"`
-	EstimatedTokens        int64  `json:"estimated_tokens"`
-	EffectiveContextBudget int64  `json:"effective_context_budget_tokens"`
-	PendingPackets         int    `json:"pending_packets"`
-	NextAction             string `json:"next_action"`
+	Status                 string   `json:"status"`
+	PacketID               string   `json:"packet_id"`
+	AttemptID              string   `json:"attempt_id"`
+	WorkerID               string   `json:"worker_id"`
+	TaskPath               string   `json:"task_path"`
+	ResultSubmissionPath   string   `json:"result_submission_path"`
+	ResultSubmissionMode   string   `json:"result_submission_mode"`
+	PacketArgv             []string `json:"packet_argv"`
+	CheckpointArgvPrefix   []string `json:"checkpoint_argv_prefix"`
+	ResultHandoffPath      string   `json:"result_handoff_path"`
+	ResultProtocol         string   `json:"result_protocol"`
+	RequiredAcceptance     string   `json:"required_acceptance"`
+	EstimatedTokens        int64    `json:"estimated_tokens"`
+	EffectiveContextBudget int64    `json:"effective_context_budget_tokens"`
+	PendingPackets         int      `json:"pending_packets"`
+	NextAction             string   `json:"next_action"`
+}
+
+type PacketPayload struct {
+	Status               string   `json:"status"`
+	PacketID             string   `json:"packet_id"`
+	State                string   `json:"state"`
+	AttemptID            string   `json:"attempt_id,omitempty"`
+	AssignedPaths        []string `json:"assigned_paths"`
+	TaskBrief            string   `json:"task_brief"`
+	ResultSubmissionMode string   `json:"result_submission_mode"`
+	CheckpointArgvPrefix []string `json:"checkpoint_argv_prefix,omitempty"`
 }
 
 type ActiveLeaseSummary struct {
@@ -70,6 +85,7 @@ type CheckpointInput struct {
 	PacketID   string
 	AttemptID  string
 	ResultPath string
+	ResultJSON []byte
 }
 
 type CheckpointPayload struct {
@@ -299,6 +315,9 @@ func Lease(paths rt.Paths, input LeaseInput) (LeasePayload, error) {
 		WorkerID:               workerID,
 		TaskPath:               canonicalPacketTaskPath(packet.PacketID),
 		ResultSubmissionPath:   canonicalPendingResultPath(packet.PacketID),
+		ResultSubmissionMode:   "inline_json",
+		PacketArgv:             []string{"specify-runtime", "cognition", "scan-packet", "--packet-id", packet.PacketID, "--format", "json"},
+		CheckpointArgvPrefix:   []string{"specify-runtime", "cognition", "scan-checkpoint", "--packet-id", packet.PacketID, "--attempt-id", packet.AttemptID, "--result-json"},
 		ResultHandoffPath:      packet.ResultHandoffPath,
 		ResultProtocol:         "map_scan_result.v2",
 		RequiredAcceptance:     "partial",
@@ -307,6 +326,56 @@ func Lease(paths rt.Paths, input LeaseInput) (LeasePayload, error) {
 		PendingPackets:         pending,
 		NextAction:             "dispatch_worker_task_brief",
 	}, nil
+}
+
+func Packet(paths rt.Paths, packetID string) (PacketPayload, error) {
+	if err := validateRuntimeControlDir(paths); err != nil {
+		return PacketPayload{}, err
+	}
+	packetID = strings.TrimSpace(packetID)
+	if !packetIDPattern.MatchString(packetID) {
+		return PacketPayload{}, fmt.Errorf("invalid packet id %q", packetID)
+	}
+	release, err := acquireWorkbenchLock(paths)
+	if err != nil {
+		return PacketPayload{}, err
+	}
+	defer release()
+	var queue queueFile
+	if err := readJSON(filepath.Join(paths.RuntimeDir, "workbench", "scan-queue.json"), &queue); err != nil {
+		return PacketPayload{}, fmt.Errorf("read scan queue: %w", err)
+	}
+	var packet *queuePacket
+	for index := range queue.Packets {
+		if queue.Packets[index].PacketID == packetID {
+			packet = &queue.Packets[index]
+			break
+		}
+	}
+	if packet == nil {
+		return PacketPayload{}, fmt.Errorf("packet %s is not present in scan-queue.json", packetID)
+	}
+	taskPath := packetTaskPath(paths, packetID)
+	info, err := os.Lstat(taskPath)
+	if err != nil {
+		return PacketPayload{}, fmt.Errorf("inspect scan packet: %w", err)
+	}
+	if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() || info.Size() > 2*1024*1024 {
+		return PacketPayload{}, fmt.Errorf("scan packet must be a regular non-symlink file no larger than 2 MiB")
+	}
+	raw, err := os.ReadFile(taskPath)
+	if err != nil {
+		return PacketPayload{}, fmt.Errorf("read scan packet: %w", err)
+	}
+	payload := PacketPayload{
+		Status: "ok", PacketID: packet.PacketID, State: packet.State,
+		AttemptID: packet.AttemptID, AssignedPaths: append([]string(nil), packet.AssignedPaths...),
+		TaskBrief: string(raw), ResultSubmissionMode: "inline_json",
+	}
+	if packet.AttemptID != "" {
+		payload.CheckpointArgvPrefix = []string{"specify-runtime", "cognition", "scan-checkpoint", "--packet-id", packet.PacketID, "--attempt-id", packet.AttemptID, "--result-json"}
+	}
+	return payload, nil
 }
 
 func Checkpoint(paths rt.Paths, input CheckpointInput) (CheckpointPayload, error) {
@@ -332,7 +401,28 @@ func Checkpoint(paths rt.Paths, input CheckpointInput) (CheckpointPayload, error
 		return CheckpointPayload{}, err
 	}
 	packet := queue.Packets[packetIndex]
-	resultPath, err := resolveResultPath(paths, input.ResultPath)
+	if (strings.TrimSpace(input.ResultPath) == "") == (len(input.ResultJSON) == 0) {
+		return CheckpointPayload{}, fmt.Errorf("provide exactly one of result path or inline result JSON")
+	}
+	resultPath := input.ResultPath
+	if len(input.ResultJSON) != 0 {
+		const maxWorkerResultBytes = 16 * 1024 * 1024
+		if len(input.ResultJSON) > maxWorkerResultBytes {
+			return CheckpointPayload{}, fmt.Errorf("inline checkpoint result exceeds the 16 MiB limit")
+		}
+		var inlineResult map[string]any
+		if err := json.Unmarshal(input.ResultJSON, &inlineResult); err != nil || inlineResult == nil {
+			if err == nil {
+				err = fmt.Errorf("value must be a JSON object")
+			}
+			return CheckpointPayload{}, fmt.Errorf("inline checkpoint result is invalid: %w", err)
+		}
+		resultPath = filepath.Join(paths.RuntimeDir, "workbench", "pending-results", packet.PacketID+".json")
+		if err := writeJSONAtomic(resultPath, inlineResult); err != nil {
+			return CheckpointPayload{}, fmt.Errorf("write inline checkpoint result: %w", err)
+		}
+	}
+	resultPath, err = resolveResultPath(paths, resultPath)
 	if err != nil {
 		return CheckpointPayload{}, err
 	}
@@ -922,8 +1012,7 @@ func appendYieldEvent(paths rt.Paths, queue *queueFile, packet queuePacket, stat
 
 func renderLeasedPacket(packet queuePacket) string {
 	base := renderPacket(packet.PacketID, packet.AssignedPaths)
-	resultPath := canonicalPendingResultPath(packet.PacketID)
-	return base + fmt.Sprintf("\nActive lease:\n- worker_id: `%s`\n- attempt_id: `%s`\n- estimated_task_tokens: `%d`\n- effective_context_budget_tokens: `%d`\n- checkpoint_command: `specify-runtime cognition scan-checkpoint --packet-id %s --attempt-id %s --result %s --format json`\n- yield_command: `specify-runtime cognition scan-yield --packet-id %s --attempt-id %s --format json`\nSubmit cumulative checkpoints before the context safety threshold. The leader accepts a fully checkpointed attempt with the same packet and attempt identifiers.\n", packet.WorkerID, packet.AttemptID, packet.EstimatedTokens, packet.EffectiveContextBudget, packet.PacketID, packet.AttemptID, resultPath, packet.PacketID, packet.AttemptID)
+	return base + fmt.Sprintf("\nActive lease:\n- worker_id: `%s`\n- attempt_id: `%s`\n- estimated_task_tokens: `%d`\n- effective_context_budget_tokens: `%d`\n- checkpoint_command: `specify-runtime cognition scan-checkpoint --packet-id %s --attempt-id %s --result-json '<inline-json>' --format json`\n- yield_command: `specify-runtime cognition scan-yield --packet-id %s --attempt-id %s --format json`\nSubmit cumulative checkpoints inline before the context safety threshold. Never create or edit a pending-result file; the runtime materializes it. The leader accepts a fully checkpointed attempt with the same packet and attempt identifiers.\n", packet.WorkerID, packet.AttemptID, packet.EstimatedTokens, packet.EffectiveContextBudget, packet.PacketID, packet.AttemptID, packet.PacketID, packet.AttemptID)
 }
 
 func workerResultSkeleton(packetID string, attemptID string, assigned []string) map[string]any {

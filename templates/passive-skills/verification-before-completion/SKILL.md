@@ -16,7 +16,8 @@ Claiming work is complete without verification is dishonesty, not efficiency.
 ## Workflow-Owned Validation
 
 When an active workflow provides a validation ledger, fresh evidence means
-current source-fingerprint-bound evidence in that ledger. Inspect it before a
+current source-fingerprint-bound evidence in that ledger. Query it through
+`specify-runtime artifact show` before a
 claim. Only the workflow's Leader may open a logical gate or an attempt inside
 it. A worker, passive skill, join, resume, or message must not start an extra
 gate or attempt merely to make a local claim.

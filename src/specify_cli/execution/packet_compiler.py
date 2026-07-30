@@ -327,15 +327,12 @@ def _ui_contract_from_task_entry(
         interaction_thesis=_mapping_string(payload, "interaction_thesis"),
         signature_element=_mapping_string(payload, "signature_element"),
         approved_visual_ref=_mapping_string(payload, "approved_visual_ref"),
-        approved_preview_sha256=_mapping_string(
-            payload, "approved_preview_sha256"
-        ),
-        approved_manifest_sha256=_mapping_string(
-            payload, "approved_manifest_sha256"
-        ),
-        design_decision_ids=_unique(
-            _string_list(payload.get("design_decision_ids"))
-        ),
+        approved_preview_sha256=_mapping_string(payload, "approved_preview_sha256"),
+        approved_manifest_sha256=_mapping_string(payload, "approved_manifest_sha256"),
+        approved_handoff_ref=_mapping_string(payload, "approved_handoff_ref"),
+        approved_handoff_sha256=_mapping_string(payload, "approved_handoff_sha256"),
+        design_decision_ids=_unique(_string_list(payload.get("design_decision_ids"))),
+        handoff_contract_ids=_unique(_string_list(payload.get("handoff_contract_ids"))),
         design_sources=_unique(_string_list(payload.get("design_sources"))),
         reference_notes=_mapping_string(payload, "reference_notes"),
         visual_target=_mapping_string(payload, "visual_target"),
@@ -346,14 +343,12 @@ def _ui_contract_from_task_entry(
         component_contracts=_unique_dicts(
             _dict_list(payload.get("component_contracts"))
         ),
-        responsive_matrix=_unique_dicts(
-            _dict_list(payload.get("responsive_matrix"))
-        ),
+        responsive_matrix=_unique_dicts(_dict_list(payload.get("responsive_matrix"))),
         motion_contract=_mapping_dict(payload, "motion_contract"),
         visual_acceptance_matrix=_unique_dicts(
             _dict_list(payload.get("visual_acceptance_matrix"))
         ),
-        comparison_tolerance=_mapping_string(payload, "comparison_tolerance"),
+        comparison_tolerance=_mapping_dict(payload, "comparison_tolerance"),
         accepted_deviations=_unique_dicts(
             _dict_list(payload.get("accepted_deviations"))
         ),
@@ -562,50 +557,14 @@ def _context_bundle_from_project_docs(
     *,
     required_references: list[PacketReference],
 ) -> list[ContextBundleItem]:
-    specs: list[tuple[str, str, str, list[str], str]] = [
-        (
-            ".specify/project-cognition/status.json",
-            "project_cognition",
-            "Project cognition freshness entrypoint for query-backed runtime readiness and refresh metadata.",
-            ["workflow_boundary", "architecture_boundary", "validation"],
-            "status is the lightweight entrypoint before requesting a task-local cognition query bundle",
-        ),
-        (
-            ".specify/project-cognition/project-cognition.db",
-            "project_cognition",
-            "Canonical SQLite project cognition graph store queried for task-local bundle, readiness, and minimal_live_reads.",
-            ["workflow_boundary", "architecture_boundary", "forbidden_drift"],
-            "specify-runtime cognition query resolves touched-area execution context without raw slice reads",
-        ),
-    ]
-
+    del project_root  # Runtime storage is never exposed as worker-readable context.
     items: list[ContextBundleItem] = []
     seen: set[str] = set()
     read_order = 1
 
-    for relative_path, kind, purpose, required_for, selection_reason in specs:
-        if not (project_root / relative_path).exists():
-            continue
-        normalized = relative_path.replace("\\", "/")
-        if normalized in seen:
-            continue
-        seen.add(normalized)
-        items.append(
-            ContextBundleItem(
-                path=normalized,
-                kind=kind,
-                purpose=purpose,
-                required_for=required_for,
-                read_order=read_order,
-                must_read=True,
-                selection_reason=selection_reason,
-            )
-        )
-        read_order += 1
-
     for reference in required_references:
         normalized = _context_read_path(reference.path)
-        if not normalized or normalized in seen:
+        if not normalized or normalized in seen or _cli_owned_scope_path(normalized):
             continue
         seen.add(normalized)
         items.append(
@@ -622,6 +581,70 @@ def _context_bundle_from_project_docs(
         read_order += 1
 
     return items
+
+
+_CLI_OWNED_SCOPE_PREFIXES = (
+    ".specify/",
+    ".planning/debug/",
+    ".planning/learnings/",
+    ".planning/quick/",
+)
+_CLI_OWNED_SCOPE_NAMES = {
+    "design.md",
+    "alignment.md",
+    "context.md",
+    "data-model.md",
+    "deep-research.md",
+    "handoff-to-implement.json",
+    "handoff-to-tasks.json",
+    "human-acceptance.json",
+    "implementation-handoff.json",
+    "implementation-summary.md",
+    "implement-tracker.md",
+    "plan-contract.json",
+    "plan.md",
+    "quickstart.md",
+    "references.md",
+    "research.md",
+    "review-state.json",
+    "semantic-audit-input.json",
+    "semantic-audit-output.json",
+    "spec-contract.json",
+    "spec.md",
+    "specify-draft.md",
+    "task-index.json",
+    "tasks.md",
+    "ui-brief.md",
+    "ui-reference-notes.md",
+    "ui-target.html",
+    "workflow-state.md",
+    "workflow.json",
+}
+
+
+def _cli_owned_scope_path(value: str) -> bool:
+    normalized = _context_read_path(value).replace("\\", "/").removeprefix("./")
+    normalized = normalized.split("#", 1)[0].lower()
+    if normalized in _CLI_OWNED_SCOPE_NAMES or normalized.startswith(
+        _CLI_OWNED_SCOPE_PREFIXES
+    ):
+        return True
+    if normalized.startswith("specs/"):
+        return normalized.rsplit("/", 1)[-1] in _CLI_OWNED_SCOPE_NAMES
+    return False
+
+
+def _reject_cli_owned_scope_paths(
+    *, task_id: str, scope_name: str, paths: list[str]
+) -> None:
+    invalid = [path for path in paths if _cli_owned_scope_path(path)]
+    if invalid:
+        raise PacketValidationError(
+            "DP2",
+            f"{task_id} {scope_name} contains CLI-owned workflow artifacts: "
+            + ", ".join(invalid)
+            + "; query or mutate them through specify-runtime instead",
+        )
 
 
 def _plan_contract(feature_dir: Path) -> dict[str, object]:
@@ -650,6 +673,12 @@ def _ui_context_nav(
         "ui_entrypoint", _string_list(ui_plan.get("entry_points")), "plan-contract.json"
     )
     add("design_source", ui_contract.design_sources, "task-index.json")
+    if ui_contract.approved_handoff_ref:
+        add(
+            "design_handoff",
+            [ui_contract.approved_handoff_ref],
+            "task-index.json#/ui_contract",
+        )
     add(
         "token_component_route",
         _string_list(ui_plan.get("token_strategy"))
@@ -702,9 +731,7 @@ def compile_worker_task_packet(
         max_epochs=raw_validation_policy.get("max_epochs", 0),
         budget_scope=str(raw_validation_policy.get("budget_scope") or "task"),
         budget_ref=str(raw_validation_policy.get("budget_ref") or ""),
-        heavy_gate_owner=str(
-            raw_validation_policy.get("heavy_gate_owner") or "worker"
-        ),
+        heavy_gate_owner=str(raw_validation_policy.get("heavy_gate_owner") or "worker"),
     )
     task_index_version = task_index.get("version")
     canonical_task_index = (
@@ -763,6 +790,7 @@ def compile_worker_task_packet(
         *ui_contract.design_sources,
         *review_inputs,
         ui_contract.approved_visual_ref,
+        ui_contract.approved_handoff_ref,
         ui_contract.reference_notes,
         ui_contract.visual_target,
         *[
@@ -869,10 +897,7 @@ def compile_worker_task_packet(
         )
         existing_context_paths.add(path)
         next_read_order += 1
-    read_scope = _unique(
-        [item.path for item in context_bundle]
-        + [ref.path for ref in required_references]
-    )
+    read_scope = _unique([item.path for item in context_bundle])
     scope_write_scope = _unique(
         _paths_from_task_body(resolved_task_body)
         + _task_detail_table_field_values(
@@ -885,6 +910,16 @@ def compile_worker_task_packet(
         read_scope
         + _task_detail_table_field_values(task_detail, "Scope Boundaries", "read_scope")
         + _string_list(task_entry.get("read_scope"))
+    )
+    _reject_cli_owned_scope_paths(
+        task_id=task_id,
+        scope_name="read_scope",
+        paths=scope_read_scope,
+    )
+    _reject_cli_owned_scope_paths(
+        task_id=task_id,
+        scope_name="write_scope",
+        paths=scope_write_scope,
     )
     indexed_mp_ids = set(_string_list(task_entry.get("must_preserve_refs")))
     applicable_mp_ids = (

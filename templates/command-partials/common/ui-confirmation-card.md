@@ -15,7 +15,9 @@ design direction, an inspectable current product surface, or supplied source
 material. `design_system.status: bootstrap` is structurally valid but is not an
 approved visual direction. For a new or high-visibility direction, first route
 to `sp-design`/`spx-design` and obtain an inspectable visual artifact. For
-multi-surface or acceptance-heavy UI, route to `sp-specify`/`spx-specify`.
+multi-surface or acceptance-heavy Quick UI, expand the task-local plan,
+viewport/state matrix, execution batches, and acceptance evidence inside Quick;
+do not route to `sp-specify`/`spx-specify` because of scope size.
 Do not render an incomplete UI Confirmation as if it were approval-ready.
 
 Preserve original references rather than replacing them with prose. For each

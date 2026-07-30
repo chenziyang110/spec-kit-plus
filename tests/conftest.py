@@ -23,34 +23,36 @@ def strip_ansi(text: str) -> str:
     return _ANSI_ESCAPE_RE.sub("", text)
 
 
-def install_passing_workflow_gate(project_root: Path) -> None:
-    """Install a deterministic passing artifact gate for Go workflow fixtures."""
+def seed_existing_workflow_state(
+    feature_dir: Path,
+    *,
+    stage: str,
+    revision: int,
+    status: str = "active",
+) -> None:
+    """Create a pre-existing workflow fixture without installing a gate bypass."""
 
-    specify_dir = project_root / ".specify"
-    specify_dir.mkdir(parents=True, exist_ok=True)
-    gate = specify_dir / "workflow-gate.py"
-    gate.write_text(
-        """import json
-
-print(json.dumps({
-    "status": "ok",
-    "summary": "test artifact gate passed",
-    "data": {},
-    "items": [],
-    "blockers": [],
-    "show_argv": [],
-    "next_argv": [],
-}))
-""",
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    (feature_dir / "workflow.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "feature_id": feature_dir.name,
+                "revision": revision,
+                "stage": stage,
+                "status": status,
+                "summary": "existing workflow fixture",
+                "blocker": None,
+                "last_resolution_evidence": [],
+                "last_reopen": None,
+                "last_blocker_resolution": None,
+                "acceptance_sha256": None,
+            },
+            indent=2,
+        )
+        + "\n",
         encoding="utf-8",
     )
-    config_path = specify_dir / "config.json"
-    try:
-        payload = json.loads(config_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        payload = {}
-    payload["specify_launcher"] = {"argv": [sys.executable, str(gate)]}
-    config_path.write_text(json.dumps(payload), encoding="utf-8")
 
 
 @pytest.fixture(scope="session", autouse=True)

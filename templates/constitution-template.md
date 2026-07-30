@@ -124,8 +124,9 @@ The system MUST make failures easy to detect, explain, and reproduce.
   source inspection, planning, debugging, implementation, task decomposition,
   or subagent dispatch. The query result MUST guide routing, minimal live
   reads, boundary constraints, and verification strategy.
-- **Technical Evidence**: Treat `.specify/project-cognition/status.json` and
-  workflow-appropriate cognition query bundles as the advisory project cognition index.
+- **Technical Evidence**: Query status and workflow-appropriate navigation only
+  through `specify-runtime cognition status|compass|query`; their runtime-owned
+  storage is the advisory project cognition index, not an agent file-read surface.
   Legacy handbook or project-map exports are compatibility surfaces only.
   Map points, code proves: technical claims and completion claims MUST be
   backed by live project evidence, not by project cognition output alone.

@@ -9,7 +9,7 @@ runtime is authoritative for required phase order in the compact
 
 Do not compose or advance `workflow.json` manually. `workflow-state.md`
 remains the rich workflow-owned evidence and resume surface for Learning,
-clarification, research, analysis, and profile-specific details; the phase
+clarification, research, analysis, and profile-specific details; it is never required-stage authority, and the phase
 runtime must not overwrite or treat it as revision authority. Read
 `workflow-state.md` only through `specify-runtime artifact show`; mutate it only
 through an authorized `artifact prepare` / `artifact submit` lease. After resolving
@@ -59,9 +59,10 @@ dependency-safe lane can run; they do not justify a feature-wide runtime block.
 Use a human-confirmed DEF transfer only through the owning workflow's
 deterministic deferral commands, and never treat it as passed. After safe agent
 recovery is exhausted **and no ready work remains**, obtain the stable input contract with
-`{{specify-subcmd:specify-runtime api schema workflow-block-input --format json}}`, then persist
-the detailed blocker through
-`{{specify-subcmd:specify-runtime workflow block --input <blocker-json-or-> --format json}}`.
+`{{specify-subcmd:specify-runtime api schema workflow-block-input --format json}}`.
+Build only the blocker object's semantic fields in memory and submit them with
+`{{specify-subcmd:specify-runtime workflow block --input-json '<blocker-json>' --format json}}`.
+Never create a blocker input file.
 Honor its owner, exact recovery, novice human guide when required, evidence to
 return, and resume point. A bare error or generic request for human help is not
 a valid blocked exit. The runtime rejects replacement of an unresolved blocker,

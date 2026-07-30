@@ -36,7 +36,7 @@ After functional direction is stable, offer an optional UI and interaction
 discussion only when no explicit handoff request is active. If UI decisions block readiness,
 remain in `decide` or `prepare`; do not invent a separate primary stage.
 
-If a discussion is mature enough for specification but lacks ready canonical `handoff-to-specify.json`, close the turn with handoff assessment, draft review, or repair guidance inside `sp-discussion`. Do not tell the user their next sentence should be `sp-specify`, and do not send `specification-input.md` to `sp-specify` as a fallback.
+If a discussion is mature enough for direct delivery or formal specification but lacks ready canonical `handoff-to-specify.json`, close the turn with handoff assessment, draft review, or repair guidance inside `sp-discussion`. Do not tell the user to invoke `sp-quick` or `sp-specify`, and do not send `specification-input.md` to either consumer as a fallback.
 
 ## Quality And Closeout
 
@@ -44,6 +44,6 @@ Handoff-ready closeout covers the handoff goal, selected direction, target bound
 
 Do not close with only file paths, status counters, or a next command. Keep ready-summary quality checks internal until the visible reply translates them into decision-level meaning.
 
-`sp-discussion` does not create P0/P1/P2 sequences, migration phases, release batches, task packets, ordered implementation steps, source edits, test fixes, release execution, or package publishing. Those belong downstream.
+`sp-discussion` does not create P0/P1/P2 sequences, migration phases, release batches, task packets, ordered implementation steps, source edits, test fixes, release execution, or package publishing. Quick task-local planning or the formal feature pipeline owns those downstream activities after handoff.
 
 When the user rejects fallback/dual-stack/old implementation fallback language, preserve the no alternate product path decision unless the user later reopens it.

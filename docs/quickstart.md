@@ -280,12 +280,12 @@ Generated project navigation now follows the project cognition runtime:
 - Generated projects use `.specify/project-cognition/status.json` plus the task-local `specify-runtime cognition query` bundle as the advisory project cognition index.
 - Read the cognition status and the returned task-local bundle before broader repository analysis when available, then prove claims from live repository evidence.
 - New generated workflows use `.specify/project-cognition/status.json`, `.specify/project-cognition/project-cognition.db`, and `specify-runtime cognition query` as advisory navigation inputs. They do not read or require `.specify/project-map/**`.
-- Persisted semantic audit state is reusable only after claim readiness resume validation. `specify-runtime cognition semantic-audit-resume --input <resume-validation.json> --format json`, when available, compares the saved audit input/output pair with workflow state; it does not authorize source changes or final claims, and does not grant P3/P4. Multiple `authorized_claims` require one `active_claim_type`, and failed, blocked, skipped, or inconclusive verification results keep claim readiness blocked with `verification_result_failed`, `verification_result_blocked`, or `verification_result_inconclusive` until a newer matching passed rerun supersedes them.
+- Persisted semantic audit state is reusable only after claim readiness resume validation. `specify-runtime cognition semantic-audit-resume --input-json '<resume-validation-json>' --format json`, when available, compares the saved audit input/output pair with workflow state without a temporary validation file; it does not authorize source changes or final claims, and does not grant P3/P4. Multiple `authorized_claims` require one `active_claim_type`, and failed, blocked, skipped, or inconclusive verification results keep claim readiness blocked with `verification_result_failed`, `verification_result_blocked`, or `verification_result_inconclusive` until a newer matching passed rerun supersedes them.
 - Empty projects initialized by `specify init` run `specify-runtime cognition init-empty` after pinning the binary. When there is no business code yet, this creates `.specify/project-cognition/status.json` and `.specify/project-cognition/project-cognition.db` with baseline kind `baseline_kind=greenfield_empty`; greenfield flows do not require map-scan -> map-build solely because the graph has no paths. Projects with existing code still use map-scan -> map-build when a full first brownfield cognition baseline is needed for a first/missing/unusable baseline, schema failure, zero active-generation `path_index` rows, `explicit_rebuild_requested`, or `baseline_identity_invalid`.
 - Use `map-update` only for external/manual localized stale cognition refresh, user-edited changed-path map maintenance, interrupted workflow repair, explicit map maintenance, follow-up repair, and ordinary existing-baseline gaps; recommend `map-scan` followed by `map-build` only for first/missing/unusable baseline, schema failure, zero active-generation `path_index` rows, `explicit_rebuild_requested`, or `baseline_identity_invalid`.
 - For the first brownfield cognition baseline, run `sp-map-scan` followed by `sp-map-build` when you want a map baseline. That pair is map-maintenance complete only when scan acceptance and build acceptance pass: `specify-runtime cognition validate-scan --format json` and `specify-runtime cognition validate-build --format json`. Ordinary workflows may continue from live repository evidence when the map is missing, stale, or blocked.
 - Any source-changing `sp-*` workflow that alters navigation meaning should run planner-first project cognition update from changed paths, affected surfaces, and verification evidence during closeout; recommend `map-update` only for external/manual map-maintenance cases.
-- Workflow-owned mutation closeout is planner-first: source-changing `sp-*` workflows run `specify-runtime cognition closeout-plan --workflow "$ACTIVE_WORKFLOW" --format json`, passing `--delta-session "$DELTA_SESSION_ID"` when a delta session exists. The planner returns `update_mode=delta_session` or `update_mode=payload_file`, `required_agent_fields`, `unknown_path_dispositions`, display-only command templates, and structured execution fields. Agents execute via `update_argv` after writing a completed payload, or by completing `delta_append_draft.argv_prefix` with agent-owned evidence placeholders before running `update_argv`. Verified `adoptable` unknown paths can be recorded without becoming blocking `known_unknowns`; only `blocking_known_unknown` dispositions become payload or delta known unknowns. Clean closeout gates on `result_state=ready` or `result_state=no_op`, not `status=ok`, `update_id`, `last_update_id`, freshness, display-only command templates, or legacy `recorded-only` output.
+- Workflow-owned mutation closeout is planner-first: source-changing `sp-*` workflows run `specify-runtime cognition closeout-plan --workflow "$ACTIVE_WORKFLOW" --format json`, passing `--delta-session "$DELTA_SESSION_ID"` when a delta session exists. The planner returns `update_mode=delta_session` or `update_mode=inline_json`, `required_agent_fields`, `unknown_path_dispositions`, display-only command templates, and structured execution fields. Agents either complete `payload_draft` in memory and substitute it for `<inline-json>` in `update_argv` without creating a payload file, or complete `delta_append_draft.argv_prefix` with evidence placeholders before running `update_argv`. Verified `adoptable` unknown paths can be recorded without becoming blocking `known_unknowns`; only `blocking_known_unknown` dispositions become payload or delta known unknowns. Clean closeout gates on `result_state=ready` or `result_state=no_op`, not `status=ok`, `update_id`, `last_update_id`, freshness, display-only command templates, or legacy `recorded-only` output.
 - Closeout agents should use `known_unknowns` only for blockers that make the cognition update unsafe to trust. If unrelated dirty or untracked working-tree paths were excluded by explicit workflow-owned paths, record that as `confidence_notes` or `boundary.initial_dirty_paths`, not as blocking `known_unknowns`.
 - Map points, code proves: technical claims must be backed by live code, tests, scripts, configuration, or authoritative docs.
 
@@ -303,17 +303,17 @@ When work involves lifecycle operations, running or concurrent objects, destruct
 
 For example, "close team" must consider running workers, queued tasks, late result submission, heartbeat state, `status`, `await`, `resume`, `cleanup`, idempotency, and validation evidence before the workflow can claim the feature is ready for the next stage.
 
-Use `CA-###` IDs for consequence obligations that must survive handoff from `discussion` to `specify`, `plan`, `tasks`, and `implement`; `analyze` consumes the same obligations only when run as an optional diagnostic or legacy revalidation pass. `fast` upgrades when the gate triggers; `quick` may continue only when the consequence model is bounded; `debug` traces the dependency loop and rejects surface-only fixes.
+Use `CA-###` IDs for consequence obligations that must survive handoff from `discussion` to `specify`, `plan`, `tasks`, `implement`, and `quick`; `analyze` consumes the same obligations only when run as an optional diagnostic or legacy revalidation pass. `fast` upgrades when the gate triggers; `quick` scales task-local planning, ordering, batches, and evidence when consequences broaden; `debug` traces the dependency loop and rejects surface-only fixes.
 
 Use support skills when they solve a specific gap:
 
 - `map-update` for localized stale cognition runtime refresh, external/manual changed-path map maintenance, ordinary existing-baseline gaps, and weak localized coverage after a usable baseline; use `map-scan` followed by `map-build` only when the baseline is first/missing/unusable, schema failure is present, active-generation `path_index` rows are zero, `explicit_rebuild_requested` is recorded, or `baseline_identity_invalid` is recorded
 - `auto` when the repository already records the recommended next step and you want a single state-driven continue entrypoint instead of naming the exact workflow yourself
 - `ask` for read-only evidence-backed project Q&A. Use it when you need a direct answer from project files, templates, docs, state, or memory before choosing an action workflow. Project cognition guides the search; live evidence proves the answer. Same-topic follow-ups reuse the prior evidence set when it still applies, localized or project-slang terms are normalized into project vocabulary, and complex answers separate proven facts from evidence-derived inferences. `sp-ask` is independent from `sp-discussion`; it creates no state or handoff, makes no source edits, and does not run tests, builds, package managers, or project CLI commands by default. There is no `specify ask` helper in v1.
-- `discussion` to shape a rough idea before formal specification or bounded quick execution. It keeps human replies natural while Agent state and the single `handoff-to-specify.json` contract stay machine-oriented. `sp-specify` compiles a confirmed contract into `spec-contract.json`; `sp-quick` may consume it only when quick eligibility remains bounded. When the contract introduces no quick-stage `semantic_delta`, Quick binds understanding to the confirmed `review_digest` and does not ask for the same confirmation again.
+- `discussion` to shape a rough idea before formal specification or direct Quick delivery. It keeps human replies natural while Agent state and the single `handoff-to-specify.json` contract stay machine-oriented. Its confirmed `recommended_consumer` selects `sp-specify` for a formal spec-first path or `sp-quick` for direct delivery of any size. When the contract introduces no quick-stage `semantic_delta`, Quick binds understanding to the confirmed `review_digest` and does not ask for the same confirmation again.
 - `discussion` continues by default, uses recommendation-first progression, and runs the Context Boundary Gate before project-specific claims. Project cognition is advisory navigation; live evidence proves current facts.
 - Continue by default, do not ask for continuation, and ask only when user judgment is genuinely required and no safe default exists.
-- `sp-specify` compiles a confirmed discussion contract into `spec-contract.json`; `sp-quick` consumes the same JSON only when eligible and reuses `review_digest` when no quick-stage semantic delta exists.
+- `sp-specify` compiles a confirmed formal-path discussion contract into `spec-contract.json`; `sp-quick` consumes the same JSON for direct delivery and reuses `review_digest` when no quick-stage semantic delta exists. Task size, capability count, architecture, migration, compatibility, rollout, consequence breadth, or acceptance depth do not disqualify Quick.
 - The main feature pipeline passes `handoff-to-specify.json` -> `spec-contract.json` -> `plan-contract.json` -> `task-index.json` -> per-task lifecycle records -> `implementation-handoff.json` -> `review-state.json` -> `human-acceptance.json`. WorkerTaskPackets remain just-in-time and task review remains event-triggered inside Implement. Mandatory system Review freezes a complete Review Universe, uses independent Audit, Fix, and Revalidation subagents under one Leader, and requires zero uncovered scope plus fresh real-entrypoint evidence before human acceptance.
 - `prd-scan` followed by `prd-build` as the existing-project reverse PRD lane when you need repository-first current-state product documentation; it is the heavy reconstruction workflow, substantive scans are subagent-mandatory, critical claims target `L4 Reconstruction-Ready`, `config-contracts.json` is part of the scan contract surface, `prd-build` must not perform a second repository scan, it writes `.specify/prd-runs/<run-id>/`, and it does not automatically hand off to `plan`. `prd` remains a deprecated compatibility entrypoint that should route into the same pair
 - Treat the project cognition runtime as an advisory brownfield navigation index that gives agents dependency, claim, conflict, ownership, and change-impact context before deeper brownfield work starts.
@@ -328,15 +328,15 @@ Use support skills when they solve a specific gap:
 - `analyze` should also flag subagent packet failures through `DP1`, `DP2`, and `DP3` when task packets or subagent results lose required rule-carrying evidence
 - `explain` when you want the current spec, plan, task, implement, project cognition, or compatibility/export artifact restated in plain language
 
-If you're starting from an existing codebase, consult `.specify/project-cognition/status.json` plus the task-local compass packet when available. For the first brownfield cognition baseline, run `sp-map-scan` followed by `sp-map-build` when you want map maintenance and require `specify-runtime cognition validate-scan --format json` plus `specify-runtime cognition validate-build --format json` to pass for that map-maintenance workflow. Downstream workflows use cognition freshness in `.specify/project-cognition/status.json` as map-quality diagnostics; source-changing `sp-*` workflows run planner-first project cognition update for their own closeout, while `map-update` is external/manual localized stale cognition maintenance and follow-up repair, with uncertain closure recorded as partial/low-confidence facts, known unknowns, and `minimal_live_reads`.
+If you're starting from an existing codebase, query cognition readiness through `specify-runtime cognition status --format json` and use the task-local compass packet when available; do not read `.specify/project-cognition/status.json` directly. For the first brownfield cognition baseline, run `sp-map-scan` followed by `sp-map-build` when you want map maintenance and require `specify-runtime cognition validate-scan --format json` plus `specify-runtime cognition validate-build --format json` to pass for that map-maintenance workflow. Downstream workflows use cognition freshness returned by the CLI as map-quality diagnostics; source-changing `sp-*` workflows run planner-first project cognition update for their own closeout, while `map-update` is external/manual localized stale cognition maintenance and follow-up repair, with uncertain closure recorded as partial/low-confidence facts, known unknowns, and `minimal_live_reads`.
 
 Use the lightweight routing rules consistently:
 
 - `fast` is only for trivial local fixes. Stay there only when the change is obvious, touches at most 3 files, and does not touch a shared surface.
 - Upgrade to `quick` when the work expands to more than 3 files, touches a shared surface, or needs research or clarification.
-- `quick` is for small but non-trivial work that still fits one bounded quick-task workspace.
+- `quick` is for non-trivial direct delivery that benefits from resumable state. One Quick workspace may hold one or many ordered work items, task-local `PLAN.md`, dependency-aware batches, consequence tracking, and acceptance evidence; there is no small-task ceiling.
 - If the work is a bug fix or regression and the root cause is still unknown, route to `debug` instead of using `quick` for a symptom-only patch.
-- Quick workspaces live under `.planning/quick/<id>-<slug>/`, with `STATUS.md` as the source of truth and `.planning/quick/index.json` as a derived management index.
+- Quick workspaces live under `.planning/quick/<id>-<slug>/`, with `STATUS.md` as the source of truth, a stable Q1/Q2 ordered work-item/dependency/acceptance ledger for one or many deliverables, optional task-local `PLAN.md` for larger work, and `.planning/quick/index.json` as a derived management index.
 - Invoking `quick` with no arguments should resume unfinished quick work when possible. If exactly one unfinished quick task exists, continue it automatically. `blocked` quick tasks remain resumable.
 - Use `specify-runtime quick list` to inspect unfinished quick tasks by default.
 - Quick-task helper command shapes:
@@ -344,21 +344,22 @@ Use the lightweight routing rules consistently:
   - Command shape: `specify-runtime quick resume <id>`
   - Command shape: `specify-runtime quick close <id> --status resolved|blocked`
   - Command shape: `specify-runtime quick archive <id>`
-- Discussion sessions live under `.specify/discussions/<slug>/`, with canonical typed state in `discussion-state.json`, a short derived compatibility view in `discussion-state.md`, compact semantic events in `discussion-log.jsonl`, and a derived management index in `.specify/discussions/index.json`. `handoff-ready` remains resumable until an eligible consumer records matching source paths and `review_digest`; after verified consumption, `specify-runtime discussion mark-consumed <slug> --feature-dir <feature-dir>` closes the source discussion so old handoffs do not block `sp-auto`.
+- Discussion sessions live under `.specify/discussions/<slug>/`, with canonical typed state in `discussion-state.json`, a short derived compatibility view in `discussion-state.md`, compact semantic events in `discussion-log.jsonl`, and a derived management index in `.specify/discussions/index.json`. `handoff-ready` remains resumable until its confirmed Quick or Specify consumer records matching source paths and `review_digest`; after verified consumption, `specify-runtime discussion mark-consumed <slug> --feature-dir <consumer-workspace>` closes the source discussion so old handoffs do not block `sp-auto`. The option name is retained for compatibility and accepts a Quick workspace.
 - Use `specify-runtime discussion list` to inspect unclosed discussions by default.
 - Discussion helper command shapes:
   - Command shape: `specify-runtime discussion init <topic> [--slug <slug>]`
   - Command shape: `specify-runtime discussion status <slug>`
   - Command shape: `specify-runtime discussion resume <slug>`
   - Command shape: `specify-runtime discussion checkpoint <slug> --summary <summary> [--phase <phase>]`
-  - Command shape: `specify-runtime discussion write-handoff <slug> --input <draft.json>`
+  - Command shape: `specify-runtime discussion write-handoff <slug> --input-json '<draft-json>'`; the runtime materializes the canonical handoff
+  - Command shape: `specify-runtime discussion bind-consumer <slug> --feature-dir <feature-dir> --input-json '<transition-json>'`; the runtime validates the ready contract and materializes the feature compatibility pointer
   - Command shape: `specify-runtime discussion validate-handoff <slug> --mode draft|ready`
   - Command shape: `specify-runtime discussion confirm-handoff <slug> --digest <review-digest>`
   - Command shape: `specify-runtime discussion mark-ready <slug>`
   - Command shape: `specify-runtime discussion close <slug> --status completed|abandoned`
   - Command shape: `specify-runtime discussion mark-consumed <slug> --feature-dir <feature-dir>`
   - Command shape: `specify-runtime discussion archive <slug>`
-- Upgrade to `specify` when the request spans multiple independent capabilities, carries compatibility or rollout risk, or needs explicit acceptance criteria before implementation.
+- Keep direct-delivery work in `quick` when it spans multiple capabilities, carries compatibility or rollout risk, or needs explicit acceptance criteria; deepen the task-local plan, ordered batches, and evidence instead of transferring it. Use `specify` only when the user explicitly chooses a formal spec-first path.
 
 Required action markers:
 
@@ -410,13 +411,17 @@ Project Learning lifecycle:
 
 Hook runtime and diagnostics:
 
-- `specify hook ...` is kept for compatibility, diagnostics, tests, and native adapters. Normal `sp-*` workflow steps should not call `specify hook ...`.
+- Workflow validation is Go-owned: use `specify-runtime hook validate-state|validate-artifacts|validate-commit`. `workflow complete-stage` invokes those validators in-process and never launches Python.
+- PRD lifecycle state is also Go-owned. `specify prd*` plus the compatibility Bash/PowerShell wrappers invoke `specify-runtime prd-scan|prd-build`; `scripts/shared/prd-state.py` is retained only as inactive legacy compatibility data.
+- `specify hook ...` is kept for compatibility, operator diagnostics, tests, and native-adapter capabilities not yet owned by Go. Normal `sp-*` workflow steps should not call `specify hook ...`; they use the project-local Go runtime.
 - Use durable workflow state, artifact checks, packet/result contracts, verification output, and CLI-selected project Learning during normal work.
 - Diagnostic command shapes:
-  - `specify hook validate-state --command <workflow> --feature-dir <dir>`
+  - `specify-runtime hook validate-state --command <workflow> --feature-dir <dir>`
+  - `specify-runtime hook validate-artifacts --command <workflow> --feature-dir <dir>`
+  - `specify-runtime hook validate-commit --commit-message "<message>"`
   - `specify hook validate-session-state --command <workflow> --feature-dir <dir>`
   - `specify hook validate-packet --packet-file <path>`
-  - `specify hook validate-result --packet-file <packet> --result-file <result>`
+  - Normal result validation/submission uses `specify-runtime implement result-merge --result-json '<inline-json>'` or `specify-runtime result submit ... --result-json '<inline-json>'`; the legacy file-only hook remains diagnostic compatibility and is not a generated workflow step.
 - Use project cognition commands for freshness:
   - Command shape: `specify-runtime cognition validate-scan --format json`
   - Command shape: `specify-runtime cognition validate-build --format json`
@@ -427,11 +432,11 @@ Claude Code project-local integration:
 
 - `specify init --ai claude` installs `.claude/hooks/claude-hook-dispatch.py`, installs the shared launcher assets under `.specify/bin/`, and merges project-local `.claude/settings.json` when it is valid JSON.
 - Generated Claude native hook registrations now call `.specify/bin/specify-hook` (or `.specify/bin/specify-hook.cmd` on Windows) instead of embedding `python` or `python3` directly.
-- The shared launcher resolves Python at hook execution time, then delegates to the existing project-local Claude dispatch script.
+- The shared launcher resolves the project-local runtime binding. The thin Claude dispatch script routes runtime-owned validation only to `specify-runtime`; Python remains an adapter implementation detail for host-event checks that have not moved to Go.
 - The current managed Claude native hooks bridge:
   - `SessionStart` into `specify hook render-statusline`
   - `UserPromptSubmit` into `specify hook validate-prompt`
-  - `PreToolUse` into `specify hook validate-read-path` / `specify hook validate-commit`
+  - `PreToolUse` into compatibility `specify hook validate-read-path` and Go-owned `specify-runtime hook validate-commit`
   - `PostToolUse` into `specify hook validate-session-state` for active resumable workflows and soft learning-signal warnings when workflow state records reusable friction
   - `Stop` into `specify hook monitor-context --trigger before_stop` and soft learning-signal warnings when active workflow state crosses the pain threshold
 - If an existing `.claude/settings.json` cannot be parsed, it is preserved and hook registration is skipped rather than overwritten.
@@ -447,16 +452,16 @@ Gemini native integration:
 
 - `specify init --ai gemini` installs `.gemini/hooks/gemini-hook-dispatch.py`, installs the shared launcher assets under `.specify/bin/`, and merges project-local `.gemini/settings.json` when it is valid JSON.
 - Generated Gemini native hook registrations now call `.specify/bin/specify-hook` (or `.specify/bin/specify-hook.cmd` on Windows) instead of embedding `python` or `python3` directly.
-- The shared launcher resolves Python at hook execution time, then delegates to the existing project-local Gemini dispatch script.
+- The shared launcher resolves the project-local runtime binding. The thin Gemini dispatch script routes runtime-owned validation only to `specify-runtime`; Python remains an adapter implementation detail for host-event checks that have not moved to Go.
 - The managed Gemini native hooks bridge:
   - `SessionStart` into `specify hook render-statusline`
   - `BeforeAgent` into `specify hook validate-prompt` and soft learning-signal warnings when active workflow state records reusable friction
-  - `BeforeTool` into `specify hook validate-read-path` / `specify hook validate-commit`
+  - `BeforeTool` into compatibility `specify hook validate-read-path` and Go-owned `specify-runtime hook validate-commit`
 - Learning capture and terminal learning review remain direct learning-memory responsibilities; native hooks may surface soft signals, but normal `sp-*` workflow steps should not call hook learning commands.
 
 Native hook coverage matrix:
 
-| Surface | Shared `specify hook ...` | Native adapter/runtime | Learning signal bridge | Native terminal review gate |
+| Surface | Shared Go/compatibility hooks | Native adapter/runtime | Learning signal bridge | Native terminal review gate |
 | --- | --- | --- | --- | --- |
 | Claude | Yes | Yes | Yes | No |
 | Codex/OMX | Yes | Yes | Yes | No |
@@ -560,7 +565,7 @@ fresh evidence to human acceptance:
 - **Use `specify -> plan` as the default path**
 - **Use `clarify` only when an existing spec needs deeper analysis before planning**
 - **Use `deep-research` only when feasibility or the implementation chain must be proven before planning, and preserve its Planning Handoff as plan input; treat `research` as a compatibility alias, not a separate workflow**
-- **Use failing test first** for `sp-fast`, `sp-quick`, `sp-implement`, and `sp-debug`; if the touched behavior has no viable automated test surface yet, add the smallest safe bootstrap in the owning workflow or escalate to `sp-quick`/`sp-specify`.
+- **Use failing test first** for `sp-fast`, `sp-quick`, `sp-implement`, and `sp-debug`; if the touched behavior has no viable automated test surface yet, add the smallest safe bootstrap in the owning workflow. Fast or Debug may move that work into Quick; Specify is used only when the user explicitly chooses a formal spec-first path.
 - **Validate** the plan before coding begins
 - **Let the AI agent handle** the implementation details
 

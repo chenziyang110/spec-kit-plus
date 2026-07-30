@@ -10,6 +10,7 @@ from .packet_schema import UI_CONTRACT_FIELDS, UIContract, WorkerTaskPacket
 
 MP_ID_RE = re.compile(r"^MP-\d{3}$")
 DESIGN_DECISION_ID_RE = re.compile(r"^DS-[A-Z]+-\d{3}$")
+DESIGN_HANDOFF_ID_RE = re.compile(r"^DH-[A-Z0-9]+(?:-[A-Z0-9]+)+$")
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 APPROVED_PREVIEW_REF_RE = re.compile(
     r"round-\d+\.html#direction-[a-z0-9-]+$", re.IGNORECASE
@@ -61,13 +62,101 @@ def _has_blank_entry(values: list[str]) -> bool:
     return any(not item.strip() for item in values)
 
 
+def _valid_comparison_tolerance(value: object) -> bool:
+    if not isinstance(value, dict):
+        return False
+    if any(
+        value.get(field) != "exact"
+        for field in ("structure", "content", "tokens", "text_wrap")
+    ):
+        return False
+    if value.get("platform_variance") != "approved-deviation-only":
+        return False
+
+    geometry = value.get("geometry")
+    color = value.get("color")
+    motion = value.get("motion")
+    if not all(isinstance(item, dict) for item in (geometry, color, motion)):
+        return False
+    assert isinstance(geometry, dict)
+    assert isinstance(color, dict)
+    assert isinstance(motion, dict)
+    if geometry.get("unit") not in {"px", "cell", "point"}:
+        return False
+    if color.get("method") != "delta-e-2000" or motion.get("unit") != "ms":
+        return False
+    for item in (geometry, color, motion):
+        maximum = item.get("max_delta")
+        if isinstance(maximum, bool) or not isinstance(maximum, (int, float)):
+            return False
+        if maximum < 0:
+            return False
+    return set(value) == {
+        "structure",
+        "content",
+        "tokens",
+        "geometry",
+        "color",
+        "text_wrap",
+        "motion",
+        "platform_variance",
+    }
+
+
+def _valid_responsive_contract(item: object) -> bool:
+    if not isinstance(item, dict) or not str(item.get("adaptation") or "").strip():
+        return False
+    if str(item.get("viewport") or "").strip():
+        return True
+    target = item.get("target")
+    if not isinstance(target, dict):
+        return False
+    width = target.get("width")
+    height = target.get("height")
+    return (
+        isinstance(width, (int, float))
+        and not isinstance(width, bool)
+        and width > 0
+        and isinstance(height, (int, float))
+        and not isinstance(height, bool)
+        and height > 0
+        and target.get("unit") in {"px", "cell", "point"}
+        and bool(str(item.get("state") or "").strip())
+    )
+
+
+def _valid_visual_acceptance_contract(item: object) -> bool:
+    if not isinstance(item, dict):
+        return False
+    if (
+        str(item.get("viewport") or "").strip()
+        and str(item.get("state") or "").strip()
+        and str(item.get("evidence") or "").strip()
+    ):
+        return True
+    return bool(str(item.get("target_id") or "").strip()) and all(
+        isinstance(item.get(field), list) and bool(item.get(field))
+        for field in (
+            "states",
+            "color_modes",
+            "motion_modes",
+            "decision_ids",
+            "must_match",
+            "evidence",
+        )
+    )
+
+
 def _ui_contract_applies(packet: WorkerTaskPacket) -> bool:
     contract = packet.ui_contract
-    return any(
-        getattr(contract, field_name)
-        for field_name in UI_CONTRACT_FIELDS
-        if field_name != "fidelity_level"
-    ) or contract.fidelity_level != "none"
+    return (
+        any(
+            getattr(contract, field_name)
+            for field_name in UI_CONTRACT_FIELDS
+            if field_name != "fidelity_level"
+        )
+        or contract.fidelity_level != "none"
+    )
 
 
 def validate_ui_contract(contract: UIContract) -> None:
@@ -78,19 +167,13 @@ def validate_ui_contract(contract: UIContract) -> None:
             "active UI contract fidelity_level must be approximate, high, or inspiration",
         )
     if contract.ui_work_type not in UI_WORK_TYPES:
-        raise PacketValidationError(
-            "DP1", "UI contract requires a valid ui_work_type"
-        )
+        raise PacketValidationError("DP1", "UI contract requires a valid ui_work_type")
     if contract.surface_type not in UI_SURFACE_TYPES:
-        raise PacketValidationError(
-            "DP1", "UI contract requires a valid surface_type"
-        )
+        raise PacketValidationError("DP1", "UI contract requires a valid surface_type")
     if not contract.platforms or any(
         item not in UI_PLATFORMS for item in contract.platforms
     ):
-        raise PacketValidationError(
-            "DP1", "UI contract requires supported platforms"
-        )
+        raise PacketValidationError("DP1", "UI contract requires supported platforms")
     for field_name in (
         "subject",
         "audience",
@@ -114,26 +197,58 @@ def validate_ui_contract(contract: UIContract) -> None:
         raise PacketValidationError(
             "DP1", "UI contract requires canonical design_decision_ids"
         )
-    for field_name in ("approved_preview_sha256", "approved_manifest_sha256"):
+    if any(
+        not isinstance(item, str) or not DESIGN_HANDOFF_ID_RE.fullmatch(item)
+        for item in contract.handoff_contract_ids
+    ):
+        raise PacketValidationError(
+            "DP1", "UI contract handoff_contract_ids must contain canonical DH-* IDs"
+        )
+    for field_name in (
+        "approved_preview_sha256",
+        "approved_manifest_sha256",
+        "approved_handoff_sha256",
+    ):
         value = str(getattr(contract, field_name) or "").strip()
         if value and not SHA256_RE.fullmatch(value):
             raise PacketValidationError(
                 "DP1", f"UI contract {field_name} must be a SHA-256 digest"
             )
-    if APPROVED_PREVIEW_REF_RE.search(contract.approved_visual_ref) and (
-        not SHA256_RE.fullmatch(contract.approved_preview_sha256)
-        or not SHA256_RE.fullmatch(contract.approved_manifest_sha256)
+    has_handoff_ref = bool(contract.approved_handoff_ref.strip())
+    has_handoff_digest = bool(contract.approved_handoff_sha256.strip())
+    has_handoff_ids = bool(contract.handoff_contract_ids)
+    if any((has_handoff_ref, has_handoff_digest, has_handoff_ids)) and not (
+        has_handoff_ref and has_handoff_digest and has_handoff_ids
     ):
         raise PacketValidationError(
             "DP1",
-            "approved HTML preview requires preview and manifest SHA-256 digests",
+            "UI contract immutable handoff ref, SHA-256, and DH-* IDs must be present together",
+        )
+    if has_handoff_ref and not contract.approved_handoff_ref.strip().lower().endswith(
+        ".handoff.json"
+    ):
+        raise PacketValidationError(
+            "DP1", "UI contract approved_handoff_ref must identify a .handoff.json file"
+        )
+    if APPROVED_PREVIEW_REF_RE.search(contract.approved_visual_ref) and (
+        not SHA256_RE.fullmatch(contract.approved_preview_sha256)
+        or not SHA256_RE.fullmatch(contract.approved_manifest_sha256)
+        or not contract.approved_handoff_ref.strip().lower().endswith(".handoff.json")
+        or not SHA256_RE.fullmatch(contract.approved_handoff_sha256)
+        or not contract.handoff_contract_ids
+        or any(
+            not DESIGN_HANDOFF_ID_RE.fullmatch(item)
+            for item in contract.handoff_contract_ids
+        )
+    ):
+        raise PacketValidationError(
+            "DP1",
+            "approved HTML preview requires preview, manifest, and immutable handoff bindings",
         )
     if not contract.required_states or _has_blank_entry(contract.required_states):
         raise PacketValidationError("DP1", "UI contract requires required_states")
     if not contract.real_content_plan:
-        raise PacketValidationError(
-            "DP1", "UI contract requires a real_content_plan"
-        )
+        raise PacketValidationError("DP1", "UI contract requires a real_content_plan")
     for item in contract.real_content_plan:
         if not isinstance(item, dict) or not str(item.get("source_ref") or "").strip():
             raise PacketValidationError(
@@ -161,9 +276,7 @@ def validate_ui_contract(contract: UIContract) -> None:
     if not contract.color_modes or _has_blank_entry(contract.color_modes):
         raise PacketValidationError("DP1", "UI contract requires color_modes")
     if not contract.component_contracts:
-        raise PacketValidationError(
-            "DP1", "UI contract requires component_contracts"
-        )
+        raise PacketValidationError("DP1", "UI contract requires component_contracts")
     for item in contract.component_contracts:
         decision_ids = item.get("decision_ids") if isinstance(item, dict) else None
         if (
@@ -182,14 +295,11 @@ def validate_ui_contract(contract: UIContract) -> None:
                 "UI contract component_contracts require component and known decision_ids",
             )
     if not contract.responsive_matrix or any(
-        not isinstance(item, dict)
-        or not str(item.get("viewport") or "").strip()
-        or not str(item.get("adaptation") or "").strip()
-        for item in contract.responsive_matrix
+        not _valid_responsive_contract(item) for item in contract.responsive_matrix
     ):
         raise PacketValidationError(
             "DP1",
-            "UI contract responsive_matrix entries require viewport and adaptation",
+            "UI contract responsive_matrix entries require a viewport or immutable target plus adaptation",
         )
     if (
         not isinstance(contract.motion_contract, dict)
@@ -201,19 +311,17 @@ def validate_ui_contract(contract: UIContract) -> None:
             "UI contract motion_contract requires purpose and reduced_motion",
         )
     if not contract.visual_acceptance_matrix or any(
-        not isinstance(item, dict)
-        or not str(item.get("viewport") or "").strip()
-        or not str(item.get("state") or "").strip()
-        or not str(item.get("evidence") or "").strip()
+        not _valid_visual_acceptance_contract(item)
         for item in contract.visual_acceptance_matrix
     ):
         raise PacketValidationError(
             "DP1",
-            "UI contract visual_acceptance_matrix entries require viewport, state, and evidence",
+            "UI contract visual_acceptance_matrix entries require a viewport/state/evidence row or an immutable target contract",
         )
-    if not contract.comparison_tolerance.strip():
+    if not _valid_comparison_tolerance(contract.comparison_tolerance):
         raise PacketValidationError(
-            "DP1", "UI contract requires comparison_tolerance"
+            "DP1",
+            "UI contract comparison_tolerance must preserve the structured exact-reproduction rules",
         )
     if any(
         not isinstance(item, dict)
@@ -234,7 +342,9 @@ def validate_ui_contract(contract: UIContract) -> None:
         )
 
 
-def validate_ui_context_nav(context_nav: list[dict[str, str]]) -> None:
+def validate_ui_context_nav(
+    context_nav: list[dict[str, str]], *, require_handoff: bool = False
+) -> None:
     """Validate packet-only compact navigation derived for UI execution."""
 
     context_kinds = {
@@ -243,6 +353,8 @@ def validate_ui_context_nav(context_nav: list[dict[str, str]]) -> None:
         if isinstance(item, dict)
     }
     missing_context = {"ui_entrypoint", "design_source"} - context_kinds
+    if require_handoff:
+        missing_context |= {"design_handoff"} - context_kinds
     if missing_context:
         raise PacketValidationError(
             "DP2",
@@ -355,7 +467,10 @@ def validate_worker_task_packet(packet: WorkerTaskPacket) -> WorkerTaskPacket:
         )
     if _ui_contract_applies(packet):
         validate_ui_contract(packet.ui_contract)
-        validate_ui_context_nav(packet.context_nav)
+        validate_ui_context_nav(
+            packet.context_nav,
+            require_handoff=bool(packet.ui_contract.approved_handoff_ref),
+        )
     if _has_blank_entry(packet.controller_checks_required):
         raise PacketValidationError(
             "DP1", "controller checks required cannot contain blank entries"

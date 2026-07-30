@@ -17,11 +17,17 @@ Include only applicable decisions:
 - accessibility semantics, focus, contrast, input, and reduced-motion behavior;
 - reference fidelity and later visual evidence requirements.
 
-Before locking a new or materially changed direction, use the installed
-`design-preview-template.html` as the stable project-level review carrier. One
-numbered HTML round holds exactly three directions and one shared comparison
-baseline: foundations, components, required states, data density, motion,
-responsive frames, and handoff boundaries. Keep it self-contained and
+Before locking a new or materially changed direction, query design profiles through the design CLI,
+select one or more visual capability profiles, generate `round-NN.manifest.json`
+with `specify-runtime design preview-manifest --profiles ...`, and render it with
+`specify-runtime design preview --manifest`; do not
+hand-edit the generated HTML. The installed `design-preview-template.html` is
+the stable project-level review carrier, not a claim that every platform uses
+the same Web specimen. The profile registry determines required capabilities,
+input modes, units, specimens, state obligations, and presentation targets for
+Web, mobile, desktop, CLI, TUI, and content-led surfaces. All three directions
+must carry the same ordered specimen set. One numbered HTML round holds exactly
+three directions and one shared comparison baseline. Keep it self-contained and
 framework-neutral. Modern CSS and bounded inline review behavior may express
 direction switching and meaningful animation, but the artifact must not load
 remote code/assets, persist data, call a network, simulate business logic, or
@@ -33,9 +39,11 @@ with the same content and state matrix. If none is satisfactory, incorporate
 the user's named feedback into a new immutable round. Approval identifies the
 exact round path and direction ID. Freeze it with
 `{{specify-subcmd:specify-runtime design approve <round-path> --direction <direction-id> --format json}}`;
-the resulting sidecar, preview SHA-256, manifest SHA-256, review round, and
-approved decision IDs are the approval truth. Carry those values unchanged
-through `DESIGN.md`, the feature UI brief, plan/task UI contracts, and final
+the resulting approval sidecar, selected-direction handoff sidecar, preview
+SHA-256, manifest SHA-256, handoff SHA-256, review round, approved decision IDs,
+and handoff contract IDs are the approval truth. Carry those values unchanged
+with capability profile and specimen IDs through `DESIGN.md`, the feature UI
+brief, plan/task UI contracts, and final
 visual comparison. A verbal hybrid is not approvable; render it as a new
 direction in a new immutable round.
 
@@ -57,6 +65,20 @@ applicable. Each decision names its source, affected surfaces, implementation
 token or owner, and verification method. Export the approved `DESIGN.md` to
 `.specify/design/design-system.json`; downstream work consumes that stable
 shape instead of re-authoring the design from prose.
+
+The visible handoff section is part of approval, not explanatory footer text.
+It preserves the complete capability model and assigns stable `DH-*` IDs to
+implementation bindings, component anatomy and states, presentation targets,
+and visual acceptance rows. Every approved `DS-*` decision, specimen, and
+required state must be covered. `design approve` deterministically
+projects the selected direction into `round-NN.handoff.json`; downstream
+artifacts reference its digest and select `DH-*` IDs instead of rewriting its
+meaning.
+
+`no-ui` is an explicit applicability result, not a specimen. It requires current
+evidence and `design_system_status: not-applicable`; it cannot be combined with
+a visual profile and must not enter preview, approval, handoff, `ui-target`, or
+visual-comparison work.
 
 The project-level design preview and feature-level `ui-target.html` are
 different artifacts. The preview approves reusable visual, component, state,

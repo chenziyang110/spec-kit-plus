@@ -1,0 +1,408 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spec-kit-plus.dev/schemas/design-preview-manifest.schema.json",
+  "title": "Spec Kit Plus design preview manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "configured",
+    "project",
+    "capability_model",
+    "review",
+    "content",
+    "directions",
+    "boundaries",
+    "decisions",
+    "token_map",
+    "handoff"
+  ],
+  "properties": {
+    "schema": {"const": "spec-kit-design-preview-manifest-v1"},
+    "configured": {"type": "boolean"},
+    "project": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "short_name", "subject", "audience", "single_job", "brief", "surface_types", "platforms", "modules"],
+      "properties": {
+        "name": {"type": "string"},
+        "short_name": {"type": "string"},
+        "subject": {"type": "string"},
+        "audience": {"type": "string"},
+        "single_job": {"type": "string"},
+        "brief": {"type": "string"},
+        "surface_types": {"$ref": "#/$defs/nonEmptyStrings"},
+        "platforms": {"$ref": "#/$defs/nonEmptyStrings"},
+        "modules": {"$ref": "#/$defs/nonEmptyStrings"}
+      }
+    },
+    "capability_model": {"$ref": "#/$defs/capabilityModel"},
+    "review": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["round", "status", "approved_direction"],
+      "properties": {
+        "round": {"type": "string"},
+        "status": {"enum": ["scaffold", "candidate", "approved"]},
+        "approved_direction": {"type": ["string", "null"]}
+      }
+    },
+    "content": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {"type": "string"}
+    },
+    "directions": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": {"$ref": "#/$defs/direction"}
+    },
+    "boundaries": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["must_preserve", "may_adapt", "must_not"],
+      "properties": {
+        "must_preserve": {"$ref": "#/$defs/nonEmptyStrings"},
+        "may_adapt": {"$ref": "#/$defs/nonEmptyStrings"},
+        "must_not": {"$ref": "#/$defs/nonEmptyStrings"}
+      }
+    },
+    "decisions": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/decision"}
+    },
+    "token_map": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/implementationBinding"}
+    },
+    "handoff": {"$ref": "#/$defs/handoff"}
+  },
+  "$defs": {
+    "nonEmptyStrings": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "decisionIds": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"type": "string", "pattern": "^DS-[A-Z0-9]+(?:-[A-Z0-9]+)+$"}
+    },
+    "handoffId": {"type": "string", "pattern": "^DH-[A-Z0-9]+(?:-[A-Z0-9]+)+$"},
+    "specimenId": {"type": "string", "pattern": "^SP-[A-Z0-9]+(?:-[A-Z0-9]+)+$"},
+    "capabilityIds": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"type": "string", "pattern": "^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)+$"}
+    },
+    "specimenIds": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/specimenId"}
+    },
+    "specimen": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "profile_id", "kind", "title", "purpose", "capability_ids", "required_states", "content_keys"],
+      "properties": {
+        "id": {"$ref": "#/$defs/specimenId"},
+        "profile_id": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+        "kind": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+        "title": {"type": "string", "minLength": 1},
+        "purpose": {"type": "string", "minLength": 1},
+        "capability_ids": {"$ref": "#/$defs/capabilityIds"},
+        "required_states": {"$ref": "#/$defs/nonEmptyStrings"},
+        "content_keys": {"$ref": "#/$defs/nonEmptyStrings"}
+      }
+    },
+    "profileContract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "label", "summary", "input_modes", "measurement_units"],
+      "properties": {
+        "id": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+        "label": {"type": "string", "minLength": 1},
+        "summary": {"type": "string", "minLength": 1},
+        "input_modes": {"$ref": "#/$defs/nonEmptyStrings"},
+        "measurement_units": {"$ref": "#/$defs/nonEmptyStrings"}
+      }
+    },
+    "capabilityModel": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema", "profile_ids", "profiles", "capability_ids", "input_modes", "measurement_units", "specimens"],
+      "properties": {
+        "schema": {"const": "spec-kit-design-capability-model-v1"},
+        "profile_ids": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"}
+        },
+        "profiles": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/profileContract"}
+        },
+        "capability_ids": {"$ref": "#/$defs/capabilityIds"},
+        "input_modes": {"$ref": "#/$defs/nonEmptyStrings"},
+        "measurement_units": {"$ref": "#/$defs/nonEmptyStrings"},
+        "specimens": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/specimen"}
+        }
+      }
+    },
+    "palette": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["canvas", "canvas_deep", "surface", "surface_raised", "ink", "ink_muted", "line", "accent", "accent_ink", "support", "warning", "danger"],
+      "properties": {
+        "canvas": {"type": "string"},
+        "canvas_deep": {"type": "string"},
+        "surface": {"type": "string"},
+        "surface_raised": {"type": "string"},
+        "ink": {"type": "string"},
+        "ink_muted": {"type": "string"},
+        "line": {"type": "string"},
+        "accent": {"type": "string"},
+        "accent_ink": {"type": "string"},
+        "support": {"type": "string"},
+        "warning": {"type": "string"},
+        "danger": {"type": "string"}
+      }
+    },
+    "direction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "visual_thesis", "content_thesis", "interaction_thesis", "signature_element", "gain", "cost", "specimen_ids", "typography", "geometry", "density", "elevation", "motion", "modes"],
+      "properties": {
+        "id": {"type": "string", "pattern": "^direction-[a-z0-9][a-z0-9-]*$"},
+        "name": {"type": "string"},
+        "visual_thesis": {"type": "string"},
+        "content_thesis": {"type": "string"},
+        "interaction_thesis": {"type": "string"},
+        "signature_element": {"type": "string"},
+        "gain": {"type": "string"},
+        "cost": {"type": "string"},
+        "specimen_ids": {"$ref": "#/$defs/specimenIds"},
+        "typography": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["display", "body", "heading_tracking"],
+          "properties": {
+            "display": {"type": "string"},
+            "body": {"type": "string"},
+            "heading_tracking": {"type": "string"}
+          }
+        },
+        "geometry": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["radius_control", "radius_surface"],
+          "properties": {
+            "radius_control": {"type": "string"},
+            "radius_surface": {"type": "string"}
+          }
+        },
+        "density": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["space_unit", "label", "scale"],
+          "properties": {
+            "space_unit": {"type": "string"},
+            "label": {"type": "string"},
+            "scale": {"type": "number", "exclusiveMinimum": 0}
+          }
+        },
+        "elevation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["surface", "control"],
+          "properties": {
+            "surface": {"type": "string"},
+            "control": {"type": "string"}
+          }
+        },
+        "motion": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["duration_fast", "duration_base", "duration_slow", "easing_standard", "easing_emphasized", "distance_enter", "stagger", "reduced_motion"],
+          "properties": {
+            "duration_fast": {"type": "string"},
+            "duration_base": {"type": "string"},
+            "duration_slow": {"type": "string"},
+            "easing_standard": {"type": "string"},
+            "easing_emphasized": {"type": "string"},
+            "distance_enter": {"type": "string"},
+            "stagger": {"type": "string"},
+            "reduced_motion": {"type": "string"}
+          }
+        },
+        "modes": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["light", "dark", "high-contrast"],
+          "properties": {
+            "light": {"$ref": "#/$defs/palette"},
+            "dark": {"$ref": "#/$defs/palette"},
+            "high-contrast": {"$ref": "#/$defs/palette"}
+          }
+        }
+      }
+    },
+    "decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "title", "statement", "source_ref", "affected_surfaces", "verification"],
+      "properties": {
+        "id": {"type": "string", "pattern": "^DS-[A-Z0-9]+(?:-[A-Z0-9]+)+$"},
+        "kind": {"type": "string", "minLength": 1},
+        "title": {"type": "string", "minLength": 1},
+        "statement": {"type": "string", "minLength": 1},
+        "source_ref": {"type": "string", "minLength": 1},
+        "affected_surfaces": {"$ref": "#/$defs/nonEmptyStrings"},
+        "verification": {"type": "string", "minLength": 1}
+      }
+    },
+    "implementationBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "decision_id", "source_path", "preview_token", "production_owner", "production_target", "verification"],
+      "properties": {
+        "id": {"$ref": "#/$defs/handoffId"},
+        "decision_id": {"type": "string"},
+        "source_path": {"type": "string", "minLength": 1},
+        "preview_token": {"type": "string", "minLength": 1},
+        "production_owner": {"type": "string", "minLength": 1},
+        "production_target": {"type": "string", "minLength": 1},
+        "verification": {"type": "string", "minLength": 1}
+      }
+    },
+    "componentContract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "component", "anatomy", "required_states", "decision_ids", "must_match"],
+      "properties": {
+        "id": {"$ref": "#/$defs/handoffId"},
+        "component": {"type": "string", "minLength": 1},
+        "anatomy": {"$ref": "#/$defs/nonEmptyStrings"},
+        "required_states": {"$ref": "#/$defs/nonEmptyStrings"},
+        "decision_ids": {"$ref": "#/$defs/decisionIds"},
+        "must_match": {"$ref": "#/$defs/nonEmptyStrings"}
+      }
+    },
+    "renderTarget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["width", "height", "unit"],
+      "properties": {
+        "width": {"type": "integer", "minimum": 1},
+        "height": {"type": "integer", "minimum": 1},
+        "unit": {"enum": ["px", "cell", "point"]}
+      }
+    },
+    "responsiveContract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "profile_id", "label", "target", "review_width_px", "state", "adaptation", "decision_ids"],
+      "properties": {
+        "id": {"$ref": "#/$defs/handoffId"},
+        "profile_id": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+        "label": {"type": "string", "minLength": 1},
+        "target": {"$ref": "#/$defs/renderTarget"},
+        "review_width_px": {"type": "integer", "minimum": 240, "maximum": 2400},
+        "state": {"type": "string", "minLength": 1},
+        "adaptation": {"type": "string", "minLength": 1},
+        "decision_ids": {"$ref": "#/$defs/decisionIds"}
+      }
+    },
+    "acceptanceContract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "target_id", "specimen_ids", "states", "color_modes", "motion_modes", "decision_ids", "must_match", "evidence"],
+      "properties": {
+        "id": {"$ref": "#/$defs/handoffId"},
+        "target_id": {"$ref": "#/$defs/handoffId"},
+        "specimen_ids": {"$ref": "#/$defs/specimenIds"},
+        "states": {"$ref": "#/$defs/nonEmptyStrings"},
+        "color_modes": {"$ref": "#/$defs/nonEmptyStrings"},
+        "motion_modes": {"$ref": "#/$defs/nonEmptyStrings"},
+        "decision_ids": {"$ref": "#/$defs/decisionIds"},
+        "must_match": {"$ref": "#/$defs/nonEmptyStrings"},
+        "evidence": {"$ref": "#/$defs/nonEmptyStrings"}
+      }
+    },
+    "tolerance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["structure", "content", "tokens", "geometry", "color", "text_wrap", "motion", "platform_variance"],
+      "properties": {
+        "structure": {"const": "exact"},
+        "content": {"const": "exact"},
+        "tokens": {"const": "exact"},
+        "geometry": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["unit", "max_delta"],
+          "properties": {
+            "unit": {"enum": ["px", "cell", "point"]},
+            "max_delta": {"type": "number", "minimum": 0}
+          }
+        },
+        "color": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["method", "max_delta"],
+          "properties": {
+            "method": {"const": "delta-e-2000"},
+            "max_delta": {"type": "number", "minimum": 0}
+          }
+        },
+        "text_wrap": {"const": "exact"},
+        "motion": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["unit", "max_delta"],
+          "properties": {
+            "unit": {"const": "ms"},
+            "max_delta": {"type": "number", "minimum": 0}
+          }
+        },
+        "platform_variance": {"const": "approved-deviation-only"}
+      }
+    },
+    "handoff": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reproduction_mode", "component_contracts", "responsive_matrix", "visual_acceptance_matrix", "comparison_tolerance", "accepted_deviations"],
+      "properties": {
+        "reproduction_mode": {"enum": ["exact", "platform-adapted"]},
+        "component_contracts": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/componentContract"}},
+        "responsive_matrix": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/responsiveContract"}},
+        "visual_acceptance_matrix": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/acceptanceContract"}},
+        "comparison_tolerance": {"$ref": "#/$defs/tolerance"},
+        "accepted_deviations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "decision_id", "reason", "approval_ref"],
+            "properties": {
+              "id": {"$ref": "#/$defs/handoffId"},
+              "decision_id": {"type": "string"},
+              "reason": {"type": "string", "minLength": 1},
+              "approval_ref": {"type": "string", "minLength": 1}
+            }
+          }
+        }
+      }
+    }
+  }
+}

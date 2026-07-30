@@ -15,7 +15,7 @@ import (
 	"github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/store"
 )
 
-func TestRunPlansPayloadModeForKnownMappedChange(t *testing.T) {
+func TestRunPlansInlinePayloadModeForKnownMappedChange(t *testing.T) {
 	root, paths := initCloseoutFixture(t)
 	writeCloseoutFile(t, root, "src/app.go", "package app\n\nfunc App() string { return \"v2\" }\n")
 
@@ -23,7 +23,6 @@ func TestRunPlansPayloadModeForKnownMappedChange(t *testing.T) {
 		Workflow:           "implement",
 		IncludeWorkingTree: true,
 		IncludeUntracked:   true,
-		PayloadPath:        ".specify/project-cognition/updates/custom.json",
 	})
 	if err != nil {
 		t.Fatalf("Run returned error: %v", err)
@@ -35,8 +34,8 @@ func TestRunPlansPayloadModeForKnownMappedChange(t *testing.T) {
 	if payload.Workflow != "sp-implement" || payload.WorkflowCanonical != "sp-implement" {
 		t.Fatalf("workflow fields = %q/%q", payload.Workflow, payload.WorkflowCanonical)
 	}
-	if payload.UpdateMode != "payload_file" {
-		t.Fatalf("UpdateMode = %q, want payload_file", payload.UpdateMode)
+	if payload.UpdateMode != "inline_json" {
+		t.Fatalf("UpdateMode = %q, want inline_json", payload.UpdateMode)
 	}
 	if payload.PayloadDraft == nil {
 		t.Fatal("PayloadDraft is nil")
@@ -53,15 +52,12 @@ func TestRunPlansPayloadModeForKnownMappedChange(t *testing.T) {
 	if len(payload.UnknownPathDispositions) != 0 {
 		t.Fatalf("UnknownPathDispositions = %#v, want none", payload.UnknownPathDispositions)
 	}
-	wantArgv := []string{"specify-runtime", "cognition", "update", "--payload-file", ".specify/project-cognition/updates/custom.json", "--reason", "workflow-finalize", "--format", "json"}
+	wantArgv := []string{"specify-runtime", "cognition", "update", "--payload-json", "<inline-json>", "--reason", "workflow-finalize", "--format", "json"}
 	if !reflect.DeepEqual(payload.UpdateArgv, wantArgv) {
 		t.Fatalf("UpdateArgv = %#v", payload.UpdateArgv)
 	}
-	if strings.Contains(payload.UpdateCommand, ".specify/project-cognition/updates/custom.json") {
-		t.Fatalf("UpdateCommand = %q, want display-only placeholder without concrete path", payload.UpdateCommand)
-	}
-	if payload.PayloadDraft == nil || !reflect.DeepEqual(payload.PayloadDraft.UpdateArgv, wantArgv) {
-		t.Fatalf("draft UpdateArgv = %#v", payload.PayloadDraft)
+	if !strings.Contains(payload.CommandSafetyNote, "never create a payload file") {
+		t.Fatalf("CommandSafetyNote = %q, want inline safety guidance", payload.CommandSafetyNote)
 	}
 	if !containsCloseoutString(payload.RequiredAgentFields, "verification") || !containsCloseoutString(payload.RequiredAgentFields, "behavior_surfaces") {
 		t.Fatalf("RequiredAgentFields = %#v", payload.RequiredAgentFields)
@@ -378,24 +374,26 @@ func TestRunUsesStructuredArgvForShellMetacharacters(t *testing.T) {
 	root, paths := initCloseoutFixture(t)
 	writeCloseoutFile(t, root, "src/app.go", "package app\n\nfunc App() string { return \"meta\" }\n")
 
-	payloadPath := `.specify/project-cognition/updates/closeout"; rm -rf nope; ".json`
 	sessionID := `D-session"; rm -rf nope; "`
+	reason := `workflow-finalize"; rm -rf nope; "`
 
 	payload, err := Run(paths, Input{
 		Workflow:           "implement",
-		Reason:             `workflow-finalize"; rm -rf nope; "`,
+		Reason:             reason,
 		IncludeWorkingTree: true,
 		IncludeUntracked:   true,
-		PayloadPath:        payloadPath,
 	})
 	if err != nil {
 		t.Fatalf("Run payload mode returned error: %v", err)
 	}
-	if strings.Contains(payload.UpdateCommand, payloadPath) {
-		t.Fatalf("UpdateCommand includes user-supplied payload path: %q", payload.UpdateCommand)
+	if strings.Contains(payload.UpdateCommand, reason) {
+		t.Fatalf("UpdateCommand includes user-supplied reason: %q", payload.UpdateCommand)
 	}
-	if !containsCloseoutString(payload.UpdateArgv, payloadPath) {
-		t.Fatalf("UpdateArgv = %#v, want payload path as one argv element", payload.UpdateArgv)
+	if !containsCloseoutString(payload.UpdateArgv, reason) {
+		t.Fatalf("UpdateArgv = %#v, want reason as one argv element", payload.UpdateArgv)
+	}
+	if !containsCloseoutString(payload.UpdateArgv, "<inline-json>") {
+		t.Fatalf("UpdateArgv = %#v, want inline JSON placeholder", payload.UpdateArgv)
 	}
 
 	deltaPayload, err := Run(paths, Input{
@@ -438,7 +436,7 @@ func TestRunThreadsReasonAndIntentDefaults(t *testing.T) {
 	if payload.PayloadDraft.Reason != "custom-closeout" {
 		t.Fatalf("PayloadDraft.Reason = %q", payload.PayloadDraft.Reason)
 	}
-	if !reflect.DeepEqual(payload.UpdateArgv, []string{"specify-runtime", "cognition", "update", "--payload-file", ".specify/project-cognition/updates/sp-implement-closeout.json", "--reason", "custom-closeout", "--format", "json"}) {
+	if !reflect.DeepEqual(payload.UpdateArgv, []string{"specify-runtime", "cognition", "update", "--payload-json", "<inline-json>", "--reason", "custom-closeout", "--format", "json"}) {
 		t.Fatalf("UpdateArgv = %#v", payload.UpdateArgv)
 	}
 }

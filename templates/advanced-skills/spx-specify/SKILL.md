@@ -20,24 +20,41 @@ interfaces, risk, or acceptance; make safe assumptions explicit. Preserve every
 confirmed capability and do not silently reduce the request to an MVP.
 
 For new feature state, run the installed
-`.specify/scripts/bash/create-new-feature.sh` or PowerShell equivalent. Render
-the authoritative `spec-contract.json` from the canonical machine template
-`.specify/templates/spec-contract-template.json`. For a new project-facing
-view, use this Skill's compact `assets/spec.md`; preserve existing semantic work
-when revising an established spec. Render `assets/ui-brief.md` for substantive
-UI work; a narrow existing-pattern adjustment may instead record why a separate
-brief adds no decision value.
+`.specify/scripts/bash/create-new-feature.sh` or PowerShell equivalent. Create
+the authoritative `spec-contract.json` with `specify-runtime artifact scaffold --kind spec-contract`, then fill targeted JSON pointers through leased `artifact patch` calls. For a new project-facing
+view, use this Skill's compact `assets/spec.md` only as section guidance for the
+prerequisite-script-created `spec.md` skeleton: query it through `artifact show`
+and fill named sections through leased `artifact patch --section`; never emit or
+resubmit the full stable template. Preserve existing semantic work when
+revising an established spec. For substantive UI work, create `ui-brief.md`
+through `specify-runtime artifact scaffold --kind ui-brief` and patch its
+semantic fields; when original UI references exist, likewise scaffold
+`ui-reference-notes.md` with `artifact scaffold --kind ui-reference-notes`.
+Use `assets/ui-brief.md` only as compact field guidance, never as content to
+reproduce. A narrow existing-pattern adjustment may instead record why a
+separate brief adds no decision value.
+
+Treat `alignment.md`, `context.md`, and `references.md` as conditional
+project-facing views, not parallel truth. When one has independent review
+value, create an absent stable view with `artifact scaffold --kind alignment`,
+`--kind specify-context`, or `--kind references`, then fill only named sections
+through fresh leased `artifact patch` calls. The feature bootstrap normally
+creates `context.md`, so query and patch it instead of replacing it. Never emit
+or submit any of these stable templates wholesale. When a requirements
+checklist is genuinely needed, pass only a compact semantic checklist object to
+`specify-runtime artifact checklist`; the CLI owns Markdown and `CHK###` IDs.
 
 After the feature directory exists, enter or resume `specify` through the
 workflow runtime before substantive artifact work. Keep specification truth in
-the contract rather than reconstructing phase state. Create or resume rich
-`workflow-state.md` from the installed template for specification evidence,
+the contract rather than reconstructing phase state. Create rich
+`workflow-state.md` with `specify-runtime artifact scaffold --kind workflow-state`, or resume it through targeted `artifact show` and leased `artifact patch` calls, for specification evidence,
 resume details, and Learning; it does not own phase order or runtime revision.
 Run
 `{{specify-subcmd:specify-runtime hook validate-state --command specify --feature-dir <feature-dir> --autofix --format json}}`
 and stop if the repaired state remains invalid.
-Create only specification-stage outputs here: `spec-contract.json`, `spec.md`,
-a triggered `ui-brief.md`, and specification evidence or workflow-owned rich state.
+Create specification-stage outputs only through their registered artifact CLI owners: `spec-contract.json`, `spec.md`,
+triggered alignment/context/reference views, a triggered `ui-brief.md`, and
+specification evidence or workflow-owned rich state.
 Do not create `plan-contract.json`, `plan.md`, `research.md`, `data-model.md`,
 `contracts/`, `quickstart.md`, `tasks.md`, or `task-index.json`; `$spx-plan` and
 `$spx-tasks` own those downstream artifacts.

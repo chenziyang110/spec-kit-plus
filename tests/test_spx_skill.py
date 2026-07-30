@@ -102,28 +102,31 @@ def test_spx_design_asset_passes_the_real_design_linter() -> None:
     assert diagnostics == []
 
 
-def test_spx_quick_status_asset_is_readable_by_the_real_quick_helper(
+def test_canonical_quick_status_scaffold_is_readable_by_the_real_quick_helper(
     monkeypatch, tmp_path: Path
 ) -> None:
     quick_id = "20260714-001"
     workspace = tmp_path / ".planning" / "quick" / f"{quick_id}-parser-contract"
     workspace.mkdir(parents=True)
-    content = (ADVANCED_SKILLS / "spx-quick" / "assets" / "status.md").read_text(
-        encoding="utf-8"
-    )
+    content = (
+        PROJECT_ROOT / "templates" / "artifacts" / "quick-status.md"
+    ).read_text(encoding="utf-8")
     for placeholder, value in {
         "{{id}}": quick_id,
         "{{slug}}": "parser-contract",
         "{{title}}": "Parser contract",
-        "{{intent}}": "verify the advanced quick template",
+        "{{trigger}}": "verify the canonical quick scaffold",
     }.items():
         content = content.replace(placeholder, value)
+    content = content.replace(
+        'current_focus: ""', "current_focus: verify the canonical quick scaffold"
+    ).replace('next_action: ""', "next_action: establish scope and acceptance")
     (workspace / "STATUS.md").write_text(content, encoding="utf-8")
     monkeypatch.chdir(tmp_path)
 
     task = specify_cli._run_quick_helper("status", quick_id=quick_id)["task"]
 
-    assert task["current_focus"] == "verify the advanced quick template"
+    assert task["current_focus"] == "verify the canonical quick scaffold"
     assert task["next_action"] == "establish scope and acceptance"
 
 
@@ -234,6 +237,9 @@ def test_spx_skills_keep_runtime_reuse_and_safety_boundaries() -> None:
         name: (ADVANCED_SKILLS / name / "SKILL.md").read_text(encoding="utf-8").lower()
         for name in SPX_SKILLS
     }
+    compact_skills = {
+        name: re.sub(r"\s+", " ", content) for name, content in skills.items()
+    }
 
     assert "read-only" in skills["spx-ask"]
     assert "live repository" in skills["spx-ask"]
@@ -253,10 +259,16 @@ def test_spx_skills_keep_runtime_reuse_and_safety_boundaries() -> None:
     assert "create no separate auto state" in skills["spx-auto"]
 
     assert "design.md" in skills["spx-design"]
+    assert "artifact scaffold --kind design-brief" in skills["spx-design"]
+    assert "artifact scaffold --kind design-review" in skills["spx-design"]
+    assert "design-brief-template.md` in memory" not in skills["spx-design"]
     assert "do not edit application source" in skills["spx-design"]
 
     assert "create-new-feature" in skills["spx-specify"]
-    assert "spec-contract-template.json" in skills["spx-specify"]
+    assert "artifact scaffold --kind spec-contract" in skills["spx-specify"]
+    assert "artifact scaffold --kind ui-brief" in skills["spx-specify"]
+    assert "artifact scaffold --kind ui-reference-notes" in skills["spx-specify"]
+    assert "spec-contract-template.json" not in skills["spx-specify"]
     assert "do not implement" in skills["spx-specify"]
     assert "spx-clarify" in skills["spx-specify"]
     assert "spx-prd-scan" in skills["spx-specify"]
@@ -272,32 +284,52 @@ def test_spx_skills_keep_runtime_reuse_and_safety_boundaries() -> None:
     assert "discussion mark-ready" in skills["spx-discussion"]
     assert "discussion confirm-handoff" in skills["spx-discussion"]
     assert "do not create feature state" in skills["spx-discussion"]
+    assert "canonical `sp-quick` for direct delivery of any size" in skills["spx-discussion"]
+    assert "only when the user explicitly selects a formal spec-first path" in skills["spx-discussion"]
 
     assert "remain read-only" in skills["spx-explain"]
     assert "what the artifact\nclaims" in skills["spx-explain"]
 
     assert "setup-plan" in skills["spx-plan"]
-    assert "plan-contract-template.json" in skills["spx-plan"]
+    assert "artifact scaffold --kind plan-contract" in compact_skills["spx-plan"]
+    assert "artifact scaffold --kind data-model" in compact_skills["spx-plan"]
+    assert "artifact scaffold --kind quickstart" in compact_skills["spx-plan"]
+    assert "plan-contract-template.json" not in skills["spx-plan"]
     assert "assets/plan.md" in skills["spx-plan"]
+    assert "artifact scaffold --kind research" in skills["spx-plan"]
+    assert "artifact scaffold --kind planning-lane-manifest" in skills["spx-plan"]
     assert "do not create tasks" in skills["spx-plan"]
     assert "spx-deep-research" in skills["spx-plan"]
     assert "spx-tasks" in skills["spx-plan"]
     assert "production source" in skills["spx-plan"]
 
     assert "deep-research.md" in skills["spx-deep-research"]
+    assert "artifact scaffold --kind deep-research" in skills["spx-deep-research"]
+    assert "artifact scaffold --kind deep-research-not-needed" in skills["spx-deep-research"]
     assert "planning handoff" in skills["spx-deep-research"]
     assert "do not implement production" in skills["spx-deep-research"]
     assert "not a separate artifact lifecycle" in skills["spx-research"]
 
-    assert "task-index-template.json" in skills["spx-tasks"]
+    assert "tasks build" in skills["spx-tasks"]
+    assert "tasks finalize" in skills["spx-tasks"]
+    assert "artifact scaffold --kind task-generation-lane-manifest" in skills["spx-tasks"]
+    assert "task-index-template.json" not in skills["spx-tasks"]
     assert "dependency" in skills["spx-tasks"]
     assert "do not implement" in skills["spx-tasks"]
 
     assert "non-destructive gate" in skills["spx-analyze"]
     assert "do not edit `spec.md`" in skills["spx-analyze"]
 
-    assert "requirements or planning decisions" in skills["spx-checklist"]
+    assert "requirements or planning decisions" in compact_skills["spx-checklist"]
+    assert "artifact checklist" in skills["spx-checklist"]
+    assert "assigns globally unique ids" in compact_skills["spx-checklist"]
+    assert "no markdown checkbox or `chk###` prefix" in compact_skills["spx-checklist"]
     assert "checklist completion does not by itself prove" in skills["spx-checklist"]
+
+    assert "artifact scaffold --kind debug-session" in compact_skills["spx-debug"]
+    assert "artifact patch" in skills["spx-debug"]
+
+    assert "artifact scaffold --kind quick-plan" in compact_skills["spx-quick"]
 
     assert "external write" in skills["spx-taskstoissues"]
     assert "safe retry boundary" in skills["spx-taskstoissues"]
@@ -329,7 +361,10 @@ def test_spx_skills_keep_runtime_reuse_and_safety_boundaries() -> None:
     assert ".planning/quick/" in skills["spx-quick"]
     assert "status.md" in skills["spx-quick"]
     assert "summary.md" in skills["spx-quick"]
+    assert "artifact scaffold --kind quick-summary" in skills["spx-quick"]
     assert "spx-specify" in skills["spx-quick"]
+    assert "discussion mark-consumed" in skills["spx-quick"]
+    assert "accepts the quick" in skills["spx-quick"]
 
     assert "spx-map-scan" in skills["spx-map-rebuild"]
     assert "spx-map-build" in skills["spx-map-rebuild"]
@@ -358,13 +393,14 @@ def test_spx_skills_keep_runtime_reuse_and_safety_boundaries() -> None:
     for required in (
         "lowest-cost model",
         "assigned_paths",
-        "pending-results/<packet-id>.json",
+        "scan-checkpoint --result-json",
         "nodes[].paths",
         "acceptance: pass",
         "never silently omit",
         "do not run `scan-accept`",
     ):
         assert required in scan_worker
+    assert "pending-results/<packet-id>.json" not in scan_worker
 
     scan_gates = re.sub(
         r"\s+",
@@ -377,6 +413,7 @@ def test_spx_skills_keep_runtime_reuse_and_safety_boundaries() -> None:
         ).read_text(encoding="utf-8").lower(),
     )
     scan_worker_compact = re.sub(r"\s+", " ", scan_worker)
+    assert "runtime alone materializes pending-result" in scan_worker_compact
     for command in (
         "scan-prepare",
         "scan-lease",
@@ -436,7 +473,10 @@ def test_spx_core_pipeline_requires_an_explicit_stop_between_stages() -> None:
     assert "do not invoke `$spx-tasks`" in plan
 
     tasks = skills["spx-tasks"]
-    assert "read `plan-contract.json` first" in tasks
+    assert (
+        "query `plan-contract.json` first through `specify-runtime artifact show`"
+        in tasks
+    )
     assert "do not implement or edit production source/tests" in tasks
     assert "do not invoke `$spx-implement`" in tasks
 
@@ -496,7 +536,7 @@ def test_spx_read_only_and_runtime_probe_boundaries_are_explicit() -> None:
     assert "explicit operator authorization" in team
 
 
-def test_spx_fast_and_quick_preserve_consequence_escalation_triggers() -> None:
+def test_spx_fast_and_quick_keep_broad_consequential_work_in_quick() -> None:
     skills = {
         name: re.sub(
             r"\s+",
@@ -521,15 +561,32 @@ def test_spx_fast_and_quick_preserve_consequence_escalation_triggers() -> None:
         ):
             assert trigger in content
 
-    assert "route bounded consequences to `$spx-quick`" in skills["spx-fast"]
     assert (
-        "route broader or user-owned consequences to `$spx-specify`"
+        "route every consequence-bearing implementation to `$spx-quick`"
         in skills["spx-fast"]
     )
     assert (
-        "record bounded consequence obligations in `status.md`" in skills["spx-quick"]
+        "route broader or user-owned consequences to `$spx-specify`"
+        not in skills["spx-fast"]
     )
-    assert "route unbounded consequences to `$spx-specify`" in skills["spx-quick"]
+    assert "record every consequence obligation" in skills["spx-quick"]
+    assert (
+        "quick can handle larger" in skills["spx-quick"]
+        or "quick may handle larger" in skills["spx-quick"]
+    )
+    assert "deeper task-local planning" in skills["spx-quick"]
+    assert "multiple batches" in skills["spx-quick"]
+    assert "architecture" in skills["spx-quick"]
+    assert "migration" in skills["spx-quick"]
+    assert "compatibility" in skills["spx-quick"]
+    assert (
+        "acceptance-heavy" in skills["spx-quick"]
+        or "acceptance heavy" in skills["spx-quick"]
+    )
+    assert "multi-capability" in skills["spx-quick"]
+    assert "route unbounded consequences to `$spx-specify`" not in skills["spx-quick"]
+    assert "must escalate to `$spx-specify`" not in skills["spx-quick"]
+    assert "required handoff to `$spx-specify`" not in skills["spx-quick"]
 
 
 def test_spx_ui_quality_contract_survives_design_to_implementation() -> None:
@@ -564,9 +621,12 @@ def test_spx_ui_quality_contract_survives_design_to_implementation() -> None:
     assert "--level ready" in (ADVANCED_SKILLS / "spx-design" / "SKILL.md").read_text(
         encoding="utf-8"
     )
-    assert "substantive\nUI work" in (
-        ADVANCED_SKILLS / "spx-specify" / "SKILL.md"
-    ).read_text(encoding="utf-8")
+    specify_skill = re.sub(
+        r"\s+",
+        " ",
+        (ADVANCED_SKILLS / "spx-specify" / "SKILL.md").read_text(encoding="utf-8"),
+    )
+    assert "substantive UI work" in specify_skill
     assert "ui_design_contract" in (
         ADVANCED_SKILLS / "spx-plan" / "SKILL.md"
     ).read_text(encoding="utf-8")
@@ -947,7 +1007,7 @@ def test_fresh_classic_codex_init_keeps_all_agent_flows_off_source_launcher(
     ).read_text(encoding="utf-8")
     assert (
         "SPECIFY_RUNTIME_LAUNCHER_UNAVAILABLE:specify-runtime discussion "
-        "mark-consumed '<slug>' --feature-dir '<feature-dir>'"
+        "mark-consumed '<slug>' --feature-dir '<consumer-workspace>'"
     ) in discussion
     assert pinned_launcher.command not in discussion
     assert "{{specify-subcmd:" not in discussion
@@ -1539,12 +1599,15 @@ def test_advanced_views_do_not_fork_canonical_machine_contracts() -> None:
     for required in (
         "spx-specify/assets/spec.md",
         "spx-plan/assets/plan.md",
-        "spx-tasks/assets/tasks.md",
-        "spx-checklist/assets/checklist.md",
-        "spx-quick/assets/status.md",
-        "spx-debug/assets/debug-session.md",
     ):
         assert (ADVANCED_SKILLS / required).is_file()
+
+    for removed_duplicate in (
+        "spx-tasks/assets/tasks.md",
+        "spx-checklist/assets/checklist.md",
+        "spx-debug/assets/debug-session.md",
+    ):
+        assert not (ADVANCED_SKILLS / removed_duplicate).exists()
 
 
 def test_advanced_map_phases_keep_independent_write_boundaries() -> None:
@@ -1921,7 +1984,7 @@ def test_advanced_only_codex_repair_restores_runtime_without_unrelated_classic_s
             / "execution-contract.md"
         )
         missing_asset = (
-            project / ".codex" / "skills" / "spx-quick" / "assets" / "status.md"
+            project / ".codex" / "skills" / "spx-tasks" / "assets" / "ui-task.md"
         )
         missing_reference.unlink()
         missing_asset.unlink()

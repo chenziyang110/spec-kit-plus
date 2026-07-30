@@ -51,8 +51,9 @@
 ## Must-Preserve Carry-Forward
 
 <!--
-  Copy implementation-shaping MP-* items from brainstorming/handoff-to-specify.json,
-  spec.md, alignment.md, context.md, and references.md.
+  Copy implementation-shaping MP-* items from targeted `specify-runtime artifact show`
+  results for brainstorming/handoff-to-specify.json, spec.md, alignment.md,
+  context.md, and references.md.
   Preserve the MP ID so task generation and implementation can prove the original
   discussion conclusion was not lost.
   If a planning decision conflicts with an MP-* obligation, keep the conflict
@@ -87,7 +88,7 @@
 
 ## Implementation Target Boundary
 
-- **Current project root**: [copy from `brainstorming/handoff-to-specify.json` `context_boundary.current_project_root`]
+- **Current project root**: [copy from the targeted `specify-runtime artifact show` result for `brainstorming/handoff-to-specify.json#/context_boundary/current_project_root`]
 - **Current project roles**: [copy role objects with `role`, `scope`, `evidence_source`, and `notes`]
 - **Target project root**: [copy from `context_boundary.target_project_root` or record why no external target exists]
 - **Target project roles**: [copy role objects with `role`, `scope`, `evidence_source`, and `notes`]
@@ -268,7 +269,7 @@
 
 ### Input Risks From Alignment
 
-- [Risk carried forward from alignment.md, or remove if none]
+- [Risk carried forward from the alignment artifact; omit this placeholder when none]
 - [Unresolved item that planning is explicitly accepting or mitigating]
 
 ## Research Inputs

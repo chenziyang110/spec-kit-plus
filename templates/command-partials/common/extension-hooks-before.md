@@ -1,31 +1,5 @@
 **Check for extension hooks (before {HOOK_CONTEXT})**:
-- Check if `.specify/extensions.yml` exists in the project root.
-- If it exists, read it and look for entries under the `hooks.before_{HOOK_KEY}` key.
-- If the YAML cannot be parsed or is invalid, skip hook checking silently and continue normally.
-- Filter out hooks where `enabled` is explicitly `false`. Treat hooks without an `enabled` field as enabled by default.
-- For each remaining hook, do **not** attempt to interpret or evaluate hook `condition` expressions:
-  - If the hook has no `condition` field, or it is null/empty, treat the hook as executable.
-  - If the hook defines a non-empty `condition`, skip the hook and leave condition evaluation to the HookExecutor implementation.
-- For each executable hook, output the following based on its `optional` flag:
-  - **Optional hook** (`optional: true`):
-    ```
-    ## Extension Hooks
-
-    **Optional Pre-Hook**: {extension}
-    Command: `/{command}`
-    Description: {description}
-
-    Prompt: {prompt}
-    To execute: `/{command}`
-    ```
-  - **Mandatory hook** (`optional: false`):
-    ```
-    ## Extension Hooks
-
-    **Automatic Pre-Hook**: {extension}
-    Executing: `/{command}`
-    EXECUTE_COMMAND: {command}
-
-    Wait for the result of the hook command before proceeding to the Outline.
-    ```
-- If no hooks are registered or `.specify/extensions.yml` does not exist, skip silently.
+- Run `{{specify-subcmd:specify-runtime hook extension-plan --event before_{HOOK_KEY} --format json}}`; never inspect or parse extension storage directly.
+- The runtime returns only enabled, unconditional actionable items with integration-native `invocation`, `optional`, `prompt`, and description fields. It filters disabled hooks and defers conditional hooks without exposing YAML.
+- Offer each `optional: true` item using its returned invocation. Execute each `optional: false` invocation and wait for its result before proceeding.
+- If `actionable_count` is zero, continue silently.

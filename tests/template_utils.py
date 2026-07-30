@@ -10,6 +10,8 @@ QUICK_CHECKPOINT_CARD_ROWS = (
     "| request and outcome |",
     "| user-visible result |",
     "| scope |",
+    "| ordered work items |",
+    "| work-item acceptance |",
     "| recommended approach |",
     "| assumptions and risks |",
     "| completion evidence |",

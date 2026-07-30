@@ -13,7 +13,8 @@ def _read(path: str) -> str:
 def test_plan_command_research_contract_is_prescriptive() -> None:
     content = read_command_with_references("plan")
 
-    assert "read `templates/research-template.md`" in content
+    assert "artifact scaffold --kind research" in content
+    assert "never read and reproduce its stable structure in memory" in content
     assert "Prefer official documentation, standards, and primary sources" in content
     assert "Treat model memory as provisional" in content
     assert "Research must reduce planning ambiguity" in content
@@ -26,10 +27,15 @@ def test_plan_command_requires_persisted_delegated_planning_lane_handoffs() -> N
     lowered = content.lower()
 
     assert "planning/lane-manifest.json" in content
-    assert "each lane writes one agent-only result" in lowered
+    assert "each delegated planning lane submits its structured handoff inline" in lowered
+    assert "materialized only by the runtime" in lowered
     assert "every accepted lane result is integrated" in lowered
     assert "do not require separate evidence-index and checkpoint logs" in lowered
     assert "do not synthesize `plan.md`, `research.md`, or `plan-contract.json` from chat-only delegated lane results" in lowered
+    assert "artifact scaffold --kind planning-lane-manifest" in lowered
+    assert "replace the bounded `/lanes` array as a whole" in lowered
+    assert "do not emulate array append" in lowered or "does not append inside arrays" in lowered
+    assert "submit the manifest wholesale" in lowered
 
 
 def test_plan_command_scaffolds_plan_contract_with_project_relative_path() -> None:

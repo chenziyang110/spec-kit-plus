@@ -6,7 +6,7 @@ Preserved Contract: task generation receives complete scope, architecture/interf
 
 ## Canonical Plan Contract
 
-Write `plan-contract.json` before rendering `plan.md`. Keep:
+Scaffold `plan-contract.json` through its artifact CLI owner, then fill targeted JSON pointers before patching named sections in the deterministic `plan.md` skeleton. Never submit or reconstruct the whole contract. Keep:
 
 - source spec contract and revision;
 - `semantic_delta` introduced by planning;
@@ -31,7 +31,7 @@ criterion may be omitted, duplicated, renamed, or replaced with a prose label.
 
 ### Entrypoint Outcome Decisions
 
-When `spec-contract.json#/entrypoint_outcome_contract` is triggered, consume each preserved/adapted outcome through its existing `CA-###` refs. Do not copy the result inventory and do not add a parallel Plan outcome ledger. Put the technical design in `operational_consequence_decisions`; every referenced decision records `producer_result_ref`, `consumer_owner`, `state_transition`, `interaction_owner`, `interaction_policy`, `request_retention`, `retry_identity`, `cancel_behavior`, and non-empty `validation_refs`.
+Query `spec-contract.json#/entrypoint_outcome_contract` through `specify-runtime artifact show`; when triggered, consume each preserved/adapted outcome through its existing `CA-###` refs. Do not copy the result inventory and do not add a parallel Plan outcome ledger. Put the technical design in `operational_consequence_decisions`; every referenced decision records `producer_result_ref`, `consumer_owner`, `state_transition`, `interaction_owner`, `interaction_policy`, `request_retention`, `retry_identity`, `cancel_behavior`, and non-empty `validation_refs`.
 
 For a `recoverable-user-input` outcome, also record non-empty `security_constraints`. Explicitly distinguish prohibited unrelated shell/home/confirmation UI from interaction required to recover the operation. Planning is blocked when an active outcome CA has no consequence obligation or operational decision.
 

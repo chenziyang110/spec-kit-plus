@@ -121,6 +121,17 @@ func GenerateStarterIgnoreFile(root string) string {
 	return strings.TrimRight(b.String(), "\n") + "\n"
 }
 
+// StarterIgnoreSuggestions returns only the decision-bearing patterns rendered
+// into the starter file. The cognition CLI exposes this compact list so agents
+// can present it for confirmation without opening runtime-owned storage.
+func StarterIgnoreSuggestions(root string) []string {
+	gitignorePatterns := gitignoreSuggestions(root)
+	optionalPatterns := optionalDirectorySuggestions(root, gitignorePatterns)
+	patterns := append([]string(nil), gitignorePatterns...)
+	patterns = append(patterns, optionalPatterns...)
+	return patterns
+}
+
 func rulesFromPatterns(patterns []string) []rule {
 	rules := make([]rule, 0, len(patterns))
 	for _, pattern := range patterns {

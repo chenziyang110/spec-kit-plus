@@ -1,9 +1,9 @@
 ---
-description: Use when mandatory system review is approved and a human needs to understand and personally accept the reviewed feature without relying on old chat context.
+description: Use when mandatory system review is approved and `specify-runtime accept` should guide a human through personal acceptance without relying on old chat context.
 workflow_contract:
-  when_to_use: '`review-state.json` is fresh and approved, `implementation-summary.md` exists for the reviewed fingerprint, and a human should be guided through product acceptance before integration or delivery.'
-  primary_objective: Restore the human's context, prepare the reviewed product safely, guide the human through end-to-end verification of every new or changed requirement, persist observed results, and produce an explicit accepted, rejected, or blocked verdict.
-  primary_outputs: A fresh, schema-valid `human-acceptance.json` whose frozen Human Acceptance Universe has zero uncovered required obligations, a verified runtime identity, zero-context orientation, ordered human-performed scenarios, step results, evidence, findings, resume cursor, and overall human verdict.
+  when_to_use: '`specify-runtime artifact show` reports `review-state.json` as fresh and approved and the matching `implementation-summary.md`, so a human should be guided through product acceptance before delivery.'
+  primary_objective: Restore the human context, prepare the reviewed product safely, guide end-to-end verification, and persist observations and the explicit verdict only through `specify-runtime accept`.
+  primary_outputs: '`specify-runtime accept` alone produces the fresh, schema-valid `human-acceptance.json`, including its frozen universe, runtime identity, scenarios, observations, resume cursor, and verdict.'
   default_handoff: On pass, continue to integration or delivery; every failed observation first goes to the Review Leader for diagnosis, repair, independent revalidation, or a proven upstream-truth handoff. Human-only access remains blocked in Acceptance with an exact guide.
 scripts:
   sh: scripts/bash/check-prerequisites.sh --json --require-tasks --include-tasks
@@ -26,7 +26,7 @@ scripts:
 ## Workflow Boundary
 
 - This is human product acceptance, not the task review embedded in `sp-implement` or the mandatory system proof-and-repair work owned by `sp-review`.
-- This workflow may mutate only `human-acceptance.json` through the launcher-bound `accept` CLI subcommands and acceptance-owned rich `workflow-state.md` fields through an `artifact prepare` / `artifact submit` lease. It never authors compact `workflow.json`; only `specify-runtime workflow` changes that phase lock. It must not edit production source, tests, specs, plans, tasks, or implementation lifecycle records.
+- This workflow may mutate `human-acceptance.json` only through `specify-runtime accept` and acceptance-owned rich `workflow-state.md` fields only through a leased `specify-runtime artifact patch`. It never authors compact `workflow.json`; only `specify-runtime workflow` changes that phase lock. It must not edit production source, tests, specs, plans, tasks, or implementation lifecycle records.
 - Safe reversible acceptance-session operations are allowed: start or stop an approved local/sandbox target, check readiness, open the reviewed start location, and prepare or reset isolated test fixtures through documented commands. Preserve Review's immutable target identity and record only acceptance-session readiness/actions; these operations do not authorize production mutation, deployment, or the human's verdict.
 - Technical implementation and system Review can be complete while human acceptance remains pending. Never collapse those statuses.
 - If the reviewed fingerprint, Review evidence, runtime-target digest, or implementation summary fingerprint changed, mark acceptance stale and return to `{{invoke:review}}` before rebuilding the guide. Never reuse a previous PASS after a repair or against changed implementation evidence.

@@ -24,8 +24,16 @@ def test_deep_research_template_requires_mandatory_subagent_guidance() -> None:
 
 
 def test_deep_research_template_defines_complete_research_contract() -> None:
-    content = _read("templates/commands/deep-research.md")
+    command = _read("templates/commands/deep-research.md")
+    scaffold = _read("templates/artifacts/deep-research.md")
+    content = f"{command}\n{scaffold}"
     lowered = content.lower()
+
+    assert "artifact scaffold --kind deep-research" in command
+    assert "artifact scaffold --kind deep-research-not-needed" in command
+    assert "Use the full structure below" not in command
+    assert "# Deep Research" in scaffold
+    assert "## Planning Handoff Readiness Checklist" in scaffold
 
     assert "sp-deep-research" in content
     assert "FEATURE_DIR/deep-research.md" in content

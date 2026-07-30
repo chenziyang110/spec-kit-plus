@@ -26,7 +26,7 @@ or bypass the owning workflow's maximum.
   one combined RED/baseline gate attempt. Do not require every worker to rerun RED and
   GREEN per task.
 - **`sp-debug`**: When diagnosing or fixing a bug, your FIRST step must be to write a failing test that explicitly reproduces the bug. Do not change production code until you have empirically confirmed the failure state.
-- **`sp-fast` / `sp-quick`**: Even for small, bounded fixes, write a test first to verify the fix and prevent regressions.
+- **`sp-fast` / `sp-quick`**: For direct-delivery behavior changes at any supported size, write a test first to verify the change and prevent regressions.
 
 ## The Iron Law
 

@@ -6,12 +6,14 @@ commands for init, resume, handoff validation, ready, and consumed state.
 
 Before consuming, run
 `{{specify-subcmd:specify-runtime discussion validate-handoff <slug> --mode ready --json}}`. Require `status:
-handoff-ready`, `planning_gate_status: ready`, `quality_gate.status:
-user_confirmed`, matching `quality_gate.confirmed_digest` and `review_digest`,
-zero hard unknowns, zero open conflicts, complete protected obligations, and a
-target project root matching the active project. Fail closed to
-`$spx-discussion` with field errors and a safe retry; do not reconstruct or
-patch upstream truth.
+handoff-ready`, `recommended_consumer: sp-specify`,
+`consumer_eligibility.sp-specify.status: ready`,
+`planning_gate_status: ready`, `quality_gate.status: user_confirmed`,
+matching `quality_gate.confirmed_digest` and `review_digest`, zero hard
+unknowns, zero open conflicts, complete protected obligations, and a target
+project root matching the active project. Fail closed to `$spx-discussion`
+with field errors and a safe retry; do not reconstruct or patch upstream
+truth.
 
 Keep one compact decision digest containing confirmed scope, rejected options,
 assumptions, unresolved user-owned decisions, UI/reference inputs, and the

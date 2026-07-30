@@ -5,9 +5,15 @@ layout, navigation or interaction flow, responsive behavior, visual state,
 desktop/mobile surface, TUI layout, or CLI presentation. UI work does not
 require an external screenshot to trigger this gate.
 
+Use the deterministic `design profiles` capability catalog for substantive
+design work. `no-ui` is valid only with current evidence of no user-visible
+presentation; record `design_system_status: not-applicable` and skip the visual
+artifact chain. Do not use `no-ui` to downgrade a content, CLI, TUI, mobile,
+desktop, or Web presentation surface.
+
 ## Design readiness
 
-Read the root `DESIGN.md` and relevant live surfaces. `design_system.status:
+Query the root `DESIGN.md` through `specify-runtime artifact show` and inspect relevant live surfaces. `design_system.status:
 bootstrap` is an initialized seed, not product direction. Route a new product
 surface, redesign, rebrand, shared component language, or unresolved visual
 direction to `$spx-design`. A narrow existing-pattern fix may continue only
@@ -22,21 +28,22 @@ inspectable approved visual reference; a narrow existing-pattern exception must
 name its live governing surface. Reuse approved tokens and components.
 When `sp-design` produced a project-level HTML preview, preserve the exact
 immutable `round-NN.html#direction-id` reference and its motion/reduced-motion
-contract, preview/manifest SHA-256 values, and approved `DS-*` decision IDs.
+contract, preview/manifest/handoff SHA-256 values, immutable handoff ref,
+approved `DS-*` decision IDs, and applicable `DH-*` handoff contract IDs.
 Do not replace them with a prose summary or the later feature target.
 
 ## Delivery chain
 
 For substantive UI work preserve one contract through the workflow:
 
-`DESIGN.md + approved design preview/sidecar + original references -> ui-brief.md -> plan ui_design_contract -> task ui_contract -> comparison report + real-entrypoint evidence`
+`DESIGN.md + approved preview/approval/handoff sidecars + original references -> ui-brief.md -> plan ui_design_contract -> task ui_contract -> comparison report + real-entrypoint evidence`
 
 The UI brief is required for substantive UI work even without external
 references. It identifies entry points, required states and viewports,
 must-preserve/may-adapt/must-not decisions, responsive/accessibility rules, and
-visual acceptance evidence. Preserve the approval hashes, required design
-decision IDs, component anatomy, color modes, motion contract, viewport/state
-matrix, and real content/image plans. Each UI task carries only its applicable
+visual acceptance evidence. Preserve the approval hashes, required design and
+handoff contract IDs, component anatomy, color modes, motion contract, viewport/state
+matrix, capability profile and specimen IDs, and real content/image plans. Each UI task carries only its applicable
 decision subset; all UI tasks together must cover the plan's required set.
 When references
 exist, keep the original inspectable assets and assign each a use intent; prose
@@ -47,13 +54,14 @@ artwork, trade dress, or proprietary implementation.
 
 ## Implementation acceptance
 
-Do not stop at code correctness. Run the real entry point, capture the required
-representative viewport/state matrix, inspect it against `DESIGN.md`, the UI
+Do not stop at code correctness. Query `DESIGN.md` and the feature UI brief through targeted `specify-runtime artifact show` calls, run the real entry point, capture the required
+representative viewport/state matrix, and inspect it against those returned sections, the
 brief, prior surfaces, and original references, fix concrete drift, then
-recapture. Produce a structured comparison report that binds the approved
-preview digest to implementation captures and records structural differences,
-visual differences, tolerance, covered decision IDs, and explicitly accepted
-deviations. For web UI also check overflow, console errors, keyboard/focus, and
+recapture. Submit the observed entrypoint/revision, typed evidence refs, matrix
+rows, structural/visual differences, covered decision/handoff IDs, explicit
+verdict, and reviewer through `specify-runtime evidence visual-compare`; the CLI
+derives and owns the approved bindings, tolerance, accepted deviations, report,
+path, and digest. For web UI also check overflow, console errors, keyboard/focus, and
 accessibility when applicable. For mobile include safe areas, touch targets,
 platform navigation, and device states; for desktop include resize, high-DPI,
 keyboard shortcuts, and window states; for TUI include representative terminal

@@ -1010,7 +1010,7 @@ def write_fake_project_cognition_script(tmp_path: Path) -> Path:
             def _update(args):
                 payload = _read_status()
                 result_state = "partial_refresh"
-                if "--payload-file" in args:
+                if "--payload-json" in args:
                     result_state = "ready"
                 payload["last_update_id"] = "upd-fake"
                 payload["last_update_outcome"] = result_state

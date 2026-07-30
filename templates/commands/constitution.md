@@ -1,8 +1,8 @@
 ---
-description: Use when project principles or development rules need to be created, revised, or realigned before further specification or planning work.
+description: Use when project principles or development rules need to be created, revised, or realigned through the artifact CLI before further specification or planning work.
 workflow_contract:
-  when_to_use: The project's governing principles need to be created or updated before downstream workflow work should continue.
-  primary_objective: Update `.specify/memory/constitution.md` after understanding the current project context.
+  when_to_use: The project's governing principles need an artifact-CLI-owned creation or update before downstream workflow work should continue.
+  primary_objective: Update `.specify/memory/constitution.md` only through `specify-runtime artifact scaffold|patch` after understanding the current project context.
   primary_outputs: A finalized constitution plus a report of any dependent templates, shared-memory, docs, or workflow artifacts that may need separate follow-up.
   default_handoff: /sp-specify for new work, or recommend the highest affected downstream stage (/sp-plan, /sp-tasks, or /sp-analyze) when a midstream amendment invalidates active artifacts.
 handoffs:
@@ -26,7 +26,7 @@ downstream specification, planning, and execution work.
 
 ## Constitution-Only Write Boundary
 
-This workflow writes only `.specify/memory/constitution.md`.
+This workflow may mutate only `.specify/memory/constitution.md`, and only through `specify-runtime artifact scaffold|patch`.
 
 Use templates, command files, docs, project rules, learning files,
 workflow-state files, project cognition artifacts, generated assets, and active
@@ -53,11 +53,11 @@ handoff mechanism; this command does not apply the follow-up work.
 
 - Run `{{specify-subcmd:specify-runtime learning start --command constitution --format json}}`
   and expand only selected matching Learning through `show_argv`.
-- Load the current constitution before broader repository context. Do not parse
+- Query the current constitution through `specify-runtime artifact show` before broader repository context. Do not parse
   Learning storage files directly.
-- If the repository already has code and repo-derived evidence is needed, read
-  `.specify/project-cognition/status.json` plus the smallest relevant
-  query-backed cognition artifact first to assess map freshness as advisory
+- If the repository already has code and repo-derived evidence is needed, run
+  `specify-runtime cognition status --format json` plus the smallest relevant
+  cognition query first to assess map freshness as advisory
   navigation before trusting any compatibility/export artifact.
 - If cognition is stale or weak for an ordinary existing-baseline touched area,
   continue from live repository evidence and recommend `/sp-map-update` only as
@@ -69,14 +69,14 @@ handoff mechanism; this command does not apply the follow-up work.
 - Load the current constitution and identify unresolved placeholders or
   requested changes.
 - Derive the right version bump and updated governance metadata.
-- Rewrite only `.specify/memory/constitution.md`.
+- If absent, create `.specify/memory/constitution.md` with `artifact scaffold --kind constitution`; otherwise query it with `artifact show`. Apply each semantic change through a fresh leased `artifact patch` for one heading, preamble, or named section; do not submit or reconstruct the whole document and do not rewrite it with filesystem tools.
 - If a principle change appears to invalidate active `spec.md`, `plan.md`,
   `tasks.md`, or `workflow-state.md`, report the highest affected downstream
   stage instead of editing those artifacts.
 
 ## Output Contract
 
-- Write a finalized constitution with a Sync Impact Report.
+- Build only the changed semantic sections and compact Sync Impact Report in memory. Patch the project title with `--heading`/`--new-heading`, the HTML-comment report with `--preamble`, and each changed body section with `--section`/`--content`, using a fresh lease for every operation.
 - Record dependent templates, guidance, lower-order project memory, workflow
   state, and cognition artifacts as pending follow-up items when they need
   alignment.
@@ -117,7 +117,7 @@ may still contain legacy placeholder tokens in square brackets (for example
 `[PROJECT_NAME]`). Your job is to refine the document into a concrete project
 constitution based on the user's request and the current project context.
 
-**Write scope**: This command writes only `.specify/memory/constitution.md`.
+**Write scope**: This command changes `.specify/memory/constitution.md` only through `specify-runtime artifact scaffold|patch`.
 Do not modify templates, command files, docs, project rules, learning files,
 workflow-state files, project cognition artifacts, or active feature artifacts
 unless the user explicitly asks for those additional edits in the same request.
@@ -128,7 +128,9 @@ as pending follow-up items in the Sync Impact Report instead of applying them.
 have been initialized from `.specify/templates/constitution-template.md`
 during project setup. That project-local template may be the default product
 constitution or a built-in profile selected during human project bootstrap. If
-it is missing, copy the template first.
+it is missing, initialize it only with
+`specify-runtime artifact scaffold --kind constitution --path .specify/memory/constitution.md --format json`; never
+copy the template or create the constitution with filesystem tools.
 
 {{spec-kit-include: ../command-partials/common/learning-layer.md}}
 
@@ -140,7 +142,7 @@ as pending follow-up work with explicit owners.
 
 ## Repository Context and Navigation Freshness
 
-- If repo-derived evidence is needed, read `.specify/project-cognition/status.json` plus the smallest relevant query bundle or graph artifact first to assess map freshness as advisory navigation before trusting any compatibility/export artifact.
+- If repo-derived evidence is needed, run `specify-runtime cognition status --format json` plus the smallest relevant `compass|query|expand` call first; never read cognition storage directly.
 - If the navigation system is stale or weak for an existing usable baseline, continue with live repository evidence and recommend `/sp-map-update` only as external/manual map maintenance when the user asks for map maintenance or before a separate map-maintenance pass rather than fabricating repository context. That route is external map maintenance, not constitution closeout ownership. Use `/sp-map-scan` followed by `/sp-map-build` only for first/missing/unusable baseline, schema failure, schema v1 or old broad-schema rebuild-required readiness, zero active-generation `path_index` rows, missing or invalid `alias_index`, `explicit_rebuild_requested`, or `baseline_identity_invalid`.
 - A constitution-only amendment does not own project cognition mutation closeout.
   Do not run `specify-runtime cognition update`, `specify-runtime cognition mark-dirty`, or
@@ -153,11 +155,12 @@ as pending follow-up work with explicit owners.
 
 ## Downstream Re-entry Contract
 
-- Inspect active downstream artifacts and phase locks before finalizing the
-  amendment. At minimum, review any active `spec.md`, `plan.md`, `tasks.md`,
+- Inspect active downstream artifacts through targeted `specify-runtime artifact
+  show` queries and inspect phase locks through the workflow CLI before finalizing
+  the amendment. At minimum, review any active `spec.md`, `plan.md`, `tasks.md`,
   or `workflow-state.md` package that relies on the current constitution.
 - If a principle change appears to invalidate active `spec.md`, `plan.md`,
-  `tasks.md`, or `workflow-state.md`, record the highest affected downstream
+  `tasks.md`, or `workflow-state.md`, place the highest affected downstream
   stage and exact re-entry path in the Sync Impact Report.
 - Do not always hand off directly to `/sp-specify`. Midstream amendments may
   require `/sp-plan`, `/sp-tasks`, or `/sp-analyze` when higher-order feature
@@ -165,10 +168,9 @@ as pending follow-up work with explicit owners.
 
 ## Workflow Phase Lock (When an Active Feature Is Affected)
 
-- If the amendment changes an active feature package, treat the affected
-  `FEATURE_DIR/workflow-state.md` as read-only context for determining the
-  downstream re-entry path.
-- Read `templates/workflow-state-template.md`.
+- If the amendment changes an active feature package, query the affected
+  `FEATURE_DIR/workflow-state.md` through `specify-runtime artifact show` only
+  to determine the downstream re-entry path.
 - When an active feature package is affected, do not update or create
   `FEATURE_DIR/workflow-state.md`. Instead, report the recommended state values:
   - `active_command: sp-constitution`
@@ -187,7 +189,7 @@ as pending follow-up work with explicit owners.
 
 Follow this execution flow:
 
-1. Load the existing constitution at `.specify/memory/constitution.md`.
+1. Query the existing constitution with `specify-runtime artifact show --path .specify/memory/constitution.md --view full`; if absent, create it with `artifact scaffold --kind constitution`.
    - Identify every unresolved placeholder token of the form
      `[ALL_CAPS_IDENTIFIER]`, if any remain.
    - Treat existing concrete principles as the current baseline unless the user
@@ -215,8 +217,8 @@ Follow this execution flow:
 3. Draft the updated constitution content:
    - Replace every unresolved placeholder with concrete text. No unexplained
      bracketed tokens should remain.
-   - Preserve heading hierarchy. Remove stale instructional comments once they
-     no longer add value.
+   - Preserve heading hierarchy. Omit stale instructional comments from the
+     CLI-submitted replacement once they no longer add value.
    - Ensure each Principle section has a succinct name, concrete rules, and
      explicit rationale where helpful.
    - Ensure Governance lists amendment procedure, versioning policy, and
@@ -237,11 +239,12 @@ Follow this execution flow:
    - Use the consume-only Learning CLI intake and selected `show` records to
      report any lower-order guidance that now conflicts with the amended constitution.
 - If the amendment changes navigation, structure, ownership, workflow,
-  testing, integration, or operations expectations, mark the runtime
-  handbooks for refresh and include `.specify/project-cognition/status.json`
-  in the propagation review.
-   - Read any runtime guidance docs (for example `README.md`,
-     `docs/quickstart.md`, or agent-specific guidance files if present). Report
+  testing, integration, or operations expectations, report the affected
+  handbooks and run `specify-runtime cognition status --format json` as part of
+  the propagation review; do not mutate cognition storage.
+   - Read normal repository documentation (for example `README.md`,
+     `docs/quickstart.md`, or agent-specific guidance files if present). These
+     are source guidance, not feature workflow artifacts. Report
      references to principles that changed instead of updating those files.
 
 5. Produce a Sync Impact Report (prepend as an HTML comment at the top of the
@@ -264,8 +267,16 @@ Follow this execution flow:
    - Principles are declarative, testable, and free of vague language
      (`should` -> replace with MUST/SHOULD rationale where appropriate)
 
-7. Write the completed constitution back to
-   `.specify/memory/constitution.md` (overwrite).
+7. Patch the completed constitution through bounded atomic operations only:
+   use `artifact patch --heading <current> --new-heading <replacement>` for the
+   document title, `artifact patch --preamble '<sync-impact-comment>'` for the
+   Sync Impact Report, and `artifact patch --section <heading> --content
+   '<semantic-section>'` for each changed section. Acquire a fresh
+   `specify-runtime artifact prepare` lease before every patch. Never use
+   `artifact submit`, reconstruct unchanged boilerplate, or overwrite
+   `.specify/memory/constitution.md` directly.
+
+   After submission, run `{{specify-subcmd:specify-runtime hook validate-artifacts --command constitution --feature-dir .specify/memory --format json}}`. Refuse completion until the Go gate accepts the version/date metadata and principle structure.
 
    This is the only file this command may write unless the user explicitly
    expanded the write scope in the same request.

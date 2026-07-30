@@ -6,9 +6,11 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -29,6 +31,7 @@ func runDiscussion(args []string, stdout io.Writer) int {
 			"checkpoint",
 			"validate-handoff",
 			"write-handoff",
+			"bind-consumer",
 			"confirm-handoff",
 			"mark-ready",
 			"mark-consumed",
@@ -74,7 +77,37 @@ func runDiscussion(args []string, stdout io.Writer) int {
 	case "validate-handoff":
 		value = optionValue(args, "--mode", defaultString(value, "ready"))
 	case "write-handoff":
-		value = optionValue(args, "--input", value)
+		if hasFlag(args, "--input") || value != "" {
+			return writeEnvelope(stdout, scriptDomainError("discussion", fmt.Errorf("write-handoff does not accept agent-authored input files; pass the draft inline with --input-json")))
+		}
+		if !hasFlag(args, "--input-json") || strings.TrimSpace(optionValue(args, "--input-json", "")) == "" {
+			return writeEnvelope(stdout, scriptDomainError("discussion", fmt.Errorf("write-handoff requires --input-json")))
+		}
+		mode = "write-handoff-json"
+		value = optionValue(args, "--input-json", "")
+	case "bind-consumer":
+		if hasFlag(args, "--input") || value != "" {
+			return writeEnvelope(stdout, scriptDomainError("discussion", fmt.Errorf("bind-consumer does not accept agent-authored input files; pass transition fields inline with --input-json")))
+		}
+		featureDir := strings.TrimSpace(optionValue(args, "--feature-dir", ""))
+		if featureDir == "" || !hasFlag(args, "--input-json") || strings.TrimSpace(optionValue(args, "--input-json", "")) == "" {
+			return writeEnvelope(stdout, scriptDomainError("discussion", fmt.Errorf("bind-consumer requires --feature-dir and --input-json")))
+		}
+		input, err := decodeDiscussionHandoffPayload([]byte(optionValue(args, "--input-json", "")))
+		if err != nil {
+			return writeEnvelope(stdout, scriptDomainError("discussion", err))
+		}
+		service := discussionService{projectRoot: projectRoot}
+		data, err := service.bindConsumer(slug, featureDir, input)
+		if err != nil {
+			return writeEnvelope(stdout, scriptDomainError("discussion", err))
+		}
+		env := NewEnvelope("ok", "discussion consumer binding completed")
+		env.Data = data
+		if pathValue, ok := data["consumer_handoff_path"].(string); ok {
+			env.ShowArgv = []string{"specify-runtime", "artifact", "show", "--path", pathValue, "--view", "summary", "--format", "json"}
+		}
+		return writeEnvelope(stdout, env)
 	case "confirm-handoff":
 		value = optionValue(args, "--digest", value)
 	case "mark-consumed":
@@ -109,12 +142,47 @@ func runQuick(args []string, stdout io.Writer) int {
 
 func runPRDScan(args []string, stdout io.Writer) int {
 	projectRoot := optionValue(args, "--project-root", ".")
+	operation := positionalArg(args, 0, "")
+	if strings.HasPrefix(operation, "record-") {
+		runID := positionalArg(args, 1, "")
+		surface := optionValue(args, "--surface", "")
+		service := prdService{projectRoot: projectRoot}
+		var data map[string]any
+		var err error
+		switch operation {
+		case "record-upsert":
+			var record map[string]any
+			record, err = readAgentJSONObject(args, projectRoot, "prd-scan record-upsert")
+			if err == nil {
+				data, err = service.upsertRecord(runID, surface, optionValue(args, "--expected-sha256", ""), record)
+			}
+		case "record-remove":
+			data, err = service.removeRecord(runID, surface, optionValue(args, "--record-id", ""), optionValue(args, "--expected-sha256", ""))
+		case "record-show":
+			data, err = service.showRecord(runID, surface, optionValue(args, "--record-id", ""))
+		case "record-list":
+			limit, parseErr := parseArtifactPositiveInt(optionValue(args, "--limit", "100"), "--limit")
+			if parseErr != nil {
+				err = parseErr
+			} else {
+				data, err = service.listRecords(runID, surface, limit)
+			}
+		default:
+			err = fmt.Errorf("unknown PRD record operation %q", operation)
+		}
+		if err != nil {
+			return writeEnvelope(stdout, scriptDomainError("prd", err))
+		}
+		env := NewEnvelope("ok", "prd record command completed")
+		env.Data = data
+		return writeEnvelope(stdout, env)
+	}
 	mode := "init-scan"
 	if hasFlag(args, "--status") {
 		mode = "status-scan"
 	}
 	runSlug := positionalArg(args, 0, "prd-run")
-	if runSlug == "init-scan" || runSlug == "status-scan" {
+	if runSlug == "init" || runSlug == "init-scan" || runSlug == "status" || runSlug == "status-scan" || runSlug == "finalize" || runSlug == "finalize-scan" {
 		mode = runSlug
 		runSlug = positionalArg(args, 1, "prd-run")
 	}
@@ -128,6 +196,18 @@ func runPRDScan(args []string, stdout io.Writer) int {
 
 func runPRDBuild(args []string, stdout io.Writer) int {
 	projectRoot := optionValue(args, "--project-root", ".")
+	operation := positionalArg(args, 0, "")
+	if operation == "scaffold" {
+		runID := positionalArg(args, 1, "")
+		service := prdService{projectRoot: projectRoot}
+		data, err := service.scaffoldBuild(runID)
+		if err != nil {
+			return writeEnvelope(stdout, scriptDomainError("prd", err))
+		}
+		env := NewEnvelope("ok", "prd build scaffold completed")
+		env.Data = data
+		return writeEnvelope(stdout, env)
+	}
 	mode := "status-build"
 	runID := positionalArg(args, 0, "")
 	if runID == "status-build" {
@@ -179,8 +259,13 @@ func scriptOptionTakesValue(name string) bool {
 		"--recommendation",
 		"--mode",
 		"--input",
+		"--input-json",
 		"--digest",
 		"--feature-dir",
+		"--surface",
+		"--record-id",
+		"--expected-sha256",
+		"--limit",
 		"--status":
 		return true
 	default:
@@ -334,21 +419,10 @@ func (service discussionService) run(mode, slug, value string, includeAll bool) 
 			return Envelope{}, err
 		}
 		data, err = service.checkpoint(slug, changes)
-	case "write-handoff":
-		inputPath, pathErr := safeProjectContainedPath(service.projectRoot, value)
-		if pathErr != nil {
-			return Envelope{}, pathErr
-		}
-		var payload map[string]any
-		raw, readErr := os.ReadFile(inputPath)
-		if readErr != nil {
-			return Envelope{}, readErr
-		}
-		if readErr = json.Unmarshal(raw, &payload); readErr != nil || payload == nil {
-			if readErr == nil {
-				readErr = fmt.Errorf("handoff input must be a JSON object")
-			}
-			return Envelope{}, readErr
+	case "write-handoff-json":
+		payload, parseErr := decodeDiscussionHandoffPayload([]byte(value))
+		if parseErr != nil {
+			return Envelope{}, parseErr
 		}
 		data, err = service.writeHandoff(slug, payload)
 	case "validate-handoff":
@@ -374,6 +448,24 @@ func (service discussionService) run(mode, slug, value string, includeAll bool) 
 	env := NewEnvelope("ok", "discussion state command completed")
 	env.Data = data
 	return env, nil
+}
+
+func decodeDiscussionHandoffPayload(raw []byte) (map[string]any, error) {
+	const maxDiscussionHandoffBytes = 16 * 1024 * 1024
+	if len(raw) == 0 {
+		return nil, fmt.Errorf("handoff input must not be empty")
+	}
+	if len(raw) > maxDiscussionHandoffBytes {
+		return nil, fmt.Errorf("handoff input exceeds %d bytes", maxDiscussionHandoffBytes)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		return nil, fmt.Errorf("handoff input must be a JSON object: %w", err)
+	}
+	if payload == nil {
+		return nil, fmt.Errorf("handoff input must be a JSON object")
+	}
+	return payload, nil
 }
 
 func (service discussionService) root() (string, error) {
@@ -842,7 +934,10 @@ func (service discussionService) writeHandoff(slug string, input map[string]any)
 	if err != nil {
 		return nil, err
 	}
-	payload := cloneAnyMap(input)
+	payload, err := service.renderHandoffInput(input)
+	if err != nil {
+		return nil, err
+	}
 	payload["version"] = float64(4)
 	payload["handoff_kind"] = "discussion_requirement_contract"
 	payload["status"] = "draft"
@@ -900,6 +995,141 @@ func (service discussionService) writeHandoff(slug string, input map[string]any)
 		return nil, err
 	}
 	return map[string]any{"discussion": mergeMap(service.record(workspace, state, false), state), "review_digest": digest, "json_path": jsonPath}, nil
+}
+
+func (service discussionService) renderHandoffInput(input map[string]any) (map[string]any, error) {
+	templatePath, err := secureProjectPath(service.projectRoot, ".specify/templates/discussion-handoff-template.json")
+	if err != nil {
+		return nil, fmt.Errorf("discussion handoff template path is unsafe: %w", err)
+	}
+	raw, err := os.ReadFile(templatePath)
+	if err != nil {
+		return nil, fmt.Errorf("discussion handoff template is unavailable: %w", err)
+	}
+	template, err := decodeDiscussionHandoffPayload(raw)
+	if err != nil {
+		return nil, fmt.Errorf("discussion handoff template is invalid: %w", err)
+	}
+	if err := validateDiscussionHandoffTemplate(template); err != nil {
+		return nil, err
+	}
+	return mergeDiscussionHandoffTemplate(template, input), nil
+}
+
+func validateDiscussionHandoffTemplate(template map[string]any) error {
+	if intValue(template["version"]) != 4 || stringValue(template["handoff_kind"]) != "discussion_requirement_contract" {
+		return fmt.Errorf("discussion handoff template must use version 4 discussion_requirement_contract")
+	}
+	if stringValue(template["status"]) != "draft" || stringValue(template["planning_gate_status"]) != "blocked_by_incomplete_coverage" {
+		return fmt.Errorf("discussion handoff template must preserve blocked draft readiness")
+	}
+	quality := mapValue(template["quality_gate"])
+	if stringValue(quality["status"]) != "draft" || quality["user_review_required"] != true || quality["user_confirmed_at"] != nil || quality["confirmed_digest"] != nil {
+		return fmt.Errorf("discussion handoff template quality gate must require unconfirmed human review")
+	}
+	for _, consumer := range []string{"sp-specify", "sp-quick"} {
+		entry := mapValue(mapValue(template["consumer_eligibility"])[consumer])
+		if stringValue(entry["status"]) != "blocked" {
+			return fmt.Errorf("discussion handoff template consumer %s must default to blocked", consumer)
+		}
+	}
+	return nil
+}
+
+func mergeDiscussionHandoffTemplate(template, input map[string]any) map[string]any {
+	result := cloneAnyMap(template)
+	for key, value := range input {
+		incoming, incomingObject := value.(map[string]any)
+		existing, existingObject := result[key].(map[string]any)
+		if incomingObject && existingObject {
+			result[key] = mergeDiscussionHandoffTemplate(existing, incoming)
+			continue
+		}
+		result[key] = cloneAny(value)
+	}
+	return result
+}
+
+func (service discussionService) bindConsumer(slug, featureDir string, input map[string]any) (map[string]any, error) {
+	allowed := map[string]bool{"semantic_delta": true, "required_refs": true, "blockers": true, "recovery": true}
+	for key := range input {
+		if !allowed[key] {
+			return nil, fmt.Errorf("bind-consumer input contains unsupported field %q", key)
+		}
+	}
+	for _, field := range []string{"semantic_delta", "required_refs", "blockers"} {
+		if _, ok := input[field].([]any); !ok {
+			return nil, fmt.Errorf("bind-consumer %s must be an array", field)
+		}
+	}
+	if recovery := input["recovery"]; recovery != nil {
+		if _, ok := recovery.(map[string]any); !ok {
+			return nil, fmt.Errorf("bind-consumer recovery must be an object or null")
+		}
+	}
+	validation, err := service.validateHandoff(slug, "ready")
+	if err != nil {
+		return nil, err
+	}
+	if validation["valid"] != true {
+		return nil, fmt.Errorf("discussion handoff is not ready for consumer binding")
+	}
+	_, sourcePath, err := service.handoffPaths(slug)
+	if err != nil {
+		return nil, err
+	}
+	source, err := readJSONMap(sourcePath)
+	if err != nil {
+		return nil, fmt.Errorf("discussion handoff is not valid JSON")
+	}
+	if stringValue(source["recommended_consumer"]) != "sp-specify" {
+		return nil, fmt.Errorf("discussion handoff does not select sp-specify")
+	}
+	featurePath, displayFeature, err := hookFeaturePath(service.projectRoot, featureDir)
+	if err != nil {
+		return nil, err
+	}
+	info, err := os.Stat(featurePath)
+	if err != nil || !info.IsDir() {
+		return nil, fmt.Errorf("feature directory does not exist")
+	}
+	blockers := input["blockers"].([]any)
+	status := "ready"
+	nextAction := "/sp.plan"
+	if len(blockers) > 0 {
+		status = "blocked"
+		nextAction = "/sp.specify"
+	}
+	payload := map[string]any{
+		"version":         3,
+		"status":          status,
+		"entry_source":    "sp-discussion",
+		"discussion_slug": slug,
+		"source_contract": fmt.Sprintf(".specify/discussions/%s/handoff-to-specify.json", slug),
+		"review_digest":   source["review_digest"],
+		"semantic_delta":  input["semantic_delta"],
+		"required_refs":   input["required_refs"],
+		"blockers":        blockers,
+		"next_action":     nextAction,
+		"recovery":        input["recovery"],
+	}
+	target := filepath.Join(featurePath, "brainstorming", "handoff-to-specify.json")
+	if err := writeScriptJSONFile(target, payload); err != nil {
+		return nil, err
+	}
+	digest, err := fileSHA256(target)
+	if err != nil {
+		return nil, err
+	}
+	relativePath := filepath.ToSlash(filepath.Join(displayFeature, "brainstorming", "handoff-to-specify.json"))
+	return map[string]any{
+		"consumer_handoff_path":   relativePath,
+		"consumer_handoff_sha256": digest,
+		"discussion_slug":         slug,
+		"review_digest":           source["review_digest"],
+		"status":                  status,
+		"next_action":             nextAction,
+	}, nil
 }
 
 func computeDiscussionReviewDigest(payload map[string]any) (string, error) {
@@ -1622,8 +1852,10 @@ func (service prdService) runScan(mode, runSlug string) (Envelope, error) {
 			activeCommand = "sp-prd"
 		}
 		data, err = service.initRun(runSlug, activeCommand, payloadMode)
+	} else if canonical == "finalize-scan" {
+		data, err = service.finalizeRun(runSlug, payloadMode)
 	} else if canonical == "status-scan" {
-		data, err = service.statusRun(runSlug, payloadMode, prdScanSurfaceKeys)
+		data, err = service.statusScan(runSlug, payloadMode)
 	} else {
 		err = fmt.Errorf("unknown prd scan mode: %s", mode)
 	}
@@ -1643,7 +1875,7 @@ func (service prdService) runBuild(mode, runID string) (Envelope, error) {
 	if canonical != "status-build" {
 		return Envelope{}, fmt.Errorf("unknown prd build mode: %s", mode)
 	}
-	data, err := service.statusRun(runID, payloadMode, prdBuildSurfaceKeys)
+	data, err := service.statusBuild(runID, payloadMode)
 	if err != nil {
 		return Envelope{}, err
 	}
@@ -1658,8 +1890,12 @@ func canonicalPRDMode(mode string) (string, string, error) {
 		return "init-scan", "init", nil
 	case "status":
 		return "status-scan", "status", nil
+	case "finalize":
+		return "finalize-scan", "finalize", nil
 	case "init-scan":
 		return "init-scan", "init-scan", nil
+	case "finalize-scan":
+		return "finalize-scan", "finalize-scan", nil
 	case "status-scan":
 		return "status-scan", "status-scan", nil
 	case "status-build":
@@ -1690,14 +1926,109 @@ func (service prdService) initRun(requestedSlug, activeCommand, payloadMode stri
 		return nil, err
 	}
 	surfaces := service.surfaceStatus(runDir)
+	recordDigests, err := service.recordDigests(runDir)
+	if err != nil {
+		return nil, err
+	}
 	statusPath, err := service.statusPath()
 	if err != nil {
 		return nil, err
 	}
-	return map[string]any{"mode": payloadMode, "date": date, "slug": slug, "workspace": workspace, "workspace_path": runDir, "status_file": statusPath, "freshness": service.stableFreshnessPayload(workspace), "surfaces": surfaces, "complete": allSurfaces(surfaces, prdScanSurfaceKeys)}, nil
+	return map[string]any{
+		"mode":           payloadMode,
+		"date":           date,
+		"slug":           slug,
+		"workspace":      workspace,
+		"workspace_path": runDir,
+		"status_file":    statusPath,
+		"freshness": map[string]any{
+			"status_file_exists": true,
+			"freshness":          "missing",
+			"latest_run":         workspace,
+			"current_run":        workspace,
+		},
+		"surfaces":       surfaces,
+		"record_digests": recordDigests,
+		"complete":       allSurfaces(surfaces, prdScanSurfaceKeys),
+	}, nil
 }
 
-func (service prdService) statusRun(runID, payloadMode string, surfaceKeys []string) (map[string]any, error) {
+func (service prdService) finalizeRun(runID, payloadMode string) (map[string]any, error) {
+	runDir, err := service.resolveRunDir(runID)
+	if err != nil {
+		return nil, err
+	}
+	statusPath, err := service.statusPath()
+	if err != nil {
+		return nil, err
+	}
+	if err := validatePRDRunArtifacts(runDir, "prd-scan"); err != nil {
+		return nil, err
+	}
+	status, _, err := service.loadStatusDocument()
+	if err != nil {
+		return nil, fmt.Errorf("load PRD status before finalize: %w", err)
+	}
+	if status.ManualForceStale || len(status.ManualForceStaleReasons) > 0 {
+		return nil, fmt.Errorf("PRD status is manually forced stale; clear the stale condition through the owning CLI before finalizing")
+	}
+	snapshot, err := currentPRDGitSnapshot(service.projectRoot)
+	if err != nil {
+		return nil, err
+	}
+	payload := map[string]any{
+		"version":                          float64(1),
+		"status_family":                    "prd",
+		"freshness":                        "fresh",
+		"last_refresh_commit":              snapshot.commit,
+		"last_refresh_branch":              snapshot.branch,
+		"last_refresh_at":                  nowUTCString(),
+		"last_refresh_scope":               snapshot.scope,
+		"last_refresh_basis":               snapshot.basis,
+		"last_refresh_changed_files_basis": stringSliceToAny(snapshot.changedFiles),
+		"manual_force_stale":               false,
+		"manual_force_stale_reasons":       []any{},
+		"latest_run":                       filepath.Base(runDir),
+	}
+	if err := writeScriptJSONFile(statusPath, payload); err != nil {
+		return nil, err
+	}
+	freshness, err := service.freshnessPayload(filepath.Base(runDir))
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{
+		"mode":           payloadMode,
+		"workspace":      filepath.Base(runDir),
+		"workspace_path": runDir,
+		"status_file":    statusPath,
+		"finalized":      true,
+		"freshness":      freshness,
+	}, nil
+}
+
+func (service prdService) statusScan(runID, payloadMode string) (map[string]any, error) {
+	runDir, err := service.resolveRunDir(runID)
+	if err != nil {
+		return nil, err
+	}
+	surfaces := service.surfaceStatus(runDir)
+	recordDigests, err := service.recordDigests(runDir)
+	if err != nil {
+		return nil, err
+	}
+	statusPath, err := service.statusPath()
+	if err != nil {
+		return nil, err
+	}
+	freshness, err := service.freshnessPayload(filepath.Base(runDir))
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{"mode": payloadMode, "workspace": filepath.Base(runDir), "workspace_path": runDir, "status_file": statusPath, "freshness": freshness, "surfaces": surfaces, "record_digests": recordDigests, "complete": allSurfaces(surfaces, prdScanSurfaceKeys)}, nil
+}
+
+func (service prdService) statusBuild(runID, payloadMode string) (map[string]any, error) {
 	runDir, err := service.resolveRunDir(runID)
 	if err != nil {
 		return nil, err
@@ -1707,7 +2038,57 @@ func (service prdService) statusRun(runID, payloadMode string, surfaceKeys []str
 	if err != nil {
 		return nil, err
 	}
-	return map[string]any{"mode": payloadMode, "workspace": filepath.Base(runDir), "workspace_path": runDir, "status_file": statusPath, "freshness": service.stableFreshnessPayload(filepath.Base(runDir)), "surfaces": surfaces, "complete": allSurfaces(surfaces, surfaceKeys)}, nil
+	freshness, err := service.freshnessPayload(filepath.Base(runDir))
+	if err != nil {
+		return nil, err
+	}
+	surfaceComplete := allSurfaces(surfaces, prdBuildSurfaceKeys)
+	complete := false
+	errors := []string{}
+	readiness := "blocked"
+	semanticStatus := "blocked"
+	var recovery any
+	if surfaceComplete {
+		if err := validatePRDStageArtifacts(service.projectRoot, runDir, "prd-build"); err != nil {
+			errors = append(errors, err.Error())
+			recovery = prdBuildRecovery("prd-build", "Repair the canonical PRD build artifact set through its owning CLI until validation passes, then rerun build status.", filepath.Base(runDir))
+		} else {
+			complete = true
+			readiness = "complete"
+			semanticStatus = "ready"
+		}
+	} else {
+		if err := validatePRDStageArtifacts(service.projectRoot, runDir, "prd-build-ready"); err != nil {
+			errors = append(errors, err.Error())
+			recovery = prdBuildRecovery("prd-scan", "Repair and finalize the canonical PRD scan package through prd-scan before starting or resuming prd-build.", filepath.Base(runDir))
+		} else {
+			readiness = "ready-to-build"
+			semanticStatus = "ready"
+		}
+	}
+	return map[string]any{
+		"mode":             payloadMode,
+		"workspace":        filepath.Base(runDir),
+		"workspace_path":   runDir,
+		"status_file":      statusPath,
+		"freshness":        freshness,
+		"surfaces":         surfaces,
+		"surface_complete": surfaceComplete,
+		"complete":         complete,
+		"status":           semanticStatus,
+		"readiness":        readiness,
+		"errors":           errors,
+		"recovery":         recovery,
+	}, nil
+}
+
+func prdBuildRecovery(stage, action, runID string) map[string]any {
+	return map[string]any{
+		"stage":         stage,
+		"action":        action,
+		"next_action":   action,
+		"rerun_command": []string{"specify-runtime", "prd-build", "status-build", runID},
+	}
 }
 
 func (service prdService) resolveRunDir(runID string) (string, error) {
@@ -1810,29 +2191,75 @@ func (service prdService) seedPRDStatusIfMissing(workspace string) error {
 	} else if !os.IsNotExist(err) {
 		return err
 	}
-	payload := map[string]any{"version": float64(1), "status_family": "prd", "freshness": "missing", "last_refresh_commit": "", "last_refresh_branch": "", "last_refresh_at": nowUTCString(), "last_refresh_scope": "full", "last_refresh_basis": "prd-scan-init", "last_refresh_changed_files_basis": []any{}, "manual_force_stale": false, "manual_force_stale_reasons": []any{}, "latest_run": workspace}
+	payload := map[string]any{"version": float64(1), "status_family": "prd", "freshness": "missing", "last_refresh_commit": "uninitialized", "last_refresh_branch": "uninitialized", "last_refresh_at": nowUTCString(), "last_refresh_scope": "full", "last_refresh_basis": "prd-scan-init", "last_refresh_changed_files_basis": []any{}, "manual_force_stale": false, "manual_force_stale_reasons": []any{}, "latest_run": workspace}
 	raw, _ := json.MarshalIndent(payload, "", "  ")
 	return writeFileIfMissing(path, string(raw)+"\n")
 }
 
-func (service prdService) stableFreshnessPayload(workspace string) map[string]any {
-	path, err := service.statusPath()
-	freshness := "missing"
-	exists := false
-	if err == nil {
-		if raw, readErr := os.ReadFile(path); readErr == nil {
-			exists = true
-			var payload map[string]any
-			if json.Unmarshal(raw, &payload) == nil {
-				freshness = firstNonEmpty(stringValue(payload["freshness"]), "missing")
-			}
+func (service prdService) freshnessPayload(workspace string) (map[string]any, error) {
+	status, raw, err := service.loadStatusDocument()
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return map[string]any{"status_file_exists": false, "freshness": "missing", "latest_run": service.latestRunID(), "current_run": workspace}, nil
 		}
+		return nil, err
 	}
-	return map[string]any{"status_file_exists": exists, "freshness": freshness, "latest_run": service.latestRunID(), "current_run": workspace}
+	if status.Freshness != "fresh" {
+		baselineChangedFiles, _ := raw["last_refresh_changed_files_basis"].([]any)
+		return map[string]any{
+			"status_file_exists":         true,
+			"freshness":                  firstNonEmpty(status.Freshness, "missing"),
+			"latest_run":                 firstNonEmpty(status.LatestRun, service.latestRunID()),
+			"current_run":                workspace,
+			"baseline_commit":            status.LastRefreshCommit,
+			"baseline_branch":            status.LastRefreshBranch,
+			"baseline_basis":             status.LastRefreshBasis,
+			"baseline_scope":             status.LastRefreshScope,
+			"baseline_changed_files":     append([]any{}, baselineChangedFiles...),
+			"manual_force_stale":         status.ManualForceStale,
+			"manual_force_stale_reasons": append([]any{}, status.ManualForceStaleReasons...),
+		}, nil
+	}
+	freshness, currentChangedFiles, err := evaluatePRDFreshness(service.projectRoot, status)
+	if err != nil {
+		return nil, err
+	}
+	currentSnapshot, err := currentPRDGitSnapshot(service.projectRoot)
+	if err != nil {
+		return nil, err
+	}
+	baselineChangedFiles, _ := raw["last_refresh_changed_files_basis"].([]any)
+	return map[string]any{
+		"status_file_exists":         true,
+		"freshness":                  freshness,
+		"latest_run":                 firstNonEmpty(status.LatestRun, service.latestRunID()),
+		"current_run":                workspace,
+		"baseline_commit":            status.LastRefreshCommit,
+		"baseline_branch":            status.LastRefreshBranch,
+		"baseline_basis":             status.LastRefreshBasis,
+		"baseline_scope":             status.LastRefreshScope,
+		"baseline_changed_files":     append([]any{}, baselineChangedFiles...),
+		"current_commit":             currentSnapshot.commit,
+		"current_branch":             currentSnapshot.branch,
+		"current_basis":              currentSnapshot.basis,
+		"current_scope":              currentSnapshot.scope,
+		"current_changed_files":      stringSliceToAny(currentChangedFiles),
+		"manual_force_stale":         status.ManualForceStale,
+		"manual_force_stale_reasons": append([]any{}, status.ManualForceStaleReasons...),
+		"non_git_fallback":           currentSnapshot.fallback,
+	}, nil
 }
 
 func (service prdService) statusPath() (string, error) {
 	return secureProjectPath(service.projectRoot, ".specify/prd/status.json")
+}
+
+func (service prdService) loadStatusDocument() (prdStatusDocument, map[string]any, error) {
+	statusPath, err := service.statusPath()
+	if err != nil {
+		return prdStatusDocument{}, nil, err
+	}
+	return loadPRDStatusDocument(statusPath)
 }
 
 func (service prdService) latestRunID() string {
@@ -1930,6 +2357,307 @@ func parseFrontmatter(text string) (map[string]string, string) {
 	}
 	body := strings.Join(lines[end+1:], "\n")
 	return frontmatter, body
+}
+
+type prdGitSnapshot struct {
+	commit       string
+	branch       string
+	basis        string
+	scope        string
+	changedFiles []string
+	fallback     bool
+}
+
+func evaluatePRDFreshness(projectRoot string, status prdStatusDocument) (string, []string, error) {
+	current, err := currentPRDGitSnapshot(projectRoot)
+	if err != nil {
+		return "", nil, err
+	}
+	if status.ManualForceStale {
+		return "full-stale", current.changedFiles, nil
+	}
+	if current.fallback {
+		if status.LastRefreshCommit == current.commit && status.LastRefreshBranch == current.branch && status.LastRefreshBasis == current.basis && reflectStringSlices(normalizePRDChangedFiles(status.LastRefreshChangedFilesBasis), current.changedFiles) {
+			return "fresh", current.changedFiles, nil
+		}
+		return "full-stale", current.changedFiles, nil
+	}
+	if strings.HasPrefix(status.LastRefreshBasis, "non-git-fallback") {
+		return "full-stale", current.changedFiles, nil
+	}
+	if status.LastRefreshBranch != current.branch {
+		return "full-stale", current.changedFiles, nil
+	}
+	currentChangedFiles, err := prdChangedFilesSince(projectRoot, status.LastRefreshCommit)
+	if err != nil {
+		return "", nil, err
+	}
+	baseline := normalizePRDChangedFiles(status.LastRefreshChangedFilesBasis)
+	if reflectStringSlices(baseline, currentChangedFiles) {
+		return "fresh", currentChangedFiles, nil
+	}
+	affected := symmetricPRDChangedFiles(baseline, currentChangedFiles)
+	if len(affected) == 0 {
+		affected = currentChangedFiles
+	}
+	return classifyPRDFreshness(affected), currentChangedFiles, nil
+}
+
+func currentPRDGitSnapshot(projectRoot string) (prdGitSnapshot, error) {
+	if !isGitWorkTree(projectRoot) {
+		changedFiles, digest, err := prdFallbackSnapshot(projectRoot)
+		if err != nil {
+			return prdGitSnapshot{}, err
+		}
+		return prdGitSnapshot{
+			commit:       "non-git-unavailable",
+			branch:       "non-git-unavailable",
+			basis:        "non-git-fallback:" + digest,
+			scope:        "full",
+			changedFiles: changedFiles,
+			fallback:     true,
+		}, nil
+	}
+	commit, err := runGitValue(projectRoot, "rev-parse", "HEAD")
+	if err != nil {
+		return prdGitSnapshot{}, err
+	}
+	branch, err := runGitValue(projectRoot, "rev-parse", "--abbrev-ref", "HEAD")
+	if err != nil {
+		return prdGitSnapshot{}, err
+	}
+	changedFiles, err := prdChangedFiles(projectRoot)
+	if err != nil {
+		return prdGitSnapshot{}, err
+	}
+	scope := "full"
+	if len(changedFiles) > 0 {
+		scope = "targeted"
+	}
+	return prdGitSnapshot{
+		commit:       firstNonEmpty(commit, "git-commit-unavailable"),
+		branch:       firstNonEmpty(branch, "git-branch-unavailable"),
+		basis:        "git-head+worktree",
+		scope:        scope,
+		changedFiles: changedFiles,
+	}, nil
+}
+
+func isGitWorkTree(projectRoot string) bool {
+	cmd := exec.Command("git", "-C", projectRoot, "rev-parse", "--is-inside-work-tree")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return false
+	}
+	if !strings.EqualFold(strings.TrimSpace(string(output)), "true") {
+		return false
+	}
+	head := exec.Command("git", "-C", projectRoot, "rev-parse", "--verify", "HEAD")
+	return head.Run() == nil
+}
+
+func runGitValue(projectRoot string, args ...string) (string, error) {
+	cmd := exec.Command("git", append([]string{"-C", projectRoot}, args...)...)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("git %s failed: %s", strings.Join(args, " "), strings.TrimSpace(string(output)))
+	}
+	return strings.TrimSpace(string(output)), nil
+}
+
+func prdChangedFiles(projectRoot string) ([]string, error) {
+	return prdGitChangedFiles(projectRoot, "")
+}
+
+func prdChangedFilesSince(projectRoot, baselineCommit string) ([]string, error) {
+	return prdGitChangedFiles(projectRoot, strings.TrimSpace(baselineCommit))
+}
+
+func prdGitChangedFiles(projectRoot, baselineCommit string) ([]string, error) {
+	commands := [][]string{}
+	if baselineCommit != "" {
+		commands = append(commands, []string{"diff", "-z", "--name-only", "--relative", baselineCommit + "..HEAD"})
+	}
+	commands = append(commands,
+		[]string{"diff", "-z", "--name-only", "--relative", "HEAD"},
+		[]string{"ls-files", "-z", "--others", "--exclude-standard"},
+	)
+	sets := [][]string{}
+	for _, args := range commands {
+		lines, err := gitCommandNULPaths(projectRoot, args...)
+		if err != nil {
+			return nil, fmt.Errorf("git %s failed: %w", strings.Join(args, " "), err)
+		}
+		sets = append(sets, lines)
+	}
+	seen := map[string]bool{}
+	all := []string{}
+	for _, values := range sets {
+		for _, value := range values {
+			value = filepath.ToSlash(strings.TrimSpace(value))
+			if value == "" || classifyPRDChangedPath(value) == "ignore" {
+				continue
+			}
+			if !seen[value] {
+				seen[value] = true
+				all = append(all, value)
+			}
+		}
+	}
+	sort.Strings(all)
+	return all, nil
+}
+
+func symmetricPRDChangedFiles(left, right []string) []string {
+	leftSet := map[string]bool{}
+	rightSet := map[string]bool{}
+	for _, path := range left {
+		leftSet[path] = true
+	}
+	for _, path := range right {
+		rightSet[path] = true
+	}
+	changed := []string{}
+	for path := range leftSet {
+		if !rightSet[path] {
+			changed = append(changed, path)
+		}
+	}
+	for path := range rightSet {
+		if !leftSet[path] {
+			changed = append(changed, path)
+		}
+	}
+	sort.Strings(changed)
+	return changed
+}
+
+func classifyPRDFreshness(paths []string) string {
+	freshness := "fresh"
+	for _, path := range paths {
+		switch classifyPRDChangedPath(path) {
+		case "full-stale":
+			return "full-stale"
+		case "targeted-stale":
+			freshness = "targeted-stale"
+		}
+	}
+	return freshness
+}
+
+func classifyPRDChangedPath(path string) string {
+	normalized := strings.ToLower(strings.Trim(filepath.ToSlash(path), "/"))
+	name := normalized
+	if index := strings.LastIndex(normalized, "/"); index >= 0 {
+		name = normalized[index+1:]
+	}
+	lockfiles := map[string]bool{
+		"bun.lock": true, "bun.lockb": true, "cargo.lock": true, "composer.lock": true,
+		"go.sum": true, "package-lock.json": true, "pnpm-lock.yaml": true,
+		"poetry.lock": true, "uv.lock": true, "yarn.lock": true,
+	}
+	fullRoot := map[string]bool{
+		"agents.md": true, "project-handbook.md": true, "cargo.toml": true,
+		"go.mod": true, "package.json": true, "pyproject.toml": true, "setup.cfg": true,
+	}
+	if fullRoot[normalized] || lockfiles[name] {
+		return "full-stale"
+	}
+	fullExact := map[string]bool{
+		"src/specify_cli/__init__.py": true, "src/specify_cli/agents.py": true,
+		"src/specify_cli/launcher.py": true, "src/specify_cli/workflow_markers.py": true,
+	}
+	if fullExact[normalized] {
+		return "full-stale"
+	}
+	for _, prefix := range []string{
+		".github/workflows/", "scripts/bash/", "scripts/powershell/",
+		"src/specify_cli/execution/", "src/specify_cli/hooks/", "src/specify_cli/integrations/",
+		"src/specify_cli/orchestration/", "src/specify_cli/shared_hooks/", "templates/commands/",
+		"templates/command-partials/", "templates/passive-skills/", "templates/project-map/",
+		"templates/worker-prompts/",
+	} {
+		if strings.HasPrefix(normalized, prefix) {
+			return "full-stale"
+		}
+	}
+	if normalized == "readme.md" {
+		return "targeted-stale"
+	}
+	for _, prefix := range []string{"docs/", "src/", "templates/", "tests/"} {
+		if strings.HasPrefix(normalized, prefix) {
+			return "targeted-stale"
+		}
+	}
+	return "ignore"
+}
+
+func prdFallbackSnapshot(projectRoot string) ([]string, string, error) {
+	root, err := filepath.Abs(projectRoot)
+	if err != nil {
+		return nil, "", err
+	}
+	files := []string{}
+	err = filepath.WalkDir(root, func(path string, entry os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		rel, relErr := filepath.Rel(root, path)
+		if relErr != nil {
+			return relErr
+		}
+		rel = filepath.ToSlash(rel)
+		if entry.IsDir() {
+			if rel != "." && (rel == ".git" || rel == ".specify" || rel == ".planning" || rel == "node_modules" || rel == ".venv") {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if classifyPRDChangedPath(rel) != "ignore" {
+			files = append(files, rel)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, "", err
+	}
+	sort.Strings(files)
+	digest := sha256.New()
+	for _, rel := range files {
+		digest.Write([]byte(rel))
+		digest.Write([]byte{0})
+		raw, readErr := os.ReadFile(filepath.Join(root, filepath.FromSlash(rel)))
+		if readErr != nil {
+			return nil, "", readErr
+		}
+		digest.Write(raw)
+		digest.Write([]byte{0})
+	}
+	return files, hex.EncodeToString(digest.Sum(nil)), nil
+}
+
+func normalizePRDChangedFiles(raw []any) []string {
+	values := []string{}
+	for _, item := range raw {
+		text := strings.TrimSpace(fmt.Sprint(item))
+		if text != "" {
+			values = append(values, filepath.ToSlash(text))
+		}
+	}
+	sort.Strings(values)
+	return values
+}
+
+func reflectStringSlices(left, right []string) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for index := range left {
+		if left[index] != right[index] {
+			return false
+		}
+	}
+	return true
 }
 
 func emitFrontmatter(frontmatter map[string]string, body string) string {

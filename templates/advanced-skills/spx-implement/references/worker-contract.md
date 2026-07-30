@@ -31,6 +31,11 @@ impact, consumer or UI coverage notes when triggered, blockers, failed
 assumptions, and recovery guidance. Workers must not run a test suite, full
 build, service startup, E2E journey, or browser capture per Txx, and they cannot
 open a logical gate or validation attempt.
+The worker returns this bounded object to the leader or submits it inline through
+the runtime-managed result channel. The leader merges it with
+`{{specify-subcmd:specify-runtime implement result-merge --feature-dir <feature-dir> --task-id <task-id> --result-json '<inline-json>' --format json}}`;
+neither party writes a canonical or temporary result
+file directly.
 Cheap producer-to-consumer wiring evidence remains task-local when a consumer
 surface is named. Defer only runtime real-entrypoint proof to the Leader attempt;
 do not defer the static "created but not wired" check.

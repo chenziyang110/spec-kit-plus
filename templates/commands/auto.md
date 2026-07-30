@@ -60,7 +60,7 @@ Its job is to read current repository state, identify the recommended next Spec 
 - `sp-auto` does not replace `sp-specify`, `sp-plan`, `sp-tasks`, `sp-analyze`, `sp-implement`, `sp-review`, `sp-accept`, `sp-debug`, `sp-quick`, or `sp-fast`.
 - `sp-auto` must never invent a new phase progression from chat memory when repository state already records the next step.
 - Always obey the recorded upstream gate.
-- Do not rewrite the underlying workflow state to `/sp.auto`; preserve the canonical downstream `next_command` such as `/sp.plan`, `/sp.tasks`, `/sp.implement`, `/sp.review`, `/sp.accept`, `/sp.debug`, `/sp.quick`, `/sp.fast`, `/sp.clarify`, or `/sp.deep-research`. Preserve `/sp.analyze` only when an existing state file explicitly records that legacy or diagnostic route.
+- Do not rewrite the underlying workflow state to `/sp.auto`; preserve the canonical downstream `next_command` such as `/sp.plan`, `/sp.tasks`, `/sp.implement`, `/sp.review`, `/sp.accept`, `/sp.debug`, `/sp.quick`, `/sp.fast`, `/sp.clarify`, or `/sp.deep-research`. Preserve `/sp.analyze` only when a targeted `specify-runtime artifact show` response explicitly records that legacy or diagnostic route.
 - If state is missing, stale, conflicting, or cannot identify one safe next step, stop in read-only diagnosis and report the exact blocker instead of improvising a route.
 - Do not guess when multiple resumable lanes exist.
 - Never auto-resume an `uncertain` lane.
@@ -84,33 +84,36 @@ Inspect the available state surfaces in this order and prefer the most specific 
      a valid reopen decision.
 
 2. Active implementation execution state
-   - Read `FEATURE_DIR/implement-tracker.md` together with `workflow-state.md`.
+- Query `FEATURE_DIR/implement-tracker.md` and `workflow-state.md` through targeted `specify-runtime artifact show` calls.
    - If execution is still active and `workflow-state.md` allows `/sp.implement`, resume the canonical `/sp.implement` route.
    - If trusted execution is completed and `next_command: /sp.review`, route to canonical `/sp.review`; do not repeat implementation or skip system Review.
    - If `workflow-state.md` still requires `/sp.analyze`, `/sp.plan`, `/sp.tasks`, `/sp.clarify`, or `/sp.deep-research`, reconcile that gate with the CLI runtime. Execute an evidence-backed `specify-runtime workflow reopen` for a backward move or same-completed-stage reactivation; do not route to an upstream command while the runtime still owns a later stage.
 
 3. Post-implementation system Review state
+   - List the feature's implementation handoff and Review state through `specify-runtime artifact list`, then query only the selected records through targeted `artifact show` calls.
    - If trusted implementation closeout exists and `review-state.json` is absent, `reviewing`, `repairing`, `blocked`, failed, or stale, route to canonical `/sp.review` before human acceptance.
    - Treat Review as approved only when the implementation fingerprint is fresh, every mandatory real-entrypoint scenario passes with required integrated evidence, and no blocking finding remains.
 
 4. Post-Review human acceptance state
+   - List the feature's Review closeout and Human Acceptance state through `specify-runtime artifact list`, then query only the selected records through targeted `artifact show` calls.
    - If trusted Review closeout exists and `human-acceptance.json` is `draft`, `ready`, `in_progress`, `blocked`, `rejected`, or `stale`, route to canonical `/sp.accept` before integration or delivery.
    - Treat `accepted` as complete only when the frozen Human Acceptance Universe has zero uncovered required obligations, the approved Review/summary fingerprint and Review-owned runtime-target digest are fresh, every required scenario has structured human PASS evidence against its ready Review-approved runtime target, no acceptance finding is open, and the explicit human decision is accept.
 
 5. Quick-task state
-   - Read unfinished `.planning/quick/*/STATUS.md` files.
+- List unfinished quick status artifacts with `specify-runtime artifact list --path-prefix .planning/quick/ --type quick-status`, then query only the selected `STATUS.md` through `artifact show`.
    - If one active quick task clearly owns the next action, route to the canonical `/sp.quick` token.
    - If the recorded next command is a bounded local repair lane, canonical `/sp.fast` is allowed only when the state explicitly justifies that smaller route.
 
 6. Debug session state
-   - Read active `.planning/debug/*.md` session files.
+   - Discover active sessions with `specify-runtime artifact list --type debug-session --format json`, then query only the selected `.planning/debug/*.md` session through `artifact show`.
    - If a live investigation owns the current next action, route to the canonical `/sp.debug` token.
 
 7. Discussion handoff state
-   - Read active `.specify/discussions/*/discussion-state.json` files when no higher-authority feature, implementation, quick, or debug state has already selected a unique route; use Markdown only for legacy recovery.
-   - Treat `status: handoff-ready` plus `next_command: /sp.specify` or `sp-specify` as a `/sp.specify` candidate only when `handoff_consumption_status` is not `consumed`.
+- List active discussion state through `specify-runtime artifact list --path-prefix .specify/discussions/ --type discussion-state-json`, then query only the selected state with `artifact show` when no higher-authority route exists.
+- For `status: handoff-ready` with `handoff_consumption_status` not `consumed`, query canonical `handoff-to-specify.json` through `specify-runtime artifact show` and require `recommended_consumer`, `consumer_eligibility.<consumer>.status: ready`, and `next_command` to agree.
+   - If the ready contract, eligibility, and state disagree, route back to `/sp.discussion` for handoff repair instead of guessing or defaulting to `/sp.specify`.
    - If `handoff_consumption_status: consumed`, `status: completed`, `consumed_by_feature_dir` is populated, or `next_command: none`, do not count that discussion as a resumable candidate.
-   - If a handoff-ready discussion's `handoff-to-specify.json` path is already referenced by a feature `brainstorming/handoff-to-specify.json` as `source_contract`, treat it as a consumed-stale cleanup item, not a competing route. Recommend `{{specify-subcmd:specify-runtime discussion mark-consumed <slug> --feature-dir <feature-dir>}}` as the repair evidence, or perform that repair only when the active workflow allows state cleanup before routing.
+   - If a handoff-ready discussion's `handoff-to-specify.json` path and `review_digest` are already referenced by a feature consumer artifact or a Quick `STATUS.md`, treat it as a consumed-stale cleanup item, not a competing route. Recommend `{{specify-subcmd:specify-runtime discussion mark-consumed <slug> --feature-dir <consumer-workspace>}}` as the repair evidence, or perform that repair only when the active workflow allows state cleanup before routing. The `--feature-dir` spelling is a compatibility flag and may point to the bound Quick workspace.
    - If multiple unconsumed handoff-ready discussions remain, stop and ask for a specific slug instead of guessing.
 
 ## Route Resolution

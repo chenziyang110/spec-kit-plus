@@ -26,7 +26,7 @@ invalidates `plan`; task decomposition invalidates `tasks`. Use the CLI reopen
 operation only after the full finding set is known so one deterministic backward
 transition covers the complete invalidation scope.
 
-Persist a complete blocker bundle in `workflow-state.md`: `gate_status: cleared
+Patch the complete blocker bundle into `workflow-state.md` through a leased `specify-runtime artifact patch`: `gate_status: cleared
 | blocked`, incremented `gate_cycle`, `highest_invalid_stage`, `blocker_bundle`,
 finding attribution, evidence fingerprint, and exactly one next route. Preserve
 IDs across revalidation and clear the gate only after fresh evidence resolves

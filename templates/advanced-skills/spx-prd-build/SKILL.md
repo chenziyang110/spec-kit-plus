@@ -20,18 +20,26 @@ also passed semantic validation. The frozen package is the only product-fact sou
 Do not crawl or reread the repository, and do not invent facts to make an
 export complete.
 
-Before substantial synthesis, update the installed workflow state with
+Before substantial synthesis, query the installed workflow state through
+`artifact show` and update it only through fresh leased `artifact patch` calls with
 `active_command: sp-prd-build`, current build stage, `scan_status`,
 `build_status`, `classification`, current packet, accepted/rejected packet
 results, failed readiness checks, `failed_reverse_coverage_checks`, open gaps,
 next action, next command, and handoff reason. Resume non-terminal build state
 without discarding accepted joins or completed exports.
 
-Compile `master/master-pack.md`, `exports/README.md`, `exports/prd.md`, and the
-triggered supporting exports with the deterministic templates under
-`.specify/templates/prd/`. Preserve traceability from each material statement
-to accepted scan evidence. Reconcile duplicates and contradictions explicitly;
-retain critical unknowns and reconstruction risks.
+Inspect scan JSON through compact `prd-scan record-list` and selected
+`record-show` calls, never by loading whole ledgers. Run `specify-runtime
+prd-build scaffold <run-id> --format json` once the sealed scan is ready; the
+runtime expands every missing required master/export document from installed
+templates in one transaction and preserves existing resume content. Never read
+or reconstruct those templates, and never generically prepare or submit a build
+document. Compile only semantic section content in memory for
+`master/master-pack.md`, `exports/README.md`, `exports/prd.md`, and supporting
+exports, then apply it through leased `artifact patch --section` calls. Preserve
+traceability from each material statement to accepted scan evidence. Reconcile
+duplicates and contradictions explicitly; retain critical unknowns and
+reconstruction risks. Never emit or replace a whole PRD build document.
 
 Preserve the scan's `ui | service | mixed` classification with
 classification-aware exports: UI runs retain user-visible states, flows, and
@@ -43,9 +51,13 @@ critical evidence depth, and the final workflow state. Delegation is optional
 and limited to independent synthesis or validation lanes over the same frozen
 scan package. The leader accepts joins and owns final consistency.
 
-Rerun `{{specify-subcmd:specify-runtime prd-build <run-id> --json}}` after writing outputs. Mark
-workflow state complete only when it returns `readiness: complete`; otherwise
-persist its errors and recovery without claiming the suite complete.
+After submitting outputs and reconciling their evidence links, patch workflow
+state to complete through a fresh lease, then run
+`{{specify-subcmd:specify-runtime prd-build <run-id> --format json}}` and
+`{{specify-subcmd:specify-runtime hook validate-artifacts --command prd-build --feature-dir .specify/prd-runs/<run-id> --format json}}`.
+Both native gates must report semantic completion for the sealed scan run;
+surface presence alone is not completion. If either gate blocks, patch its
+errors and recovery back into workflow state and do not claim completion.
 
 Stop after producing the PRD suite. This reconstruction workflow is a peer
 output and does not automatically create a feature, plan, tasks, or production

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 from collections.abc import Mapping
@@ -3020,11 +3021,11 @@ UI_CONTRACT_SCALAR_FIELDS = (
     "interaction_thesis",
     "signature_element",
     "approved_visual_ref",
-    "comparison_tolerance",
 )
 UI_CONTRACT_LIST_FIELDS = (
     "platforms",
     "design_decision_ids",
+    "handoff_contract_ids",
     "reference_intents",
     "real_content_plan",
     "image_plan",
@@ -3035,11 +3036,13 @@ UI_CONTRACT_LIST_FIELDS = (
     "accepted_deviations",
     "required_evidence",
 )
-UI_CONTRACT_OBJECT_FIELDS = ("motion_contract",)
+UI_CONTRACT_OBJECT_FIELDS = ("motion_contract", "comparison_tolerance")
 UI_APPROVAL_DIGEST_FIELDS = (
     "approved_preview_sha256",
     "approved_manifest_sha256",
+    "approved_handoff_sha256",
 )
+UI_APPROVAL_REFERENCE_FIELDS = ("approved_handoff_ref",)
 UI_SPEC_PLAN_CONTINUITY_LIST_FIELDS = (
     "entry_points",
     "required_states",
@@ -3073,6 +3076,7 @@ UI_CONTRACT_EVIDENCE = {
     "visual_comparison_or_human_review",
 }
 UI_DESIGN_DECISION_ID_RE = re.compile(r"^DS-[A-Z]+-\d{3}$")
+UI_DESIGN_HANDOFF_ID_RE = re.compile(r"^DH-[A-Z0-9]+(?:-[A-Z0-9]+)+$")
 UI_SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 UI_APPROVED_PREVIEW_REF_RE = re.compile(
     r"round-\d+\.html#direction-[a-z0-9-]+$", re.IGNORECASE
@@ -3158,8 +3162,28 @@ def _validate_ui_contract_shape(contract: dict[str, Any], label: str) -> list[st
         for field in UI_APPROVAL_DIGEST_FIELDS
     ):
         errors.append(
-            f"{label} approved HTML preview requires preview and manifest SHA-256 digests"
+            f"{label} approved HTML preview requires preview, manifest, and handoff SHA-256 digests"
         )
+    if UI_APPROVED_PREVIEW_REF_RE.search(approved_ref):
+        if not str(contract.get("approved_handoff_ref") or "").strip().lower().endswith(
+            ".handoff.json"
+        ):
+            errors.append(
+                f"{label}.approved_handoff_ref must identify the immutable design handoff"
+            )
+        handoff_contract_ids = contract.get("handoff_contract_ids")
+        if (
+            not isinstance(handoff_contract_ids, list)
+            or not handoff_contract_ids
+            or any(
+                not isinstance(item, str)
+                or not UI_DESIGN_HANDOFF_ID_RE.fullmatch(item.strip())
+                for item in handoff_contract_ids
+            )
+        ):
+            errors.append(
+                f"{label}.handoff_contract_ids must contain approved DH-* IDs"
+            )
     design_decision_ids = contract.get("design_decision_ids")
     if (
         not isinstance(design_decision_ids, list)
@@ -3171,6 +3195,13 @@ def _validate_ui_contract_shape(contract: dict[str, Any], label: str) -> list[st
         )
     ):
         errors.append(f"{label}.design_decision_ids must contain canonical DS-* IDs")
+    handoff_contract_ids = contract.get("handoff_contract_ids")
+    if isinstance(handoff_contract_ids, list) and any(
+        not isinstance(item, str)
+        or not UI_DESIGN_HANDOFF_ID_RE.fullmatch(item.strip())
+        for item in handoff_contract_ids
+    ):
+        errors.append(f"{label}.handoff_contract_ids must contain canonical DH-* IDs")
     reference_intents = contract.get("reference_intents")
     if isinstance(reference_intents, list):
         for item in reference_intents:
@@ -3297,6 +3328,141 @@ def _validate_ui_contract_shape(contract: dict[str, Any], label: str) -> list[st
     return errors
 
 
+def _validate_ui_handoff_binding(
+    feature_dir: Path,
+    contract: dict[str, Any],
+    label: str,
+) -> list[str]:
+    """Bind an active UI contract to the immutable approved design handoff."""
+
+    approved_ref = str(contract.get("approved_visual_ref") or "").strip()
+    if not UI_APPROVED_PREVIEW_REF_RE.search(approved_ref):
+        return []
+    errors: list[str] = []
+    handoff_ref = str(contract.get("approved_handoff_ref") or "").strip()
+    if not handoff_ref:
+        return [f"{label}.approved_handoff_ref is required"]
+    raw_handoff_path = Path(handoff_ref)
+    if raw_handoff_path.is_absolute():
+        return [f"{label}.approved_handoff_ref must be project-relative"]
+    project_root = feature_dir.parents[2]
+    handoff_path = (project_root / raw_handoff_path).resolve(strict=False)
+    try:
+        handoff_path.relative_to(project_root.resolve())
+    except ValueError:
+        return [f"{label}.approved_handoff_ref must stay inside the project"]
+    if not handoff_path.is_file():
+        return [f"{label}.approved_handoff_ref does not exist: {handoff_ref}"]
+    try:
+        handoff_bytes = handoff_path.read_bytes()
+        handoff = json.loads(handoff_bytes.decode("utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        return [f"{label}.approved_handoff_ref is unreadable: {exc}"]
+    actual_digest = hashlib.sha256(handoff_bytes).hexdigest()
+    if actual_digest != str(contract.get("approved_handoff_sha256") or "").strip():
+        errors.append(
+            f"{label}.approved_handoff_sha256 must bind the immutable handoff bytes"
+        )
+    if not isinstance(handoff, dict) or handoff.get("schema") != "spec-kit-design-handoff-v1":
+        errors.append(
+            f"{label}.approved_handoff_ref must contain spec-kit-design-handoff-v1"
+        )
+        return errors
+
+    approval = handoff.get("approval")
+    approval = approval if isinstance(approval, dict) else {}
+    preview_ref, _, direction_id = approved_ref.partition("#")
+    expected_local_preview_ref = f"{Path(preview_ref).name}#{direction_id}"
+    expected_pairs = (
+        ("preview_ref", expected_local_preview_ref),
+        ("direction_id", direction_id),
+        ("preview_sha256", str(contract.get("approved_preview_sha256") or "").strip()),
+        ("manifest_sha256", str(contract.get("approved_manifest_sha256") or "").strip()),
+    )
+    for field, expected in expected_pairs:
+        if str(approval.get(field) or "").strip() != expected:
+            errors.append(
+                f"{label} immutable handoff approval.{field} must preserve the UI contract"
+            )
+
+    approved_decisions = {
+        str(item).strip()
+        for item in approval.get("decision_ids") or []
+        if isinstance(item, str) and item.strip()
+    }
+    selected_decisions = _normalized_ui_string_values(
+        "design_decision_ids", contract
+    )
+    if not selected_decisions or not selected_decisions <= approved_decisions:
+        errors.append(
+            f"{label}.design_decision_ids must be a non-empty immutable handoff subset"
+        )
+
+    reproduction = handoff.get("reproduction")
+    reproduction = reproduction if isinstance(reproduction, dict) else {}
+    approved_contract_ids = {
+        str(item).strip()
+        for item in reproduction.get("contract_ids") or []
+        if isinstance(item, str) and item.strip()
+    }
+    selected_contract_ids = _normalized_ui_string_values(
+        "handoff_contract_ids", contract
+    )
+    if not selected_contract_ids or not selected_contract_ids <= approved_contract_ids:
+        errors.append(
+            f"{label}.handoff_contract_ids must be a non-empty immutable handoff subset"
+        )
+
+    for field in (
+        "component_contracts",
+        "responsive_matrix",
+        "visual_acceptance_matrix",
+        "accepted_deviations",
+    ):
+        handoff_rows = reproduction.get(field)
+        handoff_rows = handoff_rows if isinstance(handoff_rows, list) else []
+        rows_by_id = {
+            str(row.get("id") or "").strip(): row
+            for row in handoff_rows
+            if isinstance(row, dict) and str(row.get("id") or "").strip()
+        }
+        expected_ids = selected_contract_ids & set(rows_by_id)
+        contract_rows = contract.get(field)
+        contract_rows = contract_rows if isinstance(contract_rows, list) else []
+        actual_ids: set[str] = set()
+        for index, row in enumerate(contract_rows):
+            if not isinstance(row, dict):
+                continue
+            row_id = str(row.get("id") or "").strip()
+            if not row_id:
+                errors.append(
+                    f"{label}.{field}[{index}] must preserve its immutable DH-* id"
+                )
+                continue
+            actual_ids.add(row_id)
+            if row_id not in expected_ids:
+                errors.append(
+                    f"{label}.{field}[{index}] is not selected by handoff_contract_ids"
+                )
+                continue
+            if row != rows_by_id[row_id]:
+                errors.append(
+                    f"{label}.{field}[{index}] must exactly preserve immutable handoff row {row_id}"
+                )
+        if actual_ids != expected_ids:
+            errors.append(
+                f"{label}.{field} must exactly materialize its selected immutable handoff rows"
+            )
+
+    if contract.get("comparison_tolerance") != reproduction.get(
+        "comparison_tolerance"
+    ):
+        errors.append(
+            f"{label}.comparison_tolerance must exactly preserve the immutable handoff"
+        )
+    return errors
+
+
 def _spec_ui_design_contract(feature_dir: Path) -> dict[str, Any] | None:
     path = feature_dir / "spec-contract.json"
     if not path.is_file():
@@ -3346,6 +3512,13 @@ def _validate_plan_ui_contract(feature_dir: Path) -> list[str]:
     assert isinstance(plan_contract, dict)
     errors.extend(
         _validate_ui_contract_shape(plan_contract, f"{label} ui_design_contract")
+    )
+    errors.extend(
+        _validate_ui_handoff_binding(
+            feature_dir,
+            plan_contract,
+            f"{label} ui_design_contract",
+        )
     )
     ui_brief_ref = str(plan_contract.get("ui_brief_ref") or "").strip()
     if not ui_brief_ref:
@@ -3411,6 +3584,7 @@ def _validate_plan_ui_contract(feature_dir: Path) -> list[str]:
             *UI_CONTRACT_LIST_FIELDS,
             *UI_CONTRACT_OBJECT_FIELDS,
             *UI_APPROVAL_DIGEST_FIELDS,
+            *UI_APPROVAL_REFERENCE_FIELDS,
             *UI_SPEC_PLAN_CONTINUITY_LIST_FIELDS,
         ):
             if _canonical_ui_continuity_value(
@@ -3477,6 +3651,7 @@ def _validate_tasks_ui_contract(feature_dir: Path) -> list[str]:
     if plan_applies and isinstance(plan_contract, dict):
         covered_required_states: set[str] = set()
         covered_design_decisions: set[str] = set()
+        covered_handoff_contracts: set[str] = set()
         covered_color_modes: set[str] = set()
         covered_component_contracts: set[Any] = set()
         covered_responsive_matrix: set[Any] = set()
@@ -3517,6 +3692,7 @@ def _validate_tasks_ui_contract(feature_dir: Path) -> list[str]:
                 *UI_CONTRACT_SCALAR_FIELDS,
                 *UI_CONTRACT_OBJECT_FIELDS,
                 *UI_APPROVAL_DIGEST_FIELDS,
+                *UI_APPROVAL_REFERENCE_FIELDS,
             ):
                 if task_contract.get(field) != plan_contract.get(field):
                     errors.append(
@@ -3545,11 +3721,18 @@ def _validate_tasks_ui_contract(feature_dir: Path) -> list[str]:
 
             for field, covered in (
                 ("design_decision_ids", covered_design_decisions),
+                ("handoff_contract_ids", covered_handoff_contracts),
                 ("color_modes", covered_color_modes),
             ):
                 plan_values = _normalized_ui_string_values(field, plan_contract)
                 task_values = _normalized_ui_string_values(field, task_contract)
                 covered.update(task_values)
+                if field == "handoff_contract_ids" and not plan_values:
+                    if task_values:
+                        errors.append(
+                            f"task-index.json UI task {task_id} handoff_contract_ids must be empty when the plan has no immutable handoff"
+                        )
+                    continue
                 if not task_values or not task_values <= plan_values:
                     errors.append(
                         f"task-index.json UI task {task_id} {field} must be a non-empty plan subset"
@@ -3615,6 +3798,7 @@ def _validate_tasks_ui_contract(feature_dir: Path) -> list[str]:
             )
         for field, covered in (
             ("design_decision_ids", covered_design_decisions),
+            ("handoff_contract_ids", covered_handoff_contracts),
             ("color_modes", covered_color_modes),
             ("component_contracts", covered_component_contracts),
             ("responsive_matrix", covered_responsive_matrix),

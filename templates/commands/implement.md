@@ -20,12 +20,12 @@ scripts:
 
 ## Main Flow
 
-1. Run `{SCRIPT}` to resolve the task-bearing feature context, then read canonical `task-index.json` or the light leader-direct task list, compact execution state, and current branch/worktree status. Load the current task plus its required refs; do not ingest the full upstream package when revisions are unchanged.
-2. Validate the task-graph revision and current ready batch. Compile delegated WorkerTaskPackets just in time from live code. Group behavior-changing Txx items into one coherent change-set, establish its RED/baseline through the Leader-owned logical validation-gate contract, and do not claim completion from chat narration.
+1. Run `{SCRIPT}` to resolve the task-bearing feature context, then call `{{specify-subcmd:specify-runtime implement task-next --feature-dir <feature-dir> --format json}}`. Treat CLI-owned `task-index.json` as the structured execution contract from Tasks, while letting the CLI return only the next ready task and compact execution state; use `specify-runtime artifact show --json-pointer ...` for any additional canonical field. Never parse or rewrite the full task index with ad-hoc scripts. Required refs, protected requirements, user decisions, and task-local `MP-*` must-preserve obligations remain locked; a conflict must stop and route to the owning upstream phase rather than redefine the goal during implementation.
+2. Validate the returned task and current ready batch. For delegated work, call `{{specify-subcmd:specify-runtime implement packet-compile --feature-dir <feature-dir> --task-id <Txx> --format json}}`; do not author a packet file. Group behavior-changing Txx items into one coherent change-set, establish its RED/baseline through the Leader-owned logical validation-gate contract, and do not claim completion from chat narration.
 3. Use `choose_subagent_dispatch(command_name="implement", snapshot, workload_shape)` for safe worker lanes, use the current integration's native subagent lifecycle where available, and keep leader ownership of tracker state.
-4. Execute the current task or ready batch, update tracker fields, resolve blockers through bounded repair, and route unknown root cause to `{{invoke:debug}}`.
-5. Run event-triggered review for repository drift, parallel joins, write-scope drift, validation failure, worker concerns, obligation conflicts, or sequential change-window limits. Maintain one task lifecycle record containing packet/ref, result, cheap task checks, shared validation gate/attempt refs, review verdict, and recovery; report completion only when changed paths, validation evidence, review status, and mutation closeout are complete.
-6. Persist one validation ledger shared across Implement and Review. Its three
+4. Start with `specify-runtime implement task-start`, execute the current task or ready batch, merge a structured result with `specify-runtime implement result-merge --result-json '<inline-json>'`, and accept it only with `specify-runtime implement task-accept`. These commands atomically own task status, lifecycle, execution state, and compatibility tracker projections. Never edit those workflow files directly and never create a temporary result JSON file. Resolve blockers through bounded repair and route unknown root cause to `{{invoke:debug}}`.
+5. Run event-triggered review for repository drift, parallel joins, write-scope drift, validation failure, worker concerns, obligation conflicts, or sequential change-window limits. Let `specify-runtime implement task-start|result-merge|task-accept` maintain the single task lifecycle record; submit a blocked result through `result-merge` rather than inventing a task-block file operation. Report completion only when its changed paths, validation evidence, review status, and mutation closeout are complete.
+6. Persist the shared validation ledger only through `specify-runtime implement validation-start|validation-finish`; inspect it with `validation-status`. Its three
    logical gates are optional RED/baseline, Implement convergence, and Review
    delivery; physical retries are attempts inside their gate. Timeout,
    termination, cancellation, harness, or environment loss is `interrupted`,
@@ -39,22 +39,21 @@ scripts:
    `open_logical_gate`, or `validation_complete`. `remaining_epochs` and
    `remaining_gate_slots` count only unopened logical gates; zero never blocks
    a progress-bound attempt inside an existing gate.
-7. For UI work, preserve task-local design inputs, states, changed surfaces, and
+7. For UI work, query task-local design inputs through `specify-runtime artifact show`, preserve their states and changed surfaces through `specify-runtime implement`, and
    capture requirements, but do not run the full viewport/state capture loop per
    Txx. Group the matrix by integrated surface and capture typed
    `structure_snapshot`, `visual_capture`, and `runtime_diagnostics` evidence
-   with `evidence_scope: integrated` in a Leader-owned attempt. Bind the applicable
-   shared evidence refs into each task lifecycle's `ui_verification`. For every
-   passing visual comparison, render
-   `.specify/templates/visual-comparison-template.json`, bind the approved
-   preview/manifest digests to implementation captures, and prove exact
-   coverage of the task's `DS-*` decisions under its comparison tolerance and
-   accepted deviations. This is
+   through `specify-runtime evidence register|import` with `evidence_scope: integrated`.
+   Bind shared refs and the task's structured `ui_verification` into each task lifecycle only through `specify-runtime implement result-merge|task-accept`; include the required evidence, difference inventory, accepted deviations, and objective-comparison or `pending-human-review` result.
+   For every passing visual comparison, submit only the observed entrypoint/revision, typed evidence refs, matrix differences, explicit verdict, and reviewer through `specify-runtime evidence visual-compare --feature-dir <feature-dir> --task-id <Txxx> --input-json '<observed-comparison-json>' --format json`. The runtime derives and atomically writes the registered report from the task's approved preview/manifest/handoff bindings, exact `DS-*`/`DH-*` coverage, comparison tolerance, and accepted deviations; use its returned report ref and byte digest in `ui_verification`. Never read or reconstruct `visual-comparison-template.json`, and never generically submit or patch the report. Query the packet's must-read immutable handoff through `specify-runtime artifact show` before UI work and
+   resolve selected rows and implementation bindings from it; a missing file,
+   digest mismatch, unknown ID, or copied-row mismatch blocks implementation
+   rather than authorizing reconstruction. This is
    evidence reuse, not permission to recapture or rerun the matrix per task. Unavailable
    objective comparison remains `pending-human-review`, never an implicit pass.
    Route an invalid, bootstrap, or missing design source to `sp-design` instead
    of inventing one.
-8. After successful technical closeout, require the `implementation_summary` and `implementation_handoff` response fields for the preliminary `implementation-summary.md` and deterministic `implementation-handoff.json`, including the unchanged validation ledger, logical-gate count, and attempt history. The summary must explain what changed, how to verify it, and what differs from the previous version using the recorded `git diff --stat` and `git diff --name-status` baseline. Complete only the `implement` stage, recommend `{{invoke:review}}`, and stop. The embedded event-triggered task review remains part of implementation, while `sp-review` owns the reserved delivery gate and may retry attempts inside it to prove startup, user journeys, interaction, and integrated wiring from real entrypoints. Do not invoke Review inline or claim that task completion equals a usable reviewed product.
+8. After successful technical closeout, call `{{specify-subcmd:specify-runtime implement closeout --feature-dir <feature-dir> --format json}}`. That command exclusively derives and atomically writes the preliminary `implementation-summary.md` and deterministic `implementation-handoff.json`, including the unchanged validation ledger, logical-gate count, and attempt history. It revalidates the live Spec, Plan, and Tasks and preserves their exact complete `acceptance_refs` denominator, `acceptance_denominator_sha256`, and frozen Human Acceptance Universe (`human_acceptance_obligations`, `human_acceptance_scenarios`, and `human_acceptance_contract_sha256`) unchanged. Never author, patch, submit, or stage either artifact yourself or through the generic artifact channel. Implement must not create, infer, or prefill `reviewed_runtime_targets`; only Review creates them from final integrated evidence. Complete only the `implement` stage, recommend `{{invoke:review}}`, and stop. The embedded event-triggered task review remains part of implementation, while `sp-review` owns the reserved delivery gate and may retry attempts inside it to prove startup, user journeys, interaction, and integrated wiring from real entrypoints. Do not invoke Review inline or claim that task completion equals a usable reviewed product.
 
 {{spec-kit-include: ../command-partials/common/inline-project-cognition-update.md}}
 

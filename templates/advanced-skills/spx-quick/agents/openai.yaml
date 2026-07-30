@@ -1,7 +1,7 @@
 interface:
   display_name: "SPX Quick"
-  short_description: "Small resumable verified changes"
-  default_prompt: "Use $spx-quick to execute this bounded task with lightweight tracking."
+  short_description: "Resumable direct delivery at any size"
+  default_prompt: "Use $spx-quick to execute this task with scalable planning, batches, and verification."
 
 policy:
   allow_implicit_invocation: false

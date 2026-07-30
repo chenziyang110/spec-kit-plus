@@ -49,9 +49,9 @@ Use this when:
 ## Execution Contract
 
 1. Run `{SCRIPT}` from repo root and parse `FEATURE_DIR` and `AVAILABLE_DOCS` list. All paths must be absolute.
-2. If the prerequisites output does not resolve a `FEATURE_DIR` with canonical `task-index.json` or a light direct task list, stop and run `sp-tasks` first instead of guessing from chat state.
+2. If the prerequisites output does not resolve a `FEATURE_DIR` with canonical `task-index.json`, stop and run `sp-tasks` first instead of guessing from chat state; light mode also uses the canonical index.
 3. Confirm the current project is using the Codex integration.
-4. Read compact execution state, canonical task authority, and the current task lifecycle record; recover the active batch from those revisions before trusting rendered task markers.
+4. Read compact execution state with `specify-runtime implement task-next` and query the current lifecycle through `specify-runtime artifact show`; recover the active batch from those revisions before trusting rendered task markers.
 5. Treat canonical task status plus lifecycle records as implementation truth. `implement-tracker.md` is compatibility state only where existing hooks require it.
 6. Confirm the native runtime backend is ready through the official `sp-teams` runtime checks.
 7. Run `sp-teams doctor` before the first teams dispatch for the current feature so executor availability, latest transcript, failed dispatches, and team-state evidence are visible up front.
@@ -67,7 +67,7 @@ Use this when:
 17. After managed team execution, use `sp-teams sync-back` when leader-visible results need to be promoted from runtime worktrees back into the active workspace.
 18. Distinguish lane-local completion from repo-global verification: `DONE_WITH_CONCERNS` means the lane finished with follow-up concerns, while repo-wide failure may still be caused by baseline debt.
 19. Every join point that gates downstream work must have an explicit validation target, validation command or check, and pass condition before the runtime crosses it.
-20. After each completed join point or ready batch, re-read the tracker and task state, select the next ready batch and continue automatically. Stop only when no ready work remains, a real blocker stops progress, or an explicit human gate is reached.
+20. After each completed join point or ready batch, call `specify-runtime implement task-next` again instead of rereading tracker/task files, then continue automatically. Stop only when no ready work remains, a real blocker stops progress, or an explicit human gate is reached.
 21. Planned validation tasks are still ready work. If the remaining tasks are executable tests, E2E checks, security verification, quickstart validation, or other scripted validation work already present in `tasks.md`, continue automatically instead of asking whether validation should start.
 22. Do not stop to ask whether validation should start unless a manual-only check or approval step is explicitly recorded in the tracker or task plan.
 23. Do not stop after a single completed batch just because the current assignee, subagent, or runtime lane has gone idle; idle without remaining-work analysis is not a terminal condition.

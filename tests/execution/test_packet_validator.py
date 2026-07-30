@@ -20,6 +20,18 @@ from specify_cli.execution.packet_validator import (
 )
 
 
+COMPARISON_TOLERANCE = {
+    "structure": "exact",
+    "content": "exact",
+    "tokens": "exact",
+    "geometry": {"unit": "px", "max_delta": 2},
+    "color": {"method": "delta-e-2000", "max_delta": 2},
+    "text_wrap": "exact",
+    "motion": {"unit": "ms", "max_delta": 16},
+    "platform_variance": "approved-deviation-only",
+}
+
+
 @pytest.fixture
 def sample_packet() -> WorkerTaskPacket:
     return WorkerTaskPacket(
@@ -54,7 +66,7 @@ def sample_packet() -> WorkerTaskPacket:
                 read_order=2,
                 must_read=True,
                 selection_reason="specify-runtime cognition query narrows the runtime context to touched surfaces without raw slice reads",
-            )
+            ),
         ],
         required_references=[
             PacketReference(
@@ -277,7 +289,7 @@ def test_validate_worker_task_packet_requires_complete_current_ui_contract(
         visual_acceptance_matrix=[
             {"viewport": "390", "state": "ready", "evidence": "visual_capture"}
         ],
-        comparison_tolerance="no unapproved structural drift",
+        comparison_tolerance=COMPARISON_TOLERANCE,
         required_states=["ready", "error"],
         required_evidence=[
             "structure_snapshot",
@@ -286,6 +298,73 @@ def test_validate_worker_task_packet_requires_complete_current_ui_contract(
             "visual_comparison_or_human_review",
         ],
     )
+    assert validate_worker_task_packet(sample_packet) is sample_packet
+
+    sample_packet.ui_contract.approved_handoff_ref = (
+        ".specify/design/previews/round-01.handoff.json"
+    )
+    with pytest.raises(PacketValidationError, match="must be present together"):
+        validate_worker_task_packet(sample_packet)
+    sample_packet.ui_contract.approved_handoff_ref = ""
+
+    sample_packet.ui_contract.approved_visual_ref = (
+        ".specify/design/previews/round-01.html#direction-clarity"
+    )
+    sample_packet.ui_contract.approved_preview_sha256 = "a" * 64
+    sample_packet.ui_contract.approved_manifest_sha256 = "b" * 64
+    sample_packet.ui_contract.approved_handoff_ref = (
+        ".specify/design/previews/round-01.handoff.json"
+    )
+    sample_packet.ui_contract.approved_handoff_sha256 = "c" * 64
+    sample_packet.ui_contract.handoff_contract_ids = [
+        "DH-COMP-001",
+        "DH-RESP-COMPACT-001",
+        "DH-VA-COMPACT-001",
+    ]
+    sample_packet.context_nav.append(
+        {
+            "kind": "design_handoff",
+            "value": sample_packet.ui_contract.approved_handoff_ref,
+            "source": "task-index.json#/ui_contract",
+        }
+    )
+    sample_packet.ui_contract.component_contracts = [
+        {
+            "id": "DH-COMP-001",
+            "component": "settings form",
+            "anatomy": ["heading", "fields", "actions"],
+            "required_states": ["ready", "error"],
+            "decision_ids": ["DS-COMP-001"],
+            "must_match": ["anatomy", "hierarchy"],
+        }
+    ]
+    sample_packet.ui_contract.responsive_matrix = [
+        {
+            "id": "DH-RESP-COMPACT-001",
+            "label": "compact",
+            "target": {"width": 390, "height": 844, "unit": "px"},
+            "state": "ready",
+            "adaptation": "stack settings sections",
+            "decision_ids": ["DS-RESP-001", "DS-COMP-001"],
+        }
+    ]
+    sample_packet.ui_contract.visual_acceptance_matrix = [
+        {
+            "id": "DH-VA-COMPACT-001",
+            "target_id": "DH-RESP-COMPACT-001",
+            "states": ["ready", "error"],
+            "color_modes": ["light", "dark"],
+            "motion_modes": ["full", "reduced"],
+            "decision_ids": ["DS-COMP-001", "DS-RESP-001"],
+            "must_match": ["structure", "tokens", "content"],
+            "evidence": [
+                "structure_snapshot",
+                "visual_capture",
+                "runtime_diagnostics",
+                "visual_comparison_or_human_review",
+            ],
+        }
+    ]
     assert validate_worker_task_packet(sample_packet) is sample_packet
 
     sample_packet.ui_contract.fidelity_level = "none"
@@ -310,9 +389,9 @@ def test_compile_worker_task_packet_collects_must_preserve_obligations(
         '{"version": 1, "graph_ready": true}\n',
         encoding="utf-8",
     )
-    (project_root / ".specify" / "project-cognition" / "project-cognition.db").write_bytes(
-        b"SQLite test database marker"
-    )
+    (
+        project_root / ".specify" / "project-cognition" / "project-cognition.db"
+    ).write_bytes(b"SQLite test database marker")
     (project_root / ".specify" / "memory" / "constitution.md").write_text(
         "# Constitution\n\n- MUST preserve public behavior\n",
         encoding="utf-8",
@@ -354,7 +433,10 @@ def test_compile_worker_task_packet_collects_must_preserve_obligations(
         task_id="T017",
     )
 
-    assert [item.id for item in packet.must_preserve_obligations] == ["MP-002", "MP-003"]
+    assert [item.id for item in packet.must_preserve_obligations] == [
+        "MP-002",
+        "MP-003",
+    ]
     assert packet.must_preserve_obligations[0].source == "plan.md"
     assert packet.must_preserve_obligations[1].source == "tasks.md"
 
@@ -371,9 +453,9 @@ def test_compile_worker_task_packet_keeps_unrelated_must_preserve_obligations_ou
         '{"version": 1, "graph_ready": true}\n',
         encoding="utf-8",
     )
-    (project_root / ".specify" / "project-cognition" / "project-cognition.db").write_bytes(
-        b"SQLite test database marker"
-    )
+    (
+        project_root / ".specify" / "project-cognition" / "project-cognition.db"
+    ).write_bytes(b"SQLite test database marker")
     (project_root / ".specify" / "memory" / "constitution.md").write_text(
         "# Constitution\n\n- MUST preserve public behavior\n",
         encoding="utf-8",
@@ -419,4 +501,7 @@ def test_compile_worker_task_packet_keeps_unrelated_must_preserve_obligations_ou
         task_id="T017",
     )
 
-    assert [item.id for item in packet.must_preserve_obligations] == ["MP-001", "MP-002"]
+    assert [item.id for item in packet.must_preserve_obligations] == [
+        "MP-001",
+        "MP-002",
+    ]

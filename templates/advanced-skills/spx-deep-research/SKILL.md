@@ -10,15 +10,12 @@ Read `references/project-cognition.md`, using cognition intent `research`,
 `references/research-contract.md`, and `references/consequence-gate.md` only on
 its triggers.
 
-Before research, run the installed extension-hook gate for
-`before_deep_research`; after a successful or blocked research closeout, run it
-for `after_deep_research`. Use `HookExecutor` when available so enabled state,
-conditions, optionality, and integration-specific invocation stay
-runtime-owned. An enabled unconditional mandatory hook must finish before the
-stage proceeds; offer optional hooks without auto-running them. If only the
-project config is available, inspect `.specify/extensions.yml` for those two
-events, leave non-empty conditions to `HookExecutor`, and preserve the same
-mandatory/optional stop semantics.
+Before research, run `specify-runtime hook extension-plan --event
+before_deep_research --format json`; after a successful or blocked research
+closeout, run it for `after_deep_research`. Never inspect extension storage.
+The runtime filters enabled/conditional hooks and renders integration-native
+invocations. An actionable mandatory hook must finish before the stage
+proceeds; offer optional hooks without auto-running them.
 
 Resolve the existing feature in paths-only mode. Start from the spec contract
 and name the planning decision each research question must unlock. Use live
@@ -34,38 +31,52 @@ typed owner handoff containing the observed stage, expected owner, affected
 files, exact next action, unblock criteria, and resume argv. Never overwrite
 either state surface to force entry.
 
-Create or resume the feature's rich workflow-owned `workflow-state.md` before
+Create initial `workflow-state.md` through `artifact scaffold --kind workflow-state`; resume and mutate it only through targeted `artifact show` and leased `artifact patch` before
 substantial work and read it before reconstructing intent from chat. Persist at least
 `active_command: sp-deep-research`, `phase_mode: research-only`, the current
 stage, accepted/rejected evidence, blockers, exit criteria, next action, and
 next command. Set
 `allowed_artifact_writes: deep-research.md, research-spikes/, alignment.md, context.md, references.md, workflow-state.md`.
-Those feature-local artifacts are the complete write allowlist for this stage;
+Those feature-local artifacts are the complete CLI-owned artifact allowlist for this stage;
 do not edit product source, tests, migrations, production configuration, or
 build tooling.
 
-Run independent evidence lanes in parallel only when their questions and write
-sets are truly separate. Build a disposable spike under the feature's
+Run independent evidence lanes in parallel only when their questions and CLI-owned
+artifact sets are truly separate. Build a disposable spike under the feature's
 `research-spikes/` only when documentation and source cannot prove the
-integration chain. Keep spikes out of production paths and record environment,
+integration chain. Create or modify every text/code spike through `artifact prepare`
+plus inline `artifact submit` or leased `artifact patch`, and import binary proof
+through `specify-runtime evidence import`; never write a spike directly. Keep spikes out of production paths and record environment,
 commands, output, limitations, and the claim they establish.
 
-Write or update `deep-research.md` with concise findings, source attribution,
+Create an absent researched `deep-research.md` with `artifact scaffold --kind deep-research --path <feature-dir>/deep-research.md`; query an existing file with `artifact show` and update only targeted sections through fresh leased `artifact patch`
+calls. Never submit or reconstruct the whole document. Patch concise findings, source attribution,
 contradictions, confidence, rejected options, and a `Planning Handoff` that maps
 each accepted result to architecture, task, verification, or risk implications.
-Update referenced alignment/context evidence when required by the existing
-feature package.
+Update referenced alignment/context evidence only through fresh artifact leases
+when required by the existing feature package.
+
+Structure the planning handoff deterministically: assign each planning-facing
+item a `PH-###` ID, each accepted evidence record an `EVD-###` ID, and each
+disposable spike a `SPK-###` ID. Persist each structured
+`research-evidence/<EVD-###>.json` packet through `artifact prepare` plus inline
+`artifact submit`, and refresh it only through leased JSON-pointer patches;
+`evidence import` is reserved for external or binary proof in the content-addressed
+evidence store and does not materialize a feature-local packet. Do not
+hand-author either kind. Every
+`PH-###` must cite its backing `EVD-###` and `SPK-###` refs when present so
+`$spx-plan` can consume the handoff without reconstructing traceability.
 
 If repository evidence already proves every planning-critical implementation
-chain, still write a lightweight `deep-research.md` with the exact marker
-`**Status**: Not needed` plus `## Feasibility Decision`, `## Planning Handoff`,
+chain, create an absent lightweight `deep-research.md` with `artifact scaffold --kind deep-research-not-needed --path <feature-dir>/deep-research.md`, then patch only the exact marker
+`**Status**: Not needed` plus `Feasibility Decision`, `Planning Handoff`,
 and `## Next Command`; update durable state and do not invent research evidence
 IDs. Before any plan handoff, run
 reverse coverage: every planning-critical capability has a handoff decision
 backed by repository/source/spike evidence, every accepted evidence item is
 consumed or explicitly deferred, and every blocked item has a recovery action.
-If any check fails, refuse the handoff, persist the failed checks and blocker in
-`workflow-state.md`, and report the smallest recovery route.
+If any check fails, refuse the handoff, patch the failed checks and blocker into
+`workflow-state.md` through a leased `specify-runtime artifact patch` call, and report the smallest recovery route.
 
 Run
 `{{specify-subcmd:specify-runtime hook validate-artifacts --command deep-research --feature-dir <feature-dir> --format json}}`

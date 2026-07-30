@@ -67,20 +67,24 @@ def _assert_stable_subagent_contract(content: str) -> None:
     assert "`sp-teams` only" in lower
 
 
-def _run_semantic_audit_resume_fixture(resume_path: Path) -> dict[str, object]:
+def _run_semantic_audit_resume_fixture(
+    runtime_binary: Path,
+    resume_path: Path,
+) -> dict[str, object]:
+    payload = json.loads(resume_path.read_text(encoding="utf-8"))
+    state = payload["workflow_state"]
+    for key in ("semantic_audit_input_path", "semantic_audit_output_path"):
+        state[key] = str((resume_path.parent / state[key]).resolve())
     result = subprocess.run(
         [
-            "go",
-            "run",
-            ".",
+            str(runtime_binary),
             "cognition",
             "semantic-audit-resume",
-            "--input",
-            str(resume_path),
             "--format",
             "json",
         ],
-        cwd=REPO_ROOT / "tools" / "specify-runtime",
+        cwd=resume_path.parent,
+        input=json.dumps(payload, separators=(",", ":")),
         capture_output=True,
         check=False,
         encoding="utf-8",
@@ -528,11 +532,15 @@ class TestCodexAutoPromote:
 
         assert "generated resume smoke" in generated_contract
         assert "semantic-audit-input.json.semantic_audit_input.route_decision" in generated_contract
+        assert "Verify both audit artifacts with `artifact show`." in generated_contract
         assert (
-            "semantic-audit-output.json.workflow_authorization and "
-            "semantic-audit-output.json.claim_readiness"
+            "against the `artifact show` result for persisted "
+            "`semantic-audit-output.json`"
         ) in generated_contract
-        assert "Stale-state detection remains prompt-only in v1.3.6" in generated_contract
+        assert (
+            "Record `semantic_audit_generated_resume_smoke` and "
+            "`semantic_audit_stale_reasons` through a leased workflow-state patch."
+        ) in generated_contract
         assert "semantic-audit-resume" in generated_contract
         assert "optional runtime validator" in generated_contract
         assert "resume-validation.json" in generated_contract
@@ -542,12 +550,15 @@ class TestCodexAutoPromote:
         assert "resume-validation-claim-ref-mismatch.json" in generated_contract
         assert "resume-validation-verification-ref-mismatch.json" in generated_contract
         assert "prefer the optional runtime validator" in generated_contract_lower
-        assert "ephemeral resume-validation.json" in generated_contract_lower
+        assert "never create a resume-validation file" in generated_contract_lower
         assert "if the validator returns fresh" in generated_contract_lower
         assert "if the validator is unavailable" in generated_contract_lower
         assert "real downstream resume smoke" in generated_contract_lower
-        assert "workflow-local semantic-audit-input.json" in generated_contract_lower
-        assert "workflow-local semantic-audit-output.json" in generated_contract_lower
+        assert (
+            "workflow-local audit artifacts under an actual downstream state directory"
+            in generated_contract_lower
+        )
+        assert "in-memory resume-validation object" in generated_contract_lower
         assert "Prompt fallback remains valid" in generated_contract
         assert "does not authorize source edits, final claims, or P3/P4 permission" in generated_contract
         assert "Graph claim namespace" in generated_contract
@@ -586,7 +597,11 @@ class TestCodexAutoPromote:
             "workflow:debug#root-cause-reviewed"
         ]
 
-    def test_codex_downstream_state_runs_semantic_resume_validator(self, tmp_path):
+    def test_codex_downstream_state_runs_semantic_resume_validator(
+        self,
+        tmp_path,
+        built_unified_runtime,
+    ):
         if shutil.which("go") is None:
             pytest.skip("Go toolchain unavailable")
 
@@ -634,7 +649,7 @@ class TestCodexAutoPromote:
             ),
             encoding="utf-8",
         )
-        fresh_payload = _run_semantic_audit_resume_fixture(fresh_resume)
+        fresh_payload = _run_semantic_audit_resume_fixture(built_unified_runtime, fresh_resume)
         assert fresh_payload["validator"] == "semantic-audit-resume"
         assert fresh_payload["semantic_audit_generated_resume_smoke"] == "passed"
         assert fresh_payload["semantic_audit_resume_status"] == "fresh"
@@ -666,7 +681,7 @@ class TestCodexAutoPromote:
             ),
             encoding="utf-8",
         )
-        stale_payload = _run_semantic_audit_resume_fixture(stale_resume)
+        stale_payload = _run_semantic_audit_resume_fixture(built_unified_runtime, stale_resume)
         assert stale_payload["validator"] == "semantic-audit-resume"
         assert stale_payload["semantic_audit_generated_resume_smoke"] == "failed"
         assert stale_payload["semantic_audit_resume_status"] == "needs-rerun"
@@ -895,7 +910,8 @@ def test_codex_generated_sp_implement_teams_skill_exists_and_is_codex_only(tmp_p
     assert "execution_surface" in lower
     assert "join point" in lower
     assert "subagent result contract" in lower
-    assert "result file handoff path" in lower
+    assert "inline result submission" in lower
+    assert "runtime-owned compatibility path" in lower
     assert ".specify/teams/state/results/<request-id>.json" in lower
     assert "core implementation complete" in lower
     assert "ready for integration testing" in lower
@@ -919,8 +935,9 @@ def test_codex_generated_sp_implement_teams_skill_exists_and_is_codex_only(tmp_p
     assert "stale lane" in lower
     assert "if the current feature already has an active runtime session, resume or reuse it" in lower
     assert "do not create a second runtime team for the same feature" in lower
-    assert "after each completed join point or ready batch, re-read the tracker and task state" in lower
-    assert "select the next ready batch and continue automatically" in lower
+    assert "after each completed join point or ready batch, call" in lower
+    assert "implement task-next` again instead of rereading tracker/task files" in lower
+    assert "then continue automatically" in lower
     assert "stop only when no ready work remains, a real blocker stops progress, or an explicit human gate is reached" in lower
     assert "planned validation tasks are still ready work" in lower
     assert "do not stop to ask whether validation should start" in lower
@@ -1002,7 +1019,11 @@ def test_codex_generated_skills_render_launcher_backed_runtime_commands(tmp_path
     )
 
     assert "learning start --command constitution --format json" in constitution_content
-    assert "This workflow writes only `.specify/memory/constitution.md`." in constitution_content
+    assert (
+        "This workflow may mutate only `.specify/memory/constitution.md`, and only through"
+        in constitution_content
+    )
+    assert "artifact scaffold|patch`." in constitution_content
     assert "Do not modify templates, command files, docs, project rules, learning files" in constitution_content
     assert "report the highest affected downstream stage instead of editing those artifacts" in constitution_normalized
     assert "record them as pending follow-up items in the Sync Impact Report instead of applying them" in constitution_normalized
@@ -1092,12 +1113,13 @@ def test_codex_generated_sp_implement_includes_native_spawn_agent_routing(tmp_pa
     assert "spawn_agent" in content
     assert "wait_agent" in content
     assert "close_agent" in content
-    assert "result path" in content
+    assert "inline result submission" in content.lower()
+    assert "runtime-owned compatibility path" in content.lower()
     assert "--command implement" in content
-    assert "--request-id" in content
-    assert "active runtime-managed result channel for that request id" in content.lower()
-    assert "json-only command" in content.lower()
-    assert "do not append `--format`" in content.lower()
+    assert "--result-json" in content
+    assert "return the workertaskresult inline" in content.lower()
+    assert "the runtime derives and writes it" in content.lower()
+    assert "never create a result file or use `--result-file`" in content.lower()
     assert "execution_model: adaptive" in content or "execution model: `adaptive`" in content
     assert "one-subagent" in content and "parallel-subagents" in content
     assert "native-subagents" in content
@@ -1169,7 +1191,8 @@ def test_codex_generated_shared_workflow_skills_include_native_spawn_agent_guida
         assert "execution_surface: native-subagents" in content
         assert "spawn_agent" in content
         assert "wait_agent" in content
-        assert ".specify/project-cognition/" in content
+        assert "cognition compass --intent plan" in content
+        assert ".specify/project-cognition/" not in content
         assert "learning start --command " in content
         assert "--format json" in content
         assert "--detail-level" not in content
@@ -1197,7 +1220,8 @@ def test_codex_generated_shared_workflow_skills_include_native_spawn_agent_guida
         assert "subagents-first dispatch model" not in content
         assert "leader-inline-fallback" not in content
         assert "execution model: `subagents-first`" not in content
-        assert ".specify/project-cognition/" in content
+        assert "cognition compass --intent plan" in content
+        assert ".specify/project-cognition/" not in content
         assert "learning start --command " in content
         assert "--format json" in content
         assert "--detail-level" not in content
@@ -1261,7 +1285,11 @@ def test_codex_generated_shared_workflow_skills_include_native_spawn_agent_guida
     assert "show_argv" in constitution_content
     assert ".specify/memory/learnings/index.md" not in constitution_content
     assert ".planning/learnings/candidates.md" not in constitution_content
-    assert "this workflow writes only `.specify/memory/constitution.md`." in constitution_content
+    assert (
+        "this workflow may mutate only `.specify/memory/constitution.md`, and only through"
+        in constitution_content
+    )
+    assert "artifact scaffold|patch`." in constitution_content
     assert "do not modify templates, command files, docs, project rules, learning files" in constitution_content
     assert "report the highest affected downstream stage instead of editing those artifacts" in constitution_normalized
     assert "record them as pending follow-up items in the sync impact report instead of applying them" in constitution_normalized
@@ -1273,7 +1301,8 @@ def test_codex_generated_shared_workflow_skills_include_native_spawn_agent_guida
         "without updating them or flagging them",
     ):
         assert forbidden not in constitution_content
-    assert ".specify/project-cognition/status.json" in constitution_content
+    assert "cognition status --format json" in constitution_content
+    assert ".specify/project-cognition/status.json" not in constitution_content
     assert "build-handbook.md" not in constitution_content
     assert ".specify/project-map/index/status.json" not in constitution_content
     assert "/sp-map-scan" in constitution_content
@@ -1379,17 +1408,19 @@ def test_codex_generated_plan_tasks_implement_skills_preserve_boundary_guardrail
     assert "planning/lane-manifest.json" in plan_content
     assert "separate evidence-index and checkpoint logs" in plan_content
     assert "Do not synthesize `plan.md`, `research.md`, or `plan-contract.json` from chat-only delegated lane results" in plan_content
-    assert "artifact-writing delegated lanes must use writable" in plan_content.lower()
-    assert "execution-capable native subagents" in plan_content.lower()
-    assert "read-only explorer, reviewer, or diagnostic lane" in plan_content.lower()
+    assert "delegated planning lanes have no direct workflow-artifact write scope" in plan_content.lower()
+    assert "complete runtime-owned result-submit argv prefix" in plan_content.lower()
+    assert "a read-only evidence worker may satisfy a planning lane" in plan_content.lower()
     assert "heuristics" not in plan_content.lower()
 
     clarify_content = (skills_dir / "sp-clarify" / "SKILL.md").read_text(encoding="utf-8")
     assert "clarification/handoffs/<lane-id>.json" in clarify_content
     assert "clarification/evidence-index.json" in clarify_content
     assert "clarification/checkpoints.ndjson" in clarify_content
-    assert "consume `clarification/evidence-index.json` before final artifact updates" in clarify_content.lower()
-    assert "do not update `spec.md`, `alignment.md`, `context.md`, or `references.md` from chat-only lane results" in clarify_content.lower()
+    assert "query `clarification/evidence-index.json`" in clarify_content.lower()
+    assert "before final cli-owned artifact updates" in clarify_content.lower()
+    assert "query every accepted clarification handoff" in clarify_content.lower()
+    assert "only through leased `artifact patch` calls" in clarify_content.lower()
 
     tasks_content = _read_skill_with_references(skills_dir / "sp-tasks" / "SKILL.md")
     assert "plan-contract.json" in tasks_content
@@ -1402,9 +1433,9 @@ def test_codex_generated_plan_tasks_implement_skills_preserve_boundary_guardrail
     assert "compile delegated packets just in time" in tasks_content.lower()
     assert "task-generation/lane-manifest.json" in tasks_content
     assert "chat-only lane output is not handoff truth" in tasks_content.lower()
-    assert "artifact-writing delegated lanes must use writable" in tasks_content.lower()
-    assert "execution-capable native subagents" in tasks_content.lower()
-    assert "read-only explorer, reviewer, or diagnostic lane" in tasks_content.lower()
+    assert "each lane has no direct workflow-artifact" in tasks_content.lower()
+    assert "runtime-owned `result submit --command tasks` argv prefix" in tasks_content.lower()
+    assert "a read-only evidence worker may satisfy the lane" in tasks_content.lower()
 
     implement_content = _read_skill_with_references(
         skills_dir / "sp-implement" / "SKILL.md"
@@ -1862,7 +1893,8 @@ def test_codex_generated_sp_quick_supports_lightweight_tracked_execution(tmp_pat
     assert "execution_surface: native-subagents" in content
     assert "dispatch to one subagent with a task contract" in content or "one-subagent" in content
     assert "validated `workertaskpacket` or equivalent execution contract preserves quality" in content
-    assert "read `.specify/memory/constitution.md` first if it exists" in content
+    assert "query `.specify/memory/constitution.md` first through" in content
+    assert "specify-runtime artifact show" in content
     assert "advisory first pass" in content
     assert "the next concrete action must be dispatch" in content or "once the first lane is chosen" in content
     assert "materially improve throughput" in content
@@ -1886,7 +1918,8 @@ def test_codex_generated_sp_quick_supports_lightweight_tracked_execution(tmp_pat
     assert "sp-map-update is for manual/external maintenance and follow-up repair" in content
     assert "resume" in content
     assert "resolved/" in content
-    assert "status.md template" in content
+    assert "artifact scaffold --kind quick-status" in content
+    assert "runtime renders the installed skeleton" in content
     assert "status: gathering | planned | executing | validating | blocked | resolved" in content
     assert "dispatch_shape: one-subagent | parallel-subagents" in content
     assert "summary pointer" in content

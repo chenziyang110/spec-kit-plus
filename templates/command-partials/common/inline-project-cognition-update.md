@@ -16,7 +16,7 @@ When `DELTA_SESSION_ID` exists, pass it into the planner:
 
 Consume `workflow_canonical`, `update_mode`, `payload_draft`, `required_agent_fields`, `unknown_paths`, `unknown_path_dispositions`, `delta_append_draft`, display-only `delta_append_command`, `update_argv`, display-only `update_command`, and `recommended_next_command`.
 
-The planner owns both executable update branches, selected by `update_mode` (`delta_session` or `payload_file`). Treat that mode as explanatory metadata, never as authority to construct a replacement command; execute the planner-returned `update_argv` exactly.
+The planner owns both executable update branches, selected by `update_mode` (`delta_session` or `inline_json`). Treat that mode as explanatory metadata, never as authority to construct a replacement command; for `inline_json`, substitute the completed in-memory `payload_draft` for the returned `<inline-json>` placeholder, and otherwise execute the planner-returned argv exactly.
 
 Before running `update`, fill the fields listed in `required_agent_fields` from live evidence from this workflow. Supported agent-owned evidence fields include:
 
@@ -45,18 +45,18 @@ The runtime binds each `unknown_path_dispositions[].agent_disposition` to the ma
 
 If `update_mode=delta_session`, complete `delta_append_draft.argv_prefix` with every required `--path-disposition` plus agent-owned repeatable flags such as `--behavior-surface`, `--generated-surface`, `--verification`, and accepted `--known-unknown` values from `delta_append_draft.argv_placeholders`. Every passing `--verification` value must be one structured JSON object with the planner shape `{"command":"<agent-owned verification command>","result":"passed","artifact":"<optional evidence artifact>"}`; do not pass freeform command-result strings or result aliases. Legacy or free-text verification is audit evidence with `result=recorded` only and cannot satisfy clean closeout; clean closeout requires structured `result=passed`. Then append the delta event and run `update_argv`. `delta_append_command` and `update_command` are display-only placeholders, not execution strings.
 
-If `update_mode=payload_file`, write the completed `payload_draft` to the planner's `payload_path`. Then run `update_argv`. `update_command` is a display-only placeholder, not an execution string.
+If `update_mode=inline_json`, complete `payload_draft` in memory, substitute that object for `<inline-json>` in `update_argv`, and execute the argv array. Never create a payload file. `update_command` is a display-only placeholder, not an execution string.
 
 Completed payload drafts preserve the planner-owned `changed_paths` and `scope_paths` and add agent-owned evidence fields before recording.
 
 Structured `update` invalidates related claims and returns their stable IDs in `affected_graph_claims`. This is separate from update readiness: generic workflow verification and `result_state=ready` must not re-promote stale or contradicted graph claims. Only when this workflow already has decisive claim-specific bounded live evidence for an exact returned claim ID may it submit semantic reconciliation intent and run:
 
 ```text
-{{specify-subcmd:specify-runtime cognition claim-reconcile prepare --input <intent.json> --format json}}
+{{specify-subcmd:specify-runtime cognition claim-reconcile prepare --input-json '<intent-json>' --format json}}
 {{specify-subcmd:specify-runtime cognition claim-reconcile apply --input <prepared_packet_path> --format json}}
 ```
 
-Provide only reconciliation intent: workflow, stable `claim_id`, reason, and evidence containing repository-relative `source_path`, bounded line `span`, and `supporting` or `contradicting` role. Add verification only when it is claim-specific. The runtime owns the contract version, active generation, expected state and revision, UTC observation and expiry, source kind, content hashes, repository snapshot, IDs, and prepared packet path. Do not author or edit those integrity fields; execute the returned `apply_argv` exactly. If no such evidence exists, leave the claim stale. If reconciliation returns ready, rerun Compass once so later routing consumes the current evidence basis; partial or blocked reconciliation remains withheld and follows `recommended_next_action`.
+Provide only reconciliation intent in memory: workflow, stable `claim_id`, reason, and evidence containing repository-relative `source_path`, bounded line `span`, and `supporting` or `contradicting` role. Never create an intent file. Add verification only when it is claim-specific. The runtime owns the contract version, active generation, expected state and revision, UTC observation and expiry, source kind, content hashes, repository snapshot, IDs, and prepared packet path. Do not author or edit those integrity fields; execute the returned `apply_argv` exactly. If no such evidence exists, leave the claim stale. If reconciliation returns ready, rerun Compass once so later routing consumes the current evidence basis; partial or blocked reconciliation remains withheld and follows `recommended_next_action`.
 
 For compatibility with worker handoffs and payload packets, the runtime also accepts `verification_evidence` as an alias for `verification` and `generated_surface_notes` as an alias for `generated_surfaces`. Verification evidence must be an array of structured objects with `command`, exact `result` (`passed`, `failed`, or `recorded`), and optional `artifact`; clean closeout requires at least one `result=passed` record, and failed verification cannot produce a clean `ready` closeout.
 

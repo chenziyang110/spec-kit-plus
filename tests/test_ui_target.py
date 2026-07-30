@@ -28,8 +28,17 @@ def _ready_ui_target() -> str:
     content = content.replace("__APPROVED_PREVIEW_SHA256__", "a" * 64)
     content = content.replace("__APPROVED_MANIFEST_SHA256__", "b" * 64)
     content = content.replace(
+        "__APPROVED_HANDOFF_REF__",
+        ".specify/design/previews/round-01.handoff.json",
+    )
+    content = content.replace("__APPROVED_HANDOFF_SHA256__", "c" * 64)
+    content = content.replace(
         "__DESIGN_DECISION_IDS__",
         'DS-COMP-001", "DS-RESP-001',
+    )
+    content = content.replace(
+        "__DESIGN_HANDOFF_CONTRACT_IDS__",
+        'DH-COMP-001", "DH-VA-REGULAR-001',
     )
     return re.sub(r"__[A-Z0-9_]+__", "Configured content", content)
 

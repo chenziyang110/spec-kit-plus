@@ -5,7 +5,10 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Literal
 
-from specify_cli.execution import describe_result_handoff_template
+from specify_cli.execution import (
+    describe_result_handoff_template,
+    describe_result_submit_template,
+)
 
 from .models import CapabilitySnapshot
 
@@ -27,6 +30,7 @@ class DelegationSurfaceDescriptor:
     managed_team_hint: str
     result_contract_hint: str
     result_handoff_hint: str
+    result_submit_hint: str
     structured_results_expected: bool
     leader_local_fallback_allowed: bool = True
 
@@ -152,6 +156,10 @@ def describe_delegation_surface(
         managed_team_hint=managed_team_hint,
         result_contract_hint=result_contract_hint,
         result_handoff_hint=describe_result_handoff_template(
+            command_name=command_name,
+            integration_key=snapshot.integration_key,
+        ),
+        result_submit_hint=describe_result_submit_template(
             command_name=command_name,
             integration_key=snapshot.integration_key,
         ),

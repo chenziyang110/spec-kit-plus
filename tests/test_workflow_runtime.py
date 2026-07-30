@@ -4,7 +4,6 @@ from concurrent.futures import ThreadPoolExecutor
 import hashlib
 import json
 from pathlib import Path
-import sys
 from typing import Any
 
 import pytest
@@ -12,8 +11,8 @@ import pytest
 from specify_cli.workflow_runtime import (
     InvalidTransition,
     RevisionConflict,
+    WorkflowRuntimeError,
     block_workflow,
-    closeout_workflow,
     complete_workflow_stage,
     enter_workflow,
     reopen_acceptance_workflow,
@@ -32,48 +31,38 @@ def _project(tmp_path: Path, feature_id: str) -> tuple[Path, Path]:
     project = tmp_path / "project"
     feature = project / ".specify" / "features" / feature_id
     feature.mkdir(parents=True)
-    gate = project / ".specify" / "workflow-gate.py"
-    gate.write_text(
-        """import json
-
-print(json.dumps({
-    "status": "ok",
-    "summary": "test artifact gate passed",
-    "data": {},
-    "items": [],
-    "blockers": [],
-    "show_argv": [],
-    "next_argv": [],
-}))
-""",
-        encoding="utf-8",
-    )
-    (project / ".specify" / "config.json").write_text(
-        json.dumps({"specify_launcher": {"argv": [sys.executable, str(gate)]}}),
-        encoding="utf-8",
-    )
     return project, feature
 
 
-def _advance(
+def _seed_existing_workflow_state(
     feature: Path,
     *,
     revision: int,
-    targets: tuple[str, ...],
-) -> int:
-    for target in targets:
-        completed = complete_workflow_stage(
-            feature,
-            expected_revision=revision,
-            summary=f"{target} handoff ready",
+    stage: str,
+    status: str = "active",
+) -> None:
+    """Create an existing-state fixture; mutations under test still use the CLI."""
+
+    workflow_runtime_path(feature).write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "feature_id": feature.name,
+                "revision": revision,
+                "stage": stage,
+                "status": status,
+                "summary": "existing workflow fixture",
+                "blocker": None,
+                "last_resolution_evidence": [],
+                "last_reopen": None,
+                "last_blocker_resolution": None,
+                "acceptance_sha256": None,
+            },
+            indent=2,
         )
-        transitioned = transition_workflow(
-            feature,
-            target_stage=target,
-            expected_revision=int(completed["data"]["revision"]),
-        )
-        revision = int(transitioned["data"]["revision"])
-    return revision
+        + "\n",
+        encoding="utf-8",
+    )
 
 
 def _acceptance_repair_files(
@@ -110,39 +99,29 @@ def _acceptance_repair_files(
     )
 
 
-def test_real_runtime_lifecycle_and_terminal_acceptance_closeout(
+def test_real_runtime_refuses_stage_completion_without_go_validated_artifacts(
     tmp_path: Path,
 ) -> None:
     _root, feature = _project(tmp_path, "001-lifecycle")
     entered = enter_workflow(feature, stage="specify", expected_revision=0)
-    revision = _advance(
-        feature,
-        revision=int(entered["data"]["revision"]),
-        targets=("plan", "tasks", "implement", "review", "accept"),
-    )
-    acceptance_raw = b'{"status":"accepted","overall":{"verdict":"pass"}}\n'
-    (feature / "human-acceptance.json").write_bytes(acceptance_raw)
+    revision = int(entered["data"]["revision"])
 
-    closed = closeout_workflow(
-        feature,
-        expected_revision=revision,
-        summary="Human acceptance passed.",
-    )
+    with pytest.raises(WorkflowRuntimeError) as exc_info:
+        complete_workflow_stage(feature, expected_revision=revision)
+
+    assert exc_info.value.code == "artifact-validation-failed"
     shown = show_workflow(feature)
-
-    assert closed["data"]["stage"] == "accept"
-    assert closed["data"]["status"] == "completed"
-    assert shown["data"]["acceptance_sha256"] == hashlib.sha256(
-        acceptance_raw
-    ).hexdigest()
-    assert terminal_acceptance_snapshot_path(feature).read_bytes() == acceptance_raw
+    assert shown["data"]["revision"] == revision
+    assert shown["data"]["stage"] == "specify"
+    assert shown["data"]["status"] == "active"
+    assert not terminal_acceptance_snapshot_path(feature).exists()
     assert workflow_runtime_path(feature).name == "workflow.json"
     assert not (feature / "workflow-runtime.json").exists()
 
 
 def test_real_runtime_serializes_same_revision_competitors(tmp_path: Path) -> None:
     _root, feature = _project(tmp_path, "002-concurrency")
-    entered = enter_workflow(feature, stage="specify", expected_revision=0)
+    entered = enter_workflow(feature, stage="discussion", expected_revision=0)
     completed = complete_workflow_stage(
         feature,
         expected_revision=int(entered["data"]["revision"]),
@@ -153,7 +132,7 @@ def test_real_runtime_serializes_same_revision_competitors(tmp_path: Path) -> No
         try:
             return transition_workflow(
                 feature,
-                target_stage="plan",
+                target_stage="specify",
                 expected_revision=revision,
             )
         except Exception as exc:  # noqa: BLE001 - the losing result is asserted below
@@ -169,14 +148,14 @@ def test_real_runtime_serializes_same_revision_competitors(tmp_path: Path) -> No
     assert show_workflow(feature)["data"] == {
         **show_workflow(feature)["data"],
         "revision": revision + 1,
-        "stage": "plan",
+        "stage": "specify",
         "status": "active",
     }
 
 
 def test_real_runtime_block_resolve_and_normal_reopen(tmp_path: Path) -> None:
     _root, feature = _project(tmp_path, "003-block-reopen")
-    entered = enter_workflow(feature, stage="specify", expected_revision=0)
+    entered = enter_workflow(feature, stage="discussion", expected_revision=0)
     blocked = block_workflow(
         feature,
         expected_revision=int(entered["data"]["revision"]),
@@ -200,11 +179,8 @@ def test_real_runtime_block_resolve_and_normal_reopen(tmp_path: Path) -> None:
         expected_revision=int(blocked["data"]["revision"]),
         resolution_evidence=["sanitized probe: HTTP 200"],
     )
-    plan_revision = _advance(
-        feature,
-        revision=int(resolved["data"]["revision"]),
-        targets=("plan",),
-    )
+    plan_revision = int(resolved["data"]["revision"]) + 1
+    _seed_existing_workflow_state(feature, revision=plan_revision, stage="plan")
     reopened = reopen_workflow(
         feature,
         target_stage="specify",
@@ -223,12 +199,8 @@ def test_real_runtime_acceptance_repair_uses_guarded_go_reopen(
     tmp_path: Path,
 ) -> None:
     _root, feature = _project(tmp_path, "004-acceptance-repair")
-    entered = enter_workflow(feature, stage="specify", expected_revision=0)
-    revision = _advance(
-        feature,
-        revision=int(entered["data"]["revision"]),
-        targets=("plan", "tasks", "implement", "review", "accept"),
-    )
+    revision = 11
+    _seed_existing_workflow_state(feature, revision=revision, stage="accept")
     _acceptance_repair_files(
         feature,
         revision=revision,
@@ -253,12 +225,8 @@ def test_real_runtime_acceptance_repair_uses_guarded_go_reopen(
 
 def test_review_cannot_reopen_implement_for_routine_repair(tmp_path: Path) -> None:
     _root, feature = _project(tmp_path, "005-review-owned-repair")
-    entered = enter_workflow(feature, stage="specify", expected_revision=0)
-    revision = _advance(
-        feature,
-        revision=int(entered["data"]["revision"]),
-        targets=("plan", "tasks", "implement", "review"),
-    )
+    revision = 9
+    _seed_existing_workflow_state(feature, revision=revision, stage="review")
 
     with pytest.raises(InvalidTransition) as exc_info:
         reopen_workflow(

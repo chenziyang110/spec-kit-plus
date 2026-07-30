@@ -16,7 +16,7 @@ const (
 	statusOK      = "ok"
 	statusBlocked = "blocked"
 
-	modePayloadFile  = "payload_file"
+	modeInlineJSON   = "inline_json"
 	modeDeltaSession = "delta_session"
 
 	closeoutReason = "workflow-finalize"
@@ -32,7 +32,6 @@ type Input struct {
 	IncludeUntracked   bool     `json:"include_untracked"`
 	ExplicitPaths      []string `json:"explicit_paths,omitempty"`
 	DeltaSessionID     string   `json:"delta_session_id,omitempty"`
-	PayloadPath        string   `json:"payload_path,omitempty"`
 }
 
 type Payload struct {
@@ -41,7 +40,6 @@ type Payload struct {
 	WorkflowCanonical       string                   `json:"workflow_canonical,omitempty"`
 	UpdateMode              string                   `json:"update_mode,omitempty"`
 	DeltaSessionID          *string                  `json:"delta_session_id,omitempty"`
-	PayloadPath             string                   `json:"payload_path,omitempty"`
 	CommandSafetyNote       string                   `json:"command_safety_note,omitempty"`
 	UpdateCommand           string                   `json:"update_command,omitempty"`
 	UpdateArgv              []string                 `json:"update_argv"`
@@ -85,9 +83,6 @@ type PayloadDraft struct {
 	ConfidenceNotes         []string                 `json:"confidence_notes"`
 	UserDecisions           []string                 `json:"user_decisions"`
 	Boundary                BoundaryDraft            `json:"boundary"`
-	PayloadPath             string                   `json:"payload_path"`
-	UpdateCommand           string                   `json:"update_command"`
-	UpdateArgv              []string                 `json:"update_argv"`
 }
 
 type DeltaAppendDraft struct {
@@ -185,14 +180,12 @@ func Run(paths rt.Paths, input Input) (Payload, error) {
 		return payload, nil
 	}
 
-	payloadPath := normalizePayloadPath(input.PayloadPath, workflow)
-	updateArgv := []string{"specify-runtime", "cognition", "update", "--payload-file", payloadPath, "--reason", reason, "--format", "json"}
-	payload.UpdateMode = modePayloadFile
-	payload.PayloadPath = payloadPath
-	payload.CommandSafetyNote = "command strings are display-only; use argv arrays for execution"
-	payload.UpdateCommand = "display only: specify-runtime cognition update --payload-file <payload_path> --reason <reason> --format json"
+	updateArgv := []string{"specify-runtime", "cognition", "update", "--payload-json", "<inline-json>", "--reason", reason, "--format", "json"}
+	payload.UpdateMode = modeInlineJSON
+	payload.CommandSafetyNote = "fill payload_draft in memory, substitute it for <inline-json> in update_argv, and never create a payload file"
+	payload.UpdateCommand = "display only: specify-runtime cognition update --payload-json '<inline-json>' --reason <reason> --format json"
 	payload.UpdateArgv = updateArgv
-	payload.RecommendedNextCommand = "write_payload_then_update"
+	payload.RecommendedNextCommand = "fill_payload_draft_then_update_inline"
 	payload.PayloadDraft = &PayloadDraft{
 		Workflow:                workflow,
 		Reason:                  reason,
@@ -213,9 +206,6 @@ func Run(paths rt.Paths, input Input) (Payload, error) {
 			InitialDirtyPaths:  []string{},
 			WorkflowOwnedPaths: []string{},
 		},
-		PayloadPath:   payloadPath,
-		UpdateCommand: "display only: specify-runtime cognition update --payload-file <payload_path> --reason <reason> --format json",
-		UpdateArgv:    append([]string{}, updateArgv...),
 	}
 	return payload, nil
 }
@@ -304,14 +294,6 @@ func requiredAgentFields(unknownPaths []string) []string {
 		fields = append(fields, "unknown_path_dispositions")
 	}
 	return fields
-}
-
-func normalizePayloadPath(value string, workflow string) string {
-	value = filepath.ToSlash(strings.TrimSpace(value))
-	if value != "" {
-		return value
-	}
-	return ".specify/project-cognition/updates/" + workflow + "-closeout.json"
 }
 
 func deltaAppendDraft(sessionID string, workflow string, paths []string, changes []changemodel.PathChange, dispositions []UnknownPathDisposition, requiredFields []string) *DeltaAppendDraft {

@@ -1,6 +1,6 @@
 ## Fixed Workflow Artifact Boundary
 
-Read canonical workflow artifacts only with `specify-runtime artifact show`. When the worker packet authorizes an artifact write, use `specify-runtime artifact prepare` followed by `specify-runtime artifact submit`; never overwrite the canonical path directly. Source and test files in the packet's write scope remain normal repository edits.
+Read canonical workflow artifacts only with targeted `specify-runtime artifact show` queries. Mutate them only through the specialized CLI owner named by the registry; a worker result is returned inline to the leader or submitted through the runtime result channel, never written to a canonical or temporary result path. Source and test files in the packet's write scope remain normal repository edits.
 
 # Implementer Worker Prompt
 
@@ -14,7 +14,7 @@ Use this template when the leader dispatches a concrete implementation lane for 
   - required references
   - cheap task checks and Leader-owned logical validation gates
   - done criteria
-- Provide platform guardrails and completion-handoff expectations explicitly when the lane depends on supported-platform constraints, conditional compilation, runtime-managed result channels, or a promised result handoff path.
+- Provide platform guardrails and completion-handoff expectations explicitly when the lane depends on supported-platform constraints, conditional compilation, or a runtime-managed inline result channel.
 - Tell the worker that the current validated packet and its stable refs are the authoritative contract for the lane.
 - For image-backed UI work, include every original PNG, screenshot, mockup, design export, or reference image named by the packet's fidelity refs. Pass it as a runtime image item/local_image when supported and include the stable project-relative path in the packet when available.
 - Do not reduce an original visual reference to prose-only instructions when the worker must make layout, spacing, color, hierarchy, or fidelity decisions.
@@ -22,9 +22,10 @@ Use this template when the leader dispatches a concrete implementation lane for 
 - For a behavior-changing task, provide either the accepted change-set RED/baseline
   gate-attempt ref or an explicit test-authoring-only lane. Never ask the worker to run
   RED/GREEN or another heavyweight gate per Txx.
-- Name the shared validation ledger gate/attempt. It is shared across Implement
-  and Review, has at most three logical gates, and only the Leader may open an
-  attempt.
+- Name the `gate_id` and `attempt_id` returned by the Leader's
+  `specify-runtime implement validation-start` call. The three logical gates are
+  shared across Implement and Review; workers never inspect their backing store or
+  open an attempt.
 
 ## Worker Contract
 
@@ -53,11 +54,17 @@ Use this template when the leader dispatches a concrete implementation lane for 
   helper, or hand-built state evidence does not satisfy integrated proof.
 - If the packet includes `ui_contract`, follow it as binding UI implementation scope. Do not reinterpret the original screenshot, HTML, or UI code reference into a different layout pattern.
 - For the current UI contract, preserve work/surface/platform classification, direction
-  theses, signature, approved visual ref and digests, applicable `DS-*`
-  decisions, component/mode/responsive/motion contracts, comparison tolerance,
-  and accepted deviations. Apply each reference only according to its intent,
+  theses, signature, approved visual ref, immutable handoff ref and all three
+  digests, applicable `DS-*` decisions and `DH-*` contracts,
+  component/mode/responsive/motion contracts, comparison tolerance, and
+  accepted deviations. Apply each reference only according to its intent,
   use the named real content/image sources, and do not invent placeholder
   content that hides layout failure.
+- Read `approved_handoff_ref` from the packet's must-read context before UI
+  implementation. Resolve selected `DH-*` rows and implementation bindings
+  directly from those byte-bound handoff bytes; copied task rows are integrity
+  projections, not an alternate source. Return `BLOCKED` on a missing file,
+  digest mismatch, unknown ID, or row mismatch instead of guessing.
 - If the packet names a PNG, screenshot, mockup, design export, or reference image, inspect the original visual input before implementing visual structure. If it is missing or inaccessible, return `NEEDS_CONTEXT` or `BLOCKED`; do not implement from a controller summary alone.
 - If the packet includes `ui_contract.visual_target`, treat `ui-target.html` as a disposable visual target, not production source.
 - For UI-bearing work, inspect the original inputs and preserve the task's UI
@@ -71,12 +78,7 @@ Use this template when the leader dispatches a concrete implementation lane for 
   existing reference inspection and cheap structural evidence; do not
   manufacture integrated proof.
 - If the packet requires `visual_comparison_or_human_review` and you cannot perform visual comparison, return `ui_verification.fidelity_status: pending-human-review` instead of claiming visual match.
-- When the Leader performs a passing comparison, use
-  `.specify/templates/visual-comparison-template.json`. Bind the approved
-  preview/manifest digests to real-entrypoint captures, cover every task design
-  decision ID, record structural and visual differences against the task
-  tolerance, and copy only pre-approved deviations. A screenshot path without
-  this comparison record is not a fidelity pass.
+- When the Leader performs a passing comparison, return compact observed matrix differences and typed evidence refs for `specify-runtime evidence visual-compare`; do not read the stable template or author the report. The runtime derives approved bindings, exact decision/contract coverage, tolerance, deviations, path, and digest from the task contract. A screenshot path without this CLI-owned comparison record is not a fidelity pass.
 - Report back in this exact status family: `DONE | DONE_WITH_CONCERNS | BLOCKED | NEEDS_CONTEXT`.
 - Prefer `DONE_WITH_CONCERNS` over silent guessing when the work is complete but confidence is mixed.
 
@@ -103,9 +105,9 @@ Treat these fields as binding execution inputs from the current worker packet an
 - Evidence paths that the leader can attach to the current task lifecycle record.
 - Remaining concern, blocker, or missing context
 - When the runtime supports structured delegated results, format the handoff as a `WorkerTaskResult`-style payload with task-check evidence, test impact, and explicit blocker metadata. A successful worker handoff proves bounded implementation only and lets the Leader advance dependency-safe work; it does not claim that shared heavyweight validation passed.
-- When the leader provides a delegated result handoff path, write the normalized result envelope there instead of replying with freeform prose only.
+- When the leader provides a runtime result channel, submit the normalized envelope inline with its `--result-json` option; otherwise return the structured object to the leader. Never create or overwrite a result JSON file yourself.
 - If the delegated lane requires lifecycle signals such as `task_started`, `task_blocked`, or `task_completed`, emit them as part of the promised completion-handoff protocol instead of assuming a status flip is enough.
-- The worker must not enter `idle` before the required handoff is written or returned.
+- The worker must not enter `idle` before the required inline handoff is submitted or returned.
 - If the handoff channel fails, return that failure explicitly instead of idling silently.
 
 ## Guardrails

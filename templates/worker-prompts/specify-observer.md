@@ -1,6 +1,6 @@
 ## Fixed Workflow Artifact Boundary
 
-Read canonical workflow artifacts only with `specify-runtime artifact show`. When the worker packet authorizes an artifact write, use `specify-runtime artifact prepare` followed by `specify-runtime artifact submit`; never overwrite the canonical path directly. Source and test files in the packet's write scope remain normal repository edits.
+Read canonical workflow artifacts only with `specify-runtime artifact show`. When the worker packet authorizes an artifact mutation, use the specialized owner named by the artifact registry or packet. Generic `artifact prepare` plus `artifact submit` is valid only when prepare explicitly grants submit for that type; fixed-shape artifacts use scaffold plus targeted patch, and result/evidence artifacts use their namespaces. Never overwrite the canonical path directly. Source and test files in the packet's write scope remain normal repository edits.
 
 # Specify Observer Worker Prompt
 
@@ -11,7 +11,7 @@ the final requirement package.
 ## Controller Requirements
 
 - Provide the user request summary, current stage, current domain, and the
-  latest `specify-draft.md` state.
+  latest `specify-draft.md` state queried through targeted `specify-runtime artifact show` calls.
 - Provide the relevant project cognition and compatibility/export summary.
 - State whether this is a `batch-adversarial-review` pass or a
   `final-handoff-decision` readiness check.

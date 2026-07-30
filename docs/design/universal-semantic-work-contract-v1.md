@@ -541,7 +541,7 @@ learning above M1 requires evidence outside initial semantic intake.
 
 ```bash
 project-cognition semantic-intake --format json < intake.json
-project-cognition semantic-intake --input intake.json --format json
+specify-runtime cognition semantic-intake --input-json '<work-contract-input-json>' --format json
 ```
 
 Input:
@@ -1373,15 +1373,15 @@ active claims not listed in authorized_claims block claim_readiness with active_
 root_cause_claim can become claim_ready only after bounded source evidence, matching passed verification for every selected candidate, status authorized, authorized_claims containing root_cause_claim, and a non-empty authorization_ref
 fixed_claim, completed_claim, and release_safe can become claim_ready only with claim-specific passed verification for every selected candidate, top-level workflow_authorization status authorized, authorized_claims containing the claim, and matching claim_authorizations entries whose status is authorized, authorization_ref is non-empty, and verification_evidence_refs cover the matched verification results
 claim_verification_refs records the verification evidence that supports the active claim
-semantic_audit_state records semantic_audit_input_path, semantic_audit_output_path, semantic_audit_resume_status, active_claim_type, claim_readiness_status, claim_authorization_refs, and claim_verification_refs in workflow-state.md
+semantic_audit_state records semantic_audit_input_path, semantic_audit_output_path, semantic_audit_resume_status, active_claim_type, claim_readiness_status, claim_authorization_refs, and claim_verification_refs in CLI-owned workflow-state.md queried through specify-runtime artifact show
 semantic_audit_resume_validation compares selected_candidate_ids, active_claim_type, claim_authorization_refs, claim_verification_refs, and semantic_audit_route_fingerprint before trusting resumed claim readiness
 semantic_audit_generated_resume_smoke and semantic_audit_stale_reasons record prompt-level generated resume smoke results before trusting persisted semantic-audit state
 semantic-audit-resume/scenarios.md gives generated projects prompt-level examples for fresh and stale resume smoke outcomes
 semantic-audit-resume provides an optional runtime JSON comparator for persisted audit input/output plus extracted workflow state; it records can_reuse_persisted_claim_readiness, grants_permission: false, and boundary: comparison_only_no_source_edit_or_claim_authorization; it does not grant P3/P4 permission or final claims
 resume-validation.json and resume-validation-route-changed.json give generated downstream projects concrete semantic-audit-resume validator adoption fixtures
-generated workflows prefer the optional runtime validator on resume by building an ephemeral resume-validation.json when the command is available, while preserving prompt fallback when unavailable or stale
+generated workflows prefer the optional runtime validator on resume by passing an in-memory validation object through --input-json when the command is available, while preserving prompt fallback when unavailable or stale
 active-claim, missing-file, claim-ref, and verification-ref stale fixtures give generated downstream projects executable semantic-audit-resume mismatch examples
-real downstream resume smoke verifies workflow-local semantic-audit-input.json and workflow-local semantic-audit-output.json path resolution with ephemeral resume-validation.json
+real downstream resume smoke verifies workflow-local semantic-audit-input.json and workflow-local semantic-audit-output.json path resolution with an in-memory validation object passed through --input-json
 permission promotion above P2 remains deferred until a later workflow-specific permission contract exists
 ```
 
@@ -1487,7 +1487,7 @@ If no new evidence or explicit product decision overrides these defaults, implem
 | Decision | Default | Rationale |
 | --- | --- | --- |
 | API command name | `project-cognition semantic-intake` | 职责独立，避免混在 `compass` |
-| API input | stdin JSON, optional `--input` | 方便测试，避免 shell 转义 |
+| API input | stdin JSON or bounded inline `--input-json` | 避免 agent-authored中转文件，同时保留可测试入口 |
 | API output | versioned JSON | 可回归测试，可跨 CLI 使用 |
 | Facet source | Agent-generated facets | Agent 擅长理解自然语言 |
 | Runtime role | constrain and rank project-backed candidates | runtime 擅长项目事实和 deterministic 输出 |

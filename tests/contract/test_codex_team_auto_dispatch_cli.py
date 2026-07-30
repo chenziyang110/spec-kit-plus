@@ -5,9 +5,18 @@ from pathlib import Path
 from typer.testing import CliRunner
 
 from specify_cli import app
-from specify_cli.codex_team.state_paths import batch_record_path, dispatch_record_path, result_record_path, task_record_path
+from specify_cli.codex_team.state_paths import (
+    batch_record_path,
+    dispatch_record_path,
+    result_record_path,
+    task_record_path,
+)
 from specify_cli.execution import worker_task_result_payload
-from specify_cli.execution.result_schema import RuleAcknowledgement, ValidationResult, WorkerTaskResult
+from specify_cli.execution.result_schema import (
+    RuleAcknowledgement,
+    ValidationResult,
+    WorkerTaskResult,
+)
 from tests.conftest import strip_ansi
 from tests.project_cognition_fake import (
     project_cognition_bin_value,
@@ -15,10 +24,7 @@ from tests.project_cognition_fake import (
     write_project_cognition_status,
 )
 
-CONTEXT_BUNDLE_PATHS = [
-    ".specify/project-cognition/status.json",
-    ".specify/project-cognition/project-cognition.db",
-]
+CONTEXT_BUNDLE_PATHS: list[str] = []
 
 
 def _create_codex_project(tmp_path: Path) -> Path:
@@ -26,7 +32,9 @@ def _create_codex_project(tmp_path: Path) -> Path:
     project.mkdir()
     spec_root = project / ".specify"
     spec_root.mkdir()
-    (spec_root / "integration.json").write_text(json.dumps({"integration": "codex"}), encoding="utf-8")
+    (spec_root / "integration.json").write_text(
+        json.dumps({"integration": "codex"}), encoding="utf-8"
+    )
     (spec_root / "teams").mkdir(parents=True, exist_ok=True)
     write_project_cognition_status(
         project,
@@ -106,7 +114,9 @@ def _fake_tmux_env(tmp_path: Path) -> dict[str, str]:
     return env
 
 
-def _invoke_in_project(project: Path, args: list[str], env: dict[str, str] | None = None):
+def _invoke_in_project(
+    project: Path, args: list[str], env: dict[str, str] | None = None
+):
     runner = CliRunner()
     old_cwd = os.getcwd()
     try:
@@ -126,7 +136,13 @@ def _write_success_results(project: Path) -> None:
             task_id=task_id,
             status="success",
             changed_files=[f"src/{task_id.lower()}.py"],
-            validation_results=[ValidationResult(command="pytest -q -k auto_dispatch", status="passed", output="1 passed")],
+            validation_results=[
+                ValidationResult(
+                    command="pytest -q -k auto_dispatch",
+                    status="passed",
+                    output="1 passed",
+                )
+            ],
             summary=f"{task_id} completed",
             rule_acknowledgement=RuleAcknowledgement(
                 required_references_read=True,
@@ -135,10 +151,17 @@ def _write_success_results(project: Path) -> None:
                 paths_read=["src/contracts/example.py", *CONTEXT_BUNDLE_PATHS],
             ),
         )
-        path.write_text(json.dumps(worker_task_result_payload(result), ensure_ascii=False, indent=2), encoding="utf-8")
+        path.write_text(
+            json.dumps(
+                worker_task_result_payload(result), ensure_ascii=False, indent=2
+            ),
+            encoding="utf-8",
+        )
 
 
-def _write_success_results_for(project: Path, batch_name: str, task_ids: tuple[str, ...]) -> None:
+def _write_success_results_for(
+    project: Path, batch_name: str, task_ids: tuple[str, ...]
+) -> None:
     slug = batch_name.lower().replace(" ", "-")
     for task_id in task_ids:
         request_id = f"default-{slug}-{task_id.lower()}"
@@ -148,7 +171,13 @@ def _write_success_results_for(project: Path, batch_name: str, task_ids: tuple[s
             task_id=task_id,
             status="success",
             changed_files=[f"src/{task_id.lower()}.py"],
-            validation_results=[ValidationResult(command="pytest -q -k auto_dispatch", status="passed", output="1 passed")],
+            validation_results=[
+                ValidationResult(
+                    command="pytest -q -k auto_dispatch",
+                    status="passed",
+                    output="1 passed",
+                )
+            ],
             summary=f"{task_id} completed",
             rule_acknowledgement=RuleAcknowledgement(
                 required_references_read=True,
@@ -157,7 +186,12 @@ def _write_success_results_for(project: Path, batch_name: str, task_ids: tuple[s
                 paths_read=["src/contracts/example.py", *CONTEXT_BUNDLE_PATHS],
             ),
         )
-        path.write_text(json.dumps(worker_task_result_payload(result), ensure_ascii=False, indent=2), encoding="utf-8")
+        path.write_text(
+            json.dumps(
+                worker_task_result_payload(result), ensure_ascii=False, indent=2
+            ),
+            encoding="utf-8",
+        )
 
 
 def test_team_auto_dispatch_subcommand_dispatches_ready_batch(tmp_path: Path):
@@ -183,7 +217,13 @@ def test_team_api_auto_dispatch_returns_json_payload(tmp_path: Path):
 
     result = _invoke_in_project(
         project,
-        ["sp-teams", "api", "auto-dispatch", "--feature-dir", "specs/001-auto-dispatch"],
+        [
+            "sp-teams",
+            "api",
+            "auto-dispatch",
+            "--feature-dir",
+            "specs/001-auto-dispatch",
+        ],
         env=env,
     )
 
@@ -206,7 +246,9 @@ def test_team_api_auto_dispatch_returns_json_payload(tmp_path: Path):
     assert isinstance(advisory["reasons"], list)
 
 
-def test_team_api_auto_dispatch_returns_stale_project_cognition_advisory(tmp_path: Path):
+def test_team_api_auto_dispatch_returns_stale_project_cognition_advisory(
+    tmp_path: Path,
+):
     project = _create_codex_project(tmp_path)
     env = _fake_tmux_env(tmp_path)
 
@@ -219,7 +261,13 @@ def test_team_api_auto_dispatch_returns_stale_project_cognition_advisory(tmp_pat
 
     result = _invoke_in_project(
         project,
-        ["sp-teams", "api", "auto-dispatch", "--feature-dir", "specs/001-auto-dispatch"],
+        [
+            "sp-teams",
+            "api",
+            "auto-dispatch",
+            "--feature-dir",
+            "specs/001-auto-dispatch",
+        ],
         env=env,
     )
 
@@ -227,7 +275,9 @@ def test_team_api_auto_dispatch_returns_stale_project_cognition_advisory(tmp_pat
     envelope = json.loads(result.output.strip())
     assert envelope["status"] == "ok"
     assert envelope["payload"]["project_cognition_advisory"]["freshness"] == "stale"
-    assert envelope["payload"]["project_cognition_advisory"]["reasons"] == ["shared_surface_changed"]
+    assert envelope["payload"]["project_cognition_advisory"]["reasons"] == [
+        "shared_surface_changed"
+    ]
 
 
 def test_team_complete_batch_marks_join_point_complete(tmp_path: Path):
@@ -249,10 +299,19 @@ def test_team_complete_batch_marks_join_point_complete(tmp_path: Path):
     )
 
     assert result.exit_code == 0, result.output
-    batch_payload = json.loads(batch_record_path(project, "default-parallel-batch-1-1").read_text(encoding="utf-8"))
+    batch_payload = json.loads(
+        batch_record_path(project, "default-parallel-batch-1-1").read_text(
+            encoding="utf-8"
+        )
+    )
     assert batch_payload["status"] == "completed"
-    task_payload = json.loads(task_record_path(project, "T002").read_text(encoding="utf-8"))
-    assert task_payload["metadata"]["join_points"]["Join Point 1.1"]["status"] == "complete"
+    task_payload = json.loads(
+        task_record_path(project, "T002").read_text(encoding="utf-8")
+    )
+    assert (
+        task_payload["metadata"]["join_points"]["Join Point 1.1"]["status"]
+        == "complete"
+    )
 
 
 def test_team_complete_batch_auto_dispatches_next_ready_batch(tmp_path: Path):
@@ -287,7 +346,13 @@ def test_team_api_complete_batch_returns_json_payload(tmp_path: Path):
 
     dispatched = _invoke_in_project(
         project,
-        ["sp-teams", "api", "auto-dispatch", "--feature-dir", "specs/001-auto-dispatch"],
+        [
+            "sp-teams",
+            "api",
+            "auto-dispatch",
+            "--feature-dir",
+            "specs/001-auto-dispatch",
+        ],
         env=env,
     )
     assert dispatched.exit_code == 0, dispatched.output
@@ -295,7 +360,13 @@ def test_team_api_complete_batch_returns_json_payload(tmp_path: Path):
 
     result = _invoke_in_project(
         project,
-        ["sp-teams", "api", "complete-batch", "--batch-id", "default-parallel-batch-1-1"],
+        [
+            "sp-teams",
+            "api",
+            "complete-batch",
+            "--batch-id",
+            "default-parallel-batch-1-1",
+        ],
         env=env,
     )
 
@@ -313,7 +384,13 @@ def test_team_api_complete_batch_reports_auto_dispatched_next_batch(tmp_path: Pa
 
     dispatched = _invoke_in_project(
         project,
-        ["sp-teams", "api", "auto-dispatch", "--feature-dir", "specs/001-auto-dispatch"],
+        [
+            "sp-teams",
+            "api",
+            "auto-dispatch",
+            "--feature-dir",
+            "specs/001-auto-dispatch",
+        ],
         env=env,
     )
     assert dispatched.exit_code == 0, dispatched.output
@@ -321,7 +398,13 @@ def test_team_api_complete_batch_reports_auto_dispatched_next_batch(tmp_path: Pa
 
     result = _invoke_in_project(
         project,
-        ["sp-teams", "api", "complete-batch", "--batch-id", "default-parallel-batch-1-1"],
+        [
+            "sp-teams",
+            "api",
+            "complete-batch",
+            "--batch-id",
+            "default-parallel-batch-1-1",
+        ],
         env=env,
     )
 
@@ -347,19 +430,39 @@ def test_team_submit_result_updates_task_and_batch_state(tmp_path: Path):
     for task_id in ("T002", "T003"):
         request_id = f"default-parallel-batch-1-1-{task_id.lower()}"
         result_path = result_record_path(project, request_id)
+        result_json = result_path.read_text(encoding="utf-8")
         submit = _invoke_in_project(
             project,
-            ["sp-teams", "submit-result", "--request-id", request_id, "--result-file", str(result_path)],
+            [
+                "sp-teams",
+                "submit-result",
+                "--request-id",
+                request_id,
+                "--result-json",
+                result_json,
+            ],
             env=env,
         )
         assert submit.exit_code == 0, submit.output
 
-    batch_payload = json.loads(batch_record_path(project, "default-parallel-batch-1-1").read_text(encoding="utf-8"))
-    task_payload = json.loads(task_record_path(project, "T002").read_text(encoding="utf-8"))
+    batch_payload = json.loads(
+        batch_record_path(project, "default-parallel-batch-1-1").read_text(
+            encoding="utf-8"
+        )
+    )
+    task_payload = json.loads(
+        task_record_path(project, "T002").read_text(encoding="utf-8")
+    )
     assert batch_payload["status"] == "completed"
     assert task_payload["status"] == "completed"
-    assert task_payload["metadata"]["result_request_id"] == "default-parallel-batch-1-1-t002"
-    assert task_payload["metadata"]["join_points"]["Join Point 1.1"]["status"] == "complete"
+    assert (
+        task_payload["metadata"]["result_request_id"]
+        == "default-parallel-batch-1-1-t002"
+    )
+    assert (
+        task_payload["metadata"]["join_points"]["Join Point 1.1"]["status"]
+        == "complete"
+    )
 
 
 def test_team_auto_dispatch_is_advisory_when_project_cognition_is_dirty(tmp_path: Path):
@@ -387,7 +490,9 @@ def test_team_auto_dispatch_is_advisory_when_project_cognition_is_dirty(tmp_path
     assert "advisory" in output.lower()
 
 
-def test_team_auto_dispatch_is_advisory_with_legacy_project_map_dirty_status(tmp_path: Path):
+def test_team_auto_dispatch_is_advisory_with_legacy_project_map_dirty_status(
+    tmp_path: Path,
+):
     project = _create_codex_project(tmp_path)
     env = _fake_tmux_env(tmp_path)
 

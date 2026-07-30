@@ -7,9 +7,9 @@ Preserved Contract: tasks remain generation-only, preserve complete confirmed sc
 ## Intake
 
 1. Resolve the active feature lane/worktree and sparse resume state.
-2. Read `plan-contract.json` first; require ready handoff to `sp-tasks`, a valid source revision, locked target boundary, and no unresolved planning blocker.
+2. Query `plan-contract.json` first through `specify-runtime artifact show`; require ready handoff, valid source revision, locked boundary, and no unresolved blocker.
 3. Reuse its context capsule/evidence refs, interfaces, acceptance, constraints, `MP-*`, `CA-###`, fidelity, verification, and stop/reopen refs.
-4. Open `plan.md`, conditional design artifacts, spec views, memory, or live source only through a named required ref or stale condition.
+4. Query `plan.md`, conditional design artifacts, and spec views through targeted `specify-runtime artifact show` calls only for a named required ref or stale condition; open normal memory or live source only when that condition requires it.
 5. Do not revalidate discussion/specification gates or reconstruct plan decisions.
 
 If task generation discovers a requirement, architecture, feasibility, or user-decision defect, route to the owning upstream phase. Task-layer dependency, granularity, write-scope, or verification defects are repaired locally.

@@ -1,6 +1,6 @@
 ## Fixed Workflow Artifact Boundary
 
-Read canonical workflow artifacts only with `specify-runtime artifact show`. When the worker packet authorizes an artifact write, use `specify-runtime artifact prepare` followed by `specify-runtime artifact submit`; never overwrite the canonical path directly. Source and test files in the packet's write scope remain normal repository edits.
+Read canonical workflow artifacts only with `specify-runtime artifact show`. When the worker packet authorizes an artifact mutation, use the specialized owner named by the artifact registry or packet. Generic `artifact prepare` plus `artifact submit` is valid only when prepare explicitly grants submit for that type; fixed-shape artifacts use scaffold plus targeted patch, and result/evidence artifacts use their namespaces. Never overwrite the canonical path directly. Source and test files in the packet's write scope remain normal repository edits.
 
 # Debug Investigator Worker Prompt
 
@@ -32,8 +32,8 @@ Use this template when the debug leader dispatches an evidence-gathering lane fo
 - Confidence
 - Blocker, if any
 - If the current runtime supports structured results, return the same facts in a stable evidence payload rather than freeform narration.
-- When the leader provides a delegated result handoff path, write the normalized evidence/result envelope there instead of replying with freeform prose only.
-- The worker must not enter `idle` before the required handoff is written or returned.
+- When the leader provides a runtime result channel, execute the complete runtime-owned argv prefix from the packet, append `--result-json '<inline-json>'`, and submit the normalized envelope (or use the integration's runtime-managed team channel). The debug command also needs its runtime-supplied session slug and lane ID, so never reconstruct an incomplete command or create/overwrite a result file.
+- The worker must not enter `idle` before the required inline handoff is submitted or returned.
 - If the handoff channel fails, return that failure explicitly instead of idling silently.
 
 ## Guardrails

@@ -26,6 +26,13 @@ parallel-safe only when neither consumes the other's uncommitted result and
 their writes, generated outputs, state mutations, and verification fixtures do
 not collide.
 
+The graph and its Markdown projection are CLI-owned. Pass semantic task/root
+objects inline to the Tasks CLI; use `build`, `upsert`, `set-root`, `remove`,
+and `finalize` for every mutation. Read targeted fields through
+`specify-runtime artifact show --json-pointer ...`. Direct filesystem writes,
+whole-file rewrites, and temporary authoring payloads are invalid workflow
+operations.
+
 Every task records required refs, forbidden drift, packet mode, objective
 acceptance, verification, stop/reopen criteria, and failure recovery. A join
 point records its members, validation target, command or concrete check, pass
@@ -35,21 +42,26 @@ For every active entrypoint outcome, propagate its existing CA into top-level
 `consequence_obligation_refs`, a task's `consequence_obligation_ids`, and a
 required `review_obligations` row mapped to required real-entrypoint
 `system_review_scenarios`. Reuse that consequence/Review chain; do not create a
-parallel outcome-coverage object. Render user-visible recovery, retry,
-cancellation, foreground escalation, and request retention in `tasks.md`.
+parallel outcome-coverage object. Submit user-visible recovery, retry,
+cancellation, foreground escalation, and request retention through `build`/`upsert`; the task CLI renders `tasks.md`.
 
 Keep setup and foundational work before feature slices; verify at natural join
 points. If a task discovers unknown product behavior or architecture, the task
 graph is not the place to decide it—reopen the owning upstream workflow.
 
-UI tasks additionally consume the plan `ui_design_contract` and feature
-`ui-brief.md`. Each task owns a bounded surface/state outcome and carries
+UI tasks additionally query the plan `ui_design_contract` and feature
+`ui-brief.md` through targeted `specify-runtime artifact show` calls. Each task owns a bounded surface/state outcome and carries
 task-specific `ui_contract`, fidelity level, design inputs, required states,
 real entry points, current direction fields, task-relevant reference/content/image
-records, structure/visual/runtime evidence, and comparison or human review. Use
+records, immutable handoff ref/digest, task-relevant `DH-*` contract IDs,
+structure/visual/runtime evidence, and comparison or human review. Use
 `assets/ui-task.md` for the project-facing detail and
-`assets/ui-task-index-entry.json` for the exact canonical JSON object. General UI
+`assets/ui-task-index-entry.json` as the semantic field catalog. Submit only
+meaningful non-default values; `specify-runtime tasks` expands the exact canonical
+shape from the packaged task-packet template. General UI
 without an external fidelity target still sets `ui_contract.fidelity_level` to
 `approximate` against the approved design/brief; use `inspiration` only when it
 is the approved reference relationship. Missing UI fields are a graph defect, not
 `not_applicable`.
+Task contracts may select a plan subset of `DH-*` IDs, and all UI tasks together
+must cover the plan set. They do not rewrite the selected handoff rows.

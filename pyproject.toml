@@ -14,6 +14,7 @@ dependencies = [
     "pathspec>=1.1.1",
     "json5>=0.14.0",
     "jsonschema>=4.26.0",
+    "Jinja2>=3.1,<4",
     "pydantic-graph<2",
 ]
 
@@ -50,6 +51,9 @@ packages = ["src/specify_cli"]
 "templates/context-template.md" = "specify_cli/core_pack/templates/context-template.md"
 "templates/debug.md" = "specify_cli/core_pack/templates/debug.md"
 "templates/design-brief-template.md" = "specify_cli/core_pack/templates/design-brief-template.md"
+"templates/design-handoff-schema.json" = "specify_cli/core_pack/templates/design-handoff-schema.json"
+"templates/design-capability-profiles.json" = "specify_cli/core_pack/templates/design-capability-profiles.json"
+"templates/design-preview-manifest.schema.json" = "specify_cli/core_pack/templates/design-preview-manifest.schema.json"
 "templates/design-preview-template.html" = "specify_cli/core_pack/templates/design-preview-template.html"
 "templates/design-template.md" = "specify_cli/core_pack/templates/design-template.md"
 "templates/design-library" = "specify_cli/core_pack/templates/design-library"

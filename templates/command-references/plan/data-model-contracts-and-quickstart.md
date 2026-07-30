@@ -36,8 +36,8 @@ Preserved Contract: research.md, quickstart.md, data-model.md, and contracts/ ar
    - Do not present unverified claims as settled facts.
    - If a claim could materially change plan structure, security posture, compatibility, or verification scope, it must either be verified, explicitly cited, or moved into the assumptions log.
    - Prefer prescriptive recommendations over broad option dumps once the evidence is strong enough to guide planning.
-   - The finished `research.md` should answer: "What does the planner need to know to produce a high-quality implementation plan without rediscovering the domain?"
-   - Use `templates/research-template.md` as the default structure for `research.md`; remove sections that are not relevant rather than leaving placeholder text behind.
+   - The semantic sections patched into scaffolded `research.md` should answer: "What does the planner need to know to produce a high-quality implementation plan without rediscovering the domain?"
+   - Create `research.md` with `specify-runtime artifact scaffold --kind research --path <feature-dir>/research.md`; patch relevant sections and remove unused ones through fresh leases rather than reading and re-emitting `templates/research-template.md`.
 
 **Output**: conditional `research.md`; otherwise record `research_status: not-needed` in `plan-contract.json` without creating an empty file.
 
@@ -45,9 +45,9 @@ Preserved Contract: research.md, quickstart.md, data-model.md, and contracts/ ar
 
 **Prerequisites:** all planning-critical unknowns resolved, whether from existing evidence or conditional research.
 
-1. **Conditional: `data-model.md`** — Required only when the spec introduces new entities, data structures, state transitions, or persistence concerns. For pure logic changes, bug fixes, or config-only work, skip and note the reason in plan.md.
+1. **Conditional: `data-model.md`** — Required only when the spec introduces new entities, data structures, state transitions, or persistence concerns. Create it with `specify-runtime artifact scaffold --kind data-model`, then fill only named sections through fresh leased patches. For pure logic changes, bug fixes, or config-only work, skip and note the reason in plan.md.
 2. **Conditional: `contracts/`** — Required only when the feature defines new external interfaces, APIs, cross-service contracts, or protocol boundaries. For internal-only changes, skip and note the reason.
-3. **Conditional: `quickstart.md`** — Generate only when a representative end-to-end scenario materially reduces implementation or verification ambiguity. Otherwise keep the validation scenario in `plan-contract.json` and do not create a separate file.
+3. **Conditional: `quickstart.md`** — Create it with `specify-runtime artifact scaffold --kind quickstart` and fill only named sections through fresh leased patches when a representative end-to-end scenario materially reduces implementation or verification ambiguity. Otherwise keep the validation scenario in `plan-contract.json` and do not create a separate file. Never submit the stable quickstart template wholesale.
 4. Run `{AGENT_SCRIPT}` to update agent-specific context.
 
 **Output**: `plan-contract.json` always; `research.md`, `quickstart.md`, `data-model.md`, and `contracts/*` only when their triggers are present. Record skipped-trigger reasons compactly in the contract rather than adding placeholder documents.

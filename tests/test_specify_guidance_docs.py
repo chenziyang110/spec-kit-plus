@@ -102,6 +102,16 @@ def test_quickstart_teaches_specify_to_plan_mainline():
     assert "`specify` -> `deep-research` -> `plan`" in quickstart
 
 
+def test_quickstart_keeps_large_direct_delivery_in_quick() -> None:
+    quickstart = _read("docs/quickstart.md").lower()
+
+    assert "one or many ordered work items" in quickstart
+    assert "there is no small-task ceiling" in quickstart
+    assert "deepen the task-local plan, ordered batches, and evidence" in quickstart
+    assert "use `specify` only when the user explicitly chooses a formal spec-first path" in quickstart
+    assert "upgrade to `specify` when the request spans multiple independent capabilities" not in quickstart
+
+
 def _assert_doc_teaches_user_confirmed_product_scope(rel_path: str) -> None:
     lowered = _read(rel_path).lower()
 
@@ -444,7 +454,7 @@ def test_readme_documents_inline_project_cognition_closeout() -> None:
     assert "specify-runtime cognition closeout-plan --workflow sp-implement --format json" in readme
     assert "$active_workflow" not in readme
     assert "update_mode=delta_session" in readme
-    assert "update_mode=payload_file" in readme
+    assert "update_mode=inline_json" in readme
     assert "unknown_path_dispositions" in readme
     assert "update_argv" in readme
     assert "delta_append_draft.argv_prefix" in readme
@@ -544,7 +554,7 @@ def test_quickstart_skill_map_and_guidance_use_canonical_names_not_claude_syntax
     assert 'specify-runtime cognition closeout-plan --workflow "$active_workflow" --format json' in quickstart_lower
     assert "unknown_path_dispositions" in quickstart_lower
     assert "update_mode=delta_session" in quickstart_lower
-    assert "update_mode=payload_file" in quickstart_lower
+    assert "update_mode=inline_json" in quickstart_lower
     assert "update_argv" in quickstart_lower
     assert "delta_append_draft.argv_prefix" in quickstart_lower
     assert "result_state" in quickstart_lower
@@ -554,7 +564,7 @@ def test_quickstart_skill_map_and_guidance_use_canonical_names_not_claude_syntax
     assert 'specify-runtime cognition closeout-plan --workflow "$active_workflow" --format json' in installation_lower
     assert "unknown_path_dispositions" in installation_lower
     assert "update_mode=delta_session" in installation_lower
-    assert "update_mode=payload_file" in installation_lower
+    assert "update_mode=inline_json" in installation_lower
     assert "update_argv" in installation_lower
     assert "result_state" in installation_lower
     assert "known_unknowns` only for blockers" in installation_lower

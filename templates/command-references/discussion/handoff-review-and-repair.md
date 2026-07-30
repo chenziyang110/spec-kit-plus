@@ -28,6 +28,6 @@ After the user confirms the current digest, run `{{specify-subcmd:specify-runtim
 
 ## Repair
 
-On handoff request-changes repair or `blocked_by_handoff_integrity`, update canonical JSON, preserve still-valid IDs and evidence refs, recompute `review_digest`, rerun validation, and request confirmation again. Return field-level validation errors or a compact blocker with cause, safe retry, and stop condition when repair cannot complete.
+On handoff request-changes repair or `blocked_by_handoff_integrity`, resubmit the repaired contract inline through `specify-runtime discussion write-handoff`, preserve still-valid IDs and evidence refs, consume the returned `review_digest`, rerun validation, and request confirmation again. Return field-level validation errors or a compact blocker with cause, safe retry, and stop condition when repair cannot complete.
 
 The repair belongs to `sp-discussion`; consumers block instead of patching upstream truth.

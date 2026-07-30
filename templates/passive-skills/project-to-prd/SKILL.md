@@ -18,8 +18,11 @@ surfaces that have not been updated yet.
 The canonical PRD lane is a heavy reconstruction workflow:
 `sp-prd-scan` runs with `execution_model: subagent-mandatory`, critical claims
 must reach `L4 Reconstruction-Ready`, and the scan package includes contract
-artifacts such as `config-contracts.json` before `sp-prd-build` compiles exports.
-`sp-prd-build` is build-only: it must compile from the scan package instead of
+artifacts such as `config-contracts.json`, whose rows are materialized only
+through `specify-runtime prd-scan record-upsert` (and removed only through
+`record-remove` with the current digest), before
+`sp-prd-build` compiles exports.
+`sp-prd-build` is build-only and must compile from the scan package instead of
 starting a second repository scan, and it must block completion when critical
 evidence is still missing.
 

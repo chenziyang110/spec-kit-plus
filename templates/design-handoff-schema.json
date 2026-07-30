@@ -1,0 +1,267 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spec-kit-plus.dev/schemas/design-handoff-schema.json",
+  "title": "Spec Kit Plus immutable design handoff",
+  "$defs": {
+    "handoffId": {
+      "type": "string",
+      "pattern": "^DH-[A-Z0-9]+(?:-[A-Z0-9]+)+$"
+    },
+    "nonEmptyStrings": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "decisionIds": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "pattern": "^DS-[A-Z0-9]+(?:-[A-Z0-9]+)+$"
+      }
+    },
+    "specimenId": {
+      "type": "string",
+      "pattern": "^SP-[A-Z0-9]+(?:-[A-Z0-9]+)+$"
+    },
+    "capabilityIds": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"type": "string", "pattern": "^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)+$"}
+    },
+    "specimenIds": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/specimenId"}
+    },
+    "specimen": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "profile_id", "kind", "title", "purpose", "capability_ids", "required_states", "content_keys"],
+      "properties": {
+        "id": {"$ref": "#/$defs/specimenId"},
+        "profile_id": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+        "kind": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+        "title": {"type": "string", "minLength": 1},
+        "purpose": {"type": "string", "minLength": 1},
+        "capability_ids": {"$ref": "#/$defs/capabilityIds"},
+        "required_states": {"$ref": "#/$defs/nonEmptyStrings"},
+        "content_keys": {"$ref": "#/$defs/nonEmptyStrings"}
+      }
+    },
+    "profileContract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "label", "summary", "input_modes", "measurement_units"],
+      "properties": {
+        "id": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+        "label": {"type": "string", "minLength": 1},
+        "summary": {"type": "string", "minLength": 1},
+        "input_modes": {"$ref": "#/$defs/nonEmptyStrings"},
+        "measurement_units": {"$ref": "#/$defs/nonEmptyStrings"}
+      }
+    },
+    "capabilityModel": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema", "profile_ids", "profiles", "capability_ids", "input_modes", "measurement_units", "specimens"],
+      "properties": {
+        "schema": {"const": "spec-kit-design-capability-model-v1"},
+        "profile_ids": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"}},
+        "profiles": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/profileContract"}},
+        "capability_ids": {"$ref": "#/$defs/capabilityIds"},
+        "input_modes": {"$ref": "#/$defs/nonEmptyStrings"},
+        "measurement_units": {"$ref": "#/$defs/nonEmptyStrings"},
+        "specimens": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/specimen"}}
+      }
+    },
+    "componentContract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "component", "anatomy", "required_states", "decision_ids", "must_match"],
+      "properties": {
+        "id": {"$ref": "#/$defs/handoffId"},
+        "component": {"type": "string", "minLength": 1},
+        "anatomy": {"$ref": "#/$defs/nonEmptyStrings"},
+        "required_states": {"$ref": "#/$defs/nonEmptyStrings"},
+        "decision_ids": {"$ref": "#/$defs/decisionIds"},
+        "must_match": {"$ref": "#/$defs/nonEmptyStrings"}
+      }
+    },
+    "renderTarget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["width", "height", "unit"],
+      "properties": {
+        "width": {"type": "integer", "minimum": 1},
+        "height": {"type": "integer", "minimum": 1},
+        "unit": {"enum": ["px", "cell", "point"]}
+      }
+    },
+    "responsiveContract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "profile_id", "label", "target", "review_width_px", "state", "adaptation", "decision_ids"],
+      "properties": {
+        "id": {"$ref": "#/$defs/handoffId"},
+        "profile_id": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+        "label": {"type": "string", "minLength": 1},
+        "target": {"$ref": "#/$defs/renderTarget"},
+        "review_width_px": {"type": "integer", "minimum": 240, "maximum": 2400},
+        "state": {"type": "string", "minLength": 1},
+        "adaptation": {"type": "string", "minLength": 1},
+        "decision_ids": {"$ref": "#/$defs/decisionIds"}
+      }
+    },
+    "approvedTarget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ref", "color_mode", "motion_mode"],
+      "properties": {
+        "ref": {"type": "string", "minLength": 1},
+        "color_mode": {"type": "string", "minLength": 1},
+        "motion_mode": {"type": "string", "minLength": 1}
+      }
+    },
+    "acceptanceContract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "target_id", "specimen_ids", "approved_targets", "states", "color_modes", "motion_modes", "decision_ids", "must_match", "evidence"],
+      "properties": {
+        "id": {"$ref": "#/$defs/handoffId"},
+        "target_id": {"$ref": "#/$defs/handoffId"},
+        "specimen_ids": {"$ref": "#/$defs/specimenIds"},
+        "approved_targets": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/approvedTarget"}
+        },
+        "states": {"$ref": "#/$defs/nonEmptyStrings"},
+        "color_modes": {"$ref": "#/$defs/nonEmptyStrings"},
+        "motion_modes": {"$ref": "#/$defs/nonEmptyStrings"},
+        "decision_ids": {"$ref": "#/$defs/decisionIds"},
+        "must_match": {"$ref": "#/$defs/nonEmptyStrings"},
+        "evidence": {"$ref": "#/$defs/nonEmptyStrings"}
+      }
+    },
+    "tolerance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["structure", "content", "tokens", "geometry", "color", "text_wrap", "motion", "platform_variance"],
+      "properties": {
+        "structure": {"const": "exact"},
+        "content": {"const": "exact"},
+        "tokens": {"const": "exact"},
+        "geometry": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["unit", "max_delta"],
+          "properties": {
+            "unit": {"enum": ["px", "cell", "point"]},
+            "max_delta": {"type": "number", "minimum": 0}
+          }
+        },
+        "color": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["method", "max_delta"],
+          "properties": {
+            "method": {"const": "delta-e-2000"},
+            "max_delta": {"type": "number", "minimum": 0}
+          }
+        },
+        "text_wrap": {"const": "exact"},
+        "motion": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["unit", "max_delta"],
+          "properties": {
+            "unit": {"const": "ms"},
+            "max_delta": {"type": "number", "minimum": 0}
+          }
+        },
+        "platform_variance": {"const": "approved-deviation-only"}
+      }
+    },
+    "acceptedDeviation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "decision_id", "reason", "approval_ref"],
+      "properties": {
+        "id": {"$ref": "#/$defs/handoffId"},
+        "decision_id": {
+          "type": "string",
+          "pattern": "^DS-[A-Z0-9]+(?:-[A-Z0-9]+)+$"
+        },
+        "reason": {"type": "string", "minLength": 1},
+        "approval_ref": {"type": "string", "minLength": 1}
+      }
+    }
+  },
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "approval", "project", "direction", "content", "boundaries", "decisions", "implementation_bindings", "reproduction"],
+  "properties": {
+    "schema": {"const": "spec-kit-design-handoff-v1"},
+    "approval": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["preview_file", "preview_ref", "direction_id", "review_round", "preview_sha256", "manifest_sha256", "decision_ids"],
+      "properties": {
+        "preview_file": {"type": "string", "minLength": 1},
+        "preview_ref": {"type": "string", "minLength": 1},
+        "direction_id": {
+          "type": "string",
+          "pattern": "^direction-[a-z0-9][a-z0-9-]*$"
+        },
+        "review_round": {"type": "string", "minLength": 1},
+        "preview_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "manifest_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "decision_ids": {"$ref": "#/$defs/decisionIds"}
+      }
+    },
+    "project": {"type": "object", "minProperties": 1},
+    "direction": {"type": "object", "minProperties": 1},
+    "content": {"type": "object", "minProperties": 1},
+    "boundaries": {"type": "object", "minProperties": 1},
+    "decisions": {"type": "array", "minItems": 1},
+    "implementation_bindings": {"type": "array", "minItems": 1},
+    "reproduction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reproduction_mode", "capability_model", "component_contracts", "responsive_matrix", "visual_acceptance_matrix", "comparison_tolerance", "accepted_deviations", "contract_ids"],
+      "properties": {
+        "reproduction_mode": {"enum": ["exact", "platform-adapted"]},
+        "capability_model": {"$ref": "#/$defs/capabilityModel"},
+        "component_contracts": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/componentContract"}
+        },
+        "responsive_matrix": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/responsiveContract"}
+        },
+        "visual_acceptance_matrix": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/acceptanceContract"}
+        },
+        "comparison_tolerance": {"$ref": "#/$defs/tolerance"},
+        "accepted_deviations": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/acceptedDeviation"}
+        },
+        "contract_ids": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/handoffId"}
+        }
+      }
+    }
+  }
+}

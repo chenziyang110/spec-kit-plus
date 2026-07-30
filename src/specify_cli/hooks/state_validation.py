@@ -41,7 +41,9 @@ def validate_state_hook(project_root: Path, payload: dict[str, object]) -> HookR
     if command_name in EXPECTED_WORKFLOW_STATE:
         feature_dir = _required_path(project_root, payload, "feature_dir")
         target = feature_dir / "workflow-state.md"
-        diagnostics = _validation_diagnostics(project_root, feature_dir, target, command_name)
+        diagnostics = _validation_diagnostics(
+            project_root, feature_dir, target, command_name
+        )
         if not target.exists():
             return HookResult(
                 event=WORKFLOW_STATE_VALIDATE,
@@ -51,7 +53,11 @@ def validate_state_hook(project_root: Path, payload: dict[str, object]) -> HookR
                 data={
                     "validated_path": str(target.resolve()),
                     "lane_context": diagnostics,
-                    "autofix": _autofix_metadata(feature_dir, command_name, _autofix_sections_for_command(command_name)),
+                    "autofix": _autofix_metadata(
+                        feature_dir,
+                        command_name,
+                        _autofix_sections_for_command(command_name),
+                    ),
                 },
             )
         checkpoint = serialize_workflow_state(target)
@@ -75,11 +81,16 @@ def validate_state_hook(project_root: Path, payload: dict[str, object]) -> HookR
                 "blocker_reason",
                 "final_handoff_decision",
             )
-            uses_fixed_lifecycle = any(str(checkpoint.get(field) or "").strip() for field in fixed_lifecycle_markers)
+            uses_fixed_lifecycle = any(
+                str(checkpoint.get(field) or "").strip()
+                for field in fixed_lifecycle_markers
+            )
             if uses_fixed_lifecycle:
                 for field in required_fixed_fields:
                     if not str(checkpoint.get(field) or "").strip():
-                        errors.append(f"workflow-state is missing Fixed Lifecycle State field: {field}")
+                        errors.append(
+                            f"workflow-state is missing Fixed Lifecycle State field: {field}"
+                        )
             elif checkpoint["phase_mode"] != expected_phase:
                 errors.append(
                     f"phase_mode mismatch: expected {expected_phase}, got {checkpoint['phase_mode'] or 'missing'}"
@@ -100,9 +111,7 @@ def validate_state_hook(project_root: Path, payload: dict[str, object]) -> HookR
         if command_name == "accept":
             from specify_cli.human_acceptance import validate_human_acceptance
 
-            acceptance_validation = validate_human_acceptance(
-                project_root, feature_dir
-            )
+            acceptance_validation = validate_human_acceptance(project_root, feature_dir)
             acceptance_errors = [
                 str(error) for error in acceptance_validation.get("errors", [])
             ]
@@ -131,13 +140,17 @@ def validate_state_hook(project_root: Path, payload: dict[str, object]) -> HookR
                     event=WORKFLOW_STATE_VALIDATE,
                     status="repaired",
                     severity="warning",
-                    warnings=["workflow-state.md missing required contract sections; autofix appended defaults"],
+                    warnings=[
+                        "workflow-state.md missing required contract sections; autofix appended defaults"
+                    ],
                     writes={"workflow_state": str(target.resolve())},
                     data={
                         "checkpoint": repaired_checkpoint,
                         "validated_path": str(target.resolve()),
                         "lane_context": diagnostics,
-                        "autofix": _autofix_metadata(feature_dir, command_name, snippet),
+                        "autofix": _autofix_metadata(
+                            feature_dir, command_name, snippet
+                        ),
                     },
                 )
             return HookResult(
@@ -149,7 +162,11 @@ def validate_state_hook(project_root: Path, payload: dict[str, object]) -> HookR
                     "checkpoint": checkpoint,
                     "validated_path": str(target.resolve()),
                     "lane_context": diagnostics,
-                    "autofix": _autofix_metadata(feature_dir, command_name, _autofix_sections_for_command(command_name)),
+                    "autofix": _autofix_metadata(
+                        feature_dir,
+                        command_name,
+                        _autofix_sections_for_command(command_name),
+                    ),
                 },
             )
         return HookResult(
@@ -191,14 +208,20 @@ def validate_state_hook(project_root: Path, payload: dict[str, object]) -> HookR
                 status="blocked",
                 severity="critical",
                 errors=errors,
-                data={"checkpoint": checkpoint, "implementation_review": implementation_review},
+                data={
+                    "checkpoint": checkpoint,
+                    "implementation_review": implementation_review,
+                },
             )
         implementation_review = _implementation_review_metadata(feature_dir)
         return HookResult(
             event=WORKFLOW_STATE_VALIDATE,
             status="ok",
             severity="info",
-            data={"checkpoint": checkpoint, "implementation_review": implementation_review},
+            data={
+                "checkpoint": checkpoint,
+                "implementation_review": implementation_review,
+            },
         )
 
     if command_name == "quick":
@@ -249,7 +272,9 @@ def validate_state_hook(project_root: Path, payload: dict[str, object]) -> HookR
             data={"checkpoint": checkpoint},
         )
 
-    raise QualityHookError(f"unsupported command_name '{command_name}' for workflow.state.validate")
+    raise QualityHookError(
+        f"unsupported command_name '{command_name}' for workflow.state.validate"
+    )
 
 
 def _required_path(project_root: Path, payload: dict[str, object], key: str) -> Path:
@@ -327,7 +352,14 @@ def _autofix_sections_for_command(command_name: str) -> str:
             "next_command": "/sp.plan",
         },
         "deep-research": {
-            "allowed": ["deep-research.md", "research-spikes/", "alignment.md", "context.md", "references.md", "workflow-state.md"],
+            "allowed": [
+                "deep-research.md",
+                "research-spikes/",
+                "alignment.md",
+                "context.md",
+                "references.md",
+                "workflow-state.md",
+            ],
             "forbidden": [
                 "edit production source code",
                 "edit tests",
@@ -335,7 +367,13 @@ def _autofix_sections_for_command(command_name: str) -> str:
                 "implement behavior",
                 "commit prototype code as production",
             ],
-            "authoritative": ["spec.md", "alignment.md", "context.md", "references.md", "deep-research.md"],
+            "authoritative": [
+                "spec.md",
+                "alignment.md",
+                "context.md",
+                "references.md",
+                "deep-research.md",
+            ],
             "next_command": "/sp.plan",
         },
         "plan": {
@@ -350,7 +388,12 @@ def _autofix_sections_for_command(command_name: str) -> str:
                 "planning/handoffs/*.json",
                 "workflow-state.md",
             ],
-            "forbidden": ["edit source code", "edit tests", "implement behavior", "start execution from plan artifacts"],
+            "forbidden": [
+                "edit source code",
+                "edit tests",
+                "implement behavior",
+                "start execution from plan artifacts",
+            ],
             "authoritative": [
                 "spec-contract.json",
                 "plan-contract.json",
@@ -366,7 +409,12 @@ def _autofix_sections_for_command(command_name: str) -> str:
                 "task-generation/handoffs/*.json",
                 "workflow-state.md",
             ],
-            "forbidden": ["edit source code", "edit tests", "implement behavior", "start execution from task-generation artifacts"],
+            "forbidden": [
+                "edit source code",
+                "edit tests",
+                "implement behavior",
+                "start execution from task-generation artifacts",
+            ],
             "authoritative": [
                 "plan-contract.json",
                 "task-index.json",
@@ -417,7 +465,12 @@ def _autofix_sections_for_command(command_name: str) -> str:
         },
         "analyze": {
             "allowed": ["workflow-state.md"],
-            "forbidden": ["edit source code", "edit tests", "edit planning artifacts", "start implementation before the gate is cleared"],
+            "forbidden": [
+                "edit source code",
+                "edit tests",
+                "edit planning artifacts",
+                "start implementation before the gate is cleared",
+            ],
             "authoritative": ["spec.md", "plan.md", "tasks.md", "workflow-state.md"],
             "next_command": "/sp.implement",
         },
@@ -487,15 +540,19 @@ def _autofix_sections_for_command(command_name: str) -> str:
     )
 
 
-def _autofix_metadata(feature_dir: Path, command_name: str, snippet: str) -> dict[str, object]:
+def _autofix_metadata(
+    feature_dir: Path, command_name: str, snippet: str
+) -> dict[str, object]:
     return {
         "available": True,
-        "command": f'specify hook validate-state --command {command_name} --feature-dir "{feature_dir}" --autofix',
+        "command": f'specify-runtime hook validate-state --command {command_name} --feature-dir "{feature_dir}" --autofix --format json',
         "snippet": snippet,
     }
 
 
-def _validation_diagnostics(project_root: Path, feature_dir: Path, target: Path, command_name: str) -> dict[str, object]:
+def _validation_diagnostics(
+    project_root: Path, feature_dir: Path, target: Path, command_name: str
+) -> dict[str, object]:
     lane = next(
         (
             record
@@ -509,14 +566,18 @@ def _validation_diagnostics(project_root: Path, feature_dir: Path, target: Path,
             "resolved_from": "feature_dir",
             "command_name": command_name,
         }
-    worktree_relative = Path(lane.worktree_path) / Path(lane.feature_dir) / "workflow-state.md"
+    worktree_relative = (
+        Path(lane.worktree_path) / Path(lane.feature_dir) / "workflow-state.md"
+    )
     return {
         "resolved_from": "feature_dir+lane-record",
         "command_name": command_name,
         "lane_id": lane.lane_id,
         "feature_dir": lane.feature_dir,
         "worktree_path": lane.worktree_path,
-        "worktree_state_path": str((project_root / worktree_relative).resolve()).replace("\\", "/"),
+        "worktree_state_path": str(
+            (project_root / worktree_relative).resolve()
+        ).replace("\\", "/"),
         "lane_record": asdict(lane),
         "validated_path": str(target.resolve()),
     }

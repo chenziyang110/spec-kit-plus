@@ -124,14 +124,15 @@ def test_command_templates_do_not_instruct_routine_hook_choreography() -> None:
 
 
 def test_required_phase_boundaries_use_one_deterministic_artifact_validation() -> None:
+    invocation = (
+        "{{specify-subcmd:specify-runtime workflow complete-stage "
+        "--feature-dir <feature-dir> --expected-revision <revision> --format json}}"
+    )
     for path, command in PHASE_ARTIFACT_VALIDATION_TEMPLATES.items():
         content = read_command_with_references(Path(path).stem)
-        invocation = (
-            "{{specify-subcmd:specify-runtime hook validate-artifacts "
-            f"--command {command} --feature-dir <feature-dir> --format json}}"
-        )
         assert content.count(invocation) == 1, path
-        assert "fail closed" in content.lower() or "repair or reopen" in content.lower()
+        assert f"hook validate-artifacts --command {command}" not in content
+        assert "validates the stage artifacts" in content.lower()
 
 
 def test_planning_templates_preserve_state_and_artifact_outcome_requirements() -> None:

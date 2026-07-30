@@ -116,10 +116,9 @@ def test_map_scan_template_defines_complete_scan_package_contract() -> None:
         "provisional nodes, provisional edges, observations, path_index, or alias_index"
     ) in content
     assert "`.specify/**` workflow/runtime state is excluded from default source/runtime scan targets" in content
-    assert (
-        "only read `.specify/**` for workflow operation, validation, migration, or when the requested scan "
-        "is explicitly about generated workflow surfaces or spec-kit-plus itself"
-    ) in lowered
+    assert "access registered `.specify/**` workflow artifacts only through their `specify-runtime` owners" in lowered
+    assert "direct file reads are limited to installed static templates/scripts" in lowered
+    assert "never raw-read state, handoff, task, evidence, lease, or ledger artifacts" in lowered
     assert "specify-runtime cognition validate-scan --format json" in content
     assert "validate-scan" in lowered
     assert "may report complete only after" in lowered
@@ -139,8 +138,10 @@ def test_map_scan_template_defines_complete_scan_package_contract() -> None:
     assert "accepted packet-local path results" in lowered
     assert "runtime-generated packet-local task ledger and result skeleton" in lowered
     assert "do not reproduce a stable json schema in the prompt" in lowered
-    assert "copy the supplied json skeleton" in lowered
-    assert "write only the designated packet-local pending result" in lowered
+    assert "worker returns concrete outcomes as one in-memory object" in lowered
+    assert "scan-checkpoint --result-json '<inline-json>'" in lowered
+    assert "the cli alone materializes the designated pending result" in lowered
+    assert "do not reproduce a stable json schema in the prompt or create a temporary result file" in lowered
     assert "must not self-declare `acceptance: pass`" in lowered
     assert "worker-authored `acceptance` remains `partial`" in lowered
     assert "the runtime derives `pass` only after `scan-accept` validates" in lowered
@@ -205,7 +206,8 @@ def test_map_scan_template_defines_complete_scan_package_contract() -> None:
     assert "specify-runtime cognition scan-set --out .specify/project-cognition/tmp/scan-files.json --format json" in scan_shell
     assert "default stdout is compact json" in scan_shell_lowered
     assert "handoff file is a temporary agent-facing scan-set containing only `files`" in scan_shell_lowered
-    assert "review `.specify/project-cognition/.cognitionignore`" in scan_shell_lowered
+    assert "returned `suggested_patterns`" in scan_shell_lowered
+    assert "do not open `.specify/project-cognition/.cognitionignore` directly" in scan_shell_lowered
     assert "wait for confirmation" in scan_shell_lowered
     assert "passive learning files as read-only workflow guidance, not scan evidence" in scan_shell_lowered
     assert "`.specify/**` is workflow/runtime state, not project graph evidence" in scan_shell
@@ -226,23 +228,24 @@ def test_passive_subagent_guidance_uses_path_level_gap_outcomes() -> None:
 def test_map_build_template_refuses_incomplete_scan_packages() -> None:
     content = _read("templates/commands/map-build.md")
     lowered = content.lower()
+    normalized = " ".join(lowered.split())
 
     assert "sp-map-build" in content
     assert "sp-map-scan" in content
     assert "coverage-ledger.json" in content
-    assert ".specify/project-cognition/workbench/scan-queue.json" in content
-    assert ".specify/project-cognition/workbench/handoff-ledger.json" in content
+    assert "status, evidence, provisional graph, coverage, repository-universe, target, ledger, queue, packet, and worker-result stores" in normalized
+    assert "do not enumerate or open those stores" in normalized
     assert "scan-packets" in content
-    assert "begins with validation, not writing" in lowered
+    assert "start with validation, not writing" in lowered
     assert "must not guess and continue" in lowered
-    assert "Project Cognition Workbench State Protocol" in content
-    assert "Validate Scan Inputs Before Execution" in content
+    assert "update map workbench state only through" in lowered
+    assert "validate scan inputs before execution" in lowered
     assert "Compile And Validate MapBuildPacket Inputs" not in content
     assert "do not rebuild the scan from chat memory" in lowered
-    assert "coverage-ledger.json` as the machine-readable row source" in content
+    assert "`coverage-ledger.json` as the machine-readable row source" in content
     assert "MapBuildPacket" not in content
     assert "raw scan prose or raw Markdown checklist items alone" in content
-    assert ".specify/project-cognition/workbench/worker-results/<packet-id>.json" in content
+    assert ".specify/project-cognition/workbench/worker-results/<packet-id>.json" not in content
     assert "scan gap report" in lowered
     assert "packet results without paths read" in lowered
     assert "packet results that only summarize without evidence" in lowered
@@ -341,9 +344,10 @@ def test_map_scan_worker_contract_requires_runtime_skeleton_and_partial_acceptan
     content = _read("templates/advanced-skills/spx-map-scan/references/scan-worker.md")
     lowered = " ".join(content.lower().split())
 
-    assert "pending-results/<packet-id>.json" in content
-    assert "copy the supplied json skeleton" in lowered
-    assert "write only the designated packet-local pending result" in lowered
+    assert "fill the supplied result shape in memory" in lowered
+    assert "scan-checkpoint --result-json" in lowered
+    assert "the runtime alone materializes pending-result and checkpoint files" in lowered
+    assert "never create or edit them" in lowered
     assert "keep worker-authored `acceptance` at `partial`" in lowered
     assert "the runtime derives `pass` only after `scan-accept` validates the full result" in lowered
     assert "do not self-declare `acceptance: pass`" in lowered
@@ -424,7 +428,7 @@ def test_map_build_template_requires_truth_layer_outputs() -> None:
     lowered = content.lower()
 
     assert ".specify/project-cognition/project-cognition.db" in content
-    assert "queryable task-oriented cognition bundles" in lowered
+    assert "queryable task-oriented bundles" in lowered
     assert "consequence substrate synthesis" in lowered
     assert "lifecycle/state edges" in lowered
     assert "shared-state and destructive-operation edges" in lowered
@@ -529,7 +533,8 @@ def test_map_scan_template_requires_packet_ledger_contract() -> None:
     assert "runtime-generated packet-local task ledger" in lowered
     assert "paths_read" in content
     assert "non-empty set of concrete completed path results" in lowered
-    assert "path outcomes and confidence" in lowered
+    assert "non-empty set of concrete completed path results" in lowered
+    assert "`confidence`" in content
     assert "paths_read: true" in lowered
     assert "boolean read flags are invalid" in lowered
     assert "existing `evidence_ids`" in lowered
@@ -568,7 +573,7 @@ def test_map_scan_template_uses_runtime_owned_context_budgeted_dispatch() -> Non
     assert "effective worker context budget" in lowered
     assert "estimated token cost" in lowered
     assert "path count and byte limits are secondary guards" in lowered
-    assert "cli-generated self-contained task brief" in lowered
+    assert "self-contained task brief returned by `scan-lease`" in lowered
     assert "minimum inherited conversation context" in lowered
     assert "assigned paths minus runtime-accepted terminal paths" in lowered
     assert "dispatch a new subagent for the remaining paths" in lowered
@@ -587,7 +592,7 @@ def test_map_scan_worker_prompt_is_checkpointed_and_packet_local() -> None:
     lowered = " ".join(content.lower().split())
 
     assert ".specify/templates/worker-prompts/map-scan-worker.md" in scan_command
-    assert "cli-generated self-contained task brief" in lowered
+    assert "self-contained task brief returned by `specify-runtime cognition scan-packet`" in lowered
     assert "minimum inherited conversation context" in lowered
     assert "assigned_paths" in content
     assert "effective context budget" in lowered

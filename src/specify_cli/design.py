@@ -1,14 +1,19 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from dataclasses import dataclass
 import hashlib
 from html.parser import HTMLParser
 import json
 import re
+import tempfile
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlencode
 
 import yaml
+from jinja2 import Environment, FileSystemLoader, StrictUndefined, TemplateError
+from jsonschema import Draft202012Validator
 
 from .atomic_io import atomic_write_text
 
@@ -46,8 +51,12 @@ SUPPORTED_LINT_LEVELS = {"structural", "ready"}
 DESIGN_PREVIEW_SCHEMA = "spec-kit-design-preview-v1"
 DESIGN_PREVIEW_MANIFEST_SCHEMA = "spec-kit-design-preview-manifest-v1"
 DESIGN_PREVIEW_APPROVAL_SCHEMA = "spec-kit-design-preview-approval-v1"
+DESIGN_HANDOFF_SCHEMA = "spec-kit-design-handoff-v1"
+DESIGN_CAPABILITY_PROFILES_SCHEMA = "spec-kit-design-capability-profiles-v1"
+DESIGN_CAPABILITY_MODEL_SCHEMA = "spec-kit-design-capability-model-v1"
 DESIGN_PREVIEW_MANIFEST_ID = "design-preview-manifest"
 DESIGN_PREVIEW_DIRECTION_RE = re.compile(r"^direction-[a-z0-9][a-z0-9-]*$")
+DESIGN_SPECIMEN_ID_RE = re.compile(r"^SP-[A-Z0-9]+(?:-[A-Z0-9]+)+$")
 DESIGN_PREVIEW_REQUIRED_SECTIONS = (
     "foundations",
     "components",
@@ -61,6 +70,13 @@ DESIGN_PREVIEW_REMOTE_RE = re.compile(r"(?i)(?:https?:)?//")
 DESIGN_PREVIEW_NETWORK_SCRIPT_RE = re.compile(
     r"(?i)\b(?:fetch|XMLHttpRequest|WebSocket|EventSource)\s*\("
 )
+DESIGN_HANDOFF_ID_RE = re.compile(r"^DH-[A-Z0-9]+(?:-[A-Z0-9]+)+$")
+DESIGN_HANDOFF_REQUIRED_EVIDENCE = {
+    "structure_snapshot",
+    "visual_capture",
+    "runtime_diagnostics",
+    "visual_comparison_or_human_review",
+}
 UI_TARGET_SCHEMA = "spec-kit-ui-target-v1"
 UI_TARGET_MANIFEST_SCHEMA = "spec-kit-ui-target-manifest-v1"
 UI_TARGET_MANIFEST_ID = "ui-target-manifest"
@@ -100,6 +116,8 @@ class _DesignPreviewHTMLParser(HTMLParser):
         self.preview_attrs: dict[str, str] = {}
         self.direction_ids: list[str] = []
         self.direction_anchor_ids: list[str] = []
+        self.element_ids: set[str] = set()
+        self.fragment_references: list[str] = []
         self.sections: set[str] = set()
         self.external_dependencies: list[str] = []
         self.style_parts: list[str] = []
@@ -123,6 +141,13 @@ class _DesignPreviewHTMLParser(HTMLParser):
             self.html_lang = normalized_attrs.get("lang", "").strip()
         if "data-design-preview-schema" in normalized_attrs:
             self.preview_attrs = normalized_attrs
+
+        element_id = normalized_attrs.get("id", "").strip()
+        if element_id:
+            self.element_ids.add(element_id)
+        href = normalized_attrs.get("href", "").strip()
+        if href.startswith("#") and len(href) > 1:
+            self.fragment_references.append(href[1:])
 
         direction_id = normalized_attrs.get("data-direction-id", "").strip()
         if direction_id:
@@ -268,6 +293,12 @@ def design_preview_approval_path(path: Path) -> Path:
     return path.with_suffix(".approval.json")
 
 
+def design_preview_handoff_path(path: Path) -> Path:
+    """Return the immutable implementation handoff path for one preview round."""
+
+    return path.with_suffix(".handoff.json")
+
+
 def _sha256_bytes(content: bytes) -> str:
     return hashlib.sha256(content).hexdigest()
 
@@ -280,6 +311,269 @@ def _canonical_json_sha256(payload: Any) -> str:
         separators=(",", ":"),
     ).encode("utf-8")
     return _sha256_bytes(content)
+
+
+def _locate_design_schema(name: str) -> Path:
+    package_schema = Path(__file__).parent / "core_pack" / "templates" / name
+    if package_schema.is_file():
+        return package_schema
+    return Path(__file__).parents[2] / "templates" / name
+
+
+def _load_design_capability_registry() -> dict[str, Any]:
+    path = _locate_design_schema("design-capability-profiles.json")
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise DesignLintError(
+            f"cannot load design capability profiles {path}: {exc}"
+        ) from exc
+    if not isinstance(payload, dict) or payload.get("schema") != (
+        DESIGN_CAPABILITY_PROFILES_SCHEMA
+    ):
+        raise DesignLintError(
+            "design capability profile registry has an invalid schema"
+        )
+    profiles = payload.get("profiles")
+    if not isinstance(profiles, list) or not profiles:
+        raise DesignLintError("design capability profile registry has no profiles")
+    return payload
+
+
+def design_capability_profiles() -> list[dict[str, Any]]:
+    """Return the deterministic project-surface profile catalog."""
+
+    registry = _load_design_capability_registry()
+    return [
+        deepcopy(profile)
+        for profile in registry["profiles"]
+        if isinstance(profile, dict)
+    ]
+
+
+def parse_design_capability_profile_ids(value: str) -> list[str]:
+    """Normalize a comma-separated profile selection without hiding duplicates."""
+
+    profile_ids = [part.strip().lower() for part in value.split(",") if part.strip()]
+    if not profile_ids:
+        raise DesignLintError("at least one design capability profile is required")
+    if len(profile_ids) != len(set(profile_ids)):
+        raise DesignLintError("design capability profiles must be unique")
+    return profile_ids
+
+
+def _ordered_union(*collections: Any) -> list[str]:
+    values: list[str] = []
+    seen: set[str] = set()
+    for collection in collections:
+        if not isinstance(collection, list):
+            continue
+        for raw in collection:
+            value = str(raw).strip()
+            if value and value not in seen:
+                values.append(value)
+                seen.add(value)
+    return values
+
+
+def _selected_design_capability_profiles(
+    profile_ids: list[str],
+) -> list[dict[str, Any]]:
+    registry = _load_design_capability_registry()
+    profiles_by_id = {
+        str(profile.get("id") or "").strip(): profile
+        for profile in registry["profiles"]
+        if isinstance(profile, dict)
+    }
+    unknown = [profile_id for profile_id in profile_ids if profile_id not in profiles_by_id]
+    if unknown:
+        raise DesignLintError(
+            "unknown design capability profiles: "
+            + ", ".join(unknown)
+            + "; choose from "
+            + ", ".join(profiles_by_id)
+        )
+    selected = [profiles_by_id[profile_id] for profile_id in profile_ids]
+    nonvisual = [
+        str(profile.get("id") or "")
+        for profile in selected
+        if profile.get("preview_required") is not True
+    ]
+    if nonvisual:
+        if len(selected) > 1:
+            raise DesignLintError(
+                "no-ui cannot be combined with visual design capability profiles"
+            )
+        exit_contract = str(selected[0].get("exit_contract") or "").strip()
+        raise DesignLintError(
+            "profile no-ui has no visual design surface; " + exit_contract
+        )
+    return selected
+
+
+def _apply_design_capability_profiles(
+    manifest: dict[str, Any],
+    profile_ids: list[str],
+) -> None:
+    """Project deterministic capability, specimen, and evidence contracts."""
+
+    profiles = _selected_design_capability_profiles(profile_ids)
+    specimens: list[dict[str, Any]] = []
+    for profile in profiles:
+        profile_id = str(profile["id"])
+        for raw in profile.get("specimens") or []:
+            specimen = deepcopy(raw)
+            specimen["profile_id"] = profile_id
+            specimens.append(specimen)
+
+    capability_ids = _ordered_union(
+        *(profile.get("capability_ids") for profile in profiles)
+    )
+    input_modes = _ordered_union(*(profile.get("input_modes") for profile in profiles))
+    measurement_units = _ordered_union(
+        *(profile.get("measurement_units") for profile in profiles)
+    )
+    manifest["capability_model"] = {
+        "schema": DESIGN_CAPABILITY_MODEL_SCHEMA,
+        "profile_ids": profile_ids,
+        "profiles": [
+            {
+                "id": str(profile["id"]),
+                "label": str(profile["label"]),
+                "summary": str(profile["summary"]),
+                "input_modes": deepcopy(profile.get("input_modes")),
+                "measurement_units": deepcopy(profile.get("measurement_units")),
+            }
+            for profile in profiles
+        ],
+        "capability_ids": capability_ids,
+        "input_modes": input_modes,
+        "measurement_units": measurement_units,
+        "specimens": specimens,
+    }
+
+    project = manifest.get("project")
+    if isinstance(project, dict):
+        project["platforms"] = profile_ids
+
+    specimen_ids = [str(specimen["id"]) for specimen in specimens]
+    for direction in manifest.get("directions") or []:
+        if isinstance(direction, dict):
+            direction["specimen_ids"] = specimen_ids
+
+    decision_ids = [
+        str(decision.get("id") or "").strip()
+        for decision in manifest.get("decisions") or []
+        if isinstance(decision, dict) and str(decision.get("id") or "").strip()
+    ]
+    handoff = manifest.get("handoff")
+    if not isinstance(handoff, dict):
+        handoff = {}
+        manifest["handoff"] = handoff
+    handoff["reproduction_mode"] = (
+        "exact" if profile_ids == ["web"] else "platform-adapted"
+    )
+
+    component_contracts: list[dict[str, Any]] = []
+    responsive_matrix: list[dict[str, Any]] = []
+    acceptance_matrix: list[dict[str, Any]] = []
+    for profile in profiles:
+        profile_id = str(profile["id"])
+        profile_specimens = [
+            specimen for specimen in specimens if specimen["profile_id"] == profile_id
+        ]
+        profile_specimen_ids = [str(specimen["id"]) for specimen in profile_specimens]
+        required_states = _ordered_union(
+            *(specimen.get("required_states") for specimen in profile_specimens)
+        )
+        contract = deepcopy(profile.get("component_contract"))
+        if isinstance(contract, dict):
+            contract["required_states"] = required_states
+            contract["decision_ids"] = decision_ids
+            component_contracts.append(contract)
+
+        for target in profile.get("targets") or []:
+            if not isinstance(target, dict):
+                continue
+            target_id = str(target.get("id") or "").strip()
+            responsive_matrix.append(
+                {
+                    "id": target_id,
+                    "profile_id": profile_id,
+                    "label": str(target.get("label") or "").strip(),
+                    "target": deepcopy(target.get("target")),
+                    "review_width_px": target.get("review_width_px"),
+                    "state": "default",
+                    "adaptation": str(target.get("adaptation") or "").strip(),
+                    "decision_ids": decision_ids,
+                }
+            )
+            acceptance_matrix.append(
+                {
+                    "id": str(target.get("acceptance_id") or "").strip(),
+                    "target_id": target_id,
+                    "specimen_ids": profile_specimen_ids,
+                    "states": required_states,
+                    "color_modes": deepcopy(profile.get("color_modes")),
+                    "motion_modes": deepcopy(profile.get("motion_modes")),
+                    "decision_ids": decision_ids,
+                    "must_match": [
+                        "structure",
+                        "geometry",
+                        "tokens",
+                        "content",
+                        "state",
+                        "motion",
+                    ],
+                    "evidence": [
+                        "structure_snapshot",
+                        "visual_capture",
+                        "runtime_diagnostics",
+                        "visual_comparison_or_human_review",
+                    ],
+                }
+            )
+    handoff["component_contracts"] = component_contracts
+    handoff["responsive_matrix"] = responsive_matrix
+    handoff["visual_acceptance_matrix"] = acceptance_matrix
+
+
+def _json_schema_diagnostics(
+    payload: Any,
+    *,
+    schema_name: str,
+    code: str,
+    root_path: str,
+) -> list[DesignDiagnostic]:
+    """Return stable field-addressed diagnostics from a bundled JSON Schema."""
+
+    diagnostics: list[DesignDiagnostic] = []
+    schema_path = _locate_design_schema(schema_name)
+    try:
+        schema = json.loads(schema_path.read_text(encoding="utf-8"))
+        validator = Draft202012Validator(schema)
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError, TypeError) as exc:
+        return [
+            DesignDiagnostic(
+                code,
+                f"cannot load {schema_name}: {exc}",
+                str(schema_path),
+            )
+        ]
+
+    errors = sorted(
+        validator.iter_errors(payload),
+        key=lambda item: tuple(str(part) for part in item.absolute_path),
+    )
+    for error in errors:
+        suffix = "".join(
+            f"[{part}]" if isinstance(part, int) else f".{part}"
+            for part in error.absolute_path
+        )
+        diagnostics.append(
+            DesignDiagnostic(code, error.message, f"{root_path}{suffix}")
+        )
+    return diagnostics
 
 
 def _parse_preview_manifest(
@@ -328,6 +622,344 @@ def _contrast_ratio(foreground: str, background: str) -> float | None:
     return (lighter + 0.05) / (darker + 0.05)
 
 
+def _capability_model_diagnostics(
+    manifest: dict[str, Any],
+    *,
+    directions: list[Any],
+    ready: bool,
+) -> list[DesignDiagnostic]:
+    diagnostics: list[DesignDiagnostic] = []
+    model = manifest.get("capability_model")
+    if not isinstance(model, dict):
+        _add_diagnostic(
+            diagnostics,
+            "preview-missing-capability-model",
+            "preview manifest must define a platform capability model",
+            "manifest.capability_model",
+        )
+        return diagnostics
+    if model.get("schema") != DESIGN_CAPABILITY_MODEL_SCHEMA:
+        _add_diagnostic(
+            diagnostics,
+            "preview-invalid-capability-model-schema",
+            f"capability model schema must equal {DESIGN_CAPABILITY_MODEL_SCHEMA}",
+            "manifest.capability_model.schema",
+        )
+
+    try:
+        registry_profiles = design_capability_profiles()
+    except DesignLintError as exc:
+        _add_diagnostic(
+            diagnostics,
+            "preview-capability-registry-error",
+            str(exc),
+            "manifest.capability_model",
+        )
+        return diagnostics
+    profiles_by_id = {
+        str(profile.get("id") or "").strip(): profile
+        for profile in registry_profiles
+    }
+    profile_ids = [
+        str(profile_id).strip()
+        for profile_id in model.get("profile_ids") or []
+        if str(profile_id).strip()
+    ]
+    if not profile_ids:
+        _add_diagnostic(
+            diagnostics,
+            "preview-missing-capability-profile",
+            "capability model must select at least one profile",
+            "manifest.capability_model.profile_ids",
+        )
+        return diagnostics
+    profile_contract_ids = [
+        str(profile.get("id") or "").strip()
+        for profile in model.get("profiles") or []
+        if isinstance(profile, dict)
+    ]
+    if profile_contract_ids != profile_ids:
+        _add_diagnostic(
+            diagnostics,
+            "preview-profile-contract-mismatch",
+            "capability profile contracts must match profile_ids in order",
+            "manifest.capability_model.profiles",
+        )
+    unknown_profiles = [
+        profile_id for profile_id in profile_ids if profile_id not in profiles_by_id
+    ]
+    if unknown_profiles:
+        _add_diagnostic(
+            diagnostics,
+            "preview-unknown-capability-profile",
+            "unknown capability profiles: " + ", ".join(unknown_profiles),
+            "manifest.capability_model.profile_ids",
+        )
+    if "no-ui" in profile_ids:
+        message = (
+            "no-ui cannot be combined with visual profiles"
+            if len(profile_ids) > 1
+            else (
+                "no-ui work must record design_system_status not-applicable with "
+                "current evidence and skip preview, approval, handoff, ui-target, "
+                "and visual comparison"
+            )
+        )
+        _add_diagnostic(
+            diagnostics,
+            "preview-nonvisual-profile",
+            message,
+            "manifest.capability_model.profile_ids",
+        )
+        return diagnostics
+    selected_profiles = [
+        profiles_by_id[profile_id]
+        for profile_id in profile_ids
+        if profile_id in profiles_by_id
+    ]
+
+    declared_capabilities = {
+        str(value).strip()
+        for value in model.get("capability_ids") or []
+        if str(value).strip()
+    }
+    declared_inputs = {
+        str(value).strip()
+        for value in model.get("input_modes") or []
+        if str(value).strip()
+    }
+    declared_units = {
+        str(value).strip()
+        for value in model.get("measurement_units") or []
+        if str(value).strip()
+    }
+    required_capabilities = {
+        str(value).strip()
+        for profile in selected_profiles
+        for value in profile.get("capability_ids") or []
+        if str(value).strip()
+    }
+    required_inputs = {
+        str(value).strip()
+        for profile in selected_profiles
+        for value in profile.get("input_modes") or []
+        if str(value).strip()
+    }
+    required_units = {
+        str(value).strip()
+        for profile in selected_profiles
+        for value in profile.get("measurement_units") or []
+        if str(value).strip()
+    }
+    for code, label, missing, path in (
+        (
+            "preview-missing-profile-capability",
+            "capabilities",
+            required_capabilities - declared_capabilities,
+            "manifest.capability_model.capability_ids",
+        ),
+        (
+            "preview-missing-profile-input",
+            "input modes",
+            required_inputs - declared_inputs,
+            "manifest.capability_model.input_modes",
+        ),
+        (
+            "preview-missing-profile-unit",
+            "measurement units",
+            required_units - declared_units,
+            "manifest.capability_model.measurement_units",
+        ),
+    ):
+        if missing:
+            _add_diagnostic(
+                diagnostics,
+                code,
+                f"selected profiles require {label}: " + ", ".join(sorted(missing)),
+                path,
+            )
+
+    content = manifest.get("content")
+    content = content if isinstance(content, dict) else {}
+    specimens = model.get("specimens")
+    if not isinstance(specimens, list) or not specimens:
+        _add_diagnostic(
+            diagnostics,
+            "preview-missing-capability-specimens",
+            "visual capability profiles require concrete specimens",
+            "manifest.capability_model.specimens",
+        )
+        return diagnostics
+    specimen_ids: list[str] = []
+    specimen_capabilities: set[str] = set()
+    specimen_ids_by_profile: dict[str, list[str]] = {
+        profile_id: [] for profile_id in profile_ids
+    }
+    specimen_kinds_by_profile: dict[str, set[str]] = {
+        profile_id: set() for profile_id in profile_ids
+    }
+    for index, specimen in enumerate(specimens):
+        if not isinstance(specimen, dict):
+            continue
+        specimen_id = str(specimen.get("id") or "").strip()
+        specimen_ids.append(specimen_id)
+        if not DESIGN_SPECIMEN_ID_RE.fullmatch(specimen_id):
+            _add_diagnostic(
+                diagnostics,
+                "preview-invalid-specimen-id",
+                "specimen IDs must use the stable SP-<PROFILE>-<KIND>-<NUMBER> form",
+                f"manifest.capability_model.specimens[{index}].id",
+            )
+        profile_id = str(specimen.get("profile_id") or "").strip()
+        if profile_id not in profile_ids:
+            _add_diagnostic(
+                diagnostics,
+                "preview-specimen-profile-mismatch",
+                "specimen profile_id must reference a selected capability profile",
+                f"manifest.capability_model.specimens[{index}].profile_id",
+            )
+        else:
+            specimen_ids_by_profile[profile_id].append(specimen_id)
+            specimen_kinds_by_profile[profile_id].add(
+                str(specimen.get("kind") or "").strip()
+            )
+        capabilities = {
+            str(value).strip()
+            for value in specimen.get("capability_ids") or []
+            if str(value).strip()
+        }
+        specimen_capabilities.update(capabilities)
+        unknown_capabilities = capabilities - declared_capabilities
+        if unknown_capabilities:
+            _add_diagnostic(
+                diagnostics,
+                "preview-unknown-specimen-capability",
+                "specimen references undeclared capabilities: "
+                + ", ".join(sorted(unknown_capabilities)),
+                f"manifest.capability_model.specimens[{index}].capability_ids",
+            )
+        if ready:
+            missing_content = [
+                str(key).strip()
+                for key in specimen.get("content_keys") or []
+                if not isinstance(content.get(str(key).strip()), str)
+                or not str(content.get(str(key).strip()) or "").strip()
+            ]
+            if missing_content:
+                _add_diagnostic(
+                    diagnostics,
+                    "preview-missing-specimen-content",
+                    "ready specimen requires representative content keys: "
+                    + ", ".join(missing_content),
+                    f"manifest.capability_model.specimens[{index}].content_keys",
+                )
+    if len(specimen_ids) != len(set(specimen_ids)):
+        _add_diagnostic(
+            diagnostics,
+            "preview-duplicate-specimen-id",
+            "capability specimen IDs must be unique",
+            "manifest.capability_model.specimens",
+        )
+    uncovered_capabilities = declared_capabilities - specimen_capabilities
+    if uncovered_capabilities:
+        _add_diagnostic(
+            diagnostics,
+            "preview-uncovered-capability",
+            "every declared capability must be demonstrated by a specimen: "
+            + ", ".join(sorted(uncovered_capabilities)),
+            "manifest.capability_model.specimens",
+        )
+    for profile in selected_profiles:
+        profile_id = str(profile.get("id") or "")
+        required_kinds = {
+            str(specimen.get("kind") or "").strip()
+            for specimen in profile.get("specimens") or []
+            if isinstance(specimen, dict)
+        }
+        missing_kinds = required_kinds - specimen_kinds_by_profile.get(
+            profile_id, set()
+        )
+        if missing_kinds:
+            _add_diagnostic(
+                diagnostics,
+                "preview-missing-profile-specimen",
+                f"profile {profile_id} requires specimen kinds: "
+                + ", ".join(sorted(missing_kinds)),
+                "manifest.capability_model.specimens",
+            )
+
+    for index, direction in enumerate(directions):
+        if not isinstance(direction, dict):
+            continue
+        direction_specimens = direction.get("specimen_ids")
+        if direction_specimens != specimen_ids:
+            _add_diagnostic(
+                diagnostics,
+                "preview-direction-specimen-mismatch",
+                "all directions must cover the same ordered capability specimens",
+                f"manifest.directions[{index}].specimen_ids",
+            )
+
+    handoff = manifest.get("handoff")
+    handoff = handoff if isinstance(handoff, dict) else {}
+    targets = handoff.get("responsive_matrix")
+    acceptance = handoff.get("visual_acceptance_matrix")
+    target_profiles: dict[str, str] = {}
+    covered_target_profiles: set[str] = set()
+    for index, target in enumerate(targets or []):
+        if not isinstance(target, dict):
+            continue
+        target_id = str(target.get("id") or "").strip()
+        profile_id = str(target.get("profile_id") or "").strip()
+        target_profiles[target_id] = profile_id
+        if profile_id not in profile_ids:
+            _add_diagnostic(
+                diagnostics,
+                "preview-target-profile-mismatch",
+                "presentation target profile_id must reference a selected profile",
+                f"manifest.handoff.responsive_matrix[{index}].profile_id",
+            )
+        else:
+            covered_target_profiles.add(profile_id)
+    missing_target_profiles = set(profile_ids) - covered_target_profiles
+    if missing_target_profiles:
+        _add_diagnostic(
+            diagnostics,
+            "preview-missing-profile-target",
+            "every selected profile requires a presentation target: "
+            + ", ".join(sorted(missing_target_profiles)),
+            "manifest.handoff.responsive_matrix",
+        )
+
+    accepted_specimens: set[str] = set()
+    for index, row in enumerate(acceptance or []):
+        if not isinstance(row, dict):
+            continue
+        target_id = str(row.get("target_id") or "").strip()
+        profile_id = target_profiles.get(target_id, "")
+        expected_specimens = specimen_ids_by_profile.get(profile_id, [])
+        actual_specimens = row.get("specimen_ids")
+        if actual_specimens != expected_specimens:
+            _add_diagnostic(
+                diagnostics,
+                "preview-acceptance-specimen-mismatch",
+                "visual acceptance row must exactly bind its profile specimens",
+                f"manifest.handoff.visual_acceptance_matrix[{index}].specimen_ids",
+            )
+        if isinstance(actual_specimens, list):
+            accepted_specimens.update(str(value).strip() for value in actual_specimens)
+    missing_accepted_specimens = set(specimen_ids) - accepted_specimens
+    if missing_accepted_specimens:
+        _add_diagnostic(
+            diagnostics,
+            "preview-incomplete-specimen-acceptance",
+            "visual acceptance must cover every capability specimen: "
+            + ", ".join(sorted(missing_accepted_specimens)),
+            "manifest.handoff.visual_acceptance_matrix",
+        )
+    return diagnostics
+
+
 def _preview_manifest_diagnostics(
     manifest: dict[str, Any] | None,
     *,
@@ -351,6 +983,14 @@ def _preview_manifest_diagnostics(
             f"preview manifest schema must equal {DESIGN_PREVIEW_MANIFEST_SCHEMA}",
             "manifest.schema",
         )
+    diagnostics.extend(
+        _json_schema_diagnostics(
+            manifest,
+            schema_name="design-preview-manifest.schema.json",
+            code="preview-manifest-schema-error",
+            root_path="manifest",
+        )
+    )
 
     configured = manifest.get("configured")
     if ready and configured is not True:
@@ -470,6 +1110,26 @@ def _preview_manifest_diagnostics(
                 f"manifest.directions[{index}].motion",
             )
 
+        density = direction.get("density")
+        density_scale = density.get("scale") if isinstance(density, dict) else None
+        if (
+            not isinstance(density, dict)
+            or not str(density.get("space_unit") or "").strip()
+            or not str(density.get("label") or "").strip()
+            or isinstance(density_scale, bool)
+            or not isinstance(density_scale, (int, float))
+            or density_scale <= 0
+        ):
+            _add_diagnostic(
+                diagnostics,
+                "preview-invalid-density-system",
+                (
+                    f"direction {direction_id or index + 1} must define density "
+                    "space_unit, label, and a positive numeric scale"
+                ),
+                f"manifest.directions[{index}].density",
+            )
+
         modes = direction.get("modes")
         if not isinstance(modes, dict):
             _add_diagnostic(
@@ -514,6 +1174,14 @@ def _preview_manifest_diagnostics(
                             f"{mode_name}.{foreground_key}"
                         ),
                     )
+
+    diagnostics.extend(
+        _capability_model_diagnostics(
+            manifest,
+            directions=directions,
+            ready=ready,
+        )
+    )
 
     review = manifest.get("review")
     if not isinstance(review, dict):
@@ -593,7 +1261,7 @@ def _preview_manifest_diagnostics(
                 "design decision IDs must use a stable DS-<KIND>-<NUMBER> form",
                 f"manifest.decisions[{index}].id",
             )
-        for field in ("kind", "title", "verification"):
+        for field in ("kind", "title", "statement", "source_ref", "verification"):
             if not str(decision.get(field) or "").strip():
                 _add_diagnostic(
                     diagnostics,
@@ -601,6 +1269,17 @@ def _preview_manifest_diagnostics(
                     f"design decision {decision_id or index + 1} must define {field}",
                     f"manifest.decisions[{index}].{field}",
                 )
+        affected_surfaces = decision.get("affected_surfaces")
+        if not isinstance(affected_surfaces, list) or not affected_surfaces or any(
+            not isinstance(item, str) or not item.strip()
+            for item in affected_surfaces
+        ):
+            _add_diagnostic(
+                diagnostics,
+                "preview-incomplete-decision",
+                f"design decision {decision_id or index + 1} must define affected_surfaces",
+                f"manifest.decisions[{index}].affected_surfaces",
+            )
     if len(set(decision_ids)) != len(decision_ids):
         _add_diagnostic(
             diagnostics,
@@ -610,6 +1289,7 @@ def _preview_manifest_diagnostics(
         )
 
     token_map = manifest.get("token_map")
+    mapped_decision_ids: set[str] = set()
     if not isinstance(token_map, list) or not token_map:
         _add_diagnostic(
             diagnostics,
@@ -627,14 +1307,31 @@ def _preview_manifest_diagnostics(
                     f"manifest.token_map[{index}]",
                 )
                 continue
-            if str(entry.get("decision_id") or "").strip() not in decision_ids:
+            mapped_decision_id = str(entry.get("decision_id") or "").strip()
+            if mapped_decision_id not in decision_ids:
                 _add_diagnostic(
                     diagnostics,
                     "preview-unknown-token-map-decision",
                     "token map decision_id must reference manifest.decisions",
                     f"manifest.token_map[{index}].decision_id",
                 )
-            for field in ("preview_token", "production_owner", "verification"):
+            else:
+                mapped_decision_ids.add(mapped_decision_id)
+            binding_id = str(entry.get("id") or "").strip()
+            if not DESIGN_HANDOFF_ID_RE.fullmatch(binding_id):
+                _add_diagnostic(
+                    diagnostics,
+                    "preview-invalid-handoff-id",
+                    "implementation binding IDs must use a stable DH-<KIND>-<NUMBER> form",
+                    f"manifest.token_map[{index}].id",
+                )
+            for field in (
+                "source_path",
+                "preview_token",
+                "production_owner",
+                "production_target",
+                "verification",
+            ):
                 if not str(entry.get(field) or "").strip():
                     _add_diagnostic(
                         diagnostics,
@@ -642,6 +1339,407 @@ def _preview_manifest_diagnostics(
                         f"token map entry must define {field}",
                         f"manifest.token_map[{index}].{field}",
                     )
+    if ready:
+        unmapped_decision_ids = [
+            decision_id
+            for decision_id in decision_ids
+            if decision_id and decision_id not in mapped_decision_ids
+        ]
+        if unmapped_decision_ids:
+            _add_diagnostic(
+                diagnostics,
+                "preview-unmapped-decision",
+                (
+                    "ready preview must map every design decision to an "
+                    "implementation owner; missing " + ", ".join(unmapped_decision_ids)
+                ),
+                "manifest.token_map",
+            )
+
+    handoff = manifest.get("handoff")
+    if not isinstance(handoff, dict):
+        _add_diagnostic(
+            diagnostics,
+            "preview-missing-handoff-contract",
+            "preview manifest must define an implementation-grade handoff contract",
+            "manifest.handoff",
+        )
+        return diagnostics
+
+    component_contracts = handoff.get("component_contracts")
+    responsive_matrix = handoff.get("responsive_matrix")
+    acceptance_matrix = handoff.get("visual_acceptance_matrix")
+    contract_collections = (
+        ("component_contracts", component_contracts),
+        ("responsive_matrix", responsive_matrix),
+        ("visual_acceptance_matrix", acceptance_matrix),
+    )
+    handoff_ids = [
+        str(entry.get("id") or "").strip()
+        for entry in token_map or []
+        if isinstance(entry, dict)
+    ]
+    for field, entries in contract_collections:
+        if not isinstance(entries, list) or not entries:
+            _add_diagnostic(
+                diagnostics,
+                "preview-incomplete-handoff-contract",
+                f"preview handoff {field} must be a non-empty list",
+                f"manifest.handoff.{field}",
+            )
+            continue
+        for index, entry in enumerate(entries):
+            if not isinstance(entry, dict):
+                continue
+            contract_id = str(entry.get("id") or "").strip()
+            handoff_ids.append(contract_id)
+            if not DESIGN_HANDOFF_ID_RE.fullmatch(contract_id):
+                _add_diagnostic(
+                    diagnostics,
+                    "preview-invalid-handoff-id",
+                    "handoff contract IDs must use a stable DH-<KIND>-<NUMBER> form",
+                    f"manifest.handoff.{field}[{index}].id",
+                )
+            referenced_decisions = entry.get("decision_ids")
+            if not isinstance(referenced_decisions, list) or not referenced_decisions:
+                _add_diagnostic(
+                    diagnostics,
+                    "preview-unbound-handoff-contract",
+                    "handoff contract entries must reference approved DS-* decisions",
+                    f"manifest.handoff.{field}[{index}].decision_ids",
+                )
+            elif any(item not in decision_ids for item in referenced_decisions):
+                _add_diagnostic(
+                    diagnostics,
+                    "preview-unknown-handoff-decision",
+                    "handoff contract decision_ids must reference manifest.decisions",
+                    f"manifest.handoff.{field}[{index}].decision_ids",
+                )
+
+    for index, entry in enumerate(handoff.get("accepted_deviations") or []):
+        if not isinstance(entry, dict):
+            continue
+        deviation_id = str(entry.get("id") or "").strip()
+        handoff_ids.append(deviation_id)
+        if entry.get("decision_id") not in decision_ids:
+            _add_diagnostic(
+                diagnostics,
+                "preview-unknown-handoff-decision",
+                "accepted deviation decision_id must reference manifest.decisions",
+                f"manifest.handoff.accepted_deviations[{index}].decision_id",
+            )
+
+    nonempty_handoff_ids = [item for item in handoff_ids if item]
+    if len(nonempty_handoff_ids) != len(set(nonempty_handoff_ids)):
+        _add_diagnostic(
+            diagnostics,
+            "preview-duplicate-handoff-id",
+            "all implementation binding and handoff contract IDs must be unique",
+            "manifest.handoff",
+        )
+
+    responsive_ids = {
+        str(entry.get("id") or "").strip()
+        for entry in responsive_matrix or []
+        if isinstance(entry, dict)
+    }
+    acceptance_target_ids = {
+        str(entry.get("target_id") or "").strip()
+        for entry in acceptance_matrix or []
+        if isinstance(entry, dict)
+    }
+    missing_acceptance_targets = sorted(responsive_ids - acceptance_target_ids)
+    unknown_acceptance_targets = sorted(acceptance_target_ids - responsive_ids)
+    if missing_acceptance_targets or unknown_acceptance_targets:
+        details = []
+        if missing_acceptance_targets:
+            details.append("uncovered " + ", ".join(missing_acceptance_targets))
+        if unknown_acceptance_targets:
+            details.append("unknown " + ", ".join(unknown_acceptance_targets))
+        _add_diagnostic(
+            diagnostics,
+            "preview-invalid-handoff-target-coverage",
+            "visual acceptance targets must exactly cover responsive targets: "
+            + "; ".join(details),
+            "manifest.handoff.visual_acceptance_matrix",
+        )
+
+    required_states = {
+        str(state).strip()
+        for entry in component_contracts or []
+        if isinstance(entry, dict)
+        for state in entry.get("required_states") or []
+        if isinstance(state, str) and state.strip()
+    }
+    accepted_states = {
+        str(state).strip()
+        for entry in acceptance_matrix or []
+        if isinstance(entry, dict)
+        for state in entry.get("states") or []
+        if isinstance(state, str) and state.strip()
+    }
+    missing_states = sorted(required_states - accepted_states)
+    if missing_states:
+        _add_diagnostic(
+            diagnostics,
+            "preview-incomplete-handoff-state-coverage",
+            "visual acceptance matrix does not cover required component states: "
+            + ", ".join(missing_states),
+            "manifest.handoff.visual_acceptance_matrix",
+        )
+
+    accepted_decisions = {
+        str(decision_id).strip()
+        for entry in acceptance_matrix or []
+        if isinstance(entry, dict)
+        for decision_id in entry.get("decision_ids") or []
+        if isinstance(decision_id, str) and decision_id.strip()
+    }
+    missing_accepted_decisions = [
+        decision_id
+        for decision_id in decision_ids
+        if decision_id and decision_id not in accepted_decisions
+    ]
+    if missing_accepted_decisions:
+        _add_diagnostic(
+            diagnostics,
+            "preview-incomplete-handoff-decision-coverage",
+            "visual acceptance matrix must cover every approved design decision: "
+            + ", ".join(missing_accepted_decisions),
+            "manifest.handoff.visual_acceptance_matrix",
+        )
+
+    for index, entry in enumerate(acceptance_matrix or []):
+        if not isinstance(entry, dict):
+            continue
+        evidence = {
+            str(item).strip()
+            for item in entry.get("evidence") or []
+            if isinstance(item, str) and item.strip()
+        }
+        if evidence != DESIGN_HANDOFF_REQUIRED_EVIDENCE:
+            _add_diagnostic(
+                diagnostics,
+                "preview-incomplete-handoff-evidence",
+                "each visual acceptance row must require structure, visual, runtime, and comparison evidence",
+                f"manifest.handoff.visual_acceptance_matrix[{index}].evidence",
+            )
+    return diagnostics
+
+
+def _design_handoff_contract_ids(manifest: dict[str, Any]) -> list[str]:
+    handoff = manifest.get("handoff")
+    handoff = handoff if isinstance(handoff, dict) else {}
+    collections = (
+        manifest.get("token_map"),
+        handoff.get("component_contracts"),
+        handoff.get("responsive_matrix"),
+        handoff.get("visual_acceptance_matrix"),
+        handoff.get("accepted_deviations"),
+    )
+    return [
+        str(entry.get("id") or "").strip()
+        for entries in collections
+        if isinstance(entries, list)
+        for entry in entries
+        if isinstance(entry, dict) and str(entry.get("id") or "").strip()
+    ]
+
+
+def _design_capability_profile_ids(manifest: dict[str, Any]) -> list[str]:
+    model = manifest.get("capability_model")
+    model = model if isinstance(model, dict) else {}
+    return [
+        str(value).strip()
+        for value in model.get("profile_ids") or []
+        if isinstance(value, str) and value.strip()
+    ]
+
+
+def _design_specimen_ids(manifest: dict[str, Any]) -> list[str]:
+    model = manifest.get("capability_model")
+    model = model if isinstance(model, dict) else {}
+    return [
+        str(specimen.get("id") or "").strip()
+        for specimen in model.get("specimens") or []
+        if isinstance(specimen, dict) and str(specimen.get("id") or "").strip()
+    ]
+
+
+def _build_design_handoff_payload(
+    path: Path,
+    *,
+    content: str,
+    direction_id: str,
+    manifest: dict[str, Any],
+) -> dict[str, Any]:
+    """Select one direction and resolve its immutable implementation contract."""
+
+    directions = manifest.get("directions")
+    selected = next(
+        (
+            direction
+            for direction in directions or []
+            if isinstance(direction, dict) and direction.get("id") == direction_id
+        ),
+        None,
+    )
+    if not isinstance(selected, dict):
+        raise DesignLintError(
+            f"cannot build handoff for missing approved direction {direction_id}"
+        )
+    handoff = manifest.get("handoff")
+    if not isinstance(handoff, dict):
+        raise DesignLintError("design preview manifest has no handoff contract")
+
+    reproduction = deepcopy(handoff)
+    reproduction["capability_model"] = deepcopy(manifest.get("capability_model"))
+    responsive_by_id = {
+        str(entry.get("id") or "").strip(): entry
+        for entry in reproduction.get("responsive_matrix") or []
+        if isinstance(entry, dict)
+    }
+    resolved_acceptance: list[dict[str, Any]] = []
+    for entry in reproduction.get("visual_acceptance_matrix") or []:
+        if not isinstance(entry, dict):
+            continue
+        resolved = deepcopy(entry)
+        target = responsive_by_id.get(str(entry.get("target_id") or "").strip())
+        target = target if isinstance(target, dict) else {}
+        approved_targets: list[dict[str, str]] = []
+        for color_mode in entry.get("color_modes") or []:
+            for motion_mode in entry.get("motion_modes") or []:
+                query: dict[str, str | int] = {
+                    "mode": str(color_mode),
+                    "motion": str(motion_mode),
+                    "capture": 1,
+                }
+                profile_id = str(target.get("profile_id") or "").strip()
+                if profile_id:
+                    query["profile"] = profile_id
+                target_id = str(target.get("id") or "").strip()
+                if target_id:
+                    query["target"] = target_id
+                review_width = target.get("review_width_px")
+                if isinstance(review_width, int):
+                    query["viewport"] = review_width
+                approved_targets.append(
+                    {
+                        "ref": f"{path.name}?{urlencode(query)}#{direction_id}",
+                        "color_mode": str(color_mode),
+                        "motion_mode": str(motion_mode),
+                    }
+                )
+        resolved["approved_targets"] = approved_targets
+        resolved_acceptance.append(resolved)
+    reproduction["visual_acceptance_matrix"] = resolved_acceptance
+    reproduction["contract_ids"] = _design_handoff_contract_ids(manifest)
+
+    review = manifest.get("review")
+    review = review if isinstance(review, dict) else {}
+    decision_ids = [
+        str(item.get("id") or "").strip()
+        for item in manifest.get("decisions") or []
+        if isinstance(item, dict) and str(item.get("id") or "").strip()
+    ]
+    return {
+        "schema": DESIGN_HANDOFF_SCHEMA,
+        "approval": {
+            "preview_file": path.name,
+            "preview_ref": f"{path.name}#{direction_id}",
+            "direction_id": direction_id,
+            "review_round": str(review.get("round") or "").strip(),
+            "preview_sha256": _sha256_bytes(content.encode("utf-8")),
+            "manifest_sha256": _canonical_json_sha256(manifest),
+            "decision_ids": decision_ids,
+        },
+        "project": deepcopy(manifest.get("project")),
+        "direction": deepcopy(selected),
+        "content": deepcopy(manifest.get("content")),
+        "boundaries": deepcopy(manifest.get("boundaries")),
+        "decisions": deepcopy(manifest.get("decisions")),
+        "implementation_bindings": deepcopy(manifest.get("token_map")),
+        "reproduction": reproduction,
+    }
+
+
+def _validate_preview_handoff_sidecar(
+    path: Path,
+    *,
+    content: str,
+    approved_direction: str,
+    manifest: dict[str, Any],
+    approval_payload: dict[str, Any],
+) -> list[DesignDiagnostic]:
+    diagnostics: list[DesignDiagnostic] = []
+    handoff_path = design_preview_handoff_path(path)
+    if not handoff_path.is_file():
+        return [
+            DesignDiagnostic(
+                "preview-missing-handoff-sidecar",
+                f"approved preview requires {handoff_path.name}",
+                str(handoff_path),
+            )
+        ]
+    try:
+        handoff_bytes = handoff_path.read_bytes()
+        handoff_payload = json.loads(handoff_bytes.decode("utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        return [
+            DesignDiagnostic(
+                "preview-invalid-handoff-sidecar",
+                f"cannot read handoff sidecar: {exc}",
+                str(handoff_path),
+            )
+        ]
+    if not isinstance(handoff_payload, dict):
+        return [
+            DesignDiagnostic(
+                "preview-invalid-handoff-sidecar",
+                "handoff sidecar must be a JSON object",
+                str(handoff_path),
+            )
+        ]
+
+    diagnostics.extend(
+        _json_schema_diagnostics(
+            handoff_payload,
+            schema_name="design-handoff-schema.json",
+            code="preview-handoff-schema-error",
+            root_path="handoff",
+        )
+    )
+    expected_digest = _sha256_bytes(handoff_bytes)
+    expected_sidecar = {
+        "handoff_file": handoff_path.name,
+        "handoff_ref": handoff_path.name,
+        "handoff_sha256": expected_digest,
+        "handoff_contract_ids": _design_handoff_contract_ids(manifest),
+        "capability_profile_ids": _design_capability_profile_ids(manifest),
+        "specimen_ids": _design_specimen_ids(manifest),
+    }
+    for field, expected_value in expected_sidecar.items():
+        if approval_payload.get(field) != expected_value:
+            _add_diagnostic(
+                diagnostics,
+                "preview-stale-handoff-binding",
+                f"approval sidecar {field} does not bind the immutable handoff",
+                f"{design_preview_approval_path(path).name}.{field}",
+            )
+
+    expected_payload = _build_design_handoff_payload(
+        path,
+        content=content,
+        direction_id=approved_direction,
+        manifest=manifest,
+    )
+    if handoff_payload != expected_payload:
+        _add_diagnostic(
+            diagnostics,
+            "preview-stale-handoff-sidecar",
+            "handoff sidecar must be the exact deterministic projection of the approved direction",
+            str(handoff_path),
+        )
     return diagnostics
 
 
@@ -710,11 +1808,24 @@ def _validate_preview_approval_sidecar(
             "approval sidecar decision_ids must be a list of stable non-empty IDs",
             f"{approval_path.name}.decision_ids",
         )
+    if isinstance(manifest, dict):
+        diagnostics.extend(
+            _validate_preview_handoff_sidecar(
+                path,
+                content=content,
+                approved_direction=approved_direction,
+                manifest=manifest,
+                approval_payload=payload,
+            )
+        )
     return diagnostics
 
 
 def _replace_preview_attribute(content: str, name: str, value: str) -> str:
-    pattern = re.compile(rf'({re.escape(name)}\s*=\s*")[^"]*(")')
+    pattern = re.compile(
+        rf'(<[a-z][^<>]*\b{re.escape(name)}\s*=\s*")[^"]*(")',
+        re.IGNORECASE,
+    )
     updated, count = pattern.subn(rf"\g<1>{value}\g<2>", content)
     if count == 0:
         raise DesignLintError(f"design preview is missing required attribute {name}")
@@ -733,7 +1844,12 @@ def _replace_preview_manifest(
         ),
         re.DOTALL | re.IGNORECASE,
     )
-    rendered = json.dumps(manifest, ensure_ascii=False, indent=2)
+    rendered = (
+        json.dumps(manifest, ensure_ascii=False, indent=2)
+        .replace("&", r"\u0026")
+        .replace("<", r"\u003c")
+        .replace(">", r"\u003e")
+    )
     updated, count = pattern.subn(
         lambda match: f"{match.group(1)}\n{rendered}\n  {match.group(3)}",
         content,
@@ -744,6 +1860,49 @@ def _replace_preview_manifest(
             f"design preview must contain exactly one {DESIGN_PREVIEW_MANIFEST_ID}"
         )
     return updated
+
+
+def _ensure_preview_output_writable(out_path: Path, *, force: bool) -> None:
+    if not out_path.exists():
+        return
+    if not force:
+        raise DesignLintError(f"design preview already exists: {out_path}")
+    try:
+        existing_content = out_path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        raise DesignLintError(
+            f"cannot inspect existing design preview {out_path}: {exc}"
+        ) from exc
+    existing_parser = _DesignPreviewHTMLParser()
+    existing_parser.feed(existing_content)
+    existing_parser.close()
+    existing_status = (
+        existing_parser.preview_attrs.get("data-preview-status", "").strip().lower()
+    )
+    if existing_status == "approved":
+        raise DesignLintError(
+            f"approved design preview cannot be overwritten: {out_path}"
+        )
+
+
+def _render_preview_direction_ids(
+    content: str,
+    direction_ids: list[str],
+) -> str:
+    source_ids = ("direction-a", "direction-b", "direction-c")
+    sentinels = (
+        "__SPECIFY_DIRECTION_SLOT_A__",
+        "__SPECIFY_DIRECTION_SLOT_B__",
+        "__SPECIFY_DIRECTION_SLOT_C__",
+    )
+    for source_id, sentinel in zip(source_ids, sentinels, strict=True):
+        token_pattern = re.compile(
+            rf"(?<![a-z0-9-]){re.escape(source_id)}(?![a-z0-9-])"
+        )
+        content = token_pattern.sub(sentinel, content)
+    for sentinel, direction_id in zip(sentinels, direction_ids, strict=True):
+        content = content.replace(sentinel, direction_id)
+    return content
 
 
 def approve_design_preview(
@@ -817,6 +1976,30 @@ def approve_design_preview(
         raise DesignLintError(
             "design preview manifest must define stable decisions before approval"
         )
+    handoff_path = design_preview_handoff_path(path)
+    handoff_payload = _build_design_handoff_payload(
+        path,
+        content=updated,
+        direction_id=direction_id,
+        manifest=manifest,
+    )
+    handoff_diagnostics = _json_schema_diagnostics(
+        handoff_payload,
+        schema_name="design-handoff-schema.json",
+        code="preview-handoff-schema-error",
+        root_path="handoff",
+    )
+    if handoff_diagnostics:
+        messages = "; ".join(
+            f"{diagnostic.path}: {diagnostic.message}"
+            for diagnostic in handoff_diagnostics
+        )
+        raise DesignLintError(f"cannot approve invalid design handoff: {messages}")
+    handoff_text = json.dumps(
+        handoff_payload,
+        ensure_ascii=False,
+        indent=2,
+    ) + "\n"
     payload = {
         "schema": DESIGN_PREVIEW_APPROVAL_SCHEMA,
         "preview_file": path.name,
@@ -826,9 +2009,16 @@ def approve_design_preview(
         "html_sha256": _sha256_bytes(updated.encode("utf-8")),
         "manifest_sha256": _canonical_json_sha256(manifest),
         "decision_ids": decision_ids,
+        "handoff_file": handoff_path.name,
+        "handoff_ref": handoff_path.name,
+        "handoff_sha256": _sha256_bytes(handoff_text.encode("utf-8")),
+        "handoff_contract_ids": _design_handoff_contract_ids(manifest),
+        "capability_profile_ids": _design_capability_profile_ids(manifest),
+        "specimen_ids": _design_specimen_ids(manifest),
     }
 
     atomic_write_text(path, updated)
+    atomic_write_text(handoff_path, handoff_text)
     atomic_write_text(
         resolved_approval_path,
         json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
@@ -944,6 +2134,15 @@ def lint_design_preview_file(
             "data-direction-id.id",
         )
 
+    for fragment in sorted(set(parser.fragment_references)):
+        if fragment not in parser.element_ids:
+            _add_diagnostic(
+                diagnostics,
+                "preview-unresolved-fragment",
+                f"local fragment #{fragment} does not resolve to an element id",
+                f"href.#{fragment}",
+            )
+
     for section in DESIGN_PREVIEW_REQUIRED_SECTIONS:
         if section not in parser.sections:
             _add_diagnostic(
@@ -955,6 +2154,22 @@ def lint_design_preview_file(
 
     style_text = "\n".join(parser.style_parts)
     script_text = "\n".join(parser.script_parts)
+    for direction_id in dict.fromkeys(direction_ids):
+        selector = re.compile(
+            r"body\s*\[\s*data-active-direction\s*=\s*[\"']"
+            + re.escape(direction_id)
+            + r"[\"']\s*\]"
+        )
+        if not selector.search(style_text):
+            _add_diagnostic(
+                diagnostics,
+                "preview-missing-direction-style",
+                (
+                    f"direction {direction_id} must have a body "
+                    "data-active-direction style scope"
+                ),
+                f"style.{direction_id}",
+            )
     try:
         manifest = _parse_preview_manifest(parser)
     except DesignLintError as exc:
@@ -1080,6 +2295,175 @@ def lint_design_preview_file(
     return diagnostics
 
 
+def scaffold_design_preview_manifest(
+    out_path: Path,
+    *,
+    force: bool = False,
+    template_path: Path | None = None,
+    profile_ids: list[str] | None = None,
+) -> Path:
+    """Extract the editable preview manifest from the canonical HTML template."""
+
+    _source, content = _load_design_preview_template(template_path)
+    manifest_suffix = ".manifest.json"
+    if out_path.name.lower().endswith(manifest_suffix):
+        preview_path = out_path.with_name(
+            out_path.name[: -len(manifest_suffix)] + ".html"
+        )
+        if preview_path.exists():
+            _ensure_preview_output_writable(preview_path, force=True)
+    if out_path.exists() and not force:
+        raise DesignLintError(f"design preview manifest already exists: {out_path}")
+    parser = _DesignPreviewHTMLParser()
+    parser.feed(content)
+    parser.close()
+    manifest = _parse_preview_manifest(parser)
+    if manifest is None:
+        raise DesignLintError(
+            f"design preview template has no {DESIGN_PREVIEW_MANIFEST_ID}"
+        )
+    _apply_design_capability_profiles(manifest, profile_ids or ["web"])
+
+    round_match = re.fullmatch(
+        r"round-(\d+)\.manifest",
+        out_path.stem,
+        re.IGNORECASE,
+    )
+    review = manifest.get("review")
+    if not isinstance(review, dict):
+        review = {}
+        manifest["review"] = review
+    if round_match:
+        review["round"] = str(int(round_match.group(1)))
+    review["status"] = "scaffold"
+    review["approved_direction"] = None
+    manifest["configured"] = False
+
+    try:
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        atomic_write_text(
+            out_path,
+            json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
+        )
+    except OSError as exc:
+        raise DesignLintError(
+            f"cannot write design preview manifest {out_path}: {exc}"
+        ) from exc
+    return out_path
+
+
+def render_design_preview(
+    manifest_path: Path,
+    out_path: Path,
+    *,
+    force: bool = False,
+    template_path: Path | None = None,
+) -> Path:
+    """Render a ready candidate preview from a compact manifest."""
+
+    _source, content = _load_design_preview_template(template_path)
+    if not manifest_path.is_file():
+        raise DesignLintError(
+            f"design preview manifest does not exist: {manifest_path}"
+        )
+    _ensure_preview_output_writable(out_path, force=force)
+
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise DesignLintError(
+            f"cannot read design preview manifest {manifest_path}: {exc}"
+        ) from exc
+    if not isinstance(manifest, dict):
+        raise DesignLintError("design preview manifest must be a JSON object")
+
+    round_match = re.fullmatch(r"round-(\d+)", out_path.stem, re.IGNORECASE)
+    review = manifest.get("review")
+    if not isinstance(review, dict):
+        review = {}
+        manifest["review"] = review
+    round_number = (
+        str(int(round_match.group(1)))
+        if round_match
+        else str(review.get("round") or "").strip()
+    )
+    if not round_number:
+        raise DesignLintError(
+            "design preview review.round is required when --out is not round-NN.html"
+        )
+    manifest["configured"] = True
+    review.update(
+        {
+            "round": round_number,
+            "status": "candidate",
+            "approved_direction": None,
+        }
+    )
+
+    directions = manifest.get("directions")
+    direction_ids = (
+        [
+            str(direction.get("id") or "").strip()
+            for direction in directions
+            if isinstance(direction, dict)
+        ]
+        if isinstance(directions, list)
+        else []
+    )
+    manifest_diagnostics = _preview_manifest_diagnostics(
+        manifest,
+        direction_ids=direction_ids,
+        ready=True,
+    )
+    if manifest_diagnostics:
+        messages = "; ".join(
+            f"{diagnostic.code}: {diagnostic.message}"
+            for diagnostic in manifest_diagnostics
+        )
+        raise DesignLintError(f"design preview manifest is not ready: {messages}")
+
+    content = _render_preview_direction_ids(content, direction_ids)
+    content = _replace_preview_manifest(content, manifest)
+    content = _replace_preview_attribute(content, "data-preview-status", "candidate")
+    content = _replace_preview_attribute(content, "data-review-round", round_number)
+    content = _replace_preview_attribute(content, "data-approved-direction", "")
+    content = _replace_preview_attribute(
+        content,
+        "data-active-direction",
+        direction_ids[0],
+    )
+
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    validation_path: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            suffix=".html",
+            prefix=f".{out_path.stem}-render-check-",
+            dir=out_path.parent,
+            delete=False,
+        ) as validation_file:
+            validation_file.write(content)
+            validation_path = Path(validation_file.name)
+        diagnostics = lint_design_preview_file(validation_path, level="ready")
+    finally:
+        if validation_path is not None:
+            validation_path.unlink(missing_ok=True)
+    if diagnostics:
+        messages = "; ".join(
+            f"{diagnostic.code}: {diagnostic.message}"
+            for diagnostic in diagnostics
+        )
+        raise DesignLintError(f"rendered design preview is not ready: {messages}")
+
+    try:
+        atomic_write_text(out_path, content)
+    except OSError as exc:
+        raise DesignLintError(f"cannot write design preview {out_path}: {exc}") from exc
+    return out_path
+
+
 def scaffold_design_preview(
     out_path: Path,
     *,
@@ -1088,41 +2472,29 @@ def scaffold_design_preview(
 ) -> Path:
     """Copy the bundled three-direction design preview scaffold."""
 
-    source = template_path or _locate_design_preview_template()
-    if not source.exists() or not source.is_file():
-        raise DesignLintError(f"design preview template does not exist: {source}")
-    if out_path.exists():
-        if not force:
-            raise DesignLintError(f"design preview already exists: {out_path}")
-        try:
-            existing_content = out_path.read_text(encoding="utf-8")
-        except (OSError, UnicodeDecodeError) as exc:
-            raise DesignLintError(
-                f"cannot inspect existing design preview {out_path}: {exc}"
-            ) from exc
-        existing_parser = _DesignPreviewHTMLParser()
-        existing_parser.feed(existing_content)
-        existing_parser.close()
-        existing_status = (
-            existing_parser.preview_attrs.get("data-preview-status", "")
-            .strip()
-            .lower()
-        )
-        if existing_status == "approved":
-            raise DesignLintError(
-                f"approved design preview cannot be overwritten: {out_path}"
-            )
+    source, content = _load_design_preview_template(template_path)
+    _ensure_preview_output_writable(out_path, force=force)
 
-    diagnostics = lint_design_preview_file(source, level="structural")
-    if diagnostics:
-        messages = "; ".join(
-            f"{diagnostic.code}: {diagnostic.message}"
-            for diagnostic in diagnostics
-        )
-        raise DesignLintError(f"bundled design preview template is invalid: {messages}")
-
+    validation_path: Path | None = None
     try:
-        content = source.read_text(encoding="utf-8")
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            suffix=".html",
+            prefix=".design-preview-template-check-",
+            delete=False,
+        ) as validation_file:
+            validation_file.write(content)
+            validation_path = Path(validation_file.name)
+        diagnostics = lint_design_preview_file(validation_path, level="structural")
+        if diagnostics:
+            messages = "; ".join(
+                f"{diagnostic.code}: {diagnostic.message}"
+                for diagnostic in diagnostics
+            )
+            raise DesignLintError(
+                f"design preview template {source} is invalid: {messages}"
+            )
         round_match = re.fullmatch(r"round-(\d+)", out_path.stem, re.IGNORECASE)
         if round_match:
             round_number = str(int(round_match.group(1)))
@@ -1137,10 +2509,60 @@ def scaffold_design_preview(
         atomic_write_text(out_path, content)
     except OSError as exc:
         raise DesignLintError(f"cannot write design preview {out_path}: {exc}") from exc
+    finally:
+        if validation_path is not None:
+            validation_path.unlink(missing_ok=True)
     return out_path
 
 
+def _load_design_preview_template(template_path: Path | None) -> tuple[Path, str]:
+    """Load a custom HTML template or compose the bundled Jinja source parts."""
+
+    if template_path is not None:
+        if not template_path.is_file():
+            raise DesignLintError(
+                f"design preview template does not exist: {template_path}"
+            )
+        try:
+            return template_path, template_path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError) as exc:
+            raise DesignLintError(
+                f"cannot read design preview template {template_path}: {exc}"
+            ) from exc
+
+    template_dir = _locate_design_preview_template_dir()
+    template_file = template_dir / "template.html.j2"
+    if not template_file.is_file():
+        raise DesignLintError(
+            f"design preview Jinja template does not exist: {template_file}"
+        )
+    try:
+        environment = Environment(
+            loader=FileSystemLoader(template_dir),
+            autoescape=False,
+            undefined=StrictUndefined,
+            keep_trailing_newline=True,
+            trim_blocks=True,
+            lstrip_blocks=True,
+            newline_sequence="\n",
+        )
+        return template_file, environment.get_template(template_file.name).render()
+    except (OSError, UnicodeDecodeError, TemplateError) as exc:
+        raise DesignLintError(
+            f"cannot render design preview Jinja template {template_file}: {exc}"
+        ) from exc
+
+
+def _locate_design_preview_template_dir() -> Path:
+    package_template = Path(__file__).parent / "design_preview_source"
+    if package_template.is_dir():
+        return package_template
+    return Path(__file__).parents[2] / "src" / "specify_cli" / "design_preview_source"
+
+
 def _locate_design_preview_template() -> Path:
+    """Locate the generated compatibility artifact, not the Jinja source."""
+
     package_template = (
         Path(__file__).parent
         / "core_pack"
@@ -1428,7 +2850,11 @@ def lint_ui_target_file(
                     "manifest.approval",
                 )
             if UI_TARGET_APPROVED_PREVIEW_REF_RE.search(approved_ref):
-                for field in ("preview_sha256", "manifest_sha256"):
+                for field in (
+                    "preview_sha256",
+                    "manifest_sha256",
+                    "handoff_sha256",
+                ):
                     if not re.fullmatch(
                         r"[0-9a-f]{64}",
                         str(approval.get(field) or "").strip(),
@@ -1439,6 +2865,15 @@ def lint_ui_target_file(
                             f"approved HTML preview requires a valid {field}",
                             f"manifest.approval.{field}",
                         )
+                if not str(approval.get("handoff_ref") or "").strip().lower().endswith(
+                    ".handoff.json"
+                ):
+                    _add_diagnostic(
+                        diagnostics,
+                        "ui-target-invalid-handoff-ref",
+                        "approved HTML preview requires its immutable handoff reference",
+                        "manifest.approval.handoff_ref",
+                    )
         content_fixture = manifest.get("content")
         if not isinstance(content_fixture, dict) or any(
             not isinstance(value, str) or not value.strip()
@@ -1465,6 +2900,22 @@ def lint_ui_target_file(
                 "ui-target-invalid-decisions",
                 "ready UI target must carry canonical DS-* decision IDs",
                 "manifest.decision_ids",
+            )
+        handoff_contract_ids = manifest.get("handoff_contract_ids")
+        if (
+            not isinstance(handoff_contract_ids, list)
+            or not handoff_contract_ids
+            or any(
+                not isinstance(item, str)
+                or not DESIGN_HANDOFF_ID_RE.fullmatch(item.strip())
+                for item in handoff_contract_ids
+            )
+        ):
+            _add_diagnostic(
+                diagnostics,
+                "ui-target-invalid-handoff-contracts",
+                "ready UI target must carry canonical DH-* handoff contract IDs",
+                "manifest.handoff_contract_ids",
             )
     return diagnostics
 
@@ -1562,6 +3013,10 @@ def export_design_system(
             "product_context": document.design_system.get("product_context", {}),
             "direction_contract": document.design_system.get("direction_contract", {}),
             "platforms": document.design_system.get("platforms", []),
+            "capability_profiles": document.design_system.get(
+                "capability_profiles", []
+            ),
+            "specimens": document.design_system.get("specimens", []),
             "tokens": document.design_system.get("tokens", {}),
             "color_modes": document.design_system.get("color_modes", {}),
             "components": document.design_system.get("components", {}),
@@ -1888,6 +3343,7 @@ def _validate_approved_visual_reference(
             "preview_sha256": sidecar.get("html_sha256"),
             "manifest_sha256": sidecar.get("manifest_sha256"),
             "review_round": str(sidecar.get("review_round") or "").strip(),
+            "handoff_sha256": sidecar.get("handoff_sha256"),
         }
         if str(sidecar.get("direction_id") or "").strip() != direction_id:
             _add_diagnostic(
@@ -1912,6 +3368,22 @@ def _validate_approved_visual_reference(
                     f"approval.{field} must match the immutable preview sidecar",
                     f"design_system.approval.{field}",
                 )
+        handoff_ref = str(approval.get("handoff_ref") or "").strip()
+        if not handoff_ref or not handoff_ref.lower().endswith(".handoff.json"):
+            _add_diagnostic(
+                diagnostics,
+                "missing-approved-handoff-reference",
+                "design_system.approval.handoff_ref must identify the immutable design handoff",
+                "design_system.approval.handoff_ref",
+            )
+        handoff_sha256 = str(approval.get("handoff_sha256") or "").strip()
+        if not re.fullmatch(r"[0-9a-f]{64}", handoff_sha256):
+            _add_diagnostic(
+                diagnostics,
+                "missing-approved-handoff-digest",
+                "design_system.approval.handoff_sha256 must be a SHA-256 digest",
+                "design_system.approval.handoff_sha256",
+            )
         if str(approval.get("review_round") or "").strip() != expected["review_round"]:
             _add_diagnostic(
                 diagnostics,
@@ -1927,6 +3399,70 @@ def _validate_approved_visual_reference(
                 "approval.decision_ids must exactly match the approved preview sidecar",
                 "design_system.approval.decision_ids",
             )
+        if approval.get("handoff_contract_ids") != sidecar.get(
+            "handoff_contract_ids"
+        ):
+            _add_diagnostic(
+                diagnostics,
+                "approved-handoff-contract-set-mismatch",
+                "approval.handoff_contract_ids must exactly match the approved preview sidecar",
+                "design_system.approval.handoff_contract_ids",
+            )
+        for field in ("capability_profile_ids", "specimen_ids"):
+            if approval.get(field) != sidecar.get(field):
+                _add_diagnostic(
+                    diagnostics,
+                    "approved-capability-set-mismatch",
+                    f"approval.{field} must exactly match the approved preview sidecar",
+                    f"design_system.approval.{field}",
+                )
+        handoff_ref = str(approval.get("handoff_ref") or "").strip()
+        expected_handoff_path = design_preview_handoff_path(preview_path).resolve(
+            strict=False
+        )
+        resolved_handoff_path = (
+            (source_root / handoff_ref).resolve(strict=False)
+            if handoff_ref
+            else None
+        )
+        if resolved_handoff_path != expected_handoff_path:
+            _add_diagnostic(
+                diagnostics,
+                "approved-handoff-reference-mismatch",
+                "approval.handoff_ref must identify the handoff frozen beside the approved preview",
+                "design_system.approval.handoff_ref",
+            )
+        elif not expected_handoff_path.is_file():
+            _add_diagnostic(
+                diagnostics,
+                "approved-handoff-missing",
+                f"approved handoff does not exist: {handoff_ref}",
+                "design_system.approval.handoff_ref",
+            )
+        else:
+            try:
+                actual_handoff_sha256 = _sha256_bytes(
+                    expected_handoff_path.read_bytes()
+                )
+            except OSError as exc:
+                _add_diagnostic(
+                    diagnostics,
+                    "approved-handoff-unreadable",
+                    f"cannot read approved handoff: {exc}",
+                    "design_system.approval.handoff_ref",
+                )
+            else:
+                if str(approval.get("handoff_sha256") or "").strip() != str(
+                    expected["handoff_sha256"] or ""
+                ) or actual_handoff_sha256 != str(
+                    expected["handoff_sha256"] or ""
+                ):
+                    _add_diagnostic(
+                        diagnostics,
+                        "approved-handoff-digest-mismatch",
+                        "approval.handoff_sha256 and handoff bytes must match the immutable preview sidecar",
+                        "design_system.approval.handoff_sha256",
+                    )
         resolved = True
         break
     if not resolved and not any(
@@ -2025,6 +3561,68 @@ def _validate_design_readiness(document: DesignDocument, diagnostics: list[Desig
                 "missing-approved-decision-ids",
                 "design_system.approval.decision_ids must freeze the approved DS-* set",
                 "design_system.approval.decision_ids",
+            )
+        handoff_contract_ids = approval.get("handoff_contract_ids")
+        if (
+            not isinstance(handoff_contract_ids, list)
+            or not handoff_contract_ids
+            or any(
+                not isinstance(item, str)
+                or not DESIGN_HANDOFF_ID_RE.fullmatch(item.strip())
+                for item in handoff_contract_ids
+            )
+        ):
+            _add_diagnostic(
+                diagnostics,
+                "missing-approved-handoff-contract-ids",
+                "design_system.approval.handoff_contract_ids must freeze the approved DH-* set",
+                "design_system.approval.handoff_contract_ids",
+            )
+        capability_profile_ids = approval.get("capability_profile_ids")
+        if (
+            not isinstance(capability_profile_ids, list)
+            or not capability_profile_ids
+            or any(
+                not isinstance(item, str)
+                or not re.fullmatch(r"[a-z][a-z0-9-]*", item.strip())
+                for item in capability_profile_ids
+            )
+        ):
+            _add_diagnostic(
+                diagnostics,
+                "missing-approved-capability-profiles",
+                "design_system.approval.capability_profile_ids must freeze the approved profile set",
+                "design_system.approval.capability_profile_ids",
+            )
+        specimen_ids = approval.get("specimen_ids")
+        if (
+            not isinstance(specimen_ids, list)
+            or not specimen_ids
+            or any(
+                not isinstance(item, str)
+                or not DESIGN_SPECIMEN_ID_RE.fullmatch(item.strip())
+                for item in specimen_ids
+            )
+        ):
+            _add_diagnostic(
+                diagnostics,
+                "missing-approved-specimens",
+                "design_system.approval.specimen_ids must freeze the approved specimen set",
+                "design_system.approval.specimen_ids",
+            )
+        if design_system.get("capability_profiles") != capability_profile_ids:
+            _add_diagnostic(
+                diagnostics,
+                "design-capability-profile-drift",
+                "design_system.capability_profiles must exactly match approval.capability_profile_ids",
+                "design_system.capability_profiles",
+            )
+        if design_system.get("specimens") != specimen_ids:
+            _add_diagnostic(
+                diagnostics,
+                "design-specimen-drift",
+                "design_system.specimens must exactly match approval.specimen_ids",
+                "design_system.specimens",
             )
         _validate_approved_visual_reference(document, approval, diagnostics)
 

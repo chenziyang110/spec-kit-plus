@@ -173,13 +173,14 @@ def test_api_live_probe_returns_json(tmp_path: Path):
     assert envelope["payload"]["ok"] is True
 
 
-def test_api_submit_result_returns_json_and_persists_result(tmp_path: Path):
+def test_api_submit_result_accepts_inline_json_and_persists_result(tmp_path: Path):
     project = _create_codex_project(tmp_path)
     result_file = _seed_runtime_dispatch(project)
+    result_json = result_file.read_text(encoding="utf-8")
 
     result = _invoke_in_project(
         project,
-        ["sp-teams", "api", "submit-result", "--request-id", "req-submit", "--result-file", str(result_file)],
+        ["sp-teams", "api", "submit-result", "--request-id", "req-submit", "--result-json", result_json],
     )
 
     assert result.exit_code == 0, result.output
@@ -192,7 +193,7 @@ def test_api_submit_result_returns_json_and_persists_result(tmp_path: Path):
     assert result_record_path(project, "req-submit").exists()
 
 
-def test_team_submit_result_command_accepts_worker_result_file(tmp_path: Path):
+def test_team_submit_result_command_rejects_worker_result_file(tmp_path: Path):
     project = _create_codex_project(tmp_path)
     result_file = _seed_runtime_dispatch(project)
 
@@ -201,40 +202,57 @@ def test_team_submit_result_command_accepts_worker_result_file(tmp_path: Path):
         ["sp-teams", "submit-result", "--request-id", "req-submit", "--result-file", str(result_file)],
     )
 
+    assert result.exit_code != 0
+    assert "No such option" in result.output
+    assert "--result-file" in result.output
+
+
+def test_team_submit_result_command_accepts_inline_json(tmp_path: Path):
+    project = _create_codex_project(tmp_path)
+    result_file = _seed_runtime_dispatch(project, request_id="req-inline")
+    payload = result_file.read_text(encoding="utf-8")
+
+    result = _invoke_in_project(
+        project,
+        [
+            "sp-teams",
+            "submit-result",
+            "--request-id",
+            "req-inline",
+            "--result-json",
+            payload,
+        ],
+    )
+
     assert result.exit_code == 0, result.output
-    assert "Submitted result for" in result.output
+    assert result_record_path(project, "req-inline").exists()
 
 
 def test_team_submit_result_command_normalizes_done_with_concerns_payload(tmp_path: Path):
     project = _create_codex_project(tmp_path)
     _seed_runtime_dispatch(project, request_id="req-alias")
 
-    result_file = project / "alias-result.json"
-    result_file.write_text(
-        json.dumps(
-            {
-                "taskId": "T001",
-                "status": "DONE_WITH_CONCERNS",
-                "files_changed": ["src/app.py"],
-                "message": "done with concerns",
-                "issues": ["follow-up cleanup remains"],
-                "validationResults": [
-                    {"command": "pytest -q", "status": "passed", "output": "1 passed"}
-                ],
-                "ruleAcknowledgement": {
-                    "required_references_read": True,
-                    "forbidden_drift_respected": True,
-                },
+    result_json = json.dumps(
+        {
+            "taskId": "T001",
+            "status": "DONE_WITH_CONCERNS",
+            "files_changed": ["src/app.py"],
+            "message": "done with concerns",
+            "issues": ["follow-up cleanup remains"],
+            "validationResults": [
+                {"command": "pytest -q", "status": "passed", "output": "1 passed"}
+            ],
+            "ruleAcknowledgement": {
+                "required_references_read": True,
+                "forbidden_drift_respected": True,
             },
-            ensure_ascii=False,
-            indent=2,
-        ),
-        encoding="utf-8",
+        },
+        ensure_ascii=False,
     )
 
     result = _invoke_in_project(
         project,
-        ["sp-teams", "submit-result", "--request-id", "req-alias", "--result-file", str(result_file)],
+        ["sp-teams", "submit-result", "--request-id", "req-alias", "--result-json", result_json],
     )
 
     assert result.exit_code == 0, result.output
@@ -259,6 +277,27 @@ def test_team_result_template_command_prints_canonical_payload(tmp_path: Path):
     assert payload["validation_results"][0]["status"] == "skipped"
 
 
+def test_team_result_template_rejects_scratch_file_materialization(tmp_path: Path):
+    project = _create_codex_project(tmp_path)
+    _seed_runtime_dispatch(project, request_id="req-template")
+    output = project / "result-template.json"
+
+    result = _invoke_in_project(
+        project,
+        [
+            "sp-teams",
+            "result-template",
+            "--request-id",
+            "req-template",
+            "--output",
+            str(output),
+        ],
+    )
+
+    assert result.exit_code != 0
+    assert not output.exists()
+
+
 def test_team_submit_result_print_schema_outputs_shape_hint(tmp_path: Path):
     project = _create_codex_project(tmp_path)
 
@@ -279,12 +318,9 @@ def test_team_submit_result_reports_bom_payload_actionably(tmp_path: Path):
     project = _create_codex_project(tmp_path)
     _seed_runtime_dispatch(project, request_id="req-bom")
 
-    result_file = project / "bom-result.json"
-    result_file.write_text("\ufeff{}", encoding="utf-8")
-
     result = _invoke_in_project(
         project,
-        ["sp-teams", "submit-result", "--request-id", "req-bom", "--result-file", str(result_file)],
+        ["sp-teams", "submit-result", "--request-id", "req-bom", "--result-json", "\ufeff{}"],
     )
 
     assert result.exit_code != 0
@@ -297,12 +333,9 @@ def test_team_submit_result_reports_missing_required_fields_actionably(tmp_path:
     project = _create_codex_project(tmp_path)
     _seed_runtime_dispatch(project, request_id="req-missing-fields")
 
-    result_file = project / "missing-result.json"
-    result_file.write_text(json.dumps({"summary": "oops"}, ensure_ascii=False, indent=2), encoding="utf-8")
-
     result = _invoke_in_project(
         project,
-        ["sp-teams", "submit-result", "--request-id", "req-missing-fields", "--result-file", str(result_file)],
+        ["sp-teams", "submit-result", "--request-id", "req-missing-fields", "--result-json", json.dumps({"summary": "oops"})],
     )
 
     assert result.exit_code != 0
@@ -316,29 +349,24 @@ def test_team_submit_result_rejects_pending_template_payload_actionably(tmp_path
     project = _create_codex_project(tmp_path)
     _seed_runtime_dispatch(project, request_id="req-pending")
 
-    result_file = project / "pending-result.json"
-    result_file.write_text(
-        json.dumps(
-            {
-                "task_id": "T001",
-                "status": "pending",
-                "validation_results": [
-                    {
-                        "command": "pytest -q",
-                        "status": "skipped",
-                        "output": "NOT RUN - replace with actual command output after execution",
-                    }
-                ],
-            },
-            ensure_ascii=False,
-            indent=2,
-        ),
-        encoding="utf-8",
+    result_json = json.dumps(
+        {
+            "task_id": "T001",
+            "status": "pending",
+            "validation_results": [
+                {
+                    "command": "pytest -q",
+                    "status": "skipped",
+                    "output": "NOT RUN - replace with actual command output after execution",
+                }
+            ],
+        },
+        ensure_ascii=False,
     )
 
     result = _invoke_in_project(
         project,
-        ["sp-teams", "submit-result", "--request-id", "req-pending", "--result-file", str(result_file)],
+        ["sp-teams", "submit-result", "--request-id", "req-pending", "--result-json", result_json],
     )
 
     assert result.exit_code != 0

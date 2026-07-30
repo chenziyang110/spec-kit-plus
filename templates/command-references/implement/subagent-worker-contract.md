@@ -12,7 +12,7 @@ Every `sp-implement` run uses `execution_model: adaptive`.
 
 You are the workflow leader. You own routing, execution-state truth, acceptance, and recovery whether work is leader-direct or delegated.
 
-- Read canonical `task-index.json` or the light direct task list, compact execution state, and only the current task's required refs.
+- Call `specify-runtime implement task-next` for the canonical ready task and compact execution state; query only its additional required refs through `specify-runtime artifact show`.
 - Use `leader-direct` for a small or tightly coupled ready task when delegation would add more coordination than execution value and no high-risk trigger requires an independent lane.
 - Use `one-subagent` for one independent bounded task; use `parallel-subagents` only for multiple validated lanes with isolated write sets and an explicit join point.
 - Use `managed-team` only when the runtime supports it and durable team state, explicit multi-wave join tracking, or lifecycle control is required beyond an in-session subagent burst. It is not an ordinary dispatch fallback.
@@ -24,11 +24,11 @@ Route in this order: `leader-direct` when it independently qualifies, then `one-
 
 ### Delegated Lane Contract
 
-When delegation is selected, the leader compiles the current packet, dispatches, waits for the structured result, integrates it, validates the join, and updates the same task lifecycle record.
+When delegation is selected, the leader compiles the current packet with `specify-runtime implement packet-compile`, dispatches, waits for the structured result, integrates it, validates the join, and merges it through `specify-runtime implement result-merge` into the same lifecycle.
 
 - Before dispatch, every subagent lane needs a task contract with objective, authoritative inputs, allowed read/write scope, forbidden paths, acceptance checks, verification evidence, and structured handoff format
 - If the lane is shaped by a PNG, screenshot, mockup, design export, reference image, or UI reference page, the packet must carry the original visual input through stable fidelity refs or a runtime image item/local_image. A leader-authored prose summary is not a substitute.
-- If the original visual input exists only in the current conversation, materialize it to a stable project-relative artifact path or attach it directly to the worker when the runtime supports image payloads before dispatch.
+- If the original visual input exists only in the current conversation, attach it directly to the worker when runtime image payloads are supported; otherwise import the runtime-provided local attachment through `specify-runtime evidence import --file <local-path> --scope ui-reference --source chat-attachment --provenance user-provided` and pass the returned content-addressed `object_ref` plus evidence record. Never copy or materialize a project file directly.
 - Use `dispatch_shape: one-subagent | parallel-subagents`
 - **HARD RULE**: dispatch only from validated `WorkerTaskPacket` — never from raw task text alone
 - If a task packet contains `must_preserve_obligations`, the worker must preserve those `MP-*` items or return a blocked result with the exact stop-and-reopen condition.
@@ -47,7 +47,7 @@ When delegation is selected, the leader compiles the current packet, dispatches,
 - Treat `DONE_WITH_CONCERNS` as completed work plus follow-up concerns, not as silent success
 - Treat `NEEDS_CONTEXT` as a blocked handoff that must carry the missing context or failed assumption explicitly
 
-Accept a delegated lane only through a `WorkerTaskResult`-compatible payload containing task ID, status, changed paths, cheap task-check results, test impact, task-relevant obligation evidence, concerns, and blocker/recovery metadata when applicable. Merge that payload into the existing task lifecycle record; do not create a second result ledger. A successful implementation result proves the bounded edit only and may advance dependency-safe work; feature verification remains pending instead of duplicating the Leader's heavyweight evidence.
+Accept a delegated lane only through a `WorkerTaskResult`-compatible payload containing task ID, status, changed paths, cheap task-check results, test impact, task-relevant obligation evidence, concerns, and blocker/recovery metadata when applicable. Pass it inline to `specify-runtime implement result-merge --result-json`; do not create a result file or a second ledger. A successful implementation result proves the bounded edit only and may advance dependency-safe work; feature verification remains pending instead of duplicating the Leader's heavyweight evidence.
 
 Cheap producer-to-consumer wiring evidence remains task-local and required when
 the packet names a consumer surface. Only runtime real-entrypoint proof is

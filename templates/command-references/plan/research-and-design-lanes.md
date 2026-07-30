@@ -16,19 +16,19 @@ Treat `spec-contract.json` as authoritative for confirmed delivery scope and def
 
 Reuse `spec-contract.json.context_capsule`. Run one additional bounded project cognition intake only when a planning facet is missing or its stale condition is true. Carry new evidence back into the plan contract; do not create a second broad repository summary.
 
-Read project-facing `spec.md`, alignment/context views, memory details, and live source only through a named required ref or evidence gap. Deep-research `PH-###` items remain direct evidence refs when present.
+Query project-facing `spec.md` and alignment/context views through targeted `specify-runtime artifact show` calls only for a named required ref or evidence gap.
 
 ## Conditional Research
 
 Research only questions that can change architecture, dependency choice, compatibility, security, data shape, external integration, or validation. Prefer live repository evidence and primary sources. Record decision, rationale, rejected alternative only when it can reappear, confidence, and implementation proof.
 
-Use `templates/research-template.md` as the structure when `research.md` is triggered. Prefer official documentation, standards, and primary sources; treat model memory as provisional. Research must reduce planning ambiguity rather than accumulate background reading, and every recommendation names confidence, assumptions, validation, environment/dependency notes, and why hand-rolling is or is not justified.
+When `research.md` is triggered, create it with `specify-runtime artifact scaffold --kind research --path <feature-dir>/research.md`, then fill only the relevant named sections through leased `artifact patch` calls. The runtime expands `research-template.md`; never read and reproduce its stable structure in memory. Prefer official documentation, standards, and primary sources; treat model memory as provisional. Research must reduce planning ambiguity rather than accumulate background reading, and every recommendation names confidence, assumptions, validation, environment/dependency notes, and why hand-rolling is or is not justified.
 
 If no such unknown exists, record `research_status: not-needed` in `plan-contract.json` and do not generate `research.md`.
 
 ## Design And UI Inputs
 
-For UI-facing work, consume `DESIGN.md`, `ui-brief.md`, and fidelity refs only when selected by the spec contract. Record Feature UI Brief Adoption and Design System Adoption, including token strategy. Preserve `Reference-Implementation`, tokens, component ownership, required states, accessibility, fidelity criteria, allowed adaptation, forbidden drift, `visual_comparison_or_human_review`, Playwright screenshots or representative output when applicable, real-entrypoint evidence, and accepted deviations.
+For UI-facing work, query `DESIGN.md`, `ui-brief.md`, and the approved immutable design handoff through targeted `specify-runtime artifact show` calls; consume the returned contracts and fidelity refs only when selected by the spec contract. Record Feature UI Brief Adoption and Design System Adoption, including token strategy. Preserve the exact preview/manifest/handoff digests, immutable handoff ref, selected `DS-*` and `DH-*` IDs, `Reference-Implementation`, tokens, component ownership, required states, accessibility, fidelity criteria, allowed adaptation, forbidden drift, `visual_comparison_or_human_review`, Playwright screenshots or representative output when applicable, real-entrypoint evidence, and accepted deviations. Select structured handoff rows by ID; never recreate their values from prose.
 
 Do not repeat UI reference parsing already completed upstream unless the source changed or a required implementation facet is missing.
 
@@ -48,8 +48,8 @@ Command-surface minimization uses entry-point remapping; it must not delete capa
 
 - `light`: leader-inline synthesis; no lane files.
 - `standard`: delegate only isolated research, data-model, contract, or validation-scenario work when expected critical-path gain exceeds handoff cost.
-- `heavy`: use validated writable lanes when risk or independent expertise requires them; block if safe packetization is unavailable.
+- `heavy`: use validated result-channel lanes when risk or independent expertise requires them; block if safe packetization is unavailable.
 
-When lanes are delegated, maintain one compact `planning/lane-manifest.json` with lane id, input refs, result ref, status, integration target, and blocker. Each lane writes one agent-only result. Do not require separate evidence-index and checkpoint logs for the same event.
+When lanes are delegated, create an absent `planning/lane-manifest.json` with `specify-runtime artifact scaffold --kind planning-lane-manifest --path <feature-dir>/planning/lane-manifest.json`; query it on resume. Replace the bounded `/lanes` array as a whole through a fresh leased JSON-pointer patch at material joins and patch `/status` separately at closeout; the patch API does not append inside arrays. Submit each lane result inline through `specify-runtime result submit --command plan`. Never submit the manifest wholesale. Do not require separate evidence-index and checkpoint logs for the same event.
 
 Before finalizing, ensure every accepted lane result is integrated, deferred with valid confirmation, or blocked with recovery.

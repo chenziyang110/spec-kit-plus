@@ -144,20 +144,20 @@ function Get-SpecKitManagedBlock {
             ''
             '- Project cognition and Project Learning are always available, even without an active `sp-*` workflow.'
             '- When existing-system truth matters, use project cognition before broad source inspection and use its results to narrow live reads.'
-            '- Run `{{specify-cli}} learning start --command <workflow> --format json` before non-trivial decisions that depend on local conventions, constraints, or past lessons; expand only selected matching Learning through `show_argv`.'
+            '- Run `{{specify-runtime-cli}} learning start --command <workflow> --format json` before non-trivial decisions that depend on local conventions, constraints, or past lessons; expand only selected matching Learning through `show_argv`.'
             ''
             '## Workflow Recommendations'
             ''
             '- Do not auto-enter an `sp-*` workflow unless the user invokes it. Continuing an already-invoked incomplete workflow is not auto-entry.'
-            '- Recommend `sp-discussion` for open-ended requirement exploration, `sp-specify` for formal alignment, `sp-deep-research` for feasibility proof, and `sp-debug` for root-cause diagnosis.'
+            '- Recommend `sp-discussion` for open-ended requirement exploration, `sp-quick` for tracked direct delivery of any size, `sp-specify` for an explicitly selected formal spec-first path, `sp-deep-research` for feasibility proof, and `sp-debug` for root-cause diagnosis.'
             '- If the user invokes an `sp-*` workflow, follow that workflow''s own contract.'
             '- When a topical follow-up, acknowledgement, or contextual confirmation continues an active discussion, resume `sp-discussion` from durable state even when the user does not repeat the workflow name.'
-            '- Before recommending `sp-specify`, inspect the matching discussion status. If it is not `handoff-ready`, resume `sp-discussion` assessment, draft review, or repair; only a ready contract may route downstream.'
+            '- Before recommending `sp-quick` or `sp-specify` from a discussion, run `{{specify-runtime-cli}} discussion status <slug> --format json` and consume its status and `recommended_consumer`. If it is not `handoff-ready` or the consumer does not match, resume `sp-discussion` assessment, draft review, or repair; only a ready confirmed route may continue downstream.'
             ''
             '## Command Surface Rules'
             ''
-            '- Treat live `{{specify-cli}} --help` output as the authoritative CLI surface.'
-            '- Before suggesting or running a `{{specify-cli}} <subcommand>` invocation, verify that help exposes it.'
+            '- Treat `{{specify-runtime-cli}} api list --format json` as the authoritative agent-facing CLI surface; use `{{specify-runtime-cli}} api show workflow.block --format json` and `{{specify-runtime-cli}} api schema workflow-block-input --format json` only for the blocked-exit contract.'
+            '- Every agent-run helper command must use the project-local `specify-runtime`; Python `specify` is human-only for bootstrap, init, upgrade, repair, and legacy operator maintenance.'
             '- Do not invent unsupported CLI names such as `specify create-feature`.'
             '- Feature creation uses the generated create-feature script at `.specify/scripts/bash/create-new-feature.sh` or `.specify/scripts/powershell/create-new-feature.ps1`; default feature workspace names use `YYYY-MM-DD-<slug>`.'
             ''
@@ -173,20 +173,28 @@ function Get-SpecKitManagedBlock {
         ) -join $Newline
     )
 
-    $launcher = 'specify'
+    $runtimeLauncher = 'SPECIFY_RUNTIME_LAUNCHER_UNAVAILABLE:specify-runtime'
     $configPath = Join-Path $REPO_ROOT '.specify/config.json'
     if (Test-Path -LiteralPath $configPath) {
         try {
             $config = Get-Content -LiteralPath $configPath -Raw -Encoding utf8 | ConvertFrom-Json
-            if ($config.specify_launcher.command) {
-                $launcher = [string]$config.specify_launcher.command
+            $configured = @($config.runtime_launcher.argv)
+            if ($configured.Count -eq 1) {
+                $candidate = ([string]$configured[0]).Trim()
+                $normalized = $candidate.Replace('\', '/').ToLowerInvariant()
+                if ($normalized.StartsWith('./')) {
+                    $normalized = $normalized.Substring(2)
+                }
+                if ($normalized -in @('.specify/bin/specify-runtime', '.specify/bin/specify-runtime.exe')) {
+                    $runtimeLauncher = $candidate
+                }
             }
         }
         catch {
             # Keep the PATH-level fallback when project launcher state is unreadable.
         }
     }
-    return $template.Replace('{{specify-cli}}', $launcher)
+    return $template.Replace('{{specify-runtime-cli}}', $runtimeLauncher)
 }
 
 function Get-PreferredNewline {

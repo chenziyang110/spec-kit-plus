@@ -119,7 +119,8 @@ def _assert_compact_managed_context(content: str) -> None:
     assert "## Workflow Recommendations" in content
     assert "do not auto-enter an `sp-*` workflow" in lower
     assert "recommend `sp-discussion`" in lower
-    assert "`sp-specify` for formal alignment" in lower
+    assert "`sp-quick` for tracked direct delivery of any size" in lower
+    assert "`sp-specify` for an explicitly selected formal spec-first path" in lower
     assert "`sp-deep-research` for feasibility proof" in lower
     assert "`sp-debug` for root-cause diagnosis" in lower
     assert "## Command Surface Rules" in content
@@ -143,7 +144,6 @@ def _assert_compact_managed_context(content: str) -> None:
     assert "## Project Cognition Usage" not in content
     assert "## Map Maintenance" not in content
     assert "sp-fast" not in lower
-    assert "sp-quick" not in lower
     assert "sp-test-scan" not in lower
     assert "sp-test-build" not in lower
 
@@ -177,8 +177,9 @@ def test_generated_specify_skill_teaches_simplified_specify_contract(tmp_path):
     assert "specify-runtime artifact show" in content
     assert "specify-runtime artifact prepare" in content
     assert "specify-runtime artifact submit" in content
-    assert "read it only through" in content
-    assert "write it only through" in content
+    assert "canonical workflow artifacts are cli-owned" in content
+    assert "mutate each artifact through the specialized owner" in content
+    assert "directly read or overwrite a canonical artifact" in content
     assert "facts-lock" not in content
     assert "route-lock" not in content
     assert "intent-lock" not in content
@@ -210,8 +211,9 @@ def _assert_discussion_contract(skill_content: str) -> None:
     assert "turn count alone is never a save trigger" in skill_lower
     assert "semantic checkpoint is a durable meaning change" in skill_lower
     assert "pending truth-pass state" in skill_lower
-    assert "persist it to `discussion-state.md` only at semantic checkpoints or save triggers" in skill_lower
-    assert "persist them to `open-questions.md` only when they materially change" in skill_lower
+    assert "discussion checkpoint" in skill_lower
+    assert "refreshes `discussion-state.md` only at semantic checkpoints or save triggers" in skill_lower
+    assert "open-questions.md only when blocking or soft unknowns materially change" in skill_lower
     assert "semantic checkpoints" in skill_lower
     assert "agent-only" in skill_lower
     assert "do not write a markdown companion" in skill_lower
@@ -248,7 +250,8 @@ def _assert_discussion_contract(skill_content: str) -> None:
     assert "do not split the work into p0/p1/p2" in skill_lower
     assert "migration phases" in skill_lower
     assert "task packets" in skill_lower
-    assert "those belong to `sp-plan`, `sp-tasks`, or `sp-implement`" in skill_lower
+    assert "those belong to `sp-quick` task-local planning when quick is selected" in skill_lower
+    assert "`sp-plan`, `sp-tasks`, and `sp-implement` on the formal feature path" in skill_lower
     assert "no parallel old-backend operation" in skill_lower
     assert "no old-stack cutover fallback" in skill_lower
     assert "no alternate product path" in skill_lower
@@ -1186,7 +1189,9 @@ class SkillsIntegrationTests:
             else:
                 assert "fallback path" in content
             assert "subagent result contract" in content
-            assert "result handoff path" in content
+            assert "inline result submission" in content
+            assert "runtime-owned compatibility path" in content
+            assert "never create a result file or use `--result-file`" in content
             assert "reported_status" in content
             assert "needs_context" in content
 

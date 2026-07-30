@@ -16,7 +16,7 @@
   },
   "consumer_eligibility": {
     "sp-specify": {"status": "blocked", "reason": "Handoff has not passed review."},
-    "sp-quick": {"status": "blocked", "reason": "Quick-task boundedness has not been reviewed."}
+    "sp-quick": {"status": "blocked", "reason": "Direct-delivery readiness has not been reviewed."}
   },
   "recommended_consumer": "continue-discussion",
   "context_boundary": {

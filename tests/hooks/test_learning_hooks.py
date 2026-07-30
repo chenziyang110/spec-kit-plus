@@ -24,8 +24,8 @@ def test_learning_review_blocks_terminal_closeout_without_review(tmp_path: Path)
     assert all("..." not in action for action in result.actions)
     assert all("<" not in action for action in result.actions)
     actions = " ".join(result.actions)
-    assert "specify learning capture-auto" in actions
-    assert "learning capture" in actions
+    assert "specify-runtime learning capture-auto" in actions
+    assert "specify-runtime learning capture" in actions
     assert "do not edit Learning storage directly" in actions
 
 
@@ -85,8 +85,8 @@ def test_learning_review_blocks_none_decision_when_recent_friction_signal_exists
     )
     assert all("..." not in action for action in review_result.actions)
     actions = " ".join(review_result.actions)
-    assert "specify learning capture-auto" in actions
-    assert "learning capture" in actions
+    assert "specify-runtime learning capture-auto" in actions
+    assert "specify-runtime learning capture" in actions
     assert "do not edit Learning storage directly" in actions
 
 
@@ -150,7 +150,7 @@ def test_learning_signal_warns_when_pain_score_crosses_threshold(tmp_path: Path)
     assert result.status == "warn"
     assert result.data["pain_score"] >= 5
     assert "record a learning review decision" in result.actions[0]
-    assert "specify learning capture-auto" in " ".join(result.actions)
+    assert "specify-runtime learning capture-auto" in " ".join(result.actions)
     assert "do not edit Learning storage directly" in " ".join(result.actions)
     assert "specify hook" not in " ".join(result.actions)
 

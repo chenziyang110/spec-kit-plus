@@ -10,7 +10,7 @@ Drive a resumable debugging workflow that finds the real failure mechanism befor
 - The debug session file under `.planning/debug/` is the durable state source of truth for this workflow.
 - Delegated helpers are evidence collectors, not owners of the overall investigation.
 - Debug execution is complexity-based: small focused investigations may stay leader-inline, while broad or independent evidence lanes use one or more subagents.
-- Before substantive investigation, present one Debug Understanding Checkpoint covering user-owned problem facts, expected behavior, occurrence conditions, investigation boundary, explicit fix authority, assumptions to correct, and reconfirmation triggers. Technical hypotheses and the evidence sequence belong to the agent. For applicable UI symptoms, append the independent UI Confirmation target baseline and ask for one combined confirmation; record both decisions in the debug session file.
+- Before substantive investigation, present one Debug Understanding Checkpoint covering user-owned problem facts, expected behavior, occurrence conditions, investigation boundary, explicit fix authority, assumptions to correct, and reconfirmation triggers. Technical hypotheses and the evidence sequence belong to the agent. For applicable UI symptoms, append the independent UI Confirmation target baseline and ask for one combined confirmation; persist both decisions through fresh `specify-runtime artifact patch` leases.
 - Treat that as the one initial full checkpoint. If later evidence materially changes the confirmed boundary or authority, use the delta-only Debug Checkpoint Amendment contract after first explaining why the prior confirmation is no longer sufficient.
 
 ## Debug Checkpoint Card
@@ -19,11 +19,11 @@ Drive a resumable debugging workflow that finds the real failure mechanism befor
 
 ## Process
 
-- Recover or initialize the debug session and current hypothesis.
+- Recover the debug session through `specify-runtime artifact show`, or initialize it through `specify-runtime artifact scaffold --kind debug-session --path .planning/debug/[slug].md`; never read or create it directly.
 - Gather evidence through the current investigation strategy.
 - For consequence-sensitive failures, trace affected objects, dependency loops, control/observation states, adjacent risk targets, and any `CA-###` stop-and-reopen conditions before accepting a fix.
 - Apply a fix only after the failure mechanism is understood well enough to justify it.
-- Verify the result and update the session state before any resolution claim.
+- Verify the result and persist the session transition through a fresh `specify-runtime artifact patch` lease before any resolution claim.
 
 ## Output Contract
 

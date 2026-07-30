@@ -8,14 +8,14 @@ Preserved Contract: confirmed obligations must map to tasks, packet fields, join
 
 Before the task package is complete, map every triggered `CA-###` consequence obligation into executable work or an explicit downstream stop condition.
 
-- Read consequence and must-preserve refs from canonical `plan-contract.json`; open a referenced spec/plan view only when the ref or evidence is missing, stale, or contradictory.
+- Query consequence and must-preserve refs from canonical `plan-contract.json` through `specify-runtime artifact show --json-pointer`; query another view only for missing/stale evidence.
 - For each `CA-###`, name the affected objects, required state behavior, dependency impact, recovery and validation requirement, owning task or join point, and latest safe resolve phase.
 - Map each obligation to at least one task, packet field, join point, validation task, review checkpoint, refinement checkpoint, valid blocker, or user-confirmed deferral carrying confirmation source, exact excluded behavior, residual risk, reopen or stop condition, and downstream artifact.
 - Each mapped task or packet must include objective, write set, affected state or dependency, required references, forbidden drift, validation command or concrete manual check, done condition, and stop-and-reopen condition.
-- Emit each mapping once in canonical `task-index.json`; render it in `tasks.md` only when it has project-review value. A compatibility transition references the canonical mapping instead of copying it.
+- Supply each mapping once to `specify-runtime tasks`; its deterministic renderer projects it into `task-index.json` and, only when it has project-review value, `tasks.md`. A compatibility transition references the canonical mapping instead of copying it.
 - Preserve `CA-###` IDs verbatim in task-index metadata and just-in-time worker packet shaping instructions so `sp-analyze` and `sp-implement` cannot drop them.
 - For every entrypoint outcome CA, include the ID in top-level `consequence_obligation_refs` and at least one task's `consequence_obligation_ids`. Add a required `review_obligations` row whose `source_ref`/`consequence_obligation_ids` maps that CA to one or more required `system_review_scenarios` at the real entry point. Reuse this consequence and Review chain; do not create a second outcome-coverage array.
-- Render user-visible recovery, retry, cancellation, foreground-escalation, and request-retention work in `tasks.md`; do not hide it only in `task-index.json`.
+- Supply user-visible recovery, retry, cancellation, foreground-escalation, and request-retention work to `specify-runtime tasks`; let its deterministic projection expose it in `tasks.md` rather than hiding it only in `task-index.json`.
 - If a consequence obligation is unmapped, do not emit a normal `/sp.analyze` handoff. Repair the task package or route back to `{{invoke:plan}}`, `{{invoke:clarify}}`, or `{{invoke:deep-research}}` with the unmapped obligation named.
 
 ## Capability Operation Coverage

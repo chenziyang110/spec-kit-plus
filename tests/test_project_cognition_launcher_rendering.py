@@ -1,5 +1,4 @@
 import json
-import os
 from pathlib import Path
 
 import pytest
@@ -128,7 +127,6 @@ def test_project_cognition_compass_subcommand_uses_persisted_binary(tmp_path: Pa
         '{{specify-subcmd:specify-runtime cognition compass --intent debug --query="$ARGUMENTS" --format json}}',
     )
 
-    query_arg = '--query="$ARGUMENTS"' if os.name == "nt" else "--query=$ARGUMENTS"
     assert rendered == render_command(
         (
             project_runtime_launcher_arg(),
@@ -136,7 +134,7 @@ def test_project_cognition_compass_subcommand_uses_persisted_binary(tmp_path: Pa
             "compass",
             "--intent",
             "debug",
-            query_arg,
+            "--query=$ARGUMENTS",
             "--format",
             "json",
         )

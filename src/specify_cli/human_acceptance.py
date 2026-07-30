@@ -580,6 +580,8 @@ def _acceptance_repair_recovery_error(
     ]
     workflow_state_ref = f"{_display_path(feature_dir, root)}/workflow-state.md"
     acceptance_ref = f"{_display_path(feature_dir, root)}/human-acceptance.json"
+    journal_ref = _display_path(journal_path, root)
+    backup_ref = _display_path(backup_path, root)
     workflow_state_show_argv = [
         "specify-runtime",
         "artifact",
@@ -602,6 +604,58 @@ def _acceptance_repair_recovery_error(
         "--format",
         "json",
     ]
+    journal_show_argv = [
+        "specify-runtime",
+        "artifact",
+        "show",
+        "--path",
+        journal_ref,
+        "--view",
+        "full",
+        "--format",
+        "json",
+    ]
+    backup_show_argv = [
+        "specify-runtime",
+        "artifact",
+        "show",
+        "--path",
+        backup_ref,
+        "--view",
+        "summary",
+        "--format",
+        "json",
+    ]
+    journal_import_argv = [
+        "specify-runtime",
+        "evidence",
+        "import",
+        "--file",
+        journal_ref,
+        "--scope",
+        "acceptance-repair",
+        "--source",
+        "runtime-recovery-journal",
+        "--provenance",
+        "exceptional-maintainer-recovery",
+        "--format",
+        "json",
+    ]
+    backup_import_argv = [
+        "specify-runtime",
+        "evidence",
+        "import",
+        "--file",
+        backup_ref,
+        "--scope",
+        "acceptance-repair",
+        "--source",
+        "runtime-recovery-backup",
+        "--provenance",
+        "exceptional-maintainer-recovery",
+        "--format",
+        "json",
+    ]
     acceptance_prepare_argv = [
         "specify-runtime",
         "artifact",
@@ -617,8 +671,8 @@ def _acceptance_repair_recovery_error(
         "submit",
         "--lease",
         "<lease-id>",
-        "--content-file",
-        _display_path(backup_path, root),
+        "--recovery-file",
+        backup_ref,
         "--format",
         "json",
     ]
@@ -633,9 +687,9 @@ def _acceptance_repair_recovery_error(
             f"backup: {_display_path(backup_path, root)}",
         ],
         exact_next_action=(
-            "Preserve the journal and backup as exceptional recovery evidence; inspect "
-            "phase state with workflow show and canonical artifacts with artifact show. "
-            "Restore human-acceptance.json only through an artifact prepare/submit lease "
+            "Preserve the journal and backup through evidence import; inspect phase state "
+            "with workflow show and every workflow artifact with artifact show. Restore "
+            "human-acceptance.json only through an artifact prepare/recovery-submit lease "
             "when the phase runtime still names the journal's original accept revision; "
             "otherwise preserve the recovery evidence for maintainer review."
         ),
@@ -656,10 +710,10 @@ def _acceptance_repair_recovery_error(
             f"Access to the project at {root}",
             f"The journal at {_display_path(journal_path, root)}",
             f"The backup at {_display_path(backup_path, root)}",
-            "Permission to run specify-runtime workflow and artifact commands",
+            "Permission to run specify-runtime workflow, artifact, and evidence commands",
         ],
         "safety_notes": [
-            "Do not delete the journal or backup before copying both to a safe location.",
+            "Do not delete, copy, or open the journal or backup directly; preserve both through evidence import.",
             "Do not open or edit workflow.json directly; the workflow runtime owns it.",
             "Do not read or overwrite workflow-state.md or human-acceptance.json outside the artifact CLI.",
             "Do not edit revision numbers or invent a missing acceptance verdict.",
@@ -668,50 +722,60 @@ def _acceptance_repair_recovery_error(
         "steps": [
             {
                 "order": 1,
-                "title": "Preserve the recovery packet",
-                "action": "Copy the internal journal and backup to a safe location before changing recovery state.",
-                "command": None,
-                "expected_result": "Unchanged copies of both exceptional recovery records are available.",
-                "if_failed": "Stop without editing and report the inaccessible path and sanitized OS error.",
+                "title": "Preserve the recovery journal",
+                "action": "Import the runtime-owned journal into content-addressed evidence without copying or opening it directly.",
+                "command": render_command(tuple(journal_import_argv)),
+                "expected_result": "The evidence CLI returns a ready record and object digest for the journal.",
+                "if_failed": "Stop without editing and return the typed evidence blocker.",
             },
             {
                 "order": 2,
+                "title": "Preserve the recovery backup",
+                "action": "Import the runtime-owned backup into content-addressed evidence without copying or opening it directly.",
+                "command": render_command(tuple(backup_import_argv)),
+                "expected_result": "The evidence CLI returns a ready record and object digest for the backup.",
+                "if_failed": "Stop without editing and return the typed evidence blocker.",
+            },
+            {
+                "order": 3,
                 "title": "Read the runtime-owned phase",
-                "action": "Use workflow show and compare its stage/status/revision with the journal.",
+                "action": "Use workflow show to obtain the authoritative stage, status, and revision for the later journal comparison.",
                 "command": render_command(tuple(workflow_show_argv)),
                 "expected_result": "The runtime reports either the original accept revision or the completed review handoff.",
                 "if_failed": "Preserve both recovery records and return the typed workflow blocker; do not inspect workflow.json directly.",
             },
             {
-                "order": 3,
+                "order": 4,
                 "title": "Read canonical recovery context",
                 "action": (
-                    "Run artifact show for workflow-state.md, then run this command again "
-                    f"with {acceptance_ref} and --view full to inspect human acceptance: "
-                    f"{render_command(tuple(acceptance_show_argv))}"
+                    "Use artifact show for the journal, backup, workflow-state.md, and "
+                    "human-acceptance.json; do not open any of them directly. Start with "
+                    f"the journal command below, then run {render_command(tuple(backup_show_argv))}, "
+                    f"{render_command(tuple(workflow_state_show_argv))}, and "
+                    f"{render_command(tuple(acceptance_show_argv))}."
                 ),
-                "command": render_command(tuple(workflow_state_show_argv)),
+                "command": render_command(tuple(journal_show_argv)),
                 "expected_result": "The artifact summaries identify the current acceptance status, finding, route, and rich resume state.",
                 "if_failed": "Return the typed artifact blocker without opening either canonical file directly.",
             },
             {
-                "order": 4,
+                "order": 5,
                 "title": "Prepare a guarded restore",
                 "action": "Only for the proven original accept revision, request a write lease for human-acceptance.json.",
                 "command": render_command(tuple(acceptance_prepare_argv)),
-                "expected_result": "The runtime returns one lease ID and a submit argv.",
+                "expected_result": "The runtime returns one lease ID bound to the current acceptance digest.",
                 "if_failed": "Stop and return the typed lease blocker; keep the journal and backup unchanged.",
             },
             {
-                "order": 5,
+                "order": 6,
                 "title": "Submit the preserved acceptance backup",
-                "action": "Replace <lease-id> with the lease from the prior step and submit the internal backup as content.",
+                "action": "Replace <lease-id> with the lease from the prior step. The recovery-only option validates the sibling journal, backup digest, target type, and finding before replacement.",
                 "command": render_command(tuple(acceptance_submit_argv)),
                 "expected_result": "The artifact runtime atomically restores human-acceptance.json under the lease.",
                 "if_failed": "Do not retry with direct filesystem writes; return the submit blocker and retain both recovery records.",
             },
             {
-                "order": 6,
+                "order": 7,
                 "title": "Verify through the CLI",
                 "action": "Rerun the exact route-repair command with real sanitized evidence and inspect its JSON result.",
                 "command": render_command(tuple(resume_argv)),

@@ -15,7 +15,6 @@ import (
 
 func TestWorkflowUsesOneCurrentStateAndExactStageOrder(t *testing.T) {
 	projectRoot, featureDir, featureRel := newWorkflowFeature(t, "001-runtime")
-	installWorkflowGateLauncher(t, projectRoot)
 	service := NewWorkflowService(projectRoot)
 
 	entered := service.Enter(WorkflowEnterRequest{FeatureID: "001-runtime", Command: "specify", ExpectedRevision: 0})
@@ -57,6 +56,7 @@ func TestWorkflowUsesOneCurrentStateAndExactStageOrder(t *testing.T) {
 		t.Fatalf("next = %#v, want plan", next)
 	}
 	assertRuntimeWorkflowArgv(t, next.NextArgv, "complete-stage", featureRel)
+	writeValidSpecifyGateArtifacts(t, projectRoot, featureRel)
 
 	completed := service.CompleteStage(WorkflowCompleteStageRequest{
 		FeatureDir:       featureRel,
@@ -263,53 +263,62 @@ func TestWorkflowRejectsInjectedPersistedBlockerResume(t *testing.T) {
 	}
 }
 
-func TestWorkflowArtifactGateIsFailClosedForCompleteAndTransition(t *testing.T) {
+func TestWorkflowArtifactGateUsesRuntimeOwnedValidation(t *testing.T) {
 	projectRoot, _, featureRel := newWorkflowFeature(t, "001-gate")
 	service := NewWorkflowService(projectRoot)
 	entered := service.Enter(WorkflowEnterRequest{FeatureDir: featureRel, Command: "specify"})
 	if entered.Status != "ok" {
 		t.Fatal(entered)
 	}
+	writeHookArtifactFixture(t, projectRoot, featureRel, "spec.md", "# Feature Specification\n\n## Requirements\n\n- FR-001: Runtime gate.\n")
+	writeHookArtifactFixture(t, projectRoot, featureRel, "spec-contract.json", `{"schema_version":1,"status":"ready"}`+"\n")
+	writeHookArtifactFixture(t, projectRoot, featureRel, "workflow-state.md", "# Workflow State\n")
 
-	missingLauncher := service.CompleteStage(WorkflowCompleteStageRequest{FeatureDir: featureRel, ExpectedRevision: 1})
-	if missingLauncher.Status != "blocked" {
-		t.Fatalf("missing launcher gate = %#v, want blocked", missingLauncher)
-	}
-	assertWorkflowRevision(t, service, featureRel, 1, "active")
-
-	installWorkflowGateLauncher(t, projectRoot)
-	setWorkflowGateStatus(t, projectRoot, "blocked")
-	blocked := service.CompleteStage(WorkflowCompleteStageRequest{FeatureDir: featureRel, ExpectedRevision: 1})
-	if blocked.Status != "blocked" {
-		t.Fatalf("blocked complete gate = %#v", blocked)
-	}
-	assertWorkflowRevision(t, service, featureRel, 1, "active")
-
-	setWorkflowGateStatus(t, projectRoot, "ok")
 	completed := service.CompleteStage(WorkflowCompleteStageRequest{FeatureDir: featureRel, ExpectedRevision: 1})
 	if completed.Status != "ok" {
-		t.Fatalf("passing complete gate = %#v", completed)
+		t.Fatalf("runtime-owned complete gate = %#v", completed)
 	}
+	assertWorkflowRevision(t, service, featureRel, 2, "completed")
+
+	transitioned := service.Transition(WorkflowTransitionRequest{FeatureDir: featureRel, To: "plan", ExpectedRevision: 2})
+	if transitioned.Status != "ok" {
+		t.Fatalf("runtime-owned transition gate = %#v", transitioned)
+	}
+}
+
+func TestWorkflowArtifactGateFailsClosedOnRuntimeSemanticValidation(t *testing.T) {
+	projectRoot, _, featureRel := newWorkflowFeature(t, "001-gate-semantic")
+	service := NewWorkflowService(projectRoot)
+	if entered := service.Enter(WorkflowEnterRequest{FeatureDir: featureRel, Command: "specify"}); entered.Status != "ok" {
+		t.Fatal(entered)
+	}
+	writeHookArtifactFixture(t, projectRoot, featureRel, "spec.md", "# Feature Specification\n\n## Notes\n\n- Missing requirements.\n")
+	writeHookArtifactFixture(t, projectRoot, featureRel, "spec-contract.json", `{"schema_version":1,"status":"ready"}`+"\n")
+	writeHookArtifactFixture(t, projectRoot, featureRel, "workflow-state.md", "# Workflow State\n")
+
+	blocked := service.CompleteStage(WorkflowCompleteStageRequest{FeatureDir: featureRel, ExpectedRevision: 1})
+	if blocked.Status != "blocked" {
+		t.Fatalf("semantic complete gate = %#v, want blocked", blocked)
+	}
+	assertWorkflowRevision(t, service, featureRel, 1, "active")
+}
+
+func TestWorkflowArtifactGateSkipsDiscussionAndValidatesAcceptSemantics(t *testing.T) {
+	projectRoot, featureDir, featureRel := newWorkflowFeature(t, "001-accept-gate")
+	writeWorkflowStateFixture(t, featureDir, "001-accept-gate", 5, "accept", "active", nil)
+	writeHookArtifactFixture(t, projectRoot, featureRel, "workflow-state.md", "# Workflow State\n")
+	writeHookArtifactFixture(t, projectRoot, featureRel, "implementation-summary.md", "# Summary\n")
+	writeHookArtifactFixture(t, projectRoot, featureRel, "review-state.json", `{"version":2,"status":"approved","source":{"implementation_handoff_sha256":"stale","implementation_fingerprint":"stale","workflow_revision":5},"final":{"verdict":"pass","coverage_verdict":"pass","repair_verdict":"pass","integration_verdict":"pass","all_packets_joined":true},"findings":[]}`+"\n")
+	writeHookArtifactFixture(t, projectRoot, featureRel, "implementation-handoff.json", `{"source_revision":5}`+"\n")
+	writeHookArtifactFixture(t, projectRoot, featureRel, "human-acceptance.json", `{"version":2,"status":"accepted","source":{"review_state_sha256":"stale","implementation_handoff_sha256":"stale"},"overall":{"verdict":"fail","human_decision":"reject"}}`+"\n")
+	service := NewWorkflowService(projectRoot)
 	feature, err := service.resolveFeature(featureRel, "")
 	if err != nil {
 		t.Fatal(err)
 	}
 	acceptGate := service.validateStageArtifacts(feature, "accept")
-	if acceptGate.Status != "ok" {
-		t.Fatalf("accept gate must carry terminal validation intent: %#v", acceptGate)
-	}
-
-	setWorkflowGateStatus(t, projectRoot, "blocked")
-	transitionBlocked := service.Transition(WorkflowTransitionRequest{FeatureDir: featureRel, To: "plan", ExpectedRevision: 2})
-	if transitionBlocked.Status != "blocked" {
-		t.Fatalf("blocked transition gate = %#v", transitionBlocked)
-	}
-	assertWorkflowRevision(t, service, featureRel, 2, "completed")
-
-	setWorkflowGateStatus(t, projectRoot, "ok")
-	transitioned := service.Transition(WorkflowTransitionRequest{FeatureDir: featureRel, To: "plan", ExpectedRevision: 2})
-	if transitioned.Status != "ok" {
-		t.Fatalf("passing transition gate = %#v", transitioned)
+	if acceptGate.Status != "blocked" {
+		t.Fatalf("accept gate must enforce runtime semantics: %#v", acceptGate)
 	}
 
 	_, _, discussionRel := newWorkflowFeatureAtRoot(t, projectRoot, "002-discussion")
@@ -317,7 +326,6 @@ func TestWorkflowArtifactGateIsFailClosedForCompleteAndTransition(t *testing.T) 
 	if discussion.Status != "ok" {
 		t.Fatal(discussion)
 	}
-	setWorkflowGateStatus(t, projectRoot, "blocked")
 	completedDiscussion := service.CompleteStage(WorkflowCompleteStageRequest{FeatureDir: discussionRel, ExpectedRevision: 1})
 	if completedDiscussion.Status != "ok" {
 		t.Fatalf("discussion gate should be skipped: %#v", completedDiscussion)
@@ -683,8 +691,8 @@ func TestWorkflowCloseoutRollsBackSnapshotWhenStateCommitFails(t *testing.T) {
 func TestWorkflowConcurrentTransitionAndCloseoutHaveOneCASWinner(t *testing.T) {
 	t.Run("transition", func(t *testing.T) {
 		projectRoot, featureDir, featureRel := newWorkflowFeature(t, "001-concurrent-transition")
-		installWorkflowGateLauncher(t, projectRoot)
 		writeWorkflowStateFixture(t, featureDir, "001-concurrent-transition", 2, "specify", "completed", nil)
+		writeValidSpecifyGateArtifacts(t, projectRoot, featureRel)
 		const contenders = 24
 		start := make(chan struct{})
 		results := make(chan Envelope, contenders)
@@ -738,53 +746,6 @@ func newPassingCloseoutService(projectRoot string) *WorkflowService {
 	return service
 }
 
-func TestWorkflowArtifactGateHelper(t *testing.T) {
-	if os.Getenv("SPECIFY_RUNTIME_WORKFLOW_GATE") != "1" {
-		return
-	}
-	args := os.Args
-	separator := -1
-	for index, arg := range args {
-		if arg == "--" {
-			separator = index
-			break
-		}
-	}
-	valid := separator >= 0 && len(args[separator+1:]) >= 8
-	gateArgs := []string{}
-	if separator >= 0 {
-		gateArgs = args[separator+1:]
-	}
-	commandName := optionValue(gateArgs, "--command", "")
-	valid = valid && gateArgs[0] == "hook" && gateArgs[1] == "validate-artifacts" && commandName != "" && optionValue(gateArgs, "--feature-dir", "") != "" && optionValue(gateArgs, "--format", "") == "json"
-	if commandName == "accept" {
-		valid = valid && containsString(gateArgs, "--require-accepted")
-	}
-	status := "ok"
-	if raw, err := os.ReadFile(filepath.Join(".specify", "test-workflow-gate-status")); err == nil {
-		status = strings.TrimSpace(string(raw))
-	}
-	if !valid {
-		status = "invalid"
-	}
-	payload := map[string]any{
-		"status":   status,
-		"summary":  "test artifact gate",
-		"blockers": []any{},
-	}
-	if status != "ok" && status != "warn" && status != "repaired" {
-		payload["blockers"] = []any{map[string]any{"code": "test-artifact-gate", "stage": optionValue(gateArgs, "--command", "unknown")}}
-	}
-	_ = json.NewEncoder(os.Stdout).Encode(payload)
-	if status == "blocked" || status == "repairable-block" {
-		os.Exit(10)
-	}
-	if status != "ok" && status != "warn" && status != "repaired" {
-		os.Exit(2)
-	}
-	os.Exit(0)
-}
-
 func newWorkflowFeature(t *testing.T, featureID string) (string, string, string) {
 	t.Helper()
 	projectRoot := t.TempDir()
@@ -799,30 +760,6 @@ func newWorkflowFeatureAtRoot(t *testing.T, projectRoot, featureID string) (stri
 		t.Fatal(err)
 	}
 	return projectRoot, featureDir, featureRel
-}
-
-func installWorkflowGateLauncher(t *testing.T, projectRoot string) {
-	t.Helper()
-	payload := map[string]any{
-		"specify_launcher": map[string]any{
-			"argv": []string{os.Args[0], "-test.run=^TestWorkflowArtifactGateHelper$", "--"},
-		},
-	}
-	raw, err := json.Marshal(payload)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(projectRoot, ".specify", "config.json"), raw, 0o644); err != nil {
-		t.Fatal(err)
-	}
-	setWorkflowGateStatus(t, projectRoot, "ok")
-}
-
-func setWorkflowGateStatus(t *testing.T, projectRoot, status string) {
-	t.Helper()
-	if err := os.WriteFile(filepath.Join(projectRoot, ".specify", "test-workflow-gate-status"), []byte(status), 0o644); err != nil {
-		t.Fatal(err)
-	}
 }
 
 func writeWorkflowStateFixture(t *testing.T, featureDir, featureID string, revision int, stage, status string, acceptanceSHA256 *string) {
@@ -983,4 +920,22 @@ func assertOneWorkflowWinner(t *testing.T, results <-chan Envelope, contenders i
 	if okCount != 1 || blockedCount != contenders-1 {
 		t.Fatalf("concurrent results = %d ok, %d blocked; want 1 and %d", okCount, blockedCount, contenders-1)
 	}
+}
+
+func writeHookArtifactFixture(t *testing.T, projectRoot, featureRel, relativePath, content string) {
+	t.Helper()
+	path := filepath.Join(projectRoot, filepath.FromSlash(featureRel), filepath.FromSlash(relativePath))
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func writeValidSpecifyGateArtifacts(t *testing.T, projectRoot, featureRel string) {
+	t.Helper()
+	writeHookArtifactFixture(t, projectRoot, featureRel, "spec.md", "# Feature Specification\n\n## Requirements\n\n- FR-001: Runtime validation.\n")
+	writeHookArtifactFixture(t, projectRoot, featureRel, "spec-contract.json", "{\"schema_version\":1,\"status\":\"ready\"}\n")
+	writeHookArtifactFixture(t, projectRoot, featureRel, "workflow-state.md", "# Workflow State\n")
 }

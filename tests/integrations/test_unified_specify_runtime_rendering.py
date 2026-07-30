@@ -15,6 +15,10 @@ import pytest
 from specify_cli import _install_shared_infra
 from specify_cli.integrations import get_integration
 from specify_cli.integrations.manifest import IntegrationManifest
+from specify_cli.workflow_artifact_lint import (
+    load_workflow_artifact_registry,
+    scan_workflow_artifact_instructions,
+)
 
 
 _TEXT_SUFFIXES = {".json", ".md", ".toml", ".yaml", ".yml"}
@@ -95,7 +99,7 @@ ADVANCED_ARTIFACT_SURFACES = {
     "accept": ("spx-accept", "human-acceptance.json"),
     "discussion": ("spx-discussion", "discussion write-handoff"),
     "quick": ("spx-quick", "status.md"),
-    "debug": ("spx-debug", "debug-session.md"),
+    "debug": ("spx-debug", "--kind debug-session"),
     "map-scan": ("spx-map-scan", "scan-prepare"),
     "map-build": ("spx-map-build", "build-from-scan"),
     "map-update": ("spx-map-update", "complete-refresh"),
@@ -104,8 +108,8 @@ ADVANCED_ARTIFACT_SURFACES = {
 
 WORKER_ARTIFACT_SURFACES = {
     "specify-observer": ("specify-observer.md", "specify-draft.md"),
-    "implementer": ("implementer.md", "delegated result handoff path"),
-    "task-reviewer": ("task-reviewer.md", "worker-results/"),
+    "implementer": ("implementer.md", "runtime result channel"),
+    "task-reviewer": ("task-reviewer.md", "canonical worker-result envelope"),
     "quick-worker": ("quick-worker.md", "status.md"),
     "debug-investigator": ("debug-investigator.md", "debug file"),
     "map-scan-worker": ("map-scan-worker.md", "scan-checkpoint"),
@@ -118,6 +122,7 @@ REQUIRED_ARTIFACT_COMMANDS = (
     "specify-runtime artifact prepare",
     "specify-runtime artifact submit",
 )
+WORKER_REQUIRED_ARTIFACT_COMMANDS = ("specify-runtime artifact show",)
 
 
 def _install_codex_profile(project: Path, profile: str) -> Path:
@@ -346,6 +351,51 @@ def test_generated_worker_artifact_surfaces_use_unified_specify_runtime(
     assert errors == [], "\n".join(errors)
 
 
+def test_generated_surfaces_have_no_raw_workflow_artifact_operations(
+    generated_agent_surfaces: dict[str, Path],
+) -> None:
+    repository_root = Path(__file__).resolve().parents[2]
+    registry = load_workflow_artifact_registry(
+        repository_root / "templates" / "workflow-artifact-registry.json"
+    )
+
+    report = scan_workflow_artifact_instructions(
+        generated_agent_surfaces.values(), registry
+    )
+
+    assert report.violations == [], [item.to_payload() for item in report.violations]
+
+
+@pytest.mark.parametrize(
+    "integration_key",
+    ("claude", "gemini", "codex", "cursor-agent"),
+)
+def test_representative_generated_integrations_preserve_artifact_boundary(
+    tmp_path: Path,
+    integration_key: str,
+) -> None:
+    repository_root = Path(__file__).resolve().parents[2]
+    registry = load_workflow_artifact_registry(
+        repository_root / "templates" / "workflow-artifact-registry.json"
+    )
+    project = tmp_path / integration_key
+    project.mkdir()
+    integration = get_integration(integration_key)
+    assert integration is not None
+    integration.setup(
+        project,
+        IntegrationManifest(integration_key, project),
+        parsed_options={"workflow_profile": "classic"},
+        script_type="sh",
+    )
+
+    report = scan_workflow_artifact_instructions(
+        [integration.commands_dest(project)], registry
+    )
+
+    assert report.violations == [], [item.to_payload() for item in report.violations]
+
+
 def test_every_classic_workflow_has_the_shared_fixed_artifact_boundary(
     generated_agent_surfaces: dict[str, Path],
 ) -> None:
@@ -383,12 +433,15 @@ def test_worker_prompts_name_only_implemented_runtime_artifact_namespaces(
     errors: list[str] = []
     for prompt in sorted(workers.glob("*.md")):
         content = prompt.read_text(encoding="utf-8").lower()
-        missing = [command for command in REQUIRED_ARTIFACT_COMMANDS if command not in content]
+        missing = [
+            command
+            for command in WORKER_REQUIRED_ARTIFACT_COMMANDS
+            if command not in content
+        ]
         unsupported = [
             command
             for command in (
                 "specify-runtime context",
-                "specify-runtime evidence",
                 "specify-runtime session",
             )
             if command in content
@@ -406,7 +459,6 @@ def test_generated_workflows_do_not_name_unimplemented_runtime_namespaces(
 ) -> None:
     unsupported = (
         "specify-runtime context",
-        "specify-runtime evidence",
         "specify-runtime session",
     )
     errors: list[str] = []

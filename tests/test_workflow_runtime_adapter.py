@@ -200,7 +200,7 @@ def test_all_workflow_operations_map_to_the_frozen_go_cli(
     assert all(command[-2:] == ["--format", "json"] for command in commands)
 
 
-def test_block_serializes_structured_input_to_a_temporary_json_bridge(
+def test_block_serializes_structured_input_inline_without_temporary_file(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -208,8 +208,7 @@ def test_block_serializes_structured_input_to_a_temporary_json_bridge(
     captured: dict[str, Any] = {}
 
     def fake_run(args, *, cwd, check, install_if_missing):
-        input_path = Path(args[args.index("--input") + 1])
-        captured["payload"] = json.loads(input_path.read_text(encoding="utf-8"))
+        captured["payload"] = json.loads(args[args.index("--input-json") + 1])
         captured["args"] = list(args)
         return _envelope(
             "blocked",
@@ -237,6 +236,7 @@ def test_block_serializes_structured_input_to_a_temporary_json_bridge(
     assert captured["payload"]["expected_revision"] == 1
     assert captured["payload"]["cause"] == "protected CI is pending"
     assert captured["args"][:2] == ["workflow", "block"]
+    assert "--input" not in captured["args"]
     assert captured["args"][captured["args"].index("--feature-dir") + 1] == str(
         feature
     )

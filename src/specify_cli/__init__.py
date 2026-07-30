@@ -40,7 +40,7 @@ from datetime import date
 from enum import Enum
 
 from pathlib import Path
-from typing import Any, Optional, Tuple
+from typing import Any, Callable, Optional, Tuple
 
 import typer
 from rich.console import Console, Group
@@ -98,12 +98,16 @@ from specify_cli.design import (
     DesignDiagnostic,
     DesignLintError,
     approve_design_preview,
+    design_capability_profiles,
     export_design_system,
     import_design_reference,
     lint_design_preview_file,
     lint_design_file,
     lint_ui_target_file,
+    parse_design_capability_profile_ids,
+    render_design_preview,
     scaffold_design_preview,
+    scaffold_design_preview_manifest,
     scaffold_ui_target,
 )
 from specify_cli.specify_runtime import (
@@ -520,7 +524,7 @@ app.add_typer(teams_app, name="sp-teams")
 
 discussion_app = typer.Typer(
     name="discussion",
-    help="Use when a rough idea or requirement needs a resumable senior product-engineering discussion before formal specification.",
+    help="Use when a rough idea or requirement needs a resumable senior product-engineering discussion before direct Quick delivery or formal specification.",
     add_completion=False,
     invoke_without_command=True,
     no_args_is_help=False,
@@ -533,6 +537,13 @@ quick_app = typer.Typer(
     add_completion=False,
 )
 app.add_typer(quick_app, name="quick")
+
+tasks_app = typer.Typer(
+    name="tasks",
+    help="Build and mutate canonical task packages without direct file writes",
+    add_completion=False,
+)
+app.add_typer(tasks_app, name="tasks")
 
 implement_app = typer.Typer(
     name="implement",
@@ -592,6 +603,13 @@ design_app = typer.Typer(
     add_completion=False,
 )
 app.add_typer(design_app, name="design")
+
+workflow_artifacts_app = typer.Typer(
+    name="workflow-artifacts",
+    help="Audit CLI ownership of generated workflow artifacts.",
+    no_args_is_help=True,
+)
+app.add_typer(workflow_artifacts_app, name="workflow-artifacts")
 
 
 def _diagnostics_payload(diagnostics: list[DesignDiagnostic]) -> dict[str, Any]:
@@ -779,6 +797,77 @@ def design_lint(
     raise typer.Exit(1)
 
 
+@design_app.command("preview-manifest")
+def design_preview_manifest(
+    out: Path = typer.Option(
+        Path(".specify/design/previews/round-01.manifest.json"),
+        "--out",
+        help="Write the compact editable preview manifest to this path",
+    ),
+    force: bool = typer.Option(
+        False,
+        "--force",
+        help="Replace an existing preview manifest scaffold",
+    ),
+    profiles: str = typer.Option(
+        "web",
+        "--profiles",
+        help=(
+            "Comma-separated capability profiles: web, mobile, desktop, cli, "
+            "tui, content, or no-ui"
+        ),
+    ),
+) -> None:
+    """Create the compact source manifest for one preview round."""
+
+    try:
+        profile_ids = parse_design_capability_profile_ids(profiles)
+        out_path = scaffold_design_preview_manifest(
+            out,
+            force=force,
+            profile_ids=profile_ids,
+        )
+    except DesignLintError as exc:
+        console.print(f"[red]Error:[/red] {exc}")
+        raise typer.Exit(1)
+    print(f"Wrote {_display_path(out_path)}")
+
+
+@design_app.command("profiles")
+def design_profiles(
+    output_format: TextJsonFormat = typer.Option(
+        TextJsonFormat.text,
+        "--format",
+        help="Output format: text or json",
+    ),
+) -> None:
+    """List deterministic design capability profiles and no-UI routing."""
+
+    try:
+        profiles = design_capability_profiles()
+    except DesignLintError as exc:
+        console.print(f"[red]Error:[/red] {exc}")
+        raise typer.Exit(1)
+    if output_format.lower() == "json":
+        print_json(
+            {
+                "schema": "spec-kit-design-capability-profiles-v1",
+                "profiles": profiles,
+            }
+        )
+        return
+    for profile in profiles:
+        status = (
+            "preview + handoff"
+            if profile.get("preview_required") is True
+            else "not-applicable route"
+        )
+        console.print(
+            f"{profile.get('id')}: {profile.get('label')} — {status}\n"
+            f"  {profile.get('summary')}"
+        )
+
+
 @design_app.command("preview")
 def design_preview(
     out: Path = typer.Option(
@@ -791,11 +880,20 @@ def design_preview(
         "--force",
         help="Replace an existing unapproved preview scaffold",
     ),
+    manifest: Optional[Path] = typer.Option(
+        None,
+        "--manifest",
+        help="Render a ready candidate from this compact preview manifest",
+    ),
 ) -> None:
-    """Create a self-contained three-direction HTML design review board."""
+    """Create or deterministically render a three-direction design review board."""
 
     try:
-        out_path = scaffold_design_preview(out, force=force)
+        out_path = (
+            render_design_preview(manifest, out, force=force)
+            if manifest is not None
+            else scaffold_design_preview(out, force=force)
+        )
     except DesignLintError as exc:
         console.print(f"[red]Error:[/red] {exc}")
         raise typer.Exit(1)
@@ -1437,66 +1535,74 @@ def _run_discussion_helper(
     return payload
 
 
-def _prd_helper_script() -> tuple[list[str], Path]:
-    project_root = _project_root_from_source()
-    core_pack = _locate_core_pack()
-    script_path = (
-        core_pack / "scripts" / "shared" / "prd-state.py"
-        if core_pack is not None
-        else project_root / "scripts" / "shared" / "prd-state.py"
-    )
-    return [sys.executable, "-X", "utf8"], script_path
-
-
 def _run_prd_helper(
     mode: str,
     run_slug: str = "",
 ) -> dict[str, Any]:
-    interpreter, script_path = _prd_helper_script()
-    if not script_path.exists():
-        console.print(f"[red]Error:[/red] PRD helper script not found: {script_path}")
+    normalized_mode = mode.strip().lower()
+    project_root = Path.cwd()
+    prd_scan_modes = {
+        "init",
+        "status",
+        "init-scan",
+        "status-scan",
+        "finalize",
+        "finalize-scan",
+    }
+    if normalized_mode != "status-build" and normalized_mode not in prd_scan_modes:
+        console.print(f"[red]Error:[/red] Unknown PRD mode: {mode}")
         raise typer.Exit(1)
 
-    cmd = [
-        *interpreter,
-        str(script_path),
-        str(Path.cwd()),
-        mode,
-        run_slug,
-    ]
-
-    env = os.environ.copy()
-    env["PYTHONUTF8"] = "1"
-    env["PYTHONIOENCODING"] = "utf-8"
-
-    result = subprocess.run(
-        cmd,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="strict",
-        check=False,
-        env=env,
-    )
-    if result.returncode != 0:
-        error_output = (
-            result.stderr or result.stdout or ""
-        ).strip() or "PRD helper failed"
-        console.print(f"[red]Error:[/red] {error_output}")
-        raise typer.Exit(1)
-
-    raw = (result.stdout or "").strip()
-    if not raw:
-        return {}
     try:
-        payload = json.loads(raw)
-    except json.JSONDecodeError as exc:
-        console.print(f"[red]Error:[/red] Failed to parse PRD helper output: {exc}")
+        if normalized_mode == "status-build":
+            payload = run_specify_runtime(
+                [
+                    "prd-build",
+                    "status-build",
+                    run_slug,
+                    "--project-root",
+                    str(project_root),
+                    "--format",
+                    "json",
+                ],
+                cwd=project_root,
+                check=False,
+                install_if_missing=True,
+            )
+        else:
+            payload = run_specify_runtime(
+                [
+                    "prd-scan",
+                    normalized_mode,
+                    run_slug,
+                    "--project-root",
+                    str(project_root),
+                    "--format",
+                    "json",
+                ],
+                cwd=project_root,
+                check=False,
+                install_if_missing=True,
+            )
+    except SpecifyRuntimeError as exc:
+        console.print(f"[red]Error:[/red] {exc}")
         raise typer.Exit(1) from exc
-    if not isinstance(payload, dict):
-        console.print("[red]Error:[/red] PRD helper returned an invalid payload")
+
+    status = str(payload.get("status") or "ok").strip().lower()
+    if status not in {"ok", "warn", "repaired"}:
+        blockers = payload.get("blockers")
+        if isinstance(blockers, list) and blockers:
+            detail = "; ".join(str(item) for item in blockers)
+        else:
+            detail = str(payload.get("summary") or "PRD runtime command failed")
+        console.print(f"[red]Error:[/red] {detail}")
         raise typer.Exit(1)
-    return payload
+
+    data = payload.get("data")
+    if not isinstance(data, dict):
+        console.print("[red]Error:[/red] PRD runtime returned an invalid data payload")
+        raise typer.Exit(1)
+    return data
 
 
 SPEC_KIT_BLOCK_START = "<!-- SPEC-KIT:BEGIN -->"
@@ -1533,10 +1639,10 @@ def _render_spec_kit_managed_block(*, project_root: Path, newline: str) -> str:
             "## Workflow Recommendations",
             "",
             "- Do not auto-enter an `sp-*` workflow unless the user invokes it. Continuing an already-invoked incomplete workflow is not auto-entry.",
-            "- Recommend `sp-discussion` for open-ended requirement exploration, `sp-specify` for formal alignment, `sp-deep-research` for feasibility proof, and `sp-debug` for root-cause diagnosis.",
+            "- Recommend `sp-discussion` for open-ended requirement exploration, `sp-quick` for tracked direct delivery of any size, `sp-specify` for an explicitly selected formal spec-first path, `sp-deep-research` for feasibility proof, and `sp-debug` for root-cause diagnosis.",
             "- If the user invokes an `sp-*` workflow, follow that workflow's own contract.",
             "- When a topical follow-up, acknowledgement, or contextual confirmation continues an active discussion, resume `sp-discussion` from durable state even when the user does not repeat the workflow name.",
-            "- Before recommending `sp-specify`, inspect the matching discussion status. If it is not `handoff-ready`, resume `sp-discussion` assessment, draft review, or repair; only a ready contract may route downstream.",
+            "- Before recommending `sp-quick` or `sp-specify` from a discussion, run `{{specify-subcmd:specify-runtime discussion status <slug> --format json}}` and consume its status and `recommended_consumer`. If it is not `handoff-ready` or the consumer does not match, resume `sp-discussion` assessment, draft review, or repair; only a ready confirmed route may continue downstream.",
             "",
             "## Command Surface Rules",
             "",
@@ -1842,80 +1948,6 @@ def _normalize_prd_payload(payload: dict[str, Any]) -> dict[str, Any]:
     return normalized
 
 
-def _apply_prd_build_semantic_readiness(
-    project_root: Path, payload: dict[str, Any]
-) -> dict[str, Any]:
-    """Attach semantic readiness to the physical PRD build surface status."""
-
-    from .hooks.artifact_validation import (
-        validate_artifacts_hook,
-        validate_prd_build_readiness,
-    )
-
-    normalized = _normalize_prd_payload(payload)
-    run_dir = Path(str(normalized.get("workspace_path") or ""))
-    run_id = str(normalized.get("workspace") or run_dir.name)
-    rerun = f"specify prd-build {run_id} --json"
-    readiness_errors = validate_prd_build_readiness(run_dir)
-
-    enriched = dict(payload)
-    enriched["surface_complete"] = bool(normalized.get("surface_complete"))
-    if readiness_errors:
-        enriched.update(
-            {
-                "status": "blocked",
-                "readiness": "blocked",
-                "errors": readiness_errors,
-                "recovery": {
-                    "stage": "prd-scan",
-                    "action": "repair the reported frozen scan-package gaps",
-                    "rerun": rerun,
-                },
-            }
-        )
-        return enriched
-
-    if not normalized.get("surface_complete"):
-        enriched.update(
-            {
-                "status": "ready",
-                "readiness": "ready-to-build",
-                "errors": [],
-                "recovery": None,
-            }
-        )
-        return enriched
-
-    completion = validate_artifacts_hook(
-        project_root,
-        {"command_name": "prd-build", "feature_dir": str(run_dir)},
-    )
-    if completion.status == "blocked":
-        enriched.update(
-            {
-                "status": "blocked",
-                "readiness": "blocked",
-                "errors": list(completion.errors),
-                "recovery": {
-                    "stage": "prd-build",
-                    "action": "repair the reported export or traceability gaps",
-                    "rerun": rerun,
-                },
-            }
-        )
-        return enriched
-
-    enriched.update(
-        {
-            "status": "ready",
-            "readiness": "complete",
-            "errors": [],
-            "recovery": None,
-        }
-    )
-    return enriched
-
-
 def _render_prd_payload(payload: dict[str, Any], *, json_output: bool = False) -> None:
     normalized = _normalize_prd_payload(payload)
     if json_output:
@@ -1985,10 +2017,8 @@ def prd_build_command(
     ),
 ):
     """Inspect a validated heavy reconstruction PRD build workspace; compile exports from the scan package without a second repository scan and block when critical-evidence gaps remain."""
-    project_root = Path.cwd()
-    _require_spec_kit_plus_project(project_root)
+    _require_spec_kit_plus_project(Path.cwd())
     payload = _run_prd_helper("status-build", run_slug=run_slug)
-    payload = _apply_prd_build_semantic_readiness(project_root, payload)
     _render_prd_payload(payload, json_output=json_output)
 
 
@@ -2201,20 +2231,29 @@ def discussion_validate_handoff(
 @discussion_app.command("write-handoff")
 def discussion_write_handoff(
     slug: str = typer.Argument(..., help="Discussion slug"),
-    input_path: Path = typer.Option(
-        ..., "--input", help="Canonical handoff JSON draft"
+    input_json: str | None = typer.Option(
+        None, "--input-json", help="Inline canonical handoff JSON draft"
     ),
     json_output: bool = typer.Option(
         False, "--json", help="Print agent contract path and digest as JSON"
     ),
 ):
     """Write the canonical agent-only discussion contract."""
-    _require_spec_kit_plus_project(Path.cwd())
-    payload = _run_discussion_helper(
-        "write-handoff",
-        slug=slug,
-        status=str(input_path.resolve()),
-    )
+    project_root = Path.cwd().resolve(strict=False)
+    _require_spec_kit_plus_project(project_root)
+    try:
+        draft = _agent_json_object_input(
+            input_json=input_json,
+            label="handoff draft",
+        )
+        payload = _run_discussion_helper(
+            "write-handoff-json",
+            slug=slug,
+            status=json.dumps(draft, ensure_ascii=False, separators=(",", ":")),
+        )
+    except (OSError, UnicodeError, ValueError, json.JSONDecodeError) as exc:
+        console.print(f"[red]Error:[/red] {exc}")
+        raise typer.Exit(1) from exc
     if json_output:
         print_json(payload, indent=2)
         return
@@ -2306,7 +2345,7 @@ def discussion_mark_consumed(
     feature_dir: str = typer.Option(
         ...,
         "--feature-dir",
-        help="Feature directory that consumed the discussion handoff",
+        help="Consumer workspace that bound the discussion handoff (legacy option name)",
     ),
     archive: bool = typer.Option(
         False, "--archive", help="Archive the consumed discussion after closing it"
@@ -2315,7 +2354,7 @@ def discussion_mark_consumed(
         False, "--json", help="Print consumption state as JSON"
     ),
 ):
-    """Mark a handoff-ready discussion as consumed by a downstream feature."""
+    """Mark a handoff-ready discussion as consumed by its Quick or feature workspace."""
     consumed_by = feature_dir.strip()
     if not consumed_by:
         console.print("[red]Error:[/red] --feature-dir is required")
@@ -2623,11 +2662,434 @@ def implement_validation_status(
         console.print(f"Next action: {payload['next_action']}")
 
 
+def _emit_implement_task_payload(
+    payload: dict[str, Any], output_format: TextJsonFormat, *, summary: str
+) -> None:
+    if output_format.lower() == "json":
+        print_json(payload, indent=2)
+    else:
+        console.print(summary)
+
+
+@workflow_artifacts_app.command("lint")
+def workflow_artifacts_lint(
+    paths: list[Path] | None = typer.Option(
+        None,
+        "--path",
+        help="Prompt/template path to scan; repeat for multiple paths",
+    ),
+    registry_path: Path = typer.Option(
+        Path("templates/workflow-artifact-registry.json"),
+        "--registry",
+        help="Workflow artifact ownership registry",
+    ),
+    output_format: TextJsonFormat = typer.Option(TextJsonFormat.text, "--format"),
+):
+    """Fail when a workflow prompt instructs direct artifact CRUD."""
+    from .workflow_artifact_lint import (
+        WorkflowArtifactRegistryError,
+        default_workflow_artifact_scan_paths,
+        load_workflow_artifact_registry,
+        scan_workflow_artifact_instructions,
+    )
+
+    root = Path.cwd()
+    selected = paths or default_workflow_artifact_scan_paths(root)
+    resolved_registry = (
+        registry_path
+        if registry_path.is_absolute()
+        else root / registry_path
+    )
+    try:
+        registry = load_workflow_artifact_registry(resolved_registry)
+        report = scan_workflow_artifact_instructions(selected, registry)
+    except (WorkflowArtifactRegistryError, OSError, UnicodeError) as exc:
+        payload = {"ok": False, "status": "error", "errors": [str(exc)]}
+        if output_format.lower() == "json":
+            print_json(payload, indent=2)
+        else:
+            console.print(f"[red]Error:[/red] {exc}")
+        raise typer.Exit(1)
+
+    payload = report.to_payload()
+    payload["registry"] = str(resolved_registry)
+    payload["allowlist_count"] = len(registry.allowlist)
+    if output_format.lower() == "json":
+        print_json(payload, indent=2)
+    elif report.ok:
+        console.print(
+            f"Workflow artifact ownership lint passed ({report.scanned_files} files, no exceptions)."
+        )
+    else:
+        console.print(
+            f"[red]Workflow artifact ownership lint failed:[/red] {len(report.violations)} violation(s)."
+        )
+        for item in report.violations:
+            console.print(
+                f"- {item.path}:{item.line_number} {item.operation} {item.artifact_hint}"
+            )
+    if not report.ok:
+        raise typer.Exit(1)
+
+
+def _fail_implement_task_runtime(
+    exc: Exception, output_format: TextJsonFormat
+) -> None:
+    payload = {"status": "blocked", "errors": [str(exc)]}
+    if output_format.lower() == "json":
+        print_json(payload, indent=2)
+    else:
+        console.print(f"[red]Error:[/red] {exc}")
+    raise typer.Exit(10)
+
+
+def _task_authoring_object(raw: str, *, label: str) -> dict[str, Any]:
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"{label} must be valid JSON: {exc}") from exc
+    if not isinstance(payload, dict):
+        raise ValueError(f"{label} must contain a JSON object")
+    return payload
+
+
+_MAX_AGENT_JSON_INPUT_BYTES = 16 * 1024 * 1024
+
+
+def _agent_json_object_input(
+    *,
+    input_json: str | None,
+    label: str,
+) -> dict[str, Any]:
+    """Load one bounded JSON object from the inline agent input channel."""
+
+    if input_json is None:
+        raise ValueError(f"provide --input-json for {label}; input files are disabled")
+    raw = input_json
+    if len(raw.encode("utf-8")) > _MAX_AGENT_JSON_INPUT_BYTES:
+        raise ValueError(f"{label} exceeds the 16 MiB input limit")
+
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"{label} must be valid JSON: {exc}") from exc
+    if not isinstance(payload, dict):
+        raise ValueError(f"{label} must contain a JSON object")
+    return payload
+
+
+def _run_task_authoring(
+    operation: Callable[[], dict[str, Any]],
+    output_format: TextJsonFormat,
+    *,
+    summary: str,
+) -> None:
+    from .task_authoring import TaskAuthoringError
+
+    try:
+        payload = operation()
+    except (TaskAuthoringError, OSError, UnicodeError, ValueError) as exc:
+        _fail_implement_task_runtime(exc, output_format)
+    _emit_implement_task_payload(payload, output_format, summary=summary)
+
+
+@tasks_app.command("build")
+def tasks_build(
+    feature_dir: str = typer.Option(..., "--feature-dir"),
+    definition_json: str = typer.Option(
+        ..., "--definition-json", help="Inline semantic task-package JSON"
+    ),
+    output_format: TextJsonFormat = typer.Option(TextJsonFormat.text, "--format"),
+):
+    """Expand the fixed task schema and create task-index.json plus tasks.md."""
+    from .task_authoring import build_task_package
+
+    project_root = Path.cwd()
+    _require_spec_kit_plus_project(project_root)
+    _run_task_authoring(
+        lambda: build_task_package(
+            project_root,
+            feature_dir,
+            _task_authoring_object(definition_json, label="definition_json"),
+        ),
+        output_format,
+        summary="Created a draft canonical task package.",
+    )
+
+
+@tasks_app.command("upsert")
+def tasks_upsert(
+    feature_dir: str = typer.Option(..., "--feature-dir"),
+    task_json: str = typer.Option(..., "--task-json", help="Inline semantic task JSON"),
+    output_format: TextJsonFormat = typer.Option(TextJsonFormat.text, "--format"),
+):
+    """Add or replace one non-terminal task and rerender tasks.md atomically."""
+    from .task_authoring import upsert_task
+
+    project_root = Path.cwd()
+    _require_spec_kit_plus_project(project_root)
+    _run_task_authoring(
+        lambda: upsert_task(
+            project_root,
+            feature_dir,
+            _task_authoring_object(task_json, label="task_json"),
+        ),
+        output_format,
+        summary="Updated the canonical task package.",
+    )
+
+
+@tasks_app.command("set-root")
+def tasks_set_root(
+    feature_dir: str = typer.Option(..., "--feature-dir"),
+    patch_json: str = typer.Option(
+        ..., "--patch-json", help="Inline root-field patch JSON"
+    ),
+    output_format: TextJsonFormat = typer.Option(TextJsonFormat.text, "--format"),
+):
+    """Patch registered task-index root fields and rerender tasks.md atomically."""
+    from .task_authoring import set_task_root_fields
+
+    project_root = Path.cwd()
+    _require_spec_kit_plus_project(project_root)
+    _run_task_authoring(
+        lambda: set_task_root_fields(
+            project_root,
+            feature_dir,
+            _task_authoring_object(patch_json, label="patch_json"),
+        ),
+        output_format,
+        summary="Updated task-package root fields.",
+    )
+
+
+@tasks_app.command("remove")
+def tasks_remove(
+    feature_dir: str = typer.Option(..., "--feature-dir"),
+    task_id: str = typer.Option(..., "--task-id"),
+    output_format: TextJsonFormat = typer.Option(TextJsonFormat.text, "--format"),
+):
+    """Remove one non-terminal, unreferenced task through the control plane."""
+    from .task_authoring import remove_task
+
+    project_root = Path.cwd()
+    _require_spec_kit_plus_project(project_root)
+    _run_task_authoring(
+        lambda: remove_task(project_root, feature_dir, task_id),
+        output_format,
+        summary=f"Removed {task_id.upper()} from the canonical task package.",
+    )
+
+
+@tasks_app.command("finalize")
+def tasks_finalize(
+    feature_dir: str = typer.Option(..., "--feature-dir"),
+    output_format: TextJsonFormat = typer.Option(TextJsonFormat.text, "--format"),
+):
+    """Validate the task graph and atomically mark both projections ready."""
+    from .task_authoring import finalize_task_package
+
+    project_root = Path.cwd()
+    _require_spec_kit_plus_project(project_root)
+    _run_task_authoring(
+        lambda: finalize_task_package(project_root, feature_dir),
+        output_format,
+        summary="Finalized the canonical task package.",
+    )
+
+
+@tasks_app.command("handoff")
+def tasks_handoff(
+    feature_dir: str = typer.Option(..., "--feature-dir"),
+    target: str = typer.Option(..., "--target", help="tasks or implement"),
+    output_format: TextJsonFormat = typer.Option(TextJsonFormat.text, "--format"),
+):
+    """Materialize a compact pointer-only handoff from a finalized task package."""
+    from .task_authoring import write_task_handoff
+
+    project_root = Path.cwd()
+    _require_spec_kit_plus_project(project_root)
+    _run_task_authoring(
+        lambda: write_task_handoff(
+            project_root,
+            feature_dir,
+            target=target,
+        ),
+        output_format,
+        summary=f"Created the task handoff for {target.strip().lower()}.",
+    )
+
+
+@implement_app.command("task-next")
+def implement_task_next(
+    feature_dir: str = typer.Option(..., "--feature-dir"),
+    output_format: TextJsonFormat = typer.Option(TextJsonFormat.text, "--format"),
+):
+    """Return the next dependency-ready task without reading the full task index."""
+    from .execution.task_runtime import TaskRuntimeError, next_task
+
+    project_root = Path.cwd()
+    _require_spec_kit_plus_project(project_root)
+    try:
+        task = next_task(project_root, feature_dir)
+    except TaskRuntimeError as exc:
+        _fail_implement_task_runtime(exc, output_format)
+    payload = {"status": "ok", "task": task}
+    _emit_implement_task_payload(
+        payload,
+        output_format,
+        summary=(
+            f"Next task: {task['task_id']}"
+            if task is not None
+            else "No dependency-ready task remains."
+        ),
+    )
+
+
+@implement_app.command("packet-compile")
+def implement_packet_compile(
+    feature_dir: str = typer.Option(..., "--feature-dir"),
+    task_id: str = typer.Option(..., "--task-id"),
+    output_format: TextJsonFormat = typer.Option(TextJsonFormat.text, "--format"),
+):
+    """Compile and persist one canonical just-in-time worker packet."""
+    from .execution.task_runtime import TaskRuntimeError, compile_task_packet
+
+    project_root = Path.cwd()
+    _require_spec_kit_plus_project(project_root)
+    try:
+        payload = compile_task_packet(project_root, feature_dir, task_id)
+    except (TaskRuntimeError, ValueError) as exc:
+        _fail_implement_task_runtime(exc, output_format)
+    _emit_implement_task_payload(
+        payload,
+        output_format,
+        summary=f"Compiled {payload['task_id']} packet at {payload['path']}.",
+    )
+
+
+@implement_app.command("task-start")
+def implement_task_start(
+    feature_dir: str = typer.Option(..., "--feature-dir"),
+    task_id: str = typer.Option(..., "--task-id"),
+    execution_mode: str = typer.Option(
+        "leader-direct", "--execution-mode", help="leader-direct, delegated, or managed-team"
+    ),
+    packet_ref: str | None = typer.Option(None, "--packet-ref"),
+    output_format: TextJsonFormat = typer.Option(TextJsonFormat.text, "--format"),
+):
+    """Start one task and atomically align lifecycle and compatibility state."""
+    from .execution.task_runtime import TaskRuntimeError, start_task
+
+    project_root = Path.cwd()
+    _require_spec_kit_plus_project(project_root)
+    try:
+        payload = start_task(
+            project_root,
+            feature_dir,
+            task_id,
+            execution_mode=execution_mode,
+            packet_ref=packet_ref,
+        )
+    except TaskRuntimeError as exc:
+        _fail_implement_task_runtime(exc, output_format)
+    _emit_implement_task_payload(
+        payload,
+        output_format,
+        summary=f"Started {payload['task_id']} ({payload['task_status']}).",
+    )
+
+
+@implement_app.command("result-merge")
+def implement_result_merge(
+    feature_dir: str = typer.Option(..., "--feature-dir"),
+    task_id: str = typer.Option(..., "--task-id"),
+    result_json: str | None = typer.Option(
+        None, "--result-json", help="Inline WorkerTaskResult JSON"
+    ),
+    result_file: Path | None = typer.Option(
+        None,
+        "--result-file",
+        help="Compatibility input for an existing CLI-owned canonical result only",
+    ),
+    output_format: TextJsonFormat = typer.Option(TextJsonFormat.text, "--format"),
+):
+    """Normalize one worker result and merge it into canonical task state."""
+    from .execution.task_runtime import TaskRuntimeError, record_task_result
+
+    project_root = Path.cwd()
+    _require_spec_kit_plus_project(project_root)
+    if (result_json is None) == (result_file is None):
+        _fail_implement_task_runtime(
+            ValueError("provide exactly one of --result-json or --result-file"),
+            output_format,
+        )
+    try:
+        raw_result: object = result_json
+        if result_file is not None:
+            source = (
+                result_file if result_file.is_absolute() else project_root / result_file
+            ).resolve()
+            feature = Path(feature_dir)
+            if not feature.is_absolute():
+                feature = project_root / feature
+            feature = feature.resolve()
+            managed_exact = feature / "worker-results" / f"{task_id.upper()}.json"
+            managed_roots = (
+                project_root / ".specify" / "teams" / "state" / "results",
+                project_root / ".specify" / "worker-results",
+            )
+            if source != managed_exact and not any(
+                source.suffix.lower() == ".json" and source.is_relative_to(root.resolve())
+                for root in managed_roots
+            ):
+                _fail_implement_task_runtime(
+                    ValueError(
+                        "--result-file may reference only a CLI-owned canonical "
+                        "worker-result artifact; pass new results inline with --result-json"
+                    ),
+                    output_format,
+                )
+            raw_result = source.read_text(encoding="utf-8")
+        payload = record_task_result(
+            project_root, feature_dir, task_id, raw_result
+        )
+    except (TaskRuntimeError, OSError, UnicodeError) as exc:
+        _fail_implement_task_runtime(exc, output_format)
+    _emit_implement_task_payload(
+        payload,
+        output_format,
+        summary=f"Merged {payload['task_id']} result ({payload['worker_status']}).",
+    )
+
+
+@implement_app.command("task-accept")
+def implement_task_accept(
+    feature_dir: str = typer.Option(..., "--feature-dir"),
+    task_id: str = typer.Option(..., "--task-id"),
+    output_format: TextJsonFormat = typer.Option(TextJsonFormat.text, "--format"),
+):
+    """Accept one validated task and atomically update every task projection."""
+    from .execution.task_runtime import TaskRuntimeError, accept_task
+
+    project_root = Path.cwd()
+    _require_spec_kit_plus_project(project_root)
+    try:
+        payload = accept_task(project_root, feature_dir, task_id)
+    except TaskRuntimeError as exc:
+        _fail_implement_task_runtime(exc, output_format)
+    _emit_implement_task_payload(
+        payload,
+        output_format,
+        summary=f"Accepted {payload['task_id']}.",
+    )
+
+
 @implement_app.command("deferral-propose")
 def implement_deferral_propose(
     feature_dir: str = typer.Option(..., "--feature-dir"),
-    input_path: Path = typer.Option(
-        ..., "--input", help="Project-contained JSON deferral proposal"
+    input_json: str | None = typer.Option(
+        None, "--input-json", help="Inline JSON deferral proposal"
     ),
     output_format: TextJsonFormat = typer.Option(TextJsonFormat.text, "--format"),
 ):
@@ -2640,14 +3102,11 @@ def implement_deferral_propose(
     project_root = Path.cwd().resolve(strict=False)
     _require_spec_kit_plus_project(project_root)
     resolved_feature_dir = _resolve_feature_dir(project_root, feature_dir)
-    resolved_input = input_path.resolve(strict=False)
     try:
-        resolved_input.relative_to(project_root)
-        proposal = json.loads(resolved_input.read_text(encoding="utf-8"))
-        if not isinstance(proposal, dict):
-            raise ImplementationDeferralError(
-                "deferral proposal must contain a JSON object"
-            )
+        proposal = _agent_json_object_input(
+            input_json=input_json,
+            label="deferral proposal",
+        )
         payload = propose_implementation_deferral(
             project_root, resolved_feature_dir, proposal
         )
@@ -3020,8 +3479,8 @@ def review_validate(
 @review_app.command("exception-propose")
 def review_exception_propose(
     feature_dir: str = typer.Option(..., "--feature-dir"),
-    input_path: Path = typer.Option(
-        ..., "--input", help="Project-contained JSON hardware exception proposal"
+    input_json: str | None = typer.Option(
+        None, "--input-json", help="Inline JSON hardware exception proposal"
     ),
     output_format: TextJsonFormat = typer.Option(TextJsonFormat.text, "--format"),
 ):
@@ -3031,14 +3490,11 @@ def review_exception_propose(
     project_root = Path.cwd().resolve(strict=False)
     _require_spec_kit_plus_project(project_root)
     resolved_feature_dir = _resolve_feature_dir(project_root, feature_dir)
-    resolved_input = input_path.resolve(strict=False)
     try:
-        resolved_input.relative_to(project_root)
-        proposal = json.loads(resolved_input.read_text(encoding="utf-8"))
-        if not isinstance(proposal, dict):
-            raise ReviewRuntimeError(
-                "Review exception proposal must contain a JSON object"
-            )
+        proposal = _agent_json_object_input(
+            input_json=input_json,
+            label="Review exception proposal",
+        )
         payload = propose_review_exception(
             project_root, resolved_feature_dir, proposal
         )
@@ -5373,7 +5829,7 @@ DEFAULT_SKILLS_DIR = ".agents/skills"
 NATIVE_SKILLS_AGENTS = {"codex", "kimi"}
 SKILL_DESCRIPTIONS = {
     "design": "Use when a project needs design questions, three inspectable HTML directions, a DESIGN.md contract, UI style refinement, or a design readiness audit before UI work proceeds.",
-    "discussion": "Use when a rough idea or requirement needs a resumable senior product-engineering discussion before formal specification.",
+    "discussion": "Use when a rough idea or requirement needs a resumable senior product-engineering discussion before direct Quick delivery or formal specification.",
     "specify": "Use when a new or changed feature request needs guided requirement discovery and a planning-ready specification package.",
     "prd-scan": "Use when an existing repository needs read-only heavy reconstruction scan outputs before final PRD synthesis; execution is subagent-mandatory and critical claims target L4 Reconstruction-Ready.",
     "prd-build": "Use when a validated PRD scan package exists and the final PRD suite must be compiled from it without a second repository scan.",
@@ -5383,7 +5839,7 @@ SKILL_DESCRIPTIONS = {
     "research": "Use when a compatibility alias is needed for deep-research; route to the canonical feasibility research gate without creating separate sp-research artifacts.",
     "explain": "Use when the user needs the current stage artifact or project cognition/runtime artifact explained in plain language without changing the underlying files.",
     "fast": "Use when the requested change is truly trivial, local, low risk, and can be completed without entering the full specify-plan workflow.",
-    "quick": "Use when a task is small but non-trivial and needs lightweight tracked planning, validation, or resumable execution outside the full workflow.",
+    "quick": "Use when a non-trivial task needs tracked direct delivery, scalable task-local planning, validation, or resumable execution without first creating a formal feature specification.",
     "plan": "Use when the current specification package is ready for implementation planning and you need design artifacts before task breakdown or coding.",
     "tasks": "Use when plan artifacts exist and execution needs dependency-aware tasks, guardrails, and parallelization guidance before implementation; clean task packages hand off directly to implement.",
     "implement": "Use when tasks.md exists and workflow state records /sp.implement for the tracked implementation workflow.",
@@ -6397,7 +6853,7 @@ def init(
             ("prd", "legacy PRD compatibility route"),
             ("prd-build", "compile a PRD suite from scan evidence"),
             ("prd-scan", "collect reconstruction-grade PRD evidence"),
-            ("quick", "small resumable changes"),
+            ("quick", "resumable direct delivery at any size"),
             ("research", "deep-research compatibility route"),
             ("specify", "requirements and acceptance"),
             ("tasks", "dependency-aware execution task graph"),
@@ -6463,7 +6919,7 @@ def init(
         f"   - [cyan]{_display_cmd('auto')}[/] - Resume the recommended next workflow step from current repository state without naming the exact command manually"
     )
     steps_lines.append(
-        f"   - [cyan]{_display_cmd('discussion')}[/] - Mature a rough idea through resumable senior product-engineering discussion before formal specification"
+        f"   - [cyan]{_display_cmd('discussion')}[/] - Mature a rough idea through resumable senior product-engineering discussion before direct Quick delivery or formal specification"
     )
     steps_lines.append(
         f"   - [cyan]{_display_cmd('prd-scan')}[/] - Produce heavy reconstruction PRD scan outputs with subagent-mandatory L4 Reconstruction-Ready evidence and config-contracts.json"
@@ -6805,7 +7261,7 @@ def _resolve_result_context(
         if not request_id:
             console.print(
                 "[red]Error:[/red] Codex result handoff paths are runtime-managed; "
-                "pass --request-id <id> or use `sp-teams submit-result --request-id <id> --result-file <path>`."
+                "pass --request-id <id> or use `sp-teams submit-result --request-id <id> --result-json '<inline-json>'`."
             )
             raise typer.Exit(1)
         return {
@@ -7637,8 +8093,10 @@ def team_submit_result(
     request_id: str | None = typer.Option(
         None, "--request-id", help="Dispatch request identifier"
     ),
-    result_file: str | None = typer.Option(
-        None, "--result-file", help="Path to worker result JSON"
+    result_json: str | None = typer.Option(
+        None,
+        "--result-json",
+        help="Inline structured WorkerTaskResult JSON",
     ),
     session_id: str = typer.Option(
         "default", "--session-id", help="Runtime session identifier"
@@ -7660,24 +8118,15 @@ def team_submit_result(
             "[red]Error:[/red] --request-id is required unless --print-schema is used."
         )
         raise typer.Exit(1)
-    if not result_file:
-        console.print(
-            "[red]Error:[/red] --result-file is required unless --print-schema is used."
-        )
-        raise typer.Exit(1)
-
-    result_path = Path(result_file)
-    if not result_path.is_absolute():
-        result_path = (project_root / result_path).resolve()
-    if not result_path.exists():
-        console.print(f"[red]Error:[/red] Result file not found: {result_path}")
+    if result_json is None:
+        console.print("[red]Error:[/red] --result-json is required unless --print-schema is used.")
         raise typer.Exit(1)
 
     try:
         result = normalize_result_submission(
             project_root,
             request_id,
-            result_path.read_text(encoding="utf-8"),
+            result_json,
         )
         record = submit_runtime_result(
             project_root,
@@ -7700,11 +8149,8 @@ def team_result_template(
     request_id: str = typer.Option(
         ..., "--request-id", help="Dispatch request identifier"
     ),
-    output: str | None = typer.Option(
-        None, "--output", help="Optional file path to write the template to"
-    ),
 ):
-    """Render the canonical result template for a dispatched request."""
+    """Print the canonical result template without materializing a scratch file."""
 
     project_root = Path.cwd()
     _require_codex_team_project(project_root)
@@ -7715,20 +8161,7 @@ def team_result_template(
         console.print(f"[red]Error:[/red] {exc}")
         raise typer.Exit(1) from exc
 
-    if not output:
-        print_json(payload, indent=2)
-        return
-
-    output_path = Path(output)
-    if not output_path.is_absolute():
-        output_path = (project_root / output_path).resolve()
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(
-        json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
-    )
-    console.print(
-        f"Wrote result template for [cyan]{request_id}[/cyan] to [cyan]{output_path}[/cyan]."
-    )
+    print_json(payload, indent=2)
 
 
 @teams_app.command("api")
@@ -7746,8 +8179,8 @@ def team_api(
     request_id: str | None = typer.Option(
         None, "--request-id", help="Dispatch request identifier for result submission"
     ),
-    result_file: str | None = typer.Option(
-        None, "--result-file", help="Path to worker result JSON for result submission"
+    result_json: str | None = typer.Option(
+        None, "--result-json", help="Inline worker result JSON for result submission"
     ),
     session_id: str = typer.Option(
         "default", "--session-id", help="Runtime session identifier"
@@ -7765,7 +8198,7 @@ def team_api(
             feature_dir=feature_dir,
             batch_id=batch_id,
             request_id=request_id,
-            result_file=result_file,
+            result_json=result_json,
             session_id=session_id,
         )
     except TeamApiError as exc:
@@ -7841,8 +8274,10 @@ def result_submit_command(
     command_name: str = typer.Option(
         ..., "--command", help="Workflow command (implement|review|quick|debug)"
     ),
-    result_file: str = typer.Option(
-        ..., "--result-file", help="Path to subagent result JSON"
+    result_json: str | None = typer.Option(
+        None,
+        "--result-json",
+        help="Inline structured WorkerTaskResult JSON",
     ),
     request_id: str | None = typer.Option(
         None, "--request-id", help="Dispatch request id (Codex/runtime-managed paths)"
@@ -7872,11 +8307,8 @@ def result_submit_command(
         )
         raise typer.Exit(1)
 
-    source_path = Path(result_file)
-    if not source_path.is_absolute():
-        source_path = (project_root / source_path).resolve()
-    if not source_path.exists():
-        console.print(f"[red]Error:[/red] Result file not found: {source_path}")
+    if result_json is None:
+        console.print("[red]Error:[/red] --result-json is required.")
         raise typer.Exit(1)
 
     context = _resolve_result_context(
@@ -7895,7 +8327,7 @@ def result_submit_command(
             project_root,
             command_name=command_name,
             integration_key=integration_key,
-            raw_result=source_path.read_text(encoding="utf-8"),
+            raw_result=result_json,
             request_id=context["request_id"],
             feature_dir=context["feature_dir"],
             task_id=context["task_id"],

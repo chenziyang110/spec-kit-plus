@@ -2,9 +2,9 @@
 """Thin Claude Code native hook adapter for spec-kit-plus.
 
 This script is installed into ``.claude/hooks/`` for project-local Claude
-integrations. It translates Claude hook payloads into the shared
-``specify hook ...`` command surface so workflow truth stays in the canonical
-Python hook engine instead of being duplicated inside standalone scripts.
+integrations. Runtime-owned validation hooks are routed to the project-pinned
+``specify-runtime`` binary. Hooks not yet owned by that binary continue through
+the human/bootstrap ``specify`` launcher during the migration window.
 """
 
 from __future__ import annotations
@@ -81,6 +81,9 @@ TRANSCRIPT_READ_LIMIT_BYTES = 512 * 1024
 TRANSCRIPT_LINE_LIMIT = 2000
 SHARED_HOOK_PAYLOAD_STATUSES = {"ok", "warn", "blocked", "repaired", "repairable-block"}
 SHARED_HOOK_BLOCKING_PAYLOAD_STATUSES = {"blocked", "repairable-block"}
+RUNTIME_OWNED_HOOK_SUBCOMMANDS = frozenset(
+    {"validate-artifacts", "validate-commit", "validate-state"}
+)
 SharedHookClientStatus = Literal[
     "ok", "blocked", "unavailable", "timeout", "invalid-output"
 ]
@@ -145,7 +148,9 @@ def _argv_from_env(name: str) -> tuple[str, ...] | None:
     return None
 
 
-def _argv_from_project_config(project_root: Path) -> tuple[str, ...] | None:
+def _launcher_argv_from_project_config(
+    project_root: Path, *keys: str
+) -> tuple[str, ...] | None:
     config_path = project_root / ".specify" / "config.json"
     try:
         loaded = json.loads(config_path.read_text(encoding="utf-8"))
@@ -154,7 +159,10 @@ def _argv_from_project_config(project_root: Path) -> tuple[str, ...] | None:
     if not isinstance(loaded, dict):
         return None
 
-    launcher = loaded.get("specify_launcher") or loaded.get("hook_launcher")
+    launcher = next(
+        (loaded.get(key) for key in keys if isinstance(loaded.get(key), dict)),
+        None,
+    )
     if not isinstance(launcher, dict):
         return None
     argv = launcher.get("argv")
@@ -167,8 +175,26 @@ def _argv_from_project_config(project_root: Path) -> tuple[str, ...] | None:
     return None
 
 
-def _project_launcher_broken(project_root: Path) -> bool:
-    launcher_argv = _argv_from_project_config(project_root)
+def _argv_from_project_config(project_root: Path) -> tuple[str, ...] | None:
+    return _launcher_argv_from_project_config(
+        project_root, "specify_launcher", "hook_launcher"
+    )
+
+
+def _runtime_argv_from_project_config(project_root: Path) -> tuple[str, ...] | None:
+    return _launcher_argv_from_project_config(project_root, "runtime_launcher")
+
+
+def _runtime_owned_hook(args: list[str]) -> bool:
+    return bool(args) and args[0] in RUNTIME_OWNED_HOOK_SUBCOMMANDS
+
+
+def _project_launcher_broken(project_root: Path, args: list[str]) -> bool:
+    launcher_argv = (
+        _runtime_argv_from_project_config(project_root)
+        if _runtime_owned_hook(args)
+        else _argv_from_project_config(project_root)
+    )
     if not launcher_argv:
         return False
     first = launcher_argv[0]
@@ -185,6 +211,10 @@ def _source_tree_cli_command() -> list[str] | None:
 
 
 def _shared_hook_commands(project_root: Path, args: list[str]) -> list[list[str]]:
+    if _runtime_owned_hook(args):
+        runtime_argv = _runtime_argv_from_project_config(project_root)
+        return [[*runtime_argv, "hook", *args]] if runtime_argv else []
+
     commands: list[list[str]] = []
     for launcher_argv in (
         _argv_from_env("SPECIFY_HOOK"),
@@ -283,7 +313,7 @@ def _invoke_shared_hook(
     stdin_text: str | None = None,
     timeout_seconds: float = SHARED_HOOK_TIMEOUT_SECONDS,
 ) -> SharedHookResult:
-    if _project_launcher_broken(project_root):
+    if _project_launcher_broken(project_root, args):
         return SharedHookResult(
             status="blocked",
             payload=_project_launcher_block_payload(),
@@ -425,6 +455,12 @@ def _shared_blocker_detail(shared_payload: dict[str, Any]) -> str:
     ):
         return ""
     blocker = blockers[0]
+    workflow = str(blocker.get("workflow") or "").strip()
+    stage = str(blocker.get("stage") or "").strip()
+    summary = str(blocker.get("summary") or "").strip()
+    category = str(blocker.get("category") or "").strip()
+    owner = str(blocker.get("owner") or "").strip()
+    cause = str(blocker.get("details") or blocker.get("cause") or "").strip()
     evidence = blocker.get("evidence")
     if isinstance(evidence, list):
         evidence_text = "; ".join(str(item) for item in evidence if str(item).strip())
@@ -437,7 +473,7 @@ def _shared_blocker_detail(shared_payload: dict[str, Any]) -> str:
             resume.get("command") or resume.get("instruction") or ""
         ).strip()
     attempted = blocker.get("attempted_recovery")
-    attempted_text = "none recorded"
+    attempted_text = "none recorded" if "attempted_recovery" in blocker else ""
     if isinstance(attempted, list) and attempted:
         attempted_text = (
             "; ".join(
@@ -454,15 +490,23 @@ def _shared_blocker_detail(shared_payload: dict[str, Any]) -> str:
         else str(affected or "").strip()
     )
     parts = [
-        f"Workflow/stage: {blocker.get('workflow')} / {blocker.get('stage')}",
-        f"Blocked: {blocker.get('summary')}",
-        f"Category/owner: {blocker.get('category')} / {blocker.get('owner')}",
-        f"Why: {blocker.get('details')}",
+        f"Workflow/stage: {workflow or '-'} / {stage or '-'}"
+        if workflow or stage
+        else "",
+        f"Blocked: {summary}" if summary else "",
+        f"Category/owner: {category or '-'} / {owner or '-'}"
+        if category or owner
+        else "",
+        f"Why: {cause}" if cause else "",
         f"Evidence: {evidence_text}" if evidence_text else "",
-        f"Attempted recovery: {attempted_text}",
+        f"Attempted recovery: {attempted_text}" if attempted_text else "",
         f"Affected scope: {affected_text}" if affected_text else "",
-        f"Next action: {blocker.get('exact_next_action')}",
-        f"Unblock criteria: {blocker.get('unblock_criteria')}",
+        f"Next action: {blocker.get('exact_next_action')}"
+        if blocker.get("exact_next_action")
+        else "",
+        f"Unblock criteria: {blocker.get('unblock_criteria')}"
+        if blocker.get("unblock_criteria")
+        else "",
         f"Resume: {resume_text}" if resume_text else "",
     ]
     guide = blocker.get("human_action_guide")
@@ -484,7 +528,7 @@ def _shared_blocker_detail(shared_payload: dict[str, Any]) -> str:
                 f"Human resume: {guide.get('resume_instruction')}",
             ]
         )
-    return " | ".join(part for part in parts if part and not part.endswith(": None"))
+    return " | ".join(part for part in parts if part)
 
 
 def _shared_to_claude_output(
@@ -971,12 +1015,7 @@ def _is_state_repair_path(
 
 
 def _claude_personal_skill_shadow_names(project_root: Path) -> list[str]:
-    manifest_path = (
-        project_root
-        / ".specify"
-        / "integrations"
-        / "claude.manifest.json"
-    )
+    manifest_path = project_root / ".specify" / "integrations" / "claude.manifest.json"
     try:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
@@ -1049,23 +1088,19 @@ def _claude_personal_skill_shadow_advisory(project_root: Path) -> str:
     )
 
 
-def _runtime_owned_cognition_write_denial(
-    project_root: Path, target_path: str
-) -> str:
+def _runtime_owned_cognition_write_denial(project_root: Path, target_path: str) -> str:
     if not target_path:
         return ""
     normalized_target = Path(_normalized_path_for_compare(project_root, target_path))
-    cognition_root = (
-        Path(_normalized_path_for_compare(project_root, ".specify/project-cognition"))
+    cognition_root = Path(
+        _normalized_path_for_compare(project_root, ".specify/project-cognition")
     )
     try:
         normalized_target.relative_to(cognition_root)
     except ValueError:
         return ""
 
-    allowed_suffixes = (
-        Path("workbench/pending-results"),
-    )
+    allowed_suffixes = (Path("workbench/pending-results"),)
     for suffix in allowed_suffixes:
         allowed_root = cognition_root / suffix
         try:
@@ -1111,7 +1146,9 @@ def _iter_transcript_user_texts(transcript_path: Path) -> list[str]:
         message = payload.get("message", payload)
         if not isinstance(message, dict):
             continue
-        entry_type = str(payload.get("role") or payload.get("type") or "").strip().lower()
+        entry_type = (
+            str(payload.get("role") or payload.get("type") or "").strip().lower()
+        )
         message_role = str(message.get("role") or "").strip().lower()
         effective_role = message_role or entry_type
         if effective_role not in {"user", "human"}:
@@ -1131,10 +1168,7 @@ def _iter_transcript_user_texts(transcript_path: Path) -> list[str]:
                 user_texts.append("\n".join(parts))
                 continue
         text = str(
-            message.get("text")
-            or message.get("content")
-            or payload.get("text")
-            or ""
+            message.get("text") or message.get("content") or payload.get("text") or ""
         ).strip()
         if text:
             user_texts.append(text)
@@ -1201,7 +1235,7 @@ def _map_context_from_transcript(
 def _is_validate_state_autofix_command(command: str) -> bool:
     normalized = " ".join(command.lower().split())
     return (
-        "specify hook validate-state" in normalized
+        "specify-runtime hook validate-state" in normalized
         and "--autofix" in normalized
         and "--feature-dir" in normalized
     )
@@ -1653,7 +1687,9 @@ def _handle_post_tool_session_state(
 def _handle_stop_monitor(
     project_root: Path, payload: dict[str, Any]
 ) -> dict[str, Any] | None:
-    context = _map_context_from_transcript(project_root, payload) or _infer_active_context(project_root)
+    context = _map_context_from_transcript(
+        project_root, payload
+    ) or _infer_active_context(project_root)
     if not context:
         return None
 

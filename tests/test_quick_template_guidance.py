@@ -73,29 +73,29 @@ def test_quick_template_exists_and_defines_lightweight_tracked_flow() -> None:
     assert ".specify/testing/" not in content
     assert "shared surface" in content or "multiple modules" in content or "shared surfaces" in content
     assert "lane shape" in content or "execution strategy" in content
-    assert "ad-hoc task" in content or "small, ad-hoc task" in content
+    assert "non-trivial task" in content
     assert "lightweight" in content
     assert ".planning/quick/" in content
     assert "--discuss" in content
     assert "--research" in content
     assert "--validate" in content
     assert "--full" in content
-    assert "skip the full" in content and "specify" in content
+    assert "skips the formal feature-spec workflow" in content
     assert "summary.md" in content or "summary artifact" in content
     assert "repository analysis" in content
-    assert "read `.specify/memory/constitution.md` first" in content
+    assert "query `.specify/memory/constitution.md` through `specify-runtime artifact show` first" in content
     assert "summary artifact" in content or "final summary artifact" in content
     assert "changed_code_paths" in content
     assert "changed_behavior_surfaces" in content
     assert "project_cognition_refresh" in content
     assert "scope gate" in content
-    assert "small but non-trivial" in content or "not for trivial work" in content
+    assert "non-trivial direct delivery" in content
     assert "{{invoke:fast}}" in content or "/sp-fast" in content
     assert "{{invoke:specify}}" in content or "/sp-specify" in content
     assert "validate" in content
     assert "verify" in content
     assert "completion standard" in content
-    assert "small, transparent closed loop" in content
+    assert "transparent closed loop over the complete confirmed outcome" in content
     assert "at least one meaningful verification step" in content or "at least one smallest meaningful executable verification step has run" in content
     assert "unverified surface" in content or "not checked" in content
     assert "choose_subagent_dispatch" in content
@@ -115,7 +115,8 @@ def test_quick_template_exists_and_defines_lightweight_tracked_flow() -> None:
     assert ".planning/quick/index.json" in content
     assert "status.md" in content
     assert "first hard gate" in content
-    assert "constitution read is the first hard gate" in content
+    assert "first hard gate is a targeted" in content
+    assert "query of the constitution" in content
     assert "summary.md" in content
     assert "current focus" in content
     assert "next action" in content
@@ -179,35 +180,86 @@ def test_quick_template_uses_fixed_status_scaffold() -> None:
     assert "blockers:" in scaffold
     assert "blocker_reason:" in scaffold
     assert "resume_decision:" in scaffold
+    assert "handoff_delivery_contract:" in scaffold
+    assert "delivery_scope:" in scaffold
+    assert "quick_task_candidate" not in scaffold
+    assert "bounded_scope" not in scaffold
+    assert "`pending`, `ready`, `in_progress`, `blocked`, or `accepted`" in content
+    assert "only `accepted` satisfies a dependency" in content
     assert "## current focus" not in content
     assert "task-specific ordered step" not in content
     assert "locate source behavior" not in content
 
 
-def test_quick_template_defines_explicit_specify_escalation_triggers() -> None:
+def test_quick_template_uses_fixed_summary_scaffold() -> None:
+    content = read_command_with_references("quick").lower()
+    scaffold = read_template("templates/artifacts/quick-summary.md").lower()
+
+    assert "artifact scaffold --kind quick-summary" in content
+    assert ".planning/quick/<id>-<slug>/summary.md" in content
+    assert "never submit or reconstruct the whole summary" in content
+    for heading in (
+        "## outcome",
+        "## changed paths",
+        "## verification",
+        "## skipped or failed checks",
+        "## residual risk",
+        "## recovery state",
+    ):
+        assert heading in scaffold
+
+
+def test_quick_template_uses_fixed_plan_scaffold() -> None:
+    content = read_command_with_references("quick").lower()
+    scaffold = read_template("templates/artifacts/quick-plan.md").lower()
+
+    assert "artifact scaffold --kind quick-plan" in content
+    assert "task-local `plan.md`" in content
+    assert "never submit or reconstruct the whole plan" in content
+    for heading in (
+        "## outcome and boundaries",
+        "## architecture and affected surfaces",
+        "## work items, dependencies, and batches",
+        "## compatibility, migration, and rollout",
+        "## acceptance and verification",
+    ):
+        assert heading in scaffold
+
+
+def test_quick_template_keeps_large_consequential_work_in_quick_with_deeper_planning() -> None:
     content = read_command_with_references("quick").lower()
 
-    assert "upgrade to `{{invoke:specify}}` immediately if" in content or "upgrade to `/sp-specify` immediately if" in content
+    assert "quick can handle larger" in content or "quick may handle larger" in content
+    assert "deeper task-local planning" in content
+    assert "multiple batches" in content
     assert "architecture" in content
-    assert "cross-cutting" in content
-    assert "change-propagation hotspot" in content
-    assert "truth-owning shared surface" in content
-    assert "known unknowns" in content
-    assert "multiple independent capabilities" in content
-    assert "new durable spec" in content or "long-lived feature spec" in content
-    assert "rollout" in content or "migration" in content
-    assert "acceptance criteria" in content
+    assert "migration" in content
+    assert "compatibility" in content
+    assert "acceptance-heavy" in content or "acceptance heavy" in content
+    assert "multiple capabilities" in content or "multi-capability" in content
+    assert "not automatic" in content or "not automatically" in content
+    assert "specify" in content
+    assert "upgrade to `{{invoke:specify}}` immediately if" not in content
+    assert "upgrade to `/sp-specify` immediately if" not in content
+    assert "must escalate to `{{invoke:specify}}`" not in content
+    assert "must escalate to `/sp-specify`" not in content
 
 
-def test_quick_template_escalates_when_consequence_model_is_not_bounded() -> None:
+def test_quick_template_consequence_breadth_is_planned_inside_quick_not_escalated() -> None:
     content = read_command_with_references("quick").lower()
 
     assert "senior consequence analysis gate" in content
-    assert "continue in quick only when the consequence model is bounded" in content
-    assert "upgrade to `{{invoke:specify}}` immediately if" in content or "upgrade to `/sp-specify` immediately if" in content
-    assert "user-level lifecycle decisions" in content
+    assert "stays in quick" in content or "remains in quick" in content
+    assert "task-local plan" in content or "task-local planning" in content
+    assert "batch" in content
+    assert "user-owned lifecycle" in content
     assert "broad compatibility handling" in content
     assert "multi-capability scope" in content
+    assert "continue in quick only when the consequence model is bounded" not in content
+    assert "route unbounded consequences to `{{invoke:specify}}`" not in content
+    assert "route unbounded consequences to `/sp-specify`" not in content
+    assert "route broader or user-owned consequences to `{{invoke:specify}}`" not in content
+    assert "route broader or user-owned consequences to `/sp-specify`" not in content
 
 
 def test_quick_template_reads_constitution_and_drives_to_terminal_state() -> None:
@@ -215,11 +267,11 @@ def test_quick_template_reads_constitution_and_drives_to_terminal_state() -> Non
 
     assert ".specify/memory/constitution.md" in content
     assert "constitution first" in content
-    assert "record that requirement in `status.md` while `understanding_confirmed: false`" in content
+    assert "patch that requirement into the appropriate `status.md` section through the artifact cli" in content
     assert "continue automatically until the quick task is complete or a concrete blocker prevents further safe progress" in content
     assert (
-        "after `status.md` is initialized, `understanding_confirmed: true` is recorded, "
-        "and the first lane is defined, dispatch that subagent path before doing any further local repository deep dive"
+        "after the artifact cli initializes `status.md` and patches `understanding_confirmed: true`, "
+        "and the first lane is defined, dispatch that subagent path before any further local repository deep dive"
     ) in content
     assert "resolved" in content
     assert "blocked" in content
@@ -244,7 +296,7 @@ def test_quick_template_requires_minimal_plan_for_propagating_changes() -> None:
     content = read_command_with_references("quick").lower()
 
     assert "surface sweep rule" in content
-    assert "small-scope complete sweep" in content
+    assert "complete sweep of its confirmed scope" in content
     assert "affected surfaces" in content
     assert "propagation hotspots, consumer surfaces, verification entry points, and known unknowns" in content
     assert "confirmed correct" in content
@@ -287,7 +339,7 @@ def test_quick_template_refreshes_project_cognition_when_truth_surfaces_change()
     assert "workflow-owned mutation closeout is not an external map-maintenance handoff" in content
     assert "specify-runtime cognition closeout-plan --workflow" in content
     assert "update_mode=delta_session" in content
-    assert "update_mode=payload_file" in content
+    assert "update_mode=inline_json" in content
     assert "update_argv" in content
     assert "delta_append_draft.argv_prefix" in content
     assert "unknown_path_dispositions" in content
@@ -333,7 +385,7 @@ def test_quick_template_blocks_resume_until_understanding_is_confirmed() -> None
 
     assert "understanding_confirmed: false" in content
     assert "blocks substantive execution" in content
-    assert "create or update `status.md` with `understanding_confirmed: false` before any map maintenance handoff" in content
+    assert "use the artifact cli to scaffold or patch `status.md` with `understanding_confirmed: false`" in content
     assert "must not proceed to code edits" in content
     assert "broad repository analysis" in content
     assert "delegation" in content
@@ -343,8 +395,8 @@ def test_quick_template_blocks_resume_until_understanding_is_confirmed() -> None
     assert "{{invoke:map-build}}" in content
     assert "until the checkpoint is confirmed" in content
     assert "do not start execution routing while `understanding_confirmed: false`" in content
-    assert "do not dispatch until `understanding_confirmed: true` is recorded" in content
-    assert "start execution only after `understanding_confirmed: true` is recorded in `status.md`" in content
+    assert "do not dispatch until the artifact cli has patched `understanding_confirmed: true`" in content
+    assert "start execution only after a leased `specify-runtime artifact patch` sets `understanding_confirmed: true` in `status.md`" in content
     assert "the first concrete execution action after understanding confirmation" in content
 
 
@@ -373,8 +425,8 @@ def test_quick_template_requires_tdd_gate_for_behavior_changes() -> None:
     assert "first executable lane must produce a failing automated test or failing repro check before production edits begin" in content
     assert "do not write production code until the red state is captured" in content
     assert "if no reliable automated test surface exists for the touched behavior" in content
-    assert "bootstrap the smallest viable test surface first" in content
-    assert "{{invoke:specify}}" in content
+    assert "bootstrap the smallest viable test surface as its own quick lane or batch" in content
+    assert "do not substitute a `{{invoke:specify}}` handoff for executable evidence" in content
     assert "sp-test" not in content
 
 

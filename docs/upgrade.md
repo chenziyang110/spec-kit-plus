@@ -167,9 +167,10 @@ new runtime release is required.
 
 Recovery:
 
-1. Decide whether the existing Cognition state contains anything you need.
-2. Archive `.specify/project-cognition/` outside the active path; remove it only
-   after confirming it is disposable.
+1. Run `specify-runtime cognition archive-incompatible-store --inspect --format json`
+   to inspect the exact database and its SHA-256 without changing files.
+2. Execute the returned hash-guarded `archive_argv`. Never move, remove,
+   archive, or replace `.specify/project-cognition/` files directly.
 3. For a truly empty project, rerun initialization so
    `cognition init-empty` can create `baseline_kind=greenfield_empty`.
 4. For a project with business code, run `sp-map-scan` followed by
@@ -186,7 +187,7 @@ Recovery:
 | Agent does not show refreshed workflows | Confirm the integration/profile in `.specify/config.json`, restart the agent/IDE, and inspect the generated agent directory. |
 | Advanced skills are absent | Confirm the integration is skills-based and rerun init with `--workflow-profile advanced`. |
 | Runtime helper cannot start | Run project-local `specify-runtime doctor --format json`; if it reports `bootstrap_required`, use the trusted human bootstrap/upgrade flow to reprovision `.specify/bin/specify-runtime`. |
-| Project Cognition reports `unsupported_legacy_runtime` | Archive the incompatible store and use the empty-project or brownfield recovery above. |
+| Project Cognition reports `unsupported_legacy_runtime` | Use `cognition archive-incompatible-store --inspect`, execute its guarded `archive_argv`, and then use the empty-project or brownfield recovery above. |
 | CLI upgrade appears unchanged | Compare both `specify version` and `specify --help`; `.dev0` alone cannot distinguish development commits. |
 
 ## No-Git Projects

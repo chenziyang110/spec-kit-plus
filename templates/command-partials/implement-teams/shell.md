@@ -16,7 +16,7 @@ Run the existing implementation contract through the durable Codex teams runtime
 
 ## Output Contract
 
-- Produce the same implementation lifecycle outcomes as `sp-implement`, plus the expected teams runtime state and visibility artifacts.
+- Produce the same implementation lifecycle outcomes as `sp-implement`; let `specify-runtime sp-teams` alone materialize the expected teams runtime state and visibility artifacts.
 - Keep the user-facing narrative framed as coordinated teams execution rather than extension internals.
 
 ## Guardrails

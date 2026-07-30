@@ -5,6 +5,12 @@ the canonical row meanings and the
 user-owned decisions. Technical execution belongs to the agent; freeform prose,
 bullet-only confirmations, or partial field lists are not sufficient.
 
+The same table supports a single work item, multiple ordered work items, and a
+large task. Use stable `Q1`, `Q2`, ... identifiers for every user-visible
+deliverable. Confirm deliverable-level order and dependencies only; internal implementation sequencing, file choreography, lane construction, and batch
+scheduling remain agent-owned. For a single work item, still write `Q1` so the
+checkpoint, durable state, worker packets, and closeout use one shape.
+
 Do not reuse the placeholder text as content. Replace every bracketed item with
 task-specific facts. Keep the checkpoint plain text for terminal output; do not
 use HTML tags or inline line-break markup.
@@ -17,6 +23,8 @@ use HTML tags or inline line-break markup.
 | Request and outcome | [2-4 concrete sentences: the request or problem in the user's terms, where it appears, why it matters, and the outcome this quick task should deliver] |
 | User-visible result | [what the user will see, do, or rely on differently when the work is complete] |
 | Scope | Include: [behaviors, areas, or workflows that are part of this task]. Exclude: [nearby non-goals or behavior that must remain unchanged]. |
+| Ordered work items | [Q1: first user-visible deliverable (depends on: none); Q2: next deliverable (depends on: Q1); continue for every confirmed work item in delivery order. For a single task, list Q1 only. Do not list files or internal implementation steps.] |
+| Work-item acceptance | [Q1: observable result and evidence for this item; Q2: observable result and evidence for this item; continue one-to-one for every work item.] |
 | Recommended approach | [the user-relevant approach and any meaningful product trade-off; omit implementation sequencing and internal file choreography] |
 | Assumptions and risks | [facts being assumed, known uncertainty, compatibility or migration risk, and the consequence if an assumption is wrong] |
 | Completion evidence | [observable acceptance result plus the tests, real entry point, or other evidence the user can rely on] |
@@ -36,4 +44,5 @@ route, but those are agent-owned and must not become additional approval rows.
 Reply with `confirm`/`确认` to approve the checkpoint and, when present, the UI
 proposal in one response. Reply with `revise: scope ...`/`修改：范围 ...`,
 `revise: UI ...`/`修改：UI ...`, or another precise correction to revise only
-that decision.
+that decision. Use `revise: order ...`/`修改：顺序 ...` to change the ordered
+deliverables or their dependencies without replaying unrelated rows.

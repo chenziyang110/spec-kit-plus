@@ -77,7 +77,7 @@ Use `specify-runtime cognition query --intent ask` only after you build a semant
 {{specify-subcmd:specify-runtime cognition query --intent ask --query-plan "<query_plan_json>" --format json}}
 ```
 
-When shell quoting makes inline JSON brittle, write the planned object to a file and call `specify-runtime cognition query --intent ask --query-plan-file <path> --format json` instead.
+Pass the planned object as one structured argv value to `specify-runtime cognition query --intent ask --query-plan '<inline-json>' --format json`. When shell quoting is brittle, use the integration's native argument API; never create a query-plan file.
 
 Use `specify-runtime cognition lexicon --intent ask --mode catalog --format json` only when you need vocabulary candidates before writing the query plan.
 
@@ -134,8 +134,8 @@ For simple questions, one short paragraph is enough. For complex questions, use 
 If the answer reveals that the user needs action, recommend one next workflow without invoking it:
 
 - Use `sp-discussion` for product/design/requirement shaping.
-- Use `sp-specify` for confirmed feature requirements.
-- Use `sp-quick` for small bounded code or docs changes.
+- Use `sp-specify` when the user wants a formal specification before implementation.
+- Use `sp-quick` for tracked direct implementation of a confirmed outcome, including larger or multi-capability work.
 - Use `sp-fast` for minimal low-risk execution.
 - Use `sp-debug` for root-cause diagnosis.
 - Use `sp-deep-research` for feasibility proof or external evidence.

@@ -315,6 +315,77 @@ func TestScanCheckpointRejectsResultOutsideDesignatedWorkbenchPath(t *testing.T)
 	}
 }
 
+func TestScanCheckpointAcceptsInlineResultWithoutWorkerFileWrite(t *testing.T) {
+	root := t.TempDir()
+	for _, rel := range []string{".specify/project-cognition/tmp", "src"} {
+		if err := os.MkdirAll(filepath.Join(root, filepath.FromSlash(rel)), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(root, "src", "app.go"), []byte("package app\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	writeCLIJSON(t, filepath.Join(root, ".specify", "project-cognition", "tmp", "scan-files.json"), map[string]any{"files": []string{"src/app.go"}})
+	old, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(root); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(old) })
+
+	runJSON := func(args ...string) map[string]any {
+		t.Helper()
+		var stdout, stderr bytes.Buffer
+		if code := Run(args, &stdout, &stderr, "test"); code != 0 {
+			t.Fatalf("%v code=%d stderr=%s stdout=%s", args, code, stderr.String(), stdout.String())
+		}
+		var payload map[string]any
+		if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+			t.Fatal(err)
+		}
+		return payload
+	}
+	runJSON("scan-prepare", "--format", "json")
+	lease := runJSON("scan-lease", "--worker-id", "worker-a", "--format", "json")
+	attemptID := lease["attempt_id"].(string)
+	if lease["result_submission_mode"] != "inline_json" {
+		t.Fatalf("lease result_submission_mode = %#v", lease["result_submission_mode"])
+	}
+	packet := runJSON("scan-packet", "--packet-id", "lane-001", "--format", "json")
+	brief := packet["task_brief"].(string)
+	if packet["result_submission_mode"] != "inline_json" || !strings.Contains(brief, "--result-json") || strings.Contains(brief, "--result .specify/") {
+		t.Fatalf("scan-packet payload = %#v", packet)
+	}
+	result := acceptedCLIWorkerResult("lane-001", attemptID, "src/app.go")
+	raw, err := json.Marshal(result)
+	if err != nil {
+		t.Fatal(err)
+	}
+	runJSON(
+		"scan-checkpoint", "--packet-id", "lane-001", "--attempt-id", attemptID,
+		"--result-json", string(raw), "--format", "json",
+	)
+	pending := filepath.Join(root, ".specify", "project-cognition", "workbench", "pending-results", "lane-001.json")
+	stored, err := os.ReadFile(pending)
+	if err != nil {
+		t.Fatalf("inline checkpoint did not create pending result: %v", err)
+	}
+	if !json.Valid(stored) || !bytes.Contains(stored, []byte(`"packet_id": "lane-001"`)) {
+		t.Fatalf("pending result = %q", stored)
+	}
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{
+		"scan-checkpoint", "--packet-id", "lane-001", "--attempt-id", attemptID,
+		"--result", pending, "--result-json", string(raw), "--format", "json",
+	}, &stdout, &stderr, "test")
+	if code == 0 || !strings.Contains(stdout.String(), "exactly one") {
+		t.Fatalf("ambiguous checkpoint code=%d stderr=%s stdout=%s", code, stderr.String(), stdout.String())
+	}
+}
+
 func TestScanCLIRequeuesCheckpointedRemainderEndToEnd(t *testing.T) {
 	root := t.TempDir()
 	for _, rel := range []string{".specify/project-cognition/tmp", "src"} {

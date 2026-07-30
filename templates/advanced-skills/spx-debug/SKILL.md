@@ -9,9 +9,11 @@ Read `references/project-learning.md` and apply its consume-capture policy.
 Read `references/project-cognition.md`, using cognition intent `debug`.
 Read `references/human-confirmation.md`, then
 `references/investigation-contract.md`. Read
-`references/investigator-worker.md` only for delegated evidence. Resolve
-`assets/debug-session.md` relative to this Skill and use a created or resumed
-session as the durable source of truth for every debug invocation.
+`references/investigator-worker.md` only for delegated evidence. Create an
+absent `.planning/debug/<slug>.md` only with `specify-runtime artifact scaffold
+--kind debug-session`, or resume it through targeted `artifact show`; mutate it
+only through fresh leased `artifact patch` calls. The shared runtime scaffold is
+the durable source of truth for every debug invocation.
 Read `references/consequence-gate.md` when the suspected cause or fix touches
 lifecycle, shared state, destructive behavior, compatibility, migration,
 security, concurrency, retry, recovery, or generated consumers.
@@ -40,8 +42,8 @@ For a UI regression, reproduce and recapture the same real entry point,
 viewport, and state after the fix; source inspection or component tests cannot
 prove a visual symptom resolved.
 Delegate only independent evidence lanes or an independent review that improves
-confidence. Create state from the advanced session asset rather than the
-classic multi-agent debug template.
+confidence. Never reconstruct a debug-session template or create the state file
+directly.
 
 After agent verification and related-risk review, move to
 `awaiting_human_verify`; do not resolve or archive until explicit human

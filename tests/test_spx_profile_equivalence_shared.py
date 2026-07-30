@@ -57,8 +57,9 @@ def test_advanced_cognition_reference_preserves_semantic_claim_gates_compactly()
     )
 
     for required in (
-        "semantic-audit --input",
-        "semantic-audit-resume --input",
+        "semantic-audit --input-json",
+        "--persist-dir <workflow_state_dir>",
+        "semantic-audit-resume --input-json",
         "semantic-audit-input.json",
         "semantic-audit-output.json",
         "workflow_authorization",

@@ -1,17 +1,16 @@
 ---
-id: "{{id}}"
+id: ""
 status: intake
 understanding_confirmed: false
 human_verification: not_requested
-parent_session:
+parent_session: ""
 ---
 
-# Debug: {{title}}
+# Debug Session
 
 ## Current Focus
 
 - next_action: confirm the Debug Understanding Checkpoint
-- status: intake
 - recovery_action: confirm the Debug Understanding Checkpoint
 
 ## Understanding Checkpoint
@@ -31,24 +30,23 @@ ui_confirmation:
   applicable: false
   confirmation_purpose: Debug target baseline
   user_and_primary_job:
-  design_basis_and_source_material:
+  design_basis_and_source_material: []
   target_experience:
   structure_and_visible_change:
-  interaction_states_and_adaptation:
+  interaction_states_and_adaptation: []
   design_boundaries:
-    must_preserve:
-    may_adapt:
-    must_not:
-  acceptance_evidence:
+    must_preserve: []
+    may_adapt: []
+    must_not: []
+  acceptance_evidence: []
   confirmation_digest:
 
 ## Agent Investigation Plan
 
-agent_investigation_plan:
-  candidate_focus:
-  first_evidence_step:
-  fix_gate:
-  progress_signal:
+- candidate_focus:
+- first_evidence_step:
+- fix_gate:
+- progress_signal:
 
 ## Symptom
 

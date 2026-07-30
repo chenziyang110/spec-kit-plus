@@ -16,7 +16,9 @@ specified? [Recovery]". Keep the set focused enough that a reviewer can use it
 as a real gate rather than a compliance inventory.
 
 Checklist history is append-only. Never delete, replace, or renumber existing
-items. Scan all current IDs, allocate the next unused `CHK###`, and deduplicate
-semantic equivalents before append. At least 80% of items carry traceability to
-a stable requirement or gap marker; untraceable items must name why no stable
-source exists.
+items. Deduplicate against existing semantic items only when needed by querying
+them through `artifact show`; never scan or allocate IDs manually. Send plain item strings
+to `specify-runtime artifact checklist` and let the CLI allocate the next
+unused `CHK###`, render Markdown, and append atomically. At least 80% of items
+carry traceability to a stable requirement or gap marker; untraceable items
+must name why no stable source exists.

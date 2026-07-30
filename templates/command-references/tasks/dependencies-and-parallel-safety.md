@@ -10,7 +10,7 @@ Preserved Contract: `[P]` remains lane-level parallel eligibility and every para
 
 **Risk and behavior driven validation**: Generate test tasks by default for product behavior changes, bug fixes, refactors with regression risk, public API contracts, persistence/migration changes, security-sensitive behavior, and generated outputs consumed by users or tools. Only omit new tests when `tasks.md` records the no-new-test rationale, replacement validation, and residual risk.
 
-**Minimum light-mode `tasks.md` contract**: When `execution_mode: light`, `tasks.md` must still include the confirmed delivery boundary, ordered executable tasks, dependencies, validation commands or concrete manual checks, no-new-test rationale where tests are omitted, replacement validation, residual risk, and the recommended next command.
+**Minimum light-mode task-package contract**: When `execution_mode: light`, the CLI-owned `task-index.json` remains canonical and its compact `tasks.md` projection must still include the confirmed delivery boundary, ordered executable tasks, dependencies, validation commands or concrete manual checks, no-new-test rationale where tests are omitted, replacement validation, residual risk, and the recommended next command.
 
 ### Checklist Format (REQUIRED)
 

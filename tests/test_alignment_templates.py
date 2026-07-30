@@ -399,7 +399,7 @@ def test_inline_project_cognition_update_uses_shared_partial() -> None:
         "specify-runtime cognition closeout-plan --workflow",
         "--delta-session",
         "update_mode=delta_session",
-        "update_mode=payload_file",
+        "update_mode=inline_json",
         "unknown_path_dispositions",
         "agent_disposition",
         "blocking_known_unknown",
@@ -500,7 +500,8 @@ def test_ask_command_contract_is_read_only_evidence_backed_project_qa() -> None:
     assert "do not invoke it automatically" in command
     assert _launcher_compass("ask") in shell
     assert _launcher_query("ask") in shell
-    assert "specify-runtime cognition query --intent ask --query-plan-file <path> --format json" in shell
+    assert "specify-runtime cognition query --intent ask --query-plan '<inline-json>' --format json" in shell
+    assert "never create a query-plan file" in shell.lower()
     assert "specify-runtime cognition lexicon --intent ask --mode catalog --format json" in shell
     assert "only after you build a semantic intake or query plan" in shell
     assert "compass output or live evidence is ambiguous or has incomplete coverage" in shell
@@ -556,7 +557,8 @@ def test_design_workflow_is_not_an_implementation_workflow() -> None:
     assert "css or theme implementation files" in lowered
     assert "ask the user to approve a direction" in lowered
     assert "{{specify-subcmd:specify-runtime design lint" in lowered
-    assert "write the project's own `design.md`" in lowered
+    assert "specify-runtime design export design.md" in lowered
+    assert "never write `design.md` directly" in lowered
 
 
 def test_discussion_and_specify_share_read_only_evidence_lane_contract() -> None:
@@ -641,7 +643,7 @@ def test_source_changing_sp_workflows_include_inline_cognition_closeout_contract
         "specify-runtime cognition closeout-plan --workflow",
         "--delta-session",
         "update_mode=delta_session",
-        "update_mode=payload_file",
+        "update_mode=inline_json",
         "unknown_path_dispositions",
         "agent_disposition",
         "blocking_known_unknown",
@@ -1110,12 +1112,13 @@ def _assert_managed_block_v2_contract(block: str) -> None:
     assert "do not auto-enter an `sp-*` workflow" in lowered
     assert "unless the user invokes it" in lowered
     assert "recommend `sp-discussion`" in lowered
-    assert "`sp-specify` for formal alignment" in lowered
+    assert "`sp-quick` for tracked direct delivery of any size" in lowered
+    assert "`sp-specify` for an explicitly selected formal spec-first path" in lowered
     assert "`sp-deep-research` for feasibility proof" in lowered
     assert "`sp-debug` for root-cause diagnosis" in lowered
 
     assert "## Command Surface Rules" in block
-    assert "{{specify-cli}} --help" in block
+    assert "{{specify-runtime-cli}} api list --format json" in block
     assert "specify create-feature" in block
     assert ".specify/scripts/bash/create-new-feature.sh" in block
     assert ".specify/scripts/powershell/create-new-feature.ps1" in block
@@ -1141,7 +1144,6 @@ def _assert_managed_block_v2_contract(block: str) -> None:
     assert "## Map Maintenance" not in block
     assert "## Delegated Execution Defaults" not in block
     assert "sp-fast" not in lowered
-    assert "sp-quick" not in lowered
     assert "sp-test-scan" not in lowered
     assert "sp-test-build" not in lowered
 
@@ -1277,10 +1279,11 @@ def test_plan_tasks_frontmatter_outputs_are_conditional_for_adaptive_modes() -> 
         "used. `workflow-state.md` remains resume state rather than phase handoff truth.'"
     ) in plan
     assert (
-        "primary_outputs: '`FEATURE_DIR/task-index.json` as the canonical task graph for "
-        "standard/heavy or any UI-bearing work plus rendered `tasks.md`; light non-UI "
-        "leader-direct work may use only `tasks.md`. `handoff-to-tasks.json` is a compact agent "
-        "transition when compatibility requires it. Worker packets are compiled just in time by "
+        "primary_outputs: '`FEATURE_DIR/task-index.json` as the canonical task graph in every "
+        "execution mode plus rendered `tasks.md`; light non-UI leader-direct work keeps the same "
+        "CLI-owned package compact. `handoff-to-tasks.json` and `handoff-to-implement.json` are "
+        "compact pointer-only transitions created only by `specify-runtime tasks handoff` when "
+        "required. Worker packets are compiled just in time by "
         "`sp-implement`; task-generation lane records exist only when lanes were actually delegated.'"
     ) in tasks
 
@@ -1341,7 +1344,7 @@ def test_discussion_command_contract_is_pre_spec_and_resumable() -> None:
     assert "ui-interaction-discussion" in content
     assert "ascii sketches" in lowered
     assert ".specify/discussions/<slug>/" in content
-    assert "discussion-state.json" in content
+    assert "specify-runtime discussion list" in content
     assert "discussion-state.md" in content
     assert "discussion-log.jsonl" in content
     assert "requirements.md" in content
@@ -1383,7 +1386,7 @@ def test_discussion_staged_cognition_gate_and_technical_options_contract() -> No
 
     assert "product framing may begin before project cognition" in lowered
     assert "forbidden before the cognition gate" in lowered
-    assert ".specify/project-cognition/status.json" in content
+    assert "specify-runtime cognition status --format json" in content
     assert "specify-runtime cognition compass --intent discussion" in content
     assert "specify-runtime cognition query --query-plan" in content
     assert "only when `compass_state`, coverage diagnostics, localization, or live evidence requires explicit concept decisions" in content
@@ -1544,7 +1547,8 @@ def test_discussion_reply_contract_is_adaptive_and_high_throughput() -> None:
     assert "do not split the work into p0/p1/p2" in lowered
     assert "migration phases" in lowered
     assert "task packets" in lowered
-    assert "those belong to `sp-plan`, `sp-tasks`, or `sp-implement`" in lowered
+    assert "those belong to `sp-quick` task-local planning when quick is selected" in lowered
+    assert "`sp-plan`, `sp-tasks`, and `sp-implement` on the formal feature path" in lowered
     assert "no parallel old-backend operation" in lowered
     assert "no old-stack cutover fallback" in lowered
     assert "no alternate product path" in lowered
@@ -1610,7 +1614,7 @@ def test_discussion_handoff_assessment_preview_precedes_artifact_writes() -> Non
     assert "separate assessment" in lowered
 
 
-def test_discussion_does_not_route_to_specify_before_ready_handoff_pair() -> None:
+def test_discussion_does_not_route_to_a_consumer_before_ready_handoff() -> None:
     content = _read("templates/commands/discussion.md")
     shell = _read("templates/command-partials/discussion/shell.md")
     routing = _read("templates/passive-skills/spec-kit-workflow-routing/SKILL.md")
@@ -1620,10 +1624,9 @@ def test_discussion_does_not_route_to_specify_before_ready_handoff_pair() -> Non
 
     assert "pre-ready handoff next-step guard" in lowered
     assert "keep the visible next step inside `sp-discussion`: handoff assessment, draft handoff review, or handoff repair" in lowered
-    assert "do not tell the user their next sentence should be `sp-specify`" in lowered
-    assert "do not tell the user their next sentence can be `sp-specify`" in lowered
-    assert "do not tell them to run or enter `sp-specify`" in lowered
-    assert "before `handoff-ready`, do not describe the next consumption path as a user-invoked `sp-specify` command" in lowered
+    assert "do not tell the user their next sentence can be `sp-quick` or `sp-specify`" in lowered
+    assert "do not tell the user to run or enter `sp-quick` or `sp-specify`" in lowered
+    assert "before `handoff-ready`, do not describe the next consumption path as a user-invoked `sp-quick` or `sp-specify` command" in lowered
     assert "`specification-input.md`, `discussion-state.md`, and other discussion source files are not fallback handoffs" in lowered
     assert "specification-input.md` is not a substitute handoff" in lowered
     assert "the next action is `sp-discussion` handoff creation, review, or repair" in lowered
@@ -1641,7 +1644,8 @@ def test_discussion_handoff_prompt_uses_executable_digest_bound_transition() -> 
     assert "confirm-handoff <slug> --digest <review-digest> --json" in combined
     assert "mark-ready <slug> --json" in combined
     assert "a contextual confirmation such as `yes`, `ok`, or `可以`" in combined
-    assert "before every final response that names `sp-specify`" in combined
+    assert "before every final response that names `sp-quick` or `sp-specify`" in combined
+    assert "selected `recommended_consumer`" in combined or "and `recommended_consumer`" in combined
     assert "do not treat an already-active discussion as a new automatic workflow entry" in combined
     assert "ready-for-contract" in combined
     assert "decide `ready-for-handoff`" not in combined
@@ -1655,7 +1659,8 @@ def test_managed_context_preserves_active_discussion_across_follow_up_turns() ->
     combined = "\n".join([source, bash, powershell, routing]).lower()
 
     assert "continuing an already-invoked incomplete workflow is not auto-entry" in combined
-    assert "before recommending `sp-specify`" in combined
+    assert "before recommending `sp-quick` or `sp-specify` from a discussion" in combined
+    assert "`recommended_consumer`" in combined
     assert "not `handoff-ready`" in combined
     assert "resume `sp-discussion`" in combined
 
@@ -1819,7 +1824,7 @@ def test_discussion_uses_lightweight_events_and_semantic_checkpoints() -> None:
     assert "`durable-checkpoint`" in combined
     assert "`evidence-handoff`" in combined
     assert "`lifecycle-transition`" in combined
-    assert "treat an existing discussion package as a recovery surface, not a reason to write more often" in lowered
+    assert "treat an existing discussion package as a recovery surface, not a reason to persist more often" in lowered
     assert "plain confirmations such as" in lowered
     assert "a user reply is not itself a save trigger" in lowered
     assert "hidden counters" in lowered
@@ -1845,8 +1850,9 @@ def test_discussion_uses_lightweight_events_and_semantic_checkpoints() -> None:
     assert "suppress local writes until save trigger" in lowered
     assert "hooks may remind on resume or compaction" in lowered
     assert "pending truth-pass state" in lowered
-    assert "persist it to `discussion-state.md` only at semantic checkpoints or save triggers" in lowered
-    assert "persist them to `open-questions.md` only when they materially change" in lowered
+    assert "submit it through `specify-runtime discussion checkpoint`" in lowered
+    assert "only at semantic checkpoints or save triggers" in lowered
+    assert "refresh optional discussion views only through their registered artifact owner" in lowered
     assert "compaction_preserve_items" in combined
     assert "checkpoint triggers" in lowered
     assert "do not refresh all files" in lowered
@@ -2008,7 +2014,8 @@ def test_specify_consumes_confirmed_unified_discussion_handoff_without_repair() 
     assert "planning_gate_status" in content
     assert "hard_unknown_count" in content
     assert "open_conflict_count" in content
-    assert "Read supporting discussion files only through a named evidence reference" in content
+    assert "Query supporting discussion artifacts only through their artifact/evidence CLI owner" in content
+    assert "only for a named evidence reference that is stale, missing, or contradictory" in content
     assert "specification-input.md" in content
     assert "do not reconstruct the contract from `specification-input.md`" in lowered
     assert "do not use `specification-input.md`, `discussion-state.md`, or other discussion source files as a substitute" in lowered
@@ -2016,7 +2023,8 @@ def test_specify_consumes_confirmed_unified_discussion_handoff_without_repair() 
     assert "semantic_delta" in content
     assert "Do not repeat user review" in content
     assert "spec-contract.json" in content
-    assert "pointer-only transition" in content
+    assert "specify-runtime discussion bind-consumer" in content
+    assert "writes the pointer" in lowered
     assert "source_contract" in content
     assert "mark the source discussion consumed" in lowered
 
@@ -2033,12 +2041,15 @@ def test_quick_consumes_unified_discussion_handoff_through_checkpoint() -> None:
     assert "review_digest" in content
     assert "quick_task_candidate" not in content
     assert "source_discussion_slug" in content
-    assert "source refs actually read" in lowered
+    assert "source refs actually queried through `specify-runtime artifact show`" in lowered
     assert "must_preserve" in content
     assert "reopen conditions" in lowered
     assert "bind `understanding_confirmed` to the confirmed `review_digest`" in lowered
     assert "do not repeat user confirmation" in lowered
     assert "do not require or search for a markdown companion or a quick-specific handoff" in lowered
+    assert "discussion mark-consumed <slug> --feature-dir <quick-workspace>" in content
+    assert "compatibility spelling" in lowered
+    assert "validates its `status.md` binding" in lowered
 
 
 def test_specify_preserves_discussion_decision_digest_not_only_handoff_files() -> None:
@@ -2134,14 +2145,14 @@ def test_specify_discussion_handoff_has_coverage_and_planning_gate_split() -> No
     assert "zero hard unknowns and open conflicts" in lowered
 
 
-def test_workflow_routing_mentions_discussion_before_specify_for_rough_ideas() -> None:
+def test_workflow_routing_discussion_selects_quick_or_specify_for_rough_ideas() -> None:
     content = _read("templates/passive-skills/spec-kit-workflow-routing/SKILL.md")
     lowered = content.lower()
 
     assert "sp-discussion" in content
     assert "rough idea" in lowered
     assert "not-yet-ready" in lowered
-    assert "pre-spec" in lowered or "before formal specification" in lowered
+    assert "before either direct quick delivery or formal specification" in lowered
     assert "explicit handoff" in lowered
     assert "{{invoke:discussion}}" in content
     assert "{{invoke:specify}}" in content
@@ -2160,6 +2171,10 @@ def test_workflow_routing_mentions_discussion_before_specify_for_rough_ideas() -
     assert "json path or discussion slug" in lowered
     assert "exactly one unconsumed `handoff-ready` discussion" in content
     assert "before feature creation" in lowered
+    assert "`recommended_consumer`" in content
+    assert "`sp-quick` for direct delivery of any size" in lowered
+    assert "`sp-specify` when the user selected a formal spec-first path" in lowered
+    assert "choose the consumer from the user's delivery intent, not task size" in lowered
 
 
 def test_project_cognition_gate_has_staged_discussion_gate() -> None:
@@ -2263,7 +2278,7 @@ def _legacy_specify_alignment_first_contract():
     _assert_learning_index_detail_model(content)
     assert "{{specify-subcmd:specify-runtime learning start --command specify --format json}}" in content
     assert "Required options: `--command`, `--type`, `--summary`, `--evidence`" in content
-    assert ".specify/project-cognition/status.json" in content
+    assert "specify-runtime cognition status --format json" in content
     assert ".specify/project-map/index/status.json" not in content
     assert ".specify/project-map/root/ARCHITECTURE.md" not in content
     assert ".specify/project-map/root/STRUCTURE.md" not in content
@@ -2652,7 +2667,7 @@ def test_constitution_template_uses_current_shared_context_and_reentry_contract(
     assert "consume-only Learning CLI intake" in content
     assert "learning start --command constitution --format json" in content
     assert ".specify/memory/learnings/INDEX.md" not in content
-    assert ".specify/project-cognition/status.json" in content
+    assert "specify-runtime cognition status --format json" in content
     assert ".specify/project-map/index/status.json" not in content
     assert "`/sp-map-scan` followed by `/sp-map-build`" in content
     assert "workflow-state.md" in content
@@ -2662,9 +2677,12 @@ def test_constitution_template_uses_current_shared_context_and_reentry_contract(
     assert "active_command: sp-constitution" in lowered
     assert "phase_mode: planning-only" in lowered
     assert "{{specify-subcmd:hook" not in lowered
-    assert "this workflow writes only `.specify/memory/constitution.md`" in lowered
+    assert "this workflow may mutate only `.specify/memory/constitution.md`" in lowered
+    assert "specify-runtime artifact scaffold|patch" in lowered
+    assert "artifact patch --preamble" in lowered
+    assert "--heading" in lowered and "--new-heading" in lowered
     assert "do not modify templates, command files, docs, project rules, learning files" in lowered
-    assert "`feature_dir/workflow-state.md` as read-only context" in lowered
+    assert "`feature_dir/workflow-state.md` through `specify-runtime artifact show` only" in lowered
     assert "do not update or create" in lowered
     assert "pending follow-up" in lowered
     assert "highest affected downstream stage" in lowered
@@ -2677,7 +2695,9 @@ def test_constitution_template_uses_current_shared_context_and_reentry_contract(
     assert "mark the related project cognition compatibility/export surface for refresh" in lowered
     assert "ordinary existing-baseline" in lowered
     assert "first/missing/unusable baseline, schema failure, schema v1 or old broad-schema rebuild-required readiness, zero active-generation `path_index` rows, missing or invalid `alias_index`, `explicit_rebuild_requested`, or `baseline_identity_invalid`" in lowered
-    assert "rewrite only `.specify/memory/constitution.md`" in shell_lowered
+    assert "never submit or reconstruct the whole constitution" in shell_lowered
+    assert "artifact patch --heading" in shell_lowered
+    assert "--preamble" in shell_lowered
     assert "report pending alignment instead" in shell_lowered
     assert "not as permission to edit additional files" in shell_lowered
     for forbidden in (
@@ -2741,7 +2761,7 @@ def _legacy_plan_template_requires_alignment_report_before_planning():
     _assert_learning_index_detail_model(content)
     assert "{{specify-subcmd:specify-runtime learning start --command plan --format json}}" in content
     assert "Required options: `--command`, `--type`, `--summary`, `--evidence`" in content
-    assert ".specify/project-cognition/status.json" in content
+    assert "specify-runtime cognition status --format json" in content
     assert ".specify/project-map/index/status.json" not in content
     assert ".specify/project-map/root/ARCHITECTURE.md" not in content
     assert ".specify/project-map/root/STRUCTURE.md" not in content
@@ -2763,7 +2783,7 @@ def _legacy_plan_template_requires_alignment_report_before_planning():
     assert "Outstanding Questions" in content
     assert "Planning Gate Recommendation" in content
     assert "Read `FEATURE_DIR/context.md`" in content
-    assert "Read `templates/research-template.md`" in content
+    assert "artifact scaffold --kind research" in content
     assert "Treat `context.md` as the primary implementation-context artifact" in content
     assert "planning-critical unresolved items remain" in content
     assert "locked planning decisions from `alignment.md`, `context.md`, `spec.md`, and `deep-research.md`" in content
@@ -2811,7 +2831,7 @@ def _legacy_plan_template_requires_alignment_report_before_planning():
     assert "Do not present unverified claims as settled facts." in content
     assert "Prefer prescriptive recommendations over broad option dumps" in content
     assert "What does the planner need to know to produce a high-quality implementation plan" in content
-    assert "Use `templates/research-template.md` as the default structure for `research.md`" in content
+    assert "never read and reproduce its stable structure in memory" in content
     assert "recommended follow-up quality check: `{{invoke:checklist}}`" in content
     assert "cognition follow-up" in lowered
     assert "artifact-only planning work" in lowered
@@ -2826,38 +2846,39 @@ def test_plan_template_uses_adaptive_execution_modes() -> None:
     _assert_adaptive_plan_tasks_contract(content, "plan")
     assert "`light`: leader-inline synthesis" in content
     assert "`standard`: delegate only isolated" in content
-    assert "`heavy`: use validated writable lanes" in content
+    assert "`heavy`: use validated result-channel lanes" in content
 
 
 def test_plan_template_records_planning_evidence_paths() -> None:
     content = _read("templates/commands/plan.md")
 
     assert "lane-manifest.json" in content
-    assert "each lane writes one agent-only result" in content.lower()
+    assert "each lane returns one compact agent-only result inline" in content.lower()
+    assert "runtime alone materializes the result path" in content.lower()
     assert "do not require separate evidence-index and checkpoint logs" in content.lower()
 
 
-def test_plan_template_requires_writable_delegated_planning_lanes() -> None:
+def test_plan_template_requires_cli_owned_delegated_planning_results() -> None:
     content = _read("templates/commands/plan.md")
     lowered = content.lower()
 
-    assert "artifact-writing delegated planning lanes must be dispatched" in lowered
-    assert "writable, execution-capable native subagent" in lowered
-    assert "do not dispatch a read-only explorer, reviewer, or diagnostic lane" in lowered
-    assert "allowed write scope must include the exact expected handoff path" in lowered
+    assert "delegated planning lanes have no direct workflow-artifact write scope" in lowered
+    assert "complete runtime-owned result-submit argv prefix" in lowered
+    assert "read-only evidence worker may satisfy a planning lane" in lowered
     assert "planning/handoffs/<lane-id>.json" in content
-    assert "re-dispatch with a writable lane" in lowered
+    assert "materialized only by the runtime" in lowered
+    assert "--result-json '<inline-json>'" in content
 
 
-def test_adaptive_execution_partial_requires_writable_artifact_handoff_lanes() -> None:
+def test_adaptive_execution_partial_requires_runtime_owned_artifact_handoffs() -> None:
     content = _read("templates/command-partials/common/adaptive-execution.md")
     lowered = content.lower()
 
-    assert "artifact-writing delegated lanes must use writable" in lowered
-    assert "execution-capable native subagents" in lowered
-    assert "read-only explorer, reviewer, or diagnostic lane" in lowered
-    assert "must include the exact expected handoff path" in lowered
-    assert "re-dispatch with a writable lane" in lowered
+    assert "no worker receives direct workflow-artifact write authority" in lowered
+    assert "builds its bounded result in memory" in lowered
+    assert "runtime alone materializes the canonical handoff path" in lowered
+    assert "no accepted cli result" in lowered
+    assert "complete runtime-owned result argv" in lowered
 
 
 def test_research_template_exists_and_captures_research_quality_contract():
@@ -3090,9 +3111,10 @@ def test_task_reviewer_prompt_defines_dual_verdict_schema() -> None:
     assert "Dispositions that refer to `plan_mandated_defects`" in content
     assert "finding_source=plan_mandated_defects" in content
     assert "finding_source=findings" in content
-    assert "canonical worker result path named by the lifecycle record" in content
-    assert "FEATURE_DIR/worker-results/<task-id>.json" in content
-    assert ".specify/teams/state/results/<request-id>.json" in content
+    assert "lifecycle record's returned `show_argv`/registered runtime owner" in content
+    assert "never open a worker-result or Teams result path directly" in content
+    assert "FEATURE_DIR/worker-results/<task-id>.json" not in content
+    assert ".specify/teams/state/results/<request-id>.json" not in content
     assert "Inline Project Cognition Handoff" not in content
     assert "changed_paths" not in content
 
@@ -3176,7 +3198,7 @@ def test_explain_template_documents_conservative_routing_contract():
     assert "supporting artifact cross-check" in lowered
     assert "before rendering the final explanation" in lowered
     assert "project cognition, touched-area state, or brownfield runtime truth" in lowered
-    assert ".specify/project-cognition/status.json" in content
+    assert "specify-runtime cognition status --format json" in content
     assert "smallest matching slice" in lowered
     assert "handbook artifacts only when the user explicitly requests the compatibility/export surfaces themselves" in lowered
     assert "explain the architecture, cognition, or compatibility/export atlas artifact directly instead of forcing a planning-stage fallback" in lowered
@@ -3191,7 +3213,7 @@ def test_analyze_template_expands_to_context_and_locked_decision_drift():
     assert "description: Use when tasks.md exists and you need a non-destructive cross-artifact consistency and boundary-guardrail analysis before or during execution." in content
     assert "## Workflow Contract Summary" in content
     assert "This command does not edit `spec.md`, `context.md`, `plan.md`, or `tasks.md`." in content
-    assert "this command may update `workflow-state.md` to record the cleared or blocked gate result" in lowered
+    assert "persist the cleared/blocked gate only with a leased `specify-runtime artifact patch`" in lowered
     assert "before, during, or after implementation revalidation" in lowered
     assert "workflow-state.md" in content
     assert "analysis-only" in lowered
@@ -3400,7 +3422,7 @@ def test_debug_template_reads_constitution_and_feature_context_before_fixing() -
     assert "learning start --command <classic-command-name> --format json" in content
     assert ".specify/memory/learnings/INDEX.md" not in content
     assert "spec.md`, `plan.md`, and `tasks.md`" in content
-    assert "`context.md` exists for the active feature" in content
+    assert "if `context.md` exists, query its relevant section through `specify-runtime artifact show`" in content
 
 
 def test_debug_templates_lock_map_backed_intake_contract() -> None:
@@ -3458,6 +3480,7 @@ def test_new_analysis_workflow_command_templates_exist():
 
 def test_deep_research_template_defines_feasibility_gate_contract():
     content = _read("templates/commands/deep-research.md")
+    scaffold = _read("templates/artifacts/deep-research.md")
     lowered = content.lower()
 
     assert "sp-deep-research" in content
@@ -3475,8 +3498,10 @@ def test_deep_research_template_defines_feasibility_gate_contract():
     assert "EVD-001" in content
     assert "SPK-001" in content
     assert "PH-001" in content
-    assert "Evidence Quality Rubric" in content
-    assert "Planning Traceability Index" in content
+    assert "artifact scaffold --kind deep-research" in content
+    assert "Grade each evidence item using this rubric" in content
+    assert "Evidence Quality Rubric" in scaffold
+    assert "Planning Traceability Index" in scaffold
     assert "what this does not prove" in lowered
     assert "evidence packet" in lowered
     assert "Research Agent Findings" in content
@@ -3597,8 +3622,11 @@ def test_spec_extend_template_positions_itself_as_planning_gap_rescue_lane():
     lowered = content.lower()
 
     assert "closing planning-critical gaps" in lowered
-    assert "`FEATURE_DIR/context.md` if present" in content
-    assert "The subagent updates `spec.md`, `alignment.md`, `context.md`, `references.md`, and `workflow-state.md` as needed." in content
+    assert "`FEATURE_DIR/context.md`" in content
+    assert "through `specify-runtime artifact show`" in content
+    assert "The subagent proposes replacement content" in content
+    assert "specify-runtime result submit --command clarify --result-json" in content
+    assert "never edits those files" in content
     assert "Existing Code Insights" in content
     assert "unresolved gray areas that still change plan structure" in lowered
     assert "missing locked decisions, canonical references, or deferred-scope notes" in lowered
@@ -3760,10 +3788,15 @@ def test_auto_template_routes_from_existing_state_surfaces():
     assert "testing-state.md" not in content
     assert "status.md" in lowered
     assert "debug" in lowered
-    assert "discussion-state.json" in content
+    assert "artifact list --path-prefix .specify/discussions/ --type discussion-state-json" in content
     assert "handoff_consumption_status" in content
     assert "mark-consumed" in lowered
     assert "next_command" in content
+    assert "recommended_consumer" in content
+    assert "consumer_eligibility.<consumer>.status: ready" in content
+    assert "route to the canonical `/sp.quick` token" in lowered
+    assert "route back to `/sp.discussion` for handoff repair" in lowered
+    assert "quick `status.md`" in lowered
     assert "do not rewrite the underlying workflow state to `/sp.auto`" in lowered
     assert "obey the recorded upstream gate" in lowered or "must obey the recorded upstream gate" in lowered
     assert "if state is missing, stale, conflicting, or cannot identify one safe next step" in lowered
@@ -4179,7 +4212,8 @@ def _legacy_implement_template_supports_capability_aware_parallel_batches():
     assert "runtime-managed result channel" in lowered
     assert "feature_dir/worker-results/<task-id>.json" in lowered
     assert '{{specify-subcmd:specify-runtime result path --command implement --feature-dir "$feature_dir" --task-id <task-id>}}' in lowered
-    assert '{{specify-subcmd:specify-runtime result submit --command implement --feature-dir "$feature_dir" --task-id <task-id> --result-file <path>}}' in lowered
+    assert '{{specify-subcmd:specify-runtime result submit --command implement --feature-dir "$feature_dir" --task-id <task-id> --result-json' in lowered
+    assert "never create or overwrite a result file" in lowered
     assert "{{specify-subcmd:specify-runtime result path --command implement --request-id <request-id>}}" in lowered
     assert "active runtime-managed result channel for that request id" in lowered
     assert "does not accept `--format`" in lowered
@@ -4254,7 +4288,7 @@ def _legacy_implement_template_supports_capability_aware_parallel_batches():
     assert "workflow-owned mutation closeout is not an external map-maintenance handoff" in lowered
     assert "specify-runtime cognition closeout-plan --workflow" in lowered
     assert "update_mode=delta_session" in lowered
-    assert "update_mode=payload_file" in lowered
+    assert "update_mode=inline_json" in lowered
     assert "update_argv" in lowered
     assert "clean closeout keys on `result_state`" in lowered
     assert "sp-map-update is for manual/external maintenance and follow-up repair" in lowered
@@ -4292,7 +4326,7 @@ def test_mutation_workflows_require_inline_cognition_update_before_dirty_fallbac
         assert "workflow-owned mutation closeout is not an external map-maintenance handoff" in content
         assert "specify-runtime cognition closeout-plan --workflow" in content
         assert "update_mode=delta_session" in content
-        assert "update_mode=payload_file" in content
+        assert "update_mode=inline_json" in content
         assert "update_argv" in content
         assert "clean closeout keys on `result_state`" in content
         assert "sp-map-update is for manual/external maintenance and follow-up repair" in content
@@ -4373,7 +4407,9 @@ def test_inline_cognition_closeout_shared_surfaces_are_consistent() -> None:
 def test_constitution_workflow_reports_cognition_followup_without_mutating_it() -> None:
     content = _read("templates/commands/constitution.md").lower()
 
-    assert "this workflow writes only `.specify/memory/constitution.md`" in content
+    assert "this workflow may mutate only `.specify/memory/constitution.md`" in content
+    assert "specify-runtime artifact scaffold|patch" in content
+    assert "artifact patch --preamble" in content
     assert "does not own project cognition mutation closeout" in content
     assert "do not run `specify-runtime cognition update`, `specify-runtime cognition mark-dirty`" in content
     assert "report that follow-up instead" in content
@@ -4519,7 +4555,7 @@ def test_shared_implement_teams_contract_preserves_explicit_execution_packet_fie
     assert "every team-managed task in the teams-backed flow must still behave like an explicit execution packet" in content
     assert "write set and shared surfaces" in content
     assert "explicit verification command or acceptance check" in content
-    assert "canonical result handoff path or runtime-managed result channel expectation" in content
+    assert "exact inline result-submission owner and required runtime identifiers" in content
     assert "completion-handoff protocol covering start, blocker, and final completion evidence" in content
     assert "platform guardrails" in content
     assert "status flip alone" in content
@@ -4620,7 +4656,7 @@ def test_implement_template_honors_pending_analyze_gate_from_workflow_state():
     content = _read("templates/commands/implement.md")
     lowered = content.lower()
 
-    assert "Read `FEATURE_DIR/workflow-state.md` when present" in content
+    assert "Query `FEATURE_DIR/workflow-state.md` with `specify-runtime artifact show` when present" in content
     assert "canonical `next_command` still points to `/sp.analyze`" in lowered
     assert "honor that pending diagnostic gate" in lowered
     assert "self-authorizing implementation from chat memory" in lowered
@@ -4634,10 +4670,16 @@ def test_debug_and_quick_templates_reference_shared_worker_prompt_assets() -> No
     assert ".specify/templates/worker-prompts/quick-worker.md" in quick_content
     assert "dispatch-blocking" in debug_content.lower() or "subagent-blocked" in debug_content.lower()
     assert "delegation_confidence" in quick_content.lower()
-    assert ".planning/debug/results/<session-slug>/<lane-id>.json" in debug_content.lower()
-    assert ".planning/quick/<id>-<slug>/worker-results/<lane-id>.json" in quick_content.lower()
+    assert ".planning/debug/results/<session-slug>/<lane-id>.json" not in debug_content.lower()
+    assert ".planning/quick/<id>-<slug>/worker-results/<lane-id>.json" not in quick_content.lower()
     assert "{{specify-subcmd:specify-runtime result submit" in debug_content.lower()
     assert "{{specify-subcmd:specify-runtime result submit" in quick_content.lower()
+    assert "--result-json '<inline-json>'" in debug_content.lower()
+    assert "--result-json '<inline-json>'" in quick_content.lower()
+    assert "the runtime derives and writes the canonical destination" in debug_content.lower()
+    assert "the runtime derives and writes the canonical destination" in quick_content.lower()
+    assert "never compute a result path, create a result file, or use `--result-file`" in debug_content.lower()
+    assert "never compute a result path, create a result file, or use `--result-file`" in quick_content.lower()
     assert "reported_status" in debug_content.lower()
     assert "reported_status" in quick_content.lower()
     assert "idle subagent is not an accepted result" in debug_content.lower()
@@ -4661,12 +4703,12 @@ def test_worker_prompt_templates_exist_and_define_controller_worker_contracts() 
     assert "platform guardrails" in implementer.lower()
     assert "completion-handoff protocol" in implementer.lower()
     assert "task_started" in implementer.lower()
-    assert "must not enter `idle` before the required handoff is written or returned" in implementer.lower()
+    assert "must not enter `idle` before the required inline handoff is submitted or returned" in implementer.lower()
     assert "test-authoring-only" in implementer.lower()
     assert "accepted change-set red/baseline" in implementer.lower()
     assert "must not run a test suite" in implementer.lower()
     assert "per txx" in implementer.lower()
-    assert "only the leader may open an attempt" in " ".join(
+    assert "workers never inspect their backing store or open an attempt" in " ".join(
         implementer.lower().split()
     )
     assert "do not claim verification that was not run" in implementer.lower()
@@ -4679,12 +4721,12 @@ def test_worker_prompt_templates_exist_and_define_controller_worker_contracts() 
     assert "# Debug Investigator Worker Prompt" in debug_investigator
     assert "current hypothesis" in debug_investigator.lower()
     assert "must not update the debug file" in debug_investigator.lower()
-    assert "must not enter `idle` before the required handoff is written or returned" in debug_investigator.lower()
+    assert "must not enter `idle` before the required inline handoff is submitted or returned" in debug_investigator.lower()
 
     assert "# Quick Worker Prompt" in quick_worker
-    assert "status.md remains leader-owned" in quick_worker.lower()
+    assert "`status.md` remains leader-owned" in quick_worker.lower()
     assert "smallest safe lane" in quick_worker.lower()
-    assert "must not enter `idle` before the required handoff is written or returned" in quick_worker.lower()
+    assert "must not enter `idle` before the required inline handoff is submitted or returned" in quick_worker.lower()
     assert "surface-only" in quick_worker.lower() or "symptom-only" in quick_worker.lower()
     assert "/sp-debug" in quick_worker.lower()
 
@@ -4887,12 +4929,13 @@ def test_clarify_command_requires_persisted_clarification_lane_handoffs():
     assert "clarification/handoffs/<lane-id>.json" in content
     assert "clarification/evidence-index.json" in content
     assert "clarification/checkpoints.ndjson" in content
-    assert "persist a `clarification_checkpoint` record" in lowered
-    assert "persist the lane's structured handoff" in lowered
-    assert "consume `clarification/evidence-index.json` before final artifact updates" in lowered
-    assert "mark the handoff as `integrated`, `deferred`, or `blocked`" in lowered
+    assert "append one inline checkpoint object through a leased `artifact patch --append-json`" in lowered
+    assert "submits its structured handoff inline through `specify-runtime result submit --command clarify" in lowered
+    assert "never write `clarification/handoffs/<lane-id>.json` directly" in lowered
+    assert "query `clarification/evidence-index.json` through `specify-runtime artifact show`" in lowered
+    assert "patch its `integrated`, `deferred`, or `blocked` disposition" in lowered
     assert "without an explicit consuming artifact section, deferral, or blocker reason" in lowered
-    assert "do not update `spec.md`, `alignment.md`, `context.md`, or `references.md` from chat-only lane results" in lowered
+    assert "do not update planning artifacts from chat-only lane results" in lowered
 
 
 def test_analyze_command_consumes_canonical_contracts_and_lane_manifests():
@@ -4904,8 +4947,8 @@ def test_analyze_command_consumes_canonical_contracts_and_lane_manifests():
     assert "TASK_INDEX = FEATURE_DIR/task-index.json" in content
     assert "PLANNING_LANE_MANIFEST = FEATURE_DIR/planning/lane-manifest.json when present" in content
     assert "TASK_GENERATION_LANE_MANIFEST = FEATURE_DIR/task-generation/lane-manifest.json when present" in content
-    assert "read `planning/lane-manifest.json` and only the accepted lane results it names" in lowered
-    assert "read `task-generation/lane-manifest.json` and only the accepted lane results it names" in lowered
+    assert "query `planning/lane-manifest.json` and only its named accepted results through targeted `specify-runtime artifact show` calls" in lowered
+    assert "query `task-generation/lane-manifest.json` and only its named accepted results through targeted `specify-runtime artifact show` calls" in lowered
     assert "accepted planning handoff with no downstream consumer as a plan-layer blocker" in lowered
     assert "accepted task-generation handoff with no downstream consumer as a task-layer blocker" in lowered
 
@@ -5258,7 +5301,8 @@ def test_specify_template_does_not_require_lossless_journal_stage_manifest_and_c
     assert "source_signal_disposition" not in specify
     assert "decision digest" in specify.lower()
     assert "spec-contract.json" in specify
-    assert "pointer-only agent transition" in specify.lower()
+    assert "specify-runtime discussion bind-consumer" in specify.lower()
+    assert "runtime" in specify.lower() and "writes the pointer" in specify.lower()
     assert "20. Apply `final-handoff-decision`." not in specify
     assert "until `final-handoff-decision` determines the appropriate next command" not in specify
     assert "Legacy compatibility wording: Only `final-handoff-decision`" not in specify

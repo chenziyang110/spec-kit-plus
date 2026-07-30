@@ -25,7 +25,7 @@ This summary is routing metadata only. The full workflow contract is the frontma
 
 `sp-prd-build` must not become a second repository scan. It must not silently fill critical evidence gaps. When the scan package is incomplete, stop and route back to `sp-prd-scan`.
 Final outputs must preserve `Evidence`, `Inference`, and `Unknown` labels rather than flattening them during synthesis.
-Before writing exports, the build step must collect and validate the scan evidence bundle: scan packets, worker results, and the machine-readable reconstruction contracts produced by `sp-prd-scan`. That intake includes results returned by mandatory subagents before any export synthesis begins.
+Before filling exports, the build step must collect and validate the scan evidence bundle: query scan packets and worker results through `specify-runtime artifact list/show`, but inspect the ten machine-readable reconstruction contracts only through compact `specify-runtime prd-scan record-list` plus selected `record-show` calls. That intake includes results returned by mandatory subagents before any export synthesis begins.
 
 ## Context
 
@@ -65,7 +65,7 @@ Build-support lanes operate on the run bundle, not the live repository.
 
 ## Required Inputs
 
-Before writing final exports, read:
+Before filling final exports, query `workflow-state.md`, `prd-scan.md`, scan packets, and worker results through `specify-runtime artifact show` (summary first, then targeted/full only as needed). For each JSON ledger/contract below, use `prd-scan record-list <run-id> --surface <surface>` and expand only selected rows with `record-show`; never load the full document:
 
 - `.specify/prd-runs/<run-id>/workflow-state.md`
 - `.specify/prd-runs/<run-id>/prd-scan.md`
@@ -85,7 +85,7 @@ Before writing final exports, read:
 ## PRD Run State Protocol
 
 - `workflow-state.md` under `.specify/prd-runs/<run-id>/` is the resumable state surface for `sp-prd-scan` and `sp-prd-build`.
-- [AGENT] Create or resume `workflow-state.md` before substantial build work.
+- [AGENT] Use the run state created by `prd-scan`; resume it through targeted `artifact show` and mutate it only through fresh leased `artifact patch` calls before substantial work.
 - If `workflow-state.md` exists with `active_command: sp-prd-build` and a non-terminal build state, resume from it instead of rebuilding intent from chat memory.
 - Track at least:
   - `active_command: sp-prd-build`
@@ -107,8 +107,8 @@ Before writing final exports, read:
 
 1. Validate that the `sp-prd-scan` package is complete enough to build.
 2. Perform packet evidence intake across scan packets, ledgers, JSON contracts, and worker results returned by mandatory subagent lanes.
-3. Compile `.specify/prd-runs/<run-id>/master/master-pack.md` from scan outputs only.
-4. Render `.specify/prd-runs/<run-id>/exports/README.md`, `.specify/prd-runs/<run-id>/exports/prd.md`, and the supporting exports.
+3. Run `{{specify-subcmd:specify-runtime prd-build scaffold <run-id> --format json}}`. The CLI verifies the sealed scan and atomically expands every missing required master/export document from the installed stable templates while preserving existing resume content. Never read or reconstruct those templates, and never generically prepare or submit a build document.
+4. Compile only semantic section content from scan outputs, query the target section when resuming, and fill `master/master-pack.md`, `exports/README.md`, `exports/prd.md`, and supporting exports through fresh leased `artifact patch --section` calls. Never emit or replace a whole PRD build document.
 5. Respect classification-aware export semantics: `ui`, `service`, and `mixed` runs must keep the final package grounded in the scan classification even when the fixed export set is used.
 6. Run reverse coverage validation across capabilities, artifacts, field-level contracts, and `Evidence` / `Inference` / `Unknown` labels.
 7. Refuse completion and route back to `sp-prd-scan` when critical gaps remain.
@@ -162,11 +162,11 @@ When refusal happens, report the smallest safe repair and route back to `sp-prd-
 
 - `subagent-blocked` stops substantive build work. Record the blocker and stop for escalation or recovery. Do not continue by turning `sp-prd-build` into a second repository scan.
 - Required join points:
-  - before writing `master/master-pack.md`
-  - before writing or finalizing `exports/**`
+  - before patching semantic sections in `master/master-pack.md` through leased `specify-runtime artifact patch`
+  - before patching or finalizing semantic sections in `exports/**` through leased `specify-runtime artifact patch`
   - before reverse coverage / traceability validation
 - Idle subagent output is not an accepted result.
-- The leader must wait for every dispatched build-support lane and integrate the returned evidence before writing exports or declaring the build complete.
+- The leader must wait for every dispatched build-support lane and integrate the returned evidence before patching export sections through the artifact CLI or declaring the build complete.
 
 ## Build Worker Result Contract
 
@@ -187,7 +187,7 @@ Reject any build-lane output that lacks concrete bundle inputs, omits critical u
 
 ## Output Contract
 
-The build phase writes:
+The build phase materializes the following only through one `prd-build scaffold` transaction followed by fresh leased, section-targeted `artifact patch` operations; generic prepare/submit, full-document replacement, and raw agent writes are forbidden:
 
 - `.specify/prd-runs/<run-id>/workflow-state.md`
 - `.specify/prd-runs/<run-id>/master/master-pack.md`
@@ -230,8 +230,8 @@ Classification-aware export rule:
 
 ## Report Completion
 
-- Before reporting success, confirm that `workflow-state.md` records the final build status, accepted packet results, rejected packet results, readiness failures, reverse-coverage outcomes, and the final handoff decision.
-- Successful completion must name the bundle inputs read, the accepted packet results that informed `master/master-pack.md` and `exports/**`, and any remaining non-critical unknowns.
+- Before reporting success, query `workflow-state.md` through `artifact show` and confirm it records the final build status, accepted packet results, rejected packet results, readiness failures, reverse-coverage outcomes, and the final handoff decision; patch missing fields only through a fresh lease. Then run `{{specify-subcmd:specify-runtime prd-build <run-id> --format json}}` and `{{specify-subcmd:specify-runtime hook validate-artifacts --command prd-build --feature-dir .specify/prd-runs/<run-id> --format json}}`; both must report semantic completion for the exact sealed scan run. Surface presence alone is never success.
+- Successful completion must name the bundle inputs queried through `specify-runtime artifact show`, the accepted packet results that informed `master/master-pack.md` and `exports/**`, and any remaining non-critical unknowns.
 - Blocked completion must name the failed readiness or traceability check, the affected packet or export target, and the smallest safe repair to resume through `sp-prd-scan` or the current build run.
 
 ## Guardrails

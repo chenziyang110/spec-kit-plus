@@ -1,0 +1,13 @@
+    /*
+      Spec Kit Plus design preview scaffold.
+      Replace the project copy, direction narratives, and all three token blocks
+      before changing data-preview-status from scaffold to candidate.
+      This single file is review evidence, not production application code.
+    */
+    @layer reset, tokens, base, layout, components, motion, responsive;
+
+    @property --preview-glow-angle {
+      syntax: "<angle>";
+      inherits: true;
+      initial-value: 120deg;
+    }

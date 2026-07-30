@@ -65,9 +65,9 @@
   `modules/templates-generated-surfaces/OVERVIEW.md`, and
   `templates/command-partials/common/*.md`
 - Compatibility/export freshness or dirty-state routing looks wrong:
-  Read `root/OPERATIONS.md`, `root/WORKFLOWS.md`,
-  `index/status.json`, `.specify/project-cognition/status.json`, and
-  `tools/specify-runtime/`
+  Read `root/OPERATIONS.md`, `root/WORKFLOWS.md`, and `index/status.json`;
+  query runtime status through `specify-runtime cognition status --format json`,
+  then inspect `tools/specify-runtime/` only for implementation evidence.
 - Subagent dispatch guidance is inconsistent across workflows:
   Read `root/WORKFLOWS.md`,
   `modules/templates-generated-surfaces/WORKFLOWS.md`, and

@@ -114,12 +114,12 @@ Use `execution_surface: native-subagents`.
    - Map focus selections to category scaffolding
    - Infer any missing context from spec/plan/tasks plus project cognition coverage (do NOT hallucinate)
 
-5. **Load feature context**: Read from FEATURE_DIR:
-   - spec.md: Feature requirements and scope
-   - plan.md (if exists): Technical details, dependencies
-   - tasks.md (if exists): Implementation tasks
-   - alignment.md or context.md when they materially change requirement interpretation
-   - `FEATURE_DIR/checklists/requirements.md` when it exists and the new checklist must complement rather than duplicate the requirement-quality baseline
+5. **Load feature context through the artifact CLI**: Use `{{specify-subcmd:specify-runtime artifact show --path <project-relative-path> --view summary --format json}}` first, then request only the needed section or full view for:
+   - `FEATURE_DIR/spec.md`: Feature requirements and scope
+   - `FEATURE_DIR/plan.md` (if present): Technical details and dependencies
+   - `FEATURE_DIR/tasks.md` (if present): Implementation tasks
+   - `FEATURE_DIR/alignment.md` or `FEATURE_DIR/context.md` when they materially change requirement interpretation
+   - `FEATURE_DIR/checklists/requirements.md` when present and the new checklist must complement rather than duplicate the requirement-quality baseline
 
    **Context Loading Strategy**:
    - Load only necessary portions relevant to active focus areas (avoid full-file dumping)
@@ -128,15 +128,13 @@ Use `execution_surface: native-subagents`.
    - If source docs are large, generate interim summary items instead of embedding raw text
    - Use project cognition coverage to identify which requirement surfaces, interfaces, and scenario classes deserve review emphasis.
 
-6. **Generate checklist** - Create "Unit Tests for Requirements":
-   - Create `FEATURE_DIR/checklists/` directory if it doesn't exist
-   - Generate unique checklist filename:
+6. **Generate checklist through its CLI owner** - Create "Unit Tests for Requirements":
+   - Choose a unique checklist path for `specify-runtime artifact checklist`:
      - Use short, descriptive name based on domain (e.g., `ux.md`, `api.md`, `security.md`)
      - Format: `[domain].md`
-   - File handling behavior:
-     - If file does NOT exist: Create new file and number items starting from CHK001
-     - If file exists: Append new items to existing file, continuing from the last CHK ID (e.g., if last item is CHK015, start new items at CHK016)
-   - Never delete or replace existing checklist content - always preserve and append
+   - Build one compact in-memory JSON object with `title`, `purpose`, `feature`, and ordered `categories[]`; each category contains `heading` and plain `items[]` without checkboxes or CHK IDs.
+   - Run `{{specify-subcmd:specify-runtime artifact checklist --path <FEATURE_DIR>/checklists/<domain>.md --input-json '<checklist-object>' --format json}}`.
+   - The CLI creates the directory and new checklist when absent, or atomically appends when present. It preserves existing content and assigns the next globally unique `CHK###` IDs. Never create, append, renumber, or rewrite a checklist file directly.
 
    **CORE PRINCIPLE - Test the Requirements, Not the Implementation**:
    Every checklist item MUST evaluate the REQUIREMENTS THEMSELVES for:
@@ -246,9 +244,9 @@ Use `execution_surface: native-subagents`.
    - ✅ "Are [edge cases/scenarios] addressed in requirements?"
    - ✅ "Does the spec define [missing aspect]?"
 
-7. **Structure Reference**: Generate the checklist following the canonical template in `templates/checklist-template.md` for title, meta section, category headings, and ID formatting. If template is unavailable, use: H1 title, purpose/created meta lines, `##` category sections containing `- [ ] CHK### <requirement item>` lines with globally incrementing IDs starting at CHK001.
+7. **Structure Reference**: The artifact CLI renders the installed canonical checklist template and ID format. Do not reproduce `templates/checklist-template.md` or Markdown boilerplate in the prompt response; provide only the compact semantic object to the CLI.
 
-8. **Report**: Output full path to checklist file, item count, and summarize whether the run created a new file or appended to an existing one. Summarize:
+8. **Report**: Use the CLI response fields `canonical_path`, `item_count`, `created`, `first_item_id`, and `last_item_id`; report the full path, item count, and whether the run created or appended. Summarize:
    - Focus areas selected
    - Depth level
    - Actor/timing
@@ -259,13 +257,13 @@ Use `execution_surface: native-subagents`.
      - If the checklist exposes plan-shaping technical or artifact completeness gaps, recommend `/sp-plan`.
      - If the checklist is materially satisfied and execution preparation should continue, recommend `/sp-tasks` so task generation can perform its built-in implementation-readiness gate.
 
-**Important**: Each `/sp.checklist` command invocation uses a short, descriptive checklist filename and either creates a new file or appends to an existing one. This allows:
+**Important**: Each `/sp.checklist` invocation sends structured checklist content to the artifact CLI, which either creates a new file or appends to an existing one. This allows:
 
 - Multiple checklists of different types (e.g., `ux.md`, `test.md`, `security.md`)
 - Simple, memorable filenames that indicate checklist purpose
 - Easy identification and navigation in the `checklists/` folder
 
-To avoid clutter, use descriptive types and clean up obsolete checklists when done.
+To avoid clutter, use descriptive types. If an obsolete checklist must be removed, acquire a lease with `{{specify-subcmd:specify-runtime artifact prepare --path <checklist-path> --format json}}` and use the returned recoverable `artifact delete` operation; never delete it directly.
 
 ## Example Checklist Types & Sample Items
 

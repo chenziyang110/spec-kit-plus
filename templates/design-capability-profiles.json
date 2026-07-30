@@ -1,0 +1,383 @@
+{
+  "schema": "spec-kit-design-capability-profiles-v1",
+  "default_profile_id": "web",
+  "profiles": [
+    {
+      "id": "web",
+      "label": "Web application",
+      "preview_required": true,
+      "summary": "Responsive browser surfaces with pointer, keyboard, forms, navigation, and asynchronous feedback.",
+      "input_modes": ["pointer", "keyboard"],
+      "measurement_units": ["px"],
+      "capability_ids": [
+        "layout.responsive",
+        "navigation.hierarchical",
+        "input.pointer",
+        "input.keyboard",
+        "controls.form",
+        "feedback.async",
+        "state.interactive",
+        "color.modes",
+        "motion.adaptive"
+      ],
+      "specimens": [
+        {
+          "id": "SP-WEB-WORKSPACE-001",
+          "kind": "web-workspace",
+          "title": "Responsive application workspace",
+          "purpose": "Prove hierarchy, navigation, primary action, and responsive reflow with representative content.",
+          "capability_ids": ["layout.responsive", "navigation.hierarchical", "input.pointer", "input.keyboard"],
+          "required_states": ["default", "focus", "loading", "empty", "error"],
+          "content_keys": ["surface_eyebrow", "surface_title", "primary_action", "card_one", "card_two", "card_three"]
+        },
+        {
+          "id": "SP-WEB-CONTROLS-001",
+          "kind": "web-controls",
+          "title": "Forms and action hierarchy",
+          "purpose": "Prove labels, control anatomy, focus, validation, disabled behavior, and action priority.",
+          "capability_ids": ["controls.form", "input.pointer", "input.keyboard", "state.interactive"],
+          "required_states": ["default", "hover", "focus", "disabled", "loading", "error"],
+          "content_keys": ["primary_field_label", "primary_field_value", "select_label", "select_option_primary", "select_option_secondary", "primary_action"]
+        },
+        {
+          "id": "SP-WEB-COLLECTION-001",
+          "kind": "web-collection",
+          "title": "Collection and asynchronous feedback",
+          "purpose": "Prove real data volume, status language, empty/error recovery, and progressive updates.",
+          "capability_ids": ["feedback.async", "state.interactive", "color.modes", "motion.adaptive"],
+          "required_states": ["default", "loading", "empty", "error"],
+          "content_keys": ["collection_title", "collection_meta", "loading_label", "success_label", "error_label"]
+        }
+      ],
+      "component_contract": {
+        "id": "DH-COMP-WEB-001",
+        "component": "Web interaction system",
+        "anatomy": ["navigation and page hierarchy", "form and action controls", "collection and feedback states"],
+        "must_match": ["anatomy", "hierarchy", "state language", "token bindings", "focus order"]
+      },
+      "targets": [
+        {"id": "DH-RESP-WEB-COMPACT-001", "acceptance_id": "DH-VA-WEB-COMPACT-001", "label": "compact web", "target": {"width": 390, "height": 844, "unit": "px"}, "review_width_px": 390, "adaptation": "Navigation condenses, the primary task stays first, and controls remain operable without horizontal scrolling."},
+        {"id": "DH-RESP-WEB-REGULAR-001", "acceptance_id": "DH-VA-WEB-REGULAR-001", "label": "regular web", "target": {"width": 1024, "height": 768, "unit": "px"}, "review_width_px": 1024, "adaptation": "Navigation, content, and secondary context share the viewport without changing task priority."},
+        {"id": "DH-RESP-WEB-WIDE-001", "acceptance_id": "DH-VA-WEB-WIDE-001", "label": "wide web", "target": {"width": 1440, "height": 900, "unit": "px"}, "review_width_px": 1440, "adaptation": "Additional width improves scanability and context rather than stretching the reading measure."}
+      ],
+      "color_modes": ["light", "dark", "high-contrast"],
+      "motion_modes": ["full", "reduced"]
+    },
+    {
+      "id": "mobile",
+      "label": "Mobile application",
+      "preview_required": true,
+      "summary": "Touch-first compact surfaces with safe areas, orientation changes, software keyboards, and native navigation patterns.",
+      "input_modes": ["touch", "keyboard", "assistive-technology"],
+      "measurement_units": ["point", "px"],
+      "capability_ids": [
+        "layout.safe-area",
+        "layout.orientation",
+        "navigation.mobile",
+        "input.touch",
+        "input.software-keyboard",
+        "feedback.async",
+        "state.interactive",
+        "color.modes",
+        "motion.adaptive"
+      ],
+      "specimens": [
+        {
+          "id": "SP-MOBILE-FLOW-001",
+          "kind": "mobile-flow",
+          "title": "Touch-first task flow",
+          "purpose": "Prove safe areas, thumb-reachable actions, compact navigation, and task continuity.",
+          "capability_ids": ["layout.safe-area", "layout.orientation", "navigation.mobile", "input.touch"],
+          "required_states": ["default", "pressed", "focus", "loading"],
+          "content_keys": ["surface_eyebrow", "surface_title", "primary_action", "card_one", "card_two"]
+        },
+        {
+          "id": "SP-MOBILE-INPUT-001",
+          "kind": "mobile-input",
+          "title": "Mobile input and keyboard",
+          "purpose": "Prove touch targets, validation, keyboard-open layout, and focus visibility.",
+          "capability_ids": ["input.touch", "input.software-keyboard", "state.interactive"],
+          "required_states": ["default", "focus", "keyboard-open", "disabled", "error"],
+          "content_keys": ["primary_field_label", "primary_field_value", "notes_label", "notes_value", "primary_action", "error_label"]
+        },
+        {
+          "id": "SP-MOBILE-SYSTEM-001",
+          "kind": "mobile-system",
+          "title": "System feedback and interruption",
+          "purpose": "Prove transient feedback, sheets, empty/error recovery, and reduced-motion behavior.",
+          "capability_ids": ["feedback.async", "state.interactive", "color.modes", "motion.adaptive"],
+          "required_states": ["loading", "success", "empty", "error"],
+          "content_keys": ["loading_label", "success_label", "empty_label", "error_label"]
+        }
+      ],
+      "component_contract": {
+        "id": "DH-COMP-MOBILE-001",
+        "component": "Mobile interaction system",
+        "anatomy": ["safe-area application frame", "touch and keyboard input flow", "system feedback and recovery"],
+        "must_match": ["anatomy", "task hierarchy", "state language", "touch targets", "safe-area behavior"]
+      },
+      "targets": [
+        {"id": "DH-RESP-MOBILE-COMPACT-001", "acceptance_id": "DH-VA-MOBILE-COMPACT-001", "label": "compact mobile portrait", "target": {"width": 360, "height": 800, "unit": "point"}, "review_width_px": 360, "adaptation": "Primary actions remain reachable and content clears safe areas and the software keyboard."},
+        {"id": "DH-RESP-MOBILE-REGULAR-001", "acceptance_id": "DH-VA-MOBILE-REGULAR-001", "label": "regular mobile portrait", "target": {"width": 393, "height": 852, "unit": "point"}, "review_width_px": 393, "adaptation": "The same task gains breathing room without changing navigation or action priority."},
+        {"id": "DH-RESP-MOBILE-LANDSCAPE-001", "acceptance_id": "DH-VA-MOBILE-LANDSCAPE-001", "label": "mobile landscape", "target": {"width": 852, "height": 393, "unit": "point"}, "review_width_px": 852, "adaptation": "Navigation and content adapt to landscape while touch targets and critical actions remain visible."}
+      ],
+      "color_modes": ["light", "dark", "high-contrast"],
+      "motion_modes": ["full", "reduced"]
+    },
+    {
+      "id": "desktop",
+      "label": "Desktop application",
+      "preview_required": true,
+      "summary": "Resizable windowed surfaces with menus, toolbars, multi-pane layouts, pointer precision, and keyboard acceleration.",
+      "input_modes": ["pointer", "keyboard", "assistive-technology"],
+      "measurement_units": ["px", "point"],
+      "capability_ids": [
+        "layout.resizable-window",
+        "layout.multi-pane",
+        "navigation.menu-toolbar",
+        "input.pointer",
+        "input.keyboard",
+        "density.adaptive",
+        "feedback.async",
+        "state.interactive",
+        "color.modes",
+        "motion.adaptive"
+      ],
+      "specimens": [
+        {
+          "id": "SP-DESKTOP-WINDOW-001",
+          "kind": "desktop-window",
+          "title": "Window, menu, and toolbar",
+          "purpose": "Prove window hierarchy, command discoverability, and platform chrome boundaries.",
+          "capability_ids": ["layout.resizable-window", "navigation.menu-toolbar", "input.pointer", "input.keyboard"],
+          "required_states": ["default", "hover", "focus", "disabled"],
+          "content_keys": ["surface_title", "primary_action", "secondary_action", "command_label"]
+        },
+        {
+          "id": "SP-DESKTOP-COMMAND-001",
+          "kind": "desktop-command",
+          "title": "Keyboard and command workflow",
+          "purpose": "Prove focus, shortcuts, command search, selection, and recoverable feedback.",
+          "capability_ids": ["input.keyboard", "input.pointer", "state.interactive", "feedback.async"],
+          "required_states": ["default", "focus", "selected", "loading", "error"],
+          "content_keys": ["command_label", "command_hint", "loading_label", "error_label"]
+        },
+        {
+          "id": "SP-DESKTOP-MULTIPANE-001",
+          "kind": "desktop-multipane",
+          "title": "Resizable multi-pane workspace",
+          "purpose": "Prove information density, pane priority, selection, and resize behavior.",
+          "capability_ids": ["layout.multi-pane", "layout.resizable-window", "density.adaptive", "color.modes", "motion.adaptive"],
+          "required_states": ["default", "selected", "empty", "error"],
+          "content_keys": ["collection_title", "collection_meta", "detail_title", "detail_body"]
+        }
+      ],
+      "component_contract": {
+        "id": "DH-COMP-DESKTOP-001",
+        "component": "Desktop interaction system",
+        "anatomy": ["window chrome and command surfaces", "keyboard and focus workflow", "resizable multi-pane workspace"],
+        "must_match": ["anatomy", "command hierarchy", "focus and selection", "density rules", "resize behavior"]
+      },
+      "targets": [
+        {"id": "DH-RESP-DESKTOP-COMPACT-001", "acceptance_id": "DH-VA-DESKTOP-COMPACT-001", "label": "compact desktop window", "target": {"width": 1024, "height": 768, "unit": "px"}, "review_width_px": 1024, "adaptation": "Secondary panes collapse or narrow without hiding the active command or task."},
+        {"id": "DH-RESP-DESKTOP-WIDE-001", "acceptance_id": "DH-VA-DESKTOP-WIDE-001", "label": "wide desktop window", "target": {"width": 1440, "height": 900, "unit": "px"}, "review_width_px": 1440, "adaptation": "Additional panes and context become visible while keyboard order and reading measure remain stable."}
+      ],
+      "color_modes": ["light", "dark", "high-contrast"],
+      "motion_modes": ["full", "reduced"]
+    },
+    {
+      "id": "cli",
+      "label": "Command-line interface",
+      "preview_required": true,
+      "summary": "Line-oriented commands that remain understandable in TTY, piped, narrow, no-color, success, progress, and failure contexts.",
+      "input_modes": ["command", "keyboard"],
+      "measurement_units": ["cell"],
+      "capability_ids": [
+        "terminal.tty",
+        "terminal.piped",
+        "terminal.no-color",
+        "input.command",
+        "content.wrapping",
+        "feedback.progress",
+        "state.command-outcome",
+        "accessibility.text-equivalent"
+      ],
+      "specimens": [
+        {
+          "id": "SP-CLI-HELP-001",
+          "kind": "cli-help",
+          "title": "Invocation and help",
+          "purpose": "Prove command grammar, hierarchy, examples, wrapping, and discoverability without relying on color.",
+          "capability_ids": ["input.command", "content.wrapping", "terminal.tty", "accessibility.text-equivalent"],
+          "required_states": ["help", "narrow", "no-color"],
+          "content_keys": ["command_name", "command_summary", "command_example"]
+        },
+        {
+          "id": "SP-CLI-OUTCOMES-001",
+          "kind": "cli-outcomes",
+          "title": "Success and failure outcomes",
+          "purpose": "Prove terminal success, recoverable error, fatal error, exit meaning, and actionable next steps.",
+          "capability_ids": ["state.command-outcome", "terminal.no-color", "accessibility.text-equivalent"],
+          "required_states": ["success", "recoverable-error", "fatal-error", "no-color"],
+          "content_keys": ["success_label", "error_label", "recovery_hint"]
+        },
+        {
+          "id": "SP-CLI-PROGRESS-001",
+          "kind": "cli-progress",
+          "title": "Progress, cancellation, and piping",
+          "purpose": "Prove live progress, cancellation, stable piped output, and diagnostics separation.",
+          "capability_ids": ["feedback.progress", "terminal.tty", "terminal.piped", "content.wrapping"],
+          "required_states": ["progress", "cancelled", "piped"],
+          "content_keys": ["loading_label", "cancel_label", "piped_output"]
+        }
+      ],
+      "component_contract": {
+        "id": "DH-COMP-CLI-001",
+        "component": "CLI presentation system",
+        "anatomy": ["invocation and help hierarchy", "success and failure result language", "TTY progress and stable piped output"],
+        "must_match": ["command grammar", "content hierarchy", "wrapping", "exit meaning", "no-color equivalence"]
+      },
+      "targets": [
+        {"id": "DH-RESP-CLI-80X24-001", "acceptance_id": "DH-VA-CLI-80X24-001", "label": "80×24 terminal", "target": {"width": 80, "height": 24, "unit": "cell"}, "review_width_px": 760, "adaptation": "Help, outcomes, and recovery instructions wrap without truncation or ambiguous indentation."},
+        {"id": "DH-RESP-CLI-120X32-001", "acceptance_id": "DH-VA-CLI-120X32-001", "label": "120×32 terminal", "target": {"width": 120, "height": 32, "unit": "cell"}, "review_width_px": 1040, "adaptation": "Additional width improves scanability while preserving stable line-oriented and piped output."}
+      ],
+      "color_modes": ["color", "no-color"],
+      "motion_modes": ["none"]
+    },
+    {
+      "id": "tui",
+      "label": "Terminal user interface",
+      "preview_required": true,
+      "summary": "Cell-grid interactive terminal surfaces with explicit focus, keyboard navigation, resize behavior, overlays, and monochrome fallbacks.",
+      "input_modes": ["keyboard"],
+      "measurement_units": ["cell"],
+      "capability_ids": [
+        "terminal.cell-grid",
+        "layout.resizable-terminal",
+        "navigation.focus",
+        "input.keyboard",
+        "feedback.progress",
+        "state.interactive",
+        "color.terminal-palette",
+        "motion.none"
+      ],
+      "specimens": [
+        {
+          "id": "SP-TUI-WORKSPACE-001",
+          "kind": "tui-workspace",
+          "title": "Cell-grid workspace",
+          "purpose": "Prove frame hierarchy, status line, readable density, and resize behavior in terminal cells.",
+          "capability_ids": ["terminal.cell-grid", "layout.resizable-terminal", "color.terminal-palette"],
+          "required_states": ["default", "narrow", "monochrome"],
+          "content_keys": ["surface_title", "collection_title", "collection_meta"]
+        },
+        {
+          "id": "SP-TUI-FOCUS-001",
+          "kind": "tui-focus",
+          "title": "Focus and keyboard navigation",
+          "purpose": "Prove focus ownership, selection, shortcut language, and keyboard-only task completion.",
+          "capability_ids": ["navigation.focus", "input.keyboard", "state.interactive"],
+          "required_states": ["focus", "selected", "disabled", "error"],
+          "content_keys": ["command_label", "command_hint", "error_label"]
+        },
+        {
+          "id": "SP-TUI-OVERLAY-001",
+          "kind": "tui-overlay",
+          "title": "Overlay, progress, and recovery",
+          "purpose": "Prove modal boundaries, command palettes, progress, cancellation, and focus restoration.",
+          "capability_ids": ["feedback.progress", "state.interactive", "motion.none"],
+          "required_states": ["modal", "loading", "cancelled", "error"],
+          "content_keys": ["loading_label", "cancel_label", "recovery_hint"]
+        }
+      ],
+      "component_contract": {
+        "id": "DH-COMP-TUI-001",
+        "component": "TUI interaction system",
+        "anatomy": ["cell-grid frame and status line", "focus and selection language", "overlay, progress, and recovery"],
+        "must_match": ["cell geometry", "focus ownership", "keyboard map", "monochrome meaning", "resize behavior"]
+      },
+      "targets": [
+        {"id": "DH-RESP-TUI-80X24-001", "acceptance_id": "DH-VA-TUI-80X24-001", "label": "80×24 TUI", "target": {"width": 80, "height": 24, "unit": "cell"}, "review_width_px": 760, "adaptation": "The primary pane, focus, commands, and status remain visible at the minimum supported grid."},
+        {"id": "DH-RESP-TUI-120X40-001", "acceptance_id": "DH-VA-TUI-120X40-001", "label": "120×40 TUI", "target": {"width": 120, "height": 40, "unit": "cell"}, "review_width_px": 1040, "adaptation": "Secondary context expands without changing focus order, command meaning, or cell alignment."}
+      ],
+      "color_modes": ["color", "monochrome"],
+      "motion_modes": ["none"]
+    },
+    {
+      "id": "content",
+      "label": "Content-led experience",
+      "preview_required": true,
+      "summary": "Editorial, documentation, publishing, or reading experiences where hierarchy, measure, media, localization, and print flow are the product surface.",
+      "input_modes": ["pointer", "keyboard", "reading"],
+      "measurement_units": ["px", "ch", "point"],
+      "capability_ids": [
+        "content.reading-rhythm",
+        "content.long-form",
+        "content.media-caption",
+        "layout.reading-width",
+        "navigation.links",
+        "localization.expansion",
+        "print.flow",
+        "accessibility.semantic-structure",
+        "color.modes"
+      ],
+      "specimens": [
+        {
+          "id": "SP-CONTENT-ARTICLE-001",
+          "kind": "content-article",
+          "title": "Editorial hierarchy and reading rhythm",
+          "purpose": "Prove title, deck, body, headings, links, lists, code, and readable measure with real-length content.",
+          "capability_ids": ["content.reading-rhythm", "content.long-form", "layout.reading-width", "navigation.links"],
+          "required_states": ["default", "long-copy", "focus"],
+          "content_keys": ["article_title", "article_deck", "article_body", "link_label"]
+        },
+        {
+          "id": "SP-CONTENT-MEDIA-001",
+          "kind": "content-media",
+          "title": "Media, caption, and fallback",
+          "purpose": "Prove image or illustration framing, captions, attribution, missing-media fallback, and semantic reading order.",
+          "capability_ids": ["content.media-caption", "accessibility.semantic-structure", "color.modes"],
+          "required_states": ["default", "media-missing", "high-contrast"],
+          "content_keys": ["media_alt", "media_caption", "media_credit"]
+        },
+        {
+          "id": "SP-CONTENT-FLOW-001",
+          "kind": "content-flow",
+          "title": "Localization and print flow",
+          "purpose": "Prove text expansion, tables, callouts, footnotes, page breaks, and print-safe hierarchy.",
+          "capability_ids": ["localization.expansion", "print.flow", "content.long-form", "accessibility.semantic-structure"],
+          "required_states": ["localized", "print", "table-overflow"],
+          "content_keys": ["localized_heading", "localized_body", "callout_label", "footnote_label"]
+        }
+      ],
+      "component_contract": {
+        "id": "DH-COMP-CONTENT-001",
+        "component": "Content presentation system",
+        "anatomy": ["editorial hierarchy and reading measure", "media, caption, and fallback", "localized and print-safe long-form flow"],
+        "must_match": ["semantic hierarchy", "reading rhythm", "content measure", "media meaning", "localization and print behavior"]
+      },
+      "targets": [
+        {"id": "DH-RESP-CONTENT-NARROW-001", "acceptance_id": "DH-VA-CONTENT-NARROW-001", "label": "narrow reading surface", "target": {"width": 480, "height": 900, "unit": "px"}, "review_width_px": 480, "adaptation": "Typography, tables, media, and navigation remain readable without horizontal page scrolling."},
+        {"id": "DH-RESP-CONTENT-READING-001", "acceptance_id": "DH-VA-CONTENT-READING-001", "label": "primary reading surface", "target": {"width": 800, "height": 1000, "unit": "px"}, "review_width_px": 800, "adaptation": "The approved reading measure and hierarchy remain stable with representative long-form content."},
+        {"id": "DH-RESP-CONTENT-WIDE-001", "acceptance_id": "DH-VA-CONTENT-WIDE-001", "label": "wide content surface", "target": {"width": 1200, "height": 900, "unit": "px"}, "review_width_px": 1200, "adaptation": "Context and navigation may expand while the reading measure and media relationship stay fixed."}
+      ],
+      "color_modes": ["light", "dark", "high-contrast"],
+      "motion_modes": ["none", "reduced"]
+    },
+    {
+      "id": "no-ui",
+      "label": "No user-visible presentation",
+      "preview_required": false,
+      "summary": "Headless services, libraries, data pipelines, infrastructure, and other work with no user-visible presentation surface.",
+      "input_modes": [],
+      "measurement_units": [],
+      "capability_ids": [],
+      "specimens": [],
+      "component_contract": null,
+      "targets": [],
+      "color_modes": [],
+      "motion_modes": [],
+      "exit_contract": "Record design_system_status as not-applicable with current evidence, then skip preview, approval, handoff, ui-target, and visual-comparison work."
+    }
+  ]
+}

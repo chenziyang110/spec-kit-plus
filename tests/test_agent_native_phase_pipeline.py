@@ -90,7 +90,8 @@ def test_tasks_use_one_cognition_intake_and_compile_worker_packets_just_in_time(
     combined = f"{command}\n{shell}\n{references}".lower()
 
     assert combined.count("specify-runtime cognition compass --intent plan") == 1
-    assert "task-index.json as the canonical task graph" in combined
+    assert "owns `task-index.json`, the derived `tasks.md` projection" in combined
+    assert "`task-index.json` is canonical in every execution mode" in combined
     assert "just in time" in combined
     assert "do not pre-generate a full worker packet for every task" in combined
     assert "leader-direct" in combined
@@ -133,4 +134,3 @@ def test_agent_only_transition_assets_are_packaged() -> None:
     assert '"templates/agent-phase-transition-schema.json"' in pyproject
     assert '"templates/agent-phase-transition-template.json"' in pyproject
     assert '"templates/spec-contract-template.json"' in pyproject
-

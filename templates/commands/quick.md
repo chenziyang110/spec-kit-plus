@@ -1,10 +1,10 @@
 ---
-description: Use when a task is small but non-trivial and needs lightweight tracked planning, validation, or resumable execution outside the full workflow.
+description: Use when a non-trivial task needs tracked direct delivery, scalable task-local planning, validation, or resumable execution without first creating a formal feature specification.
 workflow_contract:
-  when_to_use: The task is too large or risky for `sp-fast` but does not justify the full `sp-specify -> sp-plan -> sp-tasks -> sp-implement` flow.
-  primary_objective: Keep the task resumable and tracked while applying only the minimum planning, research, and validation depth it needs.
+  when_to_use: The requested outcome is clear enough to implement directly and needs more tracking than `sp-fast`; task size, capability count, architecture, migration, compatibility, rollout, and acceptance depth do not disqualify this workflow.
+  primary_objective: Keep direct-delivery work resumable while scaling task-local planning, research, decomposition, consequence analysis, and validation to the actual workload.
   primary_outputs: '`.planning/quick/<id>-<slug>/STATUS.md`, quick-task summary artifacts, and the scoped implementation changes for the task.'
-  default_handoff: 'Resume the quick task until resolved, or escalate to /sp.specify if the scope grows into multi-capability or acceptance-criteria-heavy work.'
+  default_handoff: 'Resume the quick task until resolved or concretely blocked. Never require an upgrade to /sp.specify because the task grows; use that formal specification path only when the user explicitly chooses it.'
 ---
 
 {{spec-kit-include: ../command-partials/quick/shell.md}}
@@ -15,11 +15,11 @@ workflow_contract:
 
 ## Main Flow
 
-1. Accept only bounded quick work; otherwise route to `{{invoke:specify}}`, `{{invoke:debug}}`, or the appropriate upstream workflow.
-2. Create or resume `.planning/quick/<id>-<slug>/STATUS.md`, confirm the Understanding Checkpoint, and keep `understanding_confirmed: false` blocking substantive work until confirmed.
-3. Consume eligible discussion handoff or quick-task context without widening scope; record consequence boundary and escalation decision.
-4. Use `choose_subagent_dispatch(command_name="quick", snapshot, workload_shape)` and packetized `WorkerTaskPacket` or equivalent contracts for substantive lanes.
-5. Execute the quick task, update STATUS.md at phase transitions, validate changed surfaces, write `SUMMARY.md`, and close as resolved or blocked with truthful coverage.
+1. Accept non-trivial direct-delivery work of any size whose outcome can be confirmed at the Quick Checkpoint. Scale the quick workspace instead of routing to `{{invoke:specify}}` because work is large, cross-cutting, multi-capability, migration-heavy, or acceptance-heavy; route unknown failure mechanisms to `{{invoke:debug}}`.
+2. Create `.planning/quick/<id>-<slug>/STATUS.md` only with `artifact scaffold --kind quick-status`; resume via `artifact show`, and mutate frontmatter/sections only through leased `artifact patch` calls.
+3. Consume eligible discussion handoff or quick-task context without silently changing the confirmed scope; record consequence coverage, planning depth, and any user-owned checkpoint amendment.
+4. Use `choose_subagent_dispatch(command_name="quick", snapshot, workload_shape)` and packetized `WorkerTaskPacket` or equivalent contracts for substantive lanes, including multiple dependency-aware batches when the task is large.
+5. Execute the quick task, patch `STATUS.md` through the artifact CLI at phase transitions, validate changed surfaces, create an absent `SUMMARY.md` with `artifact scaffold --kind quick-summary`, patch only its terminal semantic sections through fresh leases, and close through `specify-runtime quick close`.
 
 ## Detailed References
 

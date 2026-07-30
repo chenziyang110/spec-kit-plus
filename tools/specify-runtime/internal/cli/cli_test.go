@@ -247,13 +247,8 @@ func TestRebuildTextOutputAlsoReturnsBlockedExitCode(t *testing.T) {
 }
 
 func TestClaimReconcilePrepareReturnsStructuredBlockedPayloadForLegacyContract(t *testing.T) {
-	temp := t.TempDir()
-	inputPath := filepath.Join(temp, "prepare.json")
-	if err := os.WriteFile(inputPath, []byte(`{"claim_reconciliation_prepare_contract_version":0}`), 0o644); err != nil {
-		t.Fatal(err)
-	}
 	var stdout, stderr bytes.Buffer
-	code := Run([]string{"claim-reconcile", "prepare", "--input", inputPath, "--format", "json"}, &stdout, &stderr, "test")
+	code := Run([]string{"claim-reconcile", "prepare", "--input-json", `{"claim_reconciliation_prepare_contract_version":0}`, "--format", "json"}, &stdout, &stderr, "test")
 	if code == 0 {
 		t.Fatalf("code=%d stdout=%s, want blocked prepare", code, stdout.String())
 	}
@@ -266,6 +261,18 @@ func TestClaimReconcilePrepareReturnsStructuredBlockedPayloadForLegacyContract(t
 	}
 	if payload["error_code"] != "invalid_claim_reconciliation_prepare" {
 		t.Fatalf("error_code = %#v", payload["error_code"])
+	}
+}
+
+func TestClaimReconcilePrepareRejectsAgentAuthoredInputFile(t *testing.T) {
+	setupReadyMinimalCLIRuntime(t)
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"claim-reconcile", "prepare", "--input", "agent-authored.json", "--format", "json"}, &stdout, &stderr, "test")
+	if code == 0 {
+		t.Fatalf("code = 0, want legacy file input rejection; stdout=%s", stdout.String())
+	}
+	if !strings.Contains(stderr.String(), "flag provided but not defined: -input") {
+		t.Fatalf("stderr = %q, want removed prepare --input flag", stderr.String())
 	}
 }
 
@@ -369,10 +376,7 @@ func TestClaimReconcilePrepareApplyArgvWorksFromProjectSubdirectory(t *testing.T
 	if err := st.Close(); err != nil {
 		t.Fatal(err)
 	}
-	intentPath := filepath.Join(root, "intent.json")
-	if err := os.WriteFile(intentPath, []byte(`{"claim_reconciliation_prepare_contract_version":1,"workflow":"sp-plan","items":[{"claim_id":"claim:app","reason":"bounded source evidence","evidence":[{"source_path":"src/app.go","span":"L1","role":"supporting"}]}]}`), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	intentJSON := `{"claim_reconciliation_prepare_contract_version":1,"workflow":"sp-plan","items":[{"claim_id":"claim:app","reason":"bounded source evidence","evidence":[{"source_path":"src/app.go","span":"L1","role":"supporting"}]}]}`
 	subdir := filepath.Join(root, "src")
 	old, err := os.Getwd()
 	if err != nil {
@@ -384,7 +388,7 @@ func TestClaimReconcilePrepareApplyArgvWorksFromProjectSubdirectory(t *testing.T
 	t.Cleanup(func() { _ = os.Chdir(old) })
 
 	var prepareOut, prepareErr bytes.Buffer
-	if code := Run([]string{"claim-reconcile", "prepare", "--input", intentPath, "--format", "json"}, &prepareOut, &prepareErr, "test"); code != 0 {
+	if code := Run([]string{"claim-reconcile", "prepare", "--input-json", intentJSON, "--format", "json"}, &prepareOut, &prepareErr, "test"); code != 0 {
 		t.Fatalf("prepare code=%d stderr=%s stdout=%s", code, prepareErr.String(), prepareOut.String())
 	}
 	var prepared map[string]any
@@ -552,7 +556,7 @@ func TestRootHelpListsResumableScanWorkbenchCommands(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("code = %d stderr=%s", code, stderr.String())
 	}
-	if !strings.Contains(stdout.String(), "generate-ignore, scan-set, scan-prepare, scan-lease, scan-checkpoint, scan-yield, scan-requeue, scan-status, scan-accept, mark-dirty") {
+	if !strings.Contains(stdout.String(), "generate-ignore, scan-set, scan-prepare, scan-lease, scan-packet, scan-checkpoint, scan-yield, scan-requeue, scan-status, scan-accept, mark-dirty") {
 		t.Fatalf("help does not list the resumable scan workbench commands:\n%s", stdout.String())
 	}
 }
@@ -650,10 +654,9 @@ func TestRootHelpListsSemanticAuditResume(t *testing.T) {
 	}
 }
 
-func TestSemanticIntakeCommandReadsInputFile(t *testing.T) {
-	root := setupReadyMinimalCLIRuntime(t)
-	inputPath := filepath.Join(root, "semantic-intake.json")
-	if err := os.WriteFile(inputPath, []byte(`{
+func TestSemanticIntakeCommandAcceptsInlineJSON(t *testing.T) {
+	setupReadyMinimalCLIRuntime(t)
+	inputJSON := `{
 		"version": 1,
 		"raw_request": "App 入口在哪里",
 		"agent_facets": {
@@ -664,12 +667,10 @@ func TestSemanticIntakeCommandReadsInputFile(t *testing.T) {
 			"constraint": {"required": []}
 		},
 		"options": {"max_candidates": 4, "include_contrast": true, "include_rejected": true}
-	}`), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	}`
 
 	var stdout, stderr bytes.Buffer
-	code := Run([]string{"semantic-intake", "--input", inputPath, "--format", "json"}, &stdout, &stderr, "test")
+	code := Run([]string{"semantic-intake", "--input-json", inputJSON, "--format", "json"}, &stdout, &stderr, "test")
 	if code != 0 {
 		t.Fatalf("code = %d stderr=%s stdout=%s", code, stderr.String(), stdout.String())
 	}
@@ -689,6 +690,22 @@ func TestSemanticIntakeCommandReadsInputFile(t *testing.T) {
 	}
 	if permission["maximum_without_live_evidence"] != "P2" {
 		t.Fatalf("maximum_without_live_evidence = %#v, want P2; payload=%#v", permission["maximum_without_live_evidence"], payload)
+	}
+}
+
+func TestSemanticCommandsRejectAgentAuthoredInputFiles(t *testing.T) {
+	setupReadyMinimalCLIRuntime(t)
+	for _, command := range []string{"semantic-intake", "semantic-audit", "semantic-audit-resume"} {
+		t.Run(command, func(t *testing.T) {
+			var stdout, stderr bytes.Buffer
+			code := Run([]string{command, "--input", "agent-authored.json", "--format", "json"}, &stdout, &stderr, "test")
+			if code == 0 {
+				t.Fatalf("code = 0, want legacy file input rejection; stdout=%s", stdout.String())
+			}
+			if !strings.Contains(stderr.String(), "flag provided but not defined: -input") {
+				t.Fatalf("stderr = %q, want removed --input flag", stderr.String())
+			}
+		})
 	}
 }
 
@@ -814,7 +831,11 @@ func TestSemanticAuditCommandBuildsAuditArtifact(t *testing.T) {
 	}
 
 	var stdout, stderr bytes.Buffer
-	code := Run([]string{"semantic-audit", "--input", auditPath, "--format", "json"}, &stdout, &stderr, "test")
+	auditJSON, err := os.ReadFile(auditPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	code := Run([]string{"semantic-audit", "--input-json", string(auditJSON), "--format", "json"}, &stdout, &stderr, "test")
 	if code != 0 {
 		t.Fatalf("semantic-audit code = %d stderr=%s stdout=%s", code, stderr.String(), stdout.String())
 	}
@@ -946,12 +967,11 @@ func TestSemanticAuditResumeCommandValidatesFreshState(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(root, "semantic-audit-output.json"), outputData, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	resumePath := filepath.Join(root, "semantic-audit-resume.json")
 	resume := map[string]any{
 		"version": 1,
 		"workflow_state": query.SemanticAuditResumeState{
-			SemanticAuditInputPath:        "semantic-audit-input.json",
-			SemanticAuditOutputPath:       "semantic-audit-output.json",
+			SemanticAuditInputPath:        filepath.Join(root, "semantic-audit-input.json"),
+			SemanticAuditOutputPath:       filepath.Join(root, "semantic-audit-output.json"),
 			SemanticAuditRouteFingerprint: query.SemanticAuditResumeRouteFingerprint([]string{"environment-settings-page"}, "root_cause_claim"),
 			ActiveClaimType:               "root_cause_claim",
 			SelectedCandidateIDs:          []string{"environment-settings-page"},
@@ -963,12 +983,8 @@ func TestSemanticAuditResumeCommandValidatesFreshState(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(resumePath, data, 0o644); err != nil {
-		t.Fatal(err)
-	}
-
 	var stdout, stderr bytes.Buffer
-	code := Run([]string{"semantic-audit-resume", "--input", resumePath, "--format", "json"}, &stdout, &stderr, "test")
+	code := Run([]string{"semantic-audit-resume", "--input-json", string(data), "--format", "json"}, &stdout, &stderr, "test")
 	if code != 0 {
 		t.Fatalf("semantic-audit-resume code = %d stderr=%s stdout=%s", code, stderr.String(), stdout.String())
 	}
@@ -1007,7 +1023,6 @@ func TestSemanticAuditResumeCommandReportsMissingAuditFilesAsValidationJSON(t *t
 	}
 	t.Cleanup(func() { _ = os.Chdir(old) })
 
-	resumePath := filepath.Join(root, "semantic-audit-resume.json")
 	resume := map[string]any{
 		"version": 1,
 		"workflow_state": query.SemanticAuditResumeState{
@@ -1024,12 +1039,8 @@ func TestSemanticAuditResumeCommandReportsMissingAuditFilesAsValidationJSON(t *t
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(resumePath, data, 0o644); err != nil {
-		t.Fatal(err)
-	}
-
 	var stdout, stderr bytes.Buffer
-	code := Run([]string{"semantic-audit-resume", "--input", resumePath, "--format", "json"}, &stdout, &stderr, "test")
+	code := Run([]string{"semantic-audit-resume", "--input-json", string(data), "--format", "json"}, &stdout, &stderr, "test")
 	if code != 0 {
 		t.Fatalf("semantic-audit-resume code = %d stderr=%s stdout=%s", code, stderr.String(), stdout.String())
 	}
@@ -1055,10 +1066,8 @@ func TestSemanticAuditResumeCommandReportsMissingAuditFilesAsValidationJSON(t *t
 }
 
 func TestCompassCommandAcceptsSemanticIntakeCommandOutput(t *testing.T) {
-	root := setupReadyMinimalCLIRuntime(t)
-	inputPath := filepath.Join(root, "semantic-intake-input.json")
-	outputPath := filepath.Join(root, "semantic-intake-output.json")
-	if err := os.WriteFile(inputPath, []byte(`{
+	setupReadyMinimalCLIRuntime(t)
+	inputJSON := `{
 		"version": 1,
 		"raw_request": "App 入口在哪里",
 		"agent_facets": {
@@ -1066,21 +1075,16 @@ func TestCompassCommandAcceptsSemanticIntakeCommandOutput(t *testing.T) {
 			"surface": {"required": ["application entrypoint"]}
 		},
 		"options": {"max_candidates": 4, "include_contrast": true, "include_rejected": true}
-	}`), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	}`
 
 	var intakeStdout, intakeStderr bytes.Buffer
-	code := Run([]string{"semantic-intake", "--input", inputPath, "--format", "json"}, &intakeStdout, &intakeStderr, "test")
+	code := Run([]string{"semantic-intake", "--input-json", inputJSON, "--format", "json"}, &intakeStdout, &intakeStderr, "test")
 	if code != 0 {
 		t.Fatalf("semantic-intake code = %d stderr=%s stdout=%s", code, intakeStderr.String(), intakeStdout.String())
 	}
-	if err := os.WriteFile(outputPath, intakeStdout.Bytes(), 0o644); err != nil {
-		t.Fatal(err)
-	}
 
 	var compassStdout, compassStderr bytes.Buffer
-	code = Run([]string{"compass", "--semantic-intake-file", outputPath, "--format", "json"}, &compassStdout, &compassStderr, "test")
+	code = Run([]string{"compass", "--semantic-intake-json", intakeStdout.String(), "--format", "json"}, &compassStdout, &compassStderr, "test")
 	if code != 0 {
 		t.Fatalf("compass code = %d stderr=%s stdout=%s", code, compassStderr.String(), compassStdout.String())
 	}
@@ -1143,7 +1147,6 @@ func TestCloseoutPlanCommandPayloadMode(t *testing.T) {
 	code := Run([]string{
 		"closeout-plan",
 		"--workflow", "implement",
-		"--payload-path", ".specify/project-cognition/updates/cli-test.json",
 		"--format", "json",
 	}, &stdout, &stderr, "test")
 	if code != 0 {
@@ -1157,7 +1160,7 @@ func TestCloseoutPlanCommandPayloadMode(t *testing.T) {
 	if payload["workflow"] != "sp-implement" {
 		t.Fatalf("workflow = %#v, payload=%#v", payload["workflow"], payload)
 	}
-	if payload["update_mode"] != "payload_file" {
+	if payload["update_mode"] != "inline_json" {
 		t.Fatalf("update_mode = %#v, payload=%#v", payload["update_mode"], payload)
 	}
 	if _, ok := payload["payload_draft"].(map[string]any); !ok {
@@ -1172,8 +1175,8 @@ func TestCloseoutPlanCommandPayloadMode(t *testing.T) {
 		"specify-runtime",
 		"cognition",
 		"update",
-		"--payload-file",
-		".specify/project-cognition/updates/cli-test.json",
+		"--payload-json",
+		"<inline-json>",
 		"--reason",
 		"workflow-finalize",
 		"--format",
@@ -1185,9 +1188,6 @@ func TestCloseoutPlanCommandPayloadMode(t *testing.T) {
 	updateCommand, ok := payload["update_command"].(string)
 	if !ok || !strings.Contains(updateCommand, "display only:") {
 		t.Fatalf("update_command = %#v, want display-only placeholder", payload["update_command"])
-	}
-	if strings.Contains(updateCommand, ".specify/project-cognition/updates/cli-test.json") {
-		t.Fatalf("update_command embeds concrete payload path: %q", updateCommand)
 	}
 }
 
@@ -1507,6 +1507,16 @@ func TestGenerateIgnoreCommandWritesStarterFile(t *testing.T) {
 	if payload["path"] != ".specify/project-cognition/.cognitionignore" {
 		t.Fatalf("payload path = %#v", payload["path"])
 	}
+	suggestions, ok := payload["suggested_patterns"].([]any)
+	if !ok {
+		t.Fatalf("payload = %#v, want suggested_patterns for CLI-only review", payload)
+	}
+	if !jsonAnySliceContains(suggestions, "secrets.local") {
+		t.Fatalf("suggested_patterns = %#v, want secrets.local", suggestions)
+	}
+	if jsonAnySliceContains(suggestions, "node_modules/") {
+		t.Fatalf("suggested_patterns repeated built-in exclusion: %#v", suggestions)
+	}
 
 	data, err := os.ReadFile(filepath.Join(root, ".specify", "project-cognition", ".cognitionignore"))
 	if err != nil {
@@ -1548,6 +1558,9 @@ func TestGenerateIgnoreCommandDoesNotOverwriteExistingFile(t *testing.T) {
 	}
 	if payload["status"] != "exists" {
 		t.Fatalf("payload = %#v, want exists status", payload)
+	}
+	if _, ok := payload["suggested_patterns"]; ok {
+		t.Fatalf("payload = %#v, existing runtime file must not be echoed", payload)
 	}
 	data, err := os.ReadFile(ignorePath)
 	if err != nil {
@@ -2007,7 +2020,7 @@ func TestCompassHelpListsPrecisionFlags(t *testing.T) {
 		t.Fatalf("code = %d, want 2 for flag help; stderr=%s stdout=%s", code, stderr.String(), stdout.String())
 	}
 	output := stdout.String() + stderr.String()
-	for _, flagName := range []string{"-query", "-semantic-intake-file", "-query-plan-file"} {
+	for _, flagName := range []string{"-query", "-semantic-intake-json", "-query-plan"} {
 		if !strings.Contains(output, flagName) {
 			t.Fatalf("compass help = %q, want %s", output, flagName)
 		}
@@ -2247,8 +2260,8 @@ func TestExpandCommandReturnsStoredSection(t *testing.T) {
 	}
 }
 
-func TestCompassCommandAcceptsSemanticIntakeFileShapes(t *testing.T) {
-	root := setupReadyMinimalCLIRuntime(t)
+func TestCompassCommandAcceptsInlineSemanticIntakeShapes(t *testing.T) {
+	setupReadyMinimalCLIRuntime(t)
 	cases := []struct {
 		name    string
 		payload string
@@ -2276,12 +2289,8 @@ func TestCompassCommandAcceptsSemanticIntakeFileShapes(t *testing.T) {
 	}
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
-			path := filepath.Join(root, tt.name+"-semantic-intake.json")
-			if err := os.WriteFile(path, []byte(tt.payload), 0o644); err != nil {
-				t.Fatal(err)
-			}
 			var stdout, stderr bytes.Buffer
-			code := Run([]string{"compass", "--semantic-intake-file", path, "--format", "json"}, &stdout, &stderr, "test")
+			code := Run([]string{"compass", "--semantic-intake-json", tt.payload, "--format", "json"}, &stdout, &stderr, "test")
 			if code != 0 {
 				t.Fatalf("code = %d stderr=%s stdout=%s", code, stderr.String(), stdout.String())
 			}
@@ -2300,7 +2309,7 @@ func TestCompassCommandAcceptsSemanticIntakeFileShapes(t *testing.T) {
 }
 
 func TestCompassCommandRejectsWrappedSemanticIntakeNonObject(t *testing.T) {
-	root := setupReadyMinimalCLIRuntime(t)
+	setupReadyMinimalCLIRuntime(t)
 	cases := []struct {
 		name    string
 		payload string
@@ -2313,17 +2322,37 @@ func TestCompassCommandRejectsWrappedSemanticIntakeNonObject(t *testing.T) {
 	}
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
-			path := filepath.Join(root, tt.name+"-bad-semantic-intake.json")
-			if err := os.WriteFile(path, []byte(tt.payload), 0o644); err != nil {
-				t.Fatal(err)
-			}
 			var stdout, stderr bytes.Buffer
-			code := Run([]string{"compass", "--semantic-intake-file", path, "--format", "json"}, &stdout, &stderr, "test")
+			code := Run([]string{"compass", "--semantic-intake-json", tt.payload, "--format", "json"}, &stdout, &stderr, "test")
 			if code == 0 {
 				t.Fatalf("code = 0, want non-zero for %s; stdout=%s", tt.name, stdout.String())
 			}
 			if !strings.Contains(stderr.String(), "semantic_intake has unsupported shape: expected object") {
 				t.Fatalf("stderr = %q, want semantic_intake object shape error", stderr.String())
+			}
+		})
+	}
+}
+
+func TestCompassCommandRejectsAgentAuthoredFileInputs(t *testing.T) {
+	setupReadyMinimalCLIRuntime(t)
+	cases := []struct {
+		name string
+		args []string
+	}{
+		{name: "semantic-intake-file", args: []string{"compass", "--semantic-intake-file", "agent-authored.json", "--format", "json"}},
+		{name: "query-plan-file", args: []string{"compass", "--query-plan-file", "agent-authored.json", "--format", "json"}},
+		{name: "query-plan-at-file", args: []string{"compass", "--query-plan", "@agent-authored.json", "--format", "json"}},
+	}
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			var stdout, stderr bytes.Buffer
+			code := Run(tt.args, &stdout, &stderr, "test")
+			if code == 0 {
+				t.Fatalf("code = 0, want file input rejection; stdout=%s", stdout.String())
+			}
+			if !strings.Contains(stderr.String(), "file") {
+				t.Fatalf("stderr = %q, want file input rejection", stderr.String())
 			}
 		})
 	}
@@ -2422,7 +2451,7 @@ func TestQueryCommandAcceptsAskIntentQueryPlan(t *testing.T) {
 }
 
 func TestQueryCommandEmitsDiagnosticsForCoercedAliasInterpretationsAcrossPlanInputs(t *testing.T) {
-	root := setupReadyMinimalCLIRuntime(t)
+	setupReadyMinimalCLIRuntime(t)
 	queryPlan := marshalQueryPlan(t, map[string]any{
 		"candidate_universe_version": 2,
 		"raw_query":                  "PE程序下驱动下载卡在95",
@@ -2433,66 +2462,63 @@ func TestQueryCommandEmitsDiagnosticsForCoercedAliasInterpretationsAcrossPlanInp
 		"paths":                      []string{"src/app.go"},
 		"open_semantic_questions":    []string{},
 	})
-	queryPlanFile := filepath.Join(root, "query-plan.json")
-	if err := os.WriteFile(queryPlanFile, []byte(queryPlan), 0o644); err != nil {
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"query", "--intent", "debug", "--query-plan", queryPlan, "--format", "json"}, &stdout, &stderr, "test")
+	if code != 0 {
+		t.Fatalf("code = %d stderr=%s stdout=%s", code, stderr.String(), stdout.String())
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
 		t.Fatal(err)
 	}
+	if !jsonStringSliceContains(payload["warnings"], "coerced_top_level_alias_interpretations") {
+		t.Fatalf("warnings = %#v, want alias coercion warning", payload["warnings"])
+	}
+	if !jsonStringSliceContains(payload["warnings"], "query_plan_missing_lexicon_generation_id") {
+		t.Fatalf("warnings = %#v, want missing generation warning", payload["warnings"])
+	}
+	if hints, ok := payload["repair_hints"].([]any); !ok || len(hints) == 0 {
+		t.Fatalf("repair_hints = %#v, want non-empty hints", payload["repair_hints"])
+	}
+	queryPlanPayload, ok := payload["query_plan"].(map[string]any)
+	if !ok {
+		t.Fatalf("query_plan missing from payload = %#v", payload)
+	}
+	intake, ok := queryPlanPayload["semantic_intake"].(map[string]any)
+	if !ok {
+		t.Fatalf("semantic_intake missing from query_plan = %#v", queryPlanPayload)
+	}
+	aliases, ok := intake["alias_interpretations"].([]any)
+	if !ok || len(aliases) != 1 {
+		t.Fatalf("alias_interpretations = %#v, want one normalized alias object", intake["alias_interpretations"])
+	}
+	alias, ok := aliases[0].(map[string]any)
+	if !ok {
+		t.Fatalf("alias_interpretations[0] = %#v, want object", aliases[0])
+	}
+	if alias["alias"] != "PE程序" || alias["meaning"] != "PE程序" || alias["confidence"] != "low" {
+		t.Fatalf("alias = %#v, want low-confidence coerced object", alias)
+	}
+}
 
+func TestQueryCommandRejectsAgentAuthoredPlanFiles(t *testing.T) {
+	setupReadyMinimalCLIRuntime(t)
 	cases := []struct {
 		name string
 		args []string
 	}{
-		{
-			name: "inline",
-			args: []string{"query", "--intent", "debug", "--query-plan", queryPlan, "--format", "json"},
-		},
-		{
-			name: "at-file",
-			args: []string{"query", "--intent", "debug", "--query-plan", "@" + queryPlanFile, "--format", "json"},
-		},
-		{
-			name: "query-plan-file",
-			args: []string{"query", "--intent", "debug", "--query-plan-file", queryPlanFile, "--format", "json"},
-		},
+		{name: "query-plan-file", args: []string{"query", "--intent", "debug", "--query-plan-file", "agent-authored.json", "--format", "json"}},
+		{name: "query-plan-at-file", args: []string{"query", "--intent", "debug", "--query-plan", "@agent-authored.json", "--format", "json"}},
 	}
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
 			var stdout, stderr bytes.Buffer
 			code := Run(tt.args, &stdout, &stderr, "test")
-			if code != 0 {
-				t.Fatalf("code = %d stderr=%s stdout=%s", code, stderr.String(), stdout.String())
+			if code == 0 {
+				t.Fatalf("code = 0, want file input rejection; stdout=%s", stdout.String())
 			}
-			var payload map[string]any
-			if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
-				t.Fatal(err)
-			}
-			if !jsonStringSliceContains(payload["warnings"], "coerced_top_level_alias_interpretations") {
-				t.Fatalf("warnings = %#v, want alias coercion warning", payload["warnings"])
-			}
-			if !jsonStringSliceContains(payload["warnings"], "query_plan_missing_lexicon_generation_id") {
-				t.Fatalf("warnings = %#v, want missing generation warning", payload["warnings"])
-			}
-			if hints, ok := payload["repair_hints"].([]any); !ok || len(hints) == 0 {
-				t.Fatalf("repair_hints = %#v, want non-empty hints", payload["repair_hints"])
-			}
-			queryPlanPayload, ok := payload["query_plan"].(map[string]any)
-			if !ok {
-				t.Fatalf("query_plan missing from payload = %#v", payload)
-			}
-			intake, ok := queryPlanPayload["semantic_intake"].(map[string]any)
-			if !ok {
-				t.Fatalf("semantic_intake missing from query_plan = %#v", queryPlanPayload)
-			}
-			aliases, ok := intake["alias_interpretations"].([]any)
-			if !ok || len(aliases) != 1 {
-				t.Fatalf("alias_interpretations = %#v, want one normalized alias object", intake["alias_interpretations"])
-			}
-			alias, ok := aliases[0].(map[string]any)
-			if !ok {
-				t.Fatalf("alias_interpretations[0] = %#v, want object", aliases[0])
-			}
-			if alias["alias"] != "PE程序" || alias["meaning"] != "PE程序" || alias["confidence"] != "low" {
-				t.Fatalf("alias = %#v, want low-confidence coerced object", alias)
+			if !strings.Contains(stderr.String(), "file") {
+				t.Fatalf("stderr = %q, want file input rejection", stderr.String())
 			}
 		})
 	}
@@ -3965,7 +3991,19 @@ func writeMinimalCLIScanPackage(t *testing.T) string {
 	return root
 }
 
-func TestUpdateCommandAcceptsPayloadFileAndEmitsResultState(t *testing.T) {
+func TestUpdateCommandRejectsAgentAuthoredPayloadFile(t *testing.T) {
+	setupReadyMinimalCLIRuntime(t)
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"update", "--payload-file", "agent-authored.json", "--format", "json"}, &stdout, &stderr, "test")
+	if code == 0 {
+		t.Fatalf("code = 0, want payload file rejection; stdout=%s", stdout.String())
+	}
+	if !strings.Contains(stderr.String(), "flag provided but not defined: -payload-file") {
+		t.Fatalf("stderr = %q, want removed --payload-file flag", stderr.String())
+	}
+}
+
+func TestUpdateCommandAcceptsInlinePayloadAndEmitsResultState(t *testing.T) {
 	root := writeMinimalCLIScanPackage(t)
 	old, _ := os.Getwd()
 	if err := os.Chdir(root); err != nil {
@@ -3979,10 +4017,6 @@ func TestUpdateCommandAcceptsPayloadFileAndEmitsResultState(t *testing.T) {
 		t.Fatalf("build code = %d stderr=%s stdout=%s", buildCode, buildStderr.String(), buildStdout.String())
 	}
 
-	payloadPath := filepath.Join(root, ".specify", "project-cognition", "updates", "workflow-finalize.json")
-	if err := os.MkdirAll(filepath.Dir(payloadPath), 0o755); err != nil {
-		t.Fatal(err)
-	}
 	payload := map[string]any{
 		"workflow":          "sp-implement",
 		"reason":            "workflow-finalize",
@@ -3999,12 +4033,8 @@ func TestUpdateCommandAcceptsPayloadFileAndEmitsResultState(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(payloadPath, data, 0o644); err != nil {
-		t.Fatal(err)
-	}
-
 	var stdout, stderr bytes.Buffer
-	code := Run([]string{"update", "--payload-file", payloadPath, "--reason", "workflow-finalize", "--format", "json"}, &stdout, &stderr, "test")
+	code := Run([]string{"update", "--payload-json", string(data), "--reason", "workflow-finalize", "--format", "json"}, &stdout, &stderr, "test")
 	if code != 0 {
 		t.Fatalf("code = %d stderr=%s stdout=%s", code, stderr.String(), stdout.String())
 	}

@@ -112,7 +112,7 @@
 - incomplete_statuses: active, blocked, handoff-ready
 - resume_rule: resume only when exactly one incomplete discussion is available or the user selected a slug
 - collision_rule: append date or short numeric suffix when a generated slug already exists
-- close_archive_rule: handoff-ready remains resumable only until consumed or explicitly dropped; after `sp-specify` consumes the handoff, mark consumed/completed before archiving
+- close_archive_rule: handoff-ready remains resumable only until consumed or explicitly dropped; after the selected `sp-quick` or `sp-specify` consumer binds the handoff, mark consumed/completed before archiving
 
 ## Handoff Assessment
 
@@ -145,9 +145,9 @@
 
 - create feature branch
 - create feature directory
-- write spec.md
-- write plan.md
-- write tasks.md
+- do not write spec.md
+- do not write plan.md
+- do not write tasks.md
 - edit source code
 - edit tests
 - run implementation-oriented fix loops
@@ -156,7 +156,7 @@
 - add, recommend, or route to sp-split
 - write separate split planning artifacts
 - write candidate-specific handoff Markdown or JSON
-- write pointer-only handoff-to-specify.json
+- do not write a pointer-only handoff-to-specify.json
 - use current project cognition to prove another project's implementation facts
 
 ## Authoritative Files

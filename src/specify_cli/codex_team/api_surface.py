@@ -21,6 +21,7 @@ from .runtime_bridge import (
 )
 
 INTEGRATION_JSON = ".specify/integration.json"
+MAX_RESULT_INPUT_BYTES = 16 * 1024 * 1024
 
 
 class TeamApiError(ValueError):
@@ -87,7 +88,7 @@ def run_team_api_operation(
     feature_dir: str | None = None,
     batch_id: str | None = None,
     request_id: str | None = None,
-    result_file: str | None = None,
+    result_json: str | None = None,
     session_id: str = "default",
 ) -> dict[str, Any]:
     """Run a structured Codex team control-plane operation and return a JSON envelope."""
@@ -185,20 +186,16 @@ def run_team_api_operation(
     if operation == "submit-result":
         if not request_id:
             raise TeamApiError("--request-id is required for submit-result.")
-        if not result_file:
-            raise TeamApiError("--result-file is required for submit-result.")
-        result_path = Path(result_file)
-        if not result_path.is_absolute():
-            result_path = (project_root / result_path).resolve()
-        if not result_path.exists():
-            envelope["status"] = "error"
-            envelope["payload"] = {"message": f"Result file not found: {result_path}"}
-            return envelope
+        if result_json is None:
+            raise TeamApiError("--result-json is required for submit-result.")
+        raw_result = result_json
+        if len(raw_result.encode("utf-8")) > MAX_RESULT_INPUT_BYTES:
+            raise TeamApiError("result JSON exceeds the 16 MiB input limit.")
         try:
             result = normalize_result_submission(
                 project_root,
                 request_id,
-                result_path.read_text(encoding="utf-8"),
+                raw_result,
             )
             record = submit_runtime_result(
                 project_root,

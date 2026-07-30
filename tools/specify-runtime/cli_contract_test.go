@@ -46,6 +46,64 @@ func TestVersionJSONUsesUnifiedEnvelope(t *testing.T) {
 	}
 }
 
+func TestCognitionSemanticAuditPersistsCanonicalPairAtomically(t *testing.T) {
+	sourcePath := filepath.Join("..", "..", "templates", "examples", "semantic-audit-resume", "semantic-audit-input.json")
+	inputRaw, err := os.ReadFile(sourcePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	root := t.TempDir()
+	previous, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(root); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(previous) })
+
+	var stdout, stderr bytes.Buffer
+	persistDir := ".planning/debug/semantic-audit-case"
+	code := Run([]string{
+		"cognition", "semantic-audit", "--input-json", string(inputRaw),
+		"--persist-dir", persistDir, "--format", "json",
+	}, &stdout, &stderr, "test")
+	if code != 0 {
+		t.Fatalf("semantic-audit persistence exit code = %d; stdout=%s stderr=%s", code, stdout.String(), stderr.String())
+	}
+	envelope := decodeJSONObject(t, stdout.Bytes())
+	data := envelope["data"].(map[string]any)
+	persistence := data["persistence"].(map[string]any)
+	if persistence["input_ref"] != persistDir+"/semantic-audit-input.json" || persistence["output_ref"] != persistDir+"/semantic-audit-output.json" {
+		t.Fatalf("semantic audit persistence = %#v", persistence)
+	}
+	input := decodeJSONObject(t, mustReadFile(t, filepath.Join(root, filepath.FromSlash(persistence["input_ref"].(string)))))
+	wantInput := decodeJSONObject(t, inputRaw)
+	if !reflect.DeepEqual(input, wantInput) {
+		t.Fatal("persisted semantic audit input differs from submitted JSON")
+	}
+	output := decodeJSONObject(t, mustReadFile(t, filepath.Join(root, filepath.FromSlash(persistence["output_ref"].(string)))))
+	if output["artifact_type"] != "semantic_routing_audit" {
+		t.Fatalf("persisted semantic audit output = %#v", output)
+	}
+	if _, leaked := output["persistence"]; leaked {
+		t.Fatal("semantic audit output contains runtime receipt metadata")
+	}
+	entries, err := os.ReadDir(filepath.Join(root, filepath.FromSlash(persistDir)))
+	if err != nil || len(entries) != 2 {
+		t.Fatalf("semantic audit persistence directory entries = %d, err=%v", len(entries), err)
+	}
+	stdout.Reset()
+	stderr.Reset()
+	code = Run([]string{
+		"artifact", "prepare", "--project-root", root,
+		"--path", persistence["input_ref"].(string), "--format", "json",
+	}, &stdout, &stderr, "test")
+	if code != 2 || !bytes.Contains(stdout.Bytes(), []byte("may be changed only through specify-runtime cognition semantic-audit")) {
+		t.Fatalf("generic semantic audit prepare should block: code=%d stdout=%s", code, stdout.String())
+	}
+}
+
 func TestAPIHandshakePublishesProtocolVersionAndCapabilities(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 
@@ -72,7 +130,7 @@ func TestAPIHandshakePublishesProtocolVersionAndCapabilities(t *testing.T) {
 		seenCapabilities[capability] = true
 	}
 	for _, capability := range []string{
-		"api.handshake", "api.list", "artifact.catalog", "artifact.scaffold", "cognition.run", "validate.spec",
+		"api.handshake", "api.list", "artifact.catalog", "artifact.checklist", "artifact.delete", "artifact.restore", "artifact.scaffold", "cognition.archive-incompatible-store", "cognition.run", "cognition.scan-packet", "validate.spec",
 		"workflow.show", "workflow.enter", "workflow.next", "workflow.complete-stage", "workflow.transition",
 		"workflow.reopen", "workflow.block", "workflow.resolve", "workflow.closeout",
 	} {
@@ -121,7 +179,7 @@ func TestAPIListReturnsCompactCapabilityCards(t *testing.T) {
 		t.Fatalf("api list contains duplicate capability cards: %d unique of %d", len(seen), len(items))
 	}
 	for _, capability := range []string{
-		"api.handshake", "api.list", "artifact.catalog", "artifact.scaffold", "validate.spec",
+		"api.handshake", "api.list", "artifact.catalog", "artifact.checklist", "artifact.delete", "artifact.restore", "artifact.scaffold", "validate.spec",
 		"workflow.show", "workflow.enter", "workflow.next", "workflow.complete-stage", "workflow.transition",
 		"workflow.reopen", "workflow.block", "workflow.resolve", "workflow.closeout",
 	} {
@@ -307,11 +365,19 @@ func generatedRuntimeVerbCapabilities() []string {
 		"api.schema",
 		"api.show",
 		"artifact.catalog",
+		"artifact.checklist",
+		"artifact.delete",
+		"artifact.list",
+		"artifact.patch",
 		"artifact.prepare",
+		"artifact.prune",
+		"artifact.registry",
+		"artifact.restore",
 		"artifact.scaffold",
 		"artifact.show",
 		"artifact.submit",
 		"cognition.build-from-scan",
+		"cognition.archive-incompatible-store",
 		"cognition.changes",
 		"cognition.claim-reconcile.apply",
 		"cognition.claim-reconcile.prepare",
@@ -335,6 +401,7 @@ func generatedRuntimeVerbCapabilities() []string {
 		"cognition.scan-accept",
 		"cognition.scan-checkpoint",
 		"cognition.scan-lease",
+		"cognition.scan-packet",
 		"cognition.scan-prepare",
 		"cognition.scan-requeue",
 		"cognition.scan-set",
@@ -352,7 +419,9 @@ func generatedRuntimeVerbCapabilities() []string {
 		"design.import",
 		"design.lint",
 		"design.preview",
+		"design.preview-manifest",
 		"design.preview-lint",
+		"design.profiles",
 		"design.ui-target",
 		"design.ui-target-lint",
 		"discussion.archive",
@@ -368,13 +437,23 @@ func generatedRuntimeVerbCapabilities() []string {
 		"discussion.validate-handoff",
 		"discussion.write-handoff",
 		"doctor.check",
+		"evidence.allocate",
+		"evidence.import",
+		"evidence.register",
+		"evidence.show",
+		"evidence.verify",
 		"hook.validate-artifacts",
 		"hook.validate-commit",
 		"hook.validate-state",
 		"implement.closeout",
 		"implement.deferral-confirm",
 		"implement.deferral-propose",
+		"implement.packet-compile",
+		"implement.result-merge",
 		"implement.resume-audit",
+		"implement.task-accept",
+		"implement.task-next",
+		"implement.task-start",
 		"implement.validation-finish",
 		"implement.validation-start",
 		"implement.validation-status",
@@ -388,7 +467,13 @@ func generatedRuntimeVerbCapabilities() []string {
 		"learning.show",
 		"learning.start",
 		"prd-build.status",
+		"prd-build.scaffold",
+		"prd-scan.finalize",
 		"prd-scan.init",
+		"prd-scan.record-list",
+		"prd-scan.record-remove",
+		"prd-scan.record-show",
+		"prd-scan.record-upsert",
 		"prd-scan.status",
 		"quick.archive",
 		"quick.close",
@@ -411,6 +496,11 @@ func generatedRuntimeVerbCapabilities() []string {
 		"sp-teams.status",
 		"sp-teams.submit-result",
 		"sp-teams.sync-back",
+		"tasks.build",
+		"tasks.finalize",
+		"tasks.remove",
+		"tasks.set-root",
+		"tasks.upsert",
 		"validate.spec",
 		"workflow.block",
 		"workflow.closeout",

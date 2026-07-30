@@ -8,6 +8,8 @@ design_brief:
   single_job: null
   surface_types: []
   platforms: []
+  capability_profile_ids: []
+  specimen_ids: []
   modules: []
   locales: []
   color_modes: []
@@ -18,12 +20,17 @@ design_brief:
   approved_visual_ref: null
   approved_preview_sha256: null
   approved_manifest_sha256: null
+  approved_handoff_ref: null
+  approved_handoff_sha256: null
+  approved_handoff_contract_ids: []
 ---
 
 # Design Brief
 
 This file stores confirmed design decisions, not a conversation transcript.
-Update it after each answer that changes the direction comparison or handoff.
+After each answer that changes the direction comparison or handoff, patch only
+the affected frontmatter fields or sections through a fresh
+`specify-runtime artifact patch` lease.
 
 ## Confirmed Experience
 
@@ -101,5 +108,8 @@ Use one record per unresolved or inferred decision:
 - Exact visual ref:
 - Preview SHA-256:
 - Manifest SHA-256:
+- Immutable handoff ref:
+- Handoff SHA-256:
 - Approved decision IDs:
+- Approved handoff contract IDs:
 - User-requested revisions:

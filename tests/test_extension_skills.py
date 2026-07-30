@@ -313,8 +313,10 @@ class TestBuiltInSkillGeneration:
         assert "show_argv" in constitution_body
         assert ".specify/memory/learnings/index.md" not in constitution_body
         assert ".planning/learnings/candidates.md" not in constitution_body
-        assert ".specify/project-cognition/status.json" in constitution
-        assert "workflow-appropriate cognition" in constitution
+        assert ".specify/project-cognition/status.json" not in constitution
+        assert "specify-runtime cognition status|compass|query" in constitution
+        assert "not an agent file-read surface" in constitution
+        assert "workflow-appropriate navigation" in constitution
         assert "advisory project cognition index" in constitution
         assert "map points, code proves" in constitution
         assert "map-update" in constitution
@@ -433,12 +435,13 @@ class TestBuiltInSkillGeneration:
         assert "planning/lane-manifest.json" in plan_body
         assert "do not create separate evidence-index and checkpoint logs" in plan_body.lower()
         assert "do not synthesize `plan.md`, `research.md`, or `plan-contract.json` from chat-only delegated lane results" in plan_body.lower()
-        assert "artifact-writing delegated planning lanes must be dispatched" in plan_body.lower()
-        assert "writable, execution-capable native subagent" in plan_body.lower()
-        assert "do not dispatch a read-only explorer, reviewer, or diagnostic lane" in plan_body.lower()
+        assert "delegated planning lanes have no direct workflow-artifact write scope" in plan_body.lower()
+        assert "complete runtime-owned result-submit argv prefix" in plan_body.lower()
+        assert "a read-only evidence worker may satisfy a planning lane" in plan_body.lower()
         assert "execution_model: adaptive" in plan_body
         assert "execution_mode: light | standard | heavy" in plan_body
-        assert "one result per lane" in plan_body.lower()
+        assert "each lane returns one compact agent-only result inline" in plan_body.lower()
+        assert "runtime alone materializes the result path" in plan_body.lower()
         assert "git-baseline freshness" in plan_body.lower()
         assert "complete-refresh" in plan_body
         assert "manual override/fallback" in plan_body.lower()
@@ -448,8 +451,10 @@ class TestBuiltInSkillGeneration:
         assert "clarification/handoffs/<lane-id>.json" in clarify_body
         assert "clarification/evidence-index.json" in clarify_body
         assert "clarification/checkpoints.ndjson" in clarify_body
-        assert "consume `clarification/evidence-index.json` before final artifact updates" in clarify_body.lower()
-        assert "do not update `spec.md`, `alignment.md`, `context.md`, or `references.md` from chat-only lane results" in clarify_body.lower()
+        assert "query `clarification/evidence-index.json`" in clarify_body.lower()
+        assert "before final cli-owned artifact updates" in clarify_body.lower()
+        assert "query every accepted clarification handoff" in clarify_body.lower()
+        assert "only through leased `artifact patch` calls" in clarify_body.lower()
 
         tasks_body = _skill_body("sp-tasks")
         assert "plan-contract.json" in tasks_body
@@ -465,9 +470,12 @@ class TestBuiltInSkillGeneration:
             re.IGNORECASE,
         )
         assert "the cli owns phase state" in tasks_body.lower()
-        assert "one result per lane under `task-generation/handoffs/`" in tasks_body.lower()
+        assert "exactly one structured result per lane" in tasks_body.lower()
+        assert "runtime alone materializes `task-generation/handoffs/<lane-id>.json`" in tasks_body.lower()
         assert "task-generation/lane-manifest.json" in tasks_body
-        assert "do not create separate evidence-index and checkpoint logs" in tasks_body.lower()
+        assert "do not create separate evidence-index and checkpoint logs" in re.sub(
+            r"\s+", " ", tasks_body.lower()
+        )
         assert "chat-only lane output is not handoff truth" in tasks_body.lower()
         assert "keep implementation blocked" in tasks_body.lower()
         assert "execution_model: adaptive" in tasks_body
@@ -477,7 +485,7 @@ class TestBuiltInSkillGeneration:
         assert "no-new-test rationale" in tasks_body.lower()
         assert "replacement validation" in tasks_body.lower()
         assert "residual risk" in tasks_body.lower()
-        assert "minimum light-mode `tasks.md` contract" in tasks_body.lower()
+        assert "minimum light-mode task-package contract" in tasks_body.lower()
         assert "recommended next command" in tasks_body.lower()
         assert "git-baseline freshness" in tasks_body.lower()
         assert "complete-refresh" in tasks_body
@@ -485,7 +493,7 @@ class TestBuiltInSkillGeneration:
         assert "run `/sp-map-scan` followed by `/sp-map-build`" in tasks_body
         routing_body = _body_without_frontmatter(PROJECT_ROOT / "templates" / "passive-skills" / "spec-kit-workflow-routing" / "SKILL.md").lower()
         assert "default generated path is `sp-specify -> sp-plan -> sp-tasks -> sp-implement -> sp-review -> sp-accept`" in routing_body
-        assert "use `sp-implement` after `sp-tasks` produces canonical `task-index.json` or a light direct task list and records `/sp.implement`." in routing_body
+        assert "use `sp-implement` after `sp-tasks` produces canonical `task-index.json` in any execution mode, renders `tasks.md`, and records `/sp.implement`." in routing_body
         assert "use `sp-analyze` only for optional diagnostics, explicit user requests, or persisted legacy `/sp.analyze` state." in routing_body
         assert "clean completed `sp-tasks` state with `/sp.implement` routes directly to" in routing_body
         assert "it does not need an `sp-auto` hop" in routing_body
@@ -519,7 +527,8 @@ class TestBuiltInSkillGeneration:
         assert "Closed-loop requirement" in analyze_body
         assert "Recommended Re-entry" in analyze_body
         assert "This command does not edit `spec.md`, `context.md`, `plan.md`, or `tasks.md`." in analyze_body
-        assert "this command may update `workflow-state.md` to record the cleared or blocked gate result" in analyze_body.lower()
+        assert "persist only the cleared or blocked analyze gate result through a leased" in analyze_body.lower()
+        assert "artifact patch" in analyze_body.lower()
         assert "analysis-only" in analyze_body.lower()
         assert "`next_command: /sp.implement`" in analyze_body
         assert "If the highest invalid stage is `clarify`" in analyze_body
@@ -572,7 +581,7 @@ class TestBuiltInSkillGeneration:
         quick_body = _skill_body("sp-quick")
         assert "first executable lane must produce a failing automated test or failing repro check before production edits begin" in quick_body.lower()
         assert "do not write production code until the red state is captured" in quick_body.lower()
-        assert "bootstrap the smallest viable test surface first" in quick_body.lower()
+        assert "bootstrap the smallest viable test surface as its own quick lane or batch" in quick_body.lower()
         assert "/sp-specify" in quick_body.lower()
         assert "/sp-debug" in quick_body.lower()
         assert "root cause is still unknown" in quick_body.lower() or "root cause is not yet known" in quick_body.lower()
@@ -640,7 +649,8 @@ class TestBuiltInSkillGeneration:
         assert "automatically continue into evidence investigation" in debug_lower
         assert "write a failing automated repro test before changing production code" in debug_lower
         assert "do not modify production behavior until the red state is proven" in debug_lower
-        assert "add the missing harness first or route through `/sp-quick` or `/sp-specify`" in debug_lower
+        assert "if that expands beyond the debug fix lane, route it through `/sp-quick`" in debug_lower
+        assert "use `/sp-specify` only when the user explicitly chooses a formal spec-first path" in debug_lower
         assert "alternative_hypotheses_considered" in debug_lower
         assert "alternative_hypotheses_ruled_out" in debug_lower
         assert "root_cause_confidence" in debug_lower
@@ -675,7 +685,7 @@ class TestSkillDescriptions:
         assert "development rules" in SKILL_DESCRIPTIONS["constitution"].lower()
         assert "checklist" in SKILL_DESCRIPTIONS["checklist"].lower()
         assert "truly trivial" in SKILL_DESCRIPTIONS["fast"].lower()
-        assert "lightweight tracked planning" in SKILL_DESCRIPTIONS["quick"].lower()
+        assert "scalable task-local planning" in SKILL_DESCRIPTIONS["quick"].lower()
         assert "graph-native cognition baseline" in SKILL_DESCRIPTIONS["map-scan"].lower()
         assert "map-scan" in SKILL_DESCRIPTIONS["map-build"].lower()
         assert "github issues" in SKILL_DESCRIPTIONS["taskstoissues"].lower()

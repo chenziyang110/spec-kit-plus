@@ -6,6 +6,7 @@ import pytest
 from specify_cli.execution.result_handoff import (
     build_result_handoff_path,
     describe_result_handoff_template,
+    describe_result_submit_template,
     write_normalized_result_handoff,
 )
 
@@ -16,6 +17,20 @@ def test_describe_result_handoff_template_matches_supported_workflows() -> None:
     assert describe_result_handoff_template(command_name="quick", integration_key="cursor-agent") == ".planning/quick/<id>-<slug>/worker-results/<lane-id>.json"
     assert describe_result_handoff_template(command_name="debug", integration_key="claude") == ".planning/debug/results/<session-slug>/<lane-id>.json"
     assert describe_result_handoff_template(command_name="implement", integration_key="codex") == ".specify/teams/state/results/<request-id>.json"
+
+
+def test_describe_result_submit_template_uses_inline_cli_channels() -> None:
+    assert "implement result-merge" in describe_result_submit_template(
+        command_name="implement", integration_key="claude"
+    )
+    assert "--result-json" in describe_result_submit_template(
+        command_name="quick", integration_key="cursor-agent"
+    )
+    codex = describe_result_submit_template(
+        command_name="quick", integration_key="codex"
+    )
+    assert "sp-teams submit-result" in codex
+    assert "--result-file" not in codex
 
 
 def test_build_result_handoff_path_for_codex_runtime(project_root: Path = Path("F:/tmp/project")) -> None:

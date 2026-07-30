@@ -1,9 +1,9 @@
 ---
-description: Use when an older workflow or operator still invokes the deprecated `sp-prd` compatibility entrypoint and must be routed to the canonical `sp-prd-scan -> sp-prd-build` flow.
+description: Use when an older invocation needs the deprecated `sp-prd` compatibility entrypoint; it routes to CLI-owned `sp-prd-scan -> sp-prd-build` and must not author PRD artifacts itself.
 workflow_contract:
   when_to_use: Use only as a deprecated compatibility entrypoint when an older workflow still invokes `sp-prd`.
   primary_objective: Route operators to the canonical `sp-prd-scan` -> `sp-prd-build` reverse-PRD reconstruction workflow instead of presenting `sp-prd` as the primary lane.
-  primary_outputs: 'Compatibility runs should produce the same canonical artifacts as `sp-prd-scan` and `sp-prd-build`, including `.specify/prd-runs/<run-id>/prd-scan.md` and `.specify/prd-runs/<run-id>/exports/prd.md`.'
+  primary_outputs: 'CLI-owned `.specify/prd-runs/<run-id>/prd-scan.md` and `.specify/prd-runs/<run-id>/exports/prd.md`; the `prd-scan`, `prd-build`, result, and artifact CLIs own every compatibility-run artifact, while this entrypoint only routes.'
   default_handoff: Start with /sp-prd-scan, then continue to /sp-prd-build.
 ---
 

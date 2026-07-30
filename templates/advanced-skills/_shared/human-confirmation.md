@@ -10,6 +10,11 @@ labels may be localized, but preserve the table shapes and meanings below.
 Freeform prose, bullet-only confirmations, or partial field lists do not satisfy
 this gate.
 
+This one table supports a single work item, multiple ordered work items, and a
+large task. Use stable `Q1`, `Q2`, ... identifiers for every user-visible
+deliverable. Confirm deliverable-level order and dependencies only; internal implementation sequencing, file choreography, lane construction, and batch
+scheduling remain agent-owned. For a single work item, still write `Q1`.
+
 ```markdown
 ## Quick Checkpoint
 
@@ -18,6 +23,8 @@ this gate.
 | Request and outcome | [request/problem, where it appears, why it matters, and intended outcome] |
 | User-visible result | [observable result for the user] |
 | Scope | Include: [included behavior]. Exclude: [non-goals]. |
+| Ordered work items | [Q1: first user-visible deliverable (depends on: none); Q2: next deliverable (depends on: Q1); continue for every confirmed work item in delivery order; use Q1 only for a single task; omit files and internal steps] |
+| Work-item acceptance | [Q1: observable result and evidence; Q2: observable result and evidence; continue one-to-one for every work item] |
 | Recommended approach | [user-relevant approach and meaningful trade-off, not implementation choreography] |
 | Assumptions and risks | [assumptions, uncertainty, and material risk] |
 | Completion evidence | [observable acceptance plus reliable verification evidence] |
@@ -29,6 +36,7 @@ for awareness, not as a request to approve technical details.
 
 Reply with `confirm`/`确认` after the Quick card and any applicable UI card, or
 use `revise: scope ...`, `revise: UI ...`, or another precise correction.
+Use `revise: order ...` to change only the ordered deliverables or dependencies.
 
 ## Debug card
 
@@ -63,9 +71,11 @@ Debug uses it for a target baseline and must not pre-approve a speculative fix.
 
 Do not present the card when its basis is only
 `design_system.status: bootstrap` or when a new/high-visibility direction lacks
-an inspectable visual artifact. Route those cases to `$spx-design`; route
-multi-surface or acceptance-heavy UI to `$spx-specify`. Preserve original
-references with each reference intent and name real content/image sources.
+an inspectable visual artifact. Route those cases to `$spx-design`. For Quick,
+keep multi-surface or acceptance-heavy UI in `$spx-quick` and expand its
+task-local plan, viewport/state matrix, batches, and acceptance evidence rather
+than routing to `$spx-specify`. Preserve original references with each reference
+intent and name real content/image sources.
 
 ```markdown
 ## UI Confirmation

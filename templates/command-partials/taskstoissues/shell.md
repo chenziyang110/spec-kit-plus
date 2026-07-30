@@ -6,7 +6,7 @@ Project the current task plan onto GitHub issues without losing execution orderi
 
 ## Context
 
-- Primary inputs: `tasks.md`, the active feature context, and the current Git remote.
+- Primary inputs: the canonical task graph queried from `task-index.json` and the rendered `tasks.md` view through targeted `specify-runtime artifact show` calls, plus the active feature context and current Git remote. Never open either task artifact directly.
 - This command assumes the repository remote is a GitHub URL and that issue creation is permitted through the configured GitHub surface.
 - The issue projection should stay downstream of the planning workflow rather than becoming a parallel source of truth.
 

@@ -43,9 +43,12 @@ def test_tasks_template_makes_parallel_tasks_jit_packet_ready_for_leaders():
     assert "leader can compile a bounded subagent execution packet" in lowered
     assert "## Delegated Lane Integration" in content
     assert "task-generation/lane-manifest.json" in content
-    assert "task-generation/handoffs/" in content
-    assert "record each accepted result's consumer once in the manifest" in lowered
-    assert "do not create separate evidence-index and checkpoint logs" in lowered
+    assert "runtime alone materializes `task-generation/handoffs/<lane-id>.json`" in lowered
+    assert "patch each accepted result's consumer once in the manifest" in lowered
+    assert "no direct workflow-artifact write scope" in lowered
+    assert "do not create separate evidence-index and checkpoint logs" in " ".join(
+        lowered.split()
+    )
 
 
 def test_tasks_template_keeps_agent_roles_out_of_checklist_rows():
@@ -84,19 +87,22 @@ def test_tasks_command_requires_persisted_task_generation_handoffs():
     assert "one lane manifest plus lane results" in lowered
     assert "delegated decomposition only: one lane manifest plus lane results" in lowered
     assert "consume every accepted task-generation lane result" in lowered
-    assert "do not create separate evidence-index and checkpoint logs" in lowered
+    assert "do not create separate evidence-index and checkpoint logs" in " ".join(
+        lowered.split()
+    )
 
 
-def test_tasks_command_requires_writable_delegated_task_generation_lanes():
+def test_tasks_command_requires_cli_owned_delegated_task_generation_lanes():
     content = _read("templates/commands/tasks.md")
     lowered = content.lower()
 
-    assert "artifact-writing delegated lanes must use writable" in lowered
-    assert "execution-capable native subagents" in lowered
-    assert "read-only explorer, reviewer, or diagnostic lane" in lowered
-    assert "one result per lane under `task-generation/handoffs/`" in lowered
-    assert "must include the exact expected handoff path" in lowered
-    assert "re-dispatch with a writable lane" in lowered
+    assert "each delegated lane has no direct workflow-artifact write scope" in lowered
+    assert "runtime-owned `result submit --command tasks` argv prefix" in lowered
+    assert "a read-only evidence worker may satisfy the lane" in lowered
+    assert "runtime alone materializes `task-generation/handoffs/<lane-id>.json`" in lowered
+    assert "artifact scaffold --kind task-generation-lane-manifest" in lowered
+    assert "replace the bounded `/lanes` array as a whole" in lowered
+    assert "submit the manifest wholesale" in lowered
 
 
 def test_tasks_command_consumes_upstream_planning_evidence():
@@ -111,8 +117,8 @@ def test_tasks_command_consumes_upstream_planning_evidence():
 def test_tasks_command_makes_packet_outputs_mode_sensitive():
     content = _read("templates/commands/tasks.md")
 
-    assert "Light non-UI: compact `tasks.md`" in content
-    assert "Standard/heavy: canonical `task-index.json` plus rendered `tasks.md`" in content
+    assert "Light non-UI: compact canonical `task-index.json` plus compact rendered `tasks.md`" in content
+    assert "Standard/heavy: the same canonical `task-index.json` plus rendered `tasks.md`" in content
     assert "Any UI-bearing work: minimal canonical `task-index.json`" in content
     assert "renders and validates only the current packet" in content
     assert "do not copy the schema into `tasks.md` or pre-generate all packets" in content

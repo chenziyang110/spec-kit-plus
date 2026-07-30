@@ -76,6 +76,9 @@ def test_prd_scan_template_defines_reconstruction_scan_contract() -> None:
     assert "state-machines.json" in content
     assert "error-semantics.json" in content
     assert "verification-surfaces.json" in content
+    assert "specify-runtime prd-scan finalize <run-id>" in content
+    assert "hook validate-artifacts --command prd-scan" in content
+    assert "never create or patch that status file yourself" in lowered
 
 
 def test_prd_build_template_refuses_incomplete_scan_packages() -> None:
@@ -125,6 +128,8 @@ def test_prd_build_template_refuses_incomplete_scan_packages() -> None:
     assert "Critical Unknown Refusal Gate" in content
     assert "Traceability Gate" in content
     assert "Reconstruction Readiness Gate" in content
+    assert "hook validate-artifacts --command prd-build" in content
+    assert "surface presence alone is never success" in lowered
 
 
 def test_prd_scan_template_defines_state_dispatch_and_packet_contracts() -> None:
@@ -192,8 +197,11 @@ def test_prd_build_template_defines_bundle_only_dispatch_and_traceability_contra
     assert "traceability_findings" in content
     assert "export_landing_findings" in content
     assert "recommended_repairs" in content
-    assert "before writing `master/master-pack.md`" in content
-    assert "before writing or finalizing `exports/**`" in content
+    assert "specify-runtime prd-build scaffold <run-id>" in content
+    assert "before patching semantic sections in `master/master-pack.md`" in content
+    assert "before patching or finalizing semantic sections in `exports/**`" in content
+    assert "specify-runtime artifact patch" in content
+    assert "never generically prepare or submit a build document" in lowered
     assert "before reverse coverage / traceability validation" in content
     assert "accepted_packet_results" in content
     assert "rejected_packet_results" in content

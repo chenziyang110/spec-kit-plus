@@ -4,9 +4,11 @@ from pathlib import Path
 import pytest
 
 from specify_cli.execution.packet_compiler import (
+    _ui_context_nav,
     _ui_contract_from_task_entry,
     compile_worker_task_packet,
 )
+from specify_cli.execution.packet_schema import UIContract
 from specify_cli.execution.packet_validator import PacketValidationError
 from specify_cli.execution.result_schema import (
     RuleAcknowledgement,
@@ -15,6 +17,18 @@ from specify_cli.execution.result_schema import (
     WorkerTaskResult,
 )
 from specify_cli.execution.result_validator import validate_worker_task_result
+
+
+COMPARISON_TOLERANCE = {
+    "structure": "exact",
+    "content": "exact",
+    "tokens": "exact",
+    "geometry": {"unit": "px", "max_delta": 2},
+    "color": {"method": "delta-e-2000", "max_delta": 2},
+    "text_wrap": "exact",
+    "motion": {"unit": "ms", "max_delta": 16},
+    "platform_variance": "approved-deviation-only",
+}
 
 
 def test_compile_worker_task_packet_prefers_canonical_task_index_for_jit_packet(
@@ -130,10 +144,13 @@ def test_compile_worker_task_packet_prefers_structured_task_index_ui_contract(
                             "approved_visual_ref": "DESIGN.md#settings-direction",
                             "approved_preview_sha256": "",
                             "approved_manifest_sha256": "",
+                            "approved_handoff_ref": "",
+                            "approved_handoff_sha256": "",
                             "design_decision_ids": [
                                 "DS-COMP-001",
                                 "DS-RESP-001",
                             ],
+                            "handoff_contract_ids": [],
                             "design_sources": [
                                 "DESIGN.md",
                                 "specs/001-ui-feature/ui-brief.md",
@@ -178,7 +195,7 @@ def test_compile_worker_task_packet_prefers_structured_task_index_ui_contract(
                                     "evidence": "visual_capture",
                                 }
                             ],
-                            "comparison_tolerance": "no unapproved structural drift",
+                            "comparison_tolerance": COMPARISON_TOLERANCE,
                             "accepted_deviations": [],
                             "fidelity_level": "high",
                             "must_preserve": ["compact two-column hierarchy"],
@@ -272,16 +289,14 @@ def test_compile_worker_task_packet_prefers_structured_task_index_ui_contract(
             comparison_report_sha256="c" * 64,
             implementation_capture_refs=["artifacts/ui/settings.png"],
             covered_decision_ids=["DS-COMP-001", "DS-RESP-001"],
-            comparison_tolerance="no unapproved structural drift",
+            comparison_tolerance=COMPARISON_TOLERANCE,
         ),
         summary="Implemented and visually verified the settings surface.",
         rule_acknowledgement=RuleAcknowledgement(
             required_references_read=True,
             forbidden_drift_respected=True,
             context_bundle_read=True,
-            paths_read=[
-                item.path for item in packet.context_bundle if item.must_read
-            ],
+            paths_read=[item.path for item in packet.context_bundle if item.must_read],
         ),
     )
 
@@ -296,6 +311,23 @@ def test_current_ui_contract_rejects_obsolete_version_and_duplicate_payload() ->
         _ui_contract_from_task_entry(
             {"ui_contract": {"fidelity_level": "high"}, "ui_fidelity_requirements": {}}
         )
+
+
+def test_ui_context_nav_exposes_the_immutable_handoff_as_a_first_class_read() -> None:
+    handoff_ref = ".specify/design/previews/round-01.handoff.json"
+    context_nav = _ui_context_nav(
+        {"ui_design_contract": {"entry_points": ["/settings"]}},
+        UIContract(
+            fidelity_level="high",
+            design_sources=["DESIGN.md"],
+            approved_handoff_ref=handoff_ref,
+        ),
+    )
+
+    assert {(item["kind"], item["value"]) for item in context_nav} >= {
+        ("design_source", "DESIGN.md"),
+        ("design_handoff", handoff_ref),
+    }
 
 
 def test_compile_worker_task_packet_rejects_malformed_canonical_task_index(
@@ -333,7 +365,9 @@ def test_compile_worker_task_packet_rejects_task_missing_from_canonical_index(
         encoding="utf-8",
     )
 
-    with pytest.raises(PacketValidationError, match="T017 is missing from canonical task-index.json"):
+    with pytest.raises(
+        PacketValidationError, match="T017 is missing from canonical task-index.json"
+    ):
         compile_worker_task_packet(
             project_root=project_root,
             feature_dir=feature_dir,
@@ -353,9 +387,9 @@ def test_compile_worker_task_packet_merges_constitution_plan_and_task_sources(
         '{"version": 1, "graph_ready": true}\n',
         encoding="utf-8",
     )
-    (project_root / ".specify" / "project-cognition" / "project-cognition.db").write_bytes(
-        b"SQLite test database marker"
-    )
+    (
+        project_root / ".specify" / "project-cognition" / "project-cognition.db"
+    ).write_bytes(b"SQLite test database marker")
     (project_root / ".specify" / "memory" / "constitution.md").write_text(
         "# Constitution\n\n- MUST add tests for public behavior\n",
         encoding="utf-8",
@@ -417,18 +451,16 @@ def test_compile_worker_task_packet_merges_constitution_plan_and_task_sources(
     assert any("public behavior" in rule.lower() for rule in packet.hard_rules)
     assert packet.scope.write_scope == ["src/services/auth_service.py"]
     assert packet.validation_gates == ["pytest tests/unit/test_auth_service.py -q"]
-    assert [item.path for item in packet.context_bundle] == [
-        ".specify/project-cognition/status.json",
-        ".specify/project-cognition/project-cognition.db",
-        "src/contracts/auth.py",
-    ]
-    assert [item.read_order for item in packet.context_bundle] == list(range(1, 4))
-    assert packet.context_bundle[0].kind == "project_cognition"
-    assert packet.context_bundle[1].kind == "project_cognition"
-    assert packet.context_bundle[-1].kind == "task_reference"
-    assert ".specify/project-cognition/status.json" in packet.scope.read_scope
-    assert ".specify/project-cognition/project-cognition.db" in packet.scope.read_scope
-    assert ".specify/project-cognition/slices/change.json" not in packet.scope.read_scope
+    assert [item.path for item in packet.context_bundle] == ["src/contracts/auth.py"]
+    assert [item.read_order for item in packet.context_bundle] == [1]
+    assert packet.context_bundle[0].kind == "task_reference"
+    assert ".specify/project-cognition/status.json" not in packet.scope.read_scope
+    assert (
+        ".specify/project-cognition/project-cognition.db" not in packet.scope.read_scope
+    )
+    assert (
+        ".specify/project-cognition/slices/change.json" not in packet.scope.read_scope
+    )
     assert ".specify/project-cognition/slices/debug.json" not in packet.scope.read_scope
     assert "PROJECT-HANDBOOK.md" not in packet.scope.read_scope
     assert packet.platform_guardrails == [
@@ -441,7 +473,9 @@ def test_compile_worker_task_packet_merges_constitution_plan_and_task_sources(
     ]
     assert packet.consequence_obligations[0].obligation_id == "CA-001"
     assert packet.consequence_obligations[0].affected_objects == ["team", "worker"]
-    assert packet.consequence_obligations[0].recovery_validation_refs == ["pytest tests/unit/test_auth_service.py -q"]
+    assert packet.consequence_obligations[0].recovery_validation_refs == [
+        "pytest tests/unit/test_auth_service.py -q"
+    ]
 
 
 def test_compile_worker_task_packet_carries_capability_operation_guards(
@@ -456,9 +490,9 @@ def test_compile_worker_task_packet_carries_capability_operation_guards(
         '{"version": 1, "graph_ready": true}\n',
         encoding="utf-8",
     )
-    (project_root / ".specify" / "project-cognition" / "project-cognition.db").write_bytes(
-        b"SQLite test database marker"
-    )
+    (
+        project_root / ".specify" / "project-cognition" / "project-cognition.db"
+    ).write_bytes(b"SQLite test database marker")
     (project_root / ".specify" / "memory" / "constitution.md").write_text(
         "# Constitution\n\n- MUST add tests for public behavior\n",
         encoding="utf-8",
@@ -522,9 +556,9 @@ def test_compile_worker_task_packet_reads_enriched_task_contract_fields(
         '{"version": 1, "graph_ready": true}\n',
         encoding="utf-8",
     )
-    (project_root / ".specify" / "project-cognition" / "project-cognition.db").write_bytes(
-        b"SQLite test database marker"
-    )
+    (
+        project_root / ".specify" / "project-cognition" / "project-cognition.db"
+    ).write_bytes(b"SQLite test database marker")
     (project_root / ".specify" / "memory" / "constitution.md").write_text(
         "# Constitution\n\n- MUST add tests for public behavior\n",
         encoding="utf-8",
@@ -585,7 +619,9 @@ def test_compile_worker_task_packet_reads_enriched_task_contract_fields(
     assert ".env" in packet.intent.constraints
     assert packet.does_not_remove == ["scaffold capability via TUI route"]
     assert packet.capability_operations == ["create/scaffold skill -> TUI route"]
-    assert packet.consumer_surfaces == ["OpenTUI Inspector renders TargetSelectionPanel"]
+    assert packet.consumer_surfaces == [
+        "OpenTUI Inspector renders TargetSelectionPanel"
+    ]
     assert packet.required_evidence == ["consumer_evidence", "real_entrypoint_evidence"]
 
 
@@ -601,9 +637,9 @@ def test_compile_worker_task_packet_compiles_review_contract_fields(
         '{"version": 1, "graph_ready": true}\n',
         encoding="utf-8",
     )
-    (project_root / ".specify" / "project-cognition" / "project-cognition.db").write_bytes(
-        b"SQLite test database marker"
-    )
+    (
+        project_root / ".specify" / "project-cognition" / "project-cognition.db"
+    ).write_bytes(b"SQLite test database marker")
     (project_root / ".specify" / "memory" / "constitution.md").write_text(
         "# Constitution\n\n- MUST add tests for public behavior\n",
         encoding="utf-8",
@@ -695,7 +731,9 @@ def test_compile_worker_task_packet_compiles_review_contract_fields(
     assert "screenshots/settings-panel.png" in packet.scope.read_scope
 
 
-def test_compile_worker_task_packet_rejects_markdown_only_ui_contract(tmp_path: Path) -> None:
+def test_compile_worker_task_packet_rejects_markdown_only_ui_contract(
+    tmp_path: Path,
+) -> None:
     project_root = tmp_path / "project"
     feature_dir = project_root / "specs" / "001-ui-feature"
     feature_dir.mkdir(parents=True)
@@ -705,10 +743,14 @@ def test_compile_worker_task_packet_rejects_markdown_only_ui_contract(tmp_path: 
         encoding="utf-8",
     )
     (project_root / "DESIGN.md").write_text("# Design\n", encoding="utf-8")
-    (feature_dir / "ui-reference-notes.md").write_text("# UI Reference Notes\n", encoding="utf-8")
+    (feature_dir / "ui-reference-notes.md").write_text(
+        "# UI Reference Notes\n", encoding="utf-8"
+    )
     (feature_dir / "ui-brief.md").write_text("# UI Brief\n", encoding="utf-8")
     (feature_dir / "ui-target.html").write_text("<!doctype html>\n", encoding="utf-8")
-    (feature_dir / "plan.md").write_text("## Required Implementation References\n\n- DESIGN.md\n", encoding="utf-8")
+    (feature_dir / "plan.md").write_text(
+        "## Required Implementation References\n\n- DESIGN.md\n", encoding="utf-8"
+    )
     (feature_dir / "tasks.md").write_text(
         "\n".join(
             [
@@ -744,12 +786,16 @@ def test_compile_worker_task_packet_rejects_markdown_only_ui_contract(tmp_path: 
         encoding="utf-8",
     )
 
-    with pytest.raises(PacketValidationError, match="no canonical task-index ui_contract"):
+    with pytest.raises(
+        PacketValidationError, match="no canonical task-index ui_contract"
+    ):
         compile_worker_task_packet(
             project_root=project_root,
             feature_dir=feature_dir,
             task_id="T021",
         )
+
+
 def test_compile_worker_task_packet_accepts_materialized_task_input(
     tmp_path: Path,
 ) -> None:
@@ -762,9 +808,9 @@ def test_compile_worker_task_packet_accepts_materialized_task_input(
         '{"version": 1, "graph_ready": true}\n',
         encoding="utf-8",
     )
-    (project_root / ".specify" / "project-cognition" / "project-cognition.db").write_bytes(
-        b"SQLite test database marker"
-    )
+    (
+        project_root / ".specify" / "project-cognition" / "project-cognition.db"
+    ).write_bytes(b"SQLite test database marker")
     (project_root / ".specify" / "memory" / "constitution.md").write_text(
         "# Constitution\n\n- MUST preserve the runtime contract\n",
         encoding="utf-8",
@@ -800,8 +846,58 @@ def test_compile_worker_task_packet_accepts_materialized_task_input(
     assert packet.task_id == "BLL-lane"
     assert packet.story_id == "US1"
     assert packet.scope.write_scope == ["src/bll_manager.py"]
-    assert packet.context_bundle[0].path == ".specify/project-cognition/status.json"
+    assert packet.context_bundle[0].path == "src/contracts/auth.py"
     assert packet.validation_gates == ["pytest tests/unit/test_bll_manager.py -q"]
+
+
+@pytest.mark.parametrize(
+    "scope_path",
+    [
+        ".specify/project-cognition/status.json",
+        "SPEC.md",
+        "specs/001-test-feature/plan.md",
+    ],
+)
+def test_compile_worker_task_packet_rejects_cli_owned_artifacts_in_task_scope(
+    tmp_path: Path, scope_path: str
+) -> None:
+    project_root = tmp_path / "project"
+    feature_dir = project_root / "specs" / "001-test-feature"
+    feature_dir.mkdir(parents=True)
+    memory_dir = project_root / ".specify" / "memory"
+    memory_dir.mkdir(parents=True)
+    (memory_dir / "constitution.md").write_text(
+        "# Constitution\n\n- MUST preserve runtime ownership\n",
+        encoding="utf-8",
+    )
+    (feature_dir / "task-index.json").write_text(
+        json.dumps(
+            {
+                "version": 2,
+                "status": "ready",
+                "tasks": [
+                    {
+                        "id": "T017",
+                        "objective": "Do not bypass the runtime",
+                        "expected_write_scope": ["src/service.py"],
+                        "read_scope": [scope_path],
+                        "required_refs": ["src/contracts/service.py"],
+                        "forbidden_drift": ["Preserve runtime ownership"],
+                        "acceptance": ["Runtime state stays CLI-owned"],
+                        "verification": ["pytest -q"],
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(PacketValidationError, match="CLI-owned workflow artifacts"):
+        compile_worker_task_packet(
+            project_root=project_root,
+            feature_dir=feature_dir,
+            task_id="T017",
+        )
 
 
 def test_compile_worker_task_packet_accepts_short_consequence_mapping_rows(
@@ -816,9 +912,9 @@ def test_compile_worker_task_packet_accepts_short_consequence_mapping_rows(
         '{"version": 1, "graph_ready": true}\n',
         encoding="utf-8",
     )
-    (project_root / ".specify" / "project-cognition" / "project-cognition.db").write_bytes(
-        b"SQLite test database marker"
-    )
+    (
+        project_root / ".specify" / "project-cognition" / "project-cognition.db"
+    ).write_bytes(b"SQLite test database marker")
     (project_root / ".specify" / "memory" / "constitution.md").write_text(
         "# Constitution\n\n- MUST add tests for public behavior\n",
         encoding="utf-8",
@@ -866,7 +962,9 @@ def test_compile_worker_task_packet_accepts_short_consequence_mapping_rows(
     assert obligation.obligation_id == "CA-001"
     assert obligation.claim == "CA-001 consequence obligation for T017"
     assert obligation.affected_objects == ["T017"]
-    assert obligation.recovery_validation_refs == ["pytest tests/unit/test_auth_service.py -q"]
+    assert obligation.recovery_validation_refs == [
+        "pytest tests/unit/test_auth_service.py -q"
+    ]
     assert (
         obligation.stop_and_reopen_condition
         == "No validation evidence supplied for CA-001"
@@ -885,9 +983,9 @@ def test_compile_worker_task_packet_requires_explicit_validation_gates(
         '{"version": 1, "graph_ready": true}\n',
         encoding="utf-8",
     )
-    (project_root / ".specify" / "project-cognition" / "project-cognition.db").write_bytes(
-        b"SQLite test database marker"
-    )
+    (
+        project_root / ".specify" / "project-cognition" / "project-cognition.db"
+    ).write_bytes(b"SQLite test database marker")
     (project_root / ".specify" / "memory" / "constitution.md").write_text(
         "# Constitution\n\n- MUST add tests for public behavior\n",
         encoding="utf-8",

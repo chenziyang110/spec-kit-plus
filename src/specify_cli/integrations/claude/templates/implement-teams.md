@@ -86,7 +86,7 @@ TeamCreate({
    - candidate selection in the precision escalation must satisfy facet coverage through `covered_facets`, `missing_facets`, and `match_sources`; do not trust top similarity alone
    - run `{{specify-subcmd:specify-runtime cognition query --intent implement --query-plan "<query_plan_json>" --format json}}` only for that precision escalation
    - if the precision escalation runs, include returned readiness, the task-local bundle, and only the returned `minimal_live_reads` needed for the lane
-   - include `.specify/project-cognition/status.json` and `.specify/project-cognition/project-cognition.db` as the runtime freshness/store boundary when the teammate must acknowledge the underlying cognition runtime
+   - include only the readiness, generation, and bounded refs returned by `specify-runtime cognition status|compass`; identify the underlying storage as runtime-owned without including or reading its paths
    - include compatibility/export files such as `PROJECT-HANDBOOK.md` only when the task explicitly depends on handbook/export parity, downstream compatibility, or exported handbook wording
    - for each bundled item, preserve the path or query source, why it matters, and a read order so the teammate knows which query results are primary and which compatibility/export artifacts are supplementary
 8. Convert the ready implementation slices into explicit shared tasks with `TaskCreate`.
@@ -99,7 +99,7 @@ TeamCreate({
      - required references and forbidden drift
      - deliverables
      - explicit verification command or acceptance check
-     - canonical result handoff path when the leader expects a file handoff
+     - exact inline result-submission command and runtime identifiers
      - completion protocol covering start, blocker, and final completion evidence
      - platform guardrails such as supported platforms or required conditional compilation for platform-specific code
    - use a standardized task body shape such as:
@@ -111,8 +111,7 @@ Write Set:
 - apps/local-agent/src/protocol.rs
 - apps/relay-server/src/protocol.rs
 Required References:
-- .specify/project-cognition/status.json
-- specify-runtime cognition compass intake packet with top-level `minimal_live_reads` and lane-level `first_pass_paths`
+- specify-runtime cognition status/compass responses with readiness, generation, top-level `minimal_live_reads`, and lane-level `first_pass_paths`
 - PROJECT-HANDBOOK.md (only when compatibility/export parity matters)
 Deliverables:
 - matching protocol definitions on both sides
@@ -120,7 +119,7 @@ Deliverables:
 Verification:
 - cargo test -p local-agent
 Result Handoff:
-- write the normalized result envelope to FEATURE_DIR/worker-results/T001.json when the leader requests a file handoff
+- return the normalized result envelope inline; the leader submits it with `specify-runtime implement result-merge --feature-dir FEATURE_DIR --result-json '<inline-json>'`
 Completion Protocol:
 1. SendMessage({ type: "task_started", task_id: "T001" })
 2. run the required verification
@@ -182,12 +181,12 @@ Join Point:
    - `TaskUpdate({ taskId, status: "in_progress" })`
    - `TaskUpdate({ taskId, status: "completed" })`
    - `TaskList()` and `TaskGet(taskId: "...")` to inspect team state
-   - treat `TaskUpdate({ status: "completed" })` as necessary but not sufficient when the task promised a completion handoff, verification summary, or result file
+   - treat `TaskUpdate({ status: "completed" })` as necessary but not sufficient when the task promised a completion handoff, verification summary, or CLI-owned result submission
 15. Use `SendMessage` for handoffs, blockers, dependency releases, and context acknowledgement receipts. Approve structured messages such as `context_ack`, `shutdown_request`, or `plan_approval_request` when they arrive.
    - when execution actually begins, prefer `task_started` messages with the task id and a short execution note
    - when blocked, require a `task_blocked` message naming the blocker, failed assumption, and smallest safe recovery step
    - when complete, require a `task_completed` message that includes task id, summary, verification run, files changed, and any residual concern even if the task status is already marked `completed`
-   - when a result handoff path was promised, the teammate must write that result before entering `idle`; a completion message without the promised handoff is incomplete
+   - when durable result submission was promised, the teammate must return the payload inline for `specify-runtime implement result-merge --result-json` before entering `idle`; a completion message without the promised handoff is incomplete
 16. Keep the same completion discipline as `/sp-implement`: do not cross the join point or declare completion until structured handoffs are consumed, the tracker/result state is updated, and every teammate has confirmed the required context bundle for its lane.
     - after each completed join point or ready batch, immediately re-read the shared task ledger, select the next ready batch and continue automatically
     - stop only when no ready work remains, a real blocker stops progress, or an explicit human approval gate is reached

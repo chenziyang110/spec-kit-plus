@@ -6,8 +6,11 @@
     "visual_ref": null,
     "preview_sha256": null,
     "manifest_sha256": null,
+    "handoff_ref": null,
+    "handoff_sha256": null,
     "direction_id": null,
-    "decision_ids": []
+    "decision_ids": [],
+    "handoff_contract_ids": []
   },
   "implementation": {
     "revision": null,
@@ -24,6 +27,7 @@
       "approved_target": null,
       "implementation_capture_ref": null,
       "covered_decision_ids": [],
+      "covered_handoff_contract_ids": [],
       "structural_differences": [],
       "visual_differences": [],
       "result": "pending"

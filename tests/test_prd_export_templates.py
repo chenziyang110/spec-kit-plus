@@ -103,6 +103,24 @@ EXPECTED_PRD_TEMPLATES = {
         "Unknown",
         "Fidelity Risk",
     ],
+    "export-reconstruction-appendix-template.md": [
+        "# Reconstruction Appendix",
+        "Capability Reconstruction Index",
+        "Artifact And Boundary Index",
+        "Traceability",
+    ],
+    "export-integration-contracts-template.md": [
+        "# Integration Contracts",
+        "Integration Inventory",
+        "Request, Event, Or File Contracts",
+        "Cross-Integration Invariants",
+    ],
+    "export-runtime-behaviors-template.md": [
+        "# Runtime Behaviors",
+        "Runtime Entrypoints",
+        "Lifecycle And State",
+        "Operational Failure Modes",
+    ],
 }
 
 

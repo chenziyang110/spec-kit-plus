@@ -21,11 +21,16 @@ workflow runtime before any source or test edit.
 
 Recover durable execution truth before work: CLI-owned `workflow.json`
 is the required phase gate; rich `workflow-state.md` is resume, evidence, and
-optional Analyze Gate context, while the compact execution state is the
-implementation source of truth,
-`implement-tracker.md` is compatibility state for existing hooks, and the
-leader alone owns those files plus task lifecycle acceptance. Worker results
-are evidence, never authority to mutate global state or check off a task.
+optional Analyze Gate context. Obtain compact execution state and the next task
+with `{{specify-subcmd:specify-runtime implement task-next --feature-dir <feature-dir> --format json}}`, and query extra fields with
+`specify-runtime artifact show`; never parse the full task index with an ad-hoc
+script. The compact execution state is the implementation source of truth,
+`implement-tracker.md` is a compatibility projection, and the CLI alone owns
+those files plus task lifecycle acceptance. Start with `task-start`, compile
+delegated packets with `packet-compile`, merge inline results with
+`result-merge --result-json`, and accept with `task-accept`. Never mutate
+lifecycle/tracker/task projections directly and never create
+temporary packet/result files.
 
 Honor persisted upstream routing. If `workflow-state.md` requires or is still
 running an Analyze Gate, its artifact fingerprints are stale, or task-index
@@ -66,8 +71,8 @@ Run the relevant verification as attempts inside one convergence gate for the
 integrated change-set, not once per task. On interruption, repair the runner and
 retry the same fingerprint; on a real failure, repair the implementation and
 retry after the fingerprint changes. Hand off unknown root causes to
-`$spx-debug` and stop. Update existing
-task status and let deterministic closeout create the
+`$spx-debug` and stop. Update task status through the task CLI and run
+`specify-runtime implement closeout` to transactionally create the
 preliminary `implementation-summary.md` and machine-readable
 `implementation-handoff.json` for the later system Review.
 Validate that handoff against the live Spec, Plan, and Tasks. Carry the exact
@@ -89,16 +94,17 @@ viewport/state capture loop per Txx. In a Leader-owned gate attempt, run the int
 real surface once per applicable fingerprint and record `structure_snapshot`,
 `visual_capture`, and `runtime_diagnostics` with
 `evidence_scope: integrated`; visually inspect, repair drift, and recapture in
-a new attempt inside the same gate. A passing comparison uses
-`visual-comparison-template.json` to bind approved preview/manifest digests to
-captures, cover every applicable `DS-*` decision, and preserve the task's
-tolerance and accepted deviations. Record behavior checks separately from
+a new attempt inside the same gate. For a passing comparison, call
+`specify-runtime evidence visual-compare --feature-dir <feature-dir> --task-id <Txxx> --input-json '<observed-comparison-json>' --format json` with only the observed entrypoint/revision, typed evidence refs, matrix differences, explicit verdict, and reviewer. The runtime derives the approved preview/manifest/handoff bindings, exact `DS-*`/`DH-*` coverage, tolerance, deviations, canonical report, and byte digest from the task contract. Never read the stable template or author/patch the report. Record behavior checks separately from
 visual/interaction acceptance. Missing or bootstrap design sources hand off to
 `$spx-design` and stop; unavailable comparison remains `pending-human-review`,
 never an implicit pass.
 
-After verified repository changes, carry the unchanged validation ledger,
-logical-gate count, and attempt history in `implementation-handoff.json`, then run
+After verified repository changes, call `specify-runtime implement closeout`.
+It exclusively and atomically writes `implementation-summary.md` and
+`implementation-handoff.json` with the unchanged validation ledger,
+logical-gate count, and attempt history; never author, patch, replace, or
+generically submit those files. Then run
 `{{specify-subcmd:specify-runtime cognition closeout-plan --workflow sp-implement --intent implement --format json}}`
 with explicit workflow-owned paths, fill returned agent-owned fields, and execute
 structured `update_argv`. Apply the receipt-bound finalizer gate in

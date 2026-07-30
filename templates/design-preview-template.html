@@ -22,7 +22,6 @@
       inherits: true;
       initial-value: 120deg;
     }
-
     @layer reset {
       *,
       *::before,
@@ -62,7 +61,6 @@
         padding-inline-start: 1.15rem;
       }
     }
-
     @layer tokens {
       :root {
         color-scheme: dark;
@@ -178,7 +176,6 @@
         --motion-stagger: 68ms;
       }
     }
-
     @layer base {
       body {
         min-height: 100vh;
@@ -242,7 +239,6 @@
         display: none !important;
       }
     }
-
     @layer layout {
       #design-preview {
         width: min(100% - clamp(1rem, 4vw, 4rem), var(--preview-max-width));
@@ -258,6 +254,12 @@
         padding-block-end: clamp(2rem, 6vw, 5rem);
       }
 
+      .hero > *,
+      .context-grid,
+      .context-item {
+        min-width: 0;
+      }
+
       .hero h1 {
         max-width: 13ch;
         margin-block: .55rem 1rem;
@@ -267,6 +269,7 @@
         letter-spacing: var(--heading-tracking);
         line-height: .88;
         text-wrap: balance;
+        overflow-wrap: anywhere;
       }
 
       .hero-copy {
@@ -274,6 +277,7 @@
         font-size: clamp(1rem, 1.6vw, 1.28rem);
         line-height: 1.6;
         color: var(--ink-muted);
+        overflow-wrap: anywhere;
       }
 
       .context-grid {
@@ -290,6 +294,7 @@
         display: block;
         margin-block-start: .35rem;
         font-size: .95rem;
+        overflow-wrap: anywhere;
       }
 
       .direction-shell {
@@ -439,7 +444,6 @@
         grid-template-columns: repeat(4, minmax(0, 1fr));
       }
     }
-
     @layer components {
       .token-card,
       .component-card,
@@ -1425,7 +1429,478 @@
         white-space: nowrap;
       }
     }
+    @layer components {
+      .profile-review-bar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1rem;
+        align-items: end;
+        justify-content: space-between;
+        padding: .9rem;
+        margin-block-end: .8rem;
+        border: 1px solid var(--line);
+        border-radius: var(--radius-surface);
+        background: color-mix(in oklab, var(--surface) 88%, var(--canvas));
+      }
 
+      .profile-review-bar p {
+        max-width: 68ch;
+        margin: 0;
+        color: var(--ink-muted);
+      }
+
+      .profile-review-bar > div {
+        width: 100%;
+        min-width: 0;
+      }
+
+      #profile-controls,
+      #viewport-controls {
+        display: flex;
+        width: 100%;
+        max-width: 100%;
+        overflow-x: auto;
+        overscroll-behavior-inline: contain;
+        scrollbar-width: thin;
+      }
+
+      #profile-controls button,
+      #viewport-controls button {
+        flex: 0 0 auto;
+      }
+
+      .capability-strip {
+        display: flex;
+        flex-wrap: wrap;
+        gap: .35rem;
+        margin-block-end: 1rem;
+      }
+
+      .capability-pill,
+      .state-obligation {
+        display: inline-flex;
+        align-items: center;
+        min-height: 1.9rem;
+        padding: .25rem .55rem;
+        border: 1px solid color-mix(in oklab, var(--accent) 28%, var(--line));
+        border-radius: 999px;
+        background: color-mix(in oklab, var(--accent) 8%, var(--surface));
+        color: var(--ink);
+        font: 700 .72rem/1.1 var(--font-body);
+      }
+
+      .capability-specimen-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: .8rem;
+      }
+
+      .capability-specimen {
+        min-width: 0;
+        overflow: hidden;
+        border: 1px solid var(--line);
+        border-radius: var(--radius-surface);
+        background: var(--surface);
+        box-shadow: var(--shadow-control);
+      }
+
+      .capability-specimen > header {
+        display: grid;
+        gap: .25rem;
+        min-height: 8.4rem;
+        padding: calc(.85rem * var(--density));
+        border-block-end: 1px solid var(--line);
+      }
+
+      .capability-specimen h3,
+      .capability-specimen p {
+        margin: 0;
+      }
+
+      .capability-specimen p {
+        color: var(--ink-muted);
+        font-size: .82rem;
+      }
+
+      .specimen-id {
+        color: var(--accent);
+        font: 750 .68rem/1.1 ui-monospace, "Cascadia Code", Consolas, monospace;
+        letter-spacing: .04em;
+      }
+
+      .specimen-capabilities {
+        display: flex;
+        flex-wrap: wrap;
+        gap: .25rem;
+        align-self: end;
+      }
+
+      .specimen-capabilities span {
+        padding: .18rem .35rem;
+        border-radius: 3px;
+        background: var(--canvas-deep);
+        color: var(--ink-muted);
+        font: 650 .62rem/1.2 ui-monospace, "Cascadia Code", Consolas, monospace;
+      }
+
+      .specimen-canvas {
+        min-height: 17rem;
+        padding: calc(.8rem * var(--density));
+        background:
+          linear-gradient(135deg, color-mix(in oklab, var(--accent) 4%, transparent), transparent 42%),
+          var(--canvas);
+      }
+
+      .specimen-canvas button,
+      .specimen-canvas input {
+        font: inherit;
+      }
+
+      .specimen-toolbar,
+      .specimen-status,
+      .specimen-actions,
+      .specimen-bottom-nav {
+        display: flex;
+        flex-wrap: wrap;
+        gap: .4rem;
+        align-items: center;
+        justify-content: space-between;
+      }
+
+      .specimen-toolbar,
+      .specimen-status {
+        padding: .55rem;
+        border: 1px solid var(--line);
+        background: var(--surface);
+      }
+
+      .specimen-action {
+        min-height: 2.2rem;
+        padding: .45rem .7rem;
+        border: 1px solid var(--line);
+        border-radius: var(--radius-control);
+        background: var(--surface-raised);
+        color: var(--ink);
+        box-shadow: var(--shadow-control);
+        font-weight: 720;
+      }
+
+      .specimen-action.primary {
+        border-color: var(--accent);
+        background: var(--accent);
+        color: var(--accent-ink);
+      }
+
+      .specimen-layout {
+        display: grid;
+        grid-template-columns: minmax(5.8rem, .36fr) minmax(0, 1fr);
+        min-height: 13rem;
+        border: 1px solid var(--line);
+        border-block-start: 0;
+        background: var(--surface-raised);
+      }
+
+      .specimen-rail,
+      .specimen-pane {
+        display: grid;
+        align-content: start;
+        gap: .45rem;
+        padding: .65rem;
+      }
+
+      .specimen-rail {
+        border-inline-end: 1px solid var(--line);
+        background: color-mix(in oklab, var(--surface) 90%, var(--canvas));
+      }
+
+      .specimen-rail span,
+      .specimen-list-row,
+      .specimen-field,
+      .specimen-card {
+        padding: .5rem;
+        border: 1px solid var(--line);
+        border-radius: var(--radius-control);
+        background: var(--surface);
+      }
+
+      .specimen-rail span:first-child,
+      .specimen-list-row.is-selected {
+        border-color: var(--accent);
+        color: var(--accent);
+        font-weight: 750;
+      }
+
+      .specimen-card-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: .45rem;
+      }
+
+      .specimen-field {
+        display: grid;
+        gap: .3rem;
+        color: var(--ink-muted);
+        font-size: .76rem;
+      }
+
+      .specimen-field input {
+        width: 100%;
+        min-height: 2.15rem;
+        padding: .4rem;
+        border: 1px solid var(--line);
+        border-radius: calc(var(--radius-control) * .75);
+        background: var(--surface-raised);
+        color: var(--ink);
+      }
+
+      .mobile-device {
+        width: min(100%, 15rem);
+        min-height: 16rem;
+        margin-inline: auto;
+        overflow: hidden;
+        border: 5px solid var(--ink);
+        border-radius: max(1.2rem, var(--radius-surface));
+        background: var(--surface-raised);
+        box-shadow: var(--shadow);
+      }
+
+      .mobile-safe-area {
+        height: .75rem;
+        background: var(--ink);
+      }
+
+      .mobile-content {
+        display: grid;
+        gap: .55rem;
+        padding: .7rem;
+      }
+
+      .mobile-content .specimen-action {
+        min-height: 2.75rem;
+      }
+
+      .mobile-keyboard {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        gap: .18rem;
+        padding: .45rem;
+        background: var(--canvas-deep);
+      }
+
+      .mobile-keyboard span {
+        min-height: 1.25rem;
+        border-radius: 3px;
+        background: var(--surface);
+        box-shadow: 0 1px 0 var(--line);
+      }
+
+      .desktop-frame {
+        min-height: 15rem;
+        overflow: hidden;
+        border: 1px solid var(--line);
+        border-radius: max(6px, var(--radius-surface));
+        background: var(--surface-raised);
+        box-shadow: var(--shadow);
+      }
+
+      .desktop-titlebar {
+        display: flex;
+        gap: .35rem;
+        align-items: center;
+        padding: .45rem .6rem;
+        border-block-end: 1px solid var(--line);
+        background: var(--surface);
+      }
+
+      .desktop-titlebar i {
+        width: .65rem;
+        height: .65rem;
+        border-radius: 50%;
+        background: var(--line);
+      }
+
+      .desktop-titlebar strong {
+        margin-inline: auto;
+        font-size: .72rem;
+      }
+
+      .desktop-panes {
+        display: grid;
+        grid-template-columns: .7fr 1.15fr 1.5fr;
+        min-height: 12rem;
+      }
+
+      .desktop-panes > div {
+        padding: .55rem;
+        border-inline-end: 1px solid var(--line);
+      }
+
+      .command-palette {
+        width: min(92%, 23rem);
+        margin: 1rem auto;
+        padding: .55rem;
+        border: 1px solid var(--accent);
+        border-radius: var(--radius-surface);
+        background: var(--surface-raised);
+        box-shadow: var(--shadow);
+      }
+
+      .command-row {
+        display: flex;
+        justify-content: space-between;
+        gap: .5rem;
+        padding: .45rem;
+        border-radius: var(--radius-control);
+      }
+
+      .command-row.is-selected {
+        background: var(--accent);
+        color: var(--accent-ink);
+      }
+
+      .terminal-frame {
+        min-height: 15rem;
+        overflow: hidden;
+        border: 1px solid color-mix(in oklab, var(--ink) 28%, var(--line));
+        border-radius: max(4px, var(--radius-surface));
+        background: #101417;
+        color: #e9f1f2;
+        box-shadow: var(--shadow);
+        font: 500 .76rem/1.5 ui-monospace, "Cascadia Code", Consolas, monospace;
+      }
+
+      .terminal-titlebar {
+        padding: .35rem .55rem;
+        border-block-end: 1px solid #364247;
+        background: #1b2327;
+        color: #aebdc2;
+      }
+
+      .terminal-body {
+        display: grid;
+        gap: .2rem;
+        padding: .65rem;
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+      }
+
+      .terminal-prompt { color: #79e6b4; }
+      .terminal-info { color: #7fc8ff; }
+      .terminal-warning { color: #ffd27a; }
+      .terminal-error { color: #ff9b9b; }
+      .terminal-dim { color: #91a1a6; }
+
+      .tui-grid {
+        display: grid;
+        grid-template-columns: .8fr 1.35fr;
+        min-height: 12rem;
+        border-block: 1px solid #627077;
+      }
+
+      .tui-grid > div {
+        padding: .45rem;
+        border-inline-end: 1px solid #627077;
+      }
+
+      .tui-focus {
+        background: #e9f1f2;
+        color: #101417;
+      }
+
+      .editorial-sheet {
+        width: min(100%, 34rem);
+        margin-inline: auto;
+        padding: 1rem;
+        border: 1px solid var(--line);
+        background: var(--surface-raised);
+        box-shadow: var(--shadow-control);
+      }
+
+      .editorial-sheet h4 {
+        max-width: 18ch;
+        margin: 0 0 .5rem;
+        font: 800 clamp(1.3rem, 4vw, 2rem)/1 var(--font-display);
+        letter-spacing: var(--heading-tracking);
+      }
+
+      .editorial-deck {
+        max-width: 48ch;
+        color: var(--ink-muted);
+        font-size: .9rem;
+      }
+
+      .editorial-body {
+        max-width: 62ch;
+        font-size: .78rem;
+        line-height: 1.65;
+      }
+
+      .editorial-media {
+        display: grid;
+        min-height: 8rem;
+        place-items: center;
+        margin-block: .6rem;
+        border: 1px solid var(--line);
+        background:
+          radial-gradient(circle at 30% 30%, var(--accent), transparent 22%),
+          linear-gradient(145deg, var(--canvas-deep), var(--support));
+        color: var(--accent-ink);
+        font-weight: 800;
+      }
+
+      .capability-state-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+        gap: .55rem;
+      }
+
+      .state-obligation-card {
+        display: grid;
+        gap: .45rem;
+        padding: .7rem;
+        border: 1px solid var(--line);
+        border-radius: var(--radius-control);
+        background: var(--surface);
+      }
+
+      .state-obligation-card strong {
+        color: var(--accent);
+        font: 750 .72rem/1.2 ui-monospace, "Cascadia Code", Consolas, monospace;
+      }
+
+      #adaptive-surface {
+        display: block;
+        min-height: 21rem;
+        padding: clamp(.55rem, 2cqi, 1rem);
+      }
+
+      #adaptive-surface .specimen-canvas {
+        min-height: 19rem;
+      }
+
+      @media (max-width: 980px) {
+        .capability-specimen-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .capability-specimen > header {
+          min-height: auto;
+        }
+      }
+
+      @container surface (max-width: 680px) {
+        .specimen-layout,
+        .desktop-panes {
+          grid-template-columns: 1fr;
+        }
+
+        .specimen-rail,
+        .desktop-panes > div {
+          border-inline-end: 0;
+          border-block-end: 1px solid var(--line);
+        }
+      }
+    }
     @layer motion {
       @keyframes preview-enter {
         from {
@@ -1502,7 +1977,6 @@
         }
       }
     }
-
     @layer responsive {
       @container preview (max-width: 760px) {
         .section-heading,
@@ -1529,6 +2003,15 @@
       @media (max-width: 840px) {
         .hero {
           grid-template-columns: 1fr;
+        }
+
+        .direction-detail {
+          grid-template-columns: 1fr;
+        }
+
+        .direction-detail > * {
+          min-width: 0;
+          overflow-wrap: anywhere;
         }
 
         .direction-shell {
@@ -1636,10 +2119,10 @@
           </button>
         </div>
       </div>
-      <div class="review-bar" aria-label="Preview controls">
+      <div class="review-bar" role="group" aria-label="Preview controls">
         <div class="control-group">
           <span class="control-group-label">Mode</span>
-          <div class="segmented-control" id="mode-controls">
+          <div class="segmented-control" id="mode-controls" role="group" aria-label="Color mode">
             <button type="button" data-display-mode="light" aria-pressed="true">Light</button>
             <button type="button" data-display-mode="dark" aria-pressed="false">Dark</button>
             <button type="button" data-display-mode="high-contrast" aria-pressed="false">Contrast</button>
@@ -1647,7 +2130,7 @@
         </div>
         <div class="control-group">
           <span class="control-group-label">Motion</span>
-          <div class="segmented-control" id="motion-controls">
+          <div class="segmented-control" id="motion-controls" role="group" aria-label="Motion mode">
             <button type="button" data-motion-profile="full" aria-pressed="true">Full</button>
             <button type="button" data-motion-profile="reduced" aria-pressed="false">Reduced</button>
             <button type="button" data-motion-profile="none" aria-pressed="false">None</button>
@@ -1796,6 +2279,7 @@
       </section>
 
       <section
+        id="components"
         class="board-section"
         data-preview-section="components"
         style="--section-index: 1"
@@ -1803,147 +2287,22 @@
         <div class="section-heading">
           <div>
             <p class="eyebrow">02 · Components</p>
-            <h2>System specimen</h2>
+            <h2>Capability specimens</h2>
           </div>
           <p>
-            A stable, project-neutral component set makes the three directions
-            comparable and exposes whether a visual idea survives real controls.
+            The selected project profiles determine which comparable specimens
+            appear. HTML is the review carrier; the target surface owns the rules.
           </p>
         </div>
-        <div class="component-stage">
-          <nav class="sample-nav" aria-label="Example navigation">
-            <div class="sample-brand">
-              <span class="brand-mark" aria-hidden="true">S</span>
-              <span data-bind="project.short_name">Project</span>
-            </div>
-            <div class="sample-nav-items">
-              <a href="#components" aria-current="page">Overview</a>
-              <a href="#states">Activity</a>
-              <a href="#handoff">Settings</a>
-            </div>
-            <button class="button button-primary" type="button">Primary action</button>
-          </nav>
-
-          <div class="grid-2">
-            <article class="component-card">
-              <h3>Actions</h3>
-              <div class="button-row">
-                <button class="button button-primary" type="button">Continue</button>
-                <button class="button" type="button">Secondary</button>
-                <button class="button button-quiet" type="button">Quiet action</button>
-                <button class="button icon-button" type="button" aria-label="More options">•••</button>
-              </div>
-            </article>
-
-            <article class="component-card">
-              <h3>Inputs</h3>
-              <div class="field-grid">
-                <label class="field">
-                  <span data-bind="content.primary_field_label">Primary field</span>
-                  <input value="Representative value" data-bind-value="content.primary_field_value">
-                </label>
-                <label class="field">
-                  <span data-bind="content.select_label">Status</span>
-                  <select aria-label="Representative status">
-                    <option data-bind="content.select_option_primary">Active</option>
-                    <option data-bind="content.select_option_secondary">Paused</option>
-                  </select>
-                </label>
-              </div>
-            </article>
-
-            <article class="component-card">
-              <h3>Choice controls</h3>
-              <div class="component-subgrid">
-                <label class="choice-control">
-                  <input type="checkbox" checked>
-                  <span data-bind="content.checkbox_label">Include updates</span>
-                </label>
-                <label class="choice-control">
-                  <input type="radio" name="sample-choice" checked>
-                  <span data-bind="content.radio_label">Recommended</span>
-                </label>
-                <label class="choice-control">
-                  <input class="screen-reader-live" type="checkbox" checked>
-                  <span class="switch-control" aria-hidden="true"></span>
-                  <span data-bind="content.switch_label">Live sync</span>
-                </label>
-                <label class="field">
-                  <span data-bind="content.notes_label">Notes</span>
-                  <textarea rows="2" data-bind="content.notes_value">Representative detail</textarea>
-                </label>
-              </div>
-            </article>
-
-            <article class="component-card">
-              <h3>Navigation controls</h3>
-              <div class="tabs" role="tablist" aria-label="Example content tabs">
-                <button class="tab" type="button" role="tab" aria-selected="true">Details</button>
-                <button class="tab" type="button" role="tab" aria-selected="false">History</button>
-                <button class="tab" type="button" role="tab" aria-selected="false">Access</button>
-              </div>
-              <div class="chip-row" style="margin-block-start: .8rem">
-                <span class="chip">Filter</span>
-                <span class="chip">Assigned</span>
-                <span class="badge">Live</span>
-              </div>
-            </article>
-
-            <article class="component-card">
-              <h3>Feedback</h3>
-              <div class="alert" role="status">
-                <span class="status-icon" aria-hidden="true">!</span>
-                <div>
-                  <strong>Review requested</strong>
-                  <span>One decision needs attention before handoff.</span>
-                </div>
-                <button class="button button-quiet" type="button">Review</button>
-              </div>
-            </article>
-
-            <article class="component-card">
-              <h3>Validation and progress</h3>
-              <label class="field">
-                <span>Error message</span>
-                <input value="Needs a valid value" aria-invalid="true">
-              </label>
-              <div class="status-line" role="status" aria-busy="true" style="margin-block-start: .75rem">
-                <span class="status-icon" aria-hidden="true">↻</span>
-                <span data-bind="content.loading_label">Updating representative data</span>
-              </div>
-            </article>
+        <div class="profile-review-bar">
+          <div>
+            <span class="control-group-label">Target profile</span>
+            <div class="segmented-control" id="profile-controls" role="group" aria-label="Target profile"></div>
           </div>
-
-          <div class="data-list" aria-label="Example list">
-            <div class="data-row">
-              <span class="avatar">AK</span>
-              <div>
-                <div class="row-title">Design system foundations</div>
-                <div class="row-meta">Updated 12 minutes ago</div>
-              </div>
-              <span class="row-meta">3 reviewers</span>
-              <span class="badge">Ready</span>
-            </div>
-            <div class="data-row">
-              <span class="avatar">ML</span>
-              <div>
-                <div class="row-title">Component state inventory</div>
-                <div class="row-meta">Updated yesterday</div>
-              </div>
-              <span class="row-meta">8 comments</span>
-              <span class="chip">Draft</span>
-            </div>
-            <div class="data-row">
-              <span class="avatar">RS</span>
-              <div>
-                <div class="row-title">Motion and reduced-motion rules</div>
-                <div class="row-meta">Updated Monday</div>
-              </div>
-              <span class="row-meta">No blockers</span>
-              <span class="badge">Approved</span>
-            </div>
-          </div>
+          <p id="profile-summary">Capability profile summary</p>
         </div>
+        <div class="capability-strip" id="capability-strip" aria-label="Required capabilities"></div>
+        <div class="capability-specimen-grid" id="capability-specimen-grid"></div>
       </section>
 
       <section
@@ -1955,60 +2314,14 @@
         <div class="section-heading">
           <div>
             <p class="eyebrow">03 · States</p>
-            <h2>Behavior made visible</h2>
+            <h2>Profile state obligations</h2>
           </div>
           <p>
-            Default styling is insufficient handoff evidence. Focus, loading,
-            disabled, success, empty, and error treatments are visible together.
+            State coverage is derived from the active profile instead of assuming
+            browser hover, form controls, or responsive pixels apply everywhere.
           </p>
         </div>
-        <div class="state-grid" aria-label="Button state matrix">
-          <div class="state-cell">
-            <span>Default</span>
-            <button class="button button-primary" type="button">Action</button>
-          </div>
-          <div class="state-cell">
-            <span>Hover</span>
-            <button class="button button-primary is-hovered" type="button">Action</button>
-          </div>
-          <div class="state-cell">
-            <span>Focus</span>
-            <button class="button button-primary" type="button" style="outline: 3px solid color-mix(in oklab, var(--accent) 72%, white); outline-offset: 3px">Action</button>
-          </div>
-          <div class="state-cell">
-            <span>Pressed</span>
-            <button class="button button-primary is-pressed" type="button">Action</button>
-          </div>
-          <div class="state-cell">
-            <span>Loading</span>
-            <button class="button button-primary is-loading" type="button">Saving</button>
-          </div>
-          <div class="state-cell">
-            <span>Disabled</span>
-            <button class="button button-primary" type="button" disabled>Action</button>
-          </div>
-        </div>
-
-        <div class="grid-3" style="margin-block-start: 1rem">
-          <div class="status-stack">
-            <div class="status-line">
-              <span class="status-icon" aria-hidden="true">✓</span>
-              <span>Saved successfully</span>
-            </div>
-          </div>
-          <div class="status-stack">
-            <div class="status-line status-empty">
-              <span class="status-icon" aria-hidden="true">○</span>
-              <span>No results yet</span>
-            </div>
-          </div>
-          <div class="status-stack">
-            <div class="status-line status-error">
-              <span class="status-icon" aria-hidden="true">!</span>
-              <span>Connection failed · Retry</span>
-            </div>
-          </div>
-        </div>
+        <div class="capability-state-grid" id="capability-state-grid"></div>
       </section>
 
       <section
@@ -2068,50 +2381,25 @@
         <div class="section-heading">
           <div>
             <p class="eyebrow">05 · Responsive</p>
-            <h2>One hierarchy, live widths</h2>
+            <h2>Presentation targets</h2>
           </div>
           <p>
-            Resize the actual specimen. Priority survives while navigation,
-            density, and content flow adapt at real container boundaries.
+            Targets retain their production unit—pixel, point, or terminal cell—
+            while the HTML carrier uses a declared review width for comparison.
           </p>
         </div>
         <div class="viewport-toolbar">
           <div class="control-group">
-            <span class="control-group-label">Viewport</span>
-            <div class="segmented-control" id="viewport-controls">
-              <button type="button" data-viewport-width="320" aria-pressed="false">320</button>
-              <button type="button" data-viewport-width="390" aria-pressed="false">390</button>
-              <button type="button" data-viewport-width="768" aria-pressed="false">768</button>
+            <span class="control-group-label">Profile target</span>
+            <div class="segmented-control" id="viewport-controls" role="group" aria-label="Presentation target">
               <button type="button" data-viewport-width="1024" aria-pressed="true">1024</button>
-              <button type="button" data-viewport-width="1440" aria-pressed="false">1440</button>
             </div>
           </div>
-          <span class="mono" id="viewport-readout">1024px container</span>
+          <span class="mono" id="viewport-readout">Target loading</span>
         </div>
         <div class="viewport-simulator">
           <article class="simulated-viewport" id="simulated-viewport" style="--simulated-width: 1024px">
-            <div class="surface-shell">
-              <nav class="surface-nav" aria-label="Responsive specimen navigation">
-                <strong data-bind="project.short_name">Project</strong>
-                <div>Overview</div>
-                <div>Activity</div>
-                <div>Settings</div>
-              </nav>
-              <div class="surface-main">
-                <div class="surface-actions">
-                  <div>
-                    <p class="eyebrow" data-bind="content.surface_eyebrow">Current priority</p>
-                    <h3 data-bind="content.surface_title">Work that needs attention</h3>
-                  </div>
-                  <button class="button button-primary" type="button" data-bind="content.primary_action">Continue</button>
-                </div>
-                <div class="surface-content-grid">
-                  <article class="mini-card"><span class="badge" data-bind="content.card_one">Priority</span></article>
-                  <article class="mini-card"><span class="chip" data-bind="content.card_two">In review</span></article>
-                  <article class="mini-card"><span class="chip" data-bind="content.card_three">Scheduled</span></article>
-                </div>
-              </div>
-            </div>
+            <div class="surface-shell" id="adaptive-surface"></div>
           </article>
         </div>
       </section>
@@ -2162,6 +2450,39 @@
           </table>
         </div>
 
+        <div class="token-card" style="margin-block-start: 1rem; overflow-x: auto">
+          <h3>1:1 reproduction contract</h3>
+          <p id="reproduction-policy"></p>
+          <table class="token-map">
+            <thead>
+              <tr>
+                <th>Contract</th>
+                <th>Component</th>
+                <th>Anatomy</th>
+                <th>Required states</th>
+                <th>Must match</th>
+              </tr>
+            </thead>
+            <tbody id="component-contract-body"></tbody>
+          </table>
+        </div>
+
+        <div class="token-card" style="margin-block-start: 1rem; overflow-x: auto">
+          <h3>Responsive and visual acceptance matrix</h3>
+          <table class="token-map">
+            <thead>
+              <tr>
+                <th>Contract</th>
+                <th>Target</th>
+                <th>States / modes</th>
+                <th>Covered decisions</th>
+                <th>Required evidence</th>
+              </tr>
+            </thead>
+            <tbody id="acceptance-contract-body"></tbody>
+          </table>
+        </div>
+
         <p class="artifact-note">
           This board is project-level design approval evidence. It does not replace
           the feature-level <span class="mono">ui-target.html</span>, real-entrypoint
@@ -2188,6 +2509,64 @@
     "platforms": ["__PRIMARY_PLATFORM__"],
     "modules": ["core", "__PRIMARY_SURFACE_MODULE__"]
   },
+  "capability_model": {
+    "schema": "spec-kit-design-capability-model-v1",
+    "profile_ids": ["web"],
+    "profiles": [
+      {
+        "id": "web",
+        "label": "Web application",
+        "summary": "Responsive browser surfaces with pointer, keyboard, forms, navigation, and asynchronous feedback.",
+        "input_modes": ["pointer", "keyboard"],
+        "measurement_units": ["px"]
+      }
+    ],
+    "capability_ids": [
+      "layout.responsive",
+      "navigation.hierarchical",
+      "input.pointer",
+      "input.keyboard",
+      "controls.form",
+      "feedback.async",
+      "state.interactive",
+      "color.modes",
+      "motion.adaptive"
+    ],
+    "input_modes": ["pointer", "keyboard"],
+    "measurement_units": ["px"],
+    "specimens": [
+      {
+        "id": "SP-WEB-WORKSPACE-001",
+        "profile_id": "web",
+        "kind": "web-workspace",
+        "title": "Responsive application workspace",
+        "purpose": "Prove hierarchy, navigation, primary action, and responsive reflow with representative content.",
+        "capability_ids": ["layout.responsive", "navigation.hierarchical", "input.pointer", "input.keyboard"],
+        "required_states": ["default", "focus", "loading", "empty", "error"],
+        "content_keys": ["surface_eyebrow", "surface_title", "primary_action", "card_one", "card_two", "card_three"]
+      },
+      {
+        "id": "SP-WEB-CONTROLS-001",
+        "profile_id": "web",
+        "kind": "web-controls",
+        "title": "Forms and action hierarchy",
+        "purpose": "Prove labels, control anatomy, focus, validation, disabled behavior, and action priority.",
+        "capability_ids": ["controls.form", "input.pointer", "input.keyboard", "state.interactive"],
+        "required_states": ["default", "hover", "focus", "disabled", "loading", "error"],
+        "content_keys": ["primary_field_label", "primary_field_value", "select_label", "select_option_primary", "select_option_secondary", "primary_action"]
+      },
+      {
+        "id": "SP-WEB-COLLECTION-001",
+        "profile_id": "web",
+        "kind": "web-collection",
+        "title": "Collection and asynchronous feedback",
+        "purpose": "Prove real data volume, status language, empty/error recovery, and progressive updates.",
+        "capability_ids": ["feedback.async", "state.interactive", "color.modes", "motion.adaptive"],
+        "required_states": ["default", "loading", "empty", "error"],
+        "content_keys": ["collection_title", "collection_meta", "loading_label", "success_label", "error_label"]
+      }
+    ]
+  },
   "review": {
     "round": "__ROUND_NUMBER__",
     "status": "scaffold",
@@ -2210,7 +2589,34 @@
     "primary_action": "__PRIMARY_ACTION_LABEL__",
     "card_one": "__CARD_ONE_LABEL__",
     "card_two": "__CARD_TWO_LABEL__",
-    "card_three": "__CARD_THREE_LABEL__"
+    "card_three": "__CARD_THREE_LABEL__",
+    "collection_title": "__COLLECTION_TITLE__",
+    "collection_meta": "__COLLECTION_META__",
+    "success_label": "__SUCCESS_LABEL__",
+    "empty_label": "__EMPTY_LABEL__",
+    "error_label": "__ERROR_LABEL__",
+    "secondary_action": "__SECONDARY_ACTION_LABEL__",
+    "command_label": "__COMMAND_LABEL__",
+    "command_hint": "__COMMAND_HINT__",
+    "command_name": "__COMMAND_NAME__",
+    "command_summary": "__COMMAND_SUMMARY__",
+    "command_example": "__COMMAND_EXAMPLE__",
+    "recovery_hint": "__RECOVERY_HINT__",
+    "cancel_label": "__CANCEL_LABEL__",
+    "piped_output": "__PIPED_OUTPUT__",
+    "detail_title": "__DETAIL_TITLE__",
+    "detail_body": "__DETAIL_BODY__",
+    "article_title": "__ARTICLE_TITLE__",
+    "article_deck": "__ARTICLE_DECK__",
+    "article_body": "__ARTICLE_BODY__",
+    "link_label": "__LINK_LABEL__",
+    "media_alt": "__MEDIA_ALT__",
+    "media_caption": "__MEDIA_CAPTION__",
+    "media_credit": "__MEDIA_CREDIT__",
+    "localized_heading": "__LOCALIZED_HEADING__",
+    "localized_body": "__LOCALIZED_BODY__",
+    "callout_label": "__CALLOUT_LABEL__",
+    "footnote_label": "__FOOTNOTE_LABEL__"
   },
   "directions": [
     {
@@ -2222,6 +2628,7 @@
       "signature_element": "__DIRECTION_A_SIGNATURE__",
       "gain": "__DIRECTION_A_GAIN__",
       "cost": "__DIRECTION_A_COST__",
+      "specimen_ids": ["SP-WEB-WORKSPACE-001", "SP-WEB-CONTROLS-001", "SP-WEB-COLLECTION-001"],
       "typography": {
         "display": "\"Arial Narrow\", \"Aptos Display\", \"Segoe UI\", sans-serif",
         "body": "\"Aptos\", \"Segoe UI\", sans-serif",
@@ -2233,7 +2640,8 @@
       },
       "density": {
         "space_unit": "4px",
-        "label": "compact"
+        "label": "compact",
+        "scale": 0.88
       },
       "elevation": {
         "surface": "0 18px 55px rgb(49 42 28 / 12%)",
@@ -2303,6 +2711,7 @@
       "signature_element": "__DIRECTION_B_SIGNATURE__",
       "gain": "__DIRECTION_B_GAIN__",
       "cost": "__DIRECTION_B_COST__",
+      "specimen_ids": ["SP-WEB-WORKSPACE-001", "SP-WEB-CONTROLS-001", "SP-WEB-COLLECTION-001"],
       "typography": {
         "display": "\"Bahnschrift\", \"Aptos Display\", \"Segoe UI\", sans-serif",
         "body": "\"Aptos\", \"Segoe UI\", sans-serif",
@@ -2314,7 +2723,8 @@
       },
       "density": {
         "space_unit": "5px",
-        "label": "balanced"
+        "label": "balanced",
+        "scale": 1
       },
       "elevation": {
         "surface": "0 30px 80px rgb(0 0 0 / 22%)",
@@ -2384,6 +2794,7 @@
       "signature_element": "__DIRECTION_C_SIGNATURE__",
       "gain": "__DIRECTION_C_GAIN__",
       "cost": "__DIRECTION_C_COST__",
+      "specimen_ids": ["SP-WEB-WORKSPACE-001", "SP-WEB-CONTROLS-001", "SP-WEB-COLLECTION-001"],
       "typography": {
         "display": "Georgia, \"Times New Roman\", serif",
         "body": "\"Trebuchet MS\", \"Aptos\", sans-serif",
@@ -2395,7 +2806,8 @@
       },
       "density": {
         "space_unit": "6px",
-        "label": "generous"
+        "label": "generous",
+        "scale": 1.08
       },
       "elevation": {
         "surface": "0 24px 70px rgb(91 53 75 / 14%)",
@@ -2479,65 +2891,226 @@
       "id": "DS-COLOR-001",
       "kind": "color",
       "title": "Semantic color roles and accessible foreground pairs",
+      "statement": "__DS_COLOR_STATEMENT__",
+      "source_ref": "__DS_COLOR_SOURCE_REF__",
+      "affected_surfaces": ["__PRIMARY_SURFACE_MODULE__"],
       "verification": "computed style, contrast report, and visual capture"
     },
     {
       "id": "DS-TYPE-001",
       "kind": "typography",
       "title": "Display and body hierarchy",
+      "statement": "__DS_TYPE_STATEMENT__",
+      "source_ref": "__DS_TYPE_SOURCE_REF__",
+      "affected_surfaces": ["__PRIMARY_SURFACE_MODULE__"],
       "verification": "resolved font evidence and visual capture"
     },
     {
       "id": "DS-SPACE-001",
       "kind": "spacing",
       "title": "Density and spacing rhythm",
+      "statement": "__DS_SPACE_STATEMENT__",
+      "source_ref": "__DS_SPACE_SOURCE_REF__",
+      "affected_surfaces": ["__PRIMARY_SURFACE_MODULE__"],
       "verification": "computed token export and viewport capture"
     },
     {
       "id": "DS-COMP-001",
       "kind": "component",
       "title": "Control anatomy and required state language",
+      "statement": "__DS_COMPONENT_STATEMENT__",
+      "source_ref": "__DS_COMPONENT_SOURCE_REF__",
+      "affected_surfaces": ["__PRIMARY_SURFACE_MODULE__"],
       "verification": "state matrix and structure snapshot"
     },
     {
       "id": "DS-MOTION-001",
       "kind": "motion",
       "title": "Entrance, feedback, transition, and reduced-motion behavior",
+      "statement": "__DS_MOTION_STATEMENT__",
+      "source_ref": "__DS_MOTION_SOURCE_REF__",
+      "affected_surfaces": ["__PRIMARY_SURFACE_MODULE__"],
       "verification": "runtime capture and reduced-motion check"
     },
     {
       "id": "DS-RESP-001",
       "kind": "responsive",
       "title": "Navigation, density, and hierarchy adaptation",
+      "statement": "__DS_RESPONSIVE_STATEMENT__",
+      "source_ref": "__DS_RESPONSIVE_SOURCE_REF__",
+      "affected_surfaces": ["__PRIMARY_SURFACE_MODULE__"],
       "verification": "viewport and state matrix"
     },
     {
       "id": "DS-CONTENT-001",
       "kind": "content",
       "title": "Representative product content and visible data volume",
+      "statement": "__DS_CONTENT_STATEMENT__",
+      "source_ref": "__DS_CONTENT_SOURCE_REF__",
+      "affected_surfaces": ["__PRIMARY_SURFACE_MODULE__"],
       "verification": "content source evidence and visual capture"
     }
   ],
   "token_map": [
     {
+      "id": "DH-BIND-COLOR-001",
       "decision_id": "DS-COLOR-001",
+      "source_path": "direction.modes.light.accent",
       "preview_token": "--accent",
       "production_owner": "__PRIMARY_ACTION_OWNER__",
+      "production_target": "__PRIMARY_ACTION_TARGET__",
       "verification": "computed style + contrast report + visual capture"
     },
     {
+      "id": "DH-BIND-TYPE-001",
+      "decision_id": "DS-TYPE-001",
+      "source_path": "direction.typography",
+      "preview_token": "--font-display",
+      "production_owner": "__SURFACE_TOKEN_OWNER__",
+      "production_target": "__TYPOGRAPHY_TOKEN_TARGET__",
+      "verification": "resolved font evidence + visual capture"
+    },
+    {
+      "id": "DH-BIND-SPACE-001",
+      "decision_id": "DS-SPACE-001",
+      "source_path": "direction.density",
+      "preview_token": "--space-unit / --density",
+      "production_owner": "__SURFACE_TOKEN_OWNER__",
+      "production_target": "__SPACING_TOKEN_TARGET__",
+      "verification": "computed token export + viewport capture"
+    },
+    {
+      "id": "DH-BIND-COMP-001",
       "decision_id": "DS-COMP-001",
+      "source_path": "direction.geometry",
       "preview_token": "--radius-surface",
       "production_owner": "__SURFACE_TOKEN_OWNER__",
+      "production_target": "__COMPONENT_TOKEN_TARGET__",
       "verification": "token export + structure snapshot + visual capture"
     },
     {
+      "id": "DH-BIND-MOTION-001",
       "decision_id": "DS-MOTION-001",
+      "source_path": "direction.motion",
       "preview_token": "--motion-easing-emphasized",
       "production_owner": "__MOTION_TOKEN_OWNER__",
+      "production_target": "__MOTION_TOKEN_TARGET__",
       "verification": "runtime capture + reduced-motion check"
+    },
+    {
+      "id": "DH-BIND-RESP-001",
+      "decision_id": "DS-RESP-001",
+      "source_path": "reproduction.responsive_matrix",
+      "preview_token": "responsive.viewport-matrix",
+      "production_owner": "__SURFACE_TOKEN_OWNER__",
+      "production_target": "__RESPONSIVE_RULE_TARGET__",
+      "verification": "viewport structure + visual capture"
+    },
+    {
+      "id": "DH-BIND-CONTENT-001",
+      "decision_id": "DS-CONTENT-001",
+      "source_path": "content",
+      "preview_token": "content.representative-fixture",
+      "production_owner": "__SURFACE_TOKEN_OWNER__",
+      "production_target": "__CONTENT_FIXTURE_TARGET__",
+      "verification": "content evidence + visual capture"
     }
-  ]
+  ],
+  "handoff": {
+    "reproduction_mode": "exact",
+    "component_contracts": [
+      {
+        "id": "DH-COMP-WEB-001",
+        "component": "Web interaction system",
+        "anatomy": [
+          "navigation and page hierarchy",
+          "form and action controls",
+          "collection and feedback states"
+        ],
+        "required_states": ["default", "hover", "focus", "disabled", "loading", "empty", "error"],
+        "decision_ids": ["DS-COMP-001", "DS-TYPE-001", "DS-SPACE-001"],
+        "must_match": ["anatomy", "hierarchy", "state language", "token bindings", "focus order"]
+      }
+    ],
+    "responsive_matrix": [
+      {
+        "id": "DH-RESP-WEB-COMPACT-001",
+        "profile_id": "web",
+        "label": "compact web",
+        "target": {"width": 390, "height": 844, "unit": "px"},
+        "review_width_px": 390,
+        "state": "default",
+        "adaptation": "__COMPACT_ADAPTATION__",
+        "decision_ids": ["DS-RESP-001", "DS-SPACE-001", "DS-COMP-001"]
+      },
+      {
+        "id": "DH-RESP-WEB-REGULAR-001",
+        "profile_id": "web",
+        "label": "regular web",
+        "target": {"width": 1024, "height": 768, "unit": "px"},
+        "review_width_px": 1024,
+        "state": "default",
+        "adaptation": "__REGULAR_ADAPTATION__",
+        "decision_ids": ["DS-RESP-001", "DS-SPACE-001", "DS-COMP-001"]
+      },
+      {
+        "id": "DH-RESP-WEB-WIDE-001",
+        "profile_id": "web",
+        "label": "wide web",
+        "target": {"width": 1440, "height": 900, "unit": "px"},
+        "review_width_px": 1440,
+        "state": "default",
+        "adaptation": "__WIDE_ADAPTATION__",
+        "decision_ids": ["DS-RESP-001", "DS-SPACE-001", "DS-COMP-001"]
+      }
+    ],
+    "visual_acceptance_matrix": [
+      {
+        "id": "DH-VA-WEB-COMPACT-001",
+        "target_id": "DH-RESP-WEB-COMPACT-001",
+        "specimen_ids": ["SP-WEB-WORKSPACE-001", "SP-WEB-CONTROLS-001", "SP-WEB-COLLECTION-001"],
+        "states": ["default", "hover", "focus", "disabled", "loading", "empty", "error"],
+        "color_modes": ["light", "dark", "high-contrast"],
+        "motion_modes": ["full", "reduced"],
+        "decision_ids": ["DS-COLOR-001", "DS-TYPE-001", "DS-SPACE-001", "DS-COMP-001", "DS-CONTENT-001"],
+        "must_match": ["structure", "geometry", "tokens", "content", "state"],
+        "evidence": ["structure_snapshot", "visual_capture", "runtime_diagnostics", "visual_comparison_or_human_review"]
+      },
+      {
+        "id": "DH-VA-WEB-REGULAR-001",
+        "target_id": "DH-RESP-WEB-REGULAR-001",
+        "specimen_ids": ["SP-WEB-WORKSPACE-001", "SP-WEB-CONTROLS-001", "SP-WEB-COLLECTION-001"],
+        "states": ["default", "loading", "error"],
+        "color_modes": ["light", "dark", "high-contrast"],
+        "motion_modes": ["full", "reduced"],
+        "decision_ids": ["DS-COLOR-001", "DS-TYPE-001", "DS-SPACE-001", "DS-COMP-001", "DS-MOTION-001", "DS-RESP-001", "DS-CONTENT-001"],
+        "must_match": ["structure", "geometry", "tokens", "content", "state", "motion"],
+        "evidence": ["structure_snapshot", "visual_capture", "runtime_diagnostics", "visual_comparison_or_human_review"]
+      },
+      {
+        "id": "DH-VA-WEB-WIDE-001",
+        "target_id": "DH-RESP-WEB-WIDE-001",
+        "specimen_ids": ["SP-WEB-WORKSPACE-001", "SP-WEB-CONTROLS-001", "SP-WEB-COLLECTION-001"],
+        "states": ["default", "loading"],
+        "color_modes": ["light", "dark", "high-contrast"],
+        "motion_modes": ["full", "reduced"],
+        "decision_ids": ["DS-MOTION-001", "DS-RESP-001"],
+        "must_match": ["structure", "geometry", "tokens", "motion"],
+        "evidence": ["structure_snapshot", "visual_capture", "runtime_diagnostics", "visual_comparison_or_human_review"]
+      }
+    ],
+    "comparison_tolerance": {
+      "structure": "exact",
+      "content": "exact",
+      "tokens": "exact",
+      "geometry": {"unit": "px", "max_delta": 2},
+      "color": {"method": "delta-e-2000", "max_delta": 2},
+      "text_wrap": "exact",
+      "motion": {"unit": "ms", "max_delta": 16},
+      "platform_variance": "approved-deviation-only"
+    },
+    "accepted_deviations": []
+  }
 }
   </script>
 
@@ -2559,6 +3132,12 @@
       const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
       const query = new URLSearchParams(location.search);
       const manifest = JSON.parse(manifestNode.textContent);
+      const capabilityModel = manifest.capability_model;
+      const profileContracts = new Map(
+        capabilityModel.profiles.map((profile) => [profile.id, profile]),
+      );
+      let activeProfileId = capabilityModel.profile_ids[0];
+      let activeTargetId = "";
       const directions = new Map(
         manifest.directions.map((direction) => [direction.id, direction]),
       );
@@ -2624,12 +3203,66 @@
                 ?? "Design decision"
               }`,
               entry.preview_token,
-              entry.production_owner,
+              `${entry.production_owner} · ${entry.production_target}`,
               entry.verification,
             ].forEach((value, index) => {
               const cell = document.createElement("td");
               cell.textContent = value;
               if (index === 1) cell.className = "mono";
+              row.append(cell);
+            });
+            return row;
+          }),
+        );
+
+        const handoff = manifest.handoff;
+        const tolerance = handoff.comparison_tolerance;
+        document.querySelector("#reproduction-policy").textContent =
+          `${handoff.reproduction_mode} reproduction · exact structure/content/tokens · `
+          + `geometry ±${tolerance.geometry.max_delta}${tolerance.geometry.unit} · `
+          + `color ΔE ${tolerance.color.max_delta} · `
+          + `motion ±${tolerance.motion.max_delta}${tolerance.motion.unit} · `
+          + `${tolerance.platform_variance}`;
+
+        document.querySelector("#component-contract-body").replaceChildren(
+          ...handoff.component_contracts.map((entry) => {
+            const row = document.createElement("tr");
+            [
+              entry.id,
+              entry.component,
+              entry.anatomy.join(" · "),
+              entry.required_states.join(" · "),
+              entry.must_match.join(" · "),
+            ].forEach((value, index) => {
+              const cell = document.createElement("td");
+              cell.textContent = value;
+              if (index === 0) cell.className = "mono";
+              row.append(cell);
+            });
+            return row;
+          }),
+        );
+
+        const responsiveById = new Map(
+          handoff.responsive_matrix.map((entry) => [entry.id, entry]),
+        );
+        document.querySelector("#acceptance-contract-body").replaceChildren(
+          ...handoff.visual_acceptance_matrix.map((entry) => {
+            const target = responsiveById.get(entry.target_id);
+            const frame = target?.target;
+            const row = document.createElement("tr");
+            [
+              entry.id,
+              target
+                ? `${target.profile_id} · ${target.label} · ${frame.width}×${frame.height}${frame.unit} · ${target.adaptation}`
+                : entry.target_id,
+              `${entry.specimen_ids.join(" · ")} / ${entry.states.join(" · ")} / ${entry.color_modes.join(" · ")} / ${entry.motion_modes.join(" · ")}`,
+              entry.decision_ids.join(" · "),
+              entry.evidence.join(" · "),
+            ].forEach((value, index) => {
+              const cell = document.createElement("td");
+              cell.textContent = value;
+              if (index === 0 || index === 3) cell.className = "mono";
               row.append(cell);
             });
             return row;
@@ -2697,6 +3330,518 @@
         );
       };
 
+      const element = (tag, className = "", text = "") => {
+        const node = document.createElement(tag);
+        if (className) node.className = className;
+        if (text) node.textContent = text;
+        return node;
+      };
+
+      const contentValue = (key, fallback) => {
+        const value = manifest.content[key];
+        return typeof value === "string" && value ? value : fallback;
+      };
+
+      const action = (label, primary = false) => {
+        const node = element(
+          "button",
+          `specimen-action${primary ? " primary" : ""}`,
+          label,
+        );
+        node.type = "button";
+        return node;
+      };
+
+      const field = (label, value) => {
+        const wrapper = element("label", "specimen-field");
+        wrapper.append(element("span", "", label));
+        const input = document.createElement("input");
+        input.value = value;
+        wrapper.append(input);
+        return wrapper;
+      };
+
+      const renderWebSpecimen = (kind) => {
+        const canvas = element("div", `specimen-canvas ${kind}`);
+        if (kind === "web-controls") {
+          const form = element("div", "specimen-pane");
+          form.append(
+            field(
+              contentValue("primary_field_label", "Primary field"),
+              contentValue("primary_field_value", "Representative value"),
+            ),
+            field(
+              contentValue("select_label", "Status"),
+              contentValue("select_option_primary", "Active"),
+            ),
+          );
+          const actions = element("div", "specimen-actions");
+          actions.append(
+            action(contentValue("primary_action", "Continue"), true),
+            action(contentValue("secondary_action", "Cancel")),
+          );
+          const error = element(
+            "div",
+            "specimen-status",
+            contentValue("error_label", "A valid value is required"),
+          );
+          form.append(actions, error);
+          canvas.append(form);
+          return canvas;
+        }
+        if (kind === "web-collection") {
+          const toolbar = element("div", "specimen-toolbar");
+          toolbar.append(
+            element(
+              "strong",
+              "",
+              contentValue("collection_title", "Representative collection"),
+            ),
+            element(
+              "span",
+              "",
+              contentValue("collection_meta", "3 items · updated now"),
+            ),
+          );
+          const list = element("div", "specimen-pane");
+          [
+            [contentValue("card_one", "Priority"), contentValue("success_label", "Ready")],
+            [contentValue("card_two", "In review"), contentValue("loading_label", "Updating")],
+            [contentValue("card_three", "Scheduled"), contentValue("error_label", "Needs attention")],
+          ].forEach(([title, status], index) => {
+            const row = element(
+              "div",
+              `specimen-list-row${index === 0 ? " is-selected" : ""}`,
+            );
+            row.append(element("strong", "", title), element("span", "", status));
+            list.append(row);
+          });
+          canvas.append(toolbar, list);
+          return canvas;
+        }
+        const toolbar = element("div", "specimen-toolbar");
+        toolbar.append(
+          element("strong", "", manifest.project.short_name),
+          action(contentValue("primary_action", "Continue"), true),
+        );
+        const layout = element("div", "specimen-layout");
+        const rail = element("nav", "specimen-rail");
+        ["Overview", "Activity", "Settings"].forEach((label) => {
+          rail.append(element("span", "", label));
+        });
+        const pane = element("div", "specimen-pane");
+        pane.append(
+          element(
+            "span",
+            "specimen-id",
+            contentValue("surface_eyebrow", "Current priority"),
+          ),
+          element(
+            "h4",
+            "",
+            contentValue("surface_title", "Work that needs attention"),
+          ),
+        );
+        const cards = element("div", "specimen-card-grid");
+        ["card_one", "card_two", "card_three"].forEach((key) => {
+          cards.append(element("div", "specimen-card", contentValue(key, key)));
+        });
+        pane.append(cards);
+        layout.append(rail, pane);
+        canvas.append(toolbar, layout);
+        return canvas;
+      };
+
+      const renderMobileSpecimen = (kind) => {
+        const canvas = element("div", `specimen-canvas ${kind}`);
+        const device = element("div", "mobile-device");
+        device.append(element("div", "mobile-safe-area"));
+        const mobile = element("div", "mobile-content");
+        mobile.append(
+          element("span", "specimen-id", manifest.project.short_name),
+          element(
+            "h4",
+            "",
+            kind === "mobile-system"
+              ? contentValue("loading_label", "Updating your workspace")
+              : contentValue("surface_title", "Complete the primary task"),
+          ),
+        );
+        if (kind === "mobile-input") {
+          mobile.append(
+            field(
+              contentValue("primary_field_label", "Primary field"),
+              contentValue("primary_field_value", "Representative value"),
+            ),
+            field(
+              contentValue("notes_label", "Notes"),
+              contentValue("notes_value", "Representative detail"),
+            ),
+            action(contentValue("primary_action", "Continue"), true),
+          );
+          const keyboard = element("div", "mobile-keyboard");
+          Array.from({ length: 21 }).forEach(() => keyboard.append(element("span")));
+          device.append(mobile, keyboard);
+          canvas.append(device);
+          return canvas;
+        }
+        if (kind === "mobile-system") {
+          ["success_label", "empty_label", "error_label"].forEach((key) => {
+            mobile.append(
+              element("div", "specimen-status", contentValue(key, key.replace("_", " "))),
+            );
+          });
+          mobile.append(action(contentValue("recovery_hint", "Retry safely"), true));
+        } else {
+          ["card_one", "card_two"].forEach((key, index) => {
+            const card = element("div", `specimen-card${index === 0 ? " is-selected" : ""}`);
+            card.textContent = contentValue(key, key);
+            mobile.append(card);
+          });
+          mobile.append(action(contentValue("primary_action", "Continue"), true));
+          const bottom = element("div", "specimen-bottom-nav");
+          ["Home", "Activity", "Profile"].forEach((label) => {
+            bottom.append(element("span", "", label));
+          });
+          mobile.append(bottom);
+        }
+        device.append(mobile);
+        canvas.append(device);
+        return canvas;
+      };
+
+      const renderDesktopSpecimen = (kind) => {
+        const canvas = element("div", `specimen-canvas ${kind}`);
+        const frame = element("div", "desktop-frame");
+        const titlebar = element("div", "desktop-titlebar");
+        titlebar.append(element("i"), element("i"), element("i"));
+        titlebar.append(element("strong", "", manifest.project.short_name));
+        frame.append(titlebar);
+        const toolbar = element("div", "specimen-toolbar");
+        toolbar.append(
+          element("span", "", "File  Edit  View  Window"),
+          action(contentValue("primary_action", "Run"), true),
+        );
+        frame.append(toolbar);
+        if (kind === "desktop-command") {
+          const palette = element("div", "command-palette");
+          palette.append(
+            field(
+              contentValue("command_label", "Find a command"),
+              contentValue("command_hint", "Type to filter actions"),
+            ),
+          );
+          ["Open recent", "Move to project", "Run primary action"].forEach(
+            (label, index) => {
+              const row = element(
+                "div",
+                `command-row${index === 0 ? " is-selected" : ""}`,
+              );
+              row.append(element("span", "", label), element("kbd", "", `⌘${index + 1}`));
+              palette.append(row);
+            },
+          );
+          frame.append(palette);
+        } else {
+          const panes = element("div", "desktop-panes");
+          const labels = kind === "desktop-multipane"
+            ? [
+                contentValue("collection_title", "Collection"),
+                contentValue("collection_meta", "Selected item"),
+                contentValue("detail_body", "Detailed representative content"),
+              ]
+            : ["Navigation", contentValue("surface_title", "Workspace"), "Inspector"];
+          labels.forEach((label, index) => {
+            const pane = element("div", "specimen-pane");
+            pane.append(
+              element("strong", "", label),
+              element("span", "", index === 1 ? contentValue("detail_title", "Active detail") : "Context"),
+            );
+            panes.append(pane);
+          });
+          frame.append(panes);
+        }
+        canvas.append(frame);
+        return canvas;
+      };
+
+      const terminalFrame = (title, lines, tui = false) => {
+        const frame = element("div", "terminal-frame");
+        frame.append(element("div", "terminal-titlebar", title));
+        if (tui) {
+          const grid = element("div", "tui-grid");
+          const list = element("div", "terminal-body");
+          const detail = element("div", "terminal-body");
+          lines.slice(0, 3).forEach((line, index) => {
+            list.append(element("span", index === 0 ? "tui-focus" : "", line));
+          });
+          lines.slice(3).forEach((line) => detail.append(element("span", "", line)));
+          grid.append(list, detail);
+          frame.append(grid);
+          return frame;
+        }
+        const body = element("div", "terminal-body");
+        lines.forEach(([className, text]) => body.append(element("span", className, text)));
+        frame.append(body);
+        return frame;
+      };
+
+      const renderCliSpecimen = (kind) => {
+        const canvas = element("div", `specimen-canvas ${kind}`);
+        const command = contentValue("command_name", manifest.project.short_name.toLowerCase());
+        let lines;
+        if (kind === "cli-outcomes") {
+          lines = [
+            ["terminal-prompt", `$ ${command} run`],
+            ["terminal-info", `✓ ${contentValue("success_label", "Completed successfully")}`],
+            ["terminal-warning", `! ${contentValue("recovery_hint", "Fix the value and retry")}`],
+            ["terminal-error", `× ${contentValue("error_label", "Command failed")}`],
+            ["terminal-dim", "exit 2 · diagnostics remain actionable without color"],
+          ];
+        } else if (kind === "cli-progress") {
+          lines = [
+            ["terminal-prompt", `$ ${command} sync`],
+            ["terminal-info", `[██████████░░░░░] 67% ${contentValue("loading_label", "Updating")}`],
+            ["terminal-warning", `Ctrl+C · ${contentValue("cancel_label", "Cancel safely")}`],
+            ["terminal-dim", `piped: ${contentValue("piped_output", "stable machine-readable output")}`],
+          ];
+        } else {
+          lines = [
+            ["terminal-prompt", `$ ${command} --help`],
+            ["", contentValue("command_summary", "Complete the primary project task")],
+            ["terminal-info", "USAGE"],
+            ["", `  ${contentValue("command_example", `${command} run [OPTIONS]`)}`],
+            ["terminal-info", "OPTIONS"],
+            ["", "  --format <text|json>   Stable output contract"],
+            ["", "  --no-color             Text-equivalent presentation"],
+          ];
+        }
+        canvas.append(terminalFrame(`${command} · ${kind.replace("cli-", "")}`, lines));
+        return canvas;
+      };
+
+      const renderTuiSpecimen = (kind) => {
+        const canvas = element("div", `specimen-canvas ${kind}`);
+        const lines = kind === "tui-focus"
+          ? [
+              "> Active item", "  Queued item", "  Disabled item",
+              contentValue("command_hint", "↑↓ move · Enter select"),
+              contentValue("error_label", "Errors retain focus and recovery"),
+            ]
+          : kind === "tui-overlay"
+            ? [
+                "> Command palette", "  Continue", "  Cancel",
+                contentValue("loading_label", "Working…"),
+                contentValue("recovery_hint", "Esc restores prior focus"),
+              ]
+            : [
+                "> Overview", "  Activity", "  Settings",
+                contentValue("collection_title", "Cell-grid workspace"),
+                contentValue("collection_meta", "F1 help · q quit"),
+              ];
+        canvas.append(terminalFrame(`${manifest.project.short_name} · 80×24`, lines, true));
+        return canvas;
+      };
+
+      const renderContentSpecimen = (kind) => {
+        const canvas = element("div", `specimen-canvas ${kind}`);
+        const sheet = element("article", "editorial-sheet");
+        if (kind === "content-media") {
+          sheet.append(
+            element("h4", "", contentValue("article_title", "Meaningful media")),
+            element("div", "editorial-media", contentValue("media_alt", "Representative visual")),
+            element("p", "editorial-deck", contentValue("media_caption", "Caption explains why the media matters.")),
+            element("small", "", contentValue("media_credit", "Source and attribution")),
+          );
+        } else if (kind === "content-flow") {
+          sheet.append(
+            element("h4", "", contentValue("localized_heading", "Expanded localized heading")),
+            element("p", "editorial-body", contentValue("localized_body", "Representative expanded copy proves that hierarchy and measure survive localization.")),
+            element("div", "specimen-status", contentValue("callout_label", "Important contextual callout")),
+            element("small", "", contentValue("footnote_label", "1. Print-safe footnote and reference")),
+          );
+        } else {
+          const continuation = element(
+            "a",
+            "",
+            contentValue("link_label", "Continue reading"),
+          );
+          continuation.href = "#handoff";
+          sheet.append(
+            element("span", "specimen-id", manifest.project.short_name),
+            element("h4", "", contentValue("article_title", "A clear editorial point of view")),
+            element("p", "editorial-deck", contentValue("article_deck", "The deck sets context and earns the reader's next minute.")),
+            element("p", "editorial-body", contentValue("article_body", "Representative long-form content demonstrates line length, rhythm, hierarchy, links, and scanning behavior rather than relying on lorem ipsum.")),
+            continuation,
+          );
+        }
+        canvas.append(sheet);
+        return canvas;
+      };
+
+      const renderSpecimenCanvas = (specimen) => {
+        if (specimen.kind.startsWith("web-")) return renderWebSpecimen(specimen.kind);
+        if (specimen.kind.startsWith("mobile-")) return renderMobileSpecimen(specimen.kind);
+        if (specimen.kind.startsWith("desktop-")) return renderDesktopSpecimen(specimen.kind);
+        if (specimen.kind.startsWith("cli-")) return renderCliSpecimen(specimen.kind);
+        if (specimen.kind.startsWith("tui-")) return renderTuiSpecimen(specimen.kind);
+        if (specimen.kind.startsWith("content-")) return renderContentSpecimen(specimen.kind);
+        return element("div", "specimen-canvas", specimen.purpose);
+      };
+
+      const renderSpecimenCard = (specimen) => {
+        const card = element("article", "capability-specimen");
+        card.dataset.profileId = specimen.profile_id;
+        card.dataset.specimenId = specimen.id;
+        const header = element("header");
+        header.append(
+          element("span", "specimen-id", specimen.id),
+          element("h3", "", specimen.title),
+          element("p", "", specimen.purpose),
+        );
+        const capabilities = element("div", "specimen-capabilities");
+        specimen.capability_ids.forEach((capability) => {
+          capabilities.append(element("span", "", capability));
+        });
+        header.append(capabilities);
+        card.append(header, renderSpecimenCanvas(specimen));
+        return card;
+      };
+
+      const renderProfileStates = (profileId) => {
+        const container = document.querySelector("#capability-state-grid");
+        const specimens = capabilityModel.specimens.filter(
+          (specimen) => specimen.profile_id === profileId,
+        );
+        container.replaceChildren(
+          ...specimens.map((specimen) => {
+            const card = element("article", "state-obligation-card");
+            card.append(element("strong", "", specimen.id));
+            const states = element("div", "specimen-capabilities");
+            specimen.required_states.forEach((state) => {
+              states.append(element("span", "state-obligation", state));
+            });
+            card.append(states);
+            return card;
+          }),
+        );
+      };
+
+      const setPresentationTarget = (targetId) => {
+        const target = manifest.handoff.responsive_matrix.find(
+          (candidate) => candidate.id === targetId,
+        );
+        if (!target) return;
+        activeTargetId = target.id;
+        const frame = target.target;
+        const simulated = document.querySelector("#simulated-viewport");
+        simulated.style.setProperty("--simulated-width", `${target.review_width_px}px`);
+        simulated.dataset.targetId = target.id;
+        const specimen = capabilityModel.specimens.find(
+          (candidate) => candidate.profile_id === target.profile_id,
+        );
+        const adaptiveSurface = document.querySelector("#adaptive-surface");
+        if (specimen) adaptiveSurface.replaceChildren(renderSpecimenCanvas(specimen));
+        document.querySelector("#viewport-readout").textContent =
+          `${target.label} · ${frame.width}×${frame.height} ${frame.unit} · `
+          + `${target.review_width_px}px review carrier`;
+        document.querySelectorAll("[data-target-id]").forEach((control) => {
+          control.setAttribute("aria-pressed", String(control.dataset.targetId === target.id));
+        });
+      };
+
+      const renderPresentationTargets = (profileId) => {
+        const targets = manifest.handoff.responsive_matrix.filter(
+          (target) => target.profile_id === profileId,
+        );
+        const controls = document.querySelector("#viewport-controls");
+        controls.replaceChildren(
+          ...targets.map((target) => {
+            const frame = target.target;
+            const button = element(
+              "button",
+              "",
+              `${target.label} · ${frame.width}×${frame.height}${frame.unit}`,
+            );
+            button.type = "button";
+            button.dataset.targetId = target.id;
+            button.dataset.viewportWidth = String(target.review_width_px);
+            button.setAttribute("aria-pressed", "false");
+            button.addEventListener("click", () => setPresentationTarget(target.id));
+            return button;
+          }),
+        );
+        const requestedTarget = query.get("target");
+        const requestedViewport = Number(query.get("viewport"));
+        const initial = targets.find((target) => target.id === requestedTarget)
+          ?? targets.find((target) => target.review_width_px === requestedViewport)
+          ?? targets[0];
+        if (initial) setPresentationTarget(initial.id);
+      };
+
+      const setActiveProfile = (profileId, { updateQuery = true } = {}) => {
+        if (!capabilityModel.profile_ids.includes(profileId)) return;
+        activeProfileId = profileId;
+        document.body.dataset.activeProfile = profileId;
+        document.querySelectorAll("[data-profile-control]").forEach((control) => {
+          control.setAttribute(
+            "aria-pressed",
+            String(control.dataset.profileControl === profileId),
+          );
+        });
+        document.querySelectorAll("[data-profile-id]").forEach((node) => {
+          node.hidden = node.dataset.profileId !== profileId;
+        });
+        const profile = profileContracts.get(profileId);
+        document.querySelector("#profile-summary").textContent =
+          `${profile.summary} Inputs: ${profile.input_modes.join(", ")}. `
+          + `Units: ${profile.measurement_units.join(", ")}.`;
+        const profileCapabilities = new Set(
+          capabilityModel.specimens
+            .filter((specimen) => specimen.profile_id === profileId)
+            .flatMap((specimen) => specimen.capability_ids),
+        );
+        document.querySelector("#capability-strip").replaceChildren(
+          ...[...profileCapabilities].map((capability) =>
+            element("span", "capability-pill", capability)),
+        );
+        renderProfileStates(profileId);
+        renderPresentationTargets(profileId);
+        if (updateQuery) {
+          const url = new URL(location.href);
+          url.searchParams.set("profile", profileId);
+          history.replaceState(null, "", url);
+        }
+      };
+
+      const renderCapabilityBoard = () => {
+        const controls = document.querySelector("#profile-controls");
+        controls.replaceChildren(
+          ...capabilityModel.profile_ids.map((profileId) => {
+            const button = element(
+              "button",
+              "",
+              profileContracts.get(profileId)?.label ?? profileId,
+            );
+            button.type = "button";
+            button.dataset.profileControl = profileId;
+            button.setAttribute("aria-pressed", "false");
+            button.addEventListener("click", () => setActiveProfile(profileId));
+            return button;
+          }),
+        );
+        document.querySelector("#capability-specimen-grid").replaceChildren(
+          ...capabilityModel.specimens.map(renderSpecimenCard),
+        );
+        const requested = query.get("profile");
+        setActiveProfile(
+          capabilityModel.profile_ids.includes(requested)
+            ? requested
+            : capabilityModel.profile_ids[0],
+          { updateQuery: false },
+        );
+      };
+
       const luminance = (hex) => {
         const channels = hex
           .slice(1)
@@ -2748,6 +3893,7 @@
         document.body.style.setProperty("--radius-control", direction.geometry.radius_control);
         document.body.style.setProperty("--radius-surface", direction.geometry.radius_surface);
         document.body.style.setProperty("--space-unit", direction.density.space_unit);
+        document.body.style.setProperty("--density", String(direction.density.scale));
         document.body.style.setProperty("--shadow", direction.elevation.surface);
         document.body.style.setProperty("--shadow-control", direction.elevation.control);
         document.body.style.setProperty("--motion-duration-fast", direction.motion.duration_fast);
@@ -2842,10 +3988,19 @@
       };
 
       const setDisplayMode = (mode) => {
-        if (!["light", "dark", "high-contrast"].includes(mode)) return;
-        document.body.dataset.displayMode = mode;
+        const carrierMode = {
+          color: "dark",
+          "no-color": "high-contrast",
+          monochrome: "high-contrast",
+        }[mode] ?? mode;
+        if (!["light", "dark", "high-contrast"].includes(carrierMode)) return;
+        document.body.dataset.displayMode = carrierMode;
+        document.body.dataset.targetColorMode = mode;
         document.querySelectorAll("[data-display-mode]").forEach((control) => {
-          control.setAttribute("aria-pressed", String(control.dataset.displayMode === mode));
+          control.setAttribute(
+            "aria-pressed",
+            String(control.dataset.displayMode === carrierMode),
+          );
         });
         const activeTab = directionTabs.find((tab) => tab.getAttribute("aria-selected") === "true");
         applyDirectionTokens(directions.get(activeTab.dataset.directionId));
@@ -2864,17 +4019,12 @@
       const setViewport = (width) => {
         const numericWidth = Number(width);
         if (!Number.isFinite(numericWidth)) return;
-        document.querySelector("#simulated-viewport").style.setProperty(
-          "--simulated-width",
-          `${numericWidth}px`,
+        const target = manifest.handoff.responsive_matrix.find(
+          (candidate) =>
+            candidate.profile_id === activeProfileId
+            && candidate.review_width_px === numericWidth,
         );
-        document.querySelector("#viewport-readout").textContent = `${numericWidth}px container`;
-        document.querySelectorAll("[data-viewport-width]").forEach((control) => {
-          control.setAttribute(
-            "aria-pressed",
-            String(Number(control.dataset.viewportWidth) === numericWidth),
-          );
-        });
+        if (target) setPresentationTarget(target.id);
       };
 
       const toggleComparison = () => {
@@ -2916,7 +4066,12 @@
       replayButton.addEventListener("click", replayMotion);
       comparisonButton.addEventListener("click", toggleComparison);
       copyReferenceButton.addEventListener("click", async () => {
-        const reference = `${location.pathname.split("/").pop()}#${preview.dataset.activeDirection}`;
+        const referenceUrl = new URL(location.href);
+        referenceUrl.search = "";
+        referenceUrl.searchParams.set("profile", activeProfileId);
+        referenceUrl.searchParams.set("target", activeTargetId);
+        referenceUrl.hash = preview.dataset.activeDirection;
+        const reference = `${location.pathname.split("/").pop()}${referenceUrl.search}${referenceUrl.hash}`;
         try {
           await navigator.clipboard.writeText(reference);
           copyReferenceButton.textContent = "Reference copied";
@@ -2930,17 +4085,18 @@
 
       bindManifest();
       renderDirectionTabs();
+      renderCapabilityBoard();
       renderHandoff();
       reviewStatus.textContent = preview.dataset.previewStatus === "approved"
         ? `Approved · ${preview.dataset.approvedDirection}`
         : preview.dataset.previewStatus;
       const requestedMode = query.get("mode") ?? "light";
       const requestedMotion = query.get("motion") ?? (reducedMotion.matches ? "reduced" : "full");
-      const requestedViewport = query.get("viewport") ?? "1024";
+      const requestedViewport = query.get("viewport");
       document.body.dataset.captureMode = String(query.get("capture") === "1");
       setDisplayMode(requestedMode);
       setMotionProfile(requestedMotion);
-      setViewport(requestedViewport);
+      if (requestedViewport) setViewport(requestedViewport);
       if (query.get("compare") === "1") toggleComparison();
       selectDirectionFromHash();
       updateMotionPreference();

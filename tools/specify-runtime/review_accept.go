@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -34,6 +35,7 @@ const (
 
 var (
 	reviewExceptionIDRE                = regexp.MustCompile(`^REX-[0-9a-f]{12}$`)
+	reviewSHA256RE                     = regexp.MustCompile(`^[0-9a-f]{64}$`)
 	reviewExceptionConfirmationSources = map[string]bool{
 		"human-reply": true, "interactive-input": true, "attached-evidence": true,
 	}
@@ -74,17 +76,9 @@ func runReview(args []string, stdout io.Writer) int {
 	case "validate":
 		env = service.validateReviewEnvelope(optionValue(args, "--feature-dir", ""))
 	case "exception-propose":
-		input := strings.TrimSpace(optionValue(args, "--input", ""))
-		if input == "" {
-			return writeEnvelope(stdout, usageEnvelope("review exception-propose requires --input"))
-		}
-		inputPath, err := resolveProjectContainedPath(service.projectRoot, input)
+		proposal, err := readAgentJSONObject(args, service.projectRoot, "review exception-propose")
 		if err != nil {
-			return writeEnvelope(stdout, usageEnvelope("review exception input path is invalid: "+err.Error()))
-		}
-		proposal, err := readJSONObject(inputPath)
-		if err != nil {
-			return writeEnvelope(stdout, blockedEnvelope("review exception proposal is unreadable", err.Error()))
+			return writeEnvelope(stdout, usageEnvelope(err.Error()))
 		}
 		env = service.proposeReviewException(optionValue(args, "--feature-dir", ""), proposal)
 	case "exception-confirm":
@@ -95,6 +89,12 @@ func runReview(args []string, stdout io.Writer) int {
 			optionValue(args, "--confirmation-source", ""),
 			optionValue(args, "--statement", ""),
 		)
+	case "target-bind":
+		target, err := readAgentJSONObject(args, service.projectRoot, "review target-bind")
+		if err != nil {
+			return writeEnvelope(stdout, usageEnvelope(err.Error()))
+		}
+		env = service.bindReviewRuntimeTarget(optionValue(args, "--feature-dir", ""), target)
 	case "closeout":
 		expected, ok := intOption(args, "--expected-revision")
 		if !ok {
@@ -197,15 +197,12 @@ func (service reviewAcceptService) prepareReview(featureDir string, expectedRevi
 	if err != nil {
 		return blockedEnvelope("implementation handoff is unavailable", err.Error())
 	}
+	if err := validateCanonicalImplementationHandoff(root, feature.abs, handoff); err != nil {
+		return blockedEnvelope("implementation handoff contract is invalid", err.Error())
+	}
 	fingerprint := stringField(handoff, "implementation_fingerprint")
-	if fingerprint == "" {
-		fingerprint = stringField(handoff, "implementation_snapshot_sha256")
-	}
-	if fingerprint == "" {
-		fingerprint = stringField(handoff, "fingerprint")
-	}
-	if fingerprint == "" {
-		fingerprint = sourceTreeFingerprint(root, feature.abs)
+	if fingerprint != sourceTreeFingerprint(root, feature.abs) {
+		return blockedEnvelope("implementation handoff fingerprint is stale", "implementation-handoff.json does not describe the current Git working tree")
 	}
 	statePath := filepath.Join(feature.abs, reviewStateFilename)
 	release, lockEnv, locked := acquireReviewAcceptLock(filepath.Join(feature.abs, ".review-state.lock"))
@@ -304,6 +301,483 @@ func preparedReviewEnvelope(featureRel string, state map[string]any, summary str
 	return env
 }
 
+var reviewRuntimeTargetIDRE = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$`)
+
+var reviewRuntimeTargetInputFields = map[string]bool{
+	"id": true, "mode": true, "entrypoint_id": true,
+	"environment_ref": true, "instance_ref": true, "configuration_ref": true,
+	"artifact_ref": true, "artifact_sha256": true, "deployment_id": true,
+	"observed_version": true, "test_data_refs": true,
+	"ready_evidence_refs": true, "review_scenario_ids": true,
+}
+
+var reviewRuntimeTargetContractFields = map[string]bool{
+	"id": true, "mode": true, "status": true, "entrypoint_id": true,
+	"environment_ref": true, "instance_ref": true, "configuration_ref": true,
+	"reviewed_snapshot_sha256": true, "artifact_ref": true, "artifact_sha256": true,
+	"deployment_id": true, "observed_version": true, "test_data_refs": true,
+	"ready_evidence_refs": true, "review_scenario_ids": true,
+	"identity_evidence_ref": true, "identity_evidence_sha256": true,
+}
+
+var reviewRuntimeTargetBaseFields = []string{
+	"id", "mode", "status", "entrypoint_id", "environment_ref", "instance_ref",
+	"configuration_ref", "reviewed_snapshot_sha256", "artifact_ref", "artifact_sha256",
+	"deployment_id", "observed_version", "test_data_refs", "ready_evidence_refs",
+	"review_scenario_ids",
+}
+
+func (service reviewAcceptService) bindReviewRuntimeTarget(featureDir string, raw map[string]any) Envelope {
+	root, feature, env, ok := service.resolveFeature(featureDir)
+	if !ok {
+		return env
+	}
+	workflow := NewWorkflowService(root).Show(WorkflowShowRequest{FeatureDir: feature.rel})
+	if workflow.Status != "ok" || stringField(workflow.Data, "stage") != "review" || stringField(workflow.Data, "status") != "active" {
+		return blockedEnvelope("review target binding requires active Review", "workflow stage must be active review")
+	}
+	release, lockEnv, locked := acquireReviewAcceptLock(filepath.Join(feature.abs, ".review-state.lock"))
+	if !locked {
+		return lockEnv
+	}
+	defer release()
+
+	statePath := filepath.Join(feature.abs, reviewStateFilename)
+	state, err := readJSONObject(statePath)
+	if err != nil {
+		return blockedEnvelope("review state is unavailable", err.Error())
+	}
+	if stringField(state, "status") == "approved" {
+		return blockedEnvelope("approved Review targets are immutable", "reopen or restart Review before changing runtime targets")
+	}
+	fingerprint := sourceTreeFingerprint(root, feature.abs)
+	source, _ := state["source"].(map[string]any)
+	if source == nil || stringField(source, "implementation_fingerprint") != fingerprint {
+		return blockedEnvelope("review runtime target binding is stale", "restart Review against the current implementation snapshot before binding targets")
+	}
+	target, err := normalizeReviewRuntimeTarget(feature, state, raw, fingerprint)
+	if err != nil {
+		return blockedEnvelope("review runtime target is invalid", err.Error())
+	}
+	cycle := intField(source, "review_cycle")
+	if cycle < 1 {
+		return blockedEnvelope("review runtime target is invalid", "review source review_cycle must be a positive integer")
+	}
+	identityRef := reviewRuntimeTargetIdentityRef(stringField(target, "id"), cycle)
+	identity := reviewRuntimeIdentityClaim(target)
+	identityRaw, err := marshalReviewAcceptJSON(identity)
+	if err != nil {
+		return errorEnvelope("review runtime target identity cannot be rendered", err)
+	}
+	target["identity_evidence_ref"] = identityRef
+	target["identity_evidence_sha256"] = fileContentSHA256(identityRaw)
+
+	targets, _ := state["reviewed_runtime_targets"].([]any)
+	updated := make([]any, 0, len(targets)+1)
+	replaced := false
+	for _, value := range targets {
+		existing, ok := value.(map[string]any)
+		if ok && stringField(existing, "id") == stringField(target, "id") {
+			updated = append(updated, target)
+			replaced = true
+			continue
+		}
+		updated = append(updated, cloneAny(value))
+	}
+	if !replaced {
+		updated = append(updated, target)
+	}
+	state["reviewed_runtime_targets"] = updated
+	final, _ := state["final"].(map[string]any)
+	if final == nil {
+		final = map[string]any{}
+		state["final"] = final
+	}
+	final["reviewed_snapshot_sha256"] = fingerprint
+	final["runtime_targets_sha256"] = reviewRuntimeTargetsSHA256(updated)
+	stateRaw, err := marshalReviewAcceptJSON(state)
+	if err != nil {
+		return errorEnvelope("review state cannot be rendered", err)
+	}
+	identityPath, err := secureProjectPath(root, filepath.ToSlash(filepath.Join(feature.rel, filepath.FromSlash(identityRef))))
+	if err != nil {
+		return blockedEnvelope("review runtime identity path is unsafe", err.Error())
+	}
+	receipt, err := applyFileTransaction(root, "review-target-bind", []fileTransactionUpdate{
+		{Path: identityPath, Content: identityRaw, Perm: 0o644},
+		{Path: statePath, Content: stateRaw, Perm: 0o644},
+	})
+	if err != nil {
+		return errorEnvelope("review runtime target cannot be bound atomically", err)
+	}
+	env = NewEnvelope("ok", "review runtime target bound")
+	env.Data["identity_evidence_ref"] = identityRef
+	env.Data["identity_evidence_sha256"] = target["identity_evidence_sha256"]
+	env.Data["runtime_targets_sha256"] = final["runtime_targets_sha256"]
+	env.Data["target"] = target
+	env.Data["transaction_receipt_ref"] = receipt.ReceiptRef
+	env.ShowArgv = reviewShowArgv(feature.rel)
+	env.NextArgv = []string{"specify-runtime", "review", "validate", "--feature-dir", feature.rel, "--format", "json"}
+	return env
+}
+
+func normalizeReviewRuntimeTarget(feature reviewAcceptFeature, state, raw map[string]any, fingerprint string) (map[string]any, error) {
+	for field := range raw {
+		if !reviewRuntimeTargetInputFields[field] {
+			return nil, fmt.Errorf("unsupported runtime target field %q", field)
+		}
+	}
+	targetID := stringField(raw, "id")
+	if !reviewRuntimeTargetIDRE.MatchString(targetID) {
+		return nil, errors.New("id must use 1-128 safe alphanumeric, dot, underscore, or dash characters")
+	}
+	mode := stringField(raw, "mode")
+	if !slices.Contains([]string{"source", "build", "deployment", "device"}, mode) {
+		return nil, errors.New("mode must be source, build, deployment, or device")
+	}
+	entrypointID := stringField(raw, "entrypoint_id")
+	if findObjectByID(state["entrypoints"], entrypointID) == nil {
+		return nil, errors.New("entrypoint_id must name an official Review entrypoint")
+	}
+	for _, field := range []string{"environment_ref", "instance_ref", "configuration_ref"} {
+		if stringField(raw, field) == "" {
+			return nil, fmt.Errorf("%s is required", field)
+		}
+	}
+	testDataRefs, err := optionalReviewStringList(raw, "test_data_refs", false)
+	if err != nil {
+		return nil, err
+	}
+	readyEvidenceRefs, err := optionalReviewStringList(raw, "ready_evidence_refs", true)
+	if err != nil {
+		return nil, err
+	}
+	reviewScenarioIDs, err := optionalReviewStringList(raw, "review_scenario_ids", true)
+	if err != nil {
+		return nil, err
+	}
+	cycle := 0
+	if source, ok := state["source"].(map[string]any); ok {
+		cycle = intField(source, "review_cycle")
+	}
+	linkedEvidence := map[string]bool{}
+	for _, scenarioID := range reviewScenarioIDs {
+		scenario := findObjectByID(state["scenarios"], scenarioID)
+		if scenario == nil {
+			return nil, fmt.Errorf("review_scenario_ids references unknown scenario %s", scenarioID)
+		}
+		if stringField(scenario, "entrypoint_id") != entrypointID {
+			return nil, fmt.Errorf("review scenario %s belongs to a different entrypoint", scenarioID)
+		}
+		for _, value := range listValue(scenario["evidence"]) {
+			if item, ok := value.(map[string]any); ok {
+				linkedEvidence[stringField(item, "path")] = true
+			}
+		}
+	}
+	for _, ref := range readyEvidenceRefs {
+		if !linkedEvidence[ref] {
+			return nil, fmt.Errorf("ready_evidence_refs must come from linked Review scenarios: %s", ref)
+		}
+		if _, err := reviewCycleEvidencePath(feature, ref, cycle); err != nil {
+			return nil, err
+		}
+	}
+	artifactRef := nullableReviewString(raw["artifact_ref"])
+	artifactSHA := nullableReviewString(raw["artifact_sha256"])
+	if mode == "build" || mode == "deployment" {
+		if artifactRef == nil {
+			return nil, fmt.Errorf("artifact_ref is required for %s targets", mode)
+		}
+		if artifactSHA == nil || !reviewSHA256RE.MatchString(*artifactSHA) {
+			return nil, fmt.Errorf("artifact_sha256 must be a sha256 digest for %s targets", mode)
+		}
+		artifactPath, err := reviewImplementationArtifactPath(feature, *artifactRef)
+		if err != nil {
+			return nil, fmt.Errorf("artifact_ref is unsafe: %w", err)
+		}
+		if digest, err := fileSHA256(artifactPath); err != nil || digest != *artifactSHA {
+			return nil, errors.New("artifact_sha256 must bind current artifact bytes")
+		}
+	}
+	deploymentID := nullableReviewString(raw["deployment_id"])
+	observedVersion := nullableReviewString(raw["observed_version"])
+	if mode == "deployment" && (deploymentID == nil || observedVersion == nil) {
+		return nil, errors.New("deployment targets require deployment_id and observed_version")
+	}
+	target := map[string]any{
+		"id": targetID, "mode": mode, "status": "ready", "entrypoint_id": entrypointID,
+		"environment_ref": stringField(raw, "environment_ref"), "instance_ref": stringField(raw, "instance_ref"),
+		"configuration_ref": stringField(raw, "configuration_ref"), "reviewed_snapshot_sha256": fingerprint,
+		"artifact_ref": nullableReviewStringValue(artifactRef), "artifact_sha256": nullableReviewStringValue(artifactSHA),
+		"deployment_id": nullableReviewStringValue(deploymentID), "observed_version": nullableReviewStringValue(observedVersion),
+		"test_data_refs":      stringSliceToAny(testDataRefs),
+		"ready_evidence_refs": stringSliceToAny(readyEvidenceRefs), "review_scenario_ids": stringSliceToAny(reviewScenarioIDs),
+	}
+	return target, nil
+}
+
+func optionalReviewStringList(raw map[string]any, field string, required bool) ([]string, error) {
+	value, exists := raw[field]
+	if !exists {
+		if required {
+			return nil, fmt.Errorf("%s is required", field)
+		}
+		return []string{}, nil
+	}
+	return anyStringList(value, field, required)
+}
+
+func nullableReviewString(value any) *string {
+	text, ok := value.(string)
+	text = strings.TrimSpace(text)
+	if !ok || text == "" {
+		return nil
+	}
+	return &text
+}
+
+func nullableReviewStringValue(value *string) any {
+	if value == nil {
+		return nil
+	}
+	return *value
+}
+
+func reviewRuntimeTargetIdentityRef(targetID string, cycle int) string {
+	root := "review-evidence"
+	if cycle > 1 {
+		root = filepath.ToSlash(filepath.Join(root, fmt.Sprintf("cycle-%d", cycle)))
+	}
+	return filepath.ToSlash(filepath.Join(root, "runtime-target-"+targetID+".identity.json"))
+}
+
+func reviewRuntimeIdentityClaim(target map[string]any) map[string]any {
+	claim := map[string]any{}
+	for _, field := range []string{
+		"id", "mode", "entrypoint_id", "environment_ref", "instance_ref", "configuration_ref",
+		"reviewed_snapshot_sha256", "artifact_ref", "artifact_sha256", "deployment_id",
+		"observed_version", "review_scenario_ids", "ready_evidence_refs",
+	} {
+		if target[field] == nil {
+			claim[field] = nil
+		} else {
+			claim[field] = cloneAny(target[field])
+		}
+	}
+	return map[string]any{"version": 1, "status": "ready", "target": claim}
+}
+
+func reviewRuntimeTargetsSHA256(targets []any) string {
+	return canonicalJSONSHA256(map[string]any{"reviewed_runtime_targets": targets})
+}
+
+func reviewFeatureRelativePath(feature reviewAcceptFeature, ref string) (string, error) {
+	if err := validateSafeRelativeSlashPath(ref); err != nil {
+		return "", err
+	}
+	path, err := secureProjectPath(feature.abs, ref)
+	if err != nil {
+		return "", err
+	}
+	info, err := os.Stat(path)
+	if err != nil || info.IsDir() {
+		if err == nil {
+			err = errors.New("path is a directory")
+		}
+		return "", err
+	}
+	return path, nil
+}
+
+func reviewImplementationArtifactPath(feature reviewAcceptFeature, ref string) (string, error) {
+	path, err := reviewFeatureRelativePath(feature, ref)
+	if err != nil {
+		return "", err
+	}
+	normalized := filepath.ToSlash(strings.TrimSpace(ref))
+	excludedNames := map[string]bool{
+		implementationHandoffFilename: true, reviewStateFilename: true,
+		"implementation-summary.md": true, humanAcceptanceFilename: true,
+		".human-acceptance.lock": true, humanAcceptanceRepairJournalName: true,
+		humanAcceptanceRepairBackupName: true, ".human-acceptance-terminal.json": true,
+		"workflow.json": true, "workflow-state.md": true,
+		"implementation-review/validation-runs.json": true,
+	}
+	excludedPrefixes := []string{
+		"review-evidence/", "review-results/", "review-history/",
+		"implementation-review/deferrals/", "implementation-review/validation-evidence/",
+	}
+	if excludedNames[normalized] || strings.HasSuffix(normalized, ".lock") {
+		return "", errors.New("artifact is excluded from the implementation snapshot")
+	}
+	for _, prefix := range excludedPrefixes {
+		if strings.HasPrefix(normalized, prefix) {
+			return "", errors.New("artifact is excluded from the implementation snapshot")
+		}
+	}
+	return path, nil
+}
+
+func reviewCycleEvidencePath(feature reviewAcceptFeature, ref string, cycle int) (string, error) {
+	path, err := reviewFeatureRelativePath(feature, ref)
+	if err != nil {
+		return "", fmt.Errorf("Review evidence file is missing or unsafe: %s", ref)
+	}
+	prefix := "review-evidence/"
+	if cycle > 1 {
+		prefix = fmt.Sprintf("review-evidence/cycle-%d/", cycle)
+	}
+	if !strings.HasPrefix(ref, prefix) {
+		return "", errors.New("Review evidence must belong to the current Review cycle")
+	}
+	if cycle == 1 {
+		remainder := strings.TrimPrefix(ref, prefix)
+		first := strings.SplitN(remainder, "/", 2)[0]
+		if regexp.MustCompile(`^cycle-[0-9]+$`).MatchString(first) {
+			return "", errors.New("Review evidence must belong to the current Review cycle")
+		}
+	}
+	return path, nil
+}
+
+func validateReviewRuntimeTargets(feature reviewAcceptFeature, state map[string]any, expectedSnapshot string) ([]string, bool) {
+	errorsOut := []string{}
+	fresh := true
+	rawTargets, ok := state["reviewed_runtime_targets"].([]any)
+	if !ok {
+		return []string{"reviewed_runtime_targets must be an array"}, fresh
+	}
+	status := stringField(state, "status")
+	if status == "approved" && len(rawTargets) == 0 {
+		errorsOut = append(errorsOut, "approved Review requires at least one reviewed runtime target")
+	}
+	source, _ := state["source"].(map[string]any)
+	cycle := intField(source, "review_cycle")
+	seen := map[string]bool{}
+	targets := make([]map[string]any, 0, len(rawTargets))
+	canonicalTargets := make([]any, 0, len(rawTargets))
+	for index, value := range rawTargets {
+		prefix := fmt.Sprintf("reviewed_runtime_targets[%d]", index)
+		target, ok := value.(map[string]any)
+		if !ok {
+			errorsOut = append(errorsOut, prefix+" must be an object")
+			continue
+		}
+		for field := range target {
+			if !reviewRuntimeTargetContractFields[field] {
+				errorsOut = append(errorsOut, fmt.Sprintf("%s contains unsupported field %q", prefix, field))
+			}
+		}
+		targetID := stringField(target, "id")
+		if targetID == "" || !reviewRuntimeTargetIDRE.MatchString(targetID) {
+			errorsOut = append(errorsOut, prefix+".id is invalid")
+		} else if seen[targetID] {
+			errorsOut = append(errorsOut, "duplicate reviewed runtime target id: "+targetID)
+		}
+		seen[targetID] = true
+
+		semantic := map[string]any{}
+		for field := range reviewRuntimeTargetInputFields {
+			if fieldValue, exists := target[field]; exists {
+				semantic[field] = fieldValue
+			}
+		}
+		expected, err := normalizeReviewRuntimeTarget(feature, state, semantic, expectedSnapshot)
+		if err != nil {
+			errorsOut = append(errorsOut, prefix+": "+err.Error())
+		} else {
+			for _, field := range reviewRuntimeTargetBaseFields {
+				if !reflect.DeepEqual(target[field], expected[field]) {
+					if field == "reviewed_snapshot_sha256" {
+						fresh = false
+					}
+					errorsOut = append(errorsOut, fmt.Sprintf("%s.%s does not match the runtime-derived target contract", prefix, field))
+				}
+			}
+		}
+
+		expectedIdentityRef := reviewRuntimeTargetIdentityRef(targetID, cycle)
+		identityRef := stringField(target, "identity_evidence_ref")
+		if identityRef != expectedIdentityRef {
+			errorsOut = append(errorsOut, prefix+".identity_evidence_ref must use the runtime-derived current-cycle path")
+		} else {
+			identityPath, pathErr := reviewCycleEvidencePath(feature, identityRef, cycle)
+			if pathErr != nil {
+				errorsOut = append(errorsOut, prefix+".identity_evidence_ref is invalid: "+pathErr.Error())
+			} else {
+				identitySHA := stringField(target, "identity_evidence_sha256")
+				actualSHA, shaErr := fileSHA256(identityPath)
+				if shaErr != nil || !reviewSHA256RE.MatchString(identitySHA) || identitySHA != actualSHA {
+					errorsOut = append(errorsOut, prefix+".identity_evidence_sha256 must bind current identity evidence bytes")
+				}
+				identity, readErr := readJSONObject(identityPath)
+				if readErr != nil {
+					errorsOut = append(errorsOut, prefix+" identity evidence is invalid: "+readErr.Error())
+				} else if !reflect.DeepEqual(identity, cloneAny(reviewRuntimeIdentityClaim(target))) {
+					errorsOut = append(errorsOut, prefix+".identity_evidence_ref must exactly identify the reviewed runtime target")
+				}
+			}
+		}
+		targets = append(targets, target)
+		canonicalTargets = append(canonicalTargets, reviewRuntimeTargetContract(target))
+	}
+
+	if status == "approved" {
+		for _, value := range listValue(state["human_acceptance_scenarios"]) {
+			scenario, ok := value.(map[string]any)
+			if !ok || scenario["required"] != true {
+				continue
+			}
+			linkedIDs, err := anyStringList(scenario["review_scenario_ids"], "review_scenario_ids", true)
+			if err != nil {
+				errorsOut = append(errorsOut, "required human acceptance scenario has invalid review_scenario_ids: "+stringField(scenario, "id"))
+				continue
+			}
+			matching := 0
+			for _, target := range targets {
+				if stringField(target, "status") != "ready" || stringField(target, "entrypoint_id") != stringField(scenario, "entrypoint_id") {
+					continue
+				}
+				targetIDs, err := anyStringList(target["review_scenario_ids"], "review_scenario_ids", true)
+				targetIDSet := map[string]bool{}
+				for _, targetID := range targetIDs {
+					targetIDSet[targetID] = true
+				}
+				if err == nil && stringSetContainsAll(targetIDSet, linkedIDs) {
+					matching++
+				}
+			}
+			if matching != 1 {
+				errorsOut = append(errorsOut, fmt.Sprintf("required human acceptance scenario %s requires exactly one reviewed runtime target", stringField(scenario, "id")))
+			}
+		}
+	}
+	if len(canonicalTargets) > 0 || status == "approved" {
+		final, _ := state["final"].(map[string]any)
+		if final == nil || stringField(final, "runtime_targets_sha256") != reviewRuntimeTargetsSHA256(canonicalTargets) {
+			errorsOut = append(errorsOut, "final.runtime_targets_sha256 must match reviewed_runtime_targets")
+		}
+		if final == nil || stringField(final, "reviewed_snapshot_sha256") != expectedSnapshot {
+			fresh = false
+			errorsOut = append(errorsOut, "final.reviewed_snapshot_sha256 must match the current implementation snapshot")
+		}
+	}
+	return errorsOut, fresh
+}
+
+func reviewRuntimeTargetContract(target map[string]any) map[string]any {
+	contract := map[string]any{}
+	for field := range reviewRuntimeTargetContractFields {
+		if target[field] == nil {
+			contract[field] = nil
+		} else {
+			contract[field] = cloneAny(target[field])
+		}
+	}
+	return contract
+}
+
 func (service reviewAcceptService) restartReviewState(feature reviewAcceptFeature, handoff map[string]any, expectedRevision int, handoffSHA, fingerprint string, previousRaw []byte, existing map[string]any, restartError string) Envelope {
 	previousDigest := fmt.Sprintf("%x", sha256.Sum256(previousRaw))
 	historyRef := filepath.ToSlash(filepath.Join("review-history", "review-state-"+previousDigest+".json"))
@@ -360,6 +834,134 @@ func clonedReviewRounds(state map[string]any) []any {
 	return cloned
 }
 
+func validateCanonicalImplementationHandoff(projectRoot, featureAbs string, handoff map[string]any) error {
+	if version, ok := jsonInteger(handoff["version"]); !ok || version != 1 {
+		return errors.New("implementation-handoff.json version must be 1")
+	}
+	if handoff["status"] != "ready_for_review" || handoff["source_stage"] != "implement" {
+		return errors.New("implementation-handoff.json must record status ready_for_review and source_stage implement")
+	}
+	if revision, ok := jsonInteger(handoff["source_revision"]); !ok || revision < 1 {
+		return errors.New("implementation-handoff.json source_revision must be a positive integer")
+	}
+	for _, legacy := range []string{"entrypoints", "review_scenarios", "source_fingerprint", "implementation_snapshot_sha256", "fingerprint"} {
+		if _, present := handoff[legacy]; present {
+			return fmt.Errorf("implementation-handoff.json legacy field %s is not accepted", legacy)
+		}
+	}
+	fingerprint := stringField(handoff, "implementation_fingerprint")
+	if !reviewSHA256RE.MatchString(fingerprint) || handoff["fingerprint_algorithm"] != implementationFingerprintAlgorith {
+		return errors.New("implementation-handoff.json requires a sha256 implementation_fingerprint using git-working-tree-v1")
+	}
+	officialEntrypoints, err := canonicalHandoffArray(handoff, "official_entrypoints", true)
+	if err != nil {
+		return err
+	}
+	_ = officialEntrypoints
+	if _, err := canonicalHandoffArray(handoff, "system_review_scenarios", true); err != nil {
+		return err
+	}
+	if _, err := canonicalHandoffArray(handoff, "review_obligations", false); err != nil {
+		return err
+	}
+	humanObligations, err := canonicalHandoffArray(handoff, "human_acceptance_obligations", false)
+	if err != nil {
+		return err
+	}
+	humanScenarios, err := canonicalHandoffArray(handoff, "human_acceptance_scenarios", false)
+	if err != nil {
+		return err
+	}
+	if _, err := canonicalHandoffStringList(handoff, "acceptance_refs", true); err != nil {
+		return err
+	}
+	if _, err := canonicalHandoffStringList(handoff, "task_ids", true); err != nil {
+		return err
+	}
+	if _, err := canonicalHandoffStringList(handoff, "user_confirmed_deferral_refs", false); err != nil {
+		return err
+	}
+	confirmedDeferrals, err := canonicalHandoffArray(handoff, "user_confirmed_deferrals", false)
+	if err != nil {
+		return err
+	}
+	expectedAcceptanceDigest := canonicalJSONSHA256(map[string]any{
+		"human_acceptance_obligations": humanObligations,
+		"human_acceptance_scenarios":   humanScenarios,
+	})
+	if handoff["human_acceptance_contract_origin"] != "task-index-v2" || stringField(handoff, "human_acceptance_contract_sha256") != expectedAcceptanceDigest {
+		return errors.New("implementation-handoff.json human acceptance contract digest is invalid")
+	}
+	expectedDeferralDigest := canonicalJSONSHA256(map[string]any{"user_confirmed_deferrals": confirmedDeferrals})
+	if stringField(handoff, "user_confirmed_deferrals_sha256") != expectedDeferralDigest {
+		return errors.New("implementation-handoff.json user_confirmed_deferrals_sha256 is invalid")
+	}
+	policy, ok := handoff["validation_policy"].(map[string]any)
+	if !ok || policy["mode"] != "feature_epochs" || policy["budget_scope"] != "implement-review" || policy["heavy_gate_owner"] != "leader" {
+		return errors.New("implementation-handoff.json validation_policy is invalid")
+	}
+	maxEpochs, maxOK := jsonInteger(policy["max_epochs"])
+	policyRef := strings.TrimSpace(fmt.Sprint(policy["budget_ref"]))
+	if !maxOK || maxEpochs != implementMaxValidationEpochs || policyRef != implementDefaultBudgetRef {
+		return errors.New("implementation-handoff.json validation_policy must reserve the canonical implement-review budget")
+	}
+	budget, ok := handoff["validation_budget"].(map[string]any)
+	if !ok || budget["mode"] != "feature_epochs" || strings.TrimSpace(fmt.Sprint(budget["ledger_ref"])) != policyRef {
+		return errors.New("implementation-handoff.json validation_budget is invalid")
+	}
+	budgetMax, budgetMaxOK := jsonInteger(budget["max_epochs"])
+	used, usedOK := jsonInteger(budget["used_epochs"])
+	remaining, remainingOK := jsonInteger(budget["remaining_epochs"])
+	consumedDigest := stringField(budget, "consumed_runs_sha256")
+	if !budgetMaxOK || budgetMax != maxEpochs || !usedOK || used < 0 || used > maxEpochs || !remainingOK || remaining != maxEpochs-used || !reviewSHA256RE.MatchString(consumedDigest) {
+		return errors.New("implementation-handoff.json validation_budget counters or digest are invalid")
+	}
+	status, err := implementValidationBudgetStatus(projectRoot, featureAbs)
+	if err != nil {
+		return fmt.Errorf("implementation-handoff.json validation ledger is invalid: %w", err)
+	}
+	runs, ok := status["runs"].([]any)
+	if !ok || len(runs) < used {
+		return errors.New("implementation-handoff.json validation budget references unavailable consumed runs")
+	}
+	if canonicalJSONSHA256(runs[:used]) != consumedDigest {
+		return errors.New("implementation-handoff.json consumed_runs_sha256 no longer matches the frozen validation ledger prefix")
+	}
+	return nil
+}
+
+func canonicalHandoffArray(handoff map[string]any, field string, required bool) ([]any, error) {
+	values, ok := handoff[field].([]any)
+	if !ok || (required && len(values) == 0) {
+		return nil, fmt.Errorf("implementation-handoff.json %s must be %sarray", field, map[bool]string{true: "a non-empty ", false: "an "}[required])
+	}
+	for index, value := range values {
+		if _, ok := value.(map[string]any); !ok {
+			return nil, fmt.Errorf("implementation-handoff.json %s[%d] must be an object", field, index)
+		}
+	}
+	return values, nil
+}
+
+func canonicalHandoffStringList(handoff map[string]any, field string, required bool) ([]string, error) {
+	values, ok := handoff[field].([]any)
+	if !ok || (required && len(values) == 0) {
+		return nil, fmt.Errorf("implementation-handoff.json %s must be a string array", field)
+	}
+	out := make([]string, 0, len(values))
+	seen := map[string]bool{}
+	for index, value := range values {
+		text, ok := value.(string)
+		text = strings.TrimSpace(text)
+		if !ok || text == "" || seen[text] {
+			return nil, fmt.Errorf("implementation-handoff.json %s[%d] must be a unique non-empty string", field, index)
+		}
+		seen[text] = true
+		out = append(out, text)
+	}
+	return out, nil
+}
+
 func newReviewState(feature reviewAcceptFeature, handoff map[string]any, expectedRevision int, handoffSHA, fingerprint string, cycle int, previousReviewSHA, restartReason string, rounds []any, acceptanceRepair map[string]any) map[string]any {
 	findingID := stringField(acceptanceRepair, "finding_id")
 	findingSHA := stringField(acceptanceRepair, "finding_sha256")
@@ -388,13 +990,13 @@ func newReviewState(feature reviewAcceptFeature, handoff map[string]any, expecte
 		repairCycles = append(repairCycles, repairCycle)
 	}
 	obligations := cloneAny(handoff["review_obligations"])
-	scenarios := cloneAny(handoff["review_scenarios"])
+	scenarios := cloneAny(handoff["system_review_scenarios"])
 	state := map[string]any{
 		"version":                      reviewStateVersion,
 		"schema_ref":                   reviewSchemaRef,
 		"status":                       "gathering",
 		"source":                       source,
-		"entrypoints":                  cloneAny(handoff["entrypoints"]),
+		"entrypoints":                  cloneAny(handoff["official_entrypoints"]),
 		"scenarios":                    scenarios,
 		"obligations":                  obligations,
 		"human_acceptance_scenarios":   cloneAny(handoff["human_acceptance_scenarios"]),
@@ -1463,6 +2065,10 @@ func (service reviewAcceptService) validateReview(feature reviewAcceptFeature) r
 	handoffSHA := optionalFileSHA256(handoffPath)
 	currentFingerprint := sourceTreeFingerprint(service.projectRoot, feature.abs)
 	errors := []string{}
+	fresh := true
+	if err := validateCanonicalImplementationHandoff(service.projectRoot, feature.abs, handoff); err != nil {
+		errors = append(errors, err.Error())
+	}
 	if intField(state, "version") != reviewStateVersion {
 		errors = append(errors, "review-state.json version must be 2")
 	}
@@ -1476,6 +2082,7 @@ func (service reviewAcceptService) validateReview(feature reviewAcceptFeature) r
 		expectedFingerprint := stringField(source, "implementation_fingerprint")
 		if expectedFingerprint != "" && expectedFingerprint != currentFingerprint {
 			errors = append(errors, "review source implementation_fingerprint is stale")
+			fresh = false
 		}
 		if handoffRevision, ok := jsonInteger(handoff["source_revision"]); ok &&
 			intField(source, "workflow_revision") != handoffRevision &&
@@ -1483,6 +2090,9 @@ func (service reviewAcceptService) validateReview(feature reviewAcceptFeature) r
 			errors = append(errors, "review source workflow_revision does not match implementation handoff")
 		}
 	}
+	targetErrors, targetsFresh := validateReviewRuntimeTargets(feature, state, currentFingerprint)
+	errors = append(errors, targetErrors...)
+	fresh = fresh && targetsFresh
 	if state["status"] == "approved" {
 		final, _ := state["final"].(map[string]any)
 		exceptionErrors, confirmedExceptionCount := validateReviewExceptions(feature, state, currentFingerprint)
@@ -1517,7 +2127,7 @@ func (service reviewAcceptService) validateReview(feature reviewAcceptFeature) r
 	}
 	return reviewValidationResult{
 		valid:              len(errors) == 0,
-		fresh:              len(errors) == 0 || state["status"] != "approved",
+		fresh:              fresh && (len(errors) == 0 || state["status"] != "approved"),
 		errors:             errors,
 		state:              state,
 		currentFingerprint: currentFingerprint,
@@ -1730,12 +2340,19 @@ func readJSONObject(path string) (map[string]any, error) {
 }
 
 func writeReviewAcceptJSONAtomic(path string, payload any) error {
-	raw, err := json.MarshalIndent(payload, "", "  ")
+	raw, err := marshalReviewAcceptJSON(payload)
 	if err != nil {
 		return err
 	}
-	raw = append(raw, '\n')
 	return atomicWriteFile(path, raw, 0o644)
+}
+
+func marshalReviewAcceptJSON(payload any) ([]byte, error) {
+	raw, err := json.MarshalIndent(payload, "", "  ")
+	if err != nil {
+		return nil, err
+	}
+	return append(raw, '\n'), nil
 }
 
 func fileSHA256(path string) (string, error) {

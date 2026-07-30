@@ -9,6 +9,7 @@ import os
 import platform
 import shutil
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 from typing import Any, Sequence
@@ -41,11 +42,19 @@ REQUIRED_CAPABILITIES = (
     "accept.route-repair",
     "accept.validate",
     "artifact.catalog",
+    "artifact.checklist",
+    "artifact.delete",
+    "artifact.list",
+    "artifact.patch",
     "artifact.prepare",
+    "artifact.prune",
+    "artifact.registry",
+    "artifact.restore",
     "artifact.scaffold",
     "artifact.show",
     "artifact.submit",
     "cognition.build-from-scan",
+    "cognition.archive-incompatible-store",
     "cognition.changes",
     "cognition.claim-reconcile.apply",
     "cognition.claim-reconcile.prepare",
@@ -69,6 +78,7 @@ REQUIRED_CAPABILITIES = (
     "cognition.scan-accept",
     "cognition.scan-checkpoint",
     "cognition.scan-lease",
+    "cognition.scan-packet",
     "cognition.scan-prepare",
     "cognition.scan-requeue",
     "cognition.scan-set",
@@ -86,10 +96,13 @@ REQUIRED_CAPABILITIES = (
     "design.import",
     "design.lint",
     "design.preview",
+    "design.preview-manifest",
     "design.preview-lint",
+    "design.profiles",
     "design.ui-target",
     "design.ui-target-lint",
     "discussion.archive",
+    "discussion.bind-consumer",
     "discussion.checkpoint",
     "discussion.close",
     "discussion.confirm-handoff",
@@ -102,13 +115,25 @@ REQUIRED_CAPABILITIES = (
     "discussion.validate-handoff",
     "discussion.write-handoff",
     "doctor.check",
+    "evidence.allocate",
+    "evidence.import",
+    "evidence.register",
+    "evidence.show",
+    "evidence.verify",
+    "evidence.visual-compare",
+    "hook.extension-plan",
     "hook.validate-artifacts",
     "hook.validate-commit",
     "hook.validate-state",
     "implement.closeout",
     "implement.deferral-confirm",
     "implement.deferral-propose",
+    "implement.packet-compile",
+    "implement.result-merge",
     "implement.resume-audit",
+    "implement.task-accept",
+    "implement.task-next",
+    "implement.task-start",
     "implement.validation-finish",
     "implement.validation-start",
     "implement.validation-status",
@@ -121,8 +146,14 @@ REQUIRED_CAPABILITIES = (
     "learning.promote",
     "learning.show",
     "learning.start",
+    "prd-build.scaffold",
     "prd-build.status",
+    "prd-scan.finalize",
     "prd-scan.init",
+    "prd-scan.record-list",
+    "prd-scan.record-remove",
+    "prd-scan.record-show",
+    "prd-scan.record-upsert",
     "prd-scan.status",
     "quick.archive",
     "quick.close",
@@ -136,6 +167,7 @@ REQUIRED_CAPABILITIES = (
     "review.exception-propose",
     "review.prepare",
     "review.resume-audit",
+    "review.target-bind",
     "review.validate",
     "sp-teams.auto-dispatch",
     "sp-teams.complete-batch",
@@ -145,6 +177,12 @@ REQUIRED_CAPABILITIES = (
     "sp-teams.status",
     "sp-teams.submit-result",
     "sp-teams.sync-back",
+    "tasks.build",
+    "tasks.finalize",
+    "tasks.handoff",
+    "tasks.remove",
+    "tasks.set-root",
+    "tasks.upsert",
     "validate.spec",
     "workflow.show",
     "workflow.enter",
@@ -353,7 +391,10 @@ def download(version: str = DEFAULT_VERSION, destination: Path | None = None) ->
     cache.mkdir(parents=True, exist_ok=True)
     dest = destination or cached_executable()
     url = download_url(version)
-    print(f"  Downloading {RUNTIME_COMMAND} {version} from release asset {binary_filename()}...")
+    print(
+        f"  Downloading {RUNTIME_COMMAND} {version} from release asset {binary_filename()}...",
+        file=sys.stderr,
+    )
     urlretrieve(url, dest)
     if platform.system().lower() != "windows":
         os.chmod(dest, 0o755)
@@ -740,7 +781,10 @@ def _build_from_source(source_dir: Path, dest: Path) -> Path:
 def _build_supported_binary_from_source(binary: Path, version: str, reason: str) -> Path:
     source_dir = _bundled_runtime_source()
     if source_dir is not None:
-        print(f"  Building {RUNTIME_COMMAND} from bundled source because {reason}...")
+        print(
+            f"  Building {RUNTIME_COMMAND} from bundled source because {reason}...",
+            file=sys.stderr,
+        )
         built = _build_from_source(source_dir, binary)
         if _binary_is_compatible(built, allow_dirty=True):
             _write_source_build_marker(built, source_dir)

@@ -47,8 +47,13 @@ def test_project_cognition_schema_v5_is_current_only_across_runtime_guidance() -
 
         assert "schema v5 is current-only" in content, rel_path
         assert "does not migrate schema v4" in content, rel_path
-        assert "does not archive or replace" in content, rel_path
-        assert "remove the incompatible project-cognition.db" in content, rel_path
+        assert "archive-incompatible-store --inspect --format json" in content, rel_path
+        assert "`archive_argv`" in content, rel_path
+        assert (
+            "never move, remove, archive, or replace" in content
+            or "only that cli may archive" in content
+        ), rel_path
+        assert "remove the incompatible project-cognition.db" not in content, rel_path
 
 
 def test_current_query_contract_versions_propagate_to_agent_routing_surfaces() -> None:
@@ -152,13 +157,14 @@ def test_project_cognition_passive_skill_mirrors_query_completion_contract() -> 
     assert "verification routes" in content
     assert "weak coverage" in content
     assert "when inspecting or comparing another local directory" in content
-    assert "check whether that directory or its children contain `.specify/` first" in content
+    assert "never probe for `.specify/` or its children yourself" in content
     assert "specify-runtime cognition discover --root" in content
-    assert ".specify/project-cognition/status.json" in content
-    assert ".specify/project-cognition/project-cognition.db" in content
+    assert ".specify/project-cognition/status.json" not in content
+    assert ".specify/project-cognition/project-cognition.db" not in content
     assert "reference_readiness" in content
-    assert "freshness is `fresh`" in content
-    assert "`graph_ready` is true" in content
+    assert "`freshness=fresh`" in content
+    assert "`graph_ready=true`" in content
+    assert "storage-integrity checks" in content
     assert "do not treat legacy `.specify/project-map/**` outputs" in content
     assert "fall back to minimal live reads" in content
 
@@ -230,7 +236,7 @@ def test_runtime_handbook_docs_are_query_backed() -> None:
     assert "specify-runtime cognition closeout-plan --workflow" in lowered
     assert "unknown_path_dispositions" in lowered
     assert "update_mode=delta_session" in lowered
-    assert "update_mode=payload_file" in lowered
+    assert "update_mode=inline_json" in lowered
     assert "update_argv" in lowered
     assert "delta_append_draft.argv_prefix" in lowered
     assert "display-only command templates" in lowered
@@ -338,11 +344,10 @@ def test_runtime_docs_explain_cross_project_reference_cognition_gate() -> None:
         lowered = " ".join(content.lower().split())
 
         assert "specify-runtime cognition discover --root" in lowered
-        assert ".specify/project-cognition/status.json" in content
-        assert ".specify/project-cognition/project-cognition.db" in content
         assert "reference_readiness" in content
-        assert "freshness is `fresh`" in lowered
-        assert "`graph_ready` is true" in lowered
+        assert "freshness=fresh" in lowered
+        assert "graph_ready=true" in lowered
+        assert "do not probe its status/database files" in lowered
         assert "do not treat legacy `.specify/project-map/**` outputs as current truth" in lowered
 
 

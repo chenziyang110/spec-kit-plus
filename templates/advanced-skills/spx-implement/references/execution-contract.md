@@ -97,6 +97,11 @@ For each ready task:
   and recovery; dependency-safe work may advance while feature verification
   remains pending.
 
+Use the task control plane for the transition: `task-next`, optional
+`packet-compile`, `task-start`, `result-merge --result-json`, and `task-accept`.
+Those commands atomically own task-index, lifecycle, execution-state, and tracker
+projections. Do not edit them directly or stage packet/result JSON files.
+
 Workers must not run a test suite, full build, startup, E2E flow, or browser
 capture per Txx. The Leader opens one convergence gate after integrating the
 change-set and runs affected checks in one attempt. Task lifecycles reference
@@ -118,7 +123,8 @@ off, or `resolved` before its evidence exists.
 When the evidence cannot be supplied now, a human may explicitly transfer a
 precisely scoped low/medium-risk blocker to Review. Create an immutable proposal
 with
-`{{specify-subcmd:specify-runtime implement deferral-propose --feature-dir <feature-dir> --input <proposal.json> --format json}}`;
+`{{specify-subcmd:specify-runtime implement deferral-propose --feature-dir <feature-dir> --input-json '<proposal-json>' --format json}}`;
+build the proposal in memory and never create a proposal file;
 after the human confirms that exact digest, bind the exact statement with
 `{{specify-subcmd:specify-runtime implement deferral-confirm --feature-dir <feature-dir> --deferral-id <DEF-id> --proposal-sha256 <sha> --confirmation-source <source> --statement '<exact-human-statement>' --format json}}`.
 Record `status: deferred`, never `accepted`, and carry the DEF ref, exact
@@ -144,19 +150,21 @@ commits retain the terminal-state gate.
 For UI tasks, apply the packet `ui_contract` as binding scope. Workers inspect
 the original references and return changed surfaces, required states/viewports,
 and visual risks. Do not run the full viewport/state capture loop per Txx.
-Instead, run the visual convergence loop once for the integrated surface/source
+Instead, query `DESIGN.md` and `ui-brief.md` through targeted `specify-runtime artifact show` calls, then run the visual convergence loop once for the integrated surface/source
 fingerprint in a Leader-owned gate attempt: render the matrix at the official real
 entry point, capture stable screenshots or platform output, inspect against
-`DESIGN.md`, `ui-brief.md`, prior surfaces, and original references, repair
+the returned contract sections, prior surfaces, and original references, repair
 concrete drift, then recapture in a new attempt inside the same gate. Check
 overflow, console, keyboard/focus, and accessibility when applicable. Persist
 typed structure/visual/runtime evidence with `evidence_scope: integrated`, plus
 difference inventory and accepted deviations for approximate/high fidelity.
-Every passing comparison persists a `spec-kit-visual-comparison-v1` report
-binding approved preview/manifest digests, real-entrypoint captures, the
-complete applicable `DS-*` decision set, comparison tolerance, and approved
-deviations. Tests passed is not visual acceptance; unavailable comparison is
+Every passing comparison runs `specify-runtime evidence visual-compare --feature-dir <feature-dir> --task-id <Txxx> --input-json '<observed-comparison-json>' --format json`. Supply only observed entrypoint/revision, typed evidence refs, matrix differences, an explicit passing verdict, and reviewer; the runtime derives and atomically owns the `spec-kit-visual-comparison-v1` report, approved bindings, exact decision/contract coverage, tolerance, deviations, path, and digest. Tests
+passed is not visual acceptance; unavailable comparison is
 `pending-human-review` with an exact review target and blocks verified closeout.
+Before UI mutation, read the packet's byte-bound `approved_handoff_ref` and
+resolve selected `DH-*` rows plus implementation bindings from that source.
+Copied task rows are integrity projections only; missing bytes, digest drift,
+unknown IDs, or row drift block the lane instead of permitting reconstruction.
 
 Perform task-level review on drift, parallel joins, write-scope changes,
 validation failure, worker concern, obligation conflict, real-entrypoint gaps,
@@ -183,6 +191,10 @@ Before completion, run
 `{{specify-subcmd:specify-runtime implement closeout --feature-dir <feature-dir> --format json}}`
 when available.
 
+This command exclusively writes `implementation-summary.md` and
+`implementation-handoff.json`. Do not author, patch, replace, delete, or submit
+either artifact through a generic channel.
+
 Successful closeout must return a trusted `implementation_handoff` with its
 source revision, implementation fingerprint, official entrypoints, and required
 system Review scenarios, plus the validation ledger and gate/attempt history.
@@ -200,7 +212,7 @@ directly to `$spx-accept`; implementation tests, task-level agent review, and
 technical closeout do not substitute for integrated product Review or a later
 human verdict.
 
-Before stopping, update owned rich `workflow-state.md` evidence/resume fields
+Before stopping, patch rich `workflow-state.md` evidence/resume fields through a leased `specify-runtime artifact patch`
 truthfully, including the Review handoff. Then run the workflow runtime
 `complete-stage` command with the current revision. It records
 `implement/completed` only in CLI-owned `workflow.json`; it does not update

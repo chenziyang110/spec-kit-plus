@@ -230,7 +230,7 @@ def test_task4_templates_do_not_reintroduce_ordinary_local_leader_framing() -> N
     assert "packetize the artifact update as a validated subagent lane" in clarify_content
     assert "delegate artifact enhancements through a validated subagent lane" in clarify_content
     assert "the leader owns coordination, packet validation, user-question decisions, structured-handoff review, acceptance, final status, and state consistency" in clarify_content
-    assert "if the artifact update lane cannot be safely packetized or delegated, record `subagent-blocked` in `workflow-state.md` with the escalation or recovery reason and stop instead of making the artifact edits" in clarify_content
+    assert "if the artifact update lane cannot be safely packetized or delegated, patch `subagent-blocked` and its escalation or recovery reason into `workflow-state.md` through `specify-runtime artifact patch`, then stop" in clarify_content
 
     forbidden_phrases = (
         "can be improved directly from current context",
@@ -268,7 +268,9 @@ def test_implement_template_requires_original_image_handoff_for_visual_tasks() -
 
     assert "runtime image item/local_image" in content
     assert "leader-authored prose summary is not a substitute" in content
-    assert "materialize it to a stable project-relative artifact path" in content
+    assert "specify-runtime evidence import --file <local-path>" in content
+    assert "pass the returned content-addressed `object_ref` plus evidence record" in content
+    assert "never copy or materialize a project file directly" in content
     assert "do not dispatch image-backed ui implementation" in content
     assert "missing image handoff reason" in content
     assert "include every original png, screenshot, mockup, design export, or reference image" in worker_prompt

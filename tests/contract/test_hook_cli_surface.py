@@ -11,12 +11,7 @@ from typer.testing import CliRunner
 
 from specify_cli import app
 from specify_cli.hooks import artifact_validation as artifact_validation_mod
-from specify_cli.workflow_runtime import (
-    complete_workflow_stage,
-    enter_workflow,
-    transition_workflow,
-)
-from tests.conftest import install_passing_workflow_gate
+from tests.conftest import seed_existing_workflow_state
 from tests.project_cognition_fake import (
     install_fake_project_cognition,
     write_project_cognition_status,
@@ -5656,20 +5651,10 @@ def test_raw_implement_artifact_gate_requires_closeout_handoff(
     project = _create_project(tmp_path)
     feature_dir = project / ".specify" / "features" / "001-demo"
     feature_dir.mkdir(parents=True)
-    install_passing_workflow_gate(project)
-    entered = enter_workflow(feature_dir, stage="specify", expected_revision=0)
-    revision = int(entered["data"]["revision"])
-    for target_stage in ("plan", "tasks", "implement"):
-        completed = complete_workflow_stage(
-            feature_dir,
-            expected_revision=revision,
-        )
-        transitioned = transition_workflow(
-            feature_dir,
-            target_stage=target_stage,
-            expected_revision=int(completed["data"]["revision"]),
-        )
-        revision = int(transitioned["data"]["revision"])
+    revision = 7
+    seed_existing_workflow_state(
+        feature_dir, stage="implement", revision=revision
+    )
     (feature_dir / "workflow-state.md").write_text(
         "# Workflow State\n\n## Next Command\n\n- `/sp.implement`\n",
         encoding="utf-8",
@@ -5843,20 +5828,10 @@ def test_implement_closeout_writes_review_handoff_without_preparing_acceptance(
     project = _create_project(tmp_path)
     feature_dir = project / ".specify" / "features" / "001-demo"
     feature_dir.mkdir(parents=True)
-    install_passing_workflow_gate(project)
-    entered = enter_workflow(feature_dir, stage="specify", expected_revision=0)
-    revision = int(entered["data"]["revision"])
-    for target_stage in ("plan", "tasks", "implement"):
-        completed = complete_workflow_stage(
-            feature_dir,
-            expected_revision=revision,
-        )
-        transitioned = transition_workflow(
-            feature_dir,
-            target_stage=target_stage,
-            expected_revision=int(completed["data"]["revision"]),
-        )
-        revision = int(transitioned["data"]["revision"])
+    revision = 7
+    seed_existing_workflow_state(
+        feature_dir, stage="implement", revision=revision
+    )
     (feature_dir / "workflow-state.md").write_text(
         "# Workflow State\n\n## Current Command\n\n- status: `completed`\n\n## Next Command\n\n- `/sp.implement`\n",
         encoding="utf-8",
@@ -6264,7 +6239,7 @@ def test_prd_scan_command_supports_python_module_entrypoint(tmp_path: Path):
     assert (run_dir / "prd-scan.md").is_file()
 
 
-def test_prd_build_command_supports_python_module_entrypoint(tmp_path: Path):
+def test_prd_build_python_entrypoint_enforces_runtime_readiness(tmp_path: Path):
     project = _create_project(tmp_path)
     run_id = "260504-portal-audit"
     run_dir = project / ".specify" / "prd-runs" / run_id
@@ -6365,7 +6340,13 @@ def test_prd_build_command_supports_python_module_entrypoint(tmp_path: Path):
     payload = json.loads(result.stdout.strip())
     assert payload["mode"] == "status-build"
     assert payload["workspace"] == run_id
-    assert payload["complete"] is True
+    assert payload["surface_complete"] is True
+    assert payload["complete"] is False
+    assert payload["status"] == "blocked"
+    assert payload["readiness"] == "blocked"
+    assert any(
+        ".specify/prd/status.json" in error for error in payload["errors"]
+    )
     assert payload["surfaces"]["master_pack"] is True
     assert payload["surfaces"]["prd_export"] is True
 

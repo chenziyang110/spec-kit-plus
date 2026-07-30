@@ -72,6 +72,7 @@ _READ_ONLY_OPERATIONS = frozenset(
         "sp-teams.watch",
         "workflow.next",
         "workflow.show",
+        "workflow-artifacts.lint",
         "version",
     }
 )
@@ -119,6 +120,7 @@ _LOCAL_WRITE_PREFIXES = (
     "review.",
     "result.",
     "sp-debug",
+    "tasks.",
     "workflow.",
 )
 

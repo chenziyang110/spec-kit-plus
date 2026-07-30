@@ -1,12 +1,12 @@
 ## Fixed Workflow Artifact Boundary
 
-Read canonical workflow artifacts only with `specify-runtime artifact show`. When the worker packet authorizes an artifact write, use `specify-runtime artifact prepare` followed by `specify-runtime artifact submit`; never overwrite the canonical path directly. Source and test files in the packet's write scope remain normal repository edits.
+Read canonical workflow artifacts only with `specify-runtime artifact show`. When the worker packet authorizes an artifact mutation, use the specialized owner named by the artifact registry or packet. Generic `artifact prepare` plus `artifact submit` is valid only when prepare explicitly grants submit for that type; fixed-shape artifacts use scaffold plus targeted patch, and result/evidence artifacts use their namespaces. Never overwrite the canonical path directly. Source and test files in the packet's write scope remain normal repository edits.
 
 # Map Scan Worker Prompt
 
-Use this prompt only with one CLI-generated self-contained task brief produced
-for a leased Project Cognition scan attempt. The brief's packet, attempt,
-`assigned_paths`, read boundary, result destination, and effective context
+Use this prompt only with one self-contained task brief returned by
+`specify-runtime cognition scan-packet` for a leased scan attempt. The brief's
+packet, attempt, `assigned_paths`, read boundary, inline result channel, and effective context
 budget are authoritative; do not reconstruct or broaden them from chat history.
 This lane should start with the minimum inherited conversation context the
 platform permits; treat any unavoidable inherited material as already-spent
@@ -18,7 +18,7 @@ capacity rather than additional task budget.
 - Work in coherent, bounded batches. For every completed path, record concrete
   evidence and the packet-local provisional facts required by the supplied
   result skeleton.
-- Submit useful progress with the task brief's `scan-checkpoint` command before
+- Submit useful progress with the task brief's `scan-checkpoint --result-json` command before
   context, tool-output, or result-output capacity is exhausted. A checkpoint is
   useful only after the runtime validates it.
 - Keep worker-authored `acceptance` at `partial`, including for a complete
@@ -34,8 +34,9 @@ capacity rather than additional task budget.
 
 ## Write Boundary
 
-- Fill only the CLI-designated packet-local result/checkpoint surface. Follow
-  its generated schema rather than copying a JSON example from a prompt.
+- Build the packet-local result as an in-memory object and submit it only through
+  `specify-runtime cognition scan-checkpoint --result-json '<inline-json>'`.
+  Follow the generated schema; never create or edit a pending-result/checkpoint file.
 - Never write the global queue, handoff ledger, coverage ledger, evidence store,
   provisional aggregate, `status.json`, or `project-cognition.db`.
 - Do not call `scan-prepare`, `scan-lease`, `scan-accept`, `validate-scan`,

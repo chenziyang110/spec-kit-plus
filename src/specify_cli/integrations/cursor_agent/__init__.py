@@ -52,9 +52,13 @@ class CursorAgentIntegration(SkillsIntegration):
             return content
         addendum = CursorAgentIntegration._cursor_project_cognition_advisory_addendum()
         if "## Orchestration Model" in content:
-            return content.replace("## Orchestration Model", addendum + "\n## Orchestration Model", 1)
+            return content.replace(
+                "## Orchestration Model", addendum + "\n## Orchestration Model", 1
+            )
         if "## Cursor Leader Gate" in content:
-            return content.replace("## Cursor Leader Gate", addendum + "\n## Cursor Leader Gate", 1)
+            return content.replace(
+                "## Cursor Leader Gate", addendum + "\n## Cursor Leader Gate", 1
+            )
         return content + addendum
 
     @staticmethod
@@ -63,7 +67,7 @@ class CursorAgentIntegration(SkillsIntegration):
             "\n"
             f"{CursorAgentIntegration.CLOSEOUT_ADVISORY_HEADING}\n\n"
             "**Advisory First Pass**: Before repository analysis or implementation, query project cognition when available and use it to choose likely live reads.\n"
-            "- Use `.specify/project-cognition/` as the graph-native project cognition source when present.\n"
+            "- Query the graph-native project cognition source only through `specify-runtime cognition status|compass|query`; never inspect its storage directory.\n"
             "- If the runtime is missing, stale, blocked, or too incomplete for the requested work, continue with live repository inspection instead of stopping for map maintenance.\n"
             "- If `baseline_kind=greenfield_empty`, do not recommend map-scan -> map-build solely because the graph has no paths; continue with workflow artifacts and live requirements.\n"
             "- Use map-update for ordinary existing-baseline gaps. Use map-scan -> map-build only for brownfield first/missing/unusable baseline, schema failure, schema v1 or old broad-schema rebuild-required readiness, zero active-generation path_index rows outside greenfield_empty, missing or invalid alias_index, explicit_rebuild_requested, or baseline_identity_invalid.\n"
@@ -154,9 +158,13 @@ class CursorAgentIntegration(SkillsIntegration):
         addendum = self._cursor_project_cognition_advisory_addendum()
 
         if "## Orchestration Model" in content:
-            updated = content.replace("## Orchestration Model", addendum + "\n## Orchestration Model", 1)
+            updated = content.replace(
+                "## Orchestration Model", addendum + "\n## Orchestration Model", 1
+            )
         elif "## Cursor Leader Gate" in content:
-            updated = content.replace("## Cursor Leader Gate", addendum + "\n## Cursor Leader Gate", 1)
+            updated = content.replace(
+                "## Cursor Leader Gate", addendum + "\n## Cursor Leader Gate", 1
+            )
         else:
             updated = content + addendum
 
@@ -222,24 +230,26 @@ class CursorAgentIntegration(SkillsIntegration):
                 "When running `sp-quick` in Cursor, you are the **leader**, not the concrete implementer.\n"
                 "\n"
                 "Before code edits, test edits, or implementation commands:\n"
-                "- Read `.specify/memory/constitution.md` first if it exists. This gate comes before `STATUS.md`, clarification, lane selection, delegation, or any repository analysis.\n"
-                "- Read `STATUS.md` for the active quick-task workspace, or create `.planning/quick/<id>-<slug>/STATUS.md` if this quick task is new.\n"
+                "- Query `.specify/memory/constitution.md` first through `specify-runtime artifact show` if it exists. This gate comes before `STATUS.md`, clarification, lane selection, delegation, or any repository analysis.\n"
+                "- Create a new quick-task `STATUS.md` only through `specify-runtime artifact scaffold --kind quick-status`, or resume it through targeted `artifact show` calls.\n"
                 "- If `understanding_confirmed` is not `true`, present the Understanding Checkpoint and wait for user confirmation before implementation work.\n"
-                "- The user-facing checkpoint must use the fixed Quick Checkpoint Markdown table with `| Decision to confirm | Current understanding |` and rows for `Request and outcome`, `User-visible result`, `Scope`, `Recommended approach`, `Assumptions and risks`, `Completion evidence`, and `Reconfirmation trigger`; technical execution stays agent-owned, and prose bullets or partial field lists are not sufficient. For applicable UI work, append the independent UI Confirmation card and ask once for both decisions.\n"
-                "- Do not proceed to code edits, broad repository analysis, delegation, or validation commands until `understanding_confirmed: true` is recorded in `STATUS.md`.\n"
-                "- Do **not** perform broad repository analysis, implementation design, or local deep-dive debugging before `STATUS.md` exists, `understanding_confirmed: true` is recorded, and the first subagent lane is selected.\n"
+                "- The user-facing checkpoint must use the fixed Quick Checkpoint Markdown table with `| Decision to confirm | Current understanding |` and rows for `Request and outcome`, `User-visible result`, `Scope`, `Ordered work items`, `Work-item acceptance`, `Recommended approach`, `Assumptions and risks`, `Completion evidence`, and `Reconfirmation trigger`. Use stable Q1/Q2 ids for one or many deliverables and confirm only deliverable-level order; internal implementation sequencing stays agent-owned, and prose bullets or partial field lists are not sufficient. For applicable UI work, append the independent UI Confirmation card and ask once for both decisions.\n"
+                "- Do not proceed to code edits, broad repository analysis, delegation, or validation commands until `understanding_confirmed: true` has been persisted in `STATUS.md` through a fresh `specify-runtime artifact patch` lease.\n"
+                "- Do **not** perform broad repository analysis, implementation design, or local deep-dive debugging before targeted `specify-runtime artifact show` reports CLI-owned `STATUS.md` has `understanding_confirmed: true` and the first subagent lane is selected.\n"
                 "- After understanding is confirmed, define the smallest safe delegated lane or ready batch.\n"
                 "- Dispatch `one-subagent` or `parallel-subagents` only after the Understanding Checkpoint is confirmed.\n"
                 "- Use Cursor's native subagent path when available.\n"
                 "- If two or more safe subagent lanes would materially improve throughput, launch them in parallel instead of serializing them without a concrete coordination reason.\n"
                 "- After understanding is confirmed and the first lane is defined, the next concrete action must be dispatch, not additional leader-inline repo exploration.\n"
                 "- If a subagent lane is active, use the current join point to integrate results back into `STATUS.md` before selecting the next action.\n"
-                "- Use `leader-inline-fallback` only after native subagents and the managed-team path are unavailable or unsafe, and record the fallback reason in `STATUS.md`.\n"
+                "- Use `leader-inline-fallback` only after native subagents and the managed-team path are unavailable or unsafe, and patch the fallback reason into `STATUS.md` through a fresh `specify-runtime artifact patch` lease.\n"
                 "\n"
                 "**Hard rule:** The leader must keep scope control, dispatch-shape selection, join-point handling, validation, summary ownership, and `STATUS.md` accuracy while subagent execution is active. Local execution is the last fallback.\n"
             )
             if "## Process" in content:
-                content = content.replace("## Process", gate_addendum + "\n## Process", 1)
+                content = content.replace(
+                    "## Process", gate_addendum + "\n## Process", 1
+                )
             else:
                 content += gate_addendum
 
@@ -256,23 +266,22 @@ class CursorAgentIntegration(SkillsIntegration):
         addendum = (
             "\n"
             "## Cursor Subagent Execution\n\n"
-            "When running `sp-quick` in Cursor, start execution routing only after `STATUS.md` exists and `understanding_confirmed: true` is recorded.\n"
-            "- Understanding checkpoint: before dispatch, render the fixed Quick Checkpoint Markdown table with `| Decision to confirm | Current understanding |` and user-owned rows for request/outcome, visible result, scope, recommended approach, assumptions/risks, completion evidence, and reconfirmation trigger. Append the UI Confirmation proposal when applicable and use one combined confirmation.\n"
+            "When running `sp-quick` in Cursor, start execution routing only after targeted `specify-runtime artifact show` reports that CLI-owned `STATUS.md` has `understanding_confirmed: true`.\n"
+            "- Understanding checkpoint: before dispatch, render the fixed Quick Checkpoint Markdown table with `| Decision to confirm | Current understanding |` and user-owned rows for request/outcome, visible result, scope, ordered work items, work-item acceptance, recommended approach, assumptions/risks, completion evidence, and reconfirmation trigger. Use stable Q1/Q2 ids for one or many deliverables; append the UI Confirmation proposal when applicable and use one combined confirmation.\n"
             "- After understanding is confirmed, define the smallest safe delegated lane or ready batch.\n"
             "- Dispatch `one-subagent` or `parallel-subagents` only after the Understanding Checkpoint is confirmed.\n"
-            "- Do **not** perform broad repository analysis, implementation design, or local deep-dive debugging before `STATUS.md` exists, `understanding_confirmed: true` is recorded, and the first subagent lane is selected.\n"
+            "- Do **not** perform broad repository analysis, implementation design, or local deep-dive debugging before targeted `specify-runtime artifact show` reports CLI-owned `STATUS.md` has `understanding_confirmed: true` and the first subagent lane is selected.\n"
             f"- Use Cursor's native subagent path for bounded lanes when available. {descriptor.native_dispatch_hint}\n"
             "- After understanding is confirmed and the first lane is defined, the next concrete action must be dispatch, not additional leader-inline repo exploration.\n"
             "- Once the first lane is chosen after confirmation, dispatch it before continuing any leader-inline deep-dive analysis of the repository.\n"
             "- If multiple safe subagent lanes exist and they materially improve throughput, dispatch them in parallel instead of defaulting to serial execution.\n"
             "- Keep `.planning/quick/<id>-<slug>/STATUS.md` as the leader-owned source of truth with current focus, `dispatch_shape`, active lane or batch, join point, next action, and blockers.\n"
-            "- Subagents may return evidence, patches, and verification output, but they must not become the authority for resume state; the leader updates `STATUS.md` before and after each join point.\n"
+            "- Subagents may return evidence, patches, and verification output, but they must not become the authority for resume state; the leader patches `STATUS.md` through fresh `specify-runtime artifact patch` leases before and after each join point.\n"
             f"- Join subagent lanes through the integration-native join point: {descriptor.native_join_hint}\n"
-            "- Use `leader-inline-fallback` only after native subagents and the managed-team path are unavailable or unsafe, and record the fallback reason in `STATUS.md`.\n"
+            "- Use `leader-inline-fallback` only after native subagents and the managed-team path are unavailable or unsafe, and patch the fallback reason into `STATUS.md` through a fresh `specify-runtime artifact patch` lease.\n"
             f"- Result contract: {descriptor.result_contract_hint}\n"
-            f"- Result file handoff path: {descriptor.result_handoff_hint}\n"
-            "- For filesystem handoffs, use `{{specify-subcmd:specify-runtime result path --help}}` with the concrete workflow identifiers such as `--feature-dir`/`--task-id`, `--workspace`/`--lane-id`, or `--session-slug`/`--lane-id`.\n"
-            "- The result-path command emits JSON and does not accept `--format`; do not append `--format`.\n"
+            f"- Inline result submission: {descriptor.result_submit_hint}\n"
+            f"- Runtime-owned compatibility path: `{descriptor.result_handoff_hint}`. The runtime derives and writes it; never create a result file or use `--result-file`.\n"
             "- Re-check strategy after every join point and continue automatically until the quick task is complete or blocked.\n"
             "- Keep validation and final quick-task summary on the leader path even when execution fan-out is delegated.\n"
         )

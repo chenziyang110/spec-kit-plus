@@ -1,7 +1,7 @@
 # Project Learning Detail
 
 Runtime-maintained reusable engineering lesson detail. Agents should expand it
-through `specify learning show --ref <ref>` instead of parsing this file directly.
+through `specify-runtime learning show --ref <ref>` instead of parsing this file directly.
 
 ---
 

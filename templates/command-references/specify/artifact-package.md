@@ -6,27 +6,20 @@ Preserved Contract: confirmed scope, acceptance proof, decisions, evidence, fide
 
 ## Artifact Writing Contract
 
-Write `spec-contract.json` first from `templates/spec-contract-template.json`.
+Create `spec-contract.json` first through `specify-runtime artifact scaffold --kind spec-contract`, which owns the fixed `templates/spec-contract-template.json` shape; use leased `artifact patch` for pointer updates.
 
 - Store target need, in/out/deferred scope, constraints, objective acceptance criteria, locked decisions, `semantic_delta`, protected obligation refs, context capsule, unresolved items, artifact refs, and the agent phase transition.
 - Store `acceptance_coverage` as unique one-pair rows from canonical `scope.in` or `capability_operations` JSON Pointers to canonical `acceptance_criteria` JSON Pointers. Every requirement must appear at least once; every criterion must appear exactly once and therefore cannot close multiple independent requirements.
-- Render `spec.md` from the contract as the primary project-facing specification.
-- Write `alignment.md` only when semantic mapping, upstream disposition, conflict, deferral, fidelity, or readiness analysis has content that maintainers need to review independently.
-- Write `context.md` only when repository placement, reuse, integration, propagation, or boundary evidence cannot be represented adequately by stable refs in the context capsule.
-- Write `references.md` only when external or retained references materially shape behavior or proof.
-- Produce requirements diagnostics from deterministic validation; persist `checklists/requirements.md` only when compatibility or human review requires it.
+- Query the prerequisite-script-created `spec.md` skeleton through `artifact show` and fill only named sections through leased `artifact patch --section`; never emit or resubmit the stable template.
+- When `alignment.md` has independent review value, create an absent file with `specify-runtime artifact scaffold --kind alignment`, then fill only named sections through fresh leased `artifact patch` calls; never submit the stable template wholesale.
+- The prerequisite script normally creates `context.md`. Query that skeleton and patch only named sections when repository placement, reuse, integration, propagation, or boundary evidence has independent value; recover a missing skeleton with `artifact scaffold --kind specify-context`, never a full-document submission.
+- When retained references materially shape behavior or proof, create an absent `references.md` with `artifact scaffold --kind references`, then patch its named sections; never reproduce the installed template in memory.
+- Produce requirements diagnostics from deterministic validation. When compatibility or human review requires `checklists/requirements.md`, send one compact checklist object to `specify-runtime artifact checklist`; the CLI expands the template and assigns `CHK###` IDs. Never submit checklist Markdown wholesale.
 - Keep `workflow-state.md` as sparse resume state, not a copy of specification truth.
-- When compatibility requires `brainstorming/handoff-to-specify.json`, make it a pointer-only agent transition: `source_contract`, `review_digest`, `semantic_delta`, required refs, blockers, and next action.
+- When compile mode requires `brainstorming/handoff-to-specify.json`, call `specify-runtime discussion bind-consumer` with only the agent-owned transition fields. The runtime derives `source_contract`, `review_digest`, status, and next action and writes the pointer.
 
 Preserve reference fidelity and `CA-###`/`MP-*` obligations by stable ref. Copy a full obligation body only when the next phase cannot safely act from the reference.
 
 ## Extension Hooks
 
-After the completion report, check whether `.specify/extensions.yml` exists.
-
-- If it exists, read entries under `hooks.after_specify`.
-- If YAML cannot be parsed, skip hook execution guidance silently.
-- Filter out hooks where `enabled` is explicitly `false`.
-- Treat hooks without `enabled` as enabled.
-- Do not evaluate non-empty hook conditions directly; leave condition evaluation to the HookExecutor implementation.
-{{spec-kit-include: ../../command-partials/common/extension-hooks-after-body.md}}
+After the completion report, run `{{specify-subcmd:specify-runtime hook extension-plan --event after_specify --format json}}`; never inspect extension storage. Offer each returned `optional: true` invocation, execute each returned `optional: false` invocation, and continue silently when `actionable_count` is zero.

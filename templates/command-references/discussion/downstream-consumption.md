@@ -6,8 +6,8 @@ Preserved Contract: consumers read canonical JSON, inherit confirmed truth by st
 
 ## Downstream Consumption
 
-Consumers select `.specify/discussions/<slug>/handoff-to-specify.json`, verify ready/user-confirmed gates and current `review_digest`, then read the agent requirement contract, required evidence refs, task-relevant obligations, and reopen conditions.
+Consumers select `.specify/discussions/<slug>/handoff-to-specify.json` through `specify-runtime artifact show`, verify ready/user-confirmed gates and current `review_digest`, then query only required contract fields and evidence refs.
 
 Do not require a Markdown companion. `specification-input.md`, `discussion-state.md`, and other discussion source files are not fallback handoffs. Do not scan discussion logs or checkpoint documents unless a named evidence reference is stale, missing, or contradictory. Do not rebuild `discussion_decision_digest`, flatten the selected direction, or re-ask confirmed questions when `semantic_delta` is empty.
 
-`sp-specify` compiles the contract into `spec-contract.json`. `sp-quick` consumes it only when quick eligibility remains bounded. The target boundary and next consumption path come from the contract. After successful consumption, bind downstream evidence to `source_contract` and `review_digest`, then mark the discussion consumed.
+`sp-specify` compiles the contract into `spec-contract.json` when the user selected a formal spec-first path. `sp-quick` consumes it for direct delivery without a task-size or consequence-breadth ceiling. The target boundary and next consumption path come from the confirmed contract and explicit workflow choice. After successful consumption, bind downstream evidence to `source_contract` and `review_digest`, then mark the discussion consumed.

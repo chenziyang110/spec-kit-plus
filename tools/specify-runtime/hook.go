@@ -2,12 +2,18 @@ package main
 
 import (
 	"encoding/json"
+	stdErrors "errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
+
+	rt "github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/runtime"
+	internalvalidation "github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/validation"
+	"gopkg.in/yaml.v3"
 )
 
 var hookCommitMessagePattern = regexp.MustCompile(`(?i)^(feat|fix|docs|refactor|test|chore)(\([^)]+\))?:\s+\S`)
@@ -40,6 +46,8 @@ func runHook(args []string, stdout io.Writer) int {
 		return writeEnvelope(stdout, NewEnvelope("usage-error", "missing hook subcommand"))
 	}
 	switch args[0] {
+	case "extension-plan":
+		return writeEnvelope(stdout, planExtensionHooks(args[1:]))
 	case "validate-state":
 		return writeEnvelope(stdout, validateHookState(args[1:]))
 	case "validate-artifacts":
@@ -48,6 +56,129 @@ func runHook(args []string, stdout io.Writer) int {
 		return writeEnvelope(stdout, validateHookCommit(args[1:]))
 	default:
 		return writeEnvelope(stdout, NewEnvelope("usage-error", fmt.Sprintf("unknown hook subcommand %q", args[0])))
+	}
+}
+
+type extensionHookProjectConfig struct {
+	Hooks map[string][]extensionHookEntry `yaml:"hooks"`
+}
+
+type extensionHookEntry struct {
+	Command     string `yaml:"command"`
+	Condition   string `yaml:"condition"`
+	Description string `yaml:"description"`
+	Enabled     *bool  `yaml:"enabled"`
+	Extension   string `yaml:"extension"`
+	Optional    *bool  `yaml:"optional"`
+	Prompt      string `yaml:"prompt"`
+}
+
+func planExtensionHooks(args []string) Envelope {
+	event := strings.TrimSpace(optionValue(args, "--event", ""))
+	if event == "" {
+		return NewEnvelope("usage-error", "hook extension-plan requires --event")
+	}
+	if matched, _ := regexp.MatchString(`^[a-z][a-z0-9_]*$`, event); !matched {
+		return NewEnvelope("usage-error", "hook extension-plan --event must be a lowercase event id")
+	}
+	projectRoot, err := filepath.Abs(optionValue(args, "--project-root", "."))
+	if err != nil {
+		return extensionHookPlanError(event, "project-root-error", err)
+	}
+	configPath := filepath.Join(projectRoot, ".specify", "extensions.yml")
+	raw, err := os.ReadFile(configPath)
+	if stdErrors.Is(err, os.ErrNotExist) {
+		return extensionHookPlanEnvelope(event, "missing", nil, 0, 0)
+	}
+	if err != nil {
+		return extensionHookPlanError(event, "config-read-error", err)
+	}
+	if len(raw) > maxAgentJSONInputBytes {
+		return extensionHookPlanError(event, "config-too-large", fmt.Errorf("extensions.yml exceeds %d bytes", maxAgentJSONInputBytes))
+	}
+	config := extensionHookProjectConfig{}
+	if err := yaml.Unmarshal(raw, &config); err != nil {
+		// Preserve the historical hook contract: an invalid optional project
+		// config does not block the owning workflow. The agent receives no raw
+		// YAML or parser diagnostic that could induce an ad-hoc repair.
+		return extensionHookPlanEnvelope(event, "invalid", nil, 0, 0)
+	}
+	hooks := config.Hooks[event]
+	actionable := make([]any, 0, len(hooks))
+	disabledCount := 0
+	deferredConditionCount := 0
+	for _, hook := range hooks {
+		if hook.Enabled != nil && !*hook.Enabled {
+			disabledCount++
+			continue
+		}
+		if strings.TrimSpace(hook.Condition) != "" {
+			deferredConditionCount++
+			continue
+		}
+		command := strings.TrimSpace(hook.Command)
+		if command == "" {
+			continue
+		}
+		optional := true
+		if hook.Optional != nil {
+			optional = *hook.Optional
+		}
+		actionable = append(actionable, map[string]any{
+			"command":     command,
+			"description": strings.TrimSpace(hook.Description),
+			"extension":   strings.TrimSpace(hook.Extension),
+			"invocation":  extensionHookInvocation(projectRoot, command),
+			"optional":    optional,
+			"prompt":      strings.TrimSpace(hook.Prompt),
+		})
+	}
+	return extensionHookPlanEnvelope(event, "loaded", actionable, disabledCount, deferredConditionCount)
+}
+
+func extensionHookPlanEnvelope(event, configStatus string, hooks []any, disabledCount, deferredConditionCount int) Envelope {
+	env := NewEnvelope("ok", "extension hook plan resolved")
+	if hooks != nil {
+		env.Items = hooks
+	}
+	env.Data["event"] = event
+	env.Data["config_status"] = configStatus
+	env.Data["actionable_count"] = len(env.Items)
+	env.Data["disabled_count"] = disabledCount
+	env.Data["deferred_condition_count"] = deferredConditionCount
+	env.Data["storage_access"] = "runtime-owned"
+	return env
+}
+
+func extensionHookPlanError(event, code string, err error) Envelope {
+	env := NewEnvelope("blocked", "extension hook plan could not be resolved")
+	env.Blockers = append(env.Blockers, err.Error())
+	env.Data["event"] = event
+	env.Data["error_code"] = code
+	return env
+}
+
+func extensionHookInvocation(projectRoot, command string) string {
+	command = strings.TrimSpace(command)
+	skillName := ""
+	if strings.HasPrefix(command, "sp.") {
+		skillName = "sp-" + strings.ReplaceAll(strings.TrimPrefix(command, "sp."), ".", "-")
+	}
+	options := map[string]any{}
+	if raw, err := os.ReadFile(filepath.Join(projectRoot, ".specify", "init-options.json")); err == nil && len(raw) <= maxAgentJSONInputBytes {
+		_ = json.Unmarshal(raw, &options)
+	}
+	ai, _ := options["ai"].(string)
+	aiSkills, _ := options["ai_skills"].(bool)
+	switch {
+	case ai == "codex" && aiSkills && skillName != "":
+		return "$" + skillName
+	case ai == "claude" && aiSkills && skillName != "":
+		return "/" + skillName
+	case ai == "kimi" && skillName != "":
+		return "/skill:" + skillName
+	default:
+		return "/" + command
 	}
 }
 
@@ -88,7 +219,7 @@ func validateHookState(args []string) Envelope {
 		if hasFlag(args, "--autofix") {
 			snippet := hookAutofixSnippet(command)
 			if strings.TrimSpace(snippet) == "" {
-				return hookBlocked(command, displayFeature, fmt.Errorf(strings.Join(errors, "; ")))
+				return hookBlocked(command, displayFeature, stdErrors.New(strings.Join(errors, "; ")))
 			}
 			updated := strings.TrimRight(string(content), " \t\r\n")
 			if !strings.Contains(updated, strings.TrimSpace(snippet)) {
@@ -106,7 +237,7 @@ func validateHookState(args []string) Envelope {
 			repaired.Data["writes"] = map[string]any{"workflow_state": filepath.ToSlash(statePath)}
 			return repaired
 		}
-		env := hookBlocked(command, displayFeature, fmt.Errorf(strings.Join(errors, "; ")))
+		env := hookBlocked(command, displayFeature, stdErrors.New(strings.Join(errors, "; ")))
 		env.Data["checkpoint"] = checkpoint
 		env.Data["validated_path"] = filepath.ToSlash(statePath)
 		env.Data["autofix"] = hookAutofixMetadata(displayFeature, command)
@@ -176,6 +307,16 @@ func validateHookArtifacts(args []string) Envelope {
 		env.Data["missing"] = missing
 		env.Data["errors"] = typeErrors
 		return env
+	}
+	semantic := validateHookArtifactSemantics(optionValue(args, "--project-root", "."), root, displayFeature, command)
+	if semantic.Status != "ok" && semantic.Status != "warn" && semantic.Status != "repaired" {
+		if semantic.Data["missing"] == nil {
+			semantic.Data["missing"] = []string{}
+		}
+		if semantic.Data["errors"] == nil {
+			semantic.Data["errors"] = []string{}
+		}
+		return semantic
 	}
 	env := NewEnvelope("ok", "required workflow artifacts are present")
 	env.Data["command"] = command
@@ -279,16 +420,16 @@ type hookRequiredArtifact struct {
 
 func hookRequiredArtifacts(command string) ([]hookRequiredArtifact, bool) {
 	files := map[string][]string{
-		"constitution":  {"workflow-state.md"},
+		"constitution":  {"constitution.md"},
 		"specify":       {"spec-contract.json", "spec.md", "workflow-state.md"},
 		"clarify":       {"spec.md", "alignment.md", "context.md", "references.md", "workflow-state.md", "clarification/evidence-index.json", "clarification/checkpoints.ndjson"},
 		"deep-research": {"deep-research.md", "workflow-state.md"},
-		"plan":          {"plan.md", "workflow-state.md"},
-		"tasks":         {"tasks.md", "workflow-state.md"},
+		"plan":          {"plan.md", "plan-contract.json", "workflow-state.md"},
+		"tasks":         {"tasks.md", "task-index.json", "workflow-state.md"},
 		"analyze":       {"workflow-state.md"},
 		"implement":     {"implement-tracker.md"},
-		"review":        {"review-state.json", "implementation-summary.md", "human-acceptance.json", "workflow-state.md"},
-		"accept":        {"implementation-summary.md", "human-acceptance.json", "workflow-state.md"},
+		"review":        {"review-state.json", "implementation-handoff.json", "implementation-summary.md", "human-acceptance.json", "workflow-state.md"},
+		"accept":        {"implementation-summary.md", "implementation-handoff.json", "review-state.json", "human-acceptance.json", "workflow-state.md"},
 		"map-scan":      {"status.json", "coverage.json", "provisional/nodes.json", "provisional/edges.json", "provisional/observations.json"},
 		"map-build":     {"status.json", "project-cognition.db"},
 		"map-update":    {"status.json", "project-cognition.db"},
@@ -316,6 +457,328 @@ func hookRequiredArtifacts(command string) ([]hookRequiredArtifact, bool) {
 		required = append(required, hookRequiredArtifact{path: path, kind: "dir"})
 	}
 	return required, true
+}
+
+func validateHookArtifactSemantics(projectRoot, featurePath, featureRel, command string) Envelope {
+	switch command {
+	case "specify":
+		env := ValidateSpec(SpecValidationRequest{FeatureDir: featurePath, Tier: "light"})
+		return hookSemanticEnvelope(command, featureRel, env)
+	case "plan":
+		if err := validatePlanContract(featurePath); err != nil {
+			return hookSemanticError(command, featureRel, err)
+		}
+		return hookSemanticOK(command, featureRel)
+	case "clarify":
+		if err := validateHookClarifyArtifacts(featurePath); err != nil {
+			return hookSemanticError(command, featureRel, err)
+		}
+		return hookSemanticOK(command, featureRel)
+	case "deep-research":
+		if err := validateHookDeepResearchArtifacts(featurePath); err != nil {
+			return hookSemanticError(command, featureRel, err)
+		}
+		return hookSemanticOK(command, featureRel)
+	case "tasks":
+		payload, _, err := loadTaskControlPackage(projectRoot, featurePath)
+		if err != nil {
+			return hookSemanticError(command, featureRel, err)
+		}
+		if err := validateTaskControlAcceptance(featurePath, payload); err != nil {
+			return hookSemanticError(command, featureRel, err)
+		}
+		return hookSemanticOK(command, featureRel)
+	case "review":
+		service := reviewAcceptService{projectRoot: projectRoot}
+		_, feature, env, ok := service.resolveFeature(featureRel)
+		if !ok {
+			return env
+		}
+		validation := service.validateReview(feature)
+		if !validation.valid {
+			return hookSemanticErrors(command, featureRel, validation.errors)
+		}
+		return hookSemanticOK(command, featureRel)
+	case "accept":
+		service := reviewAcceptService{projectRoot: projectRoot}
+		_, feature, env, ok := service.resolveFeature(featureRel)
+		if !ok {
+			return env
+		}
+		validation := service.validateHumanAcceptance(feature)
+		if !validation.valid {
+			return hookSemanticErrors(command, featureRel, validation.errors)
+		}
+		return hookSemanticOK(command, featureRel)
+	case "implement":
+		if err := validateHookImplementArtifacts(projectRoot, featurePath); err != nil {
+			return hookSemanticError(command, featureRel, err)
+		}
+		return hookSemanticOK(command, featureRel)
+	case "analyze":
+		if err := validateHookAnalyzeArtifacts(featurePath); err != nil {
+			return hookSemanticError(command, featureRel, err)
+		}
+		return hookSemanticOK(command, featureRel)
+	case "constitution":
+		if err := validateHookConstitutionArtifacts(projectRoot); err != nil {
+			return hookSemanticError(command, featureRel, err)
+		}
+		return hookSemanticOK(command, featureRel)
+	case "prd-scan", "prd-build", "prd":
+		if err := validatePRDStageArtifacts(projectRoot, featurePath, command); err != nil {
+			return hookSemanticError(command, featureRel, err)
+		}
+		return hookSemanticOK(command, featureRel)
+	case "map-scan":
+		return hookGatePayloadEnvelope(command, featureRel, validateProjectCognitionScan(projectRoot))
+	case "map-build", "map-update":
+		return hookGatePayloadEnvelope(command, featureRel, validateProjectCognitionBuild(projectRoot))
+	default:
+		return hookSemanticOK(command, featureRel)
+	}
+}
+
+func validatePlanContract(featurePath string) error {
+	planPath := filepath.Join(featurePath, "plan-contract.json")
+	raw, err := os.ReadFile(planPath)
+	if err != nil {
+		return fmt.Errorf("plan-contract.json is unavailable: %w", err)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(raw, &payload); err != nil || payload == nil {
+		return fmt.Errorf("plan-contract.json is malformed")
+	}
+	if version, ok := hookJSONInteger(payload["version"]); !ok || version != 2 {
+		return fmt.Errorf("plan-contract.json version must be 2")
+	}
+	if strings.TrimSpace(hookAnyStringField(payload, "status")) != "ready" {
+		return fmt.Errorf("plan-contract.json status must be ready")
+	}
+	if strings.TrimSpace(hookAnyStringField(payload, "source_contract")) != "spec-contract.json" {
+		return fmt.Errorf("plan-contract.json source_contract must be spec-contract.json")
+	}
+	if revision, ok := hookJSONInteger(payload["source_revision"]); !ok || revision < 1 {
+		return fmt.Errorf("plan-contract.json source_revision must be a positive integer")
+	}
+	acceptanceRefs, err := hookStringArray(payload["acceptance_refs"], "plan-contract.json acceptance_refs")
+	if err != nil {
+		return err
+	}
+	duplicates := hookDuplicateStrings(acceptanceRefs)
+	if len(duplicates) > 0 {
+		return fmt.Errorf("plan-contract.json acceptance_refs must be unique: %s", strings.Join(duplicates, ", "))
+	}
+	transition, ok := payload["transition"].(map[string]any)
+	if !ok || transition == nil {
+		return fmt.Errorf("plan-contract.json transition must be an object")
+	}
+	if version, ok := hookJSONInteger(transition["version"]); !ok || version != 1 {
+		return fmt.Errorf("plan-contract.json transition.version must be 1")
+	}
+	if strings.TrimSpace(hookAnyStringField(transition, "status")) != "ready" {
+		return fmt.Errorf("plan-contract.json transition.status must be ready")
+	}
+	if strings.TrimSpace(hookAnyStringField(transition, "source_ref")) != "plan-contract.json" {
+		return fmt.Errorf("plan-contract.json transition.source_ref must be plan-contract.json")
+	}
+	for _, field := range []string{"semantic_delta", "required_refs", "blockers"} {
+		if _, err := hookStringArray(transition[field], "plan-contract.json transition."+field); err != nil {
+			return err
+		}
+	}
+	if normalizeCommandToken(hookAnyStringField(transition, "next_action")) != "/sp.tasks" {
+		return fmt.Errorf("plan-contract.json transition.next_action must be /sp.tasks")
+	}
+	specContractPath := filepath.Join(featurePath, "spec-contract.json")
+	specRaw, err := os.ReadFile(specContractPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return fmt.Errorf("spec-contract.json is unavailable: %w", err)
+	}
+	var specContract map[string]any
+	if err := json.Unmarshal(specRaw, &specContract); err != nil || specContract == nil {
+		return fmt.Errorf("spec-contract.json is malformed")
+	}
+	rawCriteria, ok := specContract["acceptance_criteria"].([]any)
+	if !ok {
+		return fmt.Errorf("spec-contract.json acceptance_criteria must be an array")
+	}
+	expectedRefs := make([]string, 0, len(rawCriteria))
+	for index := range rawCriteria {
+		expectedRefs = append(expectedRefs, fmt.Sprintf("spec-contract.json#/acceptance_criteria/%d", index))
+	}
+	if len(expectedRefs) == 0 {
+		if len(acceptanceRefs) != 0 {
+			return fmt.Errorf("plan-contract.json acceptance_refs must be empty when spec-contract.json has no acceptance_criteria")
+		}
+		return nil
+	}
+	if len(acceptanceRefs) != len(expectedRefs) {
+		return fmt.Errorf("plan-contract.json acceptance_refs must cover every spec acceptance criterion exactly once")
+	}
+	for index := range expectedRefs {
+		if acceptanceRefs[index] != expectedRefs[index] {
+			return fmt.Errorf("plan-contract.json acceptance_refs must preserve spec-contract.json acceptance_criteria order")
+		}
+	}
+	return nil
+}
+
+func validateProjectCognitionScan(projectRoot string) internalvalidation.GatePayload {
+	paths, err := rt.ResolvePaths(projectRoot)
+	if err != nil {
+		return internalvalidation.GatePayload{
+			Status:              "blocked",
+			Gate:                "scan_acceptance",
+			Readiness:           "blocked",
+			CompletionAllowed:   false,
+			BypassAllowed:       false,
+			ErrorClassification: "runtime_unavailable",
+			Errors:              []string{err.Error()},
+			Warnings:            []string{},
+			CheckedPaths:        []string{},
+			Details:             map[string]any{},
+		}
+	}
+	return internalvalidation.ValidateScan(paths)
+}
+
+func validateProjectCognitionBuild(projectRoot string) internalvalidation.GatePayload {
+	paths, err := rt.ResolvePaths(projectRoot)
+	if err != nil {
+		return internalvalidation.GatePayload{
+			Status:              "blocked",
+			Gate:                "build_acceptance",
+			Readiness:           "blocked",
+			CompletionAllowed:   false,
+			BypassAllowed:       false,
+			ErrorClassification: "runtime_unavailable",
+			Errors:              []string{err.Error()},
+			Warnings:            []string{},
+			CheckedPaths:        []string{},
+			Details:             map[string]any{},
+		}
+	}
+	return internalvalidation.ValidateBuild(paths)
+}
+
+func hookGatePayloadEnvelope(command, featureRel string, payload internalvalidation.GatePayload) Envelope {
+	if payload.Status == "ok" {
+		env := hookSemanticOK(command, featureRel)
+		if len(payload.Warnings) > 0 {
+			env.Data["warnings"] = append([]string{}, payload.Warnings...)
+		}
+		return env
+	}
+	errors := append([]string{}, payload.Errors...)
+	if len(errors) == 0 && len(payload.Warnings) > 0 {
+		errors = append(errors, payload.Warnings...)
+	}
+	return hookSemanticErrors(command, featureRel, errors)
+}
+
+func hookSemanticEnvelope(command, featureRel string, env Envelope) Envelope {
+	if env.Status == "ok" || env.Status == "warn" || env.Status == "repaired" {
+		env.Data["command"] = command
+		env.Data["feature_dir"] = featureRel
+		return env
+	}
+	errors := []string{}
+	for _, blocker := range env.Blockers {
+		if text, ok := blocker.(string); ok && strings.TrimSpace(text) != "" {
+			errors = append(errors, text)
+		}
+	}
+	if len(errors) == 0 {
+		errors = append(errors, env.Summary)
+	}
+	return hookSemanticErrors(command, featureRel, errors)
+}
+
+func hookSemanticOK(command, featureRel string) Envelope {
+	env := NewEnvelope("ok", "workflow artifacts passed semantic validation")
+	env.Data["command"] = command
+	env.Data["feature_dir"] = featureRel
+	env.Data["errors"] = []string{}
+	return env
+}
+
+func hookSemanticError(command, featureRel string, err error) Envelope {
+	return hookSemanticErrors(command, featureRel, []string{err.Error()})
+}
+
+func hookSemanticErrors(command, featureRel string, errors []string) Envelope {
+	env := hookBlocked(command, featureRel, fmt.Errorf("workflow artifact semantic validation failed"))
+	env.Data["errors"] = errors
+	env.Data["missing"] = []string{}
+	env.Blockers = []any{}
+	for _, item := range errors {
+		if strings.TrimSpace(item) != "" {
+			env.Blockers = append(env.Blockers, item)
+		}
+	}
+	return env
+}
+
+func hookStringArray(value any, label string) ([]string, error) {
+	list, ok := value.([]any)
+	if !ok {
+		return nil, fmt.Errorf("%s must be an array", label)
+	}
+	values := make([]string, 0, len(list))
+	for index, item := range list {
+		text, ok := item.(string)
+		if !ok || strings.TrimSpace(text) == "" {
+			return nil, fmt.Errorf("%s[%d] must be a non-empty string", label, index)
+		}
+		values = append(values, strings.TrimSpace(text))
+	}
+	return values, nil
+}
+
+func hookDuplicateStrings(values []string) []string {
+	counts := map[string]int{}
+	for _, value := range values {
+		counts[value]++
+	}
+	duplicates := []string{}
+	for value, count := range counts {
+		if count > 1 {
+			duplicates = append(duplicates, value)
+		}
+	}
+	sort.Strings(duplicates)
+	return duplicates
+}
+
+func hookJSONInteger(value any) (int, bool) {
+	switch typed := value.(type) {
+	case float64:
+		if typed == float64(int(typed)) {
+			return int(typed), true
+		}
+	case int:
+		return typed, true
+	}
+	return 0, false
+}
+
+func normalizeCommandToken(value string) string {
+	text := strings.TrimSpace(strings.Trim(value, "`"))
+	if text == "" {
+		return ""
+	}
+	text = strings.ReplaceAll(text, "\\", "/")
+	if strings.HasPrefix(text, "sp.") {
+		text = strings.ReplaceAll(text, "sp.", "sp-")
+	}
+	if strings.HasPrefix(text, "sp-") {
+		text = "/" + text
+	}
+	return strings.ToLower(text)
 }
 
 func hookStateErrors(command string, checkpoint map[string]any) []string {

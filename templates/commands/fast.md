@@ -39,7 +39,7 @@ Use `sp-fast` only when ALL of:
 - Root cause known (if bug fix)
 
 If any check fails → upgrade to `/sp-quick`.
-If scope >10 files or crosses module boundary → upgrade to `/sp-specify`.
+If scope >10 files or crosses a module boundary → upgrade to `/sp-quick`.
 
 ## UI Fast Gate
 
@@ -49,8 +49,8 @@ If scope >10 files or crosses module boundary → upgrade to `/sp-specify`.
   entry point.
 - `DESIGN.md` with `design_system.status: bootstrap`, a new surface, supplied
   fidelity target, responsive multi-state work, or a shared component/token
-  change leaves fast: route a new direction to `/sp-design`, bounded tracked UI
-  to `/sp-quick`, and feature-level acceptance to `/sp-specify`.
+  change leaves fast: route a new direction to `/sp-design` and tracked UI of
+  any implementation size or acceptance depth to `/sp-quick`.
 - Eligible UI fast work still requires a representative visual capture and
   runtime diagnostics plus visual inspection against the governing design/live
   pattern; add a structure snapshot whenever semantics, hierarchy, focus, or
@@ -64,26 +64,24 @@ If scope >10 files or crosses module boundary → upgrade to `/sp-specify`.
 
 The fast path may continue only when the Senior Consequence Analysis Gate does not trigger, or when it stands down with a recorded stand-down reason. If the gate triggers, upgrade out of `sp-fast` instead of adding planning artifacts to satisfy this gate on the fast path.
 
-- Upgrade to `/sp-quick` immediately if the gate triggers with a bounded consequence model.
-- Triggered gate with product, lifecycle, running-state, destructive-operation, shared-state, downstream-consumer, compatibility, security, or multiple-behavior semantics → route to `/sp-specify`.
+- Upgrade to `/sp-quick` immediately whenever the gate triggers. Quick records product, lifecycle, running-state, destructive-operation, shared-state, downstream-consumer, compatibility, security, and multiple-behavior semantics through its checkpoint and task-local planning.
 - Stood-down or non-triggered gate → continue in `sp-fast` only after recording the stand-down reason in the fast-path closeout.
 
 ## Upgrade Triggers
 
 Upgrade to `/sp-quick` immediately if:
-- The Senior Consequence Analysis Gate triggers and the consequence model is bounded enough for lightweight tracking.
+- The Senior Consequence Analysis Gate triggers at any breadth.
 - The work expands to more than 3 files.
 - The change touches a shared surface such as a router table, registration file, export barrel, template registry, or other coordination point.
 - The project cognition runtime or change slice shows the touched area is a change-propagation hotspot, has explicit verification entry points beyond a trivial local check, or carries known unknowns that make safe direct execution unavailable.
 - The task stops being obvious and needs research or clarification to proceed safely.
 - The task needs multiple subagent lanes, resumable tracking, or a written quick-task summary artifact.
-- The work started as a bug fix, but root-cause analysis is still unresolved, competing causes are still plausible, or the next safe step is diagnostic investigation rather than a truly local repair. In that case, route to `/sp-debug`.
-
-Upgrade to `/sp-specify` immediately if:
-- The Senior Consequence Analysis Gate triggers for lifecycle, running-state, shared-state, destructive-operation, downstream consumer impact, broad compatibility handling, security, or multiple plausible behavior choices that need product semantics.
 - The request introduces a new workflow, role boundary, or user-visible behavior that needs explicit acceptance criteria.
 - The change carries compatibility, migration, rollout, or neighboring-workflow risk.
-- The task is no longer a bounded local fix and now changes architecture, APIs, long-lived templates, or planning assumptions.
+- The task changes architecture, APIs, long-lived templates, or planning assumptions.
+- The work started as a bug fix, but root-cause analysis is still unresolved, competing causes are still plausible, or the next safe step is diagnostic investigation rather than a truly local repair. In that case, route to `/sp-debug`.
+
+Do not bypass `/sp-quick` and require `/sp-specify` because work is large or consequential. `/sp-specify` is a separate formal specification path selected explicitly by the user.
 
 ## Passive Project Learning Layer
 
@@ -129,7 +127,7 @@ Fast path does not load the full passive learning layer.
    - If the task is behavior-changing rather than docs-only, write a failing targeted test or failing repro check before editing production code.
    - The direct execution notes must include that RED gate before production edits.
    - Do not use manual sanity checks as a substitute for red when behavior changes.
-   - If no reliable automated test surface exists for the affected behavior, stop and redirect to `/sp-quick` or `/sp-specify` instead of hand-waving the verification gap.
+   - If no reliable automated test surface exists for the affected behavior, stop and redirect to `/sp-quick` instead of hand-waving the verification gap.
    - For bug fixes and regressions, record the current root-cause explanation before implementation starts. If the root cause is not yet known, or if multiple plausible causes are still in play, stop and route to `/sp-debug` instead of applying a quick symptom patch.
    - Keep the change as small and local as possible.
    - If the Senior Consequence Analysis Gate stands down, record the stand-down reason before continuing in `sp-fast`.

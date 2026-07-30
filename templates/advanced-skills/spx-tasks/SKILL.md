@@ -16,7 +16,7 @@ Transition from the validated `plan` stage into `tasks` through the
 workflow runtime before creating task artifacts.
 Read `references/ui-quality-gate.md` when the plan carries a UI design contract.
 
-Read `plan-contract.json` first and verify named owners, paths, and verification
+Query `plan-contract.json` first through `specify-runtime artifact show` and verify named owners, paths, and verification
 entry points against cognition-selected live evidence. If planning truth is
 missing or stale, stop and route to `$spx-plan`, `$spx-clarify`, or
 `$spx-deep-research`; do not hide design work inside a task.
@@ -27,10 +27,14 @@ and stop if it remains invalid. Require the plan's ready transition to
 `sp-tasks`, locked target boundary, current revision, and zero unresolved
 planning blockers.
 
-Create `tasks.md` from `assets/tasks.md`. For standard, heavy, delegated,
-multi-batch, obligation-rich, or any UI-bearing work, also render the canonical
-`task-index.json` from `.specify/templates/task-index-template.json`; only a
-non-UI short leader-direct sequence may stay in `tasks.md`. Every task needs a stable ID,
+Build the semantic task package through
+`{{specify-subcmd:specify-runtime tasks build --feature-dir <feature-dir> --definition-json '<inline-json>' --format json}}`,
+refine it only with `tasks upsert`, `tasks set-root`, or
+`tasks remove`, finish with `tasks finalize`, and create the implementation
+transition with `tasks handoff --feature-dir <feature-dir> --target implement --format json`. The CLI expands the canonical
+template and atomically renders `task-index.json` plus `tasks.md`; never create,
+patch, replace, or delete either projection directly, and never stage the payload
+in a temporary JSON or Markdown file. Every task needs a stable ID,
 complete outcome, dependencies, likely write scope, acceptance, verification,
 and must-preserve obligations. Mark parallel only when inputs are stable and
 writes do not overlap; name the join and combined check.
@@ -81,9 +85,18 @@ acceptance, and real-entrypoint verification. Generate worker packets later in
 `$spx-implement`, from current repository state, rather than pre-authoring a
 large packet per task.
 
-For every UI-bearing task, render its detailed block from `assets/ui-task.md`
-and copy `assets/ui-task-index-entry.json` into the canonical task-index entry,
-filling the complete `ui_contract` as the only UI packet contract. Do not rely on a
+When isolated task-generation lanes are delegated, create an absent
+`task-generation/lane-manifest.json` with `artifact scaffold --kind task-generation-lane-manifest --path <feature-dir>/task-generation/lane-manifest.json` and query it on resume. Each
+lane submits one compact result inline through `result submit --command tasks`;
+the runtime alone writes its handoff. At material joins, replace the bounded
+`/lanes` array as a whole through a fresh leased JSON-pointer patch and patch
+`/status` separately at closeout. Never emulate array append, submit the
+manifest wholesale, or duplicate lane events.
+
+For every UI-bearing task, supply only the meaningful non-default semantic fields
+described by `assets/ui-task.md` and `assets/ui-task-index-entry.json` to the task
+CLI. The CLI expands the stable current `ui_contract` shape; the agent does not
+re-emit empty defaults or boilerplate. Use that expanded object as the only UI packet contract. Do not rely on a
 global UI coverage table: the just-in-time packet compiler must receive design
 sources, approved reference/digests, an applicable `DS-*` decision subset,
 component/color-mode/responsive/motion contracts, viewport/state acceptance

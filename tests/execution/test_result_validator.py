@@ -21,6 +21,18 @@ from specify_cli.execution.result_schema import (
 from specify_cli.execution.result_validator import validate_worker_task_result
 
 
+COMPARISON_TOLERANCE = {
+    "structure": "exact",
+    "content": "exact",
+    "tokens": "exact",
+    "geometry": {"unit": "px", "max_delta": 2},
+    "color": {"method": "delta-e-2000", "max_delta": 2},
+    "text_wrap": "exact",
+    "motion": {"unit": "ms", "max_delta": 16},
+    "platform_variance": "approved-deviation-only",
+}
+
+
 @pytest.fixture
 def sample_packet() -> WorkerTaskPacket:
     return WorkerTaskPacket(
@@ -51,7 +63,11 @@ def sample_packet() -> WorkerTaskPacket:
                 path=".specify/project-cognition/project-cognition.db",
                 kind="project_cognition",
                 purpose="Query-backed cognition graph store for touched-scope routing",
-                required_for=["workflow_boundary", "architecture_boundary", "forbidden_drift"],
+                required_for=[
+                    "workflow_boundary",
+                    "architecture_boundary",
+                    "forbidden_drift",
+                ],
                 read_order=2,
                 must_read=True,
                 selection_reason="specify-runtime cognition query returns touched-scope context and conflict signals",
@@ -697,9 +713,7 @@ def test_validate_worker_task_result_requires_current_ui_evidence_triad(
         "DS-COMP-001",
         "DS-RESP-001",
     ]
-    sample_packet.ui_contract.comparison_tolerance = (
-        "no unapproved structural drift"
-    )
+    sample_packet.ui_contract.comparison_tolerance = COMPARISON_TOLERANCE
     sample_packet.ui_contract.required_evidence = [
         "structure_snapshot",
         "visual_capture",
@@ -737,7 +751,7 @@ def test_validate_worker_task_result_requires_current_ui_evidence_triad(
             comparison_report_sha256="c" * 64,
             implementation_capture_refs=["artifacts/ui/settings.png"],
             covered_decision_ids=["DS-COMP-001", "DS-RESP-001"],
-            comparison_tolerance="no unapproved structural drift",
+            comparison_tolerance=COMPARISON_TOLERANCE,
         ),
         ui_evidence=[
             {"kind": "structure_snapshot", "ref": "artifacts/ui/a11y.json"},
@@ -1531,7 +1545,9 @@ def test_validate_worker_task_result_rejects_agent_reviewer_claiming_ui_pass_wit
     assert "human approval" in exc.value.message
 
 
-@pytest.mark.parametrize("fidelity_status", [None, "", "not-run", "unavailable", "none"])
+@pytest.mark.parametrize(
+    "fidelity_status", [None, "", "not-run", "unavailable", "none"]
+)
 def test_validate_worker_task_result_rejects_missing_ui_fidelity_status(
     sample_packet: WorkerTaskPacket,
     fidelity_status: str | None,
@@ -1767,9 +1783,7 @@ def test_validate_worker_task_result_rejects_obsolete_ui_evidence_kind(
                 output="1 passed",
             )
         ],
-        ui_evidence=[
-            {"kind": "desktop_screenshot", "ref": "artifacts/auth-flow.png"}
-        ],
+        ui_evidence=[{"kind": "desktop_screenshot", "ref": "artifacts/auth-flow.png"}],
         summary="Implemented auth flow",
         rule_acknowledgement=RuleAcknowledgement(
             required_references_read=True,
@@ -1795,9 +1809,7 @@ def test_validate_worker_task_result_rejects_obsolete_ui_evidence_kind_when_bloc
         blockers=["dependency unavailable"],
         failed_assumptions=["dependency was expected to be available"],
         suggested_recovery_actions=["restore the dependency"],
-        ui_evidence=[
-            {"kind": "desktop_screenshot", "ref": "artifacts/auth-flow.png"}
-        ],
+        ui_evidence=[{"kind": "desktop_screenshot", "ref": "artifacts/auth-flow.png"}],
         rule_acknowledgement=RuleAcknowledgement(
             required_references_read=True,
             forbidden_drift_respected=True,
@@ -1819,9 +1831,7 @@ def test_validate_worker_task_result_rejects_obsolete_ui_evidence_kind_when_pend
     result = WorkerTaskResult(
         task_id="T017",
         status="pending",
-        ui_evidence=[
-            {"kind": "desktop_screenshot", "ref": "artifacts/auth-flow.png"}
-        ],
+        ui_evidence=[{"kind": "desktop_screenshot", "ref": "artifacts/auth-flow.png"}],
     )
 
     with pytest.raises(PacketValidationError, match="unsupported UI evidence kind"):
@@ -1834,9 +1844,7 @@ def test_validate_worker_task_result_rejects_obsolete_ui_evidence_kind_when_fail
     result = WorkerTaskResult(
         task_id="T017",
         status="failed",
-        ui_evidence=[
-            {"kind": "desktop_screenshot", "ref": "artifacts/auth-flow.png"}
-        ],
+        ui_evidence=[{"kind": "desktop_screenshot", "ref": "artifacts/auth-flow.png"}],
     )
 
     with pytest.raises(PacketValidationError, match="unsupported UI evidence kind"):

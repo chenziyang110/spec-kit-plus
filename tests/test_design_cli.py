@@ -39,6 +39,8 @@ design_system:
       - .specify/design/previews/round-01.html#direction-a
     preview_sha256: PREVIEW_SHA256
     manifest_sha256: MANIFEST_SHA256
+    handoff_ref: .specify/design/previews/round-01.handoff.json
+    handoff_sha256: HANDOFF_SHA256
     decision_ids:
       - DS-COLOR-001
       - DS-TYPE-001
@@ -47,6 +49,13 @@ design_system:
       - DS-MOTION-001
       - DS-RESP-001
       - DS-CONTENT-001
+    handoff_contract_ids: HANDOFF_CONTRACT_IDS
+    capability_profile_ids:
+      - web
+    specimen_ids:
+      - SP-WEB-WORKSPACE-001
+      - SP-WEB-CONTROLS-001
+      - SP-WEB-COLLECTION-001
   product_context:
     subject: account settings
     audience: account owners
@@ -62,6 +71,12 @@ design_system:
       - compact density
   platforms:
     - web
+  capability_profiles:
+    - web
+  specimens:
+    - SP-WEB-WORKSPACE-001
+    - SP-WEB-CONTROLS-001
+    - SP-WEB-COLLECTION-001
   tokens:
     color:
       surface.canvas:
@@ -267,6 +282,11 @@ def _ready_design_text(tmp_path: Path, content: str = VALID_DESIGN) -> str:
     return (
         content.replace("PREVIEW_SHA256", approval["html_sha256"])
         .replace("MANIFEST_SHA256", approval["manifest_sha256"])
+        .replace("HANDOFF_SHA256", approval["handoff_sha256"])
+        .replace(
+            "HANDOFF_CONTRACT_IDS",
+            json.dumps(approval["handoff_contract_ids"]),
+        )
     )
 
 

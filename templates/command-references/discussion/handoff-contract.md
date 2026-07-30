@@ -6,7 +6,7 @@ Preserved Contract: the handoff is user-confirmed, consumer-neutral, schema-vali
 
 ## Agent-Facing Requirement Contract
 
-Author a complete draft from `templates/discussion-handoff-template.json`, record agent self-review, and write it with `{{specify-subcmd:specify-runtime discussion write-handoff <slug> --input <draft-json-path> --json}}`. The canonical result is `.specify/discussions/<slug>/handoff-to-specify.json`; the filename is compatibility-only, and the payload is one `discussion_requirement_contract` that may select `sp-specify` or `sp-quick`.
+Build only the compact semantic handoff input in memory—target, scope, constraints, success criteria, evidence, boundary, unknowns, downstream obligations, consumer eligibility, and decision digest—and submit it with `{{specify-subcmd:specify-runtime discussion write-handoff <slug> --input-json '<semantic-json>' --json}}`. The CLI expands `templates/discussion-handoff-template.json`, supplies stable metadata and blocked defaults, computes the review digest, and atomically writes the canonical contract. Never read or reproduce the template and never create a draft file. The canonical result is `.specify/discussions/<slug>/handoff-to-specify.json`; the filename is compatibility-only, and the payload is one `discussion_requirement_contract` that may select `sp-specify` or `sp-quick`.
 
 Do not write a Markdown companion, consumer-specific copy, reviewer guide, transcript, or pointer-only substitute. Human review is a visible response generated from the canonical JSON and bound to its `review_digest`.
 
