@@ -1,0 +1,196 @@
+package main
+
+import (
+	"bytes"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+)
+
+func TestRunCLIControlsDurableRunLifecycle(t *testing.T) {
+	root := initRunCLIRepository(t)
+	runID := "run_cli_lifecycle"
+	digest := strings.Repeat("a", 64)
+
+	code, created := invokeRunCLI(t,
+		"run", "create",
+		"--project-root", root,
+		"--run-id", runID,
+		"--kind", "quick",
+		"--subject-type", "feature",
+		"--subject-id", "parallel-quick",
+		"--target-ref", "refs/heads/main",
+		"--intent-sha256", digest,
+		"--format", "json",
+	)
+	if code != 0 || created["status"] != "ok" {
+		t.Fatalf("run create = code %d envelope %#v, want ok", code, created)
+	}
+	createdRun := requireObject(t, requireObject(t, created, "data"), "run")
+	if createdRun["run_id"] != runID || createdRun["status"] != "allocating" || createdRun["revision"] != float64(1) {
+		t.Fatalf("created run = %#v, want allocating revision 1", createdRun)
+	}
+
+	code, shown := invokeRunCLI(t, "run", "show", runID, "--project-root", root, "--format", "json")
+	if code != 0 || shown["status"] != "ok" {
+		t.Fatalf("run show = code %d envelope %#v, want ok", code, shown)
+	}
+	shownRun := requireObject(t, requireObject(t, shown, "data"), "run")
+	if shownRun["status"] != "allocating" {
+		t.Fatalf("run status after create process closed = %#v, want allocating", shownRun["status"])
+	}
+
+	code, events := invokeRunCLI(t, "run", "events", runID, "--project-root", root, "--format", "json")
+	if code != 0 || events["status"] != "ok" {
+		t.Fatalf("run events = code %d envelope %#v, want ok", code, events)
+	}
+	items := events["items"].([]any)
+	if len(items) != 1 || requireObjectValue(t, items[0])["event_type"] != "run.created" {
+		t.Fatalf("created run events = %#v, want one run.created event", items)
+	}
+
+	code, cancelled := invokeRunCLI(t,
+		"run", "cancel", runID,
+		"--project-root", root,
+		"--expected-revision", "1",
+		"--reason", "user stopped the task",
+		"--format", "json",
+	)
+	if code != 0 || cancelled["status"] != "ok" {
+		t.Fatalf("run cancel = code %d envelope %#v, want ok", code, cancelled)
+	}
+	cancelledRun := requireObject(t, requireObject(t, cancelled, "data"), "run")
+	if cancelledRun["status"] != "cancelled" || cancelledRun["revision"] != float64(2) || cancelledRun["current_fence"] != float64(1) {
+		t.Fatalf("cancelled run = %#v, want cancelled revision 2 fence 1", cancelledRun)
+	}
+
+	_, events = invokeRunCLI(t, "run", "events", runID, "--project-root", root, "--format", "json")
+	items = events["items"].([]any)
+	if len(items) != 2 || requireObjectValue(t, items[1])["event_type"] != "run.cancelled" {
+		t.Fatalf("cancelled run events = %#v, want terminal run.cancelled event", items)
+	}
+}
+
+func TestRunCLICancelUsesRevisionCAS(t *testing.T) {
+	root := initRunCLIRepository(t)
+	createRunThroughCLI(t, root, "run_cli_stale")
+
+	code, payload := invokeRunCLI(t,
+		"run", "cancel", "run_cli_stale",
+		"--project-root", root,
+		"--expected-revision", "99",
+		"--reason", "stale caller",
+		"--format", "json",
+	)
+	if code != 10 || payload["status"] != "blocked" {
+		t.Fatalf("stale run cancel = code %d envelope %#v, want blocked exit 10", code, payload)
+	}
+
+	code, shown := invokeRunCLI(t, "run", "show", "run_cli_stale", "--project-root", root, "--format", "json")
+	if code != 0 || requireObject(t, requireObject(t, shown, "data"), "run")["status"] != "allocating" {
+		t.Fatalf("stale cancellation changed run: code %d envelope %#v", code, shown)
+	}
+}
+
+func TestRunCLIRejectsUnsafeOrIncompleteRequests(t *testing.T) {
+	root := initRunCLIRepository(t)
+	tests := []struct {
+		name string
+		args []string
+	}{
+		{name: "missing subcommand", args: []string{"run"}},
+		{name: "missing create field", args: []string{"run", "create", "--project-root", root, "--run-id", "missing"}},
+		{name: "unknown option", args: []string{"run", "show", "missing", "--project-root", root, "--surprise", "value"}},
+		{name: "missing show id", args: []string{"run", "show", "--project-root", root}},
+		{name: "invalid revision", args: []string{"run", "cancel", "missing", "--project-root", root, "--expected-revision", "zero", "--reason", "invalid"}},
+		{name: "privileged subcommand", args: []string{"run", "heartbeat", "attempt", "--project-root", root}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			code, payload := invokeRunCLI(t, test.args...)
+			if code != 2 || payload["status"] != "usage-error" {
+				t.Fatalf("request %v = code %d envelope %#v, want usage-error exit 2", test.args, code, payload)
+			}
+		})
+	}
+}
+
+func TestRunCLIUsesSharedDatabaseFromLinkedWorktree(t *testing.T) {
+	root := initRunCLIRepository(t)
+	if err := os.WriteFile(filepath.Join(root, "README.md"), []byte("run cli\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	gitRun(t, root, "config", "user.name", "Run CLI Test")
+	gitRun(t, root, "config", "user.email", "run-cli@example.invalid")
+	gitRun(t, root, "config", "commit.gpgsign", "false")
+	gitRun(t, root, "add", "README.md")
+	gitRun(t, root, "commit", "-m", "initial")
+	linked := filepath.Join(filepath.Dir(root), filepath.Base(root)+"-linked")
+	gitRun(t, root, "worktree", "add", "--detach", linked, "HEAD")
+	t.Cleanup(func() { _ = os.RemoveAll(linked) })
+
+	createRunThroughCLI(t, root, "run_cli_shared")
+	code, payload := invokeRunCLI(t, "run", "show", "run_cli_shared", "--project-root", linked, "--format", "json")
+	if code != 0 || requireObject(t, requireObject(t, payload, "data"), "run")["run_id"] != "run_cli_shared" {
+		t.Fatalf("linked worktree show = code %d envelope %#v, want shared run", code, payload)
+	}
+}
+
+func TestRunCapabilitiesAreDiscoverableAndBounded(t *testing.T) {
+	for _, capabilityID := range []string{"run.create", "run.show", "run.events", "run.cancel"} {
+		if !containsCapability(defaultCapabilities(), capabilityID) {
+			t.Fatalf("default capabilities missing %q", capabilityID)
+		}
+		code, payload := invokeRunCLI(t, "api", "show", capabilityID, "--format", "json")
+		if code != 0 {
+			t.Fatalf("api show %s = code %d envelope %#v", capabilityID, code, payload)
+		}
+		capability := requireObject(t, requireObject(t, payload, "data"), "capability")
+		if capability["usage"] == nil || capability["side_effect"] == nil {
+			t.Fatalf("capability %s = %#v, want usage and side_effect", capabilityID, capability)
+		}
+	}
+	for _, privileged := range []string{"run.issue-attempt", "run.activate-attempt", "run.heartbeat", "run.reconcile"} {
+		if containsCapability(defaultCapabilities(), privileged) {
+			t.Fatalf("default capabilities expose privileged control %q", privileged)
+		}
+	}
+}
+
+func initRunCLIRepository(t *testing.T) string {
+	t.Helper()
+	requireGit(t)
+	root := t.TempDir()
+	gitRun(t, root, "init")
+	return root
+}
+
+func createRunThroughCLI(t *testing.T, root, runID string) map[string]any {
+	t.Helper()
+	code, payload := invokeRunCLI(t,
+		"run", "create",
+		"--project-root", root,
+		"--run-id", runID,
+		"--kind", "quick",
+		"--subject-type", "feature",
+		"--subject-id", runID,
+		"--target-ref", "HEAD",
+		"--intent-sha256", strings.Repeat("b", 64),
+		"--format", "json",
+	)
+	if code != 0 {
+		t.Fatalf("create run %q = code %d envelope %#v", runID, code, payload)
+	}
+	return payload
+}
+
+func invokeRunCLI(t *testing.T, args ...string) (int, map[string]any) {
+	t.Helper()
+	var stdout, stderr bytes.Buffer
+	code := Run(args, &stdout, &stderr, "test")
+	if stderr.Len() != 0 {
+		t.Fatalf("Run(%v) stderr = %q, want empty", args, stderr.String())
+	}
+	return code, decodeJSONObject(t, stdout.Bytes())
+}
