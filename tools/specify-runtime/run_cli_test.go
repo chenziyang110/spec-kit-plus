@@ -2,9 +2,13 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"sync"
 	"testing"
 )
 
@@ -90,6 +94,58 @@ func TestRunCLICancelUsesRevisionCAS(t *testing.T) {
 	code, shown := invokeRunCLI(t, "run", "show", "run_cli_stale", "--project-root", root, "--format", "json")
 	if code != 0 || requireObject(t, requireObject(t, shown, "data"), "run")["status"] != "allocating" {
 		t.Fatalf("stale cancellation changed run: code %d envelope %#v", code, shown)
+	}
+}
+
+func TestRunCLICreatesFiveIndependentRunsConcurrently(t *testing.T) {
+	root := initRunCLIRepository(t)
+	type result struct {
+		runID   string
+		code    int
+		payload map[string]any
+		err     error
+	}
+	start := make(chan struct{})
+	results := make(chan result, 5)
+	var workers sync.WaitGroup
+	for index := 1; index <= 5; index++ {
+		runID := "run_cli_parallel_" + strconv.Itoa(index)
+		workers.Add(1)
+		go func() {
+			defer workers.Done()
+			<-start
+			var stdout, stderr bytes.Buffer
+			code := Run([]string{
+				"run", "create",
+				"--project-root", root,
+				"--run-id", runID,
+				"--kind", "quick",
+				"--subject-type", "feature",
+				"--subject-id", runID,
+				"--target-ref", "HEAD",
+				"--intent-sha256", strings.Repeat("c", 64),
+				"--format", "json",
+			}, &stdout, &stderr, "test")
+			var payload map[string]any
+			decodeErr := json.Unmarshal(stdout.Bytes(), &payload)
+			if decodeErr == nil && stderr.Len() != 0 {
+				decodeErr = fmt.Errorf("stderr: %s", stderr.String())
+			}
+			results <- result{runID: runID, code: code, payload: payload, err: decodeErr}
+		}()
+	}
+	close(start)
+	workers.Wait()
+	close(results)
+
+	for created := range results {
+		if created.err != nil || created.code != 0 || created.payload["status"] != "ok" {
+			t.Fatalf("parallel create %s = code %d error %v envelope %#v", created.runID, created.code, created.err, created.payload)
+		}
+		code, shown := invokeRunCLI(t, "run", "show", created.runID, "--project-root", root, "--format", "json")
+		if code != 0 || requireObject(t, requireObject(t, shown, "data"), "run")["status"] != "allocating" {
+			t.Fatalf("parallel run %s not independently visible: code %d envelope %#v", created.runID, code, shown)
+		}
 	}
 }
 
