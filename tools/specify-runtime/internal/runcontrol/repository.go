@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -39,7 +40,7 @@ func ResolveRepository(ctx context.Context, cwd string) (Repository, error) {
 
 	rootOutput, err := runGitRevParse(ctx, directory, "--show-toplevel")
 	if err != nil {
-		if isGitRepositoryBoundaryError(err) {
+		if isPlainNonGitDirectory(directory, err) {
 			return Repository{}, fmt.Errorf("%w: working directory is outside a Git worktree", ErrNotGitRepository)
 		}
 		return Repository{}, fmt.Errorf("resolve Git worktree root: %w", err)
@@ -51,9 +52,6 @@ func ResolveRepository(ctx context.Context, cwd string) (Repository, error) {
 
 	commonOutput, err := runGitRevParse(ctx, directory, "--git-common-dir")
 	if err != nil {
-		if isGitRepositoryBoundaryError(err) {
-			return Repository{}, fmt.Errorf("%w: working directory is outside a Git worktree", ErrNotGitRepository)
-		}
 		return Repository{}, fmt.Errorf("resolve Git common directory: %w", err)
 	}
 	commonDir, err := resolveGitPath(directory, commonOutput)
@@ -99,9 +97,44 @@ func runGitRevParse(ctx context.Context, directory string, argument string) (str
 	return value, nil
 }
 
-func isGitRepositoryBoundaryError(err error) bool {
+func isPlainNonGitDirectory(directory string, err error) bool {
 	var exitError *exec.ExitError
-	return errors.As(err, &exitError)
+	if !errors.As(err, &exitError) {
+		return false
+	}
+	// Explicit Git routing means a command failure is configuration or metadata
+	// trouble, not proof that the directory is simply outside a worktree.
+	if os.Getenv("GIT_DIR") != "" || os.Getenv("GIT_WORK_TREE") != "" {
+		return false
+	}
+
+	ceilings := make(map[string]struct{})
+	for _, value := range filepath.SplitList(os.Getenv("GIT_CEILING_DIRECTORIES")) {
+		if absolute, absoluteErr := filepath.Abs(value); absoluteErr == nil {
+			ceilings[filepath.Clean(absolute)] = struct{}{}
+		}
+	}
+
+	current := filepath.Clean(directory)
+	for {
+		_, statErr := os.Lstat(filepath.Join(current, ".git"))
+		switch {
+		case statErr == nil:
+			return false
+		case !errors.Is(statErr, os.ErrNotExist):
+			return false
+		}
+
+		parent := filepath.Dir(current)
+		if parent == current {
+			break
+		}
+		if _, stop := ceilings[parent]; stop {
+			break
+		}
+		current = parent
+	}
+	return true
 }
 
 func resolveGitPath(directory string, value string) (string, error) {

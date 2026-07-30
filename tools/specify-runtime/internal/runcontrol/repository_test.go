@@ -68,12 +68,14 @@ func TestResolveRepositoryUsesSharedGitCommonDirectory(t *testing.T) {
 
 func TestResolveRepositoryRejectsNonGitDirectory(t *testing.T) {
 	ensureGitAvailable(t)
-	directory := t.TempDir()
-	// Stop Git discovery at this directory even when the platform temp root is
-	// itself inside an unrelated repository.
-	if err := os.WriteFile(filepath.Join(directory, ".git"), []byte("gitdir: missing\n"), 0o644); err != nil {
+	parent := t.TempDir()
+	directory := filepath.Join(parent, "not-a-repository")
+	if err := os.MkdirAll(directory, 0o755); err != nil {
 		t.Fatal(err)
 	}
+	// Stop discovery above the fixture without manufacturing broken Git
+	// metadata, which is a different and actionable failure class.
+	t.Setenv("GIT_CEILING_DIRECTORIES", parent)
 
 	_, err := ResolveRepository(context.Background(), directory)
 	if !errors.Is(err, ErrNotGitRepository) {

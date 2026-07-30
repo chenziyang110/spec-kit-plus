@@ -1,6 +1,6 @@
 package runcontrol
 
-const schemaVersion = 1
+const schemaVersion = 2
 
 const schemaSQL = `
 CREATE TABLE IF NOT EXISTS metadata (
@@ -102,6 +102,7 @@ CREATE TABLE IF NOT EXISTS attempts (
     created_at_ms INTEGER NOT NULL,
     updated_at_ms INTEGER NOT NULL,
     UNIQUE (run_id, fence),
+    UNIQUE (attempt_id, run_id, activity_id, workspace_id),
     FOREIGN KEY (activity_id, run_id) REFERENCES activities(activity_id, run_id) ON DELETE RESTRICT,
     FOREIGN KEY (workspace_id, run_id) REFERENCES workspaces(workspace_id, run_id) ON DELETE RESTRICT
 );
@@ -119,9 +120,9 @@ CREATE TABLE IF NOT EXISTS operations (
     aggregate_type TEXT NOT NULL,
     aggregate_id TEXT NOT NULL,
     run_id TEXT NOT NULL REFERENCES runs(run_id) ON DELETE RESTRICT,
-    attempt_id TEXT NOT NULL REFERENCES attempts(attempt_id) ON DELETE RESTRICT,
-    activity_id TEXT NOT NULL REFERENCES activities(activity_id) ON DELETE RESTRICT,
-    workspace_id TEXT NOT NULL REFERENCES workspaces(workspace_id) ON DELETE RESTRICT,
+    attempt_id TEXT NOT NULL,
+    activity_id TEXT NOT NULL,
+    workspace_id TEXT NOT NULL,
     owner_epoch TEXT NOT NULL REFERENCES supervisor_instances(owner_epoch) ON DELETE RESTRICT,
     fence INTEGER NOT NULL CHECK (fence > 0),
     run_revision INTEGER NOT NULL CHECK (run_revision >= 1),
@@ -134,7 +135,9 @@ CREATE TABLE IF NOT EXISTS operations (
     ),
     revision INTEGER NOT NULL CHECK (revision >= 1),
     created_at_ms INTEGER NOT NULL,
-    updated_at_ms INTEGER NOT NULL
+    updated_at_ms INTEGER NOT NULL,
+    FOREIGN KEY (attempt_id, run_id, activity_id, workspace_id)
+        REFERENCES attempts(attempt_id, run_id, activity_id, workspace_id) ON DELETE RESTRICT
 );
 
 CREATE TABLE IF NOT EXISTS events (
