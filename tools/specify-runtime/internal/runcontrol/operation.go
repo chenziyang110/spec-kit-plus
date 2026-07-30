@@ -23,11 +23,39 @@ func (store *Store) BeginOperation(ctx context.Context, params BeginOperationPar
 	defer func() { _ = transaction.Rollback() }()
 
 	now := time.Now().UTC().UnixMilli()
+	run, err := readRunTx(ctx, transaction, params.RunID)
+	if err != nil {
+		return Operation{}, false, err
+	}
+	attempt, err := readAttemptTx(ctx, transaction, params.AttemptID)
+	if err != nil {
+		return Operation{}, false, err
+	}
+	if attempt.RunID != run.RunID {
+		return Operation{}, false, fmt.Errorf("%w: attempt %q does not belong to run %q", ErrStaleFence, attempt.AttemptID, run.RunID)
+	}
+	if err := validateAttemptAuthority(attempt, run, params.Fence, store.ownerEpoch); err != nil {
+		return Operation{}, false, err
+	}
+	if run.Revision != params.ExpectedRunRevision {
+		return Operation{}, false, fmt.Errorf("%w: run %q revision is %d, expected %d", ErrRevisionConflict, run.RunID, run.Revision, params.ExpectedRunRevision)
+	}
+	if run.Status != RunActive || (attempt.Status != AttemptActive && attempt.Status != AttemptSealing) {
+		return Operation{}, false, fmt.Errorf("%w: attempt %q does not hold active execution authority", ErrStaleFence, attempt.AttemptID)
+	}
+	if attempt.LeaseUntilMS <= now {
+		return Operation{}, false, fmt.Errorf("%w: attempt %q lease has expired", ErrStaleFence, attempt.AttemptID)
+	}
 	operation := Operation{
 		OperationID:    params.OperationID,
 		Kind:           params.Kind,
 		AggregateType:  params.AggregateType,
 		AggregateID:    params.AggregateID,
+		RunID:          params.RunID,
+		AttemptID:      params.AttemptID,
+		OwnerEpoch:     store.ownerEpoch,
+		Fence:          params.Fence,
+		RunRevision:    params.ExpectedRunRevision,
 		IdempotencyKey: params.IdempotencyKey,
 		RequestSHA256:  params.RequestSHA256,
 		Status:         OperationPrepared,
@@ -38,11 +66,13 @@ func (store *Store) BeginOperation(ctx context.Context, params BeginOperationPar
 	result, err := transaction.ExecContext(ctx, `
 		INSERT INTO operations (
 			operation_id, kind, aggregate_type, aggregate_id,
+			run_id, attempt_id, owner_epoch, fence, run_revision,
 			idempotency_key, request_sha256, status, revision,
 			created_at_ms, updated_at_ms
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(idempotency_key) DO NOTHING
 	`, operation.OperationID, operation.Kind, operation.AggregateType, operation.AggregateID,
+		operation.RunID, operation.AttemptID, operation.OwnerEpoch, operation.Fence, operation.RunRevision,
 		operation.IdempotencyKey, operation.RequestSHA256, operation.Status, operation.Revision,
 		operation.CreatedAtMS, operation.UpdatedAtMS)
 	if err != nil {
@@ -83,6 +113,8 @@ func validateBeginOperationParams(params BeginOperationParams) error {
 		"kind":            params.Kind,
 		"aggregate_type":  params.AggregateType,
 		"aggregate_id":    params.AggregateID,
+		"run_id":          params.RunID,
+		"attempt_id":      params.AttemptID,
 		"idempotency_key": params.IdempotencyKey,
 		"request_sha256":  params.RequestSHA256,
 	}
@@ -94,6 +126,12 @@ func validateBeginOperationParams(params BeginOperationParams) error {
 	if !validSHA256(params.RequestSHA256) {
 		return fmt.Errorf("%w: request_sha256 must be a lowercase sha256 digest", ErrInvalidArgument)
 	}
+	if params.Fence <= 0 {
+		return fmt.Errorf("%w: fence must be positive", ErrInvalidArgument)
+	}
+	if params.ExpectedRunRevision <= 0 {
+		return fmt.Errorf("%w: expected_run_revision must be positive", ErrInvalidArgument)
+	}
 	return nil
 }
 
@@ -102,6 +140,7 @@ func readOperationByIdempotencyKey(ctx context.Context, querier interface {
 }, idempotencyKey string) (Operation, error) {
 	row := querier.QueryRowContext(ctx, `
 		SELECT operation_id, kind, aggregate_type, aggregate_id,
+		       run_id, attempt_id, owner_epoch, fence, run_revision,
 		       idempotency_key, request_sha256, status, revision,
 		       created_at_ms, updated_at_ms
 		FROM operations
@@ -113,6 +152,11 @@ func readOperationByIdempotencyKey(ctx context.Context, querier interface {
 		&operation.Kind,
 		&operation.AggregateType,
 		&operation.AggregateID,
+		&operation.RunID,
+		&operation.AttemptID,
+		&operation.OwnerEpoch,
+		&operation.Fence,
+		&operation.RunRevision,
 		&operation.IdempotencyKey,
 		&operation.RequestSHA256,
 		&operation.Status,
@@ -130,5 +174,9 @@ func operationMatchesRequest(operation Operation, params BeginOperationParams) b
 	return operation.Kind == params.Kind &&
 		operation.AggregateType == params.AggregateType &&
 		operation.AggregateID == params.AggregateID &&
+		operation.RunID == params.RunID &&
+		operation.AttemptID == params.AttemptID &&
+		operation.Fence == params.Fence &&
+		operation.RunRevision == params.ExpectedRunRevision &&
 		operation.RequestSHA256 == params.RequestSHA256
 }

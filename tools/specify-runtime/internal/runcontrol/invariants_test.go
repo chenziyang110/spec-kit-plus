@@ -126,14 +126,20 @@ func TestActivateCannotResurrectExpiredIssuedLease(t *testing.T) {
 func TestConcurrentOperationRetryReturnsReplay(t *testing.T) {
 	ctx := context.Background()
 	databasePath := filepath.Join(t.TempDir(), "run-control.sqlite")
-	stores := []*Store{openTestStore(t, databasePath), openTestStore(t, databasePath)}
+	store := openTestStore(t, databasePath)
+	active, attempt := createAuthorityActiveRun(t, store, "run_concurrent_operation", time.Now().UTC())
+	stores := []*Store{store, store}
 	request := BeginOperationParams{
-		OperationID:    "op_concurrent",
-		Kind:           "snapshot.allocate",
-		AggregateType:  "run",
-		AggregateID:    "run_concurrent_operation",
-		IdempotencyKey: "snapshot/run_concurrent_operation/1",
-		RequestSHA256:  digestForTest("concurrent-operation"),
+		OperationID:         "op_concurrent",
+		Kind:                "command.execute",
+		AggregateType:       "run",
+		AggregateID:         active.RunID,
+		RunID:               active.RunID,
+		AttemptID:           attempt.AttemptID,
+		Fence:               attempt.Fence,
+		ExpectedRunRevision: active.Revision,
+		IdempotencyKey:      "command/run_concurrent_operation/1",
+		RequestSHA256:       digestForTest("concurrent-operation"),
 	}
 
 	type result struct {
@@ -175,13 +181,18 @@ func TestConcurrentOperationRetryReturnsReplay(t *testing.T) {
 func TestOperationRetryMayProposeDifferentOperationID(t *testing.T) {
 	ctx := context.Background()
 	store := openTestStore(t, filepath.Join(t.TempDir(), "run-control.sqlite"))
+	active, attempt := createAuthorityActiveRun(t, store, "run_operation_identity", time.Now().UTC())
 	request := BeginOperationParams{
-		OperationID:    "op_original",
-		Kind:           "snapshot.allocate",
-		AggregateType:  "run",
-		AggregateID:    "run_operation_identity",
-		IdempotencyKey: "snapshot/run_operation_identity/1",
-		RequestSHA256:  digestForTest("same-request"),
+		OperationID:         "op_original",
+		Kind:                "command.execute",
+		AggregateType:       "run",
+		AggregateID:         active.RunID,
+		RunID:               active.RunID,
+		AttemptID:           attempt.AttemptID,
+		Fence:               attempt.Fence,
+		ExpectedRunRevision: active.Revision,
+		IdempotencyKey:      "command/run_operation_identity/1",
+		RequestSHA256:       digestForTest("same-request"),
 	}
 	first, replayed, err := store.BeginOperation(ctx, request)
 	if err != nil || replayed {

@@ -10,7 +10,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	_ "modernc.org/sqlite"
@@ -21,6 +23,8 @@ const sqliteBusyTimeoutMS = 5000
 type Store struct {
 	db         *sql.DB
 	ownerEpoch string
+	closeOnce  sync.Once
+	closeErr   error
 }
 
 type openConfig struct {
@@ -69,7 +73,7 @@ func Open(ctx context.Context, databasePath string, options ...OpenOption) (*Sto
 		return nil, fmt.Errorf("create run control database directory: %w", err)
 	}
 
-	db, err := sql.Open("sqlite", absolutePath)
+	db, err := sql.Open("sqlite", absolutePath+"?_txlock=immediate")
 	if err != nil {
 		return nil, fmt.Errorf("open run control database: %w", err)
 	}
@@ -97,6 +101,16 @@ func (store *Store) initialize(ctx context.Context) error {
 	if _, err := store.db.ExecContext(ctx, `PRAGMA journal_mode = WAL`); err != nil {
 		return fmt.Errorf("enable sqlite WAL: %w", err)
 	}
+	if _, err := store.db.ExecContext(ctx, `PRAGMA synchronous = FULL`); err != nil {
+		return fmt.Errorf("configure sqlite synchronous mode: %w", err)
+	}
+	version, exists, err := existingSchemaVersion(ctx, store.db)
+	if err != nil {
+		return err
+	}
+	if exists && version != schemaVersion {
+		return fmt.Errorf("%w: database has version %d, runtime requires %d", ErrUnsupportedSchema, version, schemaVersion)
+	}
 	if _, err := store.db.ExecContext(ctx, schemaSQL); err != nil {
 		return fmt.Errorf("initialize run control schema: %w", err)
 	}
@@ -108,7 +122,7 @@ func (store *Store) initialize(ctx context.Context) error {
 	defer func() { _ = transaction.Rollback() }()
 	if _, err := transaction.ExecContext(ctx, `
 		INSERT INTO metadata (key, value) VALUES ('schema_version', ?)
-		ON CONFLICT(key) DO UPDATE SET value = excluded.value
+		ON CONFLICT(key) DO NOTHING
 	`, fmt.Sprint(schemaVersion)); err != nil {
 		return fmt.Errorf("record run control schema version: %w", err)
 	}
@@ -116,10 +130,10 @@ func (store *Store) initialize(ctx context.Context) error {
 		INSERT INTO supervisor_instances (
 			owner_epoch, status, started_at_ms, heartbeat_at_ms, stopped_at_ms
 		) VALUES (?, 'active', ?, ?, NULL)
-		ON CONFLICT(owner_epoch) DO UPDATE SET
-			status = 'active', heartbeat_at_ms = excluded.heartbeat_at_ms,
-			stopped_at_ms = NULL
 	`, store.ownerEpoch, now, now); err != nil {
+		if isUniqueConstraintError(err) {
+			return fmt.Errorf("%w: %q", ErrOwnerEpochConflict, store.ownerEpoch)
+		}
 		return fmt.Errorf("register supervisor epoch: %w", err)
 	}
 	if err := transaction.Commit(); err != nil {
@@ -132,20 +146,25 @@ func (store *Store) Close() error {
 	if store == nil || store.db == nil {
 		return nil
 	}
-	now := time.Now().UTC().UnixMilli()
-	_, updateErr := store.db.Exec(`
-		UPDATE supervisor_instances
-		SET status = 'stopped', heartbeat_at_ms = ?, stopped_at_ms = ?
-		WHERE owner_epoch = ?
-	`, now, now, store.ownerEpoch)
-	closeErr := store.db.Close()
-	if updateErr != nil {
-		return fmt.Errorf("stop supervisor epoch: %w", updateErr)
-	}
-	if closeErr != nil {
-		return fmt.Errorf("close run control database: %w", closeErr)
-	}
-	return nil
+	store.closeOnce.Do(func() {
+		now := time.Now().UTC()
+		shutdownErr := store.shutdownOwnedState(context.Background(), now)
+		_, updateErr := store.db.Exec(`
+			UPDATE supervisor_instances
+			SET status = 'stopped', heartbeat_at_ms = ?, stopped_at_ms = ?
+			WHERE owner_epoch = ?
+		`, now.UnixMilli(), now.UnixMilli(), store.ownerEpoch)
+		closeErr := store.db.Close()
+		switch {
+		case shutdownErr != nil:
+			store.closeErr = fmt.Errorf("interrupt supervisor-owned state: %w", shutdownErr)
+		case updateErr != nil:
+			store.closeErr = fmt.Errorf("stop supervisor epoch: %w", updateErr)
+		case closeErr != nil:
+			store.closeErr = fmt.Errorf("close run control database: %w", closeErr)
+		}
+	})
+	return store.closeErr
 }
 
 func (store *Store) CreateRun(ctx context.Context, params CreateRunParams) (Run, error) {
@@ -160,6 +179,7 @@ func (store *Store) CreateRun(ctx context.Context, params CreateRunParams) (Run,
 		SubjectID:    params.SubjectID,
 		TargetRef:    params.TargetRef,
 		IntentSHA256: params.IntentSHA256,
+		OwnerEpoch:   store.ownerEpoch,
 		Status:       RunAllocating,
 		Revision:     1,
 		CurrentFence: 0,
@@ -174,10 +194,10 @@ func (store *Store) CreateRun(ctx context.Context, params CreateRunParams) (Run,
 	_, err = transaction.ExecContext(ctx, `
 		INSERT INTO runs (
 			run_id, kind, subject_type, subject_id, target_ref, intent_sha256,
-			status, revision, current_fence, created_at_ms, updated_at_ms
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			owner_epoch, status, revision, current_fence, created_at_ms, updated_at_ms
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`, run.RunID, run.Kind, run.SubjectType, run.SubjectID, run.TargetRef,
-		run.IntentSHA256, run.Status, run.Revision, run.CurrentFence,
+		run.IntentSHA256, run.OwnerEpoch, run.Status, run.Revision, run.CurrentFence,
 		run.CreatedAtMS, run.UpdatedAtMS)
 	if err != nil {
 		if isUniqueConstraintError(err) {
@@ -222,13 +242,14 @@ func (store *Store) TransitionRun(ctx context.Context, runID string, expectedRev
 		return Run{}, fmt.Errorf("%w: %s -> %s", ErrInvalidTransition, run.Status, target)
 	}
 	run.Status = target
+	run.OwnerEpoch = store.ownerEpoch
 	run.Revision++
 	run.UpdatedAtMS = time.Now().UTC().UnixMilli()
 	result, err := transaction.ExecContext(ctx, `
 		UPDATE runs
-		SET status = ?, revision = ?, updated_at_ms = ?
+		SET status = ?, owner_epoch = ?, revision = ?, updated_at_ms = ?
 		WHERE run_id = ? AND revision = ?
-	`, run.Status, run.Revision, run.UpdatedAtMS, run.RunID, expectedRevision)
+	`, run.Status, run.OwnerEpoch, run.Revision, run.UpdatedAtMS, run.RunID, expectedRevision)
 	if err != nil {
 		return Run{}, fmt.Errorf("update run transition: %w", err)
 	}
@@ -293,7 +314,7 @@ type rowQuerier interface {
 func readRunTx(ctx context.Context, querier rowQuerier, runID string) (Run, error) {
 	row := querier.QueryRowContext(ctx, `
 		SELECT run_id, kind, subject_type, subject_id, target_ref, intent_sha256,
-		       status, revision, current_fence, created_at_ms, updated_at_ms
+		       owner_epoch, status, revision, current_fence, created_at_ms, updated_at_ms
 		FROM runs
 		WHERE run_id = ?
 	`, runID)
@@ -305,6 +326,7 @@ func readRunTx(ctx context.Context, querier rowQuerier, runID string) (Run, erro
 		&run.SubjectID,
 		&run.TargetRef,
 		&run.IntentSHA256,
+		&run.OwnerEpoch,
 		&run.Status,
 		&run.Revision,
 		&run.CurrentFence,
@@ -323,7 +345,8 @@ func appendRunEventTx(ctx context.Context, transaction *sql.Tx, run Run, eventTy
 	payload, err := json.Marshal(struct {
 		Status       RunStatus `json:"status"`
 		CurrentFence int64     `json:"current_fence"`
-	}{Status: run.Status, CurrentFence: run.CurrentFence})
+		OwnerEpoch   string    `json:"owner_epoch"`
+	}{Status: run.Status, CurrentFence: run.CurrentFence, OwnerEpoch: run.OwnerEpoch})
 	if err != nil {
 		return fmt.Errorf("encode run event: %w", err)
 	}
@@ -361,11 +384,11 @@ func validateCreateRunParams(params CreateRunParams) error {
 
 func canTransitionRun(from, to RunStatus) bool {
 	transitions := map[RunStatus]map[RunStatus]bool{
-		RunAllocating:  {RunReady: true, RunInterrupted: true, RunCancelled: true, RunFailed: true},
-		RunReady:       {RunActive: true, RunParked: true, RunInterrupted: true, RunCancelled: true, RunFailed: true},
-		RunActive:      {RunParked: true, RunInterrupted: true, RunSealed: true, RunCancelled: true, RunFailed: true},
-		RunParked:      {RunReady: true, RunCancelled: true, RunFailed: true},
-		RunInterrupted: {RunReady: true, RunCancelled: true, RunFailed: true},
+		RunAllocating:  {RunReady: true},
+		RunReady:       {RunParked: true},
+		RunActive:      {},
+		RunParked:      {RunReady: true},
+		RunInterrupted: {RunReady: true},
 		RunSealed:      {},
 		RunCancelled:   {},
 		RunFailed:      {},
@@ -376,6 +399,30 @@ func canTransitionRun(from, to RunStatus) bool {
 	}
 	_, knownTo := transitions[to]
 	return knownTo && allowed[to]
+}
+
+func existingSchemaVersion(ctx context.Context, db *sql.DB) (int, bool, error) {
+	var tableCount int
+	if err := db.QueryRowContext(ctx, `
+		SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'metadata'
+	`).Scan(&tableCount); err != nil {
+		return 0, false, fmt.Errorf("inspect run control metadata table: %w", err)
+	}
+	if tableCount == 0 {
+		return 0, false, nil
+	}
+	var raw string
+	if err := db.QueryRowContext(ctx, `SELECT value FROM metadata WHERE key = 'schema_version'`).Scan(&raw); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return 0, false, fmt.Errorf("%w: metadata has no schema_version", ErrUnsupportedSchema)
+		}
+		return 0, false, fmt.Errorf("read run control schema version: %w", err)
+	}
+	version, err := strconv.Atoi(strings.TrimSpace(raw))
+	if err != nil {
+		return 0, false, fmt.Errorf("%w: invalid schema_version %q", ErrUnsupportedSchema, raw)
+	}
+	return version, true, nil
 }
 
 func validSHA256(value string) bool {

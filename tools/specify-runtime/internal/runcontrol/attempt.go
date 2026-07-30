@@ -49,13 +49,13 @@ func (store *Store) IssueAttempt(ctx context.Context, params IssueAttemptParams)
 	nextFence := run.CurrentFence + 1
 	result, err := tx.ExecContext(ctx, `
 		UPDATE runs
-		SET current_fence = ?, revision = revision + 1, updated_at_ms = ?
+		SET current_fence = ?, owner_epoch = ?, revision = revision + 1, updated_at_ms = ?
 		WHERE run_id = ? AND revision = ? AND current_fence = ? AND status = ?
 		  AND NOT EXISTS (
 			SELECT 1 FROM attempts
 			WHERE run_id = ? AND status IN (?, ?, ?)
 		  )
-	`, nextFence, nowMS, run.RunID, run.Revision, run.CurrentFence, run.Status,
+	`, nextFence, store.ownerEpoch, nowMS, run.RunID, run.Revision, run.CurrentFence, run.Status,
 		run.RunID, AttemptIssued, AttemptActive, AttemptSealing)
 	if err != nil {
 		if isSQLiteContention(err) {
@@ -67,6 +67,7 @@ func (store *Store) IssueAttempt(ctx context.Context, params IssueAttemptParams)
 		return Attempt{}, err
 	}
 	run.CurrentFence = nextFence
+	run.OwnerEpoch = store.ownerEpoch
 	run.Revision++
 	run.UpdatedAtMS = nowMS
 
@@ -152,9 +153,9 @@ func (store *Store) ActivateAttempt(ctx context.Context, attemptID string, fence
 	}
 	result, err := tx.ExecContext(ctx, `
 		UPDATE runs
-		SET status = ?, revision = revision + 1, updated_at_ms = ?
+		SET status = ?, owner_epoch = ?, revision = revision + 1, updated_at_ms = ?
 		WHERE run_id = ? AND revision = ? AND current_fence = ? AND status = ?
-	`, RunActive, nowMS, run.RunID, run.Revision, fence, run.Status)
+	`, RunActive, store.ownerEpoch, nowMS, run.RunID, run.Revision, fence, run.Status)
 	if err != nil {
 		return Attempt{}, fmt.Errorf("activate attempt run: %w", err)
 	}
@@ -162,6 +163,7 @@ func (store *Store) ActivateAttempt(ctx context.Context, attemptID string, fence
 		return Attempt{}, err
 	}
 	run.Status = RunActive
+	run.OwnerEpoch = store.ownerEpoch
 	run.Revision++
 	run.UpdatedAtMS = nowMS
 
@@ -241,18 +243,22 @@ func (store *Store) Heartbeat(ctx context.Context, attemptID string, fence int64
 	if leaseUntil.UTC().UnixMilli() <= nowMS {
 		return Attempt{}, fmt.Errorf("%w: lease_until must be in the future", ErrInvalidArgument)
 	}
+	if leaseUntil.UTC().UnixMilli() <= attempt.LeaseUntilMS {
+		return Attempt{}, fmt.Errorf("%w: heartbeat must extend the current lease", ErrInvalidArgument)
+	}
 	result, err := tx.ExecContext(ctx, `
 		UPDATE attempts
 		SET lease_until_ms = ?, heartbeat_at_ms = ?, revision = revision + 1, updated_at_ms = ?
 		WHERE attempt_id = ? AND run_id = ? AND revision = ? AND fence = ?
-		  AND owner_epoch = ? AND status = ? AND lease_until_ms > ?
+		  AND owner_epoch = ? AND status = ? AND lease_until_ms > ? AND lease_until_ms < ?
 		  AND EXISTS (
 			SELECT 1 FROM runs
 			WHERE run_id = ? AND revision = ? AND current_fence = ? AND status = ?
 		  )
 	`, leaseUntil.UTC().UnixMilli(), nowMS, nowMS,
 		attempt.AttemptID, attempt.RunID, attempt.Revision, fence,
-		store.ownerEpoch, AttemptActive, nowMS, run.RunID, run.Revision, fence, RunActive)
+		store.ownerEpoch, AttemptActive, nowMS, leaseUntil.UTC().UnixMilli(),
+		run.RunID, run.Revision, fence, RunActive)
 	if err != nil {
 		return Attempt{}, fmt.Errorf("heartbeat attempt: %w", err)
 	}
@@ -309,9 +315,9 @@ func (store *Store) CancelRun(ctx context.Context, runID string, expectedRevisio
 	result, err := tx.ExecContext(ctx, `
 		UPDATE runs
 		SET status = ?, current_fence = current_fence + 1,
-		    revision = revision + 1, updated_at_ms = ?
+		    owner_epoch = ?, revision = revision + 1, updated_at_ms = ?
 		WHERE run_id = ? AND revision = ? AND current_fence = ? AND status = ?
-	`, RunCancelled, nowMS, run.RunID, run.Revision, oldFence, run.Status)
+	`, RunCancelled, store.ownerEpoch, nowMS, run.RunID, run.Revision, oldFence, run.Status)
 	if err != nil {
 		return Run{}, fmt.Errorf("cancel run: %w", err)
 	}
@@ -320,6 +326,7 @@ func (store *Store) CancelRun(ctx context.Context, runID string, expectedRevisio
 	}
 	run.Status = RunCancelled
 	run.CurrentFence++
+	run.OwnerEpoch = store.ownerEpoch
 	run.Revision++
 	run.UpdatedAtMS = nowMS
 
@@ -343,7 +350,7 @@ func (store *Store) ExpireLeases(ctx context.Context, now time.Time) ([]Run, err
 	if now.IsZero() {
 		return nil, errors.New("now is required")
 	}
-	return store.interruptMatchingAttempts(ctx, now.UTC().UnixMilli(), `a.lease_until_ms <= ?`, []any{now.UTC().UnixMilli()}, "attempt lease expired")
+	return store.interruptMatchingAttempts(ctx, now.UTC().UnixMilli(), `a.lease_until_ms <= ?`, []any{now.UTC().UnixMilli()}, "attempt lease expired", AttemptLost)
 }
 
 // ReconcileOwnerEpoch fences attempts left behind by another supervisor
@@ -353,7 +360,23 @@ func (store *Store) ReconcileOwnerEpoch(ctx context.Context, now time.Time) ([]R
 	if now.IsZero() {
 		return nil, errors.New("now is required")
 	}
-	return store.interruptMatchingAttempts(ctx, now.UTC().UnixMilli(), `a.owner_epoch <> ?`, []any{store.ownerEpoch}, "supervisor owner epoch changed")
+	nowMS := now.UTC().UnixMilli()
+	interrupted, err := store.interruptMatchingAttempts(ctx, nowMS, `a.owner_epoch <> ?`, []any{store.ownerEpoch}, "supervisor owner epoch changed", AttemptLost)
+	if err != nil {
+		return nil, err
+	}
+	allocating, err := store.interruptMatchingAllocatingRuns(ctx, nowMS, `owner_epoch <> ?`, []any{store.ownerEpoch}, "supervisor owner epoch changed during allocation")
+	if err != nil {
+		return nil, err
+	}
+	if _, err := store.db.ExecContext(ctx, `
+		UPDATE supervisor_instances
+		SET status = 'superseded', stopped_at_ms = COALESCE(stopped_at_ms, ?)
+		WHERE owner_epoch <> ? AND status = 'active'
+	`, nowMS, store.ownerEpoch); err != nil {
+		return nil, fmt.Errorf("mark prior supervisor epochs superseded: %w", err)
+	}
+	return append(interrupted, allocating...), nil
 }
 
 func (store *Store) interruptMatchingAttempts(
@@ -362,6 +385,7 @@ func (store *Store) interruptMatchingAttempts(
 	extraPredicate string,
 	extraArgs []any,
 	reason string,
+	terminalStatus AttemptStatus,
 ) ([]Run, error) {
 	tx, err := store.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -420,9 +444,9 @@ func (store *Store) interruptMatchingAttempts(
 		result, err := tx.ExecContext(ctx, `
 			UPDATE runs
 			SET status = ?, current_fence = current_fence + 1,
-			    revision = revision + 1, updated_at_ms = ?
+			    owner_epoch = ?, revision = revision + 1, updated_at_ms = ?
 			WHERE run_id = ? AND revision = ? AND current_fence = ? AND status = ?
-		`, RunInterrupted, nowMS, run.RunID, run.Revision, run.CurrentFence, run.Status)
+		`, RunInterrupted, store.ownerEpoch, nowMS, run.RunID, run.Revision, run.CurrentFence, run.Status)
 		if err != nil {
 			return nil, fmt.Errorf("interrupt run %q: %w", run.RunID, err)
 		}
@@ -431,10 +455,11 @@ func (store *Store) interruptMatchingAttempts(
 		}
 		run.Status = RunInterrupted
 		run.CurrentFence++
+		run.OwnerEpoch = store.ownerEpoch
 		run.Revision++
 		run.UpdatedAtMS = nowMS
 
-		if err := updateAttemptTerminalTx(ctx, tx, attempt, AttemptLost, nowMS); err != nil {
+		if err := updateAttemptTerminalTx(ctx, tx, attempt, terminalStatus, nowMS); err != nil {
 			return nil, err
 		}
 		if err := appendRunEventTx(ctx, tx, run, "run.interrupted", reason+": "+attempt.AttemptID); err != nil {
@@ -447,6 +472,104 @@ func (store *Store) interruptMatchingAttempts(
 		return nil, fmt.Errorf("commit attempt reconciliation: %w", err)
 	}
 	return interrupted, nil
+}
+
+func (store *Store) interruptMatchingAllocatingRuns(
+	ctx context.Context,
+	nowMS int64,
+	extraPredicate string,
+	extraArgs []any,
+	reason string,
+) ([]Run, error) {
+	tx, err := store.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, fmt.Errorf("begin allocating run reconciliation: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	query := `SELECT run_id FROM runs WHERE status = ? AND ` + extraPredicate + ` ORDER BY run_id`
+	args := []any{RunAllocating}
+	args = append(args, extraArgs...)
+	rows, err := tx.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("query allocating runs to interrupt: %w", err)
+	}
+	runIDs := make([]string, 0)
+	for rows.Next() {
+		var runID string
+		if err := rows.Scan(&runID); err != nil {
+			_ = rows.Close()
+			return nil, fmt.Errorf("scan allocating run to interrupt: %w", err)
+		}
+		runIDs = append(runIDs, runID)
+	}
+	if err := rows.Err(); err != nil {
+		_ = rows.Close()
+		return nil, fmt.Errorf("iterate allocating runs to interrupt: %w", err)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, fmt.Errorf("close allocating runs query: %w", err)
+	}
+
+	interrupted := make([]Run, 0, len(runIDs))
+	for _, runID := range runIDs {
+		run, err := readRunTx(ctx, tx, runID)
+		if err != nil {
+			return nil, err
+		}
+		if run.Status != RunAllocating {
+			continue
+		}
+		result, err := tx.ExecContext(ctx, `
+			UPDATE runs
+			SET status = ?, current_fence = current_fence + 1,
+			    owner_epoch = ?, revision = revision + 1, updated_at_ms = ?
+			WHERE run_id = ? AND revision = ? AND current_fence = ?
+			  AND status = ? AND owner_epoch = ?
+		`, RunInterrupted, store.ownerEpoch, nowMS, run.RunID, run.Revision,
+			run.CurrentFence, RunAllocating, run.OwnerEpoch)
+		if err != nil {
+			return nil, fmt.Errorf("interrupt allocating run %q: %w", run.RunID, err)
+		}
+		if err := requireOneCASRow(result, ErrRevisionConflict, "interrupt allocating run"); err != nil {
+			return nil, err
+		}
+		run.Status = RunInterrupted
+		run.CurrentFence++
+		run.OwnerEpoch = store.ownerEpoch
+		run.Revision++
+		run.UpdatedAtMS = nowMS
+		if err := appendRunEventTx(ctx, tx, run, "run.interrupted", reason); err != nil {
+			return nil, err
+		}
+		interrupted = append(interrupted, run)
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("commit allocating run reconciliation: %w", err)
+	}
+	return interrupted, nil
+}
+
+func (store *Store) shutdownOwnedState(ctx context.Context, now time.Time) error {
+	nowMS := now.UTC().UnixMilli()
+	if _, err := store.interruptMatchingAttempts(
+		ctx,
+		nowMS,
+		`a.owner_epoch = ?`,
+		[]any{store.ownerEpoch},
+		"supervisor stopped",
+		AttemptRevoked,
+	); err != nil {
+		return err
+	}
+	_, err := store.interruptMatchingAllocatingRuns(
+		ctx,
+		nowMS,
+		`owner_epoch = ?`,
+		[]any{store.ownerEpoch},
+		"supervisor stopped during allocation",
+	)
+	return err
 }
 
 func validateIssueAttemptParams(params IssueAttemptParams) error {
@@ -467,6 +590,9 @@ func validateIssueAttemptParams(params IssueAttemptParams) error {
 	}
 	if params.LeaseUntil.IsZero() {
 		return errors.New("lease_until is required")
+	}
+	if !params.LeaseUntil.After(time.Now().UTC()) {
+		return fmt.Errorf("%w: lease_until must be in the future", ErrInvalidArgument)
 	}
 	return nil
 }

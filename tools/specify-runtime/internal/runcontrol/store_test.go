@@ -209,14 +209,18 @@ func TestSupervisorEpochTakeoverInterruptsAnOwnedAttempt(t *testing.T) {
 func TestOperationIdempotencyRejectsAConflictingPayload(t *testing.T) {
 	ctx := context.Background()
 	store := openTestStore(t, filepath.Join(t.TempDir(), "run-control.sqlite"))
-	run := createReadyRun(t, store, "run_operation")
+	run, attempt := createAuthorityActiveRun(t, store, "run_operation", time.Now().UTC())
 	request := BeginOperationParams{
-		OperationID:    "op_snapshot_1",
-		Kind:           "snapshot.allocate",
-		AggregateType:  "run",
-		AggregateID:    run.RunID,
-		IdempotencyKey: "snapshot/run_operation/1",
-		RequestSHA256:  digestForTest("request-a"),
+		OperationID:         "op_snapshot_1",
+		Kind:                "command.execute",
+		AggregateType:       "run",
+		AggregateID:         run.RunID,
+		RunID:               run.RunID,
+		AttemptID:           attempt.AttemptID,
+		Fence:               attempt.Fence,
+		ExpectedRunRevision: run.Revision,
+		IdempotencyKey:      "command/run_operation/1",
+		RequestSHA256:       digestForTest("request-a"),
 	}
 
 	first, replayed, err := store.BeginOperation(ctx, request)

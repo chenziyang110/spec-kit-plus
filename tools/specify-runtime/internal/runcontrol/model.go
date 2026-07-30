@@ -16,6 +16,8 @@ var (
 	ErrLiveAttempt         = errors.New("run already has a live attempt")
 	ErrStaleFence          = errors.New("stale attempt fence")
 	ErrIdempotencyConflict = errors.New("idempotency key identifies a different request")
+	ErrOwnerEpochConflict  = errors.New("supervisor owner epoch already exists")
+	ErrUnsupportedSchema   = errors.New("unsupported run control schema")
 )
 
 // More specific names are aliases of ErrNotFound so both broad and
@@ -46,6 +48,7 @@ type Run struct {
 	SubjectID    string
 	TargetRef    string
 	IntentSHA256 string
+	OwnerEpoch   string
 	Status       RunStatus
 	Revision     int64
 	CurrentFence int64
@@ -121,6 +124,11 @@ type Operation struct {
 	Kind           string
 	AggregateType  string
 	AggregateID    string
+	RunID          string
+	AttemptID      string
+	OwnerEpoch     string
+	Fence          int64
+	RunRevision    int64
 	IdempotencyKey string
 	RequestSHA256  string
 	Status         OperationStatus
@@ -130,12 +138,16 @@ type Operation struct {
 }
 
 type BeginOperationParams struct {
-	OperationID    string
-	Kind           string
-	AggregateType  string
-	AggregateID    string
-	IdempotencyKey string
-	RequestSHA256  string
+	OperationID         string
+	Kind                string
+	AggregateType       string
+	AggregateID         string
+	RunID               string
+	AttemptID           string
+	Fence               int64
+	ExpectedRunRevision int64
+	IdempotencyKey      string
+	RequestSHA256       string
 }
 
 type Event struct {
