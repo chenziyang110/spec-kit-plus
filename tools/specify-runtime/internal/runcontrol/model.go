@@ -1,0 +1,154 @@
+package runcontrol
+
+import (
+	"errors"
+	"time"
+)
+
+// Sentinel errors are deliberately stable so callers can classify failures
+// with errors.Is without depending on SQLite error strings.
+var (
+	ErrNotFound            = errors.New("run control record not found")
+	ErrAlreadyExists       = errors.New("run control record already exists")
+	ErrInvalidArgument     = errors.New("invalid run control argument")
+	ErrRevisionConflict    = errors.New("run revision conflict")
+	ErrInvalidTransition   = errors.New("invalid run state transition")
+	ErrLiveAttempt         = errors.New("run already has a live attempt")
+	ErrStaleFence          = errors.New("stale attempt fence")
+	ErrIdempotencyConflict = errors.New("idempotency key identifies a different request")
+)
+
+// More specific names are aliases of ErrNotFound so both broad and
+// aggregate-specific errors.Is checks remain useful.
+var (
+	ErrRunNotFound       = ErrNotFound
+	ErrAttemptNotFound   = ErrNotFound
+	ErrOperationNotFound = ErrNotFound
+)
+
+type RunStatus string
+
+const (
+	RunAllocating  RunStatus = "allocating"
+	RunReady       RunStatus = "ready"
+	RunRunning     RunStatus = "running"
+	RunActive      RunStatus = RunRunning
+	RunInterrupted RunStatus = "interrupted"
+	RunSealing     RunStatus = "sealing"
+	RunSealed      RunStatus = "sealed"
+	RunCancelled   RunStatus = "cancelled"
+	RunFailed      RunStatus = "failed"
+)
+
+type Run struct {
+	RunID        string
+	Kind         string
+	SubjectType  string
+	SubjectID    string
+	TargetRef    string
+	IntentSHA256 string
+	Status       RunStatus
+	Revision     int64
+	CurrentFence int64
+	CreatedAtMS  int64
+	UpdatedAtMS  int64
+}
+
+type CreateRunParams struct {
+	RunID        string
+	Kind         string
+	SubjectType  string
+	SubjectID    string
+	TargetRef    string
+	IntentSHA256 string
+}
+
+type ExecutionMode string
+
+const (
+	ExecutionManaged      ExecutionMode = "managed"
+	ExecutionManualAttach ExecutionMode = "manual_attach"
+	ExecutionPromptOnly   ExecutionMode = "prompt_only"
+)
+
+type AttemptStatus string
+
+const (
+	AttemptIssued   AttemptStatus = "issued"
+	AttemptActive   AttemptStatus = "active"
+	AttemptSealing  AttemptStatus = "sealing"
+	AttemptFinished AttemptStatus = "finished"
+	AttemptRevoked  AttemptStatus = "revoked"
+	AttemptLost     AttemptStatus = "lost"
+)
+
+type Attempt struct {
+	AttemptID     string
+	RunID         string
+	Status        AttemptStatus
+	AdapterID     string
+	ExecutionMode ExecutionMode
+	OwnerEpoch    string
+	Fence         int64
+	LeaseUntilMS  int64
+	HeartbeatAtMS int64
+	Revision      int64
+	CreatedAtMS   int64
+	UpdatedAtMS   int64
+}
+
+type IssueAttemptParams struct {
+	AttemptID           string
+	RunID               string
+	ExpectedRunRevision int64
+	AdapterID           string
+	ExecutionMode       ExecutionMode
+	LeaseUntil          time.Time
+}
+
+type OperationStatus string
+
+const (
+	OperationPrepared       OperationStatus = "prepared"
+	OperationSucceeded      OperationStatus = "succeeded"
+	OperationFailed         OperationStatus = "failed"
+	OperationOutcomeUnknown OperationStatus = "outcome_unknown"
+)
+
+type Operation struct {
+	OperationID    string
+	Kind           string
+	AggregateType  string
+	AggregateID    string
+	IdempotencyKey string
+	RequestSHA256  string
+	Status         OperationStatus
+	Revision       int64
+	CreatedAtMS    int64
+	UpdatedAtMS    int64
+}
+
+type BeginOperationParams struct {
+	OperationID    string
+	Kind           string
+	AggregateType  string
+	AggregateID    string
+	IdempotencyKey string
+	RequestSHA256  string
+}
+
+type Event struct {
+	EventID           int64
+	AggregateType     string
+	AggregateID       string
+	AggregateRevision int64
+	EventType         string
+	Reason            string
+	PayloadJSON       string
+	CreatedAtMS       int64
+}
+
+const (
+	RunEventCreated      = "run.created"
+	RunEventTransitioned = "run.transitioned"
+)
