@@ -45,7 +45,7 @@ def test_spx_implement_cannot_end_the_turn_on_partial_progress() -> None:
     execution = _read(
         "templates/advanced-skills/spx-implement/references/execution-contract.md"
     ).lower()
-    combined = "\n".join((skill, execution))
+    combined = " ".join((skill + "\n" + execution).split())
 
     assert (
         "a completed task, batch, migration, type generation, or validation milestone "

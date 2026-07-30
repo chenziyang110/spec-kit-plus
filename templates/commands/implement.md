@@ -55,6 +55,24 @@ scripts:
    of inventing one.
 8. After successful technical closeout, call `{{specify-subcmd:specify-runtime implement closeout --feature-dir <feature-dir> --format json}}`. That command exclusively derives and atomically writes the preliminary `implementation-summary.md` and deterministic `implementation-handoff.json`, including the unchanged validation ledger, logical-gate count, and attempt history. It revalidates the live Spec, Plan, and Tasks and preserves their exact complete `acceptance_refs` denominator, `acceptance_denominator_sha256`, and frozen Human Acceptance Universe (`human_acceptance_obligations`, `human_acceptance_scenarios`, and `human_acceptance_contract_sha256`) unchanged. Never author, patch, submit, or stage either artifact yourself or through the generic artifact channel. Implement must not create, infer, or prefill `reviewed_runtime_targets`; only Review creates them from final integrated evidence. Complete only the `implement` stage, recommend `{{invoke:review}}`, and stop. The embedded event-triggered task review remains part of implementation, while `sp-review` owns the reserved delivery gate and may retry attempts inside it to prove startup, user journeys, interaction, and integrated wiring from real entrypoints. Do not invoke Review inline or claim that task completion equals a usable reviewed product.
 
+## Non-Terminal Progress Guard
+
+After every accepted task, completed batch, join point, or implementation
+milestone, immediately call `specify-runtime implement task-next` again. When it
+returns another ready task, start that task and continue tool-driven execution
+in the same invocation. A completed task, batch, migration, type generation, or
+validation milestone is partial progress, not a terminal state.
+
+Do not emit a final answer or otherwise end the current agent turn while
+`task-next` reports ready work or an agent-capable recovery step can still make
+safe progress. Intermediate progress belongs only in progress updates that do
+not terminate the invocation; after any such update, continue tool-driven
+execution in the same invocation. The invocation may end only after successful
+Implement closeout and Review handoff, at a contract-defined cross-workflow
+handoff-and-stop boundary, or at a genuine blocker or human gate with no
+dependency-safe ready work; preserve the exact resume action in every blocked
+stop.
+
 {{spec-kit-include: ../command-partials/common/inline-project-cognition-update.md}}
 
 ## Detailed References

@@ -39,6 +39,20 @@ off to `$spx-analyze` and stop before editing. A plain `gate_status: not-run`
 does not make optional analysis mandatory. Do not run `$spx-analyze` inline or
 silently repair cross-phase truth during the same `$spx-implement` invocation.
 
+After every accepted task, completed batch, join point, or implementation
+milestone, immediately call `specify-runtime implement task-next` again. When it
+returns another ready task, start that task and continue tool-driven execution
+in the same invocation. A completed task, batch, migration, type generation, or
+validation milestone is partial progress, not a terminal state. Do not emit a
+final answer or otherwise end the current agent turn while `task-next` reports
+ready work or an agent-capable recovery step can still make safe progress.
+Intermediate progress belongs only in progress updates that do not terminate
+the invocation; after any such update, continue tool-driven execution in the
+same invocation. End the invocation only after successful Implement closeout
+and Review handoff, at a contract-defined cross-workflow handoff-and-stop
+boundary, or at a genuine blocker or human gate with no dependency-safe ready
+work; preserve the exact resume action in every blocked stop.
+
 Execute the confirmed scope completely. Adapt stale implementation details to
 the live repository while preserving user intent and recording material plan
 drift. Group related behavior-changing Txx items into a coherent change-set;

@@ -74,7 +74,7 @@ def test_sp_implement_continues_until_terminal_state() -> None:
 
 
 def test_sp_implement_cannot_end_the_turn_on_partial_progress() -> None:
-    content = _read_template().lower()
+    content = " ".join(_read_template().lower().split())
 
     assert (
         "a completed task, batch, migration, type generation, or validation milestone "
