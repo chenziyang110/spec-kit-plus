@@ -84,3 +84,28 @@ def test_advanced_skills_profile_renders_and_tracks_spx_review(tmp_path):
     content = review_skill.read_text(encoding="utf-8")
     assert 'name: "spx-review"' in content
     assert "templates/advanced-skills/spx-review/SKILL.md" in content
+
+
+def test_advanced_skills_profile_renders_nonterminal_spx_implement_guard(tmp_path):
+    project = tmp_path / "codex-advanced-implement-guard"
+
+    integration, manifest = _install(
+        "codex",
+        project,
+        workflow_profile="advanced",
+    )
+
+    implement_skill = (
+        integration.skills_dest(project) / "spx-implement" / "SKILL.md"
+    )
+    relative = implement_skill.relative_to(project).as_posix()
+    assert implement_skill.is_file()
+    assert relative in manifest.files
+
+    content = " ".join(implement_skill.read_text(encoding="utf-8").lower().split())
+    assert (
+        "do not emit a final answer or otherwise end the current agent turn while "
+        "`task-next` reports ready work"
+        in content
+    )
+    assert "continue tool-driven execution in the same invocation" in content
