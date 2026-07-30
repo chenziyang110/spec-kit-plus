@@ -73,6 +73,23 @@ def test_sp_implement_continues_until_terminal_state() -> None:
     assert "spec_gap" in content
 
 
+def test_sp_implement_cannot_end_the_turn_on_partial_progress() -> None:
+    content = _read_template().lower()
+
+    assert (
+        "a completed task, batch, migration, type generation, or validation milestone "
+        "is partial progress, not a terminal state"
+        in content
+    )
+    assert (
+        "do not emit a final answer or otherwise end the current agent turn while "
+        "`task-next` reports ready work"
+        in content
+    )
+    assert "continue tool-driven execution in the same invocation" in content
+    assert "intermediate progress belongs only in progress updates" in content
+
+
 def test_sp_implement_requires_user_facing_closeout_summary() -> None:
     content = _read_template().lower()
 

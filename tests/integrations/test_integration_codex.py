@@ -1736,6 +1736,12 @@ def test_codex_generated_implement_skill_mentions_task_contract_and_reopen(tmp_p
     assert "task lifecycle record" in content
     assert "event-triggered review" in content
     assert "reopen" in content
+    assert (
+        "do not emit a final answer or otherwise end the current agent turn while "
+        "`task-next` reports ready work"
+        in content
+    )
+    assert "continue tool-driven execution in the same invocation" in content
 
 
 def test_codex_debug_skill_prefers_request_user_input_with_fallback(tmp_path):

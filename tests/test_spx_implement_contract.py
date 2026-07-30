@@ -40,6 +40,27 @@ def test_spx_implement_defines_actionable_external_verification_blockers() -> No
     assert "must not" in execution and "resolved" in execution
 
 
+def test_spx_implement_cannot_end_the_turn_on_partial_progress() -> None:
+    skill = _read("templates/advanced-skills/spx-implement/SKILL.md").lower()
+    execution = _read(
+        "templates/advanced-skills/spx-implement/references/execution-contract.md"
+    ).lower()
+    combined = "\n".join((skill, execution))
+
+    assert (
+        "a completed task, batch, migration, type generation, or validation milestone "
+        "is partial progress, not a terminal state"
+        in combined
+    )
+    assert (
+        "do not emit a final answer or otherwise end the current agent turn while "
+        "`task-next` reports ready work"
+        in combined
+    )
+    assert "continue tool-driven execution in the same invocation" in combined
+    assert "intermediate progress belongs only in progress updates" in combined
+
+
 def test_task_lifecycle_points_to_structured_blocker_schema() -> None:
     lifecycle = json.loads(_read("templates/task-lifecycle-template.json"))
     schema = json.loads(_read("templates/task-lifecycle-schema.json"))
