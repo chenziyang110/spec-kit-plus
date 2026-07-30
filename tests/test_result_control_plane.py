@@ -5,6 +5,7 @@ from pathlib import Path
 from typer.testing import CliRunner
 
 from specify_cli import app
+from tests.conftest import strip_ansi
 
 
 def _project(tmp_path: Path) -> Path:
@@ -99,8 +100,9 @@ def test_result_submit_rejects_agent_authored_result_files(tmp_path: Path) -> No
     assert result.exit_code != 0
     help_result = _invoke(project, ["result", "submit", "--help"])
     assert help_result.exit_code == 0
-    assert "--result-json" in help_result.output
-    assert "--result-file" not in help_result.output
+    help_output = strip_ansi(help_result.output)
+    assert "--result-json" in help_output
+    assert "--result-file" not in help_output
     assert not (
         project / "specs" / "001-feature" / "worker-results" / "T001.json"
     ).exists()

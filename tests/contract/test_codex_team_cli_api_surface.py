@@ -203,8 +203,9 @@ def test_team_submit_result_command_rejects_worker_result_file(tmp_path: Path):
     )
 
     assert result.exit_code != 0
-    assert "No such option" in result.output
-    assert "--result-file" in result.output
+    output = strip_ansi(result.output)
+    assert "No such option" in output
+    assert "--result-file" in output
 
 
 def test_team_submit_result_command_accepts_inline_json(tmp_path: Path):

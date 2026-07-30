@@ -102,6 +102,30 @@ func TestPRDScanInitAndBuildStatusParity(t *testing.T) {
 	}
 }
 
+func TestPRDScanStatusReportsPartialWorkspaceWithoutRequiringRecordFiles(t *testing.T) {
+	root := t.TempDir()
+	runID := "260502-partial-prd"
+	runDir := filepath.Join(root, ".specify", "prd-runs", runID)
+	mustMkdirAllScriptDomainTest(t, filepath.Join(runDir, "evidence"))
+	mustWriteScriptDomainTest(t, filepath.Join(runDir, "workflow-state.md"), "# PRD Workflow State\n")
+
+	env := runScriptDomainEnvelope(t, runPRDScan, []string{"--project-root", root, "status", runID})
+	if env.Status != "ok" {
+		t.Fatalf("partial status = %s, blockers=%v", env.Status, env.Blockers)
+	}
+	if env.Data["complete"] != false {
+		t.Fatalf("partial workspace must remain incomplete: %#v", env.Data)
+	}
+	surfaces := env.Data["surfaces"].(map[string]any)
+	if surfaces["workspace"] != true || surfaces["evidence"] != true || surfaces["coverage_ledger_json"] != false {
+		t.Fatalf("unexpected partial surfaces: %#v", surfaces)
+	}
+	digests := env.Data["record_digests"].(map[string]any)
+	if len(digests) != 0 {
+		t.Fatalf("missing record surfaces must not emit digests: %#v", digests)
+	}
+}
+
 func TestPRDScanFinalizeAndLiveFreshnessParity(t *testing.T) {
 	requireGit(t)
 	root := t.TempDir()

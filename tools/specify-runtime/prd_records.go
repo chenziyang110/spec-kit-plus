@@ -68,6 +68,9 @@ func (service prdService) recordDigests(runDir string) (map[string]any, error) {
 	for _, surface := range prdRecordSurfaceCatalog {
 		raw, err := os.ReadFile(filepath.Join(runDir, surface.Path))
 		if err != nil {
+			if os.IsNotExist(err) {
+				continue
+			}
 			return nil, fmt.Errorf("read %s: %w", surface.Path, err)
 		}
 		digests[surface.Name] = fileContentSHA256(raw)
