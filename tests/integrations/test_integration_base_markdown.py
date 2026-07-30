@@ -396,6 +396,7 @@ def _assert_runtime_cognition_carry_forward(content: str, command_name: str) -> 
 
 def _assert_embedded_implement_review_contract(content: str) -> None:
     lowered = content.lower()
+    normalized = " ".join(lowered.split())
 
     assert "embedded implement review" in lowered
     assert "pre-implement review" in lowered
@@ -405,6 +406,42 @@ def _assert_embedded_implement_review_contract(content: str) -> None:
     assert "implementation-review/reviews.ndjson" in content
     assert "implementation-review/repairs.ndjson" in content
     assert "sp-review" in lowered
+    assert (
+        "do not emit a final answer or otherwise end the current agent turn while "
+        "`task-next` reports ready work"
+        in normalized
+    )
+    assert "continue tool-driven execution in the same invocation" in normalized
+
+
+NONTERMINAL_IMPLEMENT_MARKDOWN_SAMPLE_KEYS = ("qwen", "opencode", "windsurf")
+
+
+def test_collected_markdown_integrations_guard_nonterminal_implement_progress(
+    tmp_path,
+):
+    for integration_key in NONTERMINAL_IMPLEMENT_MARKDOWN_SAMPLE_KEYS:
+        project = tmp_path / integration_key
+        integration = get_integration(integration_key)
+        manifest = IntegrationManifest(integration_key, project)
+        integration.setup(project, manifest)
+
+        implement_path = (
+            integration.commands_dest(project)
+            / integration.command_filename("implement")
+        )
+        assert implement_path.exists(), integration_key
+        content = " ".join(
+            _read_generated_artifact_with_references(implement_path)
+            .lower()
+            .split()
+        )
+        assert (
+            "do not emit a final answer or otherwise end the current agent turn while "
+            "`task-next` reports ready work"
+            in content
+        )
+        assert "continue tool-driven execution in the same invocation" in content
 
 
 def _discussion_artifact_path(integration, project_root):

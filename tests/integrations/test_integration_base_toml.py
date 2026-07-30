@@ -386,6 +386,7 @@ def _assert_runtime_cognition_carry_forward(content: str, command_name: str) -> 
 
 def _assert_embedded_implement_review_contract(content: str) -> None:
     lowered = content.lower()
+    normalized = " ".join(lowered.split())
 
     assert "event-triggered review" in lowered
     assert "entry revision check" in lowered
@@ -393,6 +394,12 @@ def _assert_embedded_implement_review_contract(content: str) -> None:
     assert "task lifecycle record" in lowered
     assert "do not create separate task briefs, review packages, or a duplicate task ledger" in lowered
     assert "sp-review" in lowered
+    assert (
+        "do not emit a final answer or otherwise end the current agent turn while "
+        "`task-next` reports ready work"
+        in normalized
+    )
+    assert "continue tool-driven execution in the same invocation" in normalized
 
 
 
