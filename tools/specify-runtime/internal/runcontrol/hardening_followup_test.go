@@ -37,6 +37,32 @@ func TestOpenRejectsSchemaVersionOneAfterSchemaChanges(t *testing.T) {
 	}
 }
 
+func TestOpenRejectsSchemaVersionTwoAfterQueuedRunSchemaChange(t *testing.T) {
+	ctx := context.Background()
+	databasePath := filepath.Join(t.TempDir(), "run-control.db")
+	db, err := sql.Open("sqlite", databasePath)
+	if err != nil {
+		t.Fatalf("sql.Open() error = %v", err)
+	}
+	if _, err := db.Exec(`CREATE TABLE metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL)`); err != nil {
+		t.Fatalf("create metadata error = %v", err)
+	}
+	if _, err := db.Exec(`INSERT INTO metadata (key, value) VALUES ('schema_version', '2')`); err != nil {
+		t.Fatalf("insert schema version error = %v", err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatalf("close fixture database error = %v", err)
+	}
+
+	store, err := Open(ctx, databasePath, WithOwnerEpoch("supervisor_old_schema_v2"))
+	if store != nil {
+		_ = store.Close()
+	}
+	if !errors.Is(err, ErrUnsupportedSchema) {
+		t.Fatalf("Open() error = %v, want ErrUnsupportedSchema for schema_version=2", err)
+	}
+}
+
 func TestOperationsSchemaRejectsCrossAttemptBinding(t *testing.T) {
 	ctx := context.Background()
 	store := openTestStore(t, filepath.Join(t.TempDir(), "run-control.db"))

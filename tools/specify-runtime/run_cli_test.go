@@ -2,6 +2,8 @@ package main
 
 import (
 	"bytes"
+	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -10,6 +12,9 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
+
+	"github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/runcontrol"
 )
 
 func TestRunCLIControlsDurableRunLifecycle(t *testing.T) {
@@ -32,8 +37,8 @@ func TestRunCLIControlsDurableRunLifecycle(t *testing.T) {
 		t.Fatalf("run create = code %d envelope %#v, want ok", code, created)
 	}
 	createdRun := requireObject(t, requireObject(t, created, "data"), "run")
-	if createdRun["run_id"] != runID || createdRun["status"] != "allocating" || createdRun["revision"] != float64(1) {
-		t.Fatalf("created run = %#v, want allocating revision 1", createdRun)
+	if createdRun["run_id"] != runID || createdRun["status"] != "queued" || createdRun["revision"] != float64(1) {
+		t.Fatalf("created run = %#v, want queued revision 1", createdRun)
 	}
 
 	code, shown := invokeRunCLI(t, "run", "show", runID, "--project-root", root, "--format", "json")
@@ -41,8 +46,8 @@ func TestRunCLIControlsDurableRunLifecycle(t *testing.T) {
 		t.Fatalf("run show = code %d envelope %#v, want ok", code, shown)
 	}
 	shownRun := requireObject(t, requireObject(t, shown, "data"), "run")
-	if shownRun["status"] != "allocating" {
-		t.Fatalf("run status after create process closed = %#v, want allocating", shownRun["status"])
+	if shownRun["status"] != "queued" {
+		t.Fatalf("run status after create process closed = %#v, want queued", shownRun["status"])
 	}
 
 	code, events := invokeRunCLI(t, "run", "events", runID, "--project-root", root, "--format", "json")
@@ -92,7 +97,7 @@ func TestRunCLICancelUsesRevisionCAS(t *testing.T) {
 	}
 
 	code, shown := invokeRunCLI(t, "run", "show", "run_cli_stale", "--project-root", root, "--format", "json")
-	if code != 0 || requireObject(t, requireObject(t, shown, "data"), "run")["status"] != "allocating" {
+	if code != 0 || requireObject(t, requireObject(t, shown, "data"), "run")["status"] != "queued" {
 		t.Fatalf("stale cancellation changed run: code %d envelope %#v", code, shown)
 	}
 }
@@ -143,9 +148,77 @@ func TestRunCLICreatesFiveIndependentRunsConcurrently(t *testing.T) {
 			t.Fatalf("parallel create %s = code %d error %v envelope %#v", created.runID, created.code, created.err, created.payload)
 		}
 		code, shown := invokeRunCLI(t, "run", "show", created.runID, "--project-root", root, "--format", "json")
-		if code != 0 || requireObject(t, requireObject(t, shown, "data"), "run")["status"] != "allocating" {
+		if code != 0 || requireObject(t, requireObject(t, shown, "data"), "run")["status"] != "queued" {
 			t.Fatalf("parallel run %s not independently visible: code %d envelope %#v", created.runID, code, shown)
 		}
+	}
+}
+
+func TestRunCLIQueuedRunSurvivesNewSupervisorReconciliation(t *testing.T) {
+	root := initRunCLIRepository(t)
+	createRunThroughCLI(t, root, "run_cli_queued_handoff")
+
+	store, err := runcontrol.OpenForRepository(context.Background(), root, runcontrol.WithOwnerEpoch("supervisor_after_enqueue"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+	interrupted, err := store.ReconcileOwnerEpoch(context.Background(), time.Now().UTC())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(interrupted) != 0 {
+		t.Fatalf("queued run was reconciled as abandoned execution: %#v", interrupted)
+	}
+	queued, err := store.GetRun(context.Background(), "run_cli_queued_handoff")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if queued.Status != runcontrol.RunStatus("queued") || queued.Revision != 1 || queued.CurrentFence != 0 {
+		t.Fatalf("queued run after supervisor reconciliation = %#v", queued)
+	}
+}
+
+func TestRunCLIShowAndEventsAreActuallyReadOnly(t *testing.T) {
+	root := initRunCLIRepository(t)
+	createRunThroughCLI(t, root, "run_cli_read_only")
+	repository, err := runcontrol.ResolveRepository(context.Background(), root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	database, err := sql.Open("sqlite", repository.DatabasePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = database.Close() })
+	before := supervisorRowCount(t, database)
+
+	if code, _ := invokeRunCLI(t, "run", "show", "run_cli_read_only", "--project-root", root, "--format", "json"); code != 0 {
+		t.Fatalf("run show exit code = %d", code)
+	}
+	if code, _ := invokeRunCLI(t, "run", "events", "run_cli_read_only", "--project-root", root, "--format", "json"); code != 0 {
+		t.Fatalf("run events exit code = %d", code)
+	}
+	if after := supervisorRowCount(t, database); after != before {
+		t.Fatalf("read-only commands changed supervisor rows from %d to %d", before, after)
+	}
+}
+
+func TestRunCLIShowDoesNotCreateMissingControlDatabase(t *testing.T) {
+	root := initRunCLIRepository(t)
+	repository, err := runcontrol.ResolveRepository(context.Background(), root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(repository.DatabasePath); !os.IsNotExist(err) {
+		t.Fatalf("control database exists before read: %v", err)
+	}
+	code, payload := invokeRunCLI(t, "run", "show", "missing", "--project-root", root, "--format", "json")
+	if code != 2 || payload["status"] != "invalid" {
+		t.Fatalf("show without database = code %d envelope %#v, want invalid exit 2", code, payload)
+	}
+	if _, err := os.Stat(repository.DatabasePath); !os.IsNotExist(err) {
+		t.Fatalf("read-only show created control database: %v", err)
 	}
 }
 
@@ -249,4 +322,13 @@ func invokeRunCLI(t *testing.T, args ...string) (int, map[string]any) {
 		t.Fatalf("Run(%v) stderr = %q, want empty", args, stderr.String())
 	}
 	return code, decodeJSONObject(t, stdout.Bytes())
+}
+
+func supervisorRowCount(t *testing.T, database *sql.DB) int {
+	t.Helper()
+	var count int
+	if err := database.QueryRow(`SELECT COUNT(*) FROM supervisor_instances`).Scan(&count); err != nil {
+		t.Fatal(err)
+	}
+	return count
 }
