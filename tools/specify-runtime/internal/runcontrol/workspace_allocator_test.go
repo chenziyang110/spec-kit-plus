@@ -176,6 +176,31 @@ func TestMaterializeGitWorkspaceRejectsTamperedBindingAndExistingDirectory(t *te
 	}
 }
 
+func TestMaterializeGitWorkspaceRejectsSymlinkedOwnedRootBeforeWriting(t *testing.T) {
+	mainRoot, _ := createLinkedRepository(t)
+	ctx := context.Background()
+	repository, err := ResolveRepository(ctx, mainRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan, err := PlanGitWorkspace(ctx, repository, Run{RunID: "run_symlink_escape", TargetRef: "HEAD"}, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	outside := t.TempDir()
+	link := filepath.Join(mainRoot, ".worktrees")
+	if err := os.Symlink(outside, link); err != nil {
+		t.Skipf("create directory symlink: %v", err)
+	}
+	if _, err := MaterializeGitWorkspace(ctx, repository, workspaceFromPlan(plan)); !errors.Is(err, ErrWorkspaceEscape) {
+		t.Fatalf("symlinked workspace root error = %v, want ErrWorkspaceEscape", err)
+	}
+	if _, err := os.Stat(filepath.Join(outside, "specify-runs")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("allocator wrote through symlink before rejecting it: %v", err)
+	}
+}
+
 func TestMaterializeGitWorkspaceSupportsFiveParallelRuns(t *testing.T) {
 	mainRoot, _ := createLinkedRepository(t)
 	ctx := context.Background()

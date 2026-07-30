@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import subprocess
+import sqlite3
+import time
+from contextlib import closing
 from dataclasses import replace
 from pathlib import Path
 
@@ -40,7 +43,7 @@ def _workspace_binding(tmp_path: Path) -> WorkspaceLaunchBinding:
     common_dir = Path(_git(root, "rev-parse", "--git-common-dir"))
     if not common_dir.is_absolute():
         common_dir = root / common_dir
-    return WorkspaceLaunchBinding(
+    binding = WorkspaceLaunchBinding(
         run_id="run_test",
         activity_id="activity_test",
         attempt_id="attempt_test",
@@ -51,6 +54,71 @@ def _workspace_binding(tmp_path: Path) -> WorkspaceLaunchBinding:
         repo_common_dir=common_dir.resolve(),
         private_ref="refs/heads/specify/runs/test/g1",
     )
+    _write_run_control_binding(binding)
+    return binding
+
+
+def _write_run_control_binding(binding: WorkspaceLaunchBinding) -> Path:
+    database_path = binding.repo_common_dir / "specify-runtime" / "run-control.sqlite"
+    database_path.parent.mkdir(parents=True, exist_ok=True)
+    with closing(sqlite3.connect(database_path)) as database:
+        database.executescript(
+            """
+            CREATE TABLE metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+            CREATE TABLE runs (
+                run_id TEXT PRIMARY KEY, status TEXT NOT NULL, current_fence INTEGER NOT NULL,
+                owner_epoch TEXT NOT NULL
+            );
+            CREATE TABLE activities (
+                activity_id TEXT PRIMARY KEY, run_id TEXT NOT NULL, status TEXT NOT NULL
+            );
+            CREATE TABLE workspaces (
+                workspace_id TEXT PRIMARY KEY, run_id TEXT NOT NULL, generation INTEGER NOT NULL,
+                root_path TEXT NOT NULL, repo_common_dir TEXT NOT NULL, private_ref TEXT NOT NULL,
+                status TEXT NOT NULL
+            );
+            CREATE TABLE attempts (
+                attempt_id TEXT PRIMARY KEY, run_id TEXT NOT NULL, activity_id TEXT NOT NULL,
+                workspace_id TEXT NOT NULL, workspace_generation INTEGER NOT NULL,
+                status TEXT NOT NULL, owner_epoch TEXT NOT NULL, fence INTEGER NOT NULL,
+                lease_until_ms INTEGER NOT NULL
+            );
+            """
+        )
+        database.execute("INSERT INTO metadata VALUES ('schema_version', '4')")
+        database.execute(
+            "INSERT INTO runs VALUES (?, 'ready', ?, 'owner-test')",
+            (binding.run_id, binding.fence),
+        )
+        database.execute(
+            "INSERT INTO activities VALUES (?, ?, 'ready')",
+            (binding.activity_id, binding.run_id),
+        )
+        database.execute(
+            "INSERT INTO workspaces VALUES (?, ?, ?, ?, ?, ?, 'ready')",
+            (
+                binding.workspace_id,
+                binding.run_id,
+                binding.workspace_generation,
+                str(binding.workspace_root),
+                str(binding.repo_common_dir),
+                binding.private_ref,
+            ),
+        )
+        database.execute(
+            "INSERT INTO attempts VALUES (?, ?, ?, ?, ?, 'issued', 'owner-test', ?, ?)",
+            (
+                binding.attempt_id,
+                binding.run_id,
+                binding.activity_id,
+                binding.workspace_id,
+                binding.workspace_generation,
+                binding.fence,
+                int(time.time() * 1000) + 60_000,
+            ),
+        )
+        database.commit()
+    return database_path
 
 
 def test_workspace_process_backend_forces_cwd_and_authority_environment(monkeypatch, tmp_path: Path):
@@ -110,6 +178,12 @@ def test_workspace_process_backend_rejects_shell_text_and_reserved_env(tmp_path:
             env={"SPECIFY_WORKSPACE_ROOT": str(tmp_path / "other")},
         )
 
+    with pytest.raises(WorkspaceBindingError, match="private ref"):
+        backend.launch(
+            ["agent-cli"],
+            binding=replace(binding, private_ref="refs/heads/specify/runs/../../outside/g1"),
+        )
+
 
 def test_workspace_process_backend_rejects_wrong_root_or_private_ref(monkeypatch, tmp_path: Path):
     binding = _workspace_binding(tmp_path)
@@ -129,3 +203,39 @@ def test_workspace_process_backend_rejects_wrong_root_or_private_ref(monkeypatch
             ["agent-cli"],
             binding=replace(binding, private_ref="refs/heads/specify/runs/other/g1"),
         )
+
+
+def test_workspace_process_backend_rejects_stale_database_authority(monkeypatch, tmp_path: Path):
+    binding = _workspace_binding(tmp_path)
+    database_path = binding.repo_common_dir / "specify-runtime" / "run-control.sqlite"
+    monkeypatch.setattr(
+        "specify_cli.orchestration.backends.workspace_process_backend.subprocess.Popen",
+        lambda *args, **kwargs: pytest.fail("stale authority must not start a process"),
+    )
+
+    with closing(sqlite3.connect(database_path)) as database:
+        database.execute("UPDATE runs SET current_fence = current_fence + 1")
+        database.commit()
+    with pytest.raises(WorkspaceBindingError, match="authority"):
+        WorkspaceProcessBackend().launch(["agent-cli"], binding=binding)
+
+    with closing(sqlite3.connect(database_path)) as database:
+        database.execute("UPDATE runs SET current_fence = ?", (binding.fence,))
+        database.execute("UPDATE workspaces SET status = 'quarantined'")
+        database.commit()
+    with pytest.raises(WorkspaceBindingError, match="authority"):
+        WorkspaceProcessBackend().launch(["agent-cli"], binding=binding)
+
+
+def test_workspace_process_backend_requires_read_only_run_control_database(monkeypatch, tmp_path: Path):
+    binding = _workspace_binding(tmp_path)
+    database_path = binding.repo_common_dir / "specify-runtime" / "run-control.sqlite"
+    database_path.unlink()
+    monkeypatch.setattr(
+        "specify_cli.orchestration.backends.workspace_process_backend.subprocess.Popen",
+        lambda *args, **kwargs: pytest.fail("missing authority database must not start a process"),
+    )
+
+    with pytest.raises(WorkspaceBindingError, match="run-control database"):
+        WorkspaceProcessBackend().launch(["agent-cli"], binding=binding)
+    assert not database_path.exists()
