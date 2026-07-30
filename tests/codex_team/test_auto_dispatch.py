@@ -49,6 +49,13 @@ def _enable_legacy_executor(monkeypatch):
     monkeypatch.setenv("SPECIFY_CODEX_TEAM_EXECUTOR", "legacy-heartbeat-runtime")
 
 
+@pytest.fixture
+def _no_legacy_worker_launch(monkeypatch):
+    """Keep tests that author controlled results isolated from background workers."""
+
+    monkeypatch.setattr(auto_dispatch, "launch_dispatched_worker", lambda *_, **__: None)
+
+
 def _write_feature_tasks(project_root: Path, content: str) -> Path:
     feature_dir = project_root / "specs" / "001-test-feature"
     feature_dir.mkdir(parents=True, exist_ok=True)
@@ -1196,6 +1203,7 @@ def test_complete_dispatched_batch_waits_for_agent_teams_terminal_dispatch(
 
 def test_complete_dispatched_batch_retries_join_point_after_metadata_version_race(
     monkeypatch,
+    _no_legacy_worker_launch,
     codex_team_project_root: Path,
 ):
     monkeypatch.setattr(
@@ -1320,6 +1328,7 @@ def test_complete_dispatched_batch_retries_join_point_after_metadata_version_rac
 
 def test_complete_dispatched_batch_tolerates_result_submission_after_task_already_completed(
     monkeypatch,
+    _no_legacy_worker_launch,
     codex_team_project_root: Path,
 ):
     monkeypatch.setattr(
@@ -1576,7 +1585,7 @@ def test_route_ready_parallel_batch_cleans_up_partial_state_when_later_dispatch_
 
 
 def test_terminal_task_completion_auto_completes_batch(
-    monkeypatch, codex_team_project_root: Path
+    monkeypatch, _no_legacy_worker_launch, codex_team_project_root: Path
 ):
     monkeypatch.setattr(
         "specify_cli.codex_team.runtime_bridge.is_native_windows", lambda: False
@@ -1681,7 +1690,7 @@ def test_terminal_task_completion_auto_completes_batch(
 
 
 def test_complete_dispatched_batch_validates_structured_worker_results(
-    monkeypatch, codex_team_project_root: Path
+    monkeypatch, _no_legacy_worker_launch, codex_team_project_root: Path
 ):
     monkeypatch.setattr(
         "specify_cli.codex_team.runtime_bridge.is_native_windows", lambda: False
@@ -1754,7 +1763,7 @@ def test_complete_dispatched_batch_validates_structured_worker_results(
 
 
 def test_complete_dispatched_batch_waits_for_review_when_review_gate_is_required(
-    monkeypatch, codex_team_project_root: Path
+    monkeypatch, _no_legacy_worker_launch, codex_team_project_root: Path
 ):
     monkeypatch.setattr(
         "specify_cli.codex_team.runtime_bridge.is_native_windows", lambda: False
@@ -1850,6 +1859,7 @@ def test_complete_dispatched_batch_waits_for_review_when_review_gate_is_required
 @pytest.mark.parametrize("mode", ["missing", "corrupt"])
 def test_complete_dispatched_batch_fails_closed_when_dispatch_record_is_missing_or_corrupt(
     monkeypatch,
+    _no_legacy_worker_launch,
     codex_team_project_root: Path,
     mode: str,
 ):
@@ -1897,7 +1907,7 @@ def test_complete_dispatched_batch_fails_closed_when_dispatch_record_is_missing_
 
 
 def test_complete_dispatched_batch_requires_result_when_structured_results_expected(
-    monkeypatch, codex_team_project_root: Path
+    monkeypatch, _no_legacy_worker_launch, codex_team_project_root: Path
 ):
     monkeypatch.setattr(
         "specify_cli.codex_team.runtime_bridge.is_native_windows", lambda: False
@@ -1936,7 +1946,7 @@ def test_complete_dispatched_batch_requires_result_when_structured_results_expec
 
 
 def test_complete_dispatched_batch_rejects_pending_result_placeholders(
-    monkeypatch, codex_team_project_root: Path
+    monkeypatch, _no_legacy_worker_launch, codex_team_project_root: Path
 ):
     monkeypatch.setattr(
         "specify_cli.codex_team.runtime_bridge.is_native_windows", lambda: False
@@ -1991,7 +2001,7 @@ def test_complete_dispatched_batch_rejects_pending_result_placeholders(
 
 
 def test_terminal_task_failure_marks_batch_failed(
-    monkeypatch, codex_team_project_root: Path
+    monkeypatch, _no_legacy_worker_launch, codex_team_project_root: Path
 ):
     monkeypatch.setattr(
         "specify_cli.codex_team.runtime_bridge.is_native_windows", lambda: False
@@ -2056,7 +2066,7 @@ def test_terminal_task_failure_marks_batch_failed(
 
 
 def test_non_critical_failure_blocks_mixed_tolerance_batch_without_failing_session(
-    monkeypatch, codex_team_project_root: Path
+    monkeypatch, _no_legacy_worker_launch, codex_team_project_root: Path
 ):
     monkeypatch.setattr(
         "specify_cli.codex_team.runtime_bridge.is_native_windows", lambda: False
