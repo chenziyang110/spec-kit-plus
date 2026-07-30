@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-var liveAttemptStatuses = []AttemptStatus{AttemptIssued, AttemptActive}
+var liveAttemptStatuses = []AttemptStatus{AttemptIssued, AttemptActive, AttemptSealing}
 
 // IssueAttempt allocates the next fencing token for a run and records the
 // supervisor epoch which owns the new attempt. The run revision and fence are
@@ -53,10 +53,10 @@ func (store *Store) IssueAttempt(ctx context.Context, params IssueAttemptParams)
 		WHERE run_id = ? AND revision = ? AND current_fence = ? AND status = ?
 		  AND NOT EXISTS (
 			SELECT 1 FROM attempts
-			WHERE run_id = ? AND status IN (?, ?)
+			WHERE run_id = ? AND status IN (?, ?, ?)
 		  )
 	`, nextFence, nowMS, run.RunID, run.Revision, run.CurrentFence, run.Status,
-		run.RunID, AttemptIssued, AttemptActive)
+		run.RunID, AttemptIssued, AttemptActive, AttemptSealing)
 	if err != nil {
 		if isSQLiteContention(err) {
 			return Attempt{}, fmt.Errorf("%w: concurrent attempt issuance for run %q", ErrRevisionConflict, run.RunID)
@@ -144,18 +144,24 @@ func (store *Store) ActivateAttempt(ctx context.Context, attemptID string, fence
 	}
 
 	nowMS := time.Now().UTC().UnixMilli()
+	if attempt.LeaseUntilMS <= nowMS {
+		return Attempt{}, fmt.Errorf("%w: attempt %q lease expired before activation", ErrStaleFence, attempt.AttemptID)
+	}
+	if leaseUntil.UTC().UnixMilli() <= nowMS {
+		return Attempt{}, fmt.Errorf("%w: lease_until must be in the future", ErrInvalidArgument)
+	}
 	result, err := tx.ExecContext(ctx, `
 		UPDATE runs
 		SET status = ?, revision = revision + 1, updated_at_ms = ?
 		WHERE run_id = ? AND revision = ? AND current_fence = ? AND status = ?
-	`, RunRunning, nowMS, run.RunID, run.Revision, fence, run.Status)
+	`, RunActive, nowMS, run.RunID, run.Revision, fence, run.Status)
 	if err != nil {
 		return Attempt{}, fmt.Errorf("activate attempt run: %w", err)
 	}
 	if err := requireOneCASRow(result, ErrRevisionConflict, "activate attempt run"); err != nil {
 		return Attempt{}, err
 	}
-	run.Status = RunRunning
+	run.Status = RunActive
 	run.Revision++
 	run.UpdatedAtMS = nowMS
 
@@ -224,23 +230,29 @@ func (store *Store) Heartbeat(ctx context.Context, attemptID string, fence int64
 	if attempt.Status != AttemptActive {
 		return Attempt{}, fmt.Errorf("%w: attempt %q is not active", ErrInvalidTransition, attempt.AttemptID)
 	}
-	if run.Status != RunRunning {
+	if run.Status != RunActive {
 		return Attempt{}, fmt.Errorf("%w: run %q is %q", ErrStaleFence, run.RunID, run.Status)
 	}
 
 	nowMS := time.Now().UTC().UnixMilli()
+	if attempt.LeaseUntilMS <= nowMS {
+		return Attempt{}, fmt.Errorf("%w: attempt %q lease has expired", ErrStaleFence, attempt.AttemptID)
+	}
+	if leaseUntil.UTC().UnixMilli() <= nowMS {
+		return Attempt{}, fmt.Errorf("%w: lease_until must be in the future", ErrInvalidArgument)
+	}
 	result, err := tx.ExecContext(ctx, `
 		UPDATE attempts
 		SET lease_until_ms = ?, heartbeat_at_ms = ?, revision = revision + 1, updated_at_ms = ?
 		WHERE attempt_id = ? AND run_id = ? AND revision = ? AND fence = ?
-		  AND owner_epoch = ? AND status = ?
+		  AND owner_epoch = ? AND status = ? AND lease_until_ms > ?
 		  AND EXISTS (
 			SELECT 1 FROM runs
 			WHERE run_id = ? AND revision = ? AND current_fence = ? AND status = ?
 		  )
 	`, leaseUntil.UTC().UnixMilli(), nowMS, nowMS,
 		attempt.AttemptID, attempt.RunID, attempt.Revision, fence,
-		store.ownerEpoch, AttemptActive, run.RunID, run.Revision, fence, RunRunning)
+		store.ownerEpoch, AttemptActive, nowMS, run.RunID, run.Revision, fence, RunActive)
 	if err != nil {
 		return Attempt{}, fmt.Errorf("heartbeat attempt: %w", err)
 	}
@@ -364,12 +376,12 @@ func (store *Store) interruptMatchingAttempts(
 		       a.created_at_ms, a.updated_at_ms
 		FROM attempts AS a
 		JOIN runs AS r ON r.run_id = a.run_id AND r.current_fence = a.fence
-		WHERE a.status IN (?, ?)
+		WHERE a.status IN (?, ?, ?)
 		  AND r.status IN (?, ?)
 		  AND ` + extraPredicate + `
 		ORDER BY a.run_id, a.attempt_id
 	`
-	args := []any{AttemptIssued, AttemptActive, RunReady, RunRunning}
+	args := []any{AttemptIssued, AttemptActive, AttemptSealing, RunReady, RunActive}
 	args = append(args, extraArgs...)
 	rows, err := tx.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -401,7 +413,7 @@ func (store *Store) interruptMatchingAttempts(
 		if run.CurrentFence != attempt.Fence {
 			continue
 		}
-		if run.Status != RunReady && run.Status != RunRunning {
+		if run.Status != RunReady && run.Status != RunActive {
 			continue
 		}
 
@@ -463,9 +475,9 @@ func runHasLiveAttemptTx(ctx context.Context, tx *sql.Tx, runID string) (bool, e
 	var exists int
 	err := tx.QueryRowContext(ctx, `
 		SELECT EXISTS (
-			SELECT 1 FROM attempts WHERE run_id = ? AND status IN (?, ?)
+			SELECT 1 FROM attempts WHERE run_id = ? AND status IN (?, ?, ?)
 		)
-	`, runID, liveAttemptStatuses[0], liveAttemptStatuses[1]).Scan(&exists)
+	`, runID, liveAttemptStatuses[0], liveAttemptStatuses[1], liveAttemptStatuses[2]).Scan(&exists)
 	if err != nil {
 		return false, fmt.Errorf("query live attempt for run %q: %w", runID, err)
 	}
@@ -519,10 +531,10 @@ func readLiveAttemptForFenceTx(ctx context.Context, tx *sql.Tx, runID string, fe
 		       owner_epoch, fence, lease_until_ms, heartbeat_at_ms,
 		       revision, created_at_ms, updated_at_ms
 		FROM attempts
-		WHERE run_id = ? AND fence = ? AND status IN (?, ?)
+		WHERE run_id = ? AND fence = ? AND status IN (?, ?, ?)
 		ORDER BY revision DESC
 		LIMIT 1
-	`, runID, fence, AttemptIssued, AttemptActive)
+	`, runID, fence, AttemptIssued, AttemptActive, AttemptSealing)
 	attempt, err := scanAttempt(row)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Attempt{}, false, nil
@@ -573,7 +585,7 @@ func requireOneCASRow(result sql.Result, conflict error, action string) error {
 
 func runCanBeCancelled(status RunStatus) bool {
 	switch status {
-	case RunAllocating, RunReady, RunRunning, RunInterrupted:
+	case RunAllocating, RunReady, RunActive, RunParked, RunInterrupted:
 		return true
 	default:
 		return false

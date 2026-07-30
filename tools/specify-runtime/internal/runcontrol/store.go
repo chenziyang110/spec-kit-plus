@@ -362,10 +362,10 @@ func validateCreateRunParams(params CreateRunParams) error {
 func canTransitionRun(from, to RunStatus) bool {
 	transitions := map[RunStatus]map[RunStatus]bool{
 		RunAllocating:  {RunReady: true, RunInterrupted: true, RunCancelled: true, RunFailed: true},
-		RunReady:       {RunActive: true, RunInterrupted: true, RunCancelled: true, RunFailed: true},
-		RunActive:      {RunSealing: true, RunInterrupted: true, RunCancelled: true, RunFailed: true},
+		RunReady:       {RunActive: true, RunParked: true, RunInterrupted: true, RunCancelled: true, RunFailed: true},
+		RunActive:      {RunParked: true, RunInterrupted: true, RunSealed: true, RunCancelled: true, RunFailed: true},
+		RunParked:      {RunReady: true, RunCancelled: true, RunFailed: true},
 		RunInterrupted: {RunReady: true, RunCancelled: true, RunFailed: true},
-		RunSealing:     {RunSealed: true, RunInterrupted: true, RunCancelled: true, RunFailed: true},
 		RunSealed:      {},
 		RunCancelled:   {},
 		RunFailed:      {},

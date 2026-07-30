@@ -3,7 +3,6 @@ package runcontrol
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -23,20 +22,6 @@ func (store *Store) BeginOperation(ctx context.Context, params BeginOperationPar
 	}
 	defer func() { _ = transaction.Rollback() }()
 
-	existing, err := readOperationByIdempotencyKey(ctx, transaction, params.IdempotencyKey)
-	if err == nil {
-		if !operationMatchesRequest(existing, params) {
-			return Operation{}, false, fmt.Errorf("%w: key %q identifies a different request", ErrIdempotencyConflict, params.IdempotencyKey)
-		}
-		if err := transaction.Commit(); err != nil {
-			return Operation{}, false, fmt.Errorf("commit operation replay: %w", err)
-		}
-		return existing, true, nil
-	}
-	if !errors.Is(err, sql.ErrNoRows) {
-		return Operation{}, false, err
-	}
-
 	now := time.Now().UTC().UnixMilli()
 	operation := Operation{
 		OperationID:    params.OperationID,
@@ -50,17 +35,41 @@ func (store *Store) BeginOperation(ctx context.Context, params BeginOperationPar
 		CreatedAtMS:    now,
 		UpdatedAtMS:    now,
 	}
-	_, err = transaction.ExecContext(ctx, `
+	result, err := transaction.ExecContext(ctx, `
 		INSERT INTO operations (
 			operation_id, kind, aggregate_type, aggregate_id,
 			idempotency_key, request_sha256, status, revision,
 			created_at_ms, updated_at_ms
 		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(idempotency_key) DO NOTHING
 	`, operation.OperationID, operation.Kind, operation.AggregateType, operation.AggregateID,
 		operation.IdempotencyKey, operation.RequestSHA256, operation.Status, operation.Revision,
 		operation.CreatedAtMS, operation.UpdatedAtMS)
 	if err != nil {
+		if isUniqueConstraintError(err) {
+			return Operation{}, false, fmt.Errorf("%w: operation %q", ErrAlreadyExists, params.OperationID)
+		}
 		return Operation{}, false, fmt.Errorf("insert operation: %w", err)
+	}
+	inserted, err := result.RowsAffected()
+	if err != nil {
+		return Operation{}, false, fmt.Errorf("count inserted operations: %w", err)
+	}
+	if inserted == 0 {
+		existing, err := readOperationByIdempotencyKey(ctx, transaction, params.IdempotencyKey)
+		if err != nil {
+			return Operation{}, false, fmt.Errorf("read idempotent operation replay: %w", err)
+		}
+		if !operationMatchesRequest(existing, params) {
+			return Operation{}, false, fmt.Errorf("%w: key %q identifies a different request", ErrIdempotencyConflict, params.IdempotencyKey)
+		}
+		if err := transaction.Commit(); err != nil {
+			return Operation{}, false, fmt.Errorf("commit operation replay: %w", err)
+		}
+		return existing, true, nil
+	}
+	if inserted != 1 {
+		return Operation{}, false, fmt.Errorf("insert operation affected %d rows", inserted)
 	}
 	if err := transaction.Commit(); err != nil {
 		return Operation{}, false, fmt.Errorf("commit operation: %w", err)
@@ -79,11 +88,11 @@ func validateBeginOperationParams(params BeginOperationParams) error {
 	}
 	for name, value := range required {
 		if strings.TrimSpace(value) == "" {
-			return fmt.Errorf("%s is required", name)
+			return fmt.Errorf("%w: %s is required", ErrInvalidArgument, name)
 		}
 	}
 	if !validSHA256(params.RequestSHA256) {
-		return fmt.Errorf("request_sha256 must be a lowercase sha256 digest")
+		return fmt.Errorf("%w: request_sha256 must be a lowercase sha256 digest", ErrInvalidArgument)
 	}
 	return nil
 }
@@ -118,8 +127,7 @@ func readOperationByIdempotencyKey(ctx context.Context, querier interface {
 }
 
 func operationMatchesRequest(operation Operation, params BeginOperationParams) bool {
-	return operation.OperationID == params.OperationID &&
-		operation.Kind == params.Kind &&
+	return operation.Kind == params.Kind &&
 		operation.AggregateType == params.AggregateType &&
 		operation.AggregateID == params.AggregateID &&
 		operation.RequestSHA256 == params.RequestSHA256

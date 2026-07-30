@@ -72,23 +72,54 @@ func TestHeartbeatCannotResurrectExpiredLease(t *testing.T) {
 	ctx := context.Background()
 	store := openTestStore(t, filepath.Join(t.TempDir(), "run-control.sqlite"))
 	run := createReadyRun(t, store, "run_expired_heartbeat")
-	expiredAt := time.Now().UTC().Add(-time.Minute)
+	now := time.Now().UTC()
 	attempt, err := store.IssueAttempt(ctx, IssueAttemptParams{
 		AttemptID:           "att_expired_heartbeat",
 		RunID:               run.RunID,
 		ExpectedRunRevision: run.Revision,
 		AdapterID:           "codex",
 		ExecutionMode:       ExecutionManaged,
-		LeaseUntil:          expiredAt,
+		LeaseUntil:          now.Add(time.Minute),
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.ActivateAttempt(ctx, attempt.AttemptID, attempt.Fence, expiredAt); err != nil {
+	if _, err := store.ActivateAttempt(ctx, attempt.AttemptID, attempt.Fence, now.Add(time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.db.ExecContext(ctx, `
+		UPDATE attempts SET lease_until_ms = ? WHERE attempt_id = ?
+	`, now.Add(-time.Minute).UnixMilli(), attempt.AttemptID); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := store.Heartbeat(ctx, attempt.AttemptID, attempt.Fence, time.Now().UTC().Add(time.Minute)); !errors.Is(err, ErrStaleFence) {
 		t.Fatalf("expired lease heartbeat error = %v, want ErrStaleFence", err)
+	}
+}
+
+func TestActivateCannotResurrectExpiredIssuedLease(t *testing.T) {
+	ctx := context.Background()
+	store := openTestStore(t, filepath.Join(t.TempDir(), "run-control.sqlite"))
+	run := createReadyRun(t, store, "run_expired_activation")
+	now := time.Now().UTC()
+	attempt, err := store.IssueAttempt(ctx, IssueAttemptParams{
+		AttemptID:           "att_expired_activation",
+		RunID:               run.RunID,
+		ExpectedRunRevision: run.Revision,
+		AdapterID:           "codex",
+		ExecutionMode:       ExecutionManaged,
+		LeaseUntil:          now.Add(time.Minute),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.db.ExecContext(ctx, `
+		UPDATE attempts SET lease_until_ms = ? WHERE attempt_id = ?
+	`, now.Add(-time.Minute).UnixMilli(), attempt.AttemptID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.ActivateAttempt(ctx, attempt.AttemptID, attempt.Fence, now.Add(time.Minute)); !errors.Is(err, ErrStaleFence) {
+		t.Fatalf("expired lease activation error = %v, want ErrStaleFence", err)
 	}
 }
 

@@ -31,10 +31,9 @@ type RunStatus string
 const (
 	RunAllocating  RunStatus = "allocating"
 	RunReady       RunStatus = "ready"
-	RunRunning     RunStatus = "running"
-	RunActive      RunStatus = RunRunning
+	RunActive      RunStatus = "active"
+	RunParked      RunStatus = "parked"
 	RunInterrupted RunStatus = "interrupted"
-	RunSealing     RunStatus = "sealing"
 	RunSealed      RunStatus = "sealed"
 	RunCancelled   RunStatus = "cancelled"
 	RunFailed      RunStatus = "failed"
@@ -80,6 +79,7 @@ const (
 	AttemptFinished AttemptStatus = "finished"
 	AttemptRevoked  AttemptStatus = "revoked"
 	AttemptLost     AttemptStatus = "lost"
+	AttemptFailed   AttemptStatus = "failed"
 )
 
 type Attempt struct {
@@ -110,6 +110,7 @@ type OperationStatus string
 
 const (
 	OperationPrepared       OperationStatus = "prepared"
+	OperationExecuting      OperationStatus = "executing"
 	OperationSucceeded      OperationStatus = "succeeded"
 	OperationFailed         OperationStatus = "failed"
 	OperationOutcomeUnknown OperationStatus = "outcome_unknown"

@@ -2,6 +2,8 @@ package runcontrol
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"path/filepath"
 	"sync"
@@ -300,10 +302,6 @@ func openTestStore(t *testing.T, databasePath string, options ...OpenOption) *St
 }
 
 func digestForTest(seed string) string {
-	const alphabet = "0123456789abcdef"
-	result := make([]byte, 64)
-	for index := range result {
-		result[index] = alphabet[(index+len(seed))%len(alphabet)]
-	}
-	return string(result)
+	digest := sha256.Sum256([]byte(seed))
+	return hex.EncodeToString(digest[:])
 }
