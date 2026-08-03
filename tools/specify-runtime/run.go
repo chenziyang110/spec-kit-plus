@@ -5,13 +5,16 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
+	"os/signal"
 	"strconv"
 	"strings"
+	"syscall"
 
 	"github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/runcontrol"
 )
 
-func runRun(args []string, stdout io.Writer) int {
+func runRun(args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
 		return writeEnvelope(stdout, runUsageEnvelope("missing run subcommand"))
 	}
@@ -27,6 +30,8 @@ func runRun(args []string, stdout io.Writer) int {
 		return runEvents(args[1:], stdout)
 	case "cancel":
 		return runCancel(args[1:], stdout)
+	case "supervise":
+		return runSupervise(args[1:], stdout, stderr)
 	default:
 		return writeEnvelope(stdout, runUsageEnvelope(fmt.Sprintf("unknown run subcommand %q", args[0])))
 	}
@@ -34,7 +39,7 @@ func runRun(args []string, stdout io.Writer) int {
 
 func writeRunHelp(stdout io.Writer) int {
 	_, _ = fmt.Fprintln(stdout, "specify-runtime run commands:")
-	for _, command := range []string{"create", "show", "events", "cancel"} {
+	for _, command := range []string{"create", "show", "events", "cancel", "supervise"} {
 		_, _ = fmt.Fprintf(stdout, "  %s\n", command)
 	}
 	return 0
@@ -203,9 +208,92 @@ func runCancel(args []string, stdout io.Writer) int {
 	return writeEnvelope(stdout, env)
 }
 
+func runSupervise(args []string, stdout, stderr io.Writer) int {
+	parsed, childArgv, err := parseRunSuperviseArgs(args)
+	if err != nil {
+		return writeEnvelope(stdout, runUsageEnvelope(err.Error()))
+	}
+	if err := parsed.validateJSONFormat(); err != nil {
+		return writeEnvelope(stdout, runUsageEnvelope(err.Error()))
+	}
+	runID := strings.TrimSpace(parsed.positionals[0])
+	adapterID := strings.TrimSpace(parsed.option("--adapter-id", ""))
+	if runID == "" || adapterID == "" {
+		return writeEnvelope(stdout, runUsageEnvelope("run supervise requires <run-id> and --adapter-id"))
+	}
+	projectRoot := parsed.option("--project-root", ".")
+
+	ctx, stopSignals := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stopSignals()
+	repository, err := runcontrol.ResolveRepository(ctx, projectRoot)
+	if err != nil {
+		return writeEnvelope(stdout, runControlErrorEnvelope("resolve run repository", err))
+	}
+	result, operationErr := runcontrol.SuperviseRun(ctx, repository, runcontrol.SuperviseRunParams{
+		RunID:       runID,
+		AdapterID:   adapterID,
+		Argv:        childArgv,
+		ChildStdin:  os.Stdin,
+		ChildStdout: stderr,
+		ChildStderr: stderr,
+	})
+	if operationErr != nil {
+		env := runControlErrorEnvelope("supervise run", operationErr)
+		if errors.Is(operationErr, context.Canceled) {
+			env.Status = "blocked"
+			env.Summary = "run supervision interrupted and fenced"
+		}
+		env.ShowArgv = runShowArgv(runID, projectRoot)
+		return writeEnvelope(stdout, env)
+	}
+
+	status := "ok"
+	summary := "run executed in isolated workspace"
+	if result.ExitCode != 0 {
+		status = "error"
+		summary = fmt.Sprintf("supervised process exited with code %d", result.ExitCode)
+	}
+	env := NewEnvelope(status, summary)
+	env.Data["run"] = runDTO(result.Run)
+	env.Data["execution"] = supervisedRunDTO(result)
+	env.ShowArgv = runShowArgv(runID, projectRoot)
+	return writeEnvelope(stdout, env)
+}
+
 type parsedRunCommand struct {
 	positionals []string
 	options     map[string]string
+}
+
+func parseRunSuperviseArgs(args []string) (parsedRunCommand, []string, error) {
+	separator := -1
+	for index, argument := range args {
+		if argument == "--" {
+			separator = index
+			break
+		}
+	}
+	if separator < 0 {
+		return parsedRunCommand{}, nil, errors.New("run supervise requires -- before the child argv")
+	}
+	if separator == len(args)-1 {
+		return parsedRunCommand{}, nil, errors.New("run supervise requires a child argv after --")
+	}
+	parsed, err := parseRunCommandArgs(
+		args[:separator],
+		1,
+		"--project-root",
+		"--adapter-id",
+		"--format",
+	)
+	if err != nil {
+		return parsedRunCommand{}, nil, err
+	}
+	childArgv := append([]string(nil), args[separator+1:]...)
+	if strings.TrimSpace(childArgv[0]) == "" {
+		return parsedRunCommand{}, nil, errors.New("run supervise child executable is empty")
+	}
+	return parsed, childArgv, nil
 }
 
 func parseRunCommandArgs(args []string, positionalCount int, allowedOptions ...string) (parsedRunCommand, error) {
@@ -275,6 +363,17 @@ func runEventDTO(event runcontrol.Event) map[string]any {
 		"event_type":         event.EventType,
 		"reason":             event.Reason,
 		"created_at_ms":      event.CreatedAtMS,
+	}
+}
+
+func supervisedRunDTO(result runcontrol.SupervisedRun) map[string]any {
+	return map[string]any{
+		"attempt_id":           result.Attempt.AttemptID,
+		"exit_code":            result.ExitCode,
+		"workspace_generation": result.Workspace.Generation,
+		"workspace_id":         result.Workspace.WorkspaceID,
+		"workspace_root":       result.Workspace.RootPath,
+		"private_ref":          result.Workspace.PrivateRef,
 	}
 }
 

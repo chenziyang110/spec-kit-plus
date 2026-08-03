@@ -24,6 +24,9 @@ func (store *Store) BeginOperation(ctx context.Context, params BeginOperationPar
 		return Operation{}, false, fmt.Errorf("begin operation transaction: %w", err)
 	}
 	defer func() { _ = transaction.Rollback() }()
+	if err := requireActiveSupervisorTx(ctx, transaction, store.ownerEpoch); err != nil {
+		return Operation{}, false, err
+	}
 
 	now := time.Now().UTC().UnixMilli()
 	run, err := readRunTx(ctx, transaction, params.RunID)
@@ -145,6 +148,9 @@ func (store *Store) BeginAttemptLaunch(
 		return Operation{}, false, fmt.Errorf("begin attempt launch transaction: %w", err)
 	}
 	defer func() { _ = transaction.Rollback() }()
+	if err := requireActiveSupervisorTx(ctx, transaction, store.ownerEpoch); err != nil {
+		return Operation{}, false, err
+	}
 
 	attempt, err := readAttemptTx(ctx, transaction, params.AttemptID)
 	if err != nil {
@@ -278,6 +284,9 @@ func (store *Store) CompleteAttemptLaunch(
 		return Operation{}, fmt.Errorf("begin complete attempt launch transaction: %w", err)
 	}
 	defer func() { _ = transaction.Rollback() }()
+	if err := requireActiveSupervisorTx(ctx, transaction, store.ownerEpoch); err != nil {
+		return Operation{}, err
+	}
 
 	operation, err := readOperationTx(ctx, transaction, params.OperationID)
 	if err != nil {

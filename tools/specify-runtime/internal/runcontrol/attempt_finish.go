@@ -31,6 +31,9 @@ func (store *Store) FinishAttempt(
 		return FinishedExecution{}, fmt.Errorf("begin finish attempt transaction: %w", err)
 	}
 	defer func() { _ = transaction.Rollback() }()
+	if err := requireActiveSupervisorTx(ctx, transaction, store.ownerEpoch); err != nil {
+		return FinishedExecution{}, err
+	}
 
 	attempt, err := readAttemptTx(ctx, transaction, params.AttemptID)
 	if err != nil {

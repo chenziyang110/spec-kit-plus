@@ -44,7 +44,7 @@ func Run(args []string, stdout, stderr io.Writer, cliVersion string) int {
 	case "result":
 		return runResult(args[1:], stdout)
 	case "run":
-		return runRun(args[1:], stdout)
+		return runRun(args[1:], stdout, stderr)
 	case "workflow":
 		return runWorkflow(args[1:], stdout)
 	case "validate":
@@ -1073,6 +1073,7 @@ func defaultCapabilities() []string {
 		"run.create",
 		"run.events",
 		"run.show",
+		"run.supervise",
 		"accept.closeout",
 		"accept.prepare",
 		"accept.route-repair",
@@ -1233,6 +1234,8 @@ func capabilitySummary(id string) string {
 		return "List the ordered lifecycle events for one Run."
 	case "run.cancel":
 		return "Cancel one revision-bound Run and advance its fence before cleanup."
+	case "run.supervise":
+		return "Execute one Run in its isolated Git worktree under durable lifecycle control."
 	default:
 		return "Runtime capability."
 	}

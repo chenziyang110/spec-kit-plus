@@ -24,6 +24,9 @@ func (store *Store) BeginWorkspaceAllocation(
 		return WorkspaceAllocation{}, false, fmt.Errorf("begin workspace allocation journal: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
+	if err := requireActiveSupervisorTx(ctx, tx, store.ownerEpoch); err != nil {
+		return WorkspaceAllocation{}, false, err
+	}
 	if existing, readErr := readWorkspaceAllocationByIdempotencyKey(ctx, tx, params.IdempotencyKey); readErr == nil {
 		if !workspaceAllocationMatchesRequest(existing, params) {
 			return WorkspaceAllocation{}, false, fmt.Errorf("%w: key %q identifies a different workspace allocation", ErrIdempotencyConflict, params.IdempotencyKey)
@@ -138,6 +141,9 @@ func (store *Store) StartWorkspaceAllocation(ctx context.Context, allocationID s
 		return WorkspaceAllocation{}, fmt.Errorf("begin start workspace allocation: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
+	if err := requireActiveSupervisorTx(ctx, tx, store.ownerEpoch); err != nil {
+		return WorkspaceAllocation{}, err
+	}
 
 	allocation, err := readWorkspaceAllocationTx(ctx, tx, allocationID)
 	if err != nil {
@@ -192,6 +198,9 @@ func (store *Store) CompleteWorkspaceAllocation(
 		return WorkspaceAllocation{}, PreparedExecution{}, fmt.Errorf("begin complete workspace allocation: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
+	if err := requireActiveSupervisorTx(ctx, tx, store.ownerEpoch); err != nil {
+		return WorkspaceAllocation{}, PreparedExecution{}, err
+	}
 
 	allocation, err := readWorkspaceAllocationTx(ctx, tx, params.AllocationID)
 	if err != nil {

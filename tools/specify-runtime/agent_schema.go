@@ -141,6 +141,10 @@ func runAPIShow(args []string, stdout io.Writer) int {
 		capability["side_effect"] = "cancels-and-fences-run"
 		capability["usage"] = "specify-runtime run cancel <run-id> --expected-revision <revision> --reason <reason> [--project-root <path>] --format json"
 		capability["input_contract"] = "requires the exact observed Run revision; cancellation advances the fence before revoking execution authority"
+	case "run.supervise":
+		capability["side_effect"] = "allocates-worktree-and-runs-tokenized-child"
+		capability["usage"] = "specify-runtime run supervise <run-id> --adapter-id <id> [--project-root <path>] --format json -- <argv...>"
+		capability["input_contract"] = "requires a literal -- separator; runtime owns worktree allocation, forces child cwd, maintains liveness, and atomically records success or failure"
 	}
 	env.Data["capability"] = capability
 	return writeEnvelope(stdout, env)

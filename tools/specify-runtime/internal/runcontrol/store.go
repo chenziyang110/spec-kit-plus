@@ -282,9 +282,10 @@ func (store *Store) createRun(ctx context.Context, params CreateRunParams, statu
 	return run, nil
 }
 
-// ClaimRun transfers one queued request to the current supervisor. The status,
-// revision, owner epoch, and event are advanced atomically so reconciliation
-// can distinguish queued intent from abandoned allocation work.
+// ClaimRun transfers a queued request or an interrupted execution to the
+// current supervisor. Interrupted Runs can be retried only after their old
+// Attempt is fenced and every old workspace is non-usable; the next allocation
+// therefore receives a strictly newer workspace generation.
 func (store *Store) ClaimRun(ctx context.Context, runID string, expectedRevision int64) (Run, error) {
 	if strings.TrimSpace(runID) == "" || expectedRevision <= 0 {
 		return Run{}, fmt.Errorf("%w: run id and positive expected revision are required", ErrInvalidArgument)
@@ -305,16 +306,34 @@ func (store *Store) ClaimRun(ctx context.Context, runID string, expectedRevision
 	if run.Revision != expectedRevision {
 		return Run{}, fmt.Errorf("%w: run %q is revision %d, expected %d", ErrRevisionConflict, run.RunID, run.Revision, expectedRevision)
 	}
-	if run.Status != RunQueued {
+	if run.Status != RunQueued && run.Status != RunInterrupted {
 		return Run{}, fmt.Errorf("%w: cannot claim run %q from %q", ErrInvalidTransition, run.RunID, run.Status)
 	}
+	if hasLiveAttempt, err := runHasLiveAttemptTx(ctx, transaction, run.RunID); err != nil {
+		return Run{}, err
+	} else if hasLiveAttempt {
+		return Run{}, fmt.Errorf("%w: run %q still has a live attempt", ErrLiveAttempt, run.RunID)
+	}
+	var hasUsableWorkspace int
+	if err := transaction.QueryRowContext(ctx, `
+		SELECT EXISTS (
+			SELECT 1 FROM workspaces
+			WHERE run_id = ? AND status IN (?, ?, ?)
+		)
+	`, run.RunID, WorkspaceAllocating, WorkspaceReady, WorkspaceInUse).Scan(&hasUsableWorkspace); err != nil {
+		return Run{}, fmt.Errorf("read usable workspace for run %q: %w", run.RunID, err)
+	}
+	if hasUsableWorkspace != 0 {
+		return Run{}, fmt.Errorf("%w: run %q still has a usable workspace", ErrUsableWorkspace, run.RunID)
+	}
 
+	claimedFrom := run.Status
 	nowMS := time.Now().UTC().UnixMilli()
 	result, err := transaction.ExecContext(ctx, `
 		UPDATE runs
 		SET status = ?, owner_epoch = ?, revision = revision + 1, updated_at_ms = ?
 		WHERE run_id = ? AND revision = ? AND current_fence = ? AND status = ?
-	`, RunAllocating, store.ownerEpoch, nowMS, run.RunID, run.Revision, run.CurrentFence, RunQueued)
+	`, RunAllocating, store.ownerEpoch, nowMS, run.RunID, run.Revision, run.CurrentFence, run.Status)
 	if err != nil {
 		return Run{}, fmt.Errorf("claim run %q: %w", run.RunID, err)
 	}
@@ -325,7 +344,11 @@ func (store *Store) ClaimRun(ctx context.Context, runID string, expectedRevision
 	run.OwnerEpoch = store.ownerEpoch
 	run.Revision++
 	run.UpdatedAtMS = nowMS
-	if err := appendRunEventTx(ctx, transaction, run, RunEventClaimed, "run claimed for allocation"); err != nil {
+	reason := "run claimed for allocation"
+	if claimedFrom == RunInterrupted {
+		reason = "interrupted run reclaimed for replacement allocation"
+	}
+	if err := appendRunEventTx(ctx, transaction, run, RunEventClaimed, reason); err != nil {
 		return Run{}, err
 	}
 	if err := transaction.Commit(); err != nil {

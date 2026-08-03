@@ -321,6 +321,9 @@ func (store *Store) Heartbeat(ctx context.Context, attemptID string, fence int64
 		return Attempt{}, fmt.Errorf("begin heartbeat transaction: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
+	if err := requireActiveSupervisorTx(ctx, tx, store.ownerEpoch); err != nil {
+		return Attempt{}, err
+	}
 
 	attempt, err := readAttemptTx(ctx, tx, attemptID)
 	if err != nil {

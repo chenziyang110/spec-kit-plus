@@ -23,6 +23,9 @@ func (store *Store) CreateActivity(ctx context.Context, params CreateActivityPar
 		return Activity{}, fmt.Errorf("begin create activity: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
+	if err := requireActiveSupervisorTx(ctx, tx, store.ownerEpoch); err != nil {
+		return Activity{}, err
+	}
 
 	if _, err := readRunTx(ctx, tx, params.RunID); err != nil {
 		return Activity{}, err
@@ -100,6 +103,9 @@ func (store *Store) CreateWorkspace(ctx context.Context, params CreateWorkspaceP
 		return Workspace{}, fmt.Errorf("begin create workspace: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
+	if err := requireActiveSupervisorTx(ctx, tx, store.ownerEpoch); err != nil {
+		return Workspace{}, err
+	}
 
 	if _, err := readRunTx(ctx, tx, params.RunID); err != nil {
 		return Workspace{}, err
@@ -191,6 +197,9 @@ func (store *Store) PrepareExecution(ctx context.Context, params PrepareExecutio
 		return PreparedExecution{}, fmt.Errorf("begin prepare execution: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
+	if err := requireActiveSupervisorTx(ctx, tx, store.ownerEpoch); err != nil {
+		return PreparedExecution{}, err
+	}
 	prepared, err := prepareExecutionTx(ctx, tx, store.ownerEpoch, params)
 	if err != nil {
 		return PreparedExecution{}, err
