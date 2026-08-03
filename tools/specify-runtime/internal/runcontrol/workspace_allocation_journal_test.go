@@ -2,6 +2,7 @@ package runcontrol
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"path/filepath"
 	"testing"
@@ -115,6 +116,18 @@ func TestCompleteWorkspaceAllocationAtomicallyReadiesExecution(t *testing.T) {
 	if prepared.Run.Status != RunReady || prepared.Activity.Status != ActivityReady || prepared.Workspace.Status != WorkspaceReady {
 		t.Fatalf("prepared execution = %#v", prepared)
 	}
+	replayed, wasReplay, err := store.BeginWorkspaceAllocation(ctx, BeginWorkspaceAllocationParams{
+		AllocationID:              allocation.AllocationID,
+		RunID:                     run.RunID,
+		WorkspaceID:               workspace.WorkspaceID,
+		ExpectedRunRevision:       run.Revision,
+		ExpectedWorkspaceRevision: workspace.Revision,
+		IdempotencyKey:            "allocate:" + run.RunID + ":1",
+		RequestSHA256:             digestForTest("allocation complete request"),
+	})
+	if err != nil || !wasReplay || replayed.Status != WorkspaceAllocationSucceeded {
+		t.Fatalf("completed allocation replay = %#v replayed=%v err=%v", replayed, wasReplay, err)
+	}
 }
 
 func TestClosingSupervisorMarksAllocationOutcomeUnknownAndQuarantinesWorkspace(t *testing.T) {
@@ -213,5 +226,55 @@ func TestWorkspaceAllocationJournalSurvivesOwnerReconciliation(t *testing.T) {
 	}
 	if reconciled.Status != WorkspaceAllocationOutcomeUnknown {
 		t.Fatalf("reconciled allocation status = %q, want outcome_unknown", reconciled.Status)
+	}
+}
+
+func TestOpenMigratesSchemaVersionThreeWorkspaceAllocationJournal(t *testing.T) {
+	ctx := context.Background()
+	databasePath := filepath.Join(t.TempDir(), "run-control.sqlite")
+	initial, err := Open(ctx, databasePath, WithOwnerEpoch("schema_v4_seed"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := initial.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	database, err := sql.Open("sqlite", databasePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := database.Exec(`DROP TABLE workspace_allocations`); err != nil {
+		_ = database.Close()
+		t.Fatal(err)
+	}
+	if _, err := database.Exec(`UPDATE metadata SET value = '3' WHERE key = 'schema_version'`); err != nil {
+		_ = database.Close()
+		t.Fatal(err)
+	}
+	if err := database.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	migrated, err := Open(ctx, databasePath, WithOwnerEpoch("schema_v3_migrator"))
+	if err != nil {
+		t.Fatalf("open schema version 3 for migration: %v", err)
+	}
+	t.Cleanup(func() { _ = migrated.Close() })
+	var version string
+	if err := migrated.db.QueryRowContext(ctx, `SELECT value FROM metadata WHERE key = 'schema_version'`).Scan(&version); err != nil {
+		t.Fatal(err)
+	}
+	if version != "4" {
+		t.Fatalf("migrated schema version = %q, want 4", version)
+	}
+	var tableCount int
+	if err := migrated.db.QueryRowContext(ctx, `
+		SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'workspace_allocations'
+	`).Scan(&tableCount); err != nil {
+		t.Fatal(err)
+	}
+	if tableCount != 1 {
+		t.Fatalf("workspace_allocations table count = %d, want 1", tableCount)
 	}
 }

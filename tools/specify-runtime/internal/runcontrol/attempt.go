@@ -615,6 +615,9 @@ func (store *Store) interruptMatchingAllocatingRuns(
 		if run.Status != RunAllocating {
 			continue
 		}
+		if err := markWorkspaceAllocationsOutcomeUnknownForRunTx(ctx, tx, run.RunID, reason, nowMS); err != nil {
+			return nil, err
+		}
 		result, err := tx.ExecContext(ctx, `
 			UPDATE runs
 			SET status = ?, current_fence = current_fence + 1,

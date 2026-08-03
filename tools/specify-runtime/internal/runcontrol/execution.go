@@ -191,7 +191,22 @@ func (store *Store) PrepareExecution(ctx context.Context, params PrepareExecutio
 		return PreparedExecution{}, fmt.Errorf("begin prepare execution: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
+	prepared, err := prepareExecutionTx(ctx, tx, store.ownerEpoch, params)
+	if err != nil {
+		return PreparedExecution{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return PreparedExecution{}, fmt.Errorf("commit prepare execution: %w", err)
+	}
+	return prepared, nil
+}
 
+func prepareExecutionTx(
+	ctx context.Context,
+	tx *sql.Tx,
+	ownerEpoch string,
+	params PrepareExecutionParams,
+) (PreparedExecution, error) {
 	run, err := readRunTx(ctx, tx, params.RunID)
 	if err != nil {
 		return PreparedExecution{}, err
@@ -232,7 +247,7 @@ func (store *Store) PrepareExecution(ctx context.Context, params PrepareExecutio
 		UPDATE runs
 		SET status = ?, owner_epoch = ?, revision = revision + 1, updated_at_ms = ?
 		WHERE run_id = ? AND revision = ? AND status = ?
-	`, RunReady, store.ownerEpoch, nowMS, run.RunID, run.Revision, run.Status)
+	`, RunReady, ownerEpoch, nowMS, run.RunID, run.Revision, run.Status)
 	if err != nil {
 		return PreparedExecution{}, fmt.Errorf("prepare run: %w", err)
 	}
@@ -240,7 +255,7 @@ func (store *Store) PrepareExecution(ctx context.Context, params PrepareExecutio
 		return PreparedExecution{}, err
 	}
 	run.Status = RunReady
-	run.OwnerEpoch = store.ownerEpoch
+	run.OwnerEpoch = ownerEpoch
 	run.Revision++
 	run.UpdatedAtMS = nowMS
 	if err := appendRunEventTx(ctx, tx, run, "execution.prepared", activity.ActivityID+":"+workspace.WorkspaceID); err != nil {
@@ -254,9 +269,6 @@ func (store *Store) PrepareExecution(ctx context.Context, params PrepareExecutio
 		return PreparedExecution{}, err
 	}
 
-	if err := tx.Commit(); err != nil {
-		return PreparedExecution{}, fmt.Errorf("commit prepare execution: %w", err)
-	}
 	return PreparedExecution{Run: run, Activity: activity, Workspace: workspace}, nil
 }
 

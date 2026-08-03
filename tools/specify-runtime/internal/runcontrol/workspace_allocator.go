@@ -89,7 +89,7 @@ func MaterializeGitWorkspace(ctx context.Context, repository Repository, workspa
 		return WorkspaceMaterialization{}, fmt.Errorf("inspect workspace root %q: %w", workspace.RootPath, statErr)
 	}
 
-	if err := os.MkdirAll(filepath.Dir(workspace.RootPath), 0o755); err != nil {
+	if err := createOwnedWorkspaceParents(canonical.PrimaryRoot, workspace.RootPath); err != nil {
 		return WorkspaceMaterialization{}, fmt.Errorf("create workspace parent: %w", err)
 	}
 	if err := validateOwnedWorkspacePath(canonical.PrimaryRoot, workspace.RootPath); err != nil {
@@ -122,9 +122,6 @@ func MaterializeGitWorkspace(ctx context.Context, repository Repository, workspa
 	}
 	if err := verifyMaterializedWorkspace(ctx, canonical, workspace); err != nil {
 		return WorkspaceMaterialization{}, err
-	}
-	if err := runGitMutationWithRetry(ctx, canonical.Root, "worktree", "lock", "--reason", "specify run "+workspace.RunID, workspace.RootPath); err != nil {
-		return WorkspaceMaterialization{}, fmt.Errorf("lock Git worktree: %w", err)
 	}
 	return materializationResult(workspace, WorkspaceMaterializationCreated), nil
 }
@@ -283,6 +280,49 @@ func validateOwnedWorkspacePath(primaryRoot, candidate string) error {
 		return fmt.Errorf("%w: workspace path %q is outside %q", ErrWorkspaceEscape, candidate, ownedRoot)
 	}
 	return nil
+}
+
+func createOwnedWorkspaceParents(primaryRoot, candidate string) error {
+	if err := validateOwnedWorkspacePath(primaryRoot, candidate); err != nil {
+		return err
+	}
+	parent := filepath.Dir(filepath.Clean(candidate))
+	relative, err := filepath.Rel(filepath.Clean(primaryRoot), parent)
+	if err != nil || relative == "." || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
+		return fmt.Errorf("%w: workspace parent %q is outside primary root %q", ErrWorkspaceEscape, parent, primaryRoot)
+	}
+	current := filepath.Clean(primaryRoot)
+	resolvedPrimary, err := resolveThroughExistingAncestor(primaryRoot)
+	if err != nil {
+		return err
+	}
+	for _, segment := range strings.Split(relative, string(filepath.Separator)) {
+		if segment == "" || segment == "." || segment == ".." {
+			return fmt.Errorf("%w: workspace parent contains unsafe segment %q", ErrWorkspaceEscape, segment)
+		}
+		current = filepath.Join(current, segment)
+		info, statErr := os.Lstat(current)
+		if errors.Is(statErr, os.ErrNotExist) {
+			if mkdirErr := os.Mkdir(current, 0o755); mkdirErr != nil && !errors.Is(mkdirErr, os.ErrExist) {
+				return mkdirErr
+			}
+			info, statErr = os.Lstat(current)
+		}
+		if statErr != nil {
+			return statErr
+		}
+		if info.Mode()&os.ModeSymlink != 0 || !info.IsDir() {
+			return fmt.Errorf("%w: workspace parent component %q is not a real directory", ErrWorkspaceEscape, current)
+		}
+		resolvedCurrent, resolveErr := resolveThroughExistingAncestor(current)
+		if resolveErr != nil {
+			return resolveErr
+		}
+		if !isContainedPath(resolvedPrimary, resolvedCurrent) {
+			return fmt.Errorf("%w: workspace parent component %q escapes primary root", ErrWorkspaceEscape, current)
+		}
+	}
+	return validateOwnedWorkspacePath(primaryRoot, candidate)
 }
 
 func resolveThroughExistingAncestor(path string) (string, error) {

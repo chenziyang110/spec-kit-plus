@@ -1,6 +1,35 @@
 package runcontrol
 
-const schemaVersion = 3
+const schemaVersion = 4
+
+const workspaceAllocationSchemaSQL = `
+CREATE TABLE IF NOT EXISTS workspace_allocations (
+    allocation_id TEXT PRIMARY KEY,
+    run_id TEXT NOT NULL REFERENCES runs(run_id) ON DELETE RESTRICT,
+    workspace_id TEXT NOT NULL,
+    workspace_generation INTEGER NOT NULL CHECK (workspace_generation > 0),
+    owner_epoch TEXT NOT NULL REFERENCES supervisor_instances(owner_epoch) ON DELETE RESTRICT,
+    run_revision INTEGER NOT NULL CHECK (run_revision >= 1),
+    workspace_revision INTEGER NOT NULL CHECK (workspace_revision >= 1),
+    idempotency_key TEXT NOT NULL UNIQUE,
+    request_sha256 TEXT NOT NULL CHECK (
+        length(request_sha256) = 64 AND request_sha256 NOT GLOB '*[^0-9a-f]*'
+    ),
+    status TEXT NOT NULL CHECK (
+        status IN ('prepared', 'executing', 'succeeded', 'failed', 'outcome_unknown')
+    ),
+    reason TEXT NOT NULL DEFAULT '',
+    revision INTEGER NOT NULL CHECK (revision >= 1),
+    created_at_ms INTEGER NOT NULL,
+    updated_at_ms INTEGER NOT NULL,
+    UNIQUE (workspace_id),
+    UNIQUE (allocation_id, run_id, workspace_id),
+    FOREIGN KEY (workspace_id, run_id) REFERENCES workspaces(workspace_id, run_id) ON DELETE RESTRICT
+);
+
+CREATE INDEX IF NOT EXISTS workspace_allocations_recovery
+    ON workspace_allocations(owner_epoch, status, run_id);
+`
 
 const schemaSQL = `
 CREATE TABLE IF NOT EXISTS metadata (
@@ -80,6 +109,8 @@ CREATE TABLE IF NOT EXISTS workspaces (
 CREATE UNIQUE INDEX IF NOT EXISTS workspaces_one_usable_per_run
     ON workspaces(run_id)
     WHERE status IN ('allocating', 'ready', 'in_use');
+
+` + workspaceAllocationSchemaSQL + `
 
 CREATE TABLE IF NOT EXISTS attempts (
     attempt_id TEXT PRIMARY KEY,

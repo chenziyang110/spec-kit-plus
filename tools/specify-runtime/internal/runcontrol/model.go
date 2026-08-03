@@ -141,6 +141,54 @@ type Workspace struct {
 	UpdatedAtMS   int64
 }
 
+type WorkspaceAllocationStatus string
+
+const (
+	WorkspaceAllocationPrepared       WorkspaceAllocationStatus = "prepared"
+	WorkspaceAllocationExecuting      WorkspaceAllocationStatus = "executing"
+	WorkspaceAllocationSucceeded      WorkspaceAllocationStatus = "succeeded"
+	WorkspaceAllocationFailed         WorkspaceAllocationStatus = "failed"
+	WorkspaceAllocationOutcomeUnknown WorkspaceAllocationStatus = "outcome_unknown"
+)
+
+// WorkspaceAllocation is the durable journal for Git mutations performed
+// before an Attempt exists. AttemptID and Fence intentionally remain empty and
+// zero: execution authority is issued only after allocation completes.
+type WorkspaceAllocation struct {
+	AllocationID        string
+	RunID               string
+	WorkspaceID         string
+	WorkspaceGeneration int64
+	OwnerEpoch          string
+	AttemptID           string
+	Fence               int64
+	RunRevision         int64
+	WorkspaceRevision   int64
+	IdempotencyKey      string
+	RequestSHA256       string
+	Status              WorkspaceAllocationStatus
+	Reason              string
+	Revision            int64
+	CreatedAtMS         int64
+	UpdatedAtMS         int64
+}
+
+type BeginWorkspaceAllocationParams struct {
+	AllocationID              string
+	RunID                     string
+	WorkspaceID               string
+	ExpectedRunRevision       int64
+	ExpectedWorkspaceRevision int64
+	IdempotencyKey            string
+	RequestSHA256             string
+}
+
+type CompleteWorkspaceAllocationParams struct {
+	AllocationID               string
+	ExpectedAllocationRevision int64
+	Execution                  PrepareExecutionParams
+}
+
 type CreateWorkspaceParams struct {
 	WorkspaceID   string
 	RunID         string

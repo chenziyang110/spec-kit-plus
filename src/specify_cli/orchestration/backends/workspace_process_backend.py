@@ -9,6 +9,11 @@ from pathlib import Path
 from typing import Mapping, Sequence
 
 from .base import BackendDescriptor
+from .workspace_authority import (
+    RunControlAuthorityError,
+    valid_private_ref,
+    validate_run_control_authority,
+)
 
 
 class WorkspaceBindingError(ValueError):
@@ -76,6 +81,10 @@ class WorkspaceProcessBackend:
     ) -> WorkspaceProcessHandle:
         argv = _validate_argv(command)
         validated_binding = _validate_binding(binding)
+        try:
+            validate_run_control_authority(validated_binding)
+        except RunControlAuthorityError as exc:
+            raise WorkspaceBindingError(str(exc)) from exc
         merged_env = _workspace_environment(validated_binding, env)
 
         process = subprocess.Popen(
@@ -98,7 +107,7 @@ def _validate_argv(command: Sequence[str]) -> list[str]:
     argv = list(command)
     if not argv:
         raise TypeError("workspace process launch requires nonempty tokenized argv")
-    if any(not isinstance(token, str) or token == "" for token in argv):
+    if any(not isinstance(token, str) or token == "" or "\x00" in token for token in argv):
         raise TypeError("workspace process launch requires tokenized argv strings")
     return argv
 
@@ -122,7 +131,7 @@ def _validate_binding(binding: WorkspaceLaunchBinding) -> WorkspaceLaunchBinding
             f"Git common dir mismatch: expected {repo_common_dir}, metadata reported {actual_common_dir}"
         )
 
-    if not binding.private_ref.startswith("refs/heads/specify/runs/"):
+    if not valid_private_ref(binding.private_ref):
         raise WorkspaceBindingError("private ref must be a specify run branch ref")
 
     head_ref = _read_head_ref(git_dir)
