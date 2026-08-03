@@ -275,6 +275,7 @@ func TestRunCLILaunchCreatesAndSupervisesManagedRun(t *testing.T) {
 		"--target-ref", "HEAD",
 		"--intent-sha256", strings.Repeat("d", 64),
 		"--adapter-id", "test-helper",
+		"--workspace-policy", "isolated",
 		"--format", "json",
 		"--",
 		os.Args[0], "-test.run=^TestRunCLIForegroundHelperProcess$", "--",
@@ -319,6 +320,7 @@ func TestRunCLISuperviseExecutesTokenizedChildInSandbox(t *testing.T) {
 		"run", "supervise", "run_cli_supervise",
 		"--project-root", root,
 		"--adapter-id", "test-helper",
+		"--workspace-policy", "isolated",
 		"--format", "json",
 		"--",
 		os.Args[0], "-test.run=^TestRunCLIForegroundHelperProcess$", "--",
@@ -362,6 +364,7 @@ func TestRunCLISuperviseBindsManagedRunEnvironment(t *testing.T) {
 		"run", "supervise", "run_cli_environment",
 		"--project-root", root,
 		"--adapter-id", "test-helper",
+		"--workspace-policy", "isolated",
 		"--format", "json",
 		"--",
 		os.Args[0], "-test.run=^TestRunCLIForegroundHelperProcess$", "--",
@@ -391,6 +394,7 @@ func TestRunCLISuperviseBindsManagedRunEnvironment(t *testing.T) {
 		"1",
 		workspaceID,
 		"1",
+		"isolated",
 		workspaceRoot,
 		privateRef,
 	}
@@ -439,6 +443,7 @@ func TestRunCLIForegroundHelperProcess(t *testing.T) {
 			os.Getenv("SPECIFY_RUN_FENCE"),
 			os.Getenv("SPECIFY_RUN_WORKSPACE_ID"),
 			os.Getenv("SPECIFY_RUN_WORKSPACE_GENERATION"),
+			os.Getenv("SPECIFY_RUN_WORKSPACE_MODE"),
 			os.Getenv("SPECIFY_RUN_WORKSPACE"),
 			os.Getenv("SPECIFY_RUN_PRIVATE_REF"),
 			os.Getenv("WSLENV"),
@@ -519,6 +524,169 @@ func TestRunCapabilitiesPublishPublicRunControlFlowInsteadOfDirectIntegration(t 
 		if containsCapability(defaultCapabilities(), privileged) {
 			t.Fatalf("default capabilities expose privileged control %q", privileged)
 		}
+	}
+}
+
+func TestRunCLIPublicDeliveryFlowBuildsReviewsAcceptsPublishesAndSafelySyncs(t *testing.T) {
+	root := initRunCLIRepository(t)
+	gitRun(t, root, "config", "user.name", "Run CLI Test")
+	gitRun(t, root, "config", "user.email", "run-cli@example.invalid")
+	gitRun(t, root, "config", "commit.gpgsign", "false")
+	if err := os.WriteFile(filepath.Join(root, "README.md"), []byte("public delivery flow\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	gitRun(t, root, "add", "README.md")
+	gitRun(t, root, "commit", "-m", "initial")
+	targetRef := strings.TrimSpace(gitRun(t, root, "symbolic-ref", "HEAD"))
+	t.Setenv("SPECIFY_RUNTIME_CLI_FOREGROUND_HELPER", "1")
+
+	resultIDs := make([]string, 0, 2)
+	for index, filename := range []string{"feature-a.txt", "feature-b.txt"} {
+		runID := fmt.Sprintf("run_cli_delivery_%d", index+1)
+		code, payload := invokeRunCLI(t,
+			"run", "launch",
+			"--project-root", root,
+			"--run-id", runID,
+			"--kind", "quick",
+			"--subject-type", "feature",
+			"--subject-id", runID,
+			"--target-ref", targetRef,
+			"--intent-sha256", strings.Repeat(strconv.Itoa(index+1), 64),
+			"--adapter-id", "test-helper",
+			"--workspace-policy", "isolated",
+			"--format", "json",
+			"--",
+			os.Args[0], "-test.run=^TestRunCLIForegroundHelperProcess$", "--",
+			filename, runID,
+		)
+		if code != 0 || payload["status"] != "ok" {
+			t.Fatalf("run launch %s = code %d envelope %#v", runID, code, payload)
+		}
+		execution := requireObject(t, requireObject(t, payload, "data"), "execution")
+		resultID, _ := execution["result_id"].(string)
+		if resultID == "" || execution["workspace_mode"] != "isolated" || execution["result_eligibility"] != "ready" {
+			t.Fatalf("sealed execution %s = %#v", runID, execution)
+		}
+		resultIDs = append(resultIDs, resultID)
+	}
+
+	code, listed := invokeRunCLI(t, "result", "list", "run_cli_delivery_1", "--project-root", root, "--format", "json")
+	if code != 0 || listed["status"] != "ok" {
+		t.Fatalf("result list = code %d envelope %#v", code, listed)
+	}
+	items, _ := listed["items"].([]any)
+	if len(items) != 1 || requireObjectValue(t, items[0])["result_id"] != resultIDs[0] {
+		t.Fatalf("result list items = %#v", items)
+	}
+	code, shownResult := invokeRunCLI(t, "result", "show", resultIDs[0], "--project-root", root, "--format", "json")
+	if code != 0 || requireObject(t, requireObject(t, shownResult, "data"), "result")["manifest_sha256"] == "" {
+		t.Fatalf("result show = code %d envelope %#v", code, shownResult)
+	}
+
+	buildArgs := []string{
+		"candidate", "build", "--project-root", root, "--target-ref", targetRef,
+		"--result", resultIDs[0], "--result", resultIDs[1], "--format", "json",
+	}
+	code, built := invokeRunCLI(t, buildArgs...)
+	if code != 0 || built["status"] != "ok" {
+		t.Fatalf("candidate build = code %d envelope %#v", code, built)
+	}
+	candidate := requireObject(t, requireObject(t, built, "data"), "candidate")
+	candidateID, _ := candidate["candidate_id"].(string)
+	if candidateID == "" {
+		t.Fatalf("candidate build = %#v", candidate)
+	}
+
+	repository, err := runcontrol.ResolveRepository(context.Background(), root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	database, err := sql.Open("sqlite", repository.DatabasePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = database.Close() })
+	beforeReadOnly := supervisorRowCount(t, database)
+	code, shownCandidate := invokeRunCLI(t, "candidate", "show", candidateID, "--project-root", root, "--format", "json")
+	if code != 0 || requireObject(t, requireObject(t, shownCandidate, "data"), "candidate")["manifest_sha256"] != candidate["manifest_sha256"] {
+		t.Fatalf("candidate show = code %d envelope %#v", code, shownCandidate)
+	}
+	if afterReadOnly := supervisorRowCount(t, database); afterReadOnly != beforeReadOnly {
+		t.Fatalf("read-only result/candidate queries registered supervisors: before=%d after=%d", beforeReadOnly, afterReadOnly)
+	}
+
+	code, reviewed := invokeRunCLI(t,
+		"candidate", "review", candidateID,
+		"--project-root", root,
+		"--reviewer", "runtime-reviewer",
+		"--format", "json",
+		"--", "git", "diff", "--quiet",
+	)
+	if code != 0 || reviewed["status"] != "ok" {
+		t.Fatalf("candidate review = code %d envelope %#v", code, reviewed)
+	}
+	review := requireObject(t, requireObject(t, reviewed, "data"), "review")
+	reviewDigest, _ := review["review_digest"].(string)
+	if review["status"] != "passed" || reviewDigest == "" {
+		t.Fatalf("candidate review = %#v", review)
+	}
+
+	acceptanceInput, err := json.Marshal(map[string]any{
+		"candidate_id":  candidateID,
+		"review_digest": reviewDigest,
+		"decision":      "accepted",
+		"actor":         "human:test-user",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	code, accepted := invokeRunCLI(t,
+		"accept", "receipt",
+		"--project-root", root,
+		"--input-json", string(acceptanceInput),
+		"--format", "json",
+	)
+	if code != 0 || accepted["status"] != "ok" {
+		t.Fatalf("accept receipt = code %d envelope %#v", code, accepted)
+	}
+	acceptance := requireObject(t, requireObject(t, accepted, "data"), "acceptance")
+	acceptanceDigest, _ := acceptance["acceptance_digest"].(string)
+	if acceptance["decision"] != "accepted" || acceptanceDigest == "" {
+		t.Fatalf("acceptance receipt = %#v", acceptance)
+	}
+
+	code, published := invokeRunCLI(t,
+		"cas", "publish", candidateID,
+		"--project-root", root,
+		"--acceptance-digest", acceptanceDigest,
+		"--format", "json",
+	)
+	if code != 0 || published["status"] != "ok" {
+		t.Fatalf("cas publish = code %d envelope %#v", code, published)
+	}
+	publication := requireObject(t, requireObject(t, published, "data"), "publication")
+	publicationDigest, _ := publication["publication_digest"].(string)
+	if publication["status"] != "succeeded" || publicationDigest == "" {
+		t.Fatalf("publication receipt = %#v", publication)
+	}
+
+	code, synced := invokeRunCLI(t,
+		"sync", "safe", candidateID,
+		"--project-root", root,
+		"--publication-digest", publicationDigest,
+		"--target-ref", targetRef,
+		"--format", "json",
+	)
+	if code != 0 || synced["status"] != "ok" {
+		t.Fatalf("sync safe = code %d envelope %#v", code, synced)
+	}
+	for _, filename := range []string{"feature-a.txt", "feature-b.txt"} {
+		if _, err := os.Stat(filepath.Join(root, filename)); err != nil {
+			t.Fatalf("published file %s is missing after safe sync: %v", filename, err)
+		}
+	}
+	if status := strings.TrimSpace(gitRun(t, root, "status", "--porcelain")); status != "" {
+		t.Fatalf("primary worktree after safe sync is dirty: %q", status)
 	}
 }
 
