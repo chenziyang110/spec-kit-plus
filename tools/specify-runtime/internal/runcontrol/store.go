@@ -256,6 +256,9 @@ func (store *Store) createRun(ctx context.Context, params CreateRunParams, statu
 		return Run{}, fmt.Errorf("begin create run: %w", err)
 	}
 	defer func() { _ = transaction.Rollback() }()
+	if err := requireActiveSupervisorTx(ctx, transaction, store.ownerEpoch); err != nil {
+		return Run{}, err
+	}
 	_, err = transaction.ExecContext(ctx, `
 		INSERT INTO runs (
 			run_id, kind, subject_type, subject_id, target_ref, intent_sha256,
@@ -291,6 +294,9 @@ func (store *Store) ClaimRun(ctx context.Context, runID string, expectedRevision
 		return Run{}, fmt.Errorf("begin claim run: %w", err)
 	}
 	defer func() { _ = transaction.Rollback() }()
+	if err := requireActiveSupervisorTx(ctx, transaction, store.ownerEpoch); err != nil {
+		return Run{}, err
+	}
 
 	run, err := readRunTx(ctx, transaction, runID)
 	if err != nil {
@@ -344,6 +350,9 @@ func (store *Store) TransitionRun(ctx context.Context, runID string, expectedRev
 		return Run{}, fmt.Errorf("begin run transition: %w", err)
 	}
 	defer func() { _ = transaction.Rollback() }()
+	if err := requireActiveSupervisorTx(ctx, transaction, store.ownerEpoch); err != nil {
+		return Run{}, err
+	}
 
 	run, err := readRunTx(ctx, transaction, runID)
 	if err != nil {
@@ -423,6 +432,22 @@ func (store *Store) ListRunEvents(ctx context.Context, runID string) ([]Event, e
 
 type rowQuerier interface {
 	QueryRowContext(context.Context, string, ...any) *sql.Row
+}
+
+func requireActiveSupervisorTx(ctx context.Context, querier rowQuerier, ownerEpoch string) error {
+	var status string
+	if err := querier.QueryRowContext(ctx, `
+		SELECT status FROM supervisor_instances WHERE owner_epoch = ?
+	`, ownerEpoch).Scan(&status); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return fmt.Errorf("%w: supervisor epoch %q is not registered", ErrStaleFence, ownerEpoch)
+		}
+		return fmt.Errorf("read supervisor authority: %w", err)
+	}
+	if status != "active" {
+		return fmt.Errorf("%w: supervisor epoch %q is %q", ErrStaleFence, ownerEpoch, status)
+	}
+	return nil
 }
 
 func readRunTx(ctx context.Context, querier rowQuerier, runID string) (Run, error) {

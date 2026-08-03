@@ -23,7 +23,7 @@ func TestReconcileStaleSupervisorsPreservesLiveParallelOwner(t *testing.T) {
 		SET heartbeat_at_ms = CASE owner_epoch
 			WHEN ? THEN ?
 			WHEN ? THEN ?
-			heartbeat_at_ms
+			ELSE heartbeat_at_ms
 		END
 		WHERE owner_epoch IN (?, ?)
 	`, staleOwner.ownerEpoch, staleBefore.Add(-time.Second).UnixMilli(),
@@ -59,6 +59,33 @@ func TestReconcileStaleSupervisorsPreservesLiveParallelOwner(t *testing.T) {
 	}
 	if err := liveOwner.HeartbeatSupervisor(ctx, now.Add(time.Second)); err != nil {
 		t.Fatalf("live owner heartbeat failed after stale sweep: %v", err)
+	}
+	loadedStale, err := liveOwner.GetRun(ctx, staleRun.RunID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := staleOwner.TransitionRun(
+		ctx,
+		loadedStale.RunID,
+		loadedStale.Revision,
+		RunReady,
+		"superseded owner resume",
+	); !errors.Is(err, ErrStaleFence) {
+		t.Fatalf("superseded owner resume error = %v, want ErrStaleFence", err)
+	}
+	queued, err := liveOwner.EnqueueRun(ctx, CreateRunParams{
+		RunID:        "run_parallel_queued",
+		Kind:         "sp-quick",
+		SubjectType:  "quick",
+		SubjectID:    "parallel-queued",
+		TargetRef:    "main",
+		IntentSHA256: digestForTest("parallel queued"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := staleOwner.ClaimRun(ctx, queued.RunID, queued.Revision); !errors.Is(err, ErrStaleFence) {
+		t.Fatalf("superseded owner claim error = %v, want ErrStaleFence", err)
 	}
 }
 
@@ -119,5 +146,81 @@ func TestSupervisorHeartbeatIsMonotonic(t *testing.T) {
 	}
 	if heartbeatMS != later.UnixMilli() {
 		t.Fatalf("supervisor heartbeat = %d, want monotonic %d", heartbeatMS, later.UnixMilli())
+	}
+}
+
+func TestSupersededSupervisorCannotIssueOrActivateAttempt(t *testing.T) {
+	ctx := context.Background()
+	databasePath := filepath.Join(t.TempDir(), "run-control.sqlite")
+	staleOwner := openTestStore(t, databasePath, WithOwnerEpoch("attempt_stale_owner"))
+	liveOwner := openTestStore(t, databasePath, WithOwnerEpoch("attempt_live_owner"))
+	prepared := createPreparedExecution(t, liveOwner, "attempt_stale_issue", 1)
+	now := time.Now().UTC()
+	if _, err := reconcileStaleOwnerForTest(t, ctx, liveOwner, staleOwner.ownerEpoch, now); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := staleOwner.IssueAttempt(ctx, IssueAttemptParams{
+		AttemptID:                 "attempt_stale_issue_1",
+		RunID:                     prepared.Run.RunID,
+		ActivityID:                prepared.Activity.ActivityID,
+		WorkspaceID:               prepared.Workspace.WorkspaceID,
+		ExpectedRunRevision:       prepared.Run.Revision,
+		ExpectedActivityRevision:  prepared.Activity.Revision,
+		ExpectedWorkspaceRevision: prepared.Workspace.Revision,
+		AdapterID:                 "test",
+		ExecutionMode:             ExecutionManaged,
+		LeaseUntil:                now.Add(10 * time.Minute),
+	}); !errors.Is(err, ErrStaleFence) {
+		t.Fatalf("superseded owner issue error = %v, want ErrStaleFence", err)
+	}
+
+	activationOwner := openTestStore(t, databasePath, WithOwnerEpoch("attempt_activation_owner"))
+	_, attempt := issueManagedAttemptForLaunchTest(t, activationOwner, "stale_activation")
+	confirmManagedAttemptLaunchForTest(t, activationOwner, attempt)
+	if _, err := activationOwner.db.ExecContext(ctx, `
+		UPDATE supervisor_instances SET status = 'superseded' WHERE owner_epoch = ?
+	`, activationOwner.ownerEpoch); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := activationOwner.ActivateAttempt(
+		ctx,
+		attempt.AttemptID,
+		attempt.Fence,
+		now.Add(10*time.Minute),
+	); !errors.Is(err, ErrStaleFence) {
+		t.Fatalf("superseded owner activation error = %v, want ErrStaleFence", err)
+	}
+}
+
+func TestClosingSupervisorInterruptsReadyPreparationWithoutAttempt(t *testing.T) {
+	ctx := context.Background()
+	databasePath := filepath.Join(t.TempDir(), "run-control.sqlite")
+	owner, err := Open(ctx, databasePath, WithOwnerEpoch("ready_close_owner"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	prepared := createPreparedExecution(t, owner, "ready_close", 1)
+	if err := owner.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	observer := openTestStore(t, databasePath, WithOwnerEpoch("ready_close_observer"))
+	loadedRun, err := observer.GetRun(ctx, prepared.Run.RunID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	loadedActivity, err := observer.GetActivity(ctx, prepared.Activity.ActivityID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	loadedWorkspace, err := observer.GetWorkspace(ctx, prepared.Workspace.WorkspaceID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if loadedRun.Status != RunInterrupted || loadedRun.CurrentFence != 1 {
+		t.Fatalf("ready run after owner close = %#v, want interrupted fence 1", loadedRun)
+	}
+	if loadedActivity.Status != ActivityInterrupted || loadedWorkspace.Status != WorkspaceQuarantined {
+		t.Fatalf("ready execution after owner close = %#v / %#v", loadedActivity, loadedWorkspace)
 	}
 }

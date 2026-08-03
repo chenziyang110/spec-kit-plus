@@ -163,7 +163,8 @@ func TestRunCLIQueuedRunSurvivesNewSupervisorReconciliation(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = store.Close() })
-	interrupted, err := store.ReconcileOwnerEpoch(context.Background(), time.Now().UTC())
+	now := time.Now().UTC()
+	interrupted, err := store.ReconcileStaleSupervisors(context.Background(), now, now.Add(-time.Minute))
 	if err != nil {
 		t.Fatal(err)
 	}

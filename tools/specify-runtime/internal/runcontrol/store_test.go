@@ -214,7 +214,7 @@ func TestSupervisorEpochTakeoverInterruptsAnOwnedAttempt(t *testing.T) {
 	}
 
 	secondStore := openTestStore(t, databasePath, WithOwnerEpoch("supervisor_second"))
-	interrupted, err := secondStore.ReconcileOwnerEpoch(ctx, now)
+	interrupted, err := reconcileStaleOwnerForTest(t, ctx, secondStore, firstStore.ownerEpoch, now)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -282,18 +282,19 @@ func TestRunAndEventsSurviveDatabaseReopen(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if loaded.Status != RunReady || loaded.Revision != run.Revision {
-		t.Fatalf("reopened run = %#v, want %#v", loaded, run)
+	if loaded.Status != RunInterrupted || loaded.Revision != run.Revision+1 || loaded.CurrentFence != run.CurrentFence+1 {
+		t.Fatalf("reopened run = %#v, want persisted owner-close interruption after %#v", loaded, run)
 	}
 	events, err := reopened.ListRunEvents(ctx, run.RunID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(events) != 2 {
-		t.Fatalf("reopened events = %#v, want create and transition", events)
+	if len(events) != 3 {
+		t.Fatalf("reopened events = %#v, want create, ready, and interruption", events)
 	}
-	if events[0].AggregateRevision != 1 || events[1].AggregateRevision != 2 {
-		t.Fatalf("event revisions = %d, %d, want 1, 2", events[0].AggregateRevision, events[1].AggregateRevision)
+	if events[0].AggregateRevision != 1 || events[1].AggregateRevision != 2 || events[2].AggregateRevision != 3 {
+		t.Fatalf("event revisions = %d, %d, %d, want 1, 2, 3",
+			events[0].AggregateRevision, events[1].AggregateRevision, events[2].AggregateRevision)
 	}
 }
 
@@ -326,6 +327,24 @@ func openTestStore(t *testing.T, databasePath string, options ...OpenOption) *St
 	}
 	t.Cleanup(func() { _ = store.Close() })
 	return store
+}
+
+func reconcileStaleOwnerForTest(
+	t *testing.T,
+	ctx context.Context,
+	sweeper *Store,
+	staleOwnerEpoch string,
+	now time.Time,
+) ([]Run, error) {
+	t.Helper()
+	if _, err := sweeper.db.ExecContext(ctx, `
+		UPDATE supervisor_instances
+		SET heartbeat_at_ms = ?
+		WHERE owner_epoch = ? AND status = 'active'
+	`, now.Add(-2*time.Minute).UnixMilli(), staleOwnerEpoch); err != nil {
+		t.Fatalf("mark supervisor %q stale: %v", staleOwnerEpoch, err)
+	}
+	return sweeper.ReconcileStaleSupervisors(ctx, now, now.Add(-time.Minute))
 }
 
 func digestForTest(seed string) string {

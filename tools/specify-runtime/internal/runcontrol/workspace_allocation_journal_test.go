@@ -217,7 +217,13 @@ func TestWorkspaceAllocationJournalSurvivesOwnerReconciliation(t *testing.T) {
 	}
 
 	takeover := openTestStore(t, databasePath, WithOwnerEpoch("allocation_takeover"))
-	if _, err := takeover.ReconcileOwnerEpoch(ctx, time.Now().UTC()); err != nil {
+	if _, err := reconcileStaleOwnerForTest(
+		t,
+		ctx,
+		takeover,
+		owner.ownerEpoch,
+		time.Now().UTC(),
+	); err != nil {
 		t.Fatal(err)
 	}
 	reconciled, err := takeover.GetWorkspaceAllocation(ctx, allocation.AllocationID)

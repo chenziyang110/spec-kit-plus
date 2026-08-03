@@ -25,6 +25,9 @@ func (store *Store) IssueAttempt(ctx context.Context, params IssueAttemptParams)
 		return Attempt{}, fmt.Errorf("begin issue attempt transaction: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
+	if err := requireActiveSupervisorTx(ctx, tx, store.ownerEpoch); err != nil {
+		return Attempt{}, err
+	}
 
 	run, err := readRunTx(ctx, tx, params.RunID)
 	if err != nil {
@@ -150,6 +153,9 @@ func (store *Store) ActivateAttempt(ctx context.Context, attemptID string, fence
 		return Attempt{}, fmt.Errorf("begin activate attempt transaction: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
+	if err := requireActiveSupervisorTx(ctx, tx, store.ownerEpoch); err != nil {
+		return Attempt{}, err
+	}
 
 	attempt, err := readAttemptTx(ctx, tx, attemptID)
 	if err != nil {
@@ -475,32 +481,6 @@ func (store *Store) ExpireLeases(ctx context.Context, now time.Time) ([]Run, err
 	return store.interruptMatchingAttempts(ctx, now.UTC().UnixMilli(), `a.lease_until_ms <= ?`, []any{now.UTC().UnixMilli()}, "attempt lease expired", AttemptLost)
 }
 
-// ReconcileOwnerEpoch fences attempts left behind by another supervisor
-// incarnation. A process with an old epoch cannot renew the attempt after this
-// transaction commits, even if its PID has been reused.
-func (store *Store) ReconcileOwnerEpoch(ctx context.Context, now time.Time) ([]Run, error) {
-	if now.IsZero() {
-		return nil, errors.New("now is required")
-	}
-	nowMS := now.UTC().UnixMilli()
-	interrupted, err := store.interruptMatchingAttempts(ctx, nowMS, `a.owner_epoch <> ?`, []any{store.ownerEpoch}, "supervisor owner epoch changed", AttemptLost)
-	if err != nil {
-		return nil, err
-	}
-	allocating, err := store.interruptMatchingAllocatingRuns(ctx, nowMS, `owner_epoch <> ?`, []any{store.ownerEpoch}, "supervisor owner epoch changed during allocation")
-	if err != nil {
-		return nil, err
-	}
-	if _, err := store.db.ExecContext(ctx, `
-		UPDATE supervisor_instances
-		SET status = 'superseded', stopped_at_ms = COALESCE(stopped_at_ms, ?)
-		WHERE owner_epoch <> ? AND status = 'active'
-	`, nowMS, store.ownerEpoch); err != nil {
-		return nil, fmt.Errorf("mark prior supervisor epochs superseded: %w", err)
-	}
-	return append(interrupted, allocating...), nil
-}
-
 func (store *Store) interruptMatchingAttempts(
 	ctx context.Context,
 	nowMS int64,
@@ -514,6 +494,33 @@ func (store *Store) interruptMatchingAttempts(
 		return nil, fmt.Errorf("begin attempt reconciliation transaction: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
+	interrupted, err := store.interruptMatchingAttemptsTx(
+		ctx,
+		tx,
+		nowMS,
+		extraPredicate,
+		extraArgs,
+		reason,
+		terminalStatus,
+	)
+	if err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("commit attempt reconciliation: %w", err)
+	}
+	return interrupted, nil
+}
+
+func (store *Store) interruptMatchingAttemptsTx(
+	ctx context.Context,
+	tx *sql.Tx,
+	nowMS int64,
+	extraPredicate string,
+	extraArgs []any,
+	reason string,
+	terminalStatus AttemptStatus,
+) ([]Run, error) {
 
 	query := `
 		SELECT a.attempt_id, a.run_id, a.activity_id, a.workspace_id,
@@ -597,13 +604,10 @@ func (store *Store) interruptMatchingAttempts(
 		interrupted = append(interrupted, run)
 	}
 
-	if err := tx.Commit(); err != nil {
-		return nil, fmt.Errorf("commit attempt reconciliation: %w", err)
-	}
 	return interrupted, nil
 }
 
-func (store *Store) interruptMatchingAllocatingRuns(
+func (store *Store) interruptMatchingPreparationRuns(
 	ctx context.Context,
 	nowMS int64,
 	extraPredicate string,
@@ -612,32 +616,57 @@ func (store *Store) interruptMatchingAllocatingRuns(
 ) ([]Run, error) {
 	tx, err := store.db.BeginTx(ctx, nil)
 	if err != nil {
-		return nil, fmt.Errorf("begin allocating run reconciliation: %w", err)
+		return nil, fmt.Errorf("begin preparation run reconciliation: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
+	interrupted, err := store.interruptMatchingPreparationRunsTx(
+		ctx,
+		tx,
+		nowMS,
+		extraPredicate,
+		extraArgs,
+		reason,
+	)
+	if err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("commit preparation run reconciliation: %w", err)
+	}
+	return interrupted, nil
+}
 
-	query := `SELECT run_id FROM runs WHERE status = ? AND ` + extraPredicate + ` ORDER BY run_id`
-	args := []any{RunAllocating}
+func (store *Store) interruptMatchingPreparationRunsTx(
+	ctx context.Context,
+	tx *sql.Tx,
+	nowMS int64,
+	extraPredicate string,
+	extraArgs []any,
+	reason string,
+) ([]Run, error) {
+
+	query := `SELECT run_id FROM runs WHERE status IN (?, ?) AND ` + extraPredicate + ` ORDER BY run_id`
+	args := []any{RunAllocating, RunReady}
 	args = append(args, extraArgs...)
 	rows, err := tx.QueryContext(ctx, query, args...)
 	if err != nil {
-		return nil, fmt.Errorf("query allocating runs to interrupt: %w", err)
+		return nil, fmt.Errorf("query preparation runs to interrupt: %w", err)
 	}
 	runIDs := make([]string, 0)
 	for rows.Next() {
 		var runID string
 		if err := rows.Scan(&runID); err != nil {
 			_ = rows.Close()
-			return nil, fmt.Errorf("scan allocating run to interrupt: %w", err)
+			return nil, fmt.Errorf("scan preparation run to interrupt: %w", err)
 		}
 		runIDs = append(runIDs, runID)
 	}
 	if err := rows.Err(); err != nil {
 		_ = rows.Close()
-		return nil, fmt.Errorf("iterate allocating runs to interrupt: %w", err)
+		return nil, fmt.Errorf("iterate preparation runs to interrupt: %w", err)
 	}
 	if err := rows.Close(); err != nil {
-		return nil, fmt.Errorf("close allocating runs query: %w", err)
+		return nil, fmt.Errorf("close preparation runs query: %w", err)
 	}
 
 	interrupted := make([]Run, 0, len(runIDs))
@@ -646,11 +675,13 @@ func (store *Store) interruptMatchingAllocatingRuns(
 		if err != nil {
 			return nil, err
 		}
-		if run.Status != RunAllocating {
+		if run.Status != RunAllocating && run.Status != RunReady {
 			continue
 		}
-		if err := markWorkspaceAllocationsOutcomeUnknownForRunTx(ctx, tx, run.RunID, reason, nowMS); err != nil {
-			return nil, err
+		if run.Status == RunAllocating {
+			if err := markWorkspaceAllocationsOutcomeUnknownForRunTx(ctx, tx, run.RunID, reason, nowMS); err != nil {
+				return nil, err
+			}
 		}
 		result, err := tx.ExecContext(ctx, `
 			UPDATE runs
@@ -659,11 +690,11 @@ func (store *Store) interruptMatchingAllocatingRuns(
 			WHERE run_id = ? AND revision = ? AND current_fence = ?
 			  AND status = ? AND owner_epoch = ?
 		`, RunInterrupted, store.ownerEpoch, nowMS, run.RunID, run.Revision,
-			run.CurrentFence, RunAllocating, run.OwnerEpoch)
+			run.CurrentFence, run.Status, run.OwnerEpoch)
 		if err != nil {
-			return nil, fmt.Errorf("interrupt allocating run %q: %w", run.RunID, err)
+			return nil, fmt.Errorf("interrupt preparation run %q: %w", run.RunID, err)
 		}
-		if err := requireOneCASRow(result, ErrRevisionConflict, "interrupt allocating run"); err != nil {
+		if err := requireOneCASRow(result, ErrRevisionConflict, "interrupt preparation run"); err != nil {
 			return nil, err
 		}
 		run.Status = RunInterrupted
@@ -678,9 +709,6 @@ func (store *Store) interruptMatchingAllocatingRuns(
 			return nil, err
 		}
 		interrupted = append(interrupted, run)
-	}
-	if err := tx.Commit(); err != nil {
-		return nil, fmt.Errorf("commit allocating run reconciliation: %w", err)
 	}
 	return interrupted, nil
 }
@@ -697,12 +725,12 @@ func (store *Store) shutdownOwnedState(ctx context.Context, now time.Time) error
 	); err != nil {
 		return err
 	}
-	_, err := store.interruptMatchingAllocatingRuns(
+	_, err := store.interruptMatchingPreparationRuns(
 		ctx,
 		nowMS,
 		`owner_epoch = ?`,
 		[]any{store.ownerEpoch},
-		"supervisor stopped during allocation",
+		"supervisor stopped during preparation",
 	)
 	return err
 }

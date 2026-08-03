@@ -30,7 +30,8 @@ func TestQueuedRunSurvivesReconciliationUntilClaimed(t *testing.T) {
 	}
 
 	supervisor := openTestStore(t, databasePath, WithOwnerEpoch("queue_supervisor"))
-	interrupted, err := supervisor.ReconcileOwnerEpoch(ctx, time.Now().UTC())
+	now := time.Now().UTC()
+	interrupted, err := supervisor.ReconcileStaleSupervisors(ctx, now, now.Add(-time.Minute))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -155,9 +155,9 @@ func TestAttemptLossAndCancellationPropagateToExecutionAggregates(t *testing.T) 
 		{
 			name: "owner takeover",
 			id:   "owner_takeover",
-			end: func(t *testing.T, ctx context.Context, _ *Store, databasePath string, _ Run, _ Attempt, now time.Time) error {
+			end: func(t *testing.T, ctx context.Context, store *Store, databasePath string, _ Run, _ Attempt, now time.Time) error {
 				takeover := openTestStore(t, databasePath, WithOwnerEpoch("takeover_new"))
-				_, err := takeover.ReconcileOwnerEpoch(ctx, now)
+				_, err := reconcileStaleOwnerForTest(t, ctx, takeover, store.ownerEpoch, now)
 				return err
 			},
 			wantRun:      RunInterrupted,

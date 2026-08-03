@@ -80,7 +80,7 @@ func TestDuplicateLiveOwnerEpochIsRejected(t *testing.T) {
 	}
 }
 
-func TestReconcileOwnerEpochInterruptsStaleAllocatingRun(t *testing.T) {
+func TestReconcileStaleSupervisorInterruptsStaleAllocatingRun(t *testing.T) {
 	ctx := context.Background()
 	databasePath := filepath.Join(t.TempDir(), "run-control.db")
 	first := openTestStore(t, databasePath, WithOwnerEpoch("supervisor_allocating_old"))
@@ -97,9 +97,15 @@ func TestReconcileOwnerEpochInterruptsStaleAllocatingRun(t *testing.T) {
 	}
 
 	second := openTestStore(t, databasePath, WithOwnerEpoch("supervisor_allocating_new"))
-	interrupted, err := second.ReconcileOwnerEpoch(ctx, time.Now().UTC())
+	interrupted, err := reconcileStaleOwnerForTest(
+		t,
+		ctx,
+		second,
+		first.ownerEpoch,
+		time.Now().UTC(),
+	)
 	if err != nil {
-		t.Fatalf("ReconcileOwnerEpoch() error = %v", err)
+		t.Fatalf("ReconcileStaleSupervisors() error = %v", err)
 	}
 	if len(interrupted) != 1 || interrupted[0].RunID != created.RunID {
 		t.Fatalf("interrupted = %+v, want only %q", interrupted, created.RunID)
