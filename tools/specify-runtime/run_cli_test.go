@@ -582,6 +582,22 @@ func TestRunCLIPublicDeliveryFlowBuildsReviewsAcceptsPublishesAndSafelySyncs(t *
 	if code != 0 || requireObject(t, requireObject(t, shownResult, "data"), "result")["manifest_sha256"] == "" {
 		t.Fatalf("result show = code %d envelope %#v", code, shownResult)
 	}
+	code, dependency := invokeRunCLI(t,
+		"result", "depend", resultIDs[1],
+		"--project-root", root,
+		"--on", resultIDs[0],
+		"--kind", "after",
+		"--reason", "feature-b follows feature-a",
+		"--format", "json",
+	)
+	if code != 0 || dependency["status"] != "ok" {
+		t.Fatalf("result depend = code %d envelope %#v", code, dependency)
+	}
+	code, shownDependent := invokeRunCLI(t, "result", "show", resultIDs[1], "--project-root", root, "--format", "json")
+	dependencies, _ := requireObject(t, shownDependent, "data")["dependencies"].([]any)
+	if code != 0 || len(dependencies) != 1 || requireObjectValue(t, dependencies[0])["depends_on_result_id"] != resultIDs[0] {
+		t.Fatalf("dependent result show = code %d envelope %#v", code, shownDependent)
+	}
 
 	buildArgs := []string{
 		"candidate", "build", "--project-root", root, "--target-ref", targetRef,
@@ -687,6 +703,16 @@ func TestRunCLIPublicDeliveryFlowBuildsReviewsAcceptsPublishesAndSafelySyncs(t *
 	}
 	if status := strings.TrimSpace(gitRun(t, root, "status", "--porcelain")); status != "" {
 		t.Fatalf("primary worktree after safe sync is dirty: %q", status)
+	}
+	code, deliveryState := invokeRunCLI(t, "candidate", "show", candidateID, "--project-root", root, "--format", "json")
+	if code != 0 {
+		t.Fatalf("candidate delivery state = code %d envelope %#v", code, deliveryState)
+	}
+	deliveryData := requireObject(t, deliveryState, "data")
+	for _, key := range []string{"review", "acceptance", "publication", "sync"} {
+		if _, ok := deliveryData[key].(map[string]any); !ok {
+			t.Fatalf("candidate delivery state missing %s: %#v", key, deliveryData)
+		}
 	}
 }
 
