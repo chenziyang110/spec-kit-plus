@@ -104,21 +104,23 @@ func TestRunCLICancelUsesRevisionCAS(t *testing.T) {
 	}
 }
 
-func TestRunCLICreatesFiveIndependentRunsConcurrently(t *testing.T) {
+func TestRunCLICreatesIndependentWorkflowRunsConcurrently(t *testing.T) {
 	root := initRunCLIRepository(t)
 	type result struct {
 		runID   string
+		kind    string
 		code    int
 		payload map[string]any
 		err     error
 	}
+	kinds := []string{"quick", "debug", "fast", "specify", "implement"}
 	start := make(chan struct{})
-	results := make(chan result, 5)
+	results := make(chan result, len(kinds))
 	var workers sync.WaitGroup
-	for index := 1; index <= 5; index++ {
-		runID := "run_cli_parallel_" + strconv.Itoa(index)
+	for index, kind := range kinds {
+		runID := "run_cli_parallel_" + strconv.Itoa(index+1)
 		workers.Add(1)
-		go func() {
+		go func(runID, kind string) {
 			defer workers.Done()
 			<-start
 			var stdout, stderr bytes.Buffer
@@ -126,7 +128,7 @@ func TestRunCLICreatesFiveIndependentRunsConcurrently(t *testing.T) {
 				"run", "create",
 				"--project-root", root,
 				"--run-id", runID,
-				"--kind", "quick",
+				"--kind", kind,
 				"--subject-type", "feature",
 				"--subject-id", runID,
 				"--target-ref", "HEAD",
@@ -138,8 +140,8 @@ func TestRunCLICreatesFiveIndependentRunsConcurrently(t *testing.T) {
 			if decodeErr == nil && stderr.Len() != 0 {
 				decodeErr = fmt.Errorf("stderr: %s", stderr.String())
 			}
-			results <- result{runID: runID, code: code, payload: payload, err: decodeErr}
-		}()
+			results <- result{runID: runID, kind: kind, code: code, payload: payload, err: decodeErr}
+		}(runID, kind)
 	}
 	close(start)
 	workers.Wait()
@@ -150,7 +152,8 @@ func TestRunCLICreatesFiveIndependentRunsConcurrently(t *testing.T) {
 			t.Fatalf("parallel create %s = code %d error %v envelope %#v", created.runID, created.code, created.err, created.payload)
 		}
 		code, shown := invokeRunCLI(t, "run", "show", created.runID, "--project-root", root, "--format", "json")
-		if code != 0 || requireObject(t, requireObject(t, shown, "data"), "run")["status"] != "queued" {
+		shownRun := requireObject(t, requireObject(t, shown, "data"), "run")
+		if code != 0 || shownRun["status"] != "queued" || shownRun["kind"] != created.kind {
 			t.Fatalf("parallel run %s not independently visible: code %d envelope %#v", created.runID, code, shown)
 		}
 	}
