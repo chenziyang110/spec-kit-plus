@@ -202,3 +202,37 @@ func operationMatchesRequest(operation Operation, params BeginOperationParams) b
 		operation.RunRevision == params.ExpectedRunRevision &&
 		operation.RequestSHA256 == params.RequestSHA256
 }
+
+func markAttemptLaunchOutcomeUnknownTx(
+	ctx context.Context,
+	tx *sql.Tx,
+	attempt Attempt,
+	nowMS int64,
+) error {
+	statuses := []OperationStatus{OperationPrepared, OperationExecuting}
+	// A succeeded spawn is uncertain only until the Attempt activation
+	// handshake completes. Once active or sealing, succeeded remains the known
+	// historical launch outcome even if the Attempt is later fenced.
+	if attempt.Status == AttemptIssued {
+		statuses = append(statuses, OperationSucceeded)
+	}
+	arguments := []any{OperationOutcomeUnknown, nowMS, attempt.RunID, attempt.AttemptID}
+	placeholders := make([]string, 0, len(statuses))
+	for _, status := range statuses {
+		placeholders = append(placeholders, "?")
+		arguments = append(arguments, status)
+	}
+	result, err := tx.ExecContext(ctx, `
+		UPDATE operations
+		SET status = ?, revision = revision + 1, updated_at_ms = ?
+		WHERE run_id = ? AND attempt_id = ? AND kind = 'attempt.launch'
+		  AND status IN (`+strings.Join(placeholders, ", ")+`)
+	`, arguments...)
+	if err != nil {
+		return fmt.Errorf("mark attempt launch outcome unknown: %w", err)
+	}
+	if _, err := result.RowsAffected(); err != nil {
+		return fmt.Errorf("count attempt launch recovery updates: %w", err)
+	}
+	return nil
+}

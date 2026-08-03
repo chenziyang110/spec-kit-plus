@@ -60,6 +60,43 @@ func TestClosingSupervisorMarksAttemptLaunchOutcomeUnknown(t *testing.T) {
 	}
 }
 
+func TestClosingActiveAttemptPreservesConfirmedLaunchOutcome(t *testing.T) {
+	ctx := context.Background()
+	databasePath := filepath.Join(t.TempDir(), "run-control.sqlite")
+	store, err := Open(ctx, databasePath, WithOwnerEpoch("launch_active_close_owner"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	run, attempt := issueManagedAttemptForLaunchTest(t, store, "launch_active_close")
+	insertAttemptLaunchOperation(t, store, run, attempt, "launch_active_close_operation", OperationSucceeded)
+	if _, err := store.ActivateAttempt(
+		ctx,
+		attempt.AttemptID,
+		attempt.Fence,
+		time.Now().UTC().Add(10*time.Minute),
+	); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	database, err := sql.Open("sqlite", databasePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = database.Close() }()
+	var status OperationStatus
+	if err := database.QueryRowContext(ctx, `
+		SELECT status FROM operations WHERE operation_id = 'launch_active_close_operation'
+	`).Scan(&status); err != nil {
+		t.Fatal(err)
+	}
+	if status != OperationSucceeded {
+		t.Fatalf("confirmed launch operation after active shutdown = %q, want %q", status, OperationSucceeded)
+	}
+}
+
 func issueManagedAttemptForLaunchTest(t *testing.T, store *Store, suffix string) (Run, Attempt) {
 	t.Helper()
 	ctx := context.Background()

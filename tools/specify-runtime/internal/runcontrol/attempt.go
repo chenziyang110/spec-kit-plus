@@ -398,6 +398,11 @@ func (store *Store) CancelRun(ctx context.Context, runID string, expectedRevisio
 	}
 	nowMS := time.Now().UTC().UnixMilli()
 	oldFence := run.CurrentFence
+	if hasLiveAttempt {
+		if err := markAttemptLaunchOutcomeUnknownTx(ctx, tx, liveAttempt, nowMS); err != nil {
+			return Run{}, err
+		}
+	}
 	result, err := tx.ExecContext(ctx, `
 		UPDATE runs
 		SET status = ?, current_fence = current_fence + 1,
@@ -531,6 +536,9 @@ func (store *Store) interruptMatchingAttempts(
 		}
 		if run.Status != RunReady && run.Status != RunActive {
 			continue
+		}
+		if err := markAttemptLaunchOutcomeUnknownTx(ctx, tx, attempt, nowMS); err != nil {
+			return nil, err
 		}
 
 		result, err := tx.ExecContext(ctx, `

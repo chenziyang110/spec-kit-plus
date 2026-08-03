@@ -18,6 +18,7 @@ from specify_cli.orchestration.backends.workspace_process_backend import (
     WorkspaceLaunchBinding,
     WorkspaceProcessBackend,
 )
+from specify_cli.orchestration.backends.workspace_authority import RunControlAuthorityError
 
 
 def _git(cwd: Path, *args: str) -> str:
@@ -69,7 +70,7 @@ def _write_run_control_binding(binding: WorkspaceLaunchBinding) -> Path:
             CREATE TABLE metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL);
             CREATE TABLE runs (
                 run_id TEXT PRIMARY KEY, status TEXT NOT NULL, current_fence INTEGER NOT NULL,
-                owner_epoch TEXT NOT NULL
+                owner_epoch TEXT NOT NULL, revision INTEGER NOT NULL
             );
             CREATE TABLE activities (
                 activity_id TEXT PRIMARY KEY, run_id TEXT NOT NULL, status TEXT NOT NULL
@@ -104,7 +105,7 @@ def _write_run_control_binding(binding: WorkspaceLaunchBinding) -> Path:
         )
         database.execute("INSERT INTO metadata VALUES ('schema_version', '4')")
         database.execute(
-            "INSERT INTO runs VALUES (?, 'ready', ?, 'owner-test')",
+            "INSERT INTO runs VALUES (?, 'ready', ?, 'owner-test', 2)",
             (binding.run_id, binding.fence),
         )
         database.execute(
@@ -187,6 +188,10 @@ def test_workspace_process_backend_rejects_shell_text_and_reserved_env(tmp_path:
 
     with pytest.raises(TypeError, match="tokenized argv"):
         backend.launch("agent-cli run task", binding=binding)
+    with pytest.raises(TypeError, match="nonempty"):
+        backend.launch([], binding=binding)
+    with pytest.raises(TypeError, match="tokenized argv strings"):
+        backend.launch(["agent-cli\x00invalid"], binding=binding)
 
     with pytest.raises(WorkspaceBindingError, match="reserved"):
         backend.launch(
@@ -328,3 +333,79 @@ def test_workspace_process_backend_retries_after_definite_spawn_failure(monkeypa
             )
         ]
     assert statuses == ["failed", "succeeded"]
+
+
+def test_workspace_process_backend_reports_spawn_and_journal_failure(monkeypatch, tmp_path: Path):
+    binding = _workspace_binding(tmp_path)
+
+    def _spawn_failure(*args, **kwargs):
+        raise OSError("definite spawn failure")
+
+    def _journal_failure(*args, **kwargs):
+        raise RunControlAuthorityError("journal unavailable")
+
+    monkeypatch.setattr(
+        "specify_cli.orchestration.backends.workspace_process_backend.subprocess.Popen",
+        _spawn_failure,
+    )
+    monkeypatch.setattr(
+        "specify_cli.orchestration.backends.workspace_process_backend.finish_run_control_launch",
+        _journal_failure,
+    )
+
+    with pytest.raises(WorkspaceBindingError, match="outcome could not be recorded"):
+        WorkspaceProcessBackend().launch(["agent-cli"], binding=binding)
+
+
+def test_workspace_process_backend_terminates_process_when_success_journal_fails(
+    monkeypatch,
+    tmp_path: Path,
+):
+    binding = _workspace_binding(tmp_path)
+
+    class _FakePopen:
+        pid = 56789
+
+        def __init__(self):
+            self.terminated = False
+            self.wait_timeout = None
+
+        def terminate(self):
+            self.terminated = True
+
+        def wait(self, *, timeout):
+            self.wait_timeout = timeout
+
+    process = _FakePopen()
+
+    def _journal_failure(*args, **kwargs):
+        raise RunControlAuthorityError("journal unavailable")
+
+    monkeypatch.setattr(
+        "specify_cli.orchestration.backends.workspace_process_backend.subprocess.Popen",
+        lambda *args, **kwargs: process,
+    )
+    monkeypatch.setattr(
+        "specify_cli.orchestration.backends.workspace_process_backend.finish_run_control_launch",
+        _journal_failure,
+    )
+
+    with pytest.raises(WorkspaceBindingError, match="journal unavailable"):
+        WorkspaceProcessBackend().launch(["agent-cli"], binding=binding)
+    assert process.terminated is True
+    assert process.wait_timeout == 5
+
+
+def test_workspace_process_backend_rejects_schema_mismatch_before_spawn(monkeypatch, tmp_path: Path):
+    binding = _workspace_binding(tmp_path)
+    database_path = binding.repo_common_dir / "specify-runtime" / "run-control.sqlite"
+    with closing(sqlite3.connect(database_path)) as database:
+        database.execute("UPDATE metadata SET value = '999' WHERE key = 'schema_version'")
+        database.commit()
+    monkeypatch.setattr(
+        "specify_cli.orchestration.backends.workspace_process_backend.subprocess.Popen",
+        lambda *args, **kwargs: pytest.fail("schema mismatch must not spawn"),
+    )
+
+    with pytest.raises(WorkspaceBindingError, match="schema authority mismatch"):
+        WorkspaceProcessBackend().launch(["agent-cli"], binding=binding)

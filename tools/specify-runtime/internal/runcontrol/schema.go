@@ -171,6 +171,11 @@ CREATE TABLE IF NOT EXISTS operations (
         REFERENCES attempts(attempt_id, run_id, activity_id, workspace_id) ON DELETE RESTRICT
 );
 
+CREATE UNIQUE INDEX IF NOT EXISTS operations_one_live_attempt_launch
+    ON operations(attempt_id)
+    WHERE kind = 'attempt.launch'
+      AND status IN ('prepared', 'executing', 'succeeded', 'outcome_unknown');
+
 CREATE TABLE IF NOT EXISTS events (
     event_id INTEGER PRIMARY KEY AUTOINCREMENT,
     aggregate_type TEXT NOT NULL,

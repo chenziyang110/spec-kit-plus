@@ -11,8 +11,9 @@ from typing import Mapping, Sequence
 from .base import BackendDescriptor
 from .workspace_authority import (
     RunControlAuthorityError,
+    claim_run_control_launch,
+    finish_run_control_launch,
     valid_private_ref,
-    validate_run_control_authority,
 )
 
 
@@ -43,6 +44,7 @@ class WorkspaceProcessHandle:
     command: Sequence[str]
     cwd: Path
     binding: WorkspaceLaunchBinding
+    launch_operation_id: str
 
 
 _RESERVED_ENV_KEYS = frozenset(
@@ -81,23 +83,38 @@ class WorkspaceProcessBackend:
     ) -> WorkspaceProcessHandle:
         argv = _validate_argv(command)
         validated_binding = _validate_binding(binding)
+        merged_env = _workspace_environment(validated_binding, env)
         try:
-            validate_run_control_authority(validated_binding)
+            launch_claim = claim_run_control_launch(validated_binding, argv)
         except RunControlAuthorityError as exc:
             raise WorkspaceBindingError(str(exc)) from exc
-        merged_env = _workspace_environment(validated_binding, env)
 
-        process = subprocess.Popen(
-            argv,
-            cwd=validated_binding.workspace_root,
-            env=merged_env,
-            shell=False,
-        )
+        try:
+            process = subprocess.Popen(
+                argv,
+                cwd=validated_binding.workspace_root,
+                env=merged_env,
+                shell=False,
+            )
+        except Exception as spawn_error:
+            try:
+                finish_run_control_launch(validated_binding, launch_claim, succeeded=False)
+            except RunControlAuthorityError as journal_error:
+                raise WorkspaceBindingError(
+                    f"process spawn failed and its launch outcome could not be recorded: {journal_error}"
+                ) from spawn_error
+            raise
+        try:
+            finish_run_control_launch(validated_binding, launch_claim, succeeded=True)
+        except RunControlAuthorityError as exc:
+            _terminate_started_process(process)
+            raise WorkspaceBindingError(str(exc)) from exc
         return WorkspaceProcessHandle(
             pid=process.pid,
             command=argv,
             cwd=validated_binding.workspace_root,
             binding=validated_binding,
+            launch_operation_id=launch_claim.operation_id,
         )
 
 
@@ -258,3 +275,11 @@ def _ref_exists(repo_common_dir: Path, ref: str) -> bool:
     suffix = f" {ref}"
     with packed_refs.open(encoding="utf-8", errors="replace") as stream:
         return any(line.rstrip("\n").endswith(suffix) for line in stream if line and not line.startswith("#"))
+
+
+def _terminate_started_process(process: subprocess.Popen) -> None:
+    try:
+        process.terminate()
+        process.wait(timeout=5)
+    except Exception:
+        pass
