@@ -8,7 +8,7 @@ Guide a contextless human through accepting completed product behavior and keep 
 
 ## Intake and Freshness
 
-- Resolve the feature with `{SCRIPT}` or lane state; stop on an uncertain or ambiguous lane.
+- Resolve the feature with the explicit argument, a validated managed Run feature subject, or `{SCRIPT}` paths-only output; require exactly one match and never infer it from the Run's private Git ref.
 - Require fresh `review-state.json` with `status: approved`, every mandatory scenario passed or covered by a current human-confirmed hardware waiver, no blocking finding, and a reviewed fingerprint matching current implementation/configuration evidence. Require the Review-to-Accept handoff's `human_acceptance_obligations`, `human_acceptance_scenarios`, immutable `review_exceptions`, non-empty `reviewed_runtime_targets`, and matching digests. State waived scope, withheld claims, and residual risk plainly during orientation; never call a waiver PASS or send it back to Review merely because it is waived.
 - Transition from the validated `review` stage into `accept` through CLI-owned `workflow.json` via `specify-runtime workflow` before any acceptance-owned write; the runtime state is the required phase lock.
 - Run `{{specify-subcmd:specify-runtime accept prepare --feature-dir <feature-dir> --format json}}`. This creates the deterministic state skeleton after Review closeout or reports that the existing guide is stale/conflicting.

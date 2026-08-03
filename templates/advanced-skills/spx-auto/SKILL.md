@@ -12,7 +12,7 @@ Read `references/ui-quality-gate.md` when the request or active state is
 UI-bearing.
 
 Inspect only enough state to identify the highest trustworthy stage: current
-diff, active feature/lane/quick/debug state, recoverable discussion handoff,
+diff, active feature/implementation/quick/debug state, recoverable discussion handoff,
 task completion evidence, and cognition readiness. Treat status labels and
 checked boxes as claims until their required artifacts and live evidence agree.
 

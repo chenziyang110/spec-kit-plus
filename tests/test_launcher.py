@@ -1829,14 +1829,14 @@ def test_launcher_rebinding_scopes_negative_language_to_each_inline_command():
     pinned = "uvx --from git+https://example.test/spec-kit-plus.git@new specify"
     content = (
         "Verify with `specify --help`, then continue; "
-        "do not call `specify lane register`.\n"
+        "do not call `specify init --here`.\n"
     )
 
     rebound, count = rebind_unbound_specify_runtime_calls(content, pinned)
 
     assert count == 1
     assert f"`{pinned} --help`" in rebound
-    assert "do not call `specify lane register`" in rebound
+    assert "do not call `specify init --here`" in rebound
 
 
 def test_unified_runtime_rebinding_covers_namespaces_and_non_executable_contexts():
@@ -1879,8 +1879,7 @@ def test_unified_runtime_rebinding_covers_namespaces_and_non_executable_contexts
         "doctor --format json",
         "hook validate-state --command plan",
         "implement resume-audit --feature-dir feature",
-        "integrate --feature-dir feature",
-        "lane resolve --command plan",
+        "run integrate --target-ref main",
         "learning start --command plan",
         "prd-build status",
         "prd-scan status",
@@ -2077,7 +2076,7 @@ def test_diagnose_project_runtime_compatibility_reports_stale_feature_root_contr
     assert "specify integration repair" in stale["repair"]
 
 
-def test_diagnose_project_runtime_compatibility_reports_workflow_contract_drift(tmp_path):
+def test_diagnose_project_runtime_compatibility_reports_legacy_feature_lane_contract(tmp_path):
     common_path = tmp_path / ".specify" / "scripts" / "powershell" / "common.ps1"
     common_path.parent.mkdir(parents=True)
     common_path.write_text(
@@ -2088,7 +2087,7 @@ def test_diagnose_project_runtime_compatibility_reports_workflow_contract_drift(
     analyze_path = tmp_path / ".specify" / "templates" / "commands" / "analyze.md"
     analyze_path.parent.mkdir(parents=True)
     analyze_path.write_text(
-        "Run scripts/powershell/check-prerequisites.ps1 -Json -RequireTasks -IncludeTasks\n",
+        "Run {{specify-subcmd:lane resolve --command analyze --ensure-worktree}}\n",
         encoding="utf-8",
     )
 
@@ -2102,7 +2101,7 @@ def test_diagnose_project_runtime_compatibility_reports_workflow_contract_drift(
     issues = diagnose_project_runtime_compatibility(tmp_path)
     codes = {issue["code"] for issue in issues}
 
-    assert "stale-analyze-lane-routing-template" in codes
+    assert "legacy-feature-lane-routing-template" in codes
     assert "stale-review-learning-command-surface" in codes
 
 

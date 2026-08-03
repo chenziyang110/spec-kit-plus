@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strconv"
 	"strings"
 	"sync"
@@ -290,6 +291,76 @@ func TestRunCLISuperviseExecutesTokenizedChildInSandbox(t *testing.T) {
 	}
 }
 
+func TestRunCLISuperviseBindsManagedRunEnvironment(t *testing.T) {
+	root := initRunCLIRepository(t)
+	gitRun(t, root, "config", "user.name", "Run CLI Test")
+	gitRun(t, root, "config", "user.email", "run-cli@example.invalid")
+	gitRun(t, root, "config", "commit.gpgsign", "false")
+	if err := os.WriteFile(filepath.Join(root, "README.md"), []byte("managed environment\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	gitRun(t, root, "add", "README.md")
+	gitRun(t, root, "commit", "-m", "initial")
+	createRunThroughCLI(t, root, "run_cli_environment")
+	t.Setenv("SPECIFY_RUNTIME_CLI_FOREGROUND_HELPER", "1")
+	t.Setenv("WSLENV", "EXISTING/u:SPECIFY_RUN_WORKSPACE")
+
+	code, payload := invokeRunCLI(t,
+		"run", "supervise", "run_cli_environment",
+		"--project-root", root,
+		"--adapter-id", "test-helper",
+		"--format", "json",
+		"--",
+		os.Args[0], "-test.run=^TestRunCLIForegroundHelperProcess$", "--",
+		"run-environment.txt", "__run_environment__",
+	)
+	if code != 0 || payload["status"] != "ok" {
+		t.Fatalf("run supervise = code %d envelope %#v", code, payload)
+	}
+	execution := requireObject(t, requireObject(t, payload, "data"), "execution")
+	workspaceRoot, _ := execution["workspace_root"].(string)
+	attemptID, _ := execution["attempt_id"].(string)
+	workspaceID, _ := execution["workspace_id"].(string)
+	privateRef, _ := execution["private_ref"].(string)
+	content, err := os.ReadFile(filepath.Join(workspaceRoot, "run-environment.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	lines := strings.Split(strings.TrimSpace(string(content)), "\n")
+	want := []string{
+		"1",
+		"run_cli_environment",
+		"quick",
+		"feature",
+		"run_cli_environment",
+		"HEAD",
+		attemptID,
+		"1",
+		workspaceID,
+		"1",
+		workspaceRoot,
+		privateRef,
+	}
+	if len(lines) != len(want)+1 || !reflect.DeepEqual(lines[:len(want)], want) {
+		t.Fatalf("managed Run environment = %#v, want %#v", lines, want)
+	}
+	wslEnv := lines[len(want)]
+	for _, entry := range []string{
+		"EXISTING/u",
+		"SPECIFY_RUN_MANAGED",
+		"SPECIFY_RUN_SUBJECT_ID",
+		"SPECIFY_RUN_WORKSPACE/p",
+		"SPECIFY_RUN_PRIVATE_REF",
+	} {
+		if !strings.Contains(wslEnv, entry) {
+			t.Fatalf("managed Run WSLENV = %q, missing %q", wslEnv, entry)
+		}
+	}
+	if strings.Contains(wslEnv, "SPECIFY_RUN_WORKSPACE:") {
+		t.Fatalf("managed Run WSLENV kept stale workspace entry: %q", wslEnv)
+	}
+}
+
 func TestRunCLIIntegratesPublishedCandidate(t *testing.T) {
 	root := initRunCLIRepository(t)
 	gitRun(t, root, "config", "user.name", "Run CLI Test")
@@ -352,9 +423,27 @@ func TestRunCLIForegroundHelperProcess(t *testing.T) {
 	if err != nil {
 		os.Exit(82)
 	}
+	content := cwd + "\n" + arguments[1]
+	if arguments[1] == "__run_environment__" {
+		content = strings.Join([]string{
+			os.Getenv("SPECIFY_RUN_MANAGED"),
+			os.Getenv("SPECIFY_RUN_ID"),
+			os.Getenv("SPECIFY_RUN_KIND"),
+			os.Getenv("SPECIFY_RUN_SUBJECT_TYPE"),
+			os.Getenv("SPECIFY_RUN_SUBJECT_ID"),
+			os.Getenv("SPECIFY_RUN_TARGET_REF"),
+			os.Getenv("SPECIFY_RUN_ATTEMPT_ID"),
+			os.Getenv("SPECIFY_RUN_FENCE"),
+			os.Getenv("SPECIFY_RUN_WORKSPACE_ID"),
+			os.Getenv("SPECIFY_RUN_WORKSPACE_GENERATION"),
+			os.Getenv("SPECIFY_RUN_WORKSPACE"),
+			os.Getenv("SPECIFY_RUN_PRIVATE_REF"),
+			os.Getenv("WSLENV"),
+		}, "\n")
+	}
 	if err := os.WriteFile(
 		filepath.Join(cwd, arguments[0]),
-		[]byte(cwd+"\n"+arguments[1]),
+		[]byte(content),
 		0o644,
 	); err != nil {
 		os.Exit(83)

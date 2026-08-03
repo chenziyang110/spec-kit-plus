@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -217,6 +218,11 @@ func SuperviseRun(
 	defer cancelChild()
 	command := exec.CommandContext(childCtx, params.Argv[0], params.Argv[1:]...)
 	command.Dir = prepared.Workspace.RootPath
+	command.Env = append(os.Environ(), supervisedRunEnvironment(
+		prepared.Run,
+		attempt,
+		prepared.Workspace,
+	)...)
 	command.Stdin = params.ChildStdin
 	command.Stdout = params.ChildStdout
 	command.Stderr = params.ChildStderr
@@ -361,6 +367,57 @@ func SuperviseRun(
 		Candidate: finished.Candidate,
 		ExitCode:  exitCode,
 	}, nil
+}
+
+func supervisedRunEnvironment(run Run, attempt Attempt, workspace Workspace) []string {
+	environment := []string{
+		"SPECIFY_RUN_MANAGED=1",
+		"SPECIFY_RUN_ID=" + run.RunID,
+		"SPECIFY_RUN_KIND=" + run.Kind,
+		"SPECIFY_RUN_SUBJECT_TYPE=" + run.SubjectType,
+		"SPECIFY_RUN_SUBJECT_ID=" + run.SubjectID,
+		"SPECIFY_RUN_TARGET_REF=" + run.TargetRef,
+		"SPECIFY_RUN_ATTEMPT_ID=" + attempt.AttemptID,
+		"SPECIFY_RUN_FENCE=" + strconv.FormatInt(attempt.Fence, 10),
+		"SPECIFY_RUN_WORKSPACE_ID=" + workspace.WorkspaceID,
+		"SPECIFY_RUN_WORKSPACE_GENERATION=" + strconv.FormatInt(workspace.Generation, 10),
+		"SPECIFY_RUN_WORKSPACE=" + workspace.RootPath,
+		"SPECIFY_RUN_PRIVATE_REF=" + workspace.PrivateRef,
+	}
+	return append(environment, "WSLENV="+supervisedRunWSLEnv(os.Getenv("WSLENV")))
+}
+
+func supervisedRunWSLEnv(existing string) string {
+	required := []string{
+		"SPECIFY_RUN_MANAGED",
+		"SPECIFY_RUN_ID",
+		"SPECIFY_RUN_KIND",
+		"SPECIFY_RUN_SUBJECT_TYPE",
+		"SPECIFY_RUN_SUBJECT_ID",
+		"SPECIFY_RUN_TARGET_REF",
+		"SPECIFY_RUN_ATTEMPT_ID",
+		"SPECIFY_RUN_FENCE",
+		"SPECIFY_RUN_WORKSPACE_ID",
+		"SPECIFY_RUN_WORKSPACE_GENERATION",
+		"SPECIFY_RUN_WORKSPACE/p",
+		"SPECIFY_RUN_PRIVATE_REF",
+	}
+	managed := make(map[string]struct{}, len(required))
+	for _, entry := range required {
+		managed[strings.SplitN(entry, "/", 2)[0]] = struct{}{}
+	}
+	entries := make([]string, 0, len(required)+4)
+	for _, entry := range strings.Split(existing, ":") {
+		entry = strings.TrimSpace(entry)
+		if entry == "" {
+			continue
+		}
+		name := strings.SplitN(entry, "/", 2)[0]
+		if _, replaced := managed[name]; !replaced {
+			entries = append(entries, entry)
+		}
+	}
+	return strings.Join(append(entries, required...), ":")
 }
 
 func superviseAttemptHeartbeat(

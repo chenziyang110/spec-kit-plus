@@ -6,7 +6,7 @@ Preserved Contract: complete scope, boundaries, interfaces, obligations, verific
 
 ## Sequence
 
-1. Resolve the feature lane and query canonical `plan-contract.json` through `specify-runtime artifact show`.
+1. Resolve the feature from the managed Run subject or one explicit unambiguous path and query canonical `plan-contract.json` through `specify-runtime artifact show`.
 2. Reuse its context capsule and the phase-level optional `specify-runtime cognition compass --intent plan` intake; that shared intake is the only cognition call for an unchanged task-generation pass. Use returned minimal live reads only for missing or stale task-shaping facets. Carry selected capability refs, expected paths, validation routes, forbidden drift, and known unknowns into the task graph. Do not rerun cognition while shaping tasks or packets.
 
 3. Select execution mode:

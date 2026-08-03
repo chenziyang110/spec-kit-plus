@@ -8,7 +8,7 @@ This guide will help you get started with Spec-Driven Development using Spec Kit
 ## The 5-Step Process
 
 > [!TIP]
-> **Context Awareness**: In single-feature workflows, Spec Kit commands can infer the active feature from the current Git branch (for example `001-feature-name`). Once concurrent feature lanes exist, root-level `sp-*` commands should prefer lane registry plus reconcile over branch-only guessing, and `sp-auto` should resume only when there is one uniquely safe candidate.
+> **Run Isolation**: Launch-capable integrations submit every `sp-*`/`spx-*` invocation as an independent Run, including the first. The runtime allocates a dedicated Git worktree, forces the child agent cwd, and binds feature resolution to the Run subject instead of a branch-name guess. `sp-auto` routes only the current managed Run subject; an unbound read-only invocation stops when more than one safe candidate exists.
 
 ### Step 1: Install Specify
 

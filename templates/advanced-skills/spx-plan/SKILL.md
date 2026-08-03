@@ -13,7 +13,8 @@ Always read `references/planning-contract.md`. Read
 Read `references/ui-quality-gate.md` when the specification is UI-bearing.
 
 Resolve `FEATURE_DIR` without creating `plan.md`, using an explicit feature
-argument, lane state, or the installed prerequisite helper's paths-only mode.
+argument, a validated managed Run feature subject, or the installed prerequisite
+helper's unique paths-only result. Never infer it from the Run's private Git ref.
 Transition from the validated `specify` stage into `plan` through the workflow
 runtime. Only after the transition succeeds, run the installed
 `.specify/scripts/bash/setup-plan.sh --json` or PowerShell equivalent to create

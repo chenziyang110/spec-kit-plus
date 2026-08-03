@@ -407,7 +407,7 @@ def test_every_classic_workflow_has_the_shared_fixed_artifact_boundary(
         if RUNTIME_ARTIFACT_BOUNDARY not in content or missing:
             errors.append(f"{skill.parent.name}: missing boundary commands {missing}")
 
-    assert len(list(classic.glob("sp-*/SKILL.md"))) == 30
+    assert len(list(classic.glob("sp-*/SKILL.md"))) == 29
     assert errors == [], "\n".join(errors)
 
 
@@ -422,7 +422,7 @@ def test_every_advanced_workflow_has_the_shared_fixed_artifact_boundary(
         if RUNTIME_ARTIFACT_BOUNDARY not in content or missing:
             errors.append(f"{skill.parent.name}: missing boundary commands {missing}")
 
-    assert len(list(advanced.glob("spx-*/SKILL.md"))) == 31
+    assert len(list(advanced.glob("spx-*/SKILL.md"))) == 30
     assert errors == [], "\n".join(errors)
 
 

@@ -38,7 +38,6 @@ var policies = map[string]Policy{
 	"fast":            {Mode: ModeMutationCloseout, CanonicalWorkflow: "sp-fast", Reason: "Fast performs a bounded repository change."},
 	"implement":       {Mode: ModeMutationCloseout, CanonicalWorkflow: "sp-implement", Reason: "Implement owns repository changes."},
 	"implement-teams": {Mode: ModeMutationCloseout, CanonicalWorkflow: "sp-implement", Reason: "Implement Teams changes orchestration only; closeout remains owned by sp-implement."},
-	"integrate":       {Mode: ModeMutationCloseout, CanonicalWorkflow: "sp-integrate", Reason: "Integrate owns verified integrated-tree changes and repairs."},
 	"map-build":       {Mode: ModeBaselineMaintenance, Reason: "Map Build publishes a baseline through its dedicated validation contract."},
 	"map-scan":        {Mode: ModeBaselineMaintenance, Reason: "Map Scan produces baseline evidence through its dedicated acceptance contract."},
 	"map-update":      {Mode: ModeMapMaintenance, CanonicalWorkflow: "sp-map-update", Reason: "Map Update is the explicit incremental maintenance entrypoint."},

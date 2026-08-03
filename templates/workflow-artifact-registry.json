@@ -500,13 +500,6 @@
       "safe_instruction_patterns": ["sp-teams", "teams api", "teams submit-result", "artifact show", "runtime-owned", "cli-owned"]
     },
     {
-      "id": "lane_runtime_artifacts",
-      "path_patterns": [".specify/lanes/**"],
-      "owner_cli": ["feature bootstrap", "specify-runtime lane", "specify-runtime integrate"],
-      "path_hints": [".specify/lanes/", "lane runtime state", "lane lease", "lane event log"],
-      "safe_instruction_patterns": ["feature bootstrap", "lane resolve", "integrate cli", "runtime-owned", "cli-owned"]
-    },
-    {
       "id": "runtime_internal_artifacts",
       "path_patterns": [".specify/runtime/**"],
       "owner_cli": ["specify-runtime owning command"],
@@ -515,10 +508,10 @@
     },
     {
       "id": "workflow_storage_boundary",
-      "path_patterns": [".specify/features/**", ".specify/specs/**", "specs/**", ".planning/quick/**", ".planning/debug/**", ".specify/discussions/**", ".specify/design/**", ".specify/evidence/**", ".specify/project-cognition/**", ".specify/project-map/**", ".specify/prd/**", ".specify/prd-runs/**", ".specify/teams/**", ".specify/lanes/**", ".specify/runtime/**", ".specify/worker-results/**", ".specify/memory/**", ".planning/learnings/**"],
-      "owner_cli": ["specify-runtime artifact", "specify-runtime workflow", "specify-runtime tasks", "specify-runtime implement", "specify-runtime result", "specify-runtime review", "specify-runtime accept", "specify-runtime design", "specify-runtime discussion", "specify-runtime quick", "specify-runtime cognition", "specify-runtime evidence", "specify-runtime learning", "specify-runtime prd-scan", "specify-runtime prd-build", "specify-runtime sp-teams", "specify-runtime lane", "specify-runtime integrate"],
-      "path_hints": [".specify/features/", ".specify/specs/", "FEATURE_DIR/", "<feature-dir>/", ".planning/quick/", ".planning/debug/", ".specify/discussions/", ".specify/design/", ".specify/evidence/", ".specify/project-cognition/", ".specify/project-map/", ".specify/prd/", ".specify/prd-runs/", ".specify/teams/", ".specify/lanes/", ".specify/runtime/", ".specify/worker-results/", ".specify/memory/", ".planning/learnings/"],
-      "safe_instruction_patterns": ["registered owner", "registered artifact owner", "artifact cli", "artifact show", "artifact list", "artifact prepare", "artifact submit", "artifact patch", "artifact scaffold", "workflow cli", "design cli", "discussion runtime", "quick cli", "cognition runtime", "evidence cli", "learning cli", "prd runtime", "teams runtime", "lane resolve", "integrate cli", "feature bootstrap", "machine-readable source of truth", "may generate `sp-teams` and `.specify/teams/*`", "runtime-owned", "runtime-internal", "cli-owned"]
+      "path_patterns": [".specify/features/**", ".specify/specs/**", "specs/**", ".planning/quick/**", ".planning/debug/**", ".specify/discussions/**", ".specify/design/**", ".specify/evidence/**", ".specify/project-cognition/**", ".specify/project-map/**", ".specify/prd/**", ".specify/prd-runs/**", ".specify/teams/**", ".specify/runtime/**", ".specify/worker-results/**", ".specify/memory/**", ".planning/learnings/**"],
+      "owner_cli": ["specify-runtime artifact", "specify-runtime workflow", "specify-runtime tasks", "specify-runtime implement", "specify-runtime result", "specify-runtime review", "specify-runtime accept", "specify-runtime design", "specify-runtime discussion", "specify-runtime quick", "specify-runtime cognition", "specify-runtime evidence", "specify-runtime learning", "specify-runtime prd-scan", "specify-runtime prd-build", "specify-runtime sp-teams"],
+      "path_hints": [".specify/features/", ".specify/specs/", "FEATURE_DIR/", "<feature-dir>/", ".planning/quick/", ".planning/debug/", ".specify/discussions/", ".specify/design/", ".specify/evidence/", ".specify/project-cognition/", ".specify/project-map/", ".specify/prd/", ".specify/prd-runs/", ".specify/teams/", ".specify/runtime/", ".specify/worker-results/", ".specify/memory/", ".planning/learnings/"],
+      "safe_instruction_patterns": ["registered owner", "registered artifact owner", "artifact cli", "artifact show", "artifact list", "artifact prepare", "artifact submit", "artifact patch", "artifact scaffold", "workflow cli", "design cli", "discussion runtime", "quick cli", "cognition runtime", "evidence cli", "learning cli", "prd runtime", "teams runtime", "feature bootstrap", "machine-readable source of truth", "may generate `sp-teams` and `.specify/teams/*`", "runtime-owned", "runtime-internal", "cli-owned"]
     },
     {
       "id": "prd_status",

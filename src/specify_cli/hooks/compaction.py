@@ -167,8 +167,6 @@ def _artifact_digest(checkpoint: dict[str, Any]) -> dict[str, Any]:
         "goal",
         "active_lane",
         "observer_summary",
-        "lane_id",
-        "lane_recovery_state",
     )
     return {key: checkpoint[key] for key in keys if key in checkpoint and checkpoint[key]}
 

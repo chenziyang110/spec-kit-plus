@@ -34,7 +34,7 @@ Its job is to read current repository state, identify the recommended next Spec 
 ## Context
 
 - Primary inputs are the repository's authoritative workflow state surfaces, not chat memory.
-- Use the lane registry as a candidate-discovery cache, not as the truth source.
+- When a managed Run declares a feature subject, treat that subject as the routing boundary and verify the current directory equals `SPECIFY_RUN_WORKSPACE`; authoritative workflow state remains the truth source.
 - `sp-auto` does not create a new long-lived state file of its own.
 - It exists to continue the already-canonical workflow step recorded elsewhere.
 
@@ -44,8 +44,7 @@ Its job is to read current repository state, identify the recommended next Spec 
 - When `next_argv` names `specify-runtime workflow complete-stage`, route to the current required-stage owner so it can finish and validate that stage. When it names `specify-runtime workflow transition --to <stage>`, route to that destination stage and pass the exact argv. When active `accept` returns `specify-runtime workflow closeout`, route to the current accept owner so human acceptance can resume; only completed `accept` has no successor.
 - A blocked runtime intentionally has no `next_argv`. Preserve its tutorial and wait for the declared evidence; once present, fill only the required evidence input in `data.resolution_action` and execute its runtime-owned base argv. `show_argv` refreshes state but never resolves it.
 - Inspect the current repository state surfaces in priority order.
-- When concurrent lanes exist, resolve candidates by command semantics first and run reconcile before any resume decision.
-- If the selected lane has a materialized worktree, continue from that isolated worktree context instead of assuming the leader workspace is the active feature root.
+- When concurrent Runs exist, never inspect or resume another Run's subject from the current sandbox. Route only the current Run subject; an unbound invocation must stop when repository state exposes multiple safe candidates.
 - Resolve exactly one safe canonical next command.
 - Continue under that command's full shared contract instead of improvising a blended workflow.
 
@@ -62,8 +61,8 @@ Its job is to read current repository state, identify the recommended next Spec 
 - Always obey the recorded upstream gate.
 - Do not rewrite the underlying workflow state to `/sp.auto`; preserve the canonical downstream `next_command` such as `/sp.plan`, `/sp.tasks`, `/sp.implement`, `/sp.review`, `/sp.accept`, `/sp.debug`, `/sp.quick`, `/sp.fast`, `/sp.clarify`, or `/sp.deep-research`. Preserve `/sp.analyze` only when a targeted `specify-runtime artifact show` response explicitly records that legacy or diagnostic route.
 - If state is missing, stale, conflicting, or cannot identify one safe next step, stop in read-only diagnosis and report the exact blocker instead of improvising a route.
-- Do not guess when multiple resumable lanes exist.
-- Never auto-resume an `uncertain` lane.
+- Do not guess when multiple resumable candidates exist.
+- Never auto-resume an uncertain or unbound candidate.
 
 ## Operating Rules
 
@@ -120,7 +119,7 @@ Inspect the available state surfaces in this order and prefer the most specific 
 
 Choose exactly one routed command.
 
-- If lane state exists, consult the lane registry first to discover candidate lanes, then reconcile against real workflow artifacts before selecting a route.
+- If a managed Run subject exists, select only state belonging to that subject and reconcile it against the real workflow artifacts before routing.
 - Auto-resume only when there is exactly one unique safe candidate.
 - If multiple candidates remain after reconcile, stop and present a minimal choice instead of guessing.
 - Prefer the route that is already recorded in the highest-authority active state file.

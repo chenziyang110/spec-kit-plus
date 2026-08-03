@@ -98,8 +98,7 @@ downgrade `required`, or reconstruct the contract from prose. Implement must
 not create, infer, or prefill `reviewed_runtime_targets`; only `$spx-review`
 creates those immutable targets from final integrated evidence.
 When durable Codex team state is explicitly needed,
-hand off to `$spx-implement-teams` and stop. Hand off independent lane closeout
-to `$spx-integrate` and stop; do not switch workflows inline.
+hand off to `$spx-implement-teams` and stop; do not switch workflows inline.
 
 For UI-bearing work, consume the compiled task `ui_contract`; do not reconstruct
 design intent from task prose. Workers preserve design inputs and return changed

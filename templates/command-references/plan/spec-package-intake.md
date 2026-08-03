@@ -2,7 +2,7 @@ Trigger: before planning synthesis or delegated planning lanes.
 
 Purpose: validate one planning-ready spec contract and load only minimum sufficient planning context.
 
-Preserved Contract: planning remains design-only, respects the active feature lane, and stops on invalid scope/boundary/evidence gates.
+Preserved Contract: planning remains design-only, respects the managed Run feature subject, and stops on invalid scope/boundary/evidence gates.
 
 ## Intake
 

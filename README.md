@@ -474,7 +474,20 @@ your agent:
 6. `review` to start the integrated product from its official entrypoint, repair bounded wiring or implementation defects, and capture fresh system evidence
 7. `accept` to restore a human's context and guide explicit product acceptance one real step at a time
 8. `auto` to resume the recommended next workflow step from current repository state when you do not want to name the exact command yourself
-9. `integrate` to close out accepted independent feature lanes before mainline merge
+
+Launch-capable integrations treat every invocation as an independent Run,
+including the first one. The Run supervisor allocates a dedicated Git worktree,
+forces the child agent's working directory, maintains liveness, and fences an
+interrupted Attempt before a replacement generation can start. A successful Run
+publishes an immutable Candidate. Host adapters launch the claimed child through
+`specify-runtime run supervise <run-id> --adapter-id <id> --format json -- <agent argv>`.
+On Windows, the supervisor also extends `WSLENV` so the same fenced Run binding
+survives when the child invokes WSL-backed Bash helpers.
+Integration is a runtime service with no workflow command:
+`specify-runtime run integrate --target-ref <ref> --format json` serializes
+Candidates per target ref and records an immutable Result. Five concurrent
+`sp-quick`, `sp-debug`, or formal workflow Runs therefore do not share a writable
+worktree.
 
 After an advanced-profile init, use independent, discoverable SPX skills:
 
@@ -484,11 +497,11 @@ $spx-auto                 $spx-checklist            $spx-clarify
 $spx-constitution         $spx-debug                $spx-deep-research
 $spx-design               $spx-discussion           $spx-explain
 $spx-fast                 $spx-implement            $spx-implement-teams
-$spx-integrate            $spx-map-build            $spx-map-rebuild
-$spx-map-scan             $spx-map-update           $spx-plan
-$spx-prd                  $spx-prd-build            $spx-prd-scan
-$spx-quick                $spx-research             $spx-specify
-$spx-tasks                $spx-taskstoissues        $spx-team
+$spx-map-build            $spx-map-rebuild          $spx-map-scan
+$spx-map-update           $spx-plan                 $spx-prd
+$spx-prd-build            $spx-prd-scan             $spx-quick
+$spx-research             $spx-specify              $spx-tasks
+$spx-taskstoissues        $spx-team
 ```
 
 Advanced installs also include the unchanged Classic map companions:
@@ -830,7 +843,7 @@ Conditional gates and follow-up commands:
 - Map points, code proves: technical claims must be backed by live code, tests, scripts, configuration, or authoritative docs.
 - Planning-only workflows do not acquire source mutation authority: `specify`, `clarify`, `deep-research`, `plan`, and `tasks` write their owned planning artifacts only. If a request requires source/runtime/template/config/test/generated-asset changes, they must hand off to a registry-owned mutation workflow and stop; they do not conditionally run mutation closeout themselves. The receiving mutation owner applies its rendered planner-first project cognition closeout, while `sp-map-update` remains the external/manual maintenance workflow for user edits, interrupted workflow repair, explicit map maintenance, and follow-up repair.
 - `auto` to resume the recommended next workflow step from current repository state; for feature stages it reads `workflow.json` through `specify-runtime workflow show` then `specify-runtime workflow next` and consumes structured `next_argv` before consulting rich `workflow-state.md`, `implement-tracker.md`, quick-task `STATUS.md`, or debug session files. It continues under the routed workflow's contract without rewriting downstream state to `sp-auto`. When the routed workflow would only ask a bounded question or confirmation with one safe recommended/default answer, `auto` accepts that recommendation and continues; when it cannot do so safely, it reports the blocker plus a self-unblock recommendation instead of waiting silently.
-- when concurrent feature lanes exist, `auto` should prefer lane registry plus reconcile over branch-only recency and should only auto-resume when exactly one safe candidate remains
+- inside a managed Run, `auto` routes only the current Run subject and verifies `SPECIFY_RUN_WORKSPACE`; an unbound read-only invocation stops when more than one safe candidate remains instead of guessing from branch recency
 - `ask` for read-only evidence-backed project Q&A. Use it when you need a direct answer from project files, templates, docs, state, or memory before choosing an action workflow. Project cognition guides the search; live evidence proves the answer. Same-topic follow-ups reuse the prior evidence set when it still applies, localized or project-slang terms are normalized into project vocabulary, and complex answers separate proven facts from evidence-derived inferences. `sp-ask` is independent from `sp-discussion`; it creates no ask state or handoff, makes no source edits, and does not run tests, builds, package managers, or project CLI commands by default. Do not teach a `specify ask` helper in v1.
 - `discussion` to shape a rough idea before formal specification or direct quick delivery. At handoff it presents both paths and their eligibility, explains any blocker, recommends one eligible path from delivery complexity and consequence profile, and leaves the final choice to the user. It favors Quick for bounded, well-understood work and Specify for high ambiguity/complexity, interacting systems, architecture/data migration/security/compliance/rollout concerns, broad acceptance obligations, or durable specification traceability; size alone is not a hard routing ceiling. Only after that choice does it write the single machine-oriented `handoff-to-specify.json`. When the contract introduces no quick-stage `semantic_delta`, Quick binds understanding to the confirmed `review_digest` and does not ask for the same confirmation again.
 - `prd-scan` followed by `prd-build` reverse-extracts a repository-first current-state PRD reconstruction archive from an existing project. Substantive `prd-scan` runs are subagent-mandatory; workers inspect implementation reality, docs, tests, routes, UI/API surfaces, project cognition evidence, and memory, while `specify-runtime prd-scan`, `specify-runtime prd-build`, and the artifact/evidence CLIs alone materialize `.specify/prd-runs/<run-id>/`. The ten growing scan ledger/contract JSON files use `prd-scan record-upsert|record-remove|record-show|record-list`, so agents send or inspect one semantic row while the Go runtime owns each envelope, ordering, optimistic digest, and atomic write. `prd-build scaffold` then expands all missing master/export boilerplate from installed templates in one transaction; agents patch only semantic sections and never reconstruct or replace those large documents. Critical reconstruction claims target `L4 Reconstruction-Ready`, and `config-contracts.json` is part of the scan contract surface. `prd-build` compiles from the scan package into the expanded archive, including config/protocol/state/error/verification/risk exports. The exported suite includes `exports/README.md` as the package navigation entry and `exports/prd.md` as the main reader-facing PRD, and `prd-build` must not perform a second repository scan. `prd` remains a deprecated compatibility entrypoint that should route into the same pair.
@@ -840,7 +853,7 @@ Conditional gates and follow-up commands:
 - `analyze` is an optional read-only diagnostic and legacy revalidation pass once `tasks.md` exists; run the cross-artifact consistency pass across `spec.md`, `context.md`, `plan.md`, and `tasks.md` only when explicitly requested or recorded by existing state
 - `debug` to investigate blocked implementation work, regressions, or execution-time defects without reopening upstream planning artifacts unless drift is discovered. It now defaults to project-cognition-backed minimum intake; the heavier Stage 1A/1B observer-contract flow is reserved for missing/ambiguous/stale map coverage, competing truth owners, or failed verification loops.
 - `explain` to describe the current spec, plan, task, implement, project cognition, or compatibility/export artifact in plain language
-- `integrate` to discover implementation-complete lanes, run closeout prechecks, and prepare them for mainline merge without folding closeout back into `implement`
+- `specify-runtime run integrate` to serialize immutable Candidate integration per target ref; it is a runtime control-plane operation, not an agent workflow
 - `integration repair` to refresh generated shared/runtime-managed assets after CLI upgrades or when `specify check` reports stale launcher, script, or hook surfaces
 - when you run `analyze` and it finds upstream issues, it becomes a workflow gate, not a dead-end audit: reopen the highest invalid stage and regenerate downstream artifacts before continuing implementation
 - `analyze` now also detects boundary guardrail drift through stable issue codes: `BG1` (missing `Implementation Constitution`), `BG2` (missing task guardrails), and `BG3` (missing implementation-time boundary confirmation)

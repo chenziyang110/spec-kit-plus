@@ -6,7 +6,7 @@ Preserved Contract: implementation is task-driven, uses validated packets for de
 
 ## Execution Loop
 
-1. Resolve the active feature lane/worktree and resume execution state.
+1. Verify the managed Run worktree binding, resolve its active feature subject, and resume execution state.
 2. Call `specify-runtime implement task-next` to select the smallest dependency-ready task. Query additional canonical fields with `specify-runtime artifact show`; do not load the complete task index through an ad-hoc script.
 3. Reuse the task graph's context capsule and required refs. Inspect live source for the current task. Run project cognition only when a selected ref is stale, missing, or the live repository contradicts the task-shaping evidence.
 4. Choose execution mode:

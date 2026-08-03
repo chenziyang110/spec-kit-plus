@@ -26,7 +26,7 @@ Advance the current feature through tracked implementation batches while keeping
   a compatibility count of unopened logical gates, as is
   `remaining_gate_slots`; zero is not a retry-exhaustion signal. Never stop or
   blindly rerun from the raw count alone.
-- If the feature lane is not explicit, run `{{specify-subcmd:specify-runtime lane resolve --command implement --ensure-worktree}}`; use the returned execution context/materialized worktree and stop on `uncertain`.
+- If `FEATURE_DIR` is not explicit, use a validated managed Run feature subject or the installed prerequisite helper's paths-only result. Require exactly one match and stop on ambiguity; never guess from the Run's private Git ref.
 - Query `FEATURE_DIR/workflow-state.md` with `specify-runtime artifact show` when present. If its canonical `next_command` still points to `/sp.analyze`, stop and honor that pending diagnostic gate; never treat self-authorizing implementation from chat memory as a substitute for the CLI-queried gate.
 - On resume, audit terminal-looking tracker/task state before trusting completion; checked tasks are claims until validation, handoff, join point, and consumer evidence prove them. When `real_entrypoint_evidence` is required, synthetic-only consumer proof is not sufficient.
 - Carry every `CA-###` consequence obligation from packets into dispatch, implementation evidence, result acceptance, tracker open gaps, and stop-and-reopen routing.

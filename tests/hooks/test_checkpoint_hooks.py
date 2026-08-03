@@ -29,30 +29,6 @@ def test_checkpoint_returns_implement_tracker_resume_fields(tmp_path: Path):
     project = _create_project(tmp_path)
     feature_dir = project / "specs" / "001-demo"
     feature_dir.mkdir(parents=True, exist_ok=True)
-    lane_dir = project / ".specify" / "lanes" / "lane-001"
-    lane_dir.mkdir(parents=True, exist_ok=True)
-    (lane_dir / "lane.json").write_text(
-        "\n".join(
-            [
-                "{",
-                '  "lane_id": "lane-001",',
-                '  "feature_id": "001-demo",',
-                '  "feature_dir": "specs/001-demo",',
-                '  "branch_name": "001-demo",',
-                '  "worktree_path": ".specify/lanes/worktrees/lane-001",',
-                '  "lifecycle_state": "implementing",',
-                '  "recovery_state": "resumable",',
-                '  "last_command": "implement",',
-                '  "last_stable_checkpoint": "batch-a",',
-                '  "recovery_reason": "",',
-                '  "verification_status": "unknown",',
-                '  "created_at": "2026-05-02T00:00:00+00:00",',
-                '  "updated_at": "2026-05-02T00:00:00+00:00"',
-                "}",
-            ]
-        ),
-        encoding="utf-8",
-    )
     (feature_dir / "implement-tracker.md").write_text(
         "\n".join(
             [
@@ -92,11 +68,9 @@ def test_checkpoint_returns_implement_tracker_resume_fields(tmp_path: Path):
     assert checkpoint["current_batch"] == "batch-a"
     assert checkpoint["next_action"] == "wait for worker handoff"
     assert checkpoint["resume_decision"] == "resume-here"
-    assert checkpoint["lane_id"] == "lane-001"
-    assert checkpoint["lane_recovery_state"] == "resumable"
 
 
-def test_checkpoint_returns_workflow_state_lane_context_fields(tmp_path: Path):
+def test_checkpoint_returns_workflow_state_resume_fields(tmp_path: Path):
     project = _create_project(tmp_path)
     feature_dir = project / "specs" / "001-demo"
     feature_dir.mkdir(parents=True, exist_ok=True)
@@ -114,14 +88,6 @@ def test_checkpoint_returns_workflow_state_lane_context_fields(tmp_path: Path):
                 "",
                 "- phase_mode: `execution-only`",
                 "- summary: demo",
-                "",
-                "## Lane Context",
-                "",
-                "- lane_id: `lane-001`",
-                "- branch_name: `001-demo`",
-                "- worktree_path: `.specify/lanes/worktrees/lane-001`",
-                "- recovery_state: `resumable`",
-                "- last_stable_checkpoint: `batch-a`",
                 "",
                 "## Next Action",
                 "",
@@ -144,6 +110,7 @@ def test_checkpoint_returns_workflow_state_lane_context_fields(tmp_path: Path):
 
     assert result.status == "ok"
     checkpoint = result.data["checkpoint"]
-    assert checkpoint["lane_id"] == "lane-001"
-    assert checkpoint["branch_name"] == "001-demo"
-    assert checkpoint["worktree_path"] == ".specify/lanes/worktrees/lane-001"
+    assert checkpoint["active_command"] == "sp-implement"
+    assert checkpoint["status"] == "active"
+    assert checkpoint["next_action"] == "continue"
+    assert checkpoint["next_command"] == "/sp.implement"

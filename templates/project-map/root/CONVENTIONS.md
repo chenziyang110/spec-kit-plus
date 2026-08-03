@@ -21,7 +21,7 @@
 
 ## State and Data Semantics
 
-[When concurrent feature lanes exist, treat lane-local durable state plus real feature artifacts as truth. Describe which registry files are rebuildable caches and when branch-only active-feature heuristics are no longer authoritative.]
+[When concurrent Runs exist, treat the Run authority plus real workflow artifacts as truth. Describe the managed workspace binding, fenced replacement rules, immutable Candidate/Result records, and why branch-only active-feature heuristics are not authoritative.]
 
 ## Config and Option Propagation
 

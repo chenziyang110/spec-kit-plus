@@ -183,9 +183,8 @@ workflow for an upstream truth gap. A new behavior/test with no requirement,
 acceptance, or CA ref is not an implementation-only repair.
 
 Every cross-workflow route is a handoff-and-stop boundary. Hand off unknown root
-causes to `$spx-debug`, missing/invalid design truth to `$spx-design`, durable
-team execution to `$spx-implement-teams`, and independent lane closeout to
-`$spx-integrate`; do not run any of them inline in this invocation.
+causes to `$spx-debug`, missing/invalid design truth to `$spx-design`, and durable
+team execution to `$spx-implement-teams`; do not run any of them inline in this invocation.
 
 Before completion, run
 `{{specify-subcmd:specify-runtime implement closeout --feature-dir <feature-dir> --format json}}`

@@ -16,16 +16,20 @@ before broad source search.
 - Do not invent, paraphrase, or "normalize" unsupported CLI names such as `specify create-feature`.
 - Feature creation must follow `sp-specify` plus the generated create-feature script at `.specify/scripts/bash/create-new-feature.sh` or `.specify/scripts/powershell/create-new-feature.ps1`, not a separate imagined branch-creation command family.
 
-## Lane Recovery Rules
+## Run Recovery Rules
 
-- Treat concurrent feature work as lane-first, not branch-first.
-- Do not assume the current branch name is the canonical feature directory slug.
-- For resumable `sp-*` commands, resolve the active feature through durable lane
-  state or an explicit `feature_dir` before guessing from branch-only context.
-- If a workflow command can accept an explicit `feature_dir`, prefer that
-  override over current-branch inference.
-- If lane resolution returns one safe candidate and a materialized worktree,
-  continue from that isolated worktree context instead of the leader workspace.
+- Treat every modifying `sp-*` invocation, including the first, as an independent
+  Run with a supervisor-owned Git worktree and private ref.
+- When `SPECIFY_RUN_MANAGED=1`, require the current directory to equal
+  `SPECIFY_RUN_WORKSPACE`; stop instead of switching worktrees when the binding
+  does not match.
+- Resolve a feature from an explicit `feature_dir`, then a validated managed Run
+  subject, then one unambiguous paths-only helper result. Never infer it from the
+  current branch or the Run's private Git ref.
+- Never resume an expired or interrupted Attempt directly. The supervisor fences
+  it, quarantines its workspace generation, and starts a replacement generation.
+- A workflow agent never merges its own private ref. Successful Runs publish an
+  immutable Candidate; target-serialized Run integration records the Result.
 - Normalize canonical workflow-state tokens such as `/sp.plan`,
   `/sp.deep-research`, `/sp.tasks`, and `/sp.implement` before comparing them
   against bare command names.
@@ -34,5 +38,5 @@ before broad source search.
   `specs/<feature>/` and `.specify/specs/<feature>/` during recovery and
   repair flows.
 - Do not fail a resumable workflow only because the current branch is not a
-  feature branch when explicit `feature_dir` or unique lane recovery already
+  feature branch when an explicit `feature_dir` or the managed Run subject
   identifies the target feature safely.

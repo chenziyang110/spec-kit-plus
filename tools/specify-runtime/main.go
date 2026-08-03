@@ -61,8 +61,6 @@ func Run(args []string, stdout, stderr io.Writer, cliVersion string) int {
 		return runDoctor(args[1:], stdout)
 	case "hook":
 		return runHook(args[1:], stdout)
-	case "integrate":
-		return runIntegrate(args[1:], stdout)
 	case "tasks":
 		return runTasks(args[1:], stdout)
 	case "implement":
@@ -75,8 +73,6 @@ func Run(args []string, stdout, stderr io.Writer, cliVersion string) int {
 		return runTeams(args[1:], stdout)
 	case "learning":
 		return runLearning(args[1:], stdout)
-	case "lane":
-		return runLane(args[1:], stdout)
 	case "prd-build":
 		return runPRDBuild(args[1:], stdout)
 	case "prd-scan":
@@ -100,14 +96,12 @@ func writeHelp(stdout io.Writer) int {
 		"doctor",
 		"evidence",
 		"hook",
-		"integrate",
 		"tasks",
 		"implement",
 		"review",
 		"accept",
 		"sp-teams",
 		"learning",
-		"lane",
 		"prd-build",
 		"prd-scan",
 		"quick",
@@ -1048,8 +1042,6 @@ func defaultCapabilities() []string {
 		"hook.validate-artifacts",
 		"hook.validate-commit",
 		"hook.validate-state",
-		"integrate.close",
-		"integrate.discover",
 		"implement.closeout",
 		"implement.deferral-confirm",
 		"implement.deferral-propose",
@@ -1093,7 +1085,6 @@ func defaultCapabilities() []string {
 		"learning.promote",
 		"learning.show",
 		"learning.start",
-		"lane.resolve",
 		"prd-build.status",
 		"prd-build.scaffold",
 		"prd-scan.finalize",

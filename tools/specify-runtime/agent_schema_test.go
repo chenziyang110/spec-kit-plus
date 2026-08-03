@@ -216,6 +216,21 @@ func TestAPIShowPRDBuildScaffoldPublishesTemplateOwnershipContract(t *testing.T)
 	}
 }
 
+func TestAPIShowRunSupervisePublishesForcedWorkspaceEnvironmentContract(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"api", "show", "run.supervise", "--format", "json"}, &stdout, &stderr, "test")
+	if code != 0 {
+		t.Fatalf("api show run.supervise exit code = %d; stdout=%s stderr=%s", code, stdout.String(), stderr.String())
+	}
+	payload := decodeJSONObject(t, stdout.Bytes())
+	capability := requireObject(t, requireObject(t, payload, "data"), "capability")
+	usage, _ := capability["usage"].(string)
+	contract, _ := capability["input_contract"].(string)
+	if !strings.Contains(usage, "run supervise") || !strings.Contains(contract, "forces child cwd") || !strings.Contains(contract, "SPECIFY_RUN_*") || !strings.Contains(contract, "WSLENV") {
+		t.Fatalf("run supervise capability = %#v", capability)
+	}
+}
+
 func TestAPISchemaExpandsArtifactScaffoldInputContract(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	code := Run([]string{"api", "schema", "--id", "artifact-scaffold-input", "--format", "json"}, &stdout, &stderr, "test")

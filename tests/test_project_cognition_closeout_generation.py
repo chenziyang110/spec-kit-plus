@@ -25,7 +25,6 @@ MUTATION_WORKFLOWS = {
     "fast": "sp-fast",
     "implement": "sp-implement",
     "implement-teams": "sp-implement",
-    "integrate": "sp-integrate",
     "quick": "sp-quick",
     "review": "sp-review",
 }

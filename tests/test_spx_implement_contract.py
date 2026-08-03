@@ -24,7 +24,7 @@ def test_spx_implement_owns_durable_state_and_hands_off_cross_phase_work() -> No
     assert "task-index" in combined and "source_revision" in combined
     assert "spx-analyze" in combined and "handoff" in combined and "stop" in combined
     assert "do not run" in combined and "inline" in combined
-    for route in ("spx-debug", "spx-design", "spx-implement-teams", "spx-integrate"):
+    for route in ("spx-debug", "spx-design", "spx-implement-teams"):
         assert route in combined
 
 

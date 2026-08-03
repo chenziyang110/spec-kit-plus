@@ -2,10 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import asdict
 from pathlib import Path
-
-from specify_cli.lanes.state_store import iter_lane_records
 
 from .checkpoint_serializers import (
     normalize_command_name,
@@ -41,9 +38,7 @@ def validate_state_hook(project_root: Path, payload: dict[str, object]) -> HookR
     if command_name in EXPECTED_WORKFLOW_STATE:
         feature_dir = _required_path(project_root, payload, "feature_dir")
         target = feature_dir / "workflow-state.md"
-        diagnostics = _validation_diagnostics(
-            project_root, feature_dir, target, command_name
-        )
+        diagnostics = _resolution_diagnostics(feature_dir, target, command_name)
         if not target.exists():
             return HookResult(
                 event=WORKFLOW_STATE_VALIDATE,
@@ -52,7 +47,7 @@ def validate_state_hook(project_root: Path, payload: dict[str, object]) -> HookR
                 errors=[f"workflow-state.md is missing at {target}"],
                 data={
                     "validated_path": str(target.resolve()),
-                    "lane_context": diagnostics,
+                    "resolution_context": diagnostics,
                     "autofix": _autofix_metadata(
                         feature_dir,
                         command_name,
@@ -124,7 +119,7 @@ def validate_state_hook(project_root: Path, payload: dict[str, object]) -> HookR
                     data={
                         "checkpoint": checkpoint,
                         "validated_path": str(target.resolve()),
-                        "lane_context": diagnostics,
+                        "resolution_context": diagnostics,
                         "human_acceptance": acceptance_validation,
                     },
                 )
@@ -147,7 +142,7 @@ def validate_state_hook(project_root: Path, payload: dict[str, object]) -> HookR
                     data={
                         "checkpoint": repaired_checkpoint,
                         "validated_path": str(target.resolve()),
-                        "lane_context": diagnostics,
+                        "resolution_context": diagnostics,
                         "autofix": _autofix_metadata(
                             feature_dir, command_name, snippet
                         ),
@@ -161,7 +156,7 @@ def validate_state_hook(project_root: Path, payload: dict[str, object]) -> HookR
                 data={
                     "checkpoint": checkpoint,
                     "validated_path": str(target.resolve()),
-                    "lane_context": diagnostics,
+                    "resolution_context": diagnostics,
                     "autofix": _autofix_metadata(
                         feature_dir,
                         command_name,
@@ -176,7 +171,7 @@ def validate_state_hook(project_root: Path, payload: dict[str, object]) -> HookR
             data={
                 "checkpoint": checkpoint,
                 "validated_path": str(target.resolve()),
-                "lane_context": diagnostics,
+                "resolution_context": diagnostics,
                 **(
                     {"human_acceptance": acceptance_validation}
                     if acceptance_validation is not None
@@ -550,34 +545,12 @@ def _autofix_metadata(
     }
 
 
-def _validation_diagnostics(
-    project_root: Path, feature_dir: Path, target: Path, command_name: str
+def _resolution_diagnostics(
+    feature_dir: Path, target: Path, command_name: str
 ) -> dict[str, object]:
-    lane = next(
-        (
-            record
-            for record in iter_lane_records(project_root)
-            if (project_root / record.feature_dir).resolve() == feature_dir.resolve()
-        ),
-        None,
-    )
-    if lane is None:
-        return {
-            "resolved_from": "feature_dir",
-            "command_name": command_name,
-        }
-    worktree_relative = (
-        Path(lane.worktree_path) / Path(lane.feature_dir) / "workflow-state.md"
-    )
     return {
-        "resolved_from": "feature_dir+lane-record",
+        "resolved_from": "feature_dir",
         "command_name": command_name,
-        "lane_id": lane.lane_id,
-        "feature_dir": lane.feature_dir,
-        "worktree_path": lane.worktree_path,
-        "worktree_state_path": str(
-            (project_root / worktree_relative).resolve()
-        ).replace("\\", "/"),
-        "lane_record": asdict(lane),
-        "validated_path": str(target.resolve()),
+        "feature_dir": str(feature_dir.resolve()).replace("\\", "/"),
+        "validated_path": str(target.resolve()).replace("\\", "/"),
     }

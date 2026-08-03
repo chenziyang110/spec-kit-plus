@@ -475,7 +475,6 @@ def test_inline_project_cognition_update_uses_shared_partial() -> None:
         "templates/commands/implement.md",
         "templates/commands/debug.md",
         "templates/commands/implement-teams.md",
-        "templates/commands/integrate.md",
         "templates/commands/review.md",
     ]
     for path in commands:
@@ -630,7 +629,6 @@ def test_source_changing_sp_workflows_include_inline_cognition_closeout_contract
         "templates/commands/implement.md",
         "templates/commands/debug.md",
         "templates/commands/implement-teams.md",
-        "templates/commands/integrate.md",
         "templates/commands/review.md",
     ]
     for path in commands:
@@ -3543,18 +3541,19 @@ def test_specify_template_keeps_canonical_state_tokens_but_not_universal_user_in
     assert "semantic_delta" in content
 
 
-def test_auto_template_requires_reconcile_before_resume():
+def test_auto_template_binds_resume_to_the_current_run_subject():
     content = _read("templates/commands/auto.md").lower()
 
-    assert "lane registry" in content
+    assert "managed run" in content
+    assert "specify_run_workspace" in content
     assert "reconcile" in content
     assert "unique safe candidate" in content or "exactly one unique safe candidate" in content
     assert "do not guess" in content
-    assert "never auto-resume an `uncertain` lane" in content
-    assert "materialized worktree" in content
+    assert "never auto-resume an uncertain or unbound candidate" in content
+    assert "never inspect or resume another run's subject" in content
 
 
-def test_plan_tasks_and_implement_templates_prefer_lane_resolution_when_feature_dir_is_not_explicit():
+def test_feature_workflows_prefer_managed_run_subject_when_feature_dir_is_not_explicit():
     plan = _read("templates/commands/plan.md")
     tasks = _read("templates/commands/tasks.md")
     implement = _read("templates/commands/implement.md")
@@ -3562,26 +3561,25 @@ def test_plan_tasks_and_implement_templates_prefer_lane_resolution_when_feature_
     clarify = _read("templates/commands/clarify.md")
     explain = _read("templates/commands/explain.md")
 
-    assert "{{specify-subcmd:specify-runtime lane resolve --command plan --ensure-worktree}}" in plan
-    assert "{{specify-subcmd:specify-runtime lane resolve --command tasks --ensure-worktree}}" in tasks
-    assert "{{specify-subcmd:specify-runtime lane resolve --command implement --ensure-worktree}}" in implement
-    assert "{{specify-subcmd:specify-runtime lane resolve --command deep-research --ensure-worktree}}" in deep_research
-    assert "{{specify-subcmd:specify-runtime lane resolve --command clarify --ensure-worktree}}" in clarify
-    assert "{{specify-subcmd:specify-runtime lane resolve --command explain --ensure-worktree}}" in explain
-    assert "materialized worktree" in plan.lower()
-    assert "materialized worktree" in tasks.lower()
-    assert "materialized worktree" in implement.lower()
-    assert "uncertain" in implement.lower()
+    for content in (plan, tasks, implement, deep_research, clarify, explain):
+        lowered = content.lower()
+        assert "managed run" in lowered
+        assert "private git ref" in lowered
+        assert "lane resolve" not in lowered
+    assert "specify_run_subject_id" in plan.lower()
+    assert "exactly one match" in tasks.lower()
+    assert "exactly one match" in implement.lower()
 
 
-def test_analyze_template_requires_lane_resolution_before_branch_guessing() -> None:
+def test_analyze_template_requires_managed_run_binding_before_branch_guessing() -> None:
     content = _read("templates/commands/analyze.md")
     lowered = content.lower()
 
-    assert "{{specify-subcmd:specify-runtime lane resolve --command analyze --ensure-worktree}}" in content
     assert "if `feature_dir` is not already explicit" in lowered
-    assert "before guessing from branch-only context" in lowered
-    assert "when lane resolution returns a materialized lane worktree" in lowered
+    assert "managed run feature subject" in lowered
+    assert "specify_run_workspace" in lowered
+    assert "stop on ambiguity" in lowered
+    assert "lane resolve" not in lowered
     assert "must not switch branches" in lowered
     assert 'implicitly check out a "correct" feature branch' in lowered
     assert "mutate git state" in lowered
@@ -4830,9 +4828,25 @@ def test_script_contracts_expose_context_artifact_paths():
     assert "[string]$FeatureDir" in ps_setup
     assert "CONTEXT=%q\\n" in sh_common
     assert "SPECIFY_DRAFT=%q\\n" in sh_common
-    assert "find_feature_dir_from_lane_state" in sh_common
+    assert "find_feature_dir_by_prefix" in sh_common
+    assert "find_feature_dir_from_managed_run" in sh_common
+    assert "assert_managed_run_workspace" in sh_common
+    assert "assert_managed_run_feature_dir" in sh_common
+    assert "SPECIFY_RUN_WORKSPACE" in sh_common
+    assert "SPECIFY_RUN_SUBJECT_TYPE" in sh_common
+    assert "SPECIFY_RUN_SUBJECT_ID" in sh_common
+    assert '"${SPECIFY_RUN_MANAGED:-}" != "1"' in sh_check
+    assert '"${SPECIFY_RUN_MANAGED:-}" != "1"' in sh_setup
     assert "feature_specs_roots" in sh_common
-    assert "Find-FeatureDirFromLaneState" in ps_common
+    assert "Find-FeatureDirByPrefix" in ps_common
+    assert "Find-FeatureDirFromManagedRun" in ps_common
+    assert "Assert-ManagedRunWorkspace" in ps_common
+    assert "Assert-ManagedRunFeatureDir" in ps_common
+    assert "$env:SPECIFY_RUN_WORKSPACE" in ps_common
+    assert "$env:SPECIFY_RUN_SUBJECT_TYPE" in ps_common
+    assert "$env:SPECIFY_RUN_SUBJECT_ID" in ps_common
+    assert "$env:SPECIFY_RUN_MANAGED -ne '1'" in ps_check
+    assert "$env:SPECIFY_RUN_MANAGED -ne '1'" in ps_setup
     assert "Get-FeatureSpecsRoots" in ps_common
     assert '--arg context "$CONTEXT"' in sh_check
     assert '--feature-dir' in sh_check
@@ -5070,8 +5084,6 @@ def test_create_new_feature_scripts_scaffold_and_report_context():
     assert "CONTEXT_FILE = $contextFile" in ps_create
     assert "SPECIFY_DRAFT_FILE = $specifyDraftFile" in ps_create
     assert "FEATURE_DIR = $featureDir" in ps_create
-    assert "LANE_ID = $laneId" in ps_create
-    assert "LANE_WORKTREE = $laneWorktree" in ps_create
     assert 'CONTEXT_FILE="$FEATURE_DIR/context.md"' in sh_create
     assert 'SPECIFY_DRAFT_FILE="$FEATURE_DIR/specify-draft.md"' in sh_create
     assert 'resolve_template "context-template"' in sh_create
@@ -5079,8 +5091,6 @@ def test_create_new_feature_scripts_scaffold_and_report_context():
     assert '"CONTEXT_FILE":"%s"' in sh_create
     assert '"SPECIFY_DRAFT_FILE":"%s"' in sh_create
     assert '"FEATURE_DIR":"%s"' in sh_create
-    assert '"LANE_ID":"%s"' in sh_create
-    assert '"LANE_WORKTREE":"%s"' in sh_create
 
 
 def test_specify_draft_template_and_feature_scripts_scaffold_draft_artifact():

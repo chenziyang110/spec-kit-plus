@@ -144,7 +144,7 @@ func runAPIShow(args []string, stdout io.Writer) int {
 	case "run.supervise":
 		capability["side_effect"] = "allocates-worktree-and-runs-tokenized-child"
 		capability["usage"] = "specify-runtime run supervise <run-id> --adapter-id <id> [--project-root <path>] --format json -- <argv...>"
-		capability["input_contract"] = "requires a literal -- separator; runtime owns worktree allocation, forces child cwd, maintains liveness, and atomically records success or failure"
+		capability["input_contract"] = "requires a literal -- separator; runtime owns worktree allocation, forces child cwd, binds SPECIFY_RUN_* identity/workspace/fence variables, extends WSLENV for WSL-backed helpers, maintains liveness, and atomically records success or failure"
 	case "run.integrate":
 		capability["side_effect"] = "serializes-and-integrates-candidate"
 		capability["usage"] = "specify-runtime run integrate --target-ref <ref> [--project-root <path>] --format json"

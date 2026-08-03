@@ -131,12 +131,6 @@
       "assets": [],
       "optimization": "one implementation contract with explicit Codex and Claude durable-team backends"
     },
-    "spx-integrate": {
-      "absorbs": ["integrate"],
-      "references": ["spx-integrate/references/integration-contract.md"],
-      "assets": [],
-      "optimization": "readiness, overlap, sequencing, and combined verification before lane closeout"
-    },
     "spx-map-build": {
       "absorbs": ["map-build"],
       "references": ["spx-map-build/references/build-gates.md"],

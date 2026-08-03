@@ -112,15 +112,14 @@ def test_workflow_boundary_allows_review_upstream_only_for_truth_gap(tmp_path: P
 def test_workflow_boundary_sends_acceptance_failures_to_review_first(tmp_path: Path):
     project = _create_project(tmp_path)
 
-    for target in ("review", "integrate"):
-        result = run_quality_hook(
-            project,
-            "workflow.boundary.validate",
-            {"from_command": "accept", "to_command": target},
-        )
-        assert result.status == "ok", target
+    result = run_quality_hook(
+        project,
+        "workflow.boundary.validate",
+        {"from_command": "accept", "to_command": "review"},
+    )
+    assert result.status == "ok"
 
-    for target in ("debug", "implement", "clarify", "specify"):
+    for target in ("integrate", "debug", "implement", "clarify", "specify"):
         direct = run_quality_hook(
             project,
             "workflow.boundary.validate",

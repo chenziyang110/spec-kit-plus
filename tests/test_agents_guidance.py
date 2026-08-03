@@ -53,7 +53,7 @@ def test_root_agents_documents_current_managed_context_and_schema_v5_rules() -> 
     assert "slice_members" in content
 
 
-def test_root_claude_context_documents_lane_first_recovery_rules() -> None:
+def test_root_claude_context_documents_managed_run_recovery_rules() -> None:
     content = (PROJECT_ROOT / "CLAUDE.md").read_text(encoding="utf-8")
     lowered = content.lower()
 
@@ -64,8 +64,12 @@ def test_root_claude_context_documents_lane_first_recovery_rules() -> None:
     assert ".specify/scripts/powershell/create-new-feature.ps1" in lowered
     assert "do not invent" in lowered
     assert "specify create-feature" in lowered
-    assert "## Lane Recovery Rules" in content
-    assert "lane-first, not branch-first" in lowered
+    assert "## Run Recovery Rules" in content
+    assert "specify_run_managed" in lowered
+    assert "specify_run_workspace" in lowered
+    assert "private git ref" in lowered
+    assert "quarantines its workspace generation" in lowered
+    assert "immutable candidate" in lowered
     assert "explicit `feature_dir`" in content
     assert "/sp.plan" in content
     assert ".specify/features/<feature>/" in content

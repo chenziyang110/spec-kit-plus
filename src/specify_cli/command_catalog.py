@@ -51,7 +51,6 @@ _READ_ONLY_OPERATIONS = frozenset(
         "hook.validate-read-path",
         "hook.validate-result",
         "hook.validate-session-state",
-        "lane.status",
         "learning.list",
         "learning.show",
         "learning.start",
@@ -127,9 +126,7 @@ _LOCAL_WRITE_PREFIXES = (
 _HIGHER_RISK_PREFIXES = (
     "extension.",
     "init",
-    "integrate",
     "integration.",
-    "lane.",
     "preset.",
     "sp-teams",
 )

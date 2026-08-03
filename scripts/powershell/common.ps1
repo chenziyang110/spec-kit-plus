@@ -179,67 +179,6 @@ function Get-FeatureDir {
     Join-Path $RepoRoot ".specify/features/$Branch"
 }
 
-function Find-FeatureDirFromLaneState {
-    param(
-        [string]$RepoRoot,
-        [string]$BranchName
-    )
-
-    $lanesRoot = Join-Path $RepoRoot ".specify/lanes"
-    if (-not (Test-Path -LiteralPath $lanesRoot -PathType Container)) {
-        return $null
-    }
-
-    $featureMatches = @()
-    Get-ChildItem -LiteralPath $lanesRoot -Directory -ErrorAction SilentlyContinue | ForEach-Object {
-        $laneFile = Join-Path $_.FullName "lane.json"
-        if (-not (Test-Path -LiteralPath $laneFile -PathType Leaf)) {
-            return
-        }
-
-        try {
-            $lanePayload = Get-Content -LiteralPath $laneFile -Raw | ConvertFrom-Json
-        } catch {
-            return
-        }
-
-        if (-not $lanePayload) {
-            return
-        }
-
-        $matchesBranch = ($lanePayload.branch_name -eq $BranchName) -or ($lanePayload.lane_id -eq $BranchName)
-        if (-not $matchesBranch) {
-            return
-        }
-
-        $featureDir = [string]$lanePayload.feature_dir
-        if ([string]::IsNullOrWhiteSpace($featureDir)) {
-            return
-        }
-
-        $resolved = if ([System.IO.Path]::IsPathRooted($featureDir)) {
-            $featureDir
-        } else {
-            Join-Path $RepoRoot $featureDir
-        }
-
-        $featureMatches += $resolved
-    }
-
-    $uniqueMatches = @($featureMatches | Select-Object -Unique)
-    if ($uniqueMatches.Count -eq 0) {
-        return $null
-    }
-
-    if ($uniqueMatches.Count -eq 1) {
-        return $uniqueMatches[0]
-    }
-
-    Write-Output "ERROR: Multiple lane records map branch '$BranchName' to feature directories: $($uniqueMatches -join ', ')"
-    Write-Output "Please resolve the lane state before continuing."
-    return $null
-}
-
 function Find-FeatureDirByPrefix {
     param(
         [string]$RepoRoot,
@@ -292,26 +231,138 @@ function Find-FeatureDirByPrefix {
     return (Join-Path (Join-Path $RepoRoot ".specify/features") $BranchName)
 }
 
+function Get-CanonicalManagedRunPath {
+    param([Parameter(Mandatory = $true)][string]$Path)
+
+    $resolved = Resolve-Path -LiteralPath $Path -ErrorAction Stop
+    return [System.IO.Path]::GetFullPath($resolved.Path).TrimEnd(
+        [System.IO.Path]::DirectorySeparatorChar,
+        [System.IO.Path]::AltDirectorySeparatorChar
+    )
+}
+
+function Assert-ManagedRunWorkspace {
+    param([Parameter(Mandatory = $true)][string]$RepoRoot)
+
+    if ([string]::IsNullOrWhiteSpace($env:SPECIFY_RUN_WORKSPACE)) {
+        throw "Managed Run is missing SPECIFY_RUN_WORKSPACE"
+    }
+
+    $canonicalWorkspace = Get-CanonicalManagedRunPath -Path $env:SPECIFY_RUN_WORKSPACE
+    $canonicalRepoRoot = Get-CanonicalManagedRunPath -Path $RepoRoot
+    $canonicalCwd = Get-CanonicalManagedRunPath -Path (Get-Location).Path
+    $comparison = if ($env:OS -eq 'Windows_NT') {
+        [System.StringComparison]::OrdinalIgnoreCase
+    } else {
+        [System.StringComparison]::Ordinal
+    }
+    if (
+        -not [string]::Equals($canonicalRepoRoot, $canonicalWorkspace, $comparison) -or
+        -not [string]::Equals($canonicalCwd, $canonicalWorkspace, $comparison)
+    ) {
+        throw "Managed Run workspace binding mismatch; expected '$canonicalWorkspace', repo root '$canonicalRepoRoot', cwd '$canonicalCwd'"
+    }
+}
+
+function Assert-ManagedRunFeatureDir {
+    param(
+        [Parameter(Mandatory = $true)][string]$RepoRoot,
+        [Parameter(Mandatory = $true)][string]$FeatureDir
+    )
+
+    $canonicalFeatureDir = Get-CanonicalManagedRunPath -Path $FeatureDir
+    $comparison = if ($env:OS -eq 'Windows_NT') {
+        [System.StringComparison]::OrdinalIgnoreCase
+    } else {
+        [System.StringComparison]::Ordinal
+    }
+    foreach ($registeredRoot in (Get-FeatureSpecsRoots -RepoRoot $RepoRoot)) {
+        if (-not (Test-Path -LiteralPath $registeredRoot -PathType Container)) {
+            continue
+        }
+        $canonicalRoot = Get-CanonicalManagedRunPath -Path $registeredRoot
+        $rootPrefix = $canonicalRoot + [System.IO.Path]::DirectorySeparatorChar
+        if ($canonicalFeatureDir.StartsWith($rootPrefix, $comparison)) {
+            return
+        }
+    }
+
+    throw "Managed Run feature directory is outside registered feature roots: $FeatureDir"
+}
+
+function Find-FeatureDirFromManagedRun {
+    param([Parameter(Mandatory = $true)][string]$RepoRoot)
+
+    Assert-ManagedRunWorkspace -RepoRoot $RepoRoot
+    if (
+        $env:SPECIFY_RUN_SUBJECT_TYPE -ne 'feature' -or
+        [string]::IsNullOrWhiteSpace($env:SPECIFY_RUN_SUBJECT_ID)
+    ) {
+        throw "Managed feature workflow requires SPECIFY_RUN_SUBJECT_TYPE=feature and a non-empty SPECIFY_RUN_SUBJECT_ID"
+    }
+
+    $subjectPath = ([string]$env:SPECIFY_RUN_SUBJECT_ID).Replace('\', '/')
+    $segments = @($subjectPath.Split('/') | Where-Object { $_ -ne '' })
+    if (
+        [System.IO.Path]::IsPathRooted($subjectPath) -or
+        $segments -contains '..'
+    ) {
+        throw "Managed Run feature subject must be a safe project-relative feature id or path"
+    }
+    if ($subjectPath.Contains('/')) {
+        if (
+            $subjectPath -notlike '.specify/features/*' -and
+            $subjectPath -notlike '.specify/specs/*' -and
+            $subjectPath -notlike 'specs/*'
+        ) {
+            throw "Managed Run feature subject path is outside registered feature roots: $subjectPath"
+        }
+        return (Join-Path $RepoRoot $subjectPath)
+    }
+
+    $exactMatches = @(
+        foreach ($specsDir in (Get-FeatureSpecsRoots -RepoRoot $RepoRoot)) {
+            $candidate = Join-Path $specsDir $subjectPath
+            if (Test-Path -LiteralPath $candidate -PathType Container) {
+                $candidate
+            }
+        }
+    )
+    if ($exactMatches.Count -eq 1) {
+        return $exactMatches[0]
+    }
+    if ($exactMatches.Count -gt 1) {
+        throw "Managed Run feature subject '$subjectPath' matches multiple feature roots: $($exactMatches -join ', ')"
+    }
+
+    return (Find-FeatureDirByPrefix -RepoRoot $RepoRoot -BranchName $subjectPath)
+}
+
 function Get-FeaturePathsEnv {
     param([string]$FeatureDirOverride = "")
 
     $repoRoot = Get-RepoRoot
     $currentBranch = Get-CurrentBranch
     $hasGit = Test-HasGit
-    if ([string]::IsNullOrWhiteSpace($FeatureDirOverride)) {
-        $featureDir = Find-FeatureDirFromLaneState -RepoRoot $repoRoot -BranchName $currentBranch
-        if (-not $featureDir) {
-            $featureDir = Find-FeatureDirByPrefix -RepoRoot $repoRoot -BranchName $currentBranch
-        }
-    } else {
+    if ($env:SPECIFY_RUN_MANAGED -eq '1') {
+        Assert-ManagedRunWorkspace -RepoRoot $repoRoot
+    }
+    if (-not [string]::IsNullOrWhiteSpace($FeatureDirOverride)) {
         $featureDir = if ([System.IO.Path]::IsPathRooted($FeatureDirOverride)) {
             $FeatureDirOverride
         } else {
             Join-Path $repoRoot $FeatureDirOverride
         }
+    } elseif ($env:SPECIFY_RUN_MANAGED -eq '1') {
+        $featureDir = Find-FeatureDirFromManagedRun -RepoRoot $repoRoot
+    } else {
+        $featureDir = Find-FeatureDirByPrefix -RepoRoot $repoRoot -BranchName $currentBranch
     }
     if (-not $featureDir) {
         throw "Failed to resolve feature directory"
+    }
+    if ($env:SPECIFY_RUN_MANAGED -eq '1') {
+        Assert-ManagedRunFeatureDir -RepoRoot $repoRoot -FeatureDir $featureDir
     }
     
     [PSCustomObject]@{
