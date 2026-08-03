@@ -290,6 +290,56 @@ func TestRunCLISuperviseExecutesTokenizedChildInSandbox(t *testing.T) {
 	}
 }
 
+func TestRunCLIIntegratesPublishedCandidate(t *testing.T) {
+	root := initRunCLIRepository(t)
+	gitRun(t, root, "config", "user.name", "Run CLI Test")
+	gitRun(t, root, "config", "user.email", "run-cli@example.invalid")
+	gitRun(t, root, "config", "commit.gpgsign", "false")
+	if err := os.WriteFile(filepath.Join(root, "README.md"), []byte("integration cli\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	gitRun(t, root, "add", "README.md")
+	gitRun(t, root, "commit", "-m", "initial")
+	createRunThroughCLI(t, root, "run_cli_integrate")
+	t.Setenv("SPECIFY_RUNTIME_CLI_FOREGROUND_HELPER", "1")
+
+	code, supervised := invokeRunCLI(t,
+		"run", "supervise", "run_cli_integrate",
+		"--project-root", root,
+		"--adapter-id", "test-helper",
+		"--format", "json",
+		"--",
+		os.Args[0], "-test.run=^TestRunCLIForegroundHelperProcess$", "--",
+		"integrated.txt", "candidate",
+	)
+	if code != 0 || supervised["status"] != "ok" {
+		t.Fatalf("run supervise = code %d envelope %#v", code, supervised)
+	}
+	execution := requireObject(t, requireObject(t, supervised, "data"), "execution")
+	candidateID, _ := execution["candidate_id"].(string)
+	targetRef, _ := execution["target_ref"].(string)
+	if candidateID == "" || !strings.HasPrefix(targetRef, "refs/heads/") {
+		t.Fatalf("supervised candidate execution = %#v", execution)
+	}
+
+	code, integrated := invokeRunCLI(t,
+		"run", "integrate",
+		"--project-root", root,
+		"--target-ref", targetRef,
+		"--format", "json",
+	)
+	if code != 0 || integrated["status"] != "ok" {
+		t.Fatalf("run integrate = code %d envelope %#v", code, integrated)
+	}
+	result := requireObject(t, requireObject(t, integrated, "data"), "result")
+	if result["candidate_id"] != candidateID || result["status"] != "integrated" {
+		t.Fatalf("integration result = %#v", result)
+	}
+	if _, err := os.Stat(filepath.Join(root, "integrated.txt")); err != nil {
+		t.Fatalf("integrated target file is unavailable: %v", err)
+	}
+}
+
 func TestRunCLIForegroundHelperProcess(t *testing.T) {
 	if os.Getenv("SPECIFY_RUNTIME_CLI_FOREGROUND_HELPER") != "1" {
 		return
@@ -334,7 +384,7 @@ func TestRunCLIUsesSharedDatabaseFromLinkedWorktree(t *testing.T) {
 }
 
 func TestRunCapabilitiesAreDiscoverableAndBounded(t *testing.T) {
-	for _, capabilityID := range []string{"run.create", "run.show", "run.events", "run.cancel", "run.supervise"} {
+	for _, capabilityID := range []string{"run.create", "run.show", "run.events", "run.cancel", "run.supervise", "run.integrate"} {
 		if !containsCapability(defaultCapabilities(), capabilityID) {
 			t.Fatalf("default capabilities missing %q", capabilityID)
 		}
