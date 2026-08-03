@@ -317,6 +317,27 @@ type CompleteAttemptLaunchParams struct {
 	Succeeded        bool
 }
 
+type AttemptOutcome string
+
+const (
+	AttemptOutcomeSucceeded AttemptOutcome = "succeeded"
+	AttemptOutcomeFailed    AttemptOutcome = "failed"
+)
+
+type FinishAttemptParams struct {
+	AttemptID string
+	Fence     int64
+	Outcome   AttemptOutcome
+	Reason    string
+}
+
+type FinishedExecution struct {
+	Run       Run
+	Attempt   Attempt
+	Activity  Activity
+	Workspace Workspace
+}
+
 type Event struct {
 	EventID           int64
 	AggregateType     string

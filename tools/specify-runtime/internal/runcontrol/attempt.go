@@ -387,7 +387,9 @@ func (store *Store) Heartbeat(ctx context.Context, attemptID string, fence int64
 }
 
 // CancelRun invalidates the run fence before revoking any live attempt. The
-// caller must hold the exact run revision that it intends to cancel.
+// caller must hold the exact run revision that it intends to cancel. This is a
+// control-plane action by design: a user or operator may cancel a Run owned by
+// another supervisor epoch, and the revision CAS linearizes cancel vs finish.
 func (store *Store) CancelRun(ctx context.Context, runID string, expectedRevision int64, reason string) (Run, error) {
 	if strings.TrimSpace(runID) == "" {
 		return Run{}, errors.New("run_id is required")
