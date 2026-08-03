@@ -1,6 +1,6 @@
 package runcontrol
 
-const schemaVersion = 5
+const schemaVersion = 10
 
 const workspaceAllocationSchemaSQL = `
 CREATE TABLE IF NOT EXISTS workspace_allocations (
@@ -173,6 +173,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS workspaces_one_usable_per_run
 
 ` + workspaceAllocationSchemaSQL + `
 
+` + snapshotSchemaSQL + `
+
 CREATE TABLE IF NOT EXISTS attempts (
     attempt_id TEXT PRIMARY KEY,
     run_id TEXT NOT NULL REFERENCES runs(run_id) ON DELETE RESTRICT,
@@ -205,6 +207,16 @@ CREATE UNIQUE INDEX IF NOT EXISTS attempts_one_live_per_run
 
 CREATE INDEX IF NOT EXISTS attempts_lease_lookup
     ON attempts(status, lease_until_ms);
+
+` + resourceClaimSchemaSQL + `
+
+` + runResultSchemaSQL + `
+
+` + frozenCandidateSchemaSQL + `
+
+` + candidateDeliverySchemaSQL + `
+
+` + adapterAttestationSchemaSQL + `
 
 CREATE TABLE IF NOT EXISTS operations (
     operation_id TEXT PRIMARY KEY,

@@ -74,6 +74,14 @@ func (store *Store) FinishAttempt(
 			return FinishedExecution{}, candidateErr
 		}
 	}
+	if params.Result != nil {
+		sealedResult, resultErr := readRunResultForAttemptTx(ctx, transaction, attempt.AttemptID)
+		if resultErr == nil {
+			finished.Result = sealedResult
+		} else if !errors.Is(resultErr, ErrResultNotFound) {
+			return FinishedExecution{}, resultErr
+		}
+	}
 	if finishAttemptMatchesReplay(finished, params, targets, store.ownerEpoch) {
 		if err := transaction.Commit(); err != nil {
 			return FinishedExecution{}, fmt.Errorf("commit finish attempt replay: %w", err)
@@ -148,6 +156,9 @@ func (store *Store) FinishAttempt(
 	if err := updateAttemptTerminalTx(ctx, transaction, attempt, targets.attempt, nowMS); err != nil {
 		return FinishedExecution{}, err
 	}
+	if err := releaseAttemptResourceClaimsTx(ctx, transaction, attempt, params.Reason, nowMS); err != nil {
+		return FinishedExecution{}, err
+	}
 	attempt.Status = targets.attempt
 	attempt.Revision++
 	attempt.UpdatedAtMS = nowMS
@@ -173,6 +184,22 @@ func (store *Store) FinishAttempt(
 			return FinishedExecution{}, err
 		}
 	}
+	var sealedResult RunResult
+	if params.Result != nil {
+		sealedResult, err = insertRunResultTx(
+			ctx,
+			transaction,
+			run,
+			attempt,
+			activity,
+			workspace,
+			*params.Result,
+			nowMS,
+		)
+		if err != nil {
+			return FinishedExecution{}, err
+		}
+	}
 	if err := appendRunEventTx(ctx, transaction, run, "run."+string(targets.run), params.Reason); err != nil {
 		return FinishedExecution{}, err
 	}
@@ -185,6 +212,7 @@ func (store *Store) FinishAttempt(
 		Activity:  activity,
 		Workspace: workspace,
 		Candidate: candidate,
+		Result:    sealedResult,
 	}, nil
 }
 
@@ -207,8 +235,8 @@ func validateFinishAttemptParams(params FinishAttemptParams) (finishAttemptTarge
 			workspace: WorkspaceSealed,
 		}, nil
 	case AttemptOutcomeFailed:
-		if params.Candidate != nil {
-			return finishAttemptTargets{}, fmt.Errorf("%w: failed attempt cannot publish a candidate", ErrInvalidArgument)
+		if params.Candidate != nil || params.Result != nil {
+			return finishAttemptTargets{}, fmt.Errorf("%w: failed attempt cannot publish a candidate or Result", ErrInvalidArgument)
 		}
 		return finishAttemptTargets{
 			run:       RunFailed,
@@ -250,7 +278,14 @@ func finishAttemptMatchesReplay(
 				finished.Candidate.TargetRef == params.Candidate.TargetRef &&
 				finished.Candidate.BaseCommit == params.Candidate.BaseCommit &&
 				finished.Candidate.PrivateRef == params.Candidate.PrivateRef &&
-				finished.Candidate.HeadCommit == params.Candidate.HeadCommit))
+				finished.Candidate.HeadCommit == params.Candidate.HeadCommit)) &&
+		((params.Result == nil && finished.Result.ResultID == "") ||
+			(params.Result != nil && finished.Result.ResultID == params.Result.ResultID &&
+				finished.Result.ResultRevision == params.Result.ResultRevision &&
+				finished.Result.SnapshotID == params.Result.SnapshotID &&
+				finished.Result.ResultTreeOID == params.Result.ResultTreeOID &&
+				finished.Result.ResultCommitOID == params.Result.ResultCommitOID &&
+				finished.Result.ManifestSHA256 == params.Result.ManifestSHA256))
 }
 
 func isTerminalAttemptStatus(status AttemptStatus) bool {

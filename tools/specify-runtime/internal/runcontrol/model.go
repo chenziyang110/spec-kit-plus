@@ -336,6 +336,7 @@ type FinishAttemptParams struct {
 	Outcome   AttemptOutcome
 	Reason    string
 	Candidate *CandidateSnapshot
+	Result    *RunResultSnapshot
 }
 
 type FinishedExecution struct {
@@ -344,6 +345,7 @@ type FinishedExecution struct {
 	Activity  Activity
 	Workspace Workspace
 	Candidate Candidate
+	Result    RunResult
 }
 
 type CandidateStatus string

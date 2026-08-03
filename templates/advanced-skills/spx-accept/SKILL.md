@@ -7,9 +7,12 @@ description: Advanced post-Review human acceptance workflow. Use after fresh app
 
 Read `references/project-learning.md` and apply its consume-only policy.
 Read `references/workflow-runtime.md` and let its CLI own phase state.
+Read `references/run-bootstrap.md`.
 Read `references/project-cognition.md`, using cognition intent `ask`. Read
 `references/acceptance-contract.md` and `references/blocker-resolution.md`. Read
 `references/ui-quality-gate.md` when any acceptance scenario is UI-bearing.
+
+`$spx-accept` runs only against the candidate binding for the immutable candidate frozen by Review. Execute Acceptance work through `specify-runtime run supervise`, preserve the frozen `review target-bind` output and Review target binding, and do not call direct integration from Acceptance.
 
 Resolve exactly one system-reviewed feature and require a trusted
 `review-state.json` with fresh `approved` status and either a passing or

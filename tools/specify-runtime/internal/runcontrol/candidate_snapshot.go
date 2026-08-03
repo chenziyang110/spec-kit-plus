@@ -31,7 +31,7 @@ func SnapshotGitCandidate(
 	if !sameFilesystemPath(workspace.RepoCommonDir, canonical.CommonDir) {
 		return CandidateSnapshot{}, fmt.Errorf("%w: candidate repository common directory changed", ErrCandidateBinding)
 	}
-	if err := validateOwnedWorkspacePath(canonical.PrimaryRoot, workspace.RootPath); err != nil {
+	if err := validateOwnedWorkspacePath(canonical.CommonDir, workspace.RootPath); err != nil {
 		return CandidateSnapshot{}, fmt.Errorf("%w: %v", ErrCandidateBinding, err)
 	}
 	actual, err := ResolveRepository(ctx, workspace.RootPath)

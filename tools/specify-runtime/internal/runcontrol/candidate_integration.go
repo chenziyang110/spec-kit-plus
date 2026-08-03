@@ -444,7 +444,7 @@ func validateCandidateGitBinding(
 		!sameFilesystemPath(workspace.RepoCommonDir, repository.CommonDir) {
 		return fmt.Errorf("%w: candidate no longer matches its sealed workspace", ErrCandidateBinding)
 	}
-	if err := validateOwnedWorkspacePath(repository.PrimaryRoot, workspace.RootPath); err != nil {
+	if err := validateOwnedWorkspacePath(repository.CommonDir, workspace.RootPath); err != nil {
 		return fmt.Errorf("%w: %v", ErrCandidateBinding, err)
 	}
 	privateCommit, exists, err := resolveOptionalGitCommit(ctx, repository.Root, candidate.PrivateRef)

@@ -15,8 +15,8 @@ import (
 )
 
 const (
-	runWorktreeRootDirectory = ".worktrees"
-	runWorktreeNamespace     = "specify-runs"
+	runWorktreeRootDirectory = "specify-runtime"
+	runWorktreeNamespace     = "worktrees/runs"
 )
 
 type WorkspaceMaterializationStatus string
@@ -54,7 +54,7 @@ func PlanGitWorkspace(ctx context.Context, repository Repository, run Run, gener
 		return CreateWorkspaceParams{}, fmt.Errorf("resolve target ref %q: %w", run.TargetRef, err)
 	}
 	identity := plannedWorkspaceIdentity(canonical, run.RunID, generation)
-	if err := validateOwnedWorkspacePath(canonical.PrimaryRoot, identity.rootPath); err != nil {
+	if err := validateOwnedWorkspacePath(canonical.CommonDir, identity.rootPath); err != nil {
 		return CreateWorkspaceParams{}, err
 	}
 	return CreateWorkspaceParams{
@@ -115,10 +115,10 @@ func MaterializeGitWorkspace(ctx context.Context, repository Repository, workspa
 		return WorkspaceMaterialization{}, fmt.Errorf("inspect workspace root %q: %w", workspace.RootPath, statErr)
 	}
 
-	if err := createOwnedWorkspaceParents(canonical.PrimaryRoot, workspace.RootPath); err != nil {
+	if err := createOwnedWorkspaceParents(canonical.CommonDir, workspace.RootPath); err != nil {
 		return WorkspaceMaterialization{}, fmt.Errorf("create workspace parent: %w", err)
 	}
-	if err := validateOwnedWorkspacePath(canonical.PrimaryRoot, workspace.RootPath); err != nil {
+	if err := validateOwnedWorkspacePath(canonical.CommonDir, workspace.RootPath); err != nil {
 		return WorkspaceMaterialization{}, err
 	}
 
@@ -164,7 +164,7 @@ func plannedWorkspaceIdentity(repository Repository, runID string, generation in
 	return workspaceIdentity{
 		workspaceID: "workspace-" + digest[:20] + "-" + generationName,
 		rootPath: filepath.Clean(filepath.Join(
-			repository.PrimaryRoot,
+			repository.CommonDir,
 			runWorktreeRootDirectory,
 			runWorktreeNamespace,
 			token,
@@ -247,7 +247,7 @@ func validateMaterializationBinding(ctx context.Context, repository Repository, 
 	if err != nil || commit != workspace.BaseCommit {
 		return fmt.Errorf("%w: workspace base commit %q is not available in the repository", ErrWorkspaceBinding, workspace.BaseCommit)
 	}
-	return validateOwnedWorkspacePath(repository.PrimaryRoot, workspace.RootPath)
+	return validateOwnedWorkspacePath(repository.CommonDir, workspace.RootPath)
 }
 
 func verifyMaterializedWorkspace(ctx context.Context, repository Repository, workspace Workspace) error {
@@ -272,7 +272,7 @@ func verifyMaterializedWorkspace(ctx context.Context, repository Repository, wor
 	if err != nil || !exists || privateCommit != head {
 		return fmt.Errorf("%w: private ref %q does not match workspace HEAD", ErrWorkspaceConflict, workspace.PrivateRef)
 	}
-	return validateOwnedWorkspacePath(repository.PrimaryRoot, workspace.RootPath)
+	return validateOwnedWorkspacePath(repository.CommonDir, workspace.RootPath)
 }
 
 func materializationResult(workspace Workspace, status WorkspaceMaterializationStatus) WorkspaceMaterialization {
@@ -285,14 +285,14 @@ func materializationResult(workspace Workspace, status WorkspaceMaterializationS
 	}
 }
 
-func validateOwnedWorkspacePath(primaryRoot, candidate string) error {
-	if !filepath.IsAbs(primaryRoot) || !filepath.IsAbs(candidate) {
+func validateOwnedWorkspacePath(commonDir, candidate string) error {
+	if !filepath.IsAbs(commonDir) || !filepath.IsAbs(candidate) {
 		return fmt.Errorf("%w: workspace paths must be absolute", ErrWorkspaceEscape)
 	}
-	ownedRoot := filepath.Join(primaryRoot, runWorktreeRootDirectory, runWorktreeNamespace)
-	resolvedPrimary, err := resolveThroughExistingAncestor(primaryRoot)
+	ownedRoot := filepath.Join(commonDir, runWorktreeRootDirectory, filepath.FromSlash(runWorktreeNamespace))
+	resolvedCommon, err := resolveThroughExistingAncestor(commonDir)
 	if err != nil {
-		return fmt.Errorf("resolve primary worktree root: %w", err)
+		return fmt.Errorf("resolve Git common directory: %w", err)
 	}
 	resolvedOwnedRoot, err := resolveThroughExistingAncestor(ownedRoot)
 	if err != nil {
@@ -302,23 +302,23 @@ func validateOwnedWorkspacePath(primaryRoot, candidate string) error {
 	if err != nil {
 		return fmt.Errorf("resolve workspace path: %w", err)
 	}
-	if !isContainedPath(resolvedPrimary, resolvedOwnedRoot) || !isContainedPath(resolvedOwnedRoot, resolvedCandidate) {
+	if !isContainedPath(resolvedCommon, resolvedOwnedRoot) || !isContainedPath(resolvedOwnedRoot, resolvedCandidate) {
 		return fmt.Errorf("%w: workspace path %q is outside %q", ErrWorkspaceEscape, candidate, ownedRoot)
 	}
 	return nil
 }
 
-func createOwnedWorkspaceParents(primaryRoot, candidate string) error {
-	if err := validateOwnedWorkspacePath(primaryRoot, candidate); err != nil {
+func createOwnedWorkspaceParents(commonDir, candidate string) error {
+	if err := validateOwnedWorkspacePath(commonDir, candidate); err != nil {
 		return err
 	}
 	parent := filepath.Dir(filepath.Clean(candidate))
-	relative, err := filepath.Rel(filepath.Clean(primaryRoot), parent)
+	relative, err := filepath.Rel(filepath.Clean(commonDir), parent)
 	if err != nil || relative == "." || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
-		return fmt.Errorf("%w: workspace parent %q is outside primary root %q", ErrWorkspaceEscape, parent, primaryRoot)
+		return fmt.Errorf("%w: workspace parent %q is outside Git common directory %q", ErrWorkspaceEscape, parent, commonDir)
 	}
-	current := filepath.Clean(primaryRoot)
-	resolvedPrimary, err := resolveThroughExistingAncestor(primaryRoot)
+	current := filepath.Clean(commonDir)
+	resolvedCommon, err := resolveThroughExistingAncestor(commonDir)
 	if err != nil {
 		return err
 	}
@@ -344,11 +344,11 @@ func createOwnedWorkspaceParents(primaryRoot, candidate string) error {
 		if resolveErr != nil {
 			return resolveErr
 		}
-		if !isContainedPath(resolvedPrimary, resolvedCurrent) {
-			return fmt.Errorf("%w: workspace parent component %q escapes primary root", ErrWorkspaceEscape, current)
+		if !isContainedPath(resolvedCommon, resolvedCurrent) {
+			return fmt.Errorf("%w: workspace parent component %q escapes Git common directory", ErrWorkspaceEscape, current)
 		}
 	}
-	return validateOwnedWorkspacePath(primaryRoot, candidate)
+	return validateOwnedWorkspacePath(commonDir, candidate)
 }
 
 func resolveThroughExistingAncestor(path string) (string, error) {

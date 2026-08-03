@@ -14,6 +14,10 @@ scripts:
 
 {{spec-kit-include: ../command-partials/common/agent-phase-handoff.md}}
 
+{{spec-kit-include: ../command-partials/common/run-bootstrap.md}}
+
+[AGENT] `sp-accept` runs only against the candidate binding for the immutable candidate frozen by Review. Execute Acceptance work through `specify-runtime run supervise`, preserve the frozen `review target-bind` output and Review target binding, and do not call direct integration from Acceptance.
+
 ## Main Flow
 
 1. Resolve the exact reviewed feature and require a trusted `implementation-summary.md` plus fresh `review-state.json` with `status: approved`, mandatory scenarios passed or explicitly covered by the immutable human-confirmed hardware waiver ledger, required integrated evidence, no blocking finding, and a matching reviewed fingerprint. Require the Review-to-Accept handoff's `human_acceptance_obligations`, `human_acceptance_scenarios`, `review_exceptions`, non-empty `reviewed_runtime_targets`, and matching digests. Present every waiver's absent resource, affected scope, withheld claims, and residual risk during orientation without relabeling it PASS or blocking this already-confirmed handoff. Transition from `review` to `accept` through the deterministic workflow runtime; it validates Review closeout and stops on exit `10`. Only then prepare or freshness-check `human-acceptance.json` with `{{specify-subcmd:specify-runtime accept prepare --feature-dir <feature-dir> --format json}}`. If Review is absent, failed, blocked, stale, incomplete, or lacks that identity basis, hand back to `{{invoke:review}}` and stop.

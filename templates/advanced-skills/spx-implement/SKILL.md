@@ -7,10 +7,13 @@ description: Lean implementation workflow for advanced coding models. Use for re
 
 Read `references/project-learning.md` and apply its consume-capture policy.
 Read `references/workflow-runtime.md` and let its CLI own phase state.
+Read `references/run-bootstrap.md`.
 Read `references/project-cognition.md`, using cognition intent `implement`.
 Read `references/execution-contract.md`. Read `references/worker-contract.md`
 only when delegating. Read `references/consequence-gate.md` only on its triggers.
 Read `references/ui-quality-gate.md` when any ready task is UI-bearing.
+
+`$spx-implement` continues the same run created for the feature. Confirm the same run with `specify-runtime run show`, then execute implementation work only through `specify-runtime run supervise`.
 
 Resolve the task-bearing feature with the installed
 `.specify/scripts/bash/check-prerequisites.sh --json --require-tasks

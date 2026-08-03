@@ -7,12 +7,15 @@ description: Lean direct-change workflow for advanced coding models. Use for a t
 
 Read `references/project-learning.md` only for its explicit skip/escalation policy.
 Read `references/project-cognition.md`, using cognition intent `implement`.
+Read `references/run-bootstrap.md`.
 Use `references/scope-gate.md` when eligibility is not immediately obvious.
 Read `references/consequence-gate.md` when work can affect lifecycle operations,
 running objects, concurrent work, destructive behavior, shared state, downstream
 consumers, compatibility, security-sensitive behavior, or multiple plausible
 product behaviors.
 Read `references/ui-quality-gate.md` for any user-visible UI change.
+
+`$spx-fast` always starts a new run. Record that new run with `specify-runtime run create`, then execute only through `specify-runtime run supervise`; do not resume another workflow's run.
 
 Use this leader-direct path only when the change is obvious, local, and normally
 touches no more than three files. It must not cross a shared contract, registry,

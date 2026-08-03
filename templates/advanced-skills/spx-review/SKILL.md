@@ -6,11 +6,15 @@ description: Advanced system review and repair workflow. Use after implementatio
 # SPX Review
 
 Read `references/project-learning.md` and apply its consume-capture policy.
-Read `references/workflow-runtime.md` and let its CLI own phase state. Read
+Read `references/workflow-runtime.md` and let its CLI own phase state.
+Read `references/run-bootstrap.md`.
+Read
 `references/project-cognition.md`, using cognition intent `implement`. Read
 `references/review-contract.md`; read `references/worker-contract.md` only when
 delegating. Read `references/ui-quality-gate.md` for UI-bearing scenarios and
 `references/blocker-resolution.md` when a blocked exit becomes possible.
+
+`$spx-review` runs only against the candidate binding for the immutable candidate selected from implementation output. Execute Review work through `specify-runtime run supervise`, and bind frozen delivery targets through `specify-runtime review target-bind`; do not call direct integration from Review.
 
 Resolve exactly one implementation-complete feature. Require a trusted
 `implementation-handoff.json`, current implementation evidence, and the

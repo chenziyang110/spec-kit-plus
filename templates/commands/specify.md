@@ -23,12 +23,15 @@ scripts:
 {{spec-kit-include: ../command-partials/common/senior-consequence-analysis-gate.md}}
 
 {{spec-kit-include: ../command-partials/common/agent-phase-handoff.md}}
+{{spec-kit-include: ../command-partials/common/run-bootstrap.md}}
 
 {{spec-kit-include: ../command-partials/common/planning-cognition.md}}
 
 [AGENT] For project-cognition-backed semantic intake, routing, audit, resume, or final-claim gates, read `references/semantic-work-contract.md`.
 
 {{spec-kit-include: ../command-partials/common/read-only-evidence-lanes.md}}
+
+[AGENT] `sp-specify` starts a new run and establishes the feature run. Record the new run with `specify-runtime run create`, then execute feature creation and later artifact work only through `specify-runtime run supervise`.
 
 ## Main Flow
 

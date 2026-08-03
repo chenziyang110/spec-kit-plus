@@ -15,8 +15,11 @@ scripts:
 {{spec-kit-include: ../command-partials/common/senior-consequence-analysis-gate.md}}
 
 {{spec-kit-include: ../command-partials/common/agent-phase-handoff.md}}
+{{spec-kit-include: ../command-partials/common/run-bootstrap.md}}
 
 [AGENT] For project-cognition-backed semantic intake, routing, audit, resume, or final-claim gates, read `references/semantic-work-contract.md`.
+
+[AGENT] `sp-implement` continues the same run created for the feature. Confirm the same run with `specify-runtime run show`, then execute implementation work only through `specify-runtime run supervise`.
 
 ## Main Flow
 

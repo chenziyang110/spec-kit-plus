@@ -26,12 +26,15 @@ agent_scripts:
 {{spec-kit-include: ../command-partials/common/senior-consequence-analysis-gate.md}}
 
 {{spec-kit-include: ../command-partials/common/agent-phase-handoff.md}}
+{{spec-kit-include: ../command-partials/common/run-bootstrap.md}}
 
 {{spec-kit-include: ../command-partials/common/planning-cognition.md}}
 
 [AGENT] For project-cognition-backed semantic intake, routing, audit, resume, or final-claim gates, read `references/semantic-work-contract.md`.
 
 {{spec-kit-include: ../command-partials/common/adaptive-execution.md}}
+
+[AGENT] `sp-plan` continues the same run created for the feature. Confirm the same run with `specify-runtime run show`, then execute planning work only through `specify-runtime run supervise`.
 
 ## Main Flow
 

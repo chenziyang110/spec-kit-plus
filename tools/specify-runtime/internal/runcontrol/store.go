@@ -115,23 +115,48 @@ func (store *Store) initialize(ctx context.Context) error {
 		return err
 	}
 	if exists && version != schemaVersion {
-		switch version {
-		case 3:
+		if version < 3 || version > schemaVersion {
+			return fmt.Errorf("%w: database has version %d, runtime requires %d", ErrUnsupportedSchema, version, schemaVersion)
+		}
+		if version < 4 {
 			if _, err := transaction.ExecContext(ctx, workspaceAllocationSchemaSQL); err != nil {
 				return fmt.Errorf("migrate run control schema from version 3: %w", err)
 			}
-			fallthrough
-		case 4:
+		}
+		if version < 5 {
 			if _, err := transaction.ExecContext(ctx, candidateIntegrationSchemaSQL); err != nil {
 				return fmt.Errorf("migrate run control schema from version %d: %w", version, err)
 			}
-			if _, err := transaction.ExecContext(ctx, `
-				UPDATE metadata SET value = ? WHERE key = 'schema_version' AND value = ?
-			`, fmt.Sprint(schemaVersion), fmt.Sprint(version)); err != nil {
-				return fmt.Errorf("record migrated run control schema version: %w", err)
+		}
+		if version < 6 {
+			if _, err := transaction.ExecContext(ctx, snapshotSchemaSQL+resourceClaimSchemaSQL); err != nil {
+				return fmt.Errorf("migrate run control schema from version %d: %w", version, err)
 			}
-		default:
-			return fmt.Errorf("%w: database has version %d, runtime requires %d", ErrUnsupportedSchema, version, schemaVersion)
+		}
+		if version < 7 {
+			if _, err := transaction.ExecContext(ctx, runResultSchemaSQL); err != nil {
+				return fmt.Errorf("migrate run control schema from version %d: %w", version, err)
+			}
+		}
+		if version < 8 {
+			if _, err := transaction.ExecContext(ctx, frozenCandidateSchemaSQL); err != nil {
+				return fmt.Errorf("migrate run control schema from version %d: %w", version, err)
+			}
+		}
+		if version < 9 {
+			if _, err := transaction.ExecContext(ctx, candidateDeliverySchemaSQL); err != nil {
+				return fmt.Errorf("migrate run control schema from version %d: %w", version, err)
+			}
+		}
+		if version < 10 {
+			if _, err := transaction.ExecContext(ctx, adapterAttestationSchemaSQL); err != nil {
+				return fmt.Errorf("migrate run control schema from version %d: %w", version, err)
+			}
+		}
+		if _, err := transaction.ExecContext(ctx, `
+			UPDATE metadata SET value = ? WHERE key = 'schema_version' AND value = ?
+		`, fmt.Sprint(schemaVersion), fmt.Sprint(version)); err != nil {
+			return fmt.Errorf("record migrated run control schema version: %w", err)
 		}
 	}
 	if _, err := transaction.ExecContext(ctx, schemaSQL); err != nil {

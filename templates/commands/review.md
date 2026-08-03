@@ -15,8 +15,11 @@ scripts:
 {{spec-kit-include: ../command-partials/common/senior-consequence-analysis-gate.md}}
 
 {{spec-kit-include: ../command-partials/common/agent-phase-handoff.md}}
+{{spec-kit-include: ../command-partials/common/run-bootstrap.md}}
 
 [AGENT] For project-cognition-backed semantic intake, routing, audit, resume, or final-claim gates, read `references/semantic-work-contract.md`.
+
+[AGENT] `sp-review` runs only against the candidate binding for the immutable candidate selected from implementation output. Execute Review work through `specify-runtime run supervise`, and bind frozen delivery targets through `specify-runtime review target-bind`; do not call direct integration from Review.
 
 ## Main Flow
 

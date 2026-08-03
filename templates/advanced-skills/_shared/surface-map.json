@@ -24,6 +24,7 @@
     "_shared/ui-quality-gate.md",
     "_shared/human-confirmation.md",
     "_shared/blocker-resolution.md",
+    "_shared/run-bootstrap.md",
     "_shared/workflow-runtime.md"
   ],
   "classic_companion_skills": [

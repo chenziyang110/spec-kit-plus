@@ -98,7 +98,7 @@ func superviseCandidateResult(
 	supervised, err := SuperviseRun(
 		context.Background(),
 		repository,
-		foregroundTestParams(runID, "write", path, content),
+		foregroundTestParams(runID, "write-exact", path, content),
 	)
 	if err != nil {
 		t.Fatal(err)

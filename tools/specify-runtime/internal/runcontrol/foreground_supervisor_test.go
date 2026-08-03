@@ -229,6 +229,15 @@ func TestForegroundSupervisorHelperProcess(t *testing.T) {
 		os.Exit(90)
 	}
 	switch arguments[0] {
+	case "write-exact":
+		if len(arguments) != 3 {
+			os.Exit(90)
+		}
+		cwd, err := os.Getwd()
+		if err != nil || os.WriteFile(filepath.Join(cwd, arguments[1]), []byte(arguments[2]), 0o644) != nil {
+			os.Exit(89)
+		}
+		os.Exit(0)
 	case "write":
 		if len(arguments) < 2 {
 			os.Exit(91)

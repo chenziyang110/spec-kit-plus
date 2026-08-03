@@ -7,11 +7,13 @@ description: Dependency-aware task-generation workflow for advanced coding model
 
 Read `references/project-learning.md` and apply its consume-capture policy.
 Read `references/workflow-runtime.md` and let its CLI own phase state.
+Read `references/run-bootstrap.md`.
 Read `references/project-cognition.md`, using cognition intent `plan`,
 `references/task-graph-contract.md`, and `references/consequence-gate.md` only
 when the plan carries triggered obligations. Resolve the active feature with the
 installed `.specify/scripts/bash/check-prerequisites.sh --json` or PowerShell
 equivalent; resolve task-generation inputs and keep implementation blocked.
+`$spx-tasks` continues the same run created for the feature. Confirm the same run with `specify-runtime run show`, then execute decomposition work only through `specify-runtime run supervise`.
 Transition from the validated `plan` stage into `tasks` through the
 workflow runtime before creating task artifacts.
 Read `references/ui-quality-gate.md` when the plan carries a UI design contract.

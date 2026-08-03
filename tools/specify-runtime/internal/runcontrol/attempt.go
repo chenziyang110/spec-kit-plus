@@ -460,6 +460,9 @@ func (store *Store) CancelRun(ctx context.Context, runID string, expectedRevisio
 		if err := updateAttemptTerminalTx(ctx, tx, liveAttempt, AttemptRevoked, nowMS); err != nil {
 			return Run{}, err
 		}
+		if err := releaseAttemptResourceClaimsTx(ctx, tx, liveAttempt, reason, nowMS); err != nil {
+			return Run{}, err
+		}
 		if err := updateAttemptExecutionTx(ctx, tx, liveAttempt, ActivityCancelled, WorkspaceQuarantined, nowMS, reason); err != nil {
 			return Run{}, err
 		}
@@ -596,6 +599,9 @@ func (store *Store) interruptMatchingAttemptsTx(
 		run.UpdatedAtMS = nowMS
 
 		if err := updateAttemptTerminalTx(ctx, tx, attempt, terminalStatus, nowMS); err != nil {
+			return nil, err
+		}
+		if err := releaseAttemptResourceClaimsTx(ctx, tx, attempt, reason, nowMS); err != nil {
 			return nil, err
 		}
 		if err := updateAttemptExecutionTx(ctx, tx, attempt, ActivityInterrupted, WorkspaceQuarantined, nowMS, reason); err != nil {
