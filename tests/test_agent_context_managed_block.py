@@ -180,7 +180,9 @@ def _assert_managed_block_is_compact_always_on_context(content: str) -> None:
     assert "do not auto-enter an `sp-*` workflow" in lower
     assert "unless the user invokes it" in lower
     assert "recommend `sp-discussion`" in lower
-    assert "`sp-specify` for an explicitly selected formal spec-first path" in lower
+    assert "presents both `sp-quick` and `sp-specify`" in lower
+    assert "complexity-informed recommendation" in lower
+    assert "user makes the final choice" in lower
     assert "`sp-deep-research` for feasibility proof" in lower
     assert "`sp-debug` for root-cause diagnosis" in lower
     assert "## command surface rules" in lower

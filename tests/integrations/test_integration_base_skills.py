@@ -119,8 +119,9 @@ def _assert_compact_managed_context(content: str) -> None:
     assert "## Workflow Recommendations" in content
     assert "do not auto-enter an `sp-*` workflow" in lower
     assert "recommend `sp-discussion`" in lower
-    assert "`sp-quick` for tracked direct delivery of any size" in lower
-    assert "`sp-specify` for an explicitly selected formal spec-first path" in lower
+    assert "presents both `sp-quick` and `sp-specify`" in lower
+    assert "complexity-informed recommendation" in lower
+    assert "user makes the final choice" in lower
     assert "`sp-deep-research` for feasibility proof" in lower
     assert "`sp-debug` for root-cause diagnosis" in lower
     assert "## Command Surface Rules" in content
@@ -271,6 +272,12 @@ def _assert_discussion_contract(skill_content: str) -> None:
     assert "Agent-Facing Requirement Contract" in skill_content
     assert "consumer_eligibility" in skill_content
     assert "recommended_consumer" in skill_content
+    assert "present both paths and their eligibility" in skill_lower
+    assert "explain any blocker" in skill_lower
+    assert "complexity-informed recommendation" in skill_lower
+    assert "user owns the final consumer choice" in skill_lower
+    assert "do not call" in skill_lower and "write-handoff" in skill_lower
+    assert "records that confirmed selection" in skill_lower
     assert "planning_constraints" in skill_content
     assert "quick_task_candidate" not in skill_content
     assert "do not describe current execution or implementation progress" in skill_lower

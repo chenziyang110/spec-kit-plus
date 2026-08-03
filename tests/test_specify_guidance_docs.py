@@ -112,6 +112,22 @@ def test_quickstart_keeps_large_direct_delivery_in_quick() -> None:
     assert "upgrade to `specify` when the request spans multiple independent capabilities" not in quickstart
 
 
+def test_discussion_docs_present_both_paths_and_leave_the_choice_to_the_user() -> None:
+    for rel_path in (
+        "README.md",
+        "PROJECT-HANDBOOK.md",
+        "docs/quickstart.md",
+        "docs/installation.md",
+        "templates/project-handbook-template.md",
+    ):
+        content = _read(rel_path).lower()
+        assert "both paths and their eligibility" in content or "both routes and their eligibility" in content
+        assert "explain" in content and "blocker" in content
+        assert "complexity-informed recommendation" in content or "recommends one from delivery complexity" in content
+        assert "user" in content and "final choice" in content
+        assert "task size alone is not a hard routing ceiling" in content or "size alone is not a hard routing ceiling" in content
+
+
 def _assert_doc_teaches_user_confirmed_product_scope(rel_path: str) -> None:
     lowered = _read(rel_path).lower()
 

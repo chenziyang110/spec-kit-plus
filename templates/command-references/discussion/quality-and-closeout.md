@@ -17,9 +17,11 @@ consumer eligibility, persistence mode, and confirmation as orthogonal fields:
 3. `decide`: map adjacent decisions, compare only materially distinct options,
    recommend the best direction, and record confirmed or rejected choices.
 4. `prepare`: when explicit handoff is requested, decide `ready-for-contract` or
-   `continue-discussion`. If ready, assemble one canonical JSON payload from the
-   selected scope.
-5. `review`: validate exact schema/source-contract integrity, Must-Preserve and
+   `continue-discussion`. If ready, present both paths and their eligibility with
+   a complexity-informed recommendation among eligible paths and obtain the user's final consumer
+   choice before assembling one canonical JSON payload from the selected scope.
+5. `review`: validate exact schema/source-contract integrity, the user-selected
+   consumer recorded by `recommended_consumer`, Must-Preserve and
    consequence coverage, zero hard blockers/conflicts, evidence provenance,
    reviewer guidance, and the stable review digest. Ask the human to approve
    the meaning of that digest, not machine bookkeeping.

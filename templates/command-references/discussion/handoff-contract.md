@@ -2,11 +2,13 @@ Trigger: after an explicit user handoff request and a locked context boundary.
 
 Purpose: write one minimum-sufficient agent requirement contract that preserves product intent, evidence, obligations, and downstream recovery without human-oriented duplication.
 
-Preserved Contract: the handoff is user-confirmed, consumer-neutral, schema-validated, and owned by `sp-discussion` until ready.
+Preserved Contract: requirements stay consumer-neutral, while the route is user-selected, schema-validated, and owned by `sp-discussion` until ready.
 
 ## Agent-Facing Requirement Contract
 
 Build only the compact semantic handoff input in memory—target, scope, constraints, success criteria, evidence, boundary, unknowns, downstream obligations, consumer eligibility, and decision digest—and submit it with `{{specify-subcmd:specify-runtime discussion write-handoff <slug> --input-json '<semantic-json>' --json}}`. The CLI expands `templates/discussion-handoff-template.json`, supplies stable metadata and blocked defaults, computes the review digest, and atomically writes the canonical contract. Never read or reproduce the template and never create a draft file. The canonical result is `.specify/discussions/<slug>/handoff-to-specify.json`; the filename is compatibility-only, and the payload is one `discussion_requirement_contract` that may select `sp-specify` or `sp-quick`.
+
+Before that write, present both paths and their eligibility, explain any blocker, give a complexity-informed recommendation among eligible paths, and obtain the user's final consumer choice. `recommended_consumer` records that confirmed selection, even when it differs from the recommendation. Do not create a draft with an unresolved route; the digest review reconfirms the selected consumer as protected meaning.
 
 Do not write a Markdown companion, consumer-specific copy, reviewer guide, transcript, or pointer-only substitute. Human review is a visible response generated from the canonical JSON and bound to its `review_digest`.
 

@@ -344,6 +344,49 @@ func TestDiscussionHandoffAcceptsInlineJSONWithoutDraftFile(t *testing.T) {
 	}
 }
 
+func TestDiscussionHandoffAllowsBothEligibleConsumersAndLocksSelectedConsumer(t *testing.T) {
+	for _, selected := range []string{"sp-quick", "sp-specify"} {
+		t.Run(selected, func(t *testing.T) {
+			root := t.TempDir()
+			installScaffoldTemplate(t, root, "discussion-handoff-template.json")
+			env := runScriptDomainEnvelope(t, runDiscussion, []string{"--project-root", root, "init", "User Route Choice", "Choose the downstream route"})
+			if env.Status != "ok" {
+				t.Fatalf("init status = %s, blockers=%v", env.Status, env.Blockers)
+			}
+			slug := env.Data["slug"].(string)
+
+			handoff := discussionHandoffFixture()
+			handoff["consumer_eligibility"] = map[string]any{
+				"sp-specify": map[string]any{"status": "ready"},
+				"sp-quick":   map[string]any{"status": "ready"},
+			}
+			handoff["recommended_consumer"] = selected
+			raw, err := json.Marshal(handoff)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			env = runScriptDomainEnvelope(t, runDiscussion, []string{"--project-root", root, "write-handoff", slug, "--input-json", string(raw)})
+			if env.Status != "ok" {
+				t.Fatalf("write-handoff status = %s, blockers=%v", env.Status, env.Blockers)
+			}
+			digest := env.Data["review_digest"].(string)
+			env = runScriptDomainEnvelope(t, runDiscussion, []string{"--project-root", root, "confirm-handoff", slug, "--digest", digest})
+			if env.Status != "ok" {
+				t.Fatalf("confirm status = %s, blockers=%v", env.Status, env.Blockers)
+			}
+			env = runScriptDomainEnvelope(t, runDiscussion, []string{"--project-root", root, "mark-ready", slug})
+			if env.Status != "ok" {
+				t.Fatalf("mark-ready status = %s, blockers=%v", env.Status, env.Blockers)
+			}
+			discussion := env.Data["discussion"].(map[string]any)
+			if discussion["next_command"] != selected {
+				t.Fatalf("selected consumer was not locked: %#v", discussion)
+			}
+		})
+	}
+}
+
 func TestDiscussionBindConsumerWritesDerivedFeaturePointerAndEnablesConsumption(t *testing.T) {
 	root := t.TempDir()
 	installScaffoldTemplate(t, root, "discussion-handoff-template.json")

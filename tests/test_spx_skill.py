@@ -284,8 +284,14 @@ def test_spx_skills_keep_runtime_reuse_and_safety_boundaries() -> None:
     assert "discussion mark-ready" in skills["spx-discussion"]
     assert "discussion confirm-handoff" in skills["spx-discussion"]
     assert "do not create feature state" in skills["spx-discussion"]
-    assert "canonical `sp-quick` for direct delivery of any size" in skills["spx-discussion"]
-    assert "only when the user explicitly selects a formal spec-first path" in skills["spx-discussion"]
+    discussion_lower = skills["spx-discussion"].lower()
+    discussion_compact = " ".join(discussion_lower.split())
+    assert "present both routes and their eligibility" in discussion_compact
+    assert "complexity-informed recommendation" in discussion_compact
+    assert "user owns the final consumer choice" in discussion_compact
+    assert "do not write the handoff until the user has selected" in discussion_compact
+    assert "ask one route-choice question and stay in this discussion" in discussion_compact
+    assert "record that confirmed selection" in discussion_compact
 
     assert "remain read-only" in skills["spx-explain"]
     assert "what the artifact\nclaims" in skills["spx-explain"]
@@ -882,6 +888,118 @@ def test_advanced_local_references_use_the_project_pinned_launcher(tmp_path) -> 
     assert runtime_command in normalized_cognition
     assert TEST_SPECIFY_COMMAND not in execution + teams + cognition
     assert "{{specify-subcmd:" not in execution + teams + cognition
+
+
+@pytest.mark.parametrize("profile", ("classic", "advanced"))
+def test_codex_skill_frontmatter_is_not_rewritten_by_project_launcher(
+    tmp_path,
+    profile: str,
+) -> None:
+    integration = get_integration("codex")
+    project = tmp_path / profile
+    runtime_source = tmp_path / f"{profile}-specify-runtime.exe"
+    runtime_source.write_bytes(b"runtime fixture")
+    write_runtime_launcher_config(project, runtime_source)
+    manifest = IntegrationManifest("codex", project)
+
+    integration.setup(
+        project,
+        manifest,
+        parsed_options={"workflow_profile": profile},
+        script_type="ps",
+    )
+
+    generated_bodies: list[str] = []
+    skill_files = sorted(integration.skills_dest(project).glob("*/SKILL.md"))
+    assert skill_files
+    for skill_file in skill_files:
+        content = skill_file.read_text(encoding="utf-8")
+        frontmatter_text, body = integration._split_frontmatter(content)
+        frontmatter = yaml.safe_load(frontmatter_text)
+        source_path = PROJECT_ROOT / frontmatter["metadata"]["source"]
+        source_text = source_path.read_text(encoding="utf-8")
+        source_frontmatter_text, _ = integration._split_frontmatter(source_text)
+        source_frontmatter = yaml.safe_load(source_frontmatter_text)
+
+        assert " ".join(frontmatter["description"].split()) == " ".join(
+            source_frontmatter["description"].split()
+        ), skill_file
+        assert project_runtime_launcher_arg() not in frontmatter_text, skill_file
+        generated_bodies.append(body)
+
+    assert project_runtime_launcher_arg() in "\n".join(generated_bodies)
+    assert not any(
+        issue["code"] == "unbound-generated-specify-runtime-launcher"
+        for issue in diagnose_project_runtime_compatibility(project)
+    )
+
+
+def test_codex_runtime_repair_rebinds_only_skill_bodies(tmp_path) -> None:
+    integration = get_integration("codex")
+    project = tmp_path / "project"
+    manifest = IntegrationManifest("codex", project)
+    integration.setup(
+        project,
+        manifest,
+        parsed_options={"workflow_profile": "classic"},
+        script_type="ps",
+    )
+    skill_files = sorted(integration.skills_dest(project).glob("*/SKILL.md"))
+    original_frontmatter = {
+        skill_file: integration._split_frontmatter(
+            skill_file.read_text(encoding="utf-8")
+        )[0]
+        for skill_file in skill_files
+    }
+
+    runtime_source = tmp_path / "specify-runtime.exe"
+    runtime_source.write_bytes(b"runtime fixture")
+    write_runtime_launcher_config(project, runtime_source)
+    integration.rebind_unavailable_specify_runtime_commands(project, manifest)
+
+    generated_bodies: list[str] = []
+    for skill_file in skill_files:
+        content = skill_file.read_text(encoding="utf-8")
+        frontmatter_text, body = integration._split_frontmatter(content)
+        yaml.safe_load(frontmatter_text)
+        assert frontmatter_text == original_frontmatter[skill_file]
+        generated_bodies.append(body)
+
+    assert project_runtime_launcher_arg() in "\n".join(generated_bodies)
+
+
+def test_codex_runtime_repair_restores_legacy_rewritten_frontmatter(tmp_path) -> None:
+    integration = get_integration("codex")
+    project = tmp_path / "project"
+    runtime_source = tmp_path / "specify-runtime.exe"
+    runtime_source.write_bytes(b"runtime fixture")
+    write_runtime_launcher_config(project, runtime_source)
+    manifest = IntegrationManifest("codex", project)
+    integration.setup(
+        project,
+        manifest,
+        parsed_options={"workflow_profile": "classic"},
+        script_type="ps",
+    )
+    skill_file = integration.skills_dest(project) / "sp-accept" / "SKILL.md"
+    content = skill_file.read_text(encoding="utf-8")
+    _, body = integration._split_frontmatter(content)
+    body_start = len(content) - len(body)
+    legacy_content = content[:body_start].replace(
+        "specify-runtime accept",
+        f"{project_runtime_launcher_arg()} accept",
+    ) + body
+    skill_file.write_text(legacy_content, encoding="utf-8")
+    manifest.record_existing(skill_file.relative_to(project))
+
+    integration.rebind_unavailable_specify_runtime_commands(project, manifest)
+
+    repaired = skill_file.read_text(encoding="utf-8")
+    frontmatter_text, repaired_body = integration._split_frontmatter(repaired)
+    frontmatter = yaml.safe_load(frontmatter_text)
+    assert "specify-runtime accept" in frontmatter["description"]
+    assert project_runtime_launcher_arg() not in frontmatter_text
+    assert project_runtime_launcher_arg() in repaired_body
 
 
 def _fresh_codex_init(monkeypatch, tmp_path, profile: str):

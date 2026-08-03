@@ -1112,8 +1112,9 @@ def _assert_managed_block_v2_contract(block: str) -> None:
     assert "do not auto-enter an `sp-*` workflow" in lowered
     assert "unless the user invokes it" in lowered
     assert "recommend `sp-discussion`" in lowered
-    assert "`sp-quick` for tracked direct delivery of any size" in lowered
-    assert "`sp-specify` for an explicitly selected formal spec-first path" in lowered
+    assert "presents both `sp-quick` and `sp-specify`" in lowered
+    assert "complexity-informed recommendation" in lowered
+    assert "user makes the final choice" in lowered
     assert "`sp-deep-research` for feasibility proof" in lowered
     assert "`sp-debug` for root-cause diagnosis" in lowered
 
@@ -1361,6 +1362,11 @@ def test_discussion_command_contract_is_pre_spec_and_resumable() -> None:
     assert "do not automatically invoke or route" in lowered
     assert "explicit user" in lowered
     assert "{{spec-kit-include: ../command-partials/discussion/shell.md}}" in content
+    assert "present both paths and their eligibility" in lowered
+    assert "delivery complexity and consequence profile" in lowered
+    assert "user owns the final consumer choice" in lowered
+    assert "do not call" in lowered and "write-handoff" in lowered
+    assert "records that confirmed selection" in lowered
     _assert_discussion_advisor_upgrade_contract(content)
 
 
@@ -1526,7 +1532,7 @@ def test_discussion_reply_contract_is_adaptive_and_high_throughput() -> None:
         "first-pass content",
         "handoff assessment preview",
         "decision requested",
-        "recommended route",
+        "user-selected route",
         "scope to approve",
         "Excluded Scope",
         "readiness checks",
@@ -1702,7 +1708,7 @@ def test_discussion_handoff_user_review_uses_draft_review_card() -> None:
     assert "review | ready" in state
     for required_content in (
         "decision requested",
-        "recommended route",
+        "user-selected route",
         "scope to approve",
         "excluded scope",
         "readiness checks",
@@ -2172,9 +2178,13 @@ def test_workflow_routing_discussion_selects_quick_or_specify_for_rough_ideas() 
     assert "exactly one unconsumed `handoff-ready` discussion" in content
     assert "before feature creation" in lowered
     assert "`recommended_consumer`" in content
-    assert "`sp-quick` for direct delivery of any size" in lowered
-    assert "`sp-specify` when the user selected a formal spec-first path" in lowered
-    assert "choose the consumer from the user's delivery intent, not task size" in lowered
+    assert "present both paths and their eligibility" in lowered
+    assert "explain any blocker" in lowered
+    assert "complexity-informed recommendation" in lowered
+    assert "user's final choice" in lowered
+    assert "recommend `sp-quick` for bounded" in lowered
+    assert "recommend `sp-specify` for high-complexity" in lowered
+    assert "task size alone is not a hard routing ceiling" in lowered
 
 
 def test_project_cognition_gate_has_staged_discussion_gate() -> None:

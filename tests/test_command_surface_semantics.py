@@ -858,10 +858,9 @@ def test_update_agent_context_managed_block_uses_refresh_or_dirty_binary_and_mem
         assert ".specify/memory/learnings/index.md" not in content
         assert "do not auto-enter an `sp-*` workflow" in content
         assert "recommend `sp-discussion`" in content
-        assert "`sp-quick` for tracked direct delivery of any size" in content
-        assert (
-            "`sp-specify` for an explicitly selected formal spec-first path" in content
-        )
+        assert "presents both `sp-quick` and `sp-specify`" in content
+        assert "complexity-informed recommendation" in content
+        assert "user makes the final choice" in content
         assert "`sp-deep-research` for feasibility proof" in content
         assert "`sp-debug` for root-cause diagnosis" in content
         assert "generated create-feature script" in content

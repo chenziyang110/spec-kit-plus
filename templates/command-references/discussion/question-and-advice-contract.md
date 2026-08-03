@@ -166,8 +166,8 @@ When a lifecycle state needs specialized content, adapt the same contract:
 - Technical options compare 2-3 requirement-level paths with recommendation, evidence status, trade-offs, verification expectations, data-safety constraints, stop-and-reopen conditions, and scope-adjustment path when relevant.
 - Readiness summary covers the locked direction, why the topic is not yet ready for handoff or downstream execution, blocked decisions, evidence gaps, planning inputs to preserve, the next safe discussion action, and override path.
 - UI interaction discussion covers the user journey, screen or component responsibilities, states, accessibility, responsive behavior, and copy expectations that affect the requirement.
-- Pre-handoff readiness covers the likely verdict, proposed handoff goal, recommended consumer, package scope, excluded scope, readiness checks, default next action, and override path without creating a separate assessment artifact.
-- Draft handoff review covers the decision requested, recommended route, scope to approve, excluded scope, readiness checks, package paths, and allowed approval or change-request responses without becoming a path receipt.
+- Pre-handoff readiness covers the likely verdict, proposed handoff goal, both paths and their eligibility, the complexity-informed recommendation among eligible paths, package scope, excluded scope, readiness checks, and the single user-owned route choice without creating a separate assessment artifact.
+- Draft handoff review covers the decision requested, selected route, scope to approve, excluded scope, readiness checks, package paths, and allowed approval or change-request responses without becoming a path receipt.
 - Handoff-ready closeout covers the handoff goal, selected direction, target boundary, Must-Preserve coverage, hard unknown and conflict counts, quality gate state, source-contract integrity, and exact downstream consumption path.
 - Blocked or evidence-conflict replies state the blocker, the smallest useful partial draft/checklist/evidence plan, and the user-owned decision or external condition required to continue.
 
@@ -209,8 +209,8 @@ Forbidden next-step wording before `handoff-ready`: do not tell the user their n
 
 - Continue by default when a safe default exists.
 - Do not ask for continuation, permission to proceed, or agreement with the recommendation.
-- Digest-bound handoff approval is not routine permission. Present the complete review and ask once for confirmation of that named revision and consumer choice; never replace this required gate by telling the user to invoke `sp-quick` or `sp-specify`.
-- Do not ask for option selection when one option is clearly recommended and reversible.
+- Consumer selection and digest approval are distinct user-owned gates. Before writing a draft, present both paths and their eligibility, make a complexity-informed recommendation among eligible paths, and ask once for the user's final route choice. After writing, present the complete digest review and ask once for confirmation of that named revision and its selected consumer; never replace either gate by telling the user to invoke `sp-quick` or `sp-specify`.
+- Do not ask for option selection when one option is clearly recommended and reversible, except for the downstream consumer choice because it determines the durable workflow and must not be silently defaulted.
 - Ask only when user judgment is genuinely required and no safe default exists.
 - When recommending, include enough concrete content for the user to judge the recommendation without another round trip.
 - Prefer "I will default to X; if you want Y, say so" over "Do you approve X?"

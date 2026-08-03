@@ -37,13 +37,23 @@ topical acknowledgements and follow-ups continue this stage without requiring
 the user to repeat `$spx-discussion`. A contextual confirmation such as `yes`,
 `ok`, or `可以` authorizes handoff only when it directly answers a named handoff
 action, and authorizes readiness only when it confirms the displayed digest.
-Choose `recommended_consumer` from delivery intent, never task size:
-canonical `sp-quick` for direct delivery of any size, and canonical `sp-specify`
-only when the user explicitly selects a formal spec-first path; expose those as
-`$spx-quick` and `$spx-specify` invocations after readiness. Include an
-unconfirmed consumer choice in the protected digest review as a user-owned
-decision.
-Then build only one compact semantic contract input and submit it with
+At the handoff routing gate, present both routes and their eligibility: canonical
+`sp-quick` for direct execution with task-local planning and canonical
+`sp-specify` for the formal specification-first pipeline; explain any blocker
+and expose the selected route later as `$spx-quick` or `$spx-specify`. Give a
+complexity-informed recommendation among eligible routes: favor Quick for
+bounded, well-understood work with stable requirements and limited
+cross-boundary risk; favor Specify for high ambiguity or complexity, interacting
+capabilities or systems, architecture/data migration/security/compliance/rollout
+concerns, broad acceptance obligations, or durable traceability needs. Task size
+alone is not a hard routing ceiling. The user owns the final consumer choice and
+may choose either eligible route against the recommendation. Do not write the
+handoff until the user has selected an eligible consumer. If no explicit choice
+exists, ask one route-choice question and stay in this discussion. A contextual
+`yes`, `ok`, or `可以` selects the recommendation only when it directly answers
+that named route-choice question; it does not approve the later digest.
+Then set `recommended_consumer` to record that confirmed selection, build only
+one compact semantic contract input, and submit it with
 `{{specify-subcmd:specify-runtime discussion write-handoff <slug> --input-json '<semantic-json>' --json}}`.
 The runtime expands the installed stable template, binds metadata and blocked
 defaults, and computes the review digest. Never read or reproduce the template
@@ -59,9 +69,8 @@ and `recommended_consumer`; withhold the downstream invocation unless status is
 `handoff-ready` and the named workflow is the selected consumer.
 
 Do not create feature state, a spec, plan, tasks, or production changes. A ready
-handoff continues through its confirmed consumer: `$spx-quick` for direct
-delivery of any size or `$spx-specify` for a user-selected formal spec-first
-path. Mark it consumed only after that consumer writes evidence binding
+handoff continues only through its user-selected consumer, regardless of which
+route the agent recommended. Mark it consumed only after that consumer writes evidence binding
 `source_contract` and `review_digest` into its Quick or feature workspace. This
 invocation authorizes only this workflow stage; do not invoke another workflow
 in this run.

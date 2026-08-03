@@ -160,7 +160,7 @@ render_speckit_managed_block() {
 ## Workflow Recommendations
 
 - Do not auto-enter an `sp-*` workflow unless the user invokes it. Continuing an already-invoked incomplete workflow is not auto-entry.
-- Recommend `sp-discussion` for open-ended requirement exploration, `sp-quick` for tracked direct delivery of any size, `sp-specify` for an explicitly selected formal spec-first path, `sp-deep-research` for feasibility proof, and `sp-debug` for root-cause diagnosis.
+- Recommend `sp-discussion` for open-ended requirement exploration. Its handoff presents both `sp-quick` and `sp-specify` with their eligibility, explains any blocker, gives a complexity-informed recommendation among eligible paths, and the user makes the final choice. Use `sp-deep-research` for feasibility proof and `sp-debug` for root-cause diagnosis.
 - If the user invokes an `sp-*` workflow, follow that workflow's own contract.
 - When a topical follow-up, acknowledgement, or contextual confirmation continues an active discussion, resume `sp-discussion` from durable state even when the user does not repeat the workflow name.
 - Before recommending `sp-quick` or `sp-specify` from a discussion, run `{{specify-runtime-cli}} discussion status <slug> --format json` and consume its status and `recommended_consumer`. If it is not `handoff-ready` or the consumer does not match, resume `sp-discussion` assessment, draft review, or repair; only a ready confirmed route may continue downstream.

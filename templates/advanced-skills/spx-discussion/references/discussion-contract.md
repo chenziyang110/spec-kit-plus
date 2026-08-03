@@ -17,6 +17,15 @@ blocking contradictions are resolved or retained, and every material decision
 can become a requirement or constraint. Validation success is necessary but
 does not replace agent self-review or user confirmation.
 
+At handoff routing, show both consumers with their eligibility, explain any
+blocker, and recommend one eligible consumer from delivery complexity and
+consequence profile rather than raw size alone. The user makes the final choice.
+If no explicit choice exists, ask one route-choice question, remain in
+`spx-discussion`, and do not call `discussion write-handoff`. Keep the route
+unresolved until that choice is explicit, then store the selected consumer in
+`recommended_consumer`; the protected digest reconfirms it with the rest of the
+handoff meaning.
+
 If the conversation changes after a handoff draft, invalidate the draft rather
 than editing around its protected revision. Closing and archiving are separate
 explicit actions; neither proves the handoff was consumed.

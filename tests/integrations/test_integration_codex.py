@@ -791,6 +791,11 @@ class TestCodexAutoPromote:
         assert "Agent-Facing Requirement Contract" in generated_discussion
         assert "consumer_eligibility" in generated_discussion
         assert "recommended_consumer" in generated_discussion
+        assert "present both paths and their eligibility" in generated_lower
+        assert "explain any blocker" in generated_lower
+        assert "complexity-informed recommendation" in generated_lower
+        assert "user owns the final consumer choice" in generated_lower
+        assert "records that confirmed selection" in generated_lower
         assert "planning_constraints" in generated_discussion
         assert "quick_task_candidate" not in generated_discussion
         assert "do not describe current execution or implementation progress" in generated_lower
