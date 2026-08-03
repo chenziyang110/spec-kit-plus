@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 )
@@ -43,7 +44,7 @@ func TestForegroundSupervisorPublishesImmutableCandidateSnapshot(t *testing.T) {
 	if got := runGit(t, ensureGitAvailable(t), supervised.Workspace.RootPath, "rev-parse", "HEAD"); got != candidate.HeadCommit {
 		t.Fatalf("workspace HEAD = %q, want candidate head %q", got, candidate.HeadCommit)
 	}
-	if got := runGit(t, ensureGitAvailable(t), supervised.Workspace.RootPath, "status", "--porcelain", "--untracked-files=all"); got != "" {
+	if got, statusErr := runGitStdout(context.Background(), supervised.Workspace.RootPath, "status", "--porcelain", "--untracked-files=all"); statusErr != nil || got != "" {
 		t.Fatalf("published candidate workspace is not clean: %q", got)
 	}
 	if _, err := os.Stat(filepath.Join(mainRoot, "candidate.txt")); !errors.Is(err, os.ErrNotExist) {
@@ -140,12 +141,12 @@ func TestIntegrateNextSerializesParallelCandidatesOnTargetRef(t *testing.T) {
 			t.Fatalf("integrated file %s is unavailable: %v", name, err)
 		}
 	}
-	if got := runGit(t, gitPath, mainRoot, "status", "--porcelain", "--untracked-files=no"); got != "" {
+	if got, statusErr := runGitStdout(context.Background(), mainRoot, "status", "--porcelain", "--untracked-files=no"); statusErr != nil || got != "" {
 		t.Fatalf("target worktree is dirty after serialized integration: %q", got)
 	}
 }
 
-func TestIntegrateNextRecordsConflictWithoutPollutingTargetWorktree(t *testing.T) {
+func TestIntegrateNextIsolatesConflict(t *testing.T) {
 	t.Setenv(foregroundHelperEnvironment, "1")
 	mainRoot, _ := createLinkedRepository(t)
 	repository, err := ResolveRepository(context.Background(), mainRoot)
@@ -156,7 +157,7 @@ func TestIntegrateNextRecordsConflictWithoutPollutingTargetWorktree(t *testing.T
 
 	candidates := make([]Candidate, 0, 2)
 	for _, change := range []string{"first", "second"} {
-		runID := "conflicting_candidate_" + change
+		runID := "conflict_" + change
 		enqueueForegroundTestRun(t, repository, runID)
 		supervised, superviseErr := SuperviseRun(
 			context.Background(),
@@ -188,14 +189,18 @@ func TestIntegrateNextRecordsConflictWithoutPollutingTargetWorktree(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
-	if string(content) != "first" {
+	if !strings.HasSuffix(string(content), "\nfirst") || strings.Contains(string(content), "\nsecond") {
 		t.Fatalf("target content = %q, want first integrated candidate", content)
 	}
-	if got := runGit(t, gitPath, mainRoot, "status", "--porcelain", "--untracked-files=no"); got != "" {
+	if got, statusErr := runGitStdout(context.Background(), mainRoot, "status", "--porcelain", "--untracked-files=no"); statusErr != nil || got != "" {
 		t.Fatalf("target worktree retained conflict state: %q", got)
 	}
-	if got := runGit(t, gitPath, mainRoot, "rev-parse", "--verify", "-q", "MERGE_HEAD"); got != "" {
-		t.Fatalf("target worktree retained MERGE_HEAD %q", got)
+	mergeHeadPath := runGit(t, gitPath, mainRoot, "rev-parse", "--git-path", "MERGE_HEAD")
+	if !filepath.IsAbs(mergeHeadPath) {
+		mergeHeadPath = filepath.Join(mainRoot, mergeHeadPath)
+	}
+	if _, statErr := os.Stat(mergeHeadPath); !errors.Is(statErr, os.ErrNotExist) {
+		t.Fatalf("target worktree retained MERGE_HEAD: %v", statErr)
 	}
 }
 

@@ -1,6 +1,6 @@
 package runcontrol
 
-const schemaVersion = 4
+const schemaVersion = 5
 
 const workspaceAllocationSchemaSQL = `
 CREATE TABLE IF NOT EXISTS workspace_allocations (
@@ -29,6 +29,67 @@ CREATE TABLE IF NOT EXISTS workspace_allocations (
 
 CREATE INDEX IF NOT EXISTS workspace_allocations_recovery
     ON workspace_allocations(owner_epoch, status, run_id);
+`
+
+const candidateIntegrationSchemaSQL = `
+CREATE TABLE IF NOT EXISTS candidates (
+    candidate_id TEXT PRIMARY KEY,
+    run_id TEXT NOT NULL UNIQUE REFERENCES runs(run_id) ON DELETE RESTRICT,
+    attempt_id TEXT NOT NULL UNIQUE REFERENCES attempts(attempt_id) ON DELETE RESTRICT,
+    activity_id TEXT NOT NULL REFERENCES activities(activity_id) ON DELETE RESTRICT,
+    workspace_id TEXT NOT NULL UNIQUE REFERENCES workspaces(workspace_id) ON DELETE RESTRICT,
+    workspace_generation INTEGER NOT NULL CHECK (workspace_generation > 0),
+    target_ref TEXT NOT NULL,
+    base_commit TEXT NOT NULL,
+    private_ref TEXT NOT NULL UNIQUE,
+    head_commit TEXT NOT NULL,
+    status TEXT NOT NULL CHECK (
+        status IN ('queued', 'integrating', 'integrated', 'conflicted')
+    ),
+    revision INTEGER NOT NULL CHECK (revision >= 1),
+    created_at_ms INTEGER NOT NULL,
+    updated_at_ms INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS candidates_target_queue
+    ON candidates(target_ref, status, created_at_ms, candidate_id);
+
+CREATE TABLE IF NOT EXISTS candidate_integrations (
+    integration_id TEXT PRIMARY KEY,
+    candidate_id TEXT NOT NULL REFERENCES candidates(candidate_id) ON DELETE RESTRICT,
+    target_ref TEXT NOT NULL,
+    owner_epoch TEXT NOT NULL REFERENCES supervisor_instances(owner_epoch) ON DELETE RESTRICT,
+    status TEXT NOT NULL CHECK (
+        status IN ('prepared', 'executing', 'succeeded', 'conflicted', 'failed', 'outcome_unknown')
+    ),
+    target_before TEXT NOT NULL DEFAULT '',
+    target_after TEXT NOT NULL DEFAULT '',
+    reason TEXT NOT NULL DEFAULT '',
+    revision INTEGER NOT NULL CHECK (revision >= 1),
+    created_at_ms INTEGER NOT NULL,
+    updated_at_ms INTEGER NOT NULL
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS candidate_integrations_one_live_per_target
+    ON candidate_integrations(target_ref)
+    WHERE status IN ('prepared', 'executing', 'outcome_unknown');
+
+CREATE UNIQUE INDEX IF NOT EXISTS candidate_integrations_one_live_per_candidate
+    ON candidate_integrations(candidate_id)
+    WHERE status IN ('prepared', 'executing', 'outcome_unknown');
+
+CREATE TABLE IF NOT EXISTS results (
+    result_id TEXT PRIMARY KEY,
+    integration_id TEXT NOT NULL UNIQUE REFERENCES candidate_integrations(integration_id) ON DELETE RESTRICT,
+    candidate_id TEXT NOT NULL UNIQUE REFERENCES candidates(candidate_id) ON DELETE RESTRICT,
+    run_id TEXT NOT NULL REFERENCES runs(run_id) ON DELETE RESTRICT,
+    target_ref TEXT NOT NULL,
+    target_before TEXT NOT NULL,
+    target_after TEXT NOT NULL,
+    status TEXT NOT NULL CHECK (status IN ('integrated', 'conflicted')),
+    reason TEXT NOT NULL DEFAULT '',
+    created_at_ms INTEGER NOT NULL
+);
 `
 
 const schemaSQL = `
@@ -175,6 +236,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS operations_one_live_attempt_launch
     ON operations(attempt_id)
     WHERE kind = 'attempt.launch'
       AND status IN ('prepared', 'executing', 'succeeded', 'outcome_unknown');
+
+` + candidateIntegrationSchemaSQL + `
 
 CREATE TABLE IF NOT EXISTS events (
     event_id INTEGER PRIMARY KEY AUTOINCREMENT,

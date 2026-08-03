@@ -45,7 +45,11 @@ func PlanGitWorkspace(ctx context.Context, repository Repository, run Run, gener
 	if err != nil {
 		return CreateWorkspaceParams{}, err
 	}
-	baseCommit, err := resolveGitCommit(ctx, canonical.Root, run.TargetRef)
+	baseRef, err := resolveMutableTargetRef(ctx, canonical.PrimaryRoot, run.TargetRef)
+	if err != nil {
+		return CreateWorkspaceParams{}, fmt.Errorf("resolve mutable target ref %q: %w", run.TargetRef, err)
+	}
+	baseCommit, err := resolveGitCommit(ctx, canonical.PrimaryRoot, baseRef)
 	if err != nil {
 		return CreateWorkspaceParams{}, fmt.Errorf("resolve target ref %q: %w", run.TargetRef, err)
 	}
@@ -60,10 +64,22 @@ func PlanGitWorkspace(ctx context.Context, repository Repository, run Run, gener
 		Kind:          "git_worktree",
 		RootPath:      identity.rootPath,
 		RepoCommonDir: canonical.CommonDir,
-		BaseRef:       run.TargetRef,
+		BaseRef:       baseRef,
 		BaseCommit:    baseCommit,
 		PrivateRef:    identity.privateRef,
 	}, nil
+}
+
+func resolveMutableTargetRef(ctx context.Context, directory, revision string) (string, error) {
+	value, err := runGitOutput(ctx, directory, "rev-parse", "--symbolic-full-name", "--verify", revision)
+	if err != nil {
+		return "", err
+	}
+	value = strings.TrimSpace(value)
+	if !strings.HasPrefix(value, "refs/heads/") || strings.ContainsAny(value, "\r\n\x00") {
+		return "", fmt.Errorf("%w: target %q does not resolve to a local branch", ErrCandidateBinding, revision)
+	}
+	return value, nil
 }
 
 // MaterializeGitWorkspace creates or verifies the physical worktree described
@@ -424,6 +440,26 @@ func runGitOutput(ctx context.Context, directory string, arguments ...string) (s
 			return "", contextErr
 		}
 		return "", fmt.Errorf("git %s failed: %w: %s", strings.Join(arguments, " "), err, strings.TrimSpace(string(output)))
+	}
+	value := strings.TrimSpace(string(output))
+	if strings.ContainsRune(value, 0) {
+		return "", errors.New("Git returned NUL output")
+	}
+	return value, nil
+}
+
+// runGitStdout is used when stdout is itself the protocol. Git may emit
+// non-fatal configuration warnings on stderr; combining streams would turn
+// those warnings into false status/path data.
+func runGitStdout(ctx context.Context, directory string, arguments ...string) (string, error) {
+	command := exec.CommandContext(ctx, "git", arguments...)
+	command.Dir = directory
+	output, err := command.Output()
+	if err != nil {
+		if contextErr := ctx.Err(); contextErr != nil {
+			return "", contextErr
+		}
+		return "", fmt.Errorf("git %s failed: %w", strings.Join(arguments, " "), err)
 	}
 	value := strings.TrimSpace(string(output))
 	if strings.ContainsRune(value, 0) {

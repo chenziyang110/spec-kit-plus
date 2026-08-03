@@ -44,6 +44,7 @@ type SupervisedRun struct {
 	Attempt   Attempt
 	Activity  Activity
 	Workspace Workspace
+	Candidate Candidate
 	ExitCode  int
 }
 
@@ -283,15 +284,62 @@ func SuperviseRun(
 	exitCode := managedProcessExitCode(command, waitErr)
 	outcome := AttemptOutcomeSucceeded
 	reason := "managed process exited successfully"
+	var candidateSnapshot *CandidateSnapshot
 	if exitCode != 0 {
 		outcome = AttemptOutcomeFailed
 		reason = fmt.Sprintf("managed process exited with code %d", exitCode)
+	} else {
+		attempt, err = store.Heartbeat(
+			lifecycleCtx,
+			attempt.AttemptID,
+			attempt.Fence,
+			time.Now().UTC().Add(params.LeaseDuration),
+		)
+		if err != nil {
+			return result, supervisionOperationError(ctx, heartbeatErrors, "renew candidate snapshot lease", err)
+		}
+		postprocessCtx, cancelPostprocess := context.WithCancel(lifecycleCtx)
+		postprocessErrors, postprocessDone := superviseAttemptHeartbeat(
+			postprocessCtx,
+			cancelLifecycle,
+			store,
+			attempt.AttemptID,
+			attempt.Fence,
+			params.HeartbeatInterval,
+			params.LeaseDuration,
+		)
+		activeWorkspace, workspaceErr := store.GetWorkspace(lifecycleCtx, attempt.WorkspaceID)
+		if workspaceErr != nil {
+			cancelPostprocess()
+			<-postprocessDone
+			return result, supervisionOperationError(ctx, heartbeatErrors, "load active candidate workspace", workspaceErr)
+		}
+		result.Workspace = activeWorkspace
+		snapshot, snapshotErr := SnapshotGitCandidate(
+			lifecycleCtx,
+			repository,
+			result.Run,
+			attempt,
+			result.Workspace,
+		)
+		cancelPostprocess()
+		<-postprocessDone
+		if snapshotErr != nil {
+			return result, supervisionOperationError(ctx, heartbeatErrors, "snapshot candidate", snapshotErr)
+		}
+		select {
+		case postprocessErr := <-postprocessErrors:
+			return result, fmt.Errorf("heartbeat candidate snapshot: %w", postprocessErr)
+		default:
+		}
+		candidateSnapshot = &snapshot
 	}
 	finished, err := store.FinishAttempt(lifecycleCtx, FinishAttemptParams{
 		AttemptID: attempt.AttemptID,
 		Fence:     attempt.Fence,
 		Outcome:   outcome,
 		Reason:    reason,
+		Candidate: candidateSnapshot,
 	})
 	if err != nil {
 		return result, supervisionOperationError(ctx, heartbeatErrors, "finish attempt", err)
@@ -301,8 +349,48 @@ func SuperviseRun(
 		Attempt:   finished.Attempt,
 		Activity:  finished.Activity,
 		Workspace: finished.Workspace,
+		Candidate: finished.Candidate,
 		ExitCode:  exitCode,
 	}, nil
+}
+
+func superviseAttemptHeartbeat(
+	ctx context.Context,
+	cancel context.CancelFunc,
+	store *Store,
+	attemptID string,
+	fence int64,
+	interval time.Duration,
+	leaseDuration time.Duration,
+) (<-chan error, <-chan struct{}) {
+	errorsChannel := make(chan error, 1)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case observedAt := <-ticker.C:
+				if _, err := store.Heartbeat(
+					ctx,
+					attemptID,
+					fence,
+					observedAt.UTC().Add(leaseDuration),
+				); err != nil {
+					if ctx.Err() != nil {
+						return
+					}
+					errorsChannel <- err
+					cancel()
+					return
+				}
+			}
+		}
+	}()
+	return errorsChannel, done
 }
 
 func withSupervisionDefaults(params SuperviseRunParams) SuperviseRunParams {

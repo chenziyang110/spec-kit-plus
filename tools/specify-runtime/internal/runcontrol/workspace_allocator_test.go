@@ -42,8 +42,8 @@ func TestPlanGitWorkspaceIsStableAcrossLinkedWorktrees(t *testing.T) {
 	if !strings.HasPrefix(mainPlan.PrivateRef, "refs/heads/specify/runs/") {
 		t.Fatalf("private ref = %q, want refs/heads/specify/runs/...", mainPlan.PrivateRef)
 	}
-	if mainPlan.BaseRef != run.TargetRef {
-		t.Fatalf("base ref = %q, want %q", mainPlan.BaseRef, run.TargetRef)
+	if !strings.HasPrefix(mainPlan.BaseRef, "refs/heads/") {
+		t.Fatalf("base ref = %q, want canonical local branch", mainPlan.BaseRef)
 	}
 	wantCommit := runGit(t, ensureGitAvailable(t), mainRoot, "rev-parse", "HEAD")
 	if mainPlan.BaseCommit != wantCommit {

@@ -235,7 +235,7 @@ func TestWorkspaceAllocationJournalSurvivesOwnerReconciliation(t *testing.T) {
 	}
 }
 
-func TestOpenMigratesSchemaVersionThreeWorkspaceAllocationJournal(t *testing.T) {
+func TestOpenMigratesSchemaVersionThreeThroughCandidateIntegrationSchema(t *testing.T) {
 	ctx := context.Background()
 	databasePath := filepath.Join(t.TempDir(), "run-control.sqlite")
 	initial, err := Open(ctx, databasePath, WithOwnerEpoch("schema_v4_seed"))
@@ -271,8 +271,8 @@ func TestOpenMigratesSchemaVersionThreeWorkspaceAllocationJournal(t *testing.T) 
 	if err := migrated.db.QueryRowContext(ctx, `SELECT value FROM metadata WHERE key = 'schema_version'`).Scan(&version); err != nil {
 		t.Fatal(err)
 	}
-	if version != "4" {
-		t.Fatalf("migrated schema version = %q, want 4", version)
+	if version != "5" {
+		t.Fatalf("migrated schema version = %q, want 5", version)
 	}
 	var tableCount int
 	if err := migrated.db.QueryRowContext(ctx, `
@@ -282,5 +282,13 @@ func TestOpenMigratesSchemaVersionThreeWorkspaceAllocationJournal(t *testing.T) 
 	}
 	if tableCount != 1 {
 		t.Fatalf("workspace_allocations table count = %d, want 1", tableCount)
+	}
+	if err := migrated.db.QueryRowContext(ctx, `
+		SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'candidates'
+	`).Scan(&tableCount); err != nil {
+		t.Fatal(err)
+	}
+	if tableCount != 1 {
+		t.Fatalf("candidates table count = %d, want 1", tableCount)
 	}
 }

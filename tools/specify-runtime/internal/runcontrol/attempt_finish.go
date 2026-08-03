@@ -2,6 +2,7 @@ package runcontrol
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -64,6 +65,14 @@ func (store *Store) FinishAttempt(
 		Attempt:   attempt,
 		Activity:  activity,
 		Workspace: workspace,
+	}
+	if params.Candidate != nil {
+		candidate, candidateErr := readCandidateForRunTx(ctx, transaction, run.RunID)
+		if candidateErr == nil {
+			finished.Candidate = candidate
+		} else if !errors.Is(candidateErr, ErrCandidateNotFound) {
+			return FinishedExecution{}, candidateErr
+		}
 	}
 	if finishAttemptMatchesReplay(finished, params, targets, store.ownerEpoch) {
 		if err := transaction.Commit(); err != nil {
@@ -148,6 +157,22 @@ func (store *Store) FinishAttempt(
 	if err := updateWorkspaceStatusTx(ctx, transaction, &workspace, targets.workspace, nowMS, params.Reason); err != nil {
 		return FinishedExecution{}, err
 	}
+	var candidate Candidate
+	if params.Candidate != nil {
+		candidate, err = insertCandidateTx(
+			ctx,
+			transaction,
+			run,
+			attempt,
+			activity,
+			workspace,
+			*params.Candidate,
+			nowMS,
+		)
+		if err != nil {
+			return FinishedExecution{}, err
+		}
+	}
 	if err := appendRunEventTx(ctx, transaction, run, "run."+string(targets.run), params.Reason); err != nil {
 		return FinishedExecution{}, err
 	}
@@ -159,6 +184,7 @@ func (store *Store) FinishAttempt(
 		Attempt:   attempt,
 		Activity:  activity,
 		Workspace: workspace,
+		Candidate: candidate,
 	}, nil
 }
 
@@ -181,6 +207,9 @@ func validateFinishAttemptParams(params FinishAttemptParams) (finishAttemptTarge
 			workspace: WorkspaceSealed,
 		}, nil
 	case AttemptOutcomeFailed:
+		if params.Candidate != nil {
+			return finishAttemptTargets{}, fmt.Errorf("%w: failed attempt cannot publish a candidate", ErrInvalidArgument)
+		}
 		return finishAttemptTargets{
 			run:       RunFailed,
 			attempt:   AttemptFailed,
@@ -215,7 +244,13 @@ func finishAttemptMatchesReplay(
 		finished.Workspace.RunID == finished.Run.RunID &&
 		finished.Attempt.ActivityID == finished.Activity.ActivityID &&
 		finished.Attempt.WorkspaceID == finished.Workspace.WorkspaceID &&
-		finished.Attempt.WorkspaceGeneration == finished.Workspace.Generation
+		finished.Attempt.WorkspaceGeneration == finished.Workspace.Generation &&
+		((params.Candidate == nil && finished.Candidate.CandidateID == "") ||
+			(params.Candidate != nil && finished.Candidate.CandidateID == params.Candidate.CandidateID &&
+				finished.Candidate.TargetRef == params.Candidate.TargetRef &&
+				finished.Candidate.BaseCommit == params.Candidate.BaseCommit &&
+				finished.Candidate.PrivateRef == params.Candidate.PrivateRef &&
+				finished.Candidate.HeadCommit == params.Candidate.HeadCommit))
 }
 
 func isTerminalAttemptStatus(status AttemptStatus) bool {
