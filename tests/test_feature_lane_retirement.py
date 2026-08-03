@@ -119,6 +119,7 @@ def test_active_workflow_surfaces_use_run_control_not_feature_lanes() -> None:
     )
     for token in forbidden:
         assert token not in docs
-    assert "specify-runtime run supervise" in docs
+    assert "specify-runtime run launch" in docs
+    assert "run supervise" in docs
     assert "specify-runtime run integrate" in docs
     assert "WSLENV" in docs

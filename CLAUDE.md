@@ -20,6 +20,8 @@ before broad source search.
 
 - Treat every modifying `sp-*` invocation, including the first, as an independent
   Run with a supervisor-owned Git worktree and private ref.
+- Enter a new host-managed Run through the single-call `run launch` boundary;
+  use `run supervise` only for an already queued or interrupted Run.
 - When `SPECIFY_RUN_MANAGED=1`, require the current directory to equal
   `SPECIFY_RUN_WORKSPACE`; stop instead of switching worktrees when the binding
   does not match.

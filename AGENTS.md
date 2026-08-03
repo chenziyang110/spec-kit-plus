@@ -799,7 +799,7 @@ managed `<!-- SPEC-KIT:BEGIN -->` block because
 
 - Cross-workflow Run isolation and Candidate integration
   - Runtime/code: `tools/specify-runtime/run.go` and `tools/specify-runtime/internal/runcontrol/**`
-  - Contract: every Run receives an isolated Git worktree; `run supervise` forces child cwd and owns liveness/fencing; successful Runs publish immutable Candidates; `run integrate` serializes per target ref and records immutable Results
+  - Contract: every Run receives an isolated Git worktree; `run launch` is the single-call host-adapter entry, while `run supervise` starts replacement Attempts and forces child cwd with liveness/fencing; successful Runs publish immutable Candidates; `run integrate` serializes per target ref and records immutable Results
   - Tests/docs: `tools/specify-runtime/run_cli_test.go`, `tools/specify-runtime/internal/runcontrol/**/*_test.go`, `tests/test_feature_lane_retirement.py`, `README.md`, and `PROJECT-HANDBOOK.md`
 
 - `sp-teams` and `sp-implement-teams` (Codex-only durable execution surfaces)

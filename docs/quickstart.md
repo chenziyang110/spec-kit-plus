@@ -8,7 +8,7 @@ This guide will help you get started with Spec-Driven Development using Spec Kit
 ## The 5-Step Process
 
 > [!TIP]
-> **Run Isolation**: Launch-capable integrations submit every `sp-*`/`spx-*` invocation as an independent Run, including the first. The runtime allocates a dedicated Git worktree, forces the child agent cwd, and binds feature resolution to the Run subject instead of a branch-name guess. `sp-auto` routes only the current managed Run subject; an unbound read-only invocation stops when more than one safe candidate exists.
+> **Run Isolation**: Launch-capable integrations submit every `sp-*`/`spx-*` invocation as an independent Run, including the first, through the single-call `specify-runtime run launch ... -- <agent argv>` adapter boundary. The runtime allocates a dedicated Git worktree, forces the child agent cwd, and binds feature resolution to the Run subject instead of a branch-name guess; `run supervise` restarts a previously queued or interrupted Run. `sp-auto` routes only the current managed Run subject; an unbound read-only invocation stops when more than one safe candidate exists.
 
 ### Step 1: Install Specify
 

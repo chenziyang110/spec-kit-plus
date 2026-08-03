@@ -1065,6 +1065,7 @@ func defaultCapabilities() []string {
 		"run.create",
 		"run.events",
 		"run.integrate",
+		"run.launch",
 		"run.show",
 		"run.supervise",
 		"accept.closeout",
@@ -1226,6 +1227,8 @@ func capabilitySummary(id string) string {
 		return "List the ordered lifecycle events for one Run."
 	case "run.cancel":
 		return "Cancel one revision-bound Run and advance its fence before cleanup."
+	case "run.launch":
+		return "Queue and execute one Run in an isolated Git worktree through a single host-adapter call."
 	case "run.supervise":
 		return "Execute one Run in its isolated Git worktree under durable lifecycle control."
 	case "run.integrate":

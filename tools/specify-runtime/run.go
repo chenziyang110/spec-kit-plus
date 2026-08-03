@@ -30,6 +30,8 @@ func runRun(args []string, stdout, stderr io.Writer) int {
 		return runEvents(args[1:], stdout)
 	case "cancel":
 		return runCancel(args[1:], stdout)
+	case "launch":
+		return runLaunch(args[1:], stdout, stderr)
 	case "supervise":
 		return runSupervise(args[1:], stdout, stderr)
 	case "integrate":
@@ -41,7 +43,7 @@ func runRun(args []string, stdout, stderr io.Writer) int {
 
 func writeRunHelp(stdout io.Writer) int {
 	_, _ = fmt.Fprintln(stdout, "specify-runtime run commands:")
-	for _, command := range []string{"create", "show", "events", "cancel", "supervise", "integrate"} {
+	for _, command := range []string{"create", "show", "events", "cancel", "launch", "supervise", "integrate"} {
 		_, _ = fmt.Fprintf(stdout, "  %s\n", command)
 	}
 	return 0
@@ -58,39 +60,50 @@ func runCreate(args []string, stdout io.Writer) int {
 	if err := parsed.validateJSONFormat(); err != nil {
 		return writeEnvelope(stdout, runUsageEnvelope(err.Error()))
 	}
-	required := []string{"--run-id", "--kind", "--subject-type", "--subject-id", "--target-ref", "--intent-sha256"}
-	for _, name := range required {
-		if strings.TrimSpace(parsed.option(name, "")) == "" {
-			return writeEnvelope(stdout, runUsageEnvelope("run create requires "+name))
-		}
+	createParams, err := runCreateParams(parsed, "run create")
+	if err != nil {
+		return writeEnvelope(stdout, runUsageEnvelope(err.Error()))
 	}
 
 	ctx := context.Background()
-	store, err := runcontrol.OpenForRepository(ctx, parsed.option("--project-root", "."))
-	if err != nil {
-		return writeEnvelope(stdout, runControlErrorEnvelope("open run control", err))
-	}
-	run, operationErr := store.EnqueueRun(ctx, runcontrol.CreateRunParams{
-		RunID:        strings.TrimSpace(parsed.option("--run-id", "")),
-		Kind:         strings.TrimSpace(parsed.option("--kind", "")),
-		SubjectType:  strings.TrimSpace(parsed.option("--subject-type", "")),
-		SubjectID:    strings.TrimSpace(parsed.option("--subject-id", "")),
-		TargetRef:    strings.TrimSpace(parsed.option("--target-ref", "")),
-		IntentSHA256: strings.TrimSpace(parsed.option("--intent-sha256", "")),
-	})
-	closeErr := store.Close()
+	projectRoot := parsed.option("--project-root", ".")
+	run, operationErr := enqueueRunForCLI(ctx, projectRoot, createParams)
 	if operationErr != nil {
 		return writeEnvelope(stdout, runControlErrorEnvelope("create run", operationErr))
-	}
-	if closeErr != nil {
-		return writeEnvelope(stdout, runControlErrorEnvelope("close run control", closeErr))
 	}
 
 	env := NewEnvelope("ok", "run recorded")
 	env.Data["run"] = runDTO(run)
-	env.ShowArgv = runShowArgv(run.RunID, parsed.option("--project-root", "."))
+	env.ShowArgv = runShowArgv(run.RunID, projectRoot)
 	env.NextArgv = append([]string{}, env.ShowArgv...)
 	return writeEnvelope(stdout, env)
+}
+
+func runLaunch(args []string, stdout, stderr io.Writer) int {
+	parsed, childArgv, err := parseRunLaunchArgs(args)
+	if err != nil {
+		return writeEnvelope(stdout, runUsageEnvelope(err.Error()))
+	}
+	if err := parsed.validateJSONFormat(); err != nil {
+		return writeEnvelope(stdout, runUsageEnvelope(err.Error()))
+	}
+	createParams, err := runCreateParams(parsed, "run launch")
+	if err != nil {
+		return writeEnvelope(stdout, runUsageEnvelope(err.Error()))
+	}
+	adapterID := strings.TrimSpace(parsed.option("--adapter-id", ""))
+	if adapterID == "" {
+		return writeEnvelope(stdout, runUsageEnvelope("run launch requires --adapter-id"))
+	}
+	projectRoot := parsed.option("--project-root", ".")
+
+	ctx, stopSignals := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stopSignals()
+	if _, operationErr := enqueueRunForCLI(ctx, projectRoot, createParams); operationErr != nil {
+		return writeEnvelope(stdout, runControlErrorEnvelope("launch run", operationErr))
+	}
+	result, operationErr := superviseRunForCLI(ctx, projectRoot, createParams.RunID, adapterID, childArgv, stderr)
+	return writeRunSupervisionEnvelope(stdout, ctx, createParams.RunID, projectRoot, result, operationErr)
 }
 
 func runShow(args []string, stdout io.Writer) int {
@@ -227,18 +240,66 @@ func runSupervise(args []string, stdout, stderr io.Writer) int {
 
 	ctx, stopSignals := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stopSignals()
+	result, operationErr := superviseRunForCLI(ctx, projectRoot, runID, adapterID, childArgv, stderr)
+	return writeRunSupervisionEnvelope(stdout, ctx, runID, projectRoot, result, operationErr)
+}
+
+func runCreateParams(parsed parsedRunCommand, commandName string) (runcontrol.CreateRunParams, error) {
+	required := []string{"--run-id", "--kind", "--subject-type", "--subject-id", "--target-ref", "--intent-sha256"}
+	for _, name := range required {
+		if strings.TrimSpace(parsed.option(name, "")) == "" {
+			return runcontrol.CreateRunParams{}, fmt.Errorf("%s requires %s", commandName, name)
+		}
+	}
+	return runcontrol.CreateRunParams{
+		RunID:        strings.TrimSpace(parsed.option("--run-id", "")),
+		Kind:         strings.TrimSpace(parsed.option("--kind", "")),
+		SubjectType:  strings.TrimSpace(parsed.option("--subject-type", "")),
+		SubjectID:    strings.TrimSpace(parsed.option("--subject-id", "")),
+		TargetRef:    strings.TrimSpace(parsed.option("--target-ref", "")),
+		IntentSHA256: strings.TrimSpace(parsed.option("--intent-sha256", "")),
+	}, nil
+}
+
+func enqueueRunForCLI(ctx context.Context, projectRoot string, params runcontrol.CreateRunParams) (runcontrol.Run, error) {
+	store, err := runcontrol.OpenForRepository(ctx, projectRoot)
+	if err != nil {
+		return runcontrol.Run{}, fmt.Errorf("open run control: %w", err)
+	}
+	run, operationErr := store.EnqueueRun(ctx, params)
+	return run, errors.Join(operationErr, store.Close())
+}
+
+func superviseRunForCLI(
+	ctx context.Context,
+	projectRoot string,
+	runID string,
+	adapterID string,
+	childArgv []string,
+	childOutput io.Writer,
+) (runcontrol.SupervisedRun, error) {
 	repository, err := runcontrol.ResolveRepository(ctx, projectRoot)
 	if err != nil {
-		return writeEnvelope(stdout, runControlErrorEnvelope("resolve run repository", err))
+		return runcontrol.SupervisedRun{}, fmt.Errorf("resolve run repository: %w", err)
 	}
-	result, operationErr := runcontrol.SuperviseRun(ctx, repository, runcontrol.SuperviseRunParams{
+	return runcontrol.SuperviseRun(ctx, repository, runcontrol.SuperviseRunParams{
 		RunID:       runID,
 		AdapterID:   adapterID,
 		Argv:        childArgv,
 		ChildStdin:  os.Stdin,
-		ChildStdout: stderr,
-		ChildStderr: stderr,
+		ChildStdout: childOutput,
+		ChildStderr: childOutput,
 	})
+}
+
+func writeRunSupervisionEnvelope(
+	stdout io.Writer,
+	ctx context.Context,
+	runID string,
+	projectRoot string,
+	result runcontrol.SupervisedRun,
+	operationErr error,
+) int {
 	if operationErr != nil {
 		env := runControlErrorEnvelope("supervise run", operationErr)
 		if errors.Is(operationErr, context.Canceled) {
@@ -314,6 +375,39 @@ type parsedRunCommand struct {
 }
 
 func parseRunSuperviseArgs(args []string) (parsedRunCommand, []string, error) {
+	return parseRunChildArgs(
+		args,
+		1,
+		"run supervise",
+		"--project-root",
+		"--adapter-id",
+		"--format",
+	)
+}
+
+func parseRunLaunchArgs(args []string) (parsedRunCommand, []string, error) {
+	return parseRunChildArgs(
+		args,
+		0,
+		"run launch",
+		"--project-root",
+		"--run-id",
+		"--kind",
+		"--subject-type",
+		"--subject-id",
+		"--target-ref",
+		"--intent-sha256",
+		"--adapter-id",
+		"--format",
+	)
+}
+
+func parseRunChildArgs(
+	args []string,
+	positionalCount int,
+	commandName string,
+	allowedOptions ...string,
+) (parsedRunCommand, []string, error) {
 	separator := -1
 	for index, argument := range args {
 		if argument == "--" {
@@ -322,24 +416,18 @@ func parseRunSuperviseArgs(args []string) (parsedRunCommand, []string, error) {
 		}
 	}
 	if separator < 0 {
-		return parsedRunCommand{}, nil, errors.New("run supervise requires -- before the child argv")
+		return parsedRunCommand{}, nil, fmt.Errorf("%s requires -- before the child argv", commandName)
 	}
 	if separator == len(args)-1 {
-		return parsedRunCommand{}, nil, errors.New("run supervise requires a child argv after --")
+		return parsedRunCommand{}, nil, fmt.Errorf("%s requires a child argv after --", commandName)
 	}
-	parsed, err := parseRunCommandArgs(
-		args[:separator],
-		1,
-		"--project-root",
-		"--adapter-id",
-		"--format",
-	)
+	parsed, err := parseRunCommandArgs(args[:separator], positionalCount, allowedOptions...)
 	if err != nil {
 		return parsedRunCommand{}, nil, err
 	}
 	childArgv := append([]string(nil), args[separator+1:]...)
 	if strings.TrimSpace(childArgv[0]) == "" {
-		return parsedRunCommand{}, nil, errors.New("run supervise child executable is empty")
+		return parsedRunCommand{}, nil, fmt.Errorf("%s child executable is empty", commandName)
 	}
 	return parsed, childArgv, nil
 }

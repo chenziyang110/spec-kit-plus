@@ -239,6 +239,7 @@ func TestRunCLIRejectsUnsafeOrIncompleteRequests(t *testing.T) {
 		{name: "unknown option", args: []string{"run", "show", "missing", "--project-root", root, "--surprise", "value"}},
 		{name: "missing show id", args: []string{"run", "show", "--project-root", root}},
 		{name: "invalid revision", args: []string{"run", "cancel", "missing", "--project-root", root, "--expected-revision", "zero", "--reason", "invalid"}},
+		{name: "launch missing argv separator", args: []string{"run", "launch", "--project-root", root, "--run-id", "missing", "--adapter-id", "test"}},
 		{name: "supervise missing argv separator", args: []string{"run", "supervise", "missing", "--project-root", root, "--adapter-id", "test"}},
 		{name: "privileged subcommand", args: []string{"run", "heartbeat", "attempt", "--project-root", root}},
 	}
@@ -249,6 +250,55 @@ func TestRunCLIRejectsUnsafeOrIncompleteRequests(t *testing.T) {
 				t.Fatalf("request %v = code %d envelope %#v, want usage-error exit 2", test.args, code, payload)
 			}
 		})
+	}
+}
+
+func TestRunCLILaunchCreatesAndSupervisesManagedRun(t *testing.T) {
+	root := initRunCLIRepository(t)
+	gitRun(t, root, "config", "user.name", "Run CLI Test")
+	gitRun(t, root, "config", "user.email", "run-cli@example.invalid")
+	gitRun(t, root, "config", "commit.gpgsign", "false")
+	if err := os.WriteFile(filepath.Join(root, "README.md"), []byte("launch cli\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	gitRun(t, root, "add", "README.md")
+	gitRun(t, root, "commit", "-m", "initial")
+	t.Setenv("SPECIFY_RUNTIME_CLI_FOREGROUND_HELPER", "1")
+
+	code, payload := invokeRunCLI(t,
+		"run", "launch",
+		"--project-root", root,
+		"--run-id", "run_cli_launch",
+		"--kind", "debug",
+		"--subject-type", "feature",
+		"--subject-id", "run_cli_launch",
+		"--target-ref", "HEAD",
+		"--intent-sha256", strings.Repeat("d", 64),
+		"--adapter-id", "test-helper",
+		"--format", "json",
+		"--",
+		os.Args[0], "-test.run=^TestRunCLIForegroundHelperProcess$", "--",
+		"launch-marker.txt", "single-call&token",
+	)
+	if code != 0 || payload["status"] != "ok" {
+		t.Fatalf("run launch = code %d envelope %#v", code, payload)
+	}
+	data := requireObject(t, payload, "data")
+	run := requireObject(t, data, "run")
+	execution := requireObject(t, data, "execution")
+	workspaceRoot, _ := execution["workspace_root"].(string)
+	if run["run_id"] != "run_cli_launch" || run["kind"] != "debug" || run["status"] != "sealed" {
+		t.Fatalf("launched run = %#v", run)
+	}
+	marker, err := os.ReadFile(filepath.Join(workspaceRoot, "launch-marker.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(marker) != workspaceRoot+"\nsingle-call&token" {
+		t.Fatalf("launched child marker = %q", marker)
+	}
+	if _, err := os.Stat(filepath.Join(root, "launch-marker.txt")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("launched child modified primary worktree: %v", err)
 	}
 }
 
@@ -476,7 +526,7 @@ func TestRunCLIUsesSharedDatabaseFromLinkedWorktree(t *testing.T) {
 }
 
 func TestRunCapabilitiesAreDiscoverableAndBounded(t *testing.T) {
-	for _, capabilityID := range []string{"run.create", "run.show", "run.events", "run.cancel", "run.supervise", "run.integrate"} {
+	for _, capabilityID := range []string{"run.create", "run.show", "run.events", "run.cancel", "run.launch", "run.supervise", "run.integrate"} {
 		if !containsCapability(defaultCapabilities(), capabilityID) {
 			t.Fatalf("default capabilities missing %q", capabilityID)
 		}
