@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -234,6 +235,7 @@ func TestRunCLIRejectsUnsafeOrIncompleteRequests(t *testing.T) {
 		{name: "unknown option", args: []string{"run", "show", "missing", "--project-root", root, "--surprise", "value"}},
 		{name: "missing show id", args: []string{"run", "show", "--project-root", root}},
 		{name: "invalid revision", args: []string{"run", "cancel", "missing", "--project-root", root, "--expected-revision", "zero", "--reason", "invalid"}},
+		{name: "supervise missing argv separator", args: []string{"run", "supervise", "missing", "--project-root", root, "--adapter-id", "test"}},
 		{name: "privileged subcommand", args: []string{"run", "heartbeat", "attempt", "--project-root", root}},
 	}
 	for _, test := range tests {
@@ -244,6 +246,70 @@ func TestRunCLIRejectsUnsafeOrIncompleteRequests(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestRunCLISuperviseExecutesTokenizedChildInSandbox(t *testing.T) {
+	root := initRunCLIRepository(t)
+	gitRun(t, root, "config", "user.name", "Run CLI Test")
+	gitRun(t, root, "config", "user.email", "run-cli@example.invalid")
+	gitRun(t, root, "config", "commit.gpgsign", "false")
+	if err := os.WriteFile(filepath.Join(root, "README.md"), []byte("foreground cli\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	gitRun(t, root, "add", "README.md")
+	gitRun(t, root, "commit", "-m", "initial")
+	createRunThroughCLI(t, root, "run_cli_supervise")
+	t.Setenv("SPECIFY_RUNTIME_CLI_FOREGROUND_HELPER", "1")
+
+	code, payload := invokeRunCLI(t,
+		"run", "supervise", "run_cli_supervise",
+		"--project-root", root,
+		"--adapter-id", "test-helper",
+		"--format", "json",
+		"--",
+		os.Args[0], "-test.run=^TestRunCLIForegroundHelperProcess$", "--",
+		"cli-marker.txt", "literal&token",
+	)
+	if code != 0 || payload["status"] != "ok" {
+		t.Fatalf("run supervise = code %d envelope %#v", code, payload)
+	}
+	execution := requireObject(t, requireObject(t, payload, "data"), "execution")
+	workspaceRoot, _ := execution["workspace_root"].(string)
+	if workspaceRoot == "" || execution["workspace_generation"] != float64(1) {
+		t.Fatalf("supervised execution = %#v", execution)
+	}
+	marker, err := os.ReadFile(filepath.Join(workspaceRoot, "cli-marker.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(marker) != workspaceRoot+"\nliteral&token" {
+		t.Fatalf("CLI child marker = %q", marker)
+	}
+	if _, err := os.Stat(filepath.Join(root, "cli-marker.txt")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("CLI child modified primary worktree: %v", err)
+	}
+}
+
+func TestRunCLIForegroundHelperProcess(t *testing.T) {
+	if os.Getenv("SPECIFY_RUNTIME_CLI_FOREGROUND_HELPER") != "1" {
+		return
+	}
+	arguments := helperArgumentsAfterDoubleDash(os.Args)
+	if len(arguments) != 2 {
+		os.Exit(81)
+	}
+	cwd, err := os.Getwd()
+	if err != nil {
+		os.Exit(82)
+	}
+	if err := os.WriteFile(
+		filepath.Join(cwd, arguments[0]),
+		[]byte(cwd+"\n"+arguments[1]),
+		0o644,
+	); err != nil {
+		os.Exit(83)
+	}
+	os.Exit(0)
 }
 
 func TestRunCLIUsesSharedDatabaseFromLinkedWorktree(t *testing.T) {
@@ -268,7 +334,7 @@ func TestRunCLIUsesSharedDatabaseFromLinkedWorktree(t *testing.T) {
 }
 
 func TestRunCapabilitiesAreDiscoverableAndBounded(t *testing.T) {
-	for _, capabilityID := range []string{"run.create", "run.show", "run.events", "run.cancel"} {
+	for _, capabilityID := range []string{"run.create", "run.show", "run.events", "run.cancel", "run.supervise"} {
 		if !containsCapability(defaultCapabilities(), capabilityID) {
 			t.Fatalf("default capabilities missing %q", capabilityID)
 		}
@@ -286,6 +352,15 @@ func TestRunCapabilitiesAreDiscoverableAndBounded(t *testing.T) {
 			t.Fatalf("default capabilities expose privileged control %q", privileged)
 		}
 	}
+}
+
+func helperArgumentsAfterDoubleDash(arguments []string) []string {
+	for index, argument := range arguments {
+		if argument == "--" {
+			return arguments[index+1:]
+		}
+	}
+	return nil
 }
 
 func initRunCLIRepository(t *testing.T) string {
