@@ -43,8 +43,8 @@ STAGE_PHRASES = {
     "plan": ("same run",),
     "tasks": ("same run",),
     "implement": ("same run",),
-    "review": ("candidate binding", "immutable candidate"),
-    "accept": ("candidate binding", "immutable candidate"),
+    "review": ("immutable candidate", "new result"),
+    "accept": ("read-only with respect to product source", "actual final decision"),
 }
 
 
@@ -68,13 +68,22 @@ def _assert_shared_run_bootstrap_contract(content: str) -> None:
         "specify-runtime run create",
         "specify-runtime run show",
         "specify-runtime run supervise",
-        "specify-runtime run integrate",
+        "specify-runtime result show",
+        "specify-runtime candidate build",
+        "candidate review",
+        "accept receipt",
+        "cas publish",
+        "sync safe",
     ):
         assert command in content
 
     assert "control-plane intent only" in lowered
     assert "forces child cwd" in lowered
-    assert "immutable candidate" in lowered
+    assert "immutable result" in lowered
+    assert "exactly one" in lowered
+    assert "primary workspace" in lowered
+    assert "pre-launch snapshot" in lowered
+    assert "specify-runtime run integrate" not in content
 
 
 def _assert_stage_semantics(content: str, stage: str) -> None:
@@ -88,8 +97,14 @@ def _assert_stage_semantics(content: str, stage: str) -> None:
         assert "specify-runtime run create" in content
     if stage in {"plan", "tasks", "implement"}:
         assert "specify-runtime run show" in content
-    if stage in {"review", "accept"}:
+    if stage == "review":
+        assert "specify-runtime candidate show" in content
+        assert "specify-runtime candidate review" in content
         assert "review target-bind" in lowered
+    if stage == "accept":
+        assert "specify-runtime accept receipt" in content
+        assert "specify-runtime cas publish" in content
+        assert "specify-runtime sync safe" in content
 
 
 def _install_skills_profile(project: Path, integration_key: str, profile: str) -> Path:

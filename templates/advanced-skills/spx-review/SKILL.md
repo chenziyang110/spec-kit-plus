@@ -14,7 +14,7 @@ Read
 delegating. Read `references/ui-quality-gate.md` for UI-bearing scenarios and
 `references/blocker-resolution.md` when a blocked exit becomes possible.
 
-`$spx-review` runs only against the candidate binding for the immutable candidate selected from implementation output. Execute Review work through `specify-runtime run supervise`, and bind frozen delivery targets through `specify-runtime review target-bind`; do not call direct integration from Review.
+`$spx-review` starts from the exact immutable Candidate built from eligible implementation Results. Inspect it with `specify-runtime candidate show` and run integrated proof with `specify-runtime candidate review`. Bind frozen product targets through `specify-runtime review target-bind`. Any accepted code repair runs through `specify-runtime run supervise` as a new repair Run, seals a new Result, and requires a newly built and reviewed Candidate; never mutate or directly integrate the old Candidate.
 
 Resolve exactly one implementation-complete feature. Require a trusted
 `implementation-handoff.json`, current implementation evidence, and the

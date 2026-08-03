@@ -475,22 +475,32 @@ your agent:
 7. `accept` to restore a human's context and guide explicit product acceptance one real step at a time
 8. `auto` to resume the recommended next workflow step from current repository state when you do not want to name the exact command yourself
 
-Launch-capable integrations treat every invocation as an independent Run,
-including the first one. The Run supervisor allocates a dedicated Git worktree,
-forces the child agent's working directory, maintains liveness, and fences an
-interrupted Attempt before a replacement generation can start. A successful Run
-publishes an immutable Candidate. Host adapters normally queue and start the
-child in one call through `specify-runtime run launch ... -- <agent argv>`; the
-full tokenized contract is discoverable through `api show run.launch`.
-`run supervise <run-id> ...` remains the replacement-attempt path for a
-previously queued or interrupted Run.
+Launch-capable integrations treat every invocation as an independent Run. With
+the default `--workspace-policy auto`, exactly one non-overlapping modifying Run
+uses the primary workspace when that checkout is pristine; every overlap, and
+every launch that finds idle but unsealed local changes, receives an isolated Git
+worktree. Overlaps clone the primary Run's pre-launch Snapshot. The supervisor
+forces the child agent's working directory, maintains liveness, releases primary
+ownership on every terminal path, and fences an interrupted Attempt before a
+replacement generation can start. A successful Run seals an immutable Result.
+Host adapters normally queue and start the child in one call through
+`specify-runtime run launch ... -- <agent argv>`; the full tokenized contract is
+discoverable through `api show run.launch`. `run supervise <run-id> ...` remains
+the replacement-attempt path for a previously queued or interrupted Run.
 On Windows, the supervisor also extends `WSLENV` so the same fenced Run binding
 survives when the child invokes WSL-backed Bash helpers.
-Integration is a runtime service with no workflow command:
-`specify-runtime run integrate --target-ref <ref> --format json` serializes
-Candidates per target ref and records an immutable Result. Five concurrent
-`sp-quick`, `sp-debug`, or formal workflow Runs therefore do not share a writable
-worktree.
+Delivery is a separate frozen chain: inspect sealed work with
+`specify-runtime result show`, compose one or more eligible Results with
+`specify-runtime candidate build`, prove that exact Candidate with `candidate
+review`, record only an actual human decision with `accept receipt`, publish
+under target-ref compare-and-swap protection with `cas publish`, then update the
+primary workspace separately with `sync safe`. Publication recognizes the exact
+sealed primary Result as accounted Run state, but any additional index or
+worktree change blocks publication and remains untouched. Five concurrent `sp-quick`,
+`sp-debug`, or formal workflow Runs therefore never share an overlapping writable
+workspace or silently merge into one another. Publish and sync wait for the
+primary-workspace ownership slot to be idle; both use durable receipts so an
+interruption can be reconciled without repeating an unproven mutation.
 
 After an advanced-profile init, use independent, discoverable SPX skills:
 
@@ -856,7 +866,7 @@ Conditional gates and follow-up commands:
 - `analyze` is an optional read-only diagnostic and legacy revalidation pass once `tasks.md` exists; run the cross-artifact consistency pass across `spec.md`, `context.md`, `plan.md`, and `tasks.md` only when explicitly requested or recorded by existing state
 - `debug` to investigate blocked implementation work, regressions, or execution-time defects without reopening upstream planning artifacts unless drift is discovered. It now defaults to project-cognition-backed minimum intake; the heavier Stage 1A/1B observer-contract flow is reserved for missing/ambiguous/stale map coverage, competing truth owners, or failed verification loops.
 - `explain` to describe the current spec, plan, task, implement, project cognition, or compatibility/export artifact in plain language
-- `specify-runtime run integrate` to serialize immutable Candidate integration per target ref; it is a runtime control-plane operation, not an agent workflow
+- `specify-runtime result show -> specify-runtime candidate build -> candidate review -> accept receipt -> cas publish`, followed separately by `sync safe`, for immutable multi-Run delivery with explicit human acceptance and target-ref compare-and-swap protection
 - `integration repair` to refresh generated shared/runtime-managed assets after CLI upgrades or when `specify check` reports stale launcher, script, or hook surfaces
 - when you run `analyze` and it finds upstream issues, it becomes a workflow gate, not a dead-end audit: reopen the highest invalid stage and regenerate downstream artifacts before continuing implementation
 - `analyze` now also detects boundary guardrail drift through stable issue codes: `BG1` (missing `Implementation Constitution`), `BG2` (missing task guardrails), and `BG3` (missing implementation-time boundary confirmation)

@@ -469,6 +469,9 @@ func (store *Store) CancelRun(ctx context.Context, runID string, expectedRevisio
 	} else if err := updateOpenExecutionForRunTx(ctx, tx, run.RunID, ActivityCancelled, WorkspaceQuarantined, nowMS, reason); err != nil {
 		return Run{}, err
 	}
+	if err := releasePrimaryWorkspaceSlotTx(ctx, tx, run.RunID); err != nil {
+		return Run{}, err
+	}
 	if err := appendRunEventTx(ctx, tx, run, "run.cancelled", reason); err != nil {
 		return Run{}, err
 	}
@@ -607,6 +610,9 @@ func (store *Store) interruptMatchingAttemptsTx(
 		if err := updateAttemptExecutionTx(ctx, tx, attempt, ActivityInterrupted, WorkspaceQuarantined, nowMS, reason); err != nil {
 			return nil, err
 		}
+		if err := releasePrimaryWorkspaceSlotTx(ctx, tx, run.RunID); err != nil {
+			return nil, err
+		}
 		if err := appendRunEventTx(ctx, tx, run, "run.interrupted", reason+": "+attempt.AttemptID); err != nil {
 			return nil, err
 		}
@@ -717,6 +723,9 @@ func (store *Store) interruptMatchingPreparationRunsTx(
 		if err := updateOpenExecutionForRunTx(ctx, tx, run.RunID, ActivityInterrupted, WorkspaceQuarantined, nowMS, reason); err != nil {
 			return nil, err
 		}
+		if err := releasePrimaryWorkspaceSlotTx(ctx, tx, run.RunID); err != nil {
+			return nil, err
+		}
 		interrupted = append(interrupted, run)
 	}
 	return interrupted, nil
@@ -743,17 +752,6 @@ func (store *Store) shutdownOwnedState(ctx context.Context, now time.Time) error
 	)
 	if err != nil {
 		return err
-	}
-	transaction, err := store.db.BeginTx(ctx, nil)
-	if err != nil {
-		return fmt.Errorf("begin integration shutdown: %w", err)
-	}
-	defer func() { _ = transaction.Rollback() }()
-	if err := markOwnedIntegrationsOutcomeUnknownTx(ctx, transaction, store.ownerEpoch, nowMS); err != nil {
-		return err
-	}
-	if err := transaction.Commit(); err != nil {
-		return fmt.Errorf("commit integration shutdown: %w", err)
 	}
 	return nil
 }

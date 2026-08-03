@@ -388,6 +388,9 @@ func ApplySnapshotAmbientToWorkspace(
 	if err := validateSnapshotWorkspaceBinding(ctx, canonical, workspace); err != nil {
 		return err
 	}
+	if workspaceIsPrimary(workspace, canonical) {
+		return fmt.Errorf("%w: snapshots cannot be applied onto primary workspace %q", ErrSnapshotApplyConflict, workspace.WorkspaceID)
+	}
 	if snapshot.RunID != workspace.RunID ||
 		!sameFilesystemPath(snapshot.RepoCommonDir, canonical.CommonDir) ||
 		snapshot.TargetRef != workspace.BaseRef ||
@@ -652,7 +655,7 @@ func captureAmbientSnapshotFromSource(
 	if err != nil {
 		return CreateSnapshotParams{}, err
 	}
-	entries, err := captureAmbientEntries(ctx, canonical, sourceRoot, scope)
+	entries, err := captureAmbientEntries(ctx, canonical, params.SnapshotID, sourceRoot, scope)
 	if err != nil {
 		return CreateSnapshotParams{}, err
 	}
@@ -704,8 +707,11 @@ func validateSnapshotWorkspaceBinding(ctx context.Context, repository Repository
 	if !sameFilesystemPath(workspace.RepoCommonDir, repository.CommonDir) {
 		return fmt.Errorf("%w: workspace common directory changed", ErrWorkspaceBinding)
 	}
-	if err := validateOwnedWorkspacePath(repository.CommonDir, workspace.RootPath); err != nil {
-		return fmt.Errorf("%w: %v", ErrWorkspaceBinding, err)
+	isPrimary := workspaceIsPrimary(workspace, repository)
+	if !isPrimary {
+		if err := validateOwnedWorkspacePath(repository.CommonDir, workspace.RootPath); err != nil {
+			return fmt.Errorf("%w: %v", ErrWorkspaceBinding, err)
+		}
 	}
 	actual, err := ResolveRepository(ctx, workspace.RootPath)
 	if err != nil {
@@ -718,6 +724,16 @@ func validateSnapshotWorkspaceBinding(ctx context.Context, repository Repository
 	branch, err := runGitOutput(ctx, workspace.RootPath, "symbolic-ref", "HEAD")
 	if err != nil || branch != workspace.PrivateRef {
 		return fmt.Errorf("%w: workspace HEAD is not private ref %q", ErrWorkspaceBinding, workspace.PrivateRef)
+	}
+	if isPrimary {
+		if !sameFilesystemPath(workspace.RootPath, repository.Root) ||
+			workspace.PrivateRef != workspace.BaseRef {
+			return fmt.Errorf("%w: primary workspace binding does not match canonical root/base ref", ErrWorkspaceBinding)
+		}
+		currentBase, err := resolveGitCommit(ctx, repository.Root, workspace.BaseRef)
+		if err != nil || currentBase != workspace.BaseCommit {
+			return fmt.Errorf("%w: primary target ref %q no longer matches base commit %q", ErrWorkspaceBinding, workspace.BaseRef, workspace.BaseCommit)
+		}
 	}
 	return nil
 }
@@ -777,7 +793,7 @@ func ambientStatusManifest(ctx context.Context, directory string) (string, error
 	return strings.Join(lines, "\n"), nil
 }
 
-func captureAmbientEntries(ctx context.Context, repository Repository, sourceRoot string, scope SnapshotDeliveryPolicy) ([]SnapshotEntry, error) {
+func captureAmbientEntries(ctx context.Context, repository Repository, snapshotID, sourceRoot string, scope SnapshotDeliveryPolicy) ([]SnapshotEntry, error) {
 	stagedChanged, err := listGitPaths(ctx, sourceRoot, "diff", "--cached", "--name-only", "-z", "--diff-filter=ACMR")
 	if err != nil {
 		return nil, err
@@ -809,7 +825,7 @@ func captureAmbientEntries(ctx context.Context, repository Repository, sourceRoo
 			return err
 		}
 		entries = append(entries, hydrateSnapshotEntryCompatibility(SnapshotEntry{
-			EntryID:        snapshotEntryID(provenance, relativePath),
+			EntryID:        snapshotEntryID(snapshotID, provenance, relativePath),
 			RelativePath:   relativePath,
 			Provenance:     provenance,
 			DeliveryPolicy: scope,
@@ -823,7 +839,7 @@ func captureAmbientEntries(ctx context.Context, repository Repository, sourceRoo
 	}
 	appendDeletedEntry := func(provenance SnapshotProvenance, relativePath string) {
 		entries = append(entries, hydrateSnapshotEntryCompatibility(SnapshotEntry{
-			EntryID:        snapshotEntryID(provenance, relativePath),
+			EntryID:        snapshotEntryID(snapshotID, provenance, relativePath),
 			RelativePath:   relativePath,
 			Provenance:     provenance,
 			DeliveryPolicy: scope,
@@ -1185,13 +1201,11 @@ func digestAmbientEntries(entries []SnapshotEntry) string {
 	for _, raw := range entries {
 		entry := hydrateSnapshotEntryCompatibility(raw)
 		lines = append(lines, strings.Join([]string{
-			entry.EntryID,
 			string(entry.Provenance),
 			string(entry.Kind),
 			entry.RelativePath,
 			strconv.FormatInt(entry.FileMode, 10),
 			entry.BlobSHA256,
-			entry.ObjectPath,
 			strconv.FormatInt(entry.SizeBytes, 10),
 			string(entry.DeliveryPolicy),
 		}, "\x00"))
@@ -1231,8 +1245,8 @@ func digestSnapshotInputManifest(
 	return hex.EncodeToString(digest[:])
 }
 
-func snapshotEntryID(provenance SnapshotProvenance, relativePath string) string {
-	digest := sha256.Sum256([]byte(string(provenance) + "\x00" + relativePath))
+func snapshotEntryID(snapshotID string, provenance SnapshotProvenance, relativePath string) string {
+	digest := sha256.Sum256([]byte(snapshotID + "\x00" + string(provenance) + "\x00" + relativePath))
 	return "snapshot-entry-" + hex.EncodeToString(digest[:10])
 }
 

@@ -123,11 +123,6 @@ func (store *Store) initialize(ctx context.Context) error {
 				return fmt.Errorf("migrate run control schema from version 3: %w", err)
 			}
 		}
-		if version < 5 {
-			if _, err := transaction.ExecContext(ctx, candidateIntegrationSchemaSQL); err != nil {
-				return fmt.Errorf("migrate run control schema from version %d: %w", version, err)
-			}
-		}
 		if version < 6 {
 			if _, err := transaction.ExecContext(ctx, snapshotSchemaSQL+resourceClaimSchemaSQL); err != nil {
 				return fmt.Errorf("migrate run control schema from version %d: %w", version, err)
@@ -150,6 +145,11 @@ func (store *Store) initialize(ctx context.Context) error {
 		}
 		if version < 10 {
 			if _, err := transaction.ExecContext(ctx, adapterAttestationSchemaSQL); err != nil {
+				return fmt.Errorf("migrate run control schema from version %d: %w", version, err)
+			}
+		}
+		if version < 11 {
+			if _, err := transaction.ExecContext(ctx, primaryWorkspaceSchemaSQL); err != nil {
 				return fmt.Errorf("migrate run control schema from version %d: %w", version, err)
 			}
 		}

@@ -17,6 +17,7 @@ import (
 
 var (
 	ErrAcceptanceRequired = errors.New("Candidate requires explicit human acceptance")
+	ErrPublicationUnknown = errors.New("Candidate publication outcome is unknown and must be resumed")
 	ErrReviewBinding      = errors.New("Candidate Review binding is stale or invalid")
 	ErrSyncUnsafe         = errors.New("published Candidate cannot safely synchronize the user worktree")
 )
@@ -115,6 +116,7 @@ type CandidateSync struct {
 type SyncPublishedCandidateParams struct {
 	CandidateID       string
 	PublicationDigest string
+	TargetRef         string
 }
 
 const candidateDeliverySchemaSQL = `
@@ -401,11 +403,6 @@ func PublishFrozenCandidate(
 	if err != nil {
 		return CandidatePublication{}, err
 	}
-	if existing, err := successfulCandidatePublication(ctx, store, candidate.CandidateID); err == nil {
-		return existing, nil
-	} else if !errors.Is(err, ErrNotFound) {
-		return CandidatePublication{}, err
-	}
 	review, err := latestCandidateReview(ctx, store, candidate.CandidateID)
 	if err != nil || review.Status != CandidateReviewPassed ||
 		review.CandidateManifestSHA256 != candidate.ManifestSHA256 || review.CandidateTreeOID != candidate.TreeOID {
@@ -420,21 +417,33 @@ func PublishFrozenCandidate(
 	if err := verifyFrozenCandidateGitBinding(ctx, canonical, candidate); err != nil {
 		return CandidatePublication{}, err
 	}
+	if existing, existingErr := successfulCandidatePublication(ctx, store, candidate.CandidateID); existingErr == nil {
+		if existing.AcceptanceID != acceptance.AcceptanceID ||
+			existing.TargetRef != candidate.TargetRef ||
+			existing.TargetBefore != candidate.ExpectedTargetOID ||
+			existing.TargetAfter != candidate.CommitOID {
+			return CandidatePublication{}, fmt.Errorf("%w: successful publication does not match current Candidate acceptance", ErrCandidateBinding)
+		}
+		return existing, nil
+	} else if !errors.Is(existingErr, ErrNotFound) {
+		return CandidatePublication{}, existingErr
+	}
 	currentTarget, err := resolveGitCommit(ctx, canonical.Root, candidate.TargetRef)
 	if err != nil {
 		return CandidatePublication{}, err
 	}
-	if currentTarget != candidate.ExpectedTargetOID {
-		return CandidatePublication{}, fmt.Errorf("%w: target moved from %s to %s", ErrCandidateStale, candidate.ExpectedTargetOID, currentTarget)
+	if currentTarget != candidate.ExpectedTargetOID && currentTarget != candidate.CommitOID {
+		return CandidatePublication{}, fmt.Errorf(
+			"%w: target moved from %s to %s",
+			ErrCandidateStale,
+			candidate.ExpectedTargetOID,
+			currentTarget,
+		)
 	}
-	if err := requireCleanProtectedTargetWorktree(ctx, canonical, candidate.TargetRef); err != nil {
-		return CandidatePublication{}, err
-	}
-	expectedTree, err := runGitOutput(ctx, canonical.Root, "rev-parse", candidate.ExpectedTargetOID+"^{tree}")
+	expectedIndexTree, _, err := requirePublishableProtectedWorktree(ctx, store.db, canonical, candidate)
 	if err != nil {
 		return CandidatePublication{}, err
 	}
-	nowMS := time.Now().UTC().UnixMilli()
 	publicationDigest, err := digestCanonicalJSON(struct {
 		CandidateID       string `json:"candidate_id"`
 		CandidateManifest string `json:"candidate_manifest"`
@@ -445,52 +454,217 @@ func PublishFrozenCandidate(
 		TargetAfter       string `json:"target_after"`
 	}{
 		candidate.CandidateID, candidate.ManifestSHA256, review.ReviewDigest,
-		acceptance.AcceptanceDigest, candidate.TargetRef, currentTarget, candidate.CommitOID,
+		acceptance.AcceptanceDigest, candidate.TargetRef, candidate.ExpectedTargetOID, candidate.CommitOID,
 	})
 	if err != nil {
 		return CandidatePublication{}, err
 	}
-	publication = CandidatePublication{
-		PublicationID: "publication-" + publicationDigest[:24], CandidateID: candidate.CandidateID,
-		AcceptanceID: acceptance.AcceptanceID, TargetRef: candidate.TargetRef,
-		TargetBefore: currentTarget, TargetAfter: candidate.CommitOID,
-		ExpectedIndexTreeOID: strings.TrimSpace(expectedTree), Status: CandidatePublicationPrepared,
-		PublicationDigest: publicationDigest, CreatedAtMS: nowMS, UpdatedAtMS: nowMS,
+	publication, err = prepareOrLoadCandidatePublication(
+		ctx,
+		store,
+		CandidatePublication{
+			PublicationID: "publication-" + publicationDigest[:24], CandidateID: candidate.CandidateID,
+			AcceptanceID: acceptance.AcceptanceID, TargetRef: candidate.TargetRef,
+			TargetBefore: candidate.ExpectedTargetOID, TargetAfter: candidate.CommitOID,
+			ExpectedIndexTreeOID: expectedIndexTree, Status: CandidatePublicationPrepared,
+			PublicationDigest: publicationDigest,
+		})
+	if err != nil {
+		return CandidatePublication{}, err
 	}
-	if _, err := store.db.ExecContext(ctx, `
+	if publication.AcceptanceID != acceptance.AcceptanceID ||
+		publication.TargetRef != candidate.TargetRef ||
+		publication.TargetBefore != candidate.ExpectedTargetOID ||
+		publication.TargetAfter != candidate.CommitOID ||
+		publication.ExpectedIndexTreeOID != expectedIndexTree ||
+		publication.PublicationDigest != publicationDigest {
+		return CandidatePublication{}, fmt.Errorf("%w: existing publication journal does not match current Candidate acceptance", ErrCandidateBinding)
+	}
+	if publication.Status == CandidatePublicationSucceeded {
+		return publication, nil
+	}
+	return executeCandidatePublication(ctx, store, canonical, candidate, publication)
+}
+
+func prepareOrLoadCandidatePublication(
+	ctx context.Context,
+	store *Store,
+	prepared CandidatePublication,
+) (CandidatePublication, error) {
+	tx, err := store.db.BeginTx(ctx, nil)
+	if err != nil {
+		return CandidatePublication{}, fmt.Errorf("begin Candidate publication preparation: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	existing, err := scanCandidatePublication(tx.QueryRowContext(ctx, `
+		SELECT publication_id, candidate_id, acceptance_id, target_ref, target_before,
+		       target_after, expected_index_tree_oid, status, publication_digest,
+		       created_at_ms, updated_at_ms
+		FROM candidate_publications
+		WHERE publication_id = ?
+	`, prepared.PublicationID))
+	if err == nil {
+		if err := tx.Commit(); err != nil {
+			return CandidatePublication{}, fmt.Errorf("commit Candidate publication replay: %w", err)
+		}
+		return existing, nil
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		return CandidatePublication{}, fmt.Errorf("load Candidate publication journal: %w", err)
+	}
+	existing, err = scanCandidatePublication(tx.QueryRowContext(ctx, `
+		SELECT publication_id, candidate_id, acceptance_id, target_ref, target_before,
+		       target_after, expected_index_tree_oid, status, publication_digest,
+		       created_at_ms, updated_at_ms
+		FROM candidate_publications
+		WHERE candidate_id = ? AND status = 'succeeded'
+		ORDER BY updated_at_ms DESC, publication_id DESC LIMIT 1
+	`, prepared.CandidateID))
+	if err == nil {
+		if err := tx.Commit(); err != nil {
+			return CandidatePublication{}, fmt.Errorf("commit Candidate publication replay: %w", err)
+		}
+		return existing, nil
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		return CandidatePublication{}, fmt.Errorf("load successful Candidate publication: %w", err)
+	}
+	nowMS := time.Now().UTC().UnixMilli()
+	prepared.CreatedAtMS = nowMS
+	prepared.UpdatedAtMS = nowMS
+	if _, err := tx.ExecContext(ctx, `
 		INSERT INTO candidate_publications (
 			publication_id, candidate_id, acceptance_id, target_ref, target_before,
 			target_after, expected_index_tree_oid, status, publication_digest, reason,
 			created_at_ms, updated_at_ms
 		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, '', ?, ?)
-	`, publication.PublicationID, publication.CandidateID, publication.AcceptanceID,
-		publication.TargetRef, publication.TargetBefore, publication.TargetAfter,
-		publication.ExpectedIndexTreeOID, publication.Status, publication.PublicationDigest,
-		publication.CreatedAtMS, publication.UpdatedAtMS); err != nil {
+	`, prepared.PublicationID, prepared.CandidateID, prepared.AcceptanceID,
+		prepared.TargetRef, prepared.TargetBefore, prepared.TargetAfter,
+		prepared.ExpectedIndexTreeOID, prepared.Status, prepared.PublicationDigest,
+		prepared.CreatedAtMS, prepared.UpdatedAtMS); err != nil {
 		return CandidatePublication{}, fmt.Errorf("prepare Candidate publication: %w", err)
 	}
-	if _, err := store.db.ExecContext(ctx, `
-		UPDATE candidate_publications SET status = ?, updated_at_ms = ?
-		WHERE publication_id = ? AND status = ?
-	`, CandidatePublicationExecuting, time.Now().UTC().UnixMilli(), publication.PublicationID, CandidatePublicationPrepared); err != nil {
+	if err := tx.Commit(); err != nil {
+		return CandidatePublication{}, fmt.Errorf("commit Candidate publication preparation: %w", err)
+	}
+	return prepared, nil
+}
+
+func executeCandidatePublication(
+	ctx context.Context,
+	store *Store,
+	repository Repository,
+	candidate FrozenCandidate,
+	publication CandidatePublication,
+) (CandidatePublication, error) {
+	tx, err := store.db.BeginTx(ctx, nil)
+	if err != nil {
+		return CandidatePublication{}, fmt.Errorf("begin Candidate publication execution: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	currentTarget, err := resolveGitCommit(ctx, repository.Root, candidate.TargetRef)
+	if err != nil {
 		return CandidatePublication{}, err
 	}
-	publication.Status = CandidatePublicationExecuting
-	if err := runGitMutationWithRetry(
-		ctx, canonical.Root, "update-ref", candidate.TargetRef, candidate.CommitOID, candidate.ExpectedTargetOID,
-	); err != nil {
-		_ = markCandidatePublication(ctx, store, publication.PublicationID, CandidatePublicationStale, err.Error())
-		return CandidatePublication{}, fmt.Errorf("%w: publish target CAS failed: %v", ErrCandidateStale, err)
+	if currentTarget == candidate.CommitOID {
+		return finishCandidatePublicationTx(ctx, tx, publication, CandidatePublicationSucceeded, "")
 	}
-	publication.Status = CandidatePublicationSucceeded
+	if currentTarget != candidate.ExpectedTargetOID {
+		reason := fmt.Sprintf("target moved from %s to %s", candidate.ExpectedTargetOID, currentTarget)
+		if _, finishErr := finishCandidatePublicationTx(ctx, tx, publication, CandidatePublicationStale, reason); finishErr != nil {
+			return CandidatePublication{}, finishErr
+		}
+		return CandidatePublication{}, fmt.Errorf("%w: %s", ErrCandidateStale, reason)
+	}
+	if holderRunID, err := primaryWorkspaceHolderTx(ctx, tx); err != nil {
+		return CandidatePublication{}, err
+	} else if holderRunID != "" {
+		return CandidatePublication{}, fmt.Errorf("%w: primary workspace is owned by Run %q", ErrResourceConflict, holderRunID)
+	}
+	currentIndexTree, _, err := requirePublishableProtectedWorktree(ctx, tx, repository, candidate)
+	if err != nil {
+		return CandidatePublication{}, err
+	}
+	if currentIndexTree != publication.ExpectedIndexTreeOID {
+		return CandidatePublication{}, fmt.Errorf("%w: protected target index changed after publication preparation", ErrTargetWorktreeDirty)
+	}
+	publication.Status = CandidatePublicationExecuting
 	publication.UpdatedAtMS = time.Now().UTC().UnixMilli()
-	if _, err := store.db.ExecContext(ctx, `
+	if _, err := tx.ExecContext(ctx, `
 		UPDATE candidate_publications SET status = ?, reason = '', updated_at_ms = ?
-		WHERE publication_id = ? AND status = ?
-	`, publication.Status, publication.UpdatedAtMS, publication.PublicationID, CandidatePublicationExecuting); err != nil {
-		return CandidatePublication{}, fmt.Errorf("finalize Candidate publication: %w", err)
+		WHERE publication_id = ? AND status IN ('prepared', 'executing', 'outcome_unknown', 'stale')
+	`, publication.Status, publication.UpdatedAtMS, publication.PublicationID); err != nil {
+		return CandidatePublication{}, fmt.Errorf("mark Candidate publication executing: %w", err)
+	}
+	casErr := runGitMutationWithRetry(
+		ctx, repository.Root, "update-ref", candidate.TargetRef, candidate.CommitOID, candidate.ExpectedTargetOID,
+	)
+	if casErr == nil {
+		return finishCandidatePublicationTx(ctx, tx, publication, CandidatePublicationSucceeded, "")
+	}
+	observedTarget, observeErr := resolveGitCommit(ctx, repository.Root, candidate.TargetRef)
+	if observeErr != nil {
+		return CandidatePublication{}, errors.Join(fmt.Errorf("publish target CAS: %w", casErr), observeErr)
+	}
+	if observedTarget == candidate.CommitOID {
+		return finishCandidatePublicationTx(ctx, tx, publication, CandidatePublicationSucceeded, "")
+	}
+	if observedTarget != candidate.ExpectedTargetOID {
+		reason := fmt.Sprintf("target moved from %s to %s during publish", candidate.ExpectedTargetOID, observedTarget)
+		if _, finishErr := finishCandidatePublicationTx(ctx, tx, publication, CandidatePublicationStale, reason); finishErr != nil {
+			return CandidatePublication{}, finishErr
+		}
+		return CandidatePublication{}, fmt.Errorf("%w: %s", ErrCandidateStale, reason)
+	}
+	reason := "target CAS returned without a provable ref update: " + casErr.Error()
+	if _, finishErr := finishCandidatePublicationTx(ctx, tx, publication, CandidatePublicationUnknown, reason); finishErr != nil {
+		return CandidatePublication{}, finishErr
+	}
+	return CandidatePublication{}, fmt.Errorf("%w: %s", ErrPublicationUnknown, reason)
+}
+
+func finishCandidatePublicationTx(
+	ctx context.Context,
+	tx *sql.Tx,
+	publication CandidatePublication,
+	status CandidatePublicationStatus,
+	reason string,
+) (CandidatePublication, error) {
+	publication.Status = status
+	publication.UpdatedAtMS = time.Now().UTC().UnixMilli()
+	if _, err := tx.ExecContext(ctx, `
+		UPDATE candidate_publications SET status = ?, reason = ?, updated_at_ms = ?
+		WHERE publication_id = ?
+	`, publication.Status, reason, publication.UpdatedAtMS, publication.PublicationID); err != nil {
+		return CandidatePublication{}, fmt.Errorf("record Candidate publication outcome: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return CandidatePublication{}, fmt.Errorf("commit Candidate publication outcome: %w", err)
 	}
 	return publication, nil
+}
+
+func primaryWorkspaceHolderTx(ctx context.Context, tx *sql.Tx) (string, error) {
+	var runID string
+	err := tx.QueryRowContext(ctx, `SELECT run_id FROM primary_workspace_slots WHERE slot_id = 1`).Scan(&runID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", nil
+	}
+	if err != nil {
+		return "", fmt.Errorf("read primary workspace owner: %w", err)
+	}
+	return runID, nil
+}
+
+func scanCandidatePublication(scanner interface{ Scan(...any) error }) (CandidatePublication, error) {
+	var publication CandidatePublication
+	err := scanner.Scan(
+		&publication.PublicationID, &publication.CandidateID, &publication.AcceptanceID,
+		&publication.TargetRef, &publication.TargetBefore, &publication.TargetAfter,
+		&publication.ExpectedIndexTreeOID, &publication.Status, &publication.PublicationDigest,
+		&publication.CreatedAtMS, &publication.UpdatedAtMS,
+	)
+	return publication, err
 }
 
 func SyncPublishedCandidate(
@@ -518,9 +692,22 @@ func SyncPublishedCandidate(
 	if err != nil {
 		return CandidateSync{}, err
 	}
+	if targetRef := strings.TrimSpace(params.TargetRef); targetRef != "" && targetRef != candidate.TargetRef {
+		return CandidateSync{}, fmt.Errorf("%w: requested target %q does not match Candidate target %q", ErrSyncUnsafe, targetRef, candidate.TargetRef)
+	}
 	publication, err := successfulCandidatePublication(ctx, store, candidate.CandidateID)
 	if err != nil || publication.PublicationDigest != params.PublicationDigest {
 		return CandidateSync{}, fmt.Errorf("%w: publication receipt is missing or stale", ErrSyncUnsafe)
+	}
+	tx, err := store.db.BeginTx(ctx, nil)
+	if err != nil {
+		return CandidateSync{}, fmt.Errorf("begin guarded Candidate sync: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	if holderRunID, err := primaryWorkspaceHolderTx(ctx, tx); err != nil {
+		return CandidateSync{}, err
+	} else if holderRunID != "" {
+		return CandidateSync{}, fmt.Errorf("%w: primary workspace is owned by Run %q", ErrSyncUnsafe, holderRunID)
 	}
 	branch, err := runGitOutput(ctx, canonical.PrimaryRoot, "symbolic-ref", "--quiet", "HEAD")
 	if err != nil || strings.TrimSpace(branch) != candidate.TargetRef {
@@ -531,14 +718,29 @@ func SyncPublishedCandidate(
 		return CandidateSync{}, fmt.Errorf("%w: published target no longer names Candidate", ErrSyncUnsafe)
 	}
 	indexTree, err := runGitOutput(ctx, canonical.PrimaryRoot, "write-tree")
-	if err != nil || strings.TrimSpace(indexTree) != publication.ExpectedIndexTreeOID {
+	if err != nil {
 		return CandidateSync{}, fmt.Errorf("%w: primary index changed after publication", ErrSyncUnsafe)
 	}
-	if err := requireWorktreeMatchesIndex(ctx, canonical.PrimaryRoot); err != nil {
+	indexTree = strings.TrimSpace(indexTree)
+	if indexTree != publication.ExpectedIndexTreeOID && indexTree != candidate.TreeOID {
+		return CandidateSync{}, fmt.Errorf("%w: primary index changed after publication", ErrSyncUnsafe)
+	}
+	worktreeTree, err := captureProtectedWorktreeTree(ctx, canonical, candidate.ExpectedTargetOID)
+	if err != nil {
 		return CandidateSync{}, err
 	}
-	if err := runGitMutationWithRetry(ctx, canonical.PrimaryRoot, "reset", "--hard", candidate.CommitOID); err != nil {
-		return CandidateSync{}, fmt.Errorf("safe-sync accepted Candidate: %w", err)
+	allowedTrees, err := candidateProtectedWorktreeTrees(ctx, tx, canonical, candidate)
+	if err != nil {
+		return CandidateSync{}, err
+	}
+	allowedTrees[candidate.TreeOID] = struct{}{}
+	if _, allowed := allowedTrees[worktreeTree]; !allowed {
+		return CandidateSync{}, fmt.Errorf("%w: primary worktree changed after publication", ErrSyncUnsafe)
+	}
+	if indexTree != candidate.TreeOID || worktreeTree != candidate.TreeOID {
+		if err := runGitMutationWithRetry(ctx, canonical.PrimaryRoot, "reset", "--hard", candidate.CommitOID); err != nil {
+			return CandidateSync{}, fmt.Errorf("safe-sync accepted Candidate: %w", err)
+		}
 	}
 	nowMS := time.Now().UTC().UnixMilli()
 	digest, err := digestCanonicalJSON([]string{
@@ -552,7 +754,7 @@ func SyncPublishedCandidate(
 		PublicationID: publication.PublicationID, WorktreeRoot: canonical.PrimaryRoot,
 		Status: "succeeded", SyncDigest: digest, CreatedAtMS: nowMS,
 	}
-	if _, err := store.db.ExecContext(ctx, `
+	if _, err := tx.ExecContext(ctx, `
 		INSERT INTO candidate_syncs (
 			sync_id, candidate_id, publication_id, worktree_root, status, sync_digest, created_at_ms
 		) VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -561,6 +763,9 @@ func SyncPublishedCandidate(
 		syncReceipt.WorktreeRoot, syncReceipt.Status, syncReceipt.SyncDigest,
 		syncReceipt.CreatedAtMS); err != nil {
 		return CandidateSync{}, fmt.Errorf("record Candidate sync: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return CandidateSync{}, fmt.Errorf("commit Candidate sync: %w", err)
 	}
 	return syncReceipt, nil
 }
@@ -669,43 +874,121 @@ func successfulCandidatePublication(ctx context.Context, store *Store, candidate
 	return publication, err
 }
 
-func requireCleanProtectedTargetWorktree(ctx context.Context, repository Repository, targetRef string) error {
+func requirePublishableProtectedWorktree(
+	ctx context.Context,
+	querier candidateDeliveryQuerier,
+	repository Repository,
+	candidate FrozenCandidate,
+) (string, string, error) {
+	baseTree, err := runGitOutput(ctx, repository.Root, "rev-parse", candidate.ExpectedTargetOID+"^{tree}")
+	if err != nil {
+		return "", "", err
+	}
+	baseTree = strings.TrimSpace(baseTree)
 	branch, err := runGitOutput(ctx, repository.PrimaryRoot, "symbolic-ref", "--quiet", "HEAD")
-	if err != nil || strings.TrimSpace(branch) != targetRef {
-		return nil
+	if err != nil || strings.TrimSpace(branch) != candidate.TargetRef {
+		return baseTree, baseTree, nil
 	}
-	status, err := runGitStdout(ctx, repository.PrimaryRoot, "status", "--porcelain", "--untracked-files=all")
+	indexTree, err := runGitOutput(ctx, repository.PrimaryRoot, "write-tree")
 	if err != nil {
-		return err
+		return "", "", fmt.Errorf("inspect protected target index: %w", err)
 	}
-	if strings.TrimSpace(status) != "" {
-		return fmt.Errorf("%w: protected target worktree has local changes", ErrTargetWorktreeDirty)
+	indexTree = strings.TrimSpace(indexTree)
+	worktreeTree, err := captureProtectedWorktreeTree(ctx, repository, candidate.ExpectedTargetOID)
+	if err != nil {
+		return "", "", err
 	}
-	return nil
+	allowedTrees, err := candidateProtectedWorktreeTrees(ctx, querier, repository, candidate)
+	if err != nil {
+		return "", "", err
+	}
+	if _, allowed := allowedTrees[indexTree]; !allowed {
+		return "", "", fmt.Errorf("%w: protected target index is not sealed in the Candidate", ErrTargetWorktreeDirty)
+	}
+	if _, allowed := allowedTrees[worktreeTree]; !allowed {
+		return "", "", fmt.Errorf("%w: protected target worktree has unsealed local changes", ErrTargetWorktreeDirty)
+	}
+	return indexTree, worktreeTree, nil
 }
 
-func requireWorktreeMatchesIndex(ctx context.Context, directory string) error {
-	command := exec.CommandContext(ctx, "git", "diff", "--quiet", "--exit-code")
-	command.Dir = directory
-	if err := command.Run(); err != nil {
-		return fmt.Errorf("%w: primary tracked files changed after publication", ErrSyncUnsafe)
-	}
-	untracked, err := runGitStdout(ctx, directory, "ls-files", "--others", "--exclude-standard")
-	if err != nil {
-		return err
-	}
-	if strings.TrimSpace(untracked) != "" {
-		return fmt.Errorf("%w: primary worktree has untracked files", ErrSyncUnsafe)
-	}
-	return nil
+type candidateDeliveryQuerier interface {
+	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
 }
 
-func markCandidatePublication(ctx context.Context, store *Store, publicationID string, status CandidatePublicationStatus, reason string) error {
-	_, err := store.db.ExecContext(ctx, `
-		UPDATE candidate_publications SET status = ?, reason = ?, updated_at_ms = ?
-		WHERE publication_id = ?
-	`, status, reason, time.Now().UTC().UnixMilli(), publicationID)
-	return err
+func candidateProtectedWorktreeTrees(
+	ctx context.Context,
+	querier candidateDeliveryQuerier,
+	repository Repository,
+	candidate FrozenCandidate,
+) (map[string]struct{}, error) {
+	baseTree, err := runGitOutput(ctx, repository.Root, "rev-parse", candidate.ExpectedTargetOID+"^{tree}")
+	if err != nil {
+		return nil, err
+	}
+	allowed := map[string]struct{}{strings.TrimSpace(baseTree): {}}
+	rows, err := querier.QueryContext(ctx, `
+		SELECT rr.result_id, rr.base_commit_oid, rr.result_tree_oid
+		FROM frozen_candidate_members AS member
+		JOIN run_results AS rr ON rr.result_id = member.result_id
+		JOIN workspace_routes AS route ON route.workspace_id = rr.workspace_id
+		WHERE member.candidate_id = ? AND route.mode = 'primary'
+		ORDER BY member.ordinal
+	`, candidate.CandidateID)
+	if err != nil {
+		return nil, fmt.Errorf("read Candidate primary Result state: %w", err)
+	}
+	defer rows.Close()
+	primaryCount := 0
+	for rows.Next() {
+		var resultID, baseCommit, resultTree string
+		if err := rows.Scan(&resultID, &baseCommit, &resultTree); err != nil {
+			return nil, err
+		}
+		primaryCount++
+		if primaryCount > 1 || baseCommit != candidate.ExpectedTargetOID || !validGitObjectID(resultTree) {
+			return nil, fmt.Errorf("%w: Candidate primary Result bindings are ambiguous", ErrCandidateBinding)
+		}
+		allowed[resultTree] = struct{}{}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return allowed, nil
+}
+
+func captureProtectedWorktreeTree(ctx context.Context, repository Repository, baseCommit string) (string, error) {
+	indexRoot := filepath.Join(repository.CommonDir, "specify-runtime", "result-indexes")
+	if err := safeMkdirAllWithin(repository.CommonDir, indexRoot); err != nil {
+		return "", err
+	}
+	indexFile, err := os.CreateTemp(indexRoot, "protected-index-*.tmp")
+	if err != nil {
+		return "", fmt.Errorf("allocate protected worktree index: %w", err)
+	}
+	indexPath := indexFile.Name()
+	if err := indexFile.Close(); err != nil {
+		return "", err
+	}
+	if err := os.Remove(indexPath); err != nil {
+		return "", err
+	}
+	defer func() { _ = os.Remove(indexPath) }()
+	gitEnv := map[string]string{"GIT_INDEX_FILE": indexPath}
+	if _, err := runGitWithEnvironment(ctx, repository.PrimaryRoot, gitEnv, "read-tree", baseCommit); err != nil {
+		return "", fmt.Errorf("seed protected worktree index: %w", err)
+	}
+	if _, err := runGitWithEnvironment(ctx, repository.PrimaryRoot, gitEnv, "add", "-A", "--", "."); err != nil {
+		return "", fmt.Errorf("capture protected worktree tree: %w", err)
+	}
+	tree, err := runGitWithEnvironment(ctx, repository.PrimaryRoot, gitEnv, "write-tree")
+	if err != nil {
+		return "", fmt.Errorf("write protected worktree tree: %w", err)
+	}
+	tree = strings.TrimSpace(tree)
+	if !validGitObjectID(tree) {
+		return "", fmt.Errorf("%w: protected worktree produced invalid tree %q", ErrCandidateBinding, tree)
+	}
+	return tree, nil
 }
 
 func canonicalJSON(value any) (string, error) {

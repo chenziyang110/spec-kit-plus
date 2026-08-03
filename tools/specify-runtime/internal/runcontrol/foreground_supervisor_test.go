@@ -57,7 +57,7 @@ func TestForegroundSupervisorForcesRecordedWorkspaceAndLiteralArgv(t *testing.T)
 	}
 	enqueueForegroundTestRun(t, repository, "foreground_cwd")
 
-	result, err := SuperviseRun(context.Background(), repository, foregroundTestParams(
+	result, err := SuperviseRun(context.Background(), repository, foregroundIsolatedTestParams(
 		"foreground_cwd",
 		"write",
 		"agent-marker.txt",
@@ -156,7 +156,7 @@ func TestForegroundSupervisorCancellationQuarantinesAndRetriesInNextGeneration(t
 	}
 	done := make(chan completion, 1)
 	go func() {
-		result, runErr := SuperviseRun(ctx, repository, foregroundTestParams(
+		result, runErr := SuperviseRun(ctx, repository, foregroundIsolatedTestParams(
 			"foreground_retry",
 			"block",
 			readyPath,
@@ -186,7 +186,7 @@ func TestForegroundSupervisorCancellationQuarantinesAndRetriesInNextGeneration(t
 	retried, err := SuperviseRun(
 		context.Background(),
 		repository,
-		foregroundTestParams("foreground_retry", "write", "retried.txt", "generation-2"),
+		foregroundIsolatedTestParams("foreground_retry", "write", "retried.txt", "generation-2"),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -289,6 +289,12 @@ func foregroundTestParams(runID string, helperArguments ...string) SuperviseRunP
 		LeaseDuration:        10 * time.Second,
 		SupervisorStaleAfter: 10 * time.Second,
 	}
+}
+
+func foregroundIsolatedTestParams(runID string, helperArguments ...string) SuperviseRunParams {
+	params := foregroundTestParams(runID, helperArguments...)
+	params.WorkspacePolicy = WorkspacePolicyIsolated
+	return params
 }
 
 func enqueueForegroundTestRun(t *testing.T, repository Repository, runID string) Run {

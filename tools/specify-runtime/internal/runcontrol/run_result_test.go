@@ -51,9 +51,6 @@ func TestSuccessfulSupervisionSealsRuntimeDerivedRunResult(t *testing.T) {
 	if result.Eligibility != ResultEligibilityReady {
 		t.Fatalf("sealed result eligibility = %q, want %q", result.Eligibility, ResultEligibilityReady)
 	}
-	if supervised.Candidate.CandidateID != "" {
-		t.Fatalf("successful Run published Candidate directly: %#v", supervised.Candidate)
-	}
 }
 
 func TestRunReopenAppendsResultAndSupersedesWithoutMutation(t *testing.T) {

@@ -66,14 +66,6 @@ func (store *Store) FinishAttempt(
 		Activity:  activity,
 		Workspace: workspace,
 	}
-	if params.Candidate != nil {
-		candidate, candidateErr := readCandidateForRunTx(ctx, transaction, run.RunID)
-		if candidateErr == nil {
-			finished.Candidate = candidate
-		} else if !errors.Is(candidateErr, ErrCandidateNotFound) {
-			return FinishedExecution{}, candidateErr
-		}
-	}
 	if params.Result != nil {
 		sealedResult, resultErr := readRunResultForAttemptTx(ctx, transaction, attempt.AttemptID)
 		if resultErr == nil {
@@ -168,21 +160,8 @@ func (store *Store) FinishAttempt(
 	if err := updateWorkspaceStatusTx(ctx, transaction, &workspace, targets.workspace, nowMS, params.Reason); err != nil {
 		return FinishedExecution{}, err
 	}
-	var candidate Candidate
-	if params.Candidate != nil {
-		candidate, err = insertCandidateTx(
-			ctx,
-			transaction,
-			run,
-			attempt,
-			activity,
-			workspace,
-			*params.Candidate,
-			nowMS,
-		)
-		if err != nil {
-			return FinishedExecution{}, err
-		}
+	if err := releasePrimaryWorkspaceSlotTx(ctx, transaction, run.RunID); err != nil {
+		return FinishedExecution{}, err
 	}
 	var sealedResult RunResult
 	if params.Result != nil {
@@ -211,7 +190,6 @@ func (store *Store) FinishAttempt(
 		Attempt:   attempt,
 		Activity:  activity,
 		Workspace: workspace,
-		Candidate: candidate,
 		Result:    sealedResult,
 	}, nil
 }
@@ -235,8 +213,8 @@ func validateFinishAttemptParams(params FinishAttemptParams) (finishAttemptTarge
 			workspace: WorkspaceSealed,
 		}, nil
 	case AttemptOutcomeFailed:
-		if params.Candidate != nil || params.Result != nil {
-			return finishAttemptTargets{}, fmt.Errorf("%w: failed attempt cannot publish a candidate or Result", ErrInvalidArgument)
+		if params.Result != nil {
+			return finishAttemptTargets{}, fmt.Errorf("%w: failed attempt cannot publish a Result", ErrInvalidArgument)
 		}
 		return finishAttemptTargets{
 			run:       RunFailed,
@@ -273,12 +251,6 @@ func finishAttemptMatchesReplay(
 		finished.Attempt.ActivityID == finished.Activity.ActivityID &&
 		finished.Attempt.WorkspaceID == finished.Workspace.WorkspaceID &&
 		finished.Attempt.WorkspaceGeneration == finished.Workspace.Generation &&
-		((params.Candidate == nil && finished.Candidate.CandidateID == "") ||
-			(params.Candidate != nil && finished.Candidate.CandidateID == params.Candidate.CandidateID &&
-				finished.Candidate.TargetRef == params.Candidate.TargetRef &&
-				finished.Candidate.BaseCommit == params.Candidate.BaseCommit &&
-				finished.Candidate.PrivateRef == params.Candidate.PrivateRef &&
-				finished.Candidate.HeadCommit == params.Candidate.HeadCommit)) &&
 		((params.Result == nil && finished.Result.ResultID == "") ||
 			(params.Result != nil && finished.Result.ResultID == params.Result.ResultID &&
 				finished.Result.ResultRevision == params.Result.ResultRevision &&

@@ -226,7 +226,7 @@ func TestAPIShowRunSupervisePublishesForcedWorkspaceEnvironmentContract(t *testi
 	capability := requireObject(t, requireObject(t, payload, "data"), "capability")
 	usage, _ := capability["usage"].(string)
 	contract, _ := capability["input_contract"].(string)
-	if !strings.Contains(usage, "run supervise") || !strings.Contains(contract, "forces child cwd") || !strings.Contains(contract, "SPECIFY_RUN_*") || !strings.Contains(contract, "WSLENV") {
+	if !strings.Contains(usage, "run supervise") || !strings.Contains(usage, "--workspace-policy") || !strings.Contains(contract, "forces child cwd") || !strings.Contains(contract, "SPECIFY_RUN_*") || !strings.Contains(contract, "WSLENV") || !strings.Contains(contract, "primary workspace") || !strings.Contains(contract, "isolated") {
 		t.Fatalf("run supervise capability = %#v", capability)
 	}
 }
@@ -241,18 +241,18 @@ func TestAPIShowRunLaunchPublishesSingleCallAdapterContract(t *testing.T) {
 	capability := requireObject(t, requireObject(t, payload, "data"), "capability")
 	usage, _ := capability["usage"].(string)
 	contract, _ := capability["input_contract"].(string)
-	if !strings.Contains(usage, "run launch") || !strings.Contains(contract, "single call") || !strings.Contains(contract, "queues") || !strings.Contains(contract, "forces child cwd") {
+	if !strings.Contains(usage, "run launch") || !strings.Contains(usage, "--workspace-policy") || !strings.Contains(contract, "single call") || !strings.Contains(contract, "queues") || !strings.Contains(contract, "forces child cwd") || !strings.Contains(contract, "pre-launch Snapshot") {
 		t.Fatalf("run launch capability = %#v", capability)
 	}
 }
 
 func TestAPIShowRunControlResultAndCandidateFlowReplacesDirectIntegrationWording(t *testing.T) {
 	tests := []struct {
-		capabilityID      string
-		wantUsage         []string
-		wantContract      []string
-		forbidUsage       []string
-		forbidContract    []string
+		capabilityID   string
+		wantUsage      []string
+		wantContract   []string
+		forbidUsage    []string
+		forbidContract []string
 	}{
 		{
 			capabilityID:   "result.list",
@@ -292,14 +292,14 @@ func TestAPIShowRunControlResultAndCandidateFlowReplacesDirectIntegrationWording
 		{
 			capabilityID:   "candidate.show",
 			wantUsage:      []string{"candidate show", "--candidate-id"},
-			wantContract:   []string{"immutable", "candidate"},
+			wantContract:   []string{"immutable", "candidate", "delivery receipts"},
 			forbidUsage:    []string{"run integrate"},
 			forbidContract: []string{"direct integration"},
 		},
 		{
 			capabilityID:   "candidate.review",
 			wantUsage:      []string{"candidate review", "literal argv"},
-			wantContract:   []string{"literal argv", "review target-bind"},
+			wantContract:   []string{"literal argv", "candidate", "evidence"},
 			forbidUsage:    []string{"run integrate"},
 			forbidContract: []string{"direct integration"},
 		},

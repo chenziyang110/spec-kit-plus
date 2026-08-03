@@ -19,7 +19,7 @@ scripts:
 
 [AGENT] For project-cognition-backed semantic intake, routing, audit, resume, or final-claim gates, read `references/semantic-work-contract.md`.
 
-[AGENT] `sp-review` runs only against the candidate binding for the immutable candidate selected from implementation output. Execute Review work through `specify-runtime run supervise`, and bind frozen delivery targets through `specify-runtime review target-bind`; do not call direct integration from Review.
+[AGENT] `sp-review` starts from the exact immutable Candidate built from eligible implementation Results. Inspect it with `specify-runtime candidate show` and run integrated proof with `specify-runtime candidate review`. Bind frozen product targets through `specify-runtime review target-bind`. Any accepted code repair runs through `specify-runtime run supervise` as a new repair Run, seals a new Result, and requires a newly built and reviewed Candidate; never mutate or directly integrate the old Candidate.
 
 ## Main Flow
 

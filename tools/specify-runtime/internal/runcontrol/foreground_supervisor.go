@@ -44,6 +44,7 @@ type SuperviseRunParams struct {
 	LeaseDuration        time.Duration
 	SupervisorStaleAfter time.Duration
 	OwnerEpoch           string
+	WorkspacePolicy      WorkspacePolicy
 }
 
 // SupervisedRun is the durable terminal execution observed after the managed
@@ -57,13 +58,12 @@ type SupervisedRun struct {
 	Snapshot    Snapshot
 	Attestation WorkspaceAttestation
 	Resources   RunResourceNamespace
-	Candidate   Candidate
 	Result      RunResult
 	ExitCode    int
 }
 
 // SuperviseRun owns the complete foreground lifecycle: stale-owner recovery,
-// Run claim, isolated Git worktree allocation, forced child cwd, heartbeats,
+// Run claim, authoritative workspace routing, forced child cwd, heartbeats,
 // and atomic terminal closeout. The Store remains open for the child's entire
 // lifetime and its Close path fences any incomplete execution.
 func SuperviseRun(
@@ -126,7 +126,14 @@ func SuperviseRun(
 	if err != nil {
 		return SupervisedRun{}, supervisionOperationError(ctx, heartbeatErrors, "allocate workspace generation", err)
 	}
-	workspacePlan, err := PlanGitWorkspace(lifecycleCtx, repository, claimed, generation)
+	workspacePlan, err := planSupervisedWorkspace(
+		lifecycleCtx,
+		store,
+		repository,
+		claimed,
+		generation,
+		params.WorkspacePolicy,
+	)
 	if err != nil {
 		return SupervisedRun{}, supervisionOperationError(ctx, heartbeatErrors, "plan Git workspace", err)
 	}
@@ -163,30 +170,20 @@ func SuperviseRun(
 	if _, err := MaterializeGitWorkspace(lifecycleCtx, repository, workspace); err != nil {
 		return SupervisedRun{}, supervisionOperationError(ctx, heartbeatErrors, "materialize Git workspace", err)
 	}
-	snapshot, snapshotErr := store.GetSnapshotForRun(lifecycleCtx, claimed.RunID)
-	if errors.Is(snapshotErr, ErrNotFound) {
-		captured, captureErr := CaptureAmbientSnapshot(lifecycleCtx, repository, workspace, CaptureSnapshotParams{
-			SnapshotID: supervisedAggregateID("snapshot", claimed.RunID, 0),
-			RunID:      claimed.RunID,
-			AttemptID:  supervisedAggregateID("attempt", claimed.RunID, generation),
-			TargetRef:  workspace.BaseRef,
-			SourceRoot: repository.Root,
-			Scope:      SnapshotContextOnly,
-		})
-		if captureErr != nil {
-			return SupervisedRun{}, supervisionOperationError(ctx, heartbeatErrors, "capture ambient Snapshot", captureErr)
-		}
-		snapshot, snapshotErr = store.CreateSnapshot(lifecycleCtx, captured)
-	}
-	if snapshotErr != nil {
-		return SupervisedRun{}, supervisionOperationError(ctx, heartbeatErrors, "load ambient Snapshot", snapshotErr)
-	}
-	snapshotEntries, err := store.ListSnapshotEntries(lifecycleCtx, snapshot.SnapshotID)
+	snapshot, snapshotEntries, err := prepareWorkspaceSnapshot(
+		lifecycleCtx,
+		store,
+		repository,
+		claimed,
+		workspace,
+	)
 	if err != nil {
-		return SupervisedRun{}, supervisionOperationError(ctx, heartbeatErrors, "load ambient Snapshot entries", err)
+		return SupervisedRun{}, supervisionOperationError(ctx, heartbeatErrors, "prepare ambient Snapshot", err)
 	}
-	if err := ApplySnapshotAmbientToWorkspace(lifecycleCtx, repository, workspace, snapshot, snapshotEntries); err != nil {
-		return SupervisedRun{}, supervisionOperationError(ctx, heartbeatErrors, "apply ambient Snapshot", err)
+	if workspace.Mode == WorkspaceModeIsolated {
+		if err := ApplySnapshotAmbientToWorkspace(lifecycleCtx, repository, workspace, snapshot, snapshotEntries); err != nil {
+			return SupervisedRun{}, supervisionOperationError(ctx, heartbeatErrors, "apply ambient Snapshot", err)
+		}
 	}
 	allocation, prepared, err := store.CompleteWorkspaceAllocation(lifecycleCtx, CompleteWorkspaceAllocationParams{
 		AllocationID:               allocation.AllocationID,
@@ -449,7 +446,6 @@ func SuperviseRun(
 		Snapshot:    snapshot,
 		Attestation: attestation,
 		Resources:   resources,
-		Candidate:   finished.Candidate,
 		Result:      finished.Result,
 		ExitCode:    exitCode,
 	}, nil
@@ -467,6 +463,7 @@ func supervisedRunEnvironment(run Run, attempt Attempt, workspace Workspace) []s
 		"SPECIFY_RUN_FENCE=" + strconv.FormatInt(attempt.Fence, 10),
 		"SPECIFY_RUN_WORKSPACE_ID=" + workspace.WorkspaceID,
 		"SPECIFY_RUN_WORKSPACE_GENERATION=" + strconv.FormatInt(workspace.Generation, 10),
+		"SPECIFY_RUN_WORKSPACE_MODE=" + string(normalizeWorkspaceMode(workspace.Mode)),
 		"SPECIFY_RUN_WORKSPACE=" + workspace.RootPath,
 		"SPECIFY_RUN_PRIVATE_REF=" + workspace.PrivateRef,
 	}
@@ -485,6 +482,7 @@ func supervisedRunWSLEnv(existing string) string {
 		"SPECIFY_RUN_FENCE",
 		"SPECIFY_RUN_WORKSPACE_ID",
 		"SPECIFY_RUN_WORKSPACE_GENERATION",
+		"SPECIFY_RUN_WORKSPACE_MODE",
 		"SPECIFY_RUN_WORKSPACE/p",
 		"SPECIFY_RUN_PRIVATE_REF",
 		"SPECIFY_RUN_RESOURCE_ROOT/p",
@@ -558,6 +556,7 @@ func superviseAttemptHeartbeat(
 }
 
 func withSupervisionDefaults(params SuperviseRunParams) SuperviseRunParams {
+	params.WorkspacePolicy = normalizeWorkspacePolicy(params.WorkspacePolicy)
 	if params.HeartbeatInterval <= 0 {
 		params.HeartbeatInterval = defaultSupervisorHeartbeatInterval
 	}
@@ -585,6 +584,10 @@ func validateSuperviseRunParams(repository Repository, params SuperviseRunParams
 	}
 	if len(params.Argv) == 0 || strings.TrimSpace(params.Argv[0]) == "" {
 		return fmt.Errorf("%w: a tokenized child argv is required", ErrInvalidArgument)
+	}
+	if policy := normalizeWorkspacePolicy(params.WorkspacePolicy); policy != WorkspacePolicyAuto &&
+		policy != WorkspacePolicyPrimary && policy != WorkspacePolicyIsolated {
+		return fmt.Errorf("%w: unsupported workspace policy %q", ErrInvalidArgument, params.WorkspacePolicy)
 	}
 	for _, argument := range params.Argv {
 		if strings.ContainsRune(argument, '\x00') {

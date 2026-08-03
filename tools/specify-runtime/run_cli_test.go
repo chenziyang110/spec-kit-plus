@@ -527,7 +527,7 @@ func TestRunCapabilitiesPublishPublicRunControlFlowInsteadOfDirectIntegration(t 
 	}
 }
 
-func TestRunCLIPublicDeliveryFlowBuildsReviewsAcceptsPublishesAndSafelySyncs(t *testing.T) {
+func TestRunCLIFiveParallelWorkflowsConvergeThroughPublicDeliveryFlowWithoutWorkspaceDrift(t *testing.T) {
 	root := initRunCLIRepository(t)
 	gitRun(t, root, "config", "user.name", "Run CLI Test")
 	gitRun(t, root, "config", "user.email", "run-cli@example.invalid")
@@ -540,10 +540,19 @@ func TestRunCLIPublicDeliveryFlowBuildsReviewsAcceptsPublishesAndSafelySyncs(t *
 	targetRef := strings.TrimSpace(gitRun(t, root, "symbolic-ref", "HEAD"))
 	t.Setenv("SPECIFY_RUNTIME_CLI_FOREGROUND_HELPER", "1")
 
-	resultIDs := make([]string, 0, 2)
-	for index, filename := range []string{"feature-a.txt", "feature-b.txt"} {
+	filenames := []string{"feature-a.txt", "feature-b.txt", "feature-c.txt", "feature-d.txt", "feature-e.txt"}
+	type launchCompletion struct {
+		index  int
+		code   int
+		stdout []byte
+		stderr string
+	}
+	start := make(chan struct{})
+	completed := make(chan launchCompletion, len(filenames))
+	var launches sync.WaitGroup
+	for index, filename := range filenames {
 		runID := fmt.Sprintf("run_cli_delivery_%d", index+1)
-		code, payload := invokeRunCLI(t,
+		args := []string{
 			"run", "launch",
 			"--project-root", root,
 			"--run-id", runID,
@@ -553,21 +562,56 @@ func TestRunCLIPublicDeliveryFlowBuildsReviewsAcceptsPublishesAndSafelySyncs(t *
 			"--target-ref", targetRef,
 			"--intent-sha256", strings.Repeat(strconv.Itoa(index+1), 64),
 			"--adapter-id", "test-helper",
-			"--workspace-policy", "isolated",
 			"--format", "json",
 			"--",
 			os.Args[0], "-test.run=^TestRunCLIForegroundHelperProcess$", "--",
 			filename, runID,
-		)
+		}
+		launches.Add(1)
+		go func(index int, args []string) {
+			defer launches.Done()
+			<-start
+			var stdout, stderr bytes.Buffer
+			code := Run(args, &stdout, &stderr, "test")
+			completed <- launchCompletion{
+				index:  index,
+				code:   code,
+				stdout: append([]byte(nil), stdout.Bytes()...),
+				stderr: stderr.String(),
+			}
+		}(index, args)
+	}
+	close(start)
+	launches.Wait()
+	close(completed)
+
+	ordered := make([]launchCompletion, len(filenames))
+	for completion := range completed {
+		ordered[completion.index] = completion
+	}
+	resultIDs := make([]string, 0, len(filenames))
+	workspaceModes := map[string]int{}
+	for index, completion := range ordered {
+		runID := fmt.Sprintf("run_cli_delivery_%d", index+1)
+		if completion.stderr != "" {
+			t.Fatalf("run launch %s stderr = %q", runID, completion.stderr)
+		}
+		payload := decodeJSONObject(t, completion.stdout)
+		code := completion.code
 		if code != 0 || payload["status"] != "ok" {
 			t.Fatalf("run launch %s = code %d envelope %#v", runID, code, payload)
 		}
 		execution := requireObject(t, requireObject(t, payload, "data"), "execution")
 		resultID, _ := execution["result_id"].(string)
-		if resultID == "" || execution["workspace_mode"] != "isolated" || execution["result_eligibility"] != "ready" {
+		workspaceMode, _ := execution["workspace_mode"].(string)
+		if resultID == "" || (workspaceMode != "primary" && workspaceMode != "isolated") || execution["result_eligibility"] != "ready" {
 			t.Fatalf("sealed execution %s = %#v", runID, execution)
 		}
+		workspaceModes[workspaceMode]++
 		resultIDs = append(resultIDs, resultID)
+	}
+	if workspaceModes["primary"] != 1 || workspaceModes["isolated"] != len(filenames)-1 {
+		t.Fatalf("automatic workspace routes = %#v, want one primary and %d isolated", workspaceModes, len(filenames)-1)
 	}
 
 	code, listed := invokeRunCLI(t, "result", "list", "run_cli_delivery_1", "--project-root", root, "--format", "json")
@@ -599,10 +643,11 @@ func TestRunCLIPublicDeliveryFlowBuildsReviewsAcceptsPublishesAndSafelySyncs(t *
 		t.Fatalf("dependent result show = code %d envelope %#v", code, shownDependent)
 	}
 
-	buildArgs := []string{
-		"candidate", "build", "--project-root", root, "--target-ref", targetRef,
-		"--result", resultIDs[0], "--result", resultIDs[1], "--format", "json",
+	buildArgs := []string{"candidate", "build", "--project-root", root, "--target-ref", targetRef}
+	for _, resultID := range resultIDs {
+		buildArgs = append(buildArgs, "--result", resultID)
 	}
+	buildArgs = append(buildArgs, "--format", "json")
 	code, built := invokeRunCLI(t, buildArgs...)
 	if code != 0 || built["status"] != "ok" {
 		t.Fatalf("candidate build = code %d envelope %#v", code, built)
@@ -696,7 +741,7 @@ func TestRunCLIPublicDeliveryFlowBuildsReviewsAcceptsPublishesAndSafelySyncs(t *
 	if code != 0 || synced["status"] != "ok" {
 		t.Fatalf("sync safe = code %d envelope %#v", code, synced)
 	}
-	for _, filename := range []string{"feature-a.txt", "feature-b.txt"} {
+	for _, filename := range filenames {
 		if _, err := os.Stat(filepath.Join(root, filename)); err != nil {
 			t.Fatalf("published file %s is missing after safe sync: %v", filename, err)
 		}

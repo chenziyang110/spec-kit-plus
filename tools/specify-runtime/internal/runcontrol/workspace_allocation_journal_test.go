@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"path/filepath"
+	"strconv"
 	"testing"
 	"time"
 )
@@ -235,7 +236,7 @@ func TestWorkspaceAllocationJournalSurvivesOwnerReconciliation(t *testing.T) {
 	}
 }
 
-func TestOpenMigratesSchemaVersionThreeThroughCandidateIntegrationSchema(t *testing.T) {
+func TestOpenMigratesSchemaVersionThreeToCurrentRunControlSchema(t *testing.T) {
 	ctx := context.Background()
 	databasePath := filepath.Join(t.TempDir(), "run-control.sqlite")
 	initial, err := Open(ctx, databasePath, WithOwnerEpoch("schema_v4_seed"))
@@ -271,8 +272,8 @@ func TestOpenMigratesSchemaVersionThreeThroughCandidateIntegrationSchema(t *test
 	if err := migrated.db.QueryRowContext(ctx, `SELECT value FROM metadata WHERE key = 'schema_version'`).Scan(&version); err != nil {
 		t.Fatal(err)
 	}
-	if version != "5" {
-		t.Fatalf("migrated schema version = %q, want 5", version)
+	if version != strconv.Itoa(schemaVersion) {
+		t.Fatalf("migrated schema version = %q, want %d", version, schemaVersion)
 	}
 	var tableCount int
 	if err := migrated.db.QueryRowContext(ctx, `
@@ -283,12 +284,24 @@ func TestOpenMigratesSchemaVersionThreeThroughCandidateIntegrationSchema(t *test
 	if tableCount != 1 {
 		t.Fatalf("workspace_allocations table count = %d, want 1", tableCount)
 	}
-	if err := migrated.db.QueryRowContext(ctx, `
-		SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'candidates'
-	`).Scan(&tableCount); err != nil {
-		t.Fatal(err)
+	for _, table := range []string{"run_results", "frozen_candidates", "candidate_reviews", "primary_workspace_slots"} {
+		if err := migrated.db.QueryRowContext(ctx, `
+			SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?
+		`, table).Scan(&tableCount); err != nil {
+			t.Fatal(err)
+		}
+		if tableCount != 1 {
+			t.Fatalf("%s table count = %d, want 1", table, tableCount)
+		}
 	}
-	if tableCount != 1 {
-		t.Fatalf("candidates table count = %d, want 1", tableCount)
+	for _, legacyTable := range []string{"candidates", "candidate_integrations", "results"} {
+		if err := migrated.db.QueryRowContext(ctx, `
+			SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?
+		`, legacyTable).Scan(&tableCount); err != nil {
+			t.Fatal(err)
+		}
+		if tableCount != 0 {
+			t.Fatalf("legacy %s table count = %d, want 0", legacyTable, tableCount)
+		}
 	}
 }

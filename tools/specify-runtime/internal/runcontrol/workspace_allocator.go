@@ -62,12 +62,71 @@ func PlanGitWorkspace(ctx context.Context, repository Repository, run Run, gener
 		RunID:         run.RunID,
 		Generation:    generation,
 		Kind:          "git_worktree",
+		Mode:          WorkspaceModeIsolated,
 		RootPath:      identity.rootPath,
 		RepoCommonDir: canonical.CommonDir,
 		BaseRef:       baseRef,
 		BaseCommit:    baseCommit,
 		PrivateRef:    identity.privateRef,
 	}, nil
+}
+
+func PlanPrimaryWorkspace(ctx context.Context, repository Repository, run Run, generation int64) (CreateWorkspaceParams, error) {
+	planned, err := planPrimaryWorkspaceBinding(ctx, repository, run, generation)
+	if err != nil {
+		return CreateWorkspaceParams{}, err
+	}
+	if err := requirePristinePrimaryWorkspace(ctx, planned.RootPath, planned.BaseRef); err != nil {
+		return CreateWorkspaceParams{}, err
+	}
+	return planned, nil
+}
+
+func planPrimaryWorkspaceBinding(ctx context.Context, repository Repository, run Run, generation int64) (CreateWorkspaceParams, error) {
+	if strings.TrimSpace(run.RunID) == "" || strings.TrimSpace(run.TargetRef) == "" || generation <= 0 {
+		return CreateWorkspaceParams{}, fmt.Errorf("%w: run id, target ref, and positive generation are required", ErrInvalidArgument)
+	}
+	canonical, err := canonicalAllocationRepository(ctx, repository)
+	if err != nil {
+		return CreateWorkspaceParams{}, err
+	}
+	baseRef, err := resolveMutableTargetRef(ctx, canonical.Root, run.TargetRef)
+	if err != nil {
+		return CreateWorkspaceParams{}, fmt.Errorf("resolve mutable target ref %q: %w", run.TargetRef, err)
+	}
+	baseCommit, err := resolveGitCommit(ctx, canonical.Root, baseRef)
+	if err != nil {
+		return CreateWorkspaceParams{}, fmt.Errorf("resolve target ref %q: %w", run.TargetRef, err)
+	}
+	identity := plannedPrimaryWorkspaceIdentity(canonical, run.RunID, generation)
+	return CreateWorkspaceParams{
+		WorkspaceID:   identity.workspaceID,
+		RunID:         run.RunID,
+		Generation:    generation,
+		Kind:          "git_worktree",
+		Mode:          WorkspaceModePrimary,
+		SourceRunID:   run.RunID,
+		RootPath:      canonical.Root,
+		RepoCommonDir: canonical.CommonDir,
+		BaseRef:       baseRef,
+		BaseCommit:    baseCommit,
+		PrivateRef:    baseRef,
+	}, nil
+}
+
+func requirePristinePrimaryWorkspace(ctx context.Context, rootPath, targetRef string) error {
+	branch, err := runGitOutput(ctx, rootPath, "symbolic-ref", "--quiet", "HEAD")
+	if err != nil || strings.TrimSpace(branch) != targetRef {
+		return fmt.Errorf("%w: primary workspace does not check out target %q", ErrWorkspaceBinding, targetRef)
+	}
+	status, err := runGitStdout(ctx, rootPath, "status", "--porcelain", "--untracked-files=all")
+	if err != nil {
+		return err
+	}
+	if strings.TrimSpace(status) != "" {
+		return fmt.Errorf("%w: primary workspace has local changes", ErrTargetWorktreeDirty)
+	}
+	return nil
 }
 
 func resolveMutableTargetRef(ctx context.Context, directory, revision string) (string, error) {
@@ -102,6 +161,12 @@ func MaterializeGitWorkspace(ctx context.Context, repository Repository, workspa
 	}
 	if err := validateMaterializationBinding(ctx, canonical, workspace); err != nil {
 		return WorkspaceMaterialization{}, err
+	}
+	if workspaceIsPrimary(workspace, canonical) {
+		if err := verifyMaterializedWorkspace(ctx, canonical, workspace); err != nil {
+			return WorkspaceMaterialization{}, err
+		}
+		return materializationResult(workspace, WorkspaceMaterializationExisting), nil
 	}
 
 	_, statErr := os.Lstat(workspace.RootPath)
@@ -156,6 +221,14 @@ type workspaceIdentity struct {
 	workspaceID string
 	rootPath    string
 	privateRef  string
+}
+
+func plannedPrimaryWorkspaceIdentity(repository Repository, runID string, generation int64) workspaceIdentity {
+	_, digest := safeRunToken(runID)
+	return workspaceIdentity{
+		workspaceID: "workspace-primary-" + digest[:20] + "-g" + strconv.FormatInt(generation, 10),
+		rootPath:    filepath.Clean(repository.Root),
+	}
 }
 
 func plannedWorkspaceIdentity(repository Repository, runID string, generation int64) workspaceIdentity {
@@ -233,19 +306,22 @@ func validateMaterializationBinding(ctx context.Context, repository Repository, 
 	if workspace.Kind != "git_worktree" || strings.TrimSpace(workspace.RunID) == "" || workspace.Generation <= 0 {
 		return fmt.Errorf("%w: workspace kind, run id, and generation are invalid", ErrWorkspaceBinding)
 	}
-	identity := plannedWorkspaceIdentity(repository, workspace.RunID, workspace.Generation)
-	if workspace.WorkspaceID != identity.workspaceID ||
-		!sameFilesystemPath(workspace.RootPath, identity.rootPath) ||
-		!sameFilesystemPath(workspace.RepoCommonDir, repository.CommonDir) ||
-		workspace.PrivateRef != identity.privateRef {
-		return fmt.Errorf("%w: workspace %q does not match its deterministic run generation identity", ErrWorkspaceBinding, workspace.WorkspaceID)
-	}
 	if strings.TrimSpace(workspace.BaseRef) == "" || !validGitObjectID(workspace.BaseCommit) {
 		return fmt.Errorf("%w: workspace base ref or commit is invalid", ErrWorkspaceBinding)
 	}
 	commit, err := resolveGitCommit(ctx, repository.Root, workspace.BaseCommit)
 	if err != nil || commit != workspace.BaseCommit {
 		return fmt.Errorf("%w: workspace base commit %q is not available in the repository", ErrWorkspaceBinding, workspace.BaseCommit)
+	}
+	if workspaceIsPrimary(workspace, repository) {
+		return validatePrimaryWorkspaceBinding(ctx, repository, workspace)
+	}
+	identity := plannedWorkspaceIdentity(repository, workspace.RunID, workspace.Generation)
+	if workspace.WorkspaceID != identity.workspaceID ||
+		!sameFilesystemPath(workspace.RootPath, identity.rootPath) ||
+		!sameFilesystemPath(workspace.RepoCommonDir, repository.CommonDir) ||
+		workspace.PrivateRef != identity.privateRef {
+		return fmt.Errorf("%w: workspace %q does not match its deterministic run generation identity", ErrWorkspaceBinding, workspace.WorkspaceID)
 	}
 	return validateOwnedWorkspacePath(repository.CommonDir, workspace.RootPath)
 }
@@ -268,6 +344,16 @@ func verifyMaterializedWorkspace(ctx context.Context, repository Repository, wor
 	if err != nil || head != workspace.BaseCommit {
 		return fmt.Errorf("%w: workspace HEAD does not match base commit %q", ErrWorkspaceConflict, workspace.BaseCommit)
 	}
+	if workspaceIsPrimary(workspace, repository) {
+		currentBase, err := resolveGitCommit(ctx, repository.Root, workspace.BaseRef)
+		if err != nil || currentBase != workspace.BaseCommit {
+			return fmt.Errorf("%w: primary target ref %q no longer matches base commit %q", ErrWorkspaceConflict, workspace.BaseRef, workspace.BaseCommit)
+		}
+		if branch != workspace.BaseRef || workspace.PrivateRef != workspace.BaseRef {
+			return fmt.Errorf("%w: primary workspace HEAD %q is not bound to base ref %q", ErrWorkspaceConflict, branch, workspace.BaseRef)
+		}
+		return nil
+	}
 	privateCommit, exists, err := resolveOptionalGitCommit(ctx, repository.Root, workspace.PrivateRef)
 	if err != nil || !exists || privateCommit != head {
 		return fmt.Errorf("%w: private ref %q does not match workspace HEAD", ErrWorkspaceConflict, workspace.PrivateRef)
@@ -283,6 +369,37 @@ func materializationResult(workspace Workspace, status WorkspaceMaterializationS
 		HeadCommit:  workspace.BaseCommit,
 		Status:      status,
 	}
+}
+
+func validatePrimaryWorkspaceBinding(ctx context.Context, repository Repository, workspace Workspace) error {
+	identity := plannedPrimaryWorkspaceIdentity(repository, workspace.RunID, workspace.Generation)
+	if workspace.WorkspaceID != identity.workspaceID ||
+		!sameFilesystemPath(workspace.RootPath, repository.Root) ||
+		!sameFilesystemPath(workspace.RepoCommonDir, repository.CommonDir) {
+		return fmt.Errorf("%w: primary workspace %q does not match canonical repository root/common dir", ErrWorkspaceBinding, workspace.WorkspaceID)
+	}
+	if workspace.PrivateRef != workspace.BaseRef || strings.TrimSpace(workspace.PrivateRef) == "" {
+		return fmt.Errorf("%w: primary workspace must bind HEAD directly to base ref", ErrWorkspaceBinding)
+	}
+	branch, err := runGitOutput(ctx, repository.Root, "symbolic-ref", "HEAD")
+	if err != nil || branch != workspace.BaseRef {
+		return fmt.Errorf("%w: repository HEAD is not base ref %q", ErrWorkspaceBinding, workspace.BaseRef)
+	}
+	currentBase, err := resolveGitCommit(ctx, repository.Root, workspace.BaseRef)
+	if err != nil || currentBase != workspace.BaseCommit {
+		return fmt.Errorf("%w: target ref %q no longer matches base commit %q", ErrWorkspaceBinding, workspace.BaseRef, workspace.BaseCommit)
+	}
+	return nil
+}
+
+func workspaceIsPrimary(workspace Workspace, repository Repository) bool {
+	if workspace.Mode != "" {
+		return workspace.Mode == WorkspaceModePrimary
+	}
+	return sameFilesystemPath(workspace.RootPath, repository.Root) &&
+		sameFilesystemPath(workspace.RepoCommonDir, repository.CommonDir) &&
+		strings.TrimSpace(workspace.BaseRef) != "" &&
+		workspace.PrivateRef == workspace.BaseRef
 }
 
 func validateOwnedWorkspacePath(commonDir, candidate string) error {

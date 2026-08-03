@@ -72,7 +72,7 @@ def test_feature_lane_runtime_and_workflow_surfaces_are_retired() -> None:
         assert "LANE_WORKTREE" not in content
 
 
-def test_task_and_evidence_lane_artifacts_remain_supported() -> None:
+def test_task_and_evidence_lane_artifacts_remain_supported_without_legacy_run_integration() -> None:
     assert (REPO_ROOT / "templates/artifacts/lane-manifest.json").is_file()
 
     artifact_registry = (
@@ -84,8 +84,16 @@ def test_task_and_evidence_lane_artifacts_remain_supported() -> None:
     run_cli = (REPO_ROOT / "tools/specify-runtime/run.go").read_text(
         encoding="utf-8"
     )
-    assert 'case "integrate":' in run_cli
-    assert "runIntegrateCandidate" in run_cli
+    assert 'case "integrate":' not in run_cli
+    assert "runIntegrateCandidate" not in run_cli
+    for handler in (
+        "runResultCommand",
+        "runCandidateCommand",
+        "runAcceptCommand",
+        "runCASCommand",
+        "runSyncCommand",
+    ):
+        assert handler in run_cli
 
 
 def test_active_workflow_surfaces_use_run_control_not_feature_lanes() -> None:
@@ -101,6 +109,8 @@ def test_active_workflow_surfaces_use_run_control_not_feature_lanes() -> None:
         "specify-runtime lane resolve",
         "sp-integrate",
         "spx-integrate",
+        "specify-runtime run integrate",
+        "runIntegrateCandidate",
     )
     violations: list[str] = []
     for root in active_roots:
@@ -121,5 +131,10 @@ def test_active_workflow_surfaces_use_run_control_not_feature_lanes() -> None:
         assert token not in docs
     assert "specify-runtime run launch" in docs
     assert "run supervise" in docs
-    assert "specify-runtime run integrate" in docs
+    assert "specify-runtime result show" in docs
+    assert "specify-runtime candidate build" in docs
+    assert "candidate review" in docs
+    assert "accept receipt" in docs
+    assert "cas publish" in docs
+    assert "sync safe" in docs
     assert "WSLENV" in docs

@@ -18,7 +18,14 @@ func TestPrimaryWorkspaceRoutingElectsExactlyOnePrimaryWinnerForConcurrentModify
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, runID := range []string{"routing_concurrent_a", "routing_concurrent_b"} {
+	runIDs := []string{
+		"routing_concurrent_a",
+		"routing_concurrent_b",
+		"routing_concurrent_c",
+		"routing_concurrent_d",
+		"routing_concurrent_e",
+	}
+	for _, runID := range runIDs {
 		enqueueForegroundTestRun(t, repository, runID)
 	}
 
@@ -27,9 +34,9 @@ func TestPrimaryWorkspaceRoutingElectsExactlyOnePrimaryWinnerForConcurrentModify
 		err    error
 	}
 	start := make(chan struct{})
-	results := make(chan completion, 2)
+	results := make(chan completion, len(runIDs))
 	var wait sync.WaitGroup
-	for index, runID := range []string{"routing_concurrent_a", "routing_concurrent_b"} {
+	for index, runID := range runIDs {
 		wait.Add(1)
 		go func(index int, runID string) {
 			defer wait.Done()
@@ -58,8 +65,8 @@ func TestPrimaryWorkspaceRoutingElectsExactlyOnePrimaryWinnerForConcurrentModify
 			isolated++
 		}
 	}
-	if primaryWinners != 1 || isolated != 1 {
-		t.Fatalf("concurrent routing winners = %d primary / %d isolated, want exactly one primary winner and one isolated overlap", primaryWinners, isolated)
+	if primaryWinners != 1 || isolated != len(runIDs)-1 {
+		t.Fatalf("concurrent routing winners = %d primary / %d isolated, want exactly one primary winner and %d isolated overlaps", primaryWinners, isolated, len(runIDs)-1)
 	}
 }
 
@@ -67,7 +74,15 @@ func TestPrimaryWorkspaceRoutingReleasesPrimaryAfterTerminalLifecycle(t *testing
 	t.Setenv(foregroundHelperEnvironment, "1")
 	t.Run("success", func(t *testing.T) {
 		assertPrimarySlotReleasedAfterTerminalRun(t, "success", func(t *testing.T, repository Repository, runID string) (SupervisedRun, error) {
-			return SuperviseRun(context.Background(), repository, foregroundTestParams(runID, "write", runID+"-marker.txt", runID))
+			finished, err := SuperviseRun(context.Background(), repository, foregroundTestParams(runID, "write", runID+"-marker.txt", runID))
+			if err == nil {
+				// Remove only the sealed test marker so this assertion measures slot
+				// release independently from the dirty-primary safety guard.
+				if removeErr := os.Remove(filepath.Join(repository.Root, runID+"-marker.txt")); removeErr != nil {
+					t.Fatal(removeErr)
+				}
+			}
+			return finished, err
 		})
 	})
 	t.Run("failure", func(t *testing.T) {
@@ -150,6 +165,9 @@ func TestPrimaryWorkspaceRoutingIsolatedOverlapUsesPrelaunchSnapshotNotInProgres
 	if err := os.WriteFile(filepath.Join(mainRoot, "README.md"), []byte(prelaunchAmbient), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	gitPath := ensureGitAvailable(t)
+	runGit(t, gitPath, mainRoot, "add", "README.md")
+	runGit(t, gitPath, mainRoot, "commit", "-m", "prelaunch content")
 
 	primary := enqueueForegroundTestRun(t, repository, "routing_overlay_primary")
 	follower := enqueueForegroundTestRun(t, repository, "routing_overlay_follower")
@@ -158,6 +176,11 @@ func TestPrimaryWorkspaceRoutingIsolatedOverlapUsesPrelaunchSnapshotNotInProgres
 	defer blocked.stop(t)
 	if got := blocked.cwd(t); got != mainRoot {
 		t.Fatalf("overlay primary cwd = %q, want %q", got, mainRoot)
+	}
+	snapshotStore := openTestStore(t, repository.DatabasePath)
+	primarySnapshot, err := snapshotStore.GetSnapshotForRun(context.Background(), primary.RunID)
+	if err != nil {
+		t.Fatal(err)
 	}
 
 	if err := os.WriteFile(filepath.Join(mainRoot, "README.md"), []byte(duringPrimaryAmbient), 0o644); err != nil {
@@ -174,8 +197,48 @@ func TestPrimaryWorkspaceRoutingIsolatedOverlapUsesPrelaunchSnapshotNotInProgres
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := string(content); got != prelaunchAmbient {
+	if got := strings.ReplaceAll(string(content), "\r\n", "\n"); got != prelaunchAmbient {
 		t.Fatalf("isolated overlap README = %q, want prelaunch snapshot %q and never in-progress edit %q", got, prelaunchAmbient, duringPrimaryAmbient)
+	}
+	if next.Snapshot.OverlayManifestSHA256 != primarySnapshot.OverlayManifestSHA256 {
+		t.Fatalf("isolated overlap overlay digest = %q, want exact primary prelaunch overlay %q", next.Snapshot.OverlayManifestSHA256, primarySnapshot.OverlayManifestSHA256)
+	}
+}
+
+func TestPrimaryWorkspaceRoutingAutoFallsBackToIsolationWhenPrimaryHasUnsealedChanges(t *testing.T) {
+	t.Setenv(foregroundHelperEnvironment, "1")
+	mainRoot, _ := createLinkedRepository(t)
+	repository, err := ResolveRepository(context.Background(), mainRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const localContent = "unsealed user state\n"
+	localPath := filepath.Join(mainRoot, "unsealed-user-change.txt")
+	if err := os.WriteFile(localPath, []byte(localContent), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	run := enqueueForegroundTestRun(t, repository, "routing_dirty_primary_fallback")
+	finished, err := SuperviseRun(
+		context.Background(),
+		repository,
+		foregroundTestParams(run.RunID, "write", "isolated-marker.txt", run.RunID),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if finished.Workspace.Mode != WorkspaceModeIsolated || finished.Workspace.RootPath == mainRoot {
+		t.Fatalf("dirty-primary automatic route = %#v, want isolated workspace", finished.Workspace)
+	}
+	content, err := os.ReadFile(localPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(content) != localContent {
+		t.Fatalf("unsealed primary state = %q, want preserved %q", content, localContent)
+	}
+	if _, err := os.Stat(filepath.Join(mainRoot, "isolated-marker.txt")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("isolated task changed protected primary workspace: %v", err)
 	}
 }
 

@@ -95,10 +95,12 @@ func superviseCandidateResult(
 ) RunResult {
 	t.Helper()
 	enqueueForegroundTestRun(t, repository, runID)
+	params := foregroundTestParams(runID, "write-exact", path, content)
+	params.WorkspacePolicy = WorkspacePolicyIsolated
 	supervised, err := SuperviseRun(
 		context.Background(),
 		repository,
-		foregroundTestParams(runID, "write-exact", path, content),
+		params,
 	)
 	if err != nil {
 		t.Fatal(err)
