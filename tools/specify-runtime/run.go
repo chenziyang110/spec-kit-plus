@@ -32,6 +32,8 @@ func runRun(args []string, stdout, stderr io.Writer) int {
 		return runCancel(args[1:], stdout)
 	case "supervise":
 		return runSupervise(args[1:], stdout, stderr)
+	case "integrate":
+		return runIntegrateCandidate(args[1:], stdout)
 	default:
 		return writeEnvelope(stdout, runUsageEnvelope(fmt.Sprintf("unknown run subcommand %q", args[0])))
 	}
@@ -39,7 +41,7 @@ func runRun(args []string, stdout, stderr io.Writer) int {
 
 func writeRunHelp(stdout io.Writer) int {
 	_, _ = fmt.Fprintln(stdout, "specify-runtime run commands:")
-	for _, command := range []string{"create", "show", "events", "cancel", "supervise"} {
+	for _, command := range []string{"create", "show", "events", "cancel", "supervise", "integrate"} {
 		_, _ = fmt.Fprintf(stdout, "  %s\n", command)
 	}
 	return 0
@@ -260,6 +262,52 @@ func runSupervise(args []string, stdout, stderr io.Writer) int {
 	return writeEnvelope(stdout, env)
 }
 
+func runIntegrateCandidate(args []string, stdout io.Writer) int {
+	parsed, err := parseRunCommandArgs(args, 0, "--project-root", "--target-ref", "--format")
+	if err != nil {
+		return writeEnvelope(stdout, runUsageEnvelope(err.Error()))
+	}
+	if err := parsed.validateJSONFormat(); err != nil {
+		return writeEnvelope(stdout, runUsageEnvelope(err.Error()))
+	}
+	targetRef := strings.TrimSpace(parsed.option("--target-ref", ""))
+	if targetRef == "" {
+		return writeEnvelope(stdout, runUsageEnvelope("run integrate requires --target-ref"))
+	}
+	projectRoot := parsed.option("--project-root", ".")
+	ctx, stopSignals := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stopSignals()
+	repository, err := runcontrol.ResolveRepository(ctx, projectRoot)
+	if err != nil {
+		return writeEnvelope(stdout, runControlErrorEnvelope("resolve run repository", err))
+	}
+	outcome, operationErr := runcontrol.IntegrateNext(ctx, repository, runcontrol.IntegrateNextParams{
+		TargetRef: targetRef,
+	})
+	if operationErr != nil {
+		return writeEnvelope(stdout, runControlErrorEnvelope("integrate candidate", operationErr))
+	}
+	status := "ok"
+	summary := "candidate integrated into target ref"
+	if outcome.Result.Status == runcontrol.ResultConflicted {
+		status = "blocked"
+		summary = "candidate conflicts with current target ref"
+	}
+	env := NewEnvelope(status, summary)
+	env.Data["candidate"] = candidateDTO(outcome.Candidate)
+	env.Data["integration"] = candidateIntegrationDTO(outcome.Integration)
+	env.Data["result"] = integrationResultDTO(outcome.Result)
+	env.ShowArgv = runShowArgv(outcome.Candidate.RunID, projectRoot)
+	if status == "blocked" {
+		env.Blockers = append(env.Blockers, map[string]any{
+			"code":              "candidate-conflict",
+			"candidate_id":      outcome.Candidate.CandidateID,
+			"exact_next_action": "Resolve the isolated Candidate conflict in a replacement Run; the target worktree is clean.",
+		})
+	}
+	return writeEnvelope(stdout, env)
+}
+
 type parsedRunCommand struct {
 	positionals []string
 	options     map[string]string
@@ -367,13 +415,63 @@ func runEventDTO(event runcontrol.Event) map[string]any {
 }
 
 func supervisedRunDTO(result runcontrol.SupervisedRun) map[string]any {
-	return map[string]any{
+	payload := map[string]any{
 		"attempt_id":           result.Attempt.AttemptID,
 		"exit_code":            result.ExitCode,
 		"workspace_generation": result.Workspace.Generation,
 		"workspace_id":         result.Workspace.WorkspaceID,
 		"workspace_root":       result.Workspace.RootPath,
 		"private_ref":          result.Workspace.PrivateRef,
+	}
+	if result.Candidate.CandidateID != "" {
+		payload["candidate_id"] = result.Candidate.CandidateID
+		payload["target_ref"] = result.Candidate.TargetRef
+		payload["head_commit"] = result.Candidate.HeadCommit
+		payload["candidate_status"] = result.Candidate.Status
+	}
+	return payload
+}
+
+func candidateDTO(candidate runcontrol.Candidate) map[string]any {
+	return map[string]any{
+		"candidate_id":         candidate.CandidateID,
+		"run_id":               candidate.RunID,
+		"attempt_id":           candidate.AttemptID,
+		"workspace_id":         candidate.WorkspaceID,
+		"workspace_generation": candidate.WorkspaceGeneration,
+		"target_ref":           candidate.TargetRef,
+		"base_commit":          candidate.BaseCommit,
+		"private_ref":          candidate.PrivateRef,
+		"head_commit":          candidate.HeadCommit,
+		"status":               candidate.Status,
+		"revision":             candidate.Revision,
+	}
+}
+
+func candidateIntegrationDTO(integration runcontrol.CandidateIntegration) map[string]any {
+	return map[string]any{
+		"integration_id": integration.IntegrationID,
+		"candidate_id":   integration.CandidateID,
+		"target_ref":     integration.TargetRef,
+		"status":         integration.Status,
+		"target_before":  integration.TargetBefore,
+		"target_after":   integration.TargetAfter,
+		"reason":         integration.Reason,
+		"revision":       integration.Revision,
+	}
+}
+
+func integrationResultDTO(result runcontrol.Result) map[string]any {
+	return map[string]any{
+		"result_id":      result.ResultID,
+		"integration_id": result.IntegrationID,
+		"candidate_id":   result.CandidateID,
+		"run_id":         result.RunID,
+		"target_ref":     result.TargetRef,
+		"target_before":  result.TargetBefore,
+		"target_after":   result.TargetAfter,
+		"status":         result.Status,
+		"reason":         result.Reason,
 	}
 }
 
@@ -394,7 +492,10 @@ func runControlErrorEnvelope(action string, err error) Envelope {
 		errors.Is(err, runcontrol.ErrUsableWorkspace),
 		errors.Is(err, runcontrol.ErrWorkspaceGeneration),
 		errors.Is(err, runcontrol.ErrWorkspaceNotUsable),
-		errors.Is(err, runcontrol.ErrUnsupportedSchema):
+		errors.Is(err, runcontrol.ErrUnsupportedSchema),
+		errors.Is(err, runcontrol.ErrCandidateBinding),
+		errors.Is(err, runcontrol.ErrIntegrationBusy),
+		errors.Is(err, runcontrol.ErrTargetWorktreeDirty):
 		status = "blocked"
 	}
 	env := NewEnvelope(status, action+" failed")

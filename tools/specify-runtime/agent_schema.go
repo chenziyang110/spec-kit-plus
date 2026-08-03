@@ -145,6 +145,10 @@ func runAPIShow(args []string, stdout io.Writer) int {
 		capability["side_effect"] = "allocates-worktree-and-runs-tokenized-child"
 		capability["usage"] = "specify-runtime run supervise <run-id> --adapter-id <id> [--project-root <path>] --format json -- <argv...>"
 		capability["input_contract"] = "requires a literal -- separator; runtime owns worktree allocation, forces child cwd, maintains liveness, and atomically records success or failure"
+	case "run.integrate":
+		capability["side_effect"] = "serializes-and-integrates-candidate"
+		capability["usage"] = "specify-runtime run integrate --target-ref <ref> [--project-root <path>] --format json"
+		capability["input_contract"] = "claims one immutable Candidate for the target, verifies its Git binding, applies it under a target-scoped lock, and records an immutable Result"
 	}
 	env.Data["capability"] = capability
 	return writeEnvelope(stdout, env)

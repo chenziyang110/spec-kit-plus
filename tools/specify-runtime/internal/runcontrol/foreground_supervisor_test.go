@@ -15,6 +15,39 @@ import (
 
 const foregroundHelperEnvironment = "SPECIFY_RUNTIME_FOREGROUND_HELPER"
 
+func TestInitialAttemptLeaseCoversSerializedLaunchOperations(t *testing.T) {
+	activeLease := 10 * time.Second
+	want := activeLease + attemptLaunchDatabaseOperations*time.Duration(sqliteBusyTimeoutMS)*time.Millisecond
+	if got := initialAttemptLeaseDuration(activeLease); got != want {
+		t.Fatalf("initial attempt lease duration = %s, want %s", got, want)
+	}
+}
+
+func TestSuperviseRunRejectsLivenessWindowsBelowSQLiteContention(t *testing.T) {
+	contentionWindow := time.Duration(sqliteBusyTimeoutMS) * time.Millisecond
+	valid := SuperviseRunParams{
+		RunID:                "validated_run",
+		AdapterID:            "test",
+		Argv:                 []string{"test-helper"},
+		HeartbeatInterval:    500 * time.Millisecond,
+		LeaseDuration:        2 * contentionWindow,
+		SupervisorStaleAfter: 2 * contentionWindow,
+	}
+	repository := Repository{Root: "repository", DatabasePath: "run-control.sqlite"}
+
+	shortLease := valid
+	shortLease.LeaseDuration = contentionWindow
+	if err := validateSuperviseRunParams(repository, shortLease); !errors.Is(err, ErrInvalidArgument) {
+		t.Fatalf("short lease validation error = %v, want ErrInvalidArgument", err)
+	}
+
+	shortStaleWindow := valid
+	shortStaleWindow.SupervisorStaleAfter = contentionWindow
+	if err := validateSuperviseRunParams(repository, shortStaleWindow); !errors.Is(err, ErrInvalidArgument) {
+		t.Fatalf("short stale window validation error = %v, want ErrInvalidArgument", err)
+	}
+}
+
 func TestForegroundSupervisorForcesRecordedWorkspaceAndLiteralArgv(t *testing.T) {
 	t.Setenv(foregroundHelperEnvironment, "1")
 	mainRoot, _ := createLinkedRepository(t)
@@ -243,9 +276,9 @@ func foregroundTestParams(runID string, helperArguments ...string) SuperviseRunP
 		Argv:                 argv,
 		ChildStdout:          io.Discard,
 		ChildStderr:          io.Discard,
-		HeartbeatInterval:    25 * time.Millisecond,
-		LeaseDuration:        500 * time.Millisecond,
-		SupervisorStaleAfter: 250 * time.Millisecond,
+		HeartbeatInterval:    500 * time.Millisecond,
+		LeaseDuration:        10 * time.Second,
+		SupervisorStaleAfter: 10 * time.Second,
 	}
 }
 

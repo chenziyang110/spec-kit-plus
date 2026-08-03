@@ -1072,6 +1072,7 @@ func defaultCapabilities() []string {
 		"run.cancel",
 		"run.create",
 		"run.events",
+		"run.integrate",
 		"run.show",
 		"run.supervise",
 		"accept.closeout",
@@ -1236,6 +1237,8 @@ func capabilitySummary(id string) string {
 		return "Cancel one revision-bound Run and advance its fence before cleanup."
 	case "run.supervise":
 		return "Execute one Run in its isolated Git worktree under durable lifecycle control."
+	case "run.integrate":
+		return "Serialize one immutable Candidate into its target ref and record the Result."
 	default:
 		return "Runtime capability."
 	}

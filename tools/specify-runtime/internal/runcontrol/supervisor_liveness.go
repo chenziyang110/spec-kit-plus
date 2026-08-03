@@ -87,6 +87,15 @@ func (store *Store) ReconcileStaleSupervisors(
 	if err != nil {
 		return nil, err
 	}
+	if err := reconcileStaleCandidateIntegrationsTx(
+		ctx,
+		transaction,
+		now.UnixMilli(),
+		store.ownerEpoch,
+		staleBefore.UnixMilli(),
+	); err != nil {
+		return nil, err
+	}
 	if _, err := transaction.ExecContext(ctx, `
 		UPDATE supervisor_instances
 		SET status = 'superseded', heartbeat_at_ms = MAX(heartbeat_at_ms, ?),
@@ -99,6 +108,28 @@ func (store *Store) ReconcileStaleSupervisors(
 		return nil, fmt.Errorf("commit stale supervisor reconciliation: %w", err)
 	}
 	return append(interrupted, preparationRuns...), nil
+}
+
+func reconcileStaleCandidateIntegrationsTx(
+	ctx context.Context,
+	transaction *sql.Tx,
+	nowMS int64,
+	currentOwnerEpoch string,
+	staleBeforeMS int64,
+) error {
+	staleOwner := `owner_epoch IN (
+		SELECT owner_epoch FROM supervisor_instances
+		WHERE owner_epoch <> ? AND status = 'active' AND heartbeat_at_ms <= ?
+	)`
+	if _, err := transaction.ExecContext(ctx, `
+		UPDATE candidate_integrations
+		SET status = ?, reason = ?, revision = revision + 1, updated_at_ms = ?
+		WHERE status IN (?, ?) AND `+staleOwner+`
+	`, IntegrationOutcomeUnknown, "integration owner heartbeat expired before durable completion", nowMS,
+		IntegrationPrepared, IntegrationExecuting, currentOwnerEpoch, staleBeforeMS); err != nil {
+		return fmt.Errorf("record unknown stale candidate integration outcome: %w", err)
+	}
+	return nil
 }
 
 func heartbeatSupervisorTx(

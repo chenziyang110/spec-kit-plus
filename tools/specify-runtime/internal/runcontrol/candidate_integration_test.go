@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 )
 
 func TestForegroundSupervisorPublishesImmutableCandidateSnapshot(t *testing.T) {
@@ -221,6 +222,15 @@ func TestIntegrateNextRejectsCandidateWhosePrivateRefMoved(t *testing.T) {
 		t.Fatal(err)
 	}
 	candidate := supervised.Candidate
+	enqueueForegroundTestRun(t, repository, "candidate_binding_followup")
+	followup, err := SuperviseRun(
+		context.Background(),
+		repository,
+		foregroundTestParams("candidate_binding_followup", "write", "followup.txt", "followup"),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
 	runGit(
 		t,
 		ensureGitAvailable(t),
@@ -239,5 +249,89 @@ func TestIntegrateNextRejectsCandidateWhosePrivateRefMoved(t *testing.T) {
 	}
 	if _, statErr := os.Stat(filepath.Join(mainRoot, "bound.txt")); !errors.Is(statErr, os.ErrNotExist) {
 		t.Fatalf("tampered candidate modified target worktree: %v", statErr)
+	}
+	observer := openTestStore(t, repository.DatabasePath, WithOwnerEpoch("binding_observer"))
+	rejected, err := observer.GetCandidate(context.Background(), candidate.CandidateID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rejected.Status != CandidateConflicted {
+		t.Fatalf("tampered candidate status = %q, want terminal conflicted", rejected.Status)
+	}
+	integrated, err := IntegrateNext(context.Background(), repository, IntegrateNextParams{
+		TargetRef: candidate.TargetRef, OwnerEpoch: "binding_followup_integrator",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if integrated.Candidate.CandidateID != followup.Candidate.CandidateID || integrated.Result.Status != ResultIntegrated {
+		t.Fatalf("follow-up integration = %#v, want candidate %s", integrated, followup.Candidate.CandidateID)
+	}
+}
+
+func TestReconcileStaleExecutingIntegrationReleasesTargetQueue(t *testing.T) {
+	t.Setenv(foregroundHelperEnvironment, "1")
+	mainRoot, _ := createLinkedRepository(t)
+	repository, err := ResolveRepository(context.Background(), mainRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	candidates := make([]Candidate, 0, 2)
+	for _, suffix := range []string{"stale", "next"} {
+		runID := "stale_integration_" + suffix
+		enqueueForegroundTestRun(t, repository, runID)
+		supervised, superviseErr := SuperviseRun(
+			context.Background(), repository,
+			foregroundTestParams(runID, "write", suffix+".txt", suffix),
+		)
+		if superviseErr != nil {
+			t.Fatal(superviseErr)
+		}
+		candidates = append(candidates, supervised.Candidate)
+	}
+
+	staleOwner := openTestStore(t, repository.DatabasePath, WithOwnerEpoch("stale_integration_owner"))
+	claimed, integration, err := staleOwner.claimNextCandidate(context.Background(), candidates[0].TargetRef)
+	if err != nil {
+		t.Fatal(err)
+	}
+	targetBefore := runGit(t, ensureGitAvailable(t), mainRoot, "rev-parse", "HEAD")
+	integration, err = staleOwner.startCandidateIntegration(context.Background(), integration, targetBefore)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	recovery := openTestStore(t, repository.DatabasePath, WithOwnerEpoch("stale_integration_recovery"))
+	future := time.Now().UTC().Add(2 * time.Hour)
+	if _, err := recovery.ReconcileStaleSupervisors(context.Background(), future, future.Add(-time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	var integrationStatus IntegrationStatus
+	if err := recovery.db.QueryRowContext(
+		context.Background(),
+		"SELECT status FROM candidate_integrations WHERE integration_id = ?",
+		integration.IntegrationID,
+	).Scan(&integrationStatus); err != nil {
+		t.Fatal(err)
+	}
+	if integrationStatus != IntegrationOutcomeUnknown {
+		t.Fatalf("stale integration status = %q, want outcome_unknown", integrationStatus)
+	}
+	uncertain, err := recovery.GetCandidate(context.Background(), claimed.CandidateID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if uncertain.Status != CandidateIntegrating {
+		t.Fatalf("stale candidate status = %q, want integrating until Git recovery", uncertain.Status)
+	}
+
+	integrated, err := IntegrateNext(context.Background(), repository, IntegrateNextParams{
+		TargetRef: candidates[0].TargetRef, OwnerEpoch: "stale_integration_next_owner",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if integrated.Candidate.CandidateID != claimed.CandidateID || integrated.Result.Status != ResultIntegrated {
+		t.Fatalf("post-recovery integration = %#v, want safely requeued candidate %s", integrated, claimed.CandidateID)
 	}
 }

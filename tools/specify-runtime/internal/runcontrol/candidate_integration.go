@@ -31,6 +31,11 @@ func IntegrateNext(
 	if err != nil {
 		return IntegratedCandidate{}, err
 	}
+	targetRef, err := resolveMutableTargetRef(ctx, canonical.PrimaryRoot, params.TargetRef)
+	if err != nil {
+		return IntegratedCandidate{}, fmt.Errorf("resolve mutable target ref %q: %w", params.TargetRef, err)
+	}
+	params.TargetRef = targetRef
 	options := []OpenOption{}
 	if params.OwnerEpoch != "" {
 		options = append(options, WithOwnerEpoch(params.OwnerEpoch))
@@ -48,6 +53,11 @@ func IntegrateNext(
 	now := time.Now().UTC()
 	if _, err := store.ReconcileStaleSupervisors(ctx, now, now.Add(-params.SupervisorStaleAfter)); err != nil {
 		return IntegratedCandidate{}, fmt.Errorf("reconcile stale integration supervisors: %w", err)
+	}
+	if recovered, ok, err := store.recoverTargetIntegrations(ctx, canonical, params.TargetRef); err != nil {
+		return IntegratedCandidate{}, err
+	} else if ok {
+		return recovered, nil
 	}
 	lifecycleCtx, cancelLifecycle := context.WithCancel(ctx)
 	heartbeatErrors, heartbeatDone := superviseOwnerHeartbeat(
@@ -82,28 +92,30 @@ func IntegrateNext(
 	outcome.Candidate = candidate
 	outcome.Integration = integration
 
-	failClaim := func(cause error) (IntegratedCandidate, error) {
-		failErr := store.failClaimedIntegration(lifecycleCtx, integration, candidate, cause)
+	failClaim := func(cause error, retryPrepared bool) (IntegratedCandidate, error) {
+		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cleanupCancel()
+		failErr := store.failClaimedIntegration(cleanupCtx, integration, candidate, cause, retryPrepared)
 		return outcome, errors.Join(cause, failErr)
 	}
 	workspace, err := store.GetWorkspace(lifecycleCtx, candidate.WorkspaceID)
 	if err != nil {
-		return failClaim(err)
+		return failClaim(err, false)
 	}
 	if err := validateCandidateGitBinding(lifecycleCtx, canonical, candidate, workspace); err != nil {
-		return failClaim(err)
+		return failClaim(err, false)
 	}
 	targetRoot, err := checkedOutTargetWorktree(lifecycleCtx, canonical, candidate.TargetRef)
 	if err != nil {
-		return failClaim(err)
+		return failClaim(err, true)
 	}
 	targetBefore, err := validateTargetWorktreeReady(lifecycleCtx, targetRoot, candidate.TargetRef)
 	if err != nil {
-		return failClaim(err)
+		return failClaim(err, true)
 	}
 	integration, err = store.startCandidateIntegration(lifecycleCtx, integration, targetBefore)
 	if err != nil {
-		return outcome, supervisionOperationError(ctx, heartbeatErrors, "start candidate integration", err)
+		return failClaim(supervisionOperationError(ctx, heartbeatErrors, "start candidate integration", err), true)
 	}
 	outcome.Integration = integration
 
@@ -115,7 +127,7 @@ func IntegrateNext(
 		targetBefore,
 	)
 	if mergeErr != nil {
-		return failClaim(mergeErr)
+		return failClaim(mergeErr, false)
 	}
 	status := ResultIntegrated
 	reason := "candidate integrated"
@@ -133,7 +145,7 @@ func IntegrateNext(
 		reason,
 	)
 	if err != nil {
-		return outcome, supervisionOperationError(ctx, heartbeatErrors, "complete candidate integration", err)
+		return failClaim(supervisionOperationError(ctx, heartbeatErrors, "complete candidate integration", err), false)
 	}
 	return outcome, nil
 }
@@ -366,6 +378,7 @@ func (store *Store) failClaimedIntegration(
 	integration CandidateIntegration,
 	candidate Candidate,
 	cause error,
+	retryPrepared bool,
 ) error {
 	if integration.IntegrationID == "" || candidate.CandidateID == "" {
 		return nil
@@ -379,12 +392,20 @@ func (store *Store) failClaimedIntegration(
 		return err
 	}
 	nowMS := time.Now().UTC().UnixMilli()
+	integrationStatus := IntegrationFailed
+	candidateStatus := CandidateConflicted
+	if integration.Status == IntegrationExecuting {
+		integrationStatus = IntegrationOutcomeUnknown
+		candidateStatus = CandidateIntegrating
+	} else if retryPrepared {
+		candidateStatus = CandidateQueued
+	}
 	result, err := transaction.ExecContext(ctx, `
 		UPDATE candidate_integrations
 		SET status = ?, reason = ?, revision = revision + 1, updated_at_ms = ?
 		WHERE integration_id = ? AND owner_epoch = ? AND revision = ?
 		  AND status IN (?, ?)
-	`, IntegrationFailed, strings.TrimSpace(cause.Error()), nowMS,
+	`, integrationStatus, strings.TrimSpace(cause.Error()), nowMS,
 		integration.IntegrationID, store.ownerEpoch, integration.Revision,
 		IntegrationPrepared, IntegrationExecuting)
 	if err != nil {
@@ -397,11 +418,11 @@ func (store *Store) failClaimedIntegration(
 		UPDATE candidates
 		SET status = ?, revision = revision + 1, updated_at_ms = ?
 		WHERE candidate_id = ? AND revision = ? AND status = ?
-	`, CandidateQueued, nowMS, candidate.CandidateID, candidate.Revision, CandidateIntegrating)
+	`, candidateStatus, nowMS, candidate.CandidateID, candidate.Revision, CandidateIntegrating)
 	if err != nil {
-		return fmt.Errorf("requeue failed candidate integration: %w", err)
+		return fmt.Errorf("close failed candidate integration: %w", err)
 	}
-	if err := requireOneCASRow(result, ErrRevisionConflict, "requeue failed candidate integration"); err != nil {
+	if err := requireOneCASRow(result, ErrRevisionConflict, "close failed candidate integration"); err != nil {
 		return err
 	}
 	if err := transaction.Commit(); err != nil {

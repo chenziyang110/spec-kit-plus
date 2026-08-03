@@ -19,7 +19,16 @@ const (
 	defaultSupervisorHeartbeatInterval = 5 * time.Second
 	defaultAttemptLeaseDuration        = 30 * time.Second
 	defaultSupervisorStaleAfter        = 30 * time.Second
+	attemptLaunchDatabaseOperations    = 4
 )
+
+// initialAttemptLeaseDuration covers the serialized Issue, BeginLaunch,
+// CompleteLaunch, and Activate database operations. Once activation succeeds,
+// ActivateAttempt replaces this grace period with the active heartbeat lease.
+func initialAttemptLeaseDuration(activeLease time.Duration) time.Duration {
+	launchGrace := attemptLaunchDatabaseOperations * time.Duration(sqliteBusyTimeoutMS) * time.Millisecond
+	return activeLease + launchGrace
+}
 
 // SuperviseRunParams describes one tokenized child process. Argv is passed
 // directly to the operating system; it is never joined into shell text.
@@ -173,7 +182,7 @@ func SuperviseRun(
 		ExpectedWorkspaceRevision: prepared.Workspace.Revision,
 		AdapterID:                 params.AdapterID,
 		ExecutionMode:             ExecutionManaged,
-		LeaseUntil:                time.Now().UTC().Add(params.LeaseDuration),
+		LeaseUntil:                time.Now().UTC().Add(initialAttemptLeaseDuration(params.LeaseDuration)),
 	})
 	if err != nil {
 		return SupervisedRun{}, supervisionOperationError(ctx, heartbeatErrors, "issue attempt", err)
@@ -266,12 +275,12 @@ func SuperviseRun(
 		case <-lifecycleCtx.Done():
 			stopAndWait()
 			return result, supervisionCancellationError(ctx, heartbeatErrors)
-		case observedAt := <-attemptTicker.C:
+		case <-attemptTicker.C:
 			attempt, err = store.Heartbeat(
 				lifecycleCtx,
 				attempt.AttemptID,
 				attempt.Fence,
-				observedAt.UTC().Add(params.LeaseDuration),
+				time.Now().UTC().Add(params.LeaseDuration),
 			)
 			if err != nil {
 				stopAndWait()
@@ -373,12 +382,12 @@ func superviseAttemptHeartbeat(
 			select {
 			case <-ctx.Done():
 				return
-			case observedAt := <-ticker.C:
+			case <-ticker.C:
 				if _, err := store.Heartbeat(
 					ctx,
 					attemptID,
 					fence,
-					observedAt.UTC().Add(leaseDuration),
+					time.Now().UTC().Add(leaseDuration),
 				); err != nil {
 					if ctx.Err() != nil {
 						return
@@ -430,8 +439,15 @@ func validateSuperviseRunParams(repository Repository, params SuperviseRunParams
 	if params.LeaseDuration <= 2*params.HeartbeatInterval {
 		return fmt.Errorf("%w: lease duration must exceed two heartbeat intervals", ErrInvalidArgument)
 	}
+	contentionWindow := time.Duration(sqliteBusyTimeoutMS) * time.Millisecond
+	if params.LeaseDuration <= contentionWindow {
+		return fmt.Errorf("%w: lease duration must exceed the SQLite contention window", ErrInvalidArgument)
+	}
 	if params.SupervisorStaleAfter <= 2*params.HeartbeatInterval {
 		return fmt.Errorf("%w: supervisor stale interval must exceed two heartbeat intervals", ErrInvalidArgument)
+	}
+	if params.SupervisorStaleAfter <= contentionWindow {
+		return fmt.Errorf("%w: supervisor stale interval must exceed the SQLite contention window", ErrInvalidArgument)
 	}
 	return nil
 }
@@ -452,8 +468,11 @@ func superviseOwnerHeartbeat(
 			select {
 			case <-ctx.Done():
 				return
-			case observedAt := <-ticker.C:
-				if err := store.HeartbeatSupervisor(ctx, observedAt.UTC()); err != nil {
+			case <-ticker.C:
+				if err := store.HeartbeatSupervisor(ctx, time.Now().UTC()); err != nil {
+					if ctx.Err() != nil {
+						return
+					}
 					errorsChannel <- err
 					cancel()
 					return

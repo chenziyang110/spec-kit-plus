@@ -735,7 +735,21 @@ func (store *Store) shutdownOwnedState(ctx context.Context, now time.Time) error
 		[]any{store.ownerEpoch},
 		"supervisor stopped during preparation",
 	)
-	return err
+	if err != nil {
+		return err
+	}
+	transaction, err := store.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin integration shutdown: %w", err)
+	}
+	defer func() { _ = transaction.Rollback() }()
+	if err := markOwnedIntegrationsOutcomeUnknownTx(ctx, transaction, store.ownerEpoch, nowMS); err != nil {
+		return err
+	}
+	if err := transaction.Commit(); err != nil {
+		return fmt.Errorf("commit integration shutdown: %w", err)
+	}
+	return nil
 }
 
 func validateIssueAttemptParams(params IssueAttemptParams) error {

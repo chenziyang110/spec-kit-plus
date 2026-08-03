@@ -71,6 +71,16 @@ func PlanGitWorkspace(ctx context.Context, repository Repository, run Run, gener
 }
 
 func resolveMutableTargetRef(ctx context.Context, directory, revision string) (string, error) {
+	if strings.TrimSpace(revision) == "HEAD" {
+		value, err := runGitStdout(ctx, directory, "symbolic-ref", "--quiet", "HEAD")
+		if err != nil {
+			return "", fmt.Errorf("%w: target %q does not resolve to a local branch", ErrCandidateBinding, revision)
+		}
+		if strings.HasPrefix(value, "refs/heads/") && !strings.ContainsAny(value, "\r\n\x00") {
+			return value, nil
+		}
+		return "", fmt.Errorf("%w: target %q does not resolve to a local branch", ErrCandidateBinding, revision)
+	}
 	value, err := runGitOutput(ctx, directory, "rev-parse", "--symbolic-full-name", "--verify", revision)
 	if err != nil {
 		return "", err

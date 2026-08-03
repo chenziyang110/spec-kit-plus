@@ -325,7 +325,7 @@ func TestRunCLIIntegratesPublishedCandidate(t *testing.T) {
 	code, integrated := invokeRunCLI(t,
 		"run", "integrate",
 		"--project-root", root,
-		"--target-ref", targetRef,
+		"--target-ref", "HEAD",
 		"--format", "json",
 	)
 	if code != 0 || integrated["status"] != "ok" {
