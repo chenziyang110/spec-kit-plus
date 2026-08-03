@@ -1755,14 +1755,30 @@ def _generated_guidance_files(project_root: Path) -> list[Path]:
     return files
 
 
+def _markdown_body_for_runtime_scan(text: str) -> str:
+    """Return Markdown body text so declarative YAML is never treated as executable."""
+
+    if not text.startswith("---"):
+        return text
+    lines = text.splitlines(keepends=True)
+    if not lines or lines[0].rstrip("\r\n") != "---":
+        return text
+    for index, line in enumerate(lines[1:], start=1):
+        if line.rstrip("\r\n") == "---":
+            return "".join(lines[index + 1 :])
+    return text
+
+
 def _generated_guidance_text(project_root: Path, path: Path, text: str) -> str:
     """Limit root context diagnostics to the runtime-owned managed block."""
 
     relative = path.relative_to(project_root).as_posix()
-    if relative not in GENERATED_CONTEXT_FILES:
-        return text
-    blocks = SPEC_KIT_MANAGED_BLOCK_RE.findall(text)
-    return blocks[0] if len(blocks) == 1 else ""
+    if relative in GENERATED_CONTEXT_FILES:
+        blocks = SPEC_KIT_MANAGED_BLOCK_RE.findall(text)
+        text = blocks[0] if len(blocks) == 1 else ""
+    if path.suffix.lower() in {".md", ".mdc"}:
+        return _markdown_body_for_runtime_scan(text)
+    return text
 
 
 def diagnose_claude_personal_skill_shadows(

@@ -21,7 +21,7 @@ import shutil
 from abc import ABC
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Callable
 
 from specify_cli.orchestration import CapabilitySnapshot, describe_delegation_surface
 
@@ -1411,6 +1411,19 @@ class IntegrationBase(ABC):
         return frontmatter, body
 
     @staticmethod
+    def _transform_markdown_body(
+        content: str,
+        transform: Callable[[str], str],
+    ) -> str:
+        """Transform Markdown body text without touching YAML frontmatter."""
+
+        _, body = IntegrationBase._split_frontmatter(content)
+        if len(body) == len(content):
+            return transform(content)
+        body_start = len(content) - len(body)
+        return content[:body_start] + transform(body)
+
+    @staticmethod
     def _parse_frontmatter_mapping(frontmatter_text: str) -> dict[str, Any]:
         """Parse YAML frontmatter into a mapping, returning ``{}`` on failure."""
         import yaml
@@ -1819,7 +1832,13 @@ class IntegrationBase(ABC):
         content = CommandRegistrar.rewrite_project_relative_paths(content)
         content = CommandRegistrar.render_invocation_placeholders(agent_name, content)
         if project_root is not None:
-            content = render_project_launcher_placeholders(project_root, content)
+            content = IntegrationBase._transform_markdown_body(
+                content,
+                lambda body: render_project_launcher_placeholders(
+                    project_root,
+                    body,
+                ),
+            )
 
         for unresolved in (
             "{{spec-kit-include:",
@@ -1995,14 +2014,38 @@ class IntegrationBase(ABC):
                 if skipped_modified is not None:
                     skipped_modified.append(relative)
                 continue
+            frontmatter_text, markdown_body = self._split_frontmatter(content)
+            has_frontmatter = len(markdown_body) != len(content)
+            runtime_content = (
+                markdown_body
+                if path.suffix.lower() == ".md"
+                and has_frontmatter
+                else content
+            )
+            repaired_frontmatter = frontmatter_text
+            if path.suffix.lower() == ".md" and has_frontmatter:
+                unavailable_runtime = (
+                    f"{SPECIFY_RUNTIME_UNAVAILABLE_MARKER}:specify-runtime"
+                )
+                repaired_frontmatter = repaired_frontmatter.replace(
+                    unavailable_runtime,
+                    "specify-runtime",
+                )
+                if runtime_launcher is not None:
+                    repaired_frontmatter = repaired_frontmatter.replace(
+                        runtime_launcher.command,
+                        "specify-runtime",
+                    )
+            frontmatter_changed = repaired_frontmatter != frontmatter_text
             marker_present = (
-                f"{SPECIFY_RUNTIME_UNAVAILABLE_MARKER}:specify-runtime" in content
+                f"{SPECIFY_RUNTIME_UNAVAILABLE_MARKER}:specify-runtime"
+                in runtime_content
             )
             _, bare_count = rebind_unbound_unified_runtime_calls(
-                content,
+                runtime_content,
                 "__SPEC_KIT_BOUND_SPECIFY_RUNTIME__",
             )
-            if not marker_present and bare_count == 0:
+            if not marker_present and bare_count == 0 and not frontmatter_changed:
                 continue
             if relative in modified:
                 if skipped_modified is not None:
@@ -2024,16 +2067,30 @@ class IntegrationBase(ABC):
                     rendered = render_toml_string(command)
                     return rendered[1:-1]
 
-            repaired = rebind_unavailable_specify_runtime_commands(
-                project_root,
-                content,
-                command_renderer=command_renderer,
+            def rebind_content(value: str) -> str:
+                repaired_value = rebind_unavailable_specify_runtime_commands(
+                    project_root,
+                    value,
+                    command_renderer=command_renderer,
+                )
+                repaired_value, _ = rebind_unbound_unified_runtime_calls(
+                    repaired_value,
+                    runtime_launcher.command,
+                    command_renderer=command_renderer,
+                )
+                return repaired_value
+
+            repaired = (
+                self._transform_markdown_body(content, rebind_content)
+                if path.suffix.lower() == ".md"
+                else rebind_content(content)
             )
-            repaired, _ = rebind_unbound_unified_runtime_calls(
-                repaired,
-                runtime_launcher.command,
-                command_renderer=command_renderer,
-            )
+            if frontmatter_changed:
+                repaired = repaired.replace(
+                    frontmatter_text,
+                    repaired_frontmatter,
+                    1,
+                )
             if repaired == content:
                 if skipped_modified is not None:
                     skipped_modified.append(relative)
@@ -2286,7 +2343,13 @@ class MarkdownIntegration(IntegrationBase):
             )
             from specify_cli.launcher import render_project_launcher_placeholders
 
-            processed = render_project_launcher_placeholders(project_root, processed)
+            processed = self._transform_markdown_body(
+                processed,
+                lambda body: render_project_launcher_placeholders(
+                    project_root,
+                    body,
+                ),
+            )
             dst_name = self.command_filename(src_file.stem)
             dst_file = self.write_file_and_record(
                 processed, dest / dst_name, project_root, manifest
@@ -2523,7 +2586,13 @@ class TomlIntegration(IntegrationBase):
             )
             from specify_cli.launcher import render_project_launcher_placeholders
 
-            processed = render_project_launcher_placeholders(project_root, processed)
+            processed = self._transform_markdown_body(
+                processed,
+                lambda body: render_project_launcher_placeholders(
+                    project_root,
+                    body,
+                ),
+            )
             _, body = self._split_frontmatter(processed)
             toml_content = self._render_toml(description, body)
             dst_name = self.command_filename(src_file.stem)
@@ -3284,8 +3353,12 @@ class SkillsIntegration(IntegrationBase):
             )
             from specify_cli.launcher import render_project_launcher_placeholders
 
-            skill_content = render_project_launcher_placeholders(
-                project_root, skill_content
+            skill_content = self._transform_markdown_body(
+                skill_content,
+                lambda body: render_project_launcher_placeholders(
+                    project_root,
+                    body,
+                ),
             )
 
             # Write sp-<name>/SKILL.md
@@ -3392,7 +3465,13 @@ class SkillsIntegration(IntegrationBase):
 
         from specify_cli.launcher import render_project_launcher_placeholders
 
-        rendered = render_project_launcher_placeholders(project_root, content)
+        rendered = self._transform_markdown_body(
+            content,
+            lambda body: render_project_launcher_placeholders(
+                project_root,
+                body,
+            ),
+        )
         self.write_file_and_record(rendered, skill_path, project_root, manifest)
 
     def _augment_implement_skill(

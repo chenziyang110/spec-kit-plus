@@ -156,9 +156,12 @@ class CopilotIntegration(IntegrationBase):
             )
             from specify_cli.launcher import render_project_launcher_placeholders
 
-            processed = render_project_launcher_placeholders(
-                project_root,
+            processed = self._transform_markdown_body(
                 processed,
+                lambda body: render_project_launcher_placeholders(
+                    project_root,
+                    body,
+                ),
             )
             dst_name = self.command_filename(src_file.stem)
             dst_file = self.write_file_and_record(
