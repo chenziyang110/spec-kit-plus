@@ -510,7 +510,9 @@ func teamsCollectSyncBackCandidates(root, sessionID string) []any {
 
 func teamsWorkspaceDirty(root string) bool {
 	if teamsGitOutput(root, "rev-parse", "--is-inside-work-tree") != "true" {
-		return false
+		// Without Git there is no trustworthy baseline against which sync-back
+		// can prove that overwriting the leader workspace is safe.
+		return true
 	}
 	return teamsGitOutput(root, "status", "--short") != ""
 }
