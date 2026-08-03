@@ -3,6 +3,7 @@ package runcontrol
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"path/filepath"
 	"testing"
 	"time"
@@ -94,6 +95,124 @@ func TestClosingActiveAttemptPreservesConfirmedLaunchOutcome(t *testing.T) {
 	}
 	if status != OperationSucceeded {
 		t.Fatalf("confirmed launch operation after active shutdown = %q, want %q", status, OperationSucceeded)
+	}
+}
+
+func TestManagedAttemptActivationRequiresSucceededLaunchJournal(t *testing.T) {
+	ctx := context.Background()
+	store := openTestStore(t, filepath.Join(t.TempDir(), "run-control.sqlite"))
+	_, attempt := issueManagedAttemptForLaunchTest(t, store, "launch_activation_gate")
+
+	if _, err := store.ActivateAttempt(
+		ctx,
+		attempt.AttemptID,
+		attempt.Fence,
+		time.Now().UTC().Add(10*time.Minute),
+	); !errors.Is(err, ErrInvalidTransition) {
+		t.Fatalf("activation without launch journal error = %v, want ErrInvalidTransition", err)
+	}
+
+	failed, replayed, err := store.BeginAttemptLaunch(ctx, BeginAttemptLaunchParams{
+		OperationID:    "launch_activation_failed",
+		AttemptID:      attempt.AttemptID,
+		Fence:          attempt.Fence,
+		IdempotencyKey: "launch:activation:failed",
+		RequestSHA256:  digestForTest("launch activation failed"),
+	})
+	if err != nil || replayed {
+		t.Fatalf("begin failed launch = %#v replayed=%v err=%v", failed, replayed, err)
+	}
+	replayedLaunch, replayed, err := store.BeginAttemptLaunch(ctx, BeginAttemptLaunchParams{
+		OperationID:    "launch_activation_failed",
+		AttemptID:      attempt.AttemptID,
+		Fence:          attempt.Fence,
+		IdempotencyKey: "launch:activation:failed",
+		RequestSHA256:  digestForTest("launch activation failed"),
+	})
+	if err != nil || !replayed || replayedLaunch != failed {
+		t.Fatalf("launch replay = %#v replayed=%v err=%v, want %#v", replayedLaunch, replayed, err, failed)
+	}
+	failed, err = store.CompleteAttemptLaunch(ctx, CompleteAttemptLaunchParams{
+		OperationID:      failed.OperationID,
+		Fence:            attempt.Fence,
+		ExpectedRevision: failed.Revision,
+		Succeeded:        false,
+	})
+	if err != nil || failed.Status != OperationFailed {
+		t.Fatalf("failed launch completion = %#v err=%v", failed, err)
+	}
+	if _, err := store.ActivateAttempt(
+		ctx,
+		attempt.AttemptID,
+		attempt.Fence,
+		time.Now().UTC().Add(10*time.Minute),
+	); !errors.Is(err, ErrInvalidTransition) {
+		t.Fatalf("activation after failed launch error = %v, want ErrInvalidTransition", err)
+	}
+
+	succeeded, _, err := store.BeginAttemptLaunch(ctx, BeginAttemptLaunchParams{
+		OperationID:    "launch_activation_succeeded",
+		AttemptID:      attempt.AttemptID,
+		Fence:          attempt.Fence,
+		IdempotencyKey: "launch:activation:succeeded",
+		RequestSHA256:  digestForTest("launch activation succeeded"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	succeeded, err = store.CompleteAttemptLaunch(ctx, CompleteAttemptLaunchParams{
+		OperationID:      succeeded.OperationID,
+		Fence:            attempt.Fence,
+		ExpectedRevision: succeeded.Revision,
+		Succeeded:        true,
+	})
+	if err != nil || succeeded.Status != OperationSucceeded {
+		t.Fatalf("succeeded launch completion = %#v err=%v", succeeded, err)
+	}
+	active, err := store.ActivateAttempt(
+		ctx,
+		attempt.AttemptID,
+		attempt.Fence,
+		time.Now().UTC().Add(10*time.Minute),
+	)
+	if err != nil || active.Status != AttemptActive {
+		t.Fatalf("managed activation after launch = %#v err=%v", active, err)
+	}
+}
+
+func TestAttemptLaunchClaimRejectsConcurrentAndStaleSupervisor(t *testing.T) {
+	ctx := context.Background()
+	databasePath := filepath.Join(t.TempDir(), "run-control.sqlite")
+	owner := openTestStore(t, databasePath, WithOwnerEpoch("launch_api_owner"))
+	_, attempt := issueManagedAttemptForLaunchTest(t, owner, "launch_api_authority")
+	claim, _, err := owner.BeginAttemptLaunch(ctx, BeginAttemptLaunchParams{
+		OperationID:    "launch_api_claim",
+		AttemptID:      attempt.AttemptID,
+		Fence:          attempt.Fence,
+		IdempotencyKey: "launch:api:claim",
+		RequestSHA256:  digestForTest("launch api claim"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := owner.BeginAttemptLaunch(ctx, BeginAttemptLaunchParams{
+		OperationID:    "launch_api_duplicate",
+		AttemptID:      attempt.AttemptID,
+		Fence:          attempt.Fence,
+		IdempotencyKey: "launch:api:duplicate",
+		RequestSHA256:  digestForTest("launch api duplicate"),
+	}); !errors.Is(err, ErrAlreadyExists) {
+		t.Fatalf("concurrent launch claim error = %v, want ErrAlreadyExists", err)
+	}
+
+	other := openTestStore(t, databasePath, WithOwnerEpoch("launch_api_other"))
+	if _, err := other.CompleteAttemptLaunch(ctx, CompleteAttemptLaunchParams{
+		OperationID:      claim.OperationID,
+		Fence:            attempt.Fence,
+		ExpectedRevision: claim.Revision,
+		Succeeded:        true,
+	}); !errors.Is(err, ErrStaleFence) {
+		t.Fatalf("stale supervisor launch completion error = %v, want ErrStaleFence", err)
 	}
 }
 
