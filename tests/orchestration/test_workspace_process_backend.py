@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import subprocess
 import sqlite3
+import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import closing
 from dataclasses import replace
 from pathlib import Path
@@ -83,6 +85,21 @@ def _write_run_control_binding(binding: WorkspaceLaunchBinding) -> Path:
                 status TEXT NOT NULL, owner_epoch TEXT NOT NULL, fence INTEGER NOT NULL,
                 lease_until_ms INTEGER NOT NULL
             );
+            CREATE TABLE operations (
+                operation_id TEXT PRIMARY KEY, kind TEXT NOT NULL,
+                aggregate_type TEXT NOT NULL, aggregate_id TEXT NOT NULL,
+                run_id TEXT NOT NULL, attempt_id TEXT NOT NULL,
+                activity_id TEXT NOT NULL, workspace_id TEXT NOT NULL,
+                owner_epoch TEXT NOT NULL, fence INTEGER NOT NULL,
+                run_revision INTEGER NOT NULL, idempotency_key TEXT NOT NULL UNIQUE,
+                request_sha256 TEXT NOT NULL, status TEXT NOT NULL,
+                revision INTEGER NOT NULL, created_at_ms INTEGER NOT NULL,
+                updated_at_ms INTEGER NOT NULL
+            );
+            CREATE UNIQUE INDEX operations_one_live_attempt_launch
+                ON operations(attempt_id)
+                WHERE kind = 'attempt.launch'
+                  AND status IN ('prepared', 'executing', 'succeeded', 'outcome_unknown');
             """
         )
         database.execute("INSERT INTO metadata VALUES ('schema_version', '4')")
@@ -239,3 +256,75 @@ def test_workspace_process_backend_requires_read_only_run_control_database(monke
     with pytest.raises(WorkspaceBindingError, match="run-control database"):
         WorkspaceProcessBackend().launch(["agent-cli"], binding=binding)
     assert not database_path.exists()
+
+
+def test_workspace_process_backend_atomically_claims_one_launch(monkeypatch, tmp_path: Path):
+    binding = _workspace_binding(tmp_path)
+    starts = 0
+    starts_lock = threading.Lock()
+    start_gate = threading.Barrier(3)
+
+    class _FakePopen:
+        pid = 34567
+
+    def _fake_popen(*args, **kwargs):
+        nonlocal starts
+        with starts_lock:
+            starts += 1
+        return _FakePopen()
+
+    monkeypatch.setattr(
+        "specify_cli.orchestration.backends.workspace_process_backend.subprocess.Popen",
+        _fake_popen,
+    )
+
+    def _launch_once():
+        start_gate.wait()
+        try:
+            return WorkspaceProcessBackend().launch(["agent-cli"], binding=binding)
+        except WorkspaceBindingError as exc:
+            return exc
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        futures = [executor.submit(_launch_once) for _ in range(2)]
+        start_gate.wait()
+        results = [future.result(timeout=5) for future in futures]
+
+    assert starts == 1
+    assert sum(not isinstance(result, Exception) for result in results) == 1
+    assert sum(isinstance(result, WorkspaceBindingError) for result in results) == 1
+
+
+def test_workspace_process_backend_retries_after_definite_spawn_failure(monkeypatch, tmp_path: Path):
+    binding = _workspace_binding(tmp_path)
+    popen_calls = 0
+
+    class _FakePopen:
+        pid = 45678
+
+    def _flaky_popen(*args, **kwargs):
+        nonlocal popen_calls
+        popen_calls += 1
+        if popen_calls == 1:
+            raise OSError("definite test spawn failure")
+        return _FakePopen()
+
+    monkeypatch.setattr(
+        "specify_cli.orchestration.backends.workspace_process_backend.subprocess.Popen",
+        _flaky_popen,
+    )
+
+    with pytest.raises(OSError, match="definite test spawn failure"):
+        WorkspaceProcessBackend().launch(["agent-cli"], binding=binding)
+    handle = WorkspaceProcessBackend().launch(["agent-cli"], binding=binding)
+
+    assert handle.pid == 45678
+    database_path = binding.repo_common_dir / "specify-runtime" / "run-control.sqlite"
+    with closing(sqlite3.connect(database_path)) as database:
+        statuses = [
+            row[0]
+            for row in database.execute(
+                "SELECT status FROM operations WHERE kind = 'attempt.launch' ORDER BY created_at_ms, operation_id"
+            )
+        ]
+    assert statuses == ["failed", "succeeded"]
