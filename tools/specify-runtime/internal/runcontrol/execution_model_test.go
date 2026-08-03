@@ -118,6 +118,7 @@ func TestAttemptRequiresAndPersistsExecutionBindings(t *testing.T) {
 		t.Fatalf("issued attempt bindings = %#v, want activity %q workspace %q generation 1",
 			issued, prepared.Activity.ActivityID, prepared.Workspace.WorkspaceID)
 	}
+	confirmManagedAttemptLaunchForTest(t, store, issued)
 	if _, err := store.ActivateAttempt(ctx, issued.AttemptID, issued.Fence, now.Add(2*time.Minute)); err != nil {
 		t.Fatal(err)
 	}
@@ -374,6 +375,7 @@ func issueAndActivateExecution(t *testing.T, store *Store, prepared PreparedExec
 	if err != nil {
 		t.Fatal(err)
 	}
+	confirmManagedAttemptLaunchForTest(t, store, attempt)
 	attempt, err = store.ActivateAttempt(context.Background(), attempt.AttemptID, attempt.Fence, now.Add(time.Minute))
 	if err != nil {
 		t.Fatal(err)

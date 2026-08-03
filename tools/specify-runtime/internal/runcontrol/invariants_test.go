@@ -98,6 +98,7 @@ func TestHeartbeatCannotResurrectExpiredLease(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	confirmManagedAttemptLaunchForTest(t, store, attempt)
 	if _, err := store.ActivateAttempt(ctx, attempt.AttemptID, attempt.Fence, now.Add(time.Minute)); err != nil {
 		t.Fatal(err)
 	}

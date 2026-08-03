@@ -187,6 +187,30 @@ func (store *Store) ActivateAttempt(ctx context.Context, attemptID string, fence
 	if leaseUntil.UTC().UnixMilli() <= nowMS {
 		return Attempt{}, fmt.Errorf("%w: lease_until must be in the future", ErrInvalidArgument)
 	}
+	if attempt.ExecutionMode == ExecutionManaged {
+		var confirmedLaunches int
+		if err := tx.QueryRowContext(ctx, `
+			SELECT COUNT(*)
+			FROM operations
+			WHERE kind = ? AND status = ?
+			  AND aggregate_type = 'workspace' AND aggregate_id = ?
+			  AND run_id = ? AND attempt_id = ?
+			  AND activity_id = ? AND workspace_id = ?
+			  AND owner_epoch = ? AND fence = ? AND run_revision = ?
+		`, attemptLaunchOperationKind, OperationSucceeded, attempt.WorkspaceID,
+			run.RunID, attempt.AttemptID, attempt.ActivityID, attempt.WorkspaceID,
+			store.ownerEpoch, fence, run.Revision).Scan(&confirmedLaunches); err != nil {
+			return Attempt{}, fmt.Errorf("read managed attempt launch gate: %w", err)
+		}
+		if confirmedLaunches != 1 {
+			return Attempt{}, fmt.Errorf(
+				"%w: managed attempt %q requires exactly one confirmed launch, found %d",
+				ErrInvalidTransition,
+				attempt.AttemptID,
+				confirmedLaunches,
+			)
+		}
+	}
 	result, err := tx.ExecContext(ctx, `
 		UPDATE runs
 		SET status = ?, owner_epoch = ?, revision = revision + 1, updated_at_ms = ?

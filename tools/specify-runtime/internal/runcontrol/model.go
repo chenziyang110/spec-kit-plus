@@ -302,6 +302,21 @@ type BeginOperationParams struct {
 	RequestSHA256       string
 }
 
+type BeginAttemptLaunchParams struct {
+	OperationID    string
+	AttemptID      string
+	Fence          int64
+	IdempotencyKey string
+	RequestSHA256  string
+}
+
+type CompleteAttemptLaunchParams struct {
+	OperationID      string
+	Fence            int64
+	ExpectedRevision int64
+	Succeeded        bool
+}
+
 type Event struct {
 	EventID           int64
 	AggregateType     string

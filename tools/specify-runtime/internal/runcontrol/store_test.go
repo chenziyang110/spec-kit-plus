@@ -75,6 +75,7 @@ func TestCancelInvalidatesTheLiveAttemptFenceBeforeHeartbeat(t *testing.T) {
 	if attempt.Fence != 1 || attempt.Status != AttemptIssued {
 		t.Fatalf("issued attempt = %#v, want fence 1 issued", attempt)
 	}
+	confirmManagedAttemptLaunchForTest(t, store, attempt)
 	if _, err := store.ActivateAttempt(ctx, attempt.AttemptID, attempt.Fence, now.Add(time.Minute)); err != nil {
 		t.Fatal(err)
 	}
@@ -165,6 +166,7 @@ func TestExpiredLeaseInterruptsRunAndInvalidatesFence(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	confirmManagedAttemptLaunchForTest(t, store, attempt)
 	if _, err := store.ActivateAttempt(ctx, attempt.AttemptID, attempt.Fence, now.Add(time.Second)); err != nil {
 		t.Fatal(err)
 	}
@@ -206,6 +208,7 @@ func TestSupervisorEpochTakeoverInterruptsAnOwnedAttempt(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	confirmManagedAttemptLaunchForTest(t, firstStore, attempt)
 	if _, err := firstStore.ActivateAttempt(ctx, attempt.AttemptID, attempt.Fence, now.Add(time.Minute)); err != nil {
 		t.Fatal(err)
 	}

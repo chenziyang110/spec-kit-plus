@@ -216,6 +216,49 @@ func TestAttemptLaunchClaimRejectsConcurrentAndStaleSupervisor(t *testing.T) {
 	}
 }
 
+func TestAttemptLaunchCompletionReplaySurvivesActivation(t *testing.T) {
+	ctx := context.Background()
+	store := openTestStore(t, filepath.Join(t.TempDir(), "run-control.sqlite"))
+	_, attempt := issueManagedAttemptForLaunchTest(t, store, "launch_completion_replay")
+	claim, _, err := store.BeginAttemptLaunch(ctx, BeginAttemptLaunchParams{
+		OperationID:    "launch_completion_replay_claim",
+		AttemptID:      attempt.AttemptID,
+		Fence:          attempt.Fence,
+		IdempotencyKey: "launch:completion:replay",
+		RequestSHA256:  digestForTest("launch completion replay"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	completed, err := store.CompleteAttemptLaunch(ctx, CompleteAttemptLaunchParams{
+		OperationID:      claim.OperationID,
+		Fence:            attempt.Fence,
+		ExpectedRevision: claim.Revision,
+		Succeeded:        true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.ActivateAttempt(
+		ctx,
+		attempt.AttemptID,
+		attempt.Fence,
+		time.Now().UTC().Add(10*time.Minute),
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	replayed, err := store.CompleteAttemptLaunch(ctx, CompleteAttemptLaunchParams{
+		OperationID:      claim.OperationID,
+		Fence:            attempt.Fence,
+		ExpectedRevision: claim.Revision,
+		Succeeded:        true,
+	})
+	if err != nil || replayed != completed {
+		t.Fatalf("completion replay after activation = %#v err=%v, want %#v", replayed, err, completed)
+	}
+}
+
 func issueManagedAttemptForLaunchTest(t *testing.T, store *Store, suffix string) (Run, Attempt) {
 	t.Helper()
 	ctx := context.Background()
@@ -240,6 +283,31 @@ func issueManagedAttemptForLaunchTest(t *testing.T, store *Store, suffix string)
 		t.Fatal(err)
 	}
 	return run, attempt
+}
+
+func confirmManagedAttemptLaunchForTest(t *testing.T, store *Store, attempt Attempt) Operation {
+	t.Helper()
+	ctx := context.Background()
+	operation, replayed, err := store.BeginAttemptLaunch(ctx, BeginAttemptLaunchParams{
+		OperationID:    "launch_for_" + attempt.AttemptID,
+		AttemptID:      attempt.AttemptID,
+		Fence:          attempt.Fence,
+		IdempotencyKey: "launch:for:" + attempt.AttemptID,
+		RequestSHA256:  digestForTest("launch for " + attempt.AttemptID),
+	})
+	if err != nil || replayed {
+		t.Fatalf("begin managed launch for %q = %#v replayed=%v err=%v", attempt.AttemptID, operation, replayed, err)
+	}
+	operation, err = store.CompleteAttemptLaunch(ctx, CompleteAttemptLaunchParams{
+		OperationID:      operation.OperationID,
+		Fence:            attempt.Fence,
+		ExpectedRevision: operation.Revision,
+		Succeeded:        true,
+	})
+	if err != nil || operation.Status != OperationSucceeded {
+		t.Fatalf("complete managed launch for %q = %#v err=%v", attempt.AttemptID, operation, err)
+	}
+	return operation
 }
 
 func insertAttemptLaunchOperation(

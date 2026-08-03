@@ -239,6 +239,7 @@ func createAuthorityActiveRun(t *testing.T, store *Store, runID string, now time
 	if err != nil {
 		t.Fatalf("IssueAttempt() error = %v", err)
 	}
+	confirmManagedAttemptLaunchForTest(t, store, attempt)
 	attempt, err = store.ActivateAttempt(ctx, attempt.AttemptID, attempt.Fence, now.Add(10*time.Minute))
 	if err != nil {
 		t.Fatalf("ActivateAttempt() error = %v", err)
