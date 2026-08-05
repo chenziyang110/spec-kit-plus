@@ -16,6 +16,13 @@ from .models import CapabilitySnapshot
 DelegationIntent = Literal["implementation", "evidence", "hybrid"]
 
 
+NATIVE_SUBAGENT_TERMINAL_GUIDANCE = (
+    "Completed subagents are terminal after their results are integrated; no "
+    "separate close step is required. Use only an interruption or cancellation "
+    "surface exposed by the active runtime when unfinished work must stop."
+)
+
+
 @dataclass(slots=True, frozen=True)
 class DelegationSurfaceDescriptor:
     """Normalized description of how the current session should dispatch work."""
@@ -39,7 +46,12 @@ def _command_intent(command_name: str) -> DelegationIntent:
     normalized = command_name.strip().lower()
     if normalized == "review":
         return "hybrid"
-    return "evidence" if normalized in {"debug", "map-scan", "map-build", "map-update"} else "implementation"
+    return (
+        "evidence"
+        if normalized in {"debug", "map-scan", "map-build", "map-update"}
+        else "implementation"
+    )
+
 
 def describe_delegation_surface(
     *,
@@ -72,9 +84,7 @@ def describe_delegation_surface(
     }
 
     integration_key = snapshot.integration_key.strip().lower()
-    native_discovery_hint = (
-        "Check current runtime/tool discovery for an integration-native subagent or task-dispatch surface first; no known native subagent surface is configured for this integration, so record the unavailable surface explicitly before using a fallback or blocked state."
-    )
+    native_discovery_hint = "Check current runtime/tool discovery for an integration-native subagent or task-dispatch surface first; no known native subagent surface is configured for this integration, so record the unavailable surface explicitly before using a fallback or blocked state."
     native_dispatch_hint = "No subagent dispatch path for this session."
     native_join_hint = (
         "Stay on the leader path and keep the current lane explicit."
@@ -84,48 +94,61 @@ def describe_delegation_surface(
 
     if snapshot.native_worker_surface == "spawn_agent":
         native_discovery_hint = (
-            "Before recording `subagent-blocked`, confirm the current runtime exposes `spawn_agent`, `wait_agent`, and `close_agent`; if they are not visible, use the active tool discovery mechanism for multi-agent or subagent tools first."
+            "Before recording `subagent-blocked`, confirm the current runtime exposes "
+            "`spawn_agent` and `wait_agent`; if they are not visible, use the active "
+            "tool discovery mechanism for multi-agent or subagent tools first."
         )
         native_dispatch_hint = "Dispatch bounded subagents through `spawn_agent`."
-        native_join_hint = "Rejoin with `wait_agent`, integrate, then `close_agent`."
+        native_join_hint = (
+            "Rejoin with `wait_agent` and integrate terminal results. "
+            f"{NATIVE_SUBAGENT_TERMINAL_GUIDANCE}"
+        )
+    elif snapshot.native_worker_surface == "cursor-task":
+        native_discovery_hint = (
+            "Before recording `subagent-blocked`, confirm the active Cursor tool "
+            "surface exposes `Task` and inspect its live input schema for "
+            "`description`, `prompt`, and `subagent_type`; parallel dispatch also "
+            "requires `run_in_background`. Record the exact missing field or surface "
+            "if unavailable."
+        )
+        native_dispatch_hint = (
+            "Dispatch with "
+            "Task(description=<short lane title>, prompt=<validated worker packet "
+            "and result contract>, subagent_type=<live advertised type>, "
+            "readonly=<true for read-only evidence, false otherwise>, "
+            "run_in_background=<true for a parallel wave, false otherwise>). Use "
+            "`generalPurpose` "
+            "for implementation, fix, and test lanes; use `explore` with "
+            "`readonly=true` for read-only evidence. Use another subagent type only "
+            "when the live `Task` schema advertises it."
+        )
+        native_join_hint = (
+            "A synchronous terminal `Task` result is the join. For "
+            "`run_in_background` lanes, capture every returned `agent_id` and wait "
+            "for each background completion through the active Cursor await surface "
+            "before integrating results. A dispatch acknowledgement is not a "
+            "`WorkerTaskResult`; use `resume` only for a follow-up or "
+            "`NEEDS_CONTEXT` continuation. Terminal results require no additional "
+            "lifecycle operation."
+        )
     elif snapshot.native_worker_surface == "native-cli":
         if integration_key == "gemini":
-            native_discovery_hint = (
-                "Before recording `subagent-blocked`, check the active Gemini CLI surface for `@agent-name` or `@generalist` subagent dispatch and record the exact missing surface if unavailable."
-            )
-            native_dispatch_hint = (
-                "Dispatch bounded lanes with `@generalist` or a named `@agent-name` using the shared prompt contract."
-            )
-            native_join_hint = (
-                "Request independent `@generalist` lanes together for parallel work when safe, then integrate results back on the leader path."
-            )
+            native_discovery_hint = "Before recording `subagent-blocked`, check the active Gemini CLI surface for `@agent-name` or `@generalist` subagent dispatch and record the exact missing surface if unavailable."
+            native_dispatch_hint = "Dispatch bounded lanes with `@generalist` or a named `@agent-name` using the shared prompt contract."
+            native_join_hint = "Request independent `@generalist` lanes together for parallel work when safe, then integrate results back on the leader path."
         elif integration_key == "copilot":
-            native_discovery_hint = (
-                "Before recording `subagent-blocked`, check the active Copilot CLI surface for `task`, `read_agent`, and `list_agents`; record the exact missing surface if unavailable."
-            )
-            native_dispatch_hint = (
-                "Dispatch bounded lanes through Copilot CLI `task` with an appropriate agent type using the shared prompt contract."
-            )
+            native_discovery_hint = "Before recording `subagent-blocked`, check the active Copilot CLI surface for `task`, `read_agent`, and `list_agents`; record the exact missing surface if unavailable."
+            native_dispatch_hint = "Dispatch bounded lanes through Copilot CLI `task` with an appropriate agent type using the shared prompt contract."
             native_join_hint = "Rejoin through `read_agent` or `list_agents`, then integrate results back on the leader path."
         else:
-            native_discovery_hint = (
-                "Before recording `subagent-blocked`, check the active tool surface for the integration-native subagent or task-dispatch entrypoint and record the exact missing surface if unavailable."
-            )
-            native_dispatch_hint = (
-                "Dispatch subagents through the integration's native subagent support using the shared prompt contract."
-            )
-            native_join_hint = (
-                "Use the integration-native join point, then integrate results back on the leader path."
-            )
+            native_discovery_hint = "Before recording `subagent-blocked`, check the active tool surface for the integration-native subagent or task-dispatch entrypoint and record the exact missing surface if unavailable."
+            native_dispatch_hint = "Dispatch subagents through the integration's native subagent support using the shared prompt contract."
+            native_join_hint = "Use the integration-native join point, then integrate results back on the leader path."
 
     if normalized_command == "debug":
-        managed_team_hint = (
-            "No managed-team or leader-inline fallback for `sp-debug`; choose `leader-inline` up front for a small focused investigation, or record `subagent-blocked` with `execution_surface: none` when the next safe step cannot proceed."
-        )
+        managed_team_hint = "No managed-team or leader-inline fallback for `sp-debug`; choose `leader-inline` up front for a small focused investigation, or record `subagent-blocked` with `execution_surface: none` when the next safe step cannot proceed."
     elif normalized_command == "implement":
-        managed_team_hint = (
-            "No in-command team fallback for `sp-implement`; if subagents cannot proceed safely, stay on the leader path and record why."
-        )
+        managed_team_hint = "No in-command team fallback for `sp-implement`; if subagents cannot proceed safely, stay on the leader path and record why."
     elif normalized_command == "review":
         managed_team_hint = (
             "The Review Leader must preserve separate audit, Fix, and independent "
@@ -170,6 +193,7 @@ def describe_delegation_surface(
 @dataclass(slots=True, frozen=True)
 class TaskContractValidation:
     """Result of validating a single task contract before dispatch."""
+
     task_id: str
     valid: bool
     errors: list[str] = field(default_factory=list)
@@ -177,19 +201,21 @@ class TaskContractValidation:
     auto_corrections: dict[str, str] = field(default_factory=dict)
 
 
-KNOWN_AGENT_ROLES = frozenset({
-    "security-reviewer",
-    "test-engineer",
-    "style-reviewer",
-    "performance-reviewer",
-    "quality-reviewer",
-    "api-reviewer",
-    "debugger",
-    "code-simplifier",
-    "build-fixer",
-    "git-master",
-    "executor",
-})
+KNOWN_AGENT_ROLES = frozenset(
+    {
+        "security-reviewer",
+        "test-engineer",
+        "style-reviewer",
+        "performance-reviewer",
+        "quality-reviewer",
+        "api-reviewer",
+        "debugger",
+        "code-simplifier",
+        "build-fixer",
+        "git-master",
+        "executor",
+    }
+)
 
 
 def validate_task_contract(
@@ -250,21 +276,19 @@ def validate_batch_isolation(
     """Check a batch of tasks for write-set isolation. Returns list of conflicts."""
     conflicts: list[dict[str, object]] = []
     for i, task_a in enumerate(tasks):
-        write_a = set(
-            str(p) for p in (task_a.get("write_scope") or [])
-        )
+        write_a = set(str(p) for p in (task_a.get("write_scope") or []))
         if not write_a:
             continue
         for j in range(i + 1, len(tasks)):
             task_b = tasks[j]
-            write_b = set(
-                str(p) for p in (task_b.get("write_scope") or [])
-            )
+            write_b = set(str(p) for p in (task_b.get("write_scope") or []))
             overlap = write_a & write_b
             if overlap:
-                conflicts.append({
-                    "task_a": str(task_a.get("task_id", i)),
-                    "task_b": str(task_b.get("task_id", j)),
-                    "overlapping_paths": sorted(overlap),
-                })
+                conflicts.append(
+                    {
+                        "task_a": str(task_a.get("task_id", i)),
+                        "task_b": str(task_b.get("task_id", j)),
+                        "overlapping_paths": sorted(overlap),
+                    }
+                )
     return conflicts

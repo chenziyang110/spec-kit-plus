@@ -91,7 +91,7 @@ def test_capture_projects_and_merges_structured_learning_facets(tmp_path: Path) 
         tmp_path, learning_ref="archive.password-bridge"
     )
     assert detail["applicability"]["facets"] == expected_facets
-    detail_text = Path(second["detail_path"]).read_text(encoding="utf-8")
+    detail_text = (tmp_path / second["detail_path"]).read_text(encoding="utf-8")
     assert "## Structured Facets" in detail_text
     assert "operation_owners: BestZipImmediateExtractFlow" in detail_text
 
@@ -189,19 +189,40 @@ def test_cross_command_context_requires_owner_or_two_matching_dimensions(
 
 def test_contextual_start_promotes_owner_match_into_top_twenty(tmp_path: Path) -> None:
     _seed_learning_templates(tmp_path)
-    _capture(
-        tmp_path,
-        recurrence_key="archive.owner-match",
-        facets={"operation_owners": ["ArchiveFlow"]},
-        signal="low",
-    )
-    for index in range(21):
-        _capture(
-            tmp_path,
-            recurrence_key=f"specify.frequent-{index:02d}",
-            command="specify",
-            signal="high",
+    paths = learnings._ensure_learning_files_unlocked(tmp_path)
+    candidate_entries = [
+        learnings.build_learning_entry(
+            command_name="implement",
+            learning_type="pitfall",
+            summary="Learning for archive.owner-match",
+            evidence="Evidence for archive.owner-match",
+            recurrence_key="archive.owner-match",
+            signal_strength="low",
+            applies_to=["sp-implement"],
+            trigger_signals=["live operation evidence"],
+            facets={"operation_owners": ["ArchiveFlow"]},
+            status="candidate",
         )
+    ]
+    for index in range(21):
+        candidate_entries.append(
+            learnings.build_learning_entry(
+                command_name="specify",
+                learning_type="pitfall",
+                summary=f"Learning for specify.frequent-{index:02d}",
+                evidence=f"Evidence for specify.frequent-{index:02d}",
+                recurrence_key=f"specify.frequent-{index:02d}",
+                signal_strength="high",
+                applies_to=["sp-specify"],
+                trigger_signals=["live operation evidence"],
+                status="candidate",
+            )
+        )
+    learnings._write_entries(
+        paths.candidates,
+        learnings.CANDIDATES_TEMPLATE_TEXT.rstrip(),
+        candidate_entries,
+    )
 
     default = learnings.start_learning_session(tmp_path, command_name="specify")
     contextual = learnings.start_learning_session(
@@ -213,6 +234,84 @@ def test_contextual_start_promotes_owner_match_into_top_twenty(tmp_path: Path) -
     assert all(item["ref"] != "archive.owner-match" for item in default["items"])
     assert contextual["items"][0]["ref"] == "archive.owner-match"
     assert contextual["task_context"] == {"operation_owners": ["archiveflow"]}
+
+
+def test_start_learning_session_preserves_stable_quota_when_candidates_are_noisy(
+    tmp_path: Path,
+) -> None:
+    _seed_learning_templates(tmp_path)
+    paths = learnings._ensure_learning_files_unlocked(tmp_path)
+    confirmed_entries = []
+    for index in range(16):
+        confirmed_entries.append(
+            learnings.build_learning_entry(
+            command_name="specify",
+            learning_type="pitfall",
+            summary=f"Confirmed learning {index:02d}",
+            evidence=f"Confirmed evidence {index:02d}",
+            recurrence_key=f"specify.confirmed-{index:02d}",
+            signal_strength="medium",
+                status="confirmed",
+            )
+        )
+    candidate_entries = []
+    for index in range(6):
+        candidate_entries.append(
+            learnings.build_learning_entry(
+                command_name="specify",
+                learning_type="pitfall",
+                summary=f"Learning for specify.candidate-{index:02d}",
+                evidence=f"Evidence for specify.candidate-{index:02d}",
+                recurrence_key=f"specify.candidate-{index:02d}",
+                signal_strength="high",
+                applies_to=["sp-specify"],
+                trigger_signals=["live operation evidence"],
+                status="candidate",
+            )
+        )
+    learnings._write_entries(
+        paths.confirmed_learnings,
+        learnings.CONFIRMED_LEARNINGS_TEMPLATE_TEXT.rstrip(),
+        confirmed_entries,
+    )
+    learnings._write_entries(
+        paths.candidates,
+        learnings.CANDIDATES_TEMPLATE_TEXT.rstrip(),
+        candidate_entries,
+    )
+
+    payload = learnings.start_learning_session(
+        tmp_path,
+        command_name="specify",
+        task_context={"operation_owners": [r"C:\Users\alice\repo"]},
+    )
+    serialized = json.dumps(payload)
+    refs = [item["ref"] for item in payload["items"]]
+    stable = [item for item in payload["items"] if item["source_layer"] != "candidate"]
+    candidates = [item for item in payload["items"] if item["source_layer"] == "candidate"]
+
+    assert len(payload["items"]) == 20
+    assert len(stable) == 15
+    assert len(candidates) == 5
+    assert "specify.confirmed-00" in refs
+    assert payload["pagination"]["total"] == 22
+    assert payload["pagination"]["next_cursor"] == 0
+    assert payload["pagination"]["next_argv"] is not None
+    assert payload["pagination"]["next_argv"][:4] == [
+        "specify",
+        "learning",
+        "list",
+        "--command",
+    ]
+    assert "sp-specify" in payload["pagination"]["next_argv"]
+    assert "--format" in payload["pagination"]["next_argv"]
+    assert "alice" not in serialized
+    assert payload["task_context"] == {"operation_owners": ["<USER_HOME>/repo"]}
+    context_index = payload["pagination"]["next_argv"].index("--context")
+    assert (
+        payload["pagination"]["next_argv"][context_index + 1]
+        == "operation_owner=<USER_HOME>/repo"
+    )
 
 
 def test_context_cli_validates_values_and_preserves_pagination_argv(

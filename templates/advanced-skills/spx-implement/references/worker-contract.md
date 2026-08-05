@@ -31,6 +31,11 @@ impact, consumer or UI coverage notes when triggered, blockers, failed
 assumptions, and recovery guidance. Workers must not run a test suite, full
 build, service startup, E2E journey, or browser capture per Txx, and they cannot
 open a logical gate or validation attempt.
+A `success` result is acceptance-ready: every canonical `task_checks` entry is
+present exactly as a passed validation command, every validation row passes,
+and blockers are empty. Put known downstream work in a separate task, approved
+deferral, or blocked result; never represent it as failed validation inside a
+current-task `success`.
 The worker returns this bounded object to the leader or submits it inline through
 the runtime-managed result channel. The leader merges it with
 `{{specify-subcmd:specify-runtime implement result-merge --feature-dir <feature-dir> --task-id <task-id> --result-json '<inline-json>' --format json}}`;

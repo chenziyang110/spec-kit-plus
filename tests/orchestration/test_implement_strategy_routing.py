@@ -49,6 +49,48 @@ def test_implement_routes_codex_to_parallel_native_subagents_when_supported() ->
     assert decision.execution_model == "subagent-mandatory"
 
 
+def test_implement_routes_cursor_to_one_native_task_when_one_lane_is_ready() -> None:
+    snapshot = CapabilitySnapshot(
+        integration_key="cursor-agent",
+        native_subagents=True,
+        native_worker_surface="cursor-task",
+    )
+
+    decision = choose_subagent_dispatch(
+        command_name="implement",
+        snapshot=snapshot,
+        workload_shape={
+            "safe_subagent_lanes": 1,
+            "packet_ready": True,
+            "overlapping_write_sets": False,
+        },
+    )
+
+    assert decision.dispatch_shape == "one-subagent"
+    assert decision.execution_surface == "native-subagents"
+
+
+def test_implement_routes_cursor_to_parallel_native_tasks_for_safe_lanes() -> None:
+    snapshot = CapabilitySnapshot(
+        integration_key="cursor-agent",
+        native_subagents=True,
+        native_worker_surface="cursor-task",
+    )
+
+    decision = choose_subagent_dispatch(
+        command_name="implement",
+        snapshot=snapshot,
+        workload_shape={
+            "safe_subagent_lanes": 2,
+            "packet_ready": True,
+            "overlapping_write_sets": False,
+        },
+    )
+
+    assert decision.dispatch_shape == "parallel-subagents"
+    assert decision.execution_surface == "native-subagents"
+
+
 def test_implement_keeps_non_codex_integrations_on_native_subagents_when_supported() -> None:
     snapshot = CapabilitySnapshot(
         integration_key="gemini",

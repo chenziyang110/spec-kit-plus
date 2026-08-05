@@ -1020,11 +1020,14 @@ class MarkdownIntegrationTests:
         assert f"## {agent_name} Leader Gate".lower() in quick_content
         assert "you are the **leader**, not the concrete implementer" in quick_content
         assert "quick execution routing" in quick_content
-        assert "understanding checkpoint" in quick_content
+        assert "understanding checkpoint" in quick_content or "decision checkpoint" in quick_content
         assert_quick_checkpoint_card_shape(quick_content)
         assert "understanding_confirmed: true" in quick_content
         assert "<br>" not in quick_content
-        assert "plain text for terminal output" in quick_content
+        assert "checkpoint-stage" in quick_content
+        assert "packet-compile" in quick_content
+        assert "item-start" in quick_content
+        assert "confirmation_digest" in quick_content
         assert "dispatch_shape: one-subagent | parallel-subagents" in quick_content
         assert "execution_surface: native-subagents" in quick_content
         assert "validated `workertaskpacket` or equivalent execution contract preserves quality" in quick_content

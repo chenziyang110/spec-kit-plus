@@ -6,6 +6,8 @@ Call `choose_evidence_lane_dispatch(command_name="<workflow>", snapshot, workloa
 
 Perform native subagent capability discovery before recording a delegated lane. Do not record `subagent-blocked` until the active tool surface has been checked and the blocker is specific: no safe lane, no lane contract, no native subagent surface, or unsafe packetization.
 
+Capability discovery requires an available dispatch path and join path, not a guessed lifecycle API. An accepted terminal result completes the evidence lane without a separate cleanup call; use an exposed interruption or cancellation operation only for unfinished work that must stop.
+
 Record the selected fields when a lane is used or blocked:
 
 - `lane_mode: read-only-evidence`

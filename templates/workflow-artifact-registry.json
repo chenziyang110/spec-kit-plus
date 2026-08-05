@@ -99,7 +99,14 @@
       "path_patterns": ["**/implementation-review/tasks/*.json"],
       "owner_cli": ["specify-runtime implement"],
       "path_hints": ["implementation-review/tasks/", "task lifecycle record", "task lifecycle"],
-      "safe_instruction_patterns": ["specify-runtime implement", "task-start", "result-merge", "task-accept", "artifact show", "cli-owned"]
+      "safe_instruction_patterns": ["specify-runtime implement", "task-start", "result-merge", "task-accept", "task-reopen", "artifact show", "cli-owned"]
+    },
+    {
+      "id": "task_reopen_history",
+      "path_patterns": ["**/implementation-review/task-reopen-history/**/*.json"],
+      "owner_cli": ["specify-runtime implement task-reopen"],
+      "path_hints": ["implementation-review/task-reopen-history/", "task reopen history"],
+      "safe_instruction_patterns": ["task-reopen", "artifact show", "artifact list", "immutable recovery history", "runtime-owned"]
     },
     {
       "id": "worker_packet",

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -70,5 +71,45 @@ func TestFileTransactionRollsBackEveryAppliedTargetOnFailure(t *testing.T) {
 	}
 	if raw, _ := os.ReadFile(second); string(raw) != "old-md\n" {
 		t.Fatalf("second file changed despite rollback: %q", raw)
+	}
+}
+
+func TestFileTransactionChecksDigestAndAbsencePreconditionsBeforeMutation(t *testing.T) {
+	root := t.TempDir()
+	state := filepath.Join(root, ".specify", "features", "001-demo", "state.json")
+	history := filepath.Join(root, ".specify", "features", "001-demo", "history.json")
+	if err := os.MkdirAll(filepath.Dir(state), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	original := []byte("{\"revision\":1}\n")
+	if err := os.WriteFile(state, original, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := applyFileTransactionWithPreconditions(root, "test.cas", []fileTransactionUpdate{
+		{Path: state, Content: []byte("{\"revision\":2}\n"), Perm: 0o644},
+		{Path: history, Content: []byte("{\"revision\":1}\n"), Perm: 0o644},
+	}, []fileTransactionPrecondition{
+		{Path: state, ExpectedSHA256: strings.Repeat("0", 64)},
+		{Path: history, MustNotExist: true},
+	})
+	if err == nil || !strings.Contains(err.Error(), "precondition failed") {
+		t.Fatalf("stale digest precondition should fail: %v", err)
+	}
+	if raw, _ := os.ReadFile(state); string(raw) != string(original) {
+		t.Fatalf("failed precondition mutated state: %q", raw)
+	}
+	if _, statErr := os.Stat(history); !os.IsNotExist(statErr) {
+		t.Fatalf("failed precondition created history: %v", statErr)
+	}
+
+	if _, err := applyFileTransactionWithPreconditions(root, "test.cas", []fileTransactionUpdate{
+		{Path: state, Content: []byte("{\"revision\":2}\n"), Perm: 0o644},
+		{Path: history, Content: []byte("{\"revision\":1}\n"), Perm: 0o644},
+	}, []fileTransactionPrecondition{
+		{Path: state, ExpectedSHA256: fileContentSHA256(original)},
+		{Path: history, MustNotExist: true},
+	}); err != nil {
+		t.Fatalf("valid preconditions should commit: %v", err)
 	}
 }

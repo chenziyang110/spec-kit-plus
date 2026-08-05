@@ -653,9 +653,7 @@ def test_terminal_modern_lifecycle_accepts_human_confirmed_review_transfer(
 
     payload = audit_implement_resume(tmp_path, feature_dir)
 
-    assert not any(
-        "T001 is unchecked" in gap for gap in payload["open_gaps"]
-    )
+    assert not any("T001 is unchecked" in gap for gap in payload["open_gaps"])
     assert not any(
         "T001: parked" in gap or "T001: active_hard_block" in gap
         for gap in payload["open_gaps"]
@@ -795,6 +793,113 @@ def test_resolved_tracker_without_task_evidence_is_not_trusted(tmp_path: Path) -
     assert payload["status"] == "fail"
     assert payload["trusted_terminal_state"] is False
     assert "tasks.md has no task checklist evidence" in payload["open_gaps"]
+
+
+def test_resume_audit_surfaces_persisted_workflow_blocker_first(
+    tmp_path: Path,
+) -> None:
+    feature_dir = tmp_path / "specs" / "001-demo"
+    _write_basic_feature(feature_dir, tracker_status="validating")
+    (feature_dir / "workflow.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "feature_id": "001-demo",
+                "revision": 4,
+                "stage": "implement",
+                "status": "blocked",
+                "summary": "Repair T002 before continuing.",
+                "blocker": {"blocker_id": "IMPLEMENT-RECOVERY"},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    payload = audit_implement_resume(tmp_path, feature_dir)
+
+    assert payload["status"] == "fail"
+    assert payload["resume_classification"] == "workflow-blocked"
+    assert payload["reason_code"] == "workflow-blocked"
+    assert payload["resolution_action"]["capability_id"] == "workflow.resolve"
+
+
+def test_resume_audit_routes_invalid_implemented_task_to_task_reopen(
+    tmp_path: Path,
+) -> None:
+    feature_dir = tmp_path / "specs" / "001-demo"
+    _write_basic_feature(feature_dir, tracker_status="validating")
+    (feature_dir / "tasks.md").write_text(
+        "# Tasks\n\n- [ ] T002 repair evidence\n", encoding="utf-8"
+    )
+    (feature_dir / "task-index.json").write_text(
+        json.dumps(
+            {
+                "version": 2,
+                "status": "ready",
+                "tasks": [
+                    {
+                        "id": "T002",
+                        "status": "implemented",
+                        "task_checks": ["required check"],
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    lifecycle_dir = feature_dir / "implementation-review" / "tasks"
+    lifecycle_dir.mkdir(parents=True)
+    (lifecycle_dir / "T002.json").write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "revision": 2,
+                "task_id": "T002",
+                "status": "implemented",
+                "validation": [{"command": "other check", "status": "passed"}],
+                "blockers": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    (feature_dir / "workflow.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "feature_id": "001-demo",
+                "revision": 7,
+                "stage": "implement",
+                "status": "active",
+                "summary": "Implement tasks.",
+                "blocker": None,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    payload = audit_implement_resume(tmp_path, feature_dir)
+
+    assert payload["status"] == "fail"
+    assert payload["resume_classification"] == "task-recovery-required"
+    assert payload["reason_code"] == "task-reopen-required"
+    assert payload["blocked_task_id"] == "T002"
+    assert payload["recovery_action"]["capability_id"] == "implement.task-reopen"
+
+
+def test_resume_audit_fails_closed_when_task_graph_is_empty(tmp_path: Path) -> None:
+    feature_dir = tmp_path / "specs" / "001-demo"
+    _write_basic_feature(feature_dir, tracker_status="validating")
+    (feature_dir / "tasks.md").write_text("# Tasks\n", encoding="utf-8")
+    (feature_dir / "task-index.json").write_text(
+        json.dumps({"version": 2, "status": "ready", "tasks": []}),
+        encoding="utf-8",
+    )
+
+    payload = audit_implement_resume(tmp_path, feature_dir)
+
+    assert payload["status"] == "fail"
+    assert payload["resume_classification"] == "task-graph-invalid"
+    assert payload["reason_code"] == "task-graph-invalid"
 
 
 def test_checked_component_task_with_result_but_no_consumer_evidence_is_gap(
@@ -1956,9 +2061,7 @@ def test_resolved_packetized_state_with_accepted_concern_task_review_passes(
 def test_delivery_affecting_task_review_cannot_use_an_arbitrary_decision_ref(
     tmp_path: Path,
 ) -> None:
-    feature_dir = (
-        tmp_path / "project" / ".specify" / "features" / "001-demo"
-    )
+    feature_dir = tmp_path / "project" / ".specify" / "features" / "001-demo"
     feature_dir.mkdir(parents=True)
     record = TaskReviewRecord(
         task_id="T001",
@@ -2610,7 +2713,9 @@ def test_implementation_summary_surfaces_invalid_deferral_state(
     feature_dir = tmp_path / ".specify" / "features" / "001-demo"
     _write_basic_feature(feature_dir)
 
-    def _invalid_deferrals(*_args: object, **_kwargs: object) -> list[dict[str, object]]:
+    def _invalid_deferrals(
+        *_args: object, **_kwargs: object
+    ) -> list[dict[str, object]]:
         raise ImplementationDeferralError("DEF-deadbeefcafe proposal was modified")
 
     monkeypatch.setattr(

@@ -1,0 +1,307 @@
+{
+  "schema_version": 1,
+  "text_cases": [
+    {
+      "id": "safe_sha256_digest",
+      "input": "artifact digest 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      "policy": {},
+      "expected_labels": [],
+      "expected_contains": ["0123456789abcdef"],
+      "forbidden_contains": []
+    },
+    {
+      "id": "built_in_phone",
+      "input": "Call +1 (415) 555-0101 before retrying.",
+      "policy": {},
+      "expected_labels": ["personal_identifier"],
+      "expected_contains": ["[REDACTED_PHONE]"],
+      "forbidden_contains": ["415", "555-0101"]
+    },
+    {
+      "id": "built_in_complex_email_precedes_entropy",
+      "input": "Notify alpha.beta+12345@example-domain.com after recovery.",
+      "policy": {},
+      "expected_labels": ["email"],
+      "expected_contains": ["[REDACTED_EMAIL]"],
+      "forbidden_contains": ["alpha.beta+12345@example-domain.com", "[REDACTED_SECRET]"]
+    },
+    {
+      "id": "built_in_bare_high_entropy_secret",
+      "input": "Observed Ab9$Qw7!Rt5@Yu3#Io1%Pa8& in the failed request.",
+      "policy": {},
+      "expected_labels": ["credential"],
+      "expected_contains": ["[REDACTED_SECRET]"],
+      "forbidden_contains": ["Ab9$Qw7!Rt5@Yu3#Io1%Pa8&"]
+    },
+    {
+      "id": "built_in_three_class_high_entropy_secret",
+      "input": "Observed Ab9Qw7Rt5Yu3Io1Pa8Sd6Fg in the failed request.",
+      "policy": {},
+      "expected_labels": ["credential"],
+      "expected_contains": ["[REDACTED_SECRET]"],
+      "forbidden_contains": ["Ab9Qw7Rt5Yu3Io1Pa8Sd6Fg"]
+    },
+    {
+      "id": "built_in_lower_digit_symbol_secret",
+      "input": "Observed ab9$qw7!rt5@yu3#io1%pa8& in the failed request.",
+      "policy": {},
+      "expected_labels": ["credential"],
+      "expected_contains": ["[REDACTED_SECRET]"],
+      "forbidden_contains": ["ab9$qw7!rt5@yu3#io1%pa8&"]
+    },
+    {
+      "id": "safe_low_diversity_mixed_token",
+      "input": "The synthetic fixture key Aa1Aa1Aa1Aa1Aa1Aa1Aa1Aa1 is intentionally repetitive.",
+      "policy": {},
+      "expected_labels": [],
+      "expected_contains": ["Aa1Aa1Aa1Aa1Aa1Aa1Aa1Aa1"],
+      "forbidden_contains": []
+    },
+    {
+      "id": "custom_secret_prefix",
+      "input": "Use acme_live_ABC123456789 only in the secure runner.",
+      "policy": {
+        "detectors": {
+          "secret_prefixes": ["acme_live_"]
+        }
+      },
+      "expected_labels": ["credential"],
+      "expected_contains": ["[REDACTED_SECRET]"],
+      "forbidden_contains": ["acme_live_ABC123456789"]
+    },
+    {
+      "id": "custom_secret_prefix_with_symbols",
+      "input": "Use acme_live_ABC$123!xyz only in the secure runner.",
+      "policy": {
+        "detectors": {
+          "secret_prefixes": ["acme_live_"]
+        }
+      },
+      "expected_labels": ["credential"],
+      "expected_contains": ["[REDACTED_SECRET]"],
+      "forbidden_contains": ["acme_live_ABC$123!xyz", "$123!xyz"]
+    },
+    {
+      "id": "custom_sensitive_key",
+      "input": "customer_secret=opaque-value must not reach logs.",
+      "policy": {
+        "detectors": {
+          "sensitive_key_names": ["customer_secret"]
+        }
+      },
+      "expected_output": "customer_secret=[REDACTED_SECRET] must not reach logs.",
+      "expected_labels": ["credential"],
+      "expected_contains": ["[REDACTED_SECRET]"],
+      "forbidden_contains": ["opaque-value"]
+    },
+    {
+      "id": "custom_business_identifier",
+      "input": "Customer CUST-123456 needs the fallback route.",
+      "policy": {
+        "detectors": {
+          "business_id_prefixes": ["CUST-"]
+        }
+      },
+      "expected_labels": ["business_identifier"],
+      "expected_contains": ["[REDACTED_BUSINESS_ID]"],
+      "forbidden_contains": ["CUST-123456"]
+    },
+    {
+      "id": "custom_organization_term",
+      "input": "Project Zephyr requires the isolated release path.",
+      "policy": {
+        "detectors": {
+          "sensitive_terms": ["Project Zephyr"]
+        }
+      },
+      "expected_labels": ["organization_sensitive"],
+      "expected_contains": ["[REDACTED_ORG_TERM]"],
+      "forbidden_contains": ["Project Zephyr"]
+    },
+    {
+      "id": "safe_version_and_route",
+      "input": "Keep API v1.2.3 on /api/v1/tasks until migration completes.",
+      "policy": {},
+      "expected_labels": [],
+      "expected_contains": ["v1.2.3", "/api/v1/tasks"],
+      "forbidden_contains": []
+    },
+    {
+      "id": "safe_iso_date",
+      "input": "The regression first appeared on 2026-08-04 after the release.",
+      "policy": {},
+      "expected_labels": [],
+      "expected_contains": ["2026-08-04"],
+      "forbidden_contains": []
+    },
+    {
+      "id": "safe_structured_recurrence_key",
+      "input": "sp-plan.trigger.user_correction.digest-a1b2c3d4",
+      "policy": {},
+      "expected_labels": [],
+      "expected_contains": ["sp-plan.trigger.user_correction.digest-a1b2c3d4"],
+      "forbidden_contains": ["[REDACTED_SECRET]"]
+    }
+  ],
+  "assessment_cases": [
+    {
+      "id": "explicit_safe_capture",
+      "source": "manual",
+      "learning_type": "workflow_gap",
+      "signal_strength": "medium",
+      "occurrences": 1,
+      "summary": "Preserve the re-entry reason before handoff.",
+      "evidence": "The route changed and the next stage could not resume safely.",
+      "recommended_action": "Record the exact route reason in workflow state.",
+      "trigger_signals": ["route_changed"],
+      "expected_value_tier": "high",
+      "expected_reason_codes": ["explicit_capture", "workflow_gap"],
+      "expected_decision": "capture-safe"
+    },
+    {
+      "id": "explicit_user_correction_keeps_both_reasons",
+      "source": "manual",
+      "learning_type": "user_preference",
+      "signal_strength": "high",
+      "occurrences": 1,
+      "summary": "Preserve the user's corrected routing assumption.",
+      "evidence": "The original assumption selected the wrong validation lane.",
+      "recommended_action": "Apply the corrected routing assumption before planning.",
+      "trigger_signals": ["user_correction"],
+      "expected_value_tier": "high",
+      "expected_reason_codes": ["explicit_capture", "user_correction"],
+      "expected_decision": "capture-safe"
+    },
+    {
+      "id": "sensitive_user_correction_retained",
+      "source": "auto",
+      "learning_type": "user_preference",
+      "signal_strength": "high",
+      "occurrences": 1,
+      "summary": "User correction applies after token=top-secret rotates.",
+      "evidence": "The user corrected the route for ops@example.com.",
+      "recommended_action": "Apply the corrected route before retrying.",
+      "trigger_signals": ["user_correction"],
+      "expected_value_tier": "high",
+      "expected_reason_codes": ["user_correction"],
+      "expected_decision": "capture-sanitized"
+    },
+    {
+      "id": "sensitive_cjk_semantics_retained",
+      "source": "auto",
+      "learning_type": "user_preference",
+      "signal_strength": "high",
+      "occurrences": 1,
+      "summary": "用户纠正：token=top-secret 轮换后必须先验证路由。",
+      "evidence": "该修正避免重复走错环境。",
+      "recommended_action": "重试前应用纠正后的路由。",
+      "trigger_signals": ["user_correction"],
+      "expected_value_tier": "high",
+      "expected_reason_codes": ["user_correction"],
+      "expected_decision": "capture-sanitized"
+    },
+    {
+      "id": "sensitive_content_without_safe_abstraction_deferred",
+      "source": "auto",
+      "learning_type": "user_preference",
+      "signal_strength": "high",
+      "occurrences": 1,
+      "summary": "token=only-secret-value",
+      "evidence": "password=only-secret-value",
+      "recommended_action": "",
+      "trigger_signals": ["user_correction"],
+      "expected_value_tier": "high",
+      "expected_reason_codes": ["user_correction"],
+      "expected_decision": "defer"
+    },
+    {
+      "id": "repeated_medium_candidate_retained",
+      "source": "auto",
+      "learning_type": "tooling_trap",
+      "signal_strength": "medium",
+      "occurrences": 2,
+      "summary": "Verify the runtime boundary before changing product code.",
+      "evidence": "The same environment mismatch caused two failed attempts.",
+      "recommended_action": "Check the runtime boundary first.",
+      "trigger_signals": ["tooling_trap"],
+      "expected_value_tier": "high",
+      "expected_reason_codes": ["repeated_occurrence", "tooling_trap"],
+      "expected_decision": "capture-safe"
+    },
+    {
+      "id": "repeated_project_constraint_uses_canonical_reason",
+      "source": "auto",
+      "learning_type": "project_constraint",
+      "signal_strength": "medium",
+      "occurrences": 2,
+      "summary": "Keep generated artifacts behind the owning renderer.",
+      "evidence": "Two manual edits drifted from the generated source of truth.",
+      "recommended_action": "Change the renderer and regenerate the artifact.",
+      "trigger_signals": [],
+      "expected_value_tier": "high",
+      "expected_reason_codes": ["repeated_occurrence", "reusable_constraint"],
+      "expected_decision": "capture-safe"
+    },
+    {
+      "id": "explicit_reusable_constraint_signal_is_high_value",
+      "source": "auto",
+      "learning_type": "project_constraint",
+      "signal_strength": "medium",
+      "occurrences": 1,
+      "summary": "Keep runtime changes consistent across both workflow profiles.",
+      "evidence": "The shared runtime contract is consumed by Classic and Advanced.",
+      "recommended_action": "Validate both profiles whenever the runtime contract changes.",
+      "trigger_signals": ["reusable_constraint"],
+      "expected_value_tier": "high",
+      "expected_reason_codes": ["reusable_constraint"],
+      "expected_decision": "capture-safe"
+    },
+    {
+      "id": "single_recovery_path_retained",
+      "source": "auto",
+      "learning_type": "recovery_path",
+      "signal_strength": "medium",
+      "occurrences": 1,
+      "summary": "Rerun scoped validation after applying the recovery step.",
+      "evidence": "The recovery succeeded only after the validation was rerun.",
+      "recommended_action": "Run the scoped validation before resolving.",
+      "trigger_signals": ["recovery_completed"],
+      "expected_value_tier": "medium",
+      "expected_reason_codes": ["recovery_path"],
+      "expected_decision": "capture-safe"
+    },
+    {
+      "id": "routine_auto_outcome_ignored",
+      "source": "auto",
+      "learning_type": "pitfall",
+      "signal_strength": "low",
+      "occurrences": 1,
+      "summary": "The command completed normally.",
+      "evidence": "One routine successful execution occurred.",
+      "recommended_action": "",
+      "trigger_signals": [],
+      "expected_value_tier": "low",
+      "expected_reason_codes": ["routine_outcome"],
+      "expected_decision": "ignore"
+    },
+    {
+      "id": "near_miss_business_id_retained",
+      "source": "auto",
+      "learning_type": "near_miss",
+      "signal_strength": "high",
+      "occurrences": 1,
+      "summary": "Guard CUST-987654 before the destructive operation.",
+      "evidence": "The preflight check prevented the risky action.",
+      "recommended_action": "Run the preflight guard before similar operations.",
+      "trigger_signals": ["near_miss"],
+      "policy": {
+        "detectors": {
+          "business_id_prefixes": ["CUST-"]
+        }
+      },
+      "expected_value_tier": "high",
+      "expected_reason_codes": ["near_miss"],
+      "expected_decision": "capture-sanitized"
+    }
+  ]
+}

@@ -7,6 +7,9 @@ param(
 $ErrorActionPreference = "Stop"
 if ([string]::IsNullOrWhiteSpace($Version)) { $Version = "latest" }
 if ([string]::IsNullOrWhiteSpace($Repo)) { $Repo = "chenziyang110/spec-kit-plus" }
+if (($Version -ne "latest") -and ($Version -notmatch '^v[0-9]+(\.[0-9]+){2}([.-][0-9A-Za-z.-]+)?$')) {
+    throw "SPECIFY_RUNTIME_VERSION must be latest or a concrete release tag such as v0.6.6"
+}
 if ([string]::IsNullOrWhiteSpace($InstallDir)) {
     $InstallDir = Join-Path $env:LOCALAPPDATA "Programs\specify-runtime"
 }
@@ -46,6 +49,7 @@ try {
         ($handshake -notmatch '"cognition\.archive-incompatible-store"') -or
         ($handshake -notmatch '"cognition\.run"') -or
         ($handshake -notmatch '"cognition\.scan-packet"') -or
+        ($handshake -notmatch '"implement\.task-reopen"') -or
         ($handshake -notmatch '"validate\.spec"') -or
         ($handshake -notmatch '"workflow\.show"') -or
         ($handshake -notmatch '"workflow\.enter"') -or
@@ -57,6 +61,46 @@ try {
         ($handshake -notmatch '"workflow\.resolve"') -or
         ($handshake -notmatch '"workflow\.closeout"')) {
         throw "Downloaded binary failed the specify-runtime API handshake"
+    }
+
+    try {
+        $handshakePayload = $handshake | ConvertFrom-Json
+    } catch {
+        throw "Downloaded binary returned an invalid specify-runtime API handshake"
+    }
+    $versionText = (& $candidate version --format json 2>&1 | Out-String)
+    if ($LASTEXITCODE -ne 0) {
+        throw "Downloaded binary failed to report its release identity"
+    }
+    try {
+        $versionPayload = $versionText | ConvertFrom-Json
+    } catch {
+        throw "Downloaded binary returned invalid version metadata"
+    }
+    $actualVersion = [string]$versionPayload.data.cli_version
+    $sourceRevision = [string]$versionPayload.data.source_revision
+    $dirty = $versionPayload.data.dirty
+    $handshakeVersion = [string]$handshakePayload.data.cli_version
+    $handshakeSourceRevision = [string]$handshakePayload.data.source_revision
+    $handshakeDirty = $handshakePayload.data.dirty
+    if ($Version -eq "latest") {
+        if ($actualVersion -notmatch '^v[0-9]+(\.[0-9]+){2}([.-][0-9A-Za-z.-]+)?$') {
+            throw "Downloaded latest binary has no concrete release version: ${actualVersion}"
+        }
+    } elseif ($actualVersion -ne $Version) {
+        throw "Downloaded binary version ${actualVersion} does not match requested ${Version}"
+    }
+    if ($handshakeVersion -ne $actualVersion) {
+        throw "Downloaded binary reports inconsistent version identity"
+    }
+    if (($handshakeSourceRevision -ne $sourceRevision) -or
+        ($handshakeDirty -isnot [bool]) -or
+        ($handshakeDirty -ne $dirty)) {
+        throw "Downloaded binary reports inconsistent release provenance"
+    }
+    if (($sourceRevision -notmatch '^([0-9a-fA-F]{40}|[0-9a-fA-F]{64})$') -or
+        ($dirty -isnot [bool]) -or $dirty) {
+        throw "Downloaded binary has invalid release provenance"
     }
 
     $cognitionHelp = (& $candidate cognition --help 2>&1 | Out-String)

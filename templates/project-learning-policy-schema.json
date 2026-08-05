@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spec-kit-plus.local/schemas/project-learning-policy-schema.json",
+  "title": "Project Learning Policy Contract",
+  "description": "Optional policy stored at .specify/config.json.project_learning. Only bounded literal detector lists are supported; arbitrary regular expressions are forbidden.",
+  "type": "object",
+  "properties": {
+    "detectors": {
+      "type": "object",
+      "properties": {
+        "secret_prefixes": { "$ref": "#/$defs/literalList" },
+        "sensitive_key_names": { "$ref": "#/$defs/literalList" },
+        "business_id_prefixes": { "$ref": "#/$defs/literalList" },
+        "sensitive_terms": { "$ref": "#/$defs/literalList" }
+      },
+      "additionalProperties": false
+    },
+    "deferred_review_days": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 365,
+      "description": "Whole days before a deferred assessment becomes due for explicit review."
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "literalList": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128,
+        "allOf": [
+          { "pattern": "\\S" },
+          { "pattern": "^[^\\u0000-\\u001F\\u007F-\\u009F]*$" }
+        ]
+      },
+      "maxItems": 64,
+      "uniqueItems": true,
+      "description": "Literal values only; entries are not interpreted as regular expressions."
+    }
+  }
+}

@@ -29,6 +29,8 @@ Dispatch rules:
 
 Artifact-producing delegated lanes must use execution-capable native subagents, but no worker receives direct workflow-artifact write authority. Each lane builds its bounded result in memory and submits it through the runtime-provided inline result channel; the runtime alone materializes the canonical handoff path. Product/source write scope remains explicit when a lane actually implements code, while planning and task-generation lanes are read-only outside their result channel. If a delegated lane returns prose, idle state, or no accepted CLI result, stop or re-dispatch with the complete runtime-owned result argv and inline payload contract.
 
+Discover the integration's actual dispatch and join capabilities before blocking. Require only lifecycle operations exposed by that runtime: an accepted terminal result completes the native lane without a separate cleanup call, while interruption or cancellation is only for unfinished work that must stop.
+
 Delegated lanes still require structured handoffs before synthesis. If delegated lanes were used, consume the one lane manifest and every accepted lane result before final output; do not duplicate the same events into evidence-index and checkpoint logs. If no lanes were delegated, report the delegated-lane field as `none`.
 
-Managed-team fallback is not part of adaptive plan/tasks dispatch. Do not route blocked adaptive planning or task generation to `sp-teams`, managed-team lifecycle language, or a durable team fallback from this command.
+Managed-team fallback is not part of adaptive plan/tasks dispatch. Do not route blocked adaptive planning or task generation to a managed-team lifecycle or durable-team fallback from this command. Native planning and task-generation lanes use the ordinary stage-owned `result submit` channel; durable-team submit routes are reserved for an explicitly selected durable-team run.

@@ -23,7 +23,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable
 
-from specify_cli.orchestration import CapabilitySnapshot, describe_delegation_surface
+from specify_cli.orchestration import (
+    NATIVE_SUBAGENT_TERMINAL_GUIDANCE,
+    CapabilitySnapshot,
+    describe_delegation_surface,
+)
 
 if TYPE_CHECKING:
     from .manifest import IntegrationManifest
@@ -961,7 +965,9 @@ class IntegrationBase(ABC):
             "with `--semantic-intake-json '<semantic-intake-json>'`; never create an intake file. Alternatively use the advanced `lexicon -> semantic_intake -> query` path when explicit "
             "concept decisions are needed. Preserve advanced routing through "
             f'`{{{{specify-subcmd:specify-runtime cognition query --intent {intent} --query-plan "<query_plan_json>" --format json}}}}` '
-            "for precision cases."
+            "for precision cases. Treat `query` as an exact-binding consumer, never a natural-language search endpoint: page "
+            "`lexicon --mode catalog` through `catalog_page.next_offset`, copy current `concept_id` values or exact paths into "
+            "the plan, carry the same `lexicon_generation_id`, and require `resolution_state=resolved_exact`."
         )
 
     def _append_toml_debug_runtime_bridge(
@@ -1284,9 +1290,10 @@ class IntegrationBase(ABC):
             "Before code edits, test edits, or implementation commands:\n"
             "- Query `.specify/memory/constitution.md` first through `specify-runtime artifact show` if it exists.\n"
             "- Create a new quick-task `STATUS.md` only through `specify-runtime artifact scaffold --kind quick-status`, or resume it through targeted `artifact show` calls.\n"
-            "- If `understanding_confirmed` is not `true`, present the Understanding Checkpoint and wait for user confirmation before implementation work.\n"
-            "- The user-facing checkpoint must use the fixed Quick Checkpoint Markdown table with `| Decision to confirm | Current understanding |` and rows for `Request and outcome`, `User-visible result`, `Scope`, `Ordered work items`, `Work-item acceptance`, `Recommended approach`, `Assumptions and risks`, `Completion evidence`, and `Reconfirmation trigger`. Use stable Q1/Q2 ids for one or many deliverables and confirm only deliverable-level order; internal implementation sequencing stays agent-owned, and prose bullets or partial field lists are not sufficient. For applicable UI work, append the independent UI Confirmation card and ask once for both decisions.\n"
-            "- Do not proceed to code edits, broad repository analysis, delegation, or validation commands until `understanding_confirmed: true` has been persisted in `STATUS.md` through a fresh `specify-runtime artifact patch` lease.\n"
+            "- If `understanding_confirmed` is not `true`, stage the runtime Decision Checkpoint with `specify-runtime quick checkpoint-stage`, show `--view decision` and `--view delivery`, and wait for user confirmation (or inherit a discussion digest with no semantic delta) before implementation work.\n"
+            "- The user-facing surface is the runtime Decision Checkpoint plus Delivery Map/Pulse, not a freeform two-column approval table. Confirm only user-owned goal, visible result, scope, stable Q1/Q2 deliverables, product-level dependencies, per-item acceptance, risks, and reconfirmation trigger. Delivery Map waves, subagents, file splits, and test order stay agent-owned and never enter `confirmation_digest`. For applicable UI work, include `ui_confirmation` and ask once for both decisions.\n"
+            "- Do not proceed to code edits, broad repository analysis, delegation, or validation commands until `understanding_confirmed: true` has been set by `quick checkpoint-confirm` / inherited stage (or an equivalent leased frontmatter patch).\n"
+            "- Compile and gate Q items with `quick packet-compile --item Qn`, `quick item-start --item Qn`, and `quick item-accept --item Qn --evidence ...`. Runtime rejects dependent starts before prerequisites are accepted.\n"
             "- Before choosing the next lane, query `STATUS.md` and any quick-task summary artifacts through targeted `artifact show` calls so resume truth comes from durable state instead of chat narration.\n"
             "- After understanding is confirmed, define the smallest safe delegated lane or ready batch, and choose the dispatch shape for that batch.\n"
             "- Dispatch `one-subagent` when one validated `WorkerTaskPacket` or equivalent execution contract preserves quality.\n"
@@ -1298,7 +1305,7 @@ class IntegrationBase(ABC):
             "- Do not treat an idle subagent as done work; idle without a consumed handoff means the result channel is still unresolved.\n"
             "- Do not interrupt or shut down subagent work before the handoff has been returned inline, submitted through its runtime result owner, or explicitly reported as `BLOCKED` or `NEEDS_CONTEXT`.\n"
             "- Use `managed-team` only when durable team state is needed beyond one in-session subagent burst.\n"
-            "- Use `subagent-blocked` only when subagent dispatch and the managed team workflow are both unavailable or unsafe.\n"
+            "- Use `subagent-blocked` when the selected native lane cannot proceed and no authorized safe route remains; do not require or invoke `managed-team`/`sp-teams` unless durable execution was explicitly selected.\n"
             "- When `subagent-blocked` is used, you **MUST** patch the concrete blocker reason into `STATUS.md` through a fresh `specify-runtime artifact patch` lease before escalating or stopping locally.\n"
             "\n"
             "**Hard rule:** The leader must keep scope control, strategy selection, join-point handling, validation, summary ownership, and `STATUS.md` accuracy while subagent execution is active.\n"
@@ -1332,7 +1339,7 @@ class IntegrationBase(ABC):
             f"When running `sp-quick` in {agent_name}, do not start execution routing until targeted `specify-runtime artifact show` reports that CLI-owned `STATUS.md` has `understanding_confirmed: true`.\n"
             "- Dispatch shape: `one-subagent`, `parallel-subagents`, or `subagent-blocked`.\n"
             "- Execution surface: `native-subagents`, `managed-team`, or `leader-inline`.\n"
-            "- Understanding checkpoint: before dispatch, render the fixed Quick Checkpoint Markdown table with `| Decision to confirm | Current understanding |` and user-owned rows for request/outcome, visible result, scope, ordered work items, work-item acceptance, recommended approach, assumptions/risks, completion evidence, and reconfirmation trigger. Use stable Q1/Q2 ids for one or many deliverables; append the UI Confirmation proposal when applicable and use one combined confirmation.\n"
+            "- Decision Checkpoint: before dispatch, stage/show the runtime Decision Checkpoint and Delivery Map (`quick checkpoint-stage` / `checkpoint-show`). Confirm only user-owned Q1/Q2 deliverables, dependencies, and acceptance; never ask users to approve subagent/batch/file choreography. Prefer `packet-compile` + `item-start`/`item-accept` for DAG-gated execution.\n"
             f"- Subagent dispatch: {descriptor.native_dispatch_hint}\n"
             f"- Integration-native join point: {descriptor.native_join_hint}\n"
             f"- Fallback path: {managed_team_hint}\n"
@@ -2018,8 +2025,7 @@ class IntegrationBase(ABC):
             has_frontmatter = len(markdown_body) != len(content)
             runtime_content = (
                 markdown_body
-                if path.suffix.lower() == ".md"
-                and has_frontmatter
+                if path.suffix.lower() == ".md" and has_frontmatter
                 else content
             )
             repaired_frontmatter = frontmatter_text
@@ -3054,6 +3060,33 @@ class SkillsIntegration(IntegrationBase):
             created.append(dst_file)
         return created
 
+    def _render_advanced_native_subagent_reference(
+        self,
+        *,
+        content: str,
+        command_name: str,
+        snapshot: CapabilitySnapshot,
+    ) -> str:
+        """Bind the shared Advanced delegation contract to the active tool surface."""
+
+        agent_name_full = self.config.get("name", self.key.capitalize())
+        agent_name = agent_name_full.replace(" CLI", "")
+        marker = f"## {agent_name} Native Subagent Surface"
+        if marker in content:
+            return content
+
+        descriptor = describe_delegation_surface(
+            command_name=command_name,
+            snapshot=snapshot,
+        )
+        return content + (
+            "\n"
+            f"{marker}\n\n"
+            f"- Capability discovery: {descriptor.native_discovery_hint}\n"
+            f"- Dispatch: {descriptor.native_dispatch_hint}\n"
+            f"- Join: {descriptor.native_join_hint}\n"
+        )
+
     def _install_advanced_skills(
         self,
         *,
@@ -3078,6 +3111,7 @@ class SkillsIntegration(IntegrationBase):
         shared_references = (
             sorted((advanced_dir / "_shared").glob("*.md")) if advanced_dir else []
         )
+        runtime_snapshot: CapabilitySnapshot | None = None
         created: list[Path] = []
         for template_dir in self.list_advanced_skill_templates():
             source_path = template_dir / "SKILL.md"
@@ -3167,6 +3201,17 @@ class SkillsIntegration(IntegrationBase):
                     project_root=project_root,
                 )
                 reference_content = self.render_advanced_invocations(reference_content)
+                if (
+                    shared_reference.name == "native-subagents.md"
+                    and "references/native-subagents.md" in raw
+                ):
+                    if runtime_snapshot is None:
+                        runtime_snapshot = self.runtime_capability_snapshot()
+                    reference_content = self._render_advanced_native_subagent_reference(
+                        content=reference_content,
+                        command_name=skill_name.removeprefix("spx-"),
+                        snapshot=runtime_snapshot,
+                    )
                 created.append(
                     self.write_file_and_record(
                         reference_content,
@@ -3501,6 +3546,28 @@ class SkillsIntegration(IntegrationBase):
             agent_name=agent_name,
         )
 
+        descriptor = (
+            describe_delegation_surface(
+                command_name="implement",
+                snapshot=snapshot,
+            )
+            if snapshot is not None
+            else None
+        )
+        if descriptor is None:
+            native_lifecycle = (
+                "- Discover the active integration's native subagent dispatch and "
+                "join operations before recording a capability blocker.\n"
+                "- Dispatch validated isolated lanes with the shared worker packet "
+                "and rejoin through the active integration's native result surface.\n"
+            )
+        else:
+            native_lifecycle = (
+                f"- Native capability discovery: {descriptor.native_discovery_hint}\n"
+                f"- Native dispatch: {descriptor.native_dispatch_hint}\n"
+                f"- Native join: {descriptor.native_join_hint}\n"
+            )
+
         marker = f"## {agent_name} Adaptive Execution"
         if marker not in content:
             addendum = (
@@ -3518,7 +3585,7 @@ class SkillsIntegration(IntegrationBase):
                 "For delegated waves:\n"
                 f"- Use {agent_name}'s `native-subagents` lifecycle when available.\n"
                 "- Fixed runtime budget: `max_parallel_subagents = 4`.\n"
-                f"- Use `spawn_agent` for at most four validated isolated lanes, `wait_agent` at the explicit join, and `close_agent` after results are integrated.\n"
+                f"{native_lifecycle}"
                 "- Launch the selected parallel wave before waiting; never merge lanes with overlapping writes merely to fill capacity.\n"
                 "- Re-check route safety after drift, dispatch failure, and every join. Run event-triggered review when the recorded review triggers fire.\n"
                 "- Continue automatically from the smallest ready task until the confirmed scope is complete or genuinely blocked.\n"
@@ -3572,7 +3639,7 @@ class SkillsIntegration(IntegrationBase):
                 "- Use `leader-inline` for a small focused investigation with one short evidence chain.\n"
                 "- Use `subagent-assisted` when there are two or more independent evidence-gathering lanes, broad surface area, or meaningful parallelism.\n"
                 "- If the next step is unsafe, unavailable, or unpacketizable, persist `subagent-blocked`, `execution_surface: none`, and a concrete `blocked_reason` through a fresh `specify-runtime artifact patch` lease before stopping.\n"
-                f"- Use `wait_agent` at the investigation join point, integrate returned results, and call `close_agent` for completed subagents.\n"
+                f"- Use `wait_agent` at the investigation join point and integrate returned results. {NATIVE_SUBAGENT_TERMINAL_GUIDANCE}\n"
                 "\n"
                 "**Hard rule:** During `investigating`, the leader must not let subagents mutate the debug file, declare the root cause final, or advance the session state.\n"
             )
@@ -3648,7 +3715,7 @@ class SkillsIntegration(IntegrationBase):
             "- Do not treat an idle subagent as done work; idle without a consumed handoff means the evidence lane is still unresolved.\n"
             "- Do not interrupt or shut down subagent work before the handoff has been returned inline, submitted through its runtime result owner, or explicitly reported as `BLOCKED` or `NEEDS_CONTEXT`.\n"
             f"- Use `wait_agent` only after the current investigation fan-out reaches its join point.\n"
-            f"- Use `close_agent` after integrating finished subagent results.\n"
+            f"- {NATIVE_SUBAGENT_TERMINAL_GUIDANCE}\n"
             "- Do not resolve the session directly from successful automated verification. Successful automated verification must hand off into formal human verification.\n"
             "- If human feedback reports another problem, classify it as `same_issue`, `derived_issue`, or `unrelated_issue` and persist the classification through a fresh `specify-runtime artifact patch` lease.\n"
             "- Default to `same_issue` unless strong evidence proves the other classes.\n"
@@ -3701,20 +3768,21 @@ class SkillsIntegration(IntegrationBase):
                 "Before code edits, test edits, or implementation commands:\n"
                 "- Query `.specify/memory/constitution.md` first through `specify-runtime artifact show` if it exists.\n"
                 "- Create a new quick-task `STATUS.md` only through `specify-runtime artifact scaffold --kind quick-status`, or resume it through targeted `artifact show` calls.\n"
-                "- If `understanding_confirmed` is not `true`, present the Understanding Checkpoint and wait for user confirmation before implementation work.\n"
-                "- The user-facing checkpoint must use the fixed Quick Checkpoint Markdown table with `| Decision to confirm | Current understanding |` and rows for `Request and outcome`, `User-visible result`, `Scope`, `Ordered work items`, `Work-item acceptance`, `Recommended approach`, `Assumptions and risks`, `Completion evidence`, and `Reconfirmation trigger`. Use stable Q1/Q2 ids for one or many deliverables and confirm only deliverable-level order; internal implementation sequencing stays agent-owned, and prose bullets or partial field lists are not sufficient. For applicable UI work, append the independent UI Confirmation card and ask once for both decisions.\n"
-                "- Do not proceed to code edits, broad repository analysis, delegation, or validation commands until `understanding_confirmed: true` has been persisted in `STATUS.md` through a fresh `specify-runtime artifact patch` lease.\n"
+                "- If `understanding_confirmed` is not `true`, stage the runtime Decision Checkpoint with `specify-runtime quick checkpoint-stage`, show `--view decision` and `--view delivery`, and wait for user confirmation (or inherit a discussion digest with no semantic delta) before implementation work.\n"
+                "- The user-facing surface is the runtime Decision Checkpoint plus Delivery Map/Pulse, not a freeform two-column approval table. Confirm only user-owned goal, visible result, scope, stable Q1/Q2 deliverables, product-level dependencies, per-item acceptance, risks, and reconfirmation trigger. Delivery Map waves, subagents, file splits, and test order stay agent-owned and never enter `confirmation_digest`. For applicable UI work, include `ui_confirmation` and ask once for both decisions.\n"
+                "- Do not proceed to code edits, broad repository analysis, delegation, or validation commands until `understanding_confirmed: true` has been set by `quick checkpoint-confirm` / inherited stage (or an equivalent leased frontmatter patch).\n"
+                "- Compile and gate Q items with `quick packet-compile --item Qn`, `quick item-start --item Qn`, and `quick item-accept --item Qn --evidence ...`. Runtime rejects dependent starts before prerequisites are accepted.\n"
                 "- After understanding is confirmed, define the smallest safe delegated lane or ready batch, and choose the dispatch shape for that batch.\n"
                 "- Dispatch `one-subagent` when one validated `WorkerTaskPacket` or equivalent execution contract preserves quality.\n"
                 "- Dispatch `parallel-subagents` when two or more safe subagent lanes would materially improve throughput.\n"
                 f"- Use `native-subagents` through `spawn_agent` before considering any fallback path.\n"
                 "- If that bar is not met, keep the lane on the leader path until the missing context, constraints, validation target, or handoff expectations are explicit.\n"
-                f"- Use `wait_agent` only at the current join point, integrate returned results, and call `close_agent` for completed subagents.\n"
+                f"- Use `wait_agent` only at the current join point and integrate returned results. {NATIVE_SUBAGENT_TERMINAL_GUIDANCE}\n"
                 "- Wait for every subagent's structured handoff before accepting the join point, closing the batch, or declaring completion.\n"
                 "- Do not treat an idle subagent as done work; idle without a consumed handoff means the result channel is still unresolved.\n"
                 "- Do not interrupt or shut down subagent work before the handoff has been returned inline, submitted through its runtime result owner, or explicitly reported as `BLOCKED` or `NEEDS_CONTEXT`.\n"
                 "- Use `managed-team` only when durable team state is needed beyond one in-session subagent burst.\n"
-                "- Use `subagent-blocked` only when subagent dispatch and `sp-teams` are both unavailable or unsafe.\n"
+                "- Use `subagent-blocked` when the selected native lane cannot proceed and no authorized safe route remains; do not require or invoke `managed-team`/`sp-teams` unless durable execution was explicitly selected.\n"
                 "- When `subagent-blocked` is used, you **MUST** patch the concrete blocker reason into `STATUS.md` through a fresh `specify-runtime artifact patch` lease before escalating or stopping locally.\n"
                 "\n"
                 "**Hard rule:** The leader must keep scope control, strategy selection, join-point handling, validation, summary ownership, and `STATUS.md` accuracy while subagent execution is active.\n"
@@ -3743,14 +3811,14 @@ class SkillsIntegration(IntegrationBase):
             "\n"
             f"## {agent_name} Quick-Task Subagent Execution\n\n"
             f"When running `sp-quick` in {agent_name}, start execution routing only after targeted `specify-runtime artifact show` reports that CLI-owned `STATUS.md` has `understanding_confirmed: true`.\n"
-            "- Understanding checkpoint: before dispatch, render the fixed Quick Checkpoint Markdown table with `| Decision to confirm | Current understanding |` and user-owned rows for request/outcome, visible result, scope, ordered work items, work-item acceptance, recommended approach, assumptions/risks, completion evidence, and reconfirmation trigger. Use stable Q1/Q2 ids for one or many deliverables; append the UI Confirmation proposal when applicable and use one combined confirmation.\n"
-            "- Dispatch `one-subagent` or `parallel-subagents` only after the Understanding Checkpoint is confirmed.\n"
-            "- Use `subagent-blocked` only after native subagents and the managed-team path are unavailable or unsafe, and patch the blocker reason into `STATUS.md` through a fresh `specify-runtime artifact patch` lease.\n"
+            "- Decision Checkpoint: before dispatch, stage/show the runtime Decision Checkpoint and Delivery Map (`quick checkpoint-stage` / `checkpoint-show`). Confirm only user-owned Q1/Q2 deliverables, dependencies, and acceptance; never ask users to approve subagent/batch/file choreography. Prefer `packet-compile` + `item-start`/`item-accept` for DAG-gated execution.\n"
+            "- Dispatch `one-subagent` or `parallel-subagents` only after the Decision Checkpoint is confirmed or inherited.\n"
+            "- Use `subagent-blocked` when the selected native lane cannot proceed and no authorized safe route remains; do not require or invoke `managed-team`/`sp-teams` unless durable execution was explicitly selected. Patch the blocker reason into `STATUS.md` through a fresh `specify-runtime artifact patch` lease.\n"
             f"- Use `spawn_agent` for bounded lanes such as focused repository analysis, targeted implementation, regression test updates, or validation command runs.\n"
             "- Once the first lane is chosen, dispatch it before continuing any leader-inline deep-dive analysis of the repository.\n"
             "- If multiple safe subagent lanes exist and they materially improve throughput, dispatch them in parallel.\n"
             f"- Use `wait_agent` only at the documented join point for the current quick-task batch.\n"
-            f"- Use `close_agent` after integrating finished subagent results.\n"
+            f"- {NATIVE_SUBAGENT_TERMINAL_GUIDANCE}\n"
             "- Keep `.planning/quick/<id>-<slug>/STATUS.md` as the leader-owned source of truth.\n"
             "- Subagents may return evidence, patches, and verification output, but they must not become the authority for resume state; the leader patches `STATUS.md` through fresh `specify-runtime artifact patch` leases before and after each join point.\n"
             f"- Decision order for {agent_name} `sp-quick`: safe packetized subagents -> `managed-team` when durable state is needed -> `subagent-blocked` with reason.\n"
@@ -3852,9 +3920,9 @@ class SkillsIntegration(IntegrationBase):
             "9. treat `agent_normalization.required=true` as a non-intelligent CLI reminder to write `semantic_intake` from the alias catalog (raw lexicon ranking is only a bootstrap; action: write_semantic_intake_from_alias_catalog); if `agent_normalization` is omitted, treat it as `required=false`, not as proof that raw lexical ranking is authoritative\n"
             "10. keep CJK or mixed CJK/ASCII input in agent-owned normalization even when positive raw lexical matches exist because embedded project tokens do not translate the surrounding user language; the agent still owns translation and `agent_normalization` is advisory guidance, not a route decision\n"
             '11. keep `alias_interpretations` object-shaped, for example `{"alias": "<user term>", "meaning": "<project term>", "confidence": "medium"}`, never as a string array\n'
-            "12. build a `query_plan` with `selected_concepts`, `rejected_concepts`, `concept_decisions`, `covered_facets`, `missing_facets`, `match_sources`, `lexicon_generation_id`, `expanded_queries`, `repository_search_terms`, and justified `paths`\n"
+            "12. treat `query` as an exact-binding consumer: page `lexicon --mode catalog` through `catalog_page.next_offset`, copy current IDs into `selected_concepts` or bind exact paths, carry the same `lexicon_generation_id`, and build `concept_decisions`, `covered_facets`, `missing_facets`, `match_sources`, `expanded_queries`, and `repository_search_terms`; never submit only raw or rewritten words\n"
             "13. derive project-language search terms from the alias catalog before source search; do not search only the raw user words; include component names, state names, file names, command names, UI labels, and route names from candidates, aliases, matched terms, returned paths, `normalized_query`, and `expanded_queries`\n"
-            '14. run `{{specify-subcmd:specify-runtime cognition query --intent implement --query-plan "<query_plan_json>" --format json}}` only for that precision escalation, and preserve returned readiness, `minimal_live_reads`, `first_pass_paths`, and the task-local bundle in every teammate context packet\n'
+            '14. run `{{specify-subcmd:specify-runtime cognition query --intent implement --query-plan "<query_plan_json>" --format json}}` only for that precision escalation, require `resolution_state=resolved_exact`, and preserve returned readiness, `minimal_live_reads`, `first_pass_paths`, and the task-local bundle in every teammate context packet\n'
             "15. if the query reports diagnostics, preserve `warnings`, `repair_hints`, normalized `query_plan`, structured `errors`, and `expected_shape` so the leader can repair the plan instead of losing the diagnostics in team chat\n\n"
             "The only intended difference is the dispatch path:\n\n"
             f"1. `{canonical_command}` may route the current ready batch through subagents first\n"

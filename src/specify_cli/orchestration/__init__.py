@@ -1,6 +1,10 @@
 """Generic orchestration core models, state store helpers, and events."""
 
-from .delegation import DelegationSurfaceDescriptor, describe_delegation_surface
+from .delegation import (
+    NATIVE_SUBAGENT_TERMINAL_GUIDANCE,
+    DelegationSurfaceDescriptor,
+    describe_delegation_surface,
+)
 from .events import OrchestrationEvent, append_event, event_log_path, replay_events
 from .models import (
     BatchExecutionPolicy,
@@ -23,7 +27,11 @@ from .models import (
     utc_now,
     utc_now_iso,
 )
-from .policy import choose_evidence_lane_dispatch, choose_subagent_dispatch, choose_ui_reference_lane_dispatch
+from .policy import (
+    choose_evidence_lane_dispatch,
+    choose_subagent_dispatch,
+    choose_ui_reference_lane_dispatch,
+)
 from .state_store import (
     batch_path,
     decision_path,
@@ -49,6 +57,7 @@ __all__ = [
     "ExecutionDecision",
     "Lane",
     "MilestoneExecutionDecision",
+    "NATIVE_SUBAGENT_TERMINAL_GUIDANCE",
     "OrchestrationEvent",
     "PhaseExecutionState",
     "ReviewGatePolicy",

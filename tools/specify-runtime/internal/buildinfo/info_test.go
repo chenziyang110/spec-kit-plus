@@ -30,9 +30,11 @@ func TestFromSettingsPublishesRuntimeContractAndBuildProvenance(t *testing.T) {
 }
 
 func TestFromSettingsUsesExplicitOverridesAndStableUnknownRevision(t *testing.T) {
-	oldRevision, oldDirty := SourceRevision, BuildDirty
+	oldIdentity, oldRevision, oldDirty := ReleaseIdentity, SourceRevision, BuildDirty
+	ReleaseIdentity = ""
 	SourceRevision, BuildDirty = "release-revision", "false"
 	t.Cleanup(func() {
+		ReleaseIdentity = oldIdentity
 		SourceRevision, BuildDirty = oldRevision, oldDirty
 	})
 
@@ -57,5 +59,29 @@ func TestFromSettingsUsesExplicitOverridesAndStableUnknownRevision(t *testing.T)
 	}
 	if info.Dirty {
 		t.Fatal("Dirty = true without build metadata")
+	}
+}
+
+func TestFromSettingsUsesOneCanonicalReleaseIdentityMarker(t *testing.T) {
+	oldIdentity, oldRevision, oldDirty := ReleaseIdentity, SourceRevision, BuildDirty
+	ReleaseIdentity = "specify-runtime.release.v1,version=v1.2.3,revision=0123456789abcdef,dirty=false"
+	SourceRevision, BuildDirty = "conflicting-revision", "true"
+	t.Cleanup(func() {
+		ReleaseIdentity = oldIdentity
+		SourceRevision, BuildDirty = oldRevision, oldDirty
+	})
+
+	info := FromSettings("dev", map[string]string{
+		"vcs.revision": "debug-revision",
+		"vcs.modified": "true",
+	})
+	if info.Version != "v1.2.3" || info.SourceRevision != "0123456789abcdef" || info.Dirty {
+		t.Fatalf("release marker was not authoritative: %#v", info)
+	}
+
+	ReleaseIdentity = "specify-runtime.release.v1,version=v1.2.3,revision=missing-dirty"
+	info = FromSettings("v1.2.3", nil)
+	if info.Version != "dev" || info.SourceRevision != "unknown" || !info.Dirty {
+		t.Fatalf("malformed release marker did not fail closed: %#v", info)
 	}
 }

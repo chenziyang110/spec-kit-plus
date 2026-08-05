@@ -18,7 +18,9 @@ Preserved Contract: implementation is task-driven, uses validated packets for de
    scope, run only cheap task checks per Txx, and record test impact for the next
    Leader-owned validation gate attempt.
 7. Run event-triggered review when repository/task drift, parallel join, write-scope drift, validation failure, worker concern, obligation conflict, real-entrypoint gap, or review-window threshold requires it.
-8. Use `specify-runtime implement task-start`, `result-merge --result-json`, and `task-accept` to update the lifecycle, execution state, tracker, and canonical task status atomically. Never edit those files or stage a temporary result file. Continue automatically until complete or genuinely blocked.
+8. Use `specify-runtime implement task-start`, `result-merge --result-json`, and `task-accept` to update the lifecycle, execution state, tracker, and canonical task status atomically. Never edit those files or stage a temporary result file.
+9. If `task-next` or `resume-audit` returns `reason_code: task-reopen-required`, execute the runtime-provided `implement task-reopen` action with the observed task/workflow revisions plus explicit reason and evidence. Preserve its immutable receipt, do not substitute stage-level `workflow reopen`, and if a workflow blocker remains active, clear it only through the returned `workflow.resolve` action.
+10. Continue automatically until complete or genuinely blocked.
 
 ## Minimum-Sufficient Packet And Result
 

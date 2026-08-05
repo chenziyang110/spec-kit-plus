@@ -4,6 +4,20 @@ Purpose: preserve safe repair ownership, blocker routing, tracker updates, and d
 
 Preserved Contract: repair stays evidence-bound and routes unresolved defects to debug instead of speculative implementation.
 
+## Task-local acceptance recovery
+
+- A rejected `success` merge is fail-fast and leaves the task executable; repair
+  the inline result and resubmit it.
+- When `task-next` or `resume-audit` returns
+  `reason_code: task-reopen-required`, execute its runtime-provided
+  `implement task-reopen` action with the observed task/workflow revisions plus
+  an explicit reason and evidence. The runtime archives the superseded result
+  and lifecycle evidence and resets only that task; never hand-edit canonical
+  task files or use stage-level `workflow reopen` as task repair.
+- If the workflow is also blocked, task reopen does not silently clear that
+  blocker. Preserve the reopen receipt, then execute the returned
+  `workflow.resolve` action with resolution evidence.
+
 ## Actionable Blocker Resolution
 - blocker: [task id or validation gate]
   classification: technical | external | human-action | verification_policy | project_cognition_readiness | baseline_timeout

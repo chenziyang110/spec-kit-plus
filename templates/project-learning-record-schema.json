@@ -14,6 +14,189 @@
       "items": { "type": "string", "minLength": 1 },
       "uniqueItems": true
     },
+    "redactionLabels": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "credential",
+          "email",
+          "private_key",
+          "machine_path",
+          "personal_identifier",
+          "business_identifier",
+          "organization_sensitive"
+        ]
+      },
+      "uniqueItems": true,
+      "description": "Canonical labels for sanitized agent-facing replacements such as [REDACTED_SECRET], [REDACTED_EMAIL], [REDACTED_PRIVATE_KEY], <USER_HOME>/..., [REDACTED_PHONE], [REDACTED_BUSINESS_ID], or [REDACTED_ORG_TERM]."
+    },
+    "contentSafety": {
+      "type": "object",
+      "required": ["sensitivity"],
+      "properties": {
+        "sensitivity": {
+          "enum": ["safe", "sanitized"],
+          "description": "safe means no sensitive content is present; sanitized means sensitive source content was abstracted or replaced in the agent-facing projection."
+        },
+        "risk_tier": { "enum": ["none", "moderate", "high"] },
+        "redaction_labels": { "$ref": "#/$defs/redactionLabels" }
+      },
+      "additionalProperties": false
+    },
+    "learningValue": {
+      "type": "object",
+      "required": ["tier", "reason_codes"],
+      "properties": {
+        "tier": { "enum": ["high", "medium", "low"] },
+        "reason_codes": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "explicit_capture",
+              "workflow_gap",
+              "user_correction",
+              "reusable_constraint",
+              "near_miss",
+              "repeated_occurrence",
+              "tooling_trap",
+              "recovery_path",
+              "high_signal",
+              "routine_outcome"
+            ]
+          },
+          "minItems": 1,
+          "uniqueItems": true,
+          "description": "Canonical, content-free reasons for the value tier."
+        }
+      },
+      "additionalProperties": false
+    },
+    "assessmentContentSafety": {
+      "type": "object",
+      "required": ["sensitivity", "risk_tier", "redaction_labels"],
+      "properties": {
+        "sensitivity": { "enum": ["safe", "sanitized"] },
+        "risk_tier": { "enum": ["none", "moderate", "high"] },
+        "redaction_labels": { "$ref": "#/$defs/redactionLabels" }
+      },
+      "additionalProperties": false
+    },
+    "assessment": {
+      "type": "object",
+      "required": [
+        "learning_value",
+        "content_safety",
+        "decision",
+        "decision_reason"
+      ],
+      "properties": {
+        "learning_value": { "$ref": "#/$defs/learningValue" },
+        "content_safety": { "$ref": "#/$defs/assessmentContentSafety" },
+        "decision": {
+          "enum": ["capture-safe", "capture-sanitized", "defer", "ignore"]
+        },
+        "decision_reason": {
+          "enum": [
+            "safe_content",
+            "valuable_after_abstraction",
+            "sensitive_without_reusable_abstraction",
+            "routine_outcome"
+          ],
+          "description": "Canonical explanation of the decision; it must not contain raw evidence."
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "decision": { "const": "capture-safe" } },
+            "required": ["decision"]
+          },
+          "then": {
+            "properties": {
+              "content_safety": {
+                "properties": {
+                  "sensitivity": { "const": "safe" },
+                  "risk_tier": { "const": "none" },
+                  "redaction_labels": { "maxItems": 0 }
+                },
+                "required": ["sensitivity", "risk_tier", "redaction_labels"]
+              },
+              "decision_reason": { "const": "safe_content" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "decision": { "const": "capture-sanitized" } },
+            "required": ["decision"]
+          },
+          "then": {
+            "properties": {
+              "content_safety": {
+                "properties": {
+                  "sensitivity": { "const": "sanitized" },
+                  "risk_tier": { "enum": ["moderate", "high"] },
+                  "redaction_labels": { "minItems": 1 }
+                },
+                "required": ["sensitivity", "risk_tier", "redaction_labels"]
+              },
+              "decision_reason": { "const": "valuable_after_abstraction" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "decision": { "const": "defer" } },
+            "required": ["decision"]
+          },
+          "then": {
+            "properties": {
+              "content_safety": {
+                "properties": {
+                  "sensitivity": { "const": "sanitized" },
+                  "risk_tier": { "enum": ["moderate", "high"] },
+                  "redaction_labels": { "minItems": 1 }
+                },
+                "required": ["sensitivity", "risk_tier", "redaction_labels"]
+              },
+              "decision_reason": {
+                "const": "sensitive_without_reusable_abstraction"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "decision": { "const": "ignore" } },
+            "required": ["decision"]
+          },
+          "then": {
+            "properties": {
+              "learning_value": {
+                "properties": { "tier": { "const": "low" } },
+                "required": ["tier"]
+              },
+              "decision_reason": { "const": "routine_outcome" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "learning_value": {
+                "properties": { "tier": { "const": "low" } },
+                "required": ["tier"]
+              }
+            },
+            "required": ["learning_value"]
+          },
+          "then": {
+            "properties": { "decision": { "const": "ignore" } }
+          }
+        }
+      ],
+      "additionalProperties": false
+    },
     "learningFacets": {
       "type": "object",
       "properties": {
@@ -83,15 +266,18 @@
       ],
       "properties": {
         "ref": { "type": "string", "minLength": 1 },
-        "summary": { "type": "string", "minLength": 1, "description": "One-line identity; evidence and rationale are intentionally omitted." },
+        "summary": { "type": "string", "minLength": 1, "description": "One-line sanitized agent-facing identity; evidence, raw content, and rationale are intentionally omitted." },
         "action": { "type": "string", "minLength": 1, "description": "Imperative next action for a future Agent." },
         "type": { "$ref": "#/$defs/learningType" },
         "status": { "$ref": "#/$defs/learningStatus" },
         "signal": { "enum": ["low", "medium", "high"] },
         "occurrences": { "type": "integer", "minimum": 1 },
         "applies_to": { "$ref": "#/$defs/stringList" },
-        "trigger_signals": { "$ref": "#/$defs/stringList" },
+        "trigger_signals": { "$ref": "#/$defs/stringList", "description": "Canonical sanitized agent-facing trigger tags for new records; legacy records may contain older free-form tags for compatibility." },
         "source_layer": { "enum": ["candidate", "confirmed-learning", "project-rule", "index-only"] },
+        "sensitivity": { "enum": ["safe", "sanitized"] },
+        "redaction_labels": { "$ref": "#/$defs/redactionLabels" },
+        "assessment": { "$ref": "#/$defs/assessment" },
         "show_argv": {
           "type": "array",
           "items": { "type": "string", "minLength": 1 },
@@ -282,7 +468,7 @@
           "required": ["commands", "trigger_signals", "scope"],
           "properties": {
             "commands": { "$ref": "#/$defs/stringList" },
-            "trigger_signals": { "$ref": "#/$defs/stringList" },
+            "trigger_signals": { "$ref": "#/$defs/stringList", "description": "Canonical sanitized agent-facing trigger tags for new records; legacy records may contain older free-form tags for compatibility." },
             "scope": { "type": "string" },
             "facets": { "$ref": "#/$defs/learningFacets" }
           },
@@ -292,7 +478,7 @@
           "type": "object",
           "required": ["observation", "decisive_signal", "false_starts", "rejected_paths", "root_cause_family"],
           "properties": {
-            "observation": { "type": "string", "minLength": 1 },
+            "observation": { "type": "string", "minLength": 1, "description": "Sanitized agent-facing projection; raw sensitive values must remain outside Learning storage, registry, and read API payloads." },
             "decisive_signal": { "type": "string" },
             "false_starts": { "$ref": "#/$defs/stringList" },
             "rejected_paths": { "$ref": "#/$defs/stringList" },
@@ -323,6 +509,8 @@
           },
           "additionalProperties": false
         },
+        "content_safety": { "$ref": "#/$defs/contentSafety" },
+        "assessment": { "$ref": "#/$defs/assessment" },
         "detail_path": { "type": ["string", "null"] },
         "warnings": { "$ref": "#/$defs/stringList" }
       },

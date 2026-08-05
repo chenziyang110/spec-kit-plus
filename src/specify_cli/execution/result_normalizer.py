@@ -76,10 +76,10 @@ def _normalize_validation_results(payload: dict[str, Any]) -> list[ValidationRes
     for item in raw_items:
         if not isinstance(item, dict):
             continue
-        command = str(_pick(item, "command", "cmd") or "").strip()
+        command = str(_pick(item, "command", "cmd", "check", "kind") or "").strip()
         raw_status = str(_pick(item, "status", "result") or "").strip().lower()
         status = _VALIDATION_STATUS_ALIASES.get(raw_status, "failed")
-        output = str(_pick(item, "output", "details", "message") or "")
+        output = str(_pick(item, "output", "details", "message", "summary") or "")
         if command:
             results.append(
                 ValidationResult(command=command, status=status, output=output)

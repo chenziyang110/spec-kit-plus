@@ -26,6 +26,21 @@ natural-language tasks, answer or work in the current mode while using always-on
 project cognition and Project Learning when they matter. You may recommend a
 workflow when it would materially improve the outcome.
 
+A topical continuation of an already-invoked incomplete discussion has workflow
+affinity before unrelated feature, Quick, Debug, or task candidates are
+considered. The phrases `continue`, `next step`, and `可以继续下一步` continue only
+the last valid in-discussion action; they do not authorize the agent to
+synthesize a downstream stage. An active discussion stays in `sp-discussion`;
+a handoff-ready discussion may continue only through its selected `sp-quick` or
+`sp-specify` consumer, never directly to `sp-implement`.
+
+Candidate priority applies only within one resolved workflow lineage. A name,
+slug, title, topic, or keyword similarity is not binding evidence between a
+discussion and a feature, Quick workspace, or task lane; require the durable
+`source_contract` and `review_digest` binding owned by the selected consumer.
+When feature context is missing, do not enumerate `.specify/features/**`,
+`tasks.md`, or `task-index.json` to guess a feature directory.
+
 If the user already invoked an `sp-*` workflow, treat the routing check as
 complete and proceed under that workflow's generated contract.
 
@@ -107,6 +122,13 @@ explicit numeric option.
 - Use `sp-discussion` before either direct Quick delivery or formal specification when the request is a rough idea, not-yet-ready requirement, unsettled product direction, or depends on unclear project boundaries. `sp-discussion` is the high-throughput senior product-engineering advisor route: the visible conversation gives the recommended direction, plain-language reason, usable draft or next design step, default next step, and override path, while frontstage / backstage separation keeps state accounting backstage. It uses checkpoint persistence, does not persist every turn, continues by default, does not ask for continuation when a safe default exists, performs a Truth Pass before project-specific technical advice, maintains a Discussion Compass, and applies proactive implication mapping so adjacent implications are surfaced without one-point-at-a-time follow-up loops.
 - Use `sp-design` when the request is high-risk UI or design-system work: new product UI, redesign or rebrand, core workflow experience, multi-platform design decisions, high-visibility customer-facing surfaces, or missing/contradictory `DESIGN.md` for a UI-heavy request. Recommend `{{invoke:design}}` rather than letting implementation invent styling. Small UI work can proceed with a recorded soft risk when it is a narrow internal form change, copy or state improvement, already-covered component variant, or low-risk CLI/TUI wording refinement.
 - Use `sp-specify` with the UI reference artifact lane when a feature request includes concrete UI reference input for that feature. Use `sp-design` only when the project-wide design system itself is missing, contradictory, or being changed.
+- `sp-design` remains one natural-language entrypoint. It routes internal
+  `create/refine/audit` task types after resuming active design work; synthesis
+  is an input strategy for create/refine, not a fourth terminal type.
+  `sp-specify` is the first formal consumer and `sp-quick` is the
+  direct-delivery consumer. A newer approval must not silently retarget active
+  work: formal adoption rebinds through Specify, while Quick requires a
+  confirmed checkpoint amendment.
 - `sp-discussion` must run the Context Boundary Gate before project-specific technical options, affected-file claims, or handoff generation.
 - For cross-project or transfer requests, lock the target project root before technicalizing.
 - Do not route to `sp-split`; broad directions either become one unified handoff with capability map, sequence, dependencies, deferred scope, and reopen conditions, or stay in `sp-discussion`.
@@ -187,6 +209,7 @@ explicit numeric option.
   Readiness values are `query_ready`, `review`, `needs_rebuild`, `blocked`, and `unsupported_runtime`. Compass-specific advice is in `compass_state` and the structured `recommended_next_action` object. Route by `recommended_next_action.action_id`, never by `needs_rebuild` alone: preserve resumable actions such as `complete_scan_packets`; only `action_id=project_cognition.rebuild` authorizes reading `rebuild_reasons[]` and `recommended_next_action.workflow_routes.classic.steps` as a rebuild handoff.
   When `compass_state=needs_semantic_intake`, build `semantic_intake` in memory from project vocabulary and rerun compass with `--semantic-intake-json '<semantic-intake-json>'`, or use the advanced `lexicon -> semantic_intake -> query` path when explicit concept decisions are needed. Never create an intake file.
   Advanced routing remains available as `specify-runtime cognition lexicon --mode catalog`, agent-authored `semantic_intake` and `concept_decisions`, then `specify-runtime cognition query --query-plan`. Use it when the first compass packet is too draft-like, a workflow needs explicit concept decisions, or coverage cannot be resolved from the default packet.
+  `query` is an exact binding consumer, not a natural-language search endpoint. Page the catalog through `catalog_page.next_offset`, copy current `concept_id` values or exact paths into the plan, carry the matching `lexicon_generation_id`, and require `resolution_state=resolved_exact`; raw or rewritten natural-language text alone must return a binding diagnostic rather than an empty success.
   The current query contract is `claim_retrieval_contract_version=2` and `candidate_universe_version=2`; carry the latter from lexicon into every explicit query plan. Never parse missing or non-current versions as legacy input; rerun lexicon or compass with the current binary and repair the install if needed.
   The advanced path still requires `normalized_query`, `intent_facets`, `negative_constraints`, `alias_interpretations`, `selected_concepts`, `rejected_concepts`, `concept_decisions`, `covered_facets`, `missing_facets`, `match_sources`, `lexicon_generation_id`, `expanded_queries`, `repository_search_terms`, and facet coverage; do not trust top similarity alone.
   If the query command reports query-plan diagnostics, preserve its `warnings`, `repair_hints`, normalized `query_plan`, structured `errors`, and `expected_shape` so the workflow can repair the plan instead of ending on a raw parser exception.
@@ -221,6 +244,10 @@ user what to type:
 
 - Use native subagents for bounded delegated work after the owning workflow
   selects or permits delegation.
+- Discover and require only the dispatch and join operations exposed by the
+  active runtime. An accepted terminal result needs no separate cleanup
+  operation; interrupt or cancel only unfinished work through an exposed
+  capability, and keep ordinary results on the owning workflow's stage channel.
 - Dispatch `one-subagent` when one safe lane is ready.
 - Dispatch `parallel-subagents` when two or more independent lanes can run
   concurrently.
@@ -249,9 +276,12 @@ user what to type:
 - If multiple workflow recommendations seem plausible, suggest the smallest safe workflow route and make the next escalation trigger explicit.
 - Complete-first scope preservation: workflow-route minimization is only about choosing the command surface. Preserve the user's complete user-confirmed scope; do not shrink scope toward a smaller MVP, pilot, prototype, first-story release, future-work delivery slice, agent-invented `v1/v2`, or agent-invented `P0/P1` unless the user asked for that shape or confirmed it after a named constraint/trade-off. Complexity alone is not a valid reason to defer or block ordinary work; use sequencing, dependencies, batches, join points, refinement checkpoints, and validation paths. Runtime capability limits are blockers only under the adaptive execution policy for heavy, safety-critical, or unpacketizable work, and they do not reduce scope.
 - If the user intent is effectively "continue with the recommended next step",
-  follow the uniquely recorded canonical `next_command` directly. Use `sp-auto`
-  only when the user explicitly chooses automatic state reconciliation or no
-  unique canonical next command can be proven safely.
+  first resolve the already-invoked workflow and its lineage, then follow its
+  uniquely recorded canonical `next_command` directly. This shortcut never
+  overrides active-discussion affinity or converts an agent-authored downstream
+  proposal into user authorization. Use `sp-auto` only when the user explicitly
+  chooses automatic state reconciliation or no unique canonical next command
+  can be proven safely.
 - Clean completed `sp-tasks` state with `/sp.implement` routes directly to
   `sp-implement`; it does not need an `sp-auto` hop.
 - Keep `sp-*` workflows as visible optional entrypoints. This passive skill should

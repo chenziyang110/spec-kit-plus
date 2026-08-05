@@ -56,6 +56,7 @@ def apply_workflow_transaction(
     *,
     kind: str,
     updates: Mapping[Path, bytes],
+    expected_before: Mapping[Path, bytes | None] | None = None,
     transaction_id: str | None = None,
 ) -> WorkflowTransactionReceipt:
     """Validate, journal, commit, and receipt one bounded multi-file update."""
@@ -79,6 +80,20 @@ def apply_workflow_transaction(
         normalized.append((target, relative, bytes(raw_content)))
     normalized.sort(key=lambda item: item[1])
 
+    normalized_preconditions: list[tuple[Path, str, bytes | None]] = []
+    seen_preconditions: set[str] = set()
+    for raw_target, expected in (expected_before or {}).items():
+        target, relative = _relative_target(root, Path(raw_target))
+        if relative in seen_preconditions:
+            raise WorkflowTransactionError(
+                f"transaction contains duplicate precondition: {relative}"
+            )
+        seen_preconditions.add(relative)
+        normalized_preconditions.append(
+            (target, relative, None if expected is None else bytes(expected))
+        )
+    normalized_preconditions.sort(key=lambda item: item[1])
+
     tx_id = transaction_id or f"TX-{uuid.uuid4().hex[:20]}"
     if not tx_id.startswith("TX-") or any(
         character not in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-"
@@ -95,6 +110,18 @@ def apply_workflow_transaction(
     lock_path = runtime_root / "locks" / "workflow-transactions.lock"
 
     with interprocess_lock(lock_path):
+        for target, relative, expected in normalized_preconditions:
+            try:
+                current = read_local_state_bytes(target, root=root)
+            except FileNotFoundError:
+                current = None
+            if current != expected:
+                expected_label = "absence" if expected is None else _sha256(expected)
+                current_label = "absence" if current is None else _sha256(current)
+                raise WorkflowTransactionError(
+                    "transaction precondition failed for "
+                    f"{relative}: expected {expected_label}, found {current_label}"
+                )
         if transaction_root.exists():
             raise WorkflowTransactionError(
                 f"transaction already exists and requires recovery: {tx_id}"

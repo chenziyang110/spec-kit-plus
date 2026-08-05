@@ -18,18 +18,21 @@ write either file.
 - current focus, next action, blocker, and material decisions;
 - verification commands/results and remaining risk.
 
-The user-facing checkpoint is the Quick card in
-`references/human-confirmation.md`, followed conditionally by its UI card. Store
-the user-owned decisions—including ordered work items, dependencies, and
-work-item acceptance—and `ui_confirmation` separately from the
-`agent_execution_plan`; one reply confirms both cards when UI applies. The
-confirmed order is deliverable-level. Internal implementation sequencing,
-lanes, and batches remain agent-owned.
+The user-facing checkpoint is the runtime-owned Decision Checkpoint in
+`references/human-confirmation.md`, followed conditionally by its UI card.
+Stage it with `specify-runtime quick checkpoint-stage`, show
+`--view decision|delivery|pulse`, and bind approval with
+`quick checkpoint-confirm --digest`. Store user-owned decisions—including
+ordered work items, dependencies, and work-item acceptance—and
+`ui_confirmation` separately from Delivery Map / `agent_execution_plan`. One
+reply confirms both cards when UI applies. The confirmed order is
+deliverable-level. Internal implementation sequencing, lanes, and batches remain
+agent-owned and never enter `confirmation_digest`.
 
 `understanding_confirmed: false` blocks broad investigation, delegation,
-implementation, and validation until the user confirms the checkpoint. A
-confirmed discussion handoff digest may satisfy the checkpoint only when quick
-introduces no semantic delta.
+implementation, and validation until the checkpoint is confirmed or inherited.
+A confirmed discussion handoff with no semantic delta stages as `inherited` and
+skips re-confirmation; show the binding summary plus Delivery Map/Pulse instead.
 
 When Quick consumes a confirmed discussion handoff, first patch
 `source_discussion_slug`, `source_contract`, and `review_digest` into `STATUS.md` through leased `specify-runtime artifact patch` calls.
@@ -52,9 +55,10 @@ Before presenting the amendment, explain in user-facing prose the new evidence,
 why the previous confirmation no longer covers the work, the consequence of
 omitting it, the current mutation state and safe pause point, and the exact
 incremental decision the user owns. Only after that explanation, present
-`## Quick Checkpoint Amendment` with only the changed rows or decisions and an
-`Unchanged` statement; do not repeat the full initial Quick Checkpoint. Persist
-the confirmed delta before resuming, and do not request duplicate confirmation
+`## Quick Checkpoint Amendment` by re-staging a delta Decision Checkpoint with
+only the changed rows or decisions and an `Unchanged` statement; do not repeat
+the full initial Quick Checkpoint. Persist the confirmed delta with
+`checkpoint-confirm` before resuming, and do not request duplicate confirmation
 when the user already approved that exact delta.
 
 For a UI-only material delta, keep the Quick amendment heading, include only
@@ -67,15 +71,18 @@ command. Repository evidence may resolve
 technical questions; ask the user only for product choices or authority the
 repository cannot supply.
 
-Execute confirmed work items in dependency order. A worker packet names one
-`work_item_id`, its `depends_on` ids, prerequisite evidence, and its exact
-work-item acceptance. Do not start a dependent item until every prerequisite is
-accepted. Each `work_item_status` is `pending`, `ready`, `in_progress`,
-`blocked`, or `accepted`; only `accepted` satisfies a dependency. Implementation
-completion without the item's required acceptance evidence does not unlock its
-dependents. Independent ready items may share a batch. One completed batch is
-progress, not task completion; close only after every work item is accepted and
-the overall completion evidence passes.
+Execute confirmed work items in dependency order through runtime gates:
+`quick packet-compile --item Qn`, `quick item-start --item Qn`, and
+`quick item-accept --item Qn --evidence ...`. Runtime rejects starting or
+compiling a dependent item until every prerequisite is `accepted`, and rejects
+`quick close ... resolved` until every work item is accepted. A worker packet
+names one `work_item_id`, its `depends_on` ids, prerequisite evidence, and its
+exact work-item acceptance. Each `work_item_status` is `pending`, `ready`,
+`in_progress`, `blocked`, or `accepted`; only `accepted` satisfies a dependency.
+Implementation completion without the item's required acceptance evidence does
+not unlock its dependents. Independent ready items may share a batch. One
+completed batch is progress, not task completion; close only after every work
+item is accepted and the overall completion evidence passes.
 
 Scale up task-local planning when the task develops cross-capability behavior,
 architectural or migration decisions, compatibility or rollout obligations, or

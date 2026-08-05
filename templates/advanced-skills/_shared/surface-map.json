@@ -24,6 +24,7 @@
     "_shared/ui-quality-gate.md",
     "_shared/human-confirmation.md",
     "_shared/blocker-resolution.md",
+    "_shared/native-subagents.md",
     "_shared/workflow-runtime.md"
   ],
   "classic_companion_skills": [
@@ -91,9 +92,13 @@
     },
     "spx-design": {
       "absorbs": ["design"],
-      "references": ["spx-design/references/design-contract.md"],
+      "references": [
+        "spx-design/references/task-router.md",
+        "spx-design/references/design-contract.md",
+        "spx-design/references/consumer-contract.md"
+      ],
       "assets": ["spx-design/assets/design-system.md"],
-      "optimization": "one project-specific approved root design-system contract without generic starter anchoring"
+      "optimization": "one prompt-routed approved root design-system contract with explicit formal/direct consumers and no generic starter anchoring"
     },
     "spx-discussion": {
       "absorbs": ["discussion"],

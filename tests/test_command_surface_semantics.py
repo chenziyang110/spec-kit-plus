@@ -442,7 +442,7 @@ def test_design_command_declares_design_system_workflow_contract() -> None:
     )
 
     assert (
-        "description: Use when a project needs `specify-runtime design` to produce a DESIGN.md design-system contract"
+        "description: Use when `specify-runtime design` must route one prompt to create, refine, or audit the root DESIGN.md design-system contract"
         in content
     )
     assert "primary_outputs" in content
@@ -645,6 +645,52 @@ def test_learning_contract_surfaces_do_not_ship_fake_runnable_placeholder_comman
             assert fragment not in content, (
                 f"{path} still contains fake runnable command fragment: {fragment}"
             )
+
+
+def test_classic_learning_partial_documents_sanitized_bounded_capture() -> None:
+    content = read_template(
+        "templates/command-partials/common/learning-layer.md"
+    ).lower()
+    normalized = " ".join(content.split())
+
+    for required in (
+        "summary, trigger_signals, and evidence are sanitized agent-facing projections",
+        "raw sensitive values must not enter learning storage, registry, or read api",
+        "safe project-relative reference or digest",
+        "trigger_signals are canonical tags",
+        "redaction_labels",
+        "personal_identifier",
+        "business_identifier",
+        "organization_sensitive",
+        "[redacted_phone]",
+        "[redacted_business_id]",
+        "[redacted_org_term]",
+        "mature learning protection",
+        "bounded candidate slot",
+        "a candidate cannot become a rule directly",
+        "confirmed learning before explicit project-rule promotion",
+        "abstract and retain the reusable lesson",
+        "learning value and sensitivity are independent axes",
+        "sensitivity alone is never an eligibility veto",
+        "capture-safe",
+        "capture-sanitized",
+        "--dry-run",
+        "writes no candidate, registry, review state, or metric",
+        "arbitrary regex is forbidden",
+        "at most 64 distinct 1..128-character literals",
+        "none|captured|auto-captured|deferred|manual-capture-needed",
+        "`deferred` and `manual-capture-needed` require rationale",
+        "captured decisions succeed only after that match is verified",
+        "`none` is blocked while a matching deferred/manual decision remains pending",
+        "learning status [--command <workflow>]",
+        "status returns only pending/due/age buckets",
+        "omits rationale, learning refs, recurrence keys, and timestamps",
+        "learning metrics [--command <workflow>]",
+        "canonical totals, decisions, value/risk tiers, reason/label counts",
+        "derived confirmation rate",
+        "do not mutate age or metrics",
+    ):
+        assert required in normalized
 
 
 def test_readme_learning_helper_surface_uses_command_shape_and_required_options() -> (

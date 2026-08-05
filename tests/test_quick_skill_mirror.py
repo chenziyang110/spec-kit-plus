@@ -13,13 +13,24 @@ from tests.template_utils import (
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 
-def test_repo_quick_skill_mirror_has_codex_subagent_dispatch_contract(tmp_path: Path) -> None:
+def test_repo_quick_skill_mirror_has_codex_subagent_dispatch_contract(
+    tmp_path: Path,
+) -> None:
     runner = CliRunner()
     target = tmp_path / "codex-quick-mirror"
 
     result = runner.invoke(
         app,
-        ["init", str(target), "--ai", "codex", "--no-git", "--ignore-agent-tools", "--script", "sh"],
+        [
+            "init",
+            str(target),
+            "--ai",
+            "codex",
+            "--no-git",
+            "--ignore-agent-tools",
+            "--script",
+            "sh",
+        ],
     )
 
     assert result.exit_code == 0, result.output
@@ -42,17 +53,24 @@ def test_repo_quick_skill_mirror_has_codex_subagent_dispatch_contract(tmp_path: 
     assert "parallel-subagents" in full_body
     assert "native-subagents" in full_body
     assert "subagent-blocked" in full_body
+    assert "do not require or invoke `managed-team`/`sp-teams` unless durable execution was explicitly selected" in full_body
+    assert "subagent dispatch and `sp-teams` are both unavailable" not in full_body
     assert "first hard gate is a targeted" in full_body
     assert "query of the constitution" in full_body
     assert "codex leader gate" in body
     assert "spawn_agent" in body
     assert "wait_agent" in body
-    assert "close_agent" in body
+    assert "close_agent" not in body
+    assert "no separate close step is required" in body
     assert "managed team" in body
-    assert "validated `workertaskpacket` or equivalent execution contract preserves quality" in body
+    assert (
+        "validated `workertaskpacket` or equivalent execution contract preserves quality"
+        in body
+    )
     assert (
         "the next concrete action must be dispatch" in full_body
-        or "first actionable execution step after scope lock and understanding confirmation is to dispatch" in full_body
+        or "first actionable execution step after scope lock and understanding confirmation is to dispatch"
+        in full_body
     )
     assert "materially improve throughput" in body
     assert "blocked_dispatch" in full_body

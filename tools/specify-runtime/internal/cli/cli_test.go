@@ -1902,6 +1902,13 @@ func TestLexiconCommandCatalogModeEmitsAliasCatalogAndSemanticContract(t *testin
 	if payload["alias_catalog_limit"].(float64) != 1 {
 		t.Fatalf("alias_catalog_limit = %#v, want 1", payload["alias_catalog_limit"])
 	}
+	page, ok := payload["catalog_page"].(map[string]any)
+	if !ok {
+		t.Fatalf("catalog_page = %#v, want object", payload["catalog_page"])
+	}
+	if page["offset"] != float64(0) || page["returned"] != float64(1) {
+		t.Fatalf("catalog_page = %#v, want first one-entry page", page)
+	}
 	first, ok := catalog[0].(map[string]any)
 	if !ok {
 		t.Fatalf("alias catalog item = %#v, want object", catalog[0])
@@ -1936,6 +1943,20 @@ func TestLexiconCommandCatalogModeEmitsAliasCatalogAndSemanticContract(t *testin
 	}
 	if !jsonStringSliceContains(contract["concept_decision_fields"], "covered_facets") {
 		t.Fatalf("concept_decision_fields = %#v, want covered_facets", contract["concept_decision_fields"])
+	}
+
+	stdout.Reset()
+	stderr.Reset()
+	code = Run([]string{"lexicon", "--intent", "debug", "--mode", "catalog", "--limit", "1", "--offset", "1", "--format", "json"}, &stdout, &stderr, "test")
+	if code != 0 {
+		t.Fatalf("paged code = %d stderr=%s stdout=%s", code, stderr.String(), stdout.String())
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	page, ok = payload["catalog_page"].(map[string]any)
+	if !ok || page["offset"] != float64(1) {
+		t.Fatalf("catalog_page = %#v, want offset 1", page)
 	}
 }
 
@@ -2394,6 +2415,9 @@ func TestQueryCommandAcceptsConceptDecisionPlan(t *testing.T) {
 	if payload["readiness"] != "query_ready" {
 		t.Fatalf("readiness = %#v, payload = %#v", payload["readiness"], payload)
 	}
+	if payload["resolution_state"] != "resolved_exact" {
+		t.Fatalf("resolution_state = %#v, want resolved_exact", payload["resolution_state"])
+	}
 	if !jsonStringSliceContains(payload["minimal_live_reads"], "src/app.go") {
 		t.Fatalf("minimal_live_reads = %#v, want src/app.go", payload["minimal_live_reads"])
 	}
@@ -2406,6 +2430,92 @@ func TestQueryCommandAcceptsConceptDecisionPlan(t *testing.T) {
 	}
 	if decisions, ok := queryPlanPayload["concept_decisions"].([]any); !ok || len(decisions) == 0 {
 		t.Fatalf("query_plan.concept_decisions = %#v, want non-empty decisions", queryPlanPayload["concept_decisions"])
+	}
+}
+
+func TestQueryCommandRejectsNaturalLanguageWithoutExactBinding(t *testing.T) {
+	setupReadyMinimalCLIRuntime(t)
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"query", "--intent", "debug", "--query", "手机上那个审批的地方看不全", "--format", "json"}, &stdout, &stderr, "test")
+	if code != exitCodeBlocked {
+		t.Fatalf("code = %d, want blocked exit %d; stdout=%s", code, exitCodeBlocked, stdout.String())
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatalf("stdout is not JSON: %v; stdout=%s stderr=%s", err, stdout.String(), stderr.String())
+	}
+	if payload["resolution_state"] != "binding_required" {
+		t.Fatalf("resolution_state = %#v, want binding_required", payload["resolution_state"])
+	}
+	if !jsonStringSliceContains(payload["errors"], "query_plan_binding_required: select at least one current catalog concept_id or explicit path") {
+		t.Fatalf("errors = %#v, want query_plan_binding_required", payload["errors"])
+	}
+	if hints, ok := payload["repair_hints"].([]any); !ok || len(hints) == 0 {
+		t.Fatalf("repair_hints = %#v, want catalog binding recovery", payload["repair_hints"])
+	}
+	expected, ok := payload["expected_shape"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected_shape = %#v, want object", payload["expected_shape"])
+	}
+	if _, ok := expected["selected_concepts"]; !ok {
+		t.Fatalf("expected_shape = %#v, want selected_concepts", expected)
+	}
+}
+
+func TestQueryCommandRequiresCatalogGenerationForConceptBinding(t *testing.T) {
+	setupReadyMinimalCLIRuntime(t)
+	queryPlan := marshalQueryPlan(t, map[string]any{
+		"candidate_universe_version": 2,
+		"selected_concepts":          []string{"N-app"},
+	})
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"query", "--intent", "debug", "--query-plan", queryPlan, "--format", "json"}, &stdout, &stderr, "test")
+	if code == 0 {
+		t.Fatalf("code = 0, want missing-generation failure; stdout=%s", stdout.String())
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if !jsonStringSliceContains(payload["errors"], "lexicon_generation_id is required when selected_concepts are present") {
+		t.Fatalf("errors = %#v, want lexicon_generation_id requirement", payload["errors"])
+	}
+}
+
+func TestQueryCommandReturnsNonzeroForUnknownCatalogBinding(t *testing.T) {
+	root := setupReadyMinimalCLIRuntime(t)
+	paths, err := rt.ResolvePaths(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	status, err := rt.ReadStatus(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	queryPlan := marshalQueryPlan(t, map[string]any{
+		"candidate_universe_version": 2,
+		"lexicon_generation_id":      status.ActiveGenerationID,
+		"selected_concepts": []string{
+			"concept:" + status.ActiveGenerationID + ":N-missing",
+		},
+	})
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"query", "--intent", "debug", "--query-plan", queryPlan, "--format", "json"}, &stdout, &stderr, "test")
+	if code != exitCodeBlocked {
+		t.Fatalf("code = %d, want blocked exit %d; stdout=%s", code, exitCodeBlocked, stdout.String())
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload["resolution_state"] != "invalid_binding" {
+		t.Fatalf("resolution_state = %#v, want invalid_binding", payload["resolution_state"])
+	}
+	if payload["readiness"] != rt.ReviewReadiness {
+		t.Fatalf("readiness = %#v, want review", payload["readiness"])
 	}
 }
 
@@ -2595,6 +2705,29 @@ func TestQueryCommandHandlesGreenfieldEmptyBaseline(t *testing.T) {
 	}
 	if !jsonStringSliceContains(payload["minimal_live_reads"], "docs/login.md") {
 		t.Fatalf("minimal_live_reads = %#v", payload["minimal_live_reads"])
+	}
+	if !jsonStringSliceContains(payload["missing_coverage"], "greenfield_empty_no_project_code") {
+		t.Fatalf("missing_coverage = %#v", payload["missing_coverage"])
+	}
+}
+
+func TestQueryCommandAllowsNaturalLanguageGreenfieldFallback(t *testing.T) {
+	initEmptyCLIRuntime(t)
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"query", "--intent", "plan", "--query", "build login", "--format", "json"}, &stdout, &stderr, "test")
+	if code != 0 {
+		t.Fatalf("code = %d stderr=%s stdout=%s", code, stderr.String(), stdout.String())
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload["resolution_state"] != query.QueryResolutionGreenfield {
+		t.Fatalf("resolution_state = %#v, want %q", payload["resolution_state"], query.QueryResolutionGreenfield)
+	}
+	if payload["baseline_kind"] != rt.BaselineKindGreenfieldEmpty {
+		t.Fatalf("baseline_kind = %#v, payload = %#v", payload["baseline_kind"], payload)
 	}
 	if !jsonStringSliceContains(payload["missing_coverage"], "greenfield_empty_no_project_code") {
 		t.Fatalf("missing_coverage = %#v", payload["missing_coverage"])

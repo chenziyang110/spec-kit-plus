@@ -29,12 +29,22 @@ type LexiconPayload struct {
 	AliasCatalogCount        int                           `json:"alias_catalog_count,omitempty"`
 	AliasCatalogLimit        int                           `json:"alias_catalog_limit,omitempty"`
 	AliasCatalogTruncated    bool                          `json:"alias_catalog_truncated,omitempty"`
+	CatalogPage              *LexiconCatalogPage           `json:"catalog_page,omitempty"`
 	QueryPlanningContract    map[string]any                `json:"query_planning_contract"`
 	CandidateUniverse        map[string]any                `json:"candidate_universe"`
 	MatchingProfile          map[string]any                `json:"matching_profile"`
 	UnmappedIntent           bool                          `json:"unmapped_intent"`
 	MissingCoverage          []string                      `json:"missing_coverage"`
 	AgentNormalization       *AgentNormalizationDiagnostic `json:"agent_normalization,omitempty"`
+}
+
+type LexiconCatalogPage struct {
+	Offset     int  `json:"offset"`
+	Limit      int  `json:"limit"`
+	Returned   int  `json:"returned"`
+	Total      int  `json:"total"`
+	HasMore    bool `json:"has_more"`
+	NextOffset *int `json:"next_offset,omitempty"`
 }
 
 type AgentNormalizationDiagnostic struct {
@@ -49,6 +59,7 @@ type LexiconInput struct {
 	Intent string
 	Query  string
 	Limit  int
+	Offset int
 	Mode   string
 }
 
@@ -153,11 +164,12 @@ func LexiconWithOptions(paths rt.Paths, input LexiconInput) (LexiconPayload, err
 	outputTruncated := limit > 0 && len(rows) > limit
 	payload.ConceptCandidates = candidates
 	if catalogMode {
-		aliasCatalog, catalogTruncated := aliasCatalogForRows(rows, limit)
+		aliasCatalog, catalogPage := aliasCatalogForRows(rows, input.Offset, limit)
 		payload.AliasCatalog = aliasCatalog
 		payload.AliasCatalogCount = len(rows)
-		payload.AliasCatalogLimit = effectiveCatalogLimit(limit, len(rows))
-		payload.AliasCatalogTruncated = catalogTruncated
+		payload.AliasCatalogLimit = catalogPage.Limit
+		payload.AliasCatalogTruncated = catalogPage.Offset > 0 || catalogPage.HasMore
+		payload.CatalogPage = &catalogPage
 	}
 	payload.CandidateUniverse = map[string]any{
 		"counts": map[string]any{
@@ -297,6 +309,12 @@ func classifyTermRune(r rune) termClass {
 
 func queryPlanningContract() map[string]any {
 	return map[string]any{
+		"query_mode":       "exact_binding",
+		"required_binding": "selected_concepts_or_paths",
+		"catalog_pagination": map[string]any{
+			"has_more":    "catalog_page.has_more",
+			"next_offset": "catalog_page.next_offset",
+		},
 		"accepted_fields": []string{
 			"raw_query",
 			"semantic_intake",
@@ -409,7 +427,7 @@ func aliasStrings(rows []store.ConceptAliasRow) []string {
 
 func (candidate rankedConceptCandidate) toMap(rank int) map[string]any {
 	conceptID := "concept:" + candidate.row.GenerationID + ":" + candidate.row.NodeID
-	return map[string]any{
+	item := map[string]any{
 		"concept_id":          conceptID,
 		"node_id":             candidate.row.NodeID,
 		"label":               candidate.row.Title,
@@ -431,16 +449,25 @@ func (candidate rankedConceptCandidate) toMap(rank int) map[string]any {
 		"disambiguation_hint": "Select when the query is about " + candidate.row.Title + " or its owned paths.",
 		"selection_guidance":  "Use this concept when graph aliases, paths, or evidence match the user's intent; reject it when the overlap is incidental.",
 	}
+	addSemanticCardFields(item, candidate.attrs)
+	return item
 }
 
-func aliasCatalogForRows(rows []store.ConceptCandidateRow, limit int) ([]map[string]any, bool) {
-	catalogLimit := effectiveCatalogLimit(limit, len(rows))
-	truncated := catalogLimit < len(rows)
-	catalog := make([]map[string]any, 0, catalogLimit)
-	for _, row := range rows[:catalogLimit] {
+func aliasCatalogForRows(rows []store.ConceptCandidateRow, offset int, limit int) ([]map[string]any, LexiconCatalogPage) {
+	total := len(rows)
+	if offset < 0 {
+		offset = 0
+	}
+	if offset > total {
+		offset = total
+	}
+	pageLimit := effectiveCatalogLimit(limit, total-offset)
+	end := offset + pageLimit
+	catalog := make([]map[string]any, 0, pageLimit)
+	for _, row := range rows[offset:end] {
 		candidate := newRankedConceptCandidate(row)
 		conceptID := "concept:" + row.GenerationID + ":" + row.NodeID
-		catalog = append(catalog, map[string]any{
+		item := map[string]any{
 			"concept_id":            conceptID,
 			"title":                 row.Title,
 			"aliases":               candidate.aliases,
@@ -452,9 +479,33 @@ func aliasCatalogForRows(rows []store.ConceptCandidateRow, limit int) ([]map[str
 			"route_hints":           candidate.routeHints,
 			"verification_hints":    candidate.verificationHints,
 			"evidence_summary_tags": candidate.row.ObservationSummaries,
-		})
+		}
+		addSemanticCardFields(item, candidate.attrs)
+		catalog = append(catalog, item)
 	}
-	return catalog, truncated
+	page := LexiconCatalogPage{
+		Offset:   offset,
+		Limit:    pageLimit,
+		Returned: len(catalog),
+		Total:    total,
+		HasMore:  end < total,
+	}
+	if page.HasMore {
+		nextOffset := end
+		page.NextOffset = &nextOffset
+	}
+	return catalog, page
+}
+
+func addSemanticCardFields(item map[string]any, attrs map[string]any) {
+	if responsibility := attrString(attrs, "responsibility"); responsibility != "" {
+		item["responsibility"] = responsibility
+	}
+	for _, key := range []string{"capabilities", "symptoms", "user_terms", "exclusions"} {
+		if values := attrStrings(attrs, key); len(values) > 0 {
+			item[key] = values
+		}
+	}
 }
 
 func effectiveCatalogLimit(limit, total int) int {

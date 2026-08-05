@@ -129,21 +129,15 @@ def test_quick_template_requires_one_time_understanding_checkpoint() -> None:
 
     assert "## understanding checkpoint" in content
     assert_quick_checkpoint_card_shape(content)
-    assert "where it appears, why it matters" in content
-    assert "user-owned decisions" in content
-    assert "technical execution belongs to the agent" in content
-    assert "for awareness, not as a request to approve technical details" in content
-    assert "plain text for terminal output" in content
-    assert "do not use html tags or inline line-break markup" in content
-    assert "do not reuse the placeholder text as content" in content
+    assert "user-owned" in content
+    assert "checkpoint-stage" in content
+    assert "checkpoint-confirm" in content
+    assert "confirmation_digest" in content
+    assert "delivery map" in content
+    assert "semantic_delta" in content or "semantic delta" in content
     assert "<br>" not in content
     assert "locate the source of the behavior" not in content
-    assert "include:" in content
-    assert "exclude:" in content
-    assert "concrete files, commands, workflows, constraints, validation evidence, and known uncertainty" in content
-    assert "unknown: [why it matters]" in content
-    assert "wait for user confirmation" in content
-    assert "revise the checkpoint" in content
+    assert "wait for user confirmation" in content or "checkpoint-confirm" in content
     assert "not a full spec" in content
     assert "not a `sp-plan` substitute" in content
 

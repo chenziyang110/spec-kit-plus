@@ -7,6 +7,7 @@ import importlib.metadata
 import json
 import os
 import platform
+import re
 import shutil
 import subprocess
 import sys
@@ -133,6 +134,7 @@ REQUIRED_CAPABILITIES = (
     "implement.resume-audit",
     "implement.task-accept",
     "implement.task-next",
+    "implement.task-reopen",
     "implement.task-start",
     "implement.validation-finish",
     "implement.validation-start",
@@ -143,9 +145,12 @@ REQUIRED_CAPABILITIES = (
     "learning.capture",
     "learning.capture-auto",
     "learning.list",
+    "learning.metrics",
     "learning.promote",
+    "learning.review",
     "learning.show",
     "learning.start",
+    "learning.status",
     "prd-build.scaffold",
     "prd-build.status",
     "prd-scan.finalize",
@@ -169,6 +174,12 @@ REQUIRED_CAPABILITIES = (
     "review.resume-audit",
     "review.target-bind",
     "review.validate",
+    "run.cancel",
+    "run.create",
+    "run.events",
+    "run.integrate",
+    "run.show",
+    "run.supervise",
     "sp-teams.auto-dispatch",
     "sp-teams.complete-batch",
     "sp-teams.doctor",
@@ -199,6 +210,10 @@ RUNTIME_ENV = "SPECIFY_RUNTIME_BIN"
 RUNTIME_CACHE_ENV = "SPECIFY_RUNTIME_CACHE_DIR"
 ALLOW_DIRTY_ENV = "SPECIFY_RUNTIME_ALLOW_DIRTY"
 PROJECT_RUNTIME_RELATIVE_DIR = Path(".specify") / "bin"
+RELEASE_VERSION_PATTERN = re.compile(
+    r"^v[0-9]+(?:\.[0-9]+){2}(?:[-.][0-9A-Za-z.-]+)?$"
+)
+SOURCE_REVISION_PATTERN = re.compile(r"^[0-9a-fA-F]{40}(?:[0-9a-fA-F]{24})?$")
 
 
 def default_runtime_version() -> str:
@@ -567,6 +582,34 @@ def launcher_supports_required_commands(
     return all(capability in capability_set for capability in REQUIRED_CAPABILITIES)
 
 
+def _runtime_identity_is_compatible(
+    info: dict[str, object],
+    *,
+    allow_dirty: bool,
+) -> bool:
+    dirty = info.get("dirty")
+    if not isinstance(dirty, bool):
+        return False
+    return allow_dirty or not dirty
+
+
+def _release_identity_is_compatible(
+    info: dict[str, object],
+    *,
+    expected_version: str,
+) -> bool:
+    cli_version = str(info.get("cli_version") or "").strip()
+    source_revision = str(info.get("source_revision") or "").strip()
+    if RELEASE_VERSION_PATTERN.fullmatch(cli_version) is None:
+        return False
+    if expected_version != "latest" and cli_version != expected_version:
+        return False
+    return (
+        SOURCE_REVISION_PATTERN.fullmatch(source_revision) is not None
+        and info.get("dirty") is False
+    )
+
+
 def _binary_is_compatible(binary: Path, *, allow_dirty: bool = False) -> bool:
     if not binary.is_file():
         return False
@@ -575,8 +618,17 @@ def _binary_is_compatible(binary: Path, *, allow_dirty: bool = False) -> bool:
     info = _runtime_handshake((str(binary),))
     if info is None:
         return False
-    dirty = info.get("dirty")
-    return not isinstance(dirty, bool) or allow_dirty or not dirty
+    return _runtime_identity_is_compatible(info, allow_dirty=allow_dirty)
+
+
+def _release_binary_is_compatible(binary: Path, version: str) -> bool:
+    if not binary.is_file() or not launcher_supports_required_commands((str(binary),)):
+        return False
+    info = _runtime_handshake((str(binary),))
+    return info is not None and _release_identity_is_compatible(
+        info,
+        expected_version=version,
+    )
 
 
 def _allow_dirty_runtime() -> bool:
@@ -737,16 +789,16 @@ def _source_build_marker_matches(binary: Path) -> bool:
         return False
 
 
-def _cached_binary_is_compatible(binary: Path) -> bool:
+def _cached_binary_is_compatible(binary: Path, version: str = DEFAULT_VERSION) -> bool:
     binding = current_runtime_binding_metadata()
     if bool(binding.get("source_build_required")):
         return _source_build_marker_matches(binary) and _binary_is_compatible(
             binary,
-            allow_dirty=_allow_dirty_runtime(),
+            allow_dirty=True,
         )
     if _source_build_marker_matches(binary):
-        return True
-    return _binary_is_compatible(binary, allow_dirty=_allow_dirty_runtime())
+        return _binary_is_compatible(binary, allow_dirty=True)
+    return _release_binary_is_compatible(binary, version)
 
 
 def _build_from_source(source_dir: Path, dest: Path) -> Path:
@@ -799,12 +851,12 @@ def _build_supported_binary_from_source(binary: Path, version: str, reason: str)
 
 
 def _ensure_supported_binary(binary: Path, version: str) -> Path:
-    if _cached_binary_is_compatible(binary):
+    if _release_binary_is_compatible(binary, version):
         return binary
     return _build_supported_binary_from_source(
         binary,
         version,
-        "release asset lacks the required runtime protocol or capabilities",
+        "release asset lacks the required runtime protocol, capabilities, or release identity",
     )
 
 
@@ -825,12 +877,12 @@ def ensure_binary(version: str = DEFAULT_VERSION, force: bool = False) -> Path:
     cache.mkdir(parents=True, exist_ok=True)
     dest = cached_executable()
     binding = current_runtime_binding_metadata()
-    if dest.exists() and not force and _cached_binary_is_compatible(dest):
+    if dest.exists() and not force and _cached_binary_is_compatible(dest, version):
         return dest
 
     with interprocess_lock(cache / f".{RUNTIME_COMMAND}.install.lock"):
         dest = cached_executable()
-        if dest.exists() and not force and _cached_binary_is_compatible(dest):
+        if dest.exists() and not force and _cached_binary_is_compatible(dest, version):
             return dest
         if bool(binding.get("source_build_required")):
             return _build_supported_binary_from_source(

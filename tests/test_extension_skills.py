@@ -280,6 +280,8 @@ class TestBuiltInSkillGeneration:
         assert (project_dir / ".specify" / "templates" / "project-learnings-index-template.md").exists()
         assert (project_dir / ".specify" / "templates" / "project-learning-detail-template.md").exists()
         assert (project_dir / ".specify" / "templates" / "project-learning-record-schema.json").exists()
+        assert (project_dir / ".specify" / "templates" / "project-learning-metrics-schema.json").exists()
+        assert (project_dir / ".specify" / "templates" / "project-learning-policy-schema.json").exists()
         assert not (project_dir / ".specify" / "templates" / "testing").exists()
 
         def _skill_body(skill_name: str) -> str:

@@ -10,26 +10,53 @@ jobs:
     permissions:
       contents: write
     steps:
-      - name: Check whether runtime assets are missing
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.release.tag_name }}
+          fetch-depth: 1
+
+      - name: Check whether runtime assets are missing or invalid
         id: assets
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_TAG: ${{ github.event.release.tag_name }}
         run: |
           expected='["specify-runtime-linux-amd64","specify-runtime-linux-arm64","specify-runtime-darwin-amd64","specify-runtime-darwin-arm64","specify-runtime-windows-amd64.exe"]'
+          expected_revision="$(git rev-parse HEAD)"
           actual="$(gh release view "$RELEASE_TAG" --json assets --jq '[.assets[] | select(.size > 0) | .name]')"
           if jq -e --argjson expected "$expected" --argjson actual "$actual" \
             '$expected - $actual | length == 0' >/dev/null; then
-            echo "missing=false" >> "$GITHUB_OUTPUT"
+            identity_dir="$(mktemp -d)"
+            expected_identity_marker="specify-runtime.release.v1,version=${RELEASE_TAG},revision=${expected_revision},dirty=false"
+            if gh release download "$RELEASE_TAG" --pattern 'specify-runtime-*' \
+                 --dir "$identity_dir" --clobber; then
+              complete=true
+              for asset in specify-runtime-linux-amd64 specify-runtime-linux-arm64 specify-runtime-darwin-amd64 specify-runtime-darwin-arm64 specify-runtime-windows-amd64.exe; do
+                asset_path="$identity_dir/$asset"
+                if [ ! -s "$asset_path" ] || \
+                   ! grep -aF -- "$expected_identity_marker" "$asset_path" >/dev/null || \
+                   ! grep -aF -- "specify-runtime.v1" "$asset_path" >/dev/null; then
+                  complete=false
+                  break
+                fi
+              done
+              runtime_asset="$identity_dir/specify-runtime-linux-amd64"
+              chmod +x "$runtime_asset"
+              if [ "$complete" = "true" ] && \
+                 identity_json="$("$runtime_asset" version --format json 2>/dev/null)" && \
+                 jq -e --arg version "$RELEASE_TAG" --arg revision "$expected_revision" \
+                   '.status == "ok" and .data.cli_version == $version and .data.source_revision == $revision and .data.dirty == false' \
+                   <<<"$identity_json" >/dev/null; then
+                echo "missing=false" >> "$GITHUB_OUTPUT"
+              else
+                echo "missing=true" >> "$GITHUB_OUTPUT"
+              fi
+            else
+              echo "missing=true" >> "$GITHUB_OUTPUT"
+            fi
           else
             echo "missing=true" >> "$GITHUB_OUTPUT"
           fi
-
-      - uses: actions/checkout@v7
-        if: steps.assets.outputs.missing == 'true'
-        with:
-          ref: ${{ github.event.release.tag_name }}
-          fetch-depth: 0
 
       - uses: actions/setup-go@v6
         if: steps.assets.outputs.missing == 'true'
@@ -43,6 +70,7 @@ jobs:
           mkdir -p bin
           VERSION="${{ github.event.release.tag_name }}"
           SOURCE_REVISION="$(git rev-parse HEAD)"
+          IDENTITY_MARKER="specify-runtime.release.v1,version=${VERSION},revision=${SOURCE_REVISION},dirty=false"
           echo "Building specify-runtime ${VERSION}..."
 
           TARGETS="
@@ -62,17 +90,30 @@ jobs:
             echo "  -> ${goos}/${goarch}"
             GOOS=${goos} GOARCH=${goarch} CGO_ENABLED=0 \
               go build -trimpath \
-                -ldflags="-s -w -X main.version=${VERSION} -X github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/buildinfo.SourceRevision=${SOURCE_REVISION} -X github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/buildinfo.BuildDirty=false" \
+                -ldflags="-s -w -X main.version=${VERSION} -X github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/buildinfo.ReleaseIdentity=${IDENTITY_MARKER} -X github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/buildinfo.SourceRevision=${SOURCE_REVISION} -X github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/buildinfo.BuildDirty=false" \
                 -o "bin/specify-runtime-${goos}-${goarch}${ext}" .
           done
 
           echo ""
           echo "=== Built binaries ==="
           ls -lh bin/
+          VERSION="${{ github.event.release.tag_name }}"
+          SOURCE_REVISION="$(git rev-parse HEAD)"
           chmod +x bin/specify-runtime-linux-amd64
           bin/specify-runtime-linux-amd64 --help | grep -q "cognition"
           bin/specify-runtime-linux-amd64 --help | grep -q "artifact"
-          bin/specify-runtime-linux-amd64 version --format json | grep -q '"protocol_version":"specify-runtime.v1"'
+          for asset in bin/specify-runtime-*; do
+            grep -aF -- "$IDENTITY_MARKER" "$asset" >/dev/null
+            grep -aF -- "specify-runtime.v1" "$asset" >/dev/null
+          done
+          version_json="$(bin/specify-runtime-linux-amd64 version --format json)"
+          jq -e --arg version "$VERSION" --arg revision "$SOURCE_REVISION" \
+            '.status == "ok" and .data.cli_version == $version and .data.protocol_version == "specify-runtime.v1" and .data.source_revision == $revision and .data.dirty == false' \
+            <<<"$version_json" >/dev/null
+          handshake_json="$(bin/specify-runtime-linux-amd64 api handshake --format json)"
+          jq -e --arg version "$VERSION" --arg revision "$SOURCE_REVISION" \
+            '.status == "ok" and .data.cli_version == $version and .data.source_revision == $revision and .data.dirty == false' \
+            <<<"$handshake_json" >/dev/null
           bin/specify-runtime-linux-amd64 artifact catalog --format json | grep -q '"quick-status"'
           bin/specify-runtime-linux-amd64 artifact catalog --format json | grep -q '"plan-contract"'
           workflow_help="$(bin/specify-runtime-linux-amd64 workflow --help 2>&1)"
@@ -86,6 +127,7 @@ jobs:
 
       - name: Upload binaries to release
         if: steps.assets.outputs.missing == 'true'
-        uses: softprops/action-gh-release@v3
-        with:
-          files: tools/specify-runtime/bin/*
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: gh release upload "$RELEASE_TAG" tools/specify-runtime/bin/* --clobber

@@ -6,6 +6,7 @@ description: Lean technical-planning workflow for advanced coding models. Use wh
 # SPX Plan
 
 Read `references/project-learning.md` and apply its consume-capture policy.
+Read `references/native-subagents.md` when planning lanes are delegated.
 Read `references/workflow-runtime.md` and let its CLI own phase state.
 Read `references/project-cognition.md`, using cognition intent `plan`.
 Always read `references/planning-contract.md`. Read
@@ -87,8 +88,8 @@ valid.
 
 When isolated planning lanes are delegated, create an absent
 `planning/lane-manifest.json` with `artifact scaffold --kind planning-lane-manifest --path <feature-dir>/planning/lane-manifest.json` and
-query it on resume. Submit each compact lane result inline through `result
-submit --command plan`; the runtime alone writes its handoff. At material joins,
+query it on resume. Submit each compact lane result inline through `result submit --command plan`;
+the runtime alone writes its handoff. At material joins,
 replace the bounded `/lanes` array as a whole through a fresh leased JSON-pointer
 patch and patch `/status` separately at closeout. Never emulate array append,
 submit the manifest wholesale, or duplicate lane events.

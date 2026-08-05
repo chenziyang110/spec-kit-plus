@@ -707,6 +707,8 @@ func newImplementFeatureProject(t *testing.T) (string, string, string) {
 	writeImplementJSONFile(t, filepath.Join(feature, "plan-contract.json"), map[string]any{"version": 1, "acceptance_refs": []any{"FR-001"}})
 	writeImplementJSONFile(t, filepath.Join(feature, "workflow.json"), map[string]any{
 		"schema_version": 1, "feature_id": "001-budget", "stage": "implement", "status": "active", "revision": 5,
+		"summary": "Implement fixture.", "blocker": nil, "last_resolution_evidence": []any{}, "last_reopen": nil,
+		"last_blocker_resolution": nil, "acceptance_sha256": nil,
 	})
 	writeTextFile(t, filepath.Join(feature, "tasks.md"), "# Tasks\n\n- [X] T001 [US1] Update implementation in src/demo.go\n")
 	writeTextFile(t, filepath.Join(feature, "implement-tracker.md"), "---\nstatus: resolved\nfeature: 001-budget\n---\n\n## Open Gaps\n\n")

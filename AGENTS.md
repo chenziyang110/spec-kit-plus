@@ -144,6 +144,13 @@ present in a test project.
 
 ### UI Workflow Contract Across Profiles
 
+- `sp-design` / `spx-design` is one natural-language entrypoint. Route prompt
+  intent to `create/refine/audit`; reference synthesis is an input strategy for
+  create/refine, not a public colon subskill or terminal task type. Resume
+  active design work before reclassification. `sp-specify` is the first formal
+  consumer and `sp-quick` is the direct-delivery consumer. A new approval must
+  not silently retarget pinned work: formal adoption rebinds through Specify,
+  while Quick requires a confirmed checkpoint amendment.
 - The product goal is better implemented UI, not merely more UI documentation.
   Both profiles must preserve this executable chain for substantive UI work:
   `approved immutable preview + original references -> approved DESIGN.md ->

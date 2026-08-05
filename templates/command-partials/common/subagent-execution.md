@@ -4,6 +4,8 @@ All substantive work in ordinary `sp-*` workflows MUST use subagents once a vali
 
 The leader orchestrates: route, split tasks, prepare task contracts, dispatch subagents, wait for structured handoffs, integrate results, verify, and update state.
 
+Treat the native lifecycle as capability-derived. Require only the dispatch and join operations exposed by the active integration; an accepted terminal result completes its lane without a separate cleanup operation. Use an exposed interruption or cancellation operation only for unfinished work that must stop.
+
 Before dispatch, every subagent lane MUST have a task contract with:
 - objective
 - authoritative inputs

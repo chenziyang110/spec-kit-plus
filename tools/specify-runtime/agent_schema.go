@@ -107,6 +107,10 @@ func runAPIShow(args []string, stdout io.Writer) int {
 		capability["side_effect"] = "writes-derived-visual-comparison-report"
 		capability["usage"] = "specify-runtime evidence visual-compare --feature-dir <feature-dir> --task-id <Txxx> --input-json <observed-comparison> --format json"
 		capability["input_contract"] = "agent supplies entrypoint, implementation revision, typed evidence refs, matrix observations, explicit passing verdict, and reviewer; runtime derives approved design and handoff bindings, exact decision coverage, tolerance, deviations, canonical path, and byte digest from task-index.json"
+	case "implement.task-reopen":
+		capability["side_effect"] = "revision-guarded-task-recovery"
+		capability["usage"] = "specify-runtime implement task-reopen --feature-dir <feature-dir> --task-id <Txxx> --expected-task-revision <revision> --expected-workflow-revision <revision> --reason <reason> --evidence <evidence> --format json"
+		capability["input_contract"] = "only a non-acceptance-ready implemented task may reopen; the runtime atomically archives the old lifecycle/result, preserves sibling state, and resets only the named task to ready"
 	case "prd-scan.record-upsert":
 		capability["side_effect"] = "writes-one-prd-record"
 		capability["usage"] = "specify-runtime prd-scan record-upsert <run-id> --surface <surface> --expected-sha256 <sha> --input-json <record> --format json"

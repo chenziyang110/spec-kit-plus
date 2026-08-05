@@ -671,9 +671,14 @@ func TestLexiconCatalogIncludesCompactAliasMaterialBeforeCandidateRanking(t *tes
 			Confidence:  "verified",
 			EvidenceIDs: []string{"E-cli"},
 			Attrs: map[string]any{
-				"aliases": []any{"CLI launcher invocation behavior"},
-				"domain":  "cli",
-				"owner":   "launcher",
+				"aliases":        []any{"CLI launcher invocation behavior"},
+				"domain":         "cli",
+				"owner":          "launcher",
+				"responsibility": "Start the supported CLI process.",
+				"capabilities":   []any{"CLI process launch"},
+				"symptoms":       []any{"command never starts"},
+				"user_terms":     []any{"启动命令"},
+				"exclusions":     []any{"usage accounting"},
 			},
 		}},
 		PathIndex: []store.PathIndexImport{{
@@ -723,6 +728,12 @@ func TestLexiconCatalogIncludesCompactAliasMaterialBeforeCandidateRanking(t *tes
 	if !payload.AliasCatalogTruncated {
 		t.Fatalf("AliasCatalogTruncated = false, want true")
 	}
+	if payload.CatalogPage == nil || payload.CatalogPage.Offset != 0 || payload.CatalogPage.Returned != 1 || !payload.CatalogPage.HasMore {
+		t.Fatalf("CatalogPage = %#v, want first page with another page available", payload.CatalogPage)
+	}
+	if payload.CatalogPage.NextOffset == nil || *payload.CatalogPage.NextOffset != 1 {
+		t.Fatalf("CatalogPage.NextOffset = %#v, want 1", payload.CatalogPage.NextOffset)
+	}
 	firstCatalog := payload.AliasCatalog[0]
 	for _, key := range []string{"concept_id", "title", "aliases", "owner", "domain", "node_type", "confidence", "path_hints", "route_hints", "verification_hints", "evidence_summary_tags"} {
 		if _, ok := firstCatalog[key]; !ok {
@@ -740,6 +751,34 @@ func TestLexiconCatalogIncludesCompactAliasMaterialBeforeCandidateRanking(t *tes
 		if !mapStringSliceContains(decisionFields, want) {
 			t.Fatalf("concept_decision_fields = %#v, want %q", decisionFields, want)
 		}
+	}
+	if payload.QueryPlanningContract["query_mode"] != "exact_binding" {
+		t.Fatalf("query_mode = %#v, want exact_binding", payload.QueryPlanningContract["query_mode"])
+	}
+	if payload.QueryPlanningContract["required_binding"] != "selected_concepts_or_paths" {
+		t.Fatalf("required_binding = %#v", payload.QueryPlanningContract["required_binding"])
+	}
+	for _, key := range []string{"responsibility", "capabilities", "symptoms", "user_terms", "exclusions"} {
+		if _, ok := firstCatalog[key]; !ok {
+			t.Fatalf("alias catalog semantic card missing %s: %#v", key, firstCatalog)
+		}
+	}
+
+	secondPage, err := LexiconWithOptions(paths, LexiconInput{
+		Intent: "debug",
+		Query:  "today says 230M, is it wrong?",
+		Limit:  1,
+		Offset: 1,
+		Mode:   "catalog",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(secondPage.AliasCatalog) != 1 || secondPage.CatalogPage == nil || secondPage.CatalogPage.HasMore {
+		t.Fatalf("second page = %#v, want final one-entry page", secondPage.CatalogPage)
+	}
+	if firstCatalog["concept_id"] == secondPage.AliasCatalog[0]["concept_id"] {
+		t.Fatalf("catalog pagination repeated concept %v", firstCatalog["concept_id"])
 	}
 }
 
@@ -1597,6 +1636,9 @@ func TestRunResolvesSelectedConceptsToNodesAndReads(t *testing.T) {
 	if payload.Readiness != rt.ReadyReadiness {
 		t.Fatalf("Readiness = %q, want query_ready", payload.Readiness)
 	}
+	if payload.ResolutionState != QueryResolutionResolvedExact {
+		t.Fatalf("ResolutionState = %q, want %q", payload.ResolutionState, QueryResolutionResolvedExact)
+	}
 	if len(payload.AffectedNodes) == 0 {
 		t.Fatalf("AffectedNodes = %#v, want selected concept node", payload.AffectedNodes)
 	}
@@ -1605,6 +1647,87 @@ func TestRunResolvesSelectedConceptsToNodesAndReads(t *testing.T) {
 	}
 	if len(payload.QueryPlan.ConceptDecisions) != 1 {
 		t.Fatalf("QueryPlan.ConceptDecisions = %#v", payload.QueryPlan.ConceptDecisions)
+	}
+}
+
+func TestRunRawNaturalLanguageReturnsExplicitBindingRequiredState(t *testing.T) {
+	paths := queryTestPaths(t)
+	seedReadyGraph(t, paths, store.ImportInput{
+		GenerationID: "GEN-binding-required",
+		Kind:         "full",
+		SourceCommit: "abc123",
+		Nodes: []store.NodeImport{{
+			ID:         "N-mobile-approval",
+			Type:       "capability",
+			Title:      "Mobile Approval Flow",
+			Confidence: "verified",
+		}},
+	})
+
+	payload, err := Run(paths, QueryInput{
+		Intent: "debug",
+		Query:  "手机上那个审批的地方看不全",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if payload.ResolutionState != QueryResolutionBindingRequired {
+		t.Fatalf("ResolutionState = %q, want %q", payload.ResolutionState, QueryResolutionBindingRequired)
+	}
+	if payload.Readiness != rt.ReviewReadiness {
+		t.Fatalf("Readiness = %q, want %q", payload.Readiness, rt.ReviewReadiness)
+	}
+	if !hasString(payload.MissingCoverage, "query_plan_binding_required") {
+		t.Fatalf("MissingCoverage = %#v, want query_plan_binding_required", payload.MissingCoverage)
+	}
+	if len(payload.AffectedNodes) != 0 {
+		t.Fatalf("AffectedNodes = %#v, raw text must not silently select nodes", payload.AffectedNodes)
+	}
+}
+
+func TestRunDowngradesPartiallyMissingExplicitPathBinding(t *testing.T) {
+	paths := queryTestPaths(t)
+	seedReadyGraph(t, paths, store.ImportInput{
+		GenerationID: "GEN-path-binding",
+		Kind:         "full",
+		SourceCommit: "abc123",
+		Nodes: []store.NodeImport{{
+			ID:         "N-app",
+			Type:       "capability",
+			Title:      "Application Shell",
+			Confidence: "verified",
+		}},
+		PathIndex: []store.PathIndexImport{{
+			ID:         "P-app",
+			Path:       "src/app.go",
+			NodeID:     "N-app",
+			Relation:   "owns",
+			Confidence: "verified",
+		}},
+	})
+
+	payload, err := Run(paths, QueryInput{
+		Intent: "debug",
+		Plan: Plan{Paths: []string{
+			"src/app.go",
+			"src/missing.go",
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(payload.AffectedNodes) == 0 {
+		t.Fatalf("AffectedNodes = %#v, want node for indexed path", payload.AffectedNodes)
+	}
+	if payload.ResolutionState != QueryResolutionResolvedReview {
+		t.Fatalf("ResolutionState = %q, want %q", payload.ResolutionState, QueryResolutionResolvedReview)
+	}
+	if payload.Readiness != rt.ReviewReadiness {
+		t.Fatalf("Readiness = %q, want %q", payload.Readiness, rt.ReviewReadiness)
+	}
+	if !hasString(payload.MissingCoverage, "selected_path_not_indexed:src/missing.go") ||
+		!hasString(payload.MissingCoverage, "selected_paths_not_indexed") {
+		t.Fatalf("MissingCoverage = %#v, want partial path-binding diagnostics", payload.MissingCoverage)
 	}
 }
 
@@ -2205,6 +2328,9 @@ func TestRunReportsEveryUnknownSelectedConceptAlias(t *testing.T) {
 	}
 	if payload.Readiness != "review" {
 		t.Fatalf("Readiness = %q, want review", payload.Readiness)
+	}
+	if payload.ResolutionState != QueryResolutionInvalidBinding {
+		t.Fatalf("ResolutionState = %q, want %q", payload.ResolutionState, QueryResolutionInvalidBinding)
 	}
 	for _, conceptID := range selectedConcepts {
 		want := "unknown_selected_concept:" + conceptID

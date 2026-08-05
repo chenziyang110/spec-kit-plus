@@ -24,7 +24,10 @@ def test_build_worker_bootstrap_payload_includes_packet_metadata() -> None:
             "forbidden_drift": "Do not create a parallel auth stack",
             "validation_gates": "pytest tests/unit/test_auth_service.py -q",
             "native_dispatch_hint": "Dispatch bounded lanes through `spawn_agent`.",
-            "native_join_hint": "Rejoin with `wait_agent`, integrate, then `close_agent`.",
+            "native_join_hint": (
+                "Rejoin with `wait_agent` and integrate terminal results; "
+                "no separate cleanup step is required."
+            ),
             "result_contract_hint": "WorkerTaskResult contract with validation evidence.",
         },
     )
@@ -47,8 +50,8 @@ def test_build_worker_bootstrap_payload_includes_packet_metadata() -> None:
         in payload.instructions
     )
     assert (
-        "native_join_hint: Rejoin with `wait_agent`, integrate, then `close_agent`."
-        in payload.instructions
+        "native_join_hint: Rejoin with `wait_agent` and integrate terminal results; "
+        "no separate cleanup step is required." in payload.instructions
     )
     assert (
         "result_contract_hint: WorkerTaskResult contract with validation evidence."

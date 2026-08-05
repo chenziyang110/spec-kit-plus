@@ -6,6 +6,7 @@ description: Advanced system review and repair workflow. Use after implementatio
 # SPX Review
 
 Read `references/project-learning.md` and apply its consume-capture policy.
+Read `references/native-subagents.md` when Review, Fix, or revalidation lanes are delegated.
 Read `references/workflow-runtime.md` and let its CLI own phase state. Read
 `references/project-cognition.md`, using cognition intent `implement`. Read
 `references/review-contract.md`; read `references/worker-contract.md` only when

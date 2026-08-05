@@ -225,6 +225,7 @@ def test_subagent_driven_development_prefers_native_dispatch_contract() -> None:
     content = _read("templates/passive-skills/subagent-driven-development/SKILL.md").lower()
 
     assert "native subagents" in content
+    assert "cursor `task`" in content
     assert "validated `workertaskpacket`" in content
     assert "must not dispatch from raw task text" in content
     assert "structured handoff" in content
@@ -232,18 +233,24 @@ def test_subagent_driven_development_prefers_native_dispatch_contract() -> None:
     assert "event-triggered review" in content
     assert "task lifecycle record" in content
     assert "`sp-teams` only" in content
+    assert "durable request-result persistence" in content
+    assert "tracking, result files" not in content
     assert "we do not manually dispatch ad-hoc subagents" not in content
 
 
 def test_dispatching_parallel_agents_uses_current_runtime_before_external_sessions() -> None:
     content = _read("templates/passive-skills/dispatching-parallel-agents/SKILL.md").lower()
+    normalized_content = " ".join(content.split())
 
     assert "2+ independent lanes" in content
     assert "current runtime" in content
     assert "native subagents" in content
+    assert "cursor `task` with background execution" in content
     assert "write-set" in content
     assert "structured handoff" in content
     assert "separate terminal" in content
+    assert "do not make local fallback contingent on managed-team availability" in normalized_content
+    assert "and no managed-team path can safely represent the lanes" not in content
     assert "advise the user to run multiple parallel instances" not in content
 
 
@@ -308,6 +315,51 @@ def test_project_learning_focuses_on_memory_triggers_storage_and_promotion() -> 
     assert "{{specify-subcmd:hook capture-learning" not in content
     assert "testing-state.md" not in content
     assert "durable workflow state" in content
+
+
+def test_project_learning_documents_sanitized_projection_and_confirmed_promotion() -> None:
+    content = _read("templates/passive-skills/spec-kit-project-learning/SKILL.md").lower()
+    normalized = " ".join(content.split())
+
+    for required in (
+        "summary, trigger_signals, and evidence are sanitized agent-facing projections",
+        "raw sensitive values must not enter learning storage, registry, or read api",
+        "safe project-relative reference or digest",
+        "redaction_labels",
+        "personal_identifier",
+        "business_identifier",
+        "organization_sensitive",
+        "[redacted_secret]",
+        "[redacted_email]",
+        "[redacted_private_key]",
+        "<user_home>/...",
+        "[redacted_phone]",
+        "[redacted_business_id]",
+        "[redacted_org_term]",
+        "mature learning protection",
+        "bounded candidate slot",
+        "a candidate cannot become a rule directly",
+        "confirmed learning before explicit project-rule promotion",
+        "abstract and retain the reusable lesson",
+        "learning value and content sensitivity as independent axes",
+        "sensitivity alone is never an eligibility veto",
+        "capture-safe|capture-sanitized|defer|ignore",
+        "--dry-run",
+        "without writing any candidate, registry, review state, or metric",
+        "arbitrary regular expressions are forbidden",
+        "at most 64 distinct 1..128-character literals",
+        "none|captured|auto-captured|deferred|manual-capture-needed",
+        "`deferred` and `manual-capture-needed` require rationale",
+        "`captured`/`auto-captured` succeeds only after that match is verified",
+        "`none` is blocked while a matching deferred/manual decision remains pending",
+        "pending/due/age buckets",
+        "without evidence, rationale, learning refs, recurrence keys, or timestamps",
+        "aggregate totals, decisions, value/risk tiers, reason/label counts",
+        "derived confirmation rate",
+        "age buckets are derived from review state in memory",
+        "both commands are read-only",
+    ):
+        assert required in normalized
 
 
 def test_subagent_implementer_prompt_defers_heavy_tdd_to_leader_gate() -> None:

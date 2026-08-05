@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -88,6 +89,27 @@ func TestUnifiedTaskControlPlaneOwnsAuthoringAndLifecycle(t *testing.T) {
 		t.Fatalf("missing packet ref: %#v", compiled)
 	}
 	assertTaskRuntimeCommandOK(t, []string{"implement", "task-start", "--feature-dir", featureRef, "--task-id", "T001", "--execution-mode", "delegated", "--packet-ref", packetRef, "--format", "json"})
+	incompleteResult := `{"task_id":"T001","status":"success","changed_files":["src/runtime.go"],"validation_results":[{"command":"go test ./...","status":"passed","output":"PASS"}],"blockers":[],"suggested_recovery_actions":[]}`
+	exit, rejected := runTaskRuntimeCommand(t, []string{"implement", "result-merge", "--feature-dir", featureRef, "--task-id", "T001", "--result-json", incompleteResult, "--format", "json"})
+	if exit == 0 || rejected.Status != "blocked" || !strings.Contains(rejected.Summary, "gofmt check") {
+		t.Fatalf("incomplete success result should fail before mutation: exit=%d env=%#v", exit, rejected)
+	}
+	lifecycle := readImplementJSONFile(t, filepath.Join(feature, "implementation-review", "tasks", "T001.json"))
+	if lifecycle["status"] != "in_progress" || intFromAny(lifecycle["revision"]) != 1 {
+		t.Fatalf("rejected success result mutated lifecycle: %#v", lifecycle)
+	}
+	if _, err := os.Stat(filepath.Join(feature, "worker-results", "T001.json")); !os.IsNotExist(err) {
+		t.Fatalf("rejected success result persisted a worker result: %v", err)
+	}
+	failedFollowup := `{"task_id":"T001","status":"success","changed_files":["src/runtime.go"],"validation_results":[{"command":"gofmt check","status":"passed","output":"PASS"},{"kind":"known-followup","status":"failed","summary":"refresh a downstream baseline"}],"blockers":[],"suggested_recovery_actions":[]}`
+	exit, rejected = runTaskRuntimeCommand(t, []string{"implement", "result-merge", "--feature-dir", featureRef, "--task-id", "T001", "--result-json", failedFollowup, "--format", "json"})
+	if exit == 0 || rejected.Status != "blocked" || !strings.Contains(rejected.Summary, "passed validation") {
+		t.Fatalf("failed follow-up should not become current-task success: exit=%d env=%#v", exit, rejected)
+	}
+	lifecycle = readImplementJSONFile(t, filepath.Join(feature, "implementation-review", "tasks", "T001.json"))
+	if lifecycle["status"] != "in_progress" || intFromAny(lifecycle["revision"]) != 1 {
+		t.Fatalf("rejected follow-up result mutated lifecycle: %#v", lifecycle)
+	}
 	result := `{"task_id":"T001","status":"success","changed_files":["src/runtime.go"],"validation_results":[{"command":"gofmt check","status":"passed","output":"PASS"}],"blockers":[],"suggested_recovery_actions":[]}`
 	assertTaskRuntimeCommandOK(t, []string{"implement", "result-merge", "--feature-dir", featureRef, "--task-id", "T001", "--result-json", result, "--format", "json"})
 	accepted := assertTaskRuntimeCommandOK(t, []string{"implement", "task-accept", "--feature-dir", featureRef, "--task-id", "T001", "--format", "json"})
@@ -255,6 +277,291 @@ func TestImplementTaskResultRequiresRecoverableBlocksAndTaskCheckCoverage(t *tes
 	if err == nil || !strings.Contains(err.Error(), "go test ./...") {
 		t.Fatalf("missing task check was accepted: %v", err)
 	}
+
+	normalized, _, err := normalizeImplementTaskResult(map[string]any{
+		"task_id": "T001", "status": "success",
+		"validation_results": []any{map[string]any{
+			"kind": "known-followup", "status": "failed", "summary": "refresh baseline",
+		}},
+	}, "T001")
+	if err != nil {
+		t.Fatalf("known-followup result was not normalized: %v", err)
+	}
+	validation := normalized["validation_results"].([]any)[0].(map[string]any)
+	if validation["command"] != "known-followup" || validation["output"] != "refresh baseline" || validation["status"] != "failed" {
+		t.Fatalf("known-followup evidence was lost during normalization: %#v", validation)
+	}
+}
+
+func TestImplementTaskReopenPreservesAuditAndRestoresOnlyTheStuckTask(t *testing.T) {
+	root, feature, featureRef := newImplementedTaskRecoveryFixture(t)
+
+	exit, next := runTaskRuntimeCommand(t, []string{"implement", "task-next", "--feature-dir", featureRef, "--format", "json"})
+	if exit == 0 || next.Status != "blocked" || next.Data["reason_code"] != "task-reopen-required" {
+		t.Fatalf("stuck implemented task should expose task-reopen: exit=%d env=%#v", exit, next)
+	}
+	exit, audit := runTaskRuntimeCommand(t, []string{"implement", "resume-audit", "--feature-dir", featureRef, "--format", "json"})
+	if exit == 0 || audit.Status != "blocked" || audit.Data["resume_classification"] != "task-recovery-required" {
+		t.Fatalf("resume audit should agree on task recovery: exit=%d env=%#v", exit, audit)
+	}
+
+	exit, stale := runTaskRuntimeCommand(t, []string{
+		"implement", "task-reopen", "--feature-dir", featureRef, "--task-id", "T002",
+		"--expected-task-revision", "1", "--expected-workflow-revision", "7",
+		"--reason", "Replace incomplete acceptance evidence.", "--evidence", "task-accept rejected the recorded result", "--format", "json",
+	})
+	if exit == 0 || stale.Status != "blocked" || !strings.Contains(stale.Summary, "revision") {
+		t.Fatalf("stale task revision should block without mutation: exit=%d env=%#v", exit, stale)
+	}
+
+	reopened := assertTaskRuntimeCommandOK(t, []string{
+		"implement", "task-reopen", "--feature-dir", featureRef, "--task-id", "T002",
+		"--expected-task-revision", "2", "--expected-workflow-revision", "7",
+		"--reason", "Replace incomplete acceptance evidence.", "--evidence", "task-accept rejected the recorded result", "--format", "json",
+	})
+	if reopened["task_status"] != "ready" || reopened["revision"] != float64(3) {
+		t.Fatalf("unexpected reopen result: %#v", reopened)
+	}
+	historyRef, _ := reopened["history_ref"].(string)
+	history := readImplementJSONFile(t, filepath.Join(feature, filepath.FromSlash(historyRef)))
+	previous := history["previous"].(map[string]any)
+	validation := previous["validation"].([]any)
+	if history["task_id"] != "T002" || previous["status"] != "implemented" || len(validation) != 1 {
+		t.Fatalf("reopen history did not preserve prior validation: %#v", history)
+	}
+	marker := readImplementJSONFile(t, filepath.Join(feature, "worker-results", "T002.json"))
+	if marker["status"] != "superseded" || marker["history_ref"] != historyRef {
+		t.Fatalf("current result was not explicitly superseded: %#v", marker)
+	}
+	index := readImplementJSONFile(t, filepath.Join(feature, "task-index.json"))
+	tasks := index["tasks"].([]any)
+	statuses := map[string]any{}
+	for _, raw := range tasks {
+		task := raw.(map[string]any)
+		statuses[anyString(task["id"])] = task["status"]
+	}
+	if statuses["T001"] != "accepted" || statuses["T006"] != "accepted" || statuses["T002"] != "ready" || statuses["T003"] != "pending" {
+		t.Fatalf("task-local reopen changed sibling/dependent state: %#v", statuses)
+	}
+
+	next = Envelope{}
+	exit, next = runTaskRuntimeCommand(t, []string{"implement", "task-next", "--feature-dir", featureRef, "--format", "json"})
+	if exit != 0 || next.Status != "ok" || next.Data["task"].(map[string]any)["task_id"] != "T002" {
+		t.Fatalf("reopened task should be dependency-ready: exit=%d env=%#v", exit, next)
+	}
+	assertTaskRuntimeCommandOK(t, []string{"implement", "task-start", "--feature-dir", featureRef, "--task-id", "T002", "--execution-mode", "leader-direct", "--format", "json"})
+	corrected := `{"task_id":"T002","status":"success","changed_files":["src/t002.go"],"validation_results":[{"command":"required check","status":"passed"}],"blockers":[],"suggested_recovery_actions":[]}`
+	assertTaskRuntimeCommandOK(t, []string{"implement", "result-merge", "--feature-dir", featureRef, "--task-id", "T002", "--result-json", corrected, "--format", "json"})
+	assertTaskRuntimeCommandOK(t, []string{"implement", "task-accept", "--feature-dir", featureRef, "--task-id", "T002", "--format", "json"})
+	next = Envelope{}
+	exit, next = runTaskRuntimeCommand(t, []string{"implement", "task-next", "--feature-dir", featureRef, "--format", "json"})
+	if exit != 0 || next.Status != "ok" || next.Data["task"].(map[string]any)["task_id"] != "T003" {
+		t.Fatalf("dependent task should unlock only after repaired acceptance: exit=%d env=%#v", exit, next)
+	}
+
+	_ = root
+}
+
+func TestImplementTaskReopenRejectsSymlinkedWorkerResult(t *testing.T) {
+	root, feature, featureRef := newImplementedTaskRecoveryFixture(t)
+	outside := filepath.Join(root, "outside-result.json")
+	if err := os.WriteFile(outside, []byte(`{"task_id":"T002","status":"success"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	resultPath := filepath.Join(feature, "worker-results", "T002.json")
+	if err := os.Remove(resultPath); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, resultPath); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+
+	exit, env := runTaskRuntimeCommand(t, []string{
+		"implement", "task-reopen", "--feature-dir", featureRef, "--task-id", "T002",
+		"--expected-task-revision", "2", "--expected-workflow-revision", "7",
+		"--reason", "Replace incomplete acceptance evidence.", "--evidence", "task-accept rejected the recorded result", "--format", "json",
+	})
+	if exit == 0 || env.Status != "blocked" || !strings.Contains(strings.ToLower(env.Summary), "symlink") {
+		t.Fatalf("symlinked worker result should fail closed: exit=%d env=%#v", exit, env)
+	}
+}
+
+func TestImplementTaskReopenRejectsIndexLifecycleStatusMismatch(t *testing.T) {
+	_, feature, featureRef := newImplementedTaskRecoveryFixture(t)
+	index := readImplementJSONFile(t, filepath.Join(feature, "task-index.json"))
+	tasks := index["tasks"].([]any)
+	tasks[1].(map[string]any)["status"] = "accepted"
+	writeTaskRuntimeFixture(t, filepath.Join(feature, "task-index.json"), index)
+
+	exit, env := runTaskRuntimeCommand(t, []string{
+		"implement", "task-reopen", "--feature-dir", featureRef, "--task-id", "T002",
+		"--expected-task-revision", "2", "--expected-workflow-revision", "7",
+		"--reason", "Attempt unsafe rollback.", "--evidence", "index and lifecycle disagree", "--format", "json",
+	})
+	if exit == 0 || env.Status != "blocked" || !strings.Contains(env.Summary, "task-index.json records status") {
+		t.Fatalf("index/lifecycle mismatch should block: exit=%d env=%#v", exit, env)
+	}
+}
+
+func TestImplementTaskNextDoesNotOfferReopenWithoutValidLifecycleRevision(t *testing.T) {
+	_, feature, featureRef := newImplementedTaskRecoveryFixture(t)
+	if err := os.Remove(filepath.Join(feature, "implementation-review", "tasks", "T002.json")); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, command := range [][]string{
+		{"implement", "task-next", "--feature-dir", featureRef, "--format", "json"},
+		{"implement", "resume-audit", "--feature-dir", featureRef, "--format", "json"},
+	} {
+		exit, env := runTaskRuntimeCommand(t, command)
+		if exit == 0 || env.Status != "blocked" || env.Data["reason_code"] != "task-state-invalid" {
+			t.Fatalf("%v should report invalid task state: exit=%d env=%#v", command, exit, env)
+		}
+		if env.Data["recovery_action"] != nil || strings.Contains(fmt.Sprint(env.Data), "--expected-task-revision 0") {
+			t.Fatalf("%v exposed an impossible task-reopen action: %#v", command, env)
+		}
+	}
+}
+
+func TestImplementTaskNextRejectsSymlinkedLifecycle(t *testing.T) {
+	root, feature, featureRef := newImplementedTaskRecoveryFixture(t)
+	lifecyclePath := filepath.Join(feature, "implementation-review", "tasks", "T002.json")
+	outside := filepath.Join(root, "outside-lifecycle.json")
+	if err := os.Rename(lifecyclePath, outside); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, lifecyclePath); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+
+	exit, env := runTaskRuntimeCommand(t, []string{"implement", "task-next", "--feature-dir", featureRef, "--format", "json"})
+	if exit == 0 || env.Status != "blocked" || env.Data["reason_code"] != "task-state-invalid" {
+		t.Fatalf("symlinked lifecycle should fail closed: exit=%d env=%#v", exit, env)
+	}
+	if !strings.Contains(strings.ToLower(anyString(env.Data["state_error"])), "symlink") || env.Data["recovery_action"] != nil {
+		t.Fatalf("symlinked lifecycle should not expose task-reopen: %#v", env)
+	}
+}
+
+func TestImplementReadersAgreeThatAnEmptyTaskGraphIsInvalid(t *testing.T) {
+	_, feature, featureRef := newImplementedTaskRecoveryFixture(t)
+	index := readImplementJSONFile(t, filepath.Join(feature, "task-index.json"))
+	index["tasks"] = []any{}
+	writeTaskRuntimeFixture(t, filepath.Join(feature, "task-index.json"), index)
+	if err := os.WriteFile(filepath.Join(feature, "tasks.md"), []byte("# Tasks\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, command := range [][]string{
+		{"implement", "task-next", "--feature-dir", featureRef, "--format", "json"},
+		{"implement", "resume-audit", "--feature-dir", featureRef, "--format", "json"},
+	} {
+		exit, env := runTaskRuntimeCommand(t, command)
+		if exit == 0 || env.Status != "blocked" || env.Data["reason_code"] != "task-graph-invalid" || env.Data["task"] != nil {
+			t.Fatalf("%v should report one empty-graph blocker: exit=%d env=%#v", command, exit, env)
+		}
+	}
+}
+
+func TestImplementReadersSurfacePersistedWorkflowBlockerFirst(t *testing.T) {
+	root, _, featureRef := newImplementedTaskRecoveryFixture(t)
+	blocked := NewWorkflowService(root).Block(WorkflowBlockRequest{
+		FeatureDir:       featureRef,
+		ExpectedRevision: 7,
+		Category:         "workflow-validation",
+		Owner:            "agent",
+		Cause:            "Task acceptance evidence requires repair.",
+		Evidence:         []string{"T002 cannot pass task-accept"},
+		AttemptedRecovery: []WorkflowRecoveryAttempt{{
+			Action: "Inspected task lifecycle", Result: "A task-local reopen is required",
+		}},
+		AffectedScope:   []string{"T002 and its dependents"},
+		ExactNextAction: "Reopen T002, then resolve this workflow blocker with the recovery receipt.",
+		UnblockCriteria: "T002 is ready with an immutable reopen history record.",
+	})
+	if blocked.Status != "blocked" {
+		t.Fatalf("fixture workflow block failed: %#v", blocked)
+	}
+	for _, command := range [][]string{
+		{"implement", "task-next", "--feature-dir", featureRef, "--format", "json"},
+		{"implement", "resume-audit", "--feature-dir", featureRef, "--format", "json"},
+	} {
+		exit, env := runTaskRuntimeCommand(t, command)
+		if exit == 0 || env.Status != "blocked" || env.Data["reason_code"] != "workflow-blocked" {
+			t.Fatalf("%v did not preserve authoritative workflow blocker: exit=%d env=%#v", command, exit, env)
+		}
+		if env.Data["resolution_action"] == nil {
+			t.Fatalf("%v omitted workflow resolution action: %#v", command, env)
+		}
+	}
+}
+
+func newImplementedTaskRecoveryFixture(t *testing.T) (string, string, string) {
+	t.Helper()
+	root := t.TempDir()
+	featureID := "003-task-recovery"
+	feature := filepath.Join(root, ".specify", "features", featureID)
+	for _, path := range []string{
+		feature,
+		filepath.Join(feature, "implementation-review", "tasks"),
+		filepath.Join(feature, "worker-results"),
+	} {
+		if err := os.MkdirAll(path, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	tasks := []any{
+		map[string]any{"id": "T001", "objective": "accepted sibling", "status": "accepted", "dependencies": []any{}, "task_checks": []any{"sibling check"}},
+		map[string]any{"id": "T002", "objective": "repair evidence", "status": "implemented", "dependencies": []any{"T001"}, "task_checks": []any{"required check"}, "result_ref": "worker-results/T002.json"},
+		map[string]any{"id": "T003", "objective": "dependent task", "status": "pending", "dependencies": []any{"T002"}, "task_checks": []any{"dependent check"}},
+		map[string]any{"id": "T006", "objective": "accepted sibling", "status": "accepted", "dependencies": []any{}, "task_checks": []any{"other sibling check"}},
+	}
+	writeTaskRuntimeFixture(t, filepath.Join(feature, "task-index.json"), map[string]any{
+		"version": 2, "status": "ready", "source_revision": "fixture-r1", "tasks": tasks,
+	})
+	writeTaskRuntimeFixture(t, filepath.Join(feature, "implementation-review", "tasks", "T001.json"), map[string]any{
+		"version": 1, "revision": 3, "task_id": "T001", "status": "accepted", "validation": []any{map[string]any{"command": "sibling check", "status": "passed"}}, "blockers": []any{},
+	})
+	writeTaskRuntimeFixture(t, filepath.Join(feature, "implementation-review", "tasks", "T002.json"), map[string]any{
+		"version": 1, "revision": 2, "task_id": "T002", "task_ref": "task-index.json#/tasks/1", "source_revision": "fixture-r1",
+		"execution_mode": "leader-direct", "packet_ref": nil, "result_ref": "worker-results/T002.json", "status": "implemented",
+		"changed_paths": []any{"src/t002.go"}, "validation": []any{map[string]any{"command": "other check", "status": "passed"}},
+		"review": nil, "ui_verification": map[string]any{"applicable": false}, "obligation_evidence": []any{}, "blockers": []any{}, "recovery": nil,
+	})
+	writeTaskRuntimeFixture(t, filepath.Join(feature, "implementation-review", "tasks", "T006.json"), map[string]any{
+		"version": 1, "revision": 4, "task_id": "T006", "status": "accepted", "validation": []any{map[string]any{"command": "other sibling check", "status": "passed"}}, "blockers": []any{},
+	})
+	writeTaskRuntimeFixture(t, filepath.Join(feature, "worker-results", "T002.json"), map[string]any{
+		"version": 1, "task_id": "T002", "status": "success", "changed_files": []any{"src/t002.go"},
+		"validation_results": []any{map[string]any{"command": "other check", "status": "passed"}}, "blockers": []any{}, "suggested_recovery_actions": []any{},
+	})
+	state := map[string]any{
+		"version": 3, "revision": 5, "status": "validating", "source_contract": "task-index.json", "source_revision": "fixture-r1",
+		"current_batch": nil, "current_task": "T002", "next_action": "Validate and accept T002.",
+		"completed_task_ids": []any{"T001", "T006"}, "failed_task_ids": []any{}, "retry_count": 0,
+		"active_packet_refs": []any{}, "blockers": []any{}, "recovery": nil, "open_gaps": []any{}, "validation": []any{},
+	}
+	writeTaskRuntimeFixture(t, filepath.Join(feature, "implementation-review", "execution-state.json"), state)
+	if err := os.WriteFile(filepath.Join(feature, "implement-tracker.md"), renderImplementTaskTracker(feature, state), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(feature, "tasks.md"), []byte("# Tasks\n\n- [x] T001 accepted sibling\n- [ ] T002 repair evidence\n- [ ] T003 dependent task\n- [x] T006 accepted sibling\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	writeTaskRuntimeFixture(t, filepath.Join(feature, "workflow.json"), map[string]any{
+		"schema_version": 1, "feature_id": featureID, "revision": 7, "stage": "implement", "status": "active",
+		"summary": "Implement tasks.", "blocker": nil, "last_resolution_evidence": []any{}, "last_reopen": nil,
+		"last_blocker_resolution": nil, "acceptance_sha256": nil,
+	})
+	oldCWD, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(root); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(oldCWD) })
+	return root, feature, filepath.ToSlash(filepath.Join(".specify", "features", featureID))
 }
 
 func assertTaskRuntimeCommandOK(t *testing.T, args []string) map[string]any {

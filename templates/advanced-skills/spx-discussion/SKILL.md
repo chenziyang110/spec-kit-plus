@@ -31,23 +31,35 @@ implementation-path, or verification claims. For cross-project work, lock
 `target_project_root` before technicalizing and verify facts in that target.
 
 Persist compact semantic checkpoints only when meaning changes; do not store a
-transcript. Stay in discussion until the user explicitly requests a handoff.
+transcript. A summary-only checkpoint is valid only for an explicit savepoint
+with no semantic change. When meaning changed since the last durable state,
+submit every changed semantic field needed to preserve current truth,
+especially confirmed decisions, the context boundary, the current
+recommendation, and open assumptions. Do not report checkpoint success while
+leaving newly confirmed decisions only in chat memory. Stay in discussion until
+the user explicitly requests a handoff.
 Do not treat an already-active discussion as a new automatic workflow entry;
 topical acknowledgements and follow-ups continue this stage without requiring
 the user to repeat `$spx-discussion`. A contextual confirmation such as `yes`,
 `ok`, or `可以` authorizes handoff only when it directly answers a named handoff
 action, and authorizes readiness only when it confirms the displayed digest.
+Converging requirements, design, or validation gates changes the next
+in-discussion action to handoff assessment and consumer selection; it never
+authorizes the agent to declare implementation as the next stage or ask the
+user to "start implementation".
 At the handoff routing gate, present both routes and their eligibility: canonical
 `sp-quick` for direct execution with task-local planning and canonical
 `sp-specify` for the formal specification-first pipeline; explain any blocker
-and expose the selected route later as `$spx-quick` or `$spx-specify`. Give a
-complexity-informed recommendation among eligible routes: favor Quick for
-bounded, well-understood work with stable requirements and limited
-cross-boundary risk; favor Specify for high ambiguity or complexity, interacting
-capabilities or systems, architecture/data migration/security/compliance/rollout
-concerns, broad acceptance obligations, or durable traceability needs. Task size
-alone is not a hard routing ceiling. The user owns the final consumer choice and
-may choose either eligible route against the recommendation. Do not write the
+and expose the selected route later as `$spx-quick` or `$spx-specify`. Recommend
+among eligible routes by whether a formal durable specification chain is needed,
+not by raw size or capability count: favor Quick when the outcome is clear enough
+for confirmed direct delivery—even multi-capability, architecture, migration,
+compatibility, rollout, or acceptance-heavy work—because Quick owns a multi-Q
+Decision Checkpoint, Delivery Map, and acceptance DAG; favor Specify when
+requirements remain ambiguous, key decisions are unlocked, interacting systems
+need formal traceability, or the user wants a durable specification-first chain.
+Complexity alone is not a reason to leave Quick. The user owns the final
+consumer choice and may choose either eligible route against the recommendation. Do not write the
 handoff until the user has selected an eligible consumer. If no explicit choice
 exists, ask one route-choice question and stay in this discussion. A contextual
 `yes`, `ok`, or `可以` selects the recommendation only when it directly answers

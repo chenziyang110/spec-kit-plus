@@ -1,7 +1,7 @@
 interface:
   display_name: "SPX Design"
-  short_description: "Compare HTML directions and lock a design system"
-  default_prompt: "Use $spx-design to resolve design questions, compare three modern HTML directions, and establish or revise an approved project-specific DESIGN.md contract."
+  short_description: "Route, approve, or audit a project design system"
+  default_prompt: "Use $spx-design to infer whether this request creates, refines, or audits the project design system, synthesize supplied references when relevant, and hand approved DESIGN.md truth to the right delivery path."
 
 policy:
   allow_implicit_invocation: false

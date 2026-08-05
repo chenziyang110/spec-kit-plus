@@ -50,6 +50,13 @@ def test_cursor_skills_init_installs_command_and_passive_skills(tmp_path):
     assert "handoff-to-specify" not in ask_content
     assert (target / ".cursor" / "skills" / "spec-kit-workflow-routing" / "SKILL.md").exists()
 
+    for skill_name in ("sp-design", "sp-plan", "sp-tasks"):
+        content = _read_skill_with_references(
+            target / ".cursor" / "skills" / skill_name / "SKILL.md"
+        ).lower()
+        assert "codex native subagents" not in content, skill_name
+        assert "sp-teams submit-result" not in content, skill_name
+
 
 def test_cursor_generated_sp_quick_confirms_understanding_before_execution(tmp_path):
     from typer.testing import CliRunner
@@ -69,23 +76,23 @@ def test_cursor_generated_sp_quick_confirms_understanding_before_execution(tmp_p
     content = _read_skill_with_references(skill_path).lower()
 
     assert ".specify/memory/constitution.md" in content
-    assert "understanding checkpoint" in content
+    assert "understanding checkpoint" in content or "decision checkpoint" in content
     assert "understanding_confirmed: true" in content
     assert_quick_checkpoint_card_shape(content)
-    assert "request and outcome" in content
-    assert "user-visible result" in content
-    assert "recommended approach" in content
-    assert "assumptions and risks" in content
-    assert "completion evidence" in content
+    assert "checkpoint-stage" in content
+    assert "packet-compile" in content
+    assert "item-start" in content
+    assert "item-accept" in content
+    assert "confirmation_digest" in content
+    assert "delivery map" in content
     assert "reconfirmation trigger" in content
-    assert "technical execution belongs to the agent" in content
     assert "## ui confirmation" in content
     assert "single confirmation covers both" in content
     assert "dispatch_shape: one-subagent | parallel-subagents" in content
     assert "execution_surface: native-subagents" in content
     assert "cursor leader gate" in content
     assert "cursor subagent execution" in content
-    assert "do not proceed to code edits, broad repository analysis, delegation, or validation commands until `understanding_confirmed: true` has been persisted" in content
+    assert "do not proceed to code edits, broad repository analysis, delegation, or validation commands until `understanding_confirmed: true`" in content
     assert "subagent-blocked" in content
     assert "query `.specify/memory/constitution.md` first through" in content
     assert "specify-runtime artifact show" in content
@@ -95,6 +102,8 @@ def test_cursor_generated_sp_quick_confirms_understanding_before_execution(tmp_p
     assert "cli-owned `status.md` has `understanding_confirmed: true`" in content
     assert "materially improve throughput" in content
     assert "managed-team" in content
+    assert "do not require or invoke `managed-team`/`sp-teams` unless durable execution was explicitly selected" in content
+    assert "after native subagents and the managed-team path are unavailable" not in content
     assert "subagent-blocked" in content
     assert "use cursor's native subagent path" in content
     assert "status.md" in content
@@ -112,6 +121,51 @@ def test_cursor_generated_sp_quick_confirms_understanding_before_execution(tmp_p
     assert ".planning/quick/<id>-<slug>/status.md" in content
     assert ".planning/quick/<id>-<slug>/worker-results/<lane-id>.json" in content
     assert ".planning/quick/<slug>" not in content
+
+
+def test_cursor_generated_sp_implement_uses_native_task_lifecycle(tmp_path):
+    from typer.testing import CliRunner
+    from specify_cli import app
+
+    runner = CliRunner()
+    target = tmp_path / "cursor-native-task"
+
+    result = runner.invoke(
+        app,
+        ["init", str(target), "--ai", "cursor-agent", "--no-git", "--ignore-agent-tools", "--script", "sh"],
+    )
+
+    assert result.exit_code == 0, f"init --ai cursor-agent failed: {result.output}"
+
+    content = _read_skill_with_references(
+        target / ".cursor" / "skills" / "sp-implement" / "SKILL.md"
+    )
+    lowered = content.lower()
+
+    assert "## Cursor Adaptive Execution" in content
+    assert "`Task`" in content
+    assert "Task(" in content
+    assert "`description`" in content
+    assert "`prompt`" in content
+    assert "`subagent_type`" in content
+    assert "`run_in_background`" in content
+    assert "`generalPurpose`" in content
+    assert "`explore`" in content
+    assert "`agent_id`" in content
+    assert "background completion" in lowered
+    assert "`resume`" in content
+    assert "follow-up" in lowered
+    assert "max_parallel_subagents = 4" in content
+    assert "launch the selected parallel wave before waiting" in lowered
+    assert "FEATURE_DIR/worker-results/<task-id>.json" in content
+    assert "implement result-merge" in content
+    assert "--result-json" in content
+    assert "spawn_agent" not in content
+    assert "wait_agent" not in content
+    assert "close_agent" not in content
+    assert "@generalist" not in content
+    assert ".specify/teams/state/results" not in content
+    assert "sp-teams submit-result" not in content
 
 
 def test_cursor_runtime_skills_hard_gate_project_cognition_reads(tmp_path):

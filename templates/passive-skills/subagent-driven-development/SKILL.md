@@ -38,8 +38,8 @@ Route first, choose the lightest safe execution surface, then packetize only sel
   or parallel evidence lanes.
 - Do not use old strategy labels as routing choices.
 - `sp-teams` only when Codex work needs durable team state, explicit join-point
-  tracking, result files, or lifecycle control beyond one in-session subagent
-  burst.
+  tracking, durable request-result persistence, or lifecycle control beyond one
+  in-session subagent burst.
 
 ## Process
 
@@ -53,15 +53,20 @@ Route first, choose the lightest safe execution surface, then packetize only sel
    independent or parallel lane, compile a validated `WorkerTaskPacket` from the
    current task, stable refs, and live code.
 3. **Dispatch in the current runtime**: Use the `native-subagents` surface such
-   as Codex `spawn_agent`, Claude Task, or the active CLI's equivalent. The
+   as Codex `spawn_agent`, Cursor `Task`, Claude Task, or the active CLI's
+   equivalent. The
    leader owns packet quality, lane selection, and integration, but should not
    implement the lane locally while subagent execution is active. Use
    `managed-team` only for durable team state or lifecycle control, and use
-   `leader-inline` only as the owning workflow's selected mode.
+   `leader-inline` only as the owning workflow's selected mode. Discover and
+   require only the dispatch and join operations that runtime actually exposes.
 4. **Join on evidence**: Wait for every subagent's structured handoff. The
    handoff must name changed files, cheap task checks, test impact, accepted
    gate-attempt refs, failures, open risks, and any spec or plan gaps. An idle or silent
-   subagent is not completed work.
+   subagent is not completed work. An accepted terminal result completes its
+   native lane without a separate cleanup operation; interrupt or cancel only
+   unfinished work through an operation the runtime exposes. Use the owning
+   workflow's stage result channel, never an implicit `sp-teams` result path.
 5. **Review on triggers**: Run the single task reviewer only for drift, parallel
    joins, scope violations, validation failure, worker concerns, obligation
    conflicts, real-entrypoint gaps, or review-window triggers. Integrate verdict,

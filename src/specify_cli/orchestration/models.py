@@ -18,7 +18,13 @@ DispatchShape = Literal[
     "subagent-blocked",
 ]
 ExecutionSurface = Literal["native-subagents", "leader-inline", "none"]
-NativeWorkerSurface = Literal["unknown", "none", "native-cli", "spawn_agent"]
+NativeWorkerSurface = Literal[
+    "unknown",
+    "none",
+    "native-cli",
+    "spawn_agent",
+    "cursor-task",
+]
 DelegationConfidence = Literal["low", "medium", "high"]
 EvidenceLaneMode = Literal["read-only-evidence", "ui-reference-artifact"]
 READ_ONLY_EVIDENCE_ALLOWED_OPERATIONS: tuple[str, ...] = (

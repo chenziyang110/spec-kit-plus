@@ -151,6 +151,25 @@ func attrAliasSeeds(node scanartifacts.NodeRow, evidenceID string) []aliasSeed {
 			language:   "unknown",
 		})
 	}
+	for _, semanticField := range []struct {
+		key    string
+		source string
+	}{
+		{key: "capabilities", source: "node_capability"},
+		{key: "symptoms", source: "user_symptom"},
+		{key: "user_terms", source: "user_term"},
+	} {
+		for _, alias := range attrStrings(node.Attrs, semanticField.key) {
+			seeds = append(seeds, aliasSeed{
+				alias:      alias,
+				targetID:   node.ID,
+				source:     semanticField.source,
+				confidence: defaultConfidence(node.Confidence),
+				evidenceID: evidenceID,
+				language:   "unknown",
+			})
+		}
+	}
 	return seeds
 }
 

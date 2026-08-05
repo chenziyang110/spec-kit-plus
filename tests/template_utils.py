@@ -6,16 +6,19 @@ from specify_cli.integrations.base import IntegrationBase
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 
-QUICK_CHECKPOINT_CARD_ROWS = (
-    "| request and outcome |",
-    "| user-visible result |",
-    "| scope |",
-    "| ordered work items |",
-    "| work-item acceptance |",
-    "| recommended approach |",
-    "| assumptions and risks |",
-    "| completion evidence |",
-    "| reconfirmation trigger |",
+QUICK_CHECKPOINT_CARD_MARKERS = (
+    "quick delivery checkpoint",
+    "checkpoint-stage",
+    "checkpoint-confirm",
+    "checkpoint-show",
+    "packet-compile",
+    "item-start",
+    "item-accept",
+    "confirmation_digest",
+    "delivery map",
+    "decision checkpoint",
+    "q1",
+    "reconfirmation trigger",
 )
 
 
@@ -45,16 +48,23 @@ UI_CONFIRMATION_CARD_ROWS = (
 def assert_quick_checkpoint_card_shape(content: str) -> None:
     lowered = content.lower()
 
-    assert "## quick checkpoint" in lowered
-    assert "| decision to confirm | current understanding |" in lowered
-    for row in QUICK_CHECKPOINT_CARD_ROWS:
-        assert row in lowered
+    assert "## quick delivery checkpoint" in lowered or "quick delivery checkpoint" in lowered
+    for marker in QUICK_CHECKPOINT_CARD_MARKERS:
+        assert marker in lowered, marker
+    assert "delivery map" in lowered
+    assert "pulse" in lowered
     assert "reply with `confirm`/`确认`" in lowered
     assert (
         "freeform prose" in lowered
         or "prose bullets or partial field lists are not sufficient" in lowered
         or "bullet-only confirmations do not satisfy this gate" in lowered
+        or "do not hand-author a freeform two-column" in lowered
+        or "do not hand-author a two-column" in lowered
     )
+    # Decision surface is multi-column / runtime-rendered; do not require the
+    # legacy two-column approval table for Quick.
+    assert "subagent count" in lowered or "subagent" in lowered
+    assert "never" in lowered and ("digest" in lowered or "confirmation_digest" in lowered)
 
 
 def assert_debug_checkpoint_card_shape(content: str) -> None:

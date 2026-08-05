@@ -49,6 +49,15 @@ cognition_facts:
 
 ## Understanding Checkpoint
 <!-- agent-fill:understanding_checkpoint -->
+<!-- runtime-managed:quick-confirmation-v1 -->
+
+confirmation_schema: quick-confirmation-v1
+confirmation_mode: full
+confirmation_state: unstaged
+confirmation_digest: ""
+source_kind: prompt
+semantic_delta: false
+confirmation_path: confirmation.json
 
 checkpoint:
   request_and_outcome: ""
@@ -56,6 +65,7 @@ checkpoint:
   scope:
     include: []
     exclude: []
+    defer: []
   ordered_work_items:
     - id: Q1
       deliverable: ""
@@ -87,6 +97,8 @@ ui_confirmation:
   confirmation_digest: ""
 
 agent_execution_plan:
+  note: "Agent-owned Delivery Map projection; not part of confirmation_digest."
+  delivery_map: []
   affected_surfaces: []
   execution_approach: ""
   implementation_plan: []
@@ -97,6 +109,7 @@ agent_execution_plan:
 
 ## Execution
 <!-- agent-fill:execution -->
+<!-- runtime-managed:quick-confirmation-v1 -->
 
 active_lane: ""
 join_point: ""
@@ -113,6 +126,7 @@ lanes: []
 retry_attempts: 0
 recovery_action: none
 blocker_reason: ""
+# Prefer `specify-runtime quick checkpoint-show --view pulse` over vague waiting text.
 
 ## Validation
 <!-- agent-fill:validation -->

@@ -125,14 +125,46 @@ func runDiscussion(args []string, stdout io.Writer) int {
 
 func runQuick(args []string, stdout io.Writer) int {
 	projectRoot := optionValue(args, "--project-root", ".")
+	if hasFlag(args, "--help") || hasFlag(args, "-h") {
+		env := NewEnvelope("ok", "quick command help")
+		env.Data["commands"] = []string{
+			"list",
+			"status",
+			"resume",
+			"close",
+			"archive",
+			"checkpoint-stage",
+			"checkpoint-confirm",
+			"checkpoint-show",
+			"item-start",
+			"item-accept",
+			"item-status",
+			"packet-compile",
+		}
+		return writeEnvelope(stdout, env)
+	}
 	mode := positionalArg(args, 0, "list")
 	quickID := positionalArg(args, 1, "")
 	if mode == "resume" {
 		mode = "status"
 	}
+	service := quickService{projectRoot: projectRoot}
+	switch strings.ToLower(strings.TrimSpace(mode)) {
+	case "checkpoint-stage", "checkpoint-confirm", "checkpoint-show":
+		env, err := service.runCheckpoint(mode, quickID, args)
+		if err != nil {
+			return writeEnvelope(stdout, scriptDomainError("quick", err))
+		}
+		return writeEnvelope(stdout, env)
+	case "item-start", "item-accept", "item-status", "packet-compile":
+		env, err := service.runExecution(mode, quickID, args)
+		if err != nil {
+			return writeEnvelope(stdout, scriptDomainError("quick", err))
+		}
+		return writeEnvelope(stdout, env)
+	}
 	targetStatus := optionValue(args, "--status", positionalArg(args, 2, ""))
 	includeAll := hasFlag(args, "--all")
-	service := quickService{projectRoot: projectRoot}
 	env, err := service.run(mode, quickID, targetStatus, includeAll)
 	if err != nil {
 		return writeEnvelope(stdout, scriptDomainError("quick", err))
@@ -1100,12 +1132,14 @@ func (service discussionService) bindConsumer(slug, featureDir string, input map
 		status = "blocked"
 		nextAction = "/sp.specify"
 	}
+	sourceContract := fmt.Sprintf(".specify/discussions/%s/handoff-to-specify.json", slug)
+	reviewDigest := stringValue(source["review_digest"])
 	payload := map[string]any{
 		"version":         3,
 		"status":          status,
 		"entry_source":    "sp-discussion",
 		"discussion_slug": slug,
-		"source_contract": fmt.Sprintf(".specify/discussions/%s/handoff-to-specify.json", slug),
+		"source_contract": sourceContract,
 		"review_digest":   source["review_digest"],
 		"semantic_delta":  input["semantic_delta"],
 		"required_refs":   input["required_refs"],
@@ -1114,6 +1148,19 @@ func (service discussionService) bindConsumer(slug, featureDir string, input map
 		"recovery":        input["recovery"],
 	}
 	target := filepath.Join(featurePath, "brainstorming", "handoff-to-specify.json")
+	if _, statErr := os.Stat(target); statErr == nil {
+		existing, readErr := readJSONMap(target)
+		if readErr != nil {
+			return nil, fmt.Errorf("feature consumer handoff already exists but is invalid; refusing to overwrite")
+		}
+		if stringValue(existing["discussion_slug"]) != slug ||
+			stringValue(existing["source_contract"]) != sourceContract ||
+			stringValue(existing["review_digest"]) != reviewDigest {
+			return nil, fmt.Errorf("feature consumer handoff is already bound to a different discussion contract")
+		}
+	} else if !errors.Is(statErr, os.ErrNotExist) {
+		return nil, fmt.Errorf("feature consumer handoff cannot be inspected: %w", statErr)
+	}
 	if err := writeScriptJSONFile(target, payload); err != nil {
 		return nil, err
 	}
@@ -1759,7 +1806,11 @@ func (service quickService) closeTask(task map[string]any, statusValue string) e
 	if statusValue != "resolved" && statusValue != "blocked" {
 		return fmt.Errorf("close requires status resolved or blocked")
 	}
-	return service.updateStatusFile(stringValue(task["workspace_path"]), func(frontmatter map[string]string) {
+	workspacePath := stringValue(task["workspace_path"])
+	if err := service.validateCloseAgainstConfirmation(workspacePath, statusValue); err != nil {
+		return err
+	}
+	return service.updateStatusFile(workspacePath, func(frontmatter map[string]string) {
 		ts := nowUTCString()
 		frontmatter["status"] = statusValue
 		frontmatter["updated"] = ts
