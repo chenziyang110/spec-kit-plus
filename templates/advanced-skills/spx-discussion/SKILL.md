@@ -50,16 +50,17 @@ user to "start implementation".
 At the handoff routing gate, present both routes and their eligibility: canonical
 `sp-quick` for direct execution with task-local planning and canonical
 `sp-specify` for the formal specification-first pipeline; explain any blocker
-and expose the selected route later as `$spx-quick` or `$spx-specify`. Recommend
-among eligible routes by whether a formal durable specification chain is needed,
-not by raw size or capability count: favor Quick when the outcome is clear enough
-for confirmed direct delivery—even multi-capability, architecture, migration,
-compatibility, rollout, or acceptance-heavy work—because Quick owns a multi-Q
-Decision Checkpoint, Delivery Map, and acceptance DAG; favor Specify when
-requirements remain ambiguous, key decisions are unlocked, interacting systems
-need formal traceability, or the user wants a durable specification-first chain.
-Complexity alone is not a reason to leave Quick. The user owns the final
-consumer choice and may choose either eligible route against the recommendation. Do not write the
+and expose the selected route later as `$spx-quick` or `$spx-specify`. Give a
+complexity-informed recommendation among eligible routes by whether a formal
+durable specification chain is needed, not by raw size or capability count:
+favor Quick when the outcome is clear enough for confirmed direct
+delivery—even multi-capability, architecture, migration, compatibility,
+rollout, or acceptance-heavy work—because Quick owns a multi-Q Decision
+Checkpoint, Delivery Map, and acceptance DAG; favor Specify when requirements
+remain ambiguous, key decisions are unlocked, interacting systems need formal
+traceability, or the user wants a durable specification-first chain. Complexity
+alone is not a reason to leave Quick. The user owns the final consumer choice
+and may choose either eligible route against the recommendation. Do not write the
 handoff until the user has selected an eligible consumer. If no explicit choice
 exists, ask one route-choice question and stay in this discussion. A contextual
 `yes`, `ok`, or `可以` selects the recommendation only when it directly answers

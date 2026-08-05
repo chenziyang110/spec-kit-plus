@@ -174,7 +174,6 @@ REQUIRED_CAPABILITIES = (
     "run.cancel",
     "run.create",
     "run.events",
-    "run.integrate",
     "run.show",
     "run.supervise",
     "sp-teams.auto-dispatch",

@@ -2150,6 +2150,7 @@ def test_non_skills_integrations_do_not_install_spx(tmp_path) -> None:
 def test_init_can_install_both_profiles_without_losing_either(
     tmp_path,
     profile_order,
+    unified_runtime_env,
 ) -> None:
     project = tmp_path / "project"
     project.mkdir()
@@ -2226,6 +2227,7 @@ def test_init_can_install_both_profiles_without_losing_either(
 
 def test_advanced_only_codex_repair_restores_runtime_without_unrelated_classic_skill(
     tmp_path,
+    unified_runtime_env,
 ) -> None:
     project = tmp_path / "project"
     project.mkdir()
