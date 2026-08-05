@@ -6,6 +6,7 @@ description: Tracked direct-delivery workflow for advanced coding models. Use wh
 # SPX Quick
 
 Read `references/project-learning.md` and apply its consume-capture policy.
+Read `references/native-subagents.md` when task lanes are delegated.
 Read `references/project-cognition.md`, using cognition intent `implement`.
 Read `references/run-bootstrap.md`.
 Read `references/human-confirmation.md`, then `references/task-contract.md`.
@@ -44,23 +45,31 @@ and fill only the returned semantic anchors. Resume an existing
 Keep state compact and ask the user only for decisions the repository cannot
 supply.
 
-Initialize or preserve the unconfirmed intake state and render the Quick card
-from `references/human-confirmation.md`. For applicable UI work, append its UI
-implementation proposal, then ask once for both decisions. Wait for user
-confirmation before broad source or test reads, delegation, implementation, or
-validation. Persist the main and UI confirmations separately only after
-confirmation; keep the technical execution plan agent-owned.
+Initialize or preserve the unconfirmed intake state, then stage a
+`quick-confirmation-v1` contract with
+`{{specify-subcmd:specify-runtime quick checkpoint-stage <id> --input-json '<decision+delivery>' --format json}}`
+and render the runtime Decision Checkpoint plus Delivery Map from
+`references/human-confirmation.md`. For applicable UI work, include
+`decision.ui_confirmation` and append its UI proposal. For staged non-inherited
+checkpoints, ask once for both decisions and bind with
+`{{specify-subcmd:specify-runtime quick checkpoint-confirm <id> --digest <confirmation_digest> --format json}}`.
+During execution, prefer
+`{{specify-subcmd:specify-runtime quick checkpoint-show <id> --view pulse --format json}}`
+over vague waiting text. Keep Delivery Map, waves, subagents, and file splits
+agent-owned; they never enter `confirmation_digest`.
 
 When intake names `.specify/discussions/<slug>/handoff-to-specify.json`, query it through `specify-runtime artifact show` and consume
 it only when it is handoff-ready, its digests are current, it has zero blocking
 decisions, and `consumer_eligibility.sp-quick.status: ready`, except for the
 legacy size/breadth-only override below. With no semantic
-delta, bind confirmation to the handoff review digest; otherwise present the
-changed checkpoint. A legacy size-, capability-, architecture-, migration-,
-acceptance-, or consequence-breadth-only Quick block is obsolete routing advice:
-keep the source immutable, present a fresh Quick checkpoint bound to its digest,
-and continue only after the user's explicit Quick confirmation. Return to
-discussion for an unconfirmed, contradictory, or decision-blocked contract.
+delta, stage inheritance with the handoff `review_digest` and continue without
+re-confirmation; show the binding summary plus Delivery Map/Pulse. With a
+semantic delta, stage only the changed decision rows and confirm the new digest.
+A legacy size-, capability-, architecture-, migration-, acceptance-, or
+consequence-breadth-only Quick block is obsolete routing advice: keep the source
+immutable, stage a Quick checkpoint bound to its digest, and continue under the
+inheritance or delta rules above. Return to discussion for an unconfirmed,
+contradictory, or decision-blocked contract.
 Honor `$spx-specify` only when the user explicitly selected the formal spec-first
 path, not as an automatic upgrade.
 After binding a confirmed discussion contract and its `review_digest` into the
@@ -86,7 +95,12 @@ sampling or an unverified surface leaves the task blocked.
 
 For UI work, record design sources, affected states/viewports, visual
 acceptance, direction source/signature, reference intents, real content/image
-sources, and the structure/visual/runtime evidence triad in `STATUS.md`. Preserve original visual references and
+sources, and the structure/visual/runtime evidence triad in `STATUS.md`. When
+approved `DESIGN.md` is the basis, pin its approved visual ref,
+preview/manifest/handoff SHA-256 values, immutable handoff ref, and selected
+`DS-*`/`DH-*` rows in `STATUS.md` and every UI worker contract. An active Quick
+task must not silently adopt a later design approval; adoption requires a
+confirmed UI checkpoint amendment with the replacement binding. Preserve original visual references and
 run the UI gate's real-entrypoint capture/inspect/refine loop. Escalate a new
 visual direction to `$spx-design`. Keep multi-surface or acceptance-heavy UI in
 Quick and expand its task-local plan, batches, viewport/state matrix, and

@@ -1,7 +1,9 @@
 import json
 import hashlib
 import os
+import re
 from concurrent.futures import ThreadPoolExecutor
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -18,11 +20,26 @@ from specify_cli.debug.schema import (
     ValidationCheck,
 )
 from specify_cli.learnings import (
+    AutoCaptureSuggestion,
+    assess_learning_candidate,
     build_learning_paths,
+    capture_auto_learning,
     capture_learning,
+    learning_metrics_payload,
+    learning_review_status,
     list_learning_summaries,
     normalize_command_name,
     read_learning_entries,
+    sanitize_agent_text,
+    show_learning_detail,
+    start_learning_session,
+    promote_learning,
+    review_learning,
+)
+from specify_cli.learning_policy import (
+    LearningPolicyError,
+    learning_policy_digest,
+    parse_learning_policy,
 )
 from specify_cli.launcher import SpecifyLauncherSpec, render_command, write_project_specify_launcher_config
 from specify_cli.workflow_runtime import (
@@ -36,6 +53,814 @@ pytestmark = pytest.mark.usefixtures("unified_runtime_env")
 
 
 runner = CliRunner()
+
+
+def test_project_learning_assessment_fixture_matches_python_compatibility() -> None:
+    fixture = json.loads(
+        (Path(__file__).parent / "fixtures" / "project_learning_assessment_v1.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    for case in fixture["text_cases"]:
+        policy = parse_learning_policy(case.get("policy"))
+        sanitized, labels = sanitize_agent_text(case["input"], policy=policy)
+        assert labels == case["expected_labels"], case["id"]
+        if "expected_output" in case:
+            assert sanitized == case["expected_output"], case["id"]
+        assert all(value in sanitized for value in case["expected_contains"]), case[
+            "id"
+        ]
+        assert not any(
+            value in sanitized for value in case["forbidden_contains"]
+        ), case["id"]
+
+    for case in fixture["assessment_cases"]:
+        assessment = assess_learning_candidate(
+            source=case["source"],
+            learning_type=case["learning_type"],
+            signal_strength=case["signal_strength"],
+            occurrences=case["occurrences"],
+            summary=case["summary"],
+            evidence=case["evidence"],
+            recommended_action=case["recommended_action"],
+            trigger_signals=case["trigger_signals"],
+            policy=parse_learning_policy(case.get("policy")),
+        )
+        assert assessment.learning_value_tier == case["expected_value_tier"], case[
+            "id"
+        ]
+        assert list(assessment.learning_value_reason_codes) == case[
+            "expected_reason_codes"
+        ], case["id"]
+        assert assessment.assessment_decision == case["expected_decision"], case[
+            "id"
+        ]
+
+
+def test_project_learning_fingerprint_matches_cross_runtime_golden() -> None:
+    from specify_cli.learning_policy import default_learning_policy
+    from specify_cli.learnings import _snapshot_fingerprint
+
+    suggestion = AutoCaptureSuggestion(
+        learning_type="tooling_trap",
+        recurrence_key="sp-plan.runtime-boundary",
+        signal_strength="medium",
+        summary="Verify the runtime boundary first.",
+        evidence="The runner mismatch caused the failure.",
+    )
+
+    assert _snapshot_fingerprint(
+        "sp-plan",
+        "specs/demo/workflow-state.md",
+        [suggestion],
+        policy=default_learning_policy(),
+    ) == "47ba691a336c90c16cc5dc83101eea72bc29152ede042211b44158777200644e"
+
+
+def test_project_learning_policy_digest_matches_cross_runtime_golden() -> None:
+    policy = parse_learning_policy(
+        {
+            "detectors": {
+                "secret_prefixes": ["Acme_"],
+                "sensitive_key_names": ["customer_secret"],
+                "business_id_prefixes": ["CUST-"],
+                "sensitive_terms": ["Project Zephyr"],
+            },
+            "deferred_review_days": 14,
+        }
+    )
+
+    assert learning_policy_digest(policy) == (
+        "bca349b678b400f54197abc387a0b0441ab3087fc7fb75c63c936753f4da98d1"
+    )
+
+
+def test_learning_policy_detector_order_is_overlap_safe_and_order_independent() -> None:
+    forward = parse_learning_policy(
+        {"detectors": {"sensitive_terms": ["Project", "Project Zephyr"]}}
+    )
+    reverse = parse_learning_policy(
+        {"detectors": {"sensitive_terms": ["Project Zephyr", "Project"]}}
+    )
+
+    assert forward.detectors.sensitive_terms == ("Project Zephyr", "Project")
+    assert forward == reverse
+    assert learning_policy_digest(forward) == learning_policy_digest(reverse)
+    assert sanitize_agent_text(
+        "Project Zephyr requires review.", policy=forward
+    ) == (
+        "[REDACTED_ORG_TERM] requires review.",
+        ["organization_sensitive"],
+    )
+
+
+def test_learning_policy_invalid_read_falls_back_but_writes_fail_closed(
+    tmp_path: Path,
+) -> None:
+    _seed_learning_templates(tmp_path)
+    config_path = tmp_path / ".specify" / "config.json"
+    config_path.write_text('{"project_learning": null}\n', encoding="utf-8")
+    before = {
+        path.relative_to(tmp_path).as_posix(): path.read_bytes()
+        for path in tmp_path.rglob("*")
+        if path.is_file()
+    }
+
+    payload = list_learning_summaries(tmp_path, command_name="plan")
+
+    assert "project_learning_policy_invalid:using_builtin_policy" in payload[
+        "warnings"
+    ]
+    assert before == {
+        path.relative_to(tmp_path).as_posix(): path.read_bytes()
+        for path in tmp_path.rglob("*")
+        if path.is_file()
+    }
+    with pytest.raises(LearningPolicyError, match="write was rejected"):
+        capture_learning(
+            tmp_path,
+            command_name="plan",
+            learning_type="workflow_gap",
+            summary="Preserve the route.",
+            evidence="The route was lost.",
+        )
+
+
+def test_learning_capture_auto_dry_run_is_compact_and_zero_mutation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _seed_learning_templates(tmp_path)
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    source = workspace / "state.md"
+    source.write_text("first snapshot\n", encoding="utf-8")
+
+    def suggest(*_args, **_kwargs):
+        return source, [
+            AutoCaptureSuggestion(
+                learning_type="tooling_trap",
+                summary="Verify the runner boundary before changing code.",
+                evidence="The runner boundary caused the failure.",
+                recurrence_key="sp-quick.runner-boundary",
+                signal_strength="medium",
+                recommended_action="Check the runner boundary first.",
+                trigger_signals=("tooling_trap",),
+            )
+        ]
+
+    monkeypatch.setattr("specify_cli.learnings._suggest_quick_auto_capture", suggest)
+    before = {
+        path.relative_to(tmp_path).as_posix(): path.read_bytes()
+        for path in tmp_path.rglob("*")
+        if path.is_file()
+    }
+
+    payload = capture_auto_learning(
+        tmp_path,
+        command_name="quick",
+        workspace=Path("workspace"),
+        dry_run=True,
+    )
+
+    assert payload["status"] == "dry-run"
+    assert payload["captured"] == []
+    assert set(payload["assessed"][0]) == {
+        "type",
+        "summary",
+        "action",
+        "recurrence_key",
+        "assessment",
+    }
+    assert before == {
+        path.relative_to(tmp_path).as_posix(): path.read_bytes()
+        for path in tmp_path.rglob("*")
+        if path.is_file()
+    }
+
+
+def test_learning_policy_added_after_storage_redacts_read_boundary_without_write(
+    tmp_path: Path,
+) -> None:
+    _seed_learning_templates(tmp_path)
+    capture_learning(
+        tmp_path,
+        command_name="debug",
+        learning_type="pitfall",
+        summary="Project Zephyr requires the fallback route.",
+        evidence="Project Zephyr failed on the primary route.",
+        recurrence_key="sp-debug.project-zephyr-fallback",
+    )
+    config_path = tmp_path / ".specify" / "config.json"
+    config_path.write_text(
+        json.dumps(
+            {
+                "project_learning": {
+                    "detectors": {"sensitive_terms": ["Project Zephyr"]}
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    candidates = build_learning_paths(tmp_path).candidates
+    before = candidates.read_bytes()
+
+    card = list_learning_summaries(tmp_path, command_name="debug")["items"][0]
+    detail = show_learning_detail(tmp_path, learning_ref=card["ref"])
+    serialized = json.dumps({"card": card, "detail": detail})
+
+    assert "Project Zephyr" not in serialized
+    assert "redacted-org-term" in card["ref"]
+    assert candidates.read_bytes() == before
+
+
+def test_learning_policy_added_after_unknown_command_keeps_legacy_learning_consumable(
+    tmp_path: Path,
+) -> None:
+    _seed_learning_templates(tmp_path)
+    capture_learning(
+        tmp_path,
+        command_name="zephyr-flow",
+        learning_type="pitfall",
+        summary="Preserve the custom workflow boundary.",
+        evidence="The custom workflow boundary changed future action.",
+        recurrence_key="sp-zephyr-flow.custom-boundary",
+    )
+    (tmp_path / ".specify" / "config.json").write_text(
+        json.dumps(
+            {
+                "project_learning": {
+                    "detectors": {"sensitive_terms": ["zephyr"]}
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    paths = build_learning_paths(tmp_path)
+    before = {
+        path: path.read_bytes()
+        for path in (
+            paths.candidates,
+            paths.confirmed_learnings,
+            paths.project_rules,
+            paths.learning_index,
+        )
+        if path.is_file()
+    }
+
+    listed = list_learning_summaries(tmp_path, command_name="zephyr-flow")
+
+    assert listed["command"] == "sp-other"
+    assert len(listed["items"]) == 1
+    assert "sp-other" in listed["items"][0]["applies_to"]
+    assert "zephyr" not in json.dumps(listed).lower()
+    assert before == {path: path.read_bytes() for path in before}
+
+
+def test_learning_review_queue_metrics_and_status_are_aggregate_safe(
+    tmp_path: Path,
+) -> None:
+    _seed_learning_templates(tmp_path)
+    review_learning(
+        tmp_path,
+        command_name="debug",
+        decision="deferred",
+        rationale="Wait for token=private-value from ops@example.com.",
+    )
+    status_before = learning_review_status(tmp_path, command_name="debug")
+    with pytest.raises(ValueError, match="cannot be closed"):
+        review_learning(
+            tmp_path,
+            command_name="debug",
+            decision="none",
+        )
+    with pytest.raises(ValueError, match="no matching durable"):
+        review_learning(
+            tmp_path,
+            command_name="debug",
+            decision="captured",
+        )
+
+    capture = capture_learning(
+        tmp_path,
+        command_name="debug",
+        learning_type="recovery_path",
+        summary="Run scoped validation after recovery.",
+        evidence="The validation proved the recovery.",
+        recurrence_key="sp-debug.scoped-recovery-validation",
+        recommended_action="Run scoped validation before resolving.",
+    )
+    status_after = learning_review_status(tmp_path, command_name="debug")
+    metrics = learning_metrics_payload(tmp_path, command_name="debug")
+    metrics_text = (tmp_path / ".planning" / "learnings" / "metrics.json").read_text(
+        encoding="utf-8"
+    )
+
+    assert status_before["pending"] == 1
+    assert "items" not in status_before
+    assert "private-value" not in json.dumps(status_before)
+    assert status_after["pending"] == 0
+    assert capture["entry"]["recurrence_key"] == "sp-debug.scoped-recovery-validation"
+    assert metrics["metrics"]["totals"]["assessed"] == 1
+    assert metrics["derived"]["confirmation_rate"] == 0.0
+    assert set(metrics["metrics"]) == {
+        "totals",
+        "decisions",
+        "value_tiers",
+        "risk_tiers",
+        "reason_codes",
+        "redaction_labels",
+    }
+    assert "private-value" not in metrics_text
+    assert "ops@example.com" not in metrics_text
+
+
+def test_learning_review_write_migrates_legacy_pending_without_duplicate(
+    tmp_path: Path,
+) -> None:
+    _seed_learning_templates(tmp_path)
+    signal_path = tmp_path / ".planning" / "learnings" / "signal-state.json"
+    signal_path.parent.mkdir(parents=True, exist_ok=True)
+    signal_path.write_text(
+        json.dumps(
+            {
+                "debug": {
+                    "command": "sp-debug",
+                    "observed_at": "2026-08-01T00:00:00Z",
+                    "learning_review": {
+                        "decision": "deferred",
+                        "rationale": "legacy pending review",
+                        "deferred_at": "2026-08-01T00:00:00Z",
+                    },
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    assert learning_review_status(tmp_path, command_name="debug")["pending"] == 1
+    assert not (
+        tmp_path / ".planning" / "learnings" / "review-state.json"
+    ).exists()
+
+    review_learning(
+        tmp_path,
+        command_name="debug",
+        decision="deferred",
+        rationale="canonical pending review",
+    )
+
+    assert learning_review_status(tmp_path, command_name="debug")["pending"] == 1
+    legacy = json.loads(signal_path.read_text(encoding="utf-8"))
+    assert "learning_review" not in legacy["debug"]
+
+
+def test_learning_review_cleanup_scrubs_touched_legacy_signal_state(
+    tmp_path: Path,
+) -> None:
+    _seed_learning_templates(tmp_path)
+    (tmp_path / ".specify" / "config.json").write_text(
+        json.dumps(
+            {
+                "project_learning": {
+                    "detectors": {"sensitive_terms": ["Project Zephyr"]}
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    signal_path = tmp_path / ".planning" / "learnings" / "signal-state.json"
+    signal_path.parent.mkdir(parents=True, exist_ok=True)
+    signal_path.write_text(
+        json.dumps(
+            {
+                "debug": {
+                    "command": "sp-debug",
+                    "pain_score": 8,
+                    "factors": {
+                        "retry_attempts": 2,
+                        "token=bad-factor": "token=bad-value",
+                    },
+                    "false_starts": ["retried with token=legacy-secret"],
+                    "hidden_dependencies": [
+                        "Project Zephyr needs ops@example.com approval"
+                    ],
+                    "trigger_signals": [
+                        "user_correction: Project Zephyr raw detail"
+                    ],
+                    "observed_at": "bad time token=timestamp-secret",
+                    "learning_review": {
+                        "decision": "deferred",
+                        "rationale": "wait for token=review-secret",
+                        "deferred_at": "bad time ops@example.com",
+                    },
+                    "unknown": "token=unknown-secret",
+                },
+                "plan": {
+                    "command": "sp-plan",
+                    "false_starts": ["email other@example.com"],
+                    "observed_at": "invalid token=other-time",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    review_learning(
+        tmp_path,
+        command_name="debug",
+        decision="deferred",
+        rationale="Keep a canonical pending review.",
+    )
+
+    serialized = signal_path.read_text(encoding="utf-8")
+    for raw in (
+        "legacy-secret",
+        "review-secret",
+        "timestamp-secret",
+        "unknown-secret",
+        "other-time",
+        "Project Zephyr",
+        "ops@example.com",
+        "other@example.com",
+        "bad-factor",
+        "bad-value",
+    ):
+        assert raw not in serialized
+    state = json.loads(serialized)
+    assert "learning_review" not in state["debug"]
+    assert state["debug"]["observed_at"] == ""
+    assert state["plan"]["observed_at"] == ""
+    assert state["debug"]["content_safety"]["sensitivity"] == "sanitized"
+
+
+@pytest.mark.parametrize(
+    ("target", "confirm"),
+    [("learning", False), ("rule", True)],
+)
+def test_learning_promotion_refreshes_durable_transition_and_clears_review(
+    tmp_path: Path,
+    target: str,
+    confirm: bool,
+) -> None:
+    _seed_learning_templates(tmp_path)
+    recurrence_key = f"sp-debug.promote-review-{target}"
+    capture_learning(
+        tmp_path,
+        command_name="debug",
+        learning_type="pitfall",
+        summary=f"Promotion to {target} preserves the durable boundary.",
+        evidence=f"Promotion to {target} proved the reusable behavior.",
+        recurrence_key=recurrence_key,
+        confirm=confirm,
+    )
+    review_learning(
+        tmp_path,
+        command_name="debug",
+        decision="deferred",
+        rationale="Wait for the durable promotion transition.",
+        recurrence_key=recurrence_key,
+    )
+
+    promoted = promote_learning(
+        tmp_path, recurrence_key=recurrence_key, target=target
+    )
+
+    assert promoted["status"] == (
+        "confirmed" if target == "learning" else "promoted-rule"
+    )
+    assert learning_review_status(tmp_path, command_name="debug")["pending"] == 0
+
+
+def test_learning_review_explicit_recurrence_does_not_consume_other_pending_key(
+    tmp_path: Path,
+) -> None:
+    _seed_learning_templates(tmp_path)
+    recurrence_a = "sp-debug.review-specific-a"
+    recurrence_b = "sp-debug.review-specific-b"
+    for recurrence in (recurrence_a, recurrence_b):
+        capture_learning(
+            tmp_path,
+            command_name="debug",
+            learning_type="pitfall",
+            summary=f"Durable behavior for {recurrence} changes future action.",
+            evidence=f"Evidence for {recurrence} proves the reusable boundary.",
+            recurrence_key=recurrence,
+        )
+    review_learning(
+        tmp_path,
+        command_name="debug",
+        decision="deferred",
+        rationale="Only recurrence B remains pending.",
+        recurrence_key=recurrence_b,
+    )
+
+    result = review_learning(
+        tmp_path,
+        command_name="debug",
+        decision="captured",
+        recurrence_key=recurrence_a,
+    )
+
+    assert result["recurrence_key"] == recurrence_a
+    assert learning_review_status(tmp_path, command_name="debug")["pending"] == 1
+
+
+def test_learning_review_rejects_malformed_durable_freshness(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _seed_learning_templates(tmp_path)
+    recurrence_key = "sp-debug.malformed-review-freshness"
+    capture_learning(
+        tmp_path,
+        command_name="debug",
+        learning_type="pitfall",
+        summary="Malformed freshness cannot prove a durable transition.",
+        evidence="A malformed durable timestamp must fail closed.",
+        recurrence_key=recurrence_key,
+    )
+    review_learning(
+        tmp_path,
+        command_name="debug",
+        decision="deferred",
+        rationale="Wait for a fresh durable transition.",
+        recurrence_key=recurrence_key,
+    )
+    entry = read_learning_entries(build_learning_paths(tmp_path).candidates)[1][0]
+    entry.last_seen = "not-a-timestamp"
+    monkeypatch.setattr(
+        "specify_cli.learnings._durable_learning_entries", lambda _root: [entry]
+    )
+
+    with pytest.raises(ValueError, match="no matching durable"):
+        review_learning(
+            tmp_path,
+            command_name="debug",
+            decision="captured",
+            recurrence_key=recurrence_key,
+        )
+
+    assert learning_review_status(tmp_path, command_name="debug")["pending"] == 1
+
+
+def test_learning_review_without_key_closes_multiple_specifics_only_after_all_are_fresh(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _seed_learning_templates(tmp_path)
+    recurrences = [
+        "sp-debug.batch-review-a",
+        "sp-debug.batch-review-b",
+    ]
+    for recurrence in recurrences:
+        capture_learning(
+            tmp_path,
+            command_name="debug",
+            learning_type="pitfall",
+            summary=f"Batch review behavior for {recurrence} changes future action.",
+            evidence=f"Evidence for {recurrence} proves the reusable boundary.",
+            recurrence_key=recurrence,
+        )
+        review_learning(
+            tmp_path,
+            command_name="debug",
+            decision="deferred",
+            rationale=f"Wait for a fresh transition for {recurrence}.",
+            recurrence_key=recurrence,
+        )
+    entries = read_learning_entries(build_learning_paths(tmp_path).candidates)[1]
+    for entry in entries:
+        entry.last_seen = "9999-01-01T00:00:00Z"
+    monkeypatch.setattr(
+        "specify_cli.learnings._durable_learning_entries", lambda _root: entries
+    )
+
+    result = review_learning(
+        tmp_path,
+        command_name="debug",
+        decision="captured",
+    )
+
+    assert result["recurrence_keys"] == recurrences
+    assert learning_review_status(tmp_path, command_name="debug")["pending"] == 0
+
+
+def test_learning_start_candidate_quota_prioritizes_value_and_diversity(
+    tmp_path: Path,
+) -> None:
+    _seed_learning_templates(tmp_path)
+    for index in range(15):
+        capture_learning(
+            tmp_path,
+            command_name="debug",
+            learning_type="workflow_gap",
+            summary=f"Stable workflow lesson {index} preserves re-entry state.",
+            evidence=f"Stable evidence {index} proved the re-entry requirement.",
+            recurrence_key=f"sp-debug.stable-workflow-{index}",
+            applies_to=["debug"],
+            confirm=True,
+        )
+    candidate_types = [
+        "pitfall",
+        "pitfall",
+        "pitfall",
+        "pitfall",
+        "tooling_trap",
+        "recovery_path",
+        "near_miss",
+    ]
+    for index, learning_type in enumerate(candidate_types):
+        capture_learning(
+            tmp_path,
+            command_name="debug",
+            learning_type=learning_type,
+            summary=f"Candidate {learning_type} lesson {index} changes future action.",
+            evidence=f"Candidate evidence {index} proved the reusable behavior.",
+            recurrence_key=f"sp-debug.{learning_type}-family-{index}",
+        )
+
+    intake = start_learning_session(tmp_path, command_name="debug")
+    candidates = [
+        item for item in intake["items"] if item["source_layer"] == "candidate"
+    ]
+    counts: dict[str, int] = {}
+    for item in candidates:
+        counts[item["type"]] = counts.get(item["type"], 0) + 1
+
+    assert len(intake["items"]) == 20
+    assert len(candidates) == 5
+    assert len(counts) >= 3
+    assert max(counts.values()) <= 2
+
+
+def test_learning_start_preserves_value_rank_within_candidate_layer(
+    tmp_path: Path,
+) -> None:
+    from specify_cli.learnings import _write_entries
+
+    _seed_learning_templates(tmp_path)
+    medium_ref = "sp-debug.aaa-medium-value"
+    high_ref = "sp-debug.zzz-high-value"
+    for recurrence_key in (medium_ref, high_ref):
+        capture_learning(
+            tmp_path,
+            command_name="debug",
+            learning_type="pitfall",
+            summary=f"Candidate {recurrence_key} changes future action.",
+            evidence=f"Candidate {recurrence_key} proved the reusable boundary.",
+            recurrence_key=recurrence_key,
+        )
+    candidates_path = build_learning_paths(tmp_path).candidates
+    preamble, entries = read_learning_entries(candidates_path)
+    medium = next(entry for entry in entries if entry.recurrence_key == medium_ref)
+    medium.learning_value_tier = "medium"
+    medium.learning_value_reason_codes = ["high_signal"]
+    medium.sensitivity_risk_tier = "none"
+    medium.assessment_decision = "capture-safe"
+    medium.assessment_reason = "safe_content"
+    _write_entries(candidates_path, preamble, entries)
+
+    intake = start_learning_session(tmp_path, command_name="debug")
+    candidate_refs = [
+        item["ref"]
+        for item in intake["items"]
+        if item["source_layer"] == "candidate"
+    ]
+
+    assert candidate_refs == [high_ref, medium_ref]
+
+
+def test_learning_capture_auto_reassesses_recurrence_with_existing_occurrence(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _seed_learning_templates(tmp_path)
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    source = workspace / "state.md"
+    source.write_text("first environment mismatch\n", encoding="utf-8")
+
+    def suggest(*_args, **_kwargs):
+        return source, [
+            AutoCaptureSuggestion(
+                learning_type="tooling_trap",
+                summary="Verify the runtime boundary before changing product code.",
+                evidence=source.read_text(encoding="utf-8"),
+                recurrence_key="sp-quick.runtime-boundary",
+                signal_strength="medium",
+                recommended_action="Check the runtime boundary first.",
+                trigger_signals=("tooling_trap",),
+            )
+        ]
+
+    monkeypatch.setattr("specify_cli.learnings._suggest_quick_auto_capture", suggest)
+    first = capture_auto_learning(
+        tmp_path, command_name="quick", workspace=Path("workspace")
+    )
+    source.write_text("second distinct environment mismatch\n", encoding="utf-8")
+    second = capture_auto_learning(
+        tmp_path, command_name="quick", workspace=Path("workspace")
+    )
+
+    assert first["assessed"][0]["assessment"]["learning_value"]["tier"] == "medium"
+    assert second["assessed"][0]["assessment"]["learning_value"] == {
+        "tier": "high",
+        "reason_codes": ["repeated_occurrence", "tooling_trap"],
+    }
+    assert second["captured"][0]["entry"]["occurrence_count"] == 2
+
+
+def test_learning_review_status_derives_aging_without_mutation(tmp_path: Path) -> None:
+    _seed_learning_templates(tmp_path)
+    review_learning(
+        tmp_path,
+        command_name="plan",
+        decision="deferred",
+        rationale="Wait for a safe abstraction.",
+    )
+    review_path = tmp_path / ".planning" / "learnings" / "review-state.json"
+    state = json.loads(review_path.read_text(encoding="utf-8"))
+    state["items"][0].update(
+        {
+            "created_at": "2026-05-01T00:00:00Z",
+            "updated_at": "2026-05-01T00:00:00Z",
+            "review_after": "2026-05-08T00:00:00Z",
+        }
+    )
+    review_path.write_text(json.dumps(state), encoding="utf-8")
+    before = review_path.read_bytes()
+
+    status = learning_review_status(
+        tmp_path,
+        command_name="plan",
+        current_time=datetime(2026, 8, 4, tzinfo=UTC),
+    )
+
+    assert status["pending"] == 1
+    assert status["overdue"] == 1
+    assert status["age_buckets"]["due_over_30_days"] == 1
+    assert "items" not in status
+    assert review_path.read_bytes() == before
+
+
+def test_learning_policy_rejects_unknown_regex_and_control_literals() -> None:
+    with pytest.raises(LearningPolicyError, match="unsupported fields"):
+        parse_learning_policy({"detectors": {"patterns": [".*"]}})
+    with pytest.raises(LearningPolicyError, match="control characters"):
+        parse_learning_policy(
+            {"detectors": {"sensitive_terms": ["unsafe\u0085term"]}}
+        )
+
+
+def test_learning_custom_sensitive_command_is_canonicalized_to_sp_other(
+    tmp_path: Path,
+) -> None:
+    _seed_learning_templates(tmp_path)
+    (tmp_path / ".specify" / "config.json").write_text(
+        json.dumps(
+            {
+                "project_learning": {
+                    "detectors": {"sensitive_terms": ["zephyr"]}
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    capture = capture_learning(
+        tmp_path,
+        command_name="zephyr-flow",
+        learning_type="pitfall",
+        summary="Preserve the custom workflow boundary.",
+        evidence="The custom workflow boundary changed future action.",
+        recurrence_key="sp-zephyr-flow.custom-boundary",
+    )
+    review = review_learning(
+        tmp_path,
+        command_name="zephyr-flow",
+        decision="deferred",
+        rationale="Wait for the owner review.",
+    )
+    listed = list_learning_summaries(tmp_path, command_name="zephyr-flow")
+    storage = "\n".join(
+        path.read_text(encoding="utf-8")
+        for root in (
+            tmp_path / ".planning" / "learnings",
+            tmp_path / ".specify" / "memory" / "learnings",
+        )
+        if root.exists()
+        for path in root.rglob("*")
+        if path.is_file()
+    ).lower()
+
+    assert capture["entry"]["source_command"] == "sp-other"
+    assert "sp-other" in capture["entry"]["applies_to"]
+    assert capture["assessment"]["content_safety"] == {
+        "sensitivity": "sanitized",
+        "risk_tier": "high",
+        "redaction_labels": ["organization_sensitive"],
+    }
+    assert capture["assessment"]["decision"] == "capture-sanitized"
+    assert review["item"]["command"] == "sp-other"
+    assert listed["command"] == "sp-other"
+    assert listed["items"]
+    assert "zephyr" not in storage
 
 
 def test_learning_normalizes_research_alias_to_deep_research() -> None:
@@ -73,6 +898,406 @@ def test_learning_capture_rejects_blank_required_fields(
             summary=summary,
             evidence=evidence,
         )
+
+
+@pytest.mark.parametrize(
+    ("secret", "expected"),
+    [
+        ("Authorization: Bearer abc.def.ghi", "Authorization: [REDACTED_SECRET]"),
+        ("ghp_12345678", "[REDACTED_SECRET]"),
+        ("sk-1234567890abcdef", "[REDACTED_SECRET]"),
+        ("AKIA123456789012", "[REDACTED_SECRET]"),
+        ("eyJhbGciOi.fake_payload.fake_signature", "[REDACTED_SECRET]"),
+        ("'api_key'='opaque-value'", "'api_key'='[REDACTED_SECRET]'"),
+        (
+            '{"authorization":"Bearer abc.def.ghi"}',
+            '{"authorization":"[REDACTED_SECRET]"}',
+        ),
+    ],
+)
+def test_learning_sanitizer_matches_go_credential_thresholds(
+    secret: str, expected: str
+) -> None:
+    sanitized, labels = sanitize_agent_text(f"credential {secret}")
+
+    assert labels == ["credential"]
+    assert expected in sanitized
+    assert sanitized.count("[REDACTED_SECRET]") == 1
+    assert secret not in sanitized
+    sanitized_again, labels_again = sanitize_agent_text(sanitized)
+    assert sanitized_again == sanitized
+    assert labels_again == ["credential"]
+
+
+def test_learning_sanitizer_restores_labels_from_existing_redaction_markers() -> None:
+    text = (
+        "[REDACTED_SECRET] [REDACTED_EMAIL] "
+        "[REDACTED_PRIVATE_KEY] <USER_HOME>/repo"
+    )
+
+    sanitized, labels = sanitize_agent_text(text)
+
+    assert sanitized == text
+    assert labels == ["credential", "email", "machine_path", "private_key"]
+
+
+def test_learning_sanitizer_redacts_root_home_path_with_suffix() -> None:
+    sanitized, labels = sanitize_agent_text("/root/work/project/file.txt")
+
+    assert sanitized == "<USER_HOME>/work/project/file.txt"
+    assert labels == ["machine_path"]
+
+
+def test_learning_sanitizer_does_not_treat_rooted_prefix_as_home() -> None:
+    sanitized, labels = sanitize_agent_text("/rooted/work/project")
+
+    assert sanitized == "/rooted/work/project"
+    assert labels == []
+
+
+def test_learning_capture_sanitizes_agent_facing_fields_and_legacy_reads(
+    tmp_path: Path,
+) -> None:
+    _seed_learning_templates(tmp_path)
+    secret_text = (
+        "password=hunter2 token=ghp_1234567890abcdef1234567890abcdef123456 "
+        "Authorization: Bearer sk-1234567890abcdef email ops@example.com "
+        r"C:\Users\alice\repo /home/bob/repo AKIAIOSFODNN7EXAMPLE"
+    )
+
+    payload = capture_learning(
+        tmp_path,
+        command_name="debug",
+        learning_type="tooling_trap",
+        summary=f"Do not leak {secret_text}",
+        evidence=f"Observed {secret_text}",
+        recurrence_key="debug.secret-sanitized",
+        false_starts=[f"failed with {secret_text}"],
+        trigger_signals=[f"user_correction: {secret_text}"],
+    )
+
+    serialized = json.dumps(payload, sort_keys=True)
+    for raw in [
+        "hunter2",
+        "ghp_1234567890abcdef1234567890abcdef123456",
+        "sk-1234567890abcdef",
+        "ops@example.com",
+        "alice",
+        "/home/bob",
+        "AKIAIOSFODNN7EXAMPLE",
+    ]:
+        assert raw not in serialized
+    entry = payload["entry"]
+    assert entry["sensitivity"] == "sanitized"
+    assert entry["redaction_labels"] == ["credential", "email", "machine_path"]
+    assert "[REDACTED_SECRET]" in serialized
+    assert "[REDACTED_EMAIL]" in serialized
+    assert "<USER_HOME>/repo" in serialized
+
+    detail = list_learning_summaries(tmp_path, command_name="debug")["items"][0]
+    shown = _invoke_in_project(
+        tmp_path,
+        [
+            "learning",
+            "show",
+            "--ref",
+            detail["ref"],
+            "--format",
+            "json",
+        ],
+    )
+    assert shown.exit_code == 0, shown.stdout
+    assert "hunter2" not in shown.stdout
+    assert "ops@example.com" not in shown.stdout
+    shown_payload = json.loads(shown.stdout)
+    assert shown_payload["content_safety"] == {
+        "sensitivity": "sanitized",
+        "redaction_labels": ["credential", "email", "machine_path"],
+    }
+    assert shown_payload["detail_path"].startswith(".specify/memory/learnings/")
+
+    paths = build_learning_paths(tmp_path)
+    preamble, candidates = read_learning_entries(paths.candidates)
+    legacy_payload = candidates[0].to_payload()
+    legacy_payload.pop("sensitivity")
+    legacy_payload.pop("redaction_labels")
+    legacy_payload["summary"] = "legacy row leaked api_key=legacy-secret"
+    paths.candidates.write_text(
+        "\n".join(
+            [
+                preamble,
+                "",
+                "<!-- SPECKIT_LEARNING_DATA_BEGIN -->",
+                json.dumps([legacy_payload], indent=2),
+                "<!-- SPECKIT_LEARNING_DATA_END -->",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    _, legacy_entries = read_learning_entries(paths.candidates)
+    assert legacy_entries[0].sensitivity == "sanitized"
+    assert "legacy-secret" not in legacy_entries[0].summary
+
+
+def test_learning_capture_sanitizes_json_credential_values(
+    tmp_path: Path,
+) -> None:
+    _seed_learning_templates(tmp_path)
+    evidence = '{"password":"hunter2","api_key":"opaque-value"}'
+
+    payload = capture_learning(
+        tmp_path,
+        command_name="debug",
+        learning_type="pitfall",
+        summary="JSON credentials stay field-meaningful",
+        evidence=evidence,
+        recurrence_key="debug.json-credentials",
+    )
+    serialized = json.dumps(payload)
+    sanitized_evidence = payload["entry"]["evidence"]
+
+    assert '"password":"[REDACTED_SECRET]"' in sanitized_evidence
+    assert '"api_key":"[REDACTED_SECRET]"' in sanitized_evidence
+    assert "hunter2" not in serialized
+    assert "opaque-value" not in serialized
+    assert payload["entry"]["redaction_labels"] == ["credential"]
+
+
+def test_learning_list_and_show_sanitize_legacy_index_only_records(
+    tmp_path: Path,
+) -> None:
+    _seed_learning_templates(tmp_path)
+    _write_learning_index_payload(
+        tmp_path,
+        [
+            {
+                "id": "learn-2026-06-03-secret-index",
+                "problem": "Legacy index leaked password=raw-secret for ops@example.com",
+                "lesson": r"Open C:\Users\alice\repo after using token=raw-token",
+                "learning_type": "pitfall",
+                "source_command": "sp-debug",
+                "recurrence_key": "sp-debug.legacy-secret-index",
+                "applies_to": ["sp-debug"],
+                "trigger_signals": ["user@example.com", r"C:\Users\alice\repo"],
+                "detail": "./learn-2026-06-03-secret-index.md",
+                "first_seen": "2026-06-03T00:00:00Z",
+                "last_seen": "2026-06-03T00:00:00Z",
+                "occurrence_count": 1,
+                "signal_strength": "medium",
+                "redaction_labels": ["phone_number", "credential"],
+            }
+        ],
+    )
+
+    listed = list_learning_summaries(tmp_path, command_name="debug")
+    card = listed["items"][0]
+    shown = _invoke_in_project(
+        tmp_path,
+        [
+            "learning",
+            "show",
+            "--ref",
+            "sp-debug.legacy-secret-index",
+            "--format",
+            "json",
+        ],
+    )
+    serialized = json.dumps(listed) + shown.stdout
+
+    assert shown.exit_code == 0, shown.stdout
+    assert "raw-secret" not in serialized
+    assert "raw-token" not in serialized
+    assert "ops@example.com" not in serialized
+    assert "alice" not in serialized
+    assert card["sensitivity"] == "sanitized"
+    assert card["redaction_labels"] == ["credential", "email", "machine_path"]
+    assert json.loads(shown.stdout)["content_safety"] == {
+        "sensitivity": "sanitized",
+        "redaction_labels": ["credential", "email", "machine_path"],
+    }
+
+
+def test_learning_show_sanitizes_legacy_index_identity_time_and_detail_ref(
+    tmp_path: Path,
+) -> None:
+    _seed_learning_templates(tmp_path)
+    _write_learning_index_payload(
+        tmp_path,
+        [
+            {
+                "id": "learn-token=identity-secret",
+                "problem": "Legacy index identity fields may leak",
+                "lesson": "Sanitize identity, time, and detail metadata.",
+                "learning_type": "pitfall",
+                "source_command": "sp-debug",
+                "recurrence_key": "sp-debug.legacy-identity",
+                "applies_to": ["sp-debug"],
+                "trigger_signals": ["pitfall"],
+                "detail": "./learn-token=detail-secret.md",
+                "first_seen": "token=first-secret",
+                "last_seen": "token=last-secret",
+                "occurrence_count": 1,
+                "signal_strength": "medium",
+            }
+        ],
+    )
+
+    shown = _invoke_in_project(
+        tmp_path,
+        [
+            "learning",
+            "show",
+            "--ref",
+            "sp-debug.legacy-identity",
+            "--format",
+            "json",
+        ],
+    )
+    payload = json.loads(shown.stdout)
+    serialized = json.dumps(payload)
+
+    assert shown.exit_code == 0, shown.stdout
+    for raw in ["identity-secret", "detail-secret", "first-secret", "last-secret"]:
+        assert raw not in serialized
+    assert payload["id"].startswith("learn-")
+    assert payload["provenance"]["first_seen"] == "1970-01-01T00:00:00Z"
+    assert payload["provenance"]["last_seen"] == "1970-01-01T00:00:00Z"
+    assert payload["detail_path"] is None
+    assert payload["content_safety"]["redaction_labels"] == ["credential"]
+
+
+def test_learning_capture_collects_redaction_labels_from_list_fields_only(
+    tmp_path: Path,
+) -> None:
+    _seed_learning_templates(tmp_path)
+
+    payload = capture_learning(
+        tmp_path,
+        command_name="debug",
+        learning_type="pitfall",
+        summary="Sensitive value appears only in list fields",
+        evidence="Summary and evidence are safe.",
+        recurrence_key="debug.list-only-secret",
+        false_starts=["retried with token=list-secret"],
+        trigger_signals=["validation_gap: ops@example.com"],
+    )
+
+    assert payload["entry"]["sensitivity"] == "sanitized"
+    assert payload["entry"]["redaction_labels"] == ["credential", "email"]
+    serialized = json.dumps(payload)
+    assert "list-secret" not in serialized
+    assert "ops@example.com" not in serialized
+
+
+def test_learning_capture_merge_preserves_list_only_sensitivity_labels(
+    tmp_path: Path,
+) -> None:
+    _seed_learning_templates(tmp_path)
+    capture_learning(
+        tmp_path,
+        command_name="debug",
+        learning_type="pitfall",
+        summary="Merge keeps original safe summary",
+        evidence="Safe evidence.",
+        recurrence_key="debug.merge-list-secret",
+    )
+
+    merged = capture_learning(
+        tmp_path,
+        command_name="debug",
+        learning_type="pitfall",
+        summary="Merge keeps original safe summary",
+        evidence="Safe evidence.",
+        recurrence_key="debug.merge-list-secret",
+        trigger_signals=["validation_gap: ops@example.com"],
+    )
+
+    assert merged["entry"]["sensitivity"] == "sanitized"
+    assert merged["entry"]["redaction_labels"] == ["email"]
+    assert merged["index_entry"]["sensitivity"] == "sanitized"
+    assert merged["index_entry"]["redaction_labels"] == ["email"]
+    assert "ops@example.com" not in json.dumps(merged)
+
+
+def test_learning_recurrence_key_canonicalizes_redactions_and_raw_lookup_refs(
+    tmp_path: Path,
+) -> None:
+    _seed_learning_templates(tmp_path)
+    raw_key = "debug.email-ops@example.com.password=raw-secret"
+
+    payload = capture_learning(
+        tmp_path,
+        command_name="debug",
+        learning_type="pitfall",
+        summary="Canonicalize sensitive recurrence keys",
+        evidence="Safe evidence.",
+        recurrence_key=raw_key,
+    )
+    shown = _invoke_in_project(
+        tmp_path,
+        ["learning", "show", "--ref", raw_key, "--format", "json"],
+    )
+    promoted = promote_learning(tmp_path, recurrence_key=raw_key, target="learning")
+
+    assert payload["entry"]["recurrence_key"] == (
+        "redacted-email-redacted-secret"
+    )
+    assert "raw-secret" not in json.dumps(payload)
+    assert shown.exit_code == 0, shown.stdout
+    assert json.loads(shown.stdout)["ref"] == payload["entry"]["recurrence_key"]
+    assert promoted["entry"]["recurrence_key"] == payload["entry"]["recurrence_key"]
+
+
+def test_learning_missing_ref_errors_use_safe_canonical_recurrence_key(
+    tmp_path: Path,
+) -> None:
+    _seed_learning_templates(tmp_path)
+    raw_key = "debug.ops@example.com.password=missing-secret"
+
+    with pytest.raises(ValueError) as show_error:
+        show_learning_detail(tmp_path, learning_ref=raw_key)
+    with pytest.raises(ValueError) as promote_error:
+        promote_learning(tmp_path, recurrence_key=raw_key, target="learning")
+
+    errors = f"{show_error.value} {promote_error.value}"
+    assert "missing-secret" not in errors
+    assert "ops@example.com" not in errors
+    assert "redacted-email" in errors
+    assert "redacted-secret" in errors
+
+
+def test_learning_recurrence_key_matches_generic_email_redaction_parity(
+    tmp_path: Path,
+) -> None:
+    _seed_learning_templates(tmp_path)
+
+    payload = capture_learning(
+        tmp_path,
+        command_name="debug",
+        learning_type="pitfall",
+        summary="Collapse email-like recurrence keys",
+        evidence="Safe evidence.",
+        recurrence_key="legacy.email.person@example.com",
+    )
+
+    assert payload["entry"]["recurrence_key"] == "redacted-email"
+
+
+def test_learning_list_sanitizes_filter_query_projection(tmp_path: Path) -> None:
+    _seed_learning_templates(tmp_path)
+
+    payload = list_learning_summaries(
+        tmp_path,
+        command_name="debug",
+        query="token=query-secret ops@example.com",
+    )
+
+    assert payload["filters"]["query"] == (
+        "token=[REDACTED_SECRET] [REDACTED_EMAIL]"
+    )
+    assert "query-secret" not in json.dumps(payload)
+    assert "ops@example.com" not in json.dumps(payload)
 
 
 def test_concurrent_learning_capture_merges_without_lost_occurrences(
@@ -1284,7 +2509,9 @@ def test_learning_capture_sanitizes_malformed_legacy_first_seen_for_detail_ref(
     detail_ref = payload["index_entry"]["detail"]
     detail_name = detail_ref.removeprefix("./")
     learning_dir = (project / ".specify" / "memory" / "learnings").resolve()
-    detail_path = Path(payload["detail_path"]).resolve()
+    assert str(project) not in payload["detail_path"]
+    assert "pytest-of" not in payload["detail_path"]
+    detail_path = (project / payload["detail_path"]).resolve()
     assert detail_ref.startswith("./learn-")
     assert "/" not in detail_name
     assert "\\" not in detail_name
@@ -1471,7 +2698,7 @@ def test_learning_promote_refreshes_index_detail_status(tmp_path: Path) -> None:
         ],
     )
     assert captured.exit_code == 0, captured.stdout
-    detail_path = Path(json.loads(captured.stdout)["detail_path"])
+    detail_path = project / json.loads(captured.stdout)["detail_path"]
 
     promoted = _invoke_in_project(
         project,
@@ -1520,7 +2747,7 @@ def test_learning_start_is_read_only_and_does_not_promote_detail_status(
     captured = _invoke_in_project(project, args)
     _invoke_in_project(project, args)
     assert captured.exit_code == 0, captured.stdout
-    detail_path = Path(json.loads(captured.stdout)["detail_path"])
+    detail_path = project / json.loads(captured.stdout)["detail_path"]
 
     started = _start_in_project(project, "plan")
 
@@ -1599,7 +2826,7 @@ def test_learning_capture_sanitizes_existing_index_detail_path(tmp_path: Path) -
     assert result.exit_code == 0, result.stdout
     payload = json.loads(result.stdout)
     learning_dir = (project / ".specify" / "memory" / "learnings").resolve()
-    detail_path = Path(payload["detail_path"]).resolve()
+    detail_path = (project / payload["detail_path"]).resolve()
     assert detail_path.is_relative_to(learning_dir)
     assert payload["index_entry"]["detail"].startswith("./learn-")
     assert not (project / ".specify" / "outside.md").exists()
@@ -1670,7 +2897,7 @@ def test_learning_capture_sanitizes_existing_index_detail_path_and_id(
     assert result.exit_code == 0, result.stdout
     payload = json.loads(result.stdout)
     learning_dir = (project / ".specify" / "memory" / "learnings").resolve()
-    detail_path = Path(payload["detail_path"]).resolve()
+    detail_path = (project / payload["detail_path"]).resolve()
     assert detail_path.is_relative_to(learning_dir)
     assert payload["index_entry"]["detail"].startswith("./learn-")
     assert not (project / ".specify" / "outside.md").exists()
@@ -1746,7 +2973,7 @@ def test_learning_capture_sanitizes_existing_index_detail_ref_to_index_file(
     assert result.exit_code == 0, result.stdout
     payload = json.loads(result.stdout)
     learning_dir = (project / ".specify" / "memory" / "learnings").resolve()
-    detail_path = Path(payload["detail_path"]).resolve()
+    detail_path = (project / payload["detail_path"]).resolve()
     assert detail_path.is_relative_to(learning_dir)
     assert detail_path != index_path.resolve()
     assert payload["index_entry"]["detail"].startswith("./learn-")
@@ -2720,6 +3947,7 @@ def test_learning_capture_auto_help_mentions_broader_state_surfaces() -> None:
     assert "quick" in output
     assert "debug" in output
     assert "--feature-dir" in output
+    assert "--dry-run" in output
     assert "workflow-state.md" in output
     assert "implement-tracker.md" in output
     assert "STATUS.md" in output
@@ -2856,6 +4084,316 @@ def test_learning_capture_auto_implement_writes_candidates_from_tracker_state(
     )
 
 
+def test_learning_capture_auto_cli_dry_run_preserves_project_bytes(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path
+    (project / ".specify").mkdir(parents=True, exist_ok=True)
+    _seed_learning_templates(project)
+    feature_dir = project / "specs" / "demo-feature"
+    _write_implement_tracker(
+        feature_dir,
+        status="resolved",
+        retry_attempts=2,
+        failed_tasks=["T002"],
+        completed_checks=["pytest -q"],
+    )
+    before = {
+        path.relative_to(project).as_posix(): path.read_bytes()
+        for path in project.rglob("*")
+        if path.is_file()
+    }
+
+    result = _invoke_in_project(
+        project,
+        [
+            "learning",
+            "capture-auto",
+            "--command",
+            "implement",
+            "--feature-dir",
+            str(feature_dir),
+            "--dry-run",
+            "--format",
+            "json",
+        ],
+    )
+
+    assert result.exit_code == 0, result.stdout
+    payload = json.loads(result.stdout)
+    assert payload["status"] == "dry-run"
+    assert payload["dry_run"] is True
+    assert payload["captured"] == []
+    assert before == {
+        path.relative_to(project).as_posix(): path.read_bytes()
+        for path in project.rglob("*")
+        if path.is_file()
+    }
+
+
+def test_learning_capture_auto_registry_uses_safe_refs_without_entry_bodies(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path
+    (project / ".specify").mkdir(parents=True, exist_ok=True)
+    _seed_learning_templates(project)
+    feature_dir = project / "specs" / "demo-feature"
+    _write_implement_tracker(
+        feature_dir,
+        status="resolved",
+        retry_attempts=1,
+        failed_tasks=["T002"],
+        completed_checks=["pytest -q"],
+    )
+
+    result = _invoke_in_project(
+        project,
+        [
+            "learning",
+            "capture-auto",
+            "--command",
+            "implement",
+            "--feature-dir",
+            str(feature_dir),
+            "--format",
+            "json",
+        ],
+    )
+
+    assert result.exit_code == 0, result.stdout
+    registry = json.loads(
+        (project / ".planning" / "learnings" / "auto-capture.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    record = next(iter(registry.values()))
+    assert record["source_ref"] == "specs/demo-feature/implement-tracker.md"
+    assert "source_path" not in record
+    assert "captured_entries" not in record
+    assert "recurrence_keys" in record
+
+
+def test_learning_capture_auto_rejects_external_feature_dir(tmp_path: Path) -> None:
+    project = tmp_path / "project"
+    external = tmp_path / "external"
+    (project / ".specify").mkdir(parents=True, exist_ok=True)
+    _seed_learning_templates(project)
+    _write_implement_tracker(
+        external,
+        status="resolved",
+        retry_attempts=1,
+        failed_tasks=["T002"],
+        completed_checks=["pytest -q"],
+    )
+
+    with pytest.raises(ValueError, match="feature_dir must resolve inside"):
+        capture_auto_learning(
+            project,
+            command_name="implement",
+            feature_dir=external,
+        )
+
+
+def test_learning_capture_auto_resolves_relative_feature_dir_from_project_root(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "project"
+    other_cwd = tmp_path / "other-cwd"
+    feature_dir = project / "specs" / "demo-feature"
+    other_cwd.mkdir(parents=True)
+    (project / ".specify").mkdir(parents=True, exist_ok=True)
+    _seed_learning_templates(project)
+    _write_implement_tracker(
+        feature_dir,
+        status="resolved",
+        retry_attempts=1,
+        failed_tasks=["T002"],
+        completed_checks=["pytest -q"],
+    )
+    previous = Path.cwd()
+    try:
+        os.chdir(other_cwd)
+        payload = capture_auto_learning(
+            project,
+            command_name="implement",
+            feature_dir=Path("specs/demo-feature"),
+        )
+    finally:
+        os.chdir(previous)
+
+    assert payload["status"] == "captured"
+    assert payload["source_path"] == "specs/demo-feature/implement-tracker.md"
+
+
+def test_learning_capture_auto_rejects_symlink_escape_feature_dir(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "project"
+    external = tmp_path / "external"
+    link = project / "specs" / "linked-external"
+    (project / ".specify").mkdir(parents=True, exist_ok=True)
+    _seed_learning_templates(project)
+    _write_implement_tracker(
+        external,
+        status="resolved",
+        retry_attempts=1,
+        failed_tasks=["T002"],
+        completed_checks=["pytest -q"],
+    )
+    link.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        link.symlink_to(external, target_is_directory=True)
+    except OSError as exc:
+        pytest.skip(f"symlink creation not supported: {exc}")
+
+    with pytest.raises(ValueError, match="feature_dir must resolve inside"):
+        capture_auto_learning(
+            project,
+            command_name="implement",
+            feature_dir=link,
+        )
+
+
+def test_learning_capture_auto_migrates_legacy_registry_without_raw_payloads(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path
+    (project / ".specify").mkdir(parents=True, exist_ok=True)
+    _seed_learning_templates(project)
+    feature_dir = project / "specs" / "demo-feature"
+    tracker_path = feature_dir / "implement-tracker.md"
+    _write_implement_tracker(
+        feature_dir,
+        status="resolved",
+        retry_attempts=1,
+        failed_tasks=["T002"],
+        completed_checks=["pytest -q"],
+    )
+    registry_path = project / ".planning" / "learnings" / "auto-capture.json"
+    registry_path.parent.mkdir(parents=True, exist_ok=True)
+    registry_path.write_text(
+        json.dumps(
+            {
+                "unsafe fingerprint token=registry-secret": {
+                    "command": "sp-implement",
+                    "source_path": str(tracker_path),
+                    "recurrence_keys": [
+                        "legacy.ops@example.com.password=registry-secret"
+                    ],
+                    "captured_entries": [
+                        {
+                            "summary": "raw registry payload",
+                            "evidence": "token=registry-secret ops@example.com",
+                        }
+                    ],
+                    "unknown": "keep-out",
+                    "captured_at": "2026-08-04T00:00:00Z",
+                },
+                "legacy-relative-ref": {
+                    "command": "sp-implement",
+                    "source_ref": ".planning/learnings/workflow-state.md",
+                    "recurrence_keys": ["legacy.relative-ref"],
+                    "captured_at": "2026-01-01",
+                },
+                "legacy-posix-home": {
+                    "command": "sp-implement",
+                    "source_path": "/home/alice/project/workflow-state.md",
+                    "recurrence_keys": ["legacy.posix-home"],
+                    "captured_at": "2026-08-04T00:00:00Z",
+                },
+                "legacy-unsupported-command": {
+                    "command": "token=bad-command",
+                    "source_path": "/home/alice/project/secret.md",
+                    "recurrence_keys": ["legacy.unsupported"],
+                    "captured_at": "token=bad-time",
+                }
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    result = _invoke_in_project(
+        project,
+        [
+            "learning",
+            "capture-auto",
+            "--command",
+            "implement",
+            "--feature-dir",
+            str(feature_dir),
+            "--format",
+            "json",
+        ],
+    )
+
+    assert result.exit_code == 0, result.stdout
+    registry = json.loads(registry_path.read_text(encoding="utf-8"))
+    serialized = json.dumps(registry)
+    assert "registry-secret" not in serialized
+    assert "ops@example.com" not in serialized
+    assert "/home/alice" not in serialized
+    assert "bad-command" not in serialized
+    assert "bad-time" not in serialized
+    assert str(project) not in serialized
+    assert "pytest-of" not in serialized
+    assert all(re.fullmatch(r"[0-9a-f]{64}", key) for key in registry)
+    source_refs = {record["source_ref"] for record in registry.values()}
+    assert ".planning/learnings/workflow-state.md" in source_refs
+    assert "<USER_HOME>/project/workflow-state.md" in source_refs
+    assert "specs/demo-feature/implement-tracker.md" in source_refs
+    for record in registry.values():
+        assert sorted(record) == [
+            "captured_at",
+            "command",
+            "recurrence_keys",
+            "source_ref",
+        ]
+        assert "captured_entries" not in record
+        assert "source_path" not in record
+    assert any(record["captured_at"] == "" for record in registry.values())
+
+
+def test_learning_promote_requires_candidate_confirmation_before_rule(
+    tmp_path: Path,
+) -> None:
+    _seed_learning_templates(tmp_path)
+    capture_learning(
+        tmp_path,
+        command_name="plan",
+        learning_type="project_constraint",
+        summary="Rule candidates require confirmation first",
+        evidence="One occurrence is not enough for a durable project rule.",
+        recurrence_key="plan.confirm-before-rule",
+    )
+
+    with pytest.raises(ValueError, match="confirm"):
+        promote_learning(
+            tmp_path,
+            recurrence_key="plan.confirm-before-rule",
+            target="rule",
+        )
+
+    confirmed = promote_learning(
+        tmp_path,
+        recurrence_key="plan.confirm-before-rule",
+        target="learning",
+    )
+    promoted = promote_learning(
+        tmp_path,
+        recurrence_key="plan.confirm-before-rule",
+        target="rule",
+    )
+
+    assert confirmed["status"] == "confirmed"
+    assert promoted["status"] == "promoted-rule"
+    for payload in (confirmed, promoted):
+        assert payload["detail_path"].startswith(".specify/memory/learnings/")
+        assert str(tmp_path) not in payload["detail_path"]
+        assert "pytest-of" not in payload["detail_path"]
+        assert (tmp_path / payload["detail_path"]).exists()
+
+
 def test_learning_capture_auto_implement_writes_index_details(tmp_path: Path) -> None:
     project = tmp_path
     (project / ".specify").mkdir(parents=True, exist_ok=True)
@@ -2888,7 +4426,7 @@ def test_learning_capture_auto_implement_writes_index_details(tmp_path: Path) ->
     assert payload["status"] == "captured"
     captured = payload["captured"][0]
     assert "index_entry" in captured
-    detail_path = Path(captured["detail_path"])
+    detail_path = project / captured["detail_path"]
     assert detail_path.exists()
     assert "Observed auto-capture evidence" in detail_path.read_text(encoding="utf-8")
 
@@ -3288,9 +4826,46 @@ def test_learning_capture_auto_materializes_explicit_semantic_triggers(
     )
     assert long_correction in by_type["user_preference"]["summary"]
     assert long_correction in by_type["user_preference"]["evidence"]
-    assert by_type["map_coverage_gap"]["trigger_signals"] == [
-        "cognition_gap: generated integration was absent from the path index"
-    ]
+    assert by_type["map_coverage_gap"]["trigger_signals"] == ["cognition_gap"]
+
+
+def test_learning_capture_auto_semantic_trigger_uses_canonical_signal_and_detail_digest(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path
+    (project / ".specify").mkdir(parents=True, exist_ok=True)
+    _seed_learning_templates(project)
+    feature_dir = project / "specs" / "semantic-trigger"
+    raw_detail = "api_key=secret-value from C:/Users/alice/project"
+    _write_workflow_state(
+        feature_dir,
+        trigger_signals=[f"user_correction: {raw_detail}"],
+    )
+
+    result = _invoke_in_project(
+        project,
+        [
+            "learning",
+            "capture-auto",
+            "--command",
+            "plan",
+            "--feature-dir",
+            str(feature_dir),
+            "--format",
+            "json",
+        ],
+    )
+
+    assert result.exit_code == 0, result.stdout
+    entry = json.loads(result.stdout)["captured"][0]["entry"]
+    assert entry["trigger_signals"] == ["user_correction"]
+    assert entry["recurrence_key"].startswith(
+        "sp-plan.trigger.user_correction.digest-"
+    )
+    assert "secret-value" not in entry["recurrence_key"]
+    assert "alice" not in json.dumps(entry)
+    assert "- feature_dir: specs/semantic-trigger" in entry["evidence"]
+    assert str(project.resolve()) not in entry["evidence"]
 
 
 def test_phase_completion_and_transition_preserve_learning_capture_source(

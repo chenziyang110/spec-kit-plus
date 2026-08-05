@@ -4,8 +4,9 @@ You are running `sp-design`. This is a design-system workflow, not an implementa
 
 ## Objective
 
-Produce, refine, synthesize, or audit the project's root `DESIGN.md` only through
-`specify-runtime design`. For a new or unresolved direction, first create a
+Prompt-route one public `sp-design` entry to create, refine, or audit the
+project's root `DESIGN.md` only through `specify-runtime design`; use synthesis
+only as the input strategy for create/refine. For a new or unresolved direction, first create a
 project-neutral HTML design preview board with three comparable directions so
 the user can inspect the actual component, state, responsive, and motion
 language before downstream UI work starts.
@@ -48,16 +49,13 @@ Follow the phase lock, intake, synthesis, review, and closeout steps below. Keep
 - business feature specs
 - plan or task artifacts outside the active design workflow
 
-## Modes
+## Prompt Routing
 
-Infer the mode from the user's request:
-
-- `create`: generate a new project design system from product context.
-- `synthesize`: transform references into an original design system.
-- `refine`: use `specify-runtime design export` to update the existing `DESIGN.md` from approved immutable artifacts.
-- `audit`: inspect whether the current design system is enough for upcoming UI work.
-
-If the mode is ambiguous, choose the smallest safe mode and state the assumption.
+Read `references/task-router.md` at every entry or resume. Infer
+`task_type: create | refine | audit` from the prompt and current approval state;
+infer `input_strategy: context | synthesize` independently. Resume nonterminal
+design work before reclassification. Keep `sp-design` as the only public entry
+and never require a colon subskill or explicit mode argument.
 
 ## Intake
 
@@ -119,7 +117,8 @@ If the mode is ambiguous, choose the smallest safe mode and state the assumption
 
 ## Three-Direction Preview Loop
 
-- For `create`, `synthesize`, or any unresolved high-visibility `refine`, let
+- For `create`, or any unresolved high-visibility `refine`, with either input
+  strategy, let
   the design CLI own `.specify/design/previews/round-NN.manifest.json` as its
   compact source. Scaffold it with
   `{{specify-subcmd:specify-runtime design preview-manifest --profiles <comma-separated-profile-ids> --out .specify/design/previews/round-NN.manifest.json}}`,
@@ -215,7 +214,8 @@ If the mode is ambiguous, choose the smallest safe mode and state the assumption
 
 - Export the project's `DESIGN.md` only through `specify-runtime design export` from the approved round. Never write `DESIGN.md` directly.
 - Present exactly the three HTML-backed directions from the active preview
-  round when creating or synthesizing a design system.
+  round when creating a design system or when synthesis shapes a material
+  refinement.
 - Before proposing them, name the product subject, audience, and single user job.
 - Each direction must state a visual thesis, content thesis, interaction thesis,
   signature element, platform fit, state strategy, safe system choices, and any
@@ -291,7 +291,7 @@ Before closeout:
    Otherwise query it through `artifact show`. Patch only these named semantic
    sections through a fresh lease per section; never submit or reconstruct the
    whole review document:
-   - selected mode
+   - selected task type and input strategy
    - inputs read
    - design question decisions
    - preview round and validation result
@@ -309,7 +309,10 @@ Before closeout:
 
 ## Closeout
 
-Close with the design-system status, changed files, lint result, and exactly one recommended next command.
+Read `references/consumer-contract.md`, then close with the design-system
+status, changed files, lint result, pinned approval identity, and exactly one
+recommended next command. Do not bypass explicit feature or Quick adoption of a
+new approval.
 
 ## Guardrails
 

@@ -9,22 +9,44 @@ from .result_normalizer import normalize_worker_task_result_payload
 from .result_schema import WorkerTaskResult, worker_task_result_payload
 
 
+FEATURE_LANE_RESULT_DIRECTORIES = {
+    "review": "review-results",
+    "clarify": "clarification/handoffs",
+    "plan": "planning/handoffs",
+    "tasks": "task-generation/handoffs",
+    "deep-research": "research/handoffs",
+}
+WORKSPACE_LANE_RESULT_COMMANDS = frozenset({"quick", "prd-scan"})
+STAGE_OWNED_RESULT_COMMANDS = frozenset(
+    {*FEATURE_LANE_RESULT_DIRECTORIES, *WORKSPACE_LANE_RESULT_COMMANDS, "debug"}
+)
+
+
+def uses_stage_owned_result_channel(command_name: str) -> bool:
+    """Return whether a workflow owns native lane results outside durable teams."""
+
+    return command_name.strip().lower() in STAGE_OWNED_RESULT_COMMANDS
+
+
 def describe_result_handoff_template(*, command_name: str, integration_key: str) -> str:
     """Return the canonical result handoff template string for a workflow."""
 
     normalized_command = command_name.strip().lower()
     normalized_integration = integration_key.strip().lower()
 
-    if normalized_command == "review":
-        return "FEATURE_DIR/review-results/<lane-id>.json"
+    if normalized_command in FEATURE_LANE_RESULT_DIRECTORIES:
+        directory = FEATURE_LANE_RESULT_DIRECTORIES[normalized_command]
+        return f"FEATURE_DIR/{directory}/<lane-id>.json"
+    if normalized_command in WORKSPACE_LANE_RESULT_COMMANDS:
+        if normalized_command == "prd-scan":
+            return "PRD_SCAN_WORKSPACE/worker-results/<lane-id>.json"
+        return ".planning/quick/<id>-<slug>/worker-results/<lane-id>.json"
+    if normalized_command == "debug":
+        return ".planning/debug/results/<session-slug>/<lane-id>.json"
     if normalized_integration == "codex":
         return ".specify/teams/state/results/<request-id>.json"
     if normalized_command == "implement":
         return "FEATURE_DIR/worker-results/<task-id>.json"
-    if normalized_command == "quick":
-        return ".planning/quick/<id>-<slug>/worker-results/<lane-id>.json"
-    if normalized_command == "debug":
-        return ".planning/debug/results/<session-slug>/<lane-id>.json"
     return ".specify/worker-results/<lane-id>.json"
 
 
@@ -40,23 +62,13 @@ def describe_result_submit_template(*, command_name: str, integration_key: str) 
             "`specify-runtime implement result-merge --feature-dir <feature-dir> "
             "--result-json '<inline-json>' --format json`"
         )
-    if normalized_command == "review":
-        return (
-            "`specify-runtime result submit --command review --feature-dir <feature-dir> "
-            "--lane-id <lane-id> --result-json '<inline-json>'`"
-        )
-    if normalized_integration == "codex":
-        return (
-            "`specify-runtime sp-teams submit-result --request-id <request-id> "
-            "--result-json '<inline-json>'`"
-        )
-    if normalized_command in {"clarify", "plan", "tasks", "deep-research"}:
+    if normalized_command in FEATURE_LANE_RESULT_DIRECTORIES:
         return (
             f"`specify-runtime result submit --command {normalized_command} "
-            "--feature-dir <feature-dir> --lane-id <lane-id> "
-            "--result-json '<inline-json>'`"
+            "--feature-dir <feature-dir> "
+            "--lane-id <lane-id> --result-json '<inline-json>'`"
         )
-    if normalized_command in {"quick", "prd-scan"}:
+    if normalized_command in WORKSPACE_LANE_RESULT_COMMANDS:
         return (
             f"`specify-runtime result submit --command {normalized_command} "
             "--workspace <workspace> --lane-id <lane-id> "
@@ -66,6 +78,11 @@ def describe_result_submit_template(*, command_name: str, integration_key: str) 
         return (
             "`specify-runtime result submit --command debug --session-slug "
             "<session-slug> --lane-id <lane-id> --result-json '<inline-json>'`"
+        )
+    if normalized_integration == "codex":
+        return (
+            "`specify-runtime sp-teams submit-result --request-id <request-id> "
+            "--result-json '<inline-json>'`"
         )
     return (
         f"`specify-runtime result submit --command {normalized_command or '<command>'} "
@@ -90,32 +107,55 @@ def build_result_handoff_path(
     normalized_command = command_name.strip().lower()
     normalized_integration = integration_key.strip().lower()
 
-    if normalized_command == "review":
+    if normalized_command in FEATURE_LANE_RESULT_DIRECTORIES:
         if feature_dir is None or not lane_id:
             raise ValueError(
-                "feature_dir and lane_id are required for review result handoff paths"
+                "feature_dir and lane_id are required for "
+                f"{normalized_command} result handoff paths"
             )
-        return Path(feature_dir) / "review-results" / f"{lane_id}.json"
+        directory = FEATURE_LANE_RESULT_DIRECTORIES[normalized_command]
+        return Path(feature_dir) / directory / f"{lane_id}.json"
 
-    if normalized_integration == "codex":
-        if not request_id:
-            raise ValueError("request_id is required for codex result handoff paths")
-        return project_root / ".specify" / "teams" / "state" / "results" / f"{request_id}.json"
-
-    if normalized_command == "implement":
-        if feature_dir is None or not task_id:
-            raise ValueError("feature_dir and task_id are required for implement result handoff paths")
-        return Path(feature_dir) / "worker-results" / f"{task_id}.json"
-
-    if normalized_command == "quick":
+    if normalized_command in WORKSPACE_LANE_RESULT_COMMANDS:
         if quick_workspace is None or not lane_id:
-            raise ValueError("quick_workspace and lane_id are required for quick result handoff paths")
+            raise ValueError(
+                "quick_workspace and lane_id are required for "
+                f"{normalized_command} result handoff paths"
+            )
         return Path(quick_workspace) / "worker-results" / f"{lane_id}.json"
 
     if normalized_command == "debug":
         if not debug_session_slug or not lane_id:
-            raise ValueError("debug_session_slug and lane_id are required for debug result handoff paths")
-        return project_root / ".planning" / "debug" / "results" / debug_session_slug / f"{lane_id}.json"
+            raise ValueError(
+                "debug_session_slug and lane_id are required for debug result handoff paths"
+            )
+        return (
+            project_root
+            / ".planning"
+            / "debug"
+            / "results"
+            / debug_session_slug
+            / f"{lane_id}.json"
+        )
+
+    if normalized_integration == "codex":
+        if not request_id:
+            raise ValueError("request_id is required for codex result handoff paths")
+        return (
+            project_root
+            / ".specify"
+            / "teams"
+            / "state"
+            / "results"
+            / f"{request_id}.json"
+        )
+
+    if normalized_command == "implement":
+        if feature_dir is None or not task_id:
+            raise ValueError(
+                "feature_dir and task_id are required for implement result handoff paths"
+            )
+        return Path(feature_dir) / "worker-results" / f"{task_id}.json"
 
     if not lane_id:
         raise ValueError("lane_id is required for generic result handoff paths")

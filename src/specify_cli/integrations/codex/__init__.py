@@ -12,7 +12,7 @@ from typing import Any
 
 from ..base import IntegrationOption, SkillsIntegration
 from ...hook_artifacts import strip_claude_managed_hook_entries
-from ...orchestration import CapabilitySnapshot
+from ...orchestration import NATIVE_SUBAGENT_TERMINAL_GUIDANCE, CapabilitySnapshot
 from ...codex_team.installer import restore_codex_team_project_configs
 from .multi_agent import CodexMultiAgentAdapter
 
@@ -87,7 +87,8 @@ class CodexIntegration(SkillsIntegration):
             if changed:
                 if isinstance(stripped_payload, dict) and stripped_payload:
                     hooks_json.write_text(
-                        json.dumps(stripped_payload, ensure_ascii=False, indent=2) + "\n",
+                        json.dumps(stripped_payload, ensure_ascii=False, indent=2)
+                        + "\n",
                         encoding="utf-8",
                     )
                 else:
@@ -107,7 +108,10 @@ class CodexIntegration(SkillsIntegration):
                 readme_text = readme.read_text(encoding="utf-8")
             except OSError:
                 readme_text = ""
-            if "Claude Hook Assets" in readme_text or "claude-hook-dispatch.py" in readme_text:
+            if (
+                "Claude Hook Assets" in readme_text
+                or "claude-hook-dispatch.py" in readme_text
+            ):
                 readme.unlink(missing_ok=True)
 
         try:
@@ -190,7 +194,7 @@ class CodexIntegration(SkillsIntegration):
                 "- Suggested bounded lanes include discussion source sweep, targeted repository evidence, semantic-term challenge, upstream disposition review, and written artifact validation.\n"
                 "- Keep structured artifact discipline: Codex subagents may return evidence and challenges, but the leader mutates `spec.md`, `alignment.md`, `context.md`, and `workflow-state.md` only through leased `specify-runtime artifact patch` calls, and binds the compatibility `brainstorming/handoff-to-specify.json` pointer only through `specify-runtime discussion bind-consumer`.\n"
                 f"- Use `wait_agent` only at explicit review join points and before final user review.\n"
-                f"- Use `close_agent` after integrating finished subagent results.\n"
+                f"- {NATIVE_SUBAGENT_TERMINAL_GUIDANCE}\n"
                 "- Keep the shared workflow language integration-neutral in user-visible output.\n"
             ),
         )
@@ -211,7 +215,7 @@ class CodexIntegration(SkillsIntegration):
                 "- Launch all independent lanes in the current `parallel-subagents` wave before waiting.\n"
                 "- Suggested bounded lanes include research, data model design, contracts drafting, and quickstart or validation scenario generation.\n"
                 f"- Use `wait_agent` only at the documented join points before the final constitution and risk re-check and before writing the consolidated implementation plan.\n"
-                f"- Use `close_agent` after integrating finished subagent results.\n"
+                f"- {NATIVE_SUBAGENT_TERMINAL_GUIDANCE}\n"
             ),
         )
         self._augment_shared_skill(
@@ -231,7 +235,7 @@ class CodexIntegration(SkillsIntegration):
                 "- Launch all independent lanes in the current `parallel-subagents` wave before waiting.\n"
                 "- Suggested bounded lanes include story and phase decomposition, dependency graph analysis, and write-set or parallel-safety analysis.\n"
                 f"- Use `wait_agent` only at the documented join points before calling `specify-runtime tasks finalize` and `specify-runtime tasks handoff`; `specify-runtime tasks finalize` renders `tasks.md`, and `specify-runtime tasks handoff` emits canonical parallel batches and join points.\n"
-                f"- Use `close_agent` after integrating finished subagent results.\n"
+                f"- {NATIVE_SUBAGENT_TERMINAL_GUIDANCE}\n"
             ),
         )
         self._augment_shared_skill(
@@ -250,7 +254,7 @@ class CodexIntegration(SkillsIntegration):
                 "- Suggested bounded scan lanes include repository tree inventory, source/runtime surfaces, testing/operations surfaces, and generated/cache exclusion review.\n"
                 f"- Keep each subagent responsible for scan evidence only; the leader owns the coverage ledger, reverse coverage closure, and final completeness decision.\n"
                 f"- Use `wait_agent` only at the documented join points before finalizing `coverage-ledger.md`, `coverage-ledger.json`, `scan-packets/<lane-id>.md`, and `map-state.md`.\n"
-                f"- Use `close_agent` after integrating finished subagent results.\n"
+                f"- {NATIVE_SUBAGENT_TERMINAL_GUIDANCE}\n"
             ),
         )
         self._augment_shared_skill(
@@ -269,7 +273,7 @@ class CodexIntegration(SkillsIntegration):
                 "- Suggested bounded atlas synthesis lanes include root architecture/structure, conventions/testing, integrations/runtime, and workflow/operations mapping.\n"
                 f"- Use the scan package as the subagent input contract; do not let subagents invent unscanned coverage or skip reverse coverage checks.\n"
                 f"- Use `wait_agent` only at the documented join points before writing compatibility/export outputs such as `PROJECT-HANDBOOK.md`, before updating project cognition workbench outputs, and before the final packet evidence and consistency pass.\n"
-                f"- Use `close_agent` after integrating finished subagent results.\n"
+                f"- {NATIVE_SUBAGENT_TERMINAL_GUIDANCE}\n"
             ),
         )
         self._augment_shared_skill(
@@ -291,7 +295,7 @@ class CodexIntegration(SkillsIntegration):
                 "- Suggested bounded update lanes include diff impact closure, affected graph and alias refresh, user supplement normalization, and route-pack reconciliation.\n"
                 "- Do not turn a one-slice or metadata-only refresh into scan-style parallel exploration.\n"
                 f"- Use `wait_agent` only at the documented join points before updating graph, path-index, alias-index, and route-pack outputs.\n"
-                f"- Use `close_agent` after integrating finished subagent results.\n"
+                f"- {NATIVE_SUBAGENT_TERMINAL_GUIDANCE}\n"
             ),
         )
         self._augment_implement_skill(

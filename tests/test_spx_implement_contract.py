@@ -49,13 +49,11 @@ def test_spx_implement_cannot_end_the_turn_on_partial_progress() -> None:
 
     assert (
         "a completed task, batch, migration, type generation, or validation milestone "
-        "is partial progress, not a terminal state"
-        in combined
+        "is partial progress, not a terminal state" in combined
     )
     assert (
         "do not emit a final answer or otherwise end the current agent turn while "
-        "`task-next` reports ready work"
-        in combined
+        "`task-next` reports ready work" in combined
     )
     assert "continue tool-driven execution in the same invocation" in combined
     assert "intermediate progress belongs only in progress updates" in combined
@@ -82,8 +80,7 @@ def test_task_lifecycle_points_to_structured_blocker_schema() -> None:
     }
     assert "external-system" in blocker["properties"]["owner"]["enum"]
     assert (
-        "mandatory_for_completion"
-        in blocker["properties"]["completion_impact"]["enum"]
+        "mandatory_for_completion" in blocker["properties"]["completion_impact"]["enum"]
     )
 
 
@@ -118,7 +115,9 @@ def test_classic_implement_exposes_same_protected_ci_checkpoint_contract() -> No
     classic = "\n".join(
         (
             _read("templates/command-references/implement/safe-repair-loop.md"),
-            _read("templates/command-references/implement/branch-review-and-closeout.md"),
+            _read(
+                "templates/command-references/implement/branch-review-and-closeout.md"
+            ),
         )
     ).lower()
 
@@ -126,3 +125,42 @@ def test_classic_implement_exposes_same_protected_ci_checkpoint_contract() -> No
     assert "mandatory_for_completion" in classic
     assert "task lifecycle" in classic
     assert "does not" in classic and "resolved" in classic
+
+
+def test_classic_and_spx_implement_share_task_reopen_recovery_contract() -> None:
+    classic = "\n".join(
+        (
+            _read("templates/command-references/implement/safe-repair-loop.md"),
+            _read("templates/command-references/implement/task-intake-and-tracker.md"),
+            _read(
+                "templates/command-references/implement/branch-review-and-closeout.md"
+            ),
+        )
+    ).lower()
+    advanced = _read(
+        "templates/advanced-skills/spx-implement/references/execution-contract.md"
+    ).lower()
+
+    for content in (classic, advanced):
+        assert "task-reopen-required" in content
+        assert "implement task-reopen" in content
+        assert "task/workflow revisions" in content
+        assert "workflow.resolve" in content
+        assert "workflow reopen" in content
+        assert "do not" in content or "never" in content
+
+
+def test_classic_and_spx_worker_success_requires_acceptance_ready_checks() -> None:
+    classic = _read(
+        "templates/command-references/implement/subagent-worker-contract.md"
+    ).lower()
+    advanced = _read(
+        "templates/advanced-skills/spx-implement/references/worker-contract.md"
+    ).lower()
+
+    for content in (classic, advanced):
+        assert "`success` result" in content
+        assert "task_checks" in content
+        assert "passed validation command" in content
+        assert "known downstream work" in content
+        assert "failed validation" in content

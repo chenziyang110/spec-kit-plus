@@ -20,6 +20,12 @@ type fileTransactionUpdate struct {
 	Perm    os.FileMode
 }
 
+type fileTransactionPrecondition struct {
+	Path           string
+	ExpectedSHA256 string
+	MustNotExist   bool
+}
+
 type fileTransactionReceipt struct {
 	TransactionID string   `json:"transaction_id"`
 	Kind          string   `json:"kind"`
@@ -48,6 +54,10 @@ type fileTransactionJournal struct {
 var promoteTransactionFile = atomicWriteFile
 
 func applyFileTransaction(projectRoot, kind string, updates []fileTransactionUpdate) (fileTransactionReceipt, error) {
+	return applyFileTransactionWithPreconditions(projectRoot, kind, updates, nil)
+}
+
+func applyFileTransactionWithPreconditions(projectRoot, kind string, updates []fileTransactionUpdate, preconditions []fileTransactionPrecondition) (fileTransactionReceipt, error) {
 	var receipt fileTransactionReceipt
 	root, err := filepath.Abs(projectRoot)
 	if err != nil {
@@ -97,6 +107,47 @@ func applyFileTransaction(projectRoot, kind string, updates []fileTransactionUpd
 		normalized = append(normalized, normalizedUpdate{path: secured, rel: relative, content: append([]byte(nil), update.Content...), perm: perm})
 	}
 	sort.Slice(normalized, func(i, j int) bool { return normalized[i].rel < normalized[j].rel })
+	type normalizedPrecondition struct {
+		path           string
+		rel            string
+		expectedSHA256 string
+		mustNotExist   bool
+	}
+	normalizedPreconditions := make([]normalizedPrecondition, 0, len(preconditions))
+	seenPreconditions := map[string]bool{}
+	for _, precondition := range preconditions {
+		target, err := filepath.Abs(precondition.Path)
+		if err != nil {
+			return receipt, err
+		}
+		relative, err := filepath.Rel(root, target)
+		if err != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
+			return receipt, fmt.Errorf("file transaction precondition must stay inside the project: %s", precondition.Path)
+		}
+		relative = filepath.ToSlash(relative)
+		if seenPreconditions[relative] {
+			return receipt, fmt.Errorf("file transaction contains duplicate precondition: %s", relative)
+		}
+		seenPreconditions[relative] = true
+		secured, err := secureProjectPath(root, relative)
+		if err != nil {
+			return receipt, err
+		}
+		digest := strings.ToLower(strings.TrimSpace(precondition.ExpectedSHA256))
+		if precondition.MustNotExist == (digest != "") {
+			return receipt, fmt.Errorf("file transaction precondition for %s must require exactly one of an expected digest or absence", relative)
+		}
+		if digest != "" {
+			decoded, decodeErr := hex.DecodeString(digest)
+			if decodeErr != nil || len(decoded) != sha256.Size {
+				return receipt, fmt.Errorf("file transaction precondition for %s has an invalid sha256 digest", relative)
+			}
+		}
+		normalizedPreconditions = append(normalizedPreconditions, normalizedPrecondition{
+			path: secured, rel: relative, expectedSHA256: digest, mustNotExist: precondition.MustNotExist,
+		})
+	}
+	sort.Slice(normalizedPreconditions, func(i, j int) bool { return normalizedPreconditions[i].rel < normalizedPreconditions[j].rel })
 
 	lockPath, err := secureProjectPath(root, ".specify/runtime/locks/file-transactions.lock")
 	if err != nil {
@@ -112,6 +163,25 @@ func applyFileTransaction(projectRoot, kind string, updates []fileTransactionUpd
 	defer release()
 	if err := recoverFileTransactionsLocked(root); err != nil {
 		return receipt, err
+	}
+	for _, precondition := range normalizedPreconditions {
+		current, readErr := os.ReadFile(precondition.path)
+		if precondition.mustNotExist {
+			if readErr == nil {
+				return receipt, fmt.Errorf("file transaction precondition failed for %s: expected the path to be absent", precondition.rel)
+			}
+			if !os.IsNotExist(readErr) {
+				return receipt, fmt.Errorf("file transaction precondition failed for %s: %w", precondition.rel, readErr)
+			}
+			continue
+		}
+		if readErr != nil {
+			return receipt, fmt.Errorf("file transaction precondition failed for %s: expected an existing file: %w", precondition.rel, readErr)
+		}
+		actual := fileContentSHA256(current)
+		if actual != precondition.expectedSHA256 {
+			return receipt, fmt.Errorf("file transaction precondition failed for %s: expected sha256 %s but found %s", precondition.rel, precondition.expectedSHA256, actual)
+		}
 	}
 
 	transactionID, err := newFileTransactionID()

@@ -32,10 +32,11 @@ def test_classic_quick_and_debug_cards_confirm_human_decisions_not_agent_interna
         "| next action |",
     ):
         assert agent_owned_row not in quick_lower
-    assert "technical execution belongs to the agent" in quick_lower
-    assert "for awareness, not as a request to approve technical details" in quick_lower
-    assert "deliverable-level order" in quick_lower
-    assert "internal implementation sequencing" in quick_lower
+    assert "checkpoint-stage" in quick_lower
+    assert "delivery map" in quick_lower
+    assert "confirmation_digest" in quick_lower
+    assert "subagent count" in quick_lower or "subagent" in quick_lower
+    assert "never enter the digest" in quick_lower or "never enter" in quick_lower
 
     debug_lower = debug.lower()
     for agent_owned_row in (
@@ -72,23 +73,21 @@ def test_classic_ui_card_is_independent_conditional_and_shares_one_confirmation(
     assert "reference intent" in lowered
     assert "real content" in lowered
 
-    for card in (
-        read_template("templates/command-partials/quick/checkpoint-card.md"),
-        read_template("templates/command-partials/debug/checkpoint-card.md"),
-    ):
-        card_lower = card.lower()
-        main_heading = (
-            card_lower.index("## quick checkpoint")
-            if "## quick checkpoint" in card_lower
-            else card_lower.index("## debug checkpoint")
-        )
-        assert main_heading < card_lower.index("## ui confirmation")
-        assert card_lower.index("## ui confirmation") < card_lower.index(
-            "reply with `confirm`/`确认`"
-        )
-        assert card_lower.count("reply with `confirm`/`确认`") == 1
-        assert "revise: ui" in card_lower
-        assert "revise: scope" in card_lower
+    quick_card = read_template("templates/command-partials/quick/checkpoint-card.md").lower()
+    assert "ui confirmation" in quick_card
+    assert "reply with `confirm`/`确认`" in quick_card
+    assert "revise: ui" in quick_card or "revise: scope" in quick_card
+    assert quick_card.index("quick delivery checkpoint") < quick_card.index("ui confirmation")
+
+    debug_card = read_template("templates/command-partials/debug/checkpoint-card.md").lower()
+    main_heading = debug_card.index("## debug checkpoint")
+    assert main_heading < debug_card.index("## ui confirmation")
+    assert debug_card.index("## ui confirmation") < debug_card.index(
+        "reply with `confirm`/`确认`"
+    )
+    assert debug_card.count("reply with `confirm`/`确认`") == 1
+    assert "revise: ui" in debug_card
+    assert "revise: scope" in debug_card
 
 
 def test_advanced_quick_and_debug_use_the_same_human_confirmation_contract() -> None:
@@ -194,12 +193,11 @@ def test_generated_quick_guidance_does_not_restore_the_legacy_approval_table() -
 
     combined = "\n".join(_read(path).lower() for path in propagated_sources)
     assert "| item | current understanding |" not in combined
-    assert "request and outcome" in combined
-    assert "user-visible result" in combined
-    assert "ordered work items" in combined
-    assert "work-item acceptance" in combined
-    assert "reconfirmation trigger" in combined
     assert "ui confirmation" in combined
+    # Legacy two-column Quick approval table must not be restored as the primary surface.
+    assert "| decision to confirm | current understanding |" not in _read(
+        "templates/command-partials/quick/checkpoint-card.md"
+    ).lower()
 
 
 def test_quick_checkpoint_supports_ordered_multi_work_item_delivery() -> None:
@@ -210,14 +208,14 @@ def test_quick_checkpoint_supports_ordered_multi_work_item_delivery() -> None:
 
     for contract in contracts:
         lowered = contract.lower()
-        assert "| ordered work items |" in lowered
-        assert "| work-item acceptance |" in lowered
         assert "q1" in lowered
-        assert "depends on" in lowered
-        assert "single" in lowered
-        assert "multiple" in lowered
-        assert "deliverable-level order" in lowered
-        assert "internal implementation sequencing" in lowered
+        assert "delivery map" in lowered
+        assert "checkpoint-stage" in lowered
+        assert "confirmation_digest" in lowered
+        assert "independent acceptance" in lowered or "独立验收" in lowered or "per-item acceptance" in lowered
+        assert "semantic delta" in lowered
+        assert "delivery map" in lowered
+        assert "subagent" in lowered
 
     execution_contracts = "\n".join(
         _read(path).lower()
@@ -231,3 +229,17 @@ def test_quick_checkpoint_supports_ordered_multi_work_item_delivery() -> None:
     assert "dependency order" in execution_contracts
     assert "every work item" in execution_contracts
     assert "one completed batch is progress, not task completion" in execution_contracts
+
+
+def test_quick_confirmation_schema_exists_and_separates_decision_from_delivery() -> None:
+    schema = json.loads(_read("templates/quick-confirmation-schema.json"))
+    assert schema["title"] == "quick-confirmation-v1"
+    props = schema["properties"]
+    assert "decision" in props
+    assert "delivery" in props
+    assert "execution" in props
+    digest_desc = props["confirmation_digest"]["description"].lower()
+    assert "decision" in digest_desc
+    assert "delivery" in digest_desc
+    delivery_desc = props["delivery"]["description"].lower()
+    assert "never part of confirmation_digest" in delivery_desc

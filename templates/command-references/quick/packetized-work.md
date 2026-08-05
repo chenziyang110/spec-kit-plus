@@ -21,7 +21,16 @@ Dispatch one safe validated lane as `one-subagent` or multiple safe isolated lan
 - You are not the default implementer for the quick task; substantive task work belongs on subagent lanes once scope and contracts are locked.
 - Use `execution_model: subagent-mandatory` once the quick task has a bounded execution lane.
 - Dispatch `one-subagent` for one safe delegated lane and `parallel-subagents` for isolated lanes that can run concurrently.
-- Compile a validated `WorkerTaskPacket` or equivalent execution contract before dispatch.
+- Compile a validated worker packet before dispatch through the runtime owner:
+  `specify-runtime quick packet-compile <quick-id> --item Qn --format json`.
+  That command binds the confirmed Q contract, dependency evidence, acceptance
+  gate, write scope, and confirmation digest. Use `--allow-blocked` only for
+  diagnostics; never dispatch a non-ready packet.
+- Start and accept work items only through runtime gates:
+  `quick item-start --item Qn`, then after evidence
+  `quick item-accept --item Qn --evidence "..."`. Runtime rejects starting a
+  dependent item until every prerequisite is `accepted`, and rejects
+  `quick close ... resolved` until every Q item is accepted.
 - Bind every packet to exactly one confirmed `work_item_id`, its `depends_on`
   ids, prerequisite acceptance evidence, and the matching work-item acceptance
   rows. A lane may be smaller than one work item, but it must still name which
@@ -50,7 +59,7 @@ The following flags are available and composable:
 - Decision order:
   - One safe validated lane -> `one-subagent` on `native-subagents` when available.
   - Two or more safe isolated lanes -> `parallel-subagents` on `native-subagents` when available.  - No safe lane, overlapping writes, missing contract, low confidence, or unavailable delegation -> `subagent-blocked` with a recorded reason.
-- Substantive quick-task lanes must use subagent execution once a validated `WorkerTaskPacket` or equivalent execution contract preserves quality. If that readiness bar is not met, compile the missing contract before dispatch; if the contract cannot be made safe, record `subagent-blocked` and stop for escalation or recovery.
+- Substantive multi-item or multi-surface quick-task lanes should use native subagent execution once a validated `WorkerTaskPacket` or equivalent execution contract preserves quality. Single-item tightly coupled work may stay leader-inline when packetization would not save critical-path work. If the readiness bar for a delegated lane is not met, compile the missing contract before dispatch; if the contract cannot be made safe, record `subagent-blocked` and stop for escalation or recovery. Subagent count and packetization are agent-owned Delivery Map concerns and never require user confirmation.
 - If two or more independent subagent lanes can safely run in parallel and that fan-out materially improves throughput, dispatch multiple subagents instead of serial execution.
 - `subagent-blocked` is an exception path, not a strategy choice. Use it only when the current quick-task batch cannot proceed through subagents or the native subagent workflow.
 - If subagent-blocked status is used, patch the concrete reason into `STATUS.md` through the artifact CLI.
@@ -71,6 +80,11 @@ change, reference the approved `DESIGN.md`/live pattern, affected entry point,
   structure/visual/runtime evidence. Route a missing/bootstrap design or new visual direction to
   `sp-design`. Keep multi-surface or acceptance-heavy implementation in quick;
   expand its task-local plan, viewport/state matrix, batches, and evidence.
+- When approved `DESIGN.md` is the basis, pin its approved visual ref,
+  preview/manifest/handoff SHA-256 values, immutable handoff ref, and selected
+  `DS-*`/`DH-*` rows in `STATUS.md` and every UI worker packet. An active Quick
+  task must not silently adopt a later design approval; adoption requires a
+  confirmed UI checkpoint amendment with the replacement binding.
 - Carry the confirmed UI Confirmation unchanged into `STATUS.md` and every UI
   worker packet. A worker may implement within its `must preserve`/`may adapt`
   boundaries but must not redesign the confirmed proposal; any conflict returns
@@ -110,7 +124,8 @@ change, reference the approved `DESIGN.md`/live pattern, affected entry point,
   items after confirmation.
 - Execute work items in dependency order. Do not start a dependent work item
   until every `depends_on` item has passed its work-item acceptance or the user
-  has confirmed a dependency amendment.
+  has confirmed a dependency amendment. Prefer `quick item-start` /
+  `quick item-accept` so the DAG gate is machine-enforced rather than prompt-only.
 - Independent ready work items may run in the same parallel batch. Patch the
   batch membership, join point, and prerequisite evidence into `STATUS.md` through leased `specify-runtime artifact patch` calls.
 - A large work item may use several lanes or batches. A lane or batch result

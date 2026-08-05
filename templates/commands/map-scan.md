@@ -283,6 +283,15 @@ Observations may support bounded observation tags only when tied to graph
 evidence. If validation reports schema v1 or rebuild-required readiness, run
 sp-map-scan -> sp-map-build so build-from-scan can publish schema v5 alias
 catalog rows.
+
+For every user-facing or P0/P1 queryable node, also emit a compact evidence-backed
+semantic card in `attrs`: `responsibility` states the owned job;
+`capabilities` names supported behavior; `symptoms` records observable ways a
+user may describe a problem; `user_terms` records project or product language;
+and `exclusions` distinguishes nearby concepts. `capabilities`, `symptoms`, and
+`user_terms` become positive alias-index material during build. `exclusions`
+and `responsibility` are disambiguation context only and must never become
+positive aliases. Do not invent unsupported synonyms merely to increase recall.
 When writing the recommendation in plain text, use: run sp-map-scan -> sp-map-build.
 
 Compatibility aliases accepted by the runtime are `node_id` for `id`, `kind` for

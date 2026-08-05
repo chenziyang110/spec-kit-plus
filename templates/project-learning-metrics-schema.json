@@ -1,0 +1,186 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spec-kit-plus.local/schemas/project-learning-metrics-schema.json",
+  "title": "Project Learning Aggregate Metrics Contract",
+  "description": "Aggregate-only internal state for .planning/learnings/metrics.json. Evidence, summaries, rationale, refs, paths, and timestamps are forbidden by the closed object shapes.",
+  "type": "object",
+  "required": ["schema_version", "global", "by_command"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "global": { "$ref": "#/$defs/metricBucket" },
+    "by_command": {
+      "type": "object",
+      "maxProperties": 64,
+      "propertyNames": {
+        "enum": [
+          "sp-accept",
+          "sp-analyze",
+          "sp-ask",
+          "sp-auto",
+          "sp-checklist",
+          "sp-clarify",
+          "sp-constitution",
+          "sp-debug",
+          "sp-deep-research",
+          "sp-design",
+          "sp-discussion",
+          "sp-explain",
+          "sp-fast",
+          "sp-implement",
+          "sp-implement-teams",
+          "sp-integrate",
+          "sp-map-scan",
+          "sp-map-build",
+          "sp-map-update",
+          "sp-map-rebuild",
+          "sp-plan",
+          "sp-prd",
+          "sp-prd-build",
+          "sp-prd-scan",
+          "sp-quick",
+          "sp-specify",
+          "sp-tasks",
+          "sp-taskstoissues",
+          "sp-team"
+        ]
+      },
+      "additionalProperties": { "$ref": "#/$defs/metricBucket" }
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "count": { "type": "integer", "minimum": 0 },
+    "metricBucket": {
+      "type": "object",
+      "required": [
+        "totals",
+        "decisions",
+        "value_tiers",
+        "risk_tiers",
+        "reason_codes",
+        "redaction_labels"
+      ],
+      "properties": {
+        "totals": {
+          "type": "object",
+          "required": [
+            "assessed",
+            "captured",
+            "candidate_captured",
+            "confirmed",
+            "promoted",
+            "deferred",
+            "ignored"
+          ],
+          "properties": {
+            "assessed": { "$ref": "#/$defs/count" },
+            "captured": { "$ref": "#/$defs/count" },
+            "candidate_captured": { "$ref": "#/$defs/count" },
+            "confirmed": { "$ref": "#/$defs/count" },
+            "promoted": { "$ref": "#/$defs/count" },
+            "deferred": { "$ref": "#/$defs/count" },
+            "ignored": { "$ref": "#/$defs/count" }
+          },
+          "additionalProperties": false
+        },
+        "decisions": {
+          "$ref": "#/$defs/decisions"
+        },
+        "value_tiers": {
+          "$ref": "#/$defs/valueTiers"
+        },
+        "risk_tiers": {
+          "$ref": "#/$defs/riskTiers"
+        },
+        "reason_codes": {
+          "$ref": "#/$defs/reasonCodes"
+        },
+        "redaction_labels": {
+          "$ref": "#/$defs/redactionLabelCounts"
+        }
+      },
+      "additionalProperties": false
+    },
+    "decisions": {
+      "type": "object",
+      "required": ["capture-safe", "capture-sanitized", "defer", "ignore"],
+      "properties": {
+        "capture-safe": { "$ref": "#/$defs/count" },
+        "capture-sanitized": { "$ref": "#/$defs/count" },
+        "defer": { "$ref": "#/$defs/count" },
+        "ignore": { "$ref": "#/$defs/count" }
+      },
+      "additionalProperties": false
+    },
+    "valueTiers": {
+      "type": "object",
+      "required": ["high", "medium", "low"],
+      "properties": {
+        "high": { "$ref": "#/$defs/count" },
+        "medium": { "$ref": "#/$defs/count" },
+        "low": { "$ref": "#/$defs/count" }
+      },
+      "additionalProperties": false
+    },
+    "riskTiers": {
+      "type": "object",
+      "required": ["none", "moderate", "high"],
+      "properties": {
+        "none": { "$ref": "#/$defs/count" },
+        "moderate": { "$ref": "#/$defs/count" },
+        "high": { "$ref": "#/$defs/count" }
+      },
+      "additionalProperties": false
+    },
+    "reasonCodes": {
+      "type": "object",
+      "required": [
+        "explicit_capture",
+        "workflow_gap",
+        "user_correction",
+        "reusable_constraint",
+        "near_miss",
+        "repeated_occurrence",
+        "tooling_trap",
+        "recovery_path",
+        "high_signal",
+        "routine_outcome"
+      ],
+      "properties": {
+        "explicit_capture": { "$ref": "#/$defs/count" },
+        "workflow_gap": { "$ref": "#/$defs/count" },
+        "user_correction": { "$ref": "#/$defs/count" },
+        "reusable_constraint": { "$ref": "#/$defs/count" },
+        "near_miss": { "$ref": "#/$defs/count" },
+        "repeated_occurrence": { "$ref": "#/$defs/count" },
+        "tooling_trap": { "$ref": "#/$defs/count" },
+        "recovery_path": { "$ref": "#/$defs/count" },
+        "high_signal": { "$ref": "#/$defs/count" },
+        "routine_outcome": { "$ref": "#/$defs/count" }
+      },
+      "additionalProperties": false
+    },
+    "redactionLabelCounts": {
+      "type": "object",
+      "required": [
+        "credential",
+        "email",
+        "private_key",
+        "machine_path",
+        "personal_identifier",
+        "business_identifier",
+        "organization_sensitive"
+      ],
+      "properties": {
+        "credential": { "$ref": "#/$defs/count" },
+        "email": { "$ref": "#/$defs/count" },
+        "private_key": { "$ref": "#/$defs/count" },
+        "machine_path": { "$ref": "#/$defs/count" },
+        "personal_identifier": { "$ref": "#/$defs/count" },
+        "business_identifier": { "$ref": "#/$defs/count" },
+        "organization_sensitive": { "$ref": "#/$defs/count" }
+      },
+      "additionalProperties": false
+    }
+  }
+}

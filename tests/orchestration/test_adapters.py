@@ -3,6 +3,7 @@ from specify_cli.orchestration.models import CapabilitySnapshot
 from specify_cli.integrations.claude import ClaudeMultiAgentAdapter
 from specify_cli.integrations.codex import CodexMultiAgentAdapter
 from specify_cli.integrations.copilot import CopilotMultiAgentAdapter
+from specify_cli.integrations.cursor_agent import CursorMultiAgentAdapter
 from specify_cli.integrations.gemini import GeminiMultiAgentAdapter
 from specify_cli.integrations.mimo import MimoMultiAgentAdapter
 
@@ -12,6 +13,7 @@ def test_multi_agent_adapter_protocol_shape():
     assert isinstance(CodexMultiAgentAdapter(), MultiAgentAdapter)
     assert isinstance(GeminiMultiAgentAdapter(), MultiAgentAdapter)
     assert isinstance(CopilotMultiAgentAdapter(), MultiAgentAdapter)
+    assert isinstance(CursorMultiAgentAdapter(), MultiAgentAdapter)
     assert isinstance(MimoMultiAgentAdapter(), MultiAgentAdapter)
 
 
@@ -38,6 +40,20 @@ def test_codex_adapter_capability_snapshot():
     assert snapshot.native_worker_surface == "spawn_agent"
     assert snapshot.delegation_confidence == "high"
     assert snapshot.durable_coordination is True
+    assert snapshot.runtime_probe_succeeded is True
+
+
+def test_cursor_adapter_capability_snapshot():
+    snapshot = CursorMultiAgentAdapter().detect_capabilities()
+
+    assert isinstance(snapshot, CapabilitySnapshot)
+    assert snapshot.integration_key == "cursor-agent"
+    assert snapshot.native_subagents is True
+    assert snapshot.structured_results is True
+    assert snapshot.durable_coordination is False
+    assert snapshot.native_worker_surface == "cursor-task"
+    assert snapshot.delegation_confidence == "medium"
+    assert any("task" in note.lower() for note in snapshot.notes)
     assert snapshot.runtime_probe_succeeded is True
 
 
@@ -111,6 +127,7 @@ def test_adapters_support_known_commands_and_reject_unknown_commands():
     for adapter in [
         ClaudeMultiAgentAdapter(),
         CodexMultiAgentAdapter(),
+        CursorMultiAgentAdapter(),
         GeminiMultiAgentAdapter(),
         MimoMultiAgentAdapter(),
     ]:

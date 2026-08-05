@@ -61,6 +61,39 @@ jobs:
                 break
               fi
             done
+            if [ "$complete" = "true" ]; then
+              identity_dir="$(mktemp -d)"
+              if gh release download "$VERSION" --pattern 'specify-runtime-*' \
+                   --dir "$identity_dir" --clobber; then
+                expected_revision="$(git rev-parse "${VERSION}^{commit}")"
+                expected_identity_marker="specify-runtime.release.v1,version=${VERSION},revision=${expected_revision},dirty=false"
+                for asset in "${expected_assets[@]}"; do
+                  asset_path="$identity_dir/$asset"
+                  if [ ! -s "$asset_path" ] || \
+                     ! grep -aF -- "$expected_identity_marker" "$asset_path" >/dev/null || \
+                     ! grep -aF -- "specify-runtime.v1" "$asset_path" >/dev/null; then
+                    echo "Release $VERSION asset ${asset} is missing its canonical embedded release identity; rebuilding assets."
+                    complete=false
+                    break
+                  fi
+                done
+                if [ "$complete" = "true" ]; then
+                  runtime_asset="$identity_dir/specify-runtime-linux-amd64"
+                  chmod +x "$runtime_asset"
+                  if identity_json="$("$runtime_asset" version --format json 2>/dev/null)" && \
+                     jq -e --arg version "$VERSION" --arg revision "$expected_revision" \
+                       '.status == "ok" and .data.cli_version == $version and .data.source_revision == $revision and .data.dirty == false' \
+                       <<<"$identity_json" >/dev/null; then
+                    :
+                  else
+                    echo "Release $VERSION has an invalid executable runtime identity; rebuilding assets."
+                    complete=false
+                  fi
+                fi
+              else
+                complete=false
+              fi
+            fi
           else
             complete=false
           fi
@@ -153,7 +186,8 @@ jobs:
             local dir="$2"
             local ldflags="-s -w -X main.version=${VERSION}"
             if [ "$tool" = "specify-runtime" ]; then
-              ldflags="${ldflags} -X github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/buildinfo.SourceRevision=${SOURCE_REVISION} -X github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/buildinfo.BuildDirty=false"
+              local identity_marker="specify-runtime.release.v1,version=${VERSION},revision=${SOURCE_REVISION},dirty=false"
+              ldflags="${ldflags} -X github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/buildinfo.ReleaseIdentity=${identity_marker} -X github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/buildinfo.SourceRevision=${SOURCE_REVISION} -X github.com/chenziyang110/spec-kit-plus/tools/specify-runtime/internal/buildinfo.BuildDirty=false"
             fi
             echo "Building ${tool} ${VERSION}..."
             for target in $TARGETS; do
@@ -182,6 +216,9 @@ jobs:
       - name: Smoke-test specify-runtime release binary
         if: steps.check_release.outputs.exists == 'false'
         run: |
+          VERSION="${{ steps.version.outputs.tag }}"
+          SOURCE_REVISION="$(git rev-parse HEAD)"
+          IDENTITY_MARKER="specify-runtime.release.v1,version=${VERSION},revision=${SOURCE_REVISION},dirty=false"
           chmod +x ./dist/release-tools/specify-runtime-linux-amd64
           ./dist/release-tools/specify-runtime-linux-amd64 --help | grep -q "cognition"
           ./dist/release-tools/specify-runtime-linux-amd64 --help | grep -q "artifact"
@@ -194,10 +231,21 @@ jobs:
           ./dist/release-tools/specify-runtime-linux-amd64 --help | grep -q "review"
           ./dist/release-tools/specify-runtime-linux-amd64 --help | grep -q "accept"
           ./dist/release-tools/specify-runtime-linux-amd64 --help | grep -q "sp-teams"
-          ./dist/release-tools/specify-runtime-linux-amd64 version --format json | grep -q '"protocol_version":"specify-runtime.v1"'
-          ./dist/release-tools/specify-runtime-linux-amd64 api handshake --format json | grep -q '"discussion.init"'
-          ./dist/release-tools/specify-runtime-linux-amd64 api handshake --format json | grep -q '"learning.start"'
-          ./dist/release-tools/specify-runtime-linux-amd64 api handshake --format json | grep -q '"sp-teams.submit-result"'
+          for asset in ./dist/release-tools/specify-runtime-*; do
+            grep -aF -- "$IDENTITY_MARKER" "$asset" >/dev/null
+            grep -aF -- "specify-runtime.v1" "$asset" >/dev/null
+          done
+          version_json="$(./dist/release-tools/specify-runtime-linux-amd64 version --format json)"
+          jq -e --arg version "$VERSION" --arg revision "$SOURCE_REVISION" \
+            '.status == "ok" and .data.cli_version == $version and .data.protocol_version == "specify-runtime.v1" and .data.source_revision == $revision and .data.dirty == false' \
+            <<<"$version_json" >/dev/null
+          handshake_json="$(./dist/release-tools/specify-runtime-linux-amd64 api handshake --format json)"
+          jq -e --arg version "$VERSION" --arg revision "$SOURCE_REVISION" \
+            '.status == "ok" and .data.cli_version == $version and .data.source_revision == $revision and .data.dirty == false' \
+            <<<"$handshake_json" >/dev/null
+          grep -q '"discussion.init"' <<<"$handshake_json"
+          grep -q '"learning.start"' <<<"$handshake_json"
+          grep -q '"sp-teams.submit-result"' <<<"$handshake_json"
           ./dist/release-tools/specify-runtime-linux-amd64 artifact catalog --format json | grep -q '"quick-status"'
           ./dist/release-tools/specify-runtime-linux-amd64 artifact catalog --format json | grep -q '"plan-contract"'
           workflow_help="$(./dist/release-tools/specify-runtime-linux-amd64 workflow --help 2>&1)"

@@ -37,13 +37,21 @@ Its job is to read current repository state, identify the recommended next Spec 
 - When a managed Run declares a feature subject, treat that subject as the routing boundary and verify the current directory equals `SPECIFY_RUN_WORKSPACE`; authoritative workflow state remains the truth source.
 - `sp-auto` does not create a new long-lived state file of its own.
 - It exists to continue the already-canonical workflow step recorded elsewhere.
+- Candidate priority applies only within one resolved workflow lineage. A
+  topical continuation of an already-invoked incomplete discussion is selected
+  before unrelated feature, Quick, Debug, or task candidates are considered.
+- A name, slug, title, topic, or keyword similarity is not binding evidence
+  between workflow roots. Require a runtime lane selection or the durable
+  `source_contract` plus `review_digest` relationship. When feature context is
+  absent, do not enumerate `.specify/features/**`, `tasks.md`, or
+  `task-index.json` to guess a feature directory.
 
 ## Process
 
 - For every feature-bearing candidate, first run `{{specify-subcmd:specify-runtime workflow show --feature-dir <feature-dir> --format json}}`, then `{{specify-subcmd:specify-runtime workflow next --feature-dir <feature-dir> --format json}}`. `FEATURE_DIR/workflow.json` is the required-stage phase lock. Consume the returned structured `next_argv`; never reconstruct or infer the required phase action from Markdown fields.
 - When `next_argv` names `specify-runtime workflow complete-stage`, route to the current required-stage owner so it can finish and validate that stage. When it names `specify-runtime workflow transition --to <stage>`, route to that destination stage and pass the exact argv. When active `accept` returns `specify-runtime workflow closeout`, route to the current accept owner so human acceptance can resume; only completed `accept` has no successor.
 - A blocked runtime intentionally has no `next_argv`. Preserve its tutorial and wait for the declared evidence; once present, fill only the required evidence input in `data.resolution_action` and execute its runtime-owned base argv. `show_argv` refreshes state but never resolves it.
-- Inspect the current repository state surfaces in priority order.
+- Inspect the current repository state surfaces in priority order only after resolving the current workflow lineage.
 - When concurrent Runs exist, never inspect or resume another Run's subject from the current sandbox. Route only the current Run subject; an unbound invocation must stop when repository state exposes multiple safe candidates.
 - Resolve exactly one safe canonical next command.
 - Continue under that command's full shared contract instead of improvising a blended workflow.
@@ -108,7 +116,12 @@ Inspect the available state surfaces in this order and prefer the most specific 
    - If a live investigation owns the current next action, route to the canonical `/sp.debug` token.
 
 7. Discussion handoff state
-- List active discussion state through `specify-runtime artifact list --path-prefix .specify/discussions/ --type discussion-state-json`, then query only the selected state with `artifact show` when no higher-authority route exists.
+- List active discussion state through `specify-runtime artifact list --path-prefix .specify/discussions/ --type discussion-state-json`, then query only the selected state with `artifact show`.
+- If the current turn topically continues a selected `active` or `blocked`
+  discussion, route to `/sp.discussion` before considering any unrelated
+  feature or execution state. Requirements, design, and verification
+  convergence still require handoff assessment, route choice, digest review,
+  and readiness inside Discussion; they do not authorize `/sp.implement`.
 - For `status: handoff-ready` with `handoff_consumption_status` not `consumed`, query canonical `handoff-to-specify.json` through `specify-runtime artifact show` and require `recommended_consumer`, `consumer_eligibility.<consumer>.status: ready`, and `next_command` to agree.
    - If the ready contract, eligibility, and state disagree, route back to `/sp.discussion` for handoff repair instead of guessing or defaulting to `/sp.specify`.
    - If `handoff_consumption_status: consumed`, `status: completed`, `consumed_by_feature_dir` is populated, or `next_command: none`, do not count that discussion as a resumable candidate.
@@ -122,8 +135,13 @@ Choose exactly one routed command.
 - If a managed Run subject exists, select only state belonging to that subject and reconcile it against the real workflow artifacts before routing.
 - Auto-resume only when there is exactly one unique safe candidate.
 - If multiple candidates remain after reconcile, stop and present a minimal choice instead of guessing.
-- Prefer the route that is already recorded in the highest-authority active state file.
-- If multiple state surfaces are active, prefer the more execution-proximate surface only when it does not conflict with an explicit upstream `next_command`.
+- Prefer the route that is already recorded in the highest-authority active
+  state file within the resolved lineage.
+- If multiple state surfaces are active within that lineage, prefer the more
+  execution-proximate surface only when it does not conflict with an explicit
+  upstream `next_command`. An unconsumed discussion and an unrelated feature
+  are competing lanes, not priority-ranked stages; do not select the feature
+  from topical or lexical similarity.
 - Never bypass canonical upstream gates such as `/sp.clarify`, `/sp.deep-research`, `/sp.plan`, or `/sp.tasks` just because downstream artifacts already exist. Treat `/sp.analyze` as an upstream gate only when persisted workflow state explicitly records that legacy or diagnostic route.
 - Never treat `sp-auto` itself as the next recorded workflow step. It is only the entrypoint the user uses instead of typing the canonical command manually.
 

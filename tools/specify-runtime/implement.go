@@ -58,7 +58,7 @@ func runImplement(args []string, stdout io.Writer) int {
 	switch args[0] {
 	case "task-next":
 		payload, err := runImplementTaskNext(args[1:])
-		return writeImplementPayload(stdout, payload, err, "next dependency-ready task resolved")
+		return writeImplementTaskNextPayload(stdout, payload, err)
 	case "packet-compile":
 		payload, err := runImplementPacketCompile(args[1:])
 		return writeImplementPayload(stdout, payload, err, "worker task packet compiled")
@@ -71,6 +71,9 @@ func runImplement(args []string, stdout io.Writer) int {
 	case "task-accept":
 		payload, err := runImplementTaskAccept(args[1:])
 		return writeImplementPayload(stdout, payload, err, "validated task accepted")
+	case "task-reopen":
+		payload, err := runImplementTaskReopen(args[1:])
+		return writeImplementPayload(stdout, payload, err, "task reopened with immutable recovery history")
 	case "validation-start":
 		return runImplementValidationStart(args[1:], stdout)
 	case "validation-finish":
@@ -136,11 +139,20 @@ func runImplementResumeAudit(args []string, stdout io.Writer) int {
 	}
 	payload := auditImplementResume(root, feature)
 	if payload["status"] == "fail" || payload["status"] == "conflict" {
-		payload["blockers"] = implementationCloseoutBlockers(feature, payload, nil)
+		if payload["reason_code"] == "workflow-blocked" && payload["workflow_blocker"] != nil {
+			payload["blockers"] = []any{cloneJSONValue(payload["workflow_blocker"])}
+		} else {
+			payload["blockers"] = implementationCloseoutBlockers(feature, payload, nil)
+		}
 		env := NewEnvelope("blocked", "implementation resume audit failed")
 		env.Data = payload
-		for _, blocker := range payload["blockers"].([]map[string]any) {
-			env.Blockers = append(env.Blockers, blocker)
+		switch blockers := payload["blockers"].(type) {
+		case []map[string]any:
+			for _, blocker := range blockers {
+				env.Blockers = append(env.Blockers, blocker)
+			}
+		case []any:
+			env.Blockers = append(env.Blockers, blockers...)
 		}
 		return writeEnvelope(stdout, env)
 	}
@@ -1222,9 +1234,54 @@ func bindImplementTaskBlockers(feature string, proposal map[string]any, relative
 }
 
 func auditImplementResume(root, feature string) map[string]any {
+	workflow, workflowErr := loadImplementWorkflowSnapshot(root, feature)
+	if workflowErr != nil {
+		payload := implementAuditPayload("fail", feature, "workflow-state-invalid", false, "blocked", "Repair workflow.json before resuming implementation.", nil, []string{workflowErr.Error()})
+		payload["reason_code"] = "workflow-state-invalid"
+		return payload
+	}
+	if workflow.Status == "blocked" {
+		payload := implementAuditPayload("fail", feature, "workflow-blocked", false, "blocked", anyString(valueOrDefault(workflow.Summary, "Resolve the persisted workflow blocker before resuming implementation.")), nil, []string{"workflow.json contains an unresolved blocker"})
+		payload["reason_code"] = "workflow-blocked"
+		payload["workflow_revision"] = workflow.Revision
+		payload["workflow_stage"] = workflow.Stage
+		payload["workflow_blocker"] = cloneJSONValue(workflow.Blocker)
+		payload["resolution_action"] = cloneJSONValue(workflow.ResolutionAction)
+		return payload
+	}
 	tasks := parseImplementTasks(filepath.Join(feature, "tasks.md"))
 	tracker := parseImplementTracker(filepath.Join(feature, "implement-tracker.md"))
 	trackerStatus := strings.ToLower(strings.TrimSpace(tracker["status"]))
+	if len(tasks) == 0 {
+		payload := implementAuditPayload("fail", feature, "task-graph-invalid", false, "blocked", "Recover tasks.md and task-index.json before resuming implementation.", nil, []string{"tasks.md has no task checklist evidence"})
+		payload["reason_code"] = "task-graph-invalid"
+		return payload
+	}
+	if index, err := loadReadyImplementTaskIndex(root, feature); err == nil {
+		decision := resolveImplementTaskNext(root, feature, index, workflow)
+		reasonCode := anyString(decision["reason_code"])
+		if reasonCode == "task-state-invalid" {
+			gap := fmt.Sprintf("%s: %s", anyString(decision["blocked_task_id"]), anyString(decision["state_error"]))
+			payload := implementAuditPayload("fail", feature, "state-conflict", false, "blocked", anyString(decision["recommended_next_action"]), nil, []string{gap})
+			payload["reason_code"] = reasonCode
+			payload["blocked_task_id"] = decision["blocked_task_id"]
+			payload["workflow_revision"] = decision["workflow_revision"]
+			payload["lifecycle_ref"] = decision["lifecycle_ref"]
+			payload["state_error"] = decision["state_error"]
+			return payload
+		}
+		if reasonCode == "task-reopen-required" {
+			gap := fmt.Sprintf("%s: %s", anyString(decision["blocked_task_id"]), anyString(decision["acceptance_error"]))
+			payload := implementAuditPayload("fail", feature, "task-recovery-required", false, "blocked", anyString(decision["recommended_next_action"]), nil, []string{gap})
+			payload["reason_code"] = "task-reopen-required"
+			payload["blocked_task_id"] = decision["blocked_task_id"]
+			payload["task_revision"] = decision["task_revision"]
+			payload["workflow_revision"] = decision["workflow_revision"]
+			payload["acceptance_error"] = decision["acceptance_error"]
+			payload["recovery_action"] = cloneJSONValue(decision["recovery_action"])
+			return payload
+		}
+	}
 	allChecked := len(tasks) > 0
 	for _, task := range tasks {
 		if !task.Checked {
@@ -1238,9 +1295,6 @@ func auditImplementResume(root, feature string) map[string]any {
 	}
 	var gaps []string
 	var findings []any
-	if terminal && len(tasks) == 0 {
-		gaps = append(gaps, "tasks.md has no task checklist evidence")
-	}
 	for _, task := range tasks {
 		if !task.Checked {
 			continue
@@ -1712,6 +1766,34 @@ func writeImplementPayload(stdout io.Writer, payload map[string]any, err error, 
 	}
 	env := NewEnvelope("ok", summary)
 	env.Data = payload
+	return writeEnvelope(stdout, env)
+}
+
+func writeImplementTaskNextPayload(stdout io.Writer, payload map[string]any, err error) int {
+	if err != nil {
+		return writeImplementPayload(stdout, payload, err, "next dependency-ready task resolved")
+	}
+	if payload["status"] != "blocked" {
+		return writeImplementPayload(stdout, payload, nil, "next implementation action resolved")
+	}
+	summary := strings.TrimSpace(anyString(payload["recommended_next_action"]))
+	if summary == "" {
+		summary = "implementation cannot select a dependency-ready task"
+	}
+	env := NewEnvelope("blocked", summary)
+	env.Data = payload
+	if blocker := payload["workflow_blocker"]; blocker != nil {
+		env.Blockers = append(env.Blockers, cloneJSONValue(blocker))
+	} else if acceptanceError := strings.TrimSpace(anyString(payload["acceptance_error"])); acceptanceError != "" {
+		env.Blockers = append(env.Blockers, acceptanceError)
+	} else {
+		env.Blockers = append(env.Blockers, summary)
+	}
+	if raw, ok := payload["next_argv"].([]any); ok {
+		for _, value := range raw {
+			env.NextArgv = append(env.NextArgv, anyString(value))
+		}
+	}
 	return writeEnvelope(stdout, env)
 }
 

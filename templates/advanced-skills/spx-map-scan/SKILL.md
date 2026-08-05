@@ -6,6 +6,7 @@ description: Low-cost specify-runtime cognition scan workflow for advanced codin
 # SPX Map Scan
 
 Read `references/project-learning.md` and apply its consume-capture policy.
+Read `references/native-subagents.md` before dispatching scan workers.
 Read `references/project-cognition.md` for its evidence boundary, then
 `references/scan-gates.md` and `references/scan-worker.md`. Do not run Compass
 intake while the baseline is missing or invalid. This skill writes only

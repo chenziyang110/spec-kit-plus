@@ -121,6 +121,12 @@ func TestAPIHandshakePublishesProtocolVersionAndCapabilities(t *testing.T) {
 	if protocol, ok := data["protocol_version"].(string); !ok || protocol == "" {
 		t.Fatalf("handshake data.protocol_version = %#v, want non-empty string", data["protocol_version"])
 	}
+	if revision, ok := data["source_revision"].(string); !ok || revision == "" {
+		t.Fatalf("handshake data.source_revision = %#v, want non-empty string", data["source_revision"])
+	}
+	if _, ok := data["dirty"].(bool); !ok {
+		t.Fatalf("handshake data.dirty = %#v, want boolean", data["dirty"])
+	}
 	capabilities := requireStringArray(t, data, "capability_ids")
 	seenCapabilities := map[string]bool{}
 	for _, capability := range capabilities {
@@ -453,6 +459,7 @@ func generatedRuntimeVerbCapabilities() []string {
 		"implement.resume-audit",
 		"implement.task-accept",
 		"implement.task-next",
+		"implement.task-reopen",
 		"implement.task-start",
 		"implement.validation-finish",
 		"implement.validation-start",
@@ -460,9 +467,12 @@ func generatedRuntimeVerbCapabilities() []string {
 		"learning.capture",
 		"learning.capture-auto",
 		"learning.list",
+		"learning.metrics",
 		"learning.promote",
+		"learning.review",
 		"learning.show",
 		"learning.start",
+		"learning.status",
 		"prd-build.status",
 		"prd-build.scaffold",
 		"prd-scan.finalize",
@@ -473,8 +483,15 @@ func generatedRuntimeVerbCapabilities() []string {
 		"prd-scan.record-upsert",
 		"prd-scan.status",
 		"quick.archive",
+		"quick.checkpoint-confirm",
+		"quick.checkpoint-show",
+		"quick.checkpoint-stage",
 		"quick.close",
+		"quick.item-accept",
+		"quick.item-start",
+		"quick.item-status",
 		"quick.list",
+		"quick.packet-compile",
 		"quick.resume",
 		"quick.status",
 		"result.path",

@@ -41,6 +41,18 @@ for feature, debug, Review, and Acceptance types. Query a selected record with
 `workflow show|next` or targeted `artifact show`. Never enumerate or parse the
 underlying `.specify/**` or `.planning/**` state directories directly.
 
+Candidate priority applies only within one resolved workflow lineage. A topical
+continuation of an already-invoked incomplete discussion is selected before
+unrelated feature, Quick, Debug, or task candidates are considered, and stays
+in `spx-discussion` until its handoff is ready. A ready discussion can continue
+only through its explicitly selected `spx-quick` or `spx-specify` consumer,
+never directly through `spx-implement`. A name, slug, title, topic, or keyword
+similarity is not binding evidence between workflow roots; require runtime lane
+selection or the consumer's durable `source_contract` and `review_digest`. When
+feature context is absent, do not enumerate `.specify/features/**`, `tasks.md`,
+or `task-index.json` to guess a feature directory. An unconsumed discussion and
+an unrelated feature are competing candidates, not priority-ranked stages.
+
 Choose the first applicable trustworthy route:
 
 - new/high-visibility UI direction, redesign, or UI work blocked by missing or

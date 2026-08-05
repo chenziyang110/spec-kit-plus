@@ -16,8 +16,15 @@ import (
 )
 
 const (
-	CandidateUniverseVersion      = 2
-	ClaimRetrievalContractVersion = 2
+	CandidateUniverseVersion       = 2
+	ClaimRetrievalContractVersion  = 2
+	QueryResolutionBindingRequired = "binding_required"
+	QueryResolutionGreenfield      = "greenfield_no_graph"
+	QueryResolutionInvalidBinding  = "invalid_binding"
+	QueryResolutionResolvedExact   = "resolved_exact"
+	QueryResolutionResolvedReview  = "resolved_with_review"
+	QueryResolutionRuntimeInferred = "runtime_inferred"
+	QueryResolutionStaleBinding    = "stale_binding"
 )
 
 type conceptRef struct {
@@ -76,12 +83,13 @@ type Plan struct {
 }
 
 type QueryInput struct {
-	Intent          string
-	Query           string
-	ExpandedQuery   string
-	Paths           []string
-	Plan            Plan
-	PlanDiagnostics PlanDiagnostics
+	Intent                 string
+	Query                  string
+	ExpandedQuery          string
+	Paths                  []string
+	Plan                   Plan
+	PlanDiagnostics        PlanDiagnostics
+	RequireExplicitBinding bool
 }
 
 type QueryPayload struct {
@@ -93,6 +101,7 @@ type QueryPayload struct {
 	WorkflowRequirement           string            `json:"workflow_requirement"`
 	PathAdoption                  map[string]any    `json:"path_adoption"`
 	Readiness                     string            `json:"readiness"`
+	ResolutionState               string            `json:"resolution_state"`
 	RecommendedNextAction         string            `json:"recommended_next_action"`
 	BaselineKind                  string            `json:"baseline_kind,omitempty"`
 	Intent                        string            `json:"intent"`
@@ -338,14 +347,49 @@ func planParseError(errors []string, warnings []string, repairHints []string) *P
 
 func expectedQueryPlanShape() map[string]any {
 	return map[string]any{
+		"candidate_universe_version": CandidateUniverseVersion,
+		"lexicon_generation_id":      "<active generation from lexicon catalog>",
+		"raw_query":                  "<original user request>",
 		"alias_interpretations": []map[string]string{
 			{"alias": "<user term>", "meaning": "<project term>", "confidence": "medium"},
 		},
 		"semantic_intake": map[string]any{
+			"normalized_query":     "<agent-interpreted project intent>",
+			"intent_facets":        []string{"<required facet>"},
+			"negative_constraints": []string{"<excluded interpretation>"},
 			"alias_interpretations": []map[string]string{
 				{"alias": "<user term>", "meaning": "<project term>", "confidence": "medium"},
 			},
 		},
+		"selected_concepts": []string{"<exact concept_id copied from the current lexicon catalog>"},
+		"paths":             []string{"<exact project-relative path when path binding is used>"},
+	}
+}
+
+// ValidateExplicitQueryBinding prevents a natural-language string from being
+// mistaken for a precise graph query. Public query calls must bind to at least
+// one current catalog concept or an explicit repository path.
+func ValidateExplicitQueryBinding(plan Plan, inputPaths []string, diagnostics PlanDiagnostics) error {
+	plan = NormalizePlan(plan)
+	paths := normalizePaths(append(append([]string{}, plan.Paths...), inputPaths...))
+	errorsFound := []string{}
+	repairHints := append([]string{}, diagnostics.RepairHints...)
+	if len(plan.SelectedConcepts) == 0 && len(paths) == 0 {
+		errorsFound = append(errorsFound, "query_plan_binding_required: select at least one current catalog concept_id or explicit path")
+		appendDiagnostic(&repairHints, "Use cognition compass for natural-language intake. For precision query, page through cognition lexicon --mode catalog, copy exact concept_id values into selected_concepts, and retry with --query-plan.")
+	}
+	if len(plan.SelectedConcepts) > 0 && plan.LexiconGenerationID == "" {
+		errorsFound = append(errorsFound, "lexicon_generation_id is required when selected_concepts are present")
+		appendDiagnostic(&repairHints, "Carry lexicon_generation_id from the same catalog snapshot that supplied selected_concepts.")
+	}
+	if len(errorsFound) == 0 {
+		return nil
+	}
+	return &PlanParseError{
+		Errors:        errorsFound,
+		Warnings:      append([]string{}, diagnostics.Warnings...),
+		RepairHints:   repairHints,
+		ExpectedShape: expectedQueryPlanShape(),
 	}
 }
 
@@ -380,6 +424,8 @@ func Run(paths rt.Paths, input QueryInput) (QueryPayload, error) {
 	if len(plan.Paths) == 0 {
 		plan.Paths = normalizePaths(input.Paths)
 	}
+	explicitPaths := append([]string{}, plan.Paths...)
+	explicitBinding := len(plan.SelectedConcepts) > 0 || len(plan.Paths) > 0
 	if status.BaselineKind == rt.BaselineKindGreenfieldEmpty {
 		readCandidates := []string{
 			".specify/memory/constitution.md",
@@ -403,6 +449,7 @@ func Run(paths rt.Paths, input QueryInput) (QueryPayload, error) {
 			WorkflowRequirement:   "use_greenfield_workflow_artifacts_then_live_requirements",
 			PathAdoption:          map[string]any{"paths": plan.Paths},
 			Readiness:             status.Readiness,
+			ResolutionState:       QueryResolutionGreenfield,
 			RecommendedNextAction: status.RecommendedNextAction,
 			BaselineKind:          status.BaselineKind,
 			Intent:                input.Intent,
@@ -432,8 +479,14 @@ func Run(paths rt.Paths, input QueryInput) (QueryPayload, error) {
 			RepairHints: input.PlanDiagnostics.RepairHints,
 		}, nil
 	}
+	if input.RequireExplicitBinding {
+		if err := ValidateExplicitQueryBinding(plan, nil, input.PlanDiagnostics); err != nil {
+			return QueryPayload{}, err
+		}
+	}
 	nodes := []map[string]any{}
 	missingCoverage := []string{}
+	runtimeInferredBinding := false
 	st, err := store.OpenExisting(paths)
 	if errors.Is(err, os.ErrNotExist) {
 		st = nil
@@ -457,6 +510,7 @@ func Run(paths rt.Paths, input QueryInput) (QueryPayload, error) {
 				return QueryPayload{}, err
 			}
 			plan, missingCoverage = applySemanticIntakeSelection(plan, rows, activeGenerationID)
+			runtimeInferredBinding = len(plan.SelectedConcepts) > 0
 		}
 		if len(plan.SelectedConcepts) > 0 {
 			var nodeIDs []string
@@ -482,13 +536,27 @@ func Run(paths rt.Paths, input QueryInput) (QueryPayload, error) {
 				plan.Paths = pathsFromNodes(nodes)
 			}
 		}
-		if len(nodes) == 0 && (len(plan.SelectedConcepts) == 0 || len(plan.Paths) > 0) {
+		if len(explicitPaths) > 0 {
+			pathNodes, pathMissingCoverage, pathErr := resolveExplicitPathBindings(st, explicitPaths)
+			if pathErr != nil {
+				return QueryPayload{}, pathErr
+			}
+			missingCoverage = appendUniqueStrings(missingCoverage, pathMissingCoverage...)
+			if len(nodes) == 0 {
+				nodes = pathNodes
+			}
+		}
+		if len(nodes) == 0 && len(plan.Paths) > 0 && len(explicitPaths) == 0 {
 			nodes, err = st.NodesForPaths(context.Background(), plan.Paths)
 			if err != nil {
 				return QueryPayload{}, err
 			}
 		}
 	}
+	if !explicitBinding && !runtimeInferredBinding {
+		missingCoverage = appendMissingCoverage(missingCoverage, "query_plan_binding_required")
+	}
+	resolutionState := queryResolutionFor(nodes, missingCoverage, explicitBinding, runtimeInferredBinding)
 	reads := normalizePaths(append(append([]string{}, plan.Paths...), pathsFromNodes(nodes)...))
 	if len(reads) == 0 {
 		reads = []string{".specify/project-cognition/status.json", ".specify/project-cognition/project-cognition.db"}
@@ -498,6 +566,16 @@ func Run(paths rt.Paths, input QueryInput) (QueryPayload, error) {
 	if shouldReviewMissingCoverage(missingCoverage) && status.Readiness == rt.ReadyReadiness {
 		readiness = "review"
 		recommendedNextAction = "use_minimal_live_reads_and_review_missing_coverage"
+	}
+	if status.Readiness == rt.ReadyReadiness {
+		switch resolutionState {
+		case QueryResolutionBindingRequired:
+			readiness = rt.ReviewReadiness
+			recommendedNextAction = "build_query_plan_from_lexicon_catalog"
+		case QueryResolutionInvalidBinding:
+			readiness = rt.ReviewReadiness
+			recommendedNextAction = "repair_query_plan_binding"
+		}
 	}
 	claims := []map[string]any{}
 	claimSignalPackets := []ClaimSignal{}
@@ -541,6 +619,7 @@ func Run(paths rt.Paths, input QueryInput) (QueryPayload, error) {
 		WorkflowRequirement:   "use_project_cognition_then_minimal_live_reads",
 		PathAdoption:          map[string]any{"paths": plan.Paths},
 		Readiness:             readiness,
+		ResolutionState:       resolutionState,
 		RecommendedNextAction: recommendedNextAction,
 		BaselineKind:          status.BaselineKind,
 		Intent:                input.Intent,
@@ -797,10 +876,61 @@ func appendUniqueStrings(values []string, additions ...string) []string {
 	return values
 }
 
+func resolveExplicitPathBindings(st *store.Store, paths []string) ([]map[string]any, []string, error) {
+	nodes := []map[string]any{}
+	missingCoverage := []string{}
+	for _, path := range paths {
+		pathNodes, err := st.NodesForPaths(context.Background(), []string{path})
+		if err != nil {
+			return nil, nil, err
+		}
+		if len(pathNodes) == 0 {
+			missingCoverage = appendMissingCoverage(missingCoverage, "selected_path_not_indexed:"+path)
+			continue
+		}
+		nodes = append(nodes, pathNodes...)
+	}
+	if len(missingCoverage) > 0 {
+		missingCoverage = appendMissingCoverage(missingCoverage, "selected_paths_not_indexed")
+	}
+	return nodes, missingCoverage, nil
+}
+
+func queryResolutionFor(nodes []map[string]any, missingCoverage []string, explicitBinding bool, runtimeInferredBinding bool) string {
+	if !explicitBinding && !runtimeInferredBinding {
+		return QueryResolutionBindingRequired
+	}
+	if len(nodes) == 0 {
+		return QueryResolutionInvalidBinding
+	}
+	if runtimeInferredBinding {
+		return QueryResolutionRuntimeInferred
+	}
+	if hasBindingCoverageGap(missingCoverage) {
+		return QueryResolutionResolvedReview
+	}
+	return QueryResolutionResolvedExact
+}
+
+func hasBindingCoverageGap(missingCoverage []string) bool {
+	for _, value := range missingCoverage {
+		if strings.HasPrefix(value, "unknown_selected_concept:") ||
+			strings.HasPrefix(value, "selected_concept_generation_mismatch:") ||
+			strings.HasPrefix(value, "selected_path_not_indexed:") ||
+			value == "selected_paths_not_indexed" {
+			return true
+		}
+	}
+	return false
+}
+
 func shouldReviewMissingCoverage(missingCoverage []string) bool {
 	for _, value := range missingCoverage {
 		if strings.HasPrefix(value, "unknown_selected_concept:") ||
 			strings.HasPrefix(value, "selected_concept_generation_mismatch:") ||
+			strings.HasPrefix(value, "selected_path_not_indexed:") ||
+			value == "query_plan_binding_required" ||
+			value == "selected_paths_not_indexed" ||
 			value == "semantic_intake_partial_facet_coverage" ||
 			value == "semantic_intake_facets_uncovered" {
 			return true
@@ -833,6 +963,7 @@ func generationMismatchPayload(status rt.Status, input QueryInput, plan Plan, ac
 		WorkflowRequirement:   "use_project_cognition_then_minimal_live_reads",
 		PathAdoption:          map[string]any{"paths": plan.Paths},
 		Readiness:             rt.ReviewReadiness,
+		ResolutionState:       QueryResolutionStaleBinding,
 		RecommendedNextAction: "rerun_project_cognition_lexicon",
 		BaselineKind:          status.BaselineKind,
 		Intent:                input.Intent,

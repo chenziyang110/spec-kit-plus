@@ -6,6 +6,7 @@ description: Lean implementation workflow for advanced coding models. Use for re
 # SPX Implement
 
 Read `references/project-learning.md` and apply its consume-capture policy.
+Read `references/native-subagents.md` when implementation lanes are delegated.
 Read `references/workflow-runtime.md` and let its CLI own phase state.
 Read `references/run-bootstrap.md`.
 Read `references/project-cognition.md`, using cognition intent `implement`.
@@ -21,6 +22,16 @@ Resolve the task-bearing feature with the installed
 rules, ready tasks, and cognition-selected live paths before editing.
 Transition from the validated `tasks` stage into `implement` through the
 workflow runtime before any source or test edit.
+
+Apply the Feature Context Provenance Gate before task intake. Accept
+`<feature-dir>` only from the setup command, an explicit user selection, or the
+runtime-selected current lane. If feature context is missing or ambiguous, stop
+before `task-next`; never enumerate `.specify/features/**`, `tasks.md`, or
+`task-index.json`, and never choose a feature from name, slug, title, topic, or
+keyword similarity. An active or unconsumed discussion is not implementation
+authority: resume its Discussion contract, and after handoff readiness let only
+its selected `spx-quick` or `spx-specify` consumer create and bind downstream
+state. Discussion never hands off directly to `spx-implement`.
 
 Recover durable execution truth before work: CLI-owned `workflow.json`
 is the required phase gate; rich `workflow-state.md` is resume, evidence, and

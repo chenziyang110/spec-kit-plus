@@ -115,7 +115,10 @@ from specify_cli.specify_runtime import (
     run_specify_runtime,
 )
 from specify_cli.execution import (
+    FEATURE_LANE_RESULT_DIRECTORIES,
+    WORKSPACE_LANE_RESULT_COMMANDS,
     build_result_handoff_path,
+    uses_stage_owned_result_channel,
     write_normalized_result_handoff,
 )
 from specify_cli.eval_runner import run_eval_suite
@@ -911,9 +914,7 @@ def design_preview_lint(
             raise typer.Exit(1)
         return
     if not diagnostics:
-        console.print(
-            f"{_display_path(path)} is valid at {normalized_level} level"
-        )
+        console.print(f"{_display_path(path)} is valid at {normalized_level} level")
         return
 
     for diagnostic in diagnostics:
@@ -963,8 +964,7 @@ def design_ui_target_lint(
     normalized_level = level.lower()
     if normalized_level not in {"structural", "ready"}:
         console.print(
-            "[red]Error:[/red] unsupported UI target lint level: "
-            f"{normalized_level}"
+            f"[red]Error:[/red] unsupported UI target lint level: {normalized_level}"
         )
         raise typer.Exit(2)
     diagnostics = lint_ui_target_file(path, level=normalized_level)
@@ -974,9 +974,7 @@ def design_ui_target_lint(
             raise typer.Exit(1)
         return
     if not diagnostics:
-        console.print(
-            f"{_display_path(path)} is valid at {normalized_level} level"
-        )
+        console.print(f"{_display_path(path)} is valid at {normalized_level} level")
         return
     for diagnostic in diagnostics:
         console.print(f"{diagnostic.code}: {diagnostic.message}")
@@ -1326,7 +1324,9 @@ def _project_map_preflight(
     command_name: str,
 ) -> dict[str, Any]:
     try:
-        result = run_specify_runtime(["cognition", "check", "--format", "json"], cwd=project_root)
+        result = run_specify_runtime(
+            ["cognition", "check", "--format", "json"], cwd=project_root
+        )
     except SpecifyRuntimeError as exc:
         result = {
             "freshness": "missing_baseline",
@@ -2555,9 +2555,7 @@ def implement_validation_start(
 def implement_validation_finish(
     feature_dir: str = typer.Option(..., "--feature-dir"),
     run_id: str = typer.Option(..., "--run-id"),
-    status: str = typer.Option(
-        ..., "--status", help="passed, failed, or interrupted"
-    ),
+    status: str = typer.Option(..., "--status", help="passed, failed, or interrupted"),
     failure_kind: str | None = typer.Option(
         None,
         "--failure-kind",
@@ -2675,9 +2673,7 @@ def workflow_artifacts_lint(
     root = Path.cwd()
     selected = paths or default_workflow_artifact_scan_paths(root)
     resolved_registry = (
-        registry_path
-        if registry_path.is_absolute()
-        else root / registry_path
+        registry_path if registry_path.is_absolute() else root / registry_path
     )
     try:
         registry = load_workflow_artifact_registry(resolved_registry)
@@ -2711,9 +2707,7 @@ def workflow_artifacts_lint(
         raise typer.Exit(1)
 
 
-def _fail_implement_task_runtime(
-    exc: Exception, output_format: TextJsonFormat
-) -> None:
+def _fail_implement_task_runtime(exc: Exception, output_format: TextJsonFormat) -> None:
     payload = {"status": "blocked", "errors": [str(exc)]}
     if output_format.lower() == "json":
         print_json(payload, indent=2)
@@ -2905,24 +2899,28 @@ def implement_task_next(
     output_format: TextJsonFormat = typer.Option(TextJsonFormat.text, "--format"),
 ):
     """Return the next dependency-ready task without reading the full task index."""
-    from .execution.task_runtime import TaskRuntimeError, next_task
+    from .execution.task_runtime import TaskRuntimeError, next_task_decision
 
     project_root = Path.cwd()
     _require_spec_kit_plus_project(project_root)
     try:
-        task = next_task(project_root, feature_dir)
+        payload = next_task_decision(project_root, feature_dir)
     except TaskRuntimeError as exc:
         _fail_implement_task_runtime(exc, output_format)
-    payload = {"status": "ok", "task": task}
     _emit_implement_task_payload(
         payload,
         output_format,
-        summary=(
-            f"Next task: {task['task_id']}"
-            if task is not None
-            else "No dependency-ready task remains."
+        summary=str(
+            payload.get("recommended_next_action")
+            or (
+                f"Next task: {payload['task']['task_id']}"
+                if payload.get("task") is not None
+                else "No dependency-ready task remains."
+            )
         ),
     )
+    if payload.get("status") == "blocked":
+        raise typer.Exit(10)
 
 
 @implement_app.command("packet-compile")
@@ -2952,7 +2950,9 @@ def implement_task_start(
     feature_dir: str = typer.Option(..., "--feature-dir"),
     task_id: str = typer.Option(..., "--task-id"),
     execution_mode: str = typer.Option(
-        "leader-direct", "--execution-mode", help="leader-direct, delegated, or managed-team"
+        "leader-direct",
+        "--execution-mode",
+        help="leader-direct, delegated, or managed-team",
     ),
     packet_ref: str | None = typer.Option(None, "--packet-ref"),
     output_format: TextJsonFormat = typer.Option(TextJsonFormat.text, "--format"),
@@ -3019,7 +3019,8 @@ def implement_result_merge(
                 project_root / ".specify" / "worker-results",
             )
             if source != managed_exact and not any(
-                source.suffix.lower() == ".json" and source.is_relative_to(root.resolve())
+                source.suffix.lower() == ".json"
+                and source.is_relative_to(root.resolve())
                 for root in managed_roots
             ):
                 _fail_implement_task_runtime(
@@ -3030,9 +3031,7 @@ def implement_result_merge(
                     output_format,
                 )
             raw_result = source.read_text(encoding="utf-8")
-        payload = record_task_result(
-            project_root, feature_dir, task_id, raw_result
-        )
+        payload = record_task_result(project_root, feature_dir, task_id, raw_result)
     except (TaskRuntimeError, OSError, UnicodeError) as exc:
         _fail_implement_task_runtime(exc, output_format)
     _emit_implement_task_payload(
@@ -3061,6 +3060,44 @@ def implement_task_accept(
         payload,
         output_format,
         summary=f"Accepted {payload['task_id']}.",
+    )
+
+
+@implement_app.command("task-reopen")
+def implement_task_reopen(
+    feature_dir: str = typer.Option(..., "--feature-dir"),
+    task_id: str = typer.Option(..., "--task-id"),
+    expected_task_revision: int = typer.Option(..., "--expected-task-revision"),
+    expected_workflow_revision: int = typer.Option(
+        ..., "--expected-workflow-revision"
+    ),
+    reason: str = typer.Option(..., "--reason"),
+    evidence: list[str] = typer.Option(
+        ..., "--evidence", help="Sanitized recovery evidence; repeat as needed"
+    ),
+    output_format: TextJsonFormat = typer.Option(TextJsonFormat.text, "--format"),
+):
+    """Reopen one stuck implemented task without mutating accepted siblings."""
+    from .execution.task_runtime import TaskRuntimeError, reopen_task
+
+    project_root = Path.cwd()
+    _require_spec_kit_plus_project(project_root)
+    try:
+        payload = reopen_task(
+            project_root,
+            feature_dir,
+            task_id,
+            expected_task_revision=expected_task_revision,
+            expected_workflow_revision=expected_workflow_revision,
+            reason=reason,
+            evidence=evidence,
+        )
+    except (TaskRuntimeError, OSError, UnicodeError) as exc:
+        _fail_implement_task_runtime(exc, output_format)
+    _emit_implement_task_payload(
+        payload,
+        output_format,
+        summary=f"Reopened {payload['task_id']} with immutable recovery history.",
     )
 
 
@@ -3264,7 +3301,10 @@ def implement_closeout(
         workflow = show_workflow(resolved_feature_dir)["data"]
         workflow_revision = int(workflow["revision"])
         review_revision = workflow_revision + (
-            2 if workflow.get("stage") == "implement" and workflow.get("status") == "active" else 1
+            2
+            if workflow.get("stage") == "implement"
+            and workflow.get("status") == "active"
+            else 1
         )
     except WorkflowRuntimeError as exc:
         stop_for_workflow(exc.to_envelope())
@@ -3411,7 +3451,10 @@ def review_prepare(
                 _labeled_grid(
                     [
                         ("Feature Dir", str(resolved_feature_dir)),
-                        ("Review State", str(resolved_feature_dir / "review-state.json")),
+                        (
+                            "Review State",
+                            str(resolved_feature_dir / "review-state.json"),
+                        ),
                         ("Status", str(payload["data"]["status"])),
                     ]
                 ),
@@ -3474,9 +3517,7 @@ def review_exception_propose(
             input_json=input_json,
             label="Review exception proposal",
         )
-        payload = propose_review_exception(
-            project_root, resolved_feature_dir, proposal
-        )
+        payload = propose_review_exception(project_root, resolved_feature_dir, proposal)
     except (
         ReviewRuntimeError,
         OSError,
@@ -3623,7 +3664,9 @@ def review_closeout(
     state_path = review_state_path(resolved_feature_dir)
     state = json.loads(state_path.read_text(encoding="utf-8"))
     state.setdefault("final", {})["implementation_summary_sha256"] = summary_digest
-    atomic_write_text(state_path, json.dumps(state, ensure_ascii=False, indent=2) + "\n")
+    atomic_write_text(
+        state_path, json.dumps(state, ensure_ascii=False, indent=2) + "\n"
+    )
     acceptance_payload = prepare_human_acceptance(project_root, resolved_feature_dir)
     if acceptance_payload.get("status") in {"blocked", "conflict", "stale"}:
         payload = {
@@ -3923,8 +3966,7 @@ def accept_closeout(
                         acceptance=acceptance,
                         hook_errors=(
                             list(hook_result.errors)
-                            if hook_result.status
-                            in {"blocked", "repairable-block"}
+                            if hook_result.status in {"blocked", "repairable-block"}
                             else []
                         ),
                     ),
@@ -4374,6 +4416,7 @@ def _run_learning_capture_auto(
     feature_dir: str | None,
     workspace: str | None,
     session_file: str | None,
+    dry_run: bool,
     output_format: str,
 ) -> None:
     project_root = Path.cwd()
@@ -4384,6 +4427,7 @@ def _run_learning_capture_auto(
         feature_dir=Path(feature_dir) if feature_dir else None,
         workspace=Path(workspace) if workspace else None,
         session_file=Path(session_file) if session_file else None,
+        dry_run=dry_run,
     )
     if output_format.lower() == "json":
         print_json(payload, indent=2)
@@ -4392,6 +4436,7 @@ def _run_learning_capture_auto(
     rows = [
         ("Status", payload["status"]),
         ("Command", payload["command"]),
+        ("Mode", "dry-run" if dry_run else "capture"),
         ("Captured", str(len(payload.get("captured", [])))),
         ("Source", str(payload.get("source_path", ""))),
     ]
@@ -4423,6 +4468,11 @@ def learning_capture_auto_cli_command(
     session_file: str | None = typer.Option(
         None, "--session-file", help="Debug session markdown file"
     ),
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="Preview sanitized capture decisions without writing Learning state",
+    ),
     output_format: TextJsonFormat = typer.Option(
         TextJsonFormat.text, "--format", help="Output format: text or json"
     ),
@@ -4433,6 +4483,7 @@ def learning_capture_auto_cli_command(
         feature_dir=feature_dir,
         workspace=workspace,
         session_file=session_file,
+        dry_run=dry_run,
         output_format=output_format,
     )
 
@@ -5409,9 +5460,7 @@ def _install_shared_infra(
                 guidance_path.read_text(encoding="utf-8"),
             )
             guidance_path.write_text(rendered, encoding="utf-8")
-            manifest.record_existing(
-                guidance_path.relative_to(project_path).as_posix()
-            )
+            manifest.record_existing(guidance_path.relative_to(project_path).as_posix())
     if launcher_config is not None:
         from .launcher import (
             SPECIFY_PROJECT_LAUNCHER_POSIX,
@@ -5528,7 +5577,8 @@ def _run_project_cognition_init_empty(
         detail = (result.stderr or result.stdout).strip()
         return (
             False,
-            detail or f"specify-runtime cognition init-empty exited {result.returncode}",
+            detail
+            or f"specify-runtime cognition init-empty exited {result.returncode}",
         )
     try:
         payload = json.loads(result.stdout or "{}")
@@ -5807,7 +5857,7 @@ def _get_skills_dir(project_path: Path, selected_ai: str) -> Path:
 DEFAULT_SKILLS_DIR = ".agents/skills"
 NATIVE_SKILLS_AGENTS = {"codex", "kimi"}
 SKILL_DESCRIPTIONS = {
-    "design": "Use when a project needs design questions, three inspectable HTML directions, a DESIGN.md contract, UI style refinement, or a design readiness audit before UI work proceeds.",
+    "design": "Use one prompt-routed design entry to create, refine, or audit the root DESIGN.md contract; reference synthesis is an input strategy, formal adoption flows through Specify, and direct delivery flows through Quick.",
     "discussion": "Use when a rough idea or requirement needs a resumable senior product-engineering discussion before direct Quick delivery or formal specification.",
     "specify": "Use when a new or changed feature request needs guided requirement discovery and a planning-ready specification package.",
     "prd-scan": "Use when an existing repository needs read-only heavy reconstruction scan outputs before final PRD synthesis; execution is subagent-mandatory and critical claims target L4 Reconstruction-Ready.",
@@ -6026,6 +6076,7 @@ def init(
         specify init --here --ai codebuddy
         specify init --here --ai vibe      # Initialize with Mistral Vibe support
         specify init --here --ai zcode     # Initialize with ZCode support
+        specify init --here --ai grok      # Initialize with Grok Build support
         specify init --here --ai mimo      # Initialize with MiMo Code support
         specify init --here
         specify init --here --force  # Skip confirmation when current directory not empty
@@ -6717,6 +6768,7 @@ def init(
     trae_skill_mode = selected_ai == "trae" and _is_skills_integration
     vibe_skill_mode = selected_ai == "vibe" and _is_skills_integration
     zcode_skill_mode = selected_ai == "zcode" and _is_skills_integration
+    grok_skill_mode = selected_ai == "grok" and _is_skills_integration
     native_skill_mode = (
         codex_skill_mode
         or claude_skill_mode
@@ -6726,6 +6778,7 @@ def init(
         or trae_skill_mode
         or vibe_skill_mode
         or zcode_skill_mode
+        or grok_skill_mode
     )
 
     if native_skill_mode and not ai_skills:
@@ -6738,6 +6791,7 @@ def init(
             "trae": "Trae",
             "vibe": "Mistral Vibe",
             "zcode": "ZCode",
+            "grok": "Grok",
         }
         agent_label = agent_start_labels.get(
             selected_ai,
@@ -6780,9 +6834,12 @@ def init(
     def _display_cmd(name: str) -> str:
         if codex_skill_mode or agy_skill_mode or zcode_skill_mode:
             return f"$sp-{name}"
-        if cursor_agent_skill_mode or vibe_skill_mode:
-            return f"/sp-{name}"
-        if claude_skill_mode:
+        if (
+            cursor_agent_skill_mode
+            or vibe_skill_mode
+            or claude_skill_mode
+            or grok_skill_mode
+        ):
             return f"/sp-{name}"
         if kimi_skill_mode:
             return f"/skill:sp-{name}"
@@ -6816,14 +6873,17 @@ def init(
             ("constitution", "project principles and governance"),
             ("debug", "evidence-driven diagnosis and repair"),
             ("deep-research", "pre-plan feasibility evidence"),
-            ("design", "create or audit the root design system"),
+            (
+                "design",
+                "create, refine, or audit one prompt-routed design system; formal adoption through spx-specify, direct delivery through spx-quick",
+            ),
             ("discussion", "resumable product and technical discussion"),
             ("explain", "plain-language workflow artifact explanation"),
             ("fast", "trivial direct changes"),
             ("implement", "planned implementation"),
             ("review", "integrated system validation and bounded repair"),
             ("implement-teams", "supported durable-team implementation"),
-            ("map-build", "build cognition from a validated scan"),
+            ("map-build", "build cognition from a validated scan and prove exact catalog binding"),
             ("map-rebuild", "orchestrate a full cognition rebuild"),
             ("map-scan", "low-cost cognition evidence scan"),
             ("map-update", "incremental cognition maintenance"),
@@ -6888,7 +6948,7 @@ def init(
         f"   - [cyan]{_display_cmd('map-scan')}[/] - Inventory the project tree, classify file value, and produce the high-value graph-native evidence baseline for brownfield cognition"
     )
     steps_lines.append(
-        f"   - [cyan]{_display_cmd('map-build')}[/] - Reconstruct the schema v5 cognition graph, typed graph claims, path and alias indexes, and query-backed runtime outputs from the value-weighted scan baseline"
+        f"   - [cyan]{_display_cmd('map-build')}[/] - Reconstruct the schema v5 cognition graph, typed graph claims, path and alias indexes, query-backed runtime outputs, and exact catalog binding from the value-weighted scan baseline"
     )
     steps_lines.append(
         f"   - [cyan]{_display_cmd('map-update')}[/] - Refresh the cognition runtime incrementally after the baseline exists"
@@ -6898,6 +6958,9 @@ def init(
     )
     steps_lines.append(
         f"   - [cyan]{_display_cmd('discussion')}[/] - Mature a rough idea through resumable senior product-engineering discussion before direct Quick delivery or formal specification"
+    )
+    steps_lines.append(
+        f"   - [cyan]{_display_cmd('design')}[/] - Use one prompt-routed design entry to create, refine, or audit the root design system; formal adoption through [cyan]{_display_cmd('specify')}[/] and direct delivery through [cyan]{_display_cmd('quick')}[/]"
     )
     steps_lines.append(
         f"   - [cyan]{_display_cmd('prd-scan')}[/] - Produce heavy reconstruction PRD scan outputs with subagent-mandatory L4 Reconstruction-Ready evidence and config-contracts.json"
@@ -6958,7 +7021,7 @@ def init(
     enhancement_lines.extend(
         [
             f"○ [cyan]{_display_cmd('map-scan')}[/] [bright_black](required for existing code)[/bright_black] - Inventory the project tree, classify file value, and produce the high-value graph-native evidence baseline before deeper brownfield specification, planning, task generation, or implementation resumes",
-            f"○ [cyan]{_display_cmd('map-build')}[/] [bright_black](after map-scan)[/bright_black] - Reconstruct the schema v5 cognition graph, typed graph claims, path and alias indexes, and query-backed runtime outputs from the value-weighted scan baseline",
+            f"○ [cyan]{_display_cmd('map-build')}[/] [bright_black](after map-scan)[/bright_black] - Reconstruct the schema v5 cognition graph, typed graph claims, path and alias indexes, query-backed runtime outputs, and exact catalog binding from the value-weighted scan baseline",
             f"○ [cyan]{_display_cmd('map-update')}[/] [bright_black](after baseline)[/bright_black] - Refresh the project cognition runtime incrementally when changed areas or user supplements land",
             f"○ [cyan]{_display_cmd('auto')}[/] [bright_black](state-driven resume)[/bright_black] - Continue from the recommended next workflow step already recorded in repository state without renaming the canonical downstream command",
             f"○ [cyan]{_display_cmd('discussion')}[/] [bright_black](pre-spec discussion)[/bright_black] - Preserve senior product-engineering discussion state before explicit handoff to [cyan]{_display_cmd('specify')}[/]",
@@ -7064,10 +7127,11 @@ def _resolve_result_context(
         if not resolved_workspace.is_absolute():
             resolved_workspace = (project_root / resolved_workspace).resolve()
 
-    if normalized_command == "review":
+    if normalized_command in FEATURE_LANE_RESULT_DIRECTORIES:
         if resolved_feature_dir is None or not resolved_lane_id:
             console.print(
-                "[red]Error:[/red] --feature-dir and --lane-id are required for review result handoff."
+                "[red]Error:[/red] --feature-dir and --lane-id are required for "
+                f"{normalized_command} result handoff."
             )
             raise typer.Exit(1)
         return {
@@ -7079,41 +7143,11 @@ def _resolve_result_context(
             "lane_id": resolved_lane_id,
         }
 
-    if integration_key == "codex":
-        if not request_id:
-            console.print(
-                "[red]Error:[/red] Codex result handoff paths are runtime-managed; "
-                "pass --request-id <id> or use `sp-teams submit-result --request-id <id> --result-json '<inline-json>'`."
-            )
-            raise typer.Exit(1)
-        return {
-            "request_id": request_id,
-            "feature_dir": None,
-            "task_id": None,
-            "quick_workspace": None,
-            "debug_session_slug": None,
-            "lane_id": None,
-        }
-
-    if normalized_command == "implement":
-        if resolved_feature_dir is None or not task_id:
-            console.print(
-                "[red]Error:[/red] --feature-dir and --task-id are required for implement result handoff."
-            )
-            raise typer.Exit(1)
-        return {
-            "request_id": None,
-            "feature_dir": resolved_feature_dir,
-            "task_id": task_id,
-            "quick_workspace": None,
-            "debug_session_slug": None,
-            "lane_id": None,
-        }
-
-    if normalized_command == "quick":
+    if normalized_command in WORKSPACE_LANE_RESULT_COMMANDS:
         if resolved_workspace is None or not resolved_lane_id:
             console.print(
-                "[red]Error:[/red] --workspace and --lane-id are required for quick result handoff."
+                "[red]Error:[/red] --workspace and --lane-id are required for "
+                f"{normalized_command} result handoff."
             )
             raise typer.Exit(1)
         return {
@@ -7138,6 +7172,38 @@ def _resolve_result_context(
             "quick_workspace": None,
             "debug_session_slug": session_slug,
             "lane_id": resolved_lane_id,
+        }
+
+    if integration_key == "codex":
+        if not request_id:
+            console.print(
+                "[red]Error:[/red] Codex result handoff paths are runtime-managed "
+                "for durable-team requests; pass --request-id <id> or use `sp-teams "
+                "submit-result --request-id <id> --result-json '<inline-json>'`."
+            )
+            raise typer.Exit(1)
+        return {
+            "request_id": request_id,
+            "feature_dir": None,
+            "task_id": None,
+            "quick_workspace": None,
+            "debug_session_slug": None,
+            "lane_id": None,
+        }
+
+    if normalized_command == "implement":
+        if resolved_feature_dir is None or not task_id:
+            console.print(
+                "[red]Error:[/red] --feature-dir and --task-id are required for implement result handoff."
+            )
+            raise typer.Exit(1)
+        return {
+            "request_id": None,
+            "feature_dir": resolved_feature_dir,
+            "task_id": task_id,
+            "quick_workspace": None,
+            "debug_session_slug": None,
+            "lane_id": None,
         }
 
     console.print(f"[red]Error:[/red] Unsupported result command '{command_name}'.")
@@ -7683,7 +7749,9 @@ def team_submit_result(
         )
         raise typer.Exit(1)
     if result_json is None:
-        console.print("[red]Error:[/red] --result-json is required unless --print-schema is used.")
+        console.print(
+            "[red]Error:[/red] --result-json is required unless --print-schema is used."
+        )
         raise typer.Exit(1)
 
     try:
@@ -7774,7 +7842,9 @@ def team_api(
 @result_app.command("path")
 def result_path_command(
     command_name: str = typer.Option(
-        ..., "--command", help="Workflow command (implement|review|quick|debug)"
+        ...,
+        "--command",
+        help="Workflow command owning the delegated result",
     ),
     request_id: str | None = typer.Option(
         None, "--request-id", help="Dispatch request id (Codex/runtime-managed paths)"
@@ -7782,13 +7852,13 @@ def result_path_command(
     feature_dir: str | None = typer.Option(
         None,
         "--feature-dir",
-        help="Feature directory for implement or review result handoff",
+        help="Feature directory for feature-owned result handoff",
     ),
     task_id: str | None = typer.Option(
         None, "--task-id", help="Task id for implement result handoff"
     ),
     workspace: str | None = typer.Option(
-        None, "--workspace", help="Quick-task workspace path"
+        None, "--workspace", help="Quick-task or PRD-scan workspace path"
     ),
     session_slug: str | None = typer.Option(
         None, "--session-slug", help="Debug session slug"
@@ -7836,7 +7906,9 @@ def result_path_command(
 @result_app.command("submit")
 def result_submit_command(
     command_name: str = typer.Option(
-        ..., "--command", help="Workflow command (implement|review|quick|debug)"
+        ...,
+        "--command",
+        help="Workflow command owning the delegated result",
     ),
     result_json: str | None = typer.Option(
         None,
@@ -7849,13 +7921,13 @@ def result_submit_command(
     feature_dir: str | None = typer.Option(
         None,
         "--feature-dir",
-        help="Feature directory for implement or review result handoff",
+        help="Feature directory for feature-owned result handoff",
     ),
     task_id: str | None = typer.Option(
         None, "--task-id", help="Task id for implement result handoff"
     ),
     workspace: str | None = typer.Option(
-        None, "--workspace", help="Quick-task workspace path"
+        None, "--workspace", help="Quick-task or PRD-scan workspace path"
     ),
     session_slug: str | None = typer.Option(
         None, "--session-slug", help="Debug session slug"
@@ -7865,9 +7937,12 @@ def result_submit_command(
     """Normalize and write a subagent result to the canonical handoff path."""
     project_root = Path.cwd()
     integration_key = _require_result_project(project_root)
-    if integration_key == "codex" and command_name.strip().lower() != "review":
+    if integration_key == "codex" and not uses_stage_owned_result_channel(command_name):
         console.print(
-            "[red]Error:[/red] Codex projects must use `sp-teams submit-result` for runtime-managed result channels."
+            "[red]Error:[/red] Codex `result submit` is reserved for stage-owned "
+            "native-lane results. Native implement workers return their result "
+            "inline for `implement result-merge`; durable team requests use "
+            "`sp-teams submit-result`."
         )
         raise typer.Exit(1)
 
@@ -8938,7 +9013,9 @@ def lint(
         False, "--version", help="Print specify-runtime version and exit"
     ),
     force_download: bool = typer.Option(
-        False, "--force-download", help="Re-download specify-runtime binary even if cached"
+        False,
+        "--force-download",
+        help="Re-download specify-runtime binary even if cached",
     ),
 ):
     """Run spec quality gate checks on a feature directory.
@@ -9602,9 +9679,7 @@ def _repair_active_integration_runtime_assets(
     if context_path is not None:
         repaired.append(context_path)
     skipped_modified = list(shared_skipped)
-    skipped_modified.extend(
-        getattr(integration, "_last_repair_skipped_modified", ())
-    )
+    skipped_modified.extend(getattr(integration, "_last_repair_skipped_modified", ()))
     if context_skipped:
         skipped_modified.append(context_skipped)
     from .integrations.base import SkillsIntegration
@@ -10025,11 +10100,9 @@ def integration_repair(
             console.print("\n[bold]Remaining diagnostics[/bold]")
             for issue in report.remaining_issues:
                 console.print(Text(f"- {issue.get('code')}: {issue.get('summary')}"))
-                if (
-                    issue.get("code")
-                    == "claude-personal-skills-shadow-project"
-                    and issue.get("repair")
-                ):
+                if issue.get(
+                    "code"
+                ) == "claude-personal-skills-shadow-project" and issue.get("repair"):
                     console.print(Text(f"  {issue.get('repair')}"))
         console.print("\n[bold]Human repair tutorial[/bold]")
         steps = [
@@ -10071,7 +10144,9 @@ def integration_repair(
             f"[cyan]{report.active_key}[/cyan]."
         )
         console.print(f"[dim]Tracked files refreshed: {report.tracked_files}[/dim]")
-        console.print(f"[dim]Launcher-bound files repaired: {len(report.repaired_files)}[/dim]")
+        console.print(
+            f"[dim]Launcher-bound files repaired: {len(report.repaired_files)}[/dim]"
+        )
     else:
         console.print(
             "[green]OK[/green] Refreshed shared project assets. No active integration was installed."

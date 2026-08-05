@@ -52,6 +52,7 @@ _READ_ONLY_OPERATIONS = frozenset(
         "hook.validate-result",
         "hook.validate-session-state",
         "learning.list",
+        "learning.metrics",
         "learning.show",
         "learning.start",
         "learning.status",
@@ -92,6 +93,7 @@ _CONDITIONAL_LOCAL_WRITE_OPERATIONS = frozenset(
         "hook.validate-state",
         "hook.workflow-policy",
         "learning.aggregate",
+        "learning.capture-auto",
     }
 )
 

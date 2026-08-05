@@ -58,6 +58,7 @@ def _register_builtins() -> None:
     from .forge import ForgeIntegration
     from .gemini import GeminiIntegration
     from .generic import GenericIntegration
+    from .grok import GrokIntegration
     from .iflow import IflowIntegration
     from .junie import JunieIntegration
     from .kilocode import KilocodeIntegration
@@ -89,6 +90,7 @@ def _register_builtins() -> None:
     _register(ForgeIntegration())
     _register(GeminiIntegration())
     _register(GenericIntegration())
+    _register(GrokIntegration())
     _register(IflowIntegration())
     _register(JunieIntegration())
     _register(KilocodeIntegration())

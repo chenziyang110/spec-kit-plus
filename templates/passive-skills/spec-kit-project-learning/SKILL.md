@@ -43,7 +43,7 @@ SPX names map to the same Classic namespace: `spx-implement` consumes
 `--command implement`; `spx-research` consumes `--command deep-research`.
 
 `start`, `list`, and `show` are read-only. They must not capture, merge, confirm,
-or promote Learning.
+promote, update age, or increment metrics.
 
 ## Produce Learning
 
@@ -52,6 +52,10 @@ Prefer deterministic capture from durable workflow state:
 ```text
 {{specify-subcmd:specify-runtime learning capture-auto --command <command> <state locator> --format json}}
 ```
+
+To inspect a prospective decision without writing any candidate, registry,
+review state, or metric, add `--dry-run`. Its output is already sanitized; do
+not recreate an unsanitized explanation outside the runtime.
 
 Use manual capture only when durable state cannot express the lesson. Supply a
 small agent-oriented record:
@@ -70,6 +74,34 @@ Required options: `--command`, `--type`, `--summary`, and `--evidence`.
 
 The CLI derives safe defaults for omitted guidance fields, merges by recurrence
 key, updates the compact index/detail projection, and preserves provenance.
+
+Summary, trigger_signals, and evidence are sanitized agent-facing projections, not raw incident logs.
+trigger_signals are canonical tags for new records; legacy free-form trigger text may appear only for read compatibility.
+Raw sensitive values must not enter Learning storage, registry, or read API
+payloads. Keep only a safe project-relative reference or digest, and abstract
+sensitive but reusable lessons instead of dropping them. Canonical labels and
+replacements are:
+
+- `credential`, `email`, `private_key`, `machine_path`:
+  `[REDACTED_SECRET]`, `[REDACTED_EMAIL]`, `[REDACTED_PRIVATE_KEY]`,
+  `<USER_HOME>/...`
+- `personal_identifier`, `business_identifier`, `organization_sensitive`:
+  `[REDACTED_PHONE]`, `[REDACTED_BUSINESS_ID]`, `[REDACTED_ORG_TERM]`
+
+Treat learning value and content sensitivity as independent axes. Optional
+`assessment` contains:
+
+- `learning_value`: `tier=high|medium|low` plus canonical `reason_codes`
+- `content_safety`: `sensitivity=safe|sanitized`,
+  `risk_tier=none|moderate|high`, and `redaction_labels`
+- `decision=capture-safe|capture-sanitized|defer|ignore` and a sanitized
+  `decision_reason`
+
+Capture reusable safe or sanitized lessons. Defer high-value evidence only
+when sanitization removes all reusable meaning. Ignore only a low-value
+routine/non-reusable signal with an explicit reason; sensitivity alone is never
+an eligibility veto. Abstract and retain the reusable lesson; never discard it
+merely because its source evidence was sensitive.
 
 Use the smallest accurate machine type: `pitfall`, `recovery_path`,
 `user_preference`, `project_constraint`, `workflow_gap`, `routing_mistake`,
@@ -96,6 +128,15 @@ Capture or review a candidate when any of these occurs:
 - cognition coverage omitted a truth-owning surface
 - a near miss avoided a risky or destructive action
 
+At `learning start`, use mature Learning protection plus a bounded candidate slot:
+reserve up to 5 candidate cards beside a 15-card stable quota, and let
+either class fill unused capacity. The bound controls disclosure, not storage;
+capture every reusable candidate, merge duplicates by recurrence key, and
+record an explicit no-learning decision when the signal is not reusable.
+Rank candidate slots by context match, value, recurrence, and novelty. When the
+catalog is large enough, diversify repeated learning type, source command, and
+recurrence family instead of allowing one family to occupy all five slots.
+
 Skip routine outcomes, raw command output, duplicates, vague speculation, and
 facts that belong only to the current task.
 
@@ -112,6 +153,35 @@ facts that belong only to the current task.
 The `policy` returned by `learning start/list` is authoritative if this list and
 the installed runtime differ.
 
+Optional project detector policy lives at `.specify/config.json.project_learning`.
+It accepts only literal `secret_prefixes`, `sensitive_key_names`,
+`business_id_prefixes`, `sensitive_terms`, and `deferred_review_days`; arbitrary
+regular expressions are forbidden. Each list allows at most 64 distinct
+1..128-character literals and review days range from 1 to 365. Invalid policy
+leaves reads protected by built-in detectors with warning
+`project_learning_policy_invalid:using_builtin_policy`; mutation or assessment
+commands, including dry-run, fail closed.
+
+## Review And Aggregate Status
+
+At terminal closeout record the runtime-owned decision:
+
+```text
+{{specify-subcmd:specify-runtime learning review --command <workflow> --decision none|captured|auto-captured|deferred|manual-capture-needed [--rationale <text>] [--recurrence-key <key>] --format json}}
+```
+
+`deferred` and `manual-capture-needed` require rationale and remain pending
+until a matching durable candidate, confirmed learning, or project rule clears
+them. `captured`/`auto-captured` succeeds only after that match is verified;
+`none` is blocked while a matching deferred/manual decision remains pending. Inspect them with
+`learning status [--command <workflow>] --format json`; it returns compact
+pending/due/age buckets only, without evidence, rationale, Learning refs,
+recurrence keys, or timestamps. Inspect aggregate
+totals, decisions, value/risk tiers, reason/label counts, and derived
+confirmation rate with `learning metrics [--command <workflow>] --format json`.
+Age buckets are derived from review state in memory and are not persisted in
+metrics storage. Both commands are read-only and must not update age or counters.
+
 ## Lifecycle
 
 ```text
@@ -124,12 +194,13 @@ workflow evidence
 Reading never changes lifecycle state. A candidate becomes promotion-ready when
 recurrence or signal strength justifies review; it is not silently promoted at
 the start of an unrelated workflow.
+A candidate cannot become a rule directly; it must become confirmed learning before explicit project-rule promotion.
 
 ## Agent Detail Contract
 
 `learning list` returns compact cards: `ref`, `summary`, `action`, `type`,
 `status`, `signal`, `occurrences`, `applies_to`, `trigger_signals`, and
-`show_argv`.
+`show_argv`, plus optional `assessment`.
 
 `learning show` returns one full record grouped as:
 
@@ -138,6 +209,7 @@ the start of an unrelated workflow.
 - `evidence`: observation, decisive signal, false starts, rejected paths, root-cause family
 - `provenance`: source command, first/last seen, occurrences, source layer
 - `lifecycle`: signal, pain score, injection targets, promotion hint
+- `assessment`: independent learning value, content safety, and capture decision
 
 Treat the CLI record as the consumption contract. Storage files are runtime
 implementation details and compatibility projections.

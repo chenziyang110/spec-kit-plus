@@ -11,17 +11,34 @@ import (
 
 var implementTaskTerminalStatuses = map[string]bool{"accepted": true, "deferred": true}
 
+type implementWorkflowSnapshot struct {
+	Present          bool
+	Raw              []byte
+	Revision         int
+	Stage            string
+	Status           string
+	Summary          string
+	Blocker          any
+	ResolutionAction any
+}
+
 func runImplementTaskNext(args []string) (map[string]any, error) {
 	root, feature, err := taskControlFeature(args)
 	if err != nil {
 		return nil, err
 	}
+	workflow, err := loadImplementWorkflowSnapshot(root, feature)
+	if err != nil {
+		return nil, err
+	}
+	if workflow.Status == "blocked" {
+		return implementWorkflowBlockedDecision(workflow), nil
+	}
 	index, err := loadReadyImplementTaskIndex(root, feature)
 	if err != nil {
 		return nil, err
 	}
-	next := nextImplementTaskFromIndex(index)
-	return map[string]any{"status": "ok", "task": next}, nil
+	return resolveImplementTaskNext(root, feature, index, workflow), nil
 }
 
 func runImplementPacketCompile(args []string) (map[string]any, error) {
@@ -232,6 +249,13 @@ func runImplementResultMerge(args []string) (map[string]any, error) {
 	if lifecycleStatus != "in_progress" && lifecycleStatus != "blocked" && lifecycleStatus != "failed" {
 		return nil, fmt.Errorf("task %s cannot record a result from status %s", taskID, lifecycleStatus)
 	}
+	if workerStatus == "success" {
+		validation, _ := result["validation_results"].([]any)
+		blockers, _ := result["blockers"].([]any)
+		if err := validateImplementTaskAcceptanceEvidence(task, validation, blockers); err != nil {
+			return nil, fmt.Errorf("successful worker result is not acceptance-ready: %w; task %s remains %s", err, taskID, lifecycleStatus)
+		}
+	}
 	statusMap := map[string]string{"success": "implemented", "blocked": "blocked", "failed": "failed"}
 	taskStatus := statusMap[workerStatus]
 	resultRef := filepath.ToSlash(filepath.Join("worker-results", taskID+".json"))
@@ -310,6 +334,9 @@ func runImplementTaskAccept(args []string) (map[string]any, error) {
 	if err != nil {
 		return nil, err
 	}
+	if taskControlStatus(task) != "implemented" {
+		return nil, fmt.Errorf("task %s must be implemented before acceptance", taskID)
+	}
 	lifecycleRef := filepath.ToSlash(filepath.Join("implementation-review", "tasks", taskID+".json"))
 	lifecycle, err := readImplementJSONMap(filepath.Join(feature, filepath.FromSlash(lifecycleRef)))
 	if err != nil {
@@ -318,21 +345,10 @@ func runImplementTaskAccept(args []string) (map[string]any, error) {
 	if lifecycle["status"] != "implemented" {
 		return nil, fmt.Errorf("task %s must be implemented before acceptance", taskID)
 	}
-	validation, ok := lifecycle["validation"].([]any)
-	if !ok || len(validation) == 0 {
-		return nil, fmt.Errorf("task acceptance requires validation evidence")
-	}
-	for _, value := range validation {
-		item, ok := value.(map[string]any)
-		if !ok || strings.ToLower(strings.TrimSpace(anyString(item["status"]))) != "passed" {
-			return nil, fmt.Errorf("task acceptance requires passed validation evidence")
-		}
-	}
-	if err := validateImplementTaskCheckCoverage(task, validation); err != nil {
+	validation, _ := lifecycle["validation"].([]any)
+	blockers, _ := lifecycle["blockers"].([]any)
+	if err := validateImplementTaskAcceptanceEvidence(task, validation, blockers); err != nil {
 		return nil, err
-	}
-	if blockers, ok := lifecycle["blockers"].([]any); ok && len(blockers) > 0 {
-		return nil, fmt.Errorf("task acceptance is blocked by unresolved blockers")
 	}
 	revision := intFromAny(lifecycle["revision"]) + 1
 	lifecycle["revision"] = revision
@@ -375,6 +391,242 @@ func runImplementTaskAccept(args []string) (map[string]any, error) {
 		payload["next_task_id"] = nil
 	} else {
 		payload["next_task_id"] = next["task_id"]
+	}
+	return payload, nil
+}
+
+func runImplementTaskReopen(args []string) (map[string]any, error) {
+	root, feature, err := taskControlFeature(args)
+	if err != nil {
+		return nil, err
+	}
+	featureRel, err := filepath.Rel(root, feature)
+	if err != nil {
+		return nil, err
+	}
+	featureRef := filepath.ToSlash(featureRel)
+	taskID, err := normalizeTaskControlID(optionValue(args, "--task-id", ""))
+	if err != nil {
+		return nil, err
+	}
+	expectedTaskRevision, ok := intOption(args, "--expected-task-revision")
+	if !ok || expectedTaskRevision < 1 {
+		return nil, fmt.Errorf("task-reopen requires --expected-task-revision as a positive integer")
+	}
+	expectedWorkflowRevision, ok := intOption(args, "--expected-workflow-revision")
+	if !ok || expectedWorkflowRevision < 0 {
+		return nil, fmt.Errorf("task-reopen requires --expected-workflow-revision as a non-negative integer")
+	}
+	reason := strings.TrimSpace(optionValue(args, "--reason", ""))
+	if reason == "" {
+		return nil, fmt.Errorf("task-reopen requires --reason")
+	}
+	evidence, err := uniqueStrings(optionValues(args, "--evidence"), "evidence", true)
+	if err != nil {
+		return nil, err
+	}
+
+	indexPath := filepath.Join(feature, "task-index.json")
+	indexBefore, err := secureProjectReadFile(root, filepath.ToSlash(filepath.Join(featureRef, "task-index.json")))
+	if err != nil {
+		return nil, fmt.Errorf("task-index.json is invalid or missing: %w", err)
+	}
+	index, err := loadReadyImplementTaskIndex(root, feature)
+	if err != nil {
+		return nil, err
+	}
+	_, task, err := findImplementTask(index, taskID)
+	if err != nil {
+		return nil, err
+	}
+	if taskControlStatus(task) != "implemented" {
+		return nil, fmt.Errorf("task %s can reopen only when task-index.json records status implemented", taskID)
+	}
+	lifecycleRef := filepath.ToSlash(filepath.Join("implementation-review", "tasks", taskID+".json"))
+	lifecyclePath := filepath.Join(feature, filepath.FromSlash(lifecycleRef))
+	lifecycleBefore, err := secureProjectReadFile(root, filepath.ToSlash(filepath.Join(featureRef, lifecycleRef)))
+	if err != nil {
+		return nil, fmt.Errorf("task lifecycle is missing or invalid: %w", err)
+	}
+	var lifecycle map[string]any
+	if err := json.Unmarshal(lifecycleBefore, &lifecycle); err != nil || lifecycle == nil {
+		return nil, fmt.Errorf("task lifecycle is missing or invalid")
+	}
+	if strings.ToLower(strings.TrimSpace(anyString(lifecycle["status"]))) != "implemented" {
+		return nil, fmt.Errorf("task %s can reopen only from status implemented", taskID)
+	}
+	if strings.ToUpper(strings.TrimSpace(anyString(lifecycle["task_id"]))) != taskID {
+		return nil, fmt.Errorf("task lifecycle identity does not match %s", taskID)
+	}
+	currentTaskRevision := intFromAny(lifecycle["revision"])
+	if currentTaskRevision != expectedTaskRevision {
+		return nil, fmt.Errorf("task revision is stale: expected %d but current revision is %d", expectedTaskRevision, currentTaskRevision)
+	}
+
+	workflow, err := loadImplementWorkflowSnapshot(root, feature)
+	if err != nil {
+		return nil, err
+	}
+	if workflow.Revision != expectedWorkflowRevision {
+		return nil, fmt.Errorf("workflow revision is stale: expected %d but current revision is %d", expectedWorkflowRevision, workflow.Revision)
+	}
+	if workflow.Present && workflow.Stage != "tasks" && workflow.Stage != "implement" {
+		return nil, fmt.Errorf("task-reopen requires workflow stage tasks or implement, found %s", workflow.Stage)
+	}
+	if workflow.Present && workflow.Status != "active" && workflow.Status != "completed" && workflow.Status != "blocked" {
+		return nil, fmt.Errorf("task-reopen cannot run from workflow status %s", workflow.Status)
+	}
+
+	validation, _ := lifecycle["validation"].([]any)
+	blockers, _ := lifecycle["blockers"].([]any)
+	acceptanceErr := validateImplementTaskAcceptanceEvidence(task, validation, blockers)
+	resultRef := strings.TrimSpace(anyString(lifecycle["result_ref"]))
+	expectedResultRef := filepath.ToSlash(filepath.Join("worker-results", taskID+".json"))
+	indexedResultRef := strings.TrimSpace(anyString(task["result_ref"]))
+	if indexedResultRef != "" && indexedResultRef != expectedResultRef {
+		return nil, fmt.Errorf("task %s task-index result_ref must be %s before it can be reopened", taskID, expectedResultRef)
+	}
+	if resultRef == "" {
+		resultRef = expectedResultRef
+	} else if resultRef != expectedResultRef {
+		return nil, fmt.Errorf("task %s result_ref must be %s before it can be reopened", taskID, expectedResultRef)
+	}
+	resultPath := filepath.Join(feature, filepath.FromSlash(resultRef))
+	resultBefore, resultReadErr := secureProjectReadFile(root, filepath.ToSlash(filepath.Join(featureRef, resultRef)))
+	var previousResult any
+	if resultReadErr == nil {
+		var resultPayload map[string]any
+		if unmarshalErr := json.Unmarshal(resultBefore, &resultPayload); unmarshalErr != nil || resultPayload == nil {
+			return nil, fmt.Errorf("current worker result is invalid and cannot be archived safely")
+		}
+		previousResult = resultPayload
+	} else if !os.IsNotExist(resultReadErr) {
+		return nil, fmt.Errorf("current worker result cannot be read: %w", resultReadErr)
+	}
+	if acceptanceErr == nil {
+		return nil, fmt.Errorf("task %s is acceptance-ready; use implement task-accept instead of reopening it", taskID)
+	}
+
+	tasksPath := filepath.Join(feature, "tasks.md")
+	tasksBefore, err := secureProjectReadFile(root, filepath.ToSlash(filepath.Join(featureRef, "tasks.md")))
+	if err != nil {
+		return nil, fmt.Errorf("tasks.md is missing: %w", err)
+	}
+	projectedTasks, err := projectImplementTaskCheckbox(string(tasksBefore), taskID, false)
+	if err != nil {
+		return nil, err
+	}
+	statePath := filepath.Join(feature, "implementation-review", "execution-state.json")
+	stateBefore, stateReadErr := secureProjectReadFile(root, filepath.ToSlash(filepath.Join(featureRef, "implementation-review", "execution-state.json")))
+	state, err := loadImplementExecutionState(feature, index)
+	if err != nil {
+		return nil, err
+	}
+	if stateReadErr != nil && !os.IsNotExist(stateReadErr) {
+		return nil, stateReadErr
+	}
+
+	historyRef := filepath.ToSlash(filepath.Join("implementation-review", "task-reopen-history", taskID, fmt.Sprintf("revision-%d.json", currentTaskRevision)))
+	historyPath := filepath.Join(feature, filepath.FromSlash(historyRef))
+	previous := map[string]any{
+		"revision": currentTaskRevision, "status": lifecycle["status"], "result_ref": lifecycle["result_ref"],
+		"changed_paths": cloneJSONValue(lifecycle["changed_paths"]), "validation": cloneJSONValue(lifecycle["validation"]),
+		"review": cloneJSONValue(lifecycle["review"]), "ui_verification": cloneJSONValue(lifecycle["ui_verification"]),
+		"obligation_evidence": cloneJSONValue(lifecycle["obligation_evidence"]), "blockers": cloneJSONValue(lifecycle["blockers"]),
+		"recovery": cloneJSONValue(lifecycle["recovery"]), "worker_result": cloneJSONValue(previousResult),
+	}
+	if resultReadErr == nil {
+		previous["result_sha256"] = taskControlSHA256(resultBefore)
+	} else {
+		previous["result_sha256"] = nil
+	}
+	history := map[string]any{
+		"version": 1, "task_id": taskID, "superseded_task_revision": currentTaskRevision,
+		"workflow_revision": workflow.Revision, "workflow_stage": nullableImplementTaskString(workflow.Stage),
+		"workflow_status": nullableImplementTaskString(workflow.Status), "reason": reason,
+		"evidence": stringsToAny(evidence), "previous": previous,
+	}
+	historyBytes, err := marshalTaskControlJSON(history)
+	if err != nil {
+		return nil, err
+	}
+	historySHA256 := taskControlSHA256(historyBytes)
+	reopenHistory, _ := lifecycle["reopen_history"].([]any)
+	lifecycle["revision"] = currentTaskRevision + 1
+	lifecycle["status"] = "ready"
+	lifecycle["result_ref"] = nil
+	lifecycle["changed_paths"] = []any{}
+	lifecycle["validation"] = []any{}
+	lifecycle["review"] = nil
+	lifecycle["ui_verification"] = resetImplementTaskUIVerification(lifecycle["ui_verification"])
+	lifecycle["obligation_evidence"] = []any{}
+	lifecycle["blockers"] = []any{}
+	lifecycle["recovery"] = map[string]any{
+		"history_ref": historyRef, "history_sha256": historySHA256,
+		"reason": reason, "evidence": stringsToAny(evidence),
+	}
+	lifecycle["reopen_history"] = append(reopenHistory, map[string]any{
+		"superseded_task_revision": currentTaskRevision, "history_ref": historyRef,
+		"history_sha256": historySHA256, "workflow_revision": workflow.Revision,
+		"reason": reason, "evidence": stringsToAny(evidence),
+	})
+	task["status"] = "ready"
+	task["result_ref"] = nil
+	state["revision"] = intFromAny(state["revision"]) + 1
+	state["status"] = "executing"
+	state["current_task"] = nil
+	state["next_action"] = fmt.Sprintf("Start %s and submit corrected acceptance-ready validation evidence.", taskID)
+	state["retry_count"] = intFromAny(state["retry_count"]) + 1
+	state["completed_task_ids"] = stringsToAny(removeImplementTaskString(anyStringSlice(state["completed_task_ids"]), taskID))
+	state["failed_task_ids"] = stringsToAny(removeImplementTaskString(anyStringSlice(state["failed_task_ids"]), taskID))
+	marker := map[string]any{
+		"version": 1, "task_id": taskID, "status": "superseded", "history_ref": historyRef,
+		"history_sha256": historySHA256, "superseded_task_revision": currentTaskRevision,
+	}
+	markerBytes, err := marshalTaskControlJSON(marker)
+	if err != nil {
+		return nil, err
+	}
+	preconditions := []fileTransactionPrecondition{
+		{Path: indexPath, ExpectedSHA256: taskControlSHA256(indexBefore)},
+		{Path: lifecyclePath, ExpectedSHA256: taskControlSHA256(lifecycleBefore)},
+		{Path: tasksPath, ExpectedSHA256: taskControlSHA256(tasksBefore)},
+		{Path: historyPath, MustNotExist: true},
+	}
+	if stateReadErr == nil {
+		preconditions = append(preconditions, fileTransactionPrecondition{Path: statePath, ExpectedSHA256: taskControlSHA256(stateBefore)})
+	} else {
+		preconditions = append(preconditions, fileTransactionPrecondition{Path: statePath, MustNotExist: true})
+	}
+	if resultReadErr == nil {
+		preconditions = append(preconditions, fileTransactionPrecondition{Path: resultPath, ExpectedSHA256: taskControlSHA256(resultBefore)})
+	} else {
+		preconditions = append(preconditions, fileTransactionPrecondition{Path: resultPath, MustNotExist: true})
+	}
+	workflowPath := filepath.Join(feature, "workflow.json")
+	if workflow.Present {
+		preconditions = append(preconditions, fileTransactionPrecondition{Path: workflowPath, ExpectedSHA256: taskControlSHA256(workflow.Raw)})
+	} else {
+		preconditions = append(preconditions, fileTransactionPrecondition{Path: workflowPath, MustNotExist: true})
+	}
+	payload, err := commitImplementTaskStateWithPreconditions(
+		root, feature, "implement.task.reopen", index, state,
+		map[string]map[string]any{lifecycleRef: lifecycle},
+		map[string][]byte{historyRef: historyBytes, resultRef: markerBytes},
+		[]byte(projectedTasks), preconditions,
+	)
+	if err != nil {
+		return nil, err
+	}
+	payload["task_id"] = taskID
+	payload["task_status"] = "ready"
+	payload["revision"] = currentTaskRevision + 1
+	payload["workflow_revision"] = workflow.Revision
+	payload["history_ref"] = historyRef
+	payload["history_sha256"] = historySHA256
+	payload["workflow_resolution_required"] = workflow.Status == "blocked"
+	if workflow.Status == "blocked" {
+		payload["resolution_action"] = cloneJSONValue(workflow.ResolutionAction)
 	}
 	return payload, nil
 }
@@ -445,6 +697,197 @@ func nextImplementTaskFromIndex(index map[string]any) map[string]any {
 	return nil
 }
 
+func loadImplementWorkflowSnapshot(root, feature string) (implementWorkflowSnapshot, error) {
+	var snapshot implementWorkflowSnapshot
+	featureRel, err := filepath.Rel(root, feature)
+	if err != nil {
+		return snapshot, err
+	}
+	featureRef := filepath.ToSlash(featureRel)
+	raw, err := secureProjectReadFile(root, filepath.ToSlash(filepath.Join(featureRef, "workflow.json")))
+	if os.IsNotExist(err) {
+		return snapshot, nil
+	}
+	if err != nil {
+		return snapshot, fmt.Errorf("workflow state is unavailable: %w", err)
+	}
+	env := NewWorkflowService(root).Show(WorkflowShowRequest{FeatureDir: featureRef})
+	if env.Status != "ok" && env.Status != "blocked" {
+		return snapshot, fmt.Errorf("workflow state is invalid: %s", env.Summary)
+	}
+	if env.Status == "blocked" && strings.ToLower(strings.TrimSpace(anyString(env.Data["status"]))) != "blocked" {
+		return snapshot, fmt.Errorf("workflow state is invalid: %s", env.Summary)
+	}
+	revision, ok := jsonInteger(env.Data["revision"])
+	if !ok {
+		return snapshot, fmt.Errorf("workflow state has no valid revision")
+	}
+	snapshot = implementWorkflowSnapshot{
+		Present:          true,
+		Raw:              raw,
+		Revision:         revision,
+		Stage:            strings.ToLower(strings.TrimSpace(anyString(env.Data["stage"]))),
+		Status:           strings.ToLower(strings.TrimSpace(anyString(env.Data["status"]))),
+		Summary:          strings.TrimSpace(env.Summary),
+		ResolutionAction: cloneJSONValue(env.Data["resolution_action"]),
+	}
+	if len(env.Blockers) > 0 {
+		snapshot.Blocker = cloneJSONValue(env.Blockers[0])
+	}
+	return snapshot, nil
+}
+
+func implementWorkflowBlockedDecision(workflow implementWorkflowSnapshot) map[string]any {
+	return map[string]any{
+		"status":                  "blocked",
+		"reason_code":             "workflow-blocked",
+		"task":                    nil,
+		"workflow_revision":       workflow.Revision,
+		"workflow_stage":          workflow.Stage,
+		"workflow_blocker":        cloneJSONValue(workflow.Blocker),
+		"resolution_action":       cloneJSONValue(workflow.ResolutionAction),
+		"recommended_next_action": valueOrDefault(workflow.Summary, "Resolve the persisted workflow blocker before continuing implementation."),
+	}
+}
+
+func resolveImplementTaskNext(root, feature string, index map[string]any, workflow implementWorkflowSnapshot) map[string]any {
+	if next := nextImplementTaskFromIndex(index); next != nil {
+		return map[string]any{"status": "ok", "task": next}
+	}
+	tasks, _ := index["tasks"].([]any)
+	featureRef, _ := filepath.Rel(root, feature)
+	featureRef = filepath.ToSlash(featureRef)
+	if len(tasks) == 0 {
+		return map[string]any{
+			"status": "blocked", "reason_code": "task-graph-invalid", "task": nil,
+			"blocked_tasks":           []any{},
+			"recommended_next_action": "Recover tasks.md and task-index.json before continuing implementation.",
+		}
+	}
+	allTerminal := len(tasks) > 0
+	for _, value := range tasks {
+		task, ok := value.(map[string]any)
+		if !ok {
+			allTerminal = false
+			continue
+		}
+		taskID := strings.ToUpper(strings.TrimSpace(anyString(firstImplementTaskValue(task["id"], task["task_id"]))))
+		status := taskControlStatus(task)
+		if !implementTaskTerminalStatuses[status] {
+			allTerminal = false
+		}
+		if status != "implemented" {
+			continue
+		}
+		lifecycleRef := filepath.ToSlash(filepath.Join("implementation-review", "tasks", taskID+".json"))
+		rawLifecycle, err := secureProjectReadFile(root, filepath.ToSlash(filepath.Join(featureRef, lifecycleRef)))
+		if err != nil {
+			return implementTaskStateInvalidDecision(featureRef, taskID, workflow.Revision, lifecycleRef, fmt.Errorf("task lifecycle is missing or invalid: %w", err))
+		}
+		var lifecycle map[string]any
+		if err := json.Unmarshal(rawLifecycle, &lifecycle); err != nil || lifecycle == nil {
+			return implementTaskStateInvalidDecision(featureRef, taskID, workflow.Revision, lifecycleRef, fmt.Errorf("task lifecycle is missing or invalid"))
+		}
+		revision := intFromAny(lifecycle["revision"])
+		lifecycleTaskID := strings.ToUpper(strings.TrimSpace(anyString(lifecycle["task_id"])))
+		lifecycleStatus := strings.ToLower(strings.TrimSpace(anyString(lifecycle["status"])))
+		if revision < 1 || lifecycleTaskID != taskID || lifecycleStatus != "implemented" {
+			return implementTaskStateInvalidDecision(
+				featureRef, taskID, workflow.Revision, lifecycleRef,
+				fmt.Errorf("task lifecycle must identify %s at status implemented with a positive revision", taskID),
+			)
+		}
+		validation, _ := lifecycle["validation"].([]any)
+		blockers, _ := lifecycle["blockers"].([]any)
+		if acceptanceErr := validateImplementTaskAcceptanceEvidence(task, validation, blockers); acceptanceErr != nil {
+			return implementTaskReopenDecision(featureRef, taskID, revision, workflow.Revision, acceptanceErr)
+		}
+		return map[string]any{
+			"status":                  "blocked",
+			"reason_code":             "task-accept-required",
+			"task":                    map[string]any{"task_id": taskID, "status": status, "revision": revision, "lifecycle_ref": lifecycleRef},
+			"workflow_revision":       workflow.Revision,
+			"recommended_next_action": fmt.Sprintf("Accept %s before selecting another task.", taskID),
+			"next_argv": []any{
+				"specify-runtime", "implement", "task-accept", "--feature-dir", featureRef,
+				"--task-id", taskID, "--format", "json",
+			},
+		}
+	}
+	if allTerminal {
+		return map[string]any{
+			"status": "complete", "task": nil,
+			"recommended_next_action": "Run implementation convergence and closeout.",
+		}
+	}
+	blockedBy := []any{}
+	for _, value := range tasks {
+		task, ok := value.(map[string]any)
+		if !ok || implementTaskTerminalStatuses[taskControlStatus(task)] {
+			continue
+		}
+		blockedBy = append(blockedBy, map[string]any{
+			"task_id": strings.ToUpper(anyString(firstImplementTaskValue(task["id"], task["task_id"]))),
+			"status":  taskControlStatus(task), "unmet_dependencies": stringsToAny(unmetImplementTaskDependencies(index, task)),
+		})
+	}
+	return map[string]any{
+		"status": "blocked", "reason_code": "no-dependency-ready-task", "task": nil,
+		"blocked_tasks":           blockedBy,
+		"recommended_next_action": "Recover the recorded in-progress, blocked, or failed task before requesting the next task.",
+	}
+}
+
+func implementTaskStateInvalidDecision(featureRef, taskID string, workflowRevision int, lifecycleRef string, stateErr error) map[string]any {
+	return map[string]any{
+		"status": "blocked", "reason_code": "task-state-invalid", "task": nil,
+		"blocked_task_id": taskID, "workflow_revision": workflowRevision,
+		"lifecycle_ref": lifecycleRef, "state_error": stateErr.Error(),
+		"recommended_next_action": fmt.Sprintf(
+			"Recover %s from a trusted backup or CLI transaction history before continuing; task-reopen requires a valid revisioned implemented lifecycle.",
+			lifecycleRef,
+		),
+	}
+}
+
+func implementTaskReopenDecision(featureRef, taskID string, taskRevision, workflowRevision int, acceptanceErr error) map[string]any {
+	baseArgv := []any{
+		"specify-runtime", "implement", "task-reopen", "--feature-dir", featureRef,
+		"--task-id", taskID, "--expected-task-revision", fmt.Sprint(taskRevision),
+		"--expected-workflow-revision", fmt.Sprint(workflowRevision), "--format", "json",
+	}
+	return map[string]any{
+		"status": "blocked", "reason_code": "task-reopen-required", "task": nil,
+		"blocked_task_id": taskID, "task_revision": taskRevision, "workflow_revision": workflowRevision,
+		"acceptance_error":        acceptanceErr.Error(),
+		"recommended_next_action": fmt.Sprintf("Reopen %s with an explicit reason and evidence, then submit corrected validation evidence.", taskID),
+		"recovery_action": map[string]any{
+			"capability_id": "implement.task-reopen", "base_argv": baseArgv,
+			"required_inputs": []any{
+				map[string]any{"field": "reason", "flag": "--reason", "min_items": 1},
+				map[string]any{"field": "evidence", "flag": "--evidence", "repeatable": true, "min_items": 1},
+			},
+		},
+	}
+}
+
+func resetImplementTaskUIVerification(value any) map[string]any {
+	applicable := false
+	if current, ok := value.(map[string]any); ok {
+		applicable, _ = current["applicable"].(bool)
+	}
+	fidelityStatus := "not-applicable"
+	if applicable {
+		fidelityStatus = "pending-human-review"
+	}
+	return map[string]any{
+		"applicable": applicable, "contract_check": "not-run", "runtime_evidence": "not-run",
+		"visual_comparison": "unavailable", "fidelity_status": fidelityStatus, "reviewer": "agent",
+		"evidence": []any{}, "comparison_report_ref": "", "comparison_report_sha256": "",
+		"implementation_capture_refs": []any{}, "structural_differences": []any{}, "visual_differences": []any{},
+	}
+}
+
 func unmetImplementTaskDependencies(index map[string]any, task map[string]any) []string {
 	tasks, _ := index["tasks"].([]any)
 	statuses := map[string]string{}
@@ -506,6 +949,10 @@ func loadImplementExecutionState(feature string, index map[string]any) (map[stri
 }
 
 func commitImplementTaskState(root, feature, kind string, index, state map[string]any, lifecycles map[string]map[string]any, extra map[string][]byte, tasksProjection []byte) (map[string]any, error) {
+	return commitImplementTaskStateWithPreconditions(root, feature, kind, index, state, lifecycles, extra, tasksProjection, nil)
+}
+
+func commitImplementTaskStateWithPreconditions(root, feature, kind string, index, state map[string]any, lifecycles map[string]map[string]any, extra map[string][]byte, tasksProjection []byte, preconditions []fileTransactionPrecondition) (map[string]any, error) {
 	indexBytes, err := marshalTaskControlJSON(index)
 	if err != nil {
 		return nil, err
@@ -532,7 +979,7 @@ func commitImplementTaskState(root, feature, kind string, index, state map[strin
 	if tasksProjection != nil {
 		updates = append(updates, fileTransactionUpdate{Path: filepath.Join(feature, "tasks.md"), Content: tasksProjection, Perm: 0o644})
 	}
-	receipt, err := applyFileTransaction(root, kind, updates)
+	receipt, err := applyFileTransactionWithPreconditions(root, kind, updates, preconditions)
 	if err != nil {
 		return nil, err
 	}
@@ -658,6 +1105,10 @@ func normalizeImplementTaskResult(raw map[string]any, taskID string) (map[string
 				return nil, "", fmt.Errorf("validation_results entries must be objects")
 			}
 			item = cloneJSONMap(item)
+			command := strings.TrimSpace(anyString(firstImplementTaskValue(item["command"], item["cmd"], item["check"], item["kind"])))
+			if command == "" {
+				return nil, "", fmt.Errorf("validation result command is required")
+			}
 			itemStatus := strings.ToLower(strings.TrimSpace(anyString(item["status"])))
 			switch itemStatus {
 			case "pass", "passed", "success", "succeeded":
@@ -669,7 +1120,11 @@ func normalizeImplementTaskResult(raw map[string]any, taskID string) (map[string
 			default:
 				return nil, "", fmt.Errorf("validation result status is invalid: %s", itemStatus)
 			}
+			item["command"] = command
 			item["status"] = itemStatus
+			if strings.TrimSpace(anyString(item["output"])) == "" {
+				item["output"] = strings.TrimSpace(anyString(firstImplementTaskValue(item["details"], item["message"], item["summary"])))
+			}
 			validation = append(validation, item)
 		}
 	}
@@ -732,6 +1187,25 @@ func validateImplementTaskCheckCoverage(task map[string]any, validation []any) e
 	}
 	if len(missing) > 0 {
 		return fmt.Errorf("task acceptance is missing passed task_checks: %s", strings.Join(missing, ", "))
+	}
+	return nil
+}
+
+func validateImplementTaskAcceptanceEvidence(task map[string]any, validation, blockers []any) error {
+	if len(validation) == 0 {
+		return fmt.Errorf("task acceptance requires validation evidence")
+	}
+	for _, value := range validation {
+		item, ok := value.(map[string]any)
+		if !ok || strings.ToLower(strings.TrimSpace(anyString(item["status"]))) != "passed" {
+			return fmt.Errorf("task acceptance requires passed validation evidence")
+		}
+	}
+	if err := validateImplementTaskCheckCoverage(task, validation); err != nil {
+		return err
+	}
+	if len(blockers) > 0 {
+		return fmt.Errorf("task acceptance is blocked by unresolved blockers")
 	}
 	return nil
 }

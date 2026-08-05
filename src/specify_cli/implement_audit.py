@@ -1274,6 +1274,61 @@ def audit_implement_resume(project_root: Path, feature_dir: Path) -> dict[str, A
         raise ValueError("feature_dir must stay inside the current project") from exc
     if not relative.parts:
         raise ValueError("feature_dir must identify a directory below the project root")
+    from .execution.task_runtime import TaskRuntimeError, next_task_decision
+
+    try:
+        task_decision = next_task_decision(
+            resolved_project_root, resolved_feature_dir
+        )
+    except TaskRuntimeError:
+        task_decision = None
+    if isinstance(task_decision, dict) and task_decision.get("reason_code") in {
+        "workflow-blocked",
+        "task-reopen-required",
+        "task-state-invalid",
+    }:
+        reason_code = str(task_decision["reason_code"])
+        classification = {
+            "workflow-blocked": "workflow-blocked",
+            "task-reopen-required": "task-recovery-required",
+            "task-state-invalid": "state-conflict",
+        }[reason_code]
+        payload = _payload(
+            status="fail",
+            feature_dir=resolved_feature_dir,
+            classification=classification,
+            trusted=False,
+            recommended_status="blocked",
+            next_action=str(task_decision["recommended_next_action"]),
+            task_findings=[],
+            open_gaps=[
+                str(
+                    task_decision.get("acceptance_error")
+                    or task_decision.get("state_error")
+                    or "workflow.json contains an unresolved blocker"
+                )
+            ],
+        )
+        payload.update(
+            {
+                key: task_decision[key]
+                for key in (
+                    "reason_code",
+                    "blocked_task_id",
+                    "task_revision",
+                    "workflow_revision",
+                    "workflow_stage",
+                    "workflow_blocker",
+                    "resolution_action",
+                    "acceptance_error",
+                    "recovery_action",
+                    "lifecycle_ref",
+                    "state_error",
+                )
+                if key in task_decision
+            }
+        )
+        return payload
     tracker_path = resolved_feature_dir / "implement-tracker.md"
     tasks_path = resolved_feature_dir / "tasks.md"
 
@@ -1292,6 +1347,19 @@ def audit_implement_resume(project_root: Path, feature_dir: Path) -> dict[str, A
     tracker = serialize_implement_tracker(tracker_path)
     tracker_status = str(tracker.get("status") or "").strip().lower()
     tasks = _parse_tasks(tasks_path)
+    if not tasks:
+        payload = _payload(
+            status="fail",
+            feature_dir=resolved_feature_dir,
+            classification="task-graph-invalid",
+            trusted=False,
+            recommended_status="blocked",
+            next_action="Recover tasks.md and task-index.json before resuming implementation.",
+            task_findings=[],
+            open_gaps=["tasks.md has no task checklist evidence"],
+        )
+        payload["reason_code"] = "task-graph-invalid"
+        return payload
     checked_tasks = [task for task in tasks if task["checked"]]
     checked_task_ids = {str(task["task_id"]).upper() for task in checked_tasks}
     feature_epoch_validation = _uses_feature_epoch_validation(resolved_feature_dir)
@@ -1301,8 +1369,6 @@ def audit_implement_resume(project_root: Path, feature_dir: Path) -> dict[str, A
 
     task_findings: list[dict[str, Any]] = []
     evidence_gaps: list[str] = []
-    if terminal and not tasks:
-        evidence_gaps.append("tasks.md has no task checklist evidence")
     if terminal and _uses_agent_native_task_lifecycle(resolved_feature_dir):
         for task in tasks:
             if task["checked"]:

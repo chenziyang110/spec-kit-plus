@@ -49,6 +49,12 @@ When delegation is selected, the leader compiles the current packet with `specif
 
 Accept a delegated lane only through a `WorkerTaskResult`-compatible payload containing task ID, status, changed paths, cheap task-check results, test impact, task-relevant obligation evidence, concerns, and blocker/recovery metadata when applicable. Pass it inline to `specify-runtime implement result-merge --result-json`; do not create a result file or a second ledger. A successful implementation result proves the bounded edit only and may advance dependency-safe work; feature verification remains pending instead of duplicating the Leader's heavyweight evidence.
 
+A `success` result must already be task-acceptance-ready: every canonical
+`task_checks` entry appears exactly as a passed validation command, every
+validation row is passed, and blockers are empty. Record known downstream work
+as a separate task, an approved deferral, or a blocked result with recovery;
+never encode it as a failed validation row inside a current-task `success`.
+
 Cheap producer-to-consumer wiring evidence remains task-local and required when
 the packet names a consumer surface. Only runtime real-entrypoint proof is
 deferred to the Leader-owned attempt; do not defer a static "created but not

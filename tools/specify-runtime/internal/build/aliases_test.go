@@ -24,6 +24,11 @@ func TestAliasImportsDeriveRequiredNodeAliases(t *testing.T) {
 				"route":              "gui route",
 				"route_hints":        []any{"src/gui"},
 				"verification_hints": []any{"npm test -- gui"},
+				"responsibility":     "Render and coordinate the desktop application shell.",
+				"capabilities":       []any{"responsive desktop shell"},
+				"symptoms":           []any{"small window clips primary actions"},
+				"user_terms":         []any{"桌面主窗口"},
+				"exclusions":         []any{"mobile approval flow"},
 			},
 		}},
 		Observations: []scanartifacts.ObservationRow{{
@@ -42,7 +47,12 @@ func TestAliasImportsDeriveRequiredNodeAliases(t *testing.T) {
 	assertAliasImport(t, aliases, "desktop UI", "scan_alias", "E-gui")
 	assertAliasImport(t, aliases, "window", "path_material", "E-gui")
 	assertAliasImport(t, aliases, "GUI", "observation_tag", "E-gui")
+	assertAliasImport(t, aliases, "responsive desktop shell", "node_capability", "E-gui")
+	assertAliasImport(t, aliases, "small window clips primary actions", "user_symptom", "E-gui")
+	assertAliasImport(t, aliases, "桌面主窗口", "user_term", "E-gui")
 	assertNoAliasImport(t, aliases, "GUI Shell owns frame rendering and input dispatch.")
+	assertNoAliasImport(t, aliases, "Render and coordinate the desktop application shell.")
+	assertNoAliasImport(t, aliases, "mobile approval flow")
 }
 
 func TestAliasImportsDeduplicateByIdentity(t *testing.T) {

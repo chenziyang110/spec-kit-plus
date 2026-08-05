@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 import yaml
+from jsonschema import Draft202012Validator
 from typer.testing import CliRunner
 
 import specify_cli
@@ -18,6 +19,7 @@ from specify_cli.launcher import (
     diagnose_project_runtime_compatibility,
     write_runtime_launcher_config,
 )
+from specify_cli.orchestration import CapabilitySnapshot
 from specify_cli.specify_runtime import project_runtime_launcher_arg
 
 
@@ -65,6 +67,7 @@ SKILLS_INTEGRATIONS = (
     "claude",
     "codex",
     "cursor-agent",
+    "grok",
     "kimi",
     "trae",
     "vibe",
@@ -184,6 +187,12 @@ def test_spx_sources_are_independent_and_discoverable() -> None:
     blocker_resolution = ADVANCED_SKILLS / "_shared" / "blocker-resolution.md"
     assert blocker_resolution.exists()
     assert "references/blocker-resolution.md" in cognition.read_text(encoding="utf-8")
+    native_subagents = ADVANCED_SKILLS / "_shared" / "native-subagents.md"
+    assert native_subagents.exists()
+    native_contract = native_subagents.read_text(encoding="utf-8").lower()
+    assert "dispatch and join operations" in native_contract
+    assert "accepted terminal result completes" in native_contract
+    assert "explicitly selected durable-team workflow" in native_contract
 
     for source_file in ADVANCED_SKILLS.rglob("*"):
         if not source_file.is_file():
@@ -732,6 +741,93 @@ def test_spx_shared_project_learning_contract_is_cli_progressive_and_read_only()
     ):
         assert required in content
     assert ".specify/memory/learnings/index.md" not in content
+
+
+def test_spx_project_learning_contract_keeps_sanitized_candidate_lifecycle() -> None:
+    content = (
+        (ADVANCED_SKILLS / "_shared" / "project-learning.md")
+        .read_text(encoding="utf-8")
+        .lower()
+    )
+    normalized = " ".join(content.split())
+
+    for required in (
+        "summary, trigger_signals, and evidence are sanitized agent-facing projections",
+        "raw sensitive values must not enter learning storage, registry, or read api",
+        "trigger_signals are canonical tags",
+        "redaction_labels",
+        "personal_identifier",
+        "business_identifier",
+        "organization_sensitive",
+        "[redacted_phone]",
+        "[redacted_business_id]",
+        "[redacted_org_term]",
+        "mature learning protection",
+        "bounded candidate slot",
+        "reading does not promote",
+        "candidate cannot become a rule directly",
+        "confirmed learning before explicit project-rule promotion",
+        "abstract and retain the reusable lesson",
+        "assess learning value independently from sensitivity",
+        "sensitivity alone is never an eligibility veto",
+        "capture-safe",
+        "capture-sanitized",
+        "--dry-run",
+        "without changing candidates, registries, review state, or metrics",
+        "never invent a regex detector",
+        "limited to 64 distinct literals of 1..128 characters",
+        "none|captured|auto-captured|deferred|manual-capture-needed",
+        "`deferred` and `manual-capture-needed` require rationale",
+        "`captured`/`auto-captured` succeeds only after that match is verified",
+        "`none` is blocked while a matching deferred/manual decision remains pending",
+        "status returns only aggregate pending/due/age buckets",
+        "omits rationale, learning refs, recurrence keys, and timestamps",
+        "metrics exposes aggregate totals, decisions, value/risk tiers, reason/label counts",
+        "derived confirmation rate",
+        "neither may store or expose evidence text or learning refs",
+    ):
+        assert required in normalized
+
+
+def test_advanced_profile_installs_project_learning_contract_schemas(tmp_path) -> None:
+    project = tmp_path / "advanced-learning-schemas"
+    project.mkdir()
+    runner = CliRunner()
+
+    old_cwd = os.getcwd()
+    try:
+        os.chdir(project)
+        result = runner.invoke(
+            app,
+            [
+                "init",
+                "--here",
+                "--force",
+                "--ai",
+                "codex",
+                "--workflow-profile",
+                "advanced",
+                "--script",
+                "sh",
+                "--no-git",
+                "--ignore-agent-tools",
+            ],
+            catch_exceptions=False,
+        )
+    finally:
+        os.chdir(old_cwd)
+
+    assert result.exit_code == 0, result.output
+
+    templates = project / ".specify" / "templates"
+    for name in (
+        "project-learning-record-schema.json",
+        "project-learning-policy-schema.json",
+        "project-learning-metrics-schema.json",
+    ):
+        installed = templates / name
+        assert installed.exists()
+        Draft202012Validator.check_schema(json.loads(installed.read_text(encoding="utf-8")))
 
 
 def test_advanced_profile_installs_spx_with_only_classic_map_companions(
@@ -1812,7 +1908,7 @@ def test_all_skills_integrations_support_the_advanced_profile(
         integration_key
     )
 
-    if integration_key in {"claude", "vibe"}:
+    if integration_key in {"claude", "vibe", "grok"}:
         for skill_name in SPX_SKILLS:
             skill = skills_dir / skill_name / "SKILL.md"
             assert _frontmatter(skill)["user-invocable"] is True
@@ -1853,6 +1949,74 @@ def test_all_skills_integrations_support_the_advanced_profile(
         assert "this invocation authorizes only this workflow stage" in installed_skill
         expected_next = f"{invocation_prefix}{next_skill}"
         assert f"do not invoke `{expected_next}`" in installed_skill
+
+
+def test_cursor_advanced_implement_reference_uses_native_task_lifecycle(tmp_path) -> None:
+    integration = get_integration("cursor-agent")
+    project = tmp_path / "cursor-advanced-native-task"
+    manifest = IntegrationManifest("cursor-agent", project)
+
+    integration.setup(
+        project,
+        manifest,
+        parsed_options={"workflow_profile": "advanced"},
+        script_type="sh",
+    )
+
+    reference = (
+        integration.skills_dest(project)
+        / "spx-implement"
+        / "references"
+        / "native-subagents.md"
+    ).read_text(encoding="utf-8")
+
+    assert "## Cursor Native Subagent Surface" in reference
+    assert "`Task`" in reference
+    assert "Task(" in reference
+    assert "`description`" in reference
+    assert "`prompt`" in reference
+    assert "`subagent_type`" in reference
+    assert "`run_in_background`" in reference
+    assert "`agent_id`" in reference
+    assert "`resume`" in reference
+    assert "spawn_agent" not in reference
+    assert "wait_agent" not in reference
+    assert "close_agent" not in reference
+
+
+def test_advanced_native_subagent_renderer_keeps_cli_surfaces_isolated() -> None:
+    source = (ADVANCED_SKILLS / "_shared" / "native-subagents.md").read_text(
+        encoding="utf-8"
+    )
+    cursor = get_integration("cursor-agent")
+    codex = get_integration("codex")
+
+    cursor_reference = cursor._render_advanced_native_subagent_reference(
+        content=source,
+        command_name="implement",
+        snapshot=CapabilitySnapshot(
+            integration_key="cursor-agent",
+            native_subagents=True,
+            native_worker_surface="cursor-task",
+        ),
+    )
+    codex_reference = codex._render_advanced_native_subagent_reference(
+        content=source,
+        command_name="implement",
+        snapshot=CapabilitySnapshot(
+            integration_key="codex",
+            native_subagents=True,
+            native_worker_surface="spawn_agent",
+        ),
+    )
+
+    assert "## Cursor Native Subagent Surface" in cursor_reference
+    assert "Task(" in cursor_reference
+    assert "spawn_agent" not in cursor_reference
+    assert "## Codex Native Subagent Surface" in codex_reference
+    assert "spawn_agent" in codex_reference
+    assert "wait_agent" in codex_reference
+    assert "Task(" not in codex_reference
 
 
 def test_classic_then_advanced_profiles_are_additive_in_the_manifest(tmp_path) -> None:

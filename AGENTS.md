@@ -144,6 +144,13 @@ present in a test project.
 
 ### UI Workflow Contract Across Profiles
 
+- `sp-design` / `spx-design` is one natural-language entrypoint. Route prompt
+  intent to `create/refine/audit`; reference synthesis is an input strategy for
+  create/refine, not a public colon subskill or terminal task type. Resume
+  active design work before reclassification. `sp-specify` is the first formal
+  consumer and `sp-quick` is the direct-delivery consumer. A new approval must
+  not silently retarget pinned work: formal adoption rebinds through Specify,
+  while Quick requires a confirmed checkpoint amendment.
 - The product goal is better implemented UI, not merely more UI documentation.
   Both profiles must preserve this executable chain for substantive UI work:
   `approved immutable preview + original references -> approved DESIGN.md ->
@@ -311,6 +318,7 @@ Specify supports multiple AI agents by generating agent-specific command files a
 | **Antigravity**            | `.agents/skills/`      | Markdown | N/A (IDE-based) | Antigravity IDE (`--ai agy --ai-skills`) |
 | **Mistral Vibe**           | `.vibe/skills/`        | Markdown | `vibe`          | Mistral Vibe CLI            |
 | **ZCode**                  | `.zcode/skills/`       | Markdown | N/A (desktop app) | ZCode Agent skills        |
+| **Grok**                   | `.grok/skills/`        | Markdown | `grok`          | Grok Build CLI (xAI)        |
 | **Generic**                | User-specified via `--ai-commands-dir` | Markdown | N/A | Bring your own agent        |
 
 ### Step-by-Step Integration Guide
@@ -555,6 +563,7 @@ Require a command-line tool to be installed:
 - **Tabnine CLI**: `tabnine` CLI
 - **Kimi Code**: `kimi` CLI
 - **Mistral Vibe**: `vibe` CLI
+- **Grok**: `grok` CLI
 - **Pi Coding Agent**: `pi` CLI
 - **iFlow CLI**: `iflow` CLI
 - **Forge**: `forge` CLI
@@ -577,7 +586,7 @@ Work within integrated development environments:
 
 ### Markdown Format
 
-Used by: Claude, Cursor, GitHub Copilot, opencode, Windsurf, Junie, Kiro CLI, Amp, SHAI, IBM Bob, Kimi Code, Qwen, Pi, Codex, Auggie, CodeBuddy, Qoder, Roo Code, Kilo Code, Trae, Antigravity, Mistral Vibe, ZCode, iFlow, Forge
+Used by: Claude, Cursor, GitHub Copilot, opencode, Windsurf, Junie, Kiro CLI, Amp, SHAI, IBM Bob, Kimi Code, Qwen, Pi, Codex, Auggie, CodeBuddy, Qoder, Roo Code, Kilo Code, Trae, Antigravity, Mistral Vibe, ZCode, Grok, iFlow, Forge
 
 **Standard format:**
 
@@ -630,6 +639,7 @@ Command content with {SCRIPT} and {{args}} placeholders.
 - Trae: `.trae/skills/` (skills; explicit workflow skills use `sp-*` and the Trae rules directory remains the home for project context files such as `project_rules.md`)
 - Mistral Vibe: `.vibe/skills/` (skills; generated workflow skills install as `sp-*/SKILL.md`)
 - ZCode: `.zcode/skills/` (skills; explicit workflow skills use `$sp-<command>`, root `AGENTS.md` remains the context file, and `.agents/skills/` is left for cross-tool shared skills)
+- Grok: `.grok/skills/` (skills; explicit workflow skills use `/sp-<command>`, root `AGENTS.md` remains the context file)
 - **Shared rule for skills-based integrations**:
 - When an integration installs into a `skills/` directory, explicit workflow skills use the `sp-*` namespace and passive bundled skills keep the directory names defined under `templates/passive-skills/`.
 - **Prompt-based exceptions**:

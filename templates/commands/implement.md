@@ -21,6 +21,17 @@ scripts:
 
 [AGENT] `sp-implement` continues the same run created for the feature. Confirm the same run with `specify-runtime run show`, then execute implementation work only through `specify-runtime run supervise`.
 
+## Feature Context Provenance Gate
+
+Accept `<feature-dir>` only from `{SCRIPT}`, an explicit user selection, or the
+runtime-selected current Run subject. If feature context is missing or ambiguous, stop
+before `task-next`; never enumerate `.specify/features/**`, `tasks.md`, or
+`task-index.json`, and never choose a feature from name, slug, title, topic, or
+keyword similarity. An active or unconsumed discussion is not implementation
+authority: resume its Discussion contract, and after handoff readiness let only
+its selected `sp-quick` or `sp-specify` consumer create and bind downstream
+state. Discussion never hands off directly to `sp-implement`.
+
 ## Main Flow
 
 1. Run `{SCRIPT}` to resolve the task-bearing feature context, then call `{{specify-subcmd:specify-runtime implement task-next --feature-dir <feature-dir> --format json}}`. Treat CLI-owned `task-index.json` as the structured execution contract from Tasks, while letting the CLI return only the next ready task and compact execution state; use `specify-runtime artifact show --json-pointer ...` for any additional canonical field. Never parse or rewrite the full task index with ad-hoc scripts. Required refs, protected requirements, user decisions, and task-local `MP-*` must-preserve obligations remain locked; a conflict must stop and route to the owning upstream phase rather than redefine the goal during implementation.

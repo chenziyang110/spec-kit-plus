@@ -6,6 +6,7 @@ description: Dependency-aware task-generation workflow for advanced coding model
 # SPX Tasks
 
 Read `references/project-learning.md` and apply its consume-capture policy.
+Read `references/native-subagents.md` when task-generation lanes are delegated.
 Read `references/workflow-runtime.md` and let its CLI own phase state.
 Read `references/run-bootstrap.md`.
 Read `references/project-cognition.md`, using cognition intent `plan`,

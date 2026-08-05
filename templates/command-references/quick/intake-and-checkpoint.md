@@ -38,41 +38,65 @@ choosing the quick-task lane shape.
 
 Apply [handoff consumption](handoff-consumption.md) once. Use canonical `SOURCE_CONTRACT` plus `SOURCE_DISCUSSION_SLUG`; do not duplicate its parsing, source sweep, or eligibility checks here.
 
-When the confirmed contract introduces no quick-stage `semantic_delta`, bind the Understanding Checkpoint to its `review_digest` and continue without repeated user confirmation. Otherwise use the checkpoint rules below for the changed decision only.
+When the confirmed contract introduces no quick-stage `semantic_delta`, stage the
+Quick checkpoint with `source.kind=discussion`, `semantic_delta=false`, and the
+handoff `review_digest`. Runtime marks the checkpoint `inherited`, projects the
+Decision Checkpoint summary plus Delivery Map, and continues without repeated
+user confirmation. Otherwise stage only the changed decision delta.
 
 ## Understanding Checkpoint
 
-`sp-quick` has one default understanding checkpoint before substantive execution. This is not a full spec, not a `sp-plan` substitute, and not a detailed task-plan approval. It exists so the user can confirm that the quick-task direction is correct before the workflow runs to completion.
+`sp-quick` has one default Decision Checkpoint before substantive execution.
+This is not a full spec, not a `sp-plan` substitute, and not approval of the
+agent's construction plan. It confirms user-owned product decisions only.
 
-After the constitution gate, quick workspace initialization, project cognition query, and any bounded `minimal_live_reads`, present one concise user-facing checkpoint card. Use the user's language for the card content and confirmation prompt when practical. Keep it compact, but do not omit important specifics: include concrete files, commands, workflows, constraints, validation evidence, and known uncertainty when they are already known. If a row is genuinely unknown, write `Unknown: [why it matters]` instead of leaving it vague.
+After the constitution gate, quick workspace initialization, project cognition
+query, and any bounded `minimal_live_reads`, stage a structured
+`quick-confirmation-v1` contract through runtime:
 
-Use the exact card below. The main table contains only user-owned decisions:
-request and overall outcome, user-visible result, scope, ordered user-visible
-work items and their dependencies, acceptance for every work item, recommended
-approach, assumptions and risks, overall completion evidence, and the
-reconfirmation trigger. Use stable `Q1`, `Q2`, ... identifiers and list every
-confirmed deliverable; use `Q1` alone for a single work item. The table confirms
-deliverable-level order, not internal implementation choreography. Technical
-execution belongs to the agent. Put affected surfaces, implementation
-sequencing, lane/batch construction, and the next command in a short technical
-summary for awareness, not as a request to approve technical details. Keep the checkpoint plain text
-for terminal output: do not use HTML tags or inline line-break markup. Do not
-reuse the placeholder text as content; replace each bracketed item with
-task-specific facts.
+```text
+{{specify-subcmd:specify-runtime quick checkpoint-stage <quick-id> --input-json '<decision+delivery>' --format json}}
+{{specify-subcmd:specify-runtime quick checkpoint-show <quick-id> --view decision --format json}}
+{{specify-subcmd:specify-runtime quick checkpoint-show <quick-id> --view delivery --format json}}
+```
+
+Present the runtime Decision Checkpoint and Delivery Map views. Do not hand-author
+a freeform two-column approval table for multi-item work. The Decision Checkpoint
+contains only user-owned decisions: goal, user-visible result, scope, ordered
+`Q1`/`Q2`/... deliverables and product-level dependencies, independent acceptance
+for every work item, recommended approach, assumptions and risks, overall
+completion evidence, and the reconfirmation trigger. Delivery Map shows waves,
+parallelism, join points, and integration gates for awareness only.
+
+Never ask the user to approve subagent count, file split, batch choreography,
+test command order, or worker packet details. Those remain agent-owned and may
+change through `checkpoint-stage --delivery-only` after confirmation without
+reopening approval.
 
 When the task affects a user-visible UI surface, append the UI Confirmation
-card from the fixed partial. It is a design proposal for this bounded
-implementation, not a replacement for an approved project design direction.
-Ask once after both cards; the user may confirm both or revise only scope, UI,
-or another named decision.
+card and include `decision.ui_confirmation` in the staged contract. Ask once for
+staged non-inherited checkpoints; the user may confirm both or revise only
+scope, UI, dependency, acceptance, or another named decision.
 
 {{spec-kit-include: ../../command-partials/quick/checkpoint-card.md}}
 
-Wait for user confirmation before code edits, broad repository analysis, delegation, implementation commands, or validation commands. If the user corrects the understanding, revise the checkpoint once with the corrected direction and ask for confirmation again.
+For staged checkpoints, wait for user confirmation, then bind it with:
 
-Create `STATUS.md` with `artifact scaffold --kind quick-status`, then set `understanding_confirmed` through `artifact prepare` plus `artifact patch --frontmatter-json '<inline-json>'` and replace the checkpoint section with `artifact patch --section`. Never edit the file directly.
-`understanding_confirmed: false` blocks substantive execution on entry and resume until the CLI-persisted checkpoint is confirmed.
-Before any map-maintenance handoff, use the artifact CLI to scaffold or patch `STATUS.md` with `understanding_confirmed: false`. Until the checkpoint is confirmed, you must not proceed to code edits, broad repository analysis, delegation, validation commands, or map maintenance; read only enough targeted context to revise it.
+```text
+{{specify-subcmd:specify-runtime quick checkpoint-confirm <quick-id> --digest <confirmation_digest> --format json}}
+```
+
+Inherited discussion handoffs with no semantic delta do not wait for a second
+confirmation. If the user corrects the understanding, re-stage only the changed
+decision fields and confirm the new digest.
+
+Create `STATUS.md` with `artifact scaffold --kind quick-status`. Runtime
+`checkpoint-stage` / `checkpoint-confirm` own the structured confirmation file
+and project the Understanding Checkpoint and Execution sections. Prefer those
+commands over freeform section rewriting for checkpoint fields.
+`understanding_confirmed: false` blocks substantive execution on entry and
+resume until the runtime-managed checkpoint is confirmed or inherited.
+Before any map-maintenance handoff, use the artifact CLI to scaffold or patch `STATUS.md` with `understanding_confirmed: false`. Until the checkpoint is confirmed, you must not proceed to code edits, broad repository analysis, delegation, validation commands, or map maintenance; read only enough targeted context to revise the decision contract. Do not start execution routing while `understanding_confirmed: false`. Do not dispatch until the artifact CLI has patched `understanding_confirmed: true` or runtime inheritance has set it. Start execution only after a leased `specify-runtime artifact patch` sets `understanding_confirmed: true` in `STATUS.md`, or after `quick checkpoint-confirm` / inherited stage has done so. The first concrete execution action after understanding confirmation should follow the Delivery Map pulse, not vague waiting text.
 
 ## Quick Checkpoint Amendments
 
@@ -100,12 +124,14 @@ Before presenting the amendment, explain in user-facing prose:
 - the incremental decision the user owns and why repository evidence cannot
   resolve it.
 
-Only after that explanation, present `## Quick Checkpoint Amendment`. Include
-only the changed rows or decisions plus one concise `Unchanged` statement; do
-not repeat the full initial Quick Checkpoint. Ask the user to confirm or revise
-that delta, then persist the amendment and confirmation before resuming. If the
-user already explicitly approved the exact delta in the message that supplied
-it, record that approval instead of requesting a duplicate confirmation.
+Only after that explanation, present `## Quick Checkpoint Amendment` by
+re-staging a delta Decision Checkpoint through `quick checkpoint-stage` with
+`semantic_delta=true` and a delta summary. Present only the changed rows or
+decisions plus one concise `Unchanged` statement; do not repeat the full initial
+Quick Checkpoint. Ask the user to confirm or revise that delta, then
+`checkpoint-confirm` the new digest before resuming. If the user already
+explicitly approved the exact delta in the message that supplied it, confirm
+that digest instead of requesting a duplicate confirmation.
 
 When the material delta is UI-only, keep the
 `## Quick Checkpoint Amendment` heading. Include only the changed UI Confirmation rows.

@@ -23,7 +23,7 @@ var version = "dev"
 const protocolVersion = "specify-runtime.v1"
 
 func main() {
-	os.Exit(Run(os.Args[1:], os.Stdout, os.Stderr, version))
+	os.Exit(Run(os.Args[1:], os.Stdout, os.Stderr, buildinfo.Current(version).Version))
 }
 
 func Run(args []string, stdout, stderr io.Writer, cliVersion string) int {
@@ -127,16 +127,16 @@ func writeHelp(stdout io.Writer) int {
 
 func runVersion(args []string, stdout io.Writer, cliVersion string) int {
 	env := NewEnvelope("ok", "runtime version")
-	env.Data["cli_version"] = cliVersion
-	env.Data["protocol_version"] = protocolVersion
 	info := buildinfo.Current(cliVersion)
+	env.Data["cli_version"] = info.Version
+	env.Data["protocol_version"] = protocolVersion
 	env.Data["source_revision"] = info.SourceRevision
 	env.Data["dirty"] = info.Dirty
 	env.Data["cognition_schema_version"] = info.SchemaVersion
 	if wantsJSON(args) {
 		return writeEnvelope(stdout, env)
 	}
-	_, _ = fmt.Fprintf(stdout, "specify-runtime %s\n", cliVersion)
+	_, _ = fmt.Fprintf(stdout, "specify-runtime %s\n", info.Version)
 	return 0
 }
 
@@ -147,8 +147,11 @@ func runAPI(args []string, stdout, stderr io.Writer, cliVersion string) int {
 	switch args[0] {
 	case "handshake":
 		env := NewEnvelope("ok", "api handshake")
-		env.Data["cli_version"] = cliVersion
+		info := buildinfo.Current(cliVersion)
+		env.Data["cli_version"] = info.Version
 		env.Data["protocol_version"] = protocolVersion
+		env.Data["source_revision"] = info.SourceRevision
+		env.Data["dirty"] = info.Dirty
 		env.Data["capability_ids"] = defaultCapabilities()
 		return writeEnvelope(stdout, env)
 	case "list":
@@ -1059,6 +1062,7 @@ func defaultCapabilities() []string {
 		"implement.resume-audit",
 		"implement.task-accept",
 		"implement.task-next",
+		"implement.task-reopen",
 		"implement.task-start",
 		"implement.validation-finish",
 		"implement.validation-start",
@@ -1102,9 +1106,12 @@ func defaultCapabilities() []string {
 		"learning.capture",
 		"learning.capture-auto",
 		"learning.list",
+		"learning.metrics",
 		"learning.promote",
+		"learning.review",
 		"learning.show",
 		"learning.start",
+		"learning.status",
 		"prd-build.status",
 		"prd-build.scaffold",
 		"prd-scan.finalize",
@@ -1115,8 +1122,15 @@ func defaultCapabilities() []string {
 		"prd-scan.record-upsert",
 		"prd-scan.status",
 		"quick.archive",
+		"quick.checkpoint-confirm",
+		"quick.checkpoint-show",
+		"quick.checkpoint-stage",
 		"quick.close",
+		"quick.item-accept",
+		"quick.item-start",
+		"quick.item-status",
 		"quick.list",
+		"quick.packet-compile",
 		"quick.resume",
 		"quick.status",
 		"sync.safe",
@@ -1237,6 +1251,8 @@ func capabilitySummary(id string) string {
 		return "Resolve a persisted workflow blocker with evidence."
 	case "workflow.closeout":
 		return "Atomically bind passed human acceptance to terminal workflow state."
+	case "implement.task-reopen":
+		return "Reopen one non-acceptance-ready implemented task with revision guards and immutable audit history."
 	case "run.create":
 		return "Record a new workflow Run request in the repository control plane."
 	case "run.show":

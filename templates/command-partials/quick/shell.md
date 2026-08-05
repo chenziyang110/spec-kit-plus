@@ -8,7 +8,10 @@ This command skips the formal feature-spec workflow while scaling task-local pla
 
 Use this whenever the requested outcome is clear enough for direct implementation but needs resumable state: focused fixes and tweaks, larger features, cross-cutting changes, multi-capability delivery, architecture or migration work, compatibility or rollout changes, and acceptance-heavy implementation are all valid quick tasks.
 
-Before the lightweight path starts substantive execution, make the agent's understanding visible in one initial full checkpoint so the user can confirm or correct the direction. Later material changes use the delta-only amendment contract instead of repeating that checkpoint.
+Before the lightweight path starts substantive execution, stage one runtime-owned
+Decision Checkpoint so the user can confirm product decisions once. Show the
+Delivery Map for awareness only. Later material product changes use the
+delta-only amendment contract; execution-only rearranges never re-confirm.
 
 ## Context
 
@@ -16,7 +19,17 @@ Before the lightweight path starts substantive execution, make the agent's under
 - The leader owns `STATUS.md`, lane selection, join points, validation, and final summary state.
 - Quick mode is the resumable direct-delivery lane after `sp-fast`; it is an alternative to a formal specification workflow, not a size band below it.
 - Keep every `CA-###` consequence obligation traceable in `STATUS.md` or a referenced task-local planning artifact with affected objects, lifecycle states, dependency impact, recovery/validation proof, coverage gaps, and stop-and-reopen conditions. Broad consequence scope increases planning and validation depth inside quick; it does not require `sp-specify`.
-- Before substantive execution, present one Understanding Checkpoint using the fixed Quick Checkpoint card below. Keep the approval surface to the user-owned overall outcome, visible result, scope, ordered work items and their dependencies, work-item acceptance, recommended approach, assumptions and risks, overall completion evidence, and reconfirmation triggers. The same table handles one work item or a large ordered set. Technical implementation sequencing belongs to the agent. For applicable UI work, append the independent UI Confirmation card and ask for one combined confirmation; persist both decisions through the registered quick/status artifact CLI, never by editing `STATUS.md` directly.
+- Before substantive execution, stage `quick-confirmation-v1` through
+  `specify-runtime quick checkpoint-stage` and present the runtime Decision
+  Checkpoint plus Delivery Map. Keep the approval surface to user-owned outcome,
+  visible result, scope, ordered work items and dependencies, work-item
+  acceptance, recommended approach, assumptions and risks, overall completion
+  evidence, and reconfirmation triggers. Delivery Map, waves, subagents, file
+  splits, and test order are agent-owned and never require approval. For
+  discussion handoffs with no semantic delta, inherit the digest and skip
+  re-confirmation. For applicable UI work, include independent UI Confirmation
+  in the staged decision and ask for one combined confirmation on staged
+  non-inherited checkpoints.
 
 ## Quick Checkpoint Card
 

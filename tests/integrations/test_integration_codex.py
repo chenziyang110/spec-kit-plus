@@ -1117,7 +1117,7 @@ def test_codex_generated_sp_implement_includes_native_spawn_agent_routing(tmp_pa
     assert "workflow leader" in content.lower()
     assert "spawn_agent" in content
     assert "wait_agent" in content
-    assert "close_agent" in content
+    assert "close_agent" not in content
     assert "inline result submission" in content.lower()
     assert "runtime-owned compatibility path" in content.lower()
     assert "--command implement" in content
@@ -1246,7 +1246,7 @@ def test_codex_generated_shared_workflow_skills_include_native_spawn_agent_guida
     assert "native-subagents" in implement_content
     assert "spawn_agent" in implement_content
     assert "wait_agent" in implement_content
-    assert "close_agent" in implement_content
+    assert "close_agent" not in implement_content
     assert "task-index.json" in implement_content
     assert "just in time" in implement_content
     assert "event-triggered review" in implement_content
@@ -1518,7 +1518,7 @@ def test_codex_generated_sp_map_scan_build_include_native_mapping_guidance(tmp_p
     assert "tool discovery" in scan_content
     assert "do not record `subagent-blocked`" in scan_content
     assert "wait_agent" in scan_content
-    assert "close_agent" in scan_content
+    assert "close_agent" not in scan_content
     assert "provisional" in scan_content
 
     assert ".specify/project-cognition/project-cognition.db" in build_content
@@ -1539,7 +1539,7 @@ def test_codex_generated_sp_map_scan_build_include_native_mapping_guidance(tmp_p
     assert "native subagent capability discovery" in build_content
     assert "do not record `subagent-blocked`" in build_content
     assert "wait_agent" in build_content
-    assert "close_agent" in build_content
+    assert "close_agent" not in build_content
     assert "project cognition" in build_content
     assert "confidence" in build_content
     assert "conflict" in build_content
@@ -1638,7 +1638,7 @@ def test_codex_generated_sp_debug_includes_leader_led_native_investigation_guida
     assert "truth-owning layers" in content
     assert "spawn_agent" in content
     assert "wait_agent" in content
-    assert "close_agent" in content
+    assert "close_agent" not in content
     assert "investigating" in content
     assert "debug file" in content
     assert "evidence-gathering" in content or "evidence gathering" in content
@@ -1884,20 +1884,19 @@ def test_codex_generated_sp_quick_supports_lightweight_tracked_execution(tmp_pat
     assert "codex quick-task subagent execution" in content
     assert "spawn_agent" in content
     assert "wait_agent" in content
-    assert "close_agent" in content
+    assert "close_agent" not in content
     assert "managed-team" in content
-    assert "understanding checkpoint" in content
+    assert "understanding checkpoint" in content or "decision checkpoint" in content
     assert "understanding_confirmed: true" in content
     assert_quick_checkpoint_card_shape(content)
     assert "<br>" not in content
-    assert "plain text for terminal output" in content
-    assert "request and outcome" in content
-    assert "user-visible result" in content
-    assert "recommended approach" in content
-    assert "assumptions and risks" in content
-    assert "completion evidence" in content
+    assert "checkpoint-stage" in content
+    assert "packet-compile" in content
+    assert "item-start" in content
+    assert "item-accept" in content
+    assert "confirmation_digest" in content
+    assert "delivery map" in content
     assert "reconfirmation trigger" in content
-    assert "technical execution belongs to the agent" in content
     assert "## ui confirmation" in content
     assert "single confirmation covers both" in content
     assert "done_or_progress_signal" in content

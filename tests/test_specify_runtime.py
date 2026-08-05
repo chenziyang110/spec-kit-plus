@@ -432,6 +432,91 @@ def test_default_runtime_version_pins_stable_packages_and_tracks_dev_latest(
     assert runtime.default_runtime_version() == "latest"
 
 
+@pytest.mark.parametrize(
+    ("info", "expected_version", "accepted"),
+    [
+        (
+            {
+                "cli_version": "v0.6.6",
+                "source_revision": "a" * 40,
+                "dirty": False,
+            },
+            "v0.6.6",
+            True,
+        ),
+        (
+            {
+                "cli_version": "v0.6.6",
+                "source_revision": "a" * 40,
+                "dirty": False,
+            },
+            "latest",
+            True,
+        ),
+        (
+            {"cli_version": "dev", "source_revision": "a" * 40, "dirty": False},
+            "latest",
+            False,
+        ),
+        (
+            {
+                "cli_version": "v0.6.5",
+                "source_revision": "a" * 40,
+                "dirty": False,
+            },
+            "v0.6.6",
+            False,
+        ),
+        (
+            {
+                "cli_version": "v0.6.6",
+                "source_revision": "unknown",
+                "dirty": False,
+            },
+            "v0.6.6",
+            False,
+        ),
+        (
+            {
+                "cli_version": "v0.6.6",
+                "source_revision": "a" * 40,
+                "dirty": True,
+            },
+            "v0.6.6",
+            False,
+        ),
+    ],
+)
+def test_release_identity_requires_exact_clean_provenance(
+    info: dict[str, object], expected_version: str, accepted: bool
+) -> None:
+    runtime = _load_runtime()
+
+    assert (
+        runtime._release_identity_is_compatible(
+            info,
+            expected_version=expected_version,
+        )
+        is accepted
+    )
+
+
+def test_runtime_identity_rejects_missing_dirty_provenance() -> None:
+    runtime = _load_runtime()
+
+    assert runtime._runtime_identity_is_compatible({}, allow_dirty=True) is False
+    assert (
+        runtime._runtime_identity_is_compatible(
+            {"dirty": True}, allow_dirty=False
+        )
+        is False
+    )
+    assert (
+        runtime._runtime_identity_is_compatible({"dirty": True}, allow_dirty=True)
+        is True
+    )
+
+
 def test_python_runtime_surface_removes_legacy_installers_and_launchers() -> None:
     legacy_modules = [
         PACKAGE_ROOT / "project_cognition_runtime.py",

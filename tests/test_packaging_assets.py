@@ -57,6 +57,9 @@ def test_wheel_force_include_bundles_command_partials_and_prd_templates() -> Non
     assert '"templates/human-acceptance-state-schema.json" = "specify_cli/core_pack/templates/human-acceptance-state-schema.json"' in pyproject
     assert '"templates/human-acceptance-state-template.json" = "specify_cli/core_pack/templates/human-acceptance-state-template.json"' in pyproject
     assert '"templates/project-learning-record-schema.json" = "specify_cli/core_pack/templates/project-learning-record-schema.json"' in pyproject
+    assert '"templates/project-learning-metrics-schema.json" = "specify_cli/core_pack/templates/project-learning-metrics-schema.json"' in pyproject
+    assert '"templates/project-learning-policy-schema.json" = "specify_cli/core_pack/templates/project-learning-policy-schema.json"' in pyproject
+    assert '"templates/quick-confirmation-schema.json" = "specify_cli/core_pack/templates/quick-confirmation-schema.json"' in pyproject
     assert '"templates/command-references" = "specify_cli/core_pack/command-references"' in pyproject
     assert '"templates/prd" = "specify_cli/core_pack/templates/prd"' in pyproject
     assert '"templates/testing" = "specify_cli/core_pack/templates/testing"' not in pyproject

@@ -11,11 +11,20 @@ import (
 
 const RuntimeProtocol = "project-cognition.v2"
 
-// SourceRevision and BuildDirty may be populated by release builds with
-// -ldflags. When unset, Current falls back to Go's VCS build settings.
+// ReleaseIdentity is the canonical, externally inspectable release marker. A
+// release build sets it with -ldflags to:
+//
+//	specify-runtime.release.v1,version=<tag>,revision=<sha>,dirty=<bool>
+//
+// Current derives every reported release identity field from that one marker,
+// so cross-compiled assets can be checked without executing the target binary.
+// SourceRevision and BuildDirty remain compatibility overrides for local and
+// older build scripts. When all overrides are unset, Current falls back to
+// Go's VCS build settings.
 var (
-	SourceRevision string
-	BuildDirty     string
+	ReleaseIdentity string
+	SourceRevision  string
+	BuildDirty      string
 )
 
 // Info is emitted by `specify-runtime version --format json` and consumed by
@@ -60,6 +69,17 @@ func FromSettings(version string, settings map[string]string) Info {
 		dirtySetting = strings.TrimSpace(settings["vcs.modified"])
 	}
 
+	if strings.TrimSpace(ReleaseIdentity) != "" {
+		releaseVersion, releaseRevision, releaseDirty, ok := parseReleaseIdentity(ReleaseIdentity)
+		if !ok {
+			// A malformed explicit release marker must never fall back to identity
+			// fields that could make an untrusted release look valid.
+			version, revision, dirtySetting = "dev", "unknown", "true"
+		} else {
+			version, revision, dirtySetting = releaseVersion, releaseRevision, releaseDirty
+		}
+	}
+
 	return Info{
 		Version:         version,
 		RuntimeProtocol: RuntimeProtocol,
@@ -67,6 +87,31 @@ func FromSettings(version string, settings map[string]string) Info {
 		SourceRevision:  revision,
 		Dirty:           parseDirty(dirtySetting),
 	}
+}
+
+func parseReleaseIdentity(value string) (string, string, string, bool) {
+	parts := strings.Split(strings.TrimSpace(value), ",")
+	if len(parts) != 4 || parts[0] != "specify-runtime.release.v1" {
+		return "", "", "", false
+	}
+	fields := map[string]string{}
+	for _, part := range parts[1:] {
+		key, raw, found := strings.Cut(part, "=")
+		if !found || strings.TrimSpace(key) == "" || strings.TrimSpace(raw) == "" {
+			return "", "", "", false
+		}
+		if _, duplicate := fields[key]; duplicate {
+			return "", "", "", false
+		}
+		fields[key] = strings.TrimSpace(raw)
+	}
+	version := fields["version"]
+	revision := fields["revision"]
+	dirty := strings.ToLower(fields["dirty"])
+	if version == "" || revision == "" || (dirty != "true" && dirty != "false") {
+		return "", "", "", false
+	}
+	return version, revision, dirty, true
 }
 
 func parseDirty(value string) bool {

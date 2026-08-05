@@ -147,7 +147,7 @@ Canonical workflow names are integration-neutral. Invocation syntax depends on t
 | Integration surface | Classic `specify` | Advanced `specify` | PRD reconstruction |
 | --- | --- | --- | --- |
 | Codex, Antigravity, Trae, and ZCode skills | `$sp-specify` | `$spx-specify` | `$sp-prd-scan -> $sp-prd-build` |
-| Claude, Cursor, and Mistral Vibe skills | `/sp-specify` | `/spx-specify` | `/sp-prd-scan -> /sp-prd-build` |
+| Claude, Cursor, Grok, and Mistral Vibe skills | `/sp-specify` | `/spx-specify` | `/sp-prd-scan -> /sp-prd-build` |
 | Kimi Code skills | `/skill:sp-specify` | `/skill:spx-specify` | `/skill:sp-prd-scan -> /skill:sp-prd-build` |
 | Slash-dot command integrations | `/sp.specify` | Not available | `/sp.prd-scan -> /sp.prd-build` |
 
@@ -159,7 +159,7 @@ The current registry is the source of the following integration keys:
 
 | Surface | Integration keys |
 | --- | --- |
-| Skills-based; Classic and Advanced | `agy`, `claude`, `codex`, `cursor-agent`, `kimi`, `trae`, `vibe`, `zcode` |
+| Skills-based; Classic and Advanced | `agy`, `claude`, `codex`, `cursor-agent`, `grok`, `kimi`, `trae`, `vibe`, `zcode` |
 | Command, prompt, or workflow based; Classic | `amp`, `auggie`, `bob`, `codebuddy`, `copilot`, `forge`, `gemini`, `iflow`, `junie`, `kilocode`, `kiro-cli`, `mimo`, `opencode`, `pi`, `qodercli`, `qwen`, `roo`, `shai`, `tabnine`, `windsurf` |
 | Bring your own agent | `generic` with `--ai-commands-dir <directory>` |
 
@@ -449,6 +449,12 @@ ZCode:
 specify init my-project --ai zcode
 ```
 
+Grok:
+
+```bash
+specify init my-project --ai grok
+```
+
 MiMo Code:
 
 ```bash
@@ -619,7 +625,13 @@ runtime operations entrypoint. Classic assets and behavior remain unchanged
 when the `classic` profile is selected.
 
 - `design` / `sp-design` and Advanced `$spx-design` use `specify-runtime design`
-  to create, synthesize, refine, or audit the root `DESIGN.md` design-system contract before UI work proceeds.
+  as one natural-language entrypoint that routes `create/refine/audit`; reference
+  synthesis is an input strategy for create/refine rather than another public
+  command or terminal task type. The first formal consumer is `sp-specify`,
+  while `sp-quick` may pin the same approved snapshot for direct delivery.
+  A later approval must not silently retarget an active formal feature or Quick
+  workspace; adoption is explicit through Specify rebinding or a confirmed
+  Quick checkpoint amendment.
   Init's generic `status: bootstrap` file is a structural seed, not approved
   product direction. Use the design workflow for new product UI, redesigns,
   rebrands, core workflow experience, multi-platform interface decisions, and
@@ -797,6 +809,7 @@ Invocation syntax depends on the integration:
 | Kimi Code skills | `/skill:sp-specify` | `/skill:sp-prd-scan -> /skill:sp-prd-build` | `/skill:sp-plan` | Kimi exposes generated skills through `/skill:sp-*`. |
 | Claude skills | `/sp-specify` | `/sp-prd-scan -> /sp-prd-build` | `/sp-plan` | Claude keeps slash-style skill commands. |
 | Cursor skills | `/sp-specify` | `/sp-prd-scan -> /sp-prd-build` | `/sp-plan` | Cursor projects install workflow skills under `.cursor/skills` and keep `.cursor/rules/` for context files. |
+| Grok skills | `/sp-specify` | `/sp-prd-scan -> /sp-prd-build` | `/sp-plan` | Grok projects install workflow skills under `.grok/skills` and keep root `AGENTS.md` as context. |
 | Trae skills | `$sp-specify` | `$sp-prd-scan -> $sp-prd-build` | `$sp-plan` | Trae projects install workflow skills under `.trae/skills` and keep `.trae/rules/project_rules.md` as context. |
 | Mistral Vibe skills | `/sp-specify` | `/sp-prd-scan -> /sp-prd-build` | `/sp-plan` | Vibe projects install workflow skills under `.vibe/skills`. |
 | ZCode skills | `$sp-specify` | `$sp-prd-scan -> $sp-prd-build` | `$sp-plan` | ZCode projects install workflow skills under `.zcode/skills`; use `.agents/skills` only for cross-tool shared skills. |
@@ -824,6 +837,7 @@ Conditional gates and follow-up commands:
 - Agents read top-level `minimal_live_reads` first, then lane-level `first_pass_paths` reasons and compact `claim_refs`. A claim's `route_confidence` is valid only within `confidence_scope=route_candidate`; `state`, `freshness`, and `stale` describe graph lifecycle, not current truth. Advanced `specify-runtime cognition query` returns bounded top-level `claim_signals`, and `specify-runtime cognition expand --section claim_evidence` returns bounded evidence refs with `source_path` and `span`. All require live verification and cannot prove current repository truth or final edit scope.
 - Compass claim-aware ranking is a bounded rerank after repository-backed matching: `match_score` establishes candidate eligibility, while `claim_ranking.adjustment` is capped at `+1` for fresh supported or graph-generation-verified claims, `-1` for stale, and `-2` for contradicted. Claims cannot create candidates and cannot replace live verification. Selected lanes with `stale_claim_signal` or `contradicted_claim_signal` remain `usable_with_review` and return `reconcile_claims_with_minimal_live_reads` plus a lane-specific live repository action.
 - When the compass packet is draft-like, localized, missing coverage, or needs explicit concept decisions, the advanced path remains `specify-runtime cognition lexicon --mode catalog` -> agent-authored `semantic_intake` and `concept_decisions` -> `specify-runtime cognition query --query-plan`. In short: `lexicon -> semantic_intake -> query`. The lexicon command exposes the alias catalog and candidate universe; facet coverage gates selection through `covered_facets`, `missing_facets`, `match_sources`, `lexicon_generation_id`, `candidate_universe_version`, and `active_generation_id`. Top lexical or vector similarity alone is not route truth. Map points, code proves: navigation terms are route vocabulary, not evidence by themselves. CJK or mixed CJK/ASCII prompts still require agent-owned translation when using the advanced path. The advanced CLI tool's `agent_normalization` field remains agent semantic guidance, not a route decision. `templates/project-map/**` remains a historical compatibility/export surface for handbook generation, but new workflows should not read or require `.specify/project-map/**`.
+- Precision `query` is exact-binding only: raw or rewritten natural-language text belongs to Compass/semantic intake. Agents page the catalog through `catalog_page.next_offset`, select current `concept_id` values or exact paths, carry the matching `lexicon_generation_id`, and consume a query only when `resolution_state=resolved_exact`; binding failures are explicit rather than null results.
 - Releases publish prebuilt `specify-runtime` binaries for Windows, Linux, and macOS. Human `specify init`/upgrade resolves a trusted binary, stores it in a content-addressed user cache, and hardlinks or copies it to `.specify/bin/specify-runtime` (`.exe` on Windows). Project config persists only that relative entrypoint and its digest. `SPECIFY_RUNTIME_BIN` and PATH are bootstrap/repair seeds only; they are never rendered into agent commands.
 - All generated Classic `sp-*`, Advanced `spx-*`, and worker prompts use the same fixed workflow artifact boundary: `specify-runtime artifact show --path <project-relative-path> --view summary` for compact intake, explicit `--view full` expansion, and `artifact prepare` -> `artifact submit` for single-use leased writes. `specify-runtime artifact catalog` lists deterministic scaffold kinds, including `plan-contract` and `quick-status`; `specify-runtime artifact scaffold --kind <kind> --path <project-relative-path> --vars <compact-json>` creates registered boilerplate create-only for contracts, workflow state, design/research/UI briefs, and Quick/Debug state, so agents fill semantic fields instead of reconstructing stable JSON or Markdown. The runtime validates registered workflow paths, safe readiness defaults, and structured content before writing or atomically replacing a canonical artifact. Agents continue to edit task-scoped source and test files normally.
 - Derived UI comparison reports use the narrower owner: `specify-runtime evidence visual-compare --feature-dir <feature-dir> --task-id <Txxx> --input-json '<observed-comparison-json>' --format json`. The agent supplies observed matrix/evidence facts; the runtime derives approved design/handoff bindings, exact coverage, tolerance, deviations, canonical path, and digest from `task-index.json`. Generic artifact mutation of these reports is rejected.
@@ -899,7 +913,7 @@ Routing guide for direct delivery work:
 - `sp-quick` / `spx-quick` is a resumable direct-delivery workflow, not a small-task-only lane. Use it when the desired outcome is clear enough to implement directly, even if the work spans multiple capabilities, architecture or migration choices, compatibility constraints, rollout coordination, or acceptance-heavy validation.
 - Quick may use task-local planning, multiple lanes or batches, consequence and acceptance tracking, and validation to preserve control over larger work. Task size, multi-capability scope, or consequence breadth alone must not force a handoff to `sp-specify` / `spx-specify`.
 - `sp-specify` / `spx-specify` remains a separate formal specification path chosen explicitly for requirements-first work, not an automatic upgrade from Quick.
-- `sp-quick` performs one Understanding Checkpoint before substantive execution. The fixed plain-text Quick table supports one item or a large ordered set: it asks the user to confirm the overall request/outcome, visible result, scope, stable `Q1`/`Q2` work items and deliverable-level dependencies, acceptance for every work item, recommended approach, assumptions/risks, overall completion evidence, and reconfirmation trigger. Internal implementation sequencing, lanes, and batches remain agent-owned. For applicable UI work, an independent UI Confirmation proposal follows the main table and one reply confirms both. Freeform prose or bullet-only confirmations do not satisfy this gate. Checkpoint cards must not use HTML tags or inline line-break markup in terminal output.
+- `sp-quick` performs one runtime-owned Decision Checkpoint before substantive execution. Stage it with `specify-runtime quick checkpoint-stage`, bind approval with `checkpoint-confirm`, and render `decision` / `delivery` / `pulse` views with `checkpoint-show`. The Decision Checkpoint asks the user to confirm goal, visible result, scope, stable `Q1`/`Q2` deliverables and product-level dependencies, independent acceptance for every work item, recommended approach, assumptions/risks, overall completion evidence, and reconfirmation trigger. Delivery Map waves, subagents, file splits, and test order remain agent-owned and never enter `confirmation_digest`. Discussion handoffs with no semantic delta inherit confirmation and skip re-approval. For applicable UI work, an independent UI Confirmation proposal is staged with the decision and one reply confirms both. Freeform prose or bullet-only confirmations do not satisfy this gate.
 - Both `sp-fast` and `sp-quick` still pass the project cognition gate first: run `specify-runtime cognition compass --intent implement --query "$ARGUMENTS" --format json` as the default brownfield navigation intake. Continue from the returned readiness, `compass_state`, top-level `minimal_live_reads`, lane-level `first_pass_paths` with reasons, `coverage_diagnostics`, and `expansion_ref`; read top-level `minimal_live_reads` first, then use lane-level `first_pass_paths` reasons and `before_fix_claim` checks to prove or reject the route from live repository evidence. These paths are first evidence, not final edit scope. When the compass packet is draft-like, localized, missing coverage, or needs explicit concept decisions, use the advanced `specify-runtime cognition lexicon --mode catalog` -> agent-authored `semantic_intake` and `concept_decisions` -> `specify-runtime cognition query --query-plan` path (`lexicon -> semantic_intake -> query`). Generated agent commands always use the relative project runtime entrypoint; user-scoped environment variables and PATH participate only in human bootstrap or repair.
 - Pass the planned object as one structured argv value to `specify-runtime cognition query --intent <intent> --query-plan '<inline-json>' --format json`; use the integration's native argument API when shell quoting is brittle, and never create a query-plan file. `path_hints`/`reason` are accepted aliases for `paths`/`selection_reason`.
 - If the work is a bug fix or regression and the root cause is still unknown, use `sp-debug` instead of treating `sp-quick` as a symptom-fix lane.
@@ -943,10 +957,12 @@ Project Learning lifecycle:
 
 - Agents consume Learning only through the CLI. Storage paths under `.specify/memory/learnings/` and `.planning/learnings/` are runtime-private implementation details, not normal agent-access surfaces.
 - Consumption is progressive and read-only: `learning start` returns task-relevant summary cards, `learning list` filters or pages compact summaries, and `learning show` expands exactly one selected record.
-- A summary card carries `ref`, summary, recommended action, type, status, signal, occurrences, applicability, trigger signals, and `show_argv`. Full detail groups guidance, applicability, evidence, provenance, and lifecycle fields.
-- Production remains explicit: `capture` and `capture-auto` create or merge candidates; `promote` confirms a learning or promotes a stable recurring learning into project rules. Reading never auto-promotes.
+- A summary card carries `ref`, sanitized summary, recommended action, type, status, signal, occurrences, applicability, canonical `trigger_signals`, `show_argv`, and optional safety fields. Start/list/show may also expose an optional `assessment` containing `learning_value` (`tier` and reason codes), `content_safety` (`sensitivity`, risk tier, and redaction labels), and a sanitized decision/reason. Old records without `assessment` remain valid.
+- Production remains explicit: `capture` and `capture-auto` create or merge every reusable candidate; `promote` first confirms a learning and only then explicitly promotes a stable recurring learning into project rules. Reading never auto-promotes.
+- `learning start` protects mature knowledge with a 15-card stable quota and a bounded candidate slot of up to 5 cards; either class fills unused capacity. Candidate slots rank context, assessed value, recurrence, and novelty, and diversify repeated type/source/recurrence families when enough candidates exist. This bound controls disclosure, not candidate storage.
 - Trigger review covers user corrections, repeated attempts, route changes, blockers/recovery, false leads, decisive signals, hidden dependencies, validation gaps, tooling traps, state loss, cognition gaps, reusable constraints, and near misses. Routine output and one-off facts are skipped.
-- Owning workflows record explicit semantic signals in `workflow-state.md` under `## Learning Triggers` as `kind: compact evidence`; `capture-auto` deterministically maps canonical kinds to Learning types and agent guidance.
+- Owning workflows record explicit semantic signals in `workflow-state.md` under `## Learning Triggers` as `kind: compact evidence`; `capture-auto` deterministically maps canonical kinds to Learning types and agent guidance. Summary, `trigger_signals`, and evidence are sanitized agent-facing projections; raw sensitive values never enter Learning storage, registry, or read API payloads. Learning value and sensitivity are assessed independently: reusable sensitive lessons become `capture-sanitized`, and only high-value evidence that loses all reusable meaning after sanitization is deferred. Sensitivity alone never causes `ignore`.
+- Canonical redaction labels include `credential`, `email`, `private_key`, `machine_path`, `personal_identifier`, `business_identifier`, and `organization_sensitive`; new replacements are `[REDACTED_PHONE]`, `[REDACTED_BUSINESS_ID]`, and `[REDACTED_ORG_TERM]`. Optional literal detector lists and `deferred_review_days` live under `.specify/config.json.project_learning` and are validated by `project-learning-policy-schema.json`; each list allows at most 64 distinct 1..128-character literals, review days range from 1 to 365, and arbitrary regex detectors are not supported. Invalid policy emits `project_learning_policy_invalid:using_builtin_policy` while safe reads use built-in protection; mutation or assessment commands, including dry-run, fail closed.
 - Classic commands use the shared Learning partial/passive skill. Every SPX skill receives the independent Advanced `project-learning.md` reference; both profiles share one Classic command namespace in the runtime.
 - Agent runtime surfaces:
 - `specify-runtime learning start`
@@ -961,6 +977,16 @@ Project Learning lifecycle:
   - Agent guidance fields: `--problem`, `--action`, `--trigger`, `--success`, `--avoid`, and `--exception`
 - `specify-runtime learning capture-auto`
   - Command shape: `specify-runtime learning capture-auto --command <workflow> (--feature-dir <dir> | --workspace <dir> | --session-file <file>) --format json`
+  - Add `--dry-run` to return the sanitized assessment without writing a candidate, registry, review state, or metric.
+- `specify-runtime learning review`
+  - Command shape: `specify-runtime learning review --command <workflow> --decision none|captured|auto-captured|deferred|manual-capture-needed [--rationale "<reason>"] [--recurrence-key <key>] --format json`
+  - `deferred` and `manual-capture-needed` require rationale and remain pending until a matching durable candidate, confirmed learning, or project rule exists. Captured decisions succeed only after that match is verified; `none` is blocked while matching deferred/manual work remains pending.
+- `specify-runtime learning status`
+  - Command shape: `specify-runtime learning status [--command <workflow>] --format json`
+  - Read-only aggregate pending/due/age buckets only; no evidence, rationale, Learning refs, recurrence keys, or timestamps.
+- `specify-runtime learning metrics`
+  - Command shape: `specify-runtime learning metrics [--command <workflow>] --format json`
+  - Read-only aggregate totals, decisions, value/risk tiers, reason/label counts, and derived confirmation rate plus age buckets computed in memory from review state. Age buckets are not persisted, and reads do not increment counters or advance state. Persistent counters conform to `project-learning-metrics-schema.json` and contain no evidence, summaries, rationale, refs, paths, or timestamps.
 - `specify-runtime implement closeout`
   - Command shape: `specify-runtime implement closeout --feature-dir <feature-dir> --format json`
   - Uses `git diff --stat` and `git diff --name-status` as part of the recorded implementation baseline. Writes `FEATURE_DIR/implementation-summary.md` plus `FEATURE_DIR/implementation-handoff.json` and hands off to `sp-review` / `spx-review`; the JSON response exposes these as `implementation_summary` and `implementation_handoff`, and it does not prepare human acceptance. Review closeout refreshes the summary, prepares fingerprinted `FEATURE_DIR/human-acceptance.json`, and hands off to `sp-accept` / `spx-accept`.
@@ -969,7 +995,7 @@ Project Learning lifecycle:
   - Prepares or freshness-checks the resumable acceptance state, validates its scenarios/cursor/verdict, and closes only a fresh explicit human acceptance.
 - `specify-runtime learning promote`
   - Command shape: `specify-runtime learning promote --recurrence-key <key> --target learning|rule`
-- Human maintenance commands `specify learning ensure|status|aggregate` remain on the bootstrap/operator CLI and are never rendered into agent workflows.
+- Human compatibility/maintenance commands `specify learning ensure|status|aggregate` remain on the bootstrap/operator CLI; they are distinct from the runtime-owned agent `learning status` and `learning metrics` surfaces.
 - Learning remains a passive lifecycle rather than a new daily `sp-*` workflow. `fast` skips it unless work escalates; read-only/orchestrator workflows consume without capture; other non-trivial workflows consume before deeper work and capture at owning closeout only when a reusable signal exists.
 - Durable eval helpers turn promoted rules into local regression checks:
   - `specify eval create`
@@ -1079,7 +1105,7 @@ Current `sp-implement` runtime model in Spec Kit Plus:
 - delegated packets are compiled just in time from the current task, live code, and stable contract refs; a dispatch failure triggers route re-evaluation rather than an automatic local fallback
 - durable teams/runtime execution is the `managed-team` surface (`sp-implement-teams` / `sp-teams`) for durable state or lifecycle needs, not an internal fallback hidden inside `sp-implement`
 - subagents should execute from compiled `WorkerTaskPacket` contracts rather than rediscovering rules from background context
-- every subagent result handoff uses `specify-runtime result submit --result-json '<inline-json>'` (or the owning Teams submit-result command); the runtime derives and materializes the canonical result record
+- native planning, task-generation, research, review, quick, debug, and PRD-scan lanes submit through their stage-owned `specify-runtime result submit --result-json '<inline-json>'` channel; native implementation workers return inline results for leader-owned `specify-runtime implement result-merge`, while only an explicitly selected durable Teams run uses its owning `submit-result` command
 - `specify-runtime result path` emits JSON directly and does not accept `--format`; do not append `--format`
 - a managed dispatch supplies its request id; an unmanaged implementation, quick, debug, planning, task-generation, or research lane supplies the owning workflow/workspace/session and lane identifiers accepted by `result submit`
 - never compute, create, edit, rename, or delete a result path directly, and never ask a subagent to emit a result file; build the bounded envelope in memory and pass it inline
@@ -1087,6 +1113,7 @@ Current `sp-implement` runtime model in Spec Kit Plus:
 - when subagent language is normalized into canonical orchestration state, preserve the raw `reported_status`
 - task decomposition should stay progressive: compile only the current executable window instead of pre-generating worker packets for later batches that still depend on upstream evidence
 - parallel work is coordinated through explicit join points before dependent work continues
+- native lifecycle discovery requires the integration's actual dispatch and join surfaces, not a guessed cleanup API; an accepted terminal result completes the lane, and interruption or cancellation is only for unfinished work that must stop
 - every join point that gates downstream work should name a validation target, a validation command or check, and a pass condition
 - grouped parallelism is the default when ready tasks have isolated write sets; use a pipeline shape only when outputs must flow stage-by-stage and keep explicit checkpoints between stages
 - review is event-triggered by drift, parallel joins, write-scope violations, validation failures, worker concerns, obligation conflicts, real-entrypoint gaps, or a review-window threshold; it is not repeated mechanically for every task
@@ -1097,9 +1124,9 @@ Current `sp-implement` runtime model in Spec Kit Plus:
 
 Shared runtime-facing guidance across integrations:
 
-- `sp-implement`, `sp-debug`, and `sp-quick` now all carry shared leader and result handoff expectations across Markdown, TOML, and skills-based integrations. `sp-quick` gates substantive execution on the one-time Understanding Checkpoint; `sp-debug` gates substantive investigation on the Debug Understanding Checkpoint and then uses complexity-based leader-inline, subagent-assisted, or blocked session state.
+- `sp-implement`, `sp-debug`, and `sp-quick` now all carry shared leader and result handoff expectations across Markdown, TOML, and skills-based integrations. `sp-quick` gates substantive execution on the one-time runtime Decision Checkpoint; `sp-debug` gates substantive investigation on the Debug Understanding Checkpoint and then uses complexity-based leader-inline, subagent-assisted, or blocked session state.
 - The shared contract is integration-neutral: leader role, join-point discipline, structured handoff expectations, and `reported_status` preservation are common across CLIs. Workflow-specific fallback semantics stay explicit in the command guidance.
-- Only the concrete dispatch command remains integration-specific. For example, Codex names `spawn_agent` and uses `sp-teams` only when durable team state is needed.
+- Only the concrete dispatch and join commands remain integration-specific. For example, Codex names `spawn_agent` and `wait_agent`; completed agents are already terminal, and `sp-teams` is used only when durable team state is explicitly needed.
 
 For Codex and other skills-based integrations, the generated commands are installed in skills form. Codex now uses the dedicated `.codex/skills/` directory for generated skills.
 
@@ -1127,7 +1154,7 @@ Current orchestration status in Spec Kit Plus:
 - `sp-implement` is adaptive and uses just-in-time packets only for delegated lanes. Workflows that remain mandatory-subagent, such as `sp-quick`, `sp-map-scan`, `sp-map-build`, `sp-prd-scan`, and `sp-prd-build`, still use `execution_model: subagent-mandatory`. `sp-debug` records its own session-level `execution_model: leader-inline | subagent-assisted | blocked`.
 - in execution-oriented workflows, use subagent execution only when a validated `WorkerTaskPacket` or equivalent execution contract preserves quality
 - `specify`, `plan`, `tasks`, and `explain` now document workflow-specific lanes and join points while keeping shared workflow templates integration-neutral
-- `sp-teams` remains the Codex `managed-team` execution surface for durable team state, explicit join-point tracking, result files, or lifecycle control beyond one in-session subagent burst
+- `sp-teams` remains the Codex `managed-team` execution surface for durable team state, explicit join-point tracking, durable request results, or lifecycle control beyond one in-session subagent burst; ordinary native `sp-*` and `spx-*` lanes keep their stage-owned result channels
 - Claude, Gemini, and Copilot ship initial adapter skeletons (alongside Codex) for native-first capability reporting
 - durable runtime maturity for `implement` and `debug`, plus wider integration rollout, remain future work
 
@@ -1282,14 +1309,16 @@ Maintainer note:
 
 Result helper command shapes:
 
-- Command shape: `specify-runtime result path --command implement --feature-dir <feature-dir> --task-id <task-id>`
-- Command shape: `specify-runtime result submit --command implement --feature-dir <feature-dir> --task-id <task-id> --result-json '<inline-json>'`
+- Native implementation result merge: `specify-runtime implement result-merge --feature-dir <feature-dir> --result-json '<inline-json>' --format json`
+- Unmanaged non-Codex implementation path: `specify-runtime result path --command implement --feature-dir <feature-dir> --task-id <task-id>`
+- Feature-stage native lane (Plan, Tasks, Clarify, Deep Research, or Review): `specify-runtime result submit --command <feature-stage> --feature-dir <feature-dir> --lane-id <lane-id> --result-json '<inline-json>'`
 - Command shape: `specify-runtime result path --command quick --workspace .planning/quick/<id>-<slug> --lane-id <lane-id>`
 - Command shape: `specify-runtime result submit --command quick --workspace .planning/quick/<id>-<slug> --lane-id <lane-id> --result-json '<inline-json>'`
 - Command shape: `specify-runtime result path --command debug --session-slug <session-slug> --lane-id <lane-id>`
 - Command shape: `specify-runtime result submit --command debug --session-slug <session-slug> --lane-id <lane-id> --result-json '<inline-json>'`
-- Command shape: `specify-runtime result path --command <workflow> --request-id <request-id>` for Codex runtime-managed result channels
-- Command shape: `specify-runtime sp-teams submit-result --request-id <request-id> --result-json '<inline-json>'` for Codex runtime-managed result submission
+- PRD-scan native lane: `specify-runtime result submit --command prd-scan --workspace <prd-scan-workspace> --lane-id <lane-id> --result-json '<inline-json>'`
+- Durable Codex team path: `specify-runtime result path --command <workflow> --request-id <request-id>`
+- Durable Codex team submission: `specify-runtime sp-teams submit-result --request-id <request-id> --result-json '<inline-json>'`
 
 For the full CLI surface:
 
@@ -1325,6 +1354,7 @@ Commonly used integrations in Spec Kit Plus include:
 - `qodercli`
 - `vibe`
 - `zcode`
+- `grok`
 - `kimi`
 - `mimo`
 - `iflow`
@@ -1363,6 +1393,7 @@ Navigation and technical truth are now cognition-first:
 - Agents read top-level `minimal_live_reads` first, then lane-level `first_pass_paths` reasons and compact `claim_refs`. A claim's `route_confidence` is valid only within `confidence_scope=route_candidate`; `state`, `freshness`, and `stale` describe graph lifecycle, not current truth. Advanced `specify-runtime cognition query` returns bounded top-level `claim_signals`, and `specify-runtime cognition expand --section claim_evidence` returns bounded evidence refs with `source_path` and `span`. All require live verification and cannot prove current repository truth or final edit scope.
 - Compass claim-aware ranking is a bounded rerank after repository-backed matching: `match_score` establishes candidate eligibility, while `claim_ranking.adjustment` is capped at `+1` for fresh supported or graph-generation-verified claims, `-1` for stale, and `-2` for contradicted. Claims cannot create candidates and cannot replace live verification. Selected lanes with `stale_claim_signal` or `contradicted_claim_signal` remain `usable_with_review` and return `reconcile_claims_with_minimal_live_reads` plus a lane-specific live repository action.
 - When the compass packet is draft-like, localized, missing coverage, or needs explicit concept decisions, the advanced path remains `specify-runtime cognition lexicon --mode catalog` -> agent-authored `semantic_intake` and `concept_decisions` -> `specify-runtime cognition query --query-plan`. In short: `lexicon -> semantic_intake -> query`. Facet coverage gates selection; top lexical or vector similarity alone is not route truth. Map points, code proves: navigation terms are route vocabulary, not evidence by themselves. CJK or mixed CJK/ASCII prompts still require agent-owned translation when using the advanced path. The advanced CLI tool's `agent_normalization` field remains agent semantic guidance, not a route decision. `templates/project-map/**` remains a historical compatibility/export surface for handbook generation, but new workflows should not read or require `.specify/project-map/**`.
+- Precision `query` is exact-binding only: raw or rewritten natural-language text belongs to Compass/semantic intake. Agents page the catalog through `catalog_page.next_offset`, select current `concept_id` values or exact paths, carry the matching `lexicon_generation_id`, and consume a query only when `resolution_state=resolved_exact`; binding failures are explicit rather than null results.
 - Releases publish prebuilt `specify-runtime` binaries for Windows, Linux, and macOS. Human `specify init`/upgrade resolves a trusted binary, stores it in a content-addressed user cache, and hardlinks or copies it to `.specify/bin/specify-runtime` (`.exe` on Windows). Project config persists only that relative entrypoint and its digest. `SPECIFY_RUNTIME_BIN` and PATH are bootstrap/repair seeds only; they are never rendered into agent commands.
 - Empty projects initialized by `specify init` run `specify-runtime cognition init-empty` after pinning the binary. When there is no business code yet, this creates `.specify/project-cognition/status.json` and `.specify/project-cognition/project-cognition.db` with baseline kind `baseline_kind=greenfield_empty`; greenfield flows do not require map-scan -> map-build solely because the graph has no paths. Projects with existing code still use map-scan -> map-build when a full first brownfield cognition baseline is needed for a first/missing/unusable baseline, schema failure, an older schema or old broad-schema rebuild-required readiness, zero active-generation `path_index` rows, missing or invalid alias_index, `explicit_rebuild_requested`, or `baseline_identity_invalid`. Schema v5 is current-only: the runtime does not migrate schema v4 or older databases. Never move, remove, archive, or replace the store directly; run `specify-runtime cognition archive-incompatible-store --inspect --format json` and execute its hash-guarded `archive_argv` before the current `sp-map-scan -> sp-map-build` path.
 - Workflow-owned mutation closeout is planner-first: each source-changing `sp-*` workflow uses the registry-owned literal canonical ID rendered into its command, such as `specify-runtime cognition closeout-plan --workflow sp-implement --format json`; it never derives that ID from an environment variable or chat state. The rendered command passes `--delta-session "$DELTA_SESSION_ID"` when a delta session exists. The planner returns `update_mode=delta_session` or `update_mode=inline_json`, `required_agent_fields`, `unknown_path_dispositions`, display-only command templates, and structured execution fields. Agents either complete `payload_draft` in memory and substitute it for `<inline-json>` in `update_argv` without creating a payload file, or complete `delta_append_draft.argv_prefix` with evidence placeholders before running `update_argv`. Verified `adoptable` unknown paths can be recorded without becoming blocking `known_unknowns`; only `blocking_known_unknown` dispositions become inline or delta known unknowns. Inline payloads accept `verification` plus the compatibility alias `verification_evidence`, and `generated_surfaces` plus the compatibility alias `generated_surface_notes`. `result_state=ready` or `result_state=no_op` selects the finalization branch; it is not by itself a clean-completion claim, and `update_id`, `last_update_id`, freshness, display-only command templates, legacy `recorded-only` output, or failed verification evidence cannot replace that branch decision. Clean completion additionally requires post-update `specify-runtime cognition validate-build` with `status=ok` and `readiness=query_ready`, followed by successful receipt-bound `specify-runtime cognition complete-refresh`. `sp-map-update` remains the external/manual maintenance workflow for user edits, interrupted workflow repair, explicit map maintenance, and follow-up repair.

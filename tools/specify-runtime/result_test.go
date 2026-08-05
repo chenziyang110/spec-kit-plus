@@ -293,7 +293,7 @@ func TestResultSubmitRejectsObsoleteUIResultFields(t *testing.T) {
 	}
 }
 
-func TestResultSubmitRejectsCodexProjectsAndRedirectsToTeamSurface(t *testing.T) {
+func TestResultSubmitRejectsCodexImplementAndExplainsNativeAndDurableRoutes(t *testing.T) {
 	project := createResultProject(t, "codex")
 
 	code, payload := runResultInProject(t, project, []string{
@@ -307,8 +307,102 @@ func TestResultSubmitRejectsCodexProjectsAndRedirectsToTeamSurface(t *testing.T)
 	if code == 0 {
 		t.Fatalf("codex result submit unexpectedly passed: %#v", payload)
 	}
-	if !strings.Contains(asString(payload["summary"]), "sp-teams submit-result") {
-		t.Fatalf("summary = %q, want teams redirect", asString(payload["summary"]))
+	summary := asString(payload["summary"])
+	if !strings.Contains(summary, "implement result-merge") || !strings.Contains(summary, "sp-teams submit-result") {
+		t.Fatalf("summary = %q, want native implement merge and durable-team guidance", summary)
+	}
+}
+
+func TestResultSubmitForCodexStageOwnedCommandsUsesGenericHandoffPaths(t *testing.T) {
+	project := createResultProject(t, "codex")
+	featureDir := filepath.Join(project, ".specify", "features", "001-feature")
+	mkdirAll(t, featureDir)
+	resultJSON := marshalJSONForCLI(t, map[string]any{
+		"task_id": "lane-a",
+		"status":  "success",
+		"summary": "native lane completed",
+	})
+
+	cases := map[string]string{
+		"clarify":       "clarification/handoffs/lane-a.json",
+		"plan":          "planning/handoffs/lane-a.json",
+		"tasks":         "task-generation/handoffs/lane-a.json",
+		"deep-research": "research/handoffs/lane-a.json",
+	}
+	for command, suffix := range cases {
+		t.Run(command, func(t *testing.T) {
+			code, payload := runResultInProject(t, project, []string{
+				"submit",
+				"--command", command,
+				"--feature-dir", featureDir,
+				"--lane-id", "lane-a",
+				"--result-json", resultJSON,
+			})
+
+			if code != 0 {
+				t.Fatalf("codex stage result submit code = %d payload=%#v", code, payload)
+			}
+			if strings.Contains(asString(payload["summary"]), "sp-teams submit-result") {
+				t.Fatalf("summary = %q, must not redirect stage-owned native result submit to sp-teams", asString(payload["summary"]))
+			}
+			path := slashPath(asString(requireObject(t, payload, "data")["path"]))
+			if !strings.HasSuffix(path, ".specify/features/001-feature/"+suffix) {
+				t.Fatalf("path = %q, want stage-owned suffix %q", path, suffix)
+			}
+			stored := readJSONFile(t, asString(requireObject(t, payload, "data")["path"]))
+			if stored["summary"] != "native lane completed" {
+				t.Fatalf("stored summary = %#v", stored["summary"])
+			}
+		})
+	}
+}
+
+func TestResultSubmitForCodexUnmanagedWorkspaceCommandsUsesStageOwnedPaths(t *testing.T) {
+	project := createResultProject(t, "codex")
+	quickWorkspace := filepath.Join(project, ".planning", "quick", "001-fix")
+	prdWorkspace := filepath.Join(project, ".planning", "prd-scan", "001-current-product")
+	mkdirAll(t, quickWorkspace)
+	mkdirAll(t, prdWorkspace)
+	resultJSON := marshalJSONForCLI(t, map[string]any{
+		"task_id": "lane-a",
+		"status":  "success",
+	})
+
+	cases := []struct {
+		name   string
+		args   []string
+		suffix string
+	}{
+		{
+			name:   "quick",
+			args:   []string{"--command", "quick", "--workspace", quickWorkspace, "--lane-id", "lane-a"},
+			suffix: ".planning/quick/001-fix/worker-results/lane-a.json",
+		},
+		{
+			name:   "prd-scan",
+			args:   []string{"--command", "prd-scan", "--workspace", prdWorkspace, "--lane-id", "lane-a"},
+			suffix: ".planning/prd-scan/001-current-product/worker-results/lane-a.json",
+		},
+		{
+			name:   "debug",
+			args:   []string{"--command", "debug", "--session-slug", "cache-stuck", "--lane-id", "lane-a"},
+			suffix: ".planning/debug/results/cache-stuck/lane-a.json",
+		},
+	}
+
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			args := append([]string{"submit"}, tt.args...)
+			args = append(args, "--result-json", resultJSON)
+			code, payload := runResultInProject(t, project, args)
+			if code != 0 {
+				t.Fatalf("codex unmanaged result submit code = %d payload=%#v", code, payload)
+			}
+			path := slashPath(asString(requireObject(t, payload, "data")["path"]))
+			if !strings.HasSuffix(path, tt.suffix) {
+				t.Fatalf("path = %q, want stage-owned suffix %q", path, tt.suffix)
+			}
+		})
 	}
 }
 

@@ -101,6 +101,13 @@ Use the task control plane for the transition: `task-next`, optional
 `packet-compile`, `task-start`, `result-merge --result-json`, and `task-accept`.
 Those commands atomically own task-index, lifecycle, execution-state, and tracker
 projections. Do not edit them directly or stage packet/result JSON files.
+If `task-next` or `resume-audit` returns
+`reason_code: task-reopen-required`, run its supplied `implement task-reopen`
+action with the observed task/workflow revisions, reason, and evidence. It
+archives superseded evidence and resets only the named task. Do not substitute
+manual artifact edits or stage-level `workflow reopen`. A concurrent workflow
+block remains authoritative: after task repair, use the returned
+`workflow.resolve` action and the reopen receipt as resolution evidence.
 
 Workers must not run a test suite, full build, startup, E2E flow, or browser
 capture per Txx. The Leader opens one convergence gate after integrating the

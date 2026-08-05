@@ -2,41 +2,85 @@
 
 Use one human-facing confirmation before substantive Quick execution or Debug
 investigation. Confirm only user-owned product facts, scope, risk, and
-authority. Keep technical sequencing and hypotheses in agent-owned state. Row
-labels may be localized, but preserve the table shapes and meanings below.
+authority. Keep technical sequencing and hypotheses in agent-owned state.
 
 ## Quick card
 
 Freeform prose, bullet-only confirmations, or partial field lists do not satisfy
-this gate.
+this gate. Do not hand-author a two-column approval table for multi-item Quick
+work. Stage a `quick-confirmation-v1` contract and render runtime views.
 
-This one table supports a single work item, multiple ordered work items, and a
-large task. Use stable `Q1`, `Q2`, ... identifiers for every user-visible
-deliverable. Confirm deliverable-level order and dependencies only; internal implementation sequencing, file choreography, lane construction, and batch
-scheduling remain agent-owned. For a single work item, still write `Q1`.
+### Runtime owner
 
-```markdown
-## Quick Checkpoint
-
-| Decision to confirm | Current understanding |
-| --- | --- |
-| Request and outcome | [request/problem, where it appears, why it matters, and intended outcome] |
-| User-visible result | [observable result for the user] |
-| Scope | Include: [included behavior]. Exclude: [non-goals]. |
-| Ordered work items | [Q1: first user-visible deliverable (depends on: none); Q2: next deliverable (depends on: Q1); continue for every confirmed work item in delivery order; use Q1 only for a single task; omit files and internal steps] |
-| Work-item acceptance | [Q1: observable result and evidence; Q2: observable result and evidence; continue one-to-one for every work item] |
-| Recommended approach | [user-relevant approach and meaningful trade-off, not implementation choreography] |
-| Assumptions and risks | [assumptions, uncertainty, and material risk] |
-| Completion evidence | [observable acceptance plus reliable verification evidence] |
-| Reconfirmation trigger | [material outcome, boundary, authority, compatibility, migration, or risk change] |
+```text
+specify-runtime quick checkpoint-stage <quick-id> --input-json '<decision+delivery>' --format json
+specify-runtime quick checkpoint-confirm <quick-id> --digest <confirmation_digest> --format json
+specify-runtime quick checkpoint-show <quick-id> --view decision|delivery|pulse --format json
+specify-runtime quick packet-compile <quick-id> --item Qn --format json
+specify-runtime quick item-start <quick-id> --item Qn --format json
+specify-runtime quick item-accept <quick-id> --item Qn --evidence '<acceptance proof>' --format json
 ```
 
-Technical execution belongs to the agent. A brief technical summary may follow
-for awareness, not as a request to approve technical details.
+`confirmation_digest` hashes decision fields only. Delivery Map, waves,
+batches, subagents, file splits, and test order never enter the digest and never
+require user approval.
 
-Reply with `confirm`/`确认` after the Quick card and any applicable UI card, or
-use `revise: scope ...`, `revise: UI ...`, or another precise correction.
-Use `revise: order ...` to change only the ordered deliverables or dependencies.
+### Decision Checkpoint only confirms
+
+- goal and user-visible result
+- include / exclude / defer
+- stable `Q1`/`Q2`/... deliverables
+- product-level dependencies
+- per-item acceptance
+- risk and authority decisions
+- UI goals/boundaries when applicable
+- reconfirmation trigger
+
+### Do not ask the user to approve
+
+- subagent count
+- file choreography
+- batch/wave construction beyond deliverable dependencies
+- test command order
+- worker packet internals
+
+### Modes
+
+1. New prompt: full Decision Checkpoint, confirm once.
+2. Discussion handoff with no semantic delta: inherit digest, show binding summary + Delivery Map/Pulse, no re-confirm.
+3. Semantic delta: show only changed decision rows, confirm the delta.
+4. Execution-only rearrange: `checkpoint-stage --delivery-only` after confirmation.
+
+### Decision view shape
+
+```markdown
+## Quick Delivery Checkpoint
+
+来源：[prompt|discussion/<slug>]
+绑定状态：[待确认|已确认|已继承确认]
+语义变化：[无|delta summary]
+处理方式：[确认一次|无需重复确认，直接进入执行|只确认变更项]
+
+目标：[goal]
+可见结果：[user-visible result]
+范围：包含 [include]；排除 [exclude]
+
+ ID     交付结果              依赖          独立验收门槛
+━━━━━  ━━━━━━━━━━━━━━━━━━━━  ━━━━━━━━━━━━  ━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ Q1     [deliverable]         —             [acceptance]
+─────  ────────────────────  ────────────  ───────────────────────────
+ Q2     [deliverable]         Q1            [acceptance]
+```
+
+### Delivery Map and Pulse
+
+Show Delivery Map after the Decision Checkpoint for awareness only. During
+execution, show Pulse with active items, dependency waits, and the next join
+point instead of only "Waiting for agents".
+
+Reply with `confirm`/`确认` after a staged Decision Checkpoint and any
+applicable UI card, or use precise corrections such as `修改 Q3 验收 ...`,
+`revise: scope ...`, `revise: order ...`, or `revise: UI ...`.
 
 ## Debug card
 

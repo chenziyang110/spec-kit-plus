@@ -2,6 +2,9 @@
 design_brief:
   schema: spec-kit-design-brief-v1
   status: draft
+  task_type: null
+  input_strategy: null
+  route_reason: null
   review_round: 0
   subject: null
   audience: null

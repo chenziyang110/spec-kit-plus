@@ -6,6 +6,7 @@ description: Lean evidence-driven debugging workflow for advanced coding models.
 # SPX Debug
 
 Read `references/project-learning.md` and apply its consume-capture policy.
+Read `references/native-subagents.md` when evidence lanes are delegated.
 Read `references/project-cognition.md`, using cognition intent `debug`.
 Read `references/run-bootstrap.md`.
 Read `references/human-confirmation.md`, then

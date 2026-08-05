@@ -3821,6 +3821,110 @@ def test_auto_template_routes_from_existing_state_surfaces():
     assert "/sp.fast" in content
 
 
+def test_discussion_convergence_never_becomes_implementation_authority() -> None:
+    surfaces = {
+        "classic": " ".join(
+            _read("templates/commands/discussion.md").lower().split()
+        ),
+        "advanced": " ".join(
+            _read("templates/advanced-skills/spx-discussion/SKILL.md")
+            .lower()
+            .split()
+        ),
+    }
+
+    for profile, content in surfaces.items():
+        assert (
+            "converging requirements, design, or validation gates" in content
+        ), profile
+        assert "handoff assessment and consumer selection" in content, profile
+        assert "declare implementation as the next stage" in content, profile
+        assert 'ask the user to "start implementation"' in content, profile
+
+
+def test_discussion_checkpoint_preserves_new_semantics_but_allows_savepoints() -> None:
+    surfaces = {
+        "classic": " ".join(
+            _read("templates/command-partials/discussion/shell.md").lower().split()
+        ),
+        "advanced": " ".join(
+            _read("templates/advanced-skills/spx-discussion/SKILL.md")
+            .lower()
+            .split()
+        ),
+    }
+
+    for profile, content in surfaces.items():
+        assert "summary-only checkpoint is valid only" in content, profile
+        assert "explicit savepoint with no semantic change" in content, profile
+        assert "newly confirmed decisions only in chat memory" in content, profile
+        for field in (
+            "confirmed decisions",
+            "context boundary",
+            "recommendation",
+            "open assumptions",
+        ):
+            assert field in content, (profile, field)
+
+
+def test_auto_routing_keeps_continuations_inside_one_workflow_lineage() -> None:
+    surfaces = {
+        "classic": " ".join(_read("templates/commands/auto.md").lower().split()),
+        "advanced": " ".join(
+            _read("templates/advanced-skills/spx-auto/references/routing-contract.md")
+            .lower()
+            .split()
+        ),
+        "shared": " ".join(
+            _read("templates/passive-skills/spec-kit-workflow-routing/SKILL.md")
+            .lower()
+            .split()
+        ),
+    }
+
+    for surface, content in surfaces.items():
+        assert (
+            "candidate priority applies only within one resolved workflow lineage"
+            in content
+        ), surface
+        assert (
+            "topical continuation of an already-invoked incomplete discussion"
+            in content
+        ), surface
+        assert "before unrelated feature" in content, surface
+        assert (
+            "name, slug, title, topic, or keyword similarity is not binding evidence"
+            in content
+        ), surface
+        assert "do not enumerate `.specify/features/**`" in content, surface
+
+    shared = surfaces["shared"]
+    assert "`可以继续下一步`" in shared
+    assert "do not authorize the agent to synthesize a downstream stage" in shared
+    assert "never directly to `sp-implement`" in shared
+
+
+def test_implement_requires_proven_feature_context_before_task_intake() -> None:
+    surfaces = {
+        "classic": " ".join(
+            _read("templates/commands/implement.md").lower().split()
+        ),
+        "advanced": " ".join(
+            _read("templates/advanced-skills/spx-implement/SKILL.md")
+            .lower()
+            .split()
+        ),
+    }
+
+    for profile, content in surfaces.items():
+        assert "feature context provenance gate" in content, profile
+        assert "stop before `task-next`" in content, profile
+        assert "never enumerate `.specify/features/**`" in content, profile
+        assert "name, slug, title, topic, or keyword similarity" in content, profile
+        assert "active or unconsumed discussion is not implementation authority" in content, profile
+        assert "discussion never hands off directly" in content, profile
+
+
 def test_auto_template_auto_accepts_single_safe_recommended_option() -> None:
     content = _read("templates/commands/auto.md")
     lowered = content.lower()

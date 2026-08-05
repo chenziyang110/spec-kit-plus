@@ -15,6 +15,12 @@ the attempt identity and effective context budget.
   untouched path complete.
 - Extract packet-local evidence, provisional nodes, edges, observations,
   coverage, and optional claims. Separate observation, inference, and unknown.
+- For every user-facing or P0/P1 queryable node, populate an evidence-backed
+  semantic card: `attrs.responsibility`, `capabilities`, `symptoms`,
+  `user_terms`, and `exclusions`. Capabilities, symptoms, and user terms are
+  positive retrieval vocabulary; responsibility and exclusions only help the
+  Agent distinguish nearby catalog concepts. Do not invent unsupported
+  synonyms.
 - When assigned paths are UI-bearing, classify live UI entry points/navigation,
   token/theme/typography owners, reusable components/patterns, responsive and
   state rules, visual/accessibility tests, and design assets. Put supported UI

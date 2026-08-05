@@ -9,7 +9,9 @@ Use this template when the quick-task leader dispatches a bounded execution lane
 ## Controller Requirements
 
 - Provide the smallest safe lane description and its acceptance check.
-- Provide `work_item_id`, `depends_on`, prerequisite acceptance evidence, and
+- Provide a runtime-compiled packet from
+  `specify-runtime quick packet-compile <quick-id> --item Qn`, or the equivalent
+  fields: `work_item_id`, `depends_on`, prerequisite acceptance evidence, and
   the exact work-item acceptance this lane advances.
 - Name the touched files or surfaces.
 - State whether the lane is part of a larger join point or is the only active lane.

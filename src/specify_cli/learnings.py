@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 import hashlib
 import json
 import re
@@ -16,6 +16,21 @@ from specify_cli.hooks.checkpoint_serializers import (
     serialize_workflow_state,
 )
 from specify_cli.verification import summarize_validation_results
+from specify_cli.learning_assessment import (
+    ASSESSMENT_VERSION,
+    ASSESSMENT_DECISIONS,
+    LEARNING_VALUE_TIERS,
+    VALUE_REASON_CODES,
+    assess_learning,
+    assessment_payload_from_flat,
+    sanitize_learning_text,
+)
+from specify_cli.learning_policy import (
+    LearningPolicy,
+    default_learning_policy,
+    learning_policy_digest,
+    load_learning_policy,
+)
 
 
 LEARNING_TYPES = {
@@ -60,6 +75,18 @@ LEARNING_CONTEXT_KEY_MAP = {
 }
 LEARNING_CONTEXT_ARG_KEYS = {
     value: key for key, value in LEARNING_CONTEXT_KEY_MAP.items()
+}
+SENSITIVITY_SAFE = "safe"
+SENSITIVITY_SANITIZED = "sanitized"
+SENSITIVITY_VALUES = {SENSITIVITY_SAFE, SENSITIVITY_SANITIZED}
+CANONICAL_REDACTION_LABELS = {
+    "credential",
+    "email",
+    "private_key",
+    "machine_path",
+    "personal_identifier",
+    "business_identifier",
+    "organization_sensitive",
 }
 MAX_LEARNING_CONTEXT_VALUES = 64
 MAX_LEARNING_CONTEXT_VALUE_LENGTH = 256
@@ -266,6 +293,20 @@ def _merge_learning_facets(
     return merged
 
 
+def _sanitize_learning_facets(
+    value: Mapping[str, Iterable[str]] | None,
+    *,
+    policy: LearningPolicy | None = None,
+) -> dict[str, list[str]]:
+    normalized = normalize_learning_facets(value)
+    sanitized: dict[str, list[str]] = {}
+    for key, values in normalized.items():
+        sanitized_values, _labels = _sanitize_list_with_labels(values, policy=policy)
+        if sanitized_values:
+            sanitized[key] = sanitized_values
+    return normalize_learning_facets(sanitized)
+
+
 def _learning_context_argv(facets: Mapping[str, Iterable[str]]) -> list[str]:
     args: list[str] = []
     normalized = normalize_learning_facets(facets)
@@ -274,6 +315,239 @@ def _learning_context_argv(facets: Mapping[str, Iterable[str]]) -> list[str]:
         for value in normalized.get(facet_key, []):
             args.extend(["--context", f"{arg_key}={value}"])
     return args
+
+
+def _redact_machine_path(match: re.Match[str]) -> str:
+    path = match.group(0).replace("\\", "/")
+    if path.endswith("/"):
+        path = path[:-1]
+    parts = path.split("/")
+    if len(parts) > 1 and parts[1].casefold() == "root":
+        if len(parts) <= 2:
+            return "<USER_HOME>"
+        return "<USER_HOME>/" + "/".join(parts[2:])
+    if len(parts) <= 3:
+        return "<USER_HOME>"
+    return "<USER_HOME>/" + "/".join(parts[3:])
+
+
+REDACTION_PATTERNS: tuple[tuple[str, re.Pattern[str], str | Any], ...] = (
+    (
+        "private_key",
+        re.compile(
+            r"-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----.*?-----END [A-Z0-9 ]*PRIVATE KEY-----",
+            re.DOTALL,
+        ),
+        "[REDACTED_PRIVATE_KEY]",
+    ),
+    (
+        "credential",
+        re.compile(r"\b(?:https?://)[^\s/@:]+:[^\s/@]+@", re.IGNORECASE),
+        lambda match: match.group(0).split("://", 1)[0] + "://[REDACTED_SECRET]@",
+    ),
+    (
+        "credential",
+        re.compile(
+            r"\bAuthorization\s*[:=]\s*Bearer\s+[A-Za-z0-9._~+/=-]+",
+            re.IGNORECASE,
+        ),
+        "Authorization: [REDACTED_SECRET]",
+    ),
+    (
+        "credential",
+        re.compile(r"\bBearer\s+[A-Za-z0-9._~+/=-]+", re.IGNORECASE),
+        "[REDACTED_SECRET]",
+    ),
+    (
+        "credential",
+        re.compile(
+            r"(?P<key>[\"']?(?:secret|password|token|api[_-]?key|authorization)[\"']?\s*[:=]\s*)(?P<quote>[\"']?)(?P<value>(?!\[REDACTED_)[^\"'\s,;}]+)(?P=quote)",
+            re.IGNORECASE,
+        ),
+        lambda match: (
+            f"{match.group('key')}{match.group('quote')}[REDACTED_SECRET]{match.group('quote')}"
+        ),
+    ),
+    (
+        "credential",
+        re.compile(r"\bghp_[A-Za-z0-9_]{8,}\b"),
+        "[REDACTED_SECRET]",
+    ),
+    (
+        "credential",
+        re.compile(r"\bsk-[A-Za-z0-9_-]{16,}\b"),
+        "[REDACTED_SECRET]",
+    ),
+    (
+        "credential",
+        re.compile(r"\bAKIA[0-9A-Z]{12,}\b"),
+        "[REDACTED_SECRET]",
+    ),
+    (
+        "credential",
+        re.compile(r"\beyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b"),
+        "[REDACTED_SECRET]",
+    ),
+    (
+        "email",
+        re.compile(r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b", re.IGNORECASE),
+        "[REDACTED_EMAIL]",
+    ),
+    (
+        "machine_path",
+        re.compile(
+            r"(?i)(?:[A-Z]:[\\/]+Users[\\/]+[^\\/\s]+(?:[\\/]+[^\s,;:]+)*|/(?:home|Users)/[^/\s]+(?:/[^\s,;:]+)*|/root(?:/[^\s,;:]+)+|/root(?=$|[\s,;:]))"
+        ),
+        _redact_machine_path,
+    ),
+)
+
+
+def _sanitize_p0_agent_text(value: str) -> tuple[str, list[str]]:
+    sanitized = str(value or "")
+    labels: set[str] = set()
+    if "[REDACTED_SECRET]" in sanitized:
+        labels.add("credential")
+    if "[REDACTED_EMAIL]" in sanitized:
+        labels.add("email")
+    if "[REDACTED_PRIVATE_KEY]" in sanitized:
+        labels.add("private_key")
+    if "<USER_HOME>" in sanitized:
+        labels.add("machine_path")
+    for label, pattern, replacement in REDACTION_PATTERNS:
+        sanitized, count = pattern.subn(replacement, sanitized)
+        if count:
+            labels.add(label)
+    return sanitized, sorted(labels)
+
+
+def sanitize_agent_text(
+    value: str, *, policy: LearningPolicy | None = None
+) -> tuple[str, list[str]]:
+    return sanitize_learning_text(
+        value,
+        policy=policy or default_learning_policy(),
+        base_sanitizer=_sanitize_p0_agent_text,
+    )
+
+
+def assess_learning_candidate(
+    *,
+    source: str,
+    learning_type: str,
+    signal_strength: str,
+    occurrences: int,
+    summary: str,
+    evidence: str,
+    recommended_action: str,
+    trigger_signals: Iterable[str] = (),
+    policy: LearningPolicy | None = None,
+):
+    """Assess one Learning using the same deterministic Python compatibility rules."""
+
+    return assess_learning(
+        source=source,
+        learning_type=learning_type,
+        signal_strength=signal_strength,
+        occurrences=occurrences,
+        summary=summary,
+        evidence=evidence,
+        recommended_action=recommended_action,
+        trigger_signals=trigger_signals,
+        policy=policy or default_learning_policy(),
+        base_sanitizer=_sanitize_p0_agent_text,
+    )
+
+
+def _sanitize_text(value: str) -> str:
+    return sanitize_agent_text(value)[0]
+
+
+def _sanitize_list(values: Iterable[str]) -> list[str]:
+    return [
+        sanitized
+        for sanitized in (_sanitize_text(str(item).strip()) for item in values)
+        if sanitized.strip()
+    ]
+
+
+def _sanitize_list_with_labels(
+    values: Iterable[str], *, policy: LearningPolicy | None = None
+) -> tuple[list[str], list[str]]:
+    sanitized_values: list[str] = []
+    label_groups: list[list[str]] = []
+    for item in values:
+        sanitized, labels = sanitize_agent_text(str(item).strip(), policy=policy)
+        label_groups.append(labels)
+        if sanitized.strip():
+            sanitized_values.append(sanitized)
+    return sanitized_values, _merge_redaction_labels(*label_groups)
+
+
+def _merge_redaction_labels(*label_groups: Iterable[str]) -> list[str]:
+    labels = {
+        str(label).strip()
+        for group in label_groups
+        for label in group
+        if str(label).strip() in CANONICAL_REDACTION_LABELS
+    }
+    return sorted(labels)
+
+
+def _canonicalize_recurrence_key(
+    value: str, *, policy: LearningPolicy | None = None
+) -> tuple[str, list[str]]:
+    active_policy = policy or default_learning_policy()
+    sanitized, labels = sanitize_agent_text(
+        str(value or "").strip().lower(), policy=active_policy
+    )
+    label_set = set(labels)
+    for term in active_policy.detectors.sensitive_terms:
+        slug = _slugify(term)
+        sanitized, count = re.subn(
+            rf"(?i)(?<![a-z0-9]){re.escape(slug)}(?![a-z0-9])",
+            "[REDACTED_ORG_TERM]",
+            sanitized,
+        )
+        if count:
+            label_set.add("organization_sensitive")
+    canonical = (
+        sanitized.replace("[REDACTED_SECRET]", "redacted-secret")
+        .replace("[REDACTED_EMAIL]", "redacted-email")
+        .replace("[REDACTED_PRIVATE_KEY]", "redacted-private-key")
+        .replace("[REDACTED_PHONE]", "redacted-phone")
+        .replace("[REDACTED_BUSINESS_ID]", "redacted-business-id")
+        .replace("[REDACTED_ORG_TERM]", "redacted-org-term")
+        .replace("<USER_HOME>", "user-home")
+        .replace("\\", "/")
+    )
+    canonical = re.sub(r"[^a-z0-9._/-]+", "-", canonical)
+    canonical = canonical.replace("/", "-")
+    canonical = re.sub(r"-+", "-", canonical).strip(".-")
+    return canonical, sorted(label_set)
+
+
+def _safe_index_timestamp(value: Any) -> tuple[str, list[str]]:
+    sanitized, labels = sanitize_agent_text(str(value or "").strip())
+    try:
+        parsed = datetime.fromisoformat(sanitized.replace("Z", "+00:00"))
+    except ValueError:
+        return "1970-01-01T00:00:00Z", labels
+    if parsed.tzinfo is None:
+        return "1970-01-01T00:00:00Z", labels
+    normalized = (
+        parsed.astimezone(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    )
+    return normalized, labels
+
+
+def _safe_learning_index_id(value: Any) -> tuple[str, list[str]]:
+    sanitized, labels = sanitize_agent_text(str(value or "").strip().lower())
+    if not sanitized.startswith("learn-"):
+        return "", labels
+    suffix = sanitized.removeprefix("learn-")
+    safe_suffix = _slugify(suffix)
+    return f"learn-{safe_suffix}", labels
 
 
 @dataclass(frozen=True)
@@ -327,46 +601,175 @@ class LearningEntry:
     success_criteria: list[str] = field(default_factory=list)
     exceptions: list[str] = field(default_factory=list)
     facets: dict[str, list[str]] = field(default_factory=dict)
+    sensitivity: str = SENSITIVITY_SAFE
+    redaction_labels: list[str] = field(default_factory=list)
+    learning_value_tier: str = ""
+    learning_value_reason_codes: list[str] = field(default_factory=list)
+    sensitivity_risk_tier: str = ""
+    assessment_decision: str = ""
+    assessment_reason: str = ""
 
     def to_payload(self) -> dict[str, Any]:
         payload = asdict(self)
         if not self.facets:
             payload.pop("facets", None)
+        if not self.learning_value_tier:
+            for key in (
+                "learning_value_tier",
+                "learning_value_reason_codes",
+                "sensitivity_risk_tier",
+                "assessment_decision",
+                "assessment_reason",
+            ):
+                payload.pop(key, None)
         return payload
+
+    def assessment_payload(self) -> dict[str, object] | None:
+        return assessment_payload_from_flat(
+            learning_value_tier=self.learning_value_tier,
+            learning_value_reason_codes=self.learning_value_reason_codes,
+            sensitivity=self.sensitivity,
+            sensitivity_risk_tier=self.sensitivity_risk_tier,
+            redaction_labels=self.redaction_labels,
+            assessment_decision=self.assessment_decision,
+            assessment_reason=self.assessment_reason,
+        )
 
     @classmethod
     def from_payload(cls, payload: dict[str, Any]) -> "LearningEntry":
         applies_to = payload.get("applies_to") or []
         if not isinstance(applies_to, list):
             applies_to = []
+        sanitized_fields: dict[str, str] = {}
+        label_groups: list[list[str]] = []
+        for key in (
+            "id",
+            "summary",
+            "learning_type",
+            "evidence",
+            "default_scope",
+            "signal_strength",
+            "status",
+            "first_seen",
+            "last_seen",
+            "decisive_signal",
+            "root_cause_family",
+            "promotion_hint",
+            "problem",
+            "recommended_action",
+        ):
+            sanitized_fields[key], labels = sanitize_agent_text(str(payload.get(key) or ""))
+            label_groups.append(labels)
+        recurrence_key, recurrence_labels = _canonicalize_recurrence_key(
+            str(payload.get("recurrence_key") or "")
+        )
+        label_groups.append(recurrence_labels)
+        sanitized_lists: dict[str, list[str]] = {}
+        for key in (
+            "false_starts",
+            "rejected_paths",
+            "injection_targets",
+            "avoid",
+            "trigger_signals",
+            "success_criteria",
+            "exceptions",
+        ):
+            sanitized_lists[key] = []
+            for item in _coerce_str_list(payload.get(key)):
+                sanitized, labels = sanitize_agent_text(item)
+                label_groups.append(labels)
+                if sanitized.strip():
+                    sanitized_lists[key].append(sanitized)
+        facets = normalize_learning_facets(payload.get("facets"))
+        sanitized_facets: dict[str, list[str]] = {}
+        for key, values in facets.items():
+            sanitized_facets[key] = []
+            for item in values:
+                sanitized, labels = sanitize_agent_text(item)
+                label_groups.append(labels)
+                if sanitized.strip():
+                    sanitized_facets[key].append(sanitized)
+        labels = _merge_redaction_labels(
+            _coerce_str_list(payload.get("redaction_labels")), *label_groups
+        )
+        raw_sensitivity = str(payload.get("sensitivity") or "").strip().lower()
+        sensitivity = (
+            raw_sensitivity
+            if raw_sensitivity in SENSITIVITY_VALUES and not labels
+            else SENSITIVITY_SANITIZED
+            if labels
+            else SENSITIVITY_SAFE
+        )
+        learning_value_tier = str(
+            payload.get("learning_value_tier") or ""
+        ).strip().lower()
+        learning_value_reason_codes = sorted(
+            {
+                value
+                for value in _coerce_str_list(
+                    payload.get("learning_value_reason_codes")
+                )
+                if value in VALUE_REASON_CODES
+            }
+        )
+        sensitivity_risk_tier = str(
+            payload.get("sensitivity_risk_tier") or ""
+        ).strip().lower()
+        assessment_decision = str(
+            payload.get("assessment_decision") or ""
+        ).strip().lower()
+        assessment_reason = str(
+            payload.get("assessment_reason") or ""
+        ).strip().lower()
+        if assessment_payload_from_flat(
+            learning_value_tier=learning_value_tier,
+            learning_value_reason_codes=learning_value_reason_codes,
+            sensitivity=sensitivity,
+            sensitivity_risk_tier=sensitivity_risk_tier,
+            redaction_labels=labels,
+            assessment_decision=assessment_decision,
+            assessment_reason=assessment_reason,
+        ) is None:
+            learning_value_tier = ""
+            learning_value_reason_codes = []
+            sensitivity_risk_tier = ""
+            assessment_decision = ""
+            assessment_reason = ""
         return cls(
-            id=str(payload["id"]),
-            summary=str(payload["summary"]),
-            learning_type=str(payload["learning_type"]),
+            id=sanitized_fields["id"],
+            summary=sanitized_fields["summary"],
+            learning_type=sanitized_fields["learning_type"],
             source_command=normalize_command_name(payload["source_command"]),
-            evidence=str(payload["evidence"]),
-            recurrence_key=str(payload["recurrence_key"]),
-            default_scope=str(payload["default_scope"]),
+            evidence=sanitized_fields["evidence"],
+            recurrence_key=recurrence_key,
+            default_scope=sanitized_fields["default_scope"],
             applies_to=[normalize_command_name(item) for item in applies_to],
-            signal_strength=str(payload["signal_strength"]),
-            status=str(payload["status"]),
-            first_seen=str(payload["first_seen"]),
-            last_seen=str(payload["last_seen"]),
+            signal_strength=sanitized_fields["signal_strength"],
+            status=sanitized_fields["status"],
+            first_seen=sanitized_fields["first_seen"],
+            last_seen=sanitized_fields["last_seen"],
             occurrence_count=int(payload.get("occurrence_count", 1)),
             pain_score=_coerce_int(payload.get("pain_score")),
-            false_starts=_coerce_str_list(payload.get("false_starts")),
-            rejected_paths=_coerce_str_list(payload.get("rejected_paths")),
-            decisive_signal=str(payload.get("decisive_signal") or ""),
-            root_cause_family=str(payload.get("root_cause_family") or ""),
-            injection_targets=_coerce_str_list(payload.get("injection_targets")),
-            promotion_hint=str(payload.get("promotion_hint") or ""),
-            problem=str(payload.get("problem") or ""),
-            recommended_action=str(payload.get("recommended_action") or ""),
-            avoid=_coerce_str_list(payload.get("avoid")),
-            trigger_signals=_coerce_str_list(payload.get("trigger_signals")),
-            success_criteria=_coerce_str_list(payload.get("success_criteria")),
-            exceptions=_coerce_str_list(payload.get("exceptions")),
-            facets=normalize_learning_facets(payload.get("facets")),
+            false_starts=sanitized_lists["false_starts"],
+            rejected_paths=sanitized_lists["rejected_paths"],
+            decisive_signal=sanitized_fields["decisive_signal"],
+            root_cause_family=sanitized_fields["root_cause_family"],
+            injection_targets=sanitized_lists["injection_targets"],
+            promotion_hint=sanitized_fields["promotion_hint"],
+            problem=sanitized_fields["problem"],
+            recommended_action=sanitized_fields["recommended_action"],
+            avoid=sanitized_lists["avoid"],
+            trigger_signals=sanitized_lists["trigger_signals"],
+            success_criteria=sanitized_lists["success_criteria"],
+            exceptions=sanitized_lists["exceptions"],
+            facets=normalize_learning_facets(sanitized_facets),
+            sensitivity=sensitivity,
+            redaction_labels=labels,
+            learning_value_tier=learning_value_tier,
+            learning_value_reason_codes=learning_value_reason_codes,
+            sensitivity_risk_tier=sensitivity_risk_tier,
+            assessment_decision=assessment_decision,
+            assessment_reason=assessment_reason,
         )
 
 
@@ -386,12 +789,39 @@ class LearningIndexEntry:
     occurrence_count: int = 1
     signal_strength: str = "medium"
     facets: dict[str, list[str]] = field(default_factory=dict)
+    sensitivity: str = SENSITIVITY_SAFE
+    redaction_labels: list[str] = field(default_factory=list)
+    learning_value_tier: str = ""
+    learning_value_reason_codes: list[str] = field(default_factory=list)
+    sensitivity_risk_tier: str = ""
+    assessment_decision: str = ""
+    assessment_reason: str = ""
 
     def to_payload(self) -> dict[str, Any]:
         payload = asdict(self)
         if not self.facets:
             payload.pop("facets", None)
+        if not self.learning_value_tier:
+            for key in (
+                "learning_value_tier",
+                "learning_value_reason_codes",
+                "sensitivity_risk_tier",
+                "assessment_decision",
+                "assessment_reason",
+            ):
+                payload.pop(key, None)
         return payload
+
+    def assessment_payload(self) -> dict[str, object] | None:
+        return assessment_payload_from_flat(
+            learning_value_tier=self.learning_value_tier,
+            learning_value_reason_codes=self.learning_value_reason_codes,
+            sensitivity=self.sensitivity,
+            sensitivity_risk_tier=self.sensitivity_risk_tier,
+            redaction_labels=self.redaction_labels,
+            assessment_decision=self.assessment_decision,
+            assessment_reason=self.assessment_reason,
+        )
 
     @classmethod
     def from_payload(cls, payload: dict[str, Any]) -> "LearningIndexEntry":
@@ -421,35 +851,100 @@ class LearningIndexEntry:
             raise ValueError("learning index trigger_signals must be a list")
         learning_type = normalize_learning_type(str(payload["learning_type"]))
         source_command = normalize_command_name(str(payload["source_command"]))
-        recurrence_key = str(payload["recurrence_key"]).strip().lower()
+        recurrence_key, recurrence_labels = _canonicalize_recurrence_key(
+            str(payload["recurrence_key"])
+        )
         if not recurrence_key:
             raise ValueError("learning index recurrence_key is required")
         signal_strength = normalize_signal_strength(str(payload["signal_strength"]))
-        problem = str(payload["problem"]).strip()
-        lesson = str(payload["lesson"]).strip()
-        first_seen = str(payload["first_seen"]).strip()
-        last_seen = str(payload["last_seen"]).strip()
-        index_id = str(payload["id"]).strip()
+        problem, problem_labels = sanitize_agent_text(str(payload["problem"]).strip())
+        lesson, lesson_labels = sanitize_agent_text(str(payload["lesson"]).strip())
+        first_seen, first_seen_labels = _safe_index_timestamp(payload["first_seen"])
+        last_seen, last_seen_labels = _safe_index_timestamp(payload["last_seen"])
+        index_id, index_id_labels = _safe_learning_index_id(payload["id"])
         if not index_id.startswith("learn-"):
             raise ValueError("learning index id must start with 'learn-'")
         if not problem or not lesson or not first_seen or not last_seen:
             raise ValueError(
                 "learning index problem, lesson, first_seen, and last_seen are required"
             )
-        detail = str(payload["detail"]).strip()
+        detail, detail_labels = sanitize_agent_text(str(payload["detail"]).strip())
         if not _is_valid_detail_ref(detail):
-            raise ValueError(
-                "learning index detail must be a safe relative Markdown path"
-            )
+            detail = _detail_ref_for_index_id(index_id)
         applies_to = _coerce_str_list(payload["applies_to"])
-        trigger_signals = _coerce_str_list(payload["trigger_signals"])
+        trigger_signals, trigger_labels = _sanitize_list_with_labels(
+            _coerce_str_list(payload["trigger_signals"])
+        )
         if not applies_to or not trigger_signals:
             raise ValueError(
                 "learning index applies_to and trigger_signals must not be empty"
             )
+        raw_facets = normalize_learning_facets(payload.get("facets"))
+        sanitized_facets: dict[str, list[str]] = {}
+        facet_label_groups: list[list[str]] = []
+        for key, values in raw_facets.items():
+            sanitized_values, facet_labels = _sanitize_list_with_labels(values)
+            facet_label_groups.append(facet_labels)
+            if sanitized_values:
+                sanitized_facets[key] = sanitized_values
+        redaction_labels = _merge_redaction_labels(
+            _coerce_str_list(payload.get("redaction_labels")),
+            recurrence_labels,
+            index_id_labels,
+            problem_labels,
+            lesson_labels,
+            first_seen_labels,
+            last_seen_labels,
+            detail_labels,
+            trigger_labels,
+            *facet_label_groups,
+        )
+        raw_sensitivity = str(payload.get("sensitivity") or "").strip().lower()
+        sensitivity = (
+            raw_sensitivity
+            if raw_sensitivity in SENSITIVITY_VALUES and not redaction_labels
+            else SENSITIVITY_SANITIZED
+            if redaction_labels
+            else SENSITIVITY_SAFE
+        )
         occurrence_count = _coerce_int(payload["occurrence_count"])
         if occurrence_count < 1:
             raise ValueError("learning index occurrence_count must be at least 1")
+        learning_value_tier = str(
+            payload.get("learning_value_tier") or ""
+        ).strip().lower()
+        learning_value_reason_codes = sorted(
+            {
+                value
+                for value in _coerce_str_list(
+                    payload.get("learning_value_reason_codes")
+                )
+                if value in VALUE_REASON_CODES
+            }
+        )
+        sensitivity_risk_tier = str(
+            payload.get("sensitivity_risk_tier") or ""
+        ).strip().lower()
+        assessment_decision = str(
+            payload.get("assessment_decision") or ""
+        ).strip().lower()
+        assessment_reason = str(
+            payload.get("assessment_reason") or ""
+        ).strip().lower()
+        if assessment_payload_from_flat(
+            learning_value_tier=learning_value_tier,
+            learning_value_reason_codes=learning_value_reason_codes,
+            sensitivity=sensitivity,
+            sensitivity_risk_tier=sensitivity_risk_tier,
+            redaction_labels=redaction_labels,
+            assessment_decision=assessment_decision,
+            assessment_reason=assessment_reason,
+        ) is None:
+            learning_value_tier = ""
+            learning_value_reason_codes = []
+            sensitivity_risk_tier = ""
+            assessment_decision = ""
+            assessment_reason = ""
         return cls(
             id=index_id,
             problem=problem,
@@ -464,7 +959,14 @@ class LearningIndexEntry:
             last_seen=last_seen,
             occurrence_count=occurrence_count,
             signal_strength=signal_strength,
-            facets=normalize_learning_facets(payload.get("facets")),
+            facets=normalize_learning_facets(sanitized_facets),
+            sensitivity=sensitivity,
+            redaction_labels=redaction_labels,
+            learning_value_tier=learning_value_tier,
+            learning_value_reason_codes=learning_value_reason_codes,
+            sensitivity_risk_tier=sensitivity_risk_tier,
+            assessment_decision=assessment_decision,
+            assessment_reason=assessment_reason,
         )
 
 
@@ -569,7 +1071,7 @@ SEMANTIC_TRIGGER_GUIDANCE: dict[str, tuple[str, str, str, str]] = {
 def _semantic_trigger_suggestions(
     *,
     command_name: str,
-    feature_dir: Path,
+    feature_ref: str,
     trigger_signals: Iterable[str],
 ) -> list[AutoCaptureSuggestion]:
     suggestions: list[AutoCaptureSuggestion] = []
@@ -580,6 +1082,7 @@ def _semantic_trigger_suggestions(
         raw_kind, separator, raw_detail = signal.partition(":")
         kind = raw_kind.strip().lower().replace("-", "_").replace(" ", "_")
         detail = " ".join((raw_detail.strip() if separator else signal).split())
+        sanitized_detail = _sanitize_text(detail)
         learning_type, action, success, avoid = SEMANTIC_TRIGGER_GUIDANCE.get(
             kind,
             (
@@ -590,25 +1093,29 @@ def _semantic_trigger_suggestions(
             ),
         )
         signal_label = kind.replace("_", " ")
-        summary = f"{signal_label}: {detail}"
-        recurrence_suffix = _slugify(detail)[:72]
+        summary = f"{signal_label}: {sanitized_detail}"
+        recurrence_suffix = hashlib.sha256(
+            sanitized_detail.encode("utf-8")
+        ).hexdigest()[:16]
         suggestions.append(
             AutoCaptureSuggestion(
                 learning_type=learning_type,
                 summary=summary,
-                recurrence_key=f"{command_name}.trigger.{kind}.{recurrence_suffix}",
+                recurrence_key=(
+                    f"{command_name}.trigger.{kind}.digest-{recurrence_suffix}"
+                ),
                 evidence=_format_evidence(
                     "Observed explicit Learning trigger from workflow-state.md",
                     [
-                        ("feature_dir", feature_dir),
+                        ("feature_dir", feature_ref),
                         ("command", command_name),
                         ("trigger_kind", kind),
-                        ("trigger_detail", detail),
+                        ("trigger_detail", sanitized_detail),
                     ],
                 ),
-                problem=f"The recorded {signal_label} signal could be lost after handoff or compaction: {detail}",
+                problem=f"The recorded {signal_label} signal could be lost after handoff or compaction: {sanitized_detail}",
                 recommended_action=action,
-                trigger_signals=(signal,),
+                trigger_signals=(kind,),
                 success_criteria=(success,),
                 avoid=(avoid,),
             )
@@ -802,31 +1309,155 @@ def build_learning_entry(
     success_criteria: Iterable[str] | None = None,
     exceptions: Iterable[str] | None = None,
     facets: Mapping[str, Iterable[str]] | None = None,
+    assessment_source: str = "manual",
+    assessment_occurrences: int = 1,
+    policy: LearningPolicy | None = None,
 ) -> LearningEntry:
-    normalized_summary = str(summary or "").strip()
-    normalized_evidence = str(evidence or "").strip()
+    active_policy = policy or default_learning_policy()
+    assessment = assess_learning_candidate(
+        source=assessment_source,
+        learning_type=learning_type,
+        signal_strength=signal_strength,
+        occurrences=assessment_occurrences,
+        summary=str(summary or "").strip(),
+        evidence=str(evidence or "").strip(),
+        recommended_action=str(recommended_action or "").strip(),
+        trigger_signals=trigger_signals or (),
+        policy=active_policy,
+    )
+    normalized_summary = assessment.summary
+    normalized_evidence = assessment.evidence
+    summary_labels = list(assessment.redaction_labels)
+    evidence_labels = list(assessment.redaction_labels)
     if not normalized_summary:
         raise ValueError("learning summary is required")
     if not normalized_evidence:
         raise ValueError("learning evidence is required")
-    normalized_command = normalize_command_name(command_name)
+    normalized_command, command_labels = _safe_review_command_with_labels(
+        command_name, active_policy
+    )
     normalized_type = normalize_learning_type(learning_type)
     normalized_signal = normalize_signal_strength(signal_strength)
     normalized_status = normalize_status(status)
-    normalized_applies = (
-        [normalize_command_name(item) for item in applies_to]
-        if applies_to
-        else default_applies_to_for_type(normalized_type, normalized_command)
-    )
-    normalized_recurrence_key = (
+    applies_labels: list[str] = []
+    if applies_to:
+        normalized_applies = []
+        for item in applies_to:
+            safe_command, safe_command_labels = _safe_review_command_with_labels(
+                item, active_policy
+            )
+            normalized_applies.append(safe_command)
+            applies_labels.extend(safe_command_labels)
+    else:
+        normalized_applies = default_applies_to_for_type(
+            normalized_type, normalized_command
+        )
+    raw_recurrence_key = (
         str(
             recurrence_key or derive_recurrence_key(normalized_type, normalized_summary)
         )
         .strip()
         .lower()
     )
+    normalized_recurrence_key, recurrence_labels = _canonicalize_recurrence_key(
+        raw_recurrence_key, policy=active_policy
+    )
     if not normalized_recurrence_key:
         raise ValueError("learning recurrence_key is required")
+    default_scope_value, default_scope_labels = sanitize_agent_text(
+        (default_scope or default_scope_for_type(normalized_type)).strip().lower(),
+        policy=active_policy,
+    )
+    false_start_values, false_start_labels = _sanitize_list_with_labels(
+        (str(item).strip() for item in (false_starts or []) if str(item).strip()),
+        policy=active_policy,
+    )
+    rejected_path_values, rejected_path_labels = _sanitize_list_with_labels(
+        (str(item).strip() for item in (rejected_paths or []) if str(item).strip()),
+        policy=active_policy,
+    )
+    decisive_signal_value, decisive_signal_labels = sanitize_agent_text(
+        str(decisive_signal or "").strip(), policy=active_policy
+    )
+    root_cause_value, root_cause_labels = sanitize_agent_text(
+        str(root_cause_family or "").strip(), policy=active_policy
+    )
+    injection_target_values, injection_target_labels = _sanitize_list_with_labels(
+        (
+            str(item).strip()
+            for item in (injection_targets or [])
+            if str(item).strip()
+        ),
+        policy=active_policy,
+    )
+    promotion_hint_value, promotion_hint_labels = sanitize_agent_text(
+        str(promotion_hint or "").strip(), policy=active_policy
+    )
+    problem_value, problem_labels = sanitize_agent_text(
+        str(problem or normalized_summary).strip(), policy=active_policy
+    )
+    action_value = assessment.recommended_action or normalized_summary
+    action_value, action_labels = sanitize_agent_text(action_value, policy=active_policy)
+    avoid_values, avoid_labels = _sanitize_list_with_labels(
+        (str(item).strip() for item in (avoid or []) if str(item).strip()),
+        policy=active_policy,
+    )
+    trigger_signal_values, trigger_signal_labels = _sanitize_list_with_labels(
+        (
+            str(item).strip()
+            for item in (trigger_signals or [])
+            if str(item).strip()
+        ),
+        policy=active_policy,
+    )
+    success_values, success_labels = _sanitize_list_with_labels(
+        (
+            str(item).strip()
+            for item in (success_criteria or [])
+            if str(item).strip()
+        ),
+        policy=active_policy,
+    )
+    exception_values, exception_labels = _sanitize_list_with_labels(
+        (str(item).strip() for item in (exceptions or []) if str(item).strip()),
+        policy=active_policy,
+    )
+    normalized_facets = normalize_learning_facets(facets)
+    facet_labels: list[str] = []
+    sanitized_facets: dict[str, list[str]] = {}
+    for key, values in normalized_facets.items():
+        for item in values:
+            sanitized, labels = sanitize_agent_text(item, policy=active_policy)
+            facet_labels.extend(labels)
+            if sanitized.strip():
+                sanitized_facets.setdefault(key, []).append(sanitized)
+    redaction_labels = _merge_redaction_labels(
+        summary_labels,
+        evidence_labels,
+        command_labels,
+        applies_labels,
+        recurrence_labels,
+        default_scope_labels,
+        false_start_labels,
+        rejected_path_labels,
+        decisive_signal_labels,
+        root_cause_labels,
+        injection_target_labels,
+        promotion_hint_labels,
+        problem_labels,
+        action_labels,
+        avoid_labels,
+        trigger_signal_labels,
+        success_labels,
+        exception_labels,
+        facet_labels,
+    )
+    assessment_decision = assessment.assessment_decision
+    assessment_reason = assessment.assessment_reason
+    sensitivity_risk_tier = _assessment_risk_tier(redaction_labels)
+    if redaction_labels and assessment_decision == "capture-safe":
+        assessment_decision = "capture-sanitized"
+        assessment_reason = "valuable_after_abstraction"
     timestamp = now_iso()
     return LearningEntry(
         id=build_learning_id(),
@@ -835,9 +1466,7 @@ def build_learning_entry(
         source_command=normalized_command,
         evidence=normalized_evidence,
         recurrence_key=normalized_recurrence_key,
-        default_scope=(default_scope or default_scope_for_type(normalized_type))
-        .strip()
-        .lower(),
+        default_scope=default_scope_value,
         applies_to=sorted(dict.fromkeys(normalized_applies)),
         signal_strength=normalized_signal,
         status=normalized_status,
@@ -845,55 +1474,28 @@ def build_learning_entry(
         last_seen=timestamp,
         occurrence_count=1,
         pain_score=max(0, _coerce_int(pain_score)),
-        false_starts=sorted(
-            dict.fromkeys(
-                str(item).strip() for item in (false_starts or []) if str(item).strip()
-            )
-        ),
-        rejected_paths=sorted(
-            dict.fromkeys(
-                str(item).strip()
-                for item in (rejected_paths or [])
-                if str(item).strip()
-            )
-        ),
-        decisive_signal=str(decisive_signal or "").strip(),
-        root_cause_family=str(root_cause_family or "").strip(),
+        false_starts=sorted(dict.fromkeys(false_start_values)),
+        rejected_paths=sorted(dict.fromkeys(rejected_path_values)),
+        decisive_signal=decisive_signal_value,
+        root_cause_family=root_cause_value,
         injection_targets=sorted(
-            dict.fromkeys(
-                str(item).strip()
-                for item in (injection_targets or [])
-                if str(item).strip()
-            )
+            dict.fromkeys(injection_target_values)
         ),
-        promotion_hint=str(promotion_hint or "").strip(),
-        problem=str(problem or normalized_summary).strip(),
-        recommended_action=str(recommended_action or normalized_summary).strip(),
-        avoid=sorted(
-            dict.fromkeys(
-                str(item).strip() for item in (avoid or []) if str(item).strip()
-            )
-        ),
-        trigger_signals=sorted(
-            dict.fromkeys(
-                str(item).strip()
-                for item in (trigger_signals or [])
-                if str(item).strip()
-            )
-        ),
-        success_criteria=sorted(
-            dict.fromkeys(
-                str(item).strip()
-                for item in (success_criteria or [])
-                if str(item).strip()
-            )
-        ),
-        exceptions=sorted(
-            dict.fromkeys(
-                str(item).strip() for item in (exceptions or []) if str(item).strip()
-            )
-        ),
-        facets=normalize_learning_facets(facets),
+        promotion_hint=promotion_hint_value,
+        problem=problem_value,
+        recommended_action=action_value,
+        avoid=sorted(dict.fromkeys(avoid_values)),
+        trigger_signals=sorted(dict.fromkeys(trigger_signal_values)),
+        success_criteria=sorted(dict.fromkeys(success_values)),
+        exceptions=sorted(dict.fromkeys(exception_values)),
+        facets=normalize_learning_facets(sanitized_facets),
+        sensitivity=SENSITIVITY_SANITIZED if redaction_labels else SENSITIVITY_SAFE,
+        redaction_labels=redaction_labels,
+        learning_value_tier=assessment.learning_value_tier,
+        learning_value_reason_codes=list(assessment.learning_value_reason_codes),
+        sensitivity_risk_tier=sensitivity_risk_tier,
+        assessment_decision=assessment_decision,
+        assessment_reason=assessment_reason,
     )
 
 
@@ -1030,6 +1632,10 @@ def _auto_capture_registry_path(project_root: Path) -> Path:
     return build_learning_paths(project_root).review.parent / "auto-capture.json"
 
 
+def _project_root_from_learning_paths(paths: LearningPaths) -> Path:
+    return paths.review.parent.parent.parent
+
+
 def _load_auto_capture_registry(project_root: Path) -> dict[str, Any]:
     path = _auto_capture_registry_path(project_root)
     if not path.exists():
@@ -1046,35 +1652,744 @@ def _write_auto_capture_registry(project_root: Path, payload: dict[str, Any]) ->
     atomic_write_text(path, json.dumps(payload, ensure_ascii=False, indent=2) + "\n")
 
 
+def _safe_registry_fingerprint(value: str) -> str:
+    raw = str(value or "").strip().lower()
+    if re.fullmatch(r"[0-9a-f]{64}", raw):
+        return raw
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
+def _safe_project_relative_ref(project_root: Path, path: Path) -> str:
+    try:
+        ref = path.resolve().relative_to(project_root.resolve())
+    except ValueError:
+        ref = Path(path.name)
+    return ref.as_posix()
+
+
+def _safe_ref_from_registry_value(project_root: Path, value: Any) -> str:
+    raw = str(value or "").strip()
+    if not raw:
+        return ""
+    normalized_raw = raw.replace("\\", "/")
+    looks_external_absolute = bool(
+        re.match(r"^[A-Za-z]:/", normalized_raw)
+        or normalized_raw.startswith("//")
+        or normalized_raw.startswith("/")
+    )
+    candidate = Path(raw)
+    if candidate.is_absolute():
+        return _safe_project_relative_ref(project_root, candidate)
+    sanitized = _sanitize_text(normalized_raw)
+    if looks_external_absolute:
+        if sanitized.startswith("<USER_HOME>/"):
+            return sanitized
+        return Path(sanitized).name
+    candidate = project_root / sanitized
+    try:
+        return candidate.resolve().relative_to(project_root.resolve()).as_posix()
+    except ValueError:
+        return Path(sanitized).name
+
+
+def _safe_registry_timestamp(value: Any) -> str:
+    raw = str(value or "").strip()
+    if not raw:
+        return ""
+    try:
+        parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except ValueError:
+        return ""
+    if parsed.tzinfo is None:
+        return ""
+    return (
+        parsed.astimezone(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    )
+
+
+def _auto_capture_supported_commands() -> set[str]:
+    return {
+        "sp-implement",
+        "sp-quick",
+        "sp-debug",
+        *WORKFLOW_STATE_AUTO_CAPTURE_COMMANDS,
+    }
+
+
+def _normalize_auto_capture_registry(
+    project_root: Path,
+    registry: dict[str, Any],
+    *,
+    policy: LearningPolicy | None = None,
+) -> tuple[dict[str, Any], bool]:
+    normalized: dict[str, Any] = {}
+    changed = False
+    for raw_key, raw_record in registry.items():
+        safe_key = _safe_registry_fingerprint(str(raw_key))
+        if safe_key != raw_key:
+            changed = True
+        if not isinstance(raw_record, dict):
+            changed = True
+            continue
+        source_ref = _safe_ref_from_registry_value(
+            project_root, raw_record.get("source_ref") or raw_record.get("source_path")
+        )
+        recurrence_keys = []
+        for raw_recurrence in _coerce_str_list(raw_record.get("recurrence_keys")):
+            recurrence_key, _labels = _canonicalize_recurrence_key(
+                raw_recurrence, policy=policy
+            )
+            if recurrence_key:
+                recurrence_keys.append(recurrence_key)
+        try:
+            command = normalize_command_name(str(raw_record.get("command") or ""))
+        except ValueError:
+            changed = True
+            continue
+        if command not in _auto_capture_supported_commands():
+            changed = True
+            continue
+        record = {
+            "command": command,
+            "source_ref": source_ref,
+            "recurrence_keys": sorted(dict.fromkeys(recurrence_keys)),
+            "captured_at": _safe_registry_timestamp(raw_record.get("captured_at")),
+        }
+        normalized[safe_key] = record
+        if record != raw_record:
+            changed = True
+    return normalized, changed
+
+
+_METRIC_TOTAL_KEYS = {
+    "assessed",
+    "captured",
+    "candidate_captured",
+    "confirmed",
+    "promoted",
+    "deferred",
+    "ignored",
+}
+_METRIC_MAP_KEYS = {
+    "decisions",
+    "value_tiers",
+    "risk_tiers",
+    "reason_codes",
+    "redaction_labels",
+}
+_PENDING_REVIEW_DECISIONS = {"deferred", "manual-capture-needed"}
+_REVIEW_DECISIONS = {
+    "none",
+    "captured",
+    "auto-captured",
+    *_PENDING_REVIEW_DECISIONS,
+}
+
+
+def _learning_metrics_path(project_root: Path) -> Path:
+    return build_learning_paths(project_root).review.parent / "metrics.json"
+
+
+def _learning_review_state_path(project_root: Path) -> Path:
+    return build_learning_paths(project_root).review.parent / "review-state.json"
+
+
+def _legacy_signal_state_path(project_root: Path) -> Path:
+    return build_learning_paths(project_root).review.parent / "signal-state.json"
+
+
+def _empty_metric_bucket() -> dict[str, dict[str, int]]:
+    return {
+        "totals": {key: 0 for key in sorted(_METRIC_TOTAL_KEYS)},
+        "decisions": {key: 0 for key in sorted(ASSESSMENT_DECISIONS)},
+        "value_tiers": {key: 0 for key in sorted(LEARNING_VALUE_TIERS)},
+        "risk_tiers": {key: 0 for key in ("high", "moderate", "none")},
+        "reason_codes": {key: 0 for key in sorted(VALUE_REASON_CODES)},
+        "redaction_labels": {
+            key: 0 for key in sorted(CANONICAL_REDACTION_LABELS)
+        },
+    }
+
+
+def _normalize_count_map(value: Any, *, allowed: set[str] | None = None) -> dict[str, int]:
+    if not isinstance(value, Mapping):
+        return {}
+    normalized: dict[str, int] = {}
+    for raw_key, raw_count in value.items():
+        key = str(raw_key or "").strip()
+        if not key or (allowed is not None and key not in allowed):
+            continue
+        count = _coerce_int(raw_count)
+        if count >= 0:
+            normalized[key] = count
+    return normalized
+
+
+def _normalize_metric_bucket(value: Any) -> dict[str, dict[str, int]]:
+    bucket = _empty_metric_bucket()
+    if not isinstance(value, Mapping):
+        return bucket
+    bucket["totals"].update(
+        _normalize_count_map(value.get("totals"), allowed=_METRIC_TOTAL_KEYS)
+    )
+    allowed_by_key = {
+        "decisions": ASSESSMENT_DECISIONS,
+        "value_tiers": LEARNING_VALUE_TIERS,
+        "risk_tiers": {"none", "moderate", "high"},
+        "reason_codes": VALUE_REASON_CODES,
+        "redaction_labels": CANONICAL_REDACTION_LABELS,
+    }
+    for key, allowed in allowed_by_key.items():
+        bucket[key].update(_normalize_count_map(value.get(key), allowed=allowed))
+    return bucket
+
+
+def _load_learning_metrics(project_root: Path) -> dict[str, Any]:
+    path = _learning_metrics_path(project_root)
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8")) if path.is_file() else {}
+    except (OSError, json.JSONDecodeError):
+        raw = {}
+    by_command: dict[str, dict[str, dict[str, int]]] = {}
+    raw_by_command = raw.get("by_command") if isinstance(raw, Mapping) else None
+    if isinstance(raw_by_command, Mapping):
+        for command, bucket in raw_by_command.items():
+            try:
+                normalized_command = normalize_command_name(str(command))
+            except ValueError:
+                continue
+            if normalized_command in KNOWN_COMMANDS:
+                by_command[normalized_command] = _normalize_metric_bucket(bucket)
+    return {
+        "schema_version": 1,
+        "global": _normalize_metric_bucket(
+            raw.get("global") if isinstance(raw, Mapping) else None
+        ),
+        "by_command": by_command,
+    }
+
+
+def _increment_metric(mapping: dict[str, int], key: str, amount: int = 1) -> None:
+    mapping[key] = max(0, _coerce_int(mapping.get(key))) + amount
+
+
+def _update_metric_bucket(
+    bucket: dict[str, dict[str, int]],
+    entry: LearningEntry,
+    *,
+    confirmed: bool = False,
+) -> None:
+    _increment_metric(bucket["totals"], "assessed")
+    decision = entry.assessment_decision
+    if decision in ASSESSMENT_DECISIONS:
+        _increment_metric(bucket["decisions"], decision)
+    if entry.learning_value_tier in LEARNING_VALUE_TIERS:
+        _increment_metric(bucket["value_tiers"], entry.learning_value_tier)
+    if entry.sensitivity_risk_tier in {"none", "moderate", "high"}:
+        _increment_metric(bucket["risk_tiers"], entry.sensitivity_risk_tier)
+    for reason in entry.learning_value_reason_codes:
+        if reason in VALUE_REASON_CODES:
+            _increment_metric(bucket["reason_codes"], reason)
+    for label in entry.redaction_labels:
+        if label in CANONICAL_REDACTION_LABELS:
+            _increment_metric(bucket["redaction_labels"], label)
+    if decision in {"capture-safe", "capture-sanitized"}:
+        _increment_metric(bucket["totals"], "captured")
+        _increment_metric(
+            bucket["totals"], "confirmed" if confirmed else "candidate_captured"
+        )
+    elif decision == "defer":
+        _increment_metric(bucket["totals"], "deferred")
+    elif decision == "ignore":
+        _increment_metric(bucket["totals"], "ignored")
+
+
+def _record_learning_metric_unlocked(
+    project_root: Path, entry: LearningEntry, *, confirmed: bool = False
+) -> None:
+    metrics = _load_learning_metrics(project_root)
+    _update_metric_bucket(metrics["global"], entry, confirmed=confirmed)
+    if entry.source_command in KNOWN_COMMANDS:
+        command_bucket = metrics["by_command"].setdefault(
+            entry.source_command, _empty_metric_bucket()
+        )
+        _update_metric_bucket(command_bucket, entry, confirmed=confirmed)
+    path = _learning_metrics_path(project_root)
+    atomic_write_text(path, json.dumps(metrics, ensure_ascii=False, indent=2) + "\n")
+
+
+def _record_promotion_metric_unlocked(
+    project_root: Path, command_name: str, *, target: str
+) -> None:
+    metrics = _load_learning_metrics(project_root)
+    total_key = "confirmed" if target == "learning" else "promoted"
+    _increment_metric(metrics["global"]["totals"], total_key)
+    if command_name in KNOWN_COMMANDS:
+        bucket = metrics["by_command"].setdefault(
+            command_name, _empty_metric_bucket()
+        )
+        _increment_metric(bucket["totals"], total_key)
+    atomic_write_text(
+        _learning_metrics_path(project_root),
+        json.dumps(metrics, ensure_ascii=False, indent=2) + "\n",
+    )
+
+
+def _safe_review_time(value: Any, *, fallback: str = "") -> str:
+    return _safe_registry_timestamp(value) or fallback
+
+
+def _safe_review_command_with_labels(
+    command_name: str, policy: LearningPolicy
+) -> tuple[str, list[str]]:
+    command = normalize_command_name(command_name)
+    sanitized, labels = sanitize_agent_text(command, policy=policy)
+    return ("sp-other" if labels or sanitized != command else command), labels
+
+
+def _safe_review_command(command_name: str, policy: LearningPolicy) -> str:
+    return _safe_review_command_with_labels(command_name, policy)[0]
+
+
+def _normalize_review_item(
+    raw: Any,
+    *,
+    policy: LearningPolicy,
+    fallback_now: str,
+) -> dict[str, Any] | None:
+    if not isinstance(raw, Mapping):
+        return None
+    try:
+        command = _safe_review_command(str(raw.get("command") or ""), policy)
+    except ValueError:
+        return None
+    decision = str(raw.get("decision") or "").strip().lower()
+    if decision not in _PENDING_REVIEW_DECISIONS:
+        return None
+    rationale, _labels = sanitize_agent_text(
+        str(raw.get("rationale") or "").strip(), policy=policy
+    )
+    if not rationale:
+        return None
+    recurrence_key, _recurrence_labels = _canonicalize_recurrence_key(
+        str(raw.get("recurrence_key") or ""), policy=policy
+    )
+    created_at = _safe_review_time(raw.get("created_at"), fallback=fallback_now)
+    updated_at = _safe_review_time(raw.get("updated_at"), fallback=created_at)
+    default_review_after = (
+        datetime.fromisoformat(created_at.replace("Z", "+00:00"))
+        + timedelta(days=policy.deferred_review_days)
+    ).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    review_after = _safe_review_time(
+        raw.get("review_after"), fallback=default_review_after
+    )
+    return {
+        "command": command,
+        "decision": decision,
+        "rationale": rationale,
+        "recurrence_key": recurrence_key,
+        "created_at": created_at,
+        "updated_at": updated_at,
+        "review_after": review_after,
+    }
+
+
+def _read_legacy_review_items(
+    project_root: Path, *, policy: LearningPolicy, fallback_now: str
+) -> list[dict[str, Any]]:
+    path = _legacy_signal_state_path(project_root)
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8")) if path.is_file() else {}
+    except (OSError, json.JSONDecodeError):
+        return []
+    if not isinstance(raw, Mapping):
+        return []
+    items: list[dict[str, Any]] = []
+    for raw_command, signal in raw.items():
+        if not isinstance(signal, Mapping):
+            continue
+        review = signal.get("learning_review")
+        if not isinstance(review, Mapping):
+            continue
+        item = _normalize_review_item(
+            {
+                "command": raw_command,
+                "decision": review.get("decision"),
+                "rationale": review.get("rationale"),
+                "recurrence_key": review.get("recurrence_key"),
+                "created_at": review.get("deferred_at")
+                or signal.get("observed_at"),
+                "updated_at": review.get("deferred_at")
+                or signal.get("observed_at"),
+                "review_after": review.get("review_after"),
+            },
+            policy=policy,
+            fallback_now=fallback_now,
+        )
+        if item is not None:
+            items.append(item)
+    return items
+
+
+def _load_review_items(
+    project_root: Path,
+    *,
+    policy: LearningPolicy,
+    include_legacy: bool,
+    fallback_now: str | None = None,
+) -> list[dict[str, Any]]:
+    now = fallback_now or now_iso()
+    path = _learning_review_state_path(project_root)
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8")) if path.is_file() else {}
+    except (OSError, json.JSONDecodeError):
+        raw = {}
+    raw_items = raw.get("items") if isinstance(raw, Mapping) else []
+    candidates = list(raw_items) if isinstance(raw_items, list) else []
+    canonical_commands: set[str] = set()
+    for raw_item in candidates:
+        normalized = _normalize_review_item(
+            raw_item, policy=policy, fallback_now=now
+        )
+        if normalized is not None:
+            canonical_commands.add(normalized["command"])
+    if include_legacy:
+        candidates.extend(
+            item
+            for item in _read_legacy_review_items(
+                project_root, policy=policy, fallback_now=now
+            )
+            if item["command"] not in canonical_commands
+        )
+    by_identity: dict[tuple[str, str], dict[str, Any]] = {}
+    for raw_item in candidates:
+        item = _normalize_review_item(raw_item, policy=policy, fallback_now=now)
+        if item is None:
+            continue
+        identity = (item["command"], item["recurrence_key"])
+        current = by_identity.get(identity)
+        if current is None or item["updated_at"] >= current["updated_at"]:
+            by_identity[identity] = item
+    return sorted(
+        by_identity.values(),
+        key=lambda item: (item["review_after"], item["command"], item["recurrence_key"]),
+    )
+
+
+def _write_review_items(project_root: Path, items: list[dict[str, Any]]) -> None:
+    atomic_write_text(
+        _learning_review_state_path(project_root),
+        json.dumps(
+            {"schema_version": 1, "items": items},
+            ensure_ascii=False,
+            indent=2,
+        )
+        + "\n",
+    )
+
+
+def _record_review_state_unlocked(
+    project_root: Path,
+    *,
+    command_name: str,
+    decision: str,
+    rationale: str,
+    trigger_signals: Iterable[str] = (),
+    recurrence_key: str = "",
+    policy: LearningPolicy,
+    observed_at: str = "",
+) -> dict[str, Any]:
+    del trigger_signals  # canonical review-state intentionally retains no raw signals
+    command = _safe_review_command(command_name, policy)
+    safe_rationale, _labels = sanitize_agent_text(rationale, policy=policy)
+    if decision not in _PENDING_REVIEW_DECISIONS:
+        raise ValueError("only pending learning review decisions may be persisted")
+    if not safe_rationale.strip():
+        raise ValueError(f"learning review decision `{decision}` requires a rationale")
+    safe_recurrence, _recurrence_labels = _canonicalize_recurrence_key(
+        recurrence_key, policy=policy
+    )
+    now = _safe_review_time(observed_at, fallback=now_iso())
+    items = _load_review_items(
+        project_root, policy=policy, include_legacy=True, fallback_now=now
+    )
+    identity = (command, safe_recurrence)
+    existing = next(
+        (
+            item
+            for item in items
+            if (item["command"], item["recurrence_key"]) == identity
+        ),
+        None,
+    )
+    created_at = existing["created_at"] if existing else now
+    review_after = (
+        datetime.fromisoformat(now.replace("Z", "+00:00"))
+        + timedelta(days=policy.deferred_review_days)
+    ).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    item = {
+        "command": command,
+        "decision": decision,
+        "rationale": safe_rationale,
+        "recurrence_key": safe_recurrence,
+        "created_at": created_at,
+        "updated_at": now,
+        "review_after": review_after,
+    }
+    items = [
+        candidate
+        for candidate in items
+        if (candidate["command"], candidate["recurrence_key"]) != identity
+    ]
+    items.append(item)
+    items.sort(
+        key=lambda candidate: (
+            candidate["review_after"],
+            candidate["command"],
+            candidate["recurrence_key"],
+        )
+    )
+    _write_review_items(project_root, items)
+    _clear_legacy_review_for_command(project_root, command, policy=policy)
+    return item
+
+
+def _entry_seen_after(entry: LearningEntry, timestamp: str) -> bool:
+    if not timestamp:
+        return True
+    try:
+        return datetime.fromisoformat(entry.last_seen.replace("Z", "+00:00")) >= datetime.fromisoformat(
+            timestamp.replace("Z", "+00:00")
+        )
+    except ValueError:
+        return False
+
+
+_LEGACY_SIGNAL_FACTOR_KEYS = {
+    "retry_attempts",
+    "hypothesis_changes",
+    "validation_failures",
+    "artifact_rewrites",
+    "command_failures",
+    "user_corrections",
+    "route_changes",
+    "scope_changes",
+    "false_starts",
+    "hidden_dependencies",
+    "trigger_signals",
+}
+
+
+def _sanitize_legacy_trigger_signals(
+    value: Any, *, policy: LearningPolicy
+) -> tuple[list[str], list[str]]:
+    signals: list[str] = []
+    label_groups: list[list[str]] = []
+    for item in _coerce_str_list(value):
+        sanitized, labels = sanitize_agent_text(item, policy=policy)
+        label_groups.append(labels)
+        kind = sanitized.partition(":")[0].strip().lower()
+        kind = re.sub(r"[^a-z0-9_]+", "_", kind.replace("-", " ")).strip("_")
+        if kind:
+            signals.append(kind)
+    return sorted(dict.fromkeys(signals)), _merge_redaction_labels(*label_groups)
+
+
+def _sanitize_legacy_signal_payload_for_write(
+    command_name: str,
+    payload: Mapping[str, Any],
+    *,
+    policy: LearningPolicy,
+) -> dict[str, Any]:
+    safe_command, command_labels = _safe_review_command_with_labels(
+        command_name, policy
+    )
+    false_starts, false_start_labels = _sanitize_list_with_labels(
+        _coerce_str_list(payload.get("false_starts")), policy=policy
+    )
+    hidden_dependencies, dependency_labels = _sanitize_list_with_labels(
+        _coerce_str_list(payload.get("hidden_dependencies")), policy=policy
+    )
+    trigger_signals, trigger_labels = _sanitize_legacy_trigger_signals(
+        payload.get("trigger_signals"), policy=policy
+    )
+    existing_safety = payload.get("content_safety")
+    existing_labels = (
+        _coerce_str_list(existing_safety.get("redaction_labels"))
+        if isinstance(existing_safety, Mapping)
+        else []
+    )
+    labels = _merge_redaction_labels(
+        existing_labels,
+        command_labels,
+        false_start_labels,
+        dependency_labels,
+        trigger_labels,
+    )
+    sanitized: dict[str, Any] = {
+        "command": safe_command,
+        "pain_score": max(0, _coerce_int(payload.get("pain_score"))),
+        "factors": (
+            {
+                str(key): max(0, _coerce_int(value))
+                for key, value in payload.get("factors", {}).items()
+                if str(key) in _LEGACY_SIGNAL_FACTOR_KEYS
+            }
+            if isinstance(payload.get("factors"), Mapping)
+            else {}
+        ),
+        "false_starts": sorted(dict.fromkeys(false_starts)),
+        "hidden_dependencies": sorted(dict.fromkeys(hidden_dependencies)),
+        "trigger_signals": trigger_signals,
+        "content_safety": {
+            "sensitivity": "sanitized" if labels else "safe",
+            "redaction_labels": labels,
+        },
+        "observed_at": _safe_review_time(payload.get("observed_at")),
+    }
+    if "last_observed_at" in payload:
+        sanitized["last_observed_at"] = _safe_review_time(
+            payload.get("last_observed_at")
+        )
+    review = payload.get("learning_review")
+    if isinstance(review, Mapping):
+        decision = str(review.get("decision") or "").strip().lower()
+        rationale, rationale_labels = sanitize_agent_text(
+            str(review.get("rationale") or "").strip(), policy=policy
+        )
+        if decision in _REVIEW_DECISIONS:
+            labels = _merge_redaction_labels(labels, rationale_labels)
+            sanitized["learning_review"] = {
+                "decision": decision,
+                "rationale": rationale,
+                "deferred_at": _safe_review_time(review.get("deferred_at")),
+            }
+            sanitized["content_safety"] = {
+                "sensitivity": "sanitized" if labels else "safe",
+                "redaction_labels": labels,
+            }
+    return sanitized
+
+
+def _clear_legacy_review_for_command(
+    project_root: Path,
+    command_name: str,
+    *,
+    policy: LearningPolicy,
+) -> None:
+    path = _legacy_signal_state_path(project_root)
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8")) if path.is_file() else {}
+    except (OSError, json.JSONDecodeError):
+        return
+    if not isinstance(raw, dict):
+        return
+    sanitized_state: dict[str, dict[str, Any]] = {}
+    target_command = _safe_review_command(command_name, policy)
+    removed = False
+    for key, raw_signal in raw.items():
+        if not isinstance(key, str) or not isinstance(raw_signal, Mapping):
+            continue
+        try:
+            safe_key_command = _safe_review_command(key, policy)
+        except ValueError:
+            continue
+        signal = _sanitize_legacy_signal_payload_for_write(
+            safe_key_command, raw_signal, policy=policy
+        )
+        if safe_key_command == target_command and "learning_review" in signal:
+            signal.pop("learning_review", None)
+            removed = True
+        sanitized_state[safe_key_command.removeprefix("sp-")] = signal
+    if not removed:
+        return
+    atomic_write_text(
+        path, json.dumps(sanitized_state, ensure_ascii=False, indent=2) + "\n"
+    )
+
+
+def _clear_matching_review_state_unlocked(
+    project_root: Path, entry: LearningEntry
+) -> bool:
+    policy = load_learning_policy(project_root, for_write=True).policy
+    items = _load_review_items(project_root, policy=policy, include_legacy=True)
+    removed_commands: set[str] = set()
+    retained: list[dict[str, Any]] = []
+    for item in items:
+        command_matches = item["command"] in entry.applies_to or item[
+            "command"
+        ] == entry.source_command
+        recurrence_matches = not item["recurrence_key"] or item[
+            "recurrence_key"
+        ] == entry.recurrence_key
+        if (
+            command_matches
+            and recurrence_matches
+            and _entry_seen_after(entry, item["created_at"])
+        ):
+            removed_commands.add(item["command"])
+            continue
+        retained.append(item)
+    if len(retained) == len(items):
+        return False
+    _write_review_items(project_root, retained)
+    for command in removed_commands:
+        _clear_legacy_review_for_command(project_root, command, policy=policy)
+    return True
+
+
+def _detail_path_response(paths: LearningPaths, detail_path: Path) -> str:
+    return _safe_project_relative_ref(_project_root_from_learning_paths(paths), detail_path)
+
+
+def _ensure_project_contained_path(project_root: Path, path: Path, label: str) -> Path:
+    resolved_project = project_root.resolve()
+    candidate = path if path.is_absolute() else project_root / path
+    resolved_path = candidate.resolve()
+    try:
+        resolved_path.relative_to(resolved_project)
+    except ValueError as exc:
+        raise ValueError(f"{label} must resolve inside the project root") from exc
+    return resolved_path
+
+
 def _snapshot_fingerprint(
     command_name: str,
-    source_path: Path,
+    source_ref: str,
     suggestions: list[AutoCaptureSuggestion],
+    *,
+    policy: LearningPolicy | None = None,
 ) -> str:
+    active_policy = policy or default_learning_policy()
+
+    def semantic_digest(value: str) -> str:
+        sanitized, _labels = sanitize_agent_text(value, policy=active_policy)
+        return hashlib.sha256(sanitized.encode("utf-8")).hexdigest()[:16]
+
     normalized_payload = {
+        "assessment_version": ASSESSMENT_VERSION,
+        "policy_digest": learning_policy_digest(active_policy),
         "command": normalize_command_name(command_name),
-        "source_path": str(source_path.resolve()),
+        "source_ref": source_ref,
         "suggestions": [
             {
                 "learning_type": item.learning_type,
-                "summary": item.summary,
-                "evidence": item.evidence,
-                "recurrence_key": item.recurrence_key,
+                "recurrence_key": _canonicalize_recurrence_key(
+                    item.recurrence_key, policy=active_policy
+                )[0],
                 "signal_strength": item.signal_strength,
-                "applies_to": list(item.applies_to or ()),
-                "problem": item.problem,
-                "recommended_action": item.recommended_action,
-                "trigger_signals": list(item.trigger_signals),
-                "success_criteria": list(item.success_criteria),
-                "avoid": list(item.avoid),
-                "exceptions": list(item.exceptions),
+                "summary_digest": semantic_digest(item.summary),
+                "evidence_digest": semantic_digest(item.evidence),
             }
             for item in suggestions
         ],
     }
-    payload = json.dumps(normalized_payload, ensure_ascii=False, sort_keys=True).encode(
-        "utf-8"
-    )
+    payload = json.dumps(
+        normalized_payload,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
     return hashlib.sha256(payload).hexdigest()
 
 
@@ -1207,6 +2522,13 @@ def _index_entry_from_learning(entry: LearningEntry) -> LearningIndexEntry:
         occurrence_count=entry.occurrence_count,
         signal_strength=entry.signal_strength,
         facets=entry.facets,
+        sensitivity=entry.sensitivity,
+        redaction_labels=entry.redaction_labels,
+        learning_value_tier=entry.learning_value_tier,
+        learning_value_reason_codes=entry.learning_value_reason_codes,
+        sensitivity_risk_tier=entry.sensitivity_risk_tier,
+        assessment_decision=entry.assessment_decision,
+        assessment_reason=entry.assessment_reason,
     )
 
 
@@ -1482,6 +2804,12 @@ def _merge_legacy_confirmed_entry(
         (value for value in (current.last_seen, legacy.last_seen) if value),
         default=current.last_seen or legacy.last_seen,
     )
+    redaction_labels = _merge_redaction_labels(
+        current.redaction_labels, legacy.redaction_labels
+    )
+    assessment_fields = _merge_assessment_fields(
+        current, legacy, redaction_labels
+    )
 
     return LearningEntry(
         id=current.id,
@@ -1521,6 +2849,13 @@ def _merge_legacy_confirmed_entry(
         ),
         exceptions=sorted(dict.fromkeys([*current.exceptions, *legacy.exceptions])),
         facets=_merge_learning_facets(current.facets, legacy.facets),
+        sensitivity=SENSITIVITY_SANITIZED
+        if redaction_labels
+        else current.sensitivity
+        if current.sensitivity == SENSITIVITY_SANITIZED
+        else legacy.sensitivity,
+        redaction_labels=redaction_labels,
+        **assessment_fields,
     )
 
 
@@ -1572,6 +2907,147 @@ def _migrate_legacy_confirmed_learnings_unlocked(
         _sync_learning_index_detail(paths, entry)
 
 
+def _merge_assessment_fields(
+    primary: LearningEntry | LearningIndexEntry,
+    secondary: LearningEntry | LearningIndexEntry,
+    redaction_labels: list[str],
+) -> dict[str, Any]:
+    tier = primary.learning_value_tier or secondary.learning_value_tier
+    reasons = (
+        primary.learning_value_reason_codes or secondary.learning_value_reason_codes
+    )
+    decision = primary.assessment_decision or secondary.assessment_decision
+    decision_reason = primary.assessment_reason or secondary.assessment_reason
+    if not tier or not reasons or not decision or not decision_reason:
+        return {
+            "learning_value_tier": "",
+            "learning_value_reason_codes": [],
+            "sensitivity_risk_tier": "",
+            "assessment_decision": "",
+            "assessment_reason": "",
+        }
+    risk_tier = _assessment_risk_tier(redaction_labels)
+    if redaction_labels and decision == "capture-safe":
+        decision = "capture-sanitized"
+        decision_reason = "valuable_after_abstraction"
+    elif not redaction_labels and decision == "capture-sanitized":
+        decision = "capture-safe"
+        decision_reason = "safe_content"
+    return {
+        "learning_value_tier": tier,
+        "learning_value_reason_codes": list(reasons),
+        "sensitivity_risk_tier": risk_tier,
+        "assessment_decision": decision,
+        "assessment_reason": decision_reason,
+    }
+
+
+def _scrub_learning_entry_for_policy(
+    entry: LearningEntry, policy: LearningPolicy
+) -> LearningEntry:
+    payload = entry.to_payload()
+    labels = set(entry.redaction_labels)
+    safe_source_command, source_command_labels = _safe_review_command_with_labels(
+        entry.source_command, policy
+    )
+    payload["source_command"] = safe_source_command
+    labels.update(source_command_labels)
+    safe_applies_to: list[str] = []
+    for command in entry.applies_to:
+        safe_command, command_labels = _safe_review_command_with_labels(
+            command, policy
+        )
+        safe_applies_to.append(safe_command)
+        labels.update(command_labels)
+    payload["applies_to"] = safe_applies_to
+    for key in (
+        "summary",
+        "evidence",
+        "default_scope",
+        "decisive_signal",
+        "root_cause_family",
+        "promotion_hint",
+        "problem",
+        "recommended_action",
+    ):
+        safe, field_labels = sanitize_agent_text(str(payload.get(key) or ""), policy=policy)
+        payload[key] = safe
+        labels.update(field_labels)
+    for key in (
+        "false_starts",
+        "rejected_paths",
+        "injection_targets",
+        "avoid",
+        "trigger_signals",
+        "success_criteria",
+        "exceptions",
+    ):
+        safe_values, field_labels = _sanitize_list_with_labels(
+            _coerce_str_list(payload.get(key)), policy=policy
+        )
+        payload[key] = safe_values
+        labels.update(field_labels)
+    payload["facets"] = _sanitize_learning_facets(
+        normalize_learning_facets(payload.get("facets")), policy=policy
+    )
+    safe_recurrence, recurrence_labels = _canonicalize_recurrence_key(
+        entry.recurrence_key, policy=policy
+    )
+    payload["recurrence_key"] = safe_recurrence
+    labels.update(recurrence_labels)
+    payload["redaction_labels"] = sorted(labels)
+    payload["sensitivity"] = "sanitized" if labels else "safe"
+    if payload.get("learning_value_tier"):
+        payload["sensitivity_risk_tier"] = _assessment_risk_tier(labels)
+        if labels and payload.get("assessment_decision") == "capture-safe":
+            payload["assessment_decision"] = "capture-sanitized"
+            payload["assessment_reason"] = "valuable_after_abstraction"
+    return LearningEntry.from_payload(payload)
+
+
+def _scrub_learning_index_for_policy(
+    entry: LearningIndexEntry, policy: LearningPolicy
+) -> LearningIndexEntry:
+    payload = entry.to_payload()
+    labels = set(entry.redaction_labels)
+    safe_source_command, source_command_labels = _safe_review_command_with_labels(
+        entry.source_command, policy
+    )
+    payload["source_command"] = safe_source_command
+    labels.update(source_command_labels)
+    safe_applies_to: list[str] = []
+    for command in entry.applies_to:
+        safe_command, command_labels = _safe_review_command_with_labels(
+            command, policy
+        )
+        safe_applies_to.append(safe_command)
+        labels.update(command_labels)
+    payload["applies_to"] = safe_applies_to
+    for key in ("id", "problem", "lesson", "detail"):
+        safe, field_labels = sanitize_agent_text(str(payload.get(key) or ""), policy=policy)
+        payload[key] = safe
+        labels.update(field_labels)
+    safe_signals, signal_labels = _sanitize_list_with_labels(
+        entry.trigger_signals, policy=policy
+    )
+    payload["trigger_signals"] = safe_signals
+    labels.update(signal_labels)
+    payload["facets"] = _sanitize_learning_facets(entry.facets, policy=policy)
+    safe_recurrence, recurrence_labels = _canonicalize_recurrence_key(
+        entry.recurrence_key, policy=policy
+    )
+    payload["recurrence_key"] = safe_recurrence
+    labels.update(recurrence_labels)
+    payload["redaction_labels"] = sorted(labels)
+    payload["sensitivity"] = "sanitized" if labels else "safe"
+    if payload.get("learning_value_tier"):
+        payload["sensitivity_risk_tier"] = _assessment_risk_tier(labels)
+        if labels and payload.get("assessment_decision") == "capture-safe":
+            payload["assessment_decision"] = "capture-sanitized"
+            payload["assessment_reason"] = "valuable_after_abstraction"
+    return LearningIndexEntry.from_payload(payload)
+
+
 def _merge_entry(
     existing: LearningEntry, new_entry: LearningEntry, *, status: str | None = None
 ) -> LearningEntry:
@@ -1605,6 +3081,12 @@ def _merge_entry(
         if "medium" in {existing.signal_strength, new_entry.signal_strength}
         else "low"
     )
+    redaction_labels = _merge_redaction_labels(
+        existing.redaction_labels, new_entry.redaction_labels
+    )
+    assessment_fields = _merge_assessment_fields(
+        new_entry, existing, redaction_labels
+    )
     return LearningEntry(
         id=existing.id,
         summary=new_entry.summary or existing.summary,
@@ -1633,6 +3115,13 @@ def _merge_entry(
         success_criteria=merged_success_criteria,
         exceptions=merged_exceptions,
         facets=_merge_learning_facets(existing.facets, new_entry.facets),
+        sensitivity=SENSITIVITY_SANITIZED
+        if redaction_labels
+        else existing.sensitivity
+        if existing.sensitivity == SENSITIVITY_SANITIZED
+        else new_entry.sensitivity,
+        redaction_labels=redaction_labels,
+        **assessment_fields,
     )
 
 
@@ -1654,6 +3143,12 @@ def _upsert_entry(
 def _merge_index_entry(
     existing: LearningIndexEntry, new_entry: LearningIndexEntry
 ) -> LearningIndexEntry:
+    redaction_labels = _merge_redaction_labels(
+        existing.redaction_labels, new_entry.redaction_labels
+    )
+    assessment_fields = _merge_assessment_fields(
+        new_entry, existing, redaction_labels
+    )
     return LearningIndexEntry(
         id=existing.id,
         problem=new_entry.problem or existing.problem,
@@ -1675,6 +3170,13 @@ def _merge_index_entry(
         if "medium" in {existing.signal_strength, new_entry.signal_strength}
         else "low",
         facets=_merge_learning_facets(existing.facets, new_entry.facets),
+        sensitivity=SENSITIVITY_SANITIZED
+        if redaction_labels
+        else existing.sensitivity
+        if existing.sensitivity == SENSITIVITY_SANITIZED
+        else new_entry.sensitivity,
+        redaction_labels=redaction_labels,
+        **assessment_fields,
     )
 
 
@@ -1871,9 +3373,18 @@ def _unused_detail_ref(
 
 
 def _sync_learning_index_detail(
-    paths: LearningPaths, stored: LearningEntry
+    paths: LearningPaths,
+    stored: LearningEntry,
+    *,
+    policy: LearningPolicy | None = None,
 ) -> tuple[LearningIndexEntry, Path]:
+    active_policy = policy or default_learning_policy()
+    stored = _scrub_learning_entry_for_policy(stored, active_policy)
     index_preamble, index_entries = _read_index_entries(paths.learning_index)
+    index_entries = [
+        _scrub_learning_index_for_policy(item, active_policy)
+        for item in index_entries
+    ]
     index_entries, stored_index = _upsert_index_entry(
         index_entries, _index_entry_from_learning(stored)
     )
@@ -1913,11 +3424,16 @@ def _remove_by_recurrence(
     return [entry for entry in entries if entry.recurrence_key != recurrence_key]
 
 
-def _append_review_note(path: Path, note: str) -> None:
+def _append_review_note(
+    path: Path, note: str, *, policy: LearningPolicy | None = None
+) -> None:
     timestamp = now_iso()
     if not path.exists():
         atomic_write_text(path, REVIEW_TEMPLATE_TEXT)
     content = path.read_text(encoding="utf-8").rstrip()
+    if policy is not None:
+        content = sanitize_agent_text(content, policy=policy)[0]
+        note = sanitize_agent_text(note, policy=policy)[0]
     content += f"\n- `{timestamp}` {note}\n"
     atomic_write_text(path, content + "\n")
 
@@ -1943,6 +3459,8 @@ def _format_evidence(title: str, items: list[tuple[str, Any]]) -> str:
 
 def _suggest_implement_auto_capture(
     feature_dir: Path,
+    *,
+    feature_ref: str,
 ) -> tuple[Path, list[AutoCaptureSuggestion]]:
     tracker_path = feature_dir / "implement-tracker.md"
     if not tracker_path.exists():
@@ -1972,7 +3490,7 @@ def _suggest_implement_auto_capture(
                 evidence=_format_evidence(
                     "Observed auto-capture evidence from implement-tracker.md",
                     [
-                        ("feature_dir", feature_dir),
+                        ("feature_dir", feature_ref),
                         ("tracker_status", status),
                         ("retry_attempts", retry_attempts),
                         ("current_batch", current_batch),
@@ -2006,7 +3524,7 @@ def _suggest_implement_auto_capture(
                 evidence=_format_evidence(
                     "Observed auto-capture evidence from implement-tracker.md",
                     [
-                        ("feature_dir", feature_dir),
+                        ("feature_dir", feature_ref),
                         ("tracker_status", status),
                         ("retry_attempts", retry_attempts),
                         ("current_batch", current_batch),
@@ -2056,7 +3574,7 @@ def _suggest_implement_auto_capture(
                 evidence=_format_evidence(
                     "Observed auto-capture evidence from implement-tracker.md",
                     [
-                        ("feature_dir", feature_dir),
+                        ("feature_dir", feature_ref),
                         ("tracker_status", status),
                         ("current_batch", current_batch),
                         ("open_gap_types", planning_gap_types),
@@ -2107,7 +3625,7 @@ def _suggest_implement_auto_capture(
                 evidence=_format_evidence(
                     "Observed auto-capture evidence from implement-tracker.md",
                     [
-                        ("feature_dir", feature_dir),
+                        ("feature_dir", feature_ref),
                         ("tracker_status", status),
                         ("blocker_types", blocker_types),
                         (
@@ -2144,6 +3662,8 @@ def _suggest_implement_auto_capture(
 
 def _suggest_quick_auto_capture(
     workspace: Path,
+    *,
+    workspace_ref: str,
 ) -> tuple[Path, list[AutoCaptureSuggestion]]:
     status_path = workspace / "STATUS.md"
     if not status_path.exists():
@@ -2176,7 +3696,7 @@ def _suggest_quick_auto_capture(
                 evidence=_format_evidence(
                     "Observed auto-capture evidence from quick STATUS.md",
                     [
-                        ("workspace", workspace),
+                        ("workspace", workspace_ref),
                         ("status", status),
                         ("retry_attempts", retry_attempts),
                         ("goal", goal),
@@ -2207,7 +3727,7 @@ def _suggest_quick_auto_capture(
                 evidence=_format_evidence(
                     "Observed auto-capture evidence from quick STATUS.md",
                     [
-                        ("workspace", workspace),
+                        ("workspace", workspace_ref),
                         ("status", status),
                         ("goal", goal),
                         ("execution_fallback", execution_fallback),
@@ -2252,6 +3772,7 @@ def _suggest_workflow_state_auto_capture(
     feature_dir: Path,
     *,
     command_name: str,
+    feature_ref: str,
 ) -> tuple[Path, list[AutoCaptureSuggestion]]:
     state_path = feature_dir / "workflow-state.md"
     if not state_path.exists():
@@ -2291,7 +3812,7 @@ def _suggest_workflow_state_auto_capture(
                 evidence=_format_evidence(
                     "Observed auto-capture evidence from workflow-state.md",
                     [
-                        ("feature_dir", feature_dir),
+                        ("feature_dir", feature_ref),
                         ("command", command_name),
                         ("status", status),
                         ("phase_mode", phase_mode),
@@ -2323,7 +3844,7 @@ def _suggest_workflow_state_auto_capture(
                 evidence=_format_evidence(
                     "Observed auto-capture evidence from workflow-state.md",
                     [
-                        ("feature_dir", feature_dir),
+                        ("feature_dir", feature_ref),
                         ("command", command_name),
                         ("status", status),
                         ("phase_mode", phase_mode),
@@ -2350,7 +3871,7 @@ def _suggest_workflow_state_auto_capture(
                 evidence=_format_evidence(
                     "Observed auto-capture evidence from workflow-state.md",
                     [
-                        ("feature_dir", feature_dir),
+                        ("feature_dir", feature_ref),
                         ("command", command_name),
                         ("status", status),
                         ("phase_mode", phase_mode),
@@ -2381,7 +3902,7 @@ def _suggest_workflow_state_auto_capture(
                 evidence=_format_evidence(
                     "Observed auto-capture evidence from workflow-state.md",
                     [
-                        ("feature_dir", feature_dir),
+                        ("feature_dir", feature_ref),
                         ("command", command_name),
                         ("status", status),
                         ("phase_mode", phase_mode),
@@ -2406,7 +3927,7 @@ def _suggest_workflow_state_auto_capture(
     suggestions.extend(
         _semantic_trigger_suggestions(
             command_name=command_name,
-            feature_dir=feature_dir,
+            feature_ref=feature_ref,
             trigger_signals=trigger_signals,
         )
     )
@@ -2415,6 +3936,8 @@ def _suggest_workflow_state_auto_capture(
 
 def _suggest_debug_auto_capture(
     session_file: Path,
+    *,
+    session_ref: str,
 ) -> tuple[Path, list[AutoCaptureSuggestion]]:
     if not session_file.exists():
         return session_file, []
@@ -2440,7 +3963,7 @@ def _suggest_debug_auto_capture(
                 evidence=_format_evidence(
                     "Observed auto-capture evidence from resolved debug session",
                     [
-                        ("session_file", session_file),
+                        ("session_file", session_ref),
                         ("trigger", state.trigger),
                         ("fail_count", state.resolution.fail_count),
                         ("fix", state.resolution.fix or ""),
@@ -2477,7 +4000,7 @@ def _suggest_debug_auto_capture(
                 evidence=_format_evidence(
                     "Observed auto-capture evidence from resolved debug session",
                     [
-                        ("session_file", session_file),
+                        ("session_file", session_ref),
                         ("trigger", state.trigger),
                         ("fail_count", state.resolution.fail_count),
                         ("validation_commands", validation_commands),
@@ -2511,7 +4034,7 @@ def _suggest_debug_auto_capture(
                 evidence=_format_evidence(
                     "Observed auto-capture evidence from resolved debug session",
                     [
-                        ("session_file", session_file),
+                        ("session_file", session_ref),
                         ("trigger", state.trigger),
                         (
                             "rejected_surface_fixes",
@@ -2568,6 +4091,8 @@ def _read_entries_if_present(path: Path) -> list[LearningEntry]:
 
 def _learning_catalog(
     project_root: Path,
+    *,
+    policy: LearningPolicy | None = None,
 ) -> tuple[
     LearningPaths,
     list[tuple[LearningIndexEntry, LearningEntry | None, str]],
@@ -2575,11 +4100,32 @@ def _learning_catalog(
 ]:
     """Merge internal Learning stores into one deterministic consumer catalog."""
 
+    active_policy = policy or load_learning_policy(
+        project_root, for_write=False
+    ).policy
     paths = build_learning_paths(project_root)
     source_layers: list[tuple[str, list[LearningEntry]]] = [
-        ("candidate", _read_entries_if_present(paths.candidates)),
-        ("confirmed-learning", _read_entries_if_present(paths.confirmed_learnings)),
-        ("project-rule", _read_entries_if_present(paths.project_rules)),
+        (
+            "candidate",
+            [
+                _scrub_learning_entry_for_policy(entry, active_policy)
+                for entry in _read_entries_if_present(paths.candidates)
+            ],
+        ),
+        (
+            "confirmed-learning",
+            [
+                _scrub_learning_entry_for_policy(entry, active_policy)
+                for entry in _read_entries_if_present(paths.confirmed_learnings)
+            ],
+        ),
+        (
+            "project-rule",
+            [
+                _scrub_learning_entry_for_policy(entry, active_policy)
+                for entry in _read_entries_if_present(paths.project_rules)
+            ],
+        ),
     ]
     source_by_key: dict[str, tuple[LearningEntry, str]] = {}
     for layer, entries in source_layers:
@@ -2596,6 +4142,10 @@ def _learning_catalog(
         diagnostics["warnings"].append(
             "Learning index is missing; run `specify learning ensure` before capture."
         )
+    index_entries = [
+        _scrub_learning_index_for_policy(entry, active_policy)
+        for entry in index_entries
+    ]
 
     catalog: list[tuple[LearningIndexEntry, LearningEntry | None, str]] = []
     seen: set[str] = set()
@@ -2668,6 +4218,165 @@ def _context_allows_cross_command(match: Mapping[str, Any]) -> bool:
     )
 
 
+def _assessment_risk_tier(labels: Iterable[str]) -> str:
+    label_set = set(labels)
+    if not label_set:
+        return "none"
+    if label_set & {"credential", "private_key", "organization_sensitive"}:
+        return "high"
+    return "moderate"
+
+
+def _sanitize_card_for_policy(
+    card: dict[str, Any], policy: LearningPolicy
+) -> dict[str, Any]:
+    sanitized = dict(card)
+    labels = set(_coerce_str_list(card.get("redaction_labels")))
+    safe_ref, ref_labels = _canonicalize_recurrence_key(
+        str(card.get("ref") or ""), policy=policy
+    )
+    labels.update(ref_labels)
+    sanitized["ref"] = safe_ref
+    show_argv = sanitized.get("show_argv")
+    if isinstance(show_argv, list):
+        safe_argv = list(show_argv)
+        if "--ref" in safe_argv:
+            ref_index = safe_argv.index("--ref") + 1
+            if ref_index < len(safe_argv):
+                safe_argv[ref_index] = safe_ref
+        sanitized["show_argv"] = safe_argv
+    for key in ("summary", "action", "why_relevant"):
+        if isinstance(sanitized.get(key), str):
+            sanitized[key], field_labels = sanitize_agent_text(
+                sanitized[key], policy=policy
+            )
+            labels.update(field_labels)
+    trigger_signals = sanitized.get("trigger_signals")
+    if isinstance(trigger_signals, list):
+        safe_signals, signal_labels = _sanitize_list_with_labels(
+            trigger_signals, policy=policy
+        )
+        sanitized["trigger_signals"] = safe_signals
+        labels.update(signal_labels)
+    context_match = sanitized.get("context_match")
+    if isinstance(context_match, dict):
+        context_copy = dict(context_match)
+        facets = context_copy.get("matched_facets")
+        if isinstance(facets, Mapping):
+            context_copy["matched_facets"] = _sanitize_learning_facets(
+                facets, policy=policy
+            )
+        sanitized["context_match"] = context_copy
+    sanitized["redaction_labels"] = sorted(labels)
+    sanitized["sensitivity"] = "sanitized" if labels else "safe"
+    if isinstance(sanitized.get("applies_to"), list):
+        sanitized["applies_to"] = [
+            _safe_review_command(command, policy)
+            for command in sanitized["applies_to"]
+        ]
+    assessment = sanitized.get("assessment")
+    if isinstance(assessment, dict):
+        assessment_copy = dict(assessment)
+        content_safety = dict(assessment_copy.get("content_safety") or {})
+        content_safety.update(
+            {
+                "sensitivity": "sanitized" if labels else "safe",
+                "risk_tier": _assessment_risk_tier(labels),
+                "redaction_labels": sorted(labels),
+            }
+        )
+        assessment_copy["content_safety"] = content_safety
+        if labels and assessment_copy.get("decision") == "capture-safe":
+            assessment_copy["decision"] = "capture-sanitized"
+            assessment_copy["decision_reason"] = "valuable_after_abstraction"
+        sanitized["assessment"] = assessment_copy
+    return sanitized
+
+
+def _sanitize_detail_for_policy(
+    payload: dict[str, Any], policy: LearningPolicy
+) -> dict[str, Any]:
+    labels = set(
+        _coerce_str_list((payload.get("content_safety") or {}).get("redaction_labels"))
+        if isinstance(payload.get("content_safety"), dict)
+        else []
+    )
+
+    def sanitize_value(value: Any) -> Any:
+        if isinstance(value, str):
+            safe, field_labels = sanitize_agent_text(value, policy=policy)
+            labels.update(field_labels)
+            return safe
+        if isinstance(value, list):
+            return [sanitize_value(item) for item in value]
+        if isinstance(value, dict):
+            return {key: sanitize_value(item) for key, item in value.items()}
+        return value
+
+    sanitized = dict(payload)
+    for key in ("ref", "id"):
+        if isinstance(sanitized.get(key), str):
+            safe_key, key_labels = _canonicalize_recurrence_key(
+                sanitized[key], policy=policy
+            )
+            sanitized[key] = safe_key
+            labels.update(key_labels)
+    if isinstance(sanitized.get("summary"), str):
+        sanitized["summary"] = sanitize_value(sanitized["summary"])
+    for section in ("guidance", "evidence"):
+        if isinstance(sanitized.get(section), dict):
+            sanitized[section] = sanitize_value(sanitized[section])
+    applicability = sanitized.get("applicability")
+    if isinstance(applicability, dict):
+        applicability_copy = dict(applicability)
+        if isinstance(applicability_copy.get("commands"), list):
+            applicability_copy["commands"] = [
+                _safe_review_command(command, policy)
+                for command in applicability_copy["commands"]
+            ]
+        for key in ("trigger_signals", "scope", "facets"):
+            if key in applicability_copy:
+                applicability_copy[key] = sanitize_value(applicability_copy[key])
+        sanitized["applicability"] = applicability_copy
+    lifecycle = sanitized.get("lifecycle")
+    if isinstance(lifecycle, dict):
+        lifecycle_copy = dict(lifecycle)
+        for key in ("injection_targets", "promotion_hint"):
+            if key in lifecycle_copy:
+                lifecycle_copy[key] = sanitize_value(lifecycle_copy[key])
+        sanitized["lifecycle"] = lifecycle_copy
+    provenance = sanitized.get("provenance")
+    if isinstance(provenance, dict):
+        provenance_copy = dict(provenance)
+        if isinstance(provenance_copy.get("source_command"), str):
+            provenance_copy["source_command"] = _safe_review_command(
+                provenance_copy["source_command"], policy
+            )
+        sanitized["provenance"] = provenance_copy
+    if isinstance(sanitized.get("detail_path"), str):
+        sanitized["detail_path"] = sanitize_value(sanitized["detail_path"])
+    content_safety = dict(sanitized.get("content_safety") or {})
+    content_safety.update(
+        {
+            "sensitivity": "sanitized" if labels else "safe",
+            "redaction_labels": sorted(labels),
+        }
+    )
+    sanitized["content_safety"] = content_safety
+    assessment = sanitized.get("assessment")
+    if isinstance(assessment, dict):
+        assessment_copy = dict(assessment)
+        assessment_copy["content_safety"] = {
+            **content_safety,
+            "risk_tier": _assessment_risk_tier(labels),
+        }
+        if labels and assessment_copy.get("decision") == "capture-safe":
+            assessment_copy["decision"] = "capture-sanitized"
+            assessment_copy["decision_reason"] = "valuable_after_abstraction"
+        sanitized["assessment"] = assessment_copy
+    return sanitized
+
+
 def _learning_summary_card(
     index_entry: LearningIndexEntry,
     entry: LearningEntry | None,
@@ -2684,6 +4393,16 @@ def _learning_summary_card(
         if entry and entry.recommended_action
         else index_entry.lesson
     )
+    redaction_labels = (
+        entry.redaction_labels if entry else index_entry.redaction_labels
+    )
+    sensitivity = (
+        SENSITIVITY_SANITIZED
+        if redaction_labels
+        else entry.sensitivity
+        if entry
+        else index_entry.sensitivity
+    )
     card: dict[str, Any] = {
         "ref": index_entry.recurrence_key,
         "summary": summary,
@@ -2695,6 +4414,8 @@ def _learning_summary_card(
         "applies_to": index_entry.applies_to,
         "trigger_signals": index_entry.trigger_signals,
         "source_layer": source_layer,
+        "sensitivity": sensitivity,
+        "redaction_labels": redaction_labels,
         "show_argv": [
             "specify",
             "learning",
@@ -2705,6 +4426,11 @@ def _learning_summary_card(
             "json",
         ],
     }
+    assessment = (
+        entry.assessment_payload() if entry else index_entry.assessment_payload()
+    )
+    if assessment is not None:
+        card["assessment"] = assessment
     if context_match and int(context_match.get("matched_dimensions") or 0) > 0:
         rendered_matches = ", ".join(
             f"{key}={value}"
@@ -2740,13 +4466,21 @@ def list_learning_summaries(
 ) -> dict[str, Any]:
     """Return compact Learning cards; detail expansion is owned by ``show``."""
 
-    normalized_command = normalize_command_name(command_name) if command_name else None
+    policy_result = load_learning_policy(project_root, for_write=False)
+    policy = policy_result.policy
+    normalized_command = (
+        _safe_review_command(command_name, policy) if command_name else None
+    )
     normalized_type = normalize_learning_type(learning_type) if learning_type else None
     normalized_status = status.strip().lower() if status else None
     if normalized_status and normalized_status not in {*LEARNING_STATUSES, "indexed"}:
         raise ValueError(f"unsupported learning status '{status}'")
     normalized_query = query.strip().casefold() if query else ""
     normalized_context = normalize_learning_facets(task_context)
+    safe_query = (
+        sanitize_agent_text(query.strip(), policy=policy)[0] if query else ""
+    )
+    safe_context = _sanitize_learning_facets(normalized_context, policy=policy)
     cursor = max(0, int(cursor))
     if include_all:
         limit = 0
@@ -2755,7 +4489,7 @@ def list_learning_summaries(
     else:
         limit = min(int(limit), 200)
 
-    _paths, catalog, diagnostics = _learning_catalog(project_root)
+    _paths, catalog, diagnostics = _learning_catalog(project_root, policy=policy)
     ranked_cards: list[tuple[tuple[int, int, int, int], dict[str, Any]]] = []
     for catalog_index, (index_entry, entry, source_layer) in enumerate(catalog):
         command_match = bool(
@@ -2809,7 +4543,9 @@ def list_learning_summaries(
 
     if normalized_context:
         ranked_cards.sort(key=lambda item: item[0])
-    cards = [card for _rank, card in ranked_cards]
+    cards = [
+        _sanitize_card_for_policy(card, policy) for _rank, card in ranked_cards
+    ]
 
     total = len(cards)
     page = cards[cursor:] if include_all else cards[cursor : cursor + limit]
@@ -2824,8 +4560,8 @@ def list_learning_summaries(
         if normalized_status:
             next_argv.extend(["--status", normalized_status])
         if query:
-            next_argv.extend(["--query", query])
-        next_argv.extend(_learning_context_argv(normalized_context))
+            next_argv.extend(["--query", safe_query])
+        next_argv.extend(_learning_context_argv(safe_context))
         next_argv.extend(
             ["--cursor", str(next_cursor), "--limit", str(limit), "--format", "json"]
         )
@@ -2839,7 +4575,7 @@ def list_learning_summaries(
         "filters": {
             "type": normalized_type,
             "status": normalized_status,
-            "query": query or None,
+            "query": safe_query or None,
         },
         "pagination": {
             "cursor": cursor,
@@ -2850,10 +4586,13 @@ def list_learning_summaries(
             "next_argv": next_argv,
         },
         "items": page,
-        "warnings": list(diagnostics.get("warnings", [])),
+        "warnings": [
+            *list(diagnostics.get("warnings", [])),
+            *policy_result.warnings,
+        ],
     }
-    if normalized_context:
-        payload["task_context"] = normalized_context
+    if safe_context:
+        payload["task_context"] = safe_context
     from .launcher import bind_project_launcher_payload
 
     return bind_project_launcher_payload(payload, project_root)
@@ -2862,12 +4601,30 @@ def list_learning_summaries(
 def show_learning_detail(project_root: Path, *, learning_ref: str) -> dict[str, Any]:
     """Expand exactly one Learning into an agent-oriented detail record."""
 
-    requested = learning_ref.strip()
+    policy_result = load_learning_policy(project_root, for_write=False)
+    policy = policy_result.policy
+    requested_raw = learning_ref.strip()
+    requested, _request_labels = _canonicalize_recurrence_key(
+        requested_raw, policy=policy
+    )
+    requested = requested or requested_raw
     if not requested:
         raise ValueError("learning ref is required")
-    paths, catalog, diagnostics = _learning_catalog(project_root)
+    paths, catalog, diagnostics = _learning_catalog(project_root, policy=policy)
     match = next(
-        (item for item in catalog if requested in {item[0].id, item[0].recurrence_key}),
+        (
+            item
+            for item in catalog
+            if requested
+            in {
+                item[0].id,
+                item[0].recurrence_key,
+                _canonicalize_recurrence_key(item[0].id, policy=policy)[0],
+                _canonicalize_recurrence_key(
+                    item[0].recurrence_key, policy=policy
+                )[0],
+            }
+        ),
         None,
     )
     if match is None:
@@ -2883,7 +4640,10 @@ def show_learning_detail(project_root: Path, *, learning_ref: str) -> dict[str, 
         )
         if candidate_path.is_file():
             detail_path = candidate_path
-            detail_entries = _read_entries_if_present(candidate_path)
+            detail_entries = [
+                _scrub_learning_entry_for_policy(item, policy)
+                for item in _read_entries_if_present(candidate_path)
+            ]
             detail_entry = next(
                 (
                     item
@@ -2909,7 +4669,17 @@ def show_learning_detail(project_root: Path, *, learning_ref: str) -> dict[str, 
     detail_facets = entry.facets if entry and entry.facets else index_entry.facets
     if detail_facets:
         applicability["facets"] = detail_facets
-    return {
+    redaction_labels = (
+        entry.redaction_labels if entry else index_entry.redaction_labels
+    )
+    sensitivity = (
+        SENSITIVITY_SANITIZED
+        if redaction_labels
+        else entry.sensitivity
+        if entry
+        else index_entry.sensitivity
+    )
+    payload = {
         "schema_version": 1,
         "record_schema": ".specify/templates/project-learning-record-schema.json#/$defs/detailRecord",
         "ref": index_entry.recurrence_key,
@@ -2945,9 +4715,24 @@ def show_learning_detail(project_root: Path, *, learning_ref: str) -> dict[str, 
             "injection_targets": entry.injection_targets if entry else [],
             "promotion_hint": entry.promotion_hint if entry else "",
         },
-        "detail_path": str(detail_path) if detail_path else None,
-        "warnings": list(diagnostics.get("warnings", [])),
+        "content_safety": {
+            "sensitivity": sensitivity,
+            "redaction_labels": redaction_labels,
+        },
+        "detail_path": (
+            _safe_project_relative_ref(project_root, detail_path)
+            if detail_path
+            else None
+        ),
+        "warnings": [
+            *list(diagnostics.get("warnings", [])),
+            *policy_result.warnings,
+        ],
     }
+    assessment = entry.assessment_payload() if entry else index_entry.assessment_payload()
+    if assessment is not None:
+        payload["assessment"] = assessment
+    return _sanitize_detail_for_policy(payload, policy)
 
 
 def start_learning_session(
@@ -2959,16 +4744,137 @@ def start_learning_session(
     """Return the compact, read-only Learning intake for one workflow."""
 
     paths = build_learning_paths(project_root)
-    normalized_command = normalize_command_name(command_name)
+    policy = load_learning_policy(project_root, for_write=False).policy
+    normalized_command = _safe_review_command(command_name, policy)
     catalog = list_learning_summaries(
         project_root,
         command_name=normalized_command,
         task_context=task_context,
-        limit=20,
+        include_all=True,
+    )
+    ranked_items = list(catalog["items"])
+    stable_items = [
+        item for item in ranked_items if item.get("source_layer") != "candidate"
+    ]
+    candidate_items = [
+        item for item in ranked_items if item.get("source_layer") == "candidate"
+    ]
+    candidate_sources = {
+        _canonicalize_recurrence_key(entry.recurrence_key, policy=policy)[
+            0
+        ]: _safe_review_command(entry.source_command, policy)
+        for entry in _read_entries_if_present(paths.candidates)
+    }
+
+    def intake_rank(item: Mapping[str, Any]) -> tuple[int, int, int, int, int, str]:
+        context_match = item.get("context_match")
+        context = context_match if isinstance(context_match, Mapping) else {}
+        assessment = item.get("assessment")
+        value = assessment.get("learning_value") if isinstance(assessment, Mapping) else {}
+        tier = value.get("tier") if isinstance(value, Mapping) else ""
+        value_rank = {"high": 0, "medium": 1, "low": 2}.get(str(tier), 3)
+        signal_rank = {"high": 0, "medium": 1, "low": 2}.get(
+            str(item.get("signal") or ""), 3
+        )
+        return (
+            -int(bool(context.get("exact_operation_owner"))),
+            -int(context.get("matched_dimensions") or 0),
+            -int(context.get("matched_values") or 0),
+            value_rank,
+            signal_rank - int(item.get("occurrences") or 0),
+            str(item.get("ref") or ""),
+        )
+
+    stable_items.sort(key=intake_rank)
+    candidate_items.sort(key=intake_rank)
+
+    def select_diverse_candidates(
+        items: list[dict[str, Any]], limit: int
+    ) -> list[dict[str, Any]]:
+        selected: list[dict[str, Any]] = []
+        selected_refs: set[str] = set()
+        type_counts: dict[str, int] = {}
+        source_counts: dict[str, int] = {}
+        family_counts: dict[str, int] = {}
+
+        def try_select(*, enforce_source: bool, enforce_family: bool) -> None:
+            for item in items:
+                if len(selected) >= limit:
+                    return
+                ref = str(item.get("ref") or "")
+                if ref in selected_refs:
+                    continue
+                learning_type = str(item.get("type") or "")
+                source = candidate_sources.get(ref, "")
+                suffix = ref.split(".", 1)[-1]
+                family = f"{learning_type}:{suffix.split('-', 1)[0]}"
+                if type_counts.get(learning_type, 0) >= 2:
+                    continue
+                if enforce_source and source_counts.get(source, 0) >= 2:
+                    continue
+                if enforce_family and family_counts.get(family, 0) >= 2:
+                    continue
+                selected.append(item)
+                selected_refs.add(ref)
+                type_counts[learning_type] = type_counts.get(learning_type, 0) + 1
+                source_counts[source] = source_counts.get(source, 0) + 1
+                family_counts[family] = family_counts.get(family, 0) + 1
+
+        try_select(enforce_source=True, enforce_family=True)
+        try_select(enforce_source=False, enforce_family=True)
+        if len(selected) < limit:
+            for item in items:
+                ref = str(item.get("ref") or "")
+                if ref not in selected_refs:
+                    selected.append(item)
+                    selected_refs.add(ref)
+                    if len(selected) >= limit:
+                        break
+        return selected
+
+    selected_stable = stable_items[:15]
+    selected_candidates = select_diverse_candidates(candidate_items, 5)
+    stable_gap = 15 - len(selected_stable)
+    candidate_gap = 5 - len(selected_candidates)
+    if stable_gap > 0:
+        selected_candidates = select_diverse_candidates(candidate_items, 5 + stable_gap)
+    if candidate_gap > 0:
+        selected_stable.extend(stable_items[15 : 15 + candidate_gap])
+    selected_items = [*selected_stable, *selected_candidates][:20]
+    pagination = dict(catalog["pagination"])
+    next_argv = None
+    if len(ranked_items) > len(selected_items):
+        safe_context = _sanitize_learning_facets(task_context, policy=policy)
+        next_argv = [
+            "specify",
+            "learning",
+            "list",
+            "--command",
+            normalized_command,
+            "--cursor",
+            "0",
+            "--limit",
+            "50",
+            "--format",
+            "json",
+        ]
+        next_argv.extend(_learning_context_argv(safe_context))
+    pagination.update(
+        {
+            "cursor": 0,
+            "limit": 20,
+            "returned": len(selected_items),
+            "total": len(ranked_items),
+            "next_cursor": 0 if next_argv else None,
+            "next_argv": next_argv,
+        }
     )
     candidates = [
         entry
-        for entry in _read_entries_if_present(paths.candidates)
+        for entry in (
+            _scrub_learning_entry_for_policy(item, policy)
+            for item in _read_entries_if_present(paths.candidates)
+        )
         if is_relevant_to_command(entry, normalized_command)
     ]
     payload = {
@@ -2977,12 +4883,14 @@ def start_learning_session(
         "command": normalized_command,
         "policy": learning_workflow_policy(normalized_command),
         "read_only": True,
-        "items": catalog["items"],
-        "pagination": catalog["pagination"],
+        "items": selected_items,
+        "pagination": pagination,
         "promotion_ready": [
             {
-                "ref": entry.recurrence_key,
-                "summary": entry.summary,
+                "ref": _canonicalize_recurrence_key(
+                    entry.recurrence_key, policy=policy
+                )[0],
+                "summary": sanitize_agent_text(entry.summary, policy=policy)[0],
                 "occurrences": entry.occurrence_count,
             }
             for entry in candidates
@@ -2990,8 +4898,10 @@ def start_learning_session(
         ],
         "needs_confirmation": [
             {
-                "ref": entry.recurrence_key,
-                "summary": entry.summary,
+                "ref": _canonicalize_recurrence_key(
+                    entry.recurrence_key, policy=policy
+                )[0],
+                "summary": sanitize_agent_text(entry.summary, policy=policy)[0],
                 "signal": entry.signal_strength,
             }
             for entry in candidates
@@ -3031,35 +4941,85 @@ def capture_learning(
     exceptions: Iterable[str] | None = None,
     facets: Mapping[str, Iterable[str]] | None = None,
 ) -> dict[str, Any]:
-    entry = build_learning_entry(
-        command_name=command_name,
-        learning_type=learning_type,
-        summary=summary,
-        evidence=evidence,
-        recurrence_key=recurrence_key,
-        signal_strength=signal_strength,
-        applies_to=applies_to,
-        default_scope=default_scope,
-        status="confirmed" if confirm else "candidate",
-        pain_score=pain_score,
-        false_starts=false_starts,
-        rejected_paths=rejected_paths,
-        decisive_signal=decisive_signal,
-        root_cause_family=root_cause_family,
-        injection_targets=injection_targets,
-        promotion_hint=promotion_hint,
-        problem=problem,
-        recommended_action=recommended_action,
-        avoid=avoid,
-        trigger_signals=trigger_signals,
-        success_criteria=success_criteria,
-        exceptions=exceptions,
-        facets=facets,
+    policy = load_learning_policy(project_root, for_write=True).policy
+    normalized_type = normalize_learning_type(learning_type)
+    safe_summary, _summary_labels = sanitize_agent_text(summary, policy=policy)
+    normalized_recurrence, _recurrence_labels = _canonicalize_recurrence_key(
+        recurrence_key or derive_recurrence_key(normalized_type, safe_summary),
+        policy=policy,
     )
-
     with interprocess_lock(_learning_lock_path(project_root)):
         paths = _ensure_learning_files_unlocked(project_root)
-        return _store_learning_entry(paths, entry, confirm=confirm)
+        occurrences = _existing_occurrence_count(paths, normalized_recurrence) + 1
+        entry = build_learning_entry(
+            command_name=command_name,
+            learning_type=normalized_type,
+            summary=summary,
+            evidence=evidence,
+            recurrence_key=normalized_recurrence,
+            signal_strength=signal_strength,
+            applies_to=applies_to,
+            default_scope=default_scope,
+            status="confirmed" if confirm else "candidate",
+            pain_score=pain_score,
+            false_starts=false_starts,
+            rejected_paths=rejected_paths,
+            decisive_signal=decisive_signal,
+            root_cause_family=root_cause_family,
+            injection_targets=injection_targets,
+            promotion_hint=promotion_hint,
+            problem=problem,
+            recommended_action=recommended_action,
+            avoid=avoid,
+            trigger_signals=trigger_signals,
+            success_criteria=success_criteria,
+            exceptions=exceptions,
+            facets=facets,
+            assessment_source="manual",
+            assessment_occurrences=occurrences,
+            policy=policy,
+        )
+        entry = _scrub_learning_entry_for_policy(entry, policy)
+        if entry.assessment_decision == "defer":
+            _record_review_state_unlocked(
+                project_root,
+                command_name=entry.source_command,
+                decision="deferred",
+                rationale=entry.assessment_reason,
+                trigger_signals=entry.trigger_signals,
+                recurrence_key=entry.recurrence_key,
+                policy=policy,
+            )
+            _record_learning_metric_unlocked(project_root, entry)
+            return {
+                "status": "deferred",
+                "entry": entry.to_payload(),
+                "assessment": entry.assessment_payload(),
+                "needs_confirmation": False,
+            }
+        stored = _store_learning_entry(
+            paths, entry, confirm=confirm, policy=policy
+        )
+        _record_learning_metric_unlocked(project_root, entry, confirmed=confirm)
+        _clear_matching_review_state_unlocked(project_root, entry)
+        stored["assessment"] = entry.assessment_payload()
+        return stored
+
+
+def _existing_occurrence_count(paths: LearningPaths, recurrence_key: str) -> int:
+    return max(
+        (
+            entry.occurrence_count
+            for path in (
+                paths.candidates,
+                paths.confirmed_learnings,
+                paths.project_rules,
+            )
+            for entry in _read_entries_if_present(path)
+            if entry.recurrence_key == recurrence_key
+        ),
+        default=0,
+    )
 
 
 def _store_learning_entry(
@@ -3067,10 +5027,16 @@ def _store_learning_entry(
     entry: LearningEntry,
     *,
     confirm: bool,
+    policy: LearningPolicy | None = None,
 ) -> dict[str, Any]:
-
+    active_policy = policy or default_learning_policy()
+    entry = _scrub_learning_entry_for_policy(entry, active_policy)
     if confirm:
         preamble, learning_entries = _read_entries(paths.confirmed_learnings)
+        learning_entries = [
+            _scrub_learning_entry_for_policy(item, active_policy)
+            for item in learning_entries
+        ]
         learning_entries, stored = _upsert_entry(
             learning_entries, entry, status="confirmed"
         )
@@ -3080,6 +5046,10 @@ def _store_learning_entry(
             learning_entries,
         )
         candidate_preamble, candidate_entries = _read_entries(paths.candidates)
+        candidate_entries = [
+            _scrub_learning_entry_for_policy(item, active_policy)
+            for item in candidate_entries
+        ]
         candidate_entries = _remove_by_recurrence(
             candidate_entries, stored.recurrence_key
         )
@@ -3091,17 +5061,24 @@ def _store_learning_entry(
         _append_review_note(
             paths.review,
             f"confirmed `{stored.recurrence_key}` from `{stored.source_command}`",
+            policy=active_policy,
         )
-        stored_index, detail_path = _sync_learning_index_detail(paths, stored)
+        stored_index, detail_path = _sync_learning_index_detail(
+            paths, stored, policy=active_policy
+        )
         return {
             "status": "confirmed",
             "entry": stored.to_payload(),
             "index_entry": stored_index.to_payload(),
-            "detail_path": str(detail_path),
+            "detail_path": _detail_path_response(paths, detail_path),
             "needs_confirmation": False,
         }
 
     preamble, candidate_entries = _read_entries(paths.candidates)
+    candidate_entries = [
+        _scrub_learning_entry_for_policy(item, active_policy)
+        for item in candidate_entries
+    ]
     candidate_entries, stored = _upsert_entry(
         candidate_entries, entry, status="candidate"
     )
@@ -3113,13 +5090,16 @@ def _store_learning_entry(
     _append_review_note(
         paths.review,
         f"captured candidate `{stored.recurrence_key}` from `{stored.source_command}`",
+        policy=active_policy,
     )
-    stored_index, detail_path = _sync_learning_index_detail(paths, stored)
+    stored_index, detail_path = _sync_learning_index_detail(
+        paths, stored, policy=active_policy
+    )
     return {
         "status": "candidate",
         "entry": stored.to_payload(),
         "index_entry": stored_index.to_payload(),
-        "detail_path": str(detail_path),
+        "detail_path": _detail_path_response(paths, detail_path),
         "needs_confirmation": is_highest_signal(stored),
     }
 
@@ -3131,61 +5111,93 @@ def capture_auto_learning(
     feature_dir: Path | None = None,
     workspace: Path | None = None,
     session_file: Path | None = None,
+    dry_run: bool = False,
 ) -> dict[str, Any]:
+    policy_result = load_learning_policy(project_root, for_write=True)
+    policy = policy_result.policy
     normalized_command = normalize_command_name(command_name)
     if normalized_command == "sp-implement":
         if feature_dir is None:
             raise ValueError("feature_dir is required for implement auto-capture")
-        source_path, suggestions = _suggest_implement_auto_capture(feature_dir)
+        feature_dir = _ensure_project_contained_path(
+            project_root, feature_dir, "feature_dir"
+        )
+        source_path, suggestions = _suggest_implement_auto_capture(
+            feature_dir,
+            feature_ref=_safe_project_relative_ref(project_root, feature_dir),
+        )
     elif normalized_command == "sp-quick":
         if workspace is None:
             raise ValueError("workspace is required for quick auto-capture")
-        source_path, suggestions = _suggest_quick_auto_capture(workspace)
+        workspace = _ensure_project_contained_path(project_root, workspace, "workspace")
+        source_path, suggestions = _suggest_quick_auto_capture(
+            workspace,
+            workspace_ref=_safe_project_relative_ref(project_root, workspace),
+        )
     elif normalized_command in WORKFLOW_STATE_AUTO_CAPTURE_COMMANDS:
         if feature_dir is None:
             raise ValueError("feature_dir is required for workflow-state auto-capture")
+        feature_dir = _ensure_project_contained_path(
+            project_root, feature_dir, "feature_dir"
+        )
         source_path, suggestions = _suggest_workflow_state_auto_capture(
             feature_dir,
             command_name=normalized_command,
+            feature_ref=_safe_project_relative_ref(project_root, feature_dir),
         )
     elif normalized_command == "sp-debug":
         if session_file is None:
             raise ValueError("session_file is required for debug auto-capture")
-        source_path, suggestions = _suggest_debug_auto_capture(session_file)
+        session_file = _ensure_project_contained_path(
+            project_root, session_file, "session_file"
+        )
+        source_path, suggestions = _suggest_debug_auto_capture(
+            session_file,
+            session_ref=_safe_project_relative_ref(project_root, session_file),
+        )
     else:
         raise ValueError(f"auto-capture is unsupported for '{command_name}'")
 
+    safe_source_path = sanitize_agent_text(
+        _safe_project_relative_ref(project_root, source_path), policy=policy
+    )[0]
     if not suggestions:
+        if dry_run:
+            return {
+                "status": "dry-run",
+                "dry_run": True,
+                "command": normalized_command,
+                "source_path": safe_source_path,
+                "assessed": [],
+                "captured": [],
+                "warnings": list(policy_result.warnings),
+            }
         return {
             "status": "no-op",
             "command": normalized_command,
-            "source_path": str(source_path),
+            "source_path": safe_source_path,
             "captured": [],
             "reason": "no high-signal auto-capture patterns matched the current state",
         }
 
-    fingerprint = _snapshot_fingerprint(normalized_command, source_path, suggestions)
-    with interprocess_lock(_learning_lock_path(project_root)):
-        paths = _ensure_learning_files_unlocked(project_root)
-        registry = _load_auto_capture_registry(project_root)
-        if fingerprint in registry:
-            return {
-                "status": "duplicate-snapshot",
-                "command": normalized_command,
-                "source_path": str(source_path),
-                "captured": [],
-                "reason": "this workflow state snapshot was already auto-captured",
-                "fingerprint": fingerprint,
-            }
+    fingerprint = _snapshot_fingerprint(
+        normalized_command, safe_source_path, suggestions, policy=policy
+    )
 
-        captured: list[dict[str, Any]] = []
+    def assess_suggestions(paths: LearningPaths) -> tuple[list[LearningEntry], list[dict[str, Any]]]:
+        entries: list[LearningEntry] = []
+        assessed: list[dict[str, Any]] = []
         for suggestion in suggestions:
+            recurrence_key, _labels = _canonicalize_recurrence_key(
+                suggestion.recurrence_key, policy=policy
+            )
+            occurrences = _existing_occurrence_count(paths, recurrence_key) + 1
             entry = build_learning_entry(
                 command_name=normalized_command,
                 learning_type=suggestion.learning_type,
                 summary=suggestion.summary,
                 evidence=suggestion.evidence,
-                recurrence_key=suggestion.recurrence_key,
+                recurrence_key=recurrence_key,
                 signal_strength=suggestion.signal_strength,
                 applies_to=suggestion.applies_to,
                 status="candidate",
@@ -3195,27 +5207,101 @@ def capture_auto_learning(
                 success_criteria=suggestion.success_criteria,
                 avoid=suggestion.avoid,
                 exceptions=suggestion.exceptions,
+                assessment_source="auto",
+                assessment_occurrences=occurrences,
+                policy=policy,
             )
-            captured.append(_store_learning_entry(paths, entry, confirm=False))
+            entry = _scrub_learning_entry_for_policy(entry, policy)
+            entries.append(entry)
+            assessed.append(
+                {
+                    "type": entry.learning_type,
+                    "summary": entry.summary,
+                    "action": entry.recommended_action,
+                    "recurrence_key": entry.recurrence_key,
+                    "assessment": entry.assessment_payload(),
+                }
+            )
+        return entries, assessed
+
+    if dry_run:
+        paths = build_learning_paths(project_root)
+        _entries, assessed = assess_suggestions(paths)
+        return {
+            "status": "dry-run",
+            "dry_run": True,
+            "command": normalized_command,
+            "source_path": safe_source_path,
+            "assessed": assessed,
+            "captured": [],
+            "fingerprint": fingerprint,
+            "warnings": list(policy_result.warnings),
+        }
+
+    with interprocess_lock(_learning_lock_path(project_root)):
+        paths = _ensure_learning_files_unlocked(project_root)
+        registry = _load_auto_capture_registry(project_root)
+        registry, registry_changed = _normalize_auto_capture_registry(
+            project_root, registry, policy=policy
+        )
+        if registry_changed:
+            _write_auto_capture_registry(project_root, registry)
+        if fingerprint in registry:
+            return {
+                "status": "duplicate-snapshot",
+                "command": normalized_command,
+                "source_path": safe_source_path,
+                "captured": [],
+                "reason": "this workflow state snapshot was already auto-captured",
+                "fingerprint": fingerprint,
+            }
+
+        entries, assessed = assess_suggestions(paths)
+        captured: list[dict[str, Any]] = []
+        for entry in entries:
+            _record_learning_metric_unlocked(project_root, entry)
+            if entry.assessment_decision in {"capture-safe", "capture-sanitized"}:
+                captured.append(
+                    _store_learning_entry(
+                        paths, entry, confirm=False, policy=policy
+                    )
+                )
+                _clear_matching_review_state_unlocked(project_root, entry)
+            elif entry.assessment_decision == "defer":
+                _record_review_state_unlocked(
+                    project_root,
+                    command_name=entry.source_command,
+                    decision="deferred",
+                    rationale=entry.assessment_reason,
+                    trigger_signals=entry.trigger_signals,
+                    recurrence_key=entry.recurrence_key,
+                    policy=policy,
+                )
 
         registry[fingerprint] = {
             "command": normalized_command,
-            "source_path": str(source_path),
-            "recurrence_keys": [item["entry"]["recurrence_key"] for item in captured],
-            "captured_entries": [item["entry"] for item in captured],
+            "source_ref": safe_source_path,
+            "recurrence_keys": [entry.recurrence_key for entry in entries],
             "captured_at": now_iso(),
         }
         _write_auto_capture_registry(project_root, registry)
         _append_review_note(
             paths.review,
-            f"auto-captured {len(captured)} learning candidate(s) from `{normalized_command}` using `{source_path}`",
+            f"auto-captured {len(captured)} learning candidate(s) from `{normalized_command}` using `{safe_source_path}`",
+            policy=policy,
         )
         return {
-            "status": "captured",
+            "status": "captured"
+            if captured
+            else "deferred"
+            if any(entry.assessment_decision == "defer" for entry in entries)
+            else "no-op",
             "command": normalized_command,
-            "source_path": str(source_path),
+            "source_path": safe_source_path,
             "captured": captured,
+            "assessed": assessed,
             "fingerprint": fingerprint,
+            "warnings": list(policy_result.warnings),
         }
 
 
@@ -3225,20 +5311,32 @@ def promote_learning(
     recurrence_key: str,
     target: str,
 ) -> dict[str, Any]:
+    policy = load_learning_policy(project_root, for_write=True).policy
     normalized_target = target.strip().lower()
     if normalized_target not in PROMOTION_TARGETS:
         raise ValueError(f"unsupported promotion target '{target}'")
-    normalized_recurrence_key = str(recurrence_key or "").strip().lower()
+    normalized_recurrence_key, _labels = _canonicalize_recurrence_key(
+        str(recurrence_key or ""), policy=policy
+    )
     if not normalized_recurrence_key:
         raise ValueError("learning recurrence_key is required")
 
     with interprocess_lock(_learning_lock_path(project_root)):
         paths = _ensure_learning_files_unlocked(project_root)
-        return _promote_learning_locked(
+        result = _promote_learning_locked(
             paths,
             recurrence_key=normalized_recurrence_key,
             normalized_target=normalized_target,
+            policy=policy,
         )
+        promoted_entry = LearningEntry.from_payload(result["entry"])
+        _clear_matching_review_state_unlocked(project_root, promoted_entry)
+        _record_promotion_metric_unlocked(
+            project_root,
+            promoted_entry.source_command,
+            target=normalized_target,
+        )
+        return result
 
 
 def _promote_learning_locked(
@@ -3246,11 +5344,24 @@ def _promote_learning_locked(
     *,
     recurrence_key: str,
     normalized_target: str,
+    policy: LearningPolicy | None = None,
 ) -> dict[str, Any]:
-
+    active_policy = policy or default_learning_policy()
     candidate_preamble, candidate_entries = _read_entries(paths.candidates)
     learning_preamble, learning_entries = _read_entries(paths.confirmed_learnings)
     rule_preamble, rule_entries = _read_entries(paths.project_rules)
+    candidate_entries = [
+        _scrub_learning_entry_for_policy(item, active_policy)
+        for item in candidate_entries
+    ]
+    learning_entries = [
+        _scrub_learning_entry_for_policy(item, active_policy)
+        for item in learning_entries
+    ]
+    rule_entries = [
+        _scrub_learning_entry_for_policy(item, active_policy)
+        for item in rule_entries
+    ]
 
     source_entry = next(
         (
@@ -3279,6 +5390,11 @@ def _promote_learning_locked(
         source_layer = "project_rules"
     if source_entry is None:
         raise ValueError(f"learning '{recurrence_key}' not found")
+    if normalized_target == "rule" and source_layer == "candidates":
+        raise ValueError(
+            "candidate learning must be confirmed before promotion to project rule"
+        )
+    source_entry.last_seen = now_iso()
 
     if normalized_target == "learning":
         source_entry.status = "confirmed"
@@ -3299,13 +5415,16 @@ def _promote_learning_locked(
         _append_review_note(
             paths.review,
             f"promoted `{recurrence_key}` to project learnings from `{source_layer}`",
+            policy=active_policy,
         )
-        stored_index, detail_path = _sync_learning_index_detail(paths, stored)
+        stored_index, detail_path = _sync_learning_index_detail(
+            paths, stored, policy=active_policy
+        )
         return {
             "status": "confirmed",
             "entry": stored.to_payload(),
             "index_entry": stored_index.to_payload(),
-            "detail_path": str(detail_path),
+            "detail_path": _detail_path_response(paths, detail_path),
         }
 
     source_entry.status = "promoted-rule"
@@ -3330,13 +5449,16 @@ def _promote_learning_locked(
     _append_review_note(
         paths.review,
         f"promoted `{recurrence_key}` to project rules from `{source_layer}`",
+        policy=active_policy,
     )
-    stored_index, detail_path = _sync_learning_index_detail(paths, stored)
+    stored_index, detail_path = _sync_learning_index_detail(
+        paths, stored, policy=active_policy
+    )
     return {
         "status": "promoted-rule",
         "entry": stored.to_payload(),
         "index_entry": stored_index.to_payload(),
-        "detail_path": str(detail_path),
+        "detail_path": _detail_path_response(paths, detail_path),
     }
 
 
@@ -3360,10 +5482,246 @@ def _entry_counts(project_root: Path) -> dict[str, int]:
     }
 
 
+def learning_review_status(
+    project_root: Path,
+    *,
+    command_name: str | None = None,
+    current_time: datetime | None = None,
+) -> dict[str, Any]:
+    """Return the durable pending-review queue without mutating or aging storage."""
+
+    policy_result = load_learning_policy(project_root, for_write=False)
+    normalized_command = (
+        _safe_review_command(command_name, policy_result.policy)
+        if command_name
+        else None
+    )
+    now = (current_time or datetime.now(tz=UTC)).astimezone(UTC)
+    now_text = now.replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    items = _load_review_items(
+        project_root,
+        policy=policy_result.policy,
+        include_legacy=True,
+        fallback_now=now_text,
+    )
+    if normalized_command:
+        items = [item for item in items if item["command"] == normalized_command]
+    age_buckets = {
+        "not_due": 0,
+        "due_0_7_days": 0,
+        "due_8_30_days": 0,
+        "due_over_30_days": 0,
+    }
+    overdue = 0
+    for item in items:
+        review_after = datetime.fromisoformat(
+            item["review_after"].replace("Z", "+00:00")
+        )
+        due = now >= review_after
+        if not due:
+            age_buckets["not_due"] += 1
+        else:
+            overdue += 1
+            due_days = max(0, int((now - review_after).total_seconds() // 86400))
+            if due_days <= 7:
+                age_buckets["due_0_7_days"] += 1
+            elif due_days <= 30:
+                age_buckets["due_8_30_days"] += 1
+            else:
+                age_buckets["due_over_30_days"] += 1
+    return {
+        "schema_version": 1,
+        "read_only": True,
+        "command": normalized_command,
+        "pending": len(items),
+        "overdue": overdue,
+        "age_buckets": age_buckets,
+        "warnings": list(policy_result.warnings),
+    }
+
+
+def _durable_learning_entries(project_root: Path) -> list[LearningEntry]:
+    paths = build_learning_paths(project_root)
+    return [
+        entry
+        for path in (
+            paths.candidates,
+            paths.confirmed_learnings,
+            paths.project_rules,
+        )
+        for entry in _read_entries_if_present(path)
+    ]
+
+
+def review_learning(
+    project_root: Path,
+    *,
+    command_name: str,
+    decision: str,
+    rationale: str = "",
+    recurrence_key: str = "",
+) -> dict[str, Any]:
+    """Persist or close one explicit Learning review decision."""
+
+    policy = load_learning_policy(project_root, for_write=True).policy
+    command = _safe_review_command(command_name, policy)
+    normalized_decision = str(decision or "").strip().lower()
+    if normalized_decision not in _REVIEW_DECISIONS:
+        raise ValueError("unsupported Project Learning review decision")
+    safe_rationale, _labels = sanitize_agent_text(rationale, policy=policy)
+    if normalized_decision in _PENDING_REVIEW_DECISIONS and not safe_rationale:
+        raise ValueError(
+            f"learning review decision `{normalized_decision}` requires a rationale"
+        )
+    safe_recurrence, _recurrence_labels = _canonicalize_recurrence_key(
+        recurrence_key, policy=policy
+    )
+    with interprocess_lock(_learning_lock_path(project_root)):
+        pending = _load_review_items(
+            project_root, policy=policy, include_legacy=True
+        )
+        command_pending = [item for item in pending if item["command"] == command]
+        if normalized_decision == "none":
+            if command_pending:
+                raise ValueError(
+                    "pending Project Learning review cannot be closed with decision `none`"
+                )
+            return {
+                "status": "ok",
+                "command": command,
+                "decision": normalized_decision,
+                "rationale": safe_rationale,
+            }
+        if normalized_decision in _PENDING_REVIEW_DECISIONS:
+            item = _record_review_state_unlocked(
+                project_root,
+                command_name=command,
+                decision=normalized_decision,
+                rationale=safe_rationale,
+                recurrence_key=safe_recurrence,
+                policy=policy,
+            )
+            return {"status": "pending", "item": item}
+
+        scrubbed_durable_entries = [
+            _scrub_learning_entry_for_policy(entry, policy)
+            for entry in _durable_learning_entries(project_root)
+        ]
+        durable_entries = [
+            entry
+            for entry in scrubbed_durable_entries
+            if entry.source_command == command or command in entry.applies_to
+        ]
+
+        def fresh_entry_for(recurrence: str) -> LearningEntry | None:
+            relevant_pending = [
+                item
+                for item in command_pending
+                if not item["recurrence_key"]
+                or item["recurrence_key"] == recurrence
+            ]
+            return next(
+                (
+                    entry
+                    for entry in durable_entries
+                    if (not recurrence or entry.recurrence_key == recurrence)
+                    and (
+                        not relevant_pending
+                        or all(
+                            _entry_seen_after(entry, item["created_at"])
+                            for item in relevant_pending
+                        )
+                    )
+                ),
+                None,
+            )
+
+        matching_entries: list[LearningEntry]
+        if safe_recurrence:
+            matching = fresh_entry_for(safe_recurrence)
+            matching_entries = [matching] if matching is not None else []
+        else:
+            pending_recurrences = sorted(
+                {
+                    item["recurrence_key"]
+                    for item in command_pending
+                    if item["recurrence_key"]
+                }
+            )
+            if pending_recurrences:
+                matching_entries = []
+                for pending_recurrence in pending_recurrences:
+                    matching = fresh_entry_for(pending_recurrence)
+                    if matching is None:
+                        matching_entries = []
+                        break
+                    matching_entries.append(matching)
+            else:
+                matching = fresh_entry_for("")
+                matching_entries = [matching] if matching is not None else []
+
+        if not matching_entries:
+            raise ValueError(
+                "no matching durable Learning capture was found for this review"
+            )
+        for matching_entry in matching_entries:
+            _clear_matching_review_state_unlocked(project_root, matching_entry)
+        response: dict[str, Any] = {
+            "status": "captured",
+            "command": command,
+            "decision": normalized_decision,
+            "recurrence_key": matching_entries[0].recurrence_key,
+        }
+        if len(matching_entries) > 1:
+            response["recurrence_keys"] = [
+                entry.recurrence_key for entry in matching_entries
+            ]
+        return response
+
+
+def learning_metrics_payload(
+    project_root: Path, *, command_name: str | None = None
+) -> dict[str, Any]:
+    """Return aggregate-only assessment metrics; never expose refs or source text."""
+
+    policy_result = load_learning_policy(project_root, for_write=False)
+    normalized_command = (
+        _safe_review_command(command_name, policy_result.policy)
+        if command_name
+        else None
+    )
+    metrics = _load_learning_metrics(project_root)
+    bucket = (
+        metrics["by_command"].get(normalized_command, _empty_metric_bucket())
+        if normalized_command
+        else metrics["global"]
+    )
+    review_status = learning_review_status(
+        project_root, command_name=normalized_command
+    )
+    captured_count = bucket["totals"]["captured"]
+    confirmed_count = bucket["totals"]["confirmed"]
+    confirmation_rate = (
+        min(1.0, confirmed_count / captured_count) if captured_count else 0.0
+    )
+    return {
+        "schema_version": 1,
+        "read_only": True,
+        "command": normalized_command,
+        "metrics": bucket,
+        "derived": {"confirmation_rate": confirmation_rate},
+        "age_buckets": review_status["age_buckets"],
+        "warnings": list(
+            dict.fromkeys([*policy_result.warnings, *review_status["warnings"]])
+        ),
+    }
+
+
 def learning_status_payload(
     project_root: Path,
     *,
     include_runtime: bool = True,
+    command_name: str | None = None,
 ) -> dict[str, Any]:
     paths = build_learning_paths(project_root)
     payload: dict[str, Any] = {
@@ -3382,5 +5740,11 @@ def learning_status_payload(
                 "candidates": paths.candidates.exists(),
                 "review": paths.review.exists(),
             }
+        )
+        payload["review_status"] = learning_review_status(
+            project_root, command_name=command_name
+        )
+        payload["metrics"] = learning_metrics_payload(
+            project_root, command_name=command_name
         )
     return payload

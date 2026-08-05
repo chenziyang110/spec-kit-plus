@@ -41,3 +41,11 @@ func secureProjectPath(projectRoot, relative string) (string, error) {
 	}
 	return target, nil
 }
+
+func secureProjectReadFile(projectRoot, relative string) ([]byte, error) {
+	target, err := secureProjectPath(projectRoot, relative)
+	if err != nil {
+		return nil, err
+	}
+	return os.ReadFile(target)
+}

@@ -7,6 +7,7 @@ from pathlib import Path
 from ..base import IntegrationOption, SkillsIntegration
 from ..manifest import IntegrationManifest
 from ...orchestration import CapabilitySnapshot, describe_delegation_surface
+from .multi_agent import CursorMultiAgentAdapter
 
 
 class CursorAgentIntegration(SkillsIntegration):
@@ -78,17 +79,7 @@ class CursorAgentIntegration(SkillsIntegration):
         )
 
     def _cursor_capability_snapshot(self) -> CapabilitySnapshot:
-        return CapabilitySnapshot(
-            integration_key=self.key,
-            native_subagents=True,
-            managed_team_supported=True,
-            structured_results=True,
-            durable_coordination=False,
-            native_worker_surface="native-cli",
-            delegation_confidence="medium",
-            model_family="cursor",
-            runtime_probe_succeeded=True,
-        )
+        return CursorMultiAgentAdapter().detect_capabilities()
 
     def _runtime_capability_snapshot(self) -> CapabilitySnapshot:
         return self._cursor_capability_snapshot()
@@ -114,6 +105,13 @@ class CursorAgentIntegration(SkillsIntegration):
                 command_name=command_name,
             )
 
+        self._augment_implement_skill(
+            created,
+            project_root,
+            manifest,
+            runtime_skills["implement"],
+            snapshot=self._cursor_capability_snapshot(),
+        )
         self._augment_quick_skill(
             created,
             project_root,
@@ -232,17 +230,18 @@ class CursorAgentIntegration(SkillsIntegration):
                 "Before code edits, test edits, or implementation commands:\n"
                 "- Query `.specify/memory/constitution.md` first through `specify-runtime artifact show` if it exists. This gate comes before `STATUS.md`, clarification, lane selection, delegation, or any repository analysis.\n"
                 "- Create a new quick-task `STATUS.md` only through `specify-runtime artifact scaffold --kind quick-status`, or resume it through targeted `artifact show` calls.\n"
-                "- If `understanding_confirmed` is not `true`, present the Understanding Checkpoint and wait for user confirmation before implementation work.\n"
-                "- The user-facing checkpoint must use the fixed Quick Checkpoint Markdown table with `| Decision to confirm | Current understanding |` and rows for `Request and outcome`, `User-visible result`, `Scope`, `Ordered work items`, `Work-item acceptance`, `Recommended approach`, `Assumptions and risks`, `Completion evidence`, and `Reconfirmation trigger`. Use stable Q1/Q2 ids for one or many deliverables and confirm only deliverable-level order; internal implementation sequencing stays agent-owned, and prose bullets or partial field lists are not sufficient. For applicable UI work, append the independent UI Confirmation card and ask once for both decisions.\n"
-                "- Do not proceed to code edits, broad repository analysis, delegation, or validation commands until `understanding_confirmed: true` has been persisted in `STATUS.md` through a fresh `specify-runtime artifact patch` lease.\n"
+                "- If `understanding_confirmed` is not `true`, stage the runtime Decision Checkpoint with `specify-runtime quick checkpoint-stage`, show `--view decision` and `--view delivery`, and wait for user confirmation (or inherit a discussion digest with no semantic delta) before implementation work.\n"
+                "- The user-facing surface is the runtime Decision Checkpoint plus Delivery Map/Pulse, not a freeform two-column approval table. Confirm only user-owned goal, visible result, scope, stable Q1/Q2 deliverables, product-level dependencies, per-item acceptance, risks, and reconfirmation trigger. Delivery Map waves, subagents, file splits, and test order stay agent-owned and never enter `confirmation_digest`. For applicable UI work, include `ui_confirmation` and ask once for both decisions.\n"
+                "- Do not proceed to code edits, broad repository analysis, delegation, or validation commands until `understanding_confirmed: true` has been set by `quick checkpoint-confirm` / inherited stage (or an equivalent leased frontmatter patch).\n"
+                "- Compile and gate Q items with `quick packet-compile --item Qn`, `quick item-start --item Qn`, and `quick item-accept --item Qn --evidence ...`. Runtime rejects dependent starts before prerequisites are accepted.\n"
                 "- Do **not** perform broad repository analysis, implementation design, or local deep-dive debugging before targeted `specify-runtime artifact show` reports CLI-owned `STATUS.md` has `understanding_confirmed: true` and the first subagent lane is selected.\n"
                 "- After understanding is confirmed, define the smallest safe delegated lane or ready batch.\n"
-                "- Dispatch `one-subagent` or `parallel-subagents` only after the Understanding Checkpoint is confirmed.\n"
+                "- Dispatch `one-subagent` or `parallel-subagents` only after the Decision Checkpoint is confirmed or inherited.\n"
                 "- Use Cursor's native subagent path when available.\n"
                 "- If two or more safe subagent lanes would materially improve throughput, launch them in parallel instead of serializing them without a concrete coordination reason.\n"
                 "- After understanding is confirmed and the first lane is defined, the next concrete action must be dispatch, not additional leader-inline repo exploration.\n"
                 "- If a subagent lane is active, use the current join point to integrate results back into `STATUS.md` before selecting the next action.\n"
-                "- Use `leader-inline-fallback` only after native subagents and the managed-team path are unavailable or unsafe, and patch the fallback reason into `STATUS.md` through a fresh `specify-runtime artifact patch` lease.\n"
+                "- Use `leader-inline-fallback` only when the selected native lane cannot proceed and local execution is independently safe; do not require or invoke `managed-team`/`sp-teams` unless durable execution was explicitly selected. Patch the fallback reason into `STATUS.md` through a fresh `specify-runtime artifact patch` lease.\n"
                 "\n"
                 "**Hard rule:** The leader must keep scope control, dispatch-shape selection, join-point handling, validation, summary ownership, and `STATUS.md` accuracy while subagent execution is active. Local execution is the last fallback.\n"
             )
@@ -267,9 +266,9 @@ class CursorAgentIntegration(SkillsIntegration):
             "\n"
             "## Cursor Subagent Execution\n\n"
             "When running `sp-quick` in Cursor, start execution routing only after targeted `specify-runtime artifact show` reports that CLI-owned `STATUS.md` has `understanding_confirmed: true`.\n"
-            "- Understanding checkpoint: before dispatch, render the fixed Quick Checkpoint Markdown table with `| Decision to confirm | Current understanding |` and user-owned rows for request/outcome, visible result, scope, ordered work items, work-item acceptance, recommended approach, assumptions/risks, completion evidence, and reconfirmation trigger. Use stable Q1/Q2 ids for one or many deliverables; append the UI Confirmation proposal when applicable and use one combined confirmation.\n"
+            "- Decision Checkpoint: before dispatch, stage/show the runtime Decision Checkpoint and Delivery Map (`quick checkpoint-stage` / `checkpoint-show`). Confirm only user-owned Q1/Q2 deliverables, dependencies, and acceptance; never ask users to approve subagent/batch/file choreography. Prefer `packet-compile` + `item-start`/`item-accept` for DAG-gated execution.\n"
             "- After understanding is confirmed, define the smallest safe delegated lane or ready batch.\n"
-            "- Dispatch `one-subagent` or `parallel-subagents` only after the Understanding Checkpoint is confirmed.\n"
+            "- Dispatch `one-subagent` or `parallel-subagents` only after the Decision Checkpoint is confirmed or inherited.\n"
             "- Do **not** perform broad repository analysis, implementation design, or local deep-dive debugging before targeted `specify-runtime artifact show` reports CLI-owned `STATUS.md` has `understanding_confirmed: true` and the first subagent lane is selected.\n"
             f"- Use Cursor's native subagent path for bounded lanes when available. {descriptor.native_dispatch_hint}\n"
             "- After understanding is confirmed and the first lane is defined, the next concrete action must be dispatch, not additional leader-inline repo exploration.\n"
@@ -278,7 +277,7 @@ class CursorAgentIntegration(SkillsIntegration):
             "- Keep `.planning/quick/<id>-<slug>/STATUS.md` as the leader-owned source of truth with current focus, `dispatch_shape`, active lane or batch, join point, next action, and blockers.\n"
             "- Subagents may return evidence, patches, and verification output, but they must not become the authority for resume state; the leader patches `STATUS.md` through fresh `specify-runtime artifact patch` leases before and after each join point.\n"
             f"- Join subagent lanes through the integration-native join point: {descriptor.native_join_hint}\n"
-            "- Use `leader-inline-fallback` only after native subagents and the managed-team path are unavailable or unsafe, and patch the fallback reason into `STATUS.md` through a fresh `specify-runtime artifact patch` lease.\n"
+            "- Use `leader-inline-fallback` only when the selected native lane cannot proceed and local execution is independently safe; do not require or invoke `managed-team`/`sp-teams` unless durable execution was explicitly selected. Patch the fallback reason into `STATUS.md` through a fresh `specify-runtime artifact patch` lease.\n"
             f"- Result contract: {descriptor.result_contract_hint}\n"
             f"- Inline result submission: {descriptor.result_submit_hint}\n"
             f"- Runtime-owned compatibility path: `{descriptor.result_handoff_hint}`. The runtime derives and writes it; never create a result file or use `--result-file`.\n"
@@ -309,3 +308,6 @@ class CursorAgentIntegration(SkillsIntegration):
             project_root,
             manifest,
         )
+
+
+__all__ = ["CursorAgentIntegration", "CursorMultiAgentAdapter"]

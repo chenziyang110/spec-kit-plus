@@ -1464,6 +1464,7 @@ func lexiconCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.
 	intent := fs.String("intent", "", "Intent")
 	text := fs.String("query", "", "Query text")
 	limit := fs.Int("limit", 10, "Limit")
+	offset := fs.Int("offset", 0, "Alias catalog offset")
 	mode := fs.String("mode", "", "Lexicon mode")
 	_ = fs.String("format", "json", "Output format")
 	if err := fs.Parse(args); err != nil {
@@ -1473,6 +1474,7 @@ func lexiconCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.
 		Intent: *intent,
 		Query:  *text,
 		Limit:  *limit,
+		Offset: *offset,
 		Mode:   *mode,
 	})
 	return writeCommandResult(stdout, stderr, paths, payload, err)
@@ -1503,22 +1505,57 @@ func queryCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Pa
 	if err != nil {
 		var planErr *query.PlanParseError
 		if errors.As(err, &planErr) {
-			fmt.Fprintf(stderr, "specify-runtime cognition: query plan diagnostics require repair\n")
-			return writeErrorJSON(stdout, map[string]any{
-				"epistemic_contract": query.NewEpistemicContract(),
-				"status":             "error",
-				"readiness":          rt.BlockedReadiness,
-				"errors":             planErr.Errors,
-				"warnings":           planErr.Warnings,
-				"repair_hints":       planErr.RepairHints,
-				"expected_shape":     planErr.ExpectedShape,
-			})
+			return writeQueryPlanDiagnostics(stdout, stderr, planErr)
 		}
 		fmt.Fprintf(stderr, "specify-runtime cognition: %v\n", err)
 		return 1
 	}
-	payload, err := query.Run(paths, query.QueryInput{Intent: *intent, Query: *text, ExpandedQuery: *expanded, Paths: pathHints, Plan: plan, PlanDiagnostics: diagnostics})
-	return writeCommandResult(stdout, stderr, paths, payload, err)
+	payload, err := query.Run(paths, query.QueryInput{
+		Intent:                 *intent,
+		Query:                  *text,
+		ExpandedQuery:          *expanded,
+		Paths:                  pathHints,
+		Plan:                   plan,
+		PlanDiagnostics:        diagnostics,
+		RequireExplicitBinding: true,
+	})
+	if err != nil {
+		var planErr *query.PlanParseError
+		if errors.As(err, &planErr) {
+			return writeQueryPlanDiagnostics(stdout, stderr, planErr)
+		}
+		return writeCommandResult(stdout, stderr, paths, payload, err)
+	}
+	if payload.ResolutionState != query.QueryResolutionResolvedExact && payload.ResolutionState != query.QueryResolutionGreenfield {
+		return writeBlockedJSON(stdout, payload)
+	}
+	return writeJSON(stdout, payload)
+}
+
+func writeQueryPlanDiagnostics(stdout io.Writer, stderr io.Writer, planErr *query.PlanParseError) int {
+	fmt.Fprintln(stderr, "specify-runtime cognition: query plan diagnostics require repair")
+	resolutionState := "invalid_query_plan"
+	for _, message := range planErr.Errors {
+		if strings.HasPrefix(message, "query_plan_binding_required:") {
+			resolutionState = query.QueryResolutionBindingRequired
+			break
+		}
+	}
+	payload := map[string]any{
+		"epistemic_contract": query.NewEpistemicContract(),
+		"status":             "error",
+		"readiness":          rt.BlockedReadiness,
+		"resolution_state":   resolutionState,
+		"errors":             planErr.Errors,
+		"warnings":           planErr.Warnings,
+		"repair_hints":       planErr.RepairHints,
+		"expected_shape":     planErr.ExpectedShape,
+	}
+	if resolutionState == query.QueryResolutionBindingRequired {
+		payload["status"] = "blocked"
+		return writeBlockedJSON(stdout, payload)
+	}
+	return writeErrorJSON(stdout, payload)
 }
 
 func semanticIntakeCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {

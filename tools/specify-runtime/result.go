@@ -122,8 +122,8 @@ func runResultSubmit(args []string, stdout io.Writer) int {
 		return writeResultError(stdout, "usage-error", err.Error())
 	}
 	commandName := strings.TrimSpace(optionValue(args, "--command", ""))
-	if integration == "codex" && strings.ToLower(commandName) != "review" {
-		return writeResultError(stdout, "usage-error", "Codex projects must use `sp-teams submit-result` for runtime-managed result channels.")
+	if integration == "codex" && !usesStageOwnedResultChannel(commandName) {
+		return writeResultError(stdout, "usage-error", "Codex `result submit` is reserved for stage-owned native-lane results. Native implement workers return their result inline for `implement result-merge`; durable team requests use `sp-teams submit-result`.")
 	}
 	resultJSON := strings.TrimSpace(optionValue(args, "--result-json", ""))
 	if hasFlag(args, "--result-file") {
@@ -175,6 +175,15 @@ type resultPathRequest struct {
 	LaneID           string
 }
 
+func usesStageOwnedResultChannel(commandName string) bool {
+	switch strings.ToLower(strings.TrimSpace(commandName)) {
+	case "review", "clarify", "plan", "tasks", "deep-research", "prd-scan", "quick", "debug":
+		return true
+	default:
+		return false
+	}
+}
+
 func buildResultHandoffPath(projectRoot string, request resultPathRequest) (string, error) {
 	commandName := strings.ToLower(strings.TrimSpace(request.CommandName))
 	integrationKey := strings.ToLower(strings.TrimSpace(request.IntegrationKey))
@@ -216,25 +225,6 @@ func buildResultHandoffPath(projectRoot string, request resultPathRequest) (stri
 			return "", err
 		}
 		return resolveProjectContainedPath(projectRoot, filepath.Join(workspace, "worker-results", laneID+".json"))
-	case integrationKey == "codex":
-		if strings.TrimSpace(request.RequestID) == "" {
-			return "", fmt.Errorf("Codex result handoff paths are runtime-managed; pass --request-id <id> or use `sp-teams submit-result --request-id <id> --result-json '<inline-json>'`.")
-		}
-		requestID, err := resultPathSegment(request.RequestID, "request-id")
-		if err != nil {
-			return "", err
-		}
-		return resolveProjectContainedPath(projectRoot, filepath.Join(".specify", "teams", "state", "results", requestID+".json"))
-	case commandName == "implement":
-		featureDir, err := resolveProjectContainedPath(projectRoot, request.FeatureDir)
-		if err != nil || strings.TrimSpace(request.TaskID) == "" {
-			return "", fmt.Errorf("--feature-dir and --task-id are required for implement result handoff")
-		}
-		taskID, err := resultPathSegment(request.TaskID, "task-id")
-		if err != nil {
-			return "", err
-		}
-		return resolveProjectContainedPath(projectRoot, filepath.Join(featureDir, "worker-results", taskID+".json"))
 	case commandName == "quick":
 		workspace, err := resolveProjectContainedPath(projectRoot, request.Workspace)
 		if err != nil || strings.TrimSpace(request.LaneID) == "" {
@@ -258,6 +248,25 @@ func buildResultHandoffPath(projectRoot string, request resultPathRequest) (stri
 			return "", err
 		}
 		return resolveProjectContainedPath(projectRoot, filepath.Join(".planning", "debug", "results", sessionSlug, laneID+".json"))
+	case integrationKey == "codex":
+		if strings.TrimSpace(request.RequestID) == "" {
+			return "", fmt.Errorf("Codex result handoff paths are runtime-managed for durable-team requests; pass --request-id <id> or use `sp-teams submit-result --request-id <id> --result-json '<inline-json>'`.")
+		}
+		requestID, err := resultPathSegment(request.RequestID, "request-id")
+		if err != nil {
+			return "", err
+		}
+		return resolveProjectContainedPath(projectRoot, filepath.Join(".specify", "teams", "state", "results", requestID+".json"))
+	case commandName == "implement":
+		featureDir, err := resolveProjectContainedPath(projectRoot, request.FeatureDir)
+		if err != nil || strings.TrimSpace(request.TaskID) == "" {
+			return "", fmt.Errorf("--feature-dir and --task-id are required for implement result handoff")
+		}
+		taskID, err := resultPathSegment(request.TaskID, "task-id")
+		if err != nil {
+			return "", err
+		}
+		return resolveProjectContainedPath(projectRoot, filepath.Join(featureDir, "worker-results", taskID+".json"))
 	default:
 		return "", fmt.Errorf("Unsupported result command %q.", request.CommandName)
 	}

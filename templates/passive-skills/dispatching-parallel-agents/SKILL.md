@@ -51,18 +51,25 @@ Current routing vocabulary:
    current lanes. Raw task text is not enough and future batches stay unexpanded.
 5. **Dispatch native subagents**: Use `parallel-subagents` on the
    `native-subagents` surface first, such as Codex `spawn_agent`/`wait_agent`,
-   Claude Task, or the active CLI's equivalent. Keep the leader focused on
-   integration and conflict resolution.
+   Cursor `Task` with background execution, Claude Task, or the active CLI's
+   equivalent. Keep the leader focused on integration and conflict resolution.
+   Discover only the dispatch and join operations that the active runtime
+   actually exposes.
 6. **Join on structured handoff**: Each worker must report changed files,
    verification run, failures, open risks, and whether its acceptance target is
-   met. Integrate only after the handoff is specific enough to review.
+   met. Integrate only after the handoff is specific enough to review. An
+   accepted terminal result completes the native lane without a separate cleanup
+   operation; use an exposed interrupt or cancellation operation only for
+   unfinished work. Keep results on the owning workflow's stage channel.
 
 ## Fallbacks
 
-- Use `sp-teams` only when Codex work needs durable team state, result files,
-  explicit join tracking, or lifecycle control beyond one in-session burst.
+- Use `sp-teams` only when Codex work needs durable team state, durable request
+  results, explicit join tracking, or lifecycle control beyond one in-session
+  burst.
 - Use a separate terminal only when the current runtime has no native subagents
-  and no managed-team path can safely represent the lanes.
+  and the owning workflow explicitly permits that local fallback. Do not make
+  local fallback contingent on managed-team availability.
 - If lanes share write state or one fix may resolve the others, keep the work in
   one sequential workflow run until the dependency is clarified.
 

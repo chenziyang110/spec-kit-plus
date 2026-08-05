@@ -1,0 +1,164 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/github/spec-kit-plus/templates/quick-confirmation-schema.json",
+  "title": "quick-confirmation-v1",
+  "type": "object",
+  "required": ["schema", "confirmation_mode", "confirmation_state", "confirmation_digest", "source", "decision", "delivery"],
+  "additionalProperties": false,
+  "properties": {
+    "schema": { "const": "quick-confirmation-v1" },
+    "workspace": { "type": "string" },
+    "confirmation_mode": {
+      "type": "string",
+      "enum": ["full", "inherited", "delta"]
+    },
+    "confirmation_state": {
+      "type": "string",
+      "enum": ["staged", "confirmed", "inherited"]
+    },
+    "confirmation_digest": {
+      "type": "string",
+      "minLength": 64,
+      "maxLength": 64,
+      "description": "SHA-256 over decision fields only. Delivery and execution never enter the digest."
+    },
+    "source": {
+      "type": "object",
+      "required": ["kind", "semantic_delta"],
+      "properties": {
+        "kind": { "type": "string", "enum": ["prompt", "discussion", "delta"] },
+        "discussion_slug": { "type": "string" },
+        "review_digest": { "type": "string" },
+        "semantic_delta": { "type": "boolean" },
+        "delta_summary": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "decision": {
+      "type": "object",
+      "required": [
+        "goal",
+        "user_visible_result",
+        "scope",
+        "items",
+        "reconfirmation_trigger"
+      ],
+      "properties": {
+        "goal": { "type": "string", "minLength": 1 },
+        "user_visible_result": { "type": "string", "minLength": 1 },
+        "scope": {
+          "type": "object",
+          "required": ["include", "exclude"],
+          "properties": {
+            "include": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+            "exclude": { "type": "array", "items": { "type": "string" } },
+            "defer": { "type": "array", "items": { "type": "string" } }
+          },
+          "additionalProperties": false
+        },
+        "items": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["id", "deliverable", "depends_on", "acceptance"],
+            "properties": {
+              "id": { "type": "string", "pattern": "^Q[1-9][0-9]*$" },
+              "deliverable": { "type": "string", "minLength": 1 },
+              "depends_on": {
+                "type": "array",
+                "items": { "type": "string", "pattern": "^Q[1-9][0-9]*$" }
+              },
+              "acceptance": { "type": "string", "minLength": 1 },
+              "write_scope": {
+                "type": "array",
+                "items": { "type": "string" },
+                "description": "Execution-facing write paths. Excluded from confirmation_digest."
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "recommended_approach": { "type": "string" },
+        "assumptions_and_risks": { "type": "array", "items": { "type": "string" } },
+        "completion_evidence": { "type": "array", "items": { "type": "string" } },
+        "reconfirmation_trigger": { "type": "string", "minLength": 1 },
+        "ui_confirmation": { "type": ["object", "null"] },
+        "user_corrections": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": false
+    },
+    "delivery": {
+      "type": "object",
+      "required": ["waves"],
+      "description": "Agent-owned execution projection. Never part of confirmation_digest.",
+      "properties": {
+        "waves": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["id", "item_ids"],
+            "properties": {
+              "id": { "type": "string", "minLength": 1 },
+              "item_ids": {
+                "type": "array",
+                "items": { "type": "string", "pattern": "^Q[1-9][0-9]*$" },
+                "minItems": 1
+              },
+              "parallel": { "type": "boolean" }
+            },
+            "additionalProperties": false
+          }
+        },
+        "join_points": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["after", "starts"],
+            "properties": {
+              "after": { "type": "array", "items": { "type": "string" } },
+              "starts": { "type": "string" },
+              "gate": { "type": "string" }
+            },
+            "additionalProperties": false
+          }
+        },
+        "integration_gate": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "execution": {
+      "type": "object",
+      "description": "Live pulse state. Never part of confirmation_digest.",
+      "properties": {
+        "work_item_status": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["work_item_id", "status"],
+            "properties": {
+              "work_item_id": { "type": "string", "pattern": "^Q[1-9][0-9]*$" },
+              "status": {
+                "type": "string",
+                "enum": ["pending", "ready", "in_progress", "blocked", "accepted"]
+              },
+              "acceptance_evidence": { "type": "array", "items": { "type": "string" } }
+            },
+            "additionalProperties": false
+          }
+        },
+        "active_item_ids": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^Q[1-9][0-9]*$" }
+        },
+        "join_point": { "type": "string" },
+        "blockers": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": false
+    },
+    "staged_at": { "type": "string" },
+    "confirmed_at": { "type": "string" },
+    "updated_at": { "type": "string" }
+  }
+}

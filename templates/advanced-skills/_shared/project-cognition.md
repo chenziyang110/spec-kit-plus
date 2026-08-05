@@ -59,6 +59,14 @@ do not rewrite graph-store metadata by hand.
   `{{specify-subcmd:specify-runtime cognition query --intent <intent> --query-plan <query-plan-json> --format json}}`
   only for unresolved terminology, multilingual intent, or material coverage
   gaps.
+- `query` is an exact binding consumer, not a natural-language search endpoint.
+  Never pass only the raw request or a rewritten sentence. Page through
+  `lexicon --mode catalog` using `catalog_page.next_offset` while
+  `catalog_page.has_more=true`, inspect the semantic cards, copy current
+  `concept_id` values into `selected_concepts`, carry the same
+  `lexicon_generation_id`, and then call `query`. An Agent has not completed
+  semantic resolution until it has bound the request to catalog IDs or exact
+  paths; inability to bind is `insufficient_index`, not an empty success.
 - Treat graph claims as route candidates. The live repository, tests,
   configuration, runtime output, and authoritative docs establish facts.
 

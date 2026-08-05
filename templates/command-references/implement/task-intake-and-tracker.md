@@ -33,4 +33,6 @@ Keep compact agent state with status, current batch/task, next action, completed
 
 On uncertain or terminal-looking resume, treat checked tasks as claims. Run `{{specify-subcmd:specify-runtime implement resume-audit --feature-dir "$FEATURE_DIR" --format json}}` when available and validate result, required consumer evidence, validation, obligations, open gaps, and worker handoff freshness.
 
+If `task-next` or `resume-audit` returns `reason_code: task-reopen-required`, run the supplied `implement task-reopen` action with the reported task/workflow revisions plus explicit reason and evidence. The runtime archives the superseded result and resets only the named task; do not hand-edit canonical files or use generic `workflow reopen` as task repair.
+
 If audit fails, move to recovery/validation and continue from the smallest executable repair. Do not preserve resolved status from appearance alone.

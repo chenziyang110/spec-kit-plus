@@ -1,13 +1,15 @@
 ---
 name: spx-design
-description: Lean design-system workflow for advanced coding models covering new product UI, redesign, rebrand, shared visual language, and root DESIGN.md contract maintenance through the design CLI.
+description: Prompt-routed design-system workflow for advanced coding models that creates, refines, or audits root DESIGN.md, optionally synthesizes references, and hands approved truth to formal or direct delivery consumers.
 ---
 
 # SPX Design
 
 Read `references/project-learning.md` and apply its consume-capture policy.
 Read `references/project-cognition.md`, using cognition intent `plan`, and
-`references/design-contract.md`. Read `references/ui-quality-gate.md`. Read
+`references/task-router.md`, then `references/design-contract.md`. Read
+`references/ui-quality-gate.md`. Read `references/consumer-contract.md` before
+closeout or approval adoption. Read
 `references/consequence-gate.md` when
 shared component state or generated consumers change.
 
@@ -19,7 +21,12 @@ system when an established one can be extended.
 Initialize `.specify/design/design-state.md` through `specify-runtime design preview`, resume it through `artifact show`, and query
 it after interruption or compaction. Persist `active_command: sp-design`,
 `phase_mode: design-only`, current stage, selected mode/direction, approval
-state, lint result, next action, and next command. The `allowed_writes` are only
+state, lint result, next action, and next command. Use
+`specify-runtime artifact patch` to store the canonical
+`task_type: create | refine | audit`, `input_strategy: context | synthesize`,
+and route reason in the design brief; treat any selected mode in derived state
+only as a compatibility projection.
+Resume the stored route before reclassification. The `allowed_writes` are only
 `DESIGN.md`, `.specify/design/design-state.md`,
 `.specify/design/design-brief.md`, `.specify/design/previews/*.html`,
 `.specify/design/previews/*.approval.json`,
@@ -50,7 +57,9 @@ evidence proves `no-ui`, record `design_system_status: not-applicable` with that
 evidence and exit without preview, approval, handoff, `ui-target`, or visual
 comparison; never combine `no-ui` with a visual profile.
 
-When creating a new direction or replacing a bootstrap seed, author
+Every project-wide `refine` that changes approved design truth must create a
+new immutable review round; an export or in-place mutation of the approved
+round is not a substitute. For `create` and those `refine` routes, author
 `.specify/design/previews/round-NN.manifest.json` from
 `{{specify-subcmd:specify-runtime design preview-manifest --profiles <comma-separated-profile-ids> --out .specify/design/previews/round-NN.manifest.json}}`,
 then render it with
@@ -128,9 +137,11 @@ direction artifact does not silently approve a drifted final contract.
 This workflow owns the design-system contract, not production implementation.
 Do not edit application source, tests, or generated component code. Preserve
 useful existing decisions and validate that referenced tokens/components exist
-or are clearly marked planned. Continue feature-specific requirements through
-`$spx-specify` and implementation design/tasks through `$spx-plan` as explicit
-handoffs. The project-level preview owns reusable design decisions; the later
+or are clearly marked planned. Apply `references/consumer-contract.md`: route
+formal adoption through `$spx-specify`, direct delivery through `$spx-quick`,
+and resume an originally blocked workflow only after an audit pass proves its
+existing binding remains exact. A new approval never silently retargets active
+delivery. The project-level preview owns reusable design decisions; the later
 feature-level `ui-target.html` owns one feature's concrete composition. This
 invocation authorizes only this workflow stage; do not invoke another workflow
 in this run.

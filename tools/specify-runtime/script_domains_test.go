@@ -436,10 +436,74 @@ func TestDiscussionBindConsumerWritesDerivedFeaturePointerAndEnablesConsumption(
 	if payload["source_contract"] != ".specify/discussions/"+slug+"/handoff-to-specify.json" {
 		t.Fatalf("consumer source contract = %#v", payload["source_contract"])
 	}
+	env = runScriptDomainEnvelope(t, runDiscussion, []string{
+		"--project-root", root, "bind-consumer", slug,
+		"--feature-dir", featureRel,
+		"--input-json", input,
+	})
+	if env.Status != "ok" {
+		t.Fatalf("idempotent bind consumer = %#v", env)
+	}
 
 	env = runScriptDomainEnvelope(t, runDiscussion, []string{"--project-root", root, "mark-consumed", slug, "--feature-dir", featureRel})
 	if env.Status != "ok" {
 		t.Fatalf("mark consumed from bound pointer = %#v", env)
+	}
+}
+
+func TestDiscussionBindConsumerRejectsFeatureBoundToDifferentDiscussion(t *testing.T) {
+	root := t.TempDir()
+	installScaffoldTemplate(t, root, "discussion-handoff-template.json")
+	env := runScriptDomainEnvelope(t, runDiscussion, []string{"--project-root", root, "init", "Current Prompt Modes", "Current requirements"})
+	slug := env.Data["slug"].(string)
+	handoff := discussionHandoffFixture()
+	handoff["consumer_eligibility"] = map[string]any{
+		"sp-specify": map[string]any{"status": "ready"},
+		"sp-quick":   map[string]any{"status": "blocked"},
+	}
+	handoff["recommended_consumer"] = "sp-specify"
+	raw, err := json.Marshal(handoff)
+	if err != nil {
+		t.Fatal(err)
+	}
+	env = runScriptDomainEnvelope(t, runDiscussion, []string{"--project-root", root, "write-handoff", slug, "--input-json", string(raw)})
+	digest := env.Data["review_digest"].(string)
+	env = runScriptDomainEnvelope(t, runDiscussion, []string{"--project-root", root, "confirm-handoff", slug, "--digest", digest})
+	if env.Status != "ok" {
+		t.Fatalf("confirm handoff = %#v", env)
+	}
+	env = runScriptDomainEnvelope(t, runDiscussion, []string{"--project-root", root, "mark-ready", slug})
+	if env.Status != "ok" {
+		t.Fatalf("mark ready = %#v", env)
+	}
+
+	featureRel := ".specify/features/2026-08-03-prompt-hub"
+	feature := filepath.Join(root, filepath.FromSlash(featureRel))
+	pointer := filepath.Join(feature, "brainstorming", "handoff-to-specify.json")
+	existing := map[string]any{
+		"discussion_slug": "old-prompt-hub",
+		"source_contract": ".specify/discussions/old-prompt-hub/handoff-to-specify.json",
+		"review_digest":   "sha256:old-review",
+	}
+	mustWriteJSONScriptDomainTest(t, pointer, existing)
+
+	env = runScriptDomainEnvelope(t, runDiscussion, []string{
+		"--project-root", root, "bind-consumer", slug,
+		"--feature-dir", featureRel,
+		"--input-json", `{"semantic_delta":[],"required_refs":[],"blockers":[],"recovery":null}`,
+	})
+	if env.Status != "blocked" {
+		t.Fatalf("cross-discussion bind = %#v, want blocked", env)
+	}
+	if !strings.Contains(fmt.Sprint(env.Blockers), "already bound to a different discussion contract") {
+		t.Fatalf("cross-discussion blocker = %#v", env.Blockers)
+	}
+	stored, err := readJSONMap(pointer)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stored["discussion_slug"] != existing["discussion_slug"] || stored["review_digest"] != existing["review_digest"] {
+		t.Fatalf("existing consumer binding was overwritten: %#v", stored)
 	}
 }
 
