@@ -138,7 +138,7 @@ func createLinkedRepository(t *testing.T) (string, string) {
 		t.Fatalf("create main repository directory: %v", err)
 	}
 
-	runGit(t, gitPath, mainRoot, "init")
+	runGit(t, gitPath, mainRoot, "init", "-b", "main")
 	runGit(t, gitPath, mainRoot, "config", "user.name", "Run Control Test")
 	runGit(t, gitPath, mainRoot, "config", "user.email", "run-control@example.invalid")
 	runGit(t, gitPath, mainRoot, "config", "commit.gpgsign", "false")

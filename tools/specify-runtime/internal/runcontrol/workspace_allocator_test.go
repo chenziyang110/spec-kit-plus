@@ -35,7 +35,7 @@ func TestPlanGitWorkspaceIsStableAcrossLinkedWorktrees(t *testing.T) {
 		t.Fatalf("workspace plans differ across linked worktrees:\nmain:   %#v\nlinked: %#v", mainPlan, linkedPlan)
 	}
 
-	expectedRoot := filepath.Join(mainRoot, ".worktrees", "specify-runs")
+	expectedRoot := filepath.Join(mainRepository.CommonDir, "specify-runtime", "worktrees", "runs")
 	if !pathIsWithin(expectedRoot, mainPlan.RootPath) {
 		t.Fatalf("workspace root %q is outside runtime-owned root %q", mainPlan.RootPath, expectedRoot)
 	}
@@ -189,14 +189,14 @@ func TestMaterializeGitWorkspaceRejectsSymlinkedOwnedRootBeforeWriting(t *testin
 	}
 
 	outside := t.TempDir()
-	link := filepath.Join(mainRoot, ".worktrees")
+	link := filepath.Join(repository.CommonDir, "specify-runtime")
 	if err := os.Symlink(outside, link); err != nil {
 		t.Skipf("create directory symlink: %v", err)
 	}
 	if _, err := MaterializeGitWorkspace(ctx, repository, workspaceFromPlan(plan)); !errors.Is(err, ErrWorkspaceEscape) {
 		t.Fatalf("symlinked workspace root error = %v, want ErrWorkspaceEscape", err)
 	}
-	if _, err := os.Stat(filepath.Join(outside, "specify-runs")); !errors.Is(err, os.ErrNotExist) {
+	if _, err := os.Stat(filepath.Join(outside, "worktrees", "runs")); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("allocator wrote through symlink before rejecting it: %v", err)
 	}
 }

@@ -216,6 +216,151 @@ func TestAPIShowPRDBuildScaffoldPublishesTemplateOwnershipContract(t *testing.T)
 	}
 }
 
+func TestAPIShowRunSupervisePublishesForcedWorkspaceEnvironmentContract(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"api", "show", "run.supervise", "--format", "json"}, &stdout, &stderr, "test")
+	if code != 0 {
+		t.Fatalf("api show run.supervise exit code = %d; stdout=%s stderr=%s", code, stdout.String(), stderr.String())
+	}
+	payload := decodeJSONObject(t, stdout.Bytes())
+	capability := requireObject(t, requireObject(t, payload, "data"), "capability")
+	usage, _ := capability["usage"].(string)
+	contract, _ := capability["input_contract"].(string)
+	if !strings.Contains(usage, "run supervise") || !strings.Contains(usage, "--workspace-policy") || !strings.Contains(contract, "forces child cwd") || !strings.Contains(contract, "SPECIFY_RUN_*") || !strings.Contains(contract, "WSLENV") || !strings.Contains(contract, "primary workspace") || !strings.Contains(contract, "isolated") {
+		t.Fatalf("run supervise capability = %#v", capability)
+	}
+}
+
+func TestAPIShowRunLaunchPublishesSingleCallAdapterContract(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"api", "show", "run.launch", "--format", "json"}, &stdout, &stderr, "test")
+	if code != 0 {
+		t.Fatalf("api show run.launch exit code = %d; stdout=%s stderr=%s", code, stdout.String(), stderr.String())
+	}
+	payload := decodeJSONObject(t, stdout.Bytes())
+	capability := requireObject(t, requireObject(t, payload, "data"), "capability")
+	usage, _ := capability["usage"].(string)
+	contract, _ := capability["input_contract"].(string)
+	if !strings.Contains(usage, "run launch") || !strings.Contains(usage, "--workspace-policy") || !strings.Contains(contract, "single call") || !strings.Contains(contract, "queues") || !strings.Contains(contract, "forces child cwd") || !strings.Contains(contract, "pre-launch Snapshot") {
+		t.Fatalf("run launch capability = %#v", capability)
+	}
+}
+
+func TestAPIShowRunControlResultAndCandidateFlowReplacesDirectIntegrationWording(t *testing.T) {
+	tests := []struct {
+		capabilityID   string
+		wantUsage      []string
+		wantContract   []string
+		forbidUsage    []string
+		forbidContract []string
+	}{
+		{
+			capabilityID:   "result.list",
+			wantUsage:      []string{"result list", "--run-id"},
+			wantContract:   []string{"append-only", "result history"},
+			forbidUsage:    []string{"run integrate"},
+			forbidContract: []string{"direct integration"},
+		},
+		{
+			capabilityID:   "result.show",
+			wantUsage:      []string{"result show", "--result-id"},
+			wantContract:   []string{"immutable", "sealed result"},
+			forbidUsage:    []string{"run integrate"},
+			forbidContract: []string{"direct integration"},
+		},
+		{
+			capabilityID:   "result.reopen",
+			wantUsage:      []string{"result reopen", "--basis-result-id"},
+			wantContract:   []string{"reopen", "supersession"},
+			forbidUsage:    []string{"run integrate"},
+			forbidContract: []string{"direct integration"},
+		},
+		{
+			capabilityID:   "result.depend",
+			wantUsage:      []string{"result depend", "--upstream-result-id"},
+			wantContract:   []string{"dependency", "result graph"},
+			forbidUsage:    []string{"run integrate"},
+			forbidContract: []string{"direct integration"},
+		},
+		{
+			capabilityID:   "candidate.build",
+			wantUsage:      []string{"candidate build", "--result-id"},
+			wantContract:   []string{"multiple results", "candidate"},
+			forbidUsage:    []string{"direct integrate"},
+			forbidContract: []string{"direct integration"},
+		},
+		{
+			capabilityID:   "candidate.show",
+			wantUsage:      []string{"candidate show", "--candidate-id"},
+			wantContract:   []string{"immutable", "candidate", "delivery receipts"},
+			forbidUsage:    []string{"run integrate"},
+			forbidContract: []string{"direct integration"},
+		},
+		{
+			capabilityID:   "candidate.review",
+			wantUsage:      []string{"candidate review", "literal argv"},
+			wantContract:   []string{"literal argv", "candidate", "evidence"},
+			forbidUsage:    []string{"run integrate"},
+			forbidContract: []string{"direct integration"},
+		},
+		{
+			capabilityID:   "accept.receipt",
+			wantUsage:      []string{"accept receipt", "--input-json"},
+			wantContract:   []string{"explicit accept receipt", "human acceptance"},
+			forbidUsage:    []string{"run integrate"},
+			forbidContract: []string{"direct integration"},
+		},
+		{
+			capabilityID:   "cas.publish",
+			wantUsage:      []string{"cas publish", "--expected-sha256"},
+			wantContract:   []string{"cas", "publish"},
+			forbidUsage:    []string{"run integrate"},
+			forbidContract: []string{"direct integration"},
+		},
+		{
+			capabilityID:   "sync.safe",
+			wantUsage:      []string{"sync safe", "--target-ref"},
+			wantContract:   []string{"safe sync", "separate"},
+			forbidUsage:    []string{"run integrate"},
+			forbidContract: []string{"direct integration"},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.capabilityID, func(t *testing.T) {
+			var stdout, stderr bytes.Buffer
+			code := Run([]string{"api", "show", test.capabilityID, "--format", "json"}, &stdout, &stderr, "test")
+			if code != 0 {
+				t.Fatalf("api show %s exit code = %d; stdout=%s stderr=%s", test.capabilityID, code, stdout.String(), stderr.String())
+			}
+			payload := decodeJSONObject(t, stdout.Bytes())
+			capability := requireObject(t, requireObject(t, payload, "data"), "capability")
+			usage, _ := capability["usage"].(string)
+			contract, _ := capability["input_contract"].(string)
+			for _, fragment := range test.wantUsage {
+				if !strings.Contains(usage, fragment) {
+					t.Fatalf("%s usage = %q, missing %q", test.capabilityID, usage, fragment)
+				}
+			}
+			for _, fragment := range test.wantContract {
+				if !strings.Contains(contract, fragment) {
+					t.Fatalf("%s input contract = %q, missing %q", test.capabilityID, contract, fragment)
+				}
+			}
+			for _, fragment := range test.forbidUsage {
+				if strings.Contains(usage, fragment) {
+					t.Fatalf("%s usage = %q, contains forbidden legacy wording %q", test.capabilityID, usage, fragment)
+				}
+			}
+			for _, fragment := range test.forbidContract {
+				if strings.Contains(contract, fragment) {
+					t.Fatalf("%s input contract = %q, contains forbidden legacy wording %q", test.capabilityID, contract, fragment)
+				}
+			}
+		})
+	}
+}
+
 func TestAPISchemaExpandsArtifactScaffoldInputContract(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	code := Run([]string{"api", "schema", "--id", "artifact-scaffold-input", "--format", "json"}, &stdout, &stderr, "test")

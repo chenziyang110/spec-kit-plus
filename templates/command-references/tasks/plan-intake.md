@@ -6,7 +6,7 @@ Preserved Contract: tasks remain generation-only, preserve complete confirmed sc
 
 ## Intake
 
-1. Resolve the active feature lane/worktree and sparse resume state.
+1. Verify the managed Run worktree binding, resolve its active feature subject, and load sparse resume state.
 2. Query `plan-contract.json` first through `specify-runtime artifact show`; require ready handoff, valid source revision, locked boundary, and no unresolved blocker.
 3. Reuse its context capsule/evidence refs, interfaces, acceptance, constraints, `MP-*`, `CA-###`, fidelity, verification, and stop/reopen refs.
 4. Query `plan.md`, conditional design artifacts, and spec views through targeted `specify-runtime artifact show` calls only for a named required ref or stale condition; open normal memory or live source only when that condition requires it.

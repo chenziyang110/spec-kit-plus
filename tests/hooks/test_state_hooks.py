@@ -1,7 +1,5 @@
 from pathlib import Path
 from specify_cli.hooks.engine import run_quality_hook
-from specify_cli.lanes.models import LaneRecord
-from specify_cli.lanes.state_store import write_lane_record
 
 
 def _create_project(tmp_path: Path) -> Path:
@@ -953,7 +951,7 @@ def test_validate_state_autofix_repairs_missing_sections(tmp_path: Path):
     assert "## Next Command" in updated
 
 
-def test_validate_state_reports_lane_worktree_diagnostics(tmp_path: Path):
+def test_validate_state_reports_feature_resolution_diagnostics(tmp_path: Path):
     project = _create_project(tmp_path)
     feature_dir = project / "specs" / "001-demo"
     feature_dir.mkdir(parents=True, exist_ok=True)
@@ -977,18 +975,6 @@ def test_validate_state_reports_lane_worktree_diagnostics(tmp_path: Path):
         ),
         encoding="utf-8",
     )
-    write_lane_record(
-        project,
-        LaneRecord(
-            lane_id="lane-001",
-            feature_id="001-demo",
-            feature_dir="specs/001-demo",
-            branch_name="001-demo",
-            worktree_path=".specify/lanes/worktrees/lane-001",
-            last_command="specify",
-        ),
-    )
-
     result = run_quality_hook(
         project,
         "workflow.state.validate",
@@ -996,9 +982,7 @@ def test_validate_state_reports_lane_worktree_diagnostics(tmp_path: Path):
     )
 
     assert result.status == "blocked"
-    lane_context = result.data["lane_context"]
-    assert lane_context["lane_id"] == "lane-001"
-    assert lane_context["worktree_path"] == ".specify/lanes/worktrees/lane-001"
-    assert lane_context["worktree_state_path"].endswith(
-        ".specify/lanes/worktrees/lane-001/specs/001-demo/workflow-state.md"
-    )
+    resolution = result.data["resolution_context"]
+    assert resolution["resolved_from"] == "feature_dir"
+    assert resolution["feature_dir"] == feature_dir.resolve().as_posix()
+    assert resolution["validated_path"] == target.resolve().as_posix()

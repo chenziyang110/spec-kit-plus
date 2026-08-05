@@ -3113,6 +3113,24 @@ class SkillsIntegration(IntegrationBase):
         )
         runtime_snapshot: CapabilitySnapshot | None = None
         created: list[Path] = []
+        for shared_reference in shared_references:
+            reference_content = self.process_template(
+                shared_reference.read_text(encoding="utf-8"),
+                self.key,
+                script_type,
+                arg_placeholder,
+                template_path=shared_reference,
+                project_root=project_root,
+            )
+            reference_content = self.render_advanced_invocations(reference_content)
+            created.append(
+                self.write_file_and_record(
+                    reference_content,
+                    skills_dir / "references" / shared_reference.name,
+                    project_root,
+                    manifest,
+                )
+            )
         for template_dir in self.list_advanced_skill_templates():
             source_path = template_dir / "SKILL.md"
             raw = source_path.read_text(encoding="utf-8")

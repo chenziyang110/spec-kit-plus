@@ -182,9 +182,7 @@ _SPECIFY_RUNTIME_ROOTS = frozenset(
         "hook",
         "implement",
         "init",
-        "integrate",
         "integration",
-        "lane",
         "learning",
         "lint",
         "map-build",
@@ -206,21 +204,23 @@ _UNIFIED_RUNTIME_NAMESPACES = frozenset(
         "accept",
         "api",
         "artifact",
+        "candidate",
+        "cas",
         "cognition",
         "design",
         "discussion",
         "doctor",
         "hook",
         "implement",
-        "integrate",
-        "lane",
         "learning",
         "prd-build",
         "prd-scan",
         "quick",
         "result",
         "review",
+        "run",
         "sp-teams",
+        "sync",
         "validate",
         "version",
         "workflow",
@@ -2369,12 +2369,12 @@ def diagnose_project_runtime_compatibility(project_root: Path) -> list[dict[str,
 
     generated_analyze = project_root / ".specify" / "templates" / "commands" / "analyze.md"
     generated_analyze_text = _read_text_if_exists(generated_analyze)
-    if generated_analyze_text and "{{specify-subcmd:lane resolve --command analyze --ensure-worktree}}" not in generated_analyze_text:
+    if generated_analyze_text and "lane resolve --command analyze" in generated_analyze_text:
         issues.append(
             {
-                "code": "stale-analyze-lane-routing-template",
-                "summary": "Generated analyze workflow guidance is stale and does not require lane resolution before branch-only fallback.",
-                "repair": "Run `specify integration repair` (or re-run `specify init --here --force --ai <agent>`) so generated workflow templates refresh to the current routing contract.",
+                "code": "legacy-feature-lane-routing-template",
+                "summary": "Generated analyze workflow guidance still depends on the retired Feature Lane resolver.",
+                "repair": "Run `specify integration repair` (or re-run `specify init --here --force --ai <agent>`) so generated workflow templates use Run-managed isolated workspaces.",
             }
         )
 

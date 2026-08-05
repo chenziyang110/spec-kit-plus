@@ -367,9 +367,6 @@ $BRAINSTORMING_EVIDENCE_INDEX_FILE = Join-Path $brainstormingDir 'evidence-index
 $BRAINSTORMING_EVIDENCE_DIR = Join-Path $brainstormingDir 'evidence'
 $BRAINSTORMING_EVIDENCE_RECORD_TEMPLATE_FILE = Join-Path $BRAINSTORMING_EVIDENCE_DIR 'EVD-000-template.json'
 $handoffToSpecifyFile = Join-Path $featureDir 'brainstorming/handoff-to-specify.json'
-$laneId = $branchName
-$laneWorktree = Join-Path $repoRoot ".specify/lanes/worktrees/$laneId"
-
 if (-not $DryRun) {
     if ($hasGit) {
         $branchCreated = $false
@@ -502,8 +499,6 @@ if ($Json) {
         SPEC_FILE = $specFile
         CONTEXT_FILE = $contextFile
         SPECIFY_DRAFT_FILE = $specifyDraftFile
-        LANE_ID = $laneId
-        LANE_WORKTREE = $laneWorktree
         FEATURE_NUM = $featureNum
         HAS_GIT = $hasGit
     }
@@ -517,8 +512,6 @@ if ($Json) {
     Write-Output "SPEC_FILE: $specFile"
     Write-Output "CONTEXT_FILE: $contextFile"
     Write-Output "SPECIFY_DRAFT_FILE: $specifyDraftFile"
-    Write-Output "LANE_ID: $laneId"
-    Write-Output "LANE_WORKTREE: $laneWorktree"
     Write-Output "FEATURE_NUM: $featureNum"
     Write-Output "HAS_GIT: $hasGit"
     if (-not $DryRun) {

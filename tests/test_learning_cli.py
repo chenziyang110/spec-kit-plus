@@ -3350,7 +3350,6 @@ def test_learning_start_exposes_confirmed_project_constraint_for_all_workflows(
         "fast",
         "implement",
         "implement-teams",
-        "integrate",
         "map-build",
         "map-rebuild",
         "map-scan",

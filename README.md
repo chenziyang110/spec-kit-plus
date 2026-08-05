@@ -480,7 +480,33 @@ your agent:
 6. `review` to start the integrated product from its official entrypoint, repair bounded wiring or implementation defects, and capture fresh system evidence
 7. `accept` to restore a human's context and guide explicit product acceptance one real step at a time
 8. `auto` to resume the recommended next workflow step from current repository state when you do not want to name the exact command yourself
-9. `integrate` to close out accepted independent feature lanes before mainline merge
+
+Launch-capable integrations treat every invocation as an independent Run. With
+the default `--workspace-policy auto`, exactly one non-overlapping modifying Run
+uses the primary workspace when that checkout is pristine; every overlap, and
+every launch that finds idle but unsealed local changes, receives an isolated Git
+worktree. Overlaps clone the primary Run's pre-launch Snapshot. The supervisor
+forces the child agent's working directory, maintains liveness, releases primary
+ownership on every terminal path, and fences an interrupted Attempt before a
+replacement generation can start. A successful Run seals an immutable Result.
+Host adapters normally queue and start the child in one call through
+`specify-runtime run launch ... -- <agent argv>`; the full tokenized contract is
+discoverable through `api show run.launch`. `run supervise <run-id> ...` remains
+the replacement-attempt path for a previously queued or interrupted Run.
+On Windows, the supervisor also extends `WSLENV` so the same fenced Run binding
+survives when the child invokes WSL-backed Bash helpers.
+Delivery is a separate frozen chain: inspect sealed work with
+`specify-runtime result show`, compose one or more eligible Results with
+`specify-runtime candidate build`, prove that exact Candidate with `candidate
+review`, record only an actual human decision with `accept receipt`, publish
+under target-ref compare-and-swap protection with `cas publish`, then update the
+primary workspace separately with `sync safe`. Publication recognizes the exact
+sealed primary Result as accounted Run state, but any additional index or
+worktree change blocks publication and remains untouched. Five concurrent `sp-quick`,
+`sp-debug`, or formal workflow Runs therefore never share an overlapping writable
+workspace or silently merge into one another. Publish and sync wait for the
+primary-workspace ownership slot to be idle; both use durable receipts so an
+interruption can be reconciled without repeating an unproven mutation.
 
 After an advanced-profile init, use independent, discoverable SPX skills:
 
@@ -490,11 +516,11 @@ $spx-auto                 $spx-checklist            $spx-clarify
 $spx-constitution         $spx-debug                $spx-deep-research
 $spx-design               $spx-discussion           $spx-explain
 $spx-fast                 $spx-implement            $spx-implement-teams
-$spx-integrate            $spx-map-build            $spx-map-rebuild
-$spx-map-scan             $spx-map-update           $spx-plan
-$spx-prd                  $spx-prd-build            $spx-prd-scan
-$spx-quick                $spx-research             $spx-specify
-$spx-tasks                $spx-taskstoissues        $spx-team
+$spx-map-build            $spx-map-rebuild          $spx-map-scan
+$spx-map-update           $spx-plan                 $spx-prd
+$spx-prd-build            $spx-prd-scan             $spx-quick
+$spx-research             $spx-specify              $spx-tasks
+$spx-taskstoissues        $spx-team
 ```
 
 Advanced installs also include the unchanged Classic map companions:
@@ -844,9 +870,9 @@ Conditional gates and follow-up commands:
 - Map points, code proves: technical claims must be backed by live code, tests, scripts, configuration, or authoritative docs.
 - Planning-only workflows do not acquire source mutation authority: `specify`, `clarify`, `deep-research`, `plan`, and `tasks` write their owned planning artifacts only. If a request requires source/runtime/template/config/test/generated-asset changes, they must hand off to a registry-owned mutation workflow and stop; they do not conditionally run mutation closeout themselves. The receiving mutation owner applies its rendered planner-first project cognition closeout, while `sp-map-update` remains the external/manual maintenance workflow for user edits, interrupted workflow repair, explicit map maintenance, and follow-up repair.
 - `auto` to resume the recommended next workflow step from current repository state; for feature stages it reads `workflow.json` through `specify-runtime workflow show` then `specify-runtime workflow next` and consumes structured `next_argv` before consulting rich `workflow-state.md`, `implement-tracker.md`, quick-task `STATUS.md`, or debug session files. It continues under the routed workflow's contract without rewriting downstream state to `sp-auto`. When the routed workflow would only ask a bounded question or confirmation with one safe recommended/default answer, `auto` accepts that recommendation and continues; when it cannot do so safely, it reports the blocker plus a self-unblock recommendation instead of waiting silently.
-- when concurrent feature lanes exist, `auto` should prefer lane registry plus reconcile over branch-only recency and should only auto-resume when exactly one safe candidate remains
+- inside a managed Run, `auto` routes only the current Run subject and verifies `SPECIFY_RUN_WORKSPACE`; an unbound read-only invocation stops when more than one safe candidate remains instead of guessing from branch recency
 - `ask` for read-only evidence-backed project Q&A. Use it when you need a direct answer from project files, templates, docs, state, or memory before choosing an action workflow. Project cognition guides the search; live evidence proves the answer. Same-topic follow-ups reuse the prior evidence set when it still applies, localized or project-slang terms are normalized into project vocabulary, and complex answers separate proven facts from evidence-derived inferences. `sp-ask` is independent from `sp-discussion`; it creates no ask state or handoff, makes no source edits, and does not run tests, builds, package managers, or project CLI commands by default. Do not teach a `specify ask` helper in v1.
-- `discussion` to shape a rough idea before formal specification or direct quick delivery. At handoff it presents both paths and their eligibility, explains any blocker, recommends one eligible path from delivery complexity and consequence profile, and leaves the final choice to the user. It favors Quick for bounded, well-understood work and Specify for high ambiguity/complexity, interacting systems, architecture/data migration/security/compliance/rollout concerns, broad acceptance obligations, or durable specification traceability; size alone is not a hard routing ceiling. Only after that choice does it write the single machine-oriented `handoff-to-specify.json`. When the contract introduces no quick-stage `semantic_delta`, Quick binds understanding to the confirmed `review_digest` and does not ask for the same confirmation again.
+- `discussion` to shape a rough idea before formal specification or direct quick delivery. At handoff it presents both paths and their eligibility, explains any blocker, recommends one eligible path from delivery complexity and consequence profile, and leaves the final choice to the user. It favors Quick for bounded, well-understood work and Specify for high ambiguity/complexity, interacting systems, architecture/data migration/security/compliance/rollout concerns, broad acceptance obligations, or durable specification traceability; size alone is not a hard routing ceiling. Only after that choice does it submit the confirmed semantic contract through `specify-runtime discussion write-handoff`; the runtime materializes the single machine-oriented `handoff-to-specify.json`. When the contract introduces no quick-stage `semantic_delta`, Quick binds understanding to the confirmed `review_digest` and does not ask for the same confirmation again.
 - `prd-scan` followed by `prd-build` reverse-extracts a repository-first current-state PRD reconstruction archive from an existing project. Substantive `prd-scan` runs are subagent-mandatory; workers inspect implementation reality, docs, tests, routes, UI/API surfaces, project cognition evidence, and memory, while `specify-runtime prd-scan`, `specify-runtime prd-build`, and the artifact/evidence CLIs alone materialize `.specify/prd-runs/<run-id>/`. The ten growing scan ledger/contract JSON files use `prd-scan record-upsert|record-remove|record-show|record-list`, so agents send or inspect one semantic row while the Go runtime owns each envelope, ordering, optimistic digest, and atomic write. `prd-build scaffold` then expands all missing master/export boilerplate from installed templates in one transaction; agents patch only semantic sections and never reconstruct or replace those large documents. Critical reconstruction claims target `L4 Reconstruction-Ready`, and `config-contracts.json` is part of the scan contract surface. `prd-build` compiles from the scan package into the expanded archive, including config/protocol/state/error/verification/risk exports. The exported suite includes `exports/README.md` as the package navigation entry and `exports/prd.md` as the main reader-facing PRD, and `prd-build` must not perform a second repository scan. `prd` remains a deprecated compatibility entrypoint that should route into the same pair.
 - `clarify` to deepen an existing spec before planning when analysis, references, or gaps need more work
 - `deep-research` to coordinate focused feasibility research, optional multi-agent evidence gathering, and disposable demos before planning when requirements are clear but a capability still lacks a credible implementation chain; it writes a traceable `Planning Handoff` with evidence IDs for `plan` and should be skipped for minor tweaks to already-proven project behavior. `research` is a compatibility alias for this same gate and must not create separate workflow artifacts
@@ -854,7 +880,7 @@ Conditional gates and follow-up commands:
 - `analyze` is an optional read-only diagnostic and legacy revalidation pass once `tasks.md` exists; run the cross-artifact consistency pass across `spec.md`, `context.md`, `plan.md`, and `tasks.md` only when explicitly requested or recorded by existing state
 - `debug` to investigate blocked implementation work, regressions, or execution-time defects without reopening upstream planning artifacts unless drift is discovered. It now defaults to project-cognition-backed minimum intake; the heavier Stage 1A/1B observer-contract flow is reserved for missing/ambiguous/stale map coverage, competing truth owners, or failed verification loops.
 - `explain` to describe the current spec, plan, task, implement, project cognition, or compatibility/export artifact in plain language
-- `integrate` to discover implementation-complete lanes, run closeout prechecks, and prepare them for mainline merge without folding closeout back into `implement`
+- `specify-runtime result show -> specify-runtime candidate build -> candidate review -> accept receipt -> cas publish`, followed separately by `sync safe`, for immutable multi-Run delivery with explicit human acceptance and target-ref compare-and-swap protection
 - `integration repair` to refresh generated shared/runtime-managed assets after CLI upgrades or when `specify check` reports stale launcher, script, or hook surfaces
 - when you run `analyze` and it finds upstream issues, it becomes a workflow gate, not a dead-end audit: reopen the highest invalid stage and regenerate downstream artifacts before continuing implementation
 - `analyze` now also detects boundary guardrail drift through stable issue codes: `BG1` (missing `Implementation Constitution`), `BG2` (missing task guardrails), and `BG3` (missing implementation-time boundary confirmation)

@@ -77,11 +77,6 @@
       "canonical_workflow": "sp-implement",
       "reason": "Implement Teams changes orchestration only; closeout remains owned by sp-implement."
     },
-    "integrate": {
-      "mode": "mutation_closeout",
-      "canonical_workflow": "sp-integrate",
-      "reason": "Integrate owns verified integrated-tree changes and repairs."
-    },
     "map-build": {
       "mode": "baseline_maintenance",
       "canonical_workflow": null,

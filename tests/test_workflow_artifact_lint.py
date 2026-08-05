@@ -35,7 +35,6 @@ def test_registry_covers_runtime_owned_storage_roots() -> None:
     }
 
     assert ".specify/evidence/**" in patterns_by_id["evidence_store"]
-    assert ".specify/lanes/**" in patterns_by_id["lane_runtime_artifacts"]
     assert ".specify/runtime/**" in patterns_by_id["runtime_internal_artifacts"]
     assert (
         ".specify/project-cognition/.cognitionignore"
@@ -44,7 +43,6 @@ def test_registry_covers_runtime_owned_storage_roots() -> None:
     assert ".specify/extensions.yml" in patterns_by_id["extension_hook_config"]
     assert {
         ".specify/evidence/**",
-        ".specify/lanes/**",
         ".specify/runtime/**",
         ".specify/worker-results/**",
     }.issubset(patterns_by_id["workflow_storage_boundary"])
@@ -869,7 +867,6 @@ def test_third_person_direct_mutation_is_reported(tmp_path: Path) -> None:
     ("instruction", "expected_id"),
     [
         ("Read `.specify/evidence/records/EVD-1.json` directly.", "evidence_store"),
-        ("Delete `.specify/lanes/lane-1/lease.json`.", "lane_runtime_artifacts"),
         (
             "Patch `.specify/runtime/transactions/txn-1.json`.",
             "runtime_internal_artifacts",

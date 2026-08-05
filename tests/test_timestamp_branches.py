@@ -86,7 +86,9 @@ def run_script(cwd: Path, *args: str, env: dict | None = None) -> subprocess.Com
     )
 
 
-def run_check_prerequisites(cwd: Path, *args: str) -> subprocess.CompletedProcess:
+def run_check_prerequisites(
+    cwd: Path, *args: str, env: dict | None = None
+) -> subprocess.CompletedProcess:
     """Run check-prerequisites.sh with given args."""
     cmd = ["bash", "scripts/bash/check-prerequisites.sh", *args]
     return subprocess.run(
@@ -95,10 +97,13 @@ def run_check_prerequisites(cwd: Path, *args: str) -> subprocess.CompletedProces
         capture_output=True,
         text=True,
         errors="replace",
+        env={**os.environ, **(env or {})},
     )
 
 
-def run_setup_plan(cwd: Path, *args: str) -> subprocess.CompletedProcess:
+def run_setup_plan(
+    cwd: Path, *args: str, env: dict | None = None
+) -> subprocess.CompletedProcess:
     """Run setup-plan.sh with given args."""
     cmd = ["bash", "scripts/bash/setup-plan.sh", *args]
     return subprocess.run(
@@ -107,6 +112,7 @@ def run_setup_plan(cwd: Path, *args: str) -> subprocess.CompletedProcess:
         capture_output=True,
         text=True,
         errors="replace",
+        env={**os.environ, **(env or {})},
     )
 
 
@@ -428,6 +434,85 @@ class TestExplicitFeatureDirOverrides:
         assert payload["FEATURE_DIR"] == _bash_path(legacy_feature_dir)
         assert payload["IMPL_PLAN"] == _bash_path(legacy_feature_dir / "plan.md")
         assert (legacy_feature_dir / "plan.md").exists()
+
+
+@requires_bash
+class TestManagedRunFeatureDirResolution:
+    def test_check_prerequisites_uses_managed_run_subject_off_feature_branch(
+        self, git_repo: Path
+    ):
+        feature_dir = git_repo / ".specify" / "features" / "2026-08-03-parallel-run"
+        feature_dir.mkdir(parents=True)
+        (feature_dir / "spec.md").write_text("# spec\n", encoding="utf-8")
+        env = {
+            "SPECIFY_RUN_MANAGED": "1",
+            "SPECIFY_RUN_WORKSPACE": str(git_repo),
+            "SPECIFY_RUN_SUBJECT_TYPE": "feature",
+            "SPECIFY_RUN_SUBJECT_ID": feature_dir.name,
+            "WSLENV": "SPECIFY_RUN_MANAGED:SPECIFY_RUN_WORKSPACE/p:SPECIFY_RUN_SUBJECT_TYPE:SPECIFY_RUN_SUBJECT_ID",
+        }
+
+        result = run_check_prerequisites(
+            git_repo,
+            "--json",
+            "--paths-only",
+            "--feature-dir",
+            ".specify/features/2026-08-03-parallel-run",
+            env=env,
+        )
+
+        assert result.returncode == 0, result.stderr
+        payload = json.loads(result.stdout)
+        assert payload["FEATURE_DIR"] == _bash_path(feature_dir)
+
+    def test_check_prerequisites_rejects_managed_run_workspace_mismatch(
+        self, git_repo: Path
+    ):
+        feature_dir = git_repo / ".specify" / "features" / "2026-08-03-parallel-run"
+        feature_dir.mkdir(parents=True)
+        env = {
+            "SPECIFY_RUN_MANAGED": "1",
+            "SPECIFY_RUN_WORKSPACE": str(git_repo.parent),
+            "SPECIFY_RUN_SUBJECT_TYPE": "feature",
+            "SPECIFY_RUN_SUBJECT_ID": feature_dir.name,
+            "WSLENV": "SPECIFY_RUN_MANAGED:SPECIFY_RUN_WORKSPACE/p:SPECIFY_RUN_SUBJECT_TYPE:SPECIFY_RUN_SUBJECT_ID",
+        }
+
+        result = run_check_prerequisites(
+            git_repo,
+            "--json",
+            "--paths-only",
+            env=env,
+        )
+
+        assert result.returncode != 0
+        assert "workspace binding mismatch" in result.stderr.lower()
+
+    def test_check_prerequisites_rejects_managed_run_feature_dir_escape(
+        self, git_repo: Path
+    ):
+        outside_feature_dir = git_repo.parent / "outside-feature"
+        outside_feature_dir.mkdir()
+        (outside_feature_dir / "spec.md").write_text("# spec\n", encoding="utf-8")
+        env = {
+            "SPECIFY_RUN_MANAGED": "1",
+            "SPECIFY_RUN_WORKSPACE": str(git_repo),
+            "SPECIFY_RUN_SUBJECT_TYPE": "feature",
+            "SPECIFY_RUN_SUBJECT_ID": "outside-feature",
+            "WSLENV": "SPECIFY_RUN_MANAGED:SPECIFY_RUN_WORKSPACE/p:SPECIFY_RUN_SUBJECT_TYPE:SPECIFY_RUN_SUBJECT_ID",
+        }
+
+        result = run_check_prerequisites(
+            git_repo,
+            "--json",
+            "--paths-only",
+            "--feature-dir",
+            "../outside-feature",
+            env=env,
+        )
+
+        assert result.returncode != 0
+        assert "outside registered feature roots" in result.stderr.lower()
 
 
 # ── E2E Flow Tests ───────────────────────────────────────────────────────────
@@ -866,12 +951,118 @@ def _has_pwsh() -> bool:
     try:
         subprocess.run(["pwsh", "--version"], capture_output=True, check=True)
         return True
-    except (FileNotFoundError, subprocess.CalledProcessError):
+    except (OSError, subprocess.CalledProcessError):
         return False
 
 
 @pytest.mark.skipif(not _has_pwsh(), reason="pwsh not available")
 class TestPowerShellFeatureDirResolution:
+    def test_common_ps_uses_managed_run_subject_off_feature_branch(
+        self, tmp_path: Path
+    ):
+        feature_dir = tmp_path / ".specify" / "features" / "2026-08-03-parallel-run"
+        feature_dir.mkdir(parents=True)
+        ps_dir = tmp_path / "scripts" / "powershell"
+        ps_dir.mkdir(parents=True)
+        shutil.copy(COMMON_PS, ps_dir / "common.ps1")
+        script = (
+            f'. "{ps_dir / "common.ps1"}"; '
+            "$paths = Get-FeaturePathsEnv; "
+            "Write-Output $paths.FEATURE_DIR"
+        )
+        env = {
+            **os.environ,
+            "SPECIFY_RUN_MANAGED": "1",
+            "SPECIFY_RUN_WORKSPACE": str(tmp_path),
+            "SPECIFY_RUN_SUBJECT_TYPE": "feature",
+            "SPECIFY_RUN_SUBJECT_ID": feature_dir.name,
+        }
+
+        result = subprocess.run(
+            ["pwsh", "-NoProfile", "-Command", script],
+            cwd=tmp_path,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            env=env,
+        )
+
+        assert result.returncode == 0, result.stderr
+        assert result.stdout.strip() == str(feature_dir)
+
+    def test_common_ps_rejects_managed_run_workspace_mismatch(
+        self, tmp_path: Path
+    ):
+        feature_dir = tmp_path / ".specify" / "features" / "2026-08-03-parallel-run"
+        feature_dir.mkdir(parents=True)
+        ps_dir = tmp_path / "scripts" / "powershell"
+        ps_dir.mkdir(parents=True)
+        shutil.copy(COMMON_PS, ps_dir / "common.ps1")
+        script = (
+            f'. "{ps_dir / "common.ps1"}"; '
+            "Get-FeaturePathsEnv -FeatureDirOverride '.specify/features/2026-08-03-parallel-run'"
+        )
+        env = {
+            **os.environ,
+            "SPECIFY_RUN_MANAGED": "1",
+            "SPECIFY_RUN_WORKSPACE": str(tmp_path.parent),
+            "SPECIFY_RUN_SUBJECT_TYPE": "feature",
+            "SPECIFY_RUN_SUBJECT_ID": feature_dir.name,
+        }
+
+        result = subprocess.run(
+            ["pwsh", "-NoProfile", "-Command", script],
+            cwd=tmp_path,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            env=env,
+        )
+
+        assert result.returncode != 0
+        assert "workspace binding mismatch" in (
+            (result.stderr or "") + (result.stdout or "")
+        ).lower()
+
+    def test_common_ps_rejects_managed_run_feature_dir_escape(
+        self, tmp_path: Path
+    ):
+        feature_dir = tmp_path / ".specify" / "features" / "2026-08-03-parallel-run"
+        feature_dir.mkdir(parents=True)
+        outside_feature_dir = tmp_path.parent / "outside-feature"
+        outside_feature_dir.mkdir(exist_ok=True)
+        ps_dir = tmp_path / "scripts" / "powershell"
+        ps_dir.mkdir(parents=True)
+        shutil.copy(COMMON_PS, ps_dir / "common.ps1")
+        script = (
+            f'. "{ps_dir / "common.ps1"}"; '
+            "Get-FeaturePathsEnv -FeatureDirOverride '../outside-feature'"
+        )
+        env = {
+            **os.environ,
+            "SPECIFY_RUN_MANAGED": "1",
+            "SPECIFY_RUN_WORKSPACE": str(tmp_path),
+            "SPECIFY_RUN_SUBJECT_TYPE": "feature",
+            "SPECIFY_RUN_SUBJECT_ID": feature_dir.name,
+        }
+
+        result = subprocess.run(
+            ["pwsh", "-NoProfile", "-Command", script],
+            cwd=tmp_path,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            env=env,
+        )
+
+        assert result.returncode != 0
+        assert "outside registered feature roots" in (
+            (result.stderr or "") + (result.stdout or "")
+        ).lower()
+
     def test_common_ps_feature_paths_match_timestamp_prefix(self, tmp_path: Path):
         """PowerShell should resolve an existing timestamp-prefixed spec dir even when branch suffix differs."""
         (tmp_path / ".specify" / "features" / "20260319-143022-original-feat").mkdir(parents=True)
@@ -944,42 +1135,6 @@ class TestPowerShellFeatureDirResolution:
         assert result.returncode == 0, result.stderr
         assert result.stdout.strip() == str(tmp_path / ".specify" / "features" / "1000-original-feat")
 
-    def test_common_ps_feature_paths_prefer_lane_state(self, tmp_path: Path):
-        """PowerShell should recover the canonical feature dir from durable lane state before branch fallback."""
-        (tmp_path / ".specify" / "lanes" / "001-hotfix-branch").mkdir(parents=True)
-        (tmp_path / ".specify" / "features" / "001-canonical-feature").mkdir(parents=True)
-        ps_dir = tmp_path / "scripts" / "powershell"
-        ps_dir.mkdir(parents=True)
-        shutil.copy(COMMON_PS, ps_dir / "common.ps1")
-        (tmp_path / ".specify" / "lanes" / "001-hotfix-branch" / "lane.json").write_text(
-            json.dumps(
-                {
-                    "lane_id": "001-hotfix-branch",
-                    "feature_id": "001-canonical-feature",
-                    "feature_dir": ".specify/features/001-canonical-feature",
-                    "branch_name": "001-hotfix-branch",
-                    "worktree_path": ".specify/lanes/worktrees/001-hotfix-branch",
-                }
-            ),
-            encoding="utf-8",
-        )
-
-        script = (
-            f'. "{ps_dir / "common.ps1"}"; '
-            '$env:SPECIFY_FEATURE = "001-hotfix-branch"; '
-            '$paths = Get-FeaturePathsEnv; '
-            'Write-Output $paths.FEATURE_DIR'
-        )
-        result = subprocess.run(
-            ["pwsh", "-NoProfile", "-Command", script],
-            cwd=tmp_path,
-            capture_output=True,
-            text=True,
-        )
-
-        assert result.returncode == 0, result.stderr
-        assert result.stdout.strip() == str(tmp_path / ".specify" / "features" / "001-canonical-feature")
-
     def test_common_ps_feature_paths_support_legacy_spec_root(self, tmp_path: Path):
         """PowerShell should resolve legacy .specify/specs roots by prefix."""
         (tmp_path / ".specify" / "specs" / "20260319-143022-original-feat").mkdir(parents=True)
@@ -1042,18 +1197,34 @@ def run_ps_script(cwd: Path, *args: str, env: dict | None = None) -> subprocess.
     )
 
 
-def run_ps_check_prerequisites(cwd: Path, *args: str) -> subprocess.CompletedProcess:
+def run_ps_check_prerequisites(
+    cwd: Path, *args: str, env: dict | None = None
+) -> subprocess.CompletedProcess:
     """Run check-prerequisites.ps1 from the temp repo's scripts directory."""
     script = cwd / "scripts" / "powershell" / "check-prerequisites.ps1"
     cmd = ["pwsh", "-NoProfile", "-File", str(script), *args]
-    return subprocess.run(cmd, cwd=cwd, capture_output=True, text=True)
+    return subprocess.run(
+        cmd,
+        cwd=cwd,
+        capture_output=True,
+        text=True,
+        env={**os.environ, **(env or {})},
+    )
 
 
-def run_ps_setup_plan(cwd: Path, *args: str) -> subprocess.CompletedProcess:
+def run_ps_setup_plan(
+    cwd: Path, *args: str, env: dict | None = None
+) -> subprocess.CompletedProcess:
     """Run setup-plan.ps1 from the temp repo's scripts directory."""
     script = cwd / "scripts" / "powershell" / "setup-plan.ps1"
     cmd = ["pwsh", "-NoProfile", "-File", str(script), *args]
-    return subprocess.run(cmd, cwd=cwd, capture_output=True, text=True)
+    return subprocess.run(
+        cmd,
+        cwd=cwd,
+        capture_output=True,
+        text=True,
+        env={**os.environ, **(env or {})},
+    )
 
 
 @pytest.fixture

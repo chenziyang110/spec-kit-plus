@@ -8,6 +8,7 @@ description: Lean evidence-driven debugging workflow for advanced coding models.
 Read `references/project-learning.md` and apply its consume-capture policy.
 Read `references/native-subagents.md` when evidence lanes are delegated.
 Read `references/project-cognition.md`, using cognition intent `debug`.
+Read `references/run-bootstrap.md`.
 Read `references/human-confirmation.md`, then
 `references/investigation-contract.md`. Read
 `references/investigator-worker.md` only for delegated evidence. Create an
@@ -20,6 +21,8 @@ lifecycle, shared state, destructive behavior, compatibility, migration,
 security, concurrency, retry, recovery, or generated consumers.
 Read `references/ui-quality-gate.md` when the symptom is visual, responsive,
 interaction, focus, accessibility, TUI, or CLI presentation behavior.
+
+`$spx-debug` always starts a new run. Record that new run with `specify-runtime run create`, then execute only through `specify-runtime run supervise`; do not resume another workflow's run.
 
 Create or resume the session in its unconfirmed intake state. Render the Debug
 card from `references/human-confirmation.md`; for an applicable UI symptom,

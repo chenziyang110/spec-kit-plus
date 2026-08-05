@@ -112,7 +112,6 @@ KNOWN_COMMANDS = (
     "sp-fast",
     "sp-implement",
     "sp-implement-teams",
-    "sp-integrate",
     *MAP_WORKFLOW_COMMANDS,
     "sp-plan",
     "sp-prd",

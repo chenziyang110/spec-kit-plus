@@ -77,7 +77,6 @@ func TestRunAcceptsFirstIterationWorkflowAllowlist(t *testing.T) {
 		{input: "/sp.fast", want: "sp-fast"},
 		{input: "sp-quick", want: "sp-quick"},
 		{input: "review", want: "sp-review"},
-		{input: "/sp.integrate", want: "sp-integrate"},
 		{input: "implement-teams", want: "sp-implement"},
 		{input: "/sp.map-update", want: "sp-map-update"},
 	}

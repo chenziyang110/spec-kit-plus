@@ -46,7 +46,7 @@ persisted and which downstream workflow handoffs must preserve it.]
 
 ## State and Entity Lifecycles
 
-[Record state lifecycle transitions, persistent checkpoints, cache checkpoints, and coordination identifiers that downstream changes must preserve. If concurrent feature lanes exist, document lane lifecycle state, recovery state, lease expiry behavior, and reconcile-before-resume rules explicitly.]
+[Record state lifecycle transitions, persistent checkpoints, cache checkpoints, and coordination identifiers that downstream changes must preserve. If concurrent Runs exist, document Run/Attempt fencing, workspace generations, lease expiry, Candidate publication, and target-serialized integration explicitly.]
 
 ## Failure and Recovery Flows
 

@@ -41,7 +41,6 @@ SPX_SKILLS = {
     "spx-fast",
     "spx-implement",
     "spx-implement-teams",
-    "spx-integrate",
     "spx-map-build",
     "spx-map-rebuild",
     "spx-map-scan",
@@ -352,15 +351,11 @@ def test_spx_skills_keep_runtime_reuse_and_safety_boundaries() -> None:
     assert "check-prerequisites" in skills["spx-implement"]
     assert "run the relevant verification" in skills["spx-implement"]
     assert "delegate only" in skills["spx-implement"]
-    assert "spx-integrate" in skills["spx-implement"]
 
     assert "integration.json" in skills["spx-implement-teams"]
     assert "codex" in skills["spx-implement-teams"]
     assert "claude" in skills["spx-implement-teams"]
     assert "emulate durable state" in skills["spx-implement-teams"]
-
-    assert "only inspects and closes lane state" in skills["spx-integrate"]
-    assert "--close" in skills["spx-integrate"]
 
     assert "codex-only runtime" in skills["spx-team"]
     assert "cleanup" in skills["spx-team"]
@@ -622,7 +617,6 @@ def test_spx_ui_quality_contract_survives_design_to_implementation() -> None:
         "spx-fast",
         "spx-implement",
         "spx-implement-teams",
-        "spx-integrate",
         "spx-plan",
         "spx-quick",
         "spx-specify",
@@ -2156,6 +2150,7 @@ def test_non_skills_integrations_do_not_install_spx(tmp_path) -> None:
 def test_init_can_install_both_profiles_without_losing_either(
     tmp_path,
     profile_order,
+    unified_runtime_env,
 ) -> None:
     project = tmp_path / "project"
     project.mkdir()
@@ -2232,6 +2227,7 @@ def test_init_can_install_both_profiles_without_losing_either(
 
 def test_advanced_only_codex_repair_restores_runtime_without_unrelated_classic_skill(
     tmp_path,
+    unified_runtime_env,
 ) -> None:
     project = tmp_path / "project"
     project.mkdir()

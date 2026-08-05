@@ -112,3 +112,5 @@ def unified_runtime_env(
     """Route one test through the freshly built unified runtime."""
 
     monkeypatch.setenv("SPECIFY_RUNTIME_BIN", str(built_unified_runtime))
+    # Local go builds from a dirty worktree embed dirty=true; tests still need them.
+    monkeypatch.setenv("SPECIFY_RUNTIME_ALLOW_DIRTY", "1")

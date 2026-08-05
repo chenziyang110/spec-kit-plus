@@ -97,7 +97,7 @@ source "$SCRIPT_DIR/common.sh"
 _paths_output=$(get_feature_paths "$FEATURE_DIR_OVERRIDE") || { echo "ERROR: Failed to resolve feature paths" >&2; exit 1; }
 eval "$_paths_output"
 unset _paths_output
-if [[ -z "$FEATURE_DIR_OVERRIDE" ]]; then
+if [[ -z "$FEATURE_DIR_OVERRIDE" && "${SPECIFY_RUN_MANAGED:-}" != "1" ]]; then
     check_feature_branch "$CURRENT_BRANCH" "$HAS_GIT" || exit 1
 fi
 

@@ -66,12 +66,12 @@ func (store *Store) FinishAttempt(
 		Activity:  activity,
 		Workspace: workspace,
 	}
-	if params.Candidate != nil {
-		candidate, candidateErr := readCandidateForRunTx(ctx, transaction, run.RunID)
-		if candidateErr == nil {
-			finished.Candidate = candidate
-		} else if !errors.Is(candidateErr, ErrCandidateNotFound) {
-			return FinishedExecution{}, candidateErr
+	if params.Result != nil {
+		sealedResult, resultErr := readRunResultForAttemptTx(ctx, transaction, attempt.AttemptID)
+		if resultErr == nil {
+			finished.Result = sealedResult
+		} else if !errors.Is(resultErr, ErrResultNotFound) {
+			return FinishedExecution{}, resultErr
 		}
 	}
 	if finishAttemptMatchesReplay(finished, params, targets, store.ownerEpoch) {
@@ -148,6 +148,9 @@ func (store *Store) FinishAttempt(
 	if err := updateAttemptTerminalTx(ctx, transaction, attempt, targets.attempt, nowMS); err != nil {
 		return FinishedExecution{}, err
 	}
+	if err := releaseAttemptResourceClaimsTx(ctx, transaction, attempt, params.Reason, nowMS); err != nil {
+		return FinishedExecution{}, err
+	}
 	attempt.Status = targets.attempt
 	attempt.Revision++
 	attempt.UpdatedAtMS = nowMS
@@ -157,16 +160,19 @@ func (store *Store) FinishAttempt(
 	if err := updateWorkspaceStatusTx(ctx, transaction, &workspace, targets.workspace, nowMS, params.Reason); err != nil {
 		return FinishedExecution{}, err
 	}
-	var candidate Candidate
-	if params.Candidate != nil {
-		candidate, err = insertCandidateTx(
+	if err := releasePrimaryWorkspaceSlotTx(ctx, transaction, run.RunID); err != nil {
+		return FinishedExecution{}, err
+	}
+	var sealedResult RunResult
+	if params.Result != nil {
+		sealedResult, err = insertRunResultTx(
 			ctx,
 			transaction,
 			run,
 			attempt,
 			activity,
 			workspace,
-			*params.Candidate,
+			*params.Result,
 			nowMS,
 		)
 		if err != nil {
@@ -184,7 +190,7 @@ func (store *Store) FinishAttempt(
 		Attempt:   attempt,
 		Activity:  activity,
 		Workspace: workspace,
-		Candidate: candidate,
+		Result:    sealedResult,
 	}, nil
 }
 
@@ -207,8 +213,8 @@ func validateFinishAttemptParams(params FinishAttemptParams) (finishAttemptTarge
 			workspace: WorkspaceSealed,
 		}, nil
 	case AttemptOutcomeFailed:
-		if params.Candidate != nil {
-			return finishAttemptTargets{}, fmt.Errorf("%w: failed attempt cannot publish a candidate", ErrInvalidArgument)
+		if params.Result != nil {
+			return finishAttemptTargets{}, fmt.Errorf("%w: failed attempt cannot publish a Result", ErrInvalidArgument)
 		}
 		return finishAttemptTargets{
 			run:       RunFailed,
@@ -245,12 +251,13 @@ func finishAttemptMatchesReplay(
 		finished.Attempt.ActivityID == finished.Activity.ActivityID &&
 		finished.Attempt.WorkspaceID == finished.Workspace.WorkspaceID &&
 		finished.Attempt.WorkspaceGeneration == finished.Workspace.Generation &&
-		((params.Candidate == nil && finished.Candidate.CandidateID == "") ||
-			(params.Candidate != nil && finished.Candidate.CandidateID == params.Candidate.CandidateID &&
-				finished.Candidate.TargetRef == params.Candidate.TargetRef &&
-				finished.Candidate.BaseCommit == params.Candidate.BaseCommit &&
-				finished.Candidate.PrivateRef == params.Candidate.PrivateRef &&
-				finished.Candidate.HeadCommit == params.Candidate.HeadCommit))
+		((params.Result == nil && finished.Result.ResultID == "") ||
+			(params.Result != nil && finished.Result.ResultID == params.Result.ResultID &&
+				finished.Result.ResultRevision == params.Result.ResultRevision &&
+				finished.Result.SnapshotID == params.Result.SnapshotID &&
+				finished.Result.ResultTreeOID == params.Result.ResultTreeOID &&
+				finished.Result.ResultCommitOID == params.Result.ResultCommitOID &&
+				finished.Result.ManifestSHA256 == params.Result.ManifestSHA256))
 }
 
 func isTerminalAttemptStatus(status AttemptStatus) bool {

@@ -116,8 +116,8 @@ When recommending manual implementation resumption to the user, tell them to run
 
 Run `{SCRIPT}` once from repo root and parse JSON for FEATURE_DIR and AVAILABLE_DOCS. Derive absolute paths:
 
-- If `FEATURE_DIR` is not already explicit, prefer `{{specify-subcmd:specify-runtime lane resolve --command analyze --ensure-worktree}}` before guessing from branch-only context.
-- When lane resolution returns a materialized lane worktree, continue analysis from that isolated worktree context so downstream gate decisions stay attached to the same lane boundary.
+- If `FEATURE_DIR` is not already explicit, use a validated managed Run feature subject or the helper's unique paths-only result; stop on ambiguity instead of guessing from a branch name.
+- When `SPECIFY_RUN_MANAGED=1`, verify the current directory equals `SPECIFY_RUN_WORKSPACE` before reading or writing analysis state.
 
 - SPEC_CONTRACT = FEATURE_DIR/spec-contract.json
 - PLAN_CONTRACT = FEATURE_DIR/plan-contract.json

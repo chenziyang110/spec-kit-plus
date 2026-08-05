@@ -4,8 +4,6 @@ from pathlib import Path
 from typing import List, Optional
 import yaml
 
-from specify_cli.lanes.resolution import resolve_lane_for_command
-
 from .schema import FeatureContext
 
 class ContextLoader:
@@ -13,27 +11,22 @@ class ContextLoader:
         self.root_dir = root_dir or Path.cwd()
 
     def find_active_feature(self) -> Optional[Path]:
-        """Find the active feature, preferring a uniquely safe lane."""
-
-        resolved = resolve_lane_for_command(self.root_dir, command_name="auto")
-        if resolved.mode == "resume" and resolved.selected_lane_id:
-            for candidate in resolved.candidates:
-                if candidate.lane_id == resolved.selected_lane_id:
-                    return self.root_dir / candidate.feature_dir
-
-        # Legacy fallback for repositories that do not yet use lane state.
-        specs_dir = self.root_dir / "specs"
-        if not specs_dir.exists():
-            return None
+        """Find the most recently updated feature with generated tasks."""
         
         newest_task_file = None
         newest_mtime = 0
         
-        for task_file in specs_dir.glob("*/tasks.md"):
-            mtime = task_file.stat().st_mtime
-            if mtime > newest_mtime:
-                newest_mtime = mtime
-                newest_task_file = task_file
+        for specs_dir in (
+            self.root_dir / ".specify" / "features",
+            self.root_dir / "specs",
+        ):
+            if not specs_dir.exists():
+                continue
+            for task_file in specs_dir.glob("*/tasks.md"):
+                mtime = task_file.stat().st_mtime
+                if mtime > newest_mtime:
+                    newest_mtime = mtime
+                    newest_task_file = task_file
         
         return newest_task_file.parent if newest_task_file else None
 

@@ -8,7 +8,7 @@ This guide will help you get started with Spec-Driven Development using Spec Kit
 ## The 5-Step Process
 
 > [!TIP]
-> **Context Awareness**: In single-feature workflows, Spec Kit commands can infer the active feature from the current Git branch (for example `001-feature-name`). Once concurrent feature lanes exist, root-level `sp-*` commands should prefer lane registry plus reconcile over branch-only guessing, and `sp-auto` should resume only when there is one uniquely safe candidate.
+> **Parallel Runs**: Launch-capable integrations submit every `sp-*`/`spx-*` invocation as an independent Run through `specify-runtime run launch ... -- <agent argv>`. With the default `auto` policy, the first non-overlapping modifying Run uses the primary workspace only when that checkout is pristine; every overlap and every idle-but-dirty launch receives an isolated worktree. Overlaps clone the primary Run's pre-launch Snapshot. The supervisor forces child cwd and `run supervise` restarts a queued or interrupted Run. Successful work seals a Result; delivery follows `specify-runtime result show -> specify-runtime candidate build -> candidate review -> accept receipt -> cas publish`, with `sync safe` as a separate guarded update. Publish and sync require the primary-workspace slot to be idle. The exact sealed primary Result is accounted state, while any additional index or worktree change blocks publication and is preserved. Durable receipts make interrupted publish/sync operations recoverable. `sp-auto` routes only the current managed Run subject; an unbound read-only invocation stops when more than one safe candidate exists.
 
 ### Step 1: Install Specify
 

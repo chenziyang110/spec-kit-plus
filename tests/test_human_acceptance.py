@@ -740,7 +740,7 @@ def _accepted_state(state_path: Path) -> dict[str, object]:
     state["overall"] = {
         "verdict": "pass",
         "summary": "The human completed the required demo scenario.",
-        "next_command": "sp-integrate or spx-integrate",
+        "next_command": "none; Run supervisor publishes the Candidate",
         "human_decision": "accept",
         "decision_confirmation_id": state["overall"]["decision_confirmation_id"],
         "decision_evidence": [
@@ -2580,7 +2580,7 @@ def test_accept_cli_closes_only_fresh_explicit_human_acceptance(
 
 ## Next Command
 
-- `/sp.integrate`
+- `none`
 """,
         encoding="utf-8",
     )

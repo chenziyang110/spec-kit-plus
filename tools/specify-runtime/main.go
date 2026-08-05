@@ -42,9 +42,15 @@ func Run(args []string, stdout, stderr io.Writer, cliVersion string) int {
 	case "artifact":
 		return runArtifact(args[1:], stdout)
 	case "result":
-		return runResult(args[1:], stdout)
+		return runResultCommand(args[1:], stdout)
 	case "run":
 		return runRun(args[1:], stdout, stderr)
+	case "candidate":
+		return runCandidateCommand(args[1:], stdout)
+	case "cas":
+		return runCASCommand(args[1:], stdout)
+	case "sync":
+		return runSyncCommand(args[1:], stdout)
 	case "workflow":
 		return runWorkflow(args[1:], stdout)
 	case "validate":
@@ -61,8 +67,6 @@ func Run(args []string, stdout, stderr io.Writer, cliVersion string) int {
 		return runDoctor(args[1:], stdout)
 	case "hook":
 		return runHook(args[1:], stdout)
-	case "integrate":
-		return runIntegrate(args[1:], stdout)
 	case "tasks":
 		return runTasks(args[1:], stdout)
 	case "implement":
@@ -70,13 +74,11 @@ func Run(args []string, stdout, stderr io.Writer, cliVersion string) int {
 	case "review":
 		return runReview(args[1:], stdout)
 	case "accept":
-		return runAccept(args[1:], stdout)
+		return runAcceptCommand(args[1:], stdout)
 	case "sp-teams":
 		return runTeams(args[1:], stdout)
 	case "learning":
 		return runLearning(args[1:], stdout)
-	case "lane":
-		return runLane(args[1:], stdout)
 	case "prd-build":
 		return runPRDBuild(args[1:], stdout)
 	case "prd-scan":
@@ -94,25 +96,26 @@ func writeHelp(stdout io.Writer) int {
 	for _, name := range []string{
 		"api",
 		"artifact",
+		"candidate",
+		"cas",
 		"cognition",
 		"discussion",
 		"design",
 		"doctor",
 		"evidence",
 		"hook",
-		"integrate",
 		"tasks",
 		"implement",
 		"review",
 		"accept",
 		"sp-teams",
 		"learning",
-		"lane",
 		"prd-build",
 		"prd-scan",
 		"quick",
 		"result",
 		"run",
+		"sync",
 		"validate",
 		"version",
 		"workflow",
@@ -1051,8 +1054,6 @@ func defaultCapabilities() []string {
 		"hook.validate-artifacts",
 		"hook.validate-commit",
 		"hook.validate-state",
-		"integrate.close",
-		"integrate.discover",
 		"implement.closeout",
 		"implement.deferral-confirm",
 		"implement.deferral-propose",
@@ -1073,16 +1074,27 @@ func defaultCapabilities() []string {
 		"review.resume-audit",
 		"review.target-bind",
 		"review.validate",
+		"result.depend",
+		"result.list",
+		"result.path",
+		"result.reopen",
+		"result.show",
+		"result.submit",
 		"run.cancel",
 		"run.create",
 		"run.events",
-		"run.integrate",
+		"run.launch",
 		"run.show",
 		"run.supervise",
+		"candidate.build",
+		"candidate.review",
+		"candidate.show",
 		"accept.closeout",
 		"accept.prepare",
+		"accept.receipt",
 		"accept.route-repair",
 		"accept.validate",
+		"cas.publish",
 		"sp-teams.auto-dispatch",
 		"sp-teams.complete-batch",
 		"sp-teams.doctor",
@@ -1100,7 +1112,6 @@ func defaultCapabilities() []string {
 		"learning.show",
 		"learning.start",
 		"learning.status",
-		"lane.resolve",
 		"prd-build.status",
 		"prd-build.scaffold",
 		"prd-scan.finalize",
@@ -1122,8 +1133,7 @@ func defaultCapabilities() []string {
 		"quick.packet-compile",
 		"quick.resume",
 		"quick.status",
-		"result.path",
-		"result.submit",
+		"sync.safe",
 		"tasks.build",
 		"tasks.finalize",
 		"tasks.handoff",
@@ -1244,17 +1254,37 @@ func capabilitySummary(id string) string {
 	case "implement.task-reopen":
 		return "Reopen one non-acceptance-ready implemented task with revision guards and immutable audit history."
 	case "run.create":
-		return "Record a new isolated workflow Run request in the repository control plane."
+		return "Record a new workflow Run request in the repository control plane."
 	case "run.show":
 		return "Read the current revision, status, and fence for one Run."
 	case "run.events":
 		return "List the ordered lifecycle events for one Run."
 	case "run.cancel":
 		return "Cancel one revision-bound Run and advance its fence before cleanup."
+	case "run.launch":
+		return "Queue and execute one Run through automatic primary-or-isolated workspace routing in a single host-adapter call."
 	case "run.supervise":
-		return "Execute one Run in its isolated Git worktree under durable lifecycle control."
-	case "run.integrate":
-		return "Serialize one immutable Candidate into its target ref and record the Result."
+		return "Execute one Run in its automatically routed primary or isolated workspace under durable lifecycle control."
+	case "result.list":
+		return "List the append-only sealed Result history for one Run."
+	case "result.show":
+		return "Read one immutable sealed Result and its derived bindings."
+	case "result.reopen":
+		return "Reopen a sealed Run from its latest sealed Result basis."
+	case "result.depend":
+		return "Record a dependency edge between sealed Results."
+	case "candidate.build":
+		return "Build one frozen multi-Result Candidate for a target ref."
+	case "candidate.show":
+		return "Read one frozen Candidate, its member Result set, and latest delivery receipts."
+	case "candidate.review":
+		return "Run literal Review argv against one frozen Candidate workspace."
+	case "accept.receipt":
+		return "Record the explicit human acceptance receipt for one frozen Candidate."
+	case "cas.publish":
+		return "Publish one accepted frozen Candidate with target-ref CAS protection."
+	case "sync.safe":
+		return "Safely synchronize the primary worktree to one published frozen Candidate."
 	default:
 		return "Runtime capability."
 	}

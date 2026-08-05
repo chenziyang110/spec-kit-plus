@@ -1,6 +1,6 @@
 ---
 name: spx-explain
-description: Read-only workflow-artifact explanation for advanced coding models. Use when the user wants a spec, plan, tasks, lane state, cognition state, or compatibility artifact explained from what is actually on disk.
+description: Read-only workflow-artifact explanation for advanced coding models. Use when the user wants a spec, plan, tasks, task-dispatch state, cognition state, or compatibility artifact explained from what is actually on disk.
 ---
 
 # SPX Explain

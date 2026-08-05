@@ -129,11 +129,14 @@ func (store *Store) CreateWorkspace(ctx context.Context, params CreateWorkspaceP
 	}
 
 	nowMS := time.Now().UTC().UnixMilli()
+	mode := normalizeWorkspaceMode(params.Mode)
 	workspace := Workspace{
 		WorkspaceID:   params.WorkspaceID,
 		RunID:         params.RunID,
 		Generation:    params.Generation,
 		Kind:          params.Kind,
+		Mode:          mode,
+		SourceRunID:   strings.TrimSpace(params.SourceRunID),
 		RootPath:      params.RootPath,
 		RepoCommonDir: params.RepoCommonDir,
 		BaseRef:       params.BaseRef,
@@ -167,6 +170,16 @@ func (store *Store) CreateWorkspace(ctx context.Context, params CreateWorkspaceP
 			}
 		}
 		return Workspace{}, fmt.Errorf("insert workspace: %w", err)
+	}
+	var sourceRunID any
+	if workspace.SourceRunID != "" {
+		sourceRunID = workspace.SourceRunID
+	}
+	if _, err := tx.ExecContext(ctx, `
+		INSERT INTO workspace_routes (workspace_id, mode, source_run_id, created_at_ms)
+		VALUES (?, ?, ?, ?)
+	`, workspace.WorkspaceID, workspace.Mode, sourceRunID, nowMS); err != nil {
+		return Workspace{}, fmt.Errorf("insert workspace route: %w", err)
 	}
 	if err := appendWorkspaceEventTx(ctx, tx, workspace, "workspace.created", "workspace allocation recorded"); err != nil {
 		return Workspace{}, err
@@ -310,11 +323,13 @@ func readActivityTx(ctx context.Context, querier rowQuerier, activityID string) 
 
 func readWorkspaceTx(ctx context.Context, querier rowQuerier, workspaceID string) (Workspace, error) {
 	row := querier.QueryRowContext(ctx, `
-		SELECT workspace_id, run_id, generation, kind, root_path, repo_common_dir,
-		       base_ref, base_commit, private_ref, status, revision,
-		       created_at_ms, updated_at_ms
-		FROM workspaces
-		WHERE workspace_id = ?
+		SELECT w.workspace_id, w.run_id, w.generation, w.kind,
+		       COALESCE(r.mode, 'isolated'), COALESCE(r.source_run_id, ''),
+		       w.root_path, w.repo_common_dir, w.base_ref, w.base_commit,
+		       w.private_ref, w.status, w.revision, w.created_at_ms, w.updated_at_ms
+		FROM workspaces AS w
+		LEFT JOIN workspace_routes AS r ON r.workspace_id = w.workspace_id
+		WHERE w.workspace_id = ?
 	`, workspaceID)
 	var workspace Workspace
 	if err := row.Scan(
@@ -322,6 +337,8 @@ func readWorkspaceTx(ctx context.Context, querier rowQuerier, workspaceID string
 		&workspace.RunID,
 		&workspace.Generation,
 		&workspace.Kind,
+		&workspace.Mode,
+		&workspace.SourceRunID,
 		&workspace.RootPath,
 		&workspace.RepoCommonDir,
 		&workspace.BaseRef,
@@ -549,6 +566,13 @@ func validateCreateWorkspaceParams(params CreateWorkspaceParams) error {
 	}
 	if params.Kind != "git_worktree" {
 		return fmt.Errorf("%w: unsupported workspace kind %q", ErrInvalidArgument, params.Kind)
+	}
+	mode := normalizeWorkspaceMode(params.Mode)
+	if mode != WorkspaceModeIsolated && mode != WorkspaceModePrimary {
+		return fmt.Errorf("%w: unsupported workspace mode %q", ErrInvalidArgument, params.Mode)
+	}
+	if mode == WorkspaceModePrimary && strings.TrimSpace(params.SourceRunID) != params.RunID {
+		return fmt.Errorf("%w: primary workspace must source its own Run", ErrWorkspaceBinding)
 	}
 	return nil
 }

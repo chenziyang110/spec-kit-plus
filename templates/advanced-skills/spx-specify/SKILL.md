@@ -7,12 +7,15 @@ description: Lean feature-specification workflow for advanced coding models. Use
 
 Read `references/project-learning.md` and apply its consume-capture policy.
 Read `references/workflow-runtime.md` and let its CLI own phase state.
+Read `references/run-bootstrap.md`.
 Read `references/project-cognition.md`, using cognition intent `plan`.
 Read `references/requirements-contract.md`. Read
 `references/discussion-handoff.md` when consuming a ready discussion and
 `references/ui-and-handoffs.md` plus `references/ui-quality-gate.md` for any
 UI-bearing feature, with or without supplied references. Read
 `references/consequence-gate.md` only on its triggers.
+
+`$spx-specify` starts a new run and establishes the feature run. Record the new run with `specify-runtime run create`, then execute feature creation and later artifact work only through `specify-runtime run supervise`.
 
 Inspect project rules, relevant live behavior, a supplied feature PRD, and any
 confirmed discussion context. Clarify only decisions that materially change scope, behavior,

@@ -8,13 +8,17 @@ description: Lean technical-planning workflow for advanced coding models. Use wh
 Read `references/project-learning.md` and apply its consume-capture policy.
 Read `references/native-subagents.md` when planning lanes are delegated.
 Read `references/workflow-runtime.md` and let its CLI own phase state.
+Read `references/run-bootstrap.md`.
 Read `references/project-cognition.md`, using cognition intent `plan`.
 Always read `references/planning-contract.md`. Read
 `references/consequence-gate.md` only on its triggers.
 Read `references/ui-quality-gate.md` when the specification is UI-bearing.
 
+`$spx-plan` continues the same run created for the feature. Confirm the same run with `specify-runtime run show`, then execute planning work only through `specify-runtime run supervise`.
+
 Resolve `FEATURE_DIR` without creating `plan.md`, using an explicit feature
-argument, lane state, or the installed prerequisite helper's paths-only mode.
+argument, a validated managed Run feature subject, or the installed prerequisite
+helper's unique paths-only result. Never infer it from the Run's private Git ref.
 Transition from the validated `specify` stage into `plan` through the workflow
 runtime. Only after the transition succeeds, run the installed
 `.specify/scripts/bash/setup-plan.sh --json` or PowerShell equivalent to create

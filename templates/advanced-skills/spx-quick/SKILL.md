@@ -8,6 +8,7 @@ description: Tracked direct-delivery workflow for advanced coding models. Use wh
 Read `references/project-learning.md` and apply its consume-capture policy.
 Read `references/native-subagents.md` when task lanes are delegated.
 Read `references/project-cognition.md`, using cognition intent `implement`.
+Read `references/run-bootstrap.md`.
 Read `references/human-confirmation.md`, then `references/task-contract.md`.
 Read `references/worker-contract.md` only
 when delegating. Read `references/consequence-gate.md` when work can affect
@@ -15,6 +16,8 @@ lifecycle operations, running objects, concurrent work, destructive behavior,
 shared state, downstream consumers, compatibility, security-sensitive behavior,
 or multiple plausible product behaviors.
 Read `references/ui-quality-gate.md` for any user-visible UI change.
+
+`$spx-quick` always starts a new run. Record that new run with `specify-runtime run create`, then execute only through `specify-runtime run supervise`; do not resume another workflow's run.
 
 Accept non-trivial direct-delivery work whose outcome can be confirmed at the
 Quick Checkpoint. Task size, capability count, architecture, migration,

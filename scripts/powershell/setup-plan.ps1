@@ -26,7 +26,7 @@ if ($Help) {
 $paths = Get-FeaturePathsEnv -FeatureDirOverride $FeatureDir
 
 # Check if we're on a proper feature branch (only for git repos)
-if (-not $FeatureDir -and -not (Test-FeatureBranch -Branch $paths.CURRENT_BRANCH -HasGit $paths.HAS_GIT)) { 
+if (-not $FeatureDir -and $env:SPECIFY_RUN_MANAGED -ne '1' -and -not (Test-FeatureBranch -Branch $paths.CURRENT_BRANCH -HasGit $paths.HAS_GIT)) {
     exit 1 
 }
 

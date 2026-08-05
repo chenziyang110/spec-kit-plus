@@ -28,14 +28,15 @@ route to analyze or the current owner to establish a valid reopen decision. A
 blocked runtime must first use `specify-runtime workflow resolve` with evidence, and acceptance
 findings use `accept route-repair`.
 
-Use the lane registry only to discover candidates, then reconcile it with real
-state, artifacts, and any materialized worktree. A recorded upstream gate
-outranks an implementation tracker or later artifact. Stop on an `uncertain`
-lane, conflicting states, or anything other than exactly one unique safe
-candidate; report the evidence and smallest repair instead of guessing.
+When a managed Run declares a feature subject, verify the current directory is
+`SPECIFY_RUN_WORKSPACE` and route only state belonging to that subject. A
+recorded upstream gate outranks an implementation tracker or later artifact.
+For an unbound read-only invocation, stop on conflicting states or anything
+other than exactly one unique safe candidate; report the evidence and smallest
+repair instead of guessing.
 
-Discover candidates only through runtime indexes: `specify-runtime lane
-resolve`, `discussion list`, `quick list`, and bounded `artifact list` queries
+Discover candidates only through the managed Run subject, `discussion list`,
+`quick list`, and bounded `artifact list` queries
 for feature, debug, Review, and Acceptance types. Query a selected record with
 `workflow show|next` or targeted `artifact show`. Never enumerate or parse the
 underlying `.specify/**` or `.planning/**` state directories directly.
@@ -61,7 +62,6 @@ Choose the first applicable trustworthy route:
   `accepted`: `spx-accept`;
 - active Review, or trusted completed implementation whose Review is missing,
   stale, blocked, repairing, or not approved: `spx-review`;
-- completed independent lane awaiting closeout: `spx-integrate`;
 - active implementation lane or ready tracked feature work: `spx-implement`;
 - active quick direct-delivery workspace: `spx-quick`;
 - active debug session or unknown failure mechanism/regression: `spx-debug`;

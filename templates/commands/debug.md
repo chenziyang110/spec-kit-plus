@@ -10,8 +10,11 @@ workflow_contract:
 {{spec-kit-include: ../command-partials/debug/shell.md}}
 
 {{spec-kit-include: ../command-partials/common/senior-consequence-analysis-gate.md}}
+{{spec-kit-include: ../command-partials/common/run-bootstrap.md}}
 
 [AGENT] For project-cognition-backed semantic intake, routing, audit, resume, or final-claim gates, read `references/semantic-work-contract.md`.
+
+[AGENT] `sp-debug` always starts a new run. Record that new run with `specify-runtime run create`, then execute only through `specify-runtime run supervise`; do not resume another workflow's run.
 
 ## Main Flow
 

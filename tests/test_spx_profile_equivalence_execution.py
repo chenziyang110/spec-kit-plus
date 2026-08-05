@@ -35,15 +35,6 @@ def test_implement_teams_reuses_ordinary_execution_and_resume_contract() -> None
     assert "stale lane" in content
 
 
-def test_integrate_is_readiness_closeout_not_implicit_merge() -> None:
-    content = _surface("integrate")
-
-    assert "does not authorize a git merge" in content
-    assert "do not run merge, rebase, cherry-pick" in content
-    assert "do not edit conflict markers" in content
-    assert "handoff and stop" in content
-
-
 def test_debug_preserves_durable_intake_red_human_verify_and_recovery() -> None:
     content = _surface("debug")
 

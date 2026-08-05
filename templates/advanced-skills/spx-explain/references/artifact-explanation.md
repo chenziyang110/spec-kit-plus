@@ -1,7 +1,9 @@
 # Artifact explanation
 
 When branch context is ambiguous, resolve the lane with
-`{{specify-subcmd:specify-runtime lane resolve --command explain}}`.
+the explicit feature argument, a validated managed Run feature subject, or the
+installed prerequisite helper's unique paths-only result. Never infer it from
+the Run's private Git ref.
 
 Choose evidence by question:
 

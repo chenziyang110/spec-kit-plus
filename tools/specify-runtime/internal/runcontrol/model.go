@@ -26,7 +26,6 @@ var (
 	ErrWorkspaceConflict   = errors.New("workspace path or ref conflicts with recorded allocation")
 	ErrWorkspaceEscape     = errors.New("workspace path escapes the runtime-owned root")
 	ErrCandidateBinding    = errors.New("candidate Git binding is not authoritative")
-	ErrIntegrationBusy     = errors.New("target ref already has an active integration")
 	ErrTargetWorktreeDirty = errors.New("target worktree has tracked changes")
 )
 
@@ -38,7 +37,6 @@ var (
 	ErrOperationNotFound = ErrNotFound
 	ErrCandidateNotFound = ErrNotFound
 	ErrResultNotFound    = ErrNotFound
-	ErrNoCandidate       = ErrNotFound
 )
 
 type RunStatus string
@@ -121,6 +119,13 @@ type CreateActivityParams struct {
 
 type WorkspaceStatus string
 
+type WorkspaceMode string
+
+const (
+	WorkspaceModeIsolated WorkspaceMode = "isolated"
+	WorkspaceModePrimary  WorkspaceMode = "primary"
+)
+
 const (
 	WorkspaceAllocating  WorkspaceStatus = "allocating"
 	WorkspaceReady       WorkspaceStatus = "ready"
@@ -136,6 +141,8 @@ type Workspace struct {
 	RunID         string
 	Generation    int64
 	Kind          string
+	Mode          WorkspaceMode
+	SourceRunID   string
 	RootPath      string
 	RepoCommonDir string
 	BaseRef       string
@@ -200,6 +207,8 @@ type CreateWorkspaceParams struct {
 	RunID         string
 	Generation    int64
 	Kind          string
+	Mode          WorkspaceMode
+	SourceRunID   string
 	RootPath      string
 	RepoCommonDir string
 	BaseRef       string
@@ -335,7 +344,7 @@ type FinishAttemptParams struct {
 	Fence     int64
 	Outcome   AttemptOutcome
 	Reason    string
-	Candidate *CandidateSnapshot
+	Result    *RunResultSnapshot
 }
 
 type FinishedExecution struct {
@@ -343,104 +352,7 @@ type FinishedExecution struct {
 	Attempt   Attempt
 	Activity  Activity
 	Workspace Workspace
-	Candidate Candidate
-}
-
-type CandidateStatus string
-
-const (
-	CandidateQueued      CandidateStatus = "queued"
-	CandidateIntegrating CandidateStatus = "integrating"
-	CandidateIntegrated  CandidateStatus = "integrated"
-	CandidateConflicted  CandidateStatus = "conflicted"
-)
-
-// CandidateSnapshot is the immutable Git identity captured after a managed
-// child exits successfully. FinishAttempt binds it to the exact execution and
-// publishes it atomically with Run sealing.
-type CandidateSnapshot struct {
-	CandidateID string
-	TargetRef   string
-	BaseCommit  string
-	PrivateRef  string
-	HeadCommit  string
-}
-
-type Candidate struct {
-	CandidateID         string
-	RunID               string
-	AttemptID           string
-	ActivityID          string
-	WorkspaceID         string
-	WorkspaceGeneration int64
-	TargetRef           string
-	BaseCommit          string
-	PrivateRef          string
-	HeadCommit          string
-	Status              CandidateStatus
-	Revision            int64
-	CreatedAtMS         int64
-	UpdatedAtMS         int64
-}
-
-type IntegrationStatus string
-
-const (
-	IntegrationPrepared       IntegrationStatus = "prepared"
-	IntegrationExecuting      IntegrationStatus = "executing"
-	IntegrationSucceeded      IntegrationStatus = "succeeded"
-	IntegrationConflicted     IntegrationStatus = "conflicted"
-	IntegrationFailed         IntegrationStatus = "failed"
-	IntegrationOutcomeUnknown IntegrationStatus = "outcome_unknown"
-)
-
-type CandidateIntegration struct {
-	IntegrationID string
-	CandidateID   string
-	TargetRef     string
-	OwnerEpoch    string
-	Status        IntegrationStatus
-	TargetBefore  string
-	TargetAfter   string
-	Reason        string
-	Revision      int64
-	CreatedAtMS   int64
-	UpdatedAtMS   int64
-}
-
-type ResultStatus string
-
-const (
-	ResultIntegrated ResultStatus = "integrated"
-	ResultConflicted ResultStatus = "conflicted"
-)
-
-// Result is the immutable terminal observation for one Candidate integration.
-// Retryable infrastructure failures do not create Results.
-type Result struct {
-	ResultID      string
-	IntegrationID string
-	CandidateID   string
-	RunID         string
-	TargetRef     string
-	TargetBefore  string
-	TargetAfter   string
-	Status        ResultStatus
-	Reason        string
-	CreatedAtMS   int64
-}
-
-type IntegrateNextParams struct {
-	TargetRef            string
-	OwnerEpoch           string
-	HeartbeatInterval    time.Duration
-	SupervisorStaleAfter time.Duration
-}
-
-type IntegratedCandidate struct {
-	Candidate   Candidate
-	Integration CandidateIntegration
-	Result      Result
+	Result    RunResult
 }
 
 type Event struct {

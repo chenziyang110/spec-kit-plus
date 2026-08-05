@@ -402,9 +402,6 @@ BRAINSTORMING_EVIDENCE_INDEX_FILE="$FEATURE_DIR/brainstorming/evidence-index.jso
 BRAINSTORMING_EVIDENCE_DIR="$FEATURE_DIR/brainstorming/evidence"
 BRAINSTORMING_EVIDENCE_RECORD_TEMPLATE_FILE="$FEATURE_DIR/brainstorming/evidence/EVD-000-template.json"
 HANDOFF_TO_SPECIFY_FILE="$FEATURE_DIR/brainstorming/handoff-to-specify.json"
-LANE_ID="$BRANCH_NAME"
-LANE_WORKTREE="$REPO_ROOT/.specify/lanes/worktrees/$LANE_ID"
-
 if [ "$DRY_RUN" != true ]; then
     if [ "$HAS_GIT" = true ]; then
         branch_create_error=""
@@ -516,10 +513,8 @@ if $JSON_MODE; then
                 --arg spec_file "$SPEC_FILE" \
                 --arg context_file "$CONTEXT_FILE" \
                 --arg specify_draft_file "$SPECIFY_DRAFT_FILE" \
-                --arg lane_id "$LANE_ID" \
-                --arg lane_worktree "$LANE_WORKTREE" \
                 --arg feature_num "$FEATURE_NUM" \
-                '{BRANCH_NAME:$branch_name,FEATURE_DIR:$feature_dir,SPEC_FILE:$spec_file,CONTEXT_FILE:$context_file,SPECIFY_DRAFT_FILE:$specify_draft_file,LANE_ID:$lane_id,LANE_WORKTREE:$lane_worktree,FEATURE_NUM:$feature_num,DRY_RUN:true}'
+                '{BRANCH_NAME:$branch_name,FEATURE_DIR:$feature_dir,SPEC_FILE:$spec_file,CONTEXT_FILE:$context_file,SPECIFY_DRAFT_FILE:$specify_draft_file,FEATURE_NUM:$feature_num,DRY_RUN:true}'
         else
             jq -cn \
                 --arg branch_name "$BRANCH_NAME" \
@@ -527,16 +522,14 @@ if $JSON_MODE; then
                 --arg spec_file "$SPEC_FILE" \
                 --arg context_file "$CONTEXT_FILE" \
                 --arg specify_draft_file "$SPECIFY_DRAFT_FILE" \
-                --arg lane_id "$LANE_ID" \
-                --arg lane_worktree "$LANE_WORKTREE" \
                 --arg feature_num "$FEATURE_NUM" \
-                '{BRANCH_NAME:$branch_name,FEATURE_DIR:$feature_dir,SPEC_FILE:$spec_file,CONTEXT_FILE:$context_file,SPECIFY_DRAFT_FILE:$specify_draft_file,LANE_ID:$lane_id,LANE_WORKTREE:$lane_worktree,FEATURE_NUM:$feature_num}'
+                '{BRANCH_NAME:$branch_name,FEATURE_DIR:$feature_dir,SPEC_FILE:$spec_file,CONTEXT_FILE:$context_file,SPECIFY_DRAFT_FILE:$specify_draft_file,FEATURE_NUM:$feature_num}'
         fi
     else
         if [ "$DRY_RUN" = true ]; then
-            printf '{"BRANCH_NAME":"%s","FEATURE_DIR":"%s","SPEC_FILE":"%s","CONTEXT_FILE":"%s","SPECIFY_DRAFT_FILE":"%s","LANE_ID":"%s","LANE_WORKTREE":"%s","FEATURE_NUM":"%s","DRY_RUN":true}\n' "$(json_escape "$BRANCH_NAME")" "$(json_escape "$FEATURE_DIR")" "$(json_escape "$SPEC_FILE")" "$(json_escape "$CONTEXT_FILE")" "$(json_escape "$SPECIFY_DRAFT_FILE")" "$(json_escape "$LANE_ID")" "$(json_escape "$LANE_WORKTREE")" "$(json_escape "$FEATURE_NUM")"
+            printf '{"BRANCH_NAME":"%s","FEATURE_DIR":"%s","SPEC_FILE":"%s","CONTEXT_FILE":"%s","SPECIFY_DRAFT_FILE":"%s","FEATURE_NUM":"%s","DRY_RUN":true}\n' "$(json_escape "$BRANCH_NAME")" "$(json_escape "$FEATURE_DIR")" "$(json_escape "$SPEC_FILE")" "$(json_escape "$CONTEXT_FILE")" "$(json_escape "$SPECIFY_DRAFT_FILE")" "$(json_escape "$FEATURE_NUM")"
         else
-            printf '{"BRANCH_NAME":"%s","FEATURE_DIR":"%s","SPEC_FILE":"%s","CONTEXT_FILE":"%s","SPECIFY_DRAFT_FILE":"%s","LANE_ID":"%s","LANE_WORKTREE":"%s","FEATURE_NUM":"%s"}\n' "$(json_escape "$BRANCH_NAME")" "$(json_escape "$FEATURE_DIR")" "$(json_escape "$SPEC_FILE")" "$(json_escape "$CONTEXT_FILE")" "$(json_escape "$SPECIFY_DRAFT_FILE")" "$(json_escape "$LANE_ID")" "$(json_escape "$LANE_WORKTREE")" "$(json_escape "$FEATURE_NUM")"
+            printf '{"BRANCH_NAME":"%s","FEATURE_DIR":"%s","SPEC_FILE":"%s","CONTEXT_FILE":"%s","SPECIFY_DRAFT_FILE":"%s","FEATURE_NUM":"%s"}\n' "$(json_escape "$BRANCH_NAME")" "$(json_escape "$FEATURE_DIR")" "$(json_escape "$SPEC_FILE")" "$(json_escape "$CONTEXT_FILE")" "$(json_escape "$SPECIFY_DRAFT_FILE")" "$(json_escape "$FEATURE_NUM")"
         fi
     fi
 else
@@ -545,8 +538,6 @@ else
     echo "SPEC_FILE: $SPEC_FILE"
     echo "CONTEXT_FILE: $CONTEXT_FILE"
     echo "SPECIFY_DRAFT_FILE: $SPECIFY_DRAFT_FILE"
-    echo "LANE_ID: $LANE_ID"
-    echo "LANE_WORKTREE: $LANE_WORKTREE"
     echo "FEATURE_NUM: $FEATURE_NUM"
     if [ "$DRY_RUN" != true ]; then
         printf '# To persist in your shell: export SPECIFY_FEATURE=%q\n' "$BRANCH_NAME"

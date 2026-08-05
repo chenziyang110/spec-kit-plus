@@ -15,13 +15,16 @@ scripts:
 {{spec-kit-include: ../command-partials/common/senior-consequence-analysis-gate.md}}
 
 {{spec-kit-include: ../command-partials/common/agent-phase-handoff.md}}
+{{spec-kit-include: ../command-partials/common/run-bootstrap.md}}
 
 [AGENT] For project-cognition-backed semantic intake, routing, audit, resume, or final-claim gates, read `references/semantic-work-contract.md`.
+
+[AGENT] `sp-implement` continues the same run created for the feature. Confirm the same run with `specify-runtime run show`, then execute implementation work only through `specify-runtime run supervise`.
 
 ## Feature Context Provenance Gate
 
 Accept `<feature-dir>` only from `{SCRIPT}`, an explicit user selection, or the
-runtime-selected current lane. If feature context is missing or ambiguous, stop
+runtime-selected current Run subject. If feature context is missing or ambiguous, stop
 before `task-next`; never enumerate `.specify/features/**`, `tasks.md`, or
 `task-index.json`, and never choose a feature from name, slug, title, topic, or
 keyword similarity. An active or unconsumed discussion is not implementation

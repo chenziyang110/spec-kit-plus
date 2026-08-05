@@ -145,14 +145,54 @@ func runAPIShow(args []string, stdout io.Writer) int {
 		capability["side_effect"] = "cancels-and-fences-run"
 		capability["usage"] = "specify-runtime run cancel <run-id> --expected-revision <revision> --reason <reason> [--project-root <path>] --format json"
 		capability["input_contract"] = "requires the exact observed Run revision; cancellation advances the fence before revoking execution authority"
+	case "run.launch":
+		capability["side_effect"] = "queues-run-routes-workspace-and-runs-tokenized-child"
+		capability["usage"] = "specify-runtime run launch --run-id <id> --kind <kind> --subject-type <type> --subject-id <id> --target-ref <ref> --intent-sha256 <sha256> --adapter-id <id> [--workspace-policy auto|primary|isolated] [--project-root <path>] --format json -- <argv...>"
+		capability["input_contract"] = "single call queues durable Run intent and requires a literal -- separator; auto routes exactly one non-overlapping modifying Run to the primary workspace only when its checkout is pristine, routes overlaps and idle-but-dirty launches to isolated worktrees, clones overlaps from the primary Run's pre-launch Snapshot, forces child cwd, binds the fenced SPECIFY_RUN_* environment, and atomically records success or failure; interrupted Runs remain recoverable through run supervise"
 	case "run.supervise":
-		capability["side_effect"] = "allocates-worktree-and-runs-tokenized-child"
-		capability["usage"] = "specify-runtime run supervise <run-id> --adapter-id <id> [--project-root <path>] --format json -- <argv...>"
-		capability["input_contract"] = "requires a literal -- separator; runtime owns worktree allocation, forces child cwd, maintains liveness, and atomically records success or failure"
-	case "run.integrate":
-		capability["side_effect"] = "serializes-and-integrates-candidate"
-		capability["usage"] = "specify-runtime run integrate --target-ref <ref> [--project-root <path>] --format json"
-		capability["input_contract"] = "claims one immutable Candidate for the target, verifies its Git binding, applies it under a target-scoped lock, and records an immutable Result"
+		capability["side_effect"] = "routes-workspace-and-runs-tokenized-child"
+		capability["usage"] = "specify-runtime run supervise <run-id> --adapter-id <id> [--workspace-policy auto|primary|isolated] [--project-root <path>] --format json -- <argv...>"
+		capability["input_contract"] = "requires a literal -- separator; runtime owns auto routing between one pristine primary workspace owner and isolated overlap or idle-but-dirty worktrees, forces child cwd, binds SPECIFY_RUN_* identity/workspace/fence variables, extends WSLENV for WSL-backed helpers, maintains liveness, releases ownership on every terminal path, and atomically records success or failure"
+	case "result.list":
+		capability["side_effect"] = "read-only"
+		capability["usage"] = "specify-runtime result list [<run-id> | --run-id <id>] [--project-root <path>] --format json"
+		capability["input_contract"] = "returns append-only result history for one Run from sealed Result records without mutating execution state"
+	case "result.show":
+		capability["side_effect"] = "read-only"
+		capability["usage"] = "specify-runtime result show [<result-id> | --result-id <id>] [--project-root <path>] --format json"
+		capability["input_contract"] = "loads one immutable sealed result, its derived identity bindings, and current supersession metadata"
+	case "result.reopen":
+		capability["side_effect"] = "reopens-sealed-run"
+		capability["usage"] = "specify-runtime result reopen <run-id> (--basis-result <result-id> | --basis-result-id <result-id>) --expected-revision <revision> --reason <reason> [--project-root <path>] --format json"
+		capability["input_contract"] = "reopens a sealed Run only from its latest sealed Result basis and records deterministic supersession history"
+	case "result.depend":
+		capability["side_effect"] = "writes-result-dependency"
+		capability["usage"] = "specify-runtime result depend <result-id> (--on <result-id> | --upstream-result-id <result-id>) --kind requires|after|conflicts_with --reason <reason> [--project-root <path>] --format json"
+		capability["input_contract"] = "records one Result dependency edge in the immutable result graph; runtime validates the dependency kind"
+	case "candidate.build":
+		capability["side_effect"] = "builds-frozen-candidate"
+		capability["usage"] = "specify-runtime candidate build --target-ref <ref> (--result <result-id> | --result-id <result-id>)... [--project-root <path>] --format json"
+		capability["input_contract"] = "builds one frozen candidate from multiple results for a single target ref; runtime resolves Result ordering, dependency closure, and immutable candidate bindings"
+	case "candidate.show":
+		capability["side_effect"] = "read-only"
+		capability["usage"] = "specify-runtime candidate show <candidate-id> [--candidate-id <id>] [--project-root <path>] --format json"
+		capability["input_contract"] = "loads one immutable candidate, its member Results, manifest digest, hidden ref, and latest Review, Acceptance, Publication, and Sync delivery receipts without mutation"
+	case "candidate.review":
+		capability["side_effect"] = "writes-candidate-review"
+		capability["usage"] = "specify-runtime candidate review <candidate-id> --reviewer <id> [--project-root <path>] --format json -- <literal argv>"
+		capability["input_contract"] = "requires at least one literal argv after --; runtime materializes the frozen Candidate review workspace, executes the literal argv, and binds the resulting evidence digest to that exact candidate"
+	case "accept.receipt":
+		capability["side_effect"] = "writes-candidate-acceptance"
+		capability["usage"] = "specify-runtime accept receipt [<candidate-id> | --candidate-id <id>] [(--review-digest <sha256> --decision accepted|rejected --actor <id>) | --input-json <object>] [--project-root <path>] --format json"
+		capability["input_contract"] = "records the explicit accept receipt for one frozen Candidate against the latest passing Review digest; runtime binds the human acceptance receipt"
+	case "cas.publish":
+		capability["side_effect"] = "publishes-accepted-candidate"
+		capability["usage"] = "specify-runtime cas publish <candidate-id> --acceptance-digest <sha256> --expected-sha256 <sha256> [--project-root <path>] --format json"
+		capability["input_contract"] = "publishes one accepted frozen Candidate under cas protection; runtime verifies the exact acceptance digest, excludes an active primary-workspace owner, and resumes a durable publication journal by observing the protected target ref"
+	case "sync.safe":
+		capability["side_effect"] = "safe-syncs-primary-worktree"
+		capability["usage"] = "specify-runtime sync safe <candidate-id> --publication-digest <sha256> --target-ref <ref> [--project-root <path>] --format json"
+		capability["input_contract"] = "performs a separate safe sync only after a successful publication receipt; runtime excludes an active primary-workspace owner, verifies the published Candidate digest and protected worktree state, and can finish a reset whose receipt write was interrupted"
 	}
 	env.Data["capability"] = capability
 	return writeEnvelope(stdout, env)

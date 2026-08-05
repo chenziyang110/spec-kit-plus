@@ -28,7 +28,6 @@ ALLOWED_WORKFLOW_TRANSITIONS = {
     ("review", "specify"),
     ("review", "design"),
     ("accept", "review"),
-    ("accept", "integrate"),
     ("quick", "debug"),
     ("fast", "quick"),
 }

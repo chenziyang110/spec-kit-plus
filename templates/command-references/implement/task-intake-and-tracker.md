@@ -6,7 +6,7 @@ Preserved Contract: implementation remains resumable, task-driven, evidence-back
 
 ## Intake
 
-1. Resolve the active feature lane/worktree.
+1. Verify the managed Run worktree binding and resolve its active feature subject.
 2. Call `specify-runtime implement task-next` for compact execution state and the next ready task. Query any extra field with `specify-runtime artifact show --json-pointer`; do not parse the complete task index directly.
 3. Validate task-graph revision, current ready batch, dependencies, and relevant repository baseline.
 4. Load only the current task's required refs and live touched-area evidence.

@@ -35,8 +35,8 @@ def test_agents_declares_classic_and_advanced_profile_contract() -> None:
     assert "install the other profile additively" in normalized
     assert "`templates/commands/**`" in section
     assert "`templates/advanced-skills/**`" in section
-    assert "31 SPX skills" in normalized
-    assert "30 one-to-one Classic command counterparts" in normalized
+    assert "30 SPX skills" in normalized
+    assert "29 one-to-one Classic command counterparts" in normalized
     assert "does **not** install the Classic passive-skill prompt bundle" in normalized
     for skill_name in (
         "sp-map-scan",
