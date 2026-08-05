@@ -6047,6 +6047,7 @@ def init(
         specify init --here --ai codebuddy
         specify init --here --ai vibe      # Initialize with Mistral Vibe support
         specify init --here --ai zcode     # Initialize with ZCode support
+        specify init --here --ai grok      # Initialize with Grok Build support
         specify init --here --ai mimo      # Initialize with MiMo Code support
         specify init --here
         specify init --here --force  # Skip confirmation when current directory not empty
@@ -6738,6 +6739,7 @@ def init(
     trae_skill_mode = selected_ai == "trae" and _is_skills_integration
     vibe_skill_mode = selected_ai == "vibe" and _is_skills_integration
     zcode_skill_mode = selected_ai == "zcode" and _is_skills_integration
+    grok_skill_mode = selected_ai == "grok" and _is_skills_integration
     native_skill_mode = (
         codex_skill_mode
         or claude_skill_mode
@@ -6747,6 +6749,7 @@ def init(
         or trae_skill_mode
         or vibe_skill_mode
         or zcode_skill_mode
+        or grok_skill_mode
     )
 
     if native_skill_mode and not ai_skills:
@@ -6759,6 +6762,7 @@ def init(
             "trae": "Trae",
             "vibe": "Mistral Vibe",
             "zcode": "ZCode",
+            "grok": "Grok",
         }
         agent_label = agent_start_labels.get(
             selected_ai,
@@ -6801,9 +6805,12 @@ def init(
     def _display_cmd(name: str) -> str:
         if codex_skill_mode or agy_skill_mode or zcode_skill_mode:
             return f"$sp-{name}"
-        if cursor_agent_skill_mode or vibe_skill_mode:
-            return f"/sp-{name}"
-        if claude_skill_mode:
+        if (
+            cursor_agent_skill_mode
+            or vibe_skill_mode
+            or claude_skill_mode
+            or grok_skill_mode
+        ):
             return f"/sp-{name}"
         if kimi_skill_mode:
             return f"/skill:sp-{name}"

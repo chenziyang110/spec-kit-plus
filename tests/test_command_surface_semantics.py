@@ -158,6 +158,16 @@ def test_apply_skill_invocation_conventions_supports_zcode_surface():
     assert "`next_command: /sp.plan`" in zcode
 
 
+def test_apply_skill_invocation_conventions_supports_grok_surface():
+    body = "- Run /sp-plan next.\n- State token remains `next_command: /sp.plan`.\n"
+
+    grok = CommandRegistrar.apply_skill_invocation_conventions("grok", body)
+
+    assert "## Invocation Syntax" in grok
+    assert "- Run /sp-plan next." in grok
+    assert "`next_command: /sp.plan`" in grok
+
+
 def test_invoke_placeholder_projects_codex_skill_surface():
     rendered = IntegrationBase.process_template(
         "---\n---\nRun {{invoke:plan}} next.",
@@ -186,6 +196,16 @@ def test_invoke_placeholder_projects_zcode_skill_surface():
     )
 
     assert rendered.endswith("Run $sp-plan next.")
+
+
+def test_invoke_placeholder_projects_grok_skill_surface():
+    rendered = IntegrationBase.process_template(
+        "---\n---\nRun {{invoke:plan}} next.",
+        "grok",
+        "sh",
+    )
+
+    assert rendered.endswith("Run /sp-plan next.")
 
 
 def test_invoke_placeholder_projects_markdown_command_surface():

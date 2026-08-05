@@ -248,7 +248,7 @@ class CommandRegistrar:
         if not isinstance(frontmatter, dict):
             frontmatter = {}
 
-        if agent_name in {"codex", "kimi", "claude"}:
+        if agent_name in {"codex", "kimi", "claude", "grok"}:
             body = self.resolve_skill_placeholders(agent_name, frontmatter, body, project_root)
         elif agent_name in {"agy", "zcode"}:
             body = self.apply_skill_invocation_conventions(agent_name, body)
@@ -280,8 +280,8 @@ class CommandRegistrar:
                 "source": source,
             },
         }
-        if agent_name == "claude":
-            # Claude skills should be user-invocable (accessible via /command)
+        if agent_name in {"claude", "grok"}:
+            # Slash-command skill UIs should mark workflow skills user-invocable.
             skill_frontmatter["user-invocable"] = True
         return skill_frontmatter
 
@@ -290,7 +290,7 @@ class CommandRegistrar:
         """Return the agent-specific skill invocation example when applicable."""
         if agent_name in {"codex", "agy", "zcode"}:
             return "$sp-plan"
-        if agent_name == "claude":
+        if agent_name in {"claude", "grok"}:
             return "/sp-plan"
         if agent_name == "kimi":
             return "/skill:sp-plan"
@@ -306,7 +306,7 @@ class CommandRegistrar:
             return f"$sp-{normalized}"
         if agent_name == "kimi":
             return f"/skill:sp-{normalized}"
-        if agent_name == "claude":
+        if agent_name in {"claude", "grok"}:
             return f"/sp-{normalized}"
         return f"/sp.{normalized}"
 

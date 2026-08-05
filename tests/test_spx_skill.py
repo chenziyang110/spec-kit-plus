@@ -66,6 +66,7 @@ SKILLS_INTEGRATIONS = (
     "claude",
     "codex",
     "cursor-agent",
+    "grok",
     "kimi",
     "trae",
     "vibe",
@@ -1818,7 +1819,7 @@ def test_all_skills_integrations_support_the_advanced_profile(
         integration_key
     )
 
-    if integration_key in {"claude", "vibe"}:
+    if integration_key in {"claude", "vibe", "grok"}:
         for skill_name in SPX_SKILLS:
             skill = skills_dir / skill_name / "SKILL.md"
             assert _frontmatter(skill)["user-invocable"] is True

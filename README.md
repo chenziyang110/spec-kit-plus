@@ -147,7 +147,7 @@ Canonical workflow names are integration-neutral. Invocation syntax depends on t
 | Integration surface | Classic `specify` | Advanced `specify` | PRD reconstruction |
 | --- | --- | --- | --- |
 | Codex, Antigravity, Trae, and ZCode skills | `$sp-specify` | `$spx-specify` | `$sp-prd-scan -> $sp-prd-build` |
-| Claude, Cursor, and Mistral Vibe skills | `/sp-specify` | `/spx-specify` | `/sp-prd-scan -> /sp-prd-build` |
+| Claude, Cursor, Grok, and Mistral Vibe skills | `/sp-specify` | `/spx-specify` | `/sp-prd-scan -> /sp-prd-build` |
 | Kimi Code skills | `/skill:sp-specify` | `/skill:spx-specify` | `/skill:sp-prd-scan -> /skill:sp-prd-build` |
 | Slash-dot command integrations | `/sp.specify` | Not available | `/sp.prd-scan -> /sp.prd-build` |
 
@@ -159,7 +159,7 @@ The current registry is the source of the following integration keys:
 
 | Surface | Integration keys |
 | --- | --- |
-| Skills-based; Classic and Advanced | `agy`, `claude`, `codex`, `cursor-agent`, `kimi`, `trae`, `vibe`, `zcode` |
+| Skills-based; Classic and Advanced | `agy`, `claude`, `codex`, `cursor-agent`, `grok`, `kimi`, `trae`, `vibe`, `zcode` |
 | Command, prompt, or workflow based; Classic | `amp`, `auggie`, `bob`, `codebuddy`, `copilot`, `forge`, `gemini`, `iflow`, `junie`, `kilocode`, `kiro-cli`, `mimo`, `opencode`, `pi`, `qodercli`, `qwen`, `roo`, `shai`, `tabnine`, `windsurf` |
 | Bring your own agent | `generic` with `--ai-commands-dir <directory>` |
 
@@ -447,6 +447,12 @@ ZCode:
 
 ```bash
 specify init my-project --ai zcode
+```
+
+Grok:
+
+```bash
+specify init my-project --ai grok
 ```
 
 MiMo Code:
@@ -771,6 +777,7 @@ Invocation syntax depends on the integration:
 | Kimi Code skills | `/skill:sp-specify` | `/skill:sp-prd-scan -> /skill:sp-prd-build` | `/skill:sp-plan` | Kimi exposes generated skills through `/skill:sp-*`. |
 | Claude skills | `/sp-specify` | `/sp-prd-scan -> /sp-prd-build` | `/sp-plan` | Claude keeps slash-style skill commands. |
 | Cursor skills | `/sp-specify` | `/sp-prd-scan -> /sp-prd-build` | `/sp-plan` | Cursor projects install workflow skills under `.cursor/skills` and keep `.cursor/rules/` for context files. |
+| Grok skills | `/sp-specify` | `/sp-prd-scan -> /sp-prd-build` | `/sp-plan` | Grok projects install workflow skills under `.grok/skills` and keep root `AGENTS.md` as context. |
 | Trae skills | `$sp-specify` | `$sp-prd-scan -> $sp-prd-build` | `$sp-plan` | Trae projects install workflow skills under `.trae/skills` and keep `.trae/rules/project_rules.md` as context. |
 | Mistral Vibe skills | `/sp-specify` | `/sp-prd-scan -> /sp-prd-build` | `/sp-plan` | Vibe projects install workflow skills under `.vibe/skills`. |
 | ZCode skills | `$sp-specify` | `$sp-prd-scan -> $sp-prd-build` | `$sp-plan` | ZCode projects install workflow skills under `.zcode/skills`; use `.agents/skills` only for cross-tool shared skills. |
@@ -1299,6 +1306,7 @@ Commonly used integrations in Spec Kit Plus include:
 - `qodercli`
 - `vibe`
 - `zcode`
+- `grok`
 - `kimi`
 - `mimo`
 - `iflow`
