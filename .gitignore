@@ -75,3 +75,7 @@ docs/dev
 .codex/skills/.system/**
 !.codex/prompts/
 !.codex/prompts/**
+
+# Local run-control / pytest temp caches (may be file-locked on Windows)
+.codex-run-control-cache/
+
