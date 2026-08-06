@@ -350,9 +350,11 @@ Use the lightweight routing rules consistently:
   - Command shape: `specify-runtime discussion init <topic> [--slug <slug>]`
   - Command shape: `specify-runtime discussion status <slug>`
   - Command shape: `specify-runtime discussion resume <slug>`
-  - Command shape: `specify-runtime discussion checkpoint <slug> --summary <summary> [--phase <phase>]`
-  - Command shape: `specify-runtime discussion write-handoff <slug> --input-json '<draft-json>'`; the runtime materializes the canonical handoff
-  - Command shape: `specify-runtime discussion bind-consumer <slug> --feature-dir <feature-dir> --input-json '<transition-json>'`; the runtime validates the ready contract and materializes the feature compatibility pointer
+  - Command shape: `specify-runtime discussion checkpoint <slug> --input-json '<object|@path|->' [--summary <summary>] [--phase <phase>] [--user-goal <goal>]`; persists accepted turn_packet semantic fields (`user_goal`, `context_boundary`, decisions, recommendation, …) and rejects unknown fields
+  - Command shape: `specify-runtime discussion write-handoff <slug> --input-json '<draft-json|@path|->'`; the runtime materializes the canonical handoff. Schema: `specify-runtime api schema discussion-write-handoff-input`
+  - Command shape: `specify-runtime discussion bind-consumer <slug> --feature-dir <feature-dir> --input-json '<transition-json|@path|->'`; the runtime validates the ready contract and materializes the feature compatibility pointer
+  - PowerShell note: prefer `--input-json @payload.json` or `--input-json -` with stdin; inline single-quoted JSON often loses double quotes
+  - Artifact patch note: `--section` accepts bare heading text or optional `#`/`##` markers; for Windows path content prefer `/` separators or raw strings so `\a` is not a bell escape
   - Command shape: `specify-runtime discussion validate-handoff <slug> --mode draft|ready`
   - Command shape: `specify-runtime discussion confirm-handoff <slug> --digest <review-digest>`
   - Command shape: `specify-runtime discussion mark-ready <slug>`

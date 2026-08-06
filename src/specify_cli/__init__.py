@@ -2721,10 +2721,37 @@ def _fail_implement_task_runtime(exc: Exception, output_format: TextJsonFormat) 
 
 
 def _task_authoring_object(raw: str, *, label: str) -> dict[str, Any]:
+    """Load task authoring JSON from inline text, @path, or stdin '-'."""
+
+    text = (raw or "").strip()
+    if not text:
+        raise ValueError(
+            f"{label} is required (inline JSON, @path, or - for stdin; "
+            "on Windows prefer @path to avoid command-line length limits)"
+        )
+    if text == "-":
+        import sys
+
+        payload_text = sys.stdin.read()
+    elif text.startswith("@"):
+        path = Path(text[1:].strip())
+        if not path.is_absolute():
+            path = Path.cwd() / path
+        try:
+            payload_text = path.read_text(encoding="utf-8")
+        except OSError as exc:
+            raise ValueError(f"{label} @path could not be read: {exc}") from exc
+    else:
+        payload_text = raw
+    if len(payload_text.encode("utf-8")) > _MAX_AGENT_JSON_INPUT_BYTES:
+        raise ValueError(f"{label} exceeds the 16 MiB input limit")
     try:
-        payload = json.loads(raw)
+        payload = json.loads(payload_text)
     except json.JSONDecodeError as exc:
-        raise ValueError(f"{label} must be valid JSON: {exc}") from exc
+        raise ValueError(
+            f"{label} must be valid JSON: {exc}; "
+            "on Windows PowerShell prefer @payload.json or stdin -"
+        ) from exc
     if not isinstance(payload, dict):
         raise ValueError(f"{label} must contain a JSON object")
     return payload
@@ -2774,7 +2801,9 @@ def _run_task_authoring(
 def tasks_build(
     feature_dir: str = typer.Option(..., "--feature-dir"),
     definition_json: str = typer.Option(
-        ..., "--definition-json", help="Inline semantic task-package JSON"
+        ...,
+        "--definition-json",
+        help="Semantic task-package JSON: inline, @path, or - for stdin",
     ),
     output_format: TextJsonFormat = typer.Option(TextJsonFormat.text, "--format"),
 ):
@@ -2797,7 +2826,11 @@ def tasks_build(
 @tasks_app.command("upsert")
 def tasks_upsert(
     feature_dir: str = typer.Option(..., "--feature-dir"),
-    task_json: str = typer.Option(..., "--task-json", help="Inline semantic task JSON"),
+    task_json: str = typer.Option(
+        ...,
+        "--task-json",
+        help="Semantic task JSON: inline, @path, or - for stdin",
+    ),
     output_format: TextJsonFormat = typer.Option(TextJsonFormat.text, "--format"),
 ):
     """Add or replace one non-terminal task and rerender tasks.md atomically."""
@@ -2820,7 +2853,9 @@ def tasks_upsert(
 def tasks_set_root(
     feature_dir: str = typer.Option(..., "--feature-dir"),
     patch_json: str = typer.Option(
-        ..., "--patch-json", help="Inline root-field patch JSON"
+        ...,
+        "--patch-json",
+        help="Root-field patch JSON: inline, @path, or - for stdin (transition is CLI-owned)",
     ),
     output_format: TextJsonFormat = typer.Option(TextJsonFormat.text, "--format"),
 ):

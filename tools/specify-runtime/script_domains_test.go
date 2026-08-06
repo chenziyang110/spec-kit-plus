@@ -606,14 +606,24 @@ func TestIsUnboundConsumerHandoff(t *testing.T) {
 
 func TestDiscussionBindConsumerRejectsFilesAndIntegrityFieldOverrides(t *testing.T) {
 	root := t.TempDir()
-	for _, args := range [][]string{
-		{"--project-root", root, "bind-consumer", "demo", "--feature-dir", "specs/demo", "--input", "payload.json", "--input-json", `{}`},
-		{"--project-root", root, "bind-consumer", "demo", "--feature-dir", "specs/demo", "--input-json", `{"semantic_delta":[],"required_refs":[],"blockers":[],"recovery":null,"review_digest":"agent-value"}`},
-	} {
-		env := runScriptDomainEnvelope(t, runDiscussion, args)
-		if env.Status != "blocked" {
-			t.Fatalf("bind-consumer %#v = %#v, want blocked", args, env)
-		}
+	// Bare --input is an input-channel violation (invalid), not a state conflict.
+	env := runScriptDomainEnvelope(t, runDiscussion, []string{
+		"--project-root", root, "bind-consumer", "demo", "--feature-dir", "specs/demo",
+		"--input", "payload.json", "--input-json", `{}`,
+	})
+	if env.Status != "invalid" || len(env.Blockers) == 0 {
+		t.Fatalf("bind-consumer bare --input = %#v, want invalid", env)
+	}
+	// Agent-authored integrity fields are rejected after the input channel opens.
+	env = runScriptDomainEnvelope(t, runDiscussion, []string{
+		"--project-root", root, "bind-consumer", "demo", "--feature-dir", "specs/demo",
+		"--input-json", `{"semantic_delta":[],"required_refs":[],"blockers":[],"recovery":null,"review_digest":"agent-value"}`,
+	})
+	if env.Status != "blocked" && env.Status != "invalid" {
+		t.Fatalf("bind-consumer integrity override = %#v, want blocked/invalid", env)
+	}
+	if len(env.Blockers) == 0 {
+		t.Fatalf("bind-consumer integrity override missing blockers: %#v", env)
 	}
 }
 
@@ -627,7 +637,8 @@ func TestDiscussionHandoffRequiresInlineInputChannel(t *testing.T) {
 		{"--project-root", root, "write-handoff", slug, "--input", "draft.json", "--input-json", "{}"},
 	} {
 		env = runScriptDomainEnvelope(t, runDiscussion, args)
-		if env.Status != "blocked" || len(env.Blockers) == 0 {
+		// Input-channel violations are usage/invalid, not state-blocked.
+		if (env.Status != "invalid" && env.Status != "blocked") || len(env.Blockers) == 0 {
 			t.Fatalf("write-handoff input gate for %v = %#v", args, env)
 		}
 	}
@@ -702,6 +713,114 @@ func discussionHandoffFixture() map[string]any {
 		"quality_gate": map[string]any{
 			"self_reviewed_at": "2026-07-24T00:00:00Z",
 		},
+	}
+}
+
+func TestDiscussionCheckpointPersistsSemanticFieldsAndInputJSON(t *testing.T) {
+	root := t.TempDir()
+	env := runScriptDomainEnvelope(t, runDiscussion, []string{"--project-root", root, "init", "Durable recovery", "Durable recovery"})
+	if env.Status != "ok" {
+		t.Fatalf("init status = %s, blockers=%v", env.Status, env.Blockers)
+	}
+	slug := env.Data["slug"].(string)
+
+	payload := map[string]any{
+		"summary":                "Persist semantic checkpoint fields.",
+		"lifecycle_phase":        "decide",
+		"user_goal":              "Recover discussion without chat memory.",
+		"confirmed_decisions":    []any{"Checkpoint must update turn_packet."},
+		"open_questions":         []any{"Which consumer?"},
+		"current_recommendation": "Keep typed state durable.",
+		"context_boundary":       map[string]any{"status": "in-progress"},
+	}
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(root, "checkpoint.json")
+	if err := os.WriteFile(path, raw, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	env = runScriptDomainEnvelope(t, runDiscussion, []string{
+		"--project-root", root, "checkpoint", slug, "--input-json", "@checkpoint.json",
+	})
+	if env.Status != "ok" {
+		t.Fatalf("checkpoint status = %s, blockers=%v", env.Status, env.Blockers)
+	}
+	packet := env.Data["turn_packet"].(map[string]any)
+	if packet["user_goal"] != "Recover discussion without chat memory." {
+		t.Fatalf("user_goal not persisted: %#v", packet)
+	}
+	if packet["current_recommendation"] != "Keep typed state durable." {
+		t.Fatalf("current_recommendation not persisted: %#v", packet)
+	}
+	boundary := packet["context_boundary"].(map[string]any)
+	if boundary["status"] != "in-progress" {
+		t.Fatalf("context_boundary not persisted: %#v", packet)
+	}
+
+	env = runScriptDomainEnvelope(t, runDiscussion, []string{"--project-root", root, "resume", slug})
+	if env.Status != "ok" {
+		t.Fatalf("resume status = %s, blockers=%v", env.Status, env.Blockers)
+	}
+	resumePacket := env.Data["turn_packet"].(map[string]any)
+	if resumePacket["user_goal"] != "Recover discussion without chat memory." {
+		t.Fatalf("resume lost user_goal: %#v", resumePacket)
+	}
+
+	env = runScriptDomainEnvelope(t, runDiscussion, []string{
+		"--project-root", root, "checkpoint", slug, "--input-json", `{"summary":"bad","not_a_field":true}`,
+	})
+	if env.Status == "ok" {
+		t.Fatalf("unknown checkpoint fields should fail: %#v", env)
+	}
+	if !strings.Contains(fmt.Sprint(env.Blockers), "unknown fields") {
+		t.Fatalf("expected unknown fields error, got %#v", env.Blockers)
+	}
+}
+
+func TestDiscussionWriteHandoffAcceptsAtPathInputJSON(t *testing.T) {
+	root := t.TempDir()
+	installScaffoldTemplate(t, root, "discussion-handoff-template.json")
+	env := runScriptDomainEnvelope(t, runDiscussion, []string{"--project-root", root, "init", "Path input", "Path input"})
+	if env.Status != "ok" {
+		t.Fatalf("init status = %s", env.Status)
+	}
+	slug := env.Data["slug"].(string)
+	raw, err := json.Marshal(discussionHandoffFixture())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "handoff-draft.json"), raw, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	env = runScriptDomainEnvelope(t, runDiscussion, []string{
+		"--project-root", root, "write-handoff", slug, "--input-json", "@handoff-draft.json",
+	})
+	if env.Status != "ok" {
+		t.Fatalf("write-handoff @path status = %s, blockers=%v", env.Status, env.Blockers)
+	}
+	if env.Data["review_digest"] == "" {
+		t.Fatalf("missing review digest: %#v", env.Data)
+	}
+}
+
+func TestDiscussionWriteHandoffQuotingFailureHint(t *testing.T) {
+	root := t.TempDir()
+	installScaffoldTemplate(t, root, "discussion-handoff-template.json")
+	env := runScriptDomainEnvelope(t, runDiscussion, []string{"--project-root", root, "init", "Quote fail", "Quote fail"})
+	slug := env.Data["slug"].(string)
+	// Simulates PowerShell-stripped quotes: keys without double quotes.
+	env = runScriptDomainEnvelope(t, runDiscussion, []string{
+		"--project-root", root, "write-handoff", slug, "--input-json", `{handoff_goal:test}`,
+	})
+	if env.Status == "ok" {
+		t.Fatalf("malformed JSON should fail")
+	}
+	joined := fmt.Sprint(env.Blockers)
+	if !strings.Contains(joined, "JSON object") || !strings.Contains(joined, "PowerShell") {
+		t.Fatalf("expected PowerShell quoting hint, got %#v", env.Blockers)
 	}
 }
 

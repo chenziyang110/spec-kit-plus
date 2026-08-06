@@ -38,6 +38,16 @@ func runDiscussion(args []string, stdout io.Writer) int {
 			"close",
 			"archive",
 		}
+		env.Data["input_json"] = "inline JSON, @path, or - (stdin). On Windows PowerShell prefer @path or stdin because inline quoting often strips double quotes."
+		env.Data["checkpoint"] = map[string]any{
+			"usage": "specify-runtime discussion checkpoint <slug> --input-json <object|@path|-> [--summary <text>] [--phase <phase>] [--user-goal <text>] [--decision <text>]... [--recommendation <text>]",
+			"persists": append([]string{"summary", "lifecycle_phase"}, discussionCheckpointPacketKeys...),
+			"unknown_fields": "rejected with invalid error (not silently dropped)",
+		}
+		env.Data["write_handoff"] = map[string]any{
+			"usage":  "specify-runtime discussion write-handoff <slug> --input-json <object|@path|->",
+			"schema": "specify-runtime api schema discussion-write-handoff-input --format json",
+		}
 		return writeEnvelope(stdout, env)
 	}
 	mode := positionalArg(args, 0, "list")
@@ -56,18 +66,9 @@ func runDiscussion(args []string, stdout io.Writer) int {
 	case "resume":
 		mode = "resume-context"
 	case "checkpoint":
-		if !hasFlag(args, "--summary") && value != "" {
-			break
-		}
-		changes := map[string]any{"summary": optionValue(args, "--summary", "")}
-		if phase := strings.TrimSpace(optionValue(args, "--phase", "")); phase != "" {
-			changes["lifecycle_phase"] = strings.ToLower(phase)
-		}
-		if decisions := optionValues(args, "--decision"); len(decisions) > 0 {
-			changes["confirmed_decisions"] = decisions
-		}
-		if recommendation := strings.TrimSpace(optionValue(args, "--recommendation", "")); recommendation != "" {
-			changes["current_recommendation"] = recommendation
+		changes, err := resolveDiscussionCheckpointInput(args, projectRoot, value)
+		if err != nil {
+			return writeEnvelope(stdout, scriptDomainError("discussion", err))
 		}
 		encoded, err := json.Marshal(changes)
 		if err != nil {
@@ -78,22 +79,30 @@ func runDiscussion(args []string, stdout io.Writer) int {
 		value = optionValue(args, "--mode", defaultString(value, "ready"))
 	case "write-handoff":
 		if hasFlag(args, "--input") || value != "" {
-			return writeEnvelope(stdout, scriptDomainError("discussion", fmt.Errorf("write-handoff does not accept agent-authored input files; pass the draft inline with --input-json")))
+			return writeEnvelope(stdout, scriptDomainError("discussion", fmt.Errorf("write-handoff does not accept agent-authored input files via --input or positional paths; pass the draft with --input-json (inline, @path, or - for stdin)")))
 		}
 		if !hasFlag(args, "--input-json") || strings.TrimSpace(optionValue(args, "--input-json", "")) == "" {
-			return writeEnvelope(stdout, scriptDomainError("discussion", fmt.Errorf("write-handoff requires --input-json")))
+			return writeEnvelope(stdout, scriptDomainError("discussion", fmt.Errorf("write-handoff requires --input-json (inline, @path, or - for stdin)")))
+		}
+		raw, err := resolveAgentJSONInputBytes(optionValue(args, "--input-json", ""), projectRoot, "discussion write-handoff")
+		if err != nil {
+			return writeEnvelope(stdout, scriptDomainError("discussion", err))
 		}
 		mode = "write-handoff-json"
-		value = optionValue(args, "--input-json", "")
+		value = string(raw)
 	case "bind-consumer":
 		if hasFlag(args, "--input") || value != "" {
-			return writeEnvelope(stdout, scriptDomainError("discussion", fmt.Errorf("bind-consumer does not accept agent-authored input files; pass transition fields inline with --input-json")))
+			return writeEnvelope(stdout, scriptDomainError("discussion", fmt.Errorf("bind-consumer does not accept agent-authored input files via --input or positional paths; pass transition fields with --input-json (inline, @path, or - for stdin)")))
 		}
 		featureDir := strings.TrimSpace(optionValue(args, "--feature-dir", ""))
 		if featureDir == "" || !hasFlag(args, "--input-json") || strings.TrimSpace(optionValue(args, "--input-json", "")) == "" {
-			return writeEnvelope(stdout, scriptDomainError("discussion", fmt.Errorf("bind-consumer requires --feature-dir and --input-json")))
+			return writeEnvelope(stdout, scriptDomainError("discussion", fmt.Errorf("bind-consumer requires --feature-dir and --input-json (inline, @path, or - for stdin)")))
 		}
-		input, err := decodeDiscussionHandoffPayload([]byte(optionValue(args, "--input-json", "")))
+		raw, err := resolveAgentJSONInputBytes(optionValue(args, "--input-json", ""), projectRoot, "discussion bind-consumer")
+		if err != nil {
+			return writeEnvelope(stdout, scriptDomainError("discussion", err))
+		}
+		input, err := decodeDiscussionHandoffPayload(raw)
 		if err != nil {
 			return writeEnvelope(stdout, scriptDomainError("discussion", err))
 		}
@@ -254,9 +263,25 @@ func runPRDBuild(args []string, stdout io.Writer) int {
 }
 
 func scriptDomainError(domain string, err error) Envelope {
-	env := NewEnvelope("blocked", domain+" state command failed")
+	status := "blocked"
+	code := domain + "-state-error"
+	message := domain + " state command failed"
+	if err != nil {
+		text := strings.ToLower(err.Error())
+		switch {
+		case strings.Contains(text, "unknown fields"),
+			strings.Contains(text, "must be a json object"),
+			strings.Contains(text, "requires --input-json"),
+			strings.Contains(text, "does not accept agent-authored"),
+			strings.Contains(text, "invalid checkpoint lifecycle phase"):
+			status = "invalid"
+			code = domain + "-input-invalid"
+			message = domain + " input is invalid"
+		}
+	}
+	env := NewEnvelope(status, message)
 	env.Blockers = append(env.Blockers, err.Error())
-	env.Data["error_code"] = domain + "-state-error"
+	env.Data["error_code"] = code
 	return env
 }
 
@@ -490,14 +515,96 @@ func decodeDiscussionHandoffPayload(raw []byte) (map[string]any, error) {
 	if len(raw) > maxDiscussionHandoffBytes {
 		return nil, fmt.Errorf("handoff input exceeds %d bytes", maxDiscussionHandoffBytes)
 	}
-	var payload map[string]any
-	if err := json.Unmarshal(raw, &payload); err != nil {
-		return nil, fmt.Errorf("handoff input must be a JSON object: %w", err)
+	return decodeAgentJSONObject(raw, "handoff")
+}
+
+// discussionCheckpointPacketKeys are turn_packet fields agents may update via checkpoint.
+var discussionCheckpointPacketKeys = []string{
+	"user_goal",
+	"turn_class",
+	"confirmed_decisions",
+	"changed_recommendations",
+	"context_boundary",
+	"verified_fact_refs",
+	"open_assumptions",
+	"open_questions",
+	"current_recommendation",
+	"allowed_actions",
+	"next_gate",
+	"current_decision_frame",
+}
+
+var discussionCheckpointMetaKeys = map[string]bool{
+	"summary":          true,
+	"lifecycle_phase":  true,
+	"phase":            true, // alias for lifecycle_phase
+}
+
+func resolveDiscussionCheckpointInput(args []string, projectRoot, positional string) (map[string]any, error) {
+	changes := map[string]any{}
+	switch {
+	case hasFlag(args, "--input-json"):
+		raw, err := resolveAgentJSONInputBytes(optionValue(args, "--input-json", ""), projectRoot, "discussion checkpoint")
+		if err != nil {
+			return nil, err
+		}
+		decoded, err := decodeAgentJSONObject(raw, "discussion checkpoint")
+		if err != nil {
+			return nil, err
+		}
+		changes = decoded
+	case !hasFlag(args, "--summary") && strings.TrimSpace(positional) != "":
+		decoded, err := decodeAgentJSONObject([]byte(positional), "discussion checkpoint")
+		if err != nil {
+			return nil, err
+		}
+		changes = decoded
 	}
-	if payload == nil {
-		return nil, fmt.Errorf("handoff input must be a JSON object")
+
+	if hasFlag(args, "--summary") {
+		changes["summary"] = optionValue(args, "--summary", "")
 	}
-	return payload, nil
+	if phase := strings.TrimSpace(optionValue(args, "--phase", "")); phase != "" {
+		changes["lifecycle_phase"] = strings.ToLower(phase)
+	}
+	if decisions := optionValues(args, "--decision"); len(decisions) > 0 {
+		changes["confirmed_decisions"] = decisions
+	}
+	if recommendation := strings.TrimSpace(optionValue(args, "--recommendation", "")); recommendation != "" {
+		changes["current_recommendation"] = recommendation
+	}
+	if goal := strings.TrimSpace(optionValue(args, "--user-goal", "")); goal != "" {
+		changes["user_goal"] = goal
+	}
+	return changes, nil
+}
+
+func validateDiscussionCheckpointFields(changes map[string]any) error {
+	known := map[string]bool{}
+	for key := range discussionCheckpointMetaKeys {
+		known[key] = true
+	}
+	for _, key := range discussionCheckpointPacketKeys {
+		known[key] = true
+	}
+	unknown := []string{}
+	for key := range changes {
+		if !known[key] {
+			unknown = append(unknown, key)
+		}
+	}
+	sort.Strings(unknown)
+	if len(unknown) > 0 {
+		accepted := append([]string{}, discussionCheckpointPacketKeys...)
+		accepted = append(accepted, "summary", "lifecycle_phase", "phase")
+		sort.Strings(accepted)
+		return fmt.Errorf(
+			"discussion checkpoint unknown fields: %s; accepted fields: %s (unknown fields are rejected instead of silently dropped)",
+			strings.Join(unknown, ", "),
+			strings.Join(accepted, ", "),
+		)
+	}
+	return nil
 }
 
 func (service discussionService) root() (string, error) {
@@ -905,16 +1012,28 @@ func (service discussionService) checkpoint(slug string, changes map[string]any)
 	if archived {
 		return nil, fmt.Errorf("archived discussion cannot be checkpointed")
 	}
+	if err := validateDiscussionCheckpointFields(changes); err != nil {
+		return nil, err
+	}
 	state, _, err := service.loadState(workspace)
 	if err != nil {
 		return nil, err
+	}
+	if _, hasPhase := changes["lifecycle_phase"]; !hasPhase {
+		if alias := strings.TrimSpace(stringValue(changes["phase"])); alias != "" {
+			changes["lifecycle_phase"] = strings.ToLower(alias)
+		}
 	}
 	phase := firstNonEmpty(stringValue(changes["lifecycle_phase"]), stringValue(state["lifecycle_phase"]))
 	if !discussionLifecyclePhases[phase] || phase == "ready" || phase == "consumed" || phase == "closed" {
 		return nil, fmt.Errorf("invalid checkpoint lifecycle phase: %s", phase)
 	}
 	packet := mapValue(state["turn_packet"])
-	for _, key := range []string{"confirmed_decisions", "changed_recommendations", "context_boundary", "verified_fact_refs", "open_assumptions", "open_questions", "current_recommendation", "allowed_actions", "next_gate", "current_decision_frame"} {
+	if packet == nil {
+		packet = map[string]any{}
+		state["turn_packet"] = packet
+	}
+	for _, key := range discussionCheckpointPacketKeys {
 		if value, exists := changes[key]; exists {
 			packet[key] = value
 		}
@@ -931,7 +1050,19 @@ func (service discussionService) checkpoint(slug string, changes map[string]any)
 	state["lifecycle_phase"] = phase
 	state["updated_at"] = ts
 	state["latest_checkpoint"] = map[string]any{"event_id": eventID, "timestamp": ts}
-	event := map[string]any{"version": float64(1), "event_id": eventID, "timestamp": ts, "kind": "durable-checkpoint", "lifecycle_phase": phase, "summary": summary, "confirmed_decisions": packet["confirmed_decisions"], "open_questions": packet["open_questions"]}
+	event := map[string]any{
+		"version":             float64(1),
+		"event_id":            eventID,
+		"timestamp":           ts,
+		"kind":                "durable-checkpoint",
+		"lifecycle_phase":     phase,
+		"summary":             summary,
+		"user_goal":           packet["user_goal"],
+		"confirmed_decisions": packet["confirmed_decisions"],
+		"open_questions":      packet["open_questions"],
+		"current_recommendation": packet["current_recommendation"],
+		"context_boundary":    packet["context_boundary"],
+	}
 	raw, _ := canonicalJSON(event)
 	logPath := filepath.Join(workspace, "discussion-log.jsonl")
 	file, err := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
@@ -951,7 +1082,7 @@ func (service discussionService) checkpoint(slug string, changes map[string]any)
 	if _, err := service.writeIndex(); err != nil {
 		return nil, err
 	}
-	return map[string]any{"discussion": mergeMap(service.record(workspace, state, false), state), "event": event}, nil
+	return map[string]any{"discussion": mergeMap(service.record(workspace, state, false), state), "event": event, "turn_packet": packet}, nil
 }
 
 func (service discussionService) writeHandoff(slug string, input map[string]any) (map[string]any, error) {

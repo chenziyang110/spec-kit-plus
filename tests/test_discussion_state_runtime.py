@@ -260,8 +260,11 @@ def test_checkpoint_updates_typed_state_and_compact_event_log(runtime, tmp_path:
         {
             "summary": "Human frontstage and agent backstage are separated.",
             "lifecycle_phase": "decide",
+            "user_goal": "Ship durable discussion recovery.",
             "confirmed_decisions": ["Keep machine state backstage."],
             "current_recommendation": "Use typed state.",
+            "context_boundary": {"status": "in-progress", "current_project_root": "repo-root"},
+            "open_questions": ["What is the handoff consumer?"],
         },
     )
 
@@ -273,9 +276,30 @@ def test_checkpoint_updates_typed_state_and_compact_event_log(runtime, tmp_path:
         if line.strip()
     ]
     assert payload["discussion"]["lifecycle_phase"] == "decide"
+    assert state["turn_packet"]["user_goal"] == "Ship durable discussion recovery."
     assert state["turn_packet"]["confirmed_decisions"] == ["Keep machine state backstage."]
+    assert state["turn_packet"]["context_boundary"]["status"] == "in-progress"
+    assert state["turn_packet"]["open_questions"] == ["What is the handoff consumer?"]
+    assert state["turn_packet"]["current_recommendation"] == "Use typed state."
     assert events[-1]["kind"] == "durable-checkpoint"
+    assert events[-1]["user_goal"] == "Ship durable discussion recovery."
     assert "Human frontstage" in events[-1]["summary"]
+
+
+def test_checkpoint_rejects_unknown_fields(runtime, tmp_path: Path):
+    project = _setup_project(tmp_path)
+    initialized = runtime.initialize_discussion(project, "Unknown fields", "Unknown checkpoint fields")
+
+    try:
+        runtime.checkpoint_discussion(
+            project,
+            initialized["slug"],
+            {"summary": "x", "not_a_real_field": True},
+        )
+        raise AssertionError("expected unknown checkpoint fields to fail")
+    except ValueError as exc:
+        assert "unknown fields" in str(exc)
+        assert "not_a_real_field" in str(exc)
 
 
 def test_validate_and_mark_ready_require_exact_confirmed_digest(runtime, tmp_path: Path):

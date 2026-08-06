@@ -137,6 +137,35 @@ func TestAPIShowDiscussionBindConsumerPublishesDerivedPointerContract(t *testing
 	}
 }
 
+func TestAPISchemaDiscussionWriteHandoffAndCheckpoint(t *testing.T) {
+	for _, schemaID := range []string{"discussion-write-handoff-input", "discussion-checkpoint-input"} {
+		var stdout, stderr bytes.Buffer
+		code := Run([]string{"api", "schema", schemaID, "--format", "json"}, &stdout, &stderr, "test")
+		if code != 0 {
+			t.Fatalf("api schema %s exit code = %d; stdout=%s stderr=%s", schemaID, code, stdout.String(), stderr.String())
+		}
+		payload := decodeJSONObject(t, stdout.Bytes())
+		schema := requireObject(t, requireObject(t, payload, "data"), "schema")
+		if schema["type"] != "object" {
+			t.Fatalf("%s schema = %#v", schemaID, schema)
+		}
+	}
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"api", "show", "discussion.write-handoff", "--format", "json"}, &stdout, &stderr, "test")
+	if code != 0 {
+		t.Fatalf("api show discussion.write-handoff exit = %d stdout=%s", code, stdout.String())
+	}
+	capability := requireObject(t, requireObject(t, decodeJSONObject(t, stdout.Bytes()), "data"), "capability")
+	if capability["input_schema"] != "discussion-write-handoff-input" {
+		t.Fatalf("write-handoff capability = %#v", capability)
+	}
+	contract, _ := capability["input_contract"].(string)
+	if !strings.Contains(contract, "ready") || !strings.Contains(contract, "@path") {
+		t.Fatalf("write-handoff input contract = %#v", capability)
+	}
+}
+
 func TestAPIShowReviewTargetBindPublishesCompactDerivedContract(t *testing.T) {
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer

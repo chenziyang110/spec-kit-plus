@@ -40,12 +40,12 @@ var taskControlRuntimeFields = map[string]bool{
 
 var taskControlAuthoredFields = map[string]bool{
 	"id": true, "task_id": true, "story_id": true, "phase": true,
-	"objective": true, "description": true, "dependencies": true, "depends_on": true,
+	"objective": true, "title": true, "description": true, "dependencies": true, "depends_on": true,
 	"parallel": true, "batch": true, "batch_id": true, "join_point": true, "join_point_id": true,
 	"owner": true, "execution_mode": true, "task_kind": true, "priority": true, "risk": true, "risk_level": true,
 	"expected_write_scope": true, "write_scope": true, "read_scope": true,
 	"required_refs": true, "authoritative_refs": true, "policy_refs": true,
-	"forbidden_drift": true, "hard_rules": true, "acceptance": true, "acceptance_refs": true,
+	"forbidden_drift": true, "hard_rules": true, "acceptance": true, "done_condition": true, "acceptance_refs": true,
 	"verification": true, "required_validation": true, "task_checks": true,
 	"consumer_surfaces": true, "required_consumer_evidence": true, "required_evidence": true,
 	"must_preserve_ids": true, "must_preserve_refs": true,
@@ -55,6 +55,13 @@ var taskControlAuthoredFields = map[string]bool{
 	"stop_and_reopen_conditions": true, "recovery": true, "ui_contract": true,
 	"no_new_test_rationale": true, "replacement_validation": true, "residual_risk": true,
 	"skills": true, "notes": true,
+}
+
+// taskControlAuthoredAliases map agent-friendly names onto canonical fields.
+// They are accepted on input and normalized away before persistence.
+var taskControlAuthoredAliases = map[string]string{
+	"title":          "objective",
+	"done_condition": "acceptance",
 }
 
 func runTasks(args []string, stdout io.Writer) int {
@@ -210,6 +217,9 @@ func runTasksSetRoot(args []string) (map[string]any, error) {
 			return nil, fmt.Errorf("root patch contains unsupported field %q", key)
 		}
 		if key == "version" || key == "status" || key == "tasks" || key == "transition" {
+			if key == "transition" {
+				return nil, fmt.Errorf("root patch contains CLI-owned field %q; transition is written only by tasks finalize/handoff (do not set next_action/status via set-root)", key)
+			}
 			return nil, fmt.Errorf("root patch contains CLI-owned field %q", key)
 		}
 		payload[key] = cloneJSONValue(value)
@@ -371,17 +381,22 @@ func taskControlFeature(args []string) (string, string, error) {
 func taskControlInlineObject(args []string, flag, label string) (map[string]any, error) {
 	raw := optionValue(args, flag, "")
 	if strings.TrimSpace(raw) == "" {
-		return nil, fmt.Errorf("%s is required", flag)
+		return nil, fmt.Errorf("%s is required (inline JSON, @path, or - for stdin; on Windows prefer @path to avoid command-line length limits)", flag)
 	}
-	if len([]byte(raw)) > maxAgentJSONInputBytes {
+	projectRoot := optionValue(args, "--project-root", ".")
+	data, err := resolveAgentJSONInputBytes(raw, projectRoot, label)
+	if err != nil {
+		return nil, err
+	}
+	if len(data) == 0 {
+		return nil, fmt.Errorf("%s must not be empty", flag)
+	}
+	if len(data) > maxAgentJSONInputBytes {
 		return nil, fmt.Errorf("%s exceeds %d bytes", label, maxAgentJSONInputBytes)
 	}
-	var payload map[string]any
-	if err := json.Unmarshal([]byte(raw), &payload); err != nil {
-		return nil, fmt.Errorf("%s must be a JSON object: %w", label, err)
-	}
-	if payload == nil {
-		return nil, fmt.Errorf("%s must be a JSON object", label)
+	payload, err := decodeAgentJSONObject(data, label)
+	if err != nil {
+		return nil, err
 	}
 	return payload, nil
 }
@@ -490,6 +505,19 @@ func normalizeTaskControlTask(value any, allowRuntimeFields bool) (map[string]an
 		return nil, fmt.Errorf("each task must be a JSON object")
 	}
 	task := cloneJSONMap(raw)
+	// Normalize aliases first so title/done_condition do not look unsupported.
+	if title := strings.TrimSpace(anyString(task["title"])); title != "" {
+		if strings.TrimSpace(anyString(task["objective"])) == "" {
+			task["objective"] = title
+		}
+		delete(task, "title")
+	}
+	if _, hasAcceptance := task["acceptance"]; !hasAcceptance {
+		if done, exists := task["done_condition"]; exists {
+			task["acceptance"] = done
+		}
+	}
+	delete(task, "done_condition")
 	for key := range task {
 		if taskControlObsoleteFields[key] {
 			return nil, fmt.Errorf("task contains obsolete field %s", key)
@@ -498,7 +526,7 @@ func normalizeTaskControlTask(value any, allowRuntimeFields bool) (map[string]an
 			return nil, fmt.Errorf("task field %s is CLI-owned and cannot be authored", key)
 		}
 		if !allowRuntimeFields && !taskControlAuthoredFields[key] {
-			return nil, fmt.Errorf("task contains unsupported field %q", key)
+			return nil, fmt.Errorf("task contains unsupported field %q; accepted fields include objective (alias: title), acceptance (alias: done_condition), dependencies, expected_write_scope, required_refs, verification, ui_contract", key)
 		}
 	}
 	idValue := task["id"]
@@ -511,7 +539,7 @@ func normalizeTaskControlTask(value any, allowRuntimeFields bool) (map[string]an
 	}
 	objective := strings.TrimSpace(anyString(task["objective"]))
 	if objective == "" {
-		return nil, fmt.Errorf("%s objective is required", id)
+		return nil, fmt.Errorf("%s objective is required (title is accepted as an alias)", id)
 	}
 	delete(task, "task_id")
 	task["id"] = id
@@ -765,9 +793,16 @@ func validateTaskControlAcceptance(feature string, payload map[string]any) error
 	if !ok {
 		return fmt.Errorf("plan-contract acceptance_refs must be an array")
 	}
-	actual, ok := payload["acceptance_refs"].([]any)
-	if !ok || !reflect.DeepEqual(actual, expected) {
-		return fmt.Errorf("task-index acceptance_refs must exactly preserve plan-contract order")
+	// Accept either an exact copy of plan.acceptance_refs values, or the
+	// common agent mistake plan-contract.json#/acceptance_refs/N, then
+	// normalize to the plan values before persistence.
+	normalized, err := normalizeTaskIndexAcceptanceRefs(payload["acceptance_refs"], expected, "plan-contract.json")
+	if err != nil {
+		return err
+	}
+	payload["acceptance_refs"] = normalized
+	if err := rewriteAcceptanceSourceRefs(payload, expected, "plan-contract.json"); err != nil {
+		return err
 	}
 	if len(expected) == 0 {
 		return nil
@@ -782,6 +817,166 @@ func validateTaskControlAcceptance(feature string, payload map[string]any) error
 		}
 	}
 	return nil
+}
+
+func normalizeTaskIndexAcceptanceRefs(actual any, expected []any, planLabel string) ([]any, error) {
+	if actual == nil {
+		if len(expected) == 0 {
+			return []any{}, nil
+		}
+		return nil, fmt.Errorf(
+			"task-index acceptance_refs must exactly copy plan-contract.acceptance_refs values in order (example values: %s); do not invent %s#/acceptance_refs/N unless you intend the runtime to expand them",
+			joinAcceptanceRefPreview(expected),
+			planLabel,
+		)
+	}
+	actualList, ok := actual.([]any)
+	if !ok {
+		return nil, fmt.Errorf("task-index acceptance_refs must be an array")
+	}
+	if reflect.DeepEqual(actualList, expected) {
+		return cloneJSONList(expected), nil
+	}
+	// Expand plan-contract.json#/acceptance_refs/N (or bare #/acceptance_refs/N).
+	expanded := make([]any, 0, len(actualList))
+	for _, item := range actualList {
+		text := strings.TrimSpace(anyString(item))
+		if text == "" {
+			return nil, fmt.Errorf("task-index acceptance_refs must contain non-empty strings")
+		}
+		if index, ok := parsePlanAcceptancePointer(text, planLabel); ok {
+			if index < 0 || index >= len(expected) {
+				return nil, fmt.Errorf("task-index acceptance_refs pointer %q is out of range for %s (%d refs)", text, planLabel, len(expected))
+			}
+			expanded = append(expanded, expected[index])
+			continue
+		}
+		expanded = append(expanded, text)
+	}
+	if !reflect.DeepEqual(expanded, expected) {
+		return nil, fmt.Errorf(
+			"task-index acceptance_refs must exactly preserve plan-contract.acceptance_refs values and order; expected %s, got %s (pointer form %s#/acceptance_refs/N is accepted and rewritten to those values)",
+			joinAcceptanceRefPreview(expected),
+			joinAcceptanceRefPreview(expanded),
+			planLabel,
+		)
+	}
+	return cloneJSONList(expected), nil
+}
+
+func parsePlanAcceptancePointer(value, planLabel string) (int, bool) {
+	value = strings.TrimSpace(value)
+	prefixes := []string{
+		planLabel + "#/acceptance_refs/",
+		"plan-contract.json#/acceptance_refs/",
+		"#/acceptance_refs/",
+	}
+	for _, prefix := range prefixes {
+		if !strings.HasPrefix(value, prefix) {
+			continue
+		}
+		suffix := strings.TrimPrefix(value, prefix)
+		if suffix == "" {
+			return 0, false
+		}
+		index := 0
+		for _, r := range suffix {
+			if r < '0' || r > '9' {
+				return 0, false
+			}
+			index = index*10 + int(r-'0')
+		}
+		return index, true
+	}
+	return 0, false
+}
+
+func joinAcceptanceRefPreview(values []any) string {
+	parts := make([]string, 0, len(values))
+	for _, value := range values {
+		parts = append(parts, anyString(value))
+	}
+	if len(parts) == 0 {
+		return "[]"
+	}
+	return "[" + strings.Join(parts, ", ") + "]"
+}
+
+func rewriteAcceptanceSourceRefs(payload map[string]any, expected []any, planLabel string) error {
+	// Keep human/system obligation source_ref values aligned with the
+	// normalized acceptance_refs list when agents used plan pointers.
+	pointerToValue := map[string]string{}
+	for index, value := range expected {
+		text := anyString(value)
+		pointerToValue[fmt.Sprintf("%s#/acceptance_refs/%d", planLabel, index)] = text
+		pointerToValue[fmt.Sprintf("plan-contract.json#/acceptance_refs/%d", index)] = text
+		pointerToValue[fmt.Sprintf("#/acceptance_refs/%d", index)] = text
+	}
+	for _, field := range []string{"human_acceptance_obligations", "review_obligations"} {
+		rows, ok := payload[field].([]any)
+		if !ok {
+			continue
+		}
+		for i, row := range rows {
+			object, ok := row.(map[string]any)
+			if !ok {
+				continue
+			}
+			source := strings.TrimSpace(anyString(object["source_ref"]))
+			if replacement, found := pointerToValue[source]; found {
+				object["source_ref"] = replacement
+				rows[i] = object
+			}
+		}
+		payload[field] = rows
+	}
+	for _, field := range []string{"system_review_scenarios", "human_acceptance_scenarios"} {
+		rows, ok := payload[field].([]any)
+		if !ok {
+			continue
+		}
+		for i, row := range rows {
+			object, ok := row.(map[string]any)
+			if !ok {
+				continue
+			}
+			if refs, exists := object["acceptance_refs"]; exists {
+				normalized, err := rewriteRefList(refs, pointerToValue)
+				if err != nil {
+					return fmt.Errorf("%s[%d].acceptance_refs: %w", field, i, err)
+				}
+				object["acceptance_refs"] = normalized
+			}
+			rows[i] = object
+		}
+		payload[field] = rows
+	}
+	return nil
+}
+
+func rewriteRefList(value any, pointerToValue map[string]string) ([]any, error) {
+	list, ok := value.([]any)
+	if !ok {
+		return nil, fmt.Errorf("must be an array")
+	}
+	out := make([]any, 0, len(list))
+	for _, item := range list {
+		text := strings.TrimSpace(anyString(item))
+		if replacement, found := pointerToValue[text]; found {
+			out = append(out, replacement)
+			continue
+		}
+		out = append(out, text)
+	}
+	return out, nil
+}
+
+func cloneJSONList(values []any) []any {
+	out := make([]any, len(values))
+	for i, value := range values {
+		out[i] = cloneJSONValue(value)
+	}
+	return out
 }
 
 func commitTaskControlPackage(root, feature string, payload map[string]any, title, kind string) (map[string]any, error) {

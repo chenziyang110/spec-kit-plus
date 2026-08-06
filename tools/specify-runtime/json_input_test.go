@@ -61,3 +61,13 @@ func TestReadAgentJSONObjectFromAtPath(t *testing.T) {
 		t.Fatalf("object = %#v", obj)
 	}
 }
+
+func TestFormatJSONObjectErrorHintsPowerShellQuoting(t *testing.T) {
+	_, err := decodeAgentJSONObject([]byte(`{handoff_goal:test}`), "handoff")
+	if err == nil {
+		t.Fatal("expected decode error")
+	}
+	if !strings.Contains(err.Error(), "PowerShell") || !strings.Contains(err.Error(), "@payload.json") {
+		t.Fatalf("error = %v", err)
+	}
+}

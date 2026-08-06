@@ -26,6 +26,12 @@ func runAPISchema(args []string, stdout io.Writer) int {
 	case "artifact-patch-input":
 		schema = artifactPatchInputSchema()
 		capabilityID = "artifact.patch"
+	case "discussion-checkpoint-input":
+		schema = discussionCheckpointInputSchema()
+		capabilityID = "discussion.checkpoint"
+	case "discussion-write-handoff-input":
+		schema = discussionWriteHandoffInputSchema()
+		capabilityID = "discussion.write-handoff"
 	default:
 		return writeEnvelope(stdout, NewEnvelope("usage-error", fmt.Sprintf("unknown schema %q", schemaID)))
 	}
@@ -74,6 +80,7 @@ func runAPIShow(args []string, stdout io.Writer) int {
 		capability["input_schema"] = "artifact-patch-input"
 		capability["side_effect"] = "patches-artifact"
 		capability["usage"] = "specify-runtime artifact patch --lease <id> (--json-pointer <pointer> --value-json <json> | --section <heading> --content <text> | --frontmatter-json <object> | --heading <current> --new-heading <replacement> | --preamble <text> | --append-json <json>)"
+		capability["input_contract"] = "--section accepts bare heading text or markdown markers (\"Source Design System\" or \"## Source Design System\"); for Windows path content prefer forward slashes or raw strings so \\a is not treated as a bell escape"
 		env.ShowArgv = []string{"specify-runtime", "api", "schema", "artifact-patch-input", "--format", "json"}
 	case "artifact.submit":
 		capability["side_effect"] = "writes-artifact"
@@ -95,10 +102,22 @@ func runAPIShow(args []string, stdout io.Writer) int {
 		capability["side_effect"] = "writes-derived-consumer-handoff"
 		capability["usage"] = "specify-runtime discussion bind-consumer <slug> --feature-dir <feature-dir> --input-json <transition-fields> --format json"
 		capability["input_contract"] = "semantic_delta, required_refs, blockers, and recovery only via --input-json (inline, @path, or -); runtime binds source contract, review digest, status, and next action; unbound create-feature scaffolds may receive first bind"
+	case "discussion.checkpoint":
+		capability["side_effect"] = "writes-discussion-state-and-log"
+		capability["usage"] = "specify-runtime discussion checkpoint <slug> --input-json <object|@path|-> [--summary <text>] [--phase <phase>] [--user-goal <text>] --format json"
+		capability["input_schema"] = "discussion-checkpoint-input"
+		capability["input_contract"] = "persists turn_packet semantic fields (user_goal, context_boundary, confirmed_decisions, open_questions, current_recommendation, ...); unknown fields are rejected; --input-json accepts inline, @path, or - (PowerShell should prefer @path/stdin)"
+		env.ShowArgv = []string{"specify-runtime", "api", "schema", "discussion-checkpoint-input", "--format", "json"}
+	case "discussion.write-handoff":
+		capability["side_effect"] = "writes-discussion-handoff"
+		capability["usage"] = "specify-runtime discussion write-handoff <slug> --input-json <object|@path|-> --format json"
+		capability["input_schema"] = "discussion-write-handoff-input"
+		capability["input_contract"] = "semantic draft merged into the installed handoff template; roles/evidence/must_preserve are object lists; consumer status ready (not eligible); quality_gate needs self_reviewed_at; --input-json accepts inline, @path, or -"
+		env.ShowArgv = []string{"specify-runtime", "api", "schema", "discussion-write-handoff-input", "--format", "json"}
 	case "validate.spec":
 		capability["side_effect"] = "read-only"
 		capability["usage"] = "specify-runtime validate spec --feature-dir <feature-dir> [--tier light|standard|deep] [--show-passes] --format json"
-		capability["input_contract"] = "--feature-dir preferred; --dir is a compatibility alias; conflicting values are rejected"
+		capability["input_contract"] = "--feature-dir preferred; --dir is a compatibility alias; conflicting values are rejected; transition.next_action accepts \"/sp.plan\" or {\"command\":\"/sp.plan\"}; change-propagation requires a markdown pipe table"
 	case "artifact.prepare":
 		capability["side_effect"] = "creates-lease"
 		capability["usage"] = "specify-runtime artifact prepare --path <project-relative-path> --format json"
@@ -160,7 +179,7 @@ func runAPIShow(args []string, stdout io.Writer) int {
 	case "run.supervise":
 		capability["side_effect"] = "routes-workspace-and-runs-tokenized-child"
 		capability["usage"] = "specify-runtime run supervise <run-id> --adapter-id <id> [--workspace-policy auto|primary|isolated] [--project-root <path>] --format json -- <argv...>"
-		capability["input_contract"] = "requires a literal -- separator; runtime owns auto routing between one pristine primary workspace owner and isolated overlap or idle-but-dirty worktrees, forces child cwd, binds SPECIFY_RUN_* identity/workspace/fence variables, extends WSLENV for WSL-backed helpers, maintains liveness, releases ownership on every terminal path, and atomically records success or failure"
+		capability["input_contract"] = "requires a literal -- separator and --adapter-id; runtime owns auto routing between one pristine primary workspace owner and isolated overlap or idle-but-dirty worktrees, forces child cwd, binds SPECIFY_RUN_* identity/workspace/fence variables, extends WSLENV for WSL-backed helpers, maintains liveness, releases ownership on every terminal path, and atomically records success or failure. Greenfield/local interactive agents may use create-new-feature + workflow enter + artifact owners without supervise when no host adapter is configured; that path is not a run-control violation for unhosted sessions"
 	case "result.list":
 		capability["side_effect"] = "read-only"
 		capability["usage"] = "specify-runtime result list [<run-id> | --run-id <id>] [--project-root <path>] --format json"
@@ -297,8 +316,15 @@ func artifactPatchInputSchema() map[string]any {
 			"lease":             nonEmptyString,
 			"json_pointer":      nonEmptyString,
 			"value":             map[string]any{},
-			"section":           nonEmptyString,
-			"content":           map[string]any{"type": "string"},
+			"section": map[string]any{
+				"type":        "string",
+				"minLength":   1,
+				"description": "Markdown heading text. Bare titles and optional #/## markers both match (case-insensitive).",
+			},
+			"content": map[string]any{
+				"type":        "string",
+				"description": "Replacement section body without the heading line. On Windows, prefer / path separators or raw strings so \\a is not a bell escape.",
+			},
 			"frontmatter_patch": map[string]any{"type": "object", "minProperties": 1},
 			"heading":           nonEmptyString,
 			"new_heading":       nonEmptyString,
@@ -312,6 +338,177 @@ func artifactPatchInputSchema() map[string]any {
 			map[string]any{"required": []string{"heading", "new_heading"}},
 			map[string]any{"required": []string{"preamble"}},
 			map[string]any{"required": []string{"append_value"}},
+		},
+	}
+}
+
+func discussionCheckpointInputSchema() map[string]any {
+	nonEmptyString := map[string]any{"type": "string", "minLength": 1}
+	stringArray := map[string]any{"type": "array", "items": map[string]any{"type": "string"}}
+	return map[string]any{
+		"$schema":              "https://json-schema.org/draft/2020-12/schema",
+		"$id":                  "specify://schemas/discussion-checkpoint-input/v1",
+		"type":                 "object",
+		"additionalProperties": false,
+		"description":          "Semantic checkpoint payload for specify-runtime discussion checkpoint. Unknown fields are rejected. Pass via --input-json (inline, @path, or -).",
+		"properties": map[string]any{
+			"summary":                 nonEmptyString,
+			"lifecycle_phase":         map[string]any{"type": "string", "enum": []any{"explore", "ground", "decide", "prepare", "review"}},
+			"phase":                   map[string]any{"type": "string", "description": "Alias for lifecycle_phase"},
+			"user_goal":               nonEmptyString,
+			"turn_class":              nonEmptyString,
+			"current_decision_frame":  nonEmptyString,
+			"confirmed_decisions":     stringArray,
+			"changed_recommendations": stringArray,
+			"context_boundary":        map[string]any{"type": "object"},
+			"verified_fact_refs":      map[string]any{"type": "array"},
+			"open_assumptions":        map[string]any{"type": "array"},
+			"open_questions":          map[string]any{"type": "array"},
+			"current_recommendation":  nonEmptyString,
+			"allowed_actions":         stringArray,
+			"next_gate":               nonEmptyString,
+		},
+	}
+}
+
+func discussionWriteHandoffInputSchema() map[string]any {
+	nonEmptyString := map[string]any{"type": "string", "minLength": 1}
+	roleObject := map[string]any{
+		"type":                 "object",
+		"additionalProperties": true,
+		"required":             []string{"role", "scope", "evidence_source", "notes"},
+		"properties": map[string]any{
+			"role":            nonEmptyString,
+			"scope":           nonEmptyString,
+			"evidence_source": nonEmptyString,
+			"notes":           nonEmptyString,
+		},
+	}
+	evidenceObject := map[string]any{
+		"type":                 "object",
+		"additionalProperties": true,
+		"required":             []string{"source_type", "evidence_status", "source", "claim"},
+		"properties": map[string]any{
+			"source_type":     nonEmptyString,
+			"evidence_status": nonEmptyString,
+			"source":          nonEmptyString,
+			"claim":           nonEmptyString,
+		},
+	}
+	mustPreserveObject := map[string]any{
+		"type":                 "object",
+		"additionalProperties": true,
+		"required":             []string{"id", "type", "claim", "source", "downstream_requirement", "blocking_level", "owner", "latest_resolve_phase", "status"},
+		"properties": map[string]any{
+			"id":                     nonEmptyString,
+			"type":                   nonEmptyString,
+			"claim":                  nonEmptyString,
+			"source":                 nonEmptyString,
+			"downstream_requirement": nonEmptyString,
+			"blocking_level":         nonEmptyString,
+			"owner":                  nonEmptyString,
+			"latest_resolve_phase":   nonEmptyString,
+			"status":                 nonEmptyString,
+		},
+	}
+	consumerEntry := map[string]any{
+		"type":                 "object",
+		"additionalProperties": true,
+		"required":             []string{"status"},
+		"properties": map[string]any{
+			"status": map[string]any{
+				"type":        "string",
+				"enum":        []any{"ready", "blocked"},
+				"description": "draft/ready validation requires at least one consumer with status ready (eligible is not accepted)",
+			},
+			"reason": nonEmptyString,
+		},
+	}
+	return map[string]any{
+		"$schema":              "https://json-schema.org/draft/2020-12/schema",
+		"$id":                  "specify://schemas/discussion-write-handoff-input/v1",
+		"type":                 "object",
+		"additionalProperties": true,
+		"description":          "Semantic draft merged into discussion-handoff-template.json. Runtime owns version/status/digest defaults. Pass via --input-json (inline, @path, or -). On Windows PowerShell prefer @path or stdin.",
+		"required":             []string{"handoff_goal"},
+		"properties": map[string]any{
+			"handoff_goal": nonEmptyString,
+			"agent_requirement_contract": map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"target_need":               nonEmptyString,
+					"constraints":               map[string]any{"type": "array"},
+					"success_criteria":          map[string]any{"type": "array"},
+					"design_direction":          map[string]any{"type": "array"},
+					"optimal_solution_approach": map[string]any{"type": "array"},
+					"scope": map[string]any{
+						"type": "object",
+						"properties": map[string]any{
+							"in":       map[string]any{"type": "array"},
+							"out":      map[string]any{"type": "array"},
+							"deferred": map[string]any{"type": "array"},
+						},
+					},
+				},
+			},
+			"context_boundary": map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"status": map[string]any{"type": "string", "enum": []any{"locked"}, "description": "validation requires locked"},
+					"current_project_roles": map[string]any{
+						"type":  "array",
+						"items": roleObject,
+					},
+					"target_project_roles": map[string]any{
+						"type":  "array",
+						"items": roleObject,
+					},
+					"current_project_root": nonEmptyString,
+					"target_project_root":  nonEmptyString,
+				},
+			},
+			"source_evidence": map[string]any{"type": "array", "items": evidenceObject},
+			"must_preserve":   map[string]any{"type": "array", "minItems": 1, "items": mustPreserveObject},
+			"consumer_eligibility": map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"sp-specify": consumerEntry,
+					"sp-quick":   consumerEntry,
+				},
+			},
+			"recommended_consumer": map[string]any{"type": "string", "enum": []any{"sp-specify", "sp-quick"}},
+			"quality_gate": map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"status": map[string]any{
+						"type":        "string",
+						"description": "draft validation accepts self_reviewed when self_reviewed_at is set; write-handoff sets status from self_reviewed_at",
+					},
+					"self_reviewed_at": nonEmptyString,
+					"notes":            nonEmptyString,
+				},
+			},
+			"downstream_instructions": map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"settled_decisions":         map[string]any{"type": "array"},
+					"preserved_assumptions":     map[string]any{"type": "array"},
+					"conflicts_requiring_return": map[string]any{"type": "array"},
+					"capability_map":            map[string]any{"type": "array"},
+					"dependencies":              map[string]any{"type": "array"},
+					"planning_constraints":      map[string]any{"type": "array"},
+					"deferred_scope":            map[string]any{"type": "array"},
+					"reopen_conditions":         map[string]any{"type": "array"},
+				},
+			},
+			"discussion_decision_digest": map[string]any{"type": "object"},
+			"implementation_target":      map[string]any{"type": "object"},
+			"blocking_unknowns":          map[string]any{"type": "array"},
+			"soft_unknowns":              map[string]any{"type": "array"},
+			"coverage_status":            map[string]any{"type": "string", "enum": []any{"complete"}},
+			"planning_gate_status":       map[string]any{"type": "string", "enum": []any{"ready"}},
+			"hard_unknown_count":         map[string]any{"type": "integer", "const": 0},
+			"open_conflict_count":        map[string]any{"type": "integer", "const": 0},
 		},
 	}
 }

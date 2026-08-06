@@ -4104,31 +4104,57 @@ def _validate_tasks_human_acceptance_contract(feature_dir: Path) -> list[str]:
             "task-index.json acceptance_refs must be unique: "
             + ", ".join(duplicate_acceptance_refs)
         )
+    pointer_to_value: dict[str, str] = {}
     if plan_acceptance_refs:
-        expected_task_ref_list = [
-            f"{plan_label}#/acceptance_refs/{index}"
-            for index in range(len(plan_acceptance_refs))
-        ]
-        expected_task_refs = set(expected_task_ref_list)
-        task_ref_set = set(acceptance_refs)
+        # Canonical form is an exact ordered copy of plan-contract.acceptance_refs
+        # values (usually spec-contract.json#/acceptance_criteria/i). The older
+        # agent pointer form plan-contract.json#/acceptance_refs/N is accepted
+        # and expanded for validation so hooks and tasks CLI stay aligned.
+        pointer_to_value = {
+            f"{plan_label}#/acceptance_refs/{index}": value
+            for index, value in enumerate(plan_acceptance_refs)
+        }
+        pointer_to_value.update(
+            {
+                f"plan-contract.json#/acceptance_refs/{index}": value
+                for index, value in enumerate(plan_acceptance_refs)
+            }
+        )
+        expanded_acceptance_refs: list[str] = []
+        for ref in acceptance_refs:
+            expanded_acceptance_refs.append(pointer_to_value.get(ref, ref))
+        expected_task_refs = set(plan_acceptance_refs)
+        task_ref_set = set(expanded_acceptance_refs)
         missing_plan_refs = sorted(expected_task_refs - task_ref_set)
         unknown_task_refs = sorted(task_ref_set - expected_task_refs)
         if missing_plan_refs:
             errors.append(
                 "task-index.json human acceptance universe is missing plan acceptance_refs: "
                 + ", ".join(missing_plan_refs)
+                + f" (copy plan-contract.acceptance_refs values exactly, or use {plan_label}#/acceptance_refs/N)"
             )
         if unknown_task_refs:
             errors.append(
                 "task-index.json human acceptance universe contains acceptance_refs not present in the plan: "
                 + ", ".join(unknown_task_refs)
+                + "; expected the plan values "
+                + ", ".join(plan_acceptance_refs)
             )
         if (
             not missing_plan_refs
             and not unknown_task_refs
-            and acceptance_refs != expected_task_ref_list
+            and expanded_acceptance_refs != plan_acceptance_refs
         ):
-            errors.append("task-index.json acceptance_refs must preserve Plan order")
+            errors.append(
+                "task-index.json acceptance_refs must preserve plan-contract.acceptance_refs order"
+            )
+        # Downstream obligation source_ref checks use the expanded value set.
+        acceptance_refs = expanded_acceptance_refs
+
+    def _expand_acceptance_ref(ref: str) -> str:
+        text = str(ref or "").strip()
+        return pointer_to_value.get(text, text)
+
     expected_source_refs = set(acceptance_refs)
 
     raw_obligations = payload.get("human_acceptance_obligations", [])
@@ -4241,7 +4267,9 @@ def _validate_tasks_human_acceptance_contract(feature_dir: Path) -> list[str]:
             errors.append(f"{prefix} must be an object")
             continue
         obligation_id = _required_contract_text(value, "id", prefix, errors)
-        source_ref = _required_contract_text(value, "source_ref", prefix, errors)
+        source_ref = _expand_acceptance_ref(
+            _required_contract_text(value, "source_ref", prefix, errors)
+        )
         required = value.get("required")
         if not isinstance(required, bool):
             errors.append(f"{prefix}.required must be a boolean")
@@ -4320,7 +4348,9 @@ def _validate_tasks_human_acceptance_contract(feature_dir: Path) -> list[str]:
             errors.append(f"{prefix} must be an object")
             continue
         obligation_id = _required_contract_text(value, "id", prefix, errors)
-        source_ref = _required_contract_text(value, "source_ref", prefix, errors)
+        source_ref = _expand_acceptance_ref(
+            _required_contract_text(value, "source_ref", prefix, errors)
+        )
         change_kind = _required_contract_text(value, "change_kind", prefix, errors)
         if change_kind and change_kind not in {"new", "changed"}:
             errors.append(f"{prefix}.change_kind must be new or changed")

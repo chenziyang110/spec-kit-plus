@@ -84,6 +84,44 @@ func TestCanonicalSpecContractPassesWithoutLegacyArtifactFanout(t *testing.T) {
 	}
 }
 
+func TestTransitionNextActionAcceptsObjectCommandForm(t *testing.T) {
+	token, err := transitionNextActionToken(map[string]any{
+		"command": "/sp.plan",
+		"reason":  "planning package is ready",
+	})
+	if err != nil {
+		t.Fatalf("object next_action: %v", err)
+	}
+	if token != "/sp.plan" {
+		t.Fatalf("token = %q", token)
+	}
+	token, err = transitionNextActionToken("/sp.plan")
+	if err != nil || token != "/sp.plan" {
+		t.Fatalf("string next_action = %q err=%v", token, err)
+	}
+	if _, err := transitionNextActionToken(map[string]any{"reason": "missing command"}); err == nil {
+		t.Fatal("expected missing command error")
+	}
+}
+
+func TestChangePropagationMessageMentionsMarkdownTable(t *testing.T) {
+	dir := t.TempDir()
+	writeFileForTest(t, dir, "spec.md", "# Spec\n")
+	writeFileForTest(t, dir, "context.md", "# Context\n\n## Change Propagation Matrix\n\nNo table yet.\n")
+	writeFileForTest(t, dir, "workflow-state.md", "---\nactive_command: sp-specify\nstatus: planning-ready\nlast_user_reviewed_artifact_state: approved\nsource_signal_disposition_status: complete\n---\n")
+	results := runLintForTest(t, dir, "standard")
+	result, ok := results["change-propagation"]
+	if !ok {
+		t.Fatal("change-propagation check missing")
+	}
+	if result.status != statusFail {
+		t.Fatalf("expected fail, got %#v", result)
+	}
+	if !strings.Contains(result.message, "markdown data table") || !strings.Contains(result.message, "| Surface |") {
+		t.Fatalf("expected actionable table hint, got %q", result.message)
+	}
+}
+
 func TestCanonicalSpecContractRejectsInvalidVersionAndTransition(t *testing.T) {
 	dir := t.TempDir()
 	writeFileForTest(t, dir, "spec.md", "# Spec\n")

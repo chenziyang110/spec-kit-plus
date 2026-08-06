@@ -935,9 +935,10 @@ Routing guide for direct delivery work:
   - Command shape: `specify-runtime discussion init <topic> [--slug <slug>]`
   - Command shape: `specify-runtime discussion status <slug>`
   - Command shape: `specify-runtime discussion resume <slug>`
-  - Command shape: `specify-runtime discussion checkpoint <slug> --summary <summary> [--phase <phase>]`
-  - Command shape: `specify-runtime discussion write-handoff <slug> --input-json '<draft-json>'`; the runtime materializes the canonical handoff
-  - Command shape: `specify-runtime discussion bind-consumer <slug> --feature-dir <feature-dir> --input-json '<transition-json>'`; the runtime validates the ready contract and materializes the feature compatibility pointer
+  - Command shape: `specify-runtime discussion checkpoint <slug> --input-json '<object|@path|->' [--summary <summary>] [--phase <phase>] [--user-goal <goal>]`; persists accepted turn_packet semantic fields and rejects unknown fields
+  - Command shape: `specify-runtime discussion write-handoff <slug> --input-json '<draft-json|@path|->'`; schema via `api schema discussion-write-handoff-input`
+  - Command shape: `specify-runtime discussion bind-consumer <slug> --feature-dir <feature-dir> --input-json '<transition-json|@path|->'`; the runtime validates the ready contract and materializes the feature compatibility pointer
+  - PowerShell note: prefer `--input-json @payload.json` or stdin `-` because inline quoting often strips double quotes
   - Command shape: `specify-runtime discussion validate-handoff <slug> --mode draft|ready`
   - Command shape: `specify-runtime discussion confirm-handoff <slug> --digest <review-digest>`
   - Command shape: `specify-runtime discussion mark-ready <slug>`

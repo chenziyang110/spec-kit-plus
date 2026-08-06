@@ -1217,6 +1217,10 @@ func capabilitySummary(id string) string {
 		return "List registered artifact instances without returning full content."
 	case "discussion.bind-consumer":
 		return "Bind a ready discussion digest into a runtime-owned feature compatibility pointer."
+	case "discussion.checkpoint":
+		return "Persist a durable discussion checkpoint and semantic turn_packet fields."
+	case "discussion.write-handoff":
+		return "Materialize the canonical discussion handoff contract from a semantic draft."
 	case "review.target-bind":
 		return "Atomically bind a compact reviewed runtime target, its exact identity evidence, snapshot, and digests."
 	case "cognition.semantic-audit":

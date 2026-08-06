@@ -64,7 +64,7 @@ func TestUnifiedTaskControlPlaneOwnsAuthoringAndLifecycle(t *testing.T) {
 	t.Cleanup(func() { _ = os.Chdir(oldCWD) })
 
 	featureRef := filepath.ToSlash(filepath.Join(".specify", "features", "001-runtime-tasks"))
-	definition := `{"title":"Runtime task","tasks":[{"id":"T001","objective":"Implement runtime ownership","dependencies":[],"expected_write_scope":["src/runtime.go"],"required_refs":["plan-contract.json#/acceptance_refs/0"],"acceptance":["Runtime owns state"],"verification":["go test ./..."],"task_checks":["gofmt check"],"ui_contract":{"fidelity_level":"high"}}]}`
+	definition := `{"title":"Runtime task","tasks":[{"id":"T001","title":"Implement runtime ownership","dependencies":[],"expected_write_scope":["src/runtime.go"],"required_refs":["plan-contract.json#/acceptance_refs/0"],"done_condition":["Runtime owns state"],"verification":["go test ./..."],"task_checks":["gofmt check"],"ui_contract":{"fidelity_level":"high"}}]}`
 	assertTaskRuntimeCommandOK(t, []string{"tasks", "build", "--feature-dir", featureRef, "--definition-json", definition, "--format", "json"})
 	assertTaskRuntimeCommandOK(t, []string{"tasks", "finalize", "--feature-dir", featureRef, "--format", "json"})
 	assertTaskRuntimeCommandOK(t, []string{"tasks", "handoff", "--feature-dir", featureRef, "--target", "tasks", "--format", "json"})
@@ -256,6 +256,115 @@ func TestUnifiedTaskControlPlaneRejectsDirectlyAuthoredReadinessAndUnvalidatedAc
 	exit, env = runTaskRuntimeCommand(t, []string{"tasks", "build", "--feature-dir", featureRef, "--definition-json", `{"tasks":[{"id":"T001","objective":"Write workflow state","expected_write_scope":["task-index.json"]}]}`})
 	if exit == 0 || env.Status != "blocked" || !strings.Contains(env.Summary, "specify-runtime tasks") {
 		t.Fatalf("CLI-owned write scope was not rejected: exit=%d env=%#v", exit, env)
+	}
+}
+
+func TestTasksBuildAcceptsAtPathAndAcceptancePointerRewrite(t *testing.T) {
+	root := t.TempDir()
+	templates := filepath.Join(root, ".specify", "templates")
+	feature := filepath.Join(root, ".specify", "features", "003-atpath")
+	if err := os.MkdirAll(templates, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(feature, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeTaskRuntimeFixture(t, filepath.Join(templates, "task-index-template.json"), map[string]any{
+		"version": 2, "status": "draft", "source_contract": "plan-contract.json",
+		"acceptance_refs": []any{}, "official_entrypoints": []any{},
+		"system_review_scenarios": []any{}, "review_obligations": []any{},
+		"human_acceptance_obligations": []any{}, "human_acceptance_scenarios": []any{},
+		"tasks": []any{}, "transition": map[string]any{},
+	})
+	writeTaskRuntimeFixture(t, filepath.Join(feature, "plan-contract.json"), map[string]any{
+		"version": 2, "status": "ready",
+		"acceptance_refs": []any{"spec-contract.json#/acceptance_criteria/0"},
+	})
+	definitionPath := filepath.Join(root, "task-package.json")
+	definition := map[string]any{
+		"title":           "At-path package",
+		"acceptance_refs": []any{"plan-contract.json#/acceptance_refs/0"},
+		"official_entrypoints": []any{
+			map[string]any{"id": "EP-1", "command": "app", "ready_signal": "ready"},
+		},
+		"system_review_scenarios": []any{
+			map[string]any{
+				"id": "SR-1", "entrypoint_id": "EP-1", "required": true,
+				"acceptance_refs": []any{"plan-contract.json#/acceptance_refs/0"},
+			},
+		},
+		"review_obligations": []any{
+			map[string]any{
+				"id": "RO-1", "source_ref": "plan-contract.json#/acceptance_refs/0",
+				"required": true, "scenario_ids": []any{"SR-1"},
+			},
+		},
+		"human_acceptance_obligations": []any{
+			map[string]any{
+				"id": "HAO-1", "source_ref": "plan-contract.json#/acceptance_refs/0",
+				"required": true, "scenario_ids": []any{"HA-1"},
+			},
+		},
+		"human_acceptance_scenarios": []any{
+			map[string]any{
+				"id": "HA-1", "actor": "user", "entrypoint_id": "EP-1", "required": true,
+				"acceptance_refs": []any{"plan-contract.json#/acceptance_refs/0"},
+			},
+		},
+		"tasks": []any{
+			map[string]any{
+				"id": "T001", "title": "Ship platform scaffold",
+				"done_condition":       []any{"scaffold exists"},
+				"dependencies":         []any{},
+				"expected_write_scope": []any{"src/platform"},
+			},
+		},
+	}
+	raw, err := json.Marshal(definition)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(definitionPath, raw, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	oldCWD, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(root); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(oldCWD) })
+	featureRef := filepath.ToSlash(filepath.Join(".specify", "features", "003-atpath"))
+	assertTaskRuntimeCommandOK(t, []string{
+		"tasks", "build", "--feature-dir", featureRef,
+		"--definition-json", "@task-package.json", "--format", "json",
+	})
+	assertTaskRuntimeCommandOK(t, []string{"tasks", "finalize", "--feature-dir", featureRef, "--format", "json"})
+	index := readImplementJSONFile(t, filepath.Join(feature, "task-index.json"))
+	refs, _ := index["acceptance_refs"].([]any)
+	if len(refs) != 1 || refs[0] != "spec-contract.json#/acceptance_criteria/0" {
+		t.Fatalf("acceptance_refs not rewritten to plan values: %#v", refs)
+	}
+	tasks, _ := index["tasks"].([]any)
+	task, _ := tasks[0].(map[string]any)
+	if task["objective"] != "Ship platform scaffold" {
+		t.Fatalf("title alias not applied: %#v", task)
+	}
+	acceptance, _ := task["acceptance"].([]any)
+	if len(acceptance) != 1 || acceptance[0] != "scaffold exists" {
+		t.Fatalf("done_condition alias not applied: %#v", task)
+	}
+	if _, hasTitle := task["title"]; hasTitle {
+		t.Fatalf("title should be normalized away: %#v", task)
+	}
+	exit, env := runTaskRuntimeCommand(t, []string{
+		"tasks", "set-root", "--feature-dir", featureRef,
+		"--patch-json", `{"transition":{"next_action":"/sp.implement"}}`,
+		"--format", "json",
+	})
+	if exit == 0 || !strings.Contains(fmt.Sprint(env.Blockers)+env.Summary, "CLI-owned field") {
+		t.Fatalf("set-root transition should be rejected: exit=%d env=%#v", exit, env)
 	}
 }
 

@@ -327,9 +327,22 @@ func setJSONPointer(payload any, pointer string, value any) error {
 	return nil
 }
 
+// normalizeMarkdownSectionTarget accepts bare heading text and optional
+// markdown markers such as "# Title" or "## Title".
+func normalizeMarkdownSectionTarget(section string) string {
+	target := strings.TrimSpace(section)
+	for strings.HasPrefix(target, "#") {
+		target = strings.TrimSpace(strings.TrimPrefix(target, "#"))
+	}
+	return strings.ToLower(target)
+}
+
 func replaceMarkdownSection(raw []byte, section, content string) ([]byte, error) {
 	lines := strings.Split(strings.ReplaceAll(string(raw), "\r\n", "\n"), "\n")
-	target := strings.ToLower(strings.TrimSpace(section))
+	target := normalizeMarkdownSectionTarget(section)
+	if target == "" {
+		return nil, fmt.Errorf("markdown section heading must not be empty")
+	}
 	start, end, level := -1, len(lines), 0
 	for index, line := range lines {
 		trimmed := strings.TrimSpace(line)
@@ -337,7 +350,11 @@ func replaceMarkdownSection(raw []byte, section, content string) ([]byte, error)
 			continue
 		}
 		hashes := len(trimmed) - len(strings.TrimLeft(trimmed, "#"))
-		if start < 0 && strings.ToLower(strings.TrimSpace(trimmed[hashes:])) == target {
+		if hashes == 0 || hashes > 6 || len(trimmed) == hashes || trimmed[hashes] != ' ' {
+			continue
+		}
+		label := strings.ToLower(strings.TrimSpace(trimmed[hashes:]))
+		if start < 0 && label == target {
 			start, level = index, hashes
 			continue
 		}
@@ -347,7 +364,7 @@ func replaceMarkdownSection(raw []byte, section, content string) ([]byte, error)
 		}
 	}
 	if start < 0 {
-		return nil, fmt.Errorf("markdown section %q was not found", section)
+		return nil, fmt.Errorf("markdown section %q was not found (pass bare heading text or include optional # markers; matching is case-insensitive)", section)
 	}
 	body := strings.TrimSpace(content)
 	replacement := []string{lines[start], ""}

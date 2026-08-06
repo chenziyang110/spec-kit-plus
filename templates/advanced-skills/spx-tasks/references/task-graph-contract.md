@@ -5,12 +5,20 @@ Trace every confirmed requirement, plan decision, must-preserve behavior, and
 triggered consequence obligation to at least one task or explicit deferral.
 
 For a ready version-2 task index, `acceptance_refs` is the complete unique
-ordered pointer list `plan-contract.json#/acceptance_refs/0..N-1`. The Human
-Acceptance Universe is non-empty, every obligation source uses one of those
-pointers, and every scenario declares its human actor, official entrypoint,
-linked required Review scenario, observable steps, and complete obligation
-mapping. Missing files, omitted refs, downgraded obligations, or regenerated
-fallback universes are contract failures.
+ordered **copy of `plan-contract.acceptance_refs` values** (typically
+`spec-contract.json#/acceptance_criteria/0..N-1`). The pointer spelling
+`plan-contract.json#/acceptance_refs/N` is accepted and rewritten to those
+values. The Human Acceptance Universe is non-empty, every obligation
+`source_ref` uses one of those acceptance values, and every scenario declares
+its human actor, official entrypoint, linked required Review scenario,
+observable steps, and complete obligation mapping. Missing files, omitted refs,
+downgraded obligations, or regenerated fallback universes are contract failures.
+
+Task authoring JSON flags (`--definition-json`, `--task-json`, `--patch-json`)
+accept inline JSON, `@path`, or `-` (stdin). Prefer `@path` on Windows for large
+packages. `set-root` cannot author CLI-owned `transition`/`status`/`version`/
+`tasks`; use `finalize` for transition readiness. Per-task `title` aliases
+`objective`; `done_condition` aliases `acceptance`.
 
 For each `acceptance_ref`, at least one required `review_obligations` path must
 terminate in a dedicated required `system_review_scenarios` row whose required

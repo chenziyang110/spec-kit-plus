@@ -31,16 +31,18 @@ and stop if it remains invalid. Require the plan's ready transition to
 planning blockers.
 
 Build the semantic task package through
-`{{specify-subcmd:specify-runtime tasks build --feature-dir <feature-dir> --definition-json '<inline-json>' --format json}}`,
-refine it only with `tasks upsert`, `tasks set-root`, or
-`tasks remove`, finish with `tasks finalize`, and create the implementation
-transition with `tasks handoff --feature-dir <feature-dir> --target implement --format json`. The CLI expands the canonical
+`{{specify-subcmd:specify-runtime tasks build --feature-dir <feature-dir> --definition-json '<inline-json|@path|->' --format json}}`,
+refine it only with `tasks upsert --task-json '<object|@path|->'`,
+`tasks set-root --patch-json '<object|@path|->'` (never CLI-owned `transition`),
+or `tasks remove`, finish with `tasks finalize`, and create the implementation
+transition with `tasks handoff --feature-dir <feature-dir> --target implement --format json`.
+Prefer `@path` on Windows for large packages. The CLI expands the canonical
 template and atomically renders `task-index.json` plus `tasks.md`; never create,
-patch, replace, or delete either projection directly, and never stage the payload
-in a temporary JSON or Markdown file. Every task needs a stable ID,
-complete outcome, dependencies, likely write scope, acceptance, verification,
-and must-preserve obligations. Mark parallel only when inputs are stable and
-writes do not overlap; name the join and combined check.
+patch, replace, or delete either projection directly. Every task needs a stable
+ID, complete outcome (`objective`/`title`), dependencies, write scope,
+acceptance (`acceptance`/`done_condition`), verification, and must-preserve
+obligations. Mark parallel only when inputs are stable and writes do not
+overlap; name the join and combined check.
 
 Set root `validation_policy` to `mode: feature_epochs`, `max_epochs: 3`,
 `budget_scope: implement-review`,
@@ -53,7 +55,9 @@ worker packet. The three epochs are logical `baseline`, `convergence`, and
 attempts inside their gate and do not consume another epoch.
 
 At the task-index root, require `acceptance_refs` to be the complete unique
-ordered list `plan-contract.json#/acceptance_refs/0..N-1`; a ready version-2
+ordered copy of `plan-contract.acceptance_refs` values (typically
+`spec-contract.json#/acceptance_criteria/0..N-1`; pointer form
+`plan-contract.json#/acceptance_refs/N` is rewritten); a ready version-2
 index may not omit the file or carry copied spec refs or a selected subset.
 Compile every official entrypoint record in
 `official_entrypoints`, stable

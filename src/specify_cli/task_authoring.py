@@ -31,6 +31,7 @@ _AUTHORED_TASK_FIELDS = {
     "story_id",
     "phase",
     "objective",
+    "title",  # alias for objective; normalized away
     "description",
     "dependencies",
     "depends_on",
@@ -54,6 +55,7 @@ _AUTHORED_TASK_FIELDS = {
     "forbidden_drift",
     "hard_rules",
     "acceptance",
+    "done_condition",  # alias for acceptance; normalized away
     "acceptance_refs",
     "verification",
     "required_validation",
@@ -155,6 +157,13 @@ def _normalize_task(
     if not isinstance(raw_task, Mapping):
         raise TaskAuthoringError("each task must be a JSON object")
     task = deepcopy(dict(raw_task))
+    title = str(task.get("title") or "").strip()
+    if title and not str(task.get("objective") or "").strip():
+        task["objective"] = title
+    task.pop("title", None)
+    if "acceptance" not in task and "done_condition" in task:
+        task["acceptance"] = task["done_condition"]
+    task.pop("done_condition", None)
     obsolete = sorted(_OBSOLETE_TASK_FIELDS & task.keys())
     if obsolete:
         raise TaskAuthoringError(
@@ -168,12 +177,16 @@ def _normalize_task(
     unknown = sorted(set(task) - _AUTHORED_TASK_FIELDS - _PROTECTED_TASK_FIELDS)
     if unknown and not allow_runtime_fields:
         raise TaskAuthoringError(
-            "task contains unsupported fields: " + ", ".join(unknown)
+            "task contains unsupported fields: "
+            + ", ".join(unknown)
+            + "; accepted fields include objective (alias: title), acceptance (alias: done_condition)"
         )
     task_id = _normalize_task_id(task.get("id", task.get("task_id")))
     objective = str(task.get("objective") or "").strip()
     if not objective:
-        raise TaskAuthoringError(f"{task_id} objective is required")
+        raise TaskAuthoringError(
+            f"{task_id} objective is required (title is accepted as an alias)"
+        )
     task.pop("task_id", None)
     task["id"] = task_id
     task["objective"] = objective
@@ -622,8 +635,16 @@ def set_task_root_fields(
             "root patch contains unsupported fields: " + ", ".join(unknown)
         )
     if protected:
+        detail = ", ".join(protected)
+        if "transition" in protected:
+            raise TaskAuthoringError(
+                "root patch contains CLI-owned fields: "
+                + detail
+                + "; transition is written only by tasks finalize/handoff "
+                "(do not set next_action/status via set-root)"
+            )
         raise TaskAuthoringError(
-            "root patch contains CLI-owned fields: " + ", ".join(protected)
+            "root patch contains CLI-owned fields: " + detail
         )
     for key, value in patch.items():
         task_index[key] = deepcopy(value)
@@ -667,7 +688,7 @@ def _validate_dependency_graph(tasks: list[dict[str, Any]]) -> None:
         visit(task_id)
 
 
-def _validate_acceptance_projection(feature: Path, task_index: Mapping[str, Any]) -> None:
+def _validate_acceptance_projection(feature: Path, task_index: dict[str, Any]) -> None:
     plan_path = feature / "plan-contract.json"
     if not plan_path.is_file():
         nested = feature / "plan" / "plan-contract.json"
@@ -683,11 +704,16 @@ def _validate_acceptance_projection(feature: Path, task_index: Mapping[str, Any]
     expected = plan.get("acceptance_refs", [])
     if not isinstance(expected, list):
         raise TaskAuthoringError("plan-contract acceptance_refs must be an array")
-    actual = task_index.get("acceptance_refs", [])
-    if actual != expected:
-        raise TaskAuthoringError(
-            "task-index acceptance_refs must exactly preserve plan-contract order"
-        )
+    task_index["acceptance_refs"] = _normalize_task_index_acceptance_refs(
+        task_index.get("acceptance_refs"),
+        expected,
+        plan_label="plan-contract.json",
+    )
+    _rewrite_acceptance_source_refs(
+        task_index,
+        expected,
+        plan_label="plan-contract.json",
+    )
     if expected:
         for field in (
             "official_entrypoints",
@@ -700,6 +726,107 @@ def _validate_acceptance_projection(feature: Path, task_index: Mapping[str, Any]
                 raise TaskAuthoringError(
                     f"task-index {field} is required when acceptance_refs are present"
                 )
+
+
+def _parse_plan_acceptance_pointer(value: str, plan_label: str) -> int | None:
+    text = str(value or "").strip()
+    for prefix in (
+        f"{plan_label}#/acceptance_refs/",
+        "plan-contract.json#/acceptance_refs/",
+        "#/acceptance_refs/",
+    ):
+        if not text.startswith(prefix):
+            continue
+        suffix = text[len(prefix) :]
+        if not suffix.isdigit():
+            return None
+        return int(suffix)
+    return None
+
+
+def _normalize_task_index_acceptance_refs(
+    actual: object,
+    expected: list[Any],
+    *,
+    plan_label: str,
+) -> list[Any]:
+    if actual is None:
+        if not expected:
+            return []
+        preview = ", ".join(str(item) for item in expected) or "[]"
+        raise TaskAuthoringError(
+            "task-index acceptance_refs must exactly copy "
+            "plan-contract.acceptance_refs values in order "
+            f"(example values: [{preview}]); pointer form "
+            f"{plan_label}#/acceptance_refs/N is also accepted and rewritten"
+        )
+    if not isinstance(actual, list):
+        raise TaskAuthoringError("task-index acceptance_refs must be an array")
+    if actual == expected:
+        return deepcopy(expected)
+    expanded: list[Any] = []
+    for item in actual:
+        text = str(item).strip()
+        if not text:
+            raise TaskAuthoringError(
+                "task-index acceptance_refs must contain non-empty strings"
+            )
+        index = _parse_plan_acceptance_pointer(text, plan_label)
+        if index is not None:
+            if index < 0 or index >= len(expected):
+                raise TaskAuthoringError(
+                    f"task-index acceptance_refs pointer {text!r} is out of range "
+                    f"for {plan_label} ({len(expected)} refs)"
+                )
+            expanded.append(expected[index])
+            continue
+        expanded.append(text)
+    if expanded != expected:
+        expected_preview = ", ".join(str(item) for item in expected)
+        actual_preview = ", ".join(str(item) for item in expanded)
+        raise TaskAuthoringError(
+            "task-index acceptance_refs must exactly preserve "
+            "plan-contract.acceptance_refs values and order; "
+            f"expected [{expected_preview}], got [{actual_preview}] "
+            f"(pointer form {plan_label}#/acceptance_refs/N is accepted and rewritten)"
+        )
+    return deepcopy(expected)
+
+
+def _rewrite_acceptance_source_refs(
+    task_index: dict[str, Any],
+    expected: list[Any],
+    *,
+    plan_label: str,
+) -> None:
+    pointer_to_value: dict[str, Any] = {}
+    for index, value in enumerate(expected):
+        pointer_to_value[f"{plan_label}#/acceptance_refs/{index}"] = value
+        pointer_to_value[f"plan-contract.json#/acceptance_refs/{index}"] = value
+        pointer_to_value[f"#/acceptance_refs/{index}"] = value
+    for field in ("human_acceptance_obligations", "review_obligations"):
+        rows = task_index.get(field)
+        if not isinstance(rows, list):
+            continue
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            source = str(row.get("source_ref") or "").strip()
+            if source in pointer_to_value:
+                row["source_ref"] = pointer_to_value[source]
+    for field in ("system_review_scenarios", "human_acceptance_scenarios"):
+        rows = task_index.get(field)
+        if not isinstance(rows, list):
+            continue
+        for row in rows:
+            if not isinstance(row, dict) or "acceptance_refs" not in row:
+                continue
+            refs = row.get("acceptance_refs")
+            if not isinstance(refs, list):
+                continue
+            row["acceptance_refs"] = [
+                pointer_to_value.get(str(item).strip(), item) for item in refs
+            ]
 
 
 def finalize_task_package(

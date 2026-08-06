@@ -518,32 +518,57 @@ def resume_context(project_root: Path, slug: str) -> dict[str, Any]:
     }
 
 
+CHECKPOINT_PACKET_KEYS = (
+    "user_goal",
+    "turn_class",
+    "confirmed_decisions",
+    "changed_recommendations",
+    "context_boundary",
+    "verified_fact_refs",
+    "open_assumptions",
+    "open_questions",
+    "current_recommendation",
+    "allowed_actions",
+    "next_gate",
+    "current_decision_frame",
+)
+CHECKPOINT_META_KEYS = frozenset({"summary", "lifecycle_phase", "phase"})
+
+
+def _validate_checkpoint_fields(changes: dict[str, Any]) -> None:
+    known = set(CHECKPOINT_PACKET_KEYS) | CHECKPOINT_META_KEYS
+    unknown = sorted(str(key) for key in changes if key not in known)
+    if unknown:
+        accepted = sorted(known)
+        raise ValueError(
+            "discussion checkpoint unknown fields: "
+            + ", ".join(unknown)
+            + "; accepted fields: "
+            + ", ".join(accepted)
+            + " (unknown fields are rejected instead of silently dropped)"
+        )
+
+
 def checkpoint_discussion(
     project_root: Path, slug: str, changes: dict[str, Any]
 ) -> dict[str, Any]:
     workspace, archived = _find_workspace(project_root, slug, include_archived=False)
     if archived:
         raise ValueError("archived discussion cannot be checkpointed")
+    if not isinstance(changes, dict):
+        raise ValueError("checkpoint payload must be an object")
+    _validate_checkpoint_fields(changes)
     state, _legacy = _load_state(workspace)
-    phase = changes.get("lifecycle_phase", state["lifecycle_phase"])
+    phase = changes.get("lifecycle_phase", changes.get("phase", state["lifecycle_phase"]))
+    if isinstance(phase, str):
+        phase = phase.strip().lower()
     if phase not in LIFECYCLE_PHASES - {"ready", "consumed", "closed"}:
         raise ValueError(f"invalid checkpoint lifecycle phase: {phase}")
     timestamp = now_utc()
     event_id = uuid.uuid4().hex
     summary = str(changes.get("summary") or state["summary"]).strip()
     packet = state["turn_packet"]
-    for key in (
-        "confirmed_decisions",
-        "changed_recommendations",
-        "context_boundary",
-        "verified_fact_refs",
-        "open_assumptions",
-        "open_questions",
-        "current_recommendation",
-        "allowed_actions",
-        "next_gate",
-        "current_decision_frame",
-    ):
+    for key in CHECKPOINT_PACKET_KEYS:
         if key in changes:
             packet[key] = copy.deepcopy(changes[key])
     packet["lifecycle_phase"] = phase
@@ -559,8 +584,11 @@ def checkpoint_discussion(
         "kind": "durable-checkpoint",
         "lifecycle_phase": phase,
         "summary": summary,
+        "user_goal": copy.deepcopy(packet.get("user_goal")),
         "confirmed_decisions": copy.deepcopy(packet["confirmed_decisions"]),
         "open_questions": copy.deepcopy(packet["open_questions"]),
+        "current_recommendation": copy.deepcopy(packet.get("current_recommendation")),
+        "context_boundary": copy.deepcopy(packet.get("context_boundary")),
     }
     with (workspace / "discussion-log.jsonl").open(
         "a", encoding="utf-8", newline="\n"
@@ -571,6 +599,7 @@ def checkpoint_discussion(
     return {
         "discussion": {**_record(workspace, state, False), **copy.deepcopy(state)},
         "event": event,
+        "turn_packet": copy.deepcopy(packet),
     }
 
 

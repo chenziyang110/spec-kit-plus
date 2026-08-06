@@ -1882,7 +1882,7 @@ def test_human_acceptance_universe_rejects_plan_acceptance_ref_omission(
 
     assert any(
         "missing plan acceptance_refs" in error
-        and "plan-contract.json#/acceptance_refs/1" in error
+        and "spec-contract.json#/acceptance_criteria/1" in error
         for error in errors
     )
 

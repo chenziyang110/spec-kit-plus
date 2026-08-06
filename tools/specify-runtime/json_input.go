@@ -83,12 +83,30 @@ func readAgentJSONObject(args []string, projectRoot, label string) (map[string]a
 	if err != nil {
 		return nil, err
 	}
+	return decodeAgentJSONObject(raw, label)
+}
+
+// decodeAgentJSONObject unmarshals a JSON object and explains common shell
+// quoting failures (especially PowerShell eating double quotes).
+func decodeAgentJSONObject(raw []byte, label string) (map[string]any, error) {
 	var value map[string]any
 	if err := json.Unmarshal(raw, &value); err != nil {
-		return nil, fmt.Errorf("%s input must be a JSON object: %w", label, err)
+		return nil, formatJSONObjectError(label, err, raw)
 	}
 	if value == nil {
 		return nil, fmt.Errorf("%s input must be a JSON object", label)
 	}
 	return value, nil
+}
+
+func formatJSONObjectError(label string, err error, raw []byte) error {
+	trimmed := strings.TrimSpace(string(raw))
+	hint := ""
+	// PowerShell often collapses --input-json '{"k":"v"}' so the runtime sees
+	// {k:v} or bare tokens; surface a Windows-safe recovery path.
+	if strings.Contains(err.Error(), "invalid character") ||
+		(strings.HasPrefix(trimmed, "{") && !strings.Contains(trimmed, `"`) && strings.Contains(trimmed, ":")) {
+		hint = "; if you are in PowerShell/Windows, prefer --input-json @payload.json or --input-json - with stdin (inline single-quoted JSON often loses double quotes)"
+	}
+	return fmt.Errorf("%s input must be a JSON object: %w%s", label, err, hint)
 }

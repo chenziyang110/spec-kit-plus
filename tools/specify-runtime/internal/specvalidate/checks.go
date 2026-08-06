@@ -83,8 +83,12 @@ func checkWorkflowStateReadiness(a artifactSet) checkResult {
 		if !ok {
 			return checkResult{status: statusFail, message: "spec-contract transition must be an object"}
 		}
-		if normalizeCommandToken(valueString(transition["next_action"])) != "/sp.plan" {
-			return checkResult{status: statusFail, message: "spec-contract transition.next_action must be /sp.plan"}
+		nextAction, err := transitionNextActionToken(transition["next_action"])
+		if err != nil {
+			return checkResult{status: statusFail, message: err.Error()}
+		}
+		if nextAction != "/sp.plan" {
+			return checkResult{status: statusFail, message: "spec-contract transition.next_action must be /sp.plan (string \"/sp.plan\" or object {\"command\":\"/sp.plan\"})"}
 		}
 		return checkResult{status: statusPass, message: "canonical contract is planning-ready"}
 	}
@@ -831,8 +835,32 @@ func checkChangePropagation(a artifactSet) checkResult {
 	}
 
 	return checkResult{
-		status:  statusFail,
-		message: "change-propagation section found but no data table present",
+		status: statusFail,
+		message: "change-propagation section found but no markdown data table present; " +
+			"add a pipe table under the Change Propagation Matrix section with a header row, separator, and at least one data row " +
+			"(example: | Surface | Impact |\\n| --- | --- |\\n| module-x | consumers |)",
+	}
+}
+
+// transitionNextActionToken accepts the canonical string form "/sp.plan" and
+// the common agent object form {"command":"/sp.plan", ...}.
+func transitionNextActionToken(value any) (string, error) {
+	switch typed := value.(type) {
+	case nil:
+		return "", fmt.Errorf("spec-contract transition.next_action is required; use string \"/sp.plan\" or object {\"command\":\"/sp.plan\"}")
+	case string:
+		return normalizeCommandToken(typed), nil
+	case map[string]any:
+		for _, key := range []string{"command", "action", "next_action"} {
+			if raw, ok := typed[key]; ok {
+				if s, ok := raw.(string); ok && strings.TrimSpace(s) != "" {
+					return normalizeCommandToken(s), nil
+				}
+			}
+		}
+		return "", fmt.Errorf("spec-contract transition.next_action object must include string field \"command\" (example: {\"command\":\"/sp.plan\"})")
+	default:
+		return "", fmt.Errorf("spec-contract transition.next_action must be string \"/sp.plan\" or object {\"command\":\"/sp.plan\"}, got %T", value)
 	}
 }
 

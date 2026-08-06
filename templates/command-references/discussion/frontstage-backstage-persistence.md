@@ -34,7 +34,7 @@ Do not persist only because an unsaved turn count changed. Recovery value and se
 
 At a natural pause or after several unsaved ordinary turns, the visible reply may end with one short note that names the unsaved turn count and suggests `checkpoint, continue` if the user wants to save progress and keep going. This note is not a receipt, does not expose file paths by default, and must not call write-capable tools.
 
-When the user says `checkpoint, continue`, pass the compact semantic delta to `specify-runtime discussion checkpoint`; it atomically appends `discussion-log.jsonl`, updates canonical JSON, and renders compatibility Markdown. Never mutate those files directly.
+When the user says `checkpoint, continue`, pass the compact semantic delta to `specify-runtime discussion checkpoint` with `--input-json` (inline, `@path`, or `-` for stdin). The payload may include `summary`, `lifecycle_phase`/`phase`, `user_goal`, `context_boundary`, `confirmed_decisions`, `open_questions`, `current_recommendation`, and the other accepted turn_packet fields. The runtime persists those fields into `discussion-state.json` / `turn_packet` and appends `discussion-log.jsonl`; unknown fields are rejected instead of silently dropped. Expand the live schema with `specify-runtime api schema discussion-checkpoint-input --format json`. On Windows PowerShell, prefer `@path` or stdin because inline JSON quoting often strips double quotes. Never mutate those files directly.
 
 ## Recovery Flow
 

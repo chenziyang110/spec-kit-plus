@@ -418,7 +418,7 @@ if (-not $DryRun) {
             }
         }
     } else {
-        Write-Warning "[specify] Warning: Git repository not detected; skipped branch creation for $branchName"
+        Write-Warning "[specify] Warning: Git repository not detected at project root; skipped branch creation for $branchName. Feature directories still use the configured date/timestamp naming under .specify/features. In monorepos, ensure project root (not a nested work folder without .git) is the specify project; nested git at a parent path only is treated as no-repo for this script."
     }
 
     New-Item -ItemType Directory -Path $featureDir -Force | Out-Null
