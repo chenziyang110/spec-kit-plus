@@ -23,7 +23,13 @@ Avoid generic defaults that are not grounded in product purpose or current
 language. Separate work type from surface type (`landing`,
 `product-workspace`, `hybrid`, `existing-pattern-maintenance`) and platform.
 Name subject, audience, single job, visual/content/interaction theses, and one
-recognizable signature. New or high-visibility direction requires an
+recognizable signature. Apply the surface-aware anti-slop policy from
+`design-library/anti-slop-policy.md` only as a bias correction subordinate to
+approved `DESIGN.md`: landing/marketing favors higher variance and bans common
+AI-hero fingerprints; product-workspace favors density and bans marketing
+theatrics; trust-public favors restraint and real design-system foundations.
+This gate never authorizes production implementation inside design workflows.
+New or high-visibility direction requires an
 inspectable approved visual reference; a narrow existing-pattern exception must
 name its live governing surface. Reuse approved tokens and components.
 When `sp-design` produced a project-level HTML preview, preserve the exact

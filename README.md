@@ -635,14 +635,22 @@ when the `classic` profile is selected.
   Init's generic `status: bootstrap` file is a structural seed, not approved
   product direction. Use the design workflow for new product UI, redesigns,
   rebrands, core workflow experience, multi-platform interface decisions, and
-  high-visibility customer-facing surfaces. New directions are reviewed as
-  three comparable, self-contained HTML specimens; approval freezes one exact
-  direction with a byte-bound approval sidecar plus preview/manifest digests,
-  an immutable `.handoff.json` sidecar and digest, stable `DS-*` decision IDs,
-  and stable `DH-*` implementation contract IDs. Downstream artifacts reference
-  those IDs instead of rewriting design intent. Rejecting, combining, or
-  revising those directions produces a new review round; an approved round is
-  never edited in place.
+  high-visibility customer-facing surfaces. Visual create and project-wide
+  refine require durable taste intake in the design brief (one-line design
+  read, variance/motion/density dials, aesthetic family, foundation strategy,
+  redesign mode, surface-aware anti-slop locks, and optional synthesize
+  reference-board intents). New directions are reviewed as three comparable,
+  self-contained HTML specimens that must diverge on dial vectors and unique
+  signatures while sharing specimen content; ready-level
+  `design preview-lint` rejects undifferentiated boards. Approval freezes one
+  exact direction with a byte-bound approval sidecar plus preview/manifest
+  digests, an immutable `.handoff.json` sidecar and digest, stable `DS-*`
+  decision IDs, and stable `DH-*` implementation contract IDs. Downstream
+  artifacts reference those IDs instead of rewriting design intent. Rejecting,
+  combining, or revising those directions produces a new review round; an
+  approved round is never edited in place. Design-library aesthetic seeds and
+  `anti-slop-policy.md` are inspiration only and never substitute for
+  `design approve`.
 
 Substantive feature UI is handled during `sp-specify`/`$spx-specify` even when
 no screenshot is supplied: it produces a feature `ui-brief.md` that carries

@@ -24,20 +24,6 @@ PREVIEW_TEMPLATE = REPO_ROOT / "templates" / "design-preview-template.html"
 runner = CliRunner()
 
 
-def _candidate_preview() -> str:
-    content = PREVIEW_TEMPLATE.read_text(encoding="utf-8")
-    content = content.replace(
-        'data-preview-status="scaffold"',
-        'data-preview-status="candidate"',
-    )
-    content = content.replace('"configured": false', '"configured": true')
-    content = content.replace(
-        '"status": "scaffold",\n    "approved_direction": null',
-        '"status": "candidate",\n    "approved_direction": null',
-    )
-    return re.sub(r"__[A-Z0-9_]+__", "Configured design content", content)
-
-
 def _preview_manifest(content: str) -> dict[str, object]:
     match = re.search(
         r'<script\b(?=[^>]*\bid="design-preview-manifest")[^>]*>(.*?)</script>',
@@ -68,6 +54,52 @@ def _replace_preview_manifest(
     return updated
 
 
+def _diversify_direction_taste(manifest: dict[str, object]) -> None:
+    """Keep ready fixtures content-comparable but dial/signature divergent."""
+
+    directions = manifest.get("directions")
+    assert isinstance(directions, list)
+    taste = (
+        (
+            "Configured signature A",
+            {"variance": 5, "motion": 3, "density": 7, "inference_reason": "Fixture A product density"},
+            "minimal-product-linear",
+        ),
+        (
+            "Configured signature B",
+            {"variance": 7, "motion": 5, "density": 5, "inference_reason": "Fixture B balanced product"},
+            "developer-tool-sharp",
+        ),
+        (
+            "Configured signature C",
+            {"variance": 8, "motion": 7, "density": 3, "inference_reason": "Fixture C expressive lean"},
+            "marketing-editorial-asymmetric",
+        ),
+    )
+    for direction, (signature, dials, family) in zip(directions, taste, strict=True):
+        assert isinstance(direction, dict)
+        direction["signature_element"] = signature
+        direction["dials"] = dials
+        direction["aesthetic_family"] = family
+
+
+def _candidate_preview() -> str:
+    content = PREVIEW_TEMPLATE.read_text(encoding="utf-8")
+    content = content.replace(
+        'data-preview-status="scaffold"',
+        'data-preview-status="candidate"',
+    )
+    content = content.replace('"configured": false', '"configured": true')
+    content = content.replace(
+        '"status": "scaffold",\n    "approved_direction": null',
+        '"status": "candidate",\n    "approved_direction": null',
+    )
+    content = re.sub(r"__[A-Z0-9_]+__", "Configured design content", content)
+    manifest = _preview_manifest(content)
+    _diversify_direction_taste(manifest)
+    return _replace_preview_manifest(content, manifest)
+
+
 def _render_manifest() -> dict[str, object]:
     manifest = _preview_manifest(_candidate_preview())
     manifest["configured"] = False
@@ -87,6 +119,7 @@ def _render_manifest() -> dict[str, object]:
         direction["id"] = direction_id
         direction["name"] = name
         direction["signature_element"] = signature
+    _diversify_direction_taste(manifest)
     return manifest
 
 
@@ -141,6 +174,66 @@ def test_design_preview_ready_lint_accepts_configured_candidate(tmp_path: Path) 
     preview.write_text(_candidate_preview(), encoding="utf-8")
 
     assert lint_design_preview_file(preview, level="ready") == []
+
+
+def test_design_preview_ready_lint_rejects_undifferentiated_dials(
+    tmp_path: Path,
+) -> None:
+    content = _candidate_preview()
+    manifest = _preview_manifest(content)
+    directions = manifest["directions"]
+    assert isinstance(directions, list)
+    shared = {
+        "variance": 6,
+        "motion": 6,
+        "density": 6,
+        "inference_reason": "intentionally identical dials",
+    }
+    for direction in directions:
+        assert isinstance(direction, dict)
+        direction["dials"] = dict(shared)
+    preview = tmp_path / "same-dials.html"
+    preview.write_text(_replace_preview_manifest(content, manifest), encoding="utf-8")
+
+    diagnostics = lint_design_preview_file(preview, level="ready")
+
+    assert any(
+        item.code == "preview-undifferentiated-direction-dials" for item in diagnostics
+    )
+
+
+def test_design_preview_ready_lint_rejects_duplicate_signatures(
+    tmp_path: Path,
+) -> None:
+    content = _candidate_preview()
+    manifest = _preview_manifest(content)
+    directions = manifest["directions"]
+    assert isinstance(directions, list)
+    for direction in directions:
+        assert isinstance(direction, dict)
+        direction["signature_element"] = "Same signature everywhere"
+    preview = tmp_path / "same-signatures.html"
+    preview.write_text(_replace_preview_manifest(content, manifest), encoding="utf-8")
+
+    diagnostics = lint_design_preview_file(preview, level="ready")
+
+    assert any(
+        item.code == "preview-undifferentiated-direction-signatures"
+        for item in diagnostics
+    )
+
+
+def test_design_preview_manifest_schema_requires_direction_dials() -> None:
+    schema = json.loads(
+        (REPO_ROOT / "templates" / "design-preview-manifest.schema.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    direction = schema["$defs"]["direction"]
+    assert "dials" in direction["required"]
+    assert "aesthetic_family" in direction["required"]
+    dials = schema["$defs"]["directionDials"]
+    assert dials["required"] == ["variance", "motion", "density", "inference_reason"]
 
 
 def test_design_preview_lint_rejects_remote_runtime_dependency(

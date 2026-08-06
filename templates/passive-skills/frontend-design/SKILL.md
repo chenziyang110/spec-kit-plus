@@ -68,6 +68,25 @@ Focus on:
 
 Avoid generic AI-generated aesthetics: unexplained gradients, interchangeable card grids, placeholder copy, arbitrary font changes, and visual effects unrelated to product purpose. The problem is unsupported defaulting, not any single font, radius, layout, or color.
 
+## Surface-aware anti-slop (subordinate to DESIGN.md)
+
+When Spec Kit Plus has an approved `DESIGN.md`, obey it first. When implementing
+without a governing approved system, or when recording a bounded existing-pattern
+exception, apply surface-aware locks from
+`templates/design-library/anti-slop-policy.md` (also installed under
+`.specify/templates/design-library/anti-slop-policy.md`):
+
+| Surface | Default lean | Avoid as default |
+| --- | --- | --- |
+| `landing` / marketing | higher variance, one signature | AI neon heroes, three equal feature cards, section-number eyebrows |
+| `product-workspace` | denser, lower variance | marketing-hero theatrics, multi-accent rainbow chrome |
+| `trust-public` | restrained motion, real DS when expected | experimental chaos, low-contrast decoration |
+| `existing-pattern-maintenance` | inherit live language | inventing a parallel aesthetic family |
+
+Do not promote landing-only bans into global constitution. Design workflows own
+taste intake and approval; this skill does not authorize rewriting `DESIGN.md`
+or implementing production UI inside `sp-design`.
+
 Interpret creatively and make unexpected choices that feel genuinely designed for the context. No design should be the same. Vary between light and dark themes, different fonts, different aesthetics. NEVER converge on common choices (Space Grotesk, for example) across generations.
 
 **IMPORTANT**: Match implementation complexity to the aesthetic vision. Maximalist designs need elaborate code with extensive animations and effects. Minimalist or refined designs need restraint, precision, and careful attention to spacing, typography, and subtle details. Elegance comes from executing the vision well.

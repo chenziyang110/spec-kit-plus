@@ -2505,20 +2505,34 @@
     "audience": "__PRIMARY_AUDIENCE__",
     "single_job": "__SINGLE_USER_JOB__",
     "brief": "__DESIGN_BRIEF_SUMMARY__",
-    "surface_types": ["__PRIMARY_SURFACE_TYPE__"],
-    "platforms": ["__PRIMARY_PLATFORM__"],
-    "modules": ["core", "__PRIMARY_SURFACE_MODULE__"]
+    "surface_types": [
+      "__PRIMARY_SURFACE_TYPE__"
+    ],
+    "platforms": [
+      "__PRIMARY_PLATFORM__"
+    ],
+    "modules": [
+      "core",
+      "__PRIMARY_SURFACE_MODULE__"
+    ]
   },
   "capability_model": {
     "schema": "spec-kit-design-capability-model-v1",
-    "profile_ids": ["web"],
+    "profile_ids": [
+      "web"
+    ],
     "profiles": [
       {
         "id": "web",
         "label": "Web application",
         "summary": "Responsive browser surfaces with pointer, keyboard, forms, navigation, and asynchronous feedback.",
-        "input_modes": ["pointer", "keyboard"],
-        "measurement_units": ["px"]
+        "input_modes": [
+          "pointer",
+          "keyboard"
+        ],
+        "measurement_units": [
+          "px"
+        ]
       }
     ],
     "capability_ids": [
@@ -2532,8 +2546,13 @@
       "color.modes",
       "motion.adaptive"
     ],
-    "input_modes": ["pointer", "keyboard"],
-    "measurement_units": ["px"],
+    "input_modes": [
+      "pointer",
+      "keyboard"
+    ],
+    "measurement_units": [
+      "px"
+    ],
     "specimens": [
       {
         "id": "SP-WEB-WORKSPACE-001",
@@ -2541,9 +2560,27 @@
         "kind": "web-workspace",
         "title": "Responsive application workspace",
         "purpose": "Prove hierarchy, navigation, primary action, and responsive reflow with representative content.",
-        "capability_ids": ["layout.responsive", "navigation.hierarchical", "input.pointer", "input.keyboard"],
-        "required_states": ["default", "focus", "loading", "empty", "error"],
-        "content_keys": ["surface_eyebrow", "surface_title", "primary_action", "card_one", "card_two", "card_three"]
+        "capability_ids": [
+          "layout.responsive",
+          "navigation.hierarchical",
+          "input.pointer",
+          "input.keyboard"
+        ],
+        "required_states": [
+          "default",
+          "focus",
+          "loading",
+          "empty",
+          "error"
+        ],
+        "content_keys": [
+          "surface_eyebrow",
+          "surface_title",
+          "primary_action",
+          "card_one",
+          "card_two",
+          "card_three"
+        ]
       },
       {
         "id": "SP-WEB-CONTROLS-001",
@@ -2551,9 +2588,28 @@
         "kind": "web-controls",
         "title": "Forms and action hierarchy",
         "purpose": "Prove labels, control anatomy, focus, validation, disabled behavior, and action priority.",
-        "capability_ids": ["controls.form", "input.pointer", "input.keyboard", "state.interactive"],
-        "required_states": ["default", "hover", "focus", "disabled", "loading", "error"],
-        "content_keys": ["primary_field_label", "primary_field_value", "select_label", "select_option_primary", "select_option_secondary", "primary_action"]
+        "capability_ids": [
+          "controls.form",
+          "input.pointer",
+          "input.keyboard",
+          "state.interactive"
+        ],
+        "required_states": [
+          "default",
+          "hover",
+          "focus",
+          "disabled",
+          "loading",
+          "error"
+        ],
+        "content_keys": [
+          "primary_field_label",
+          "primary_field_value",
+          "select_label",
+          "select_option_primary",
+          "select_option_secondary",
+          "primary_action"
+        ]
       },
       {
         "id": "SP-WEB-COLLECTION-001",
@@ -2561,9 +2617,25 @@
         "kind": "web-collection",
         "title": "Collection and asynchronous feedback",
         "purpose": "Prove real data volume, status language, empty/error recovery, and progressive updates.",
-        "capability_ids": ["feedback.async", "state.interactive", "color.modes", "motion.adaptive"],
-        "required_states": ["default", "loading", "empty", "error"],
-        "content_keys": ["collection_title", "collection_meta", "loading_label", "success_label", "error_label"]
+        "capability_ids": [
+          "feedback.async",
+          "state.interactive",
+          "color.modes",
+          "motion.adaptive"
+        ],
+        "required_states": [
+          "default",
+          "loading",
+          "empty",
+          "error"
+        ],
+        "content_keys": [
+          "collection_title",
+          "collection_meta",
+          "loading_label",
+          "success_label",
+          "error_label"
+        ]
       }
     ]
   },
@@ -2628,7 +2700,11 @@
       "signature_element": "__DIRECTION_A_SIGNATURE__",
       "gain": "__DIRECTION_A_GAIN__",
       "cost": "__DIRECTION_A_COST__",
-      "specimen_ids": ["SP-WEB-WORKSPACE-001", "SP-WEB-CONTROLS-001", "SP-WEB-COLLECTION-001"],
+      "specimen_ids": [
+        "SP-WEB-WORKSPACE-001",
+        "SP-WEB-CONTROLS-001",
+        "SP-WEB-COLLECTION-001"
+      ],
       "typography": {
         "display": "\"Arial Narrow\", \"Aptos Display\", \"Segoe UI\", sans-serif",
         "body": "\"Aptos\", \"Segoe UI\", sans-serif",
@@ -2700,7 +2776,14 @@
           "warning": "#ffde59",
           "danger": "#ff8a8a"
         }
-      }
+      },
+      "dials": {
+        "variance": 5,
+        "motion": 3,
+        "density": 7,
+        "inference_reason": "Scaffold baseline: product-workspace contrast (dir A)"
+      },
+      "aesthetic_family": "minimal-product-linear"
     },
     {
       "id": "direction-b",
@@ -2711,7 +2794,11 @@
       "signature_element": "__DIRECTION_B_SIGNATURE__",
       "gain": "__DIRECTION_B_GAIN__",
       "cost": "__DIRECTION_B_COST__",
-      "specimen_ids": ["SP-WEB-WORKSPACE-001", "SP-WEB-CONTROLS-001", "SP-WEB-COLLECTION-001"],
+      "specimen_ids": [
+        "SP-WEB-WORKSPACE-001",
+        "SP-WEB-CONTROLS-001",
+        "SP-WEB-COLLECTION-001"
+      ],
       "typography": {
         "display": "\"Bahnschrift\", \"Aptos Display\", \"Segoe UI\", sans-serif",
         "body": "\"Aptos\", \"Segoe UI\", sans-serif",
@@ -2783,7 +2870,14 @@
           "warning": "#ffe36b",
           "danger": "#ff91a2"
         }
-      }
+      },
+      "dials": {
+        "variance": 7,
+        "motion": 5,
+        "density": 5,
+        "inference_reason": "Scaffold baseline: balanced product direction (dir B)"
+      },
+      "aesthetic_family": "developer-tool-sharp"
     },
     {
       "id": "direction-c",
@@ -2794,7 +2888,11 @@
       "signature_element": "__DIRECTION_C_SIGNATURE__",
       "gain": "__DIRECTION_C_GAIN__",
       "cost": "__DIRECTION_C_COST__",
-      "specimen_ids": ["SP-WEB-WORKSPACE-001", "SP-WEB-CONTROLS-001", "SP-WEB-COLLECTION-001"],
+      "specimen_ids": [
+        "SP-WEB-WORKSPACE-001",
+        "SP-WEB-CONTROLS-001",
+        "SP-WEB-COLLECTION-001"
+      ],
       "typography": {
         "display": "Georgia, \"Times New Roman\", serif",
         "body": "\"Trebuchet MS\", \"Aptos\", sans-serif",
@@ -2866,7 +2964,14 @@
           "warning": "#ffe18b",
           "danger": "#ff9ab1"
         }
-      }
+      },
+      "dials": {
+        "variance": 8,
+        "motion": 7,
+        "density": 3,
+        "inference_reason": "Scaffold baseline: expressive marketing lean (dir C)"
+      },
+      "aesthetic_family": "marketing-editorial-asymmetric"
     }
   ],
   "boundaries": {
@@ -2893,7 +2998,9 @@
       "title": "Semantic color roles and accessible foreground pairs",
       "statement": "__DS_COLOR_STATEMENT__",
       "source_ref": "__DS_COLOR_SOURCE_REF__",
-      "affected_surfaces": ["__PRIMARY_SURFACE_MODULE__"],
+      "affected_surfaces": [
+        "__PRIMARY_SURFACE_MODULE__"
+      ],
       "verification": "computed style, contrast report, and visual capture"
     },
     {
@@ -2902,7 +3009,9 @@
       "title": "Display and body hierarchy",
       "statement": "__DS_TYPE_STATEMENT__",
       "source_ref": "__DS_TYPE_SOURCE_REF__",
-      "affected_surfaces": ["__PRIMARY_SURFACE_MODULE__"],
+      "affected_surfaces": [
+        "__PRIMARY_SURFACE_MODULE__"
+      ],
       "verification": "resolved font evidence and visual capture"
     },
     {
@@ -2911,7 +3020,9 @@
       "title": "Density and spacing rhythm",
       "statement": "__DS_SPACE_STATEMENT__",
       "source_ref": "__DS_SPACE_SOURCE_REF__",
-      "affected_surfaces": ["__PRIMARY_SURFACE_MODULE__"],
+      "affected_surfaces": [
+        "__PRIMARY_SURFACE_MODULE__"
+      ],
       "verification": "computed token export and viewport capture"
     },
     {
@@ -2920,7 +3031,9 @@
       "title": "Control anatomy and required state language",
       "statement": "__DS_COMPONENT_STATEMENT__",
       "source_ref": "__DS_COMPONENT_SOURCE_REF__",
-      "affected_surfaces": ["__PRIMARY_SURFACE_MODULE__"],
+      "affected_surfaces": [
+        "__PRIMARY_SURFACE_MODULE__"
+      ],
       "verification": "state matrix and structure snapshot"
     },
     {
@@ -2929,7 +3042,9 @@
       "title": "Entrance, feedback, transition, and reduced-motion behavior",
       "statement": "__DS_MOTION_STATEMENT__",
       "source_ref": "__DS_MOTION_SOURCE_REF__",
-      "affected_surfaces": ["__PRIMARY_SURFACE_MODULE__"],
+      "affected_surfaces": [
+        "__PRIMARY_SURFACE_MODULE__"
+      ],
       "verification": "runtime capture and reduced-motion check"
     },
     {
@@ -2938,7 +3053,9 @@
       "title": "Navigation, density, and hierarchy adaptation",
       "statement": "__DS_RESPONSIVE_STATEMENT__",
       "source_ref": "__DS_RESPONSIVE_SOURCE_REF__",
-      "affected_surfaces": ["__PRIMARY_SURFACE_MODULE__"],
+      "affected_surfaces": [
+        "__PRIMARY_SURFACE_MODULE__"
+      ],
       "verification": "viewport and state matrix"
     },
     {
@@ -2947,7 +3064,9 @@
       "title": "Representative product content and visible data volume",
       "statement": "__DS_CONTENT_STATEMENT__",
       "source_ref": "__DS_CONTENT_SOURCE_REF__",
-      "affected_surfaces": ["__PRIMARY_SURFACE_MODULE__"],
+      "affected_surfaces": [
+        "__PRIMARY_SURFACE_MODULE__"
+      ],
       "verification": "content source evidence and visual capture"
     }
   ],
@@ -3027,9 +3146,27 @@
           "form and action controls",
           "collection and feedback states"
         ],
-        "required_states": ["default", "hover", "focus", "disabled", "loading", "empty", "error"],
-        "decision_ids": ["DS-COMP-001", "DS-TYPE-001", "DS-SPACE-001"],
-        "must_match": ["anatomy", "hierarchy", "state language", "token bindings", "focus order"]
+        "required_states": [
+          "default",
+          "hover",
+          "focus",
+          "disabled",
+          "loading",
+          "empty",
+          "error"
+        ],
+        "decision_ids": [
+          "DS-COMP-001",
+          "DS-TYPE-001",
+          "DS-SPACE-001"
+        ],
+        "must_match": [
+          "anatomy",
+          "hierarchy",
+          "state language",
+          "token bindings",
+          "focus order"
+        ]
       }
     ],
     "responsive_matrix": [
@@ -3037,76 +3174,207 @@
         "id": "DH-RESP-WEB-COMPACT-001",
         "profile_id": "web",
         "label": "compact web",
-        "target": {"width": 390, "height": 844, "unit": "px"},
+        "target": {
+          "width": 390,
+          "height": 844,
+          "unit": "px"
+        },
         "review_width_px": 390,
         "state": "default",
         "adaptation": "__COMPACT_ADAPTATION__",
-        "decision_ids": ["DS-RESP-001", "DS-SPACE-001", "DS-COMP-001"]
+        "decision_ids": [
+          "DS-RESP-001",
+          "DS-SPACE-001",
+          "DS-COMP-001"
+        ]
       },
       {
         "id": "DH-RESP-WEB-REGULAR-001",
         "profile_id": "web",
         "label": "regular web",
-        "target": {"width": 1024, "height": 768, "unit": "px"},
+        "target": {
+          "width": 1024,
+          "height": 768,
+          "unit": "px"
+        },
         "review_width_px": 1024,
         "state": "default",
         "adaptation": "__REGULAR_ADAPTATION__",
-        "decision_ids": ["DS-RESP-001", "DS-SPACE-001", "DS-COMP-001"]
+        "decision_ids": [
+          "DS-RESP-001",
+          "DS-SPACE-001",
+          "DS-COMP-001"
+        ]
       },
       {
         "id": "DH-RESP-WEB-WIDE-001",
         "profile_id": "web",
         "label": "wide web",
-        "target": {"width": 1440, "height": 900, "unit": "px"},
+        "target": {
+          "width": 1440,
+          "height": 900,
+          "unit": "px"
+        },
         "review_width_px": 1440,
         "state": "default",
         "adaptation": "__WIDE_ADAPTATION__",
-        "decision_ids": ["DS-RESP-001", "DS-SPACE-001", "DS-COMP-001"]
+        "decision_ids": [
+          "DS-RESP-001",
+          "DS-SPACE-001",
+          "DS-COMP-001"
+        ]
       }
     ],
     "visual_acceptance_matrix": [
       {
         "id": "DH-VA-WEB-COMPACT-001",
         "target_id": "DH-RESP-WEB-COMPACT-001",
-        "specimen_ids": ["SP-WEB-WORKSPACE-001", "SP-WEB-CONTROLS-001", "SP-WEB-COLLECTION-001"],
-        "states": ["default", "hover", "focus", "disabled", "loading", "empty", "error"],
-        "color_modes": ["light", "dark", "high-contrast"],
-        "motion_modes": ["full", "reduced"],
-        "decision_ids": ["DS-COLOR-001", "DS-TYPE-001", "DS-SPACE-001", "DS-COMP-001", "DS-CONTENT-001"],
-        "must_match": ["structure", "geometry", "tokens", "content", "state"],
-        "evidence": ["structure_snapshot", "visual_capture", "runtime_diagnostics", "visual_comparison_or_human_review"]
+        "specimen_ids": [
+          "SP-WEB-WORKSPACE-001",
+          "SP-WEB-CONTROLS-001",
+          "SP-WEB-COLLECTION-001"
+        ],
+        "states": [
+          "default",
+          "hover",
+          "focus",
+          "disabled",
+          "loading",
+          "empty",
+          "error"
+        ],
+        "color_modes": [
+          "light",
+          "dark",
+          "high-contrast"
+        ],
+        "motion_modes": [
+          "full",
+          "reduced"
+        ],
+        "decision_ids": [
+          "DS-COLOR-001",
+          "DS-TYPE-001",
+          "DS-SPACE-001",
+          "DS-COMP-001",
+          "DS-CONTENT-001"
+        ],
+        "must_match": [
+          "structure",
+          "geometry",
+          "tokens",
+          "content",
+          "state"
+        ],
+        "evidence": [
+          "structure_snapshot",
+          "visual_capture",
+          "runtime_diagnostics",
+          "visual_comparison_or_human_review"
+        ]
       },
       {
         "id": "DH-VA-WEB-REGULAR-001",
         "target_id": "DH-RESP-WEB-REGULAR-001",
-        "specimen_ids": ["SP-WEB-WORKSPACE-001", "SP-WEB-CONTROLS-001", "SP-WEB-COLLECTION-001"],
-        "states": ["default", "loading", "error"],
-        "color_modes": ["light", "dark", "high-contrast"],
-        "motion_modes": ["full", "reduced"],
-        "decision_ids": ["DS-COLOR-001", "DS-TYPE-001", "DS-SPACE-001", "DS-COMP-001", "DS-MOTION-001", "DS-RESP-001", "DS-CONTENT-001"],
-        "must_match": ["structure", "geometry", "tokens", "content", "state", "motion"],
-        "evidence": ["structure_snapshot", "visual_capture", "runtime_diagnostics", "visual_comparison_or_human_review"]
+        "specimen_ids": [
+          "SP-WEB-WORKSPACE-001",
+          "SP-WEB-CONTROLS-001",
+          "SP-WEB-COLLECTION-001"
+        ],
+        "states": [
+          "default",
+          "loading",
+          "error"
+        ],
+        "color_modes": [
+          "light",
+          "dark",
+          "high-contrast"
+        ],
+        "motion_modes": [
+          "full",
+          "reduced"
+        ],
+        "decision_ids": [
+          "DS-COLOR-001",
+          "DS-TYPE-001",
+          "DS-SPACE-001",
+          "DS-COMP-001",
+          "DS-MOTION-001",
+          "DS-RESP-001",
+          "DS-CONTENT-001"
+        ],
+        "must_match": [
+          "structure",
+          "geometry",
+          "tokens",
+          "content",
+          "state",
+          "motion"
+        ],
+        "evidence": [
+          "structure_snapshot",
+          "visual_capture",
+          "runtime_diagnostics",
+          "visual_comparison_or_human_review"
+        ]
       },
       {
         "id": "DH-VA-WEB-WIDE-001",
         "target_id": "DH-RESP-WEB-WIDE-001",
-        "specimen_ids": ["SP-WEB-WORKSPACE-001", "SP-WEB-CONTROLS-001", "SP-WEB-COLLECTION-001"],
-        "states": ["default", "loading"],
-        "color_modes": ["light", "dark", "high-contrast"],
-        "motion_modes": ["full", "reduced"],
-        "decision_ids": ["DS-MOTION-001", "DS-RESP-001"],
-        "must_match": ["structure", "geometry", "tokens", "motion"],
-        "evidence": ["structure_snapshot", "visual_capture", "runtime_diagnostics", "visual_comparison_or_human_review"]
+        "specimen_ids": [
+          "SP-WEB-WORKSPACE-001",
+          "SP-WEB-CONTROLS-001",
+          "SP-WEB-COLLECTION-001"
+        ],
+        "states": [
+          "default",
+          "loading"
+        ],
+        "color_modes": [
+          "light",
+          "dark",
+          "high-contrast"
+        ],
+        "motion_modes": [
+          "full",
+          "reduced"
+        ],
+        "decision_ids": [
+          "DS-MOTION-001",
+          "DS-RESP-001"
+        ],
+        "must_match": [
+          "structure",
+          "geometry",
+          "tokens",
+          "motion"
+        ],
+        "evidence": [
+          "structure_snapshot",
+          "visual_capture",
+          "runtime_diagnostics",
+          "visual_comparison_or_human_review"
+        ]
       }
     ],
     "comparison_tolerance": {
       "structure": "exact",
       "content": "exact",
       "tokens": "exact",
-      "geometry": {"unit": "px", "max_delta": 2},
-      "color": {"method": "delta-e-2000", "max_delta": 2},
+      "geometry": {
+        "unit": "px",
+        "max_delta": 2
+      },
+      "color": {
+        "method": "delta-e-2000",
+        "max_delta": 2
+      },
       "text_wrap": "exact",
-      "motion": {"unit": "ms", "max_delta": 16},
+      "motion": {
+        "unit": "ms",
+        "max_delta": 16
+      },
       "platform_variance": "approved-deviation-only"
     },
     "accepted_deviations": []
