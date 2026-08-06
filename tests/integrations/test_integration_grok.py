@@ -59,14 +59,26 @@ def test_grok_multi_agent_adapter_declares_spawn_subagent_surface():
     assert snapshot.structured_results is True
     assert snapshot.managed_team_supported is False
     assert snapshot.delegation_confidence in {"medium", "high"}
+    notes = " ".join(snapshot.notes)
+    assert "kill_command_or_subagent" in notes
+    assert "explore" in notes and "general-purpose" in notes
 
     descriptor = describe_delegation_surface(
         command_name="plan",
         snapshot=snapshot,
     )
     assert "spawn_subagent" in descriptor.native_discovery_hint
+    assert "kill_command_or_subagent" in descriptor.native_discovery_hint
+    assert "spawn_agent" in descriptor.native_discovery_hint  # explicitly disallowed
+    assert "Do not require Codex-style" in descriptor.native_discovery_hint
     assert "spawn_subagent" in descriptor.native_dispatch_hint
+    assert "description" in descriptor.native_dispatch_hint
+    assert "capability_mode" in descriptor.native_dispatch_hint
+    assert "worktree" in descriptor.native_dispatch_hint
+    assert "explore" in descriptor.native_dispatch_hint
     assert "get_command_or_subagent_output" in descriptor.native_join_hint
+    assert "task_ids" in descriptor.native_join_hint
+    assert "timeout_ms" in descriptor.native_join_hint
     assert "result submit" in descriptor.native_join_hint.lower() or "result submit" in descriptor.result_submit_hint
     assert "No subagent dispatch path for this session." not in descriptor.native_dispatch_hint
     assert "no known native subagent surface is configured" not in descriptor.native_discovery_hint
@@ -95,8 +107,12 @@ def test_classic_grok_plan_and_tasks_wire_spawn_subagent_and_result_submit(tmp_p
     for content, label in ((plan, "plan"), (tasks, "tasks"), (implement, "implement")):
         assert "spawn_subagent" in content, label
         assert "get_command_or_subagent_output" in content, label
+        assert "kill_command_or_subagent" in content, label
+        assert "capability_mode" in content, label
+        assert "task_ids" in content, label
         assert "no known native subagent surface is configured" not in content.lower(), label
         assert "No subagent dispatch path for this session." not in content, label
+        assert "sp-teams" in content or "managed-team" in content.lower(), label
 
     assert "Grok Subagent Capability Discovery" in plan
     assert "Grok Subagent Capability Discovery" in tasks
@@ -105,6 +121,8 @@ def test_classic_grok_plan_and_tasks_wire_spawn_subagent_and_result_submit(tmp_p
     assert "Grok Adaptive Dispatch" in plan
     assert "Grok Adaptive Dispatch" in tasks
     assert "Grok Adaptive Dispatch" in implement
+    assert "description" in plan
+    assert "worktree" in implement or "isolation" in implement
 
 
 def test_advanced_grok_native_subagent_reference_binds_spawn_subagent(tmp_path: Path):

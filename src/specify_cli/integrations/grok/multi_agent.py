@@ -37,11 +37,19 @@ class GrokMultiAgentAdapter:
             delegation_confidence="high",
             model_family="grok",
             notes=[
-                "Grok Build native delegation uses `spawn_subagent` with "
-                "`get_command_or_subagent_output` join and "
-                "`kill_command_or_subagent` cancel.",
+                "Grok Build native delegation is the three-tool surface: "
+                "`spawn_subagent` (dispatch; background defaults true), "
+                "`get_command_or_subagent_output` (join via task_ids/timeout_ms), "
+                "and `kill_command_or_subagent` (cancel unfinished work only).",
+                "Built-in subagent_type map: explore=read-only repo sweep; "
+                "plan=read-only planning/architecture; general-purpose=bounded "
+                "implementation/fix/validation. Prefer capability_mode "
+                "read-only for evidence and worktree isolation only when "
+                "independent source edits must not collide.",
                 "Workers return structured evidence for the Leader; stage-owned "
-                "artifacts stay on leased specify-runtime writes.",
+                "artifacts stay on leased specify-runtime writes. The Rhai "
+                "`workflow` orchestrator is optional multi-agent automation, "
+                "not sp-teams and not the default sp-* lane path.",
             ],
         )
 
