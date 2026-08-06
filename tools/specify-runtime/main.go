@@ -1279,6 +1279,8 @@ func capabilitySummary(id string) string {
 		return "Resolve a persisted workflow blocker with evidence."
 	case "workflow.closeout":
 		return "Atomically bind passed human acceptance to terminal workflow state."
+	case "implement.result-merge":
+		return "Merge a leader-submitted WorkerTaskResult with validation_results into task lifecycle state."
 	case "implement.task-reopen":
 		return "Reopen one non-acceptance-ready implemented task with revision guards and immutable audit history."
 	case "run.create":

@@ -165,19 +165,28 @@ func validateHookConstitutionArtifacts(projectRoot string) error {
 }
 
 func validateHookImplementArtifacts(projectRoot, featurePath string) error {
-	handoff, err := readJSONObject(filepath.Join(featurePath, "implementation-handoff.json"))
+	handoffPath := filepath.Join(featurePath, "implementation-handoff.json")
+	handoff, err := readJSONObject(handoffPath)
 	if err != nil {
 		return fmt.Errorf("implementation-handoff.json is unavailable: %w", err)
 	}
 	if err := validateCanonicalImplementationHandoff(projectRoot, featurePath, handoff); err != nil {
-		return err
+		return fmt.Errorf("implementation-handoff.json is invalid: %w", err)
+	}
+	// Closeout already required a passing resume-audit. Once handoff is
+	// ready_for_review and validates, it is the implement completion authority
+	// for complete-stage. Re-running live resume-audit here races fingerprint
+	// drift from post-closeout state-file patches (workflow-state.md, etc.).
+	if strings.TrimSpace(fmt.Sprint(handoff["status"])) == "ready_for_review" {
+		return nil
 	}
 	audit := auditImplementResume(projectRoot, featurePath)
 	if strings.TrimSpace(fmt.Sprint(audit["status"])) != "pass" {
-		return fmt.Errorf("implement resume audit must pass before implement artifacts are complete")
+		gaps := audit["open_gaps"]
+		return fmt.Errorf("implement resume audit must pass before implement artifacts are complete (status=%v open_gaps=%v); run specify-runtime implement resume-audit --feature-dir <feature> --format json", audit["status"], gaps)
 	}
 	if audit["trusted_terminal_state"] != true {
-		return fmt.Errorf("implement resume audit must trust the terminal state before implement artifacts are complete")
+		return fmt.Errorf("implement resume audit must trust the terminal state before implement artifacts are complete; open_gaps=%v", audit["open_gaps"])
 	}
 	return nil
 }

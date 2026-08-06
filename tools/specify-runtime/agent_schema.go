@@ -32,6 +32,9 @@ func runAPISchema(args []string, stdout io.Writer) int {
 	case "discussion-write-handoff-input":
 		schema = discussionWriteHandoffInputSchema()
 		capabilityID = "discussion.write-handoff"
+	case "implement-result-merge-input":
+		schema = implementResultMergeInputSchema()
+		capabilityID = "implement.result-merge"
 	default:
 		return writeEnvelope(stdout, NewEnvelope("usage-error", fmt.Sprintf("unknown schema %q", schemaID)))
 	}
@@ -134,6 +137,12 @@ func runAPIShow(args []string, stdout io.Writer) int {
 		capability["side_effect"] = "writes-derived-visual-comparison-report"
 		capability["usage"] = "specify-runtime evidence visual-compare --feature-dir <feature-dir> --task-id <Txxx> --input-json <observed-comparison> --format json"
 		capability["input_contract"] = "agent supplies entrypoint, implementation revision, typed evidence refs, matrix observations, explicit passing verdict, and reviewer; runtime derives approved design and handoff bindings, exact decision coverage, tolerance, deviations, canonical path, and byte digest from task-index.json"
+	case "implement.result-merge":
+		capability["side_effect"] = "writes-task-lifecycle-and-worker-result"
+		capability["usage"] = "specify-runtime implement result-merge --feature-dir <feature-dir> --task-id <Txxx> --result-json <object|@path|-> --format json"
+		capability["input_schema"] = "implement-result-merge-input"
+		capability["input_contract"] = "Leader-only. Worker returns inline JSON; do not hand-author worker-results/*.json. Field validation_results (array) is required for status success; each entry needs command + status passed|failed|skipped. Worker status is success|blocked|failed (not DONE). Prefer --result-json @path or Python json.dumps argv over PowerShell ConvertTo-Json. evidence register is optional and does not replace validation_results."
+		env.ShowArgv = []string{"specify-runtime", "api", "schema", "implement-result-merge-input", "--format", "json"}
 	case "implement.task-reopen":
 		capability["side_effect"] = "revision-guarded-task-recovery"
 		capability["usage"] = "specify-runtime implement task-reopen --feature-dir <feature-dir> --task-id <Txxx> --expected-task-revision <revision> --expected-workflow-revision <revision> --reason <reason> --evidence <evidence> --format json"
@@ -338,6 +347,70 @@ func artifactPatchInputSchema() map[string]any {
 			map[string]any{"required": []string{"heading", "new_heading"}},
 			map[string]any{"required": []string{"preamble"}},
 			map[string]any{"required": []string{"append_value"}},
+		},
+	}
+}
+
+func implementResultMergeInputSchema() map[string]any {
+	nonEmptyString := map[string]any{"type": "string", "minLength": 1}
+	validationEntry := map[string]any{
+		"type":                 "object",
+		"additionalProperties": true,
+		"required":             []string{"command", "status"},
+		"properties": map[string]any{
+			"command": nonEmptyString,
+			"cmd":     nonEmptyString,
+			"check":   nonEmptyString,
+			"kind":    map[string]any{"type": "string", "description": "Alias accepted as command when command is absent"},
+			"status": map[string]any{
+				"type":        "string",
+				"enum":        []any{"passed", "failed", "skipped", "pass", "success", "fail", "interrupted"},
+				"description": "Normalized to passed|failed|skipped; acceptance-ready success requires every entry passed",
+			},
+			"summary": nonEmptyString,
+			"output":  map[string]any{"type": "string"},
+			"details": map[string]any{"type": "string"},
+			"message": map[string]any{"type": "string"},
+		},
+	}
+	return map[string]any{
+		"$schema":              "https://json-schema.org/draft/2020-12/schema",
+		"$id":                  "specify://schemas/implement-result-merge-input/v1",
+		"type":                 "object",
+		"additionalProperties": true,
+		"description":          "WorkerTaskResult for specify-runtime implement result-merge --result-json. Leader merges; workers must not write worker-results/ themselves.",
+		"required":             []string{"status"},
+		"properties": map[string]any{
+			"task_id": map[string]any{"type": "string", "pattern": "^T\\d+$", "description": "Optional when --task-id is supplied; must match when present"},
+			"status": map[string]any{
+				"type":        "string",
+				"enum":        []any{"success", "blocked", "failed", "succeeded", "completed", "done", "pass", "error"},
+				"description": "Canonical: success|blocked|failed. DONE/done normalize to success. pending is rejected.",
+			},
+			"changed_files": map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+			"changedFiles":  map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+			"validation_results": map[string]any{
+				"type":        "array",
+				"description": "Required non-empty for acceptance-ready success; at least one and every entry must be status passed. Not replaced by evidence register.",
+				"items":       validationEntry,
+			},
+			"validationResults":          map[string]any{"type": "array", "items": validationEntry},
+			"blockers":                   map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "Required non-empty when status is blocked; must be empty for success"},
+			"suggested_recovery_actions": map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+			"summary":                    map[string]any{"type": "string"},
+			"ui_verification":            map[string]any{"type": "object"},
+			"obligation_evidence":        map[string]any{"type": "array"},
+		},
+		"examples": []any{
+			map[string]any{
+				"task_id":        "T001",
+				"status":         "success",
+				"changed_files":  []any{"backend/cmd/api/main.go"},
+				"validation_results": []any{
+					map[string]any{"command": "go test ./...", "status": "passed", "summary": "ok"},
+				},
+				"blockers": []any{},
+			},
 		},
 	}
 }

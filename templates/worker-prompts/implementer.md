@@ -104,8 +104,8 @@ Treat these fields as binding execution inputs from the current worker packet an
   an applicable `ui_contract`; integrated evidence remains Leader-owned.
 - Evidence paths that the leader can attach to the current task lifecycle record.
 - Remaining concern, blocker, or missing context
-- When the runtime supports structured delegated results, format the handoff as a `WorkerTaskResult`-style payload with task-check evidence, test impact, and explicit blocker metadata. A successful worker handoff proves bounded implementation only and lets the Leader advance dependency-safe work; it does not claim that shared heavyweight validation passed.
-- When the leader provides a runtime result channel, submit the normalized envelope inline with its `--result-json` option; otherwise return the structured object to the leader. Never create or overwrite a result JSON file yourself.
+- When the runtime supports structured delegated results, format the handoff as a `WorkerTaskResult` with `status: success|blocked|failed` (not `DONE`), `changed_files`, and `validation_results: [{command, status: "passed", summary?}, ...]` covering every packet `task_checks` entry as a passed command. Empty `blockers` for success. A successful worker handoff proves bounded implementation only and lets the Leader advance dependency-safe work; it does not claim that shared heavyweight validation passed.
+- When the leader provides a runtime result channel, submit the normalized envelope inline with its `--result-json` option; otherwise return the structured object to the leader. Never create or overwrite `worker-results/*.json` yourself—the Leader runs `implement result-merge`.
 - If the delegated lane requires lifecycle signals such as `task_started`, `task_blocked`, or `task_completed`, emit them as part of the promised completion-handoff protocol instead of assuming a status flip is enough.
 - The worker must not enter `idle` before the required inline handoff is submitted or returned.
 - If the handoff channel fails, return that failure explicitly instead of idling silently.

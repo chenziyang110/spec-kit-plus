@@ -28,6 +28,7 @@ var hookExpectedWorkflowState = map[string]struct {
 	"deep-research": {"sp-deep-research", "research-only"},
 	"plan":          {"sp-plan", "design-only"},
 	"tasks":         {"sp-tasks", "task-generation-only"},
+	"implement":     {"sp-implement", "implementation-only"},
 	"review":        {"sp-review", "review-and-repair"},
 	"accept":        {"sp-accept", "acceptance-only"},
 	"analyze":       {"sp-analyze", "analysis-only"},
@@ -182,8 +183,18 @@ func extensionHookInvocation(projectRoot, command string) string {
 	}
 }
 
+func normalizeHookWorkflowCommand(command string) string {
+	text := strings.ToLower(strings.TrimSpace(command))
+	text = strings.Trim(text, "`\"'")
+	text = strings.TrimPrefix(text, "/")
+	text = strings.ReplaceAll(text, "sp.", "sp-")
+	text = strings.TrimPrefix(text, "spx-")
+	text = strings.TrimPrefix(text, "sp-")
+	return text
+}
+
 func validateHookState(args []string) Envelope {
-	command := strings.ToLower(strings.TrimSpace(optionValue(args, "--command", "")))
+	command := normalizeHookWorkflowCommand(optionValue(args, "--command", ""))
 	if command == "" {
 		return NewEnvelope("usage-error", "--command is required")
 	}
@@ -253,7 +264,7 @@ func validateHookState(args []string) Envelope {
 }
 
 func validateHookArtifacts(args []string) Envelope {
-	command := strings.ToLower(strings.TrimSpace(optionValue(args, "--command", "")))
+	command := normalizeHookWorkflowCommand(optionValue(args, "--command", ""))
 	featureDir := strings.TrimSpace(optionValue(args, "--feature-dir", ""))
 	if command == "" || featureDir == "" {
 		return NewEnvelope("usage-error", "--command and --feature-dir are required")
@@ -720,6 +731,21 @@ func hookSemanticErrors(command, featureRel string, errors []string) Envelope {
 			env.Blockers = append(env.Blockers, item)
 		}
 	}
+	// Attribute failure to the artifact the implement/review gates actually check.
+	switch command {
+	case "implement":
+		env.Data["validated_path"] = filepath.ToSlash(filepath.Join(featureRel, "implementation-handoff.json"))
+	case "review":
+		env.Data["validated_path"] = filepath.ToSlash(filepath.Join(featureRel, "review-state.json"))
+	case "accept":
+		env.Data["validated_path"] = filepath.ToSlash(filepath.Join(featureRel, "human-acceptance.json"))
+	case "tasks":
+		env.Data["validated_path"] = filepath.ToSlash(filepath.Join(featureRel, "task-index.json"))
+	case "plan":
+		env.Data["validated_path"] = filepath.ToSlash(filepath.Join(featureRel, "plan-contract.json"))
+	default:
+		env.Data["validated_path"] = filepath.ToSlash(filepath.Join(featureRel, "workflow-state.md"))
+	}
 	return env
 }
 
@@ -901,13 +927,15 @@ func hookAutofixSnippet(command string) string {
 	case "plan", "deep-research":
 		return hookAutofixSections([]string{"plan.md", "research.md", "data-model.md", "contracts/", "quickstart.md", "plan-contract.json", "workflow-state.md"}, []string{"edit source code", "edit tests", "implement behavior"}, []string{"spec-contract.json", "plan-contract.json"}, "/sp.tasks")
 	case "tasks":
-		return hookAutofixSections([]string{"tasks.md", "handoff-to-tasks.json", "task-index.json", "workflow-state.md"}, []string{"edit source code", "edit tests", "implement behavior"}, []string{"plan-contract.json", "task-index.json"}, "/sp.implement")
+		return hookAutofixSections([]string{"tasks.md", "handoff-to-tasks.json", "task-index.json", "workflow-state.md"}, []string{"edit source code", "edit tests", "implement behavior"}, []string{"plan-contract.json", "task-index.json"}, "/sp-implement")
+	case "implement":
+		return hookAutofixSections([]string{"implementation-handoff.json", "implementation-summary.md", "implement-tracker.md", "worker-results/", "implementation-review/", "workflow-state.md"}, []string{"silently skip convergence validation", "hand-author worker-results without result-merge", "push, deploy, or perform external writes without authority"}, []string{"task-index.json", "implementation-handoff.json", "implement-tracker.md"}, "/sp-review")
 	case "review":
-		return hookAutofixSections([]string{"review-state.json", "review-results/", "review-evidence/", "implementation-summary.md", "human-acceptance.json", "workflow-state.md"}, []string{"change approved product scope", "reuse stale review evidence", "push, deploy, or perform external writes without authority"}, []string{"implementation-handoff.json", "review-state.json", "review-evidence/"}, "/sp.accept")
+		return hookAutofixSections([]string{"review-state.json", "review-results/", "review-evidence/", "implementation-summary.md", "human-acceptance.json", "workflow-state.md"}, []string{"change approved product scope", "reuse stale review evidence", "push, deploy, or perform external writes without authority"}, []string{"implementation-handoff.json", "review-state.json", "review-evidence/"}, "/sp-accept")
 	case "accept":
-		return hookAutofixSections([]string{"human-acceptance.json", "workflow-state.md"}, []string{"edit production source code", "edit tests", "commit, push, deploy, or perform external writes", "silently run a repair workflow"}, []string{"implementation-summary.md", "human-acceptance.json", "workflow-state.md"}, "/sp.accept")
+		return hookAutofixSections([]string{"human-acceptance.json", "workflow-state.md"}, []string{"edit production source code", "edit tests", "commit, push, deploy, or perform external writes", "silently run a repair workflow"}, []string{"implementation-summary.md", "human-acceptance.json", "workflow-state.md"}, "/sp-accept")
 	default:
-		return hookAutofixSections([]string{"workflow-state.md"}, []string{"edit source code"}, []string{"workflow-state.md"}, "/sp."+command)
+		return hookAutofixSections([]string{"workflow-state.md"}, []string{"edit source code"}, []string{"workflow-state.md"}, "/sp-"+command)
 	}
 }
 

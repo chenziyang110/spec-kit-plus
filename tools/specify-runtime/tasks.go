@@ -140,6 +140,9 @@ func runTasksBuild(args []string) (map[string]any, error) {
 	payload["version"] = 2
 	payload["status"] = "draft"
 	payload["tasks"] = tasks
+	if err := normalizeTaskControlRootObjectLists(payload); err != nil {
+		return nil, err
+	}
 	payload["transition"] = map[string]any{
 		"version":     1,
 		"status":      "blocked",
@@ -212,6 +215,7 @@ func runTasksSetRoot(args []string) (map[string]any, error) {
 	if err != nil {
 		return nil, err
 	}
+	wasReady := taskControlStatus(payload) == "ready"
 	for key, value := range patch {
 		if _, ok := template[key]; !ok {
 			return nil, fmt.Errorf("root patch contains unsupported field %q", key)
@@ -223,6 +227,28 @@ func runTasksSetRoot(args []string) (map[string]any, error) {
 			return nil, fmt.Errorf("root patch contains CLI-owned field %q", key)
 		}
 		payload[key] = cloneJSONValue(value)
+	}
+	if err := normalizeTaskControlRootObjectLists(payload); err != nil {
+		return nil, err
+	}
+	// Shape-only repairs (for example official_entrypoints string→object) on an
+	// already-finalized package keep ready when validation still passes, so
+	// implement closeout is not forced through draft → finalize.
+	if wasReady {
+		tasks, _ := payload["tasks"].([]any)
+		if len(tasks) > 0 && validateTaskControlGraph(tasks) == nil && validateTaskControlAcceptance(feature, payload) == nil {
+			payload["status"] = "ready"
+			payload["transition"] = map[string]any{
+				"version":       1,
+				"status":        "ready",
+				"source_ref":    "task-index.json",
+				"required_refs": cloneJSONValue(payload["acceptance_refs"]),
+				"blockers":      []any{},
+				"next_action":   "Run sp-implement or spx-implement.",
+				"recovery":      nil,
+			}
+			return commitTaskControlPackage(root, feature, payload, title, "tasks.set-root")
+		}
 	}
 	markTaskControlDraft(payload, "task package changed after its last finalize")
 	return commitTaskControlPackage(root, feature, payload, title, "tasks.set-root")
@@ -279,6 +305,9 @@ func runTasksFinalize(args []string) (map[string]any, error) {
 	}
 	payload, title, err := loadTaskControlPackage(root, feature)
 	if err != nil {
+		return nil, err
+	}
+	if err := normalizeTaskControlRootObjectLists(payload); err != nil {
 		return nil, err
 	}
 	tasks := payload["tasks"].([]any)
@@ -775,6 +804,94 @@ func validateTaskControlGraph(tasks []any) error {
 		}
 	}
 	return nil
+}
+
+// normalizeTaskControlRootObjectLists rewrites common agent string arrays into
+// object arrays so implement closeout (which requires objects) stays compatible
+// with tasks-stage authoring that historically allowed bare strings.
+func normalizeTaskControlRootObjectLists(payload map[string]any) error {
+	for _, field := range []string{
+		"official_entrypoints",
+		"system_review_scenarios",
+		"review_obligations",
+		"human_acceptance_obligations",
+		"human_acceptance_scenarios",
+	} {
+		raw, exists := payload[field]
+		if !exists || raw == nil {
+			continue
+		}
+		list, ok := raw.([]any)
+		if !ok {
+			return fmt.Errorf("task-index %s must be an array", field)
+		}
+		normalized := make([]any, 0, len(list))
+		for index, item := range list {
+			object, err := normalizeTaskControlRootObjectItem(field, item, index)
+			if err != nil {
+				return err
+			}
+			normalized = append(normalized, object)
+		}
+		payload[field] = normalized
+	}
+	return nil
+}
+
+func normalizeTaskControlRootObjectItem(field string, item any, index int) (map[string]any, error) {
+	if object, ok := item.(map[string]any); ok {
+		return cloneJSONMap(object), nil
+	}
+	text := strings.TrimSpace(anyString(item))
+	if text == "" {
+		return nil, fmt.Errorf("task-index %s[%d] must be a non-empty object or string", field, index)
+	}
+	id := fmt.Sprintf("%s-%02d", taskControlObjectIDPrefix(field), index)
+	switch field {
+	case "official_entrypoints":
+		kind := "command"
+		path := text
+		if strings.HasPrefix(text, "/") || strings.HasPrefix(text, "http://") || strings.HasPrefix(text, "https://") {
+			kind = "web"
+		}
+		return map[string]any{
+			"id":    id,
+			"path":  path,
+			"label": text,
+			"kind":  kind,
+		}, nil
+	case "system_review_scenarios", "human_acceptance_scenarios":
+		return map[string]any{
+			"id":          id,
+			"label":       text,
+			"description": text,
+			"required":    true,
+		}, nil
+	default:
+		return map[string]any{
+			"id":          id,
+			"label":       text,
+			"description": text,
+			"required":    true,
+		}, nil
+	}
+}
+
+func taskControlObjectIDPrefix(field string) string {
+	switch field {
+	case "official_entrypoints":
+		return "EP"
+	case "system_review_scenarios":
+		return "SR"
+	case "review_obligations":
+		return "RO"
+	case "human_acceptance_obligations":
+		return "HAO"
+	case "human_acceptance_scenarios":
+		return "HA"
+	default:
+		return "OBJ"
+	}
 }
 
 func validateTaskControlAcceptance(feature string, payload map[string]any) error {

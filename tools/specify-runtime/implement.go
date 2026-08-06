@@ -1427,25 +1427,30 @@ func buildImplementCloseoutArtifacts(root, feature string, audit map[string]any,
 	policy, _ := taskIndex["validation_policy"].(map[string]any)
 	status, _ := implementValidationBudgetStatus(root, feature)
 	fingerprint := implementSnapshotSHA256(root, feature)
+	// Normalize string arrays left by older tasks packages into objects so
+	// closeout does not fail with "must be an object" after tasks allowed strings.
+	if err := normalizeTaskControlRootObjectLists(taskIndex); err != nil {
+		return nil, nil, empty, err
+	}
 	officialEntrypoints, ok := taskIndex["official_entrypoints"].([]any)
 	if !ok || len(officialEntrypoints) == 0 {
-		return nil, nil, empty, errors.New("task-index.json official_entrypoints are required before implementation closeout")
+		return nil, nil, empty, errors.New("task-index.json official_entrypoints are required before implementation closeout (array of objects with id/path or id/command)")
 	}
 	systemReviewScenarios, ok := taskIndex["system_review_scenarios"].([]any)
 	if !ok || len(systemReviewScenarios) == 0 {
-		return nil, nil, empty, errors.New("task-index.json system_review_scenarios are required before implementation closeout")
+		return nil, nil, empty, errors.New("task-index.json system_review_scenarios are required before implementation closeout (array of objects)")
 	}
 	reviewObligations, ok := taskIndex["review_obligations"].([]any)
 	if !ok {
-		return nil, nil, empty, errors.New("task-index.json review_obligations must be an array")
+		return nil, nil, empty, errors.New("task-index.json review_obligations must be an array of objects")
 	}
 	humanAcceptanceObligations, ok := taskIndex["human_acceptance_obligations"].([]any)
 	if !ok {
-		return nil, nil, empty, errors.New("task-index.json human_acceptance_obligations must be an array")
+		return nil, nil, empty, errors.New("task-index.json human_acceptance_obligations must be an array of objects")
 	}
 	humanAcceptanceScenarios, ok := taskIndex["human_acceptance_scenarios"].([]any)
 	if !ok {
-		return nil, nil, empty, errors.New("task-index.json human_acceptance_scenarios must be an array")
+		return nil, nil, empty, errors.New("task-index.json human_acceptance_scenarios must be an array of objects")
 	}
 	acceptanceRefs, err := anyStringList(taskIndex["acceptance_refs"], "acceptance_refs", false)
 	if err != nil {

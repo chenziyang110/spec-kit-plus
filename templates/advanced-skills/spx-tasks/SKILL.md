@@ -63,12 +63,16 @@ ordered copy of `plan-contract.acceptance_refs` values (typically
 `plan-contract.json#/acceptance_refs/N` is rewritten); a ready version-2
 index may not omit the file or carry copied spec refs or a selected subset.
 Compile every official entrypoint record in
-`official_entrypoints`, stable
-`review_obligations`, and the smallest complete `system_review_scenarios`
-matrix that proves startup, every changed
-user-observable journey, and affected shared regressions. Each scenario names
-its entrypoint, preconditions, actions, observable results, and required
-evidence. Compile obligations from every entrypoint, acceptance/capability,
+`official_entrypoints` as **objects** (not bare strings), e.g.
+`{"id":"EP-00","path":"/login","kind":"web","label":"/login"}` or
+`{"id":"EP-1","command":"npm run dev","ready_signal":"..."}`. The runtime
+normalizes legacy string arrays on build/set-root/finalize/closeout, but new
+packages should author objects. Keep `review_obligations` and the smallest
+complete `system_review_scenarios` matrix as object arrays that prove startup,
+every changed user-observable journey, and affected shared regressions. Each
+scenario names its entrypoint, preconditions, actions, observable results, and
+required evidence. Shape-only `tasks set-root` repairs on an already-`ready`
+package keep `ready` when validation still passes (no forced draft→finalize). Compile obligations from every entrypoint, acceptance/capability,
 must-preserve, consequence, fidelity, consumer-surface, wiring, and required UI
 state source; map every required obligation to one or more scenario ids so
 `$spx-review` can enforce zero uncovered scope instead of reconstructing

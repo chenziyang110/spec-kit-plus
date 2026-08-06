@@ -137,6 +137,33 @@ func TestAPIShowDiscussionBindConsumerPublishesDerivedPointerContract(t *testing
 	}
 }
 
+func TestAPISchemaImplementResultMergeInput(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"api", "schema", "implement-result-merge-input", "--format", "json"}, &stdout, &stderr, "test")
+	if code != 0 {
+		t.Fatalf("api schema implement-result-merge-input exit=%d stdout=%s", code, stdout.String())
+	}
+	schema := requireObject(t, requireObject(t, decodeJSONObject(t, stdout.Bytes()), "data"), "schema")
+	properties := requireObject(t, schema, "properties")
+	if _, ok := properties["validation_results"]; !ok {
+		t.Fatalf("schema missing validation_results: %#v", properties)
+	}
+	stdout.Reset()
+	stderr.Reset()
+	code = Run([]string{"api", "show", "implement.result-merge", "--format", "json"}, &stdout, &stderr, "test")
+	if code != 0 {
+		t.Fatalf("api show implement.result-merge exit=%d stdout=%s", code, stdout.String())
+	}
+	capability := requireObject(t, requireObject(t, decodeJSONObject(t, stdout.Bytes()), "data"), "capability")
+	if capability["input_schema"] != "implement-result-merge-input" {
+		t.Fatalf("capability = %#v", capability)
+	}
+	contract, _ := capability["input_contract"].(string)
+	if !strings.Contains(contract, "validation_results") {
+		t.Fatalf("input_contract should document validation_results: %s", contract)
+	}
+}
+
 func TestAPISchemaDiscussionWriteHandoffAndCheckpoint(t *testing.T) {
 	for _, schemaID := range []string{"discussion-write-handoff-input", "discussion-checkpoint-input"} {
 		var stdout, stderr bytes.Buffer

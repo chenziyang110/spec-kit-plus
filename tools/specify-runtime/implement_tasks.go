@@ -253,7 +253,7 @@ func runImplementResultMerge(args []string) (map[string]any, error) {
 		validation, _ := result["validation_results"].([]any)
 		blockers, _ := result["blockers"].([]any)
 		if err := validateImplementTaskAcceptanceEvidence(task, validation, blockers); err != nil {
-			return nil, fmt.Errorf("successful worker result is not acceptance-ready: %w; task %s remains %s", err, taskID, lifecycleStatus)
+			return nil, fmt.Errorf("successful worker result is not acceptance-ready: %w; required field validation_results is an array of objects with command and status (passed|failed|skipped); example: {\"task_id\":%q,\"status\":\"success\",\"changed_files\":[],\"validation_results\":[{\"command\":\"go test ./...\",\"status\":\"passed\",\"summary\":\"ok\"}],\"blockers\":[]}; task %s remains %s", err, taskID, taskID, lifecycleStatus)
 		}
 	}
 	statusMap := map[string]string{"success": "implemented", "blocked": "blocked", "failed": "failed"}
@@ -1076,16 +1076,16 @@ func normalizeImplementTaskResult(raw map[string]any, taskID string) (map[string
 	}
 	status := strings.ToLower(strings.TrimSpace(anyString(payload["status"])))
 	switch status {
-	case "success", "succeeded", "completed", "complete", "passed", "pass":
+	case "success", "succeeded", "completed", "complete", "passed", "pass", "done", "done_with_concerns":
 		status = "success"
 	case "blocked", "needs_context", "needs-context":
 		status = "blocked"
 	case "failed", "failure", "error":
 		status = "failed"
 	case "pending", "":
-		return nil, "", fmt.Errorf("pending worker results cannot be merged")
+		return nil, "", fmt.Errorf("pending worker results cannot be merged; use status success|blocked|failed (not DONE)")
 	default:
-		return nil, "", fmt.Errorf("worker result status is invalid: %s", status)
+		return nil, "", fmt.Errorf("worker result status is invalid: %s (use success|blocked|failed; DONE is not accepted)", status)
 	}
 	changed := firstImplementTaskValue(payload["changed_files"], payload["changedFiles"], payload["files_changed"])
 	changedFiles, err := taskControlStringList(changed, "changed_files")
@@ -1115,10 +1115,10 @@ func normalizeImplementTaskResult(raw map[string]any, taskID string) (map[string
 				itemStatus = "passed"
 			case "fail", "failed", "failure", "error":
 				itemStatus = "failed"
-			case "skipped", "not_run", "not-run":
+			case "skipped", "not_run", "not-run", "interrupted":
 				itemStatus = "skipped"
 			default:
-				return nil, "", fmt.Errorf("validation result status is invalid: %s", itemStatus)
+				return nil, "", fmt.Errorf("validation_results[].status is invalid: %q (use passed|failed|skipped)", itemStatus)
 			}
 			item["command"] = command
 			item["status"] = itemStatus
@@ -1193,19 +1193,33 @@ func validateImplementTaskCheckCoverage(task map[string]any, validation []any) e
 
 func validateImplementTaskAcceptanceEvidence(task map[string]any, validation, blockers []any) error {
 	if len(validation) == 0 {
-		return fmt.Errorf("task acceptance requires validation evidence")
+		return fmt.Errorf("task acceptance requires validation_results with at least one passed entry (field name is validation_results, not validation or evidence CAS alone)")
 	}
-	for _, value := range validation {
+	passed := 0
+	for index, value := range validation {
 		item, ok := value.(map[string]any)
-		if !ok || strings.ToLower(strings.TrimSpace(anyString(item["status"]))) != "passed" {
-			return fmt.Errorf("task acceptance requires passed validation evidence")
+		if !ok {
+			return fmt.Errorf("validation_results[%d] must be an object with command and status", index)
 		}
+		status := strings.ToLower(strings.TrimSpace(anyString(item["status"])))
+		if status == "passed" {
+			passed++
+			continue
+		}
+		command := strings.TrimSpace(anyString(firstImplementTaskValue(item["command"], item["check"], item["kind"])))
+		if command == "" {
+			command = fmt.Sprintf("entry[%d]", index)
+		}
+		return fmt.Errorf("task acceptance requires every validation_results entry to be passed; %s has status %q", command, status)
+	}
+	if passed == 0 {
+		return fmt.Errorf("task acceptance requires at least one validation_results entry with status passed")
 	}
 	if err := validateImplementTaskCheckCoverage(task, validation); err != nil {
 		return err
 	}
 	if len(blockers) > 0 {
-		return fmt.Errorf("task acceptance is blocked by unresolved blockers")
+		return fmt.Errorf("task acceptance is blocked by unresolved blockers; status success requires blockers:[]")
 	}
 	return nil
 }

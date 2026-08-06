@@ -693,6 +693,130 @@ func runTaskRuntimeCommand(t *testing.T, args []string) (int, Envelope) {
 	return exit, env
 }
 
+func TestNormalizeImplementTaskResultAcceptsDoneAndClearAcceptanceErrors(t *testing.T) {
+	normalized, status, err := normalizeImplementTaskResult(map[string]any{
+		"task_id": "T001", "status": "DONE",
+		"changed_files":      []any{"src/a.go"},
+		"validation_results": []any{map[string]any{"command": "go test ./...", "status": "passed"}},
+		"blockers":           []any{},
+	}, "T001")
+	if err != nil || status != "success" {
+		t.Fatalf("DONE should normalize to success: status=%s err=%v", status, err)
+	}
+	if normalized["status"] != "success" {
+		t.Fatalf("status = %#v", normalized["status"])
+	}
+
+	err = validateImplementTaskAcceptanceEvidence(
+		map[string]any{"task_checks": []any{"go test ./..."}},
+		[]any{},
+		[]any{},
+	)
+	if err == nil || !strings.Contains(err.Error(), "validation_results") {
+		t.Fatalf("empty validation should name validation_results: %v", err)
+	}
+}
+
+func TestNormalizeTaskControlRootObjectListsCoercesEntrypointStrings(t *testing.T) {
+	payload := map[string]any{
+		"official_entrypoints": []any{"/login", map[string]any{"id": "EP-X", "command": "npm run dev"}},
+		"system_review_scenarios": []any{
+			"smoke login",
+		},
+	}
+	if err := normalizeTaskControlRootObjectLists(payload); err != nil {
+		t.Fatal(err)
+	}
+	entries := payload["official_entrypoints"].([]any)
+	first := entries[0].(map[string]any)
+	if first["path"] != "/login" || first["kind"] != "web" || first["id"] == "" {
+		t.Fatalf("string entrypoint not normalized: %#v", first)
+	}
+	second := entries[1].(map[string]any)
+	if second["id"] != "EP-X" {
+		t.Fatalf("object entrypoint should be preserved: %#v", second)
+	}
+	scenario := payload["system_review_scenarios"].([]any)[0].(map[string]any)
+	if scenario["label"] != "smoke login" {
+		t.Fatalf("scenario string not normalized: %#v", scenario)
+	}
+}
+
+func TestTasksSetRootKeepsReadyWhenEntrypointsShapeFixed(t *testing.T) {
+	root := t.TempDir()
+	templates := filepath.Join(root, ".specify", "templates")
+	feature := filepath.Join(root, ".specify", "features", "004-entrypoints")
+	if err := os.MkdirAll(templates, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(feature, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeTaskRuntimeFixture(t, filepath.Join(templates, "task-index-template.json"), map[string]any{
+		"version": 2, "status": "draft", "source_contract": "plan-contract.json",
+		"acceptance_refs": []any{}, "official_entrypoints": []any{},
+		"system_review_scenarios": []any{}, "review_obligations": []any{},
+		"human_acceptance_obligations": []any{}, "human_acceptance_scenarios": []any{},
+		"tasks": []any{}, "transition": map[string]any{},
+	})
+	writeTaskRuntimeFixture(t, filepath.Join(feature, "plan-contract.json"), map[string]any{
+		"version": 2, "status": "ready",
+		"acceptance_refs": []any{"FR-001"},
+	})
+	writeTaskRuntimeFixture(t, filepath.Join(feature, "task-index.json"), map[string]any{
+		"version": 2, "status": "ready",
+		"acceptance_refs": []any{"FR-001"},
+		"official_entrypoints": []any{
+			map[string]any{"id": "EP-1", "path": "/login", "kind": "web", "label": "/login"},
+		},
+		"system_review_scenarios": []any{
+			map[string]any{"id": "SR-1", "entrypoint_id": "EP-1", "required": true, "acceptance_refs": []any{"FR-001"}},
+		},
+		"review_obligations": []any{
+			map[string]any{"id": "RO-1", "source_ref": "FR-001", "required": true, "scenario_ids": []any{"SR-1"}},
+		},
+		"human_acceptance_obligations": []any{
+			map[string]any{"id": "HAO-1", "source_ref": "FR-001", "required": true, "scenario_ids": []any{"HA-1"}},
+		},
+		"human_acceptance_scenarios": []any{
+			map[string]any{"id": "HA-1", "actor": "user", "entrypoint_id": "EP-1", "required": true, "acceptance_refs": []any{"FR-001"}},
+		},
+		"tasks": []any{
+			map[string]any{"id": "T001", "objective": "Ship", "dependencies": []any{}, "acceptance": []any{"done"}},
+		},
+		"transition": map[string]any{"version": 1, "status": "ready", "blockers": []any{}, "next_action": "Run sp-implement."},
+	})
+	if err := os.WriteFile(filepath.Join(feature, "tasks.md"), []byte("# Tasks\n\n- [ ] T001 Ship\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	oldCWD, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(root); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(oldCWD) })
+	featureRef := filepath.ToSlash(filepath.Join(".specify", "features", "004-entrypoints"))
+	assertTaskRuntimeCommandOK(t, []string{
+		"tasks", "set-root", "--feature-dir", featureRef,
+		"--patch-json", `{"official_entrypoints":["/login","/dashboard"]}`,
+		"--format", "json",
+	})
+	index := readImplementJSONFile(t, filepath.Join(feature, "task-index.json"))
+	if index["status"] != "ready" {
+		t.Fatalf("set-root shape repair should keep ready status, got %#v", index["status"])
+	}
+	entries, _ := index["official_entrypoints"].([]any)
+	if len(entries) != 2 {
+		t.Fatalf("entrypoints = %#v", entries)
+	}
+	first, _ := entries[0].(map[string]any)
+	if first["path"] != "/login" {
+		t.Fatalf("string entrypoints should normalize to objects: %#v", first)
+	}
+}
+
 func writeTaskRuntimeFixture(t *testing.T, path string, payload map[string]any) {
 	t.Helper()
 	raw, err := json.MarshalIndent(payload, "", "  ")

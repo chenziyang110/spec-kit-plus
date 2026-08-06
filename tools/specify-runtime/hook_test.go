@@ -5,8 +5,85 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
+
+func TestHookValidateStateAcceptsImplementCommandAliases(t *testing.T) {
+	root := t.TempDir()
+	feature := filepath.Join(root, ".specify", "features", "001-impl-state")
+	if err := os.MkdirAll(feature, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	mustWriteHookText(t, filepath.Join(feature, "workflow-state.md"), `# Workflow State
+
+## Current Command
+
+- active_command: `+"`sp-implement`"+`
+
+## Phase Mode
+
+- phase_mode: `+"`implementation-only`"+`
+
+## Allowed Artifact Writes
+
+- implementation-handoff.json
+
+## Forbidden Actions
+
+- push without authority
+
+## Authoritative Files
+
+- task-index.json
+
+## Next Command
+
+- `+"`/sp-review`"+`
+`)
+	for _, command := range []string{"implement", "sp-implement", "/sp-implement", "sp.implement"} {
+		var stdout, stderr bytes.Buffer
+		code := Run([]string{
+			"hook", "validate-state",
+			"--command", command,
+			"--feature-dir", filepath.ToSlash(filepath.Join(".specify", "features", "001-impl-state")),
+			"--project-root", root,
+			"--format", "json",
+		}, &stdout, &stderr, "test")
+		if code != 0 {
+			t.Fatalf("validate-state --command %q exit=%d stdout=%s", command, code, stdout.String())
+		}
+		payload := decodeJSONObject(t, stdout.Bytes())
+		if payload["status"] != "ok" {
+			t.Fatalf("validate-state --command %q = %#v", command, payload)
+		}
+	}
+}
+
+func TestHookValidateStateRejectsUnknownCommandWithoutSpSpAutofix(t *testing.T) {
+	root := t.TempDir()
+	feature := filepath.Join(root, ".specify", "features", "001-unknown")
+	if err := os.MkdirAll(feature, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	mustWriteHookText(t, filepath.Join(feature, "workflow-state.md"), "# Workflow State\n")
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{
+		"hook", "validate-state",
+		"--command", "not-a-workflow",
+		"--feature-dir", filepath.ToSlash(filepath.Join(".specify", "features", "001-unknown")),
+		"--project-root", root,
+		"--format", "json",
+	}, &stdout, &stderr, "test")
+	if code == 0 {
+		t.Fatalf("expected unsupported command failure")
+	}
+	payload := decodeJSONObject(t, stdout.Bytes())
+	text, _ := json.Marshal(payload)
+	if strings.Contains(string(text), "/sp.sp-") {
+		t.Fatalf("autofix must not suggest /sp.sp-*: %s", text)
+	}
+}
 
 func TestHookExtensionPlanFiltersConfigAndRendersNativeInvocation(t *testing.T) {
 	root := t.TempDir()

@@ -101,6 +101,9 @@ Use the task control plane for the transition: `task-next`, optional
 `packet-compile`, `task-start`, `result-merge --result-json`, and `task-accept`.
 Those commands atomically own task-index, lifecycle, execution-state, and tracker
 projections. Do not edit them directly or stage packet/result JSON files.
+For `result-merge`, use `validation_results` objects and
+`api schema implement-result-merge-input`; prefer `@path`/clean argv JSON over
+shell `ConvertTo-Json`.
 If `task-next` or `resume-audit` returns
 `reason_code: task-reopen-required`, run its supplied `implement task-reopen`
 action with the observed task/workflow revisions, reason, and evidence. It
@@ -220,7 +223,11 @@ human verdict.
 
 Before stopping, patch rich `workflow-state.md` evidence/resume fields through a leased `specify-runtime artifact patch`
 truthfully, including the Review handoff. Then run the workflow runtime
-`complete-stage` command with the current revision. It records
+`complete-stage` command with the current revision. After successful
+`implement closeout`, `complete-stage` treats a valid
+`implementation-handoff.json` (`status: ready_for_review`) as the implement
+artifact gate; it does not re-require a live resume-audit against a drifted
+fingerprint from post-closeout state-file edits. It records
 `implement/completed` only in CLI-owned `workflow.json`; it does not update
 rich `workflow-state.md` fields such as `active_command`, `phase_mode`, or
 `next_command`. Do not execute

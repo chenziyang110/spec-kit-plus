@@ -38,11 +38,16 @@ present exactly as a passed validation command, every validation row passes,
 and blockers are empty. Put known downstream work in a separate task, approved
 deferral, or blocked result; never represent it as failed validation inside a
 current-task `success`.
+Required field name is `validation_results` (array of `{command, status:
+"passed"|"failed"|"skipped", summary?}`), not `validation`. Worker `status` is
+`success|blocked|failed` (`DONE` is not accepted). Expand the schema with
+`specify-runtime api schema implement-result-merge-input --format json`.
+`evidence register` does not replace `validation_results`.
 The worker returns this bounded object to the leader or submits it inline through
 the runtime-managed result channel. The leader merges it with
 `{{specify-subcmd:specify-runtime implement result-merge --feature-dir <feature-dir> --task-id <task-id> --result-json '<inline-json>' --format json}}`;
 neither party writes a canonical or temporary result
-file directly.
+file under `worker-results/` directly.
 Cheap producer-to-consumer wiring evidence remains task-local when a consumer
 surface is named. Defer only runtime real-entrypoint proof to the Leader attempt;
 do not defer the static "created but not wired" check.
