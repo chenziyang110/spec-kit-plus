@@ -98,6 +98,21 @@ class TestCheckToolOther:
         with patch("shutil.which", side_effect=fake_which):
             assert check_tool("kiro-cli") is True
 
+    def test_grok_detected_via_default_local_bin(self, tmp_path):
+        """Grok Build often installs to ~/.grok/bin outside Conda PATH."""
+        fake_grok = tmp_path / "grok"
+        fake_grok.write_text("", encoding="utf-8")
+        with patch("specify_cli.GROK_LOCAL_PATH", fake_grok), patch(
+            "specify_cli.GROK_LOCAL_PATH_WINDOWS", tmp_path / "missing.exe"
+        ), patch("shutil.which", return_value=None):
+            assert check_tool("grok") is True
+
+    def test_grok_missing_when_not_on_path_or_local(self, tmp_path):
+        with patch("specify_cli.GROK_LOCAL_PATH", tmp_path / "missing"), patch(
+            "specify_cli.GROK_LOCAL_PATH_WINDOWS", tmp_path / "missing.exe"
+        ), patch("shutil.which", return_value=None):
+            assert check_tool("grok") is False
+
 
 class TestSpecifyPathDiagnostics:
     """Detect duplicate specify executables that can shadow newer installs."""

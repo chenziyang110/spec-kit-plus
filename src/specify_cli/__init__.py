@@ -207,6 +207,10 @@ CLAUDE_LOCAL_PATH = Path.home() / ".claude" / "local" / "claude"
 CLAUDE_NPM_LOCAL_PATH = (
     Path.home() / ".claude" / "local" / "node_modules" / ".bin" / "claude"
 )
+# Grok Build default installer puts the CLI under ~/.grok/bin without always
+# updating every shell profile (especially Conda/miniconda PowerShell sessions).
+GROK_LOCAL_PATH = Path.home() / ".grok" / "bin" / "grok"
+GROK_LOCAL_PATH_WINDOWS = Path.home() / ".grok" / "bin" / "grok.exe"
 
 BANNER = """
 ███████╗██████╗ ███████╗ ██████╗██╗███████╗██╗   ██╗
@@ -4719,6 +4723,12 @@ def check_tool(tool: str, tracker: StepTracker = None) -> bool:
     # Neither path may be on the system PATH, so we check them explicitly.
     if tool == "claude":
         if CLAUDE_LOCAL_PATH.is_file() or CLAUDE_NPM_LOCAL_PATH.is_file():
+            if tracker:
+                tracker.complete(tool, "available")
+            return True
+
+    if tool == "grok":
+        if GROK_LOCAL_PATH.is_file() or GROK_LOCAL_PATH_WINDOWS.is_file():
             if tracker:
                 tracker.complete(tool, "available")
             return True
