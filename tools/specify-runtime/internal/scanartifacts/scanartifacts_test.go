@@ -1090,7 +1090,9 @@ func TestLoadDoesNotMergeCanonicalGraphRowsWithGenericRowsFallback(t *testing.T)
 			"type":"capability",
 			"title":"Canonical",
 			"confidence":"verified",
-			"paths":["src/app.go"]
+			"paths":["src/app.go"],
+			"evidence_ids":["E-001"],
+			"attrs":{"owner":"app"}
 		}],
 		"rows":[{
 			"id":"N-generic",
@@ -1100,6 +1102,11 @@ func TestLoadDoesNotMergeCanonicalGraphRowsWithGenericRowsFallback(t *testing.T)
 			"paths":["src/generic.go"]
 		}]
 	}`))
+	// Replace minimal edges so they still resolve against the canonical node set.
+	writeFileBytes(t, filepath.Join(paths.RuntimeDir, "provisional", "edges.json"), []byte(`{"edges":[{
+		"id":"EDGE-canonical","type":"owns","source":"N-canonical","target":"N-canonical",
+		"confidence":"verified","evidence_ids":["E-001"],"attrs":{"relation":"self"}
+	}]}`))
 
 	pkg, result := Load(paths, ValidateOptions{RequireStatusJSON: false})
 

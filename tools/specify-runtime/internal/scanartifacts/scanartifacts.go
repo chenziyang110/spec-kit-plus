@@ -236,6 +236,8 @@ func Load(paths rt.Paths, opts ValidateOptions) (Package, Result) {
 	loadNodes(paths, &pkg, &result)
 	loadEdges(paths, &pkg, &result)
 	normalizeEdgeEndpoints(&pkg)
+	validateEdgeEndpoints(pkg, &result)
+	validateNodeConfidence(pkg, &result)
 	loadObservations(paths, &pkg, &result)
 	loadClaims(paths, &pkg, &result)
 	loadCoverage(paths, &pkg, &result)
@@ -928,6 +930,62 @@ func resolveEdgeEndpoint(endpoint string, nodeIDs map[string]bool, pathOwners ma
 		return owners[0]
 	}
 	return endpoint
+}
+
+// validateEdgeEndpoints enforces the same resolvability gate that build-from-scan
+// uses after merge: every edge endpoint must be a known node id. Path-form
+// endpoints are accepted only when they uniquely map to one node (already
+// rewritten by normalizeEdgeEndpoints). Ambiguous multi-owner paths and
+// unknown paths fail validate-scan so publication_allowed failures are not
+// deferred to map-build.
+func validateEdgeEndpoints(pkg Package, result *Result) {
+	nodeIDs := nodeIDSet(pkg.Nodes)
+	pathOwners := nodeIDsByPath(pkg.Nodes)
+	for _, edge := range pkg.Edges {
+		for _, side := range []struct {
+			label    string
+			endpoint string
+		}{
+			{"source", edge.SourceID},
+			{"target", edge.TargetID},
+		} {
+			endpoint := strings.TrimSpace(side.endpoint)
+			if endpoint == "" {
+				result.Errors = append(result.Errors, fmt.Sprintf(
+					"edge %s has empty %s endpoint", edge.ID, side.label,
+				))
+				continue
+			}
+			if nodeIDs[endpoint] {
+				continue
+			}
+			owners := pathOwners[endpoint]
+			switch len(owners) {
+			case 0:
+				result.Errors = append(result.Errors, fmt.Sprintf(
+					"edge %s %s endpoint %q is not a node id and no node owns that path; use a unique node id (preferred) or a path owned by exactly one node",
+					edge.ID, side.label, endpoint,
+				))
+			default:
+				sort.Strings(owners)
+				result.Errors = append(result.Errors, fmt.Sprintf(
+					"edge %s %s endpoint %q is ambiguous: owned by %d nodes (%s); use a unique node id instead of a shared path",
+					edge.ID, side.label, endpoint, len(owners), strings.Join(owners, ", "),
+				))
+			}
+		}
+	}
+}
+
+func validateNodeConfidence(pkg Package, result *Result) {
+	for _, node := range pkg.Nodes {
+		if strings.TrimSpace(node.Confidence) == "" {
+			result.Errors = append(result.Errors, fmt.Sprintf(
+				"node %s is missing confidence; every provisional node must set confidence (for example medium, high, or verified)",
+				node.ID,
+			))
+		}
+	}
 }
 
 func loadCoverage(paths rt.Paths, pkg *Package, result *Result) {

@@ -30,11 +30,12 @@ Prove the published baseline with
 `{{specify-subcmd:specify-runtime cognition compass --intent implement --query "<representative project query>" --format json}}`
 and targeted expansion when validation calls for it. Then prove exact semantic
 binding with `lexicon --mode catalog`: follow `catalog_page.next_offset` while
-needed, copy one current semantic-card `concept_id` into a query plan, carry the
-same `lexicon_generation_id`, and require the query result to report
-`resolution_state=resolved_exact`. Probe both a canonical term and an
-evidence-backed symptom-first or localized expression when available; one easy
-lexical match is not sufficient. Treat publication blocks,
+needed, copy one current semantic-card `concept_id` into a query plan, set
+`candidate_universe_version: 2` (schema v5 current; omitting it yields
+`invalid_query_plan`), carry the same `lexicon_generation_id`, and require the
+query result to report `resolution_state=resolved_exact`. Probe both a
+canonical term and an evidence-backed symptom-first or localized expression when
+available; one easy lexical match is not sufficient. Treat publication blocks,
 schema/index failures, unresolved paths, and claim-lifecycle errors as hard
 failures.
 

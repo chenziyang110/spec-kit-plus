@@ -18,9 +18,11 @@ capacity rather than additional task budget.
 - Work in coherent, bounded batches. For every completed path, record concrete
   evidence and the packet-local provisional facts required by the supplied
   result skeleton.
-- Submit useful progress with the task brief's `scan-checkpoint --result-json` command before
-  context, tool-output, or result-output capacity is exhausted. A checkpoint is
-  useful only after the runtime validates it.
+- Submit useful progress with the task brief's `scan-checkpoint --result-json`
+  command before context, tool-output, or result-output capacity is exhausted.
+  Prefer `--result-json @tmp-result.json` (or stdin `-`) on Windows when the
+  packet JSON is large; do not rely on shell-quoted multi-10KB inline JSON.
+  A checkpoint is useful only after the runtime validates it.
 - Keep worker-authored `acceptance` at `partial`, including for a complete
   assignment. The runtime derives `pass` only after `scan-accept` validates the
   full assigned-path, evidence, coverage, and graph-row contract.
@@ -35,8 +37,13 @@ capacity rather than additional task budget.
 ## Write Boundary
 
 - Build the packet-local result as an in-memory object and submit it only through
-  `specify-runtime cognition scan-checkpoint --result-json '<inline-json>'`.
+  `specify-runtime cognition scan-checkpoint --result-json '<inline|@path|->'`.
   Follow the generated schema; never create or edit a pending-result/checkpoint file.
+- Every node must include non-empty `confidence`. Edge `source`/`target` must be
+  unique node ids whenever possible. Path-form endpoints are only valid when
+  exactly one node owns that path after all packets merge; shared files
+  (for example a contract copied into many skill nodes) must not be used as edge
+  endpoints—use a single aggregate node id instead.
 - Never write the global queue, handoff ledger, coverage ledger, evidence store,
   provisional aggregate, `status.json`, or `project-cognition.db`.
 - Do not call `scan-prepare`, `scan-lease`, `scan-accept`, `validate-scan`,

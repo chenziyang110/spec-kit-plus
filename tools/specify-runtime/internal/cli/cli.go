@@ -815,23 +815,76 @@ func scanCheckpointCommand(args []string, stdout io.Writer, stderr io.Writer, pa
 	hasResultPath := strings.TrimSpace(*resultPath) != ""
 	hasResultJSON := strings.TrimSpace(*resultJSON) != ""
 	if hasResultPath == hasResultJSON {
-		return writeCompactErrorJSON(stdout, fmt.Errorf("scan-checkpoint requires exactly one of --result or --result-json"))
+		return writeCompactErrorJSON(stdout, fmt.Errorf("scan-checkpoint requires exactly one of --result or --result-json (inline JSON, @path, or - for stdin)"))
 	}
 	canonicalResult := ""
 	var err error
+	var resultBytes []byte
 	if hasResultPath {
 		canonicalResult, err = canonicalPendingScanResult(paths, *packetID, *resultPath, true)
 		if err != nil {
 			return writeCompactErrorJSON(stdout, err)
 		}
+	} else {
+		resultBytes, err = resolveScanCheckpointResultJSON(*resultJSON, paths.Root)
+		if err != nil {
+			return writeCompactErrorJSON(stdout, err)
+		}
 	}
 	payload, err := scanworkbench.Checkpoint(paths, scanworkbench.CheckpointInput{
-		PacketID: *packetID, AttemptID: *attemptID, ResultPath: canonicalResult, ResultJSON: []byte(*resultJSON),
+		PacketID: *packetID, AttemptID: *attemptID, ResultPath: canonicalResult, ResultJSON: resultBytes,
 	})
 	if err != nil {
 		return writeCompactErrorJSON(stdout, err)
 	}
 	return writeCompactJSON(stdout, payload)
+}
+
+// resolveScanCheckpointResultJSON loads --result-json from inline text, @path,
+// or stdin (-). Prefer @path on Windows when the packet JSON is large.
+func resolveScanCheckpointResultJSON(raw, projectRoot string) ([]byte, error) {
+	const maxScanCheckpointJSONBytes = 16 * 1024 * 1024
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return nil, fmt.Errorf("scan-checkpoint --result-json must not be empty")
+	}
+	if trimmed == "-" {
+		limited := io.LimitReader(os.Stdin, int64(maxScanCheckpointJSONBytes)+1)
+		data, err := io.ReadAll(limited)
+		if err != nil {
+			return nil, fmt.Errorf("scan-checkpoint --result-json - failed to read stdin: %w", err)
+		}
+		if len(data) > maxScanCheckpointJSONBytes {
+			return nil, fmt.Errorf("scan-checkpoint --result-json exceeds %d bytes", maxScanCheckpointJSONBytes)
+		}
+		return data, nil
+	}
+	if strings.HasPrefix(trimmed, "@") {
+		path := strings.TrimSpace(strings.TrimPrefix(trimmed, "@"))
+		if path == "" {
+			return nil, fmt.Errorf("scan-checkpoint --result-json @path requires a non-empty path")
+		}
+		if !filepath.IsAbs(path) {
+			root := strings.TrimSpace(projectRoot)
+			if root == "" {
+				root = "."
+			}
+			path = filepath.Join(root, path)
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return nil, fmt.Errorf("scan-checkpoint --result-json @path could not read %s: %w", path, err)
+		}
+		if len(data) > maxScanCheckpointJSONBytes {
+			return nil, fmt.Errorf("scan-checkpoint --result-json exceeds %d bytes", maxScanCheckpointJSONBytes)
+		}
+		return data, nil
+	}
+	data := []byte(raw)
+	if len(data) > maxScanCheckpointJSONBytes {
+		return nil, fmt.Errorf("scan-checkpoint --result-json exceeds %d bytes", maxScanCheckpointJSONBytes)
+	}
+	return data, nil
 }
 
 func scanYieldCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths, requeue bool) int {

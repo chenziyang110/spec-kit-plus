@@ -315,6 +315,60 @@ func TestScanCheckpointRejectsResultOutsideDesignatedWorkbenchPath(t *testing.T)
 	}
 }
 
+func TestScanCheckpointAcceptsAtPathResultJSON(t *testing.T) {
+	root := t.TempDir()
+	for _, rel := range []string{".specify/project-cognition/tmp", "src"} {
+		if err := os.MkdirAll(filepath.Join(root, filepath.FromSlash(rel)), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(root, "src", "app.go"), []byte("package app\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	writeCLIJSON(t, filepath.Join(root, ".specify", "project-cognition", "tmp", "scan-files.json"), map[string]any{"files": []string{"src/app.go"}})
+	old, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(root); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(old) })
+
+	runJSON := func(args ...string) map[string]any {
+		t.Helper()
+		var stdout, stderr bytes.Buffer
+		if code := Run(args, &stdout, &stderr, "test"); code != 0 {
+			t.Fatalf("%v code=%d stderr=%s stdout=%s", args, code, stderr.String(), stdout.String())
+		}
+		var payload map[string]any
+		if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+			t.Fatal(err)
+		}
+		return payload
+	}
+	runJSON("scan-prepare", "--format", "json")
+	lease := runJSON("scan-lease", "--worker-id", "worker-a", "--format", "json")
+	attemptID := lease["attempt_id"].(string)
+	result := acceptedCLIWorkerResult("lane-001", attemptID, "src/app.go")
+	raw, err := json.Marshal(result)
+	if err != nil {
+		t.Fatal(err)
+	}
+	payloadPath := filepath.Join(root, "checkpoint-payload.json")
+	if err := os.WriteFile(payloadPath, raw, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	runJSON(
+		"scan-checkpoint", "--packet-id", "lane-001", "--attempt-id", attemptID,
+		"--result-json", "@checkpoint-payload.json", "--format", "json",
+	)
+	pending := filepath.Join(root, ".specify", "project-cognition", "workbench", "pending-results", "lane-001.json")
+	if _, err := os.Stat(pending); err != nil {
+		t.Fatalf("at-path checkpoint did not create pending result: %v", err)
+	}
+}
+
 func TestScanCheckpointAcceptsInlineResultWithoutWorkerFileWrite(t *testing.T) {
 	root := t.TempDir()
 	for _, rel := range []string{".specify/project-cognition/tmp", "src"} {

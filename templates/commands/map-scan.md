@@ -90,7 +90,8 @@ sets `completion_allowed=false`, `bypass_allowed=false`, and
   can consume.
 - Require the worker to query its brief through `specify-runtime cognition scan-packet`
   and submit bounded packet-local progress through
-  `{{specify-subcmd:specify-runtime cognition scan-checkpoint --result-json '<inline-json>'}}`. When it predicts that
+  `{{specify-subcmd:specify-runtime cognition scan-checkpoint --result-json '<inline|@path|->'}}`.
+  Prefer `@path` on Windows for large packets. When it predicts that
   context, tool-output, or result-output capacity will run out, it checkpoints
   completed work and uses `{{specify-subcmd:specify-runtime cognition scan-yield}}`; it
   must not guess, omit paths, or claim the whole packet complete.

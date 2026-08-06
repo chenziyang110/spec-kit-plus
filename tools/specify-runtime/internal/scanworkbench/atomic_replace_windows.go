@@ -4,7 +4,9 @@ package scanworkbench
 
 import (
 	"fmt"
+	"strings"
 	"syscall"
+	"time"
 	"unsafe"
 )
 
@@ -27,13 +29,26 @@ func replaceWorkbenchFile(source, target string) error {
 	if err != nil {
 		return fmt.Errorf("encode target path: %w", err)
 	}
-	result, _, callErr := workbenchMoveFileExProc.Call(
-		uintptr(unsafe.Pointer(sourcePtr)),
-		uintptr(unsafe.Pointer(targetPtr)),
-		workbenchMoveFileReplaceExisting|workbenchMoveFileWriteThrough,
-	)
-	if result == 0 {
-		return fmt.Errorf("replace workbench file: %w", callErr)
+	var lastErr error
+	// Multi-worker scan-accept can race on Windows file locks; retry briefly
+	// before surfacing Access is denied to the leader.
+	for attempt := 0; attempt < 8; attempt++ {
+		result, _, callErr := workbenchMoveFileExProc.Call(
+			uintptr(unsafe.Pointer(sourcePtr)),
+			uintptr(unsafe.Pointer(targetPtr)),
+			workbenchMoveFileReplaceExisting|workbenchMoveFileWriteThrough,
+		)
+		if result != 0 {
+			return nil
+		}
+		lastErr = callErr
+		message := strings.ToLower(callErr.Error())
+		if !strings.Contains(message, "access is denied") &&
+			!strings.Contains(message, "being used by another process") &&
+			!strings.Contains(message, "sharing violation") {
+			break
+		}
+		time.Sleep(time.Duration(25*(attempt+1)) * time.Millisecond)
 	}
-	return nil
+	return fmt.Errorf("replace workbench file: %w", lastErr)
 }

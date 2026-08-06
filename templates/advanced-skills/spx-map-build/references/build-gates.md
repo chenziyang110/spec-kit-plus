@@ -11,6 +11,11 @@ and do not proceed to `build-from-scan`.
 Do not say the format issues are harmless or that they do not affect
 completeness.
 
+`validate-scan` now also rejects edge endpoints that cannot uniquely resolve to
+a node id (shared path owned by multiple nodes, or unknown path) and nodes that
+lack `confidence`. Those defects must return to `$spx-map-scan` / packet repair
+rather than provisional surgery during build.
+
 For a V2 workbench, scan validation requires the runtime-owned per-packet
 `workbench/acceptance-receipts/<packet-id>.json` and frozen submission digest
 before it can issue the generation-level `scan-receipt.json`. Never hand-author
