@@ -142,6 +142,7 @@ func runQuick(args []string, stdout io.Writer) int {
 			"resume",
 			"close",
 			"archive",
+			"cognition-closeout",
 			"checkpoint-stage",
 			"checkpoint-confirm",
 			"checkpoint-show",
@@ -150,6 +151,8 @@ func runQuick(args []string, stdout io.Writer) int {
 			"item-status",
 			"packet-compile",
 		}
+		env.Data["close_usage"] = "specify-runtime quick close <id> resolved|blocked"
+		env.Data["cognition_closeout_usage"] = "specify-runtime quick cognition-closeout <id> --result-state ready|no_op|mark-dirty|partial [--reason <text>] [--evidence-json <array>] [--update-id <id>] --format json"
 		return writeEnvelope(stdout, env)
 	}
 	mode := positionalArg(args, 0, "list")
@@ -171,9 +174,18 @@ func runQuick(args []string, stdout io.Writer) int {
 			return writeEnvelope(stdout, scriptDomainError("quick", err))
 		}
 		return writeEnvelope(stdout, env)
+	case "cognition-closeout":
+		env, err := service.runCognitionCloseout(quickID, args)
+		if err != nil {
+			return writeEnvelope(stdout, scriptDomainError("quick", err))
+		}
+		return writeEnvelope(stdout, env)
 	}
 	targetStatus := optionValue(args, "--status", positionalArg(args, 2, ""))
 	includeAll := hasFlag(args, "--all")
+	if strings.EqualFold(mode, "close") && strings.TrimSpace(targetStatus) == "" {
+		return writeEnvelope(stdout, scriptDomainError("quick", fmt.Errorf("close requires status resolved or blocked; example: specify-runtime quick close %s resolved", firstNonEmpty(quickID, "<id>"))))
+	}
 	env, err := service.run(mode, quickID, targetStatus, includeAll)
 	if err != nil {
 		return writeEnvelope(stdout, scriptDomainError("quick", err))
@@ -1825,7 +1837,12 @@ func (service quickService) run(mode, quickID, targetStatus string, includeAll b
 	case "status":
 		var task map[string]any
 		task, err = matchQuickTask(tasks, quickID)
-		data = map[string]any{"task": task}
+		if err == nil {
+			data = map[string]any{
+				"task":               task,
+				"cognition_closeout": service.cognitionCloseoutStatus(stringValue(task["workspace_path"])),
+			}
+		}
 	case "close":
 		var task map[string]any
 		task, err = matchQuickTask(tasks, quickID)
@@ -1840,7 +1857,10 @@ func (service quickService) run(mode, quickID, targetStatus string, includeAll b
 		}
 		if err == nil {
 			task, err = matchQuickTask(tasks, quickID)
-			data = map[string]any{"task": task}
+			data = map[string]any{
+				"task":               task,
+				"cognition_closeout": service.cognitionCloseoutStatus(stringValue(task["workspace_path"])),
+			}
 		}
 	case "archive":
 		var task map[string]any
@@ -1953,10 +1973,13 @@ func isQuickUnfinished(task map[string]any) bool {
 
 func (service quickService) closeTask(task map[string]any, statusValue string) error {
 	if statusValue != "resolved" && statusValue != "blocked" {
-		return fmt.Errorf("close requires status resolved or blocked")
+		return fmt.Errorf("close requires status resolved or blocked; example: specify-runtime quick close %s resolved", firstNonEmpty(stringValue(task["id"]), "<id>"))
 	}
 	workspacePath := stringValue(task["workspace_path"])
 	if err := service.validateCloseAgainstConfirmation(workspacePath, statusValue); err != nil {
+		return err
+	}
+	if err := service.validateCognitionCloseoutForClose(workspacePath, statusValue); err != nil {
 		return err
 	}
 	return service.updateStatusFile(workspacePath, func(frontmatter map[string]string) {
@@ -1965,6 +1988,43 @@ func (service quickService) closeTask(task map[string]any, statusValue string) e
 		frontmatter["updated"] = ts
 		frontmatter["closed_at"] = ts
 	})
+}
+
+func (service quickService) runCognitionCloseout(quickID string, args []string) (Envelope, error) {
+	root, err := service.root()
+	if err != nil {
+		return Envelope{}, err
+	}
+	tasks, err := service.scan(root)
+	if err != nil {
+		return Envelope{}, err
+	}
+	task, err := matchQuickTask(tasks, quickID)
+	if err != nil {
+		return Envelope{}, err
+	}
+	resultState := firstNonEmpty(optionValue(args, "--result-state", ""), optionValue(args, "--status", ""))
+	if strings.TrimSpace(resultState) == "" {
+		return Envelope{}, fmt.Errorf("cognition-closeout requires --result-state ready|no_op|mark-dirty|partial|needs_rebuild|blocked")
+	}
+	reason := optionValue(args, "--reason", "")
+	updateID := optionValue(args, "--update-id", "")
+	evidence := []string{}
+	if raw := strings.TrimSpace(optionValue(args, "--evidence-json", "")); raw != "" {
+		if err := json.Unmarshal([]byte(raw), &evidence); err != nil {
+			return Envelope{}, fmt.Errorf("--evidence-json must be a JSON string array: %w", err)
+		}
+	}
+	payload, err := service.recordCognitionCloseout(stringValue(task["workspace_path"]), resultState, reason, updateID, evidence)
+	if err != nil {
+		return Envelope{}, err
+	}
+	env := NewEnvelope("ok", "quick cognition closeout recorded")
+	env.Data = payload
+	env.Data["task"] = task
+	env.Data["cognition_closeout"] = service.cognitionCloseoutStatus(stringValue(task["workspace_path"]))
+	env.NextArgv = []string{"specify-runtime", "quick", "close", stringValue(task["id"]), "resolved"}
+	return env, nil
 }
 
 func (service quickService) archiveTask(root string, task map[string]any) (map[string]any, error) {

@@ -122,13 +122,19 @@ visual direction to `$spx-design`. Keep multi-surface or acceptance-heavy UI in
 Quick and expand its task-local plan, batches, viewport/state matrix, and
 evidence; do not shrink the UI outcome.
 
-Patch `STATUS.md` at meaningful transitions through leased `specify-runtime artifact patch` calls. Create an absent `SUMMARY.md` with `artifact scaffold --kind quick-summary`, query it on resume, and patch only its named terminal sections through fresh leases; never submit or reconstruct the whole summary. Close with
-`{{specify-subcmd:specify-runtime quick close <id>}}` only after terminal truth is recorded;
-archive later only with `{{specify-subcmd:specify-runtime quick archive <id>}}`.
-After verified repository changes, run
-`{{specify-subcmd:specify-runtime cognition closeout-plan --workflow sp-quick --intent implement --format json}}`
-with explicit workflow-owned paths, fill returned agent-owned fields, and execute
-structured `update_argv`. Apply the receipt-bound finalizer gate in
-`references/project-cognition.md` before any clean claim. Report changed paths, evidence, and remaining risk. This invocation
-authorizes only this workflow stage; report any explicit user-selected workflow
-change as a handoff and do not invoke another workflow in this run.
+Patch `STATUS.md` at meaningful transitions through leased `specify-runtime artifact patch` calls. Create an absent `SUMMARY.md` with `artifact scaffold --kind quick-summary`, query it on resume, and patch only its named terminal sections through fresh leases; never submit or reconstruct the whole summary.
+
+**Terminal order is mandatory (do not reverse):**
+
+1. Finish verification (tests/tsc/surface checks) and record evidence in `STATUS.md` / `SUMMARY.md`.
+2. When any confirmed `write_scope` or `changed_code_paths` touches project source/runtime/templates/config/tests (not only `.planning/`), run planner-first cognition closeout **before** close:
+   `{{specify-subcmd:specify-runtime cognition closeout-plan --workflow sp-quick --intent implement --format json}}`
+   → fill agent-owned fields → execute `update_argv` → for `result_state=ready|no_op` run validate-build then complete-refresh; for incomplete update run mark-dirty with reason.
+3. Record the durable receipt (hard gate for `quick close … resolved`):
+   `{{specify-subcmd:specify-runtime quick cognition-closeout <id> --result-state ready|no_op|mark-dirty|partial --reason "<text>" --format json}}`.
+   Greenfield / `baseline_kind=greenfield_empty` is **not** a skip: use `no_op` or `mark-dirty` with an explicit reason.
+4. Confirm `{{specify-subcmd:specify-runtime quick status <id>}}` shows `cognition_closeout.allowed_close=true` when source-changing.
+5. Only then: `{{specify-subcmd:specify-runtime quick close <id> resolved}}` (argv is positional status, not a bare close).
+6. Archive later only with `{{specify-subcmd:specify-runtime quick archive <id>}}`.
+
+Do not tell the user the workflow is complete, and do not run `quick close … resolved`, until step 3 succeeds when cognition is required. `item-accept` and green tests alone are not terminal completion. Report changed paths, evidence, residual risk, and `project_cognition_refresh`. This invocation authorizes only this workflow stage; report any explicit user-selected workflow change as a handoff and do not invoke another workflow in this run.

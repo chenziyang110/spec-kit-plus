@@ -73,4 +73,14 @@ Never run the `complete-refresh` or `clear-dirty` helper after `result_state=par
 Dirty fallback command shape: `{{specify-subcmd:specify-runtime cognition mark-dirty --reason "<reason>" --format json}}`.
 Use `{{specify-subcmd:specify-runtime cognition mark-dirty --reason "workflow-closeout-failed" --format json}}` only when inline update cannot complete: when the planner or update command is unavailable, cannot record useful update data, cannot identify workflow-owned scope, or cannot be trusted because verification/workflow completion is not trustworthy. Dirty only when inline update cannot complete.
 
+Greenfield / empty-graph minimum: when the baseline is `greenfield_empty` or compass returns no adoptable paths, agents must still record a terminal cognition outcome (`no_op` or `mark-dirty` with reason). Skipping because “there is no graph to update” is not compliant.
+
+For `sp-quick` / `spx-quick`, after the planner chain (or mark-dirty), record the durable close gate receipt **before** `quick close … resolved`:
+
+```text
+{{specify-subcmd:specify-runtime quick cognition-closeout <id> --result-state ready|no_op|mark-dirty|partial --reason "<text>" --format json}}
+```
+
+`quick close … resolved` rejects source-changing work without that receipt.
+
 sp-map-update is for manual/external maintenance and follow-up repair. `{{invoke:map-update}}` remains the external/manual workflow for user edits, interrupted workflow repair, explicit map maintenance, and follow-up repair. It is not routine cleanup for changes this workflow just made. If `sp-map-update` already ran `specify-runtime cognition update --reason map-update` for the same changed paths, do not run a second `workflow-finalize` closeout update for those paths.

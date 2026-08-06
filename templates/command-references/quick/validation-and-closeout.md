@@ -19,6 +19,21 @@ Preserved Contract: quick completion requires changed surfaces, verification evi
 - `should be fine`, `likely unaffected`, or `not expected to break` are not completion evidence.
 - If the change is implemented but verification or coverage is incomplete, do not claim the task is complete. Mark the remaining gap explicitly and continue the sweep or leave the task blocked with the concrete reason.
 {{spec-kit-include: ../../command-partials/common/inline-project-cognition-update.md}}
+
+### Hard close gate (runtime-enforced)
+
+Terminal order for source-changing quick work:
+
+1. Verification green and recorded
+2. Inline cognition closeout (planner → update → validate-build/complete-refresh **or** mark-dirty)
+3. Durable receipt: `specify-runtime quick cognition-closeout <id> --result-state ready|no_op|mark-dirty|partial --reason "…" --format json`
+4. `SUMMARY.md` includes `project_cognition_refresh`
+5. `specify-runtime quick close <id> resolved` (positional status required)
+
+`quick close … resolved` **blocks** when confirmed `write_scope` / `changed_code_paths` imply project mutation and no valid `cognition-closeout.json` exists. `item-accept` + tests alone cannot close. Inspect the gate with `specify-runtime quick status <id>` → `cognition_closeout` (`required`, `status`, `allowed_close`, `result_state`).
+
+Greenfield / empty graph minimum compliance: when `baseline_kind=greenfield_empty` or compass has no adoptable paths, still record `no_op` or `mark-dirty` with an explicit reason (for example `greenfield_empty; no path_index to adopt`). Leaving `project_cognition_refresh.status: not-needed` after real source edits is invalid.
+
 - Manual map maintenance may record ordinary uncertain closure, partial/low-confidence facts, known unknowns, and `minimal_live_reads` for external repair cases. After a successful existing-baseline maintenance refresh, use `{{specify-subcmd:specify-runtime cognition complete-refresh --format json}}` only for incremental freshness finalization; `sp-map-build` owns `build-from-scan` and `{{specify-subcmd:specify-runtime cognition validate-build --format json}}`, so do not run `complete-refresh` as a rebuild finalizer.
 
 ## Propagating Change Rule

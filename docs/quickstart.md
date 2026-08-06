@@ -342,7 +342,8 @@ Use the lightweight routing rules consistently:
 - Quick-task helper command shapes:
   - Command shape: `specify-runtime quick status <id>`
   - Command shape: `specify-runtime quick resume <id>`
-  - Command shape: `specify-runtime quick close <id> --status resolved|blocked`
+  - Command shape: `specify-runtime quick close <id> resolved|blocked` (positional status; bare `close` without status fails with the legal argv)
+  - Source-changing close requires a prior `specify-runtime quick cognition-closeout <id> --result-state ready|no_op|mark-dirty|partial --reason "…"` receipt; `quick status <id>` exposes `cognition_closeout`
   - Command shape: `specify-runtime quick archive <id>`
 - Discussion sessions live under `.specify/discussions/<slug>/`, with canonical typed state in `discussion-state.json`, a short derived compatibility view in `discussion-state.md`, compact semantic events in `discussion-log.jsonl`, and a derived management index in `.specify/discussions/index.json`. `handoff-ready` remains resumable until its confirmed Quick or Specify consumer records matching source paths and `review_digest`; after verified consumption, `specify-runtime discussion mark-consumed <slug> --feature-dir <consumer-workspace>` closes the source discussion so old handoffs do not block `sp-auto`. The option name is retained for compatibility and accepts a Quick workspace.
 - Use `specify-runtime discussion list` to inspect unclosed discussions by default.

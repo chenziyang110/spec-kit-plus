@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -154,12 +155,38 @@ y
 		t.Fatalf("expected all accepted")
 	}
 
+	// Source-changing write_scope requires cognition closeout receipt before resolved close.
+	env = runScriptDomainEnvelope(t, runQuick, []string{
+		"--project-root", root,
+		"close", "260805-010", "resolved",
+	})
+	if env.Status == "ok" {
+		t.Fatalf("close resolved should fail without cognition closeout")
+	}
+	if !strings.Contains(fmt.Sprint(env.Blockers), "cognition") {
+		t.Fatalf("expected cognition gate error, got %v", env.Blockers)
+	}
+
+	env = runScriptDomainEnvelope(t, runQuick, []string{
+		"--project-root", root,
+		"cognition-closeout", "260805-010",
+		"--result-state", "ready",
+		"--reason", "inline update completed in test",
+		"--evidence-json", `["go test ./..."]`,
+	})
+	if env.Status != "ok" {
+		t.Fatalf("cognition-closeout failed: %v", env.Blockers)
+	}
+	if _, err := os.Stat(filepath.Join(workspace, "cognition-closeout.json")); err != nil {
+		t.Fatalf("receipt missing: %v", err)
+	}
+
 	env = runScriptDomainEnvelope(t, runQuick, []string{
 		"--project-root", root,
 		"close", "260805-010", "resolved",
 	})
 	if env.Status != "ok" {
-		t.Fatalf("close after all accepted failed: %v", env.Blockers)
+		t.Fatalf("close after cognition closeout failed: %v", env.Blockers)
 	}
 
 	// pulse should mention accepted work

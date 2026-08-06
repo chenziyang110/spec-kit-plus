@@ -927,7 +927,8 @@ Routing guide for direct delivery work:
 - Quick-task helper command shapes:
   - Command shape: `specify-runtime quick status <id>`
   - Command shape: `specify-runtime quick resume <id>`
-  - Command shape: `specify-runtime quick close <id> --status resolved|blocked`
+  - Command shape: `specify-runtime quick close <id> resolved|blocked` (positional status)
+  - Source-changing work requires `specify-runtime quick cognition-closeout <id> --result-state ready|no_op|mark-dirty|partial --reason "…"` before resolved close; `quick status` exposes `cognition_closeout`
   - Command shape: `specify-runtime quick archive <id>`
 - Discussion sessions live under `.specify/discussions/<slug>/`. `discussion-state.json` is canonical typed state, `discussion-state.md` is a short derived compatibility view, `discussion-log.jsonl` stores compact semantic checkpoints, and `.specify/discussions/index.json` is a derived management index. The routing gate shows both eligible consumers and a complexity-informed recommendation; the user-selected consumer is then recorded in `recommended_consumer` and protected by `review_digest`. `handoff-ready` remains resumable until that consumer produces bound evidence. `sp-quick` consumes a direct-delivery contract into task-local `STATUS.md`; `sp-specify` consumes a formal spec-first contract before feature creation. After verified consumption, `specify-runtime discussion mark-consumed <slug> --feature-dir <consumer-workspace>` closes the source discussion so stale handoffs cannot block future `sp-auto` routing; `--feature-dir` is the compatibility spelling and accepts a Quick workspace.
 - Use `specify-runtime discussion list` to inspect unclosed discussions by default.
