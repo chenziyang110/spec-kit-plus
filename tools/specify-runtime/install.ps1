@@ -19,10 +19,23 @@ if (-not [Environment]::Is64BitOperatingSystem) {
 
 $binary = "specify-runtime"
 $asset = "${binary}-windows-amd64.exe"
-$url = if ($Version -eq "latest") {
+$githubUrl = if ($Version -eq "latest") {
     "https://github.com/${Repo}/releases/latest/download/${asset}"
 } else {
     "https://github.com/${Repo}/releases/download/${Version}/${asset}"
+}
+
+# Official GitHub first, then free community mirrors (override with SPECIFY_RUNTIME_DOWNLOAD_MIRRORS).
+$templates = if (-not [string]::IsNullOrWhiteSpace($env:SPECIFY_RUNTIME_DOWNLOAD_MIRRORS)) {
+    $env:SPECIFY_RUNTIME_DOWNLOAD_MIRRORS -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ }
+} else {
+    @(
+        "{github_url}",
+        "https://mirror.ghproxy.com/{github_url}",
+        "https://ghproxy.net/{github_url}",
+        "https://gh-proxy.com/{github_url}",
+        "https://gitdl.cn/{github_url}"
+    )
 }
 
 New-Item -ItemType Directory -Force -Path $InstallDir | Out-Null
@@ -31,7 +44,30 @@ $candidate = Join-Path $InstallDir ".${binary}.$PID.candidate.exe"
 
 try {
     $ProgressPreference = "SilentlyContinue"
-    Invoke-WebRequest -Uri $url -OutFile $candidate
+    $downloaded = $false
+    $errors = New-Object System.Collections.Generic.List[string]
+    foreach ($template in $templates) {
+        $url = $template.
+            Replace("{github_url}", $githubUrl).
+            Replace("{repo}", $Repo).
+            Replace("{version}", $Version).
+            Replace("{filename}", $asset)
+        Write-Host "    trying $url"
+        try {
+            Invoke-WebRequest -Uri $url -OutFile $candidate
+            if ((Test-Path $candidate) -and ((Get-Item $candidate).Length -ge 1024)) {
+                $downloaded = $true
+                break
+            }
+            $errors.Add("${url}: empty or too-small response") | Out-Null
+        } catch {
+            $errors.Add("${url}: $($_.Exception.Message)") | Out-Null
+            if (Test-Path $candidate) { Remove-Item -Force $candidate -ErrorAction SilentlyContinue }
+        }
+    }
+    if (-not $downloaded) {
+        throw "Failed to download ${asset} from all configured sources: $($errors -join '; ')"
+    }
 
     $handshake = (& $candidate api handshake --format json 2>&1 | Out-String)
     if (($LASTEXITCODE -ne 0) -or

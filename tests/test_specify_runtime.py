@@ -416,6 +416,81 @@ def test_runtime_runner_can_install_when_missing(
     assert calls == [[str(binary), "validate", "spec", "--feature-dir", "."]]
 
 
+def test_download_urls_include_github_and_free_mirrors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runtime = _load_runtime()
+    monkeypatch.delenv("SPECIFY_RUNTIME_DOWNLOAD_MIRRORS", raising=False)
+    monkeypatch.setattr(runtime, "binary_filename", lambda: "specify-runtime-linux-amd64")
+
+    urls = runtime.download_urls("v0.6.9")
+
+    assert urls[0] == (
+        "https://github.com/chenziyang110/spec-kit-plus/releases/download/"
+        "v0.6.9/specify-runtime-linux-amd64"
+    )
+    assert any("mirror.ghproxy.com" in url for url in urls)
+    assert any("gh-proxy.com" in url for url in urls)
+    assert all("v0.6.9" in url and "specify-runtime-linux-amd64" in url for url in urls)
+
+
+def test_download_urls_honor_custom_mirror_env(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runtime = _load_runtime()
+    monkeypatch.setenv(
+        "SPECIFY_RUNTIME_DOWNLOAD_MIRRORS",
+        "{github_url},https://example.invalid/cdn/{filename}",
+    )
+    monkeypatch.setattr(runtime, "binary_filename", lambda: "specify-runtime-linux-amd64")
+
+    urls = runtime.download_urls("v1.2.3")
+
+    assert urls == [
+        "https://github.com/chenziyang110/spec-kit-plus/releases/download/"
+        "v1.2.3/specify-runtime-linux-amd64",
+        "https://example.invalid/cdn/specify-runtime-linux-amd64",
+    ]
+
+
+def test_download_tries_next_mirror_when_first_source_fails(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    runtime = _load_runtime()
+    dest = tmp_path / "runtime.bin"
+    attempted: list[str] = []
+
+    monkeypatch.setattr(
+        runtime,
+        "download_urls",
+        lambda _version: [
+            "https://primary.example/fail",
+            "https://mirror.example/ok",
+        ],
+    )
+    monkeypatch.setattr(runtime, "cache_dir", lambda: tmp_path)
+    monkeypatch.setattr(runtime, "binary_filename", lambda: "specify-runtime-linux-amd64")
+    monkeypatch.setattr(runtime, "_download_timeout_seconds", lambda: 5.0)
+
+    def fake_download(url: str, destination: Path, *, timeout: float) -> None:
+        attempted.append(url)
+        if "fail" in url:
+            raise runtime.SpecifyRuntimeError("primary unavailable")
+        destination.write_bytes(b"x" * 2048)
+
+    monkeypatch.setattr(runtime, "_download_from_url", fake_download)
+
+    result = runtime.download("v0.6.9", dest)
+
+    assert result == dest
+    assert attempted == [
+        "https://primary.example/fail",
+        "https://mirror.example/ok",
+    ]
+    assert dest.stat().st_size >= 1024
+
+
 def test_ensure_binary_prefers_release_download_even_when_source_build_flagged(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

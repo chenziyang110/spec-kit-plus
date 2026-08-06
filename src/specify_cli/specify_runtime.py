@@ -14,7 +14,8 @@ import sys
 import tempfile
 from pathlib import Path
 from typing import Any, Sequence
-from urllib.request import urlretrieve
+from urllib.error import URLError
+from urllib.request import Request, urlopen
 
 from packaging.version import InvalidVersion, Version
 
@@ -33,6 +34,20 @@ REPO = "chenziyang110/spec-kit-plus"
 EXPECTED_RUNTIME_PROTOCOL = "specify-runtime.v1"
 SOURCE_BUILD_MARKER_VERSION = 1
 RUNTIME_LAUNCHER_BINDING_VERSION = 1
+RUNTIME_DOWNLOAD_MIRRORS_ENV = "SPECIFY_RUNTIME_DOWNLOAD_MIRRORS"
+RUNTIME_DOWNLOAD_TIMEOUT_ENV = "SPECIFY_RUNTIME_DOWNLOAD_TIMEOUT"
+DEFAULT_DOWNLOAD_TIMEOUT_SECONDS = 60
+# Free community GitHub-release mirrors for open-source installs (esp. regions
+# where github.com is slow/unreachable). Official GitHub is always first unless
+# SPECIFY_RUNTIME_DOWNLOAD_MIRRORS fully replaces the list.
+# Template placeholders: {github_url} {repo} {version} {filename}
+DEFAULT_DOWNLOAD_URL_TEMPLATES: tuple[str, ...] = (
+    "{github_url}",
+    "https://mirror.ghproxy.com/{github_url}",
+    "https://ghproxy.net/{github_url}",
+    "https://gh-proxy.com/{github_url}",
+    "https://gitdl.cn/{github_url}",
+)
 REQUIRED_CAPABILITIES = (
     "api.handshake",
     "api.list",
@@ -390,26 +405,134 @@ def materialize_project_runtime_entrypoint(project_root: Path, binary: str | Pat
     return project_binary
 
 
-def download_url(version: str = DEFAULT_VERSION) -> str:
+def github_download_url(version: str = DEFAULT_VERSION) -> str:
+    """Return the canonical GitHub Releases download URL for this platform asset."""
+
     filename = binary_filename()
     if version == "latest":
         return f"https://github.com/{REPO}/releases/latest/download/{filename}"
     return f"https://github.com/{REPO}/releases/download/{version}/{filename}"
 
 
+def download_url(version: str = DEFAULT_VERSION) -> str:
+    """Return the primary download URL (GitHub Releases)."""
+
+    return github_download_url(version)
+
+
+def _download_timeout_seconds() -> float:
+    raw = os.environ.get(RUNTIME_DOWNLOAD_TIMEOUT_ENV, "").strip()
+    if not raw:
+        return float(DEFAULT_DOWNLOAD_TIMEOUT_SECONDS)
+    try:
+        value = float(raw)
+    except ValueError as exc:
+        raise SpecifyRuntimeError(
+            f"{RUNTIME_DOWNLOAD_TIMEOUT_ENV} must be a positive number of seconds"
+        ) from exc
+    if value <= 0:
+        raise SpecifyRuntimeError(
+            f"{RUNTIME_DOWNLOAD_TIMEOUT_ENV} must be a positive number of seconds"
+        )
+    return value
+
+
+def _download_url_templates() -> list[str]:
+    """Return ordered download URL templates (official + free mirrors)."""
+
+    override = os.environ.get(RUNTIME_DOWNLOAD_MIRRORS_ENV, "").strip()
+    if override:
+        templates = [part.strip() for part in override.split(",") if part.strip()]
+        if not templates:
+            raise SpecifyRuntimeError(
+                f"{RUNTIME_DOWNLOAD_MIRRORS_ENV} is set but empty after parsing"
+            )
+        return templates
+    return list(DEFAULT_DOWNLOAD_URL_TEMPLATES)
+
+
+def download_urls(version: str = DEFAULT_VERSION) -> list[str]:
+    """Return ordered candidate download URLs for the current platform asset."""
+
+    filename = binary_filename()
+    github_url = github_download_url(version)
+    urls: list[str] = []
+    seen: set[str] = set()
+    for template in _download_url_templates():
+        try:
+            url = template.format(
+                github_url=github_url,
+                repo=REPO,
+                version=version,
+                filename=filename,
+            )
+        except (KeyError, IndexError, ValueError) as exc:
+            raise SpecifyRuntimeError(
+                f"Invalid download URL template {template!r}: {exc}"
+            ) from exc
+        if url in seen:
+            continue
+        seen.add(url)
+        urls.append(url)
+    return urls
+
+
+def _download_from_url(url: str, destination: Path, *, timeout: float) -> None:
+    request = Request(
+        url,
+        headers={
+            "User-Agent": f"specify-cli/{DEFAULT_VERSION} ({RUNTIME_COMMAND}-installer)",
+            "Accept": "application/octet-stream,*/*",
+        },
+        method="GET",
+    )
+    with urlopen(request, timeout=timeout) as response:  # noqa: S310 - HTTPS mirrors for public release assets
+        status = getattr(response, "status", None) or response.getcode()
+        if status is not None and int(status) >= 400:
+            raise SpecifyRuntimeError(f"HTTP {status} from {url}")
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        with destination.open("wb") as handle:
+            shutil.copyfileobj(response, handle)
+    size = destination.stat().st_size if destination.is_file() else 0
+    if size < 1024:
+        raise SpecifyRuntimeError(
+            f"Downloaded asset from {url} is too small ({size} bytes); treating as failed"
+        )
+
+
 def download(version: str = DEFAULT_VERSION, destination: Path | None = None) -> Path:
+    """Download the platform runtime asset, trying official + free CDN mirrors."""
+
     cache = cache_dir()
     cache.mkdir(parents=True, exist_ok=True)
     dest = destination or cached_executable()
-    url = download_url(version)
+    urls = download_urls(version)
+    timeout = _download_timeout_seconds()
+    filename = binary_filename()
     print(
-        f"  Downloading {RUNTIME_COMMAND} {version} from release asset {binary_filename()}...",
+        f"  Downloading {RUNTIME_COMMAND} {version} asset {filename} "
+        f"({len(urls)} source(s))...",
         file=sys.stderr,
     )
-    urlretrieve(url, dest)
-    if platform.system().lower() != "windows":
-        os.chmod(dest, 0o755)
-    return dest
+    errors: list[str] = []
+    for index, url in enumerate(urls, start=1):
+        label = "github" if "github.com/" in url and "proxy" not in url else "mirror"
+        print(f"  [{index}/{len(urls)}] trying {label}: {url}", file=sys.stderr)
+        try:
+            _download_from_url(url, dest, timeout=timeout)
+        except (OSError, URLError, TimeoutError, SpecifyRuntimeError) as exc:
+            errors.append(f"{url}: {exc}")
+            dest.unlink(missing_ok=True)
+            continue
+        if platform.system().lower() != "windows":
+            os.chmod(dest, 0o755)
+        print(f"  Downloaded {RUNTIME_COMMAND} from {url}", file=sys.stderr)
+        return dest
+    detail = "; ".join(errors) if errors else "no download sources configured"
+    raise SpecifyRuntimeError(
+        f"Failed to download {RUNTIME_COMMAND} {version} asset {filename} "
+        f"from all sources ({detail})"
+    )
 
 
 def _env_argv() -> list[str] | None:

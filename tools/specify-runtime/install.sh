@@ -28,9 +28,22 @@ esac
 
 asset="${binary}-${os}-${arch}"
 if [[ "$version" == "latest" ]]; then
-  url="https://github.com/${repo}/releases/latest/download/${asset}"
+  github_url="https://github.com/${repo}/releases/latest/download/${asset}"
 else
-  url="https://github.com/${repo}/releases/download/${version}/${asset}"
+  github_url="https://github.com/${repo}/releases/download/${version}/${asset}"
+fi
+
+# Official GitHub first, then free community mirrors (override with SPECIFY_RUNTIME_DOWNLOAD_MIRRORS).
+if [[ -n "${SPECIFY_RUNTIME_DOWNLOAD_MIRRORS:-}" ]]; then
+  IFS=',' read -r -a url_templates <<< "${SPECIFY_RUNTIME_DOWNLOAD_MIRRORS}"
+else
+  url_templates=(
+    "{github_url}"
+    "https://mirror.ghproxy.com/{github_url}"
+    "https://ghproxy.net/{github_url}"
+    "https://gh-proxy.com/{github_url}"
+    "https://gitdl.cn/{github_url}"
+  )
 fi
 
 if [[ -n "${SPECIFY_RUNTIME_INSTALL_DIR:-}" ]]; then
@@ -46,13 +59,35 @@ target="${install_dir}/${binary}"
 candidate="$(mktemp "${install_dir}/.${binary}.XXXXXX")"
 trap 'rm -f "$candidate"' EXIT
 
-echo "==> Downloading ${asset}"
-if command -v curl >/dev/null 2>&1; then
-  curl -fsSL --retry 3 "$url" -o "$candidate"
-elif command -v wget >/dev/null 2>&1; then
-  wget -q --tries=3 "$url" -O "$candidate"
-else
-  echo "curl or wget is required" >&2
+echo "==> Downloading ${asset} (${#url_templates[@]} source(s))"
+download_ok=0
+for template in "${url_templates[@]}"; do
+  template="${template// /}"
+  [[ -z "$template" ]] && continue
+  url="${template//\{github_url\}/$github_url}"
+  url="${url//\{repo\}/$repo}"
+  url="${url//\{version\}/$version}"
+  url="${url//\{filename\}/$asset}"
+  echo "    trying ${url}"
+  if command -v curl >/dev/null 2>&1; then
+    if curl -fsSL --retry 2 --connect-timeout 20 "$url" -o "$candidate"; then
+      download_ok=1
+      break
+    fi
+  elif command -v wget >/dev/null 2>&1; then
+    if wget -q --tries=2 --timeout=20 "$url" -O "$candidate"; then
+      download_ok=1
+      break
+    fi
+  else
+    echo "curl or wget is required" >&2
+    exit 1
+  fi
+  rm -f "$candidate"
+  candidate="$(mktemp "${install_dir}/.${binary}.XXXXXX")"
+done
+if [[ "$download_ok" -ne 1 ]]; then
+  echo "Failed to download ${asset} from all configured sources" >&2
   exit 1
 fi
 chmod 0755 "$candidate"
