@@ -11,7 +11,11 @@ from typing import Any
 
 from ..base import IntegrationOption, SkillsIntegration
 from ..manifest import IntegrationManifest
-from ...orchestration import CapabilitySnapshot, describe_delegation_surface
+from ...orchestration import (
+    NATIVE_SUBAGENT_TERMINAL_GUIDANCE,
+    CapabilitySnapshot,
+    describe_delegation_surface,
+)
 from .multi_agent import GrokMultiAgentAdapter
 
 
@@ -125,22 +129,244 @@ class GrokIntegration(SkillsIntegration):
         manifest: IntegrationManifest,
         skills_dir: Path,
     ) -> None:
-        """Apply Grok-native spawn_subagent routing to generated skills."""
+        """Apply Codex-standard dispatch policy with Grok-native tool names."""
         snapshot = self._runtime_capability_snapshot()
         agent_name = "Grok"
+        dispatch_tool, join_tool = self.native_dispatch_join_tools(snapshot)
+        tool_surface = self._grok_tool_surface_lines(
+            dispatch_tool=dispatch_tool,
+            join_tool=join_tool,
+        )
 
-        for command_name, heading, body in self._grok_dispatch_sections(
-            agent_name=agent_name,
+        # Mirror Codex command coverage and policy strength; only tool names differ.
+        self._augment_shared_skill(
+            created,
+            project_root,
+            manifest,
+            skills_dir / "sp-specify" / "SKILL.md",
+            f"## {agent_name} Subagents-First Dispatch",
+            (
+                "\n"
+                f"## {agent_name} Subagents-First Dispatch\n\n"
+                f"When running `sp-specify` in {agent_name}, use Grok native "
+                "subagents for bounded evidence, challenge, and artifact-review "
+                "lanes that support the current collaborative specification pass.\n"
+                "- Do not let subagents invent scope, semantic-term choices, or "
+                "upstream signal dispositions outside the leader-owned artifacts.\n"
+                f"- Use `{dispatch_tool}` for bounded source-file sweep, repository "
+                "evidence, semantic-drift challenge, and artifact validation lanes.\n"
+                "- Use join points before section approval, before artifact "
+                "self-review, and before the user review gate when delegated lanes "
+                "are active.\n"
+                "- Launch all independent lanes in the current "
+                "`parallel-subagents` wave before waiting.\n"
+                "- Suggested bounded lanes include discussion source sweep, "
+                "targeted repository evidence, semantic-term challenge, upstream "
+                "disposition review, and written artifact validation.\n"
+                "- Keep structured artifact discipline: Grok subagents may return "
+                "evidence and challenges, but the leader mutates `spec.md`, "
+                "`alignment.md`, `context.md`, and `workflow-state.md` only through "
+                "leased `specify-runtime artifact patch` calls, and binds the "
+                "compatibility `brainstorming/handoff-to-specify.json` pointer only "
+                "through `specify-runtime discussion bind-consumer`.\n"
+                f"- Use `{join_tool}` only at explicit review join points and before "
+                "final user review.\n"
+                f"{tool_surface}"
+                f"- {NATIVE_SUBAGENT_TERMINAL_GUIDANCE}\n"
+                "- Keep the shared workflow language integration-neutral in "
+                "user-visible output.\n"
+            ),
+        )
+        self._augment_shared_skill(
+            created,
+            project_root,
+            manifest,
+            skills_dir / "sp-plan" / "SKILL.md",
+            f"## {agent_name} Adaptive Dispatch",
+            (
+                "\n"
+                f"## {agent_name} Adaptive Dispatch\n\n"
+                f"When running `sp-plan` in {agent_name}, apply the adaptive "
+                "dispatch decision recorded by `choose_subagent_dispatch`.\n"
+                "- Light mode records `dispatch_shape: leader-inline` and "
+                "`execution_surface: leader-inline`; do not spawn planning lanes "
+                "for light work.\n"
+                f"- Standard mode uses `{dispatch_tool}` for bounded lanes when "
+                "`dispatch_shape` is `one-subagent` or `parallel-subagents`.\n"
+                "- Standard native-unavailable degradation records "
+                "`execution_surface: leader-inline` and "
+                "`capability_degraded: true` only when no high-risk trigger is "
+                "present.\n"
+                "- Heavy or safety-critical blocked work records "
+                "`dispatch_shape: subagent-blocked` and `execution_surface: none` "
+                "with `blocked_reason`.\n"
+                "- Launch all independent lanes in the current "
+                "`parallel-subagents` wave before waiting.\n"
+                "- Suggested bounded lanes include research, data model design, "
+                "contracts drafting, and quickstart or validation scenario "
+                "generation.\n"
+                f"- Use `{join_tool}` only at the documented join points before "
+                "the final constitution and risk re-check and before writing the "
+                "consolidated implementation plan.\n"
+                f"{tool_surface}"
+                f"- {NATIVE_SUBAGENT_TERMINAL_GUIDANCE}\n"
+            ),
+        )
+        self._augment_shared_skill(
+            created,
+            project_root,
+            manifest,
+            skills_dir / "sp-tasks" / "SKILL.md",
+            f"## {agent_name} Adaptive Dispatch",
+            (
+                "\n"
+                f"## {agent_name} Adaptive Dispatch\n\n"
+                f"When running `sp-tasks` in {agent_name}, apply the adaptive "
+                "dispatch decision recorded by `choose_subagent_dispatch`.\n"
+                "- Light mode records `dispatch_shape: leader-inline` and "
+                "`execution_surface: leader-inline`; do not spawn task-generation "
+                "lanes for light work.\n"
+                f"- Standard mode uses `{dispatch_tool}` for bounded lanes when "
+                "`dispatch_shape` is `one-subagent` or `parallel-subagents`.\n"
+                "- Standard native-unavailable degradation records "
+                "`execution_surface: leader-inline` and "
+                "`capability_degraded: true` only when no high-risk trigger is "
+                "present.\n"
+                "- Heavy or safety-critical blocked work records "
+                "`dispatch_shape: subagent-blocked` and `execution_surface: none` "
+                "with `blocked_reason`.\n"
+                "- Launch all independent lanes in the current "
+                "`parallel-subagents` wave before waiting.\n"
+                "- Suggested bounded lanes include story and phase decomposition, "
+                "dependency graph analysis, and write-set or parallel-safety "
+                "analysis.\n"
+                f"- Use `{join_tool}` only at the documented join points before "
+                "calling `specify-runtime tasks finalize` and "
+                "`specify-runtime tasks handoff`; `specify-runtime tasks finalize` "
+                "renders `tasks.md`, and `specify-runtime tasks handoff` emits "
+                "canonical parallel batches and join points.\n"
+                f"{tool_surface}"
+                f"- {NATIVE_SUBAGENT_TERMINAL_GUIDANCE}\n"
+            ),
+        )
+        self._augment_shared_skill(
+            created,
+            project_root,
+            manifest,
+            skills_dir / "sp-map-scan" / "SKILL.md",
+            f"## {agent_name} Subagents-First Dispatch",
+            (
+                "\n"
+                f"## {agent_name} Subagents-First Dispatch\n\n"
+                f"When running `sp-map-scan` in {agent_name}, use the "
+                "subagents-first dispatch model.\n"
+                f"- Use `{dispatch_tool}` for bounded lanes when "
+                "`dispatch_shape` is `one-subagent` or `parallel-subagents`.\n"
+                "- Launch all independent lanes in the current "
+                "`parallel-subagents` wave before waiting.\n"
+                "- Use `leader-inline-fallback` only after recording why Grok "
+                "native subagents are unavailable or unsafe.\n"
+                "- Suggested bounded scan lanes include repository tree inventory, "
+                "source/runtime surfaces, testing/operations surfaces, and "
+                "generated/cache exclusion review.\n"
+                "- Keep each subagent responsible for scan evidence only; the "
+                "leader owns the coverage ledger, reverse coverage closure, and "
+                "final completeness decision.\n"
+                f"- Use `{join_tool}` only at the documented join points before "
+                "finalizing `coverage-ledger.md`, `coverage-ledger.json`, "
+                "`scan-packets/<lane-id>.md`, and `map-state.md`.\n"
+                f"{tool_surface}"
+                f"- {NATIVE_SUBAGENT_TERMINAL_GUIDANCE}\n"
+            ),
+        )
+        self._augment_shared_skill(
+            created,
+            project_root,
+            manifest,
+            skills_dir / "sp-map-build" / "SKILL.md",
+            f"## {agent_name} Subagents-First Dispatch",
+            (
+                "\n"
+                f"## {agent_name} Subagents-First Dispatch\n\n"
+                f"When running `sp-map-build` in {agent_name}, use the "
+                "subagents-first dispatch model.\n"
+                f"- Use `{dispatch_tool}` for bounded lanes when "
+                "`dispatch_shape` is `one-subagent` or `parallel-subagents`.\n"
+                "- Launch all independent lanes in the current "
+                "`parallel-subagents` wave before waiting.\n"
+                "- Use `leader-inline-fallback` only after recording why Grok "
+                "native subagents are unavailable or unsafe.\n"
+                "- Suggested bounded atlas synthesis lanes include root "
+                "architecture/structure, conventions/testing, "
+                "integrations/runtime, and workflow/operations mapping.\n"
+                "- Use the scan package as the subagent input contract; do not "
+                "let subagents invent unscanned coverage or skip reverse coverage "
+                "checks.\n"
+                f"- Use `{join_tool}` only at the documented join points before "
+                "writing compatibility/export outputs such as "
+                "`PROJECT-HANDBOOK.md`, before updating project cognition "
+                "workbench outputs, and before the final packet evidence and "
+                "consistency pass.\n"
+                f"{tool_surface}"
+                f"- {NATIVE_SUBAGENT_TERMINAL_GUIDANCE}\n"
+            ),
+        )
+        self._augment_shared_skill(
+            created,
+            project_root,
+            manifest,
+            skills_dir / "sp-map-update" / "SKILL.md",
+            f"## {agent_name} Subagents-First Dispatch",
+            (
+                "\n"
+                f"## {agent_name} Subagents-First Dispatch\n\n"
+                f"When running `sp-map-update` in {agent_name}, use the "
+                "subagents-first dispatch model.\n"
+                "- Prefer the smallest executable update lane set.\n"
+                "- User-supplied scope remains authoritative unless repository "
+                "evidence disproves it.\n"
+                f"- Use `{dispatch_tool}` for bounded lanes when "
+                "`dispatch_shape` is `one-subagent` or `parallel-subagents`.\n"
+                "- Launch all independent lanes in the current "
+                "`parallel-subagents` wave before waiting, but only after "
+                "confirming the refresh is not metadata-only or single-slice.\n"
+                "- Use `leader-inline-fallback` only after recording why Grok "
+                "native subagents are unavailable or unsafe.\n"
+                "- Leader-inline-fallback for a one-lane update is preferred over "
+                "forcing extra subagents.\n"
+                "- Suggested bounded update lanes include diff impact closure, "
+                "affected graph and alias refresh, user supplement normalization, "
+                "and route-pack reconciliation.\n"
+                "- Do not turn a one-slice or metadata-only refresh into "
+                "scan-style parallel exploration.\n"
+                f"- Use `{join_tool}` only at the documented join points before "
+                "updating graph, path-index, alias-index, and route-pack "
+                "outputs.\n"
+                f"{tool_surface}"
+                f"- {NATIVE_SUBAGENT_TERMINAL_GUIDANCE}\n"
+            ),
+        )
+        self._augment_implement_skill(
+            created,
+            project_root,
+            manifest,
+            skills_dir / "sp-implement" / "SKILL.md",
             snapshot=snapshot,
-        ):
-            self._augment_shared_skill(
-                created,
-                project_root,
-                manifest,
-                skills_dir / f"sp-{command_name}" / "SKILL.md",
-                heading,
-                body,
-            )
+        )
+        self._augment_debug_skill(
+            created,
+            project_root,
+            manifest,
+            skills_dir / "sp-debug" / "SKILL.md",
+            snapshot=snapshot,
+        )
+        self._augment_quick_skill(
+            created,
+            project_root,
+            manifest,
+            skills_dir / "sp-quick" / "SKILL.md",
+            snapshot=snapshot,
+        )
 
         for command_name in ("implement", "debug", "quick", "plan", "tasks", "review"):
             skill_path = skills_dir / f"sp-{command_name}" / "SKILL.md"
@@ -166,117 +392,20 @@ class GrokIntegration(SkillsIntegration):
                 )
 
     @staticmethod
-    def _grok_dispatch_sections(
-        *,
-        agent_name: str,
-        snapshot: CapabilitySnapshot,
-    ) -> list[tuple[str, str, str]]:
-        """Return Grok-specific adaptive dispatch sections keyed by command."""
+    def _grok_tool_surface_lines(*, dispatch_tool: str, join_tool: str) -> str:
+        """Compact Grok-native tool footnote; policy stays Codex-standard."""
 
-        sections: list[tuple[str, str, str]] = []
-        for command_name, title, lane_hint in (
-            (
-                "specify",
-                "Subagents-First Dispatch",
-                "bounded evidence, challenge, and artifact-review lanes",
-            ),
-            (
-                "plan",
-                "Adaptive Dispatch",
-                "research, data-model, contracts, and validation-scenario lanes",
-            ),
-            (
-                "tasks",
-                "Adaptive Dispatch",
-                "task-graph partitioning, dependency analysis, and packet drafting lanes",
-            ),
-            (
-                "implement",
-                "Adaptive Dispatch",
-                "bounded implementation, test, and validation lanes",
-            ),
-            (
-                "review",
-                "Adaptive Dispatch",
-                "read-only review, bounded fix, and revalidation lanes",
-            ),
-            (
-                "debug",
-                "Investigation Dispatch",
-                "read-only evidence and targeted repro lanes",
-            ),
-            (
-                "quick",
-                "Adaptive Dispatch",
-                "bounded Q-item implementation and validation lanes",
-            ),
-            (
-                "map-scan",
-                "Map Packet Dispatch",
-                "bounded scan-packet workers",
-            ),
-            (
-                "clarify",
-                "Evidence Dispatch",
-                "bounded clarification evidence lanes",
-            ),
-            (
-                "deep-research",
-                "Evidence Dispatch",
-                "bounded research and feasibility evidence lanes",
-            ),
-        ):
-            descriptor = describe_delegation_surface(
-                command_name=command_name,
-                snapshot=snapshot,
-            )
-            heading = f"## {agent_name} {title}"
-            body = (
-                "\n"
-                f"{heading}\n\n"
-                f"When running `sp-{command_name}` in {agent_name}, use Grok native "
-                f"subagents for {lane_hint} only when the adaptive decision selects "
-                "`one-subagent` or `parallel-subagents`.\n"
-                f"- Capability discovery: {descriptor.native_discovery_hint}\n"
-                f"- Dispatch: {descriptor.native_dispatch_hint}\n"
-                f"- Join: {descriptor.native_join_hint}\n"
-                "- Lifecycle: `spawn_subagent` → capture id → "
-                "`get_command_or_subagent_output(task_ids=[...], timeout_ms=...)` → "
-                "optional `kill_command_or_subagent` only for unfinished work; "
-                "optional `resume_from` for same-type continuation.\n"
-                "- Required spawn fields: self-contained `prompt` and short "
-                "`description` (3-5 words). Do not omit description.\n"
-                "- Type/mode defaults for this workflow: evidence/read sweeps use "
-                "`explore` + `capability_mode=read-only`; planning/analysis uses "
-                "`plan` + `read-only`; implementation/fix/validation uses "
-                "`general-purpose` with the narrowest safe "
-                "`capability_mode` (`read-write` or `execute`).\n"
-                "- Isolation: default `none` so the Leader retains leased artifact "
-                "authority; use `worktree` only for colliding source-edit lanes "
-                "(never with `cwd`). Never grant workers authority to write "
-                "stage-owned contracts or STATUS.\n"
-                "- Parallel wave: launch all independent `spawn_subagent` calls "
-                "before any join; rejoin with one `task_ids` list when possible.\n"
-                "- Do not route ordinary blocked lanes through the Rhai "
-                "`workflow` tool or invent a managed-team path; Grok has no "
-                "`sp-teams` durable surface. Record `capability_degraded` or "
-                "`subagent-blocked` instead.\n"
-                "- Light mode stays `leader-inline`.\n"
-                "- Standard mode dispatches when native surface is available; if "
-                "unavailable and no high-risk trigger is present, record "
-                "`capability_degraded: true` with `execution_surface: leader-inline`.\n"
-                "- Heavy or safety-critical work that needs native lanes must "
-                "record `subagent-blocked` with `execution_surface: none` rather "
-                "than silently remaining inline.\n"
-                "- Workers return structured evidence or inline result payloads. "
-                "The Leader alone runs stage-owned `specify-runtime result submit` "
-                "(or implement `result-merge`) and mutates workflow artifacts "
-                "through leased `specify-runtime artifact` / `tasks` commands.\n"
-                f"- Result contract: {descriptor.result_contract_hint}\n"
-                f"- Result submit: {descriptor.result_submit_hint}\n"
-            )
-            sections.append((command_name, heading, body))
-        return sections
+        return (
+            f"- Tool surface (Grok Build install): dispatch with `{dispatch_tool}` "
+            f"(required `prompt` + short `description`); join with `{join_tool}` "
+            "(`task_ids`, optional `timeout_ms`); cancel unfinished work only with "
+            "`kill_command_or_subagent`. Prefer `explore`+`capability_mode=read-only` "
+            "for evidence, `plan`+`read-only` for planning analysis, and "
+            "`general-purpose` with the narrowest safe mode for implement/test/"
+            "validation. Default isolation `none`; use `worktree` only when "
+            "independent source edits must not collide. Do not use the Rhai "
+            "`workflow` tool or invent `sp-teams` as a managed-team fallback.\n"
+        )
 
 
 __all__ = ["GrokIntegration", "GrokMultiAgentAdapter"]

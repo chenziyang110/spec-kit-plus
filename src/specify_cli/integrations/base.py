@@ -1004,6 +1004,30 @@ class IntegrationBase(ABC):
             )
         return content + addendum
 
+    @staticmethod
+    def native_dispatch_join_tools(
+        snapshot: CapabilitySnapshot | None,
+    ) -> tuple[str, str]:
+        """Return (dispatch_tool, join_tool) names for the active surface.
+
+        Policy text follows the Codex-standard subagent lifecycle. Tool names
+        come from the integration snapshot so Grok/Cursor/etc. keep their real
+        APIs while sharing the same dispatch rules.
+        """
+
+        if snapshot is None:
+            return "spawn_agent", "wait_agent"
+        surface = str(snapshot.native_worker_surface or "").strip().lower()
+        if surface == "spawn_subagent":
+            return "spawn_subagent", "get_command_or_subagent_output"
+        if surface == "spawn_agent":
+            return "spawn_agent", "wait_agent"
+        if surface == "cursor-task":
+            return "Task", "Task await/resume"
+        if surface == "native-cli":
+            return "native subagent dispatch", "native join"
+        return "native subagent dispatch", "native join"
+
     def runtime_capability_snapshot(self) -> CapabilitySnapshot:
         """Return the best available capability snapshot for this integration."""
 
@@ -3637,6 +3661,7 @@ class SkillsIntegration(IntegrationBase):
         content = debug_skill.read_text(encoding="utf-8")
         agent_name_full = self.config.get("name", self.key.capitalize())
         agent_name = agent_name_full.replace(" CLI", "")
+        dispatch_tool, join_tool = self.native_dispatch_join_tools(snapshot)
 
         content = self._append_runtime_project_cognition_gate(
             content=content,
@@ -3658,7 +3683,7 @@ class SkillsIntegration(IntegrationBase):
                 "- Use `leader-inline` for a small focused investigation with one short evidence chain.\n"
                 "- Use `subagent-assisted` when there are two or more independent evidence-gathering lanes, broad surface area, or meaningful parallelism.\n"
                 "- If the next step is unsafe, unavailable, or unpacketizable, persist `subagent-blocked`, `execution_surface: none`, and a concrete `blocked_reason` through a fresh `specify-runtime artifact patch` lease before stopping.\n"
-                f"- Use `wait_agent` at the investigation join point and integrate returned results. {NATIVE_SUBAGENT_TERMINAL_GUIDANCE}\n"
+                f"- Use `{join_tool}` at the investigation join point and integrate returned results. {NATIVE_SUBAGENT_TERMINAL_GUIDANCE}\n"
                 "\n"
                 "**Hard rule:** During `investigating`, the leader must not let subagents mutate the debug file, declare the root cause final, or advance the session state.\n"
             )
@@ -3684,9 +3709,9 @@ class SkillsIntegration(IntegrationBase):
                 "deep fallback reasoning task for a fresh subagent.\n"
                 "\n"
                 "**When you receive a think_subagent_prompt:**\n"
-                "- Spawn a subagent with the exact prompt text via `spawn_agent`.\n"
+                f"- Spawn a subagent with the exact prompt text via `{dispatch_tool}`.\n"
                 "- The think subagent does NOT read source code and does NOT run commands — it is a pure reasoning agent.\n"
-                "- Use `wait_agent` to wait for the think subagent's result.\n"
+                f"- Use `{join_tool}` to wait for the think subagent's result.\n"
                 "- The result is hybrid: free-text analysis followed by `---` and a YAML block.\n"
                 "- Parse the YAML block after `---` in memory, acquire a fresh debug-session lease with `specify-runtime artifact prepare`, and persist these fields with `specify-runtime artifact patch`:\n"
                 "  - `causal_map` (symptom_anchor, closed_loop_path, break_edges, bypass_paths, family_coverage, candidates, adjacent_risk_targets, dimension_scan, candidate_board)\n"
@@ -3720,7 +3745,7 @@ class SkillsIntegration(IntegrationBase):
             "- One safe isolated evidence lane -> `one-subagent` when the current runtime supports it safely.\n"
             "- Two or more independent evidence lanes -> `parallel-subagents` when the current runtime supports it safely.\n"
             "- Unsafe, unavailable, or unpacketizable next step -> persist `subagent-blocked`, `execution_surface: none`, and `blocked_reason` through a fresh `specify-runtime artifact patch` lease.\n"
-            f"- If there are two or more independent evidence-gathering lanes, dispatch subagents through `spawn_agent` instead of doing manual sequential investigation.\n"
+            f"- If there are two or more independent evidence-gathering lanes, dispatch subagents through `{dispatch_tool}` instead of doing manual sequential investigation.\n"
             "- Suitable subagent tasks include running targeted tests or repro commands, collecting logs and exit codes, searching for error text, tracing isolated code paths, and gathering evidence after diagnostic logging has been added.\n"
             "- Query `diagnostic_profile` through `specify-runtime artifact show` before choosing subagent lanes.\n"
             "- The leader **MUST** replace the debug session's `Current Focus` through a fresh `specify-runtime artifact patch --section` lease before dispatching subagents and treat subagent work as evidence collection for the current hypothesis.\n"
@@ -3733,7 +3758,7 @@ class SkillsIntegration(IntegrationBase):
             "- Wait for every delegated lane's structured handoff before accepting the join point or changing the investigation stage.\n"
             "- Do not treat an idle subagent as done work; idle without a consumed handoff means the evidence lane is still unresolved.\n"
             "- Do not interrupt or shut down subagent work before the handoff has been returned inline, submitted through its runtime result owner, or explicitly reported as `BLOCKED` or `NEEDS_CONTEXT`.\n"
-            f"- Use `wait_agent` only after the current investigation fan-out reaches its join point.\n"
+            f"- Use `{join_tool}` only after the current investigation fan-out reaches its join point.\n"
             f"- {NATIVE_SUBAGENT_TERMINAL_GUIDANCE}\n"
             "- Do not resolve the session directly from successful automated verification. Successful automated verification must hand off into formal human verification.\n"
             "- If human feedback reports another problem, classify it as `same_issue`, `derived_issue`, or `unrelated_issue` and persist the classification through a fresh `specify-runtime artifact patch` lease.\n"
@@ -3768,6 +3793,7 @@ class SkillsIntegration(IntegrationBase):
         content = quick_skill.read_text(encoding="utf-8")
         agent_name_full = self.config.get("name", self.key.capitalize())
         agent_name = agent_name_full.replace(" CLI", "")
+        dispatch_tool, join_tool = self.native_dispatch_join_tools(snapshot)
 
         content = self._append_runtime_project_cognition_gate(
             content=content,
@@ -3794,9 +3820,9 @@ class SkillsIntegration(IntegrationBase):
                 "- After understanding is confirmed, define the smallest safe delegated lane or ready batch, and choose the dispatch shape for that batch.\n"
                 "- Dispatch `one-subagent` when one validated `WorkerTaskPacket` or equivalent execution contract preserves quality.\n"
                 "- Dispatch `parallel-subagents` when two or more safe subagent lanes would materially improve throughput.\n"
-                f"- Use `native-subagents` through `spawn_agent` before considering any fallback path.\n"
+                f"- Use `native-subagents` through `{dispatch_tool}` before considering any fallback path.\n"
                 "- If that bar is not met, keep the lane on the leader path until the missing context, constraints, validation target, or handoff expectations are explicit.\n"
-                f"- Use `wait_agent` only at the current join point and integrate returned results. {NATIVE_SUBAGENT_TERMINAL_GUIDANCE}\n"
+                f"- Use `{join_tool}` only at the current join point and integrate returned results. {NATIVE_SUBAGENT_TERMINAL_GUIDANCE}\n"
                 "- Wait for every subagent's structured handoff before accepting the join point, closing the batch, or declaring completion.\n"
                 "- Do not treat an idle subagent as done work; idle without a consumed handoff means the result channel is still unresolved.\n"
                 "- Do not interrupt or shut down subagent work before the handoff has been returned inline, submitted through its runtime result owner, or explicitly reported as `BLOCKED` or `NEEDS_CONTEXT`.\n"
@@ -3833,10 +3859,10 @@ class SkillsIntegration(IntegrationBase):
             "- Decision Checkpoint: before dispatch, stage/show the runtime Decision Checkpoint and Delivery Map (`quick checkpoint-stage` / `checkpoint-show`). Confirm only user-owned Q1/Q2 deliverables, dependencies, and acceptance; never ask users to approve subagent/batch/file choreography. Prefer `packet-compile` + `item-start`/`item-accept` for DAG-gated execution.\n"
             "- Dispatch `one-subagent` or `parallel-subagents` only after the Decision Checkpoint is confirmed or inherited.\n"
             "- Use `subagent-blocked` when the selected native lane cannot proceed and no authorized safe route remains; do not require or invoke `managed-team`/`sp-teams` unless durable execution was explicitly selected. Patch the blocker reason into `STATUS.md` through a fresh `specify-runtime artifact patch` lease.\n"
-            f"- Use `spawn_agent` for bounded lanes such as focused repository analysis, targeted implementation, regression test updates, or validation command runs.\n"
+            f"- Use `{dispatch_tool}` for bounded lanes such as focused repository analysis, targeted implementation, regression test updates, or validation command runs.\n"
             "- Once the first lane is chosen, dispatch it before continuing any leader-inline deep-dive analysis of the repository.\n"
             "- If multiple safe subagent lanes exist and they materially improve throughput, dispatch them in parallel.\n"
-            f"- Use `wait_agent` only at the documented join point for the current quick-task batch.\n"
+            f"- Use `{join_tool}` only at the documented join point for the current quick-task batch.\n"
             f"- {NATIVE_SUBAGENT_TERMINAL_GUIDANCE}\n"
             "- Keep `.planning/quick/<id>-<slug>/STATUS.md` as the leader-owned source of truth.\n"
             "- Subagents may return evidence, patches, and verification output, but they must not become the authority for resume state; the leader patches `STATUS.md` through fresh `specify-runtime artifact patch` leases before and after each join point.\n"

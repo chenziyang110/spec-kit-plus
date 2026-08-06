@@ -100,29 +100,43 @@ def _install_grok(project: Path, *, workflow_profile: str = "classic") -> Path:
 def test_classic_grok_plan_and_tasks_wire_spawn_subagent_and_result_submit(tmp_path: Path):
     skills_dir = _install_grok(tmp_path / "classic-grok-native")
 
+    specify = (skills_dir / "sp-specify" / "SKILL.md").read_text(encoding="utf-8")
     plan = (skills_dir / "sp-plan" / "SKILL.md").read_text(encoding="utf-8")
     tasks = (skills_dir / "sp-tasks" / "SKILL.md").read_text(encoding="utf-8")
     implement = (skills_dir / "sp-implement" / "SKILL.md").read_text(encoding="utf-8")
+    map_scan = (skills_dir / "sp-map-scan" / "SKILL.md").read_text(encoding="utf-8")
+    quick = (skills_dir / "sp-quick" / "SKILL.md").read_text(encoding="utf-8")
 
-    for content, label in ((plan, "plan"), (tasks, "tasks"), (implement, "implement")):
+    for content, label in (
+        (specify, "specify"),
+        (plan, "plan"),
+        (tasks, "tasks"),
+        (implement, "implement"),
+        (map_scan, "map-scan"),
+        (quick, "quick"),
+    ):
         assert "spawn_subagent" in content, label
         assert "get_command_or_subagent_output" in content, label
-        assert "kill_command_or_subagent" in content, label
-        assert "capability_mode" in content, label
-        assert "task_ids" in content, label
+        # Codex policy strength: do not soft-gate all dispatch behind adaptive selection.
+        assert "only when the adaptive decision selects" not in content, label
         assert "no known native subagent surface is configured" not in content.lower(), label
         assert "No subagent dispatch path for this session." not in content, label
-        assert "sp-teams" in content or "managed-team" in content.lower(), label
 
-    assert "Grok Subagent Capability Discovery" in plan
-    assert "Grok Subagent Capability Discovery" in tasks
-    assert "result submit --command plan" in plan
-    assert "result submit --command tasks" in tasks
+    # Codex-standard section names + Grok tool surface.
+    assert "Grok Subagents-First Dispatch" in specify
+    assert "Use `spawn_subagent` for bounded source-file sweep" in specify
     assert "Grok Adaptive Dispatch" in plan
     assert "Grok Adaptive Dispatch" in tasks
-    assert "Grok Adaptive Dispatch" in implement
-    assert "description" in plan
-    assert "worktree" in implement or "isolation" in implement
+    assert "choose_subagent_dispatch" in plan
+    assert "Standard mode uses `spawn_subagent`" in plan
+    assert "Grok Subagents-First Dispatch" in map_scan
+    assert "subagents-first dispatch model" in map_scan
+    assert "Grok Adaptive Execution" in implement or "Grok Leader Gate" in implement
+    assert "spawn_subagent" in quick and "wait_agent" not in quick.split("Grok Leader Gate")[-1][:800]
+    assert "result submit --command plan" in plan
+    assert "result submit --command tasks" in tasks
+    assert "Tool surface (Grok Build install)" in plan
+    assert "kill_command_or_subagent" in plan
 
 
 def test_advanced_grok_native_subagent_reference_binds_spawn_subagent(tmp_path: Path):
