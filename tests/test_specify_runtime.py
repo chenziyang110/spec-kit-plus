@@ -416,6 +416,66 @@ def test_runtime_runner_can_install_when_missing(
     assert calls == [[str(binary), "validate", "spec", "--feature-dir", "."]]
 
 
+def test_ensure_binary_prefers_release_download_even_when_source_build_flagged(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """uvx --from git sets source_build_required; release download must still win."""
+    runtime = _load_runtime()
+    cache = tmp_path / "cache"
+    cache.mkdir()
+    downloaded = tmp_path / "downloaded-runtime"
+    build_calls: list[str] = []
+    download_calls: list[str] = []
+
+    monkeypatch.delenv("SPECIFY_RUNTIME_BIN", raising=False)
+    monkeypatch.setattr(runtime, "cache_dir", lambda: cache)
+    monkeypatch.setattr(
+        runtime,
+        "cached_executable",
+        lambda: cache / RUNTIME_BINARY_NAME,
+    )
+    monkeypatch.setattr(
+        runtime,
+        "current_runtime_binding_metadata",
+        lambda: {
+            "source_build_required": True,
+            "specify_launcher_kind": "source_bound",
+        },
+    )
+    monkeypatch.setattr(runtime, "_cached_binary_is_compatible", lambda *_a, **_k: False)
+
+    def fake_download(version: str, destination: Path | None = None) -> Path:
+        download_calls.append(version)
+        dest = destination or downloaded
+        _write_executable(Path(dest))
+        return Path(dest)
+
+    def fake_build(*_args: object, **_kwargs: object) -> Path:
+        build_calls.append("built")
+        raise AssertionError("source build must not run when release download succeeds")
+
+    monkeypatch.setattr(runtime, "download", fake_download)
+    monkeypatch.setattr(runtime, "_build_supported_binary_from_source", fake_build)
+    monkeypatch.setattr(runtime, "_ensure_supported_binary", lambda binary, _version: binary)
+    monkeypatch.setattr(runtime, "interprocess_lock", lambda _path: _NullLock())
+
+    result = runtime.ensure_binary("v0.6.9")
+
+    assert result == cache / RUNTIME_BINARY_NAME
+    assert result.is_file()
+    assert download_calls == ["v0.6.9"]
+    assert build_calls == []
+
+
+class _NullLock:
+    def __enter__(self) -> "_NullLock":
+        return self
+
+    def __exit__(self, *_exc: object) -> None:
+        return None
+
+
 def test_default_runtime_version_pins_stable_packages_and_tracks_dev_latest(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

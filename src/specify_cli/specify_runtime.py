@@ -703,7 +703,13 @@ def _runtime_contract_fingerprint() -> str:
 
 
 def current_runtime_binding_metadata() -> dict[str, Any]:
-    """Describe when the current Specify install requires a source-aligned runtime."""
+    """Describe launcher binding and whether a source build may be used as fallback.
+
+    ``source_build_required`` means a source-aligned build is *available as a
+    fallback* when the release asset is missing or lacks required capabilities.
+    It does **not** mean release download is skipped: ``ensure_binary`` always
+    prefers a compatible prebuilt release first.
+    """
 
     from specify_cli.launcher import resolve_specify_launcher_spec
 
@@ -786,21 +792,21 @@ def _source_build_marker_matches(binary: Path) -> bool:
 
 
 def _cached_binary_is_compatible(binary: Path, version: str = DEFAULT_VERSION) -> bool:
-    binding = current_runtime_binding_metadata()
-    if bool(binding.get("source_build_required")):
-        return _source_build_marker_matches(binary) and _binary_is_compatible(
-            binary,
-            allow_dirty=True,
-        )
-    if _source_build_marker_matches(binary):
-        return _binary_is_compatible(binary, allow_dirty=True)
+    # Prefer reusing either a matching source-built binary or a compatible
+    # release binary. Source-bound installs no longer reject release caches.
+    if _source_build_marker_matches(binary) and _binary_is_compatible(
+        binary,
+        allow_dirty=True,
+    ):
+        return True
     return _release_binary_is_compatible(binary, version)
 
 
 def _build_from_source(source_dir: Path, dest: Path) -> Path:
     if shutil.which("go") is None:
         raise SpecifyRuntimeError(
-            f"{RUNTIME_COMMAND} release asset is unavailable and Go is not on PATH"
+            f"{RUNTIME_COMMAND} source build requires Go on PATH "
+            f"(used only after release download is unavailable or incompatible)"
         )
 
     cache_dir().mkdir(parents=True, exist_ok=True)
@@ -857,7 +863,18 @@ def _ensure_supported_binary(binary: Path, version: str) -> Path:
 
 
 def ensure_binary(version: str = DEFAULT_VERSION, force: bool = False) -> Path:
-    """Return a cached specify-runtime binary, downloading release assets when needed."""
+    """Return a cached specify-runtime binary, preferring release assets.
+
+    Order:
+    1. ``SPECIFY_RUNTIME_BIN`` when set and compatible
+    2. Compatible cache hit (release or prior source build)
+    3. Download the prebuilt GitHub release asset
+    4. Fall back to bundled-source ``go build`` only if download fails or the
+       release binary lacks required protocol/capabilities
+
+    Source-bound / local-checkout installs (``source_build_required``) still
+    enable the source-build fallback; they no longer skip release download.
+    """
 
     env_argv = _env_argv()
     if env_argv:
@@ -872,7 +889,6 @@ def ensure_binary(version: str = DEFAULT_VERSION, force: bool = False) -> Path:
     cache = cache_dir()
     cache.mkdir(parents=True, exist_ok=True)
     dest = cached_executable()
-    binding = current_runtime_binding_metadata()
     if dest.exists() and not force and _cached_binary_is_compatible(dest, version):
         return dest
 
@@ -880,12 +896,6 @@ def ensure_binary(version: str = DEFAULT_VERSION, force: bool = False) -> Path:
         dest = cached_executable()
         if dest.exists() and not force and _cached_binary_is_compatible(dest, version):
             return dest
-        if bool(binding.get("source_build_required")):
-            return _build_supported_binary_from_source(
-                dest,
-                version,
-                "the current Specify installation requires a source-aligned runtime",
-            )
 
         candidate_fd, candidate_name = tempfile.mkstemp(
             prefix=f".{dest.name}.", suffix=".candidate", dir=cache
