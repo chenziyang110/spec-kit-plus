@@ -23,6 +23,7 @@ NativeWorkerSurface = Literal[
     "none",
     "native-cli",
     "spawn_agent",
+    "spawn_subagent",
     "cursor-task",
 ]
 DelegationConfidence = Literal["low", "medium", "high"]

@@ -139,6 +139,7 @@ class IntegrationBase(ABC):
         "subagent-assisted",
         "native-subagents",
         "spawn_agent",
+        "spawn_subagent",
         "task tool",
     )
     COMMAND_REFERENCE_WORKFLOWS = frozenset(

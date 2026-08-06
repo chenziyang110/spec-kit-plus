@@ -103,6 +103,35 @@ def describe_delegation_surface(
             "Rejoin with `wait_agent` and integrate terminal results. "
             f"{NATIVE_SUBAGENT_TERMINAL_GUIDANCE}"
         )
+    elif snapshot.native_worker_surface == "spawn_subagent":
+        native_discovery_hint = (
+            "Before recording `subagent-blocked`, confirm the active Grok Build "
+            "surface exposes `spawn_subagent` and `get_command_or_subagent_output` "
+            "(and `kill_command_or_subagent` for cancel). If those tools are not "
+            "visible, record the exact missing surface before any fallback."
+        )
+        native_dispatch_hint = (
+            "Dispatch bounded lanes with `spawn_subagent` "
+            "(subagent_type=`explore` for read-only evidence, "
+            "`general-purpose` for bounded implementation/fix/validation, "
+            "`plan` for read-only planning analysis). Pass a self-contained "
+            "prompt with explicit read/write scope, authoritative inputs, "
+            "acceptance criteria, and the stage-owned result contract. Prefer "
+            "`capability_mode`/`isolation` that keep workflow-owned artifacts "
+            "leader-only. Launch independent lanes as parallel `spawn_subagent` "
+            "calls when the dispatch shape is `parallel-subagents`."
+        )
+        native_join_hint = (
+            "Capture every returned `subagent_id`/`task_id`, rejoin with "
+            "`get_command_or_subagent_output`, and integrate only terminal "
+            "results. Interrupt unfinished work only through "
+            "`kill_command_or_subagent`. Workers return structured evidence or "
+            "inline result payloads for the Leader; the Leader alone runs "
+            "stage-owned `specify-runtime result submit` / "
+            "`implement result-merge` and writes plan-contract / task-index / "
+            "STATUS through leased artifact commands. "
+            f"{NATIVE_SUBAGENT_TERMINAL_GUIDANCE}"
+        )
     elif snapshot.native_worker_surface == "cursor-task":
         native_discovery_hint = (
             "Before recording `subagent-blocked`, confirm the active Cursor tool "

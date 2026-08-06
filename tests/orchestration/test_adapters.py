@@ -5,6 +5,7 @@ from specify_cli.integrations.codex import CodexMultiAgentAdapter
 from specify_cli.integrations.copilot import CopilotMultiAgentAdapter
 from specify_cli.integrations.cursor_agent import CursorMultiAgentAdapter
 from specify_cli.integrations.gemini import GeminiMultiAgentAdapter
+from specify_cli.integrations.grok import GrokMultiAgentAdapter
 from specify_cli.integrations.mimo import MimoMultiAgentAdapter
 
 
@@ -14,6 +15,7 @@ def test_multi_agent_adapter_protocol_shape():
     assert isinstance(GeminiMultiAgentAdapter(), MultiAgentAdapter)
     assert isinstance(CopilotMultiAgentAdapter(), MultiAgentAdapter)
     assert isinstance(CursorMultiAgentAdapter(), MultiAgentAdapter)
+    assert isinstance(GrokMultiAgentAdapter(), MultiAgentAdapter)
     assert isinstance(MimoMultiAgentAdapter(), MultiAgentAdapter)
 
 
@@ -54,6 +56,21 @@ def test_cursor_adapter_capability_snapshot():
     assert snapshot.native_worker_surface == "cursor-task"
     assert snapshot.delegation_confidence == "medium"
     assert any("task" in note.lower() for note in snapshot.notes)
+    assert snapshot.runtime_probe_succeeded is True
+
+
+def test_grok_adapter_capability_snapshot():
+    snapshot = GrokMultiAgentAdapter().detect_capabilities()
+
+    assert isinstance(snapshot, CapabilitySnapshot)
+    assert snapshot.integration_key == "grok"
+    assert snapshot.native_subagents is True
+    assert snapshot.structured_results is True
+    assert snapshot.managed_team_supported is False
+    assert snapshot.durable_coordination is False
+    assert snapshot.native_worker_surface == "spawn_subagent"
+    assert snapshot.delegation_confidence in {"medium", "high"}
+    assert any("spawn_subagent" in note for note in snapshot.notes)
     assert snapshot.runtime_probe_succeeded is True
 
 

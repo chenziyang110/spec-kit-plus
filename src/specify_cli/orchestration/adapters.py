@@ -40,9 +40,20 @@ _MODEL_ENV_KEYS: dict[str, tuple[str, ...]] = {
     "codex": ("OPENAI_MODEL", "CODEX_MODEL"),
     "gemini": ("GEMINI_MODEL",),
     "copilot": ("COPILOT_MODEL", "GITHUB_COPILOT_MODEL"),
+    "grok": ("GROK_MODEL", "XAI_MODEL"),
 }
 _LOW_CONFIDENCE_MODEL_MARKERS = ("mini", "haiku", "flash", "nano")
-_HIGH_CONFIDENCE_MODEL_MARKERS = ("opus", "sonnet", "gpt-5", "gpt-4", "o3", "o4", "pro")
+_HIGH_CONFIDENCE_MODEL_MARKERS = (
+    "opus",
+    "sonnet",
+    "gpt-5",
+    "gpt-4",
+    "o3",
+    "o4",
+    "pro",
+    "grok-4",
+    "grok-3",
+)
 
 
 def normalize_command_name(command_name: str) -> str:
