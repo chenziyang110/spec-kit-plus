@@ -31,71 +31,33 @@ type quickCognitionCloseoutReceipt struct {
 }
 
 func (service quickService) recordCognitionCloseout(workspacePath, resultState, reason, updateID string, evidence []string) (map[string]any, error) {
-	state := strings.ToLower(strings.TrimSpace(resultState))
-	// Accept planner aliases used in STATUS prose.
-	switch state {
-	case "partial_refresh":
-		state = "partial"
-	case "dirty", "mark_dirty":
-		state = "mark-dirty"
-	case "noop", "no-op":
-		state = "no_op"
-	}
-	if !quickCognitionCloseoutAllowedStates[state] && state != "needs_rebuild" && state != "blocked" {
-		return nil, fmt.Errorf("cognition-closeout --result-state must be ready|no_op|mark-dirty|partial|needs_rebuild|blocked (got %q)", resultState)
-	}
-	if (state == "mark-dirty" || state == "partial" || state == "needs_rebuild" || state == "blocked" || state == "no_op") && strings.TrimSpace(reason) == "" {
-		return nil, fmt.Errorf("cognition-closeout with result_state=%s requires --reason (greenfield empty graph, no_op scope, or dirty fallback must be explicit)", state)
-	}
-	receipt := quickCognitionCloseoutReceipt{
-		Version:     quickCognitionCloseoutVersion,
-		Workflow:    "sp-quick",
-		ResultState: state,
-		Reason:      strings.TrimSpace(reason),
-		Evidence:    evidence,
-		UpdateID:    strings.TrimSpace(updateID),
-		RecordedAt:  nowUTCString(),
-	}
-	if receipt.Evidence == nil {
-		receipt.Evidence = []string{}
-	}
-	raw, err := json.MarshalIndent(receipt, "", "  ")
+	payload, err := recordMutationCognitionReceipt(workspacePath, "sp-quick", filepath.Base(workspacePath), resultState, reason, updateID, evidence)
 	if err != nil {
 		return nil, err
 	}
-	path := filepath.Join(workspacePath, quickCognitionCloseoutFileName)
-	if err := writeScriptTextFile(path, string(raw)+"\n"); err != nil {
+	state := fmt.Sprint(payload["result_state"])
+	if err := service.patchStatusProjectCognitionRefresh(workspacePath, state, fmt.Sprint(payload["reason"]), evidence); err != nil {
 		return nil, err
 	}
-	if err := service.patchStatusProjectCognitionRefresh(workspacePath, state, receipt.Reason, receipt.Evidence); err != nil {
-		return nil, err
-	}
-	return map[string]any{
-		"receipt_path":  filepath.ToSlash(path),
-		"result_state":  state,
-		"reason":        receipt.Reason,
-		"evidence":      receipt.Evidence,
-		"update_id":     receipt.UpdateID,
-		"recorded_at":   receipt.RecordedAt,
-		"status_synced": true,
-		"next_action":   "Run specify-runtime quick close <id> resolved after validation and SUMMARY are ready.",
-	}, nil
+	payload["status_synced"] = true
+	payload["next_action"] = "Run specify-runtime quick close <id> resolved after validation and SUMMARY are ready."
+	return payload, nil
 }
 
 func (service quickService) loadCognitionCloseout(workspacePath string) (*quickCognitionCloseoutReceipt, error) {
-	path := filepath.Join(workspacePath, quickCognitionCloseoutFileName)
-	raw, err := os.ReadFile(path)
-	if os.IsNotExist(err) {
-		return nil, nil
-	}
-	if err != nil {
+	receipt, err := loadMutationCognitionReceipt(workspacePath)
+	if err != nil || receipt == nil {
 		return nil, err
 	}
-	var receipt quickCognitionCloseoutReceipt
-	if err := json.Unmarshal(raw, &receipt); err != nil {
-		return nil, fmt.Errorf("cognition-closeout.json is invalid: %w", err)
-	}
-	return &receipt, nil
+	return &quickCognitionCloseoutReceipt{
+		Version:     receipt.Version,
+		Workflow:    receipt.Workflow,
+		ResultState: receipt.ResultState,
+		Reason:      receipt.Reason,
+		Evidence:    receipt.Evidence,
+		UpdateID:    receipt.UpdateID,
+		RecordedAt:  receipt.RecordedAt,
+	}, nil
 }
 
 func (service quickService) cognitionCloseoutStatus(workspacePath string) map[string]any {
@@ -122,7 +84,7 @@ func (service quickService) cognitionCloseoutStatus(workspacePath string) map[st
 		out["result_state"] = receipt.ResultState
 		out["reason"] = receipt.Reason
 		out["receipt_path"] = filepath.ToSlash(filepath.Join(workspacePath, quickCognitionCloseoutFileName))
-		out["allowed_close"] = quickCognitionCloseoutAllowedStates[receipt.ResultState]
+		out["allowed_close"] = mutationCognitionAllowedStates[normalizeMutationCognitionState(receipt.ResultState)]
 		if !needs {
 			out["allowed_close"] = true
 		}
@@ -139,7 +101,7 @@ func (service quickService) cognitionCloseoutStatus(workspacePath string) map[st
 			// Source-changing work requires the durable receipt file, not only STATUS prose.
 			out["allowed_close"] = false
 			out["status"] = "missing-receipt"
-		} else if bodyState == "not-needed" || quickCognitionCloseoutAllowedStates[bodyState] {
+		} else if bodyState == "not-needed" || mutationCognitionAllowedStates[bodyState] {
 			out["allowed_close"] = true
 		}
 	}

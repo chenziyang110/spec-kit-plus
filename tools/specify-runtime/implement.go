@@ -209,6 +209,19 @@ func runImplementCloseout(args []string, stdout io.Writer) int {
 		}
 		return writeEnvelope(stdout, env)
 	}
+	// Source-changing implement must refresh project cognition before handoff freeze.
+	if err := requireMutationCognitionReceipt(feature, "sp-implement"); err != nil {
+		env := NewEnvelope("blocked", "implement closeout blocked by missing project cognition mutation receipt")
+		env.Data = map[string]any{
+			"status":             "blocked",
+			"feature_dir":        feature,
+			"cognition_closeout": mutationCognitionStatus(feature),
+			"error":              err.Error(),
+		}
+		env.Blockers = []any{err.Error()}
+		env.NextArgv = []string{"specify-runtime", "cognition", "mutation-receipt", "--workflow", "sp-implement", "--feature-dir", feature, "--result-state", "ready", "--reason", "<after-update-or-mark-dirty>", "--format", "json"}
+		return writeEnvelope(stdout, env)
+	}
 	workflow, _ := readImplementJSONMap(filepath.Join(feature, "workflow.json"))
 	revision := 1
 	if raw, ok := workflow["revision"].(float64); ok {

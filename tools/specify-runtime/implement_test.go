@@ -713,6 +713,12 @@ func newImplementFeatureProject(t *testing.T) (string, string, string) {
 	writeTextFile(t, filepath.Join(feature, "tasks.md"), "# Tasks\n\n- [X] T001 [US1] Update implementation in src/demo.go\n")
 	writeTextFile(t, filepath.Join(feature, "implement-tracker.md"), "---\nstatus: resolved\nfeature: 001-budget\n---\n\n## Open Gaps\n\n")
 	mustMkdir(t, filepath.Join(feature, "worker-results"))
+	// Mutation workflows must leave a project-cognition receipt before closeout/complete-stage.
+	writeImplementJSONFile(t, filepath.Join(feature, "cognition-closeout.json"), map[string]any{
+		"version": 1, "workflow": "sp-implement", "result_state": "ready",
+		"reason": "test fixture inline update", "evidence": []any{"pytest -q"},
+		"recorded_at": "2026-08-06T00:00:00Z",
+	})
 	return project, feature, filepath.ToSlash(filepath.Join(".specify", "features", "001-budget"))
 }
 

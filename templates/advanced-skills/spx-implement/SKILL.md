@@ -133,6 +133,9 @@ It exclusively and atomically writes `implementation-summary.md` and
 logical-gate count, and attempt history; never author, patch, replace, or
 generically submit those files. Then run
 `{{specify-subcmd:specify-runtime cognition closeout-plan --workflow sp-implement --intent implement --format json}}`
+then execute update/validate-build/complete-refresh (or mark-dirty), and stamp
+`{{specify-subcmd:specify-runtime cognition mutation-receipt --workflow sp-implement --feature-dir <feature-dir> --result-state ready|no_op|mark-dirty|partial --reason "<text>" --format json}}`
+**before** `implement closeout` / `workflow complete-stage` (runtime hard gate)
 with explicit workflow-owned paths, fill returned agent-owned fields, and execute
 structured `update_argv`. Apply the receipt-bound finalizer gate in
 `references/project-cognition.md` before any clean claim. Report changed files, checks actually run, failures or skipped

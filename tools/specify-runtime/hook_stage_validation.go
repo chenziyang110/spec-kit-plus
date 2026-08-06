@@ -178,6 +178,10 @@ func validateHookImplementArtifacts(projectRoot, featurePath string) error {
 	// for complete-stage. Re-running live resume-audit here races fingerprint
 	// drift from post-closeout state-file patches (workflow-state.md, etc.).
 	if strings.TrimSpace(fmt.Sprint(handoff["status"])) == "ready_for_review" {
+		// Still require project-cognition mutation receipt for continuous map growth.
+		if err := requireMutationCognitionReceipt(featurePath, "sp-implement"); err != nil {
+			return err
+		}
 		return nil
 	}
 	audit := auditImplementResume(projectRoot, featurePath)

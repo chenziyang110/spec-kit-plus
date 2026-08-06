@@ -88,6 +88,8 @@ dependency-safe ready work; preserve the exact resume action in every blocked
 stop.
 
 {{spec-kit-include: ../command-partials/common/inline-project-cognition-update.md}}
+Before `implement closeout` or `workflow complete-stage`, stamp
+`specify-runtime cognition mutation-receipt --workflow sp-implement --feature-dir <feature-dir> --result-state ready|no_op|mark-dirty|partial --reason "…"`. Runtime blocks closeout without it so every implement pass grows project cognition.
 
 ## Detailed References
 

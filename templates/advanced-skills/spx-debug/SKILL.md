@@ -54,6 +54,9 @@ After agent verification and related-risk review, move to
 confirmation. Only after the lifecycle rules in the investigation contract are
 satisfied, run
 `{{specify-subcmd:specify-runtime cognition closeout-plan --workflow sp-debug --intent debug --format json}}`
+then update/finalize (or mark-dirty) and
+`{{specify-subcmd:specify-runtime cognition mutation-receipt --workflow sp-debug --feature-dir <feature-or-scope> --result-state ready|no_op|mark-dirty|partial --reason "<text>" --format json}}`
+before claiming the fix complete
 with explicit workflow-owned paths, fill returned agent-owned fields, and execute
 structured `update_argv`. Apply the receipt-bound finalizer gate in
 `references/project-cognition.md` before any clean claim. Finish

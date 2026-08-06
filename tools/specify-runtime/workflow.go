@@ -285,6 +285,21 @@ func (service *WorkflowService) CompleteStage(request WorkflowCompleteStageReque
 			return gate
 		}
 	}
+	// Mutation stages must leave a project-cognition receipt so greenfield maps keep growing.
+	if workflow, ok := mutationWorkflowForFeatureStage(state.Stage); ok {
+		if err := requireMutationCognitionReceipt(feature.Abs, workflow); err != nil {
+			env := NewEnvelope("blocked", err.Error())
+			env.Data["error_code"] = "mutation-cognition-closeout-required"
+			env.Data["feature_id"] = feature.ID
+			env.Data["stage"] = state.Stage
+			env.Data["cognition_closeout"] = mutationCognitionStatus(feature.Abs)
+			env.Data["validated_path"] = filepath.ToSlash(filepath.Join(feature.Rel, mutationCognitionReceiptFileName))
+			env.Blockers = []any{err.Error()}
+			env.NextArgv = []string{"specify-runtime", "cognition", "mutation-receipt", "--workflow", workflow, "--feature-dir", feature.Rel, "--result-state", "ready", "--reason", "<after-update-or-mark-dirty>", "--format", "json"}
+			addWorkflowStateData(&env, state)
+			return env
+		}
+	}
 	state.Revision++
 	state.Status = "completed"
 	if summary := strings.TrimSpace(request.Summary); summary != "" {

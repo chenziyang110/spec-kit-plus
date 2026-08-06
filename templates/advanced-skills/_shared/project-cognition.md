@@ -139,6 +139,14 @@ or graph confidence.
 
 ## Closeout after repository changes
 
+**Product goal:** project cognition is not optional polish. Every source-changing
+mutation (`sp-implement` / `spx-implement`, `sp-quick`, `sp-fast`, `sp-debug`,
+`sp-review` when it repairs code, `sp-map-update`) must refresh cognition so a
+new project’s map continuously improves—path_index, routes, claims, and
+compass utility grow with each iteration. Skipping update because the graph is
+still greenfield/empty is invalid; record `no_op` or `mark-dirty` with reason,
+then attempt a real update on the next mutation.
+
 Only an owning mutation skill may perform cognition closeout. Its `SKILL.md`
 provides the exact registry-owned `sp-*` workflow literal and
 `specify-runtime cognition closeout-plan` command;
@@ -175,6 +183,19 @@ pending finalization. For
 must not run `complete-refresh`; preserve the truthful state and returned
 recovery action. A failed, stale, blocked, or non-`query_ready` validation also
 must not run `complete-refresh`.
+
+After that chain (or after `mark-dirty`), stamp the hard gate receipt before
+terminal close:
+
+```text
+{{specify-subcmd:specify-runtime cognition mutation-receipt --workflow <canonical-sp-*> --feature-dir <scope> --result-state ready|no_op|mark-dirty|partial --reason "<text>" --format json}}
+```
+
+Runtime blocks `implement closeout` and implement/review `workflow complete-stage`
+without an allowed receipt. Quick uses the same receipt under its workspace
+(via `quick cognition-closeout` or `mutation-receipt`). Fast/debug must record
+the same receipt before claiming completion even when they lack a formal stage
+machine.
 
 Specification, plan, task, checklist, research, and other planning-only artifact
 changes do not make the code map dirty and do not require cognition closeout.

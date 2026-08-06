@@ -75,12 +75,17 @@ Use `{{specify-subcmd:specify-runtime cognition mark-dirty --reason "workflow-cl
 
 Greenfield / empty-graph minimum: when the baseline is `greenfield_empty` or compass returns no adoptable paths, agents must still record a terminal cognition outcome (`no_op` or `mark-dirty` with reason). Skipping because “there is no graph to update” is not compliant.
 
-For `sp-quick` / `spx-quick`, after the planner chain (or mark-dirty), record the durable close gate receipt **before** `quick close … resolved`:
+### Durable mutation receipt (all source-changing workflows)
+
+After the planner chain (or mark-dirty), record a durable receipt **before** any terminal close (`quick close … resolved`, `implement closeout`, `workflow complete-stage` for implement/review, or claiming fast/debug complete):
 
 ```text
-{{specify-subcmd:specify-runtime quick cognition-closeout <id> --result-state ready|no_op|mark-dirty|partial --reason "<text>" --format json}}
+{{specify-subcmd:specify-runtime cognition mutation-receipt --workflow {{project-cognition-workflow}} --feature-dir <feature-or-scope> --result-state ready|no_op|mark-dirty|partial --reason "<text>" --format json}}
 ```
 
-`quick close … resolved` rejects source-changing work without that receipt.
+- Feature workflows write `<feature-dir>/cognition-closeout.json`.
+- Quick may use the same file under the quick workspace, or `quick cognition-closeout` (wrapper).
+- Runtime **blocks** implement closeout and implement/review `complete-stage` without an allowed receipt.
+- Product goal: a greenfield project’s project-cognition graph **keeps growing** with every real code change. Prefer `ready` after update + validate-build + complete-refresh. Use `mark-dirty`/`no_op` only with an explicit reason; treat repeated dirty-only closeouts as a process defect to repair on the next mutation.
 
 sp-map-update is for manual/external maintenance and follow-up repair. `{{invoke:map-update}}` remains the external/manual workflow for user edits, interrupted workflow repair, explicit map maintenance, and follow-up repair. It is not routine cleanup for changes this workflow just made. If `sp-map-update` already ran `specify-runtime cognition update --reason map-update` for the same changed paths, do not run a second `workflow-finalize` closeout update for those paths.

@@ -177,7 +177,7 @@ func versionCommand(args []string, stdout io.Writer, stderr io.Writer, version s
 func printHelp(w io.Writer, version string) {
 	fmt.Fprintf(w, "specify-runtime cognition %s\n\n", version)
 	fmt.Fprintln(w, "Usage: specify-runtime cognition <command> [options]")
-	fmt.Fprintln(w, "Commands: status, check, repair-status, init-empty, archive-incompatible-store, generate-ignore, scan-set, scan-prepare, scan-lease, scan-packet, scan-checkpoint, scan-yield, scan-requeue, scan-status, scan-accept, mark-dirty, clear-dirty, record-refresh, complete-refresh, refresh-topics, validate-scan, validate-build, build-from-scan, import-scan, rebuild-from-scan, publish-runtime-metadata, changes, closeout-plan, update, claim-reconcile prepare|apply, lexicon, query, semantic-intake, semantic-audit, semantic-audit-resume, compass, expand, discover, read, doctor, rebuild, delta")
+	fmt.Fprintln(w, "Commands: status, check, repair-status, init-empty, archive-incompatible-store, generate-ignore, scan-set, scan-prepare, scan-lease, scan-packet, scan-checkpoint, scan-yield, scan-requeue, scan-status, scan-accept, mark-dirty, clear-dirty, record-refresh, complete-refresh, refresh-topics, validate-scan, validate-build, build-from-scan, import-scan, rebuild-from-scan, publish-runtime-metadata, changes, closeout-plan, mutation-receipt, update, claim-reconcile prepare|apply, lexicon, query, semantic-intake, semantic-audit, semantic-audit-resume, compass, expand, discover, read, doctor, rebuild, delta")
 }
 
 func claimReconcileCommand(args []string, stdout io.Writer, stderr io.Writer, paths rt.Paths) int {

@@ -698,6 +698,10 @@ func runCognition(args []string, stdout, stderr io.Writer, cliVersion string) in
 	if containsHelpFlag(args) {
 		return cognitioncli.Run(args, stdout, stderr, cliVersion)
 	}
+	// Shared hard-gate receipt for all mutation workflows (implement/quick/fast/debug/review).
+	if len(args) > 0 && strings.EqualFold(strings.TrimSpace(args[0]), "mutation-receipt") {
+		return runMutationCognitionReceiptCLI(args[1:], stdout)
+	}
 	cleanArgs, persistDir, persistErr := cognitionPersistenceOption(args)
 	if persistErr != nil {
 		return writeEnvelope(stdout, usageEnvelope(persistErr.Error()))
@@ -1015,6 +1019,7 @@ func defaultCapabilities() []string {
 		"cognition.closeout-plan",
 		"cognition.compass",
 		"cognition.complete-refresh",
+		"cognition.mutation-receipt",
 		"cognition.delta.append",
 		"cognition.delta.begin",
 		"cognition.delta.status",
@@ -1279,6 +1284,8 @@ func capabilitySummary(id string) string {
 		return "Resolve a persisted workflow blocker with evidence."
 	case "workflow.closeout":
 		return "Atomically bind passed human acceptance to terminal workflow state."
+	case "cognition.mutation-receipt":
+		return "Record a durable project-cognition mutation closeout receipt required before implement/quick/review terminal close."
 	case "implement.result-merge":
 		return "Merge a leader-submitted WorkerTaskResult with validation_results into task lifecycle state."
 	case "implement.task-reopen":
