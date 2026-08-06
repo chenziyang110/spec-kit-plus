@@ -42,8 +42,14 @@ then refine only affected frontmatter fields and named sections through leased
 and reproduce its stable boilerplate in memory. Infer repository evidence first, then ask one
 high-impact design question at a time when the answer can change hierarchy,
 density, component anatomy, motion, responsive/accessibility behavior,
-reference fidelity, or approval scope. Do not ask for a production framework
-merely to shape a framework-neutral preview. Confirm subject, audience, single
+reference fidelity, dial vectors, or approval scope. Do not ask for a production framework
+merely to shape a framework-neutral preview. For visual create and project-wide
+refine, patch taste intake into the brief before three-direction preview work:
+one-line `design_read`, dials (variance/motion/density) with inference reason,
+`aesthetic_family`, `foundation_strategy`, `redesign_mode` when live UI exists,
+surface-aware `anti_slop_locks`, and synthesize `reference_board_intents`
+(`mood`/`layout`/`type`/`color-only`) when references shape the board.
+Confirm subject, audience, single
 job, modules, locales, modes, platforms/viewports, comparison content,
 component/state coverage, meaningful motion and `prefers-reduced-motion`, and
 Must Preserve / May Adapt / Must Not boundaries. Record confirmed choices as
@@ -71,7 +77,9 @@ in that one self-contained board. The deterministic profile model supplies
 required capabilities, input modes, measurement units, specimen kinds, states,
 and targets. All directions carry the same ordered `specimen_ids`, and every
 acceptance row binds its profile's exact specimen set. Hold representative
-content and coverage constant so direction differences are comparable. Use
+content and coverage constant so direction differences are comparable, but force
+divergent `dials` triples and unique `signature_element` values—ready lint
+rejects undifferentiated boards. Use
 modern native HTML/CSS—custom properties, cascade layers,
 fluid scales, container queries, and progressive view transitions—with only
 bounded inline review logic and no framework, CDN, remote runtime dependency,

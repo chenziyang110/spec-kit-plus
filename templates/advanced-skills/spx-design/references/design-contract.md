@@ -17,21 +17,32 @@ Include only applicable decisions:
 - accessibility semantics, focus, contrast, input, and reduced-motion behavior;
 - reference fidelity and later visual evidence requirements.
 
-Before locking a new or materially changed direction, query design profiles through the design CLI,
-select one or more visual capability profiles, generate `round-NN.manifest.json`
-with `specify-runtime design preview-manifest --profiles ...`, and render it with
+Before locking a new or materially changed direction, complete durable taste
+intake in the design brief (`design_read`, variance/motion/density dials with
+inference reason, aesthetic family, foundation strategy, redesign mode when
+applicable, anti-slop locks, and synthesize reference-board intents when used).
+Then query design profiles through the design CLI, select one or more visual
+capability profiles, generate `round-NN.manifest.json` with
+`specify-runtime design preview-manifest --profiles ...`, and render it with
 `specify-runtime design preview --manifest`; do not
 hand-edit the generated HTML. The installed `design-preview-template.html` is
 the stable project-level review carrier, not a claim that every platform uses
 the same Web specimen. The profile registry determines required capabilities,
 input modes, units, specimens, state obligations, and presentation targets for
 Web, mobile, desktop, CLI, TUI, and content-led surfaces. All three directions
-must carry the same ordered specimen set. One numbered HTML round holds exactly
-three directions and one shared comparison baseline. Keep it self-contained and
-framework-neutral. Modern CSS and bounded inline review behavior may express
-direction switching and meaningful animation, but the artifact must not load
-remote code/assets, persist data, call a network, simulate business logic, or
-claim to be production implementation.
+must carry the same ordered specimen set and remain content-comparable, but
+must diverge on dial vectors and unique signature elements—undifferentiated
+boards fail ready-level `design preview-lint`. One numbered HTML round holds
+exactly three directions and one shared comparison baseline. Keep it
+self-contained and framework-neutral. Modern CSS and bounded inline review
+behavior may express direction switching and meaningful animation, but the
+artifact must not load remote code/assets, persist data, call a network,
+simulate business logic, or claim to be production implementation.
+
+For refine/audit of live UI, audit before mutate: classify `preserve` vs
+`overhaul`, extract brand tokens and signatures to keep, list AI-slop drift to
+retire, and never treat design-library seeds or anti-slop policy as approval
+truth.
 
 Every direction defines motion purpose plus duration, easing, distance or
 spatial behavior, and a `prefers-reduced-motion` equivalent. Compare all three

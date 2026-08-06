@@ -81,7 +81,11 @@ and never require a colon subskill or explicit mode argument.
    `ui-target`, or visual comparison, and never combine `no-ui` with a visual
    profile.
 7. If references are supplied as URLs, screenshots, text notes, existing design files, or imported summaries, assign each an explicit intent: `exact`, `preserve-structure`, `inspiration`, `extract-tokens`, or `do-not-copy`.
-8. When built-in presets help, read one of the shipped preset files such as `.specify/templates/design-library/workbench-precision.md` or `templates/design-library/workbench-precision.md` and treat it as inspiration, not as a forced brand.
+8. When built-in presets help, read shipped files under
+   `.specify/templates/design-library/` or `templates/design-library/`
+   (including aesthetic seeds and `anti-slop-policy.md`) and treat them as
+   inspiration only—never as approved product direction or a substitute for
+   `design approve`.
 
 ## Design Question Loop
 
@@ -94,26 +98,55 @@ and never require a colon subskill or explicit mode argument.
    transcript.
 2. Infer everything supported by the repository, supplied references, and
    prior confirmed answers before asking the user.
-3. Ask one high-impact design question at a time when the answer can change
+3. **Taste intake gate (create / project-wide refine):** before three-direction
+   preview work, patch durable taste fields into the brief:
+   - `design_read`: one-line "Reading this as: <kind> for <audience>, with a
+     <vibe> language, leaning toward <foundation or aesthetic family>"
+   - `dials.variance` / `dials.motion` / `dials.density` (integers 1-10) plus
+     `dials.inference_reason`
+   - `aesthetic_family`, `foundation_strategy`
+     (`owned-tokens` | `real-ds:<name>` | `live-product-extension`)
+   - `redesign_mode` when refining or auditing live UI
+     (`greenfield` | `preserve` | `overhaul`)
+   - `anti_slop_locks` selected from
+     `.specify/templates/design-library/anti-slop-policy.md` (surface-aware;
+     subordinate to an already approved `DESIGN.md`)
+   - `reference_board_intents` when `input_strategy: synthesize`
+     (`mood` | `layout` | `type` | `color-only`); references are evidence, not
+     a license to copy protected brand or artwork
+4. Ask one high-impact design question at a time when the answer can change
    visual hierarchy, density, component anatomy, motion, responsive
-   adaptation, accessibility, reference fidelity, or the approval boundary.
-   Make each question build on the user's latest answer and include a concrete
-   recommendation when one is justified.
-4. Do not ask which production framework, CSS library, or rendering stack to
+   adaptation, accessibility, reference fidelity, dial vectors, or the approval
+   boundary. Make each question build on the user's latest answer and include a
+   concrete recommendation when one is justified.
+5. Do not ask which production framework, CSS library, or rendering stack to
    use merely to shape the preview. The HTML board is a framework-neutral
    review carrier. Ask about a technical constraint only when it changes the
    target platform or the visual/interaction result.
-5. Before generating directions, confirm the product subject, audience, single
+6. Before generating directions, confirm the product subject, audience, single
    user job, modules, locales, color modes, platform/viewports, real or
    representative content, required component/state coverage, meaningful
-   motion moments, reduced-motion equivalent, references, and Must Preserve /
-   May Adapt / Must Not boundaries.
-6. Continue the question loop until those decisions are either confirmed or
+   motion moments, reduced-motion equivalent, references, taste intake fields,
+   and Must Preserve / May Adapt / Must Not boundaries.
+7. Continue the question loop until those decisions are either confirmed or
    explicitly represented as bounded differences among the three directions.
-7. Record each confirmed choice as a stable design decision (`DS-<KIND>-NNN`)
+8. Record each confirmed choice as a stable design decision (`DS-<KIND>-NNN`)
    with its statement, source, status, affected surfaces, and verification
    method. The brief is the decision ledger; do not leave important choices
    trapped only in conversation prose.
+
+## Redesign Protocol (refine / audit)
+
+When live UI or an approved system already exists:
+
+1. Detect mode: `preserve` modernizes without breaking brand; `overhaul` allows
+   a new visual language while preserving content/IA unless asked otherwise.
+2. Audit before mutate: brand tokens, IA, signature interactions, AI-slop
+   patterns to retire, current dial reading of the live surface, and web SEO
+   or analytics ID risks when applicable.
+3. `audit` reports readiness and drift without changing approved truth.
+   Promote to `refine` only when design truth must change, then open a new
+   immutable review round.
 
 ## Three-Direction Preview Loop
 
@@ -133,6 +166,12 @@ and never require a colon subskill or explicit mode argument.
   and presentation targets into the manifest. Every direction must carry the
   same ordered `specimen_ids`; every target's `DH-*` acceptance row must bind
   the exact specimen set for that profile.
+- Force direction divergence while holding comparison content constant: each
+  direction needs its own `dials` triple (variance/motion/density), unique
+  `signature_element`, and `aesthetic_family`. A common pattern is primary
+  inferred dials, density/variance contrast, and motion/signature contrast.
+  Undifferentiated dial triples or duplicate signatures fail ready-level
+  `design preview-lint`.
 - Configure the manifest with representative content for every specimen,
   directions, boundaries, tokens, every decision-to-owner mapping, modes, and
   targets. Keep registry-required capabilities and specimen kinds; add a

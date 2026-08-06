@@ -142,6 +142,81 @@ def test_design_brief_persists_the_prompt_route() -> None:
     assert "task_type: null" in content
     assert "input_strategy: null" in content
     assert "route_reason: null" in content
+    assert "design_read: null" in content
+    assert "dials:" in content
+    assert "aesthetic_family: null" in content
+    assert "foundation_strategy: null" in content
+    assert "redesign_mode: null" in content
+    assert "anti_slop_locks: []" in content
+    assert "reference_board_intents: []" in content
+    assert "## Taste Intake" in content
+
+
+def test_design_surfaces_teach_taste_intake_divergence_and_redesign() -> None:
+    classic_shell = _read(
+        PROJECT_ROOT / "templates" / "command-partials" / "design" / "shell.md"
+    )
+    classic_router = _read(CLASSIC_REFERENCES / "task-router.md")
+    advanced_skill = _read(ADVANCED_DESIGN / "SKILL.md")
+    advanced_contract = _read(ADVANCED_DESIGN / "references" / "design-contract.md")
+    advanced_router = _read(ADVANCED_DESIGN / "references" / "task-router.md")
+    ui_gate = _read(
+        PROJECT_ROOT
+        / "templates"
+        / "advanced-skills"
+        / "_shared"
+        / "ui-quality-gate.md"
+    )
+    frontend = _read(
+        PROJECT_ROOT / "templates" / "passive-skills" / "frontend-design" / "SKILL.md"
+    )
+    anti_slop = _read(
+        PROJECT_ROOT / "templates" / "design-library" / "anti-slop-policy.md"
+    )
+
+    for content in (
+        classic_shell,
+        classic_router,
+        advanced_skill,
+        advanced_contract,
+        advanced_router,
+    ):
+        lowered = content.lower()
+        assert "design_read" in lowered or "taste intake" in lowered
+        assert "dials" in lowered or "variance" in lowered
+
+    for router in (classic_router, advanced_router):
+        lowered = router.lower()
+        assert "single public entry" in lowered
+        assert "do not register or expose" in lowered or "do not expose colon" in lowered
+        assert "taste" in lowered
+
+    assert "undifferentiated" in classic_shell.lower() or "diverge" in classic_shell.lower()
+    assert "preserve" in classic_shell.lower() and "overhaul" in classic_shell.lower()
+    assert "mood" in classic_router.lower() and "color-only" in classic_router.lower()
+    assert "landing" in anti_slop.lower()
+    assert "product-workspace" in anti_slop.lower()
+    assert "trust-public" in anti_slop.lower()
+    assert "subordinate" in anti_slop.lower()
+    assert "anti-slop" in ui_gate.lower() or "anti-slop" in frontend.lower()
+    assert "design-library/anti-slop-policy.md" in frontend or "anti-slop-policy" in frontend
+
+    seeds = list((PROJECT_ROOT / "templates" / "design-library").glob("*.md"))
+    seed_names = {path.name for path in seeds}
+    assert "anti-slop-policy.md" in seed_names
+    assert "marketing-editorial-asymmetric.md" in seed_names
+    assert "soft-premium-calm.md" in seed_names
+    assert "industrial-brutalist.md" in seed_names
+    assert "minimal-product-linear.md" in seed_names
+    for name in (
+        "marketing-editorial-asymmetric.md",
+        "soft-premium-calm.md",
+        "industrial-brutalist.md",
+        "minimal-product-linear.md",
+    ):
+        seed = _read(PROJECT_ROOT / "templates" / "design-library" / name)
+        assert "Not approval truth" in seed or "not approval truth" in seed.lower()
+        assert "seed_warning" in seed
 
 
 def test_init_start_here_teaches_the_prompt_router_and_consumers() -> None:

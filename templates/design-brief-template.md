@@ -18,6 +18,17 @@ design_brief:
   color_modes: []
   required_viewports: []
   required_states: []
+  design_read: null
+  dials:
+    variance: null
+    motion: null
+    density: null
+    inference_reason: null
+  aesthetic_family: null
+  foundation_strategy: null
+  redesign_mode: null
+  anti_slop_locks: []
+  reference_board_intents: []
   decisions: []
   approved_direction: null
   approved_visual_ref: null
@@ -34,6 +45,21 @@ This file stores confirmed design decisions, not a conversation transcript.
 After each answer that changes the direction comparison or handoff, patch only
 the affected frontmatter fields or sections through a fresh
 `specify-runtime artifact patch` lease.
+
+## Taste Intake
+
+Fill these before authoring three-direction previews for visual `create` or
+project-wide `refine`. `no-ui` exits skip this section. Seeds and presets are
+inspiration only; they never substitute for `design approve`.
+
+- Design read (one line: kind / audience / vibe / foundation lean):
+- Dials (1-10): variance / motion / density
+- Dial inference reason:
+- Aesthetic family:
+- Foundation strategy (`owned-tokens` | `real-ds:<name>` | `live-product-extension`):
+- Redesign mode (`greenfield` | `preserve` | `overhaul` | n/a):
+- Anti-slop locks (project-specific subset of the surface-aware policy):
+- Reference-board intents when synthesizing (`mood` | `layout` | `type` | `color-only`):
 
 ## Confirmed Experience
 
@@ -61,15 +87,18 @@ design system rather than unrelated content:
 
 ## Direction Axes
 
-Keep the task and evidence baseline stable, but allow meaningful bounded
-differences in component anatomy, hierarchy, density, navigation, responsive
-adaptation, and motion. For each direction record:
+Keep the task and evidence baseline stable, but force meaningful divergence in
+dial vectors and signature. Shared specimen content stays constant. For each
+direction record:
 
-| Direction | Visual | Content | Interaction | Signature | Gain | Cost |
-| --- | --- | --- | --- | --- | --- | --- |
-| A |  |  |  |  |  |  |
-| B |  |  |  |  |  |  |
-| C |  |  |  |  |  |  |
+| Direction | Variance | Motion | Density | Visual | Content | Interaction | Signature | Gain | Cost |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| A |  |  |  |  |  |  |  |  |  |
+| B |  |  |  |  |  |  |  |  |  |
+| C |  |  |  |  |  |  |  |  |  |
+
+Undifferentiated boards (identical dial triples or duplicate signatures) fail
+ready-level `design preview-lint`.
 
 ## Motion Contract
 

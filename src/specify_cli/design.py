@@ -960,6 +960,100 @@ def _capability_model_diagnostics(
     return diagnostics
 
 
+def _direction_dial_vector(dials: dict[str, Any]) -> tuple[int, int, int] | None:
+    """Return a normalized variance/motion/density triple when all axes are valid."""
+
+    values: list[int] = []
+    for key in ("variance", "motion", "density"):
+        raw = dials.get(key)
+        if isinstance(raw, bool) or not isinstance(raw, int) or not 1 <= raw <= 10:
+            return None
+        values.append(raw)
+    return values[0], values[1], values[2]
+
+
+def _direction_divergence_diagnostics(
+    directions: list[Any],
+) -> list[DesignDiagnostic]:
+    """Reject ready boards whose three directions are not meaningfully differentiated."""
+
+    diagnostics: list[DesignDiagnostic] = []
+    dial_vectors: list[tuple[int, int, int]] = []
+    signatures: list[str] = []
+
+    for index, direction in enumerate(directions):
+        if not isinstance(direction, dict):
+            continue
+        direction_id = str(direction.get("id") or "").strip() or f"direction-{index + 1}"
+        dials = direction.get("dials")
+        if not isinstance(dials, dict):
+            _add_diagnostic(
+                diagnostics,
+                "preview-missing-direction-dials",
+                f"ready direction {direction_id} must define dials.variance/motion/density",
+                f"manifest.directions[{index}].dials",
+            )
+            continue
+        vector = _direction_dial_vector(dials)
+        if vector is None:
+            _add_diagnostic(
+                diagnostics,
+                "preview-invalid-direction-dials",
+                (
+                    f"ready direction {direction_id} dials must be integers 1-10 "
+                    "for variance, motion, and density"
+                ),
+                f"manifest.directions[{index}].dials",
+            )
+        else:
+            dial_vectors.append(vector)
+            reason = dials.get("inference_reason")
+            if not isinstance(reason, str) or not reason.strip():
+                _add_diagnostic(
+                    diagnostics,
+                    "preview-missing-dial-inference",
+                    f"ready direction {direction_id} must explain dial inference_reason",
+                    f"manifest.directions[{index}].dials.inference_reason",
+                )
+
+        family = direction.get("aesthetic_family")
+        if not isinstance(family, str) or not family.strip():
+            _add_diagnostic(
+                diagnostics,
+                "preview-missing-aesthetic-family",
+                f"ready direction {direction_id} must define aesthetic_family",
+                f"manifest.directions[{index}].aesthetic_family",
+            )
+
+        signature = str(direction.get("signature_element") or "").strip().casefold()
+        if signature:
+            signatures.append(signature)
+
+    if len(dial_vectors) == 3 and len(set(dial_vectors)) < 3:
+        _add_diagnostic(
+            diagnostics,
+            "preview-undifferentiated-direction-dials",
+            (
+                "ready directions must diverge on dial vectors "
+                "(variance, motion, density); identical triples are not comparable options"
+            ),
+            "manifest.directions",
+        )
+
+    if len(signatures) == 3 and len(set(signatures)) < 3:
+        _add_diagnostic(
+            diagnostics,
+            "preview-undifferentiated-direction-signatures",
+            (
+                "ready directions must each declare a unique signature_element "
+                "so the user can tell them apart"
+            ),
+            "manifest.directions",
+        )
+
+    return diagnostics
+
+
 def _preview_manifest_diagnostics(
     manifest: dict[str, Any] | None,
     *,
@@ -1174,6 +1268,9 @@ def _preview_manifest_diagnostics(
                             f"{mode_name}.{foreground_key}"
                         ),
                     )
+
+    if ready and isinstance(directions, list) and len(directions) == 3:
+        diagnostics.extend(_direction_divergence_diagnostics(directions))
 
     diagnostics.extend(
         _capability_model_diagnostics(

@@ -271,7 +271,66 @@ def _configured_preview() -> str:
         '"status": "scaffold",\n    "approved_direction": null',
         '"status": "candidate",\n    "approved_direction": null',
     )
-    return re.sub(r"__[A-Z0-9_]+__", "Configured design content", content)
+    content = re.sub(r"__[A-Z0-9_]+__", "Configured design content", content)
+    match = re.search(
+        r'<script\b(?=[^>]*\bid="design-preview-manifest")[^>]*>(.*?)</script>',
+        content,
+        re.DOTALL | re.IGNORECASE,
+    )
+    assert match is not None
+    manifest = json.loads(match.group(1))
+    taste = (
+        (
+            "Configured signature A",
+            {
+                "variance": 5,
+                "motion": 3,
+                "density": 7,
+                "inference_reason": "Fixture A product density",
+            },
+            "minimal-product-linear",
+        ),
+        (
+            "Configured signature B",
+            {
+                "variance": 7,
+                "motion": 5,
+                "density": 5,
+                "inference_reason": "Fixture B balanced product",
+            },
+            "developer-tool-sharp",
+        ),
+        (
+            "Configured signature C",
+            {
+                "variance": 8,
+                "motion": 7,
+                "density": 3,
+                "inference_reason": "Fixture C expressive lean",
+            },
+            "marketing-editorial-asymmetric",
+        ),
+    )
+    for direction, (signature, dials, family) in zip(
+        manifest["directions"],
+        taste,
+        strict=True,
+    ):
+        direction["signature_element"] = signature
+        direction["dials"] = dials
+        direction["aesthetic_family"] = family
+    rendered = json.dumps(manifest, ensure_ascii=False, indent=2)
+    pattern = re.compile(
+        r'(<script\b(?=[^>]*\bid="design-preview-manifest")[^>]*>).*?(</script>)',
+        re.DOTALL | re.IGNORECASE,
+    )
+    updated, count = pattern.subn(
+        lambda match: f"{match.group(1)}\n{rendered}\n  {match.group(2)}",
+        content,
+        count=1,
+    )
+    assert count == 1
+    return updated
 
 
 def _ready_design_text(tmp_path: Path, content: str = VALID_DESIGN) -> str:

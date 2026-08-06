@@ -29,8 +29,15 @@ owner CLI to repeat the route in review when it explains closeout.
 - `audit`: inspect readiness, provenance, adoption, or drift without mutating
   approved truth.
 - `context`: use confirmed product context and verified live evidence.
-- `synthesize`: use references with explicit intents. Synthesize is an input
-  strategy, not a terminal task type; attach it to create or refine.
+- `synthesize`: use references with explicit intents
+  (`mood` | `layout` | `type` | `color-only` on reference boards). Synthesize is
+  an input strategy, not a terminal task type; attach it to create or refine.
+  References are evidence, not a license to copy protected brand or artwork.
+- Taste intake is required for visual create and project-wide refine before
+  three-direction preview work: `design_read`, dials with inference reason,
+  `aesthetic_family`, `foundation_strategy`, `redesign_mode` when live UI
+  exists, and surface-aware `anti_slop_locks`. Do not expose colon-namespaced
+  design skills (including taste variants).
 
 ## Resume Before Reclassification
 
