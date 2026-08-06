@@ -236,6 +236,85 @@ def test_design_preview_manifest_schema_requires_direction_dials() -> None:
     assert dials["required"] == ["variance", "motion", "density", "inference_reason"]
 
 
+def test_design_preview_ready_lint_rejects_missing_or_invalid_dials(
+    tmp_path: Path,
+) -> None:
+    content = _candidate_preview()
+    manifest = _preview_manifest(content)
+    directions = manifest["directions"]
+    assert isinstance(directions, list)
+    first = directions[0]
+    second = directions[1]
+    assert isinstance(first, dict)
+    assert isinstance(second, dict)
+    first.pop("dials", None)
+    second["dials"] = {
+        "variance": 11,
+        "motion": True,
+        "density": 0,
+        "inference_reason": "invalid",
+    }
+    preview = tmp_path / "bad-dials.html"
+    preview.write_text(_replace_preview_manifest(content, manifest), encoding="utf-8")
+
+    diagnostics = lint_design_preview_file(preview, level="ready")
+    codes = {item.code for item in diagnostics}
+
+    assert "preview-missing-direction-dials" in codes or "preview-manifest-schema-error" in codes
+    assert "preview-invalid-direction-dials" in codes or "preview-manifest-schema-error" in codes
+
+
+def test_design_preview_structural_lint_allows_identical_dials(
+    tmp_path: Path,
+) -> None:
+    content = _candidate_preview()
+    manifest = _preview_manifest(content)
+    shared = {
+        "variance": 5,
+        "motion": 5,
+        "density": 5,
+        "inference_reason": "identical only matters at ready",
+    }
+    for direction in manifest["directions"]:
+        assert isinstance(direction, dict)
+        direction["dials"] = dict(shared)
+    preview = tmp_path / "structural-same-dials.html"
+    preview.write_text(_replace_preview_manifest(content, manifest), encoding="utf-8")
+
+    diagnostics = lint_design_preview_file(preview, level="structural")
+
+    assert not any(
+        item.code == "preview-undifferentiated-direction-dials" for item in diagnostics
+    )
+
+
+def test_design_preview_ready_lint_requires_dial_inference_and_family(
+    tmp_path: Path,
+) -> None:
+    content = _candidate_preview()
+    manifest = _preview_manifest(content)
+    directions = manifest["directions"]
+    assert isinstance(directions, list)
+    first = directions[0]
+    assert isinstance(first, dict)
+    first["dials"] = {
+        "variance": 4,
+        "motion": 4,
+        "density": 4,
+        "inference_reason": "   ",
+    }
+    first["aesthetic_family"] = ""
+    # Keep remaining directions unique so only inference/family fail on first.
+    preview = tmp_path / "missing-inference.html"
+    preview.write_text(_replace_preview_manifest(content, manifest), encoding="utf-8")
+
+    diagnostics = lint_design_preview_file(preview, level="ready")
+    codes = {item.code for item in diagnostics}
+
+    assert "preview-missing-dial-inference" in codes or "preview-manifest-schema-error" in codes
+    assert "preview-missing-aesthetic-family" in codes or "preview-manifest-schema-error" in codes
+
+
 def test_design_preview_lint_rejects_remote_runtime_dependency(
     tmp_path: Path,
 ) -> None:
