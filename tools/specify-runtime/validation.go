@@ -49,7 +49,7 @@ func ValidateSpec(request SpecValidationRequest) Envelope {
 			env.Status = "blocked"
 			env.Summary = "spec validation found blocking contract failures"
 			env.Blockers = append(env.Blockers, fmt.Sprintf("%d contract checks failed; inspect data.failures", report.Summary.Failed))
-			env.NextArgv = []string{"specify-runtime", "validate", "spec", "--dir", request.FeatureDir, "--tier", tier}
+			env.NextArgv = []string{"specify-runtime", "validate", "spec", "--feature-dir", request.FeatureDir, "--tier", tier}
 		} else if report.Summary.Warnings > 0 {
 			env.Status = "warn"
 			env.Summary = "spec validation completed with warnings"
@@ -79,7 +79,7 @@ func ValidateSpec(request SpecValidationRequest) Envelope {
 		env.Blockers = append(env.Blockers, "spec-contract.json is not valid JSON")
 	}
 	if env.Status == "blocked" {
-		env.NextArgv = []string{"specify-runtime", "validate", "spec", "--dir", request.FeatureDir, "--tier", tier}
+		env.NextArgv = []string{"specify-runtime", "validate", "spec", "--feature-dir", request.FeatureDir, "--tier", tier}
 	}
 	return env
 }

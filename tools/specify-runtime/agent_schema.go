@@ -94,7 +94,15 @@ func runAPIShow(args []string, stdout io.Writer) int {
 	case "discussion.bind-consumer":
 		capability["side_effect"] = "writes-derived-consumer-handoff"
 		capability["usage"] = "specify-runtime discussion bind-consumer <slug> --feature-dir <feature-dir> --input-json <transition-fields> --format json"
-		capability["input_contract"] = "inline semantic_delta, required_refs, blockers, and recovery only; runtime binds source contract, review digest, status, and next action"
+		capability["input_contract"] = "semantic_delta, required_refs, blockers, and recovery only via --input-json (inline, @path, or -); runtime binds source contract, review digest, status, and next action; unbound create-feature scaffolds may receive first bind"
+	case "validate.spec":
+		capability["side_effect"] = "read-only"
+		capability["usage"] = "specify-runtime validate spec --feature-dir <feature-dir> [--tier light|standard|deep] [--show-passes] --format json"
+		capability["input_contract"] = "--feature-dir preferred; --dir is a compatibility alias; conflicting values are rejected"
+	case "artifact.prepare":
+		capability["side_effect"] = "creates-lease"
+		capability["usage"] = "specify-runtime artifact prepare --path <project-relative-path> --format json"
+		capability["input_contract"] = "returns lease_id for submit/patch/delete; no --operation flag"
 	case "review.target-bind":
 		capability["side_effect"] = "writes-review-target-and-derived-identity"
 		capability["usage"] = "specify-runtime review target-bind --feature-dir <feature-dir> --input-json <compact-target> --format json"

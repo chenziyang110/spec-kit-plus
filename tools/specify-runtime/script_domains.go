@@ -1153,10 +1153,14 @@ func (service discussionService) bindConsumer(slug, featureDir string, input map
 		if readErr != nil {
 			return nil, fmt.Errorf("feature consumer handoff already exists but is invalid; refusing to overwrite")
 		}
-		if stringValue(existing["discussion_slug"]) != slug ||
-			stringValue(existing["source_contract"]) != sourceContract ||
-			stringValue(existing["review_digest"]) != reviewDigest {
-			return nil, fmt.Errorf("feature consumer handoff is already bound to a different discussion contract")
+		// create-feature installs an unbound scaffold (pending + null binding fields).
+		// Treat that as first-bind eligible, not as a foreign discussion contract.
+		if !isUnboundConsumerHandoff(existing) {
+			if stringValue(existing["discussion_slug"]) != slug ||
+				stringValue(existing["source_contract"]) != sourceContract ||
+				stringValue(existing["review_digest"]) != reviewDigest {
+				return nil, fmt.Errorf("feature consumer handoff is already bound to a different discussion contract")
+			}
 		}
 	} else if !errors.Is(statErr, os.ErrNotExist) {
 		return nil, fmt.Errorf("feature consumer handoff cannot be inspected: %w", statErr)
@@ -1177,6 +1181,20 @@ func (service discussionService) bindConsumer(slug, featureDir string, input map
 		"status":                  status,
 		"next_action":             nextAction,
 	}, nil
+}
+
+// isUnboundConsumerHandoff reports whether a feature-local handoff pointer is
+// still a create-feature scaffold (or otherwise unbound) and may receive a
+// first bind-consumer write. A pointer with any of discussion_slug,
+// source_contract, or review_digest set is treated as already bound.
+func isUnboundConsumerHandoff(existing map[string]any) bool {
+	if existing == nil {
+		return true
+	}
+	slug := strings.TrimSpace(stringValue(existing["discussion_slug"]))
+	source := strings.TrimSpace(stringValue(existing["source_contract"]))
+	digest := strings.TrimSpace(stringValue(existing["review_digest"]))
+	return slug == "" && source == "" && digest == ""
 }
 
 func computeDiscussionReviewDigest(payload map[string]any) (string, error) {

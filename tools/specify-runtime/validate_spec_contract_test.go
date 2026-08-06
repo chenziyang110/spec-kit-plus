@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"testing"
@@ -51,7 +52,7 @@ func TestValidateSpecReturnsRepairableBlockForMissingCoreArtifacts(t *testing.T)
 		t.Fatalf("validate missing spec exit code = %d, want 10", code)
 	}
 	nextArgv := payload["next_argv"].([]any)
-	wantPrefix := []string{"specify-runtime", "validate", "spec", "--dir"}
+	wantPrefix := []string{"specify-runtime", "validate", "spec", "--feature-dir"}
 	if len(nextArgv) < len(wantPrefix) {
 		t.Fatalf("validate missing spec next_argv = %#v, want executable rerun command", nextArgv)
 	}
@@ -59,6 +60,43 @@ func TestValidateSpecReturnsRepairableBlockForMissingCoreArtifacts(t *testing.T)
 		if nextArgv[index] != want {
 			t.Fatalf("validate missing spec next_argv[%d] = %#v, want %q; argv=%#v", index, nextArgv[index], want, nextArgv)
 		}
+	}
+}
+
+func TestRunValidateSpecAcceptsFeatureDirAlias(t *testing.T) {
+	featureDir := t.TempDir()
+	writeTestFile(t, featureDir, "spec.md", "# Feature Specification\n\n## Requirements\n\n- FR-001: The runtime validates a specification.\n")
+	writeTestFile(t, featureDir, "spec-contract.json", `{"schema_version":1,"status":"ready"}`+"\n")
+
+	var out bytes.Buffer
+	if code := runValidate([]string{"spec", "--feature-dir", featureDir, "--tier", "light", "--format", "json"}, &out); code != 0 {
+		t.Fatalf("validate --feature-dir exit = %d stdout=%s", code, out.String())
+	}
+	payload := decodeJSONObject(t, out.Bytes())
+	if payload["status"] != "ok" {
+		t.Fatalf("validate --feature-dir status = %#v, want ok", payload["status"])
+	}
+	data := requireObject(t, payload, "data")
+	if data["feature_dir"] != featureDir {
+		t.Fatalf("validate --feature-dir data.feature_dir = %#v, want %q", data["feature_dir"], featureDir)
+	}
+
+	out.Reset()
+	if code := runValidate([]string{"spec", "--dir", featureDir, "--tier", "light", "--format", "json"}, &out); code != 0 {
+		t.Fatalf("validate --dir exit = %d stdout=%s", code, out.String())
+	}
+	legacy := decodeJSONObject(t, out.Bytes())
+	if legacy["status"] != "ok" {
+		t.Fatalf("validate --dir status = %#v, want ok", legacy["status"])
+	}
+
+	out.Reset()
+	if code := runValidate([]string{"spec", "--feature-dir", featureDir, "--dir", featureDir + "-other", "--tier", "light"}, &out); code == 0 {
+		t.Fatalf("conflicting flags should fail; stdout=%s", out.String())
+	}
+	conflict := decodeJSONObject(t, out.Bytes())
+	if conflict["status"] != "usage-error" {
+		t.Fatalf("conflicting flags status = %#v, want usage-error", conflict["status"])
 	}
 }
 

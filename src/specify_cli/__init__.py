@@ -8994,7 +8994,8 @@ def lint(
     dir: str = typer.Option(
         ".",
         "--dir",
-        help="Feature directory path (containing spec.md, alignment.md, etc.)",
+        "--feature-dir",
+        help="Feature directory path (containing spec.md, alignment.md, etc.). --feature-dir is an alias for --dir.",
     ),
     tier: LintTier = typer.Option(
         LintTier.standard, "--tier", help="Check tier: light, standard, deep"
@@ -9035,8 +9036,9 @@ def lint(
             version_args.extend(["--format", "json"])
         raise typer.Exit(code=subprocess.run(version_args, check=False).returncode)
 
+    # Prefer --feature-dir when talking to specify-runtime (matches the rest of the CLI).
     validate_args = [
-        "--dir",
+        "--feature-dir",
         dir,
         "--tier",
         tier.value,

@@ -417,8 +417,14 @@ func writeArtifactHelp(stdout io.Writer, subcommand string) int {
 	case "checklist":
 		_, _ = fmt.Fprintln(stdout, "Usage: specify-runtime artifact checklist --path <feature-dir>/checklists/<name>.md --input-json <object> [--format json]")
 		_, _ = fmt.Fprintln(stdout, "  Creates or appends categories atomically and assigns the next CHK identifiers.")
+		_, _ = fmt.Fprintln(stdout, "  --input-json accepts inline JSON, @path, or - (stdin). Schema: title, purpose, feature, categories[{heading,items[]}].")
+	case "prepare":
+		_, _ = fmt.Fprintln(stdout, "Usage: specify-runtime artifact prepare --path <project-relative-path> [--format json]")
+		_, _ = fmt.Fprintln(stdout, "  Returns a one-shot lease_id for submit/patch/delete. There is no --operation flag.")
+		_, _ = fmt.Fprintln(stdout, "  Optional: --feature <id> --kind <kind> --project-root <path>.")
 	case "patch":
 		_, _ = fmt.Fprintln(stdout, "Usage: specify-runtime artifact patch --lease <id> (--json-pointer <pointer> --value-json <json> | --section <heading> --content <text> | --frontmatter-json <object> | --heading <current> --new-heading <replacement> | --preamble <text> | --append-json <json>)")
+		_, _ = fmt.Fprintln(stdout, "  Markdown --section must match an exact existing heading from artifact show (scaffold headings), not a free-form title.")
 	case "submit":
 		_, _ = fmt.Fprintln(stdout, "Usage: specify-runtime artifact submit --lease <id> --content <inline-payload> [--format json]")
 		_, _ = fmt.Fprintln(stdout, "  --recovery-file is reserved for a runtime-created human acceptance repair backup bound by its sibling journal.")
@@ -653,12 +659,9 @@ func runValidate(args []string, stdout io.Writer) int {
 	}
 	switch args[0] {
 	case "spec":
-		featureDir := optionValue(args, "--dir", "")
-		if featureDir == "" {
-			feature := optionValue(args, "--feature", "")
-			if feature != "" {
-				featureDir = filepath.Join(optionValue(args, "--project-root", "."), ".specify", "features", feature)
-			}
+		featureDir, err := resolveValidateSpecFeatureDir(args)
+		if err != nil {
+			return writeEnvelope(stdout, NewEnvelope("usage-error", err.Error()))
 		}
 		return writeEnvelope(stdout, ValidateSpec(SpecValidationRequest{
 			FeatureDir: featureDir,
@@ -668,6 +671,27 @@ func runValidate(args []string, stdout io.Writer) int {
 	default:
 		return writeEnvelope(stdout, NewEnvelope("usage-error", fmt.Sprintf("unknown validate subcommand %q", args[0])))
 	}
+}
+
+// resolveValidateSpecFeatureDir accepts --feature-dir (preferred, matches the
+// rest of the runtime CLI), legacy --dir, or --feature <id> under project root.
+// When both --feature-dir and --dir are set they must agree.
+func resolveValidateSpecFeatureDir(args []string) (string, error) {
+	featureDirFlag := strings.TrimSpace(optionValue(args, "--feature-dir", ""))
+	dirFlag := strings.TrimSpace(optionValue(args, "--dir", ""))
+	switch {
+	case featureDirFlag != "" && dirFlag != "" && featureDirFlag != dirFlag:
+		return "", fmt.Errorf("validate spec accepts either --feature-dir or --dir, not conflicting values")
+	case featureDirFlag != "":
+		return featureDirFlag, nil
+	case dirFlag != "":
+		return dirFlag, nil
+	}
+	feature := strings.TrimSpace(optionValue(args, "--feature", ""))
+	if feature != "" {
+		return filepath.Join(optionValue(args, "--project-root", "."), ".specify", "features", feature), nil
+	}
+	return "", nil
 }
 
 func runCognition(args []string, stdout, stderr io.Writer, cliVersion string) int {

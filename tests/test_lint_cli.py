@@ -45,7 +45,7 @@ def test_lint_cli_forwards_compact_agent_output_options(monkeypatch) -> None:
         "args": [
             "validate",
             "spec",
-            "--dir",
+            "--feature-dir",
             ".specify/features/001-demo",
             "--tier",
             "deep",

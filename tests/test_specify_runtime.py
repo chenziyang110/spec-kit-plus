@@ -233,7 +233,7 @@ def test_runtime_resolver_falls_back_only_to_specify_runtime_on_path(
     "args",
     [
         ["cognition", "check", "--format", "json"],
-        ["validate", "spec", "--dir", ".", "--format", "json"],
+        ["validate", "spec", "--feature-dir", ".", "--format", "json"],
     ],
 )
 def test_runtime_runner_uses_unified_namespaced_argv(
@@ -407,13 +407,13 @@ def test_runtime_runner_can_install_when_missing(
     monkeypatch.setattr(runtime.subprocess, "run", fake_run)
 
     payload = runtime.run_specify_runtime(
-        ["validate", "spec", "--dir", "."],
+        ["validate", "spec", "--feature-dir", "."],
         cwd=tmp_path,
         install_if_missing=True,
     )
 
     assert payload == {"status": "ok"}
-    assert calls == [[str(binary), "validate", "spec", "--dir", "."]]
+    assert calls == [[str(binary), "validate", "spec", "--feature-dir", "."]]
 
 
 def test_default_runtime_version_pins_stable_packages_and_tracks_dev_latest(

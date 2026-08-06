@@ -507,6 +507,103 @@ func TestDiscussionBindConsumerRejectsFeatureBoundToDifferentDiscussion(t *testi
 	}
 }
 
+func TestDiscussionBindConsumerOverwritesUnboundCreateFeatureScaffold(t *testing.T) {
+	root := t.TempDir()
+	installScaffoldTemplate(t, root, "discussion-handoff-template.json")
+	env := runScriptDomainEnvelope(t, runDiscussion, []string{"--project-root", root, "init", "Unbound Scaffold Bind", "Scaffold requirements"})
+	slug := env.Data["slug"].(string)
+	handoff := discussionHandoffFixture()
+	handoff["consumer_eligibility"] = map[string]any{
+		"sp-specify": map[string]any{"status": "ready"},
+		"sp-quick":   map[string]any{"status": "blocked"},
+	}
+	handoff["recommended_consumer"] = "sp-specify"
+	raw, err := json.Marshal(handoff)
+	if err != nil {
+		t.Fatal(err)
+	}
+	env = runScriptDomainEnvelope(t, runDiscussion, []string{"--project-root", root, "write-handoff", slug, "--input-json", string(raw)})
+	digest := env.Data["review_digest"].(string)
+	env = runScriptDomainEnvelope(t, runDiscussion, []string{"--project-root", root, "confirm-handoff", slug, "--digest", digest})
+	if env.Status != "ok" {
+		t.Fatalf("confirm handoff = %#v", env)
+	}
+	env = runScriptDomainEnvelope(t, runDiscussion, []string{"--project-root", root, "mark-ready", slug})
+	if env.Status != "ok" {
+		t.Fatalf("mark ready = %#v", env)
+	}
+
+	featureRel := ".specify/features/2026-08-06-flowcore"
+	feature := filepath.Join(root, filepath.FromSlash(featureRel))
+	pointer := filepath.Join(feature, "brainstorming", "handoff-to-specify.json")
+	// Matches templates/brainstorming-handoff-specify-template.json installed by create-feature.
+	scaffold := map[string]any{
+		"version":         3,
+		"status":          "pending",
+		"entry_source":    nil,
+		"discussion_slug": nil,
+		"source_contract": nil,
+		"review_digest":   nil,
+		"semantic_delta":  []any{},
+		"required_refs":   []any{},
+		"blockers":        []any{},
+		"next_action":     nil,
+		"recovery":        nil,
+	}
+	mustWriteJSONScriptDomainTest(t, pointer, scaffold)
+
+	env = runScriptDomainEnvelope(t, runDiscussion, []string{
+		"--project-root", root, "bind-consumer", slug,
+		"--feature-dir", featureRel,
+		"--input-json", `{"semantic_delta":[],"required_refs":["MP-001"],"blockers":[],"recovery":null}`,
+	})
+	if env.Status != "ok" {
+		t.Fatalf("bind over unbound scaffold = %#v, want ok", env)
+	}
+	payload, err := readJSONMap(pointer)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if payload["discussion_slug"] != slug {
+		t.Fatalf("bound slug = %#v, want %q", payload["discussion_slug"], slug)
+	}
+	if payload["review_digest"] != digest {
+		t.Fatalf("bound digest = %#v, want %q", payload["review_digest"], digest)
+	}
+	if payload["status"] != "ready" {
+		t.Fatalf("bound status = %#v, want ready", payload["status"])
+	}
+}
+
+func TestIsUnboundConsumerHandoff(t *testing.T) {
+	if !isUnboundConsumerHandoff(nil) {
+		t.Fatal("nil map should be unbound")
+	}
+	if !isUnboundConsumerHandoff(map[string]any{
+		"status":          "pending",
+		"discussion_slug": nil,
+		"source_contract": nil,
+		"review_digest":   nil,
+	}) {
+		t.Fatal("create-feature scaffold should be unbound")
+	}
+	if !isUnboundConsumerHandoff(map[string]any{
+		"status":          "pending",
+		"discussion_slug": "",
+		"source_contract": "",
+		"review_digest":   "",
+	}) {
+		t.Fatal("empty binding fields should be unbound")
+	}
+	if isUnboundConsumerHandoff(map[string]any{
+		"discussion_slug": "demo",
+		"source_contract": "",
+		"review_digest":   "",
+	}) {
+		t.Fatal("slug-only pointer must be treated as bound")
+	}
+}
+
 func TestDiscussionBindConsumerRejectsFilesAndIntegrityFieldOverrides(t *testing.T) {
 	root := t.TempDir()
 	for _, args := range [][]string{

@@ -183,6 +183,8 @@ When semantic delta is non-empty or a user-owned decision remains unresolved, a 
 ## Tooling
 
 - `specify lint --dir <FEATURE_DIR> --tier <light|standard|deep>` invokes the packaged `specify-runtime validate spec` gate
+- Preferred runtime form: `specify-runtime validate spec --feature-dir <FEATURE_DIR> --tier <light|standard|deep> --format json`
+- Compatibility alias: `--dir` is accepted and must match `--feature-dir` when both are set
 - Agents use `--format json`; compact output omits passing check names unless `--show-passes` is requested
 - Exit code 0 = checks pass, 1 = checks fail or execution fails, 2 = invalid tier/format usage
 - Items without the machine-check tag require human judgment only when their trigger applies
