@@ -2803,8 +2803,9 @@ def _legacy_plan_template_requires_alignment_report_before_planning():
     assert "canonical boundary files or examples" in content
     assert "split the work only into the supported plan lanes" in lowered
     assert "If the workload is lightweight safe, use `execution_mode: light`" in content
-    assert "dispatch `one-subagent` for exactly one validated isolated planning lane" in content
-    assert "or `parallel-subagents` for two or more isolated planning lanes" in content
+    assert "dispatch `one-subagent` for exactly one validated planning lane" in content
+    assert "parallel-subagents` only for two or more **isolated** planning lanes" in content or "two or more **isolated** planning lanes" in content
+    assert "write-scope or handoff-surface conflict among planning lanes is a serial" in content
     assert "If the workload is standard, native subagents are unavailable" in content
     assert "record `workflow_status: blocked`, `dispatch_shape: subagent-blocked`" in content
     assert "Managed-team fallback is not part of adaptive plan/tasks dispatch." in content
@@ -2887,6 +2888,52 @@ def test_adaptive_execution_partial_requires_runtime_owned_artifact_handoffs() -
     assert "runtime alone materializes the canonical handoff path" in lowered
     assert "no accepted cli result" in lowered
     assert "complete runtime-owned result argv" in lowered
+
+
+def test_write_scope_dispatch_partial_is_cross_workflow() -> None:
+    content = _read("templates/command-partials/common/write-scope-dispatch.md").lower()
+    assert "write-scope conflict ≠ leader-inline authorization" in content
+    assert "cannot parallelize ≠ must self-write" in content
+    assert "one-subagent" in content
+    assert "parallel-subagents" in content
+    assert "attempted_shape" in content
+    assert "chosen_shape" in content
+
+    # Shared partial is included by adaptive / gradient / mandatory surfaces
+    # (read_template expands includes, so assert inlined rule text).
+    for relative in (
+        "templates/command-partials/common/adaptive-execution.md",
+        "templates/command-partials/common/dispatch-mode-gradient.md",
+        "templates/command-partials/common/subagent-execution.md",
+    ):
+        parent = _read(relative).lower()
+        assert "write-scope conflict ≠ leader-inline authorization" in parent
+        assert "cannot parallelize ≠ must self-write" in parent
+
+    # Raw include wiring still present on disk for packaging.
+    for relative in (
+        "templates/command-partials/common/adaptive-execution.md",
+        "templates/command-partials/common/dispatch-mode-gradient.md",
+        "templates/command-partials/common/subagent-execution.md",
+    ):
+        raw = (PROJECT_ROOT / relative).read_text(encoding="utf-8")
+        assert "write-scope-dispatch.md" in raw
+
+    implement = _read(
+        "templates/command-references/implement/subagent-worker-contract.md"
+    ).lower()
+    assert "write-scope conflict ≠ leader-direct" in implement
+    assert "prefer serial `one-subagent`" in implement or "serial `one-subagent`" in implement
+
+    parallel = _read(
+        "templates/passive-skills/dispatching-parallel-agents/SKILL.md"
+    ).lower()
+    assert "write-scope conflict ≠ leader implements" in parallel
+
+    sdd = _read(
+        "templates/passive-skills/subagent-driven-development/SKILL.md"
+    ).lower()
+    assert "cannot parallelize ≠ implement as leader" in sdd
 
 
 def test_research_template_exists_and_captures_research_quality_contract():

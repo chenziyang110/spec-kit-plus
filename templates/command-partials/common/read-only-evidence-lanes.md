@@ -19,8 +19,9 @@ Record the selected fields when a lane is used or blocked:
 Dispatch rules:
 
 - Stay `leader-inline` for simple questions or one narrow evidence check.
-- Dispatch `one-subagent` when exactly one safe read-only evidence lane is useful and the runtime exposes native subagents.
+- Dispatch `one-subagent` when exactly one safe read-only evidence lane is useful and the runtime exposes native subagents, or when multiple evidence lanes must share mutable interpretation ownership and cannot safely conclude in parallel.
 - Dispatch `parallel-subagents` when two or more independent read-only evidence lanes can run without overlapping conclusions or state ownership.
+- Evidence-lane coupling is a serial `one-subagent` signal, not automatic silent Leader expansion of the investigation scope.
 - Record `subagent-blocked` only when a read-only evidence lane is required but no safe lane, no lane contract, or no native subagent surface is available.
 
 Every read-only evidence lane must have a compact lane contract:

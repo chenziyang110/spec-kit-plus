@@ -16,9 +16,13 @@ Current routing vocabulary:
 
 - Use parallel subagents only after the owning workflow selects delegation and
   confirms that parallelism materially improves the critical path or evidence quality.
-- Dispatch `one-subagent` when one safe lane is ready.
+- Dispatch `one-subagent` when one safe lane is ready, or when multiple lanes
+  share write scope and must run serially (resume the same worker or re-dispatch).
 - Dispatch `parallel-subagents` when two or more independent lanes can run
-  concurrently.
+  concurrently with non-overlapping write scopes.
+- **Write-scope conflict ≠ Leader implements.** Rejecting a parallel wave only
+  forbids concurrency; the default remains serial `one-subagent` unless the
+  owning workflow independently selects leader-direct/inline and records why.
 - If delegation becomes unsafe or unavailable, re-evaluate the owning workflow's
   route instead of treating parallelism as mandatory.
 - Do not use old strategy labels as routing choices.
@@ -45,8 +49,9 @@ Current routing vocabulary:
    independent evidence lanes; small focused investigations may stay
    leader-inline under the debug session contract.
 3. **Check conflicts**: Do not dispatch two writers to the same file or shared
-   state unless one lane is explicitly read-only or the workflow defines a safe
-   join point.
+   state in parallel. Sequence them as `one-subagent` serial packets (or a
+   documented join with exclusive ownership). Conflict detection is a sequencing
+   signal, not a cue for unrecorded leader-inline multi-file edits.
 4. **Packetize just in time**: Compile validated packets only for the selected
    current lanes. Raw task text is not enough and future batches stay unexpanded.
 5. **Dispatch native subagents**: Use `parallel-subagents` on the

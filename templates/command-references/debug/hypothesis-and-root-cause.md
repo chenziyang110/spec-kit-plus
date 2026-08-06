@@ -72,8 +72,9 @@ Session mutation contract: `SESSION PATCH <fields-or-sections>` means build the 
 - Debug routing decision order:
   - Small focused investigation with one short evidence chain -> `leader-inline`.
   - One safe validated evidence lane where isolation improves quality -> `one-subagent` on `native-subagents` when available.
-  - Two or more independent evidence lanes -> `parallel-subagents` on `native-subagents` when available.
-  - No safe lane, shared mutable state, missing contract, incomplete packet, unavailable delegation, or unsafe next step -> `subagent-blocked` with `execution_surface: none` and a recorded reason.
+  - Two or more independent evidence lanes with non-overlapping side effects -> `parallel-subagents` on `native-subagents` when available.
+  - Two or more useful evidence lanes that share mutable state or cannot safely run concurrently -> `one-subagent` serial evidence packets (or keep the session leader-inline only while the investigation remains small/focused and that choice is recorded)—not an automatic silent widen of Leader scope.
+  - No safe lane, missing contract, incomplete packet, unavailable delegation, or unsafe next step -> `subagent-blocked` with `execution_surface: none` and a recorded reason.
 - Dispatch a subagent only when the evidence-lane contract is complete: probe intent, required evidence, authoritative inputs, and validation targets must all be recorded before dispatch.
 - If that subagent-readiness bar is not met, compile the missing evidence-lane contract before dispatch; if the lane cannot be made safe, `SESSION PATCH` `subagent-blocked` and stop for escalation or recovery.
 - `parallel-subagents` means the leader dispatches bounded evidence-gathering subagents and rejoins at an explicit join point.

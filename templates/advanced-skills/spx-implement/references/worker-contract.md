@@ -1,9 +1,11 @@
 # Implementation worker contract
 
-Delegate only a bounded task with stable inputs and isolated writes. The leader
-retains task graph, join, task acceptance, task-level review, and final
-implementation verification ownership. The later system Review remains an
-independent workflow.
+Delegate a bounded task with stable inputs. Prefer isolated writes for
+parallel waves; when consecutive ready tasks share write scope, keep them
+serial `one-subagent` (resume or re-dispatch)—do not treat that as automatic
+leader-direct. The leader retains task graph, join, task acceptance,
+task-level review, and final implementation verification ownership. The later
+system Review remains an independent workflow.
 
 Provide the worker:
 

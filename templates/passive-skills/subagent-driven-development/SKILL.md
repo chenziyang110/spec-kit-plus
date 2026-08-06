@@ -28,11 +28,15 @@ Route first, choose the lightest safe execution surface, then packetize only sel
 - Use leader-direct execution for a small or tightly coupled task when delegation
   adds no critical-path or quality benefit and the owning workflow permits it.
 - Compile and validate a `WorkerTaskPacket` just in time before selected delegated work.
-- Dispatch `one-subagent` when one safe lane is ready.
+- Dispatch `one-subagent` when one safe lane is ready, or when multiple tasks
+  share write scope and must run serially.
 - Dispatch `parallel-subagents` when two or more independent lanes can run
-  concurrently.
+  concurrently with isolated write sets.
+- **Cannot parallelize ≠ implement as Leader.** A write-scope conflict only
+  forces serial `one-subagent` (or a recorded workflow-allowed leader mode).
 - If dispatch fails, record the event and re-evaluate route safety. Execute locally
-  only when the task independently qualifies for leader-direct.
+  only when the task independently qualifies for leader-direct and that choice is
+  recorded in the owning workflow state.
 - `sp-debug` may stay leader-inline for small focused investigations; use
   subagent-assisted execution when the investigation exposes broad, independent,
   or parallel evidence lanes.
@@ -109,6 +113,8 @@ packet before dispatch.
 
 - Treating every implementation task as mandatory delegation even when a small,
   tightly coupled leader-direct route is safer and faster.
+- After a parallel write-scope conflict, implementing all serial tasks
+  leader-inline without trying `one-subagent` and without recording a fallback.
 - Doing leader-inline work after a `sp-debug` route selected
   `subagent-assisted` execution or after independent evidence lanes are
   available, without recording why the investigation remains small and focused.

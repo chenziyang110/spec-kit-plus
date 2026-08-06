@@ -23,9 +23,11 @@ Use `choose_subagent_dispatch(command_name="plan" | "tasks", snapshot, workload_
 Dispatch rules:
 
 - Light mode records `dispatch_shape: leader-inline`, `execution_surface: leader-inline`, `workflow_status: ready`, and `capability_degraded: false`.
-- Standard mode uses native subagents when available: one validated lane records `one-subagent`; two or more isolated lanes record `parallel-subagents`.
-- Standard mode may degrade to leader-inline only when native subagents are unavailable and no high-risk trigger is present; record `capability_degraded: true`.
+- Standard mode uses native subagents when available: one validated lane records `one-subagent`; two or more **write-isolated** lanes record `parallel-subagents`; dependent or write-overlapping lanes stay `one-subagent` serial (do not degrade to leader-inline merely because isolation failed).
+- Standard mode may degrade to leader-inline only when native subagents are unavailable and no high-risk trigger is present; record `capability_degraded: true` and the concrete unavailability reason.
 - Heavy mode must use native subagents with safely packetized lanes. If native subagents are unavailable, or if the work cannot be packetized safely, record `workflow_status: blocked`, `dispatch_shape: subagent-blocked`, `execution_surface: none`, and `blocked_reason`.
+
+{{spec-kit-include: ./write-scope-dispatch.md}}
 
 Artifact-producing delegated lanes must use execution-capable native subagents, but no worker receives direct workflow-artifact write authority. Each lane builds its bounded result in memory and submits it through the runtime-provided inline result channel; the runtime alone materializes the canonical handoff path. Product/source write scope remains explicit when a lane actually implements code, while planning and task-generation lanes are read-only outside their result channel. If a delegated lane returns prose, idle state, or no accepted CLI result, stop or re-dispatch with the complete runtime-owned result argv and inline payload contract.
 

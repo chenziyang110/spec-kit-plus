@@ -32,6 +32,7 @@ Before dispatch, every subagent lane needs a task contract with objective, autho
 Use `execution_model: subagent-mandatory`.
 Use `dispatch_shape: one-subagent | parallel-subagents`.
 Use `execution_surface: native-subagents`.
+Shared or overlapping write/path scopes among packets force serial `one-subagent` (resume or re-dispatch); a parallel conflict is not permission for unrecorded Leader implementation.
 
 ## Process
 

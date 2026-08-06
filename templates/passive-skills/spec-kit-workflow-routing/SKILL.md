@@ -248,7 +248,10 @@ user what to type:
   active runtime. An accepted terminal result needs no separate cleanup
   operation; interrupt or cancel only unfinished work through an exposed
   capability, and keep ordinary results on the owning workflow's stage channel.
-- Dispatch `one-subagent` when one safe lane is ready.
+- Dispatch `one-subagent` when one safe lane is ready, or when multiple lanes
+  share write scope and must run serially instead of in parallel.
+- Treat write-scope parallel conflicts as sequencing constraints, not as
+  authorization for unrecorded leader-inline implementation.
 - Dispatch `parallel-subagents` when two or more independent lanes can run
   concurrently.
 - Record a fallback or blocked reason when a workflow-selected delegated lane

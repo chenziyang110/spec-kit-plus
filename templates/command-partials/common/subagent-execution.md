@@ -32,4 +32,10 @@ Use `execution_model: subagent-mandatory`.
 Use `dispatch_shape: one-subagent | parallel-subagents`.
 Use `execution_surface: native-subagents`.
 
+{{spec-kit-include: ./write-scope-dispatch.md}}
+
+When multiple mandatory lanes share write scope, run them as serial
+`one-subagent` packets (or resume one worker). Do not collapse that sequence
+into Leader implementation because a parallel wave was rejected.
+
 Do not rely on leader-inline fallback semantics or managed-team lifecycle language in this shared partial. The parent workflow must state any command-specific analysis roles, join points, or escalation rules directly.

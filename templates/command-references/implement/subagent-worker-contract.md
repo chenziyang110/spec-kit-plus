@@ -14,13 +14,16 @@ You are the workflow leader. You own routing, execution-state truth, acceptance,
 
 - Call `specify-runtime implement task-next` for the canonical ready task and compact execution state; query only its additional required refs through `specify-runtime artifact show`.
 - Use `leader-direct` for a small or tightly coupled ready task when delegation would add more coordination than execution value and no high-risk trigger requires an independent lane.
-- Use `one-subagent` for one independent bounded task; use `parallel-subagents` only for multiple validated lanes with isolated write sets and an explicit join point.
+- Use `one-subagent` for one independent bounded task, for dependent ready tasks, or when selected tasks share write scope (serial packets / resume worker).
+- Use `parallel-subagents` only for multiple validated lanes with **isolated** write sets and an explicit join point.
 - Use `managed-team` only when the runtime supports it and durable team state, explicit multi-wave join tracking, or lifecycle control is required beyond an in-session subagent burst. It is not an ordinary dispatch fallback.
 - Compile and validate a `WorkerTaskPacket` just in time only for delegated work. Leader-direct tasks do not require a packet.
 - Use `native-subagents` when selected and available. Re-evaluate the route after drift, failure, or each join instead of treating dispatch preference as a blocker by itself.
 - Treat non-empty `$ARGUMENTS` as first-class implementation context, not disposable chat-only guidance
 
-Route in this order: `leader-direct` when it independently qualifies, then `one-subagent`, `parallel-subagents`, or `managed-team` as their coordination value and state requirements justify. Use `subagent-blocked` only when selected delegated work cannot be made safe and the task does not independently qualify for leader-direct execution.
+Route in this order: `leader-direct` when it independently qualifies, then `one-subagent` (including write-overlapping serial tasks), then `parallel-subagents` for isolated lanes, or `managed-team` when durable coordination is required. Use `subagent-blocked` only when selected delegated work cannot be made safe and the task does not independently qualify for leader-direct execution.
+
+**Write-scope conflict ≠ leader-direct.** Rejecting parallel dispatch because two tasks touch the same files only forbids `parallel-subagents`. Prefer serial `one-subagent` for those tasks. Do not implement them leader-direct solely because they share a write set, unless each task independently qualifies for leader-direct and that choice is recorded in lifecycle/state.
 
 ### Delegated Lane Contract
 
@@ -69,7 +72,7 @@ If technical blockers arise (build errors, missing toolchain components, environ
 ### Integrity Rules
 
 - The leader must not edit a delegated lane's write scope while that subagent is active.
-- Do not silently fall through from a failed dispatch into local execution. Record the event, re-evaluate route safety, and use leader-direct only when the task independently qualifies for it.
+- Do not silently fall through from a failed dispatch or a parallel write-scope conflict into local execution. Record the event, re-evaluate route safety, prefer serial `one-subagent`, and use leader-direct only when the task independently qualifies for it with a recorded reason.
 - Do not dispatch a subagent when required packet fields or required references are missing — repair the packet first or stop as `subagent-blocked`
 - Do not dispatch image-backed UI implementation when the worker cannot inspect the original visual input and the task depends on fidelity. Repair the packet/handoff first, or stop as `subagent-blocked` with the missing image handoff reason.
 - Do not bypass lifecycle truth, result handoffs, or verification gates.

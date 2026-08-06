@@ -5,9 +5,14 @@ Apply this contract only after the owning workflow selects bounded delegation.
 - Discover the active integration's real dispatch and join operations before
   recording a capability blocker. Do not require an operation that the active
   runtime does not expose.
-- Dispatch only validated, independent lanes with explicit read/write scope,
-  authoritative inputs, acceptance, and verification obligations. Launch a
-  safe parallel wave before waiting at its documented join point.
+- Dispatch only validated lanes with explicit read/write scope, authoritative
+  inputs, acceptance, and verification obligations.
+- Prefer `parallel-subagents` only for non-overlapping write scopes. Shared or
+  overlapping write scopes default to serial `one-subagent` (resume or
+  re-dispatch). A parallel write-conflict error is not permission for the
+  Leader to implement that work without a recorded workflow-allowed fallback.
+- Launch a safe parallel wave only after isolation is confirmed; otherwise wait
+  on serial joins through the owning workflow's start/accept gates.
 - An accepted terminal result completes its native lane without a separate
   cleanup operation. Interrupt or cancel only unfinished work that must stop,
   and only through an operation the active runtime exposes.

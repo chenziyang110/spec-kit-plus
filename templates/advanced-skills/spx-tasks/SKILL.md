@@ -42,7 +42,10 @@ patch, replace, or delete either projection directly. Every task needs a stable
 ID, complete outcome (`objective`/`title`), dependencies, write scope,
 acceptance (`acceptance`/`done_condition`), verification, and must-preserve
 obligations. Mark parallel only when inputs are stable and writes do not
-overlap; name the join and combined check.
+overlap; name the join and combined check. Write-overlapping task-generation
+lanes use serial `one-subagent` (or leader-inline only under adaptive light /
+recorded standard degradation)—never unrecorded leader synthesis after a
+parallel conflict.
 
 Set root `validation_policy` to `mode: feature_epochs`, `max_epochs: 3`,
 `budget_scope: implement-review`,

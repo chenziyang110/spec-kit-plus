@@ -90,13 +90,15 @@ Otherwise patch the skip reason into `plan-contract.json` through a leased JSON-
 contexts with the installed `update-agent-context` script after the plan is
 valid.
 
-When isolated planning lanes are delegated, create an absent
+When planning lanes are delegated, create an absent
 `planning/lane-manifest.json` with `artifact scaffold --kind planning-lane-manifest --path <feature-dir>/planning/lane-manifest.json` and
-query it on resume. Submit each compact lane result inline through `result submit --command plan`;
-the runtime alone writes its handoff. At material joins,
-replace the bounded `/lanes` array as a whole through a fresh leased JSON-pointer
-patch and patch `/status` separately at closeout. Never emulate array append,
-submit the manifest wholesale, or duplicate lane events.
+query it on resume. Parallelize only isolated lanes; shared handoff or
+research surfaces stay serial `one-subagent`. Submit each compact lane result
+inline through `result submit --command plan`; the runtime alone writes its
+handoff. At material joins, replace the bounded `/lanes` array as a whole
+through a fresh leased JSON-pointer patch and patch `/status` separately at
+closeout. Never emulate array append, submit the manifest wholesale, or
+duplicate lane events.
 
 Validate the plan contract and compact plan view against confirmed requirements
 and live owners. Do not create tasks or task artifacts such as `tasks.md` or
