@@ -111,6 +111,12 @@ def test_quick_template_exists_and_defines_lightweight_tracked_flow() -> None:
         "is to dispatch the first subagent"
     ) in content
     assert "if two or more independent subagent lanes can safely run in parallel" in content
+    assert "write-scope conflict ≠ leader-inline authorization" in content
+    assert "same-file multi-q template" in content
+    assert "leader-inline is not a silent default" in content
+    assert "blocked_dispatch" in content
+    assert "attempted_shape" in content
+    assert "chosen_shape: leader-inline" in content
     assert ".planning/quick/<id>-<slug>/" in content
     assert ".planning/quick/index.json" in content
     assert "status.md" in content
@@ -173,6 +179,10 @@ def test_quick_template_uses_fixed_status_scaffold() -> None:
     assert "join_point:" in scaffold
     assert "blockers:" in scaffold
     assert "blocker_reason:" in scaffold
+    assert "blocked_dispatch:" in scaffold
+    assert "attempted_shape:" in scaffold
+    assert "chosen_shape:" in scaffold
+    assert "write-scope parallel conflicts default to one-subagent serial" in scaffold
     assert "resume_decision:" in scaffold
     assert "handoff_delivery_contract:" in scaffold
     assert "delivery_scope:" in scaffold

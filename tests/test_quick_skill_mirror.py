@@ -44,9 +44,11 @@ def test_repo_quick_skill_mirror_has_codex_subagent_dispatch_contract(
     assert 'choose_subagent_dispatch(command_name="quick"' in full_body
     assert "query `.specify/memory/constitution.md` first through" in body
     assert "specify-runtime artifact show" in body
-    assert "understanding checkpoint" in body
-    assert_quick_checkpoint_card_shape(body)
-    assert "understanding_confirmed: true" in body
+    # Checkpoint and dispatch contracts may live in referenced sidecars;
+    # assert against the assembled skill surface (body + references).
+    assert "understanding checkpoint" in full_body
+    assert_quick_checkpoint_card_shape(full_body)
+    assert "understanding_confirmed: true" in full_body
     assert "dispatch_shape: one-subagent | parallel-subagents" in full_body
     assert "execution_surface: native-subagents" in full_body
     assert "one-subagent" in full_body
@@ -65,16 +67,18 @@ def test_repo_quick_skill_mirror_has_codex_subagent_dispatch_contract(
     assert "managed team" in body
     assert (
         "validated `workertaskpacket` or equivalent execution contract preserves quality"
-        in body
+        in full_body
     )
     assert (
         "the next concrete action must be dispatch" in full_body
         or "first actionable execution step after scope lock and understanding confirmation is to dispatch"
         in full_body
     )
-    assert "materially improve throughput" in body
+    assert "materially improve throughput" in full_body
     assert "blocked_dispatch" in full_body
-    assert "continue automatically until the quick task is complete or blocked" in body
+    assert "write-scope conflict" in full_body or "overlapping write" in full_body
+    assert "leader-inline is not a silent default" in full_body
+    assert "continue automatically until the quick task is complete or blocked" in full_body
     assert "if exactly one unfinished quick task exists" in full_body
     assert "if multiple unfinished quick tasks exist" in full_body
     assert "ask the user which quick task to continue" in full_body

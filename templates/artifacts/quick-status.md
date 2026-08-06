@@ -116,7 +116,14 @@ join_point: ""
 blockers: []
 blocked_dispatch:
   status: none
+  # none | recorded-fallback | subagent-blocked
   reason: ""
+  # Required before any leader-inline source edit after item-start.
+  attempted_shape: ""
+  # one-subagent | parallel-subagents | none
+  chosen_shape: ""
+  # one-subagent | parallel-subagents | leader-inline | subagent-blocked
+  note: "Write-scope parallel conflicts default to one-subagent serial, not leader-inline."
 work_item_status:
   - work_item_id: Q1
     status: pending

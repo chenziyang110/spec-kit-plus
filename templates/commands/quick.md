@@ -21,8 +21,8 @@ workflow_contract:
 1. Accept non-trivial direct-delivery work of any size whose outcome can be confirmed at the Quick Checkpoint. Scale the quick workspace instead of routing to `{{invoke:specify}}` because work is large, cross-cutting, multi-capability, migration-heavy, or acceptance-heavy; route unknown failure mechanisms to `{{invoke:debug}}`.
 2. Create `.planning/quick/<id>-<slug>/STATUS.md` only with `artifact scaffold --kind quick-status`; resume via `artifact show`, and mutate frontmatter/sections only through leased `artifact patch` calls.
 3. Consume eligible discussion handoff or quick-task context without silently changing the confirmed scope; record consequence coverage, planning depth, and any user-owned checkpoint amendment.
-4. Use `choose_subagent_dispatch(command_name="quick", snapshot, workload_shape)` and packetized `WorkerTaskPacket` or equivalent contracts for substantive lanes, including multiple dependency-aware batches when the task is large.
-5. Execute the quick task, patch `STATUS.md` through the artifact CLI at phase transitions, validate changed surfaces, create an absent `SUMMARY.md` with `artifact scaffold --kind quick-summary`, patch only its terminal semantic sections through fresh leases, and close through `specify-runtime quick close`.
+4. Use `choose_subagent_dispatch(command_name="quick", snapshot, workload_shape)` and packetized `WorkerTaskPacket` or equivalent contracts for every substantive Q item. Default `one-subagent` when Q items share write scope or depend serially; use `parallel-subagents` only for isolated write sets. A parallel write-conflict error is not permission for leader-inline—record `blocked_dispatch` before any leader-inline fallback.
+5. Execute through `quick packet-compile` / `item-start` / subagent join / `item-accept`, patch `STATUS.md` through the artifact CLI at phase transitions, validate changed surfaces, create an absent `SUMMARY.md` with `artifact scaffold --kind quick-summary`, patch only its terminal semantic sections through fresh leases, and close through `specify-runtime quick close`.
 
 ## Detailed References
 

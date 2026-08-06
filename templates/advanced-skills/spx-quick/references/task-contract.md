@@ -72,7 +72,8 @@ technical questions; ask the user only for product choices or authority the
 repository cannot supply.
 
 Execute confirmed work items in dependency order through runtime gates:
-`quick packet-compile --item Qn`, `quick item-start --item Qn`, and
+`quick packet-compile --item Qn`, `quick item-start --item Qn`, native subagent
+dispatch for that item's write scope, join, then
 `quick item-accept --item Qn --evidence ...`. Runtime rejects starting or
 compiling a dependent item until every prerequisite is `accepted`, and rejects
 `quick close ... resolved` until every work item is accepted. A worker packet
@@ -80,9 +81,18 @@ names one `work_item_id`, its `depends_on` ids, prerequisite evidence, and its
 exact work-item acceptance. Each `work_item_status` is `pending`, `ready`,
 `in_progress`, `blocked`, or `accepted`; only `accepted` satisfies a dependency.
 Implementation completion without the item's required acceptance evidence does
-not unlock its dependents. Independent ready items may share a batch. One
-completed batch is progress, not task completion; close only after every work
-item is accepted and the overall completion evidence passes.
+not unlock its dependents.
+
+Independent ready items may share a batch only with non-overlapping write
+scopes. When Q items share a file or otherwise conflict, keep
+`dispatch_shape: one-subagent` and run serial `item-start`/`item-accept`
+cycles—optionally resuming the same subagent. A parallel-wave write-scope error
+is a sequencing signal, not a Leader-implement signal. If Leader must implement
+(native subagents unavailable), patch `blocked_dispatch` with
+`attempted_shape: one-subagent`, `chosen_shape: leader-inline`, and a concrete
+reason before the first source edit. One completed batch is progress, not task
+completion; close only after every work item is accepted and the overall
+completion evidence passes.
 
 Scale up task-local planning when the task develops cross-capability behavior,
 architectural or migration decisions, compatibility or rollout obligations, or

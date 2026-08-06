@@ -56,14 +56,18 @@ The following flags are available and composable:
 - [AGENT] Use the shared policy function before execution begins and again at each join point: `choose_subagent_dispatch(command_name="quick", snapshot, workload_shape)`.
 - Persist the decision fields exactly: `execution_model: subagent-mandatory`, `dispatch_shape: one-subagent | parallel-subagents`, `execution_surface: native-subagents`.
 - Treat `snapshot.delegation_confidence` as a runtime/model reliability signal for the current subagent path. If confidence is `low`, prefer the native subagent workflow or record `subagent-blocked` over fragile dispatch.
-- Decision order:
-  - One safe validated lane -> `one-subagent` on `native-subagents` when available.
-  - Two or more safe isolated lanes -> `parallel-subagents` on `native-subagents` when available.  - No safe lane, overlapping writes, missing contract, low confidence, or unavailable delegation -> `subagent-blocked` with a recorded reason.
-- Substantive multi-item or multi-surface quick-task lanes should use native subagent execution once a validated `WorkerTaskPacket` or equivalent execution contract preserves quality. Single-item tightly coupled work may stay leader-inline when packetization would not save critical-path work. If the readiness bar for a delegated lane is not met, compile the missing contract before dispatch; if the contract cannot be made safe, record `subagent-blocked` and stop for escalation or recovery. Subagent count and packetization are agent-owned Delivery Map concerns and never require user confirmation.
+- Decision order (after confirmation and `item-start` readiness):
+  - Two or more independent ready items/lanes with non-overlapping write scopes -> `parallel-subagents` on `native-subagents` when available.
+  - One safe validated lane, or multiple Q items that share/overlap write scope, or dependent Q items -> `one-subagent` on `native-subagents` (serial through `item-start`/`item-accept`; resume the same worker or start a replacement with the next packet).
+  - Native subagents unavailable or the lane cannot be packetized safely -> `subagent-blocked` with a recorded reason, then only as last resort a recorded `leader-inline` fallback.
+- **Write-scope conflict ≠ leader-inline authorization.** Runtime rejecting a parallel wave for overlapping writes (for example the same `*.tsx` in Q1 and Q2) only forbids `parallel-subagents`. The correct default remains `dispatch_shape: one-subagent` with serial Q gates. Do not translate "cannot parallelize" into "Leader implements".
+- **Same-file multi-Q template:** when Q1..Qn primarily touch the same write surface, stage Delivery Map as one serial one-subagent path: `item-start Q1` -> spawn/resume subagent for Q1 write_scope -> join + `item-accept Q1` -> `item-start Q2` -> same or new subagent for Q2 -> ... -> close. Optional delivery-only wave merge is agent-owned only when acceptance still maps one-to-one to each confirmed Q id.
+- Substantive multi-item or multi-surface quick-task lanes must use native subagent execution once a validated `WorkerTaskPacket` or equivalent execution contract preserves quality. If the readiness bar for a delegated lane is not met, compile the missing contract before dispatch; if the contract cannot be made safe, record `subagent-blocked` and stop for escalation or recovery. Subagent count and packetization are agent-owned Delivery Map concerns and never require user confirmation.
 - If two or more independent subagent lanes can safely run in parallel and that fan-out materially improves throughput, dispatch multiple subagents instead of serial execution.
-- `subagent-blocked` is an exception path, not a strategy choice. Use it only when the current quick-task batch cannot proceed through subagents or the native subagent workflow.
-- If subagent-blocked status is used, patch the concrete reason into `STATUS.md` through the artifact CLI.
-- The first actionable execution step after scope lock and understanding confirmation is to dispatch the first subagent batch, not to continue local deep-dive analysis.
+- `subagent-blocked` is an exception path, not a strategy choice. Use it only when native subagent dispatch is concretely unavailable or the current batch cannot be packetized safely—not merely because writes overlap or the task looks small.
+- **Leader-inline is not a silent default.** Use it only after an explicit dispatch decision fails or native subagents are unavailable. Before any Leader source edit under leader-inline, patch `STATUS.md` `blocked_dispatch` with `status`, `reason`, `attempted_shape` (usually `one-subagent`), and `chosen_shape: leader-inline`. Unrecorded leader-inline after `item-start` is a process defect.
+- If subagent-blocked or leader-inline fallback is used, patch the concrete reason into `STATUS.md` through the artifact CLI before implementation edits.
+- The first actionable execution step after scope lock and understanding confirmation is to dispatch the first subagent batch, not to continue local deep-dive analysis or implement the first Q item leader-inline.
 - Use `.specify/templates/worker-prompts/quick-worker.md` as the default contract for quick-task subagents so the subagent returns enough state for the leader to keep `STATUS.md` accurate.
 - Prefer structured subagent results compatible with the shared `WorkerTaskResult` contract when the current runtime supports them.
 - Submit a structured result through `{{specify-subcmd:specify-runtime result submit --command quick --request-id <request-id> --result-json '<inline-json>'}}` when a runtime request exists, or use workspace/lane identifiers for an unmanaged lane. The runtime derives and writes the canonical destination. Never compute a result path, create a result file, or use `--result-file`; without a runtime channel, return the structured payload to the leader.
@@ -126,8 +130,11 @@ change, reference the approved `DESIGN.md`/live pattern, affected entry point,
   until every `depends_on` item has passed its work-item acceptance or the user
   has confirmed a dependency amendment. Prefer `quick item-start` /
   `quick item-accept` so the DAG gate is machine-enforced rather than prompt-only.
-- Independent ready work items may run in the same parallel batch. Patch the
-  batch membership, join point, and prerequisite evidence into `STATUS.md` through leased `specify-runtime artifact patch` calls.
+- Independent ready work items may run in the same parallel batch only when their
+  write scopes do not conflict. Shared-file or overlapping write scopes force
+  serial `one-subagent` execution even when the Delivery Map still lists multiple
+  Q ids. Patch the batch membership, join point, and prerequisite evidence into
+  `STATUS.md` through leased `specify-runtime artifact patch` calls.
 - A large work item may use several lanes or batches. A lane or batch result
   updates `work_item_status`; it does not replace the confirmed work-item
   acceptance.

@@ -78,13 +78,29 @@ Quick `STATUS.md`, run
 The `--feature-dir` spelling is retained for compatibility and accepts the Quick
 workspace; do not mark consumption before the binding evidence exists.
 
-Inspect the current diff and cognition-selected paths, then implement the full
-confirmed scope. When durable planning no longer fits compact state, create an
-absent task-local `PLAN.md` with `specify-runtime artifact scaffold --kind
-quick-plan`, query it on resume, and patch only named sections; never submit or
-reconstruct the whole plan. Scale that plan, dependency-aware lanes, and
-multiple ready batches to the workload. Delegate only independent lanes that
-improve throughput or confidence; do not manufacture packets for leader-direct work. A behavior
+Inspect the current diff and cognition-selected paths, then execute the full
+confirmed scope under `execution_model: subagent-mandatory`. When durable
+planning no longer fits compact state, create an absent task-local `PLAN.md`
+with `specify-runtime artifact scaffold --kind quick-plan`, query it on resume,
+and patch only named sections; never submit or reconstruct the whole plan.
+Scale that plan, dependency-aware lanes, and multiple ready batches to the
+workload.
+
+After checkpoint confirmation, the first substantive step is dispatch, not
+Leader implementation. Use runtime gates
+`quick packet-compile --item Qn` → `quick item-start --item Qn` → native
+subagent → join → `quick item-accept --item Qn`. Default shapes:
+
+- non-overlapping ready items → `parallel-subagents`;
+- one lane, dependent Q items, or **shared/overlapping write scopes** (same
+  component/file) → `one-subagent` serial (spawn or resume one worker; do not
+  treat parallel write-conflict errors as permission to implement leader-inline);
+- native dispatch unavailable or unpacketizable → record `blocked_dispatch` in
+  `STATUS.md` (`attempted_shape`, `chosen_shape`, `reason`) before any
+  leader-inline fallback.
+
+A narrow single-file UX tweak does not waive subagent-first. Leader-inline
+without a patched `blocked_dispatch` reason is a process defect. A behavior
 change must run and record RED before production edits. If no reliable
 automated surface exists, build the smallest viable harness as its own Quick
 lane or batch; if that work is concretely blocked, record the blocker rather
