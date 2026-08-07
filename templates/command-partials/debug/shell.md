@@ -1,5 +1,7 @@
 {{spec-kit-include: ../common/user-input.md}}
 
+{{spec-kit-include: ../common/design-intelligence.md}}
+
 ## Objective
 
 Drive a resumable debugging workflow that finds the real failure mechanism before any fix is accepted.
@@ -11,6 +13,7 @@ Drive a resumable debugging workflow that finds the real failure mechanism befor
 - Delegated helpers are evidence collectors, not owners of the overall investigation.
 - Debug execution is complexity-based: small focused investigations may stay leader-inline, while broad or independent evidence lanes use one or more subagents.
 - Before substantive investigation, present one Debug Understanding Checkpoint covering user-owned problem facts, expected behavior, occurrence conditions, investigation boundary, explicit fix authority, assumptions to correct, and reconfirmation triggers. Technical hypotheses and the evidence sequence belong to the agent. For applicable UI symptoms, append the independent UI Confirmation target baseline and ask for one combined confirmation; persist both decisions through fresh `specify-runtime artifact patch` leases.
+- **UI Debug Mode (Design Intelligence):** when the symptom is visual, interaction, or presentation, classify into at least one issue class before fixing: **visual/layout** (spacing, alignment, overflow, responsive), **UX/interaction** (unclear action, bad feedback, confusing flow; broken or missing hover, focus, keyboard, loading, empty, error), or **taste/generic-look** (template-like, no hierarchy, noise, anti-slop or design-DNA drift). Happy-path-only screens that collapse on state/interaction still count. Record issue, reason, and design-aware fix direction in the debug session.
 - Treat that as the one initial full checkpoint. If later evidence materially changes the confirmed boundary or authority, use the delta-only Debug Checkpoint Amendment contract after first explaining why the prior confirmation is no longer sufficient.
 
 ## Debug Checkpoint Card

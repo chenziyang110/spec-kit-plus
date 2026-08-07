@@ -1,5 +1,7 @@
 {{spec-kit-include: ../common/user-input.md}}
 
+{{spec-kit-include: ../common/design-intelligence.md}}
+
 ## Objective
 
 Execute a non-trivial task through a tracked direct-delivery path without first entering the formal `specify -> plan -> tasks` workflow.
@@ -30,6 +32,14 @@ delta-only amendment contract; execution-only rearranges never re-confirm.
   re-confirmation. For applicable UI work, include independent UI Confirmation
   in the staged decision and ask for one combined confirmation on staged
   non-inherited checkpoints.
+- **UI change? UI Audit then design-before-code.** When the request changes
+  user-visible UI, run **UI Audit** first (hierarchy weak? spacing inconsistent?
+  missing loading/empty/error? generic card layout? DNA drift?), then the
+  **Quick Design Loop**: (1) audit issues list, (2) analyze current UI and design
+  sources / system model, (3) identify the design issue, (4) propose before→after
+  against DNA/dials/anti-slop, (5) implement the smallest coherent change,
+  (6) visual review at real entry points (capture → inspect → fix → recapture).
+  Do not jump straight from request to CSS/production edits for UI work.
 
 ## Quick Checkpoint Card
 

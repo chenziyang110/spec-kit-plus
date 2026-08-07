@@ -65,7 +65,8 @@ state propagation, and blocking runtime diagnostics.
 Execute every required scenario from its official real entrypoint inside the
 current Leader-owned delivery attempt. UI-bearing scenarios
 must capture fresh integrated `structure_snapshot`, `visual_capture`, and
-`runtime_diagnostics` evidence and visually inspect the required states. A
+`runtime_diagnostics` evidence and visually inspect the required states against
+approved design DNA, anti-slop, and hierarchy—not code correctness alone. A
 passing comparison calls `specify-runtime evidence visual-compare` with compact observed matrix/evidence input; the runtime derives and atomically owns the task-bound `spec-kit-visual-comparison-v1` report, approved preview/manifest/handoff bindings, exact `DS-*`/`DH-*` coverage, tolerance, deviations, path, and digest. Passing unit
 tests, existing files, synthetic-only checks, or an isolated component do
 not prove the product works. Group capture by integrated surface and source

@@ -1,12 +1,17 @@
-# sp-design: Design System Workflow
+# sp-design: Design Intelligence Engine
 
 You are running `sp-design`. This is a design-system workflow, not an implementation workflow.
 
+{{spec-kit-include: ../common/design-intelligence.md}}
+
 ## Objective
 
-Prompt-route one public `sp-design` entry to create, refine, or audit the
-project's root `DESIGN.md` only through `specify-runtime design`; use synthesis
-only as the input strategy for create/refine. For a new or unresolved direction, first create a
+Prompt-route one public `sp-design` entry as the project **Design Intelligence
+Engine** (Taste Intelligence + Design System Reverse Engineering + Visual
+Validation setup). Create, refine, or audit the project's root `DESIGN.md` only
+through `specify-runtime design`; use synthesis only as the input strategy for
+create/refine. Prefer Evidence → UI System Model → three-direction preview over
+screenshot-to-page cloning. For a new or unresolved direction, first create a
 project-neutral HTML design preview board with three comparable directions so
 the user can inspect the actual component, state, responsive, and motion
 language before downstream UI work starts.
@@ -64,24 +69,29 @@ and never require a colon subskill or explicit mode argument.
    replace, not an approved constraint or evidence that design work is done.
 2. Query design references/options/review through targeted `specify-runtime artifact show` calls if they exist.
 3. Read `README.md`, project handbook files, existing UI surfaces, and existing design files. Use the command's shared Learning intake for project rules and reusable lessons.
-4. Use project cognition to locate likely UI entry points, token/theme owners,
+4. **UI Evidence Analysis (when references or live UI exist):** collect sources
+   into a surface/page map; extract candidate tokens, components, states, and
+   responsive rules; tag each claim with evidence level
+   `measured` | `evidence-backed-inference` | `assumption` and a reason when not
+   measured. Do not treat screenshot similarity as measured truth.
+5. Use project cognition to locate likely UI entry points, token/theme owners,
    reusable component owners, responsive/state patterns, visual or accessibility
    tests, and design assets; verify every selected route in live files before it
    becomes design evidence.
-5. Classify the experience separately by work type, surface type (`landing`,
+6. Classify the experience separately by work type, surface type (`landing`,
    `product-workspace`, `hybrid`, or `existing-pattern-maintenance`), and one or
    more capability profiles. Read the deterministic catalog with
    `{{specify-subcmd:specify-runtime design profiles}}`; supported profiles are
    `web`, `mobile`, `desktop`, `cli`, `tui`, `content`, and `no-ui`. A hybrid
    product selects multiple visual profiles rather than collapsing them into a
    single project-type enum.
-6. If and only if `no-ui` is supported by current repository evidence, record
+7. If and only if `no-ui` is supported by current repository evidence, record
    `design_system_status: not-applicable` with that evidence and exit this
    visual workflow. Do not generate three directions, HTML, approval, handoff,
    `ui-target`, or visual comparison, and never combine `no-ui` with a visual
    profile.
-7. If references are supplied as URLs, screenshots, text notes, existing design files, or imported summaries, assign each an explicit intent: `exact`, `preserve-structure`, `inspiration`, `extract-tokens`, or `do-not-copy`.
-8. When built-in presets help, read shipped files under
+8. If references are supplied as URLs, screenshots, text notes, existing design files, or imported summaries, assign each an explicit intent: `exact`, `preserve-structure`, `inspiration`, `extract-tokens`, or `do-not-copy`.
+9. When built-in presets help, read shipped files under
    `.specify/templates/design-library/` or `templates/design-library/`
    (including aesthetic seeds and `anti-slop-policy.md`) and treat them as
    inspiration only—never as approved product direction or a substitute for

@@ -14,7 +14,6 @@ from ..manifest import IntegrationManifest
 from ...orchestration import (
     NATIVE_SUBAGENT_TERMINAL_GUIDANCE,
     CapabilitySnapshot,
-    describe_delegation_surface,
 )
 from .multi_agent import GrokMultiAgentAdapter
 

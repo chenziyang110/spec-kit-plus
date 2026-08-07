@@ -246,7 +246,9 @@ When functional discussion is stable, no explicit handoff request is active, and
 
 - Set `ui_discussion_status: offered | accepted | completed | skipped | deferred` at semantic checkpoints.
 - When accepted, advise as a senior UI and interaction designer with 15 years of delivery experience. Cover only implementation-shaping journey, layout/hierarchy, required states, responsive behavior, accessibility/focus/keyboard behavior, and user-facing copy.
+- **Design Discovery** (Design Intelligence): auto-detect UI intent, then capture durable `design_context`—not chat-only prose—covering user feeling/tone, reference products, information density, interaction complexity, dials (`variance` / `motion` / `density` when known), surface type, anti-slop lean, and whether screenshots/live UI need UI Evidence Analysis before `sp-design`. Recommend defaults when evidence supports them; ask only for genuinely user-owned taste judgment. Prefer system modeling over “make a page like this” cloning language.
 - Skipping is not a blocker unless the feature cannot be specified without the decision; carry any blocking or soft UI unknown forward.
 - Optional ASCII sketches show rough layout or flow. Markdown is the primary carrier; JSON stores only `ui_sketches_present`, `ui_sketch_summary`, and `ui_sketch_reference`.
-- Preserve `experience_commitments`, `design_system_requirements`, `design_system_status`, and `design_risk_level` in the canonical contract.
+- Preserve `experience_commitments`, `design_system_requirements`, `design_system_status`, `design_risk_level`, and `design_context` in Design Carry-Forward and the canonical handoff `discussion_decision_digest`.
 - Route new product UI, redesign/rebrand, core workflow experience, multi-platform design, or high-visibility surfaces to `sp-design`; small UI gaps may continue only as an explicit soft risk.
+- Apply shared Design Intelligence rules (taste DNA, dials, surface-aware anti-slop) subordinate to approved `DESIGN.md`; bootstrap seed is never product direction.

@@ -1,5 +1,7 @@
 {{spec-kit-include: ../common/user-input.md}}
 
+{{spec-kit-include: ../common/design-intelligence.md}}
+
 ## Objective
 
 Advance the current feature through tracked implementation batches while keeping execution state, subagent work, verification evidence, and recovery paths explicit.

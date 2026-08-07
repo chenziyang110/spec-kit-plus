@@ -83,8 +83,10 @@ After the planner chain (or mark-dirty), record a durable receipt **before** any
 {{specify-subcmd:specify-runtime cognition mutation-receipt --workflow {{project-cognition-workflow}} --feature-dir <feature-or-scope> --result-state ready|no_op|mark-dirty|partial --reason "<text>" --format json}}
 ```
 
-- Feature workflows write `<feature-dir>/cognition-closeout.json`.
-- Quick may use the same file under the quick workspace, or `quick cognition-closeout` (wrapper).
+- Feature workflows obtain `<feature-dir>/cognition-closeout.json` only through
+  the cognition/mutation-receipt runtime owners (never hand-authored).
+- Quick may use the same runtime-owned file under the quick workspace, or
+  `quick cognition-closeout` (wrapper).
 - Runtime **blocks** implement closeout and implement/review `complete-stage` without an allowed receipt.
 - Product goal: a greenfield project’s project-cognition graph **keeps growing** with every real code change. Prefer `ready` after update + validate-build + complete-refresh. Use `mark-dirty`/`no_op` only with an explicit reason; treat repeated dirty-only closeouts as a process defect to repair on the next mutation.
 

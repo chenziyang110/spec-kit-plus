@@ -114,12 +114,16 @@ creates those immutable targets from final integrated evidence.
 When durable Codex team state is explicitly needed,
 hand off to `$spx-implement-teams` and stop; do not switch workflows inline.
 
-For UI-bearing work, consume the compiled task `ui_contract`; do not reconstruct
-design intent from task prose. Workers preserve design inputs and return changed
-surfaces, required states/viewports, and visual risks, but do not run the full
-viewport/state capture loop per Txx. In a Leader-owned gate attempt, run the integrated
-real surface once per applicable fingerprint and record `structure_snapshot`,
-`visual_capture`, and `runtime_diagnostics` with
+For UI-bearing work, apply Design Intelligence **UI Implementation Rules** before
+generating UI: query the approved design system and UI System Model (tokens,
+components, states) through `specify-runtime artifact show`, plus surface-aware
+anti-slop and the task `ui_contract`; prefer visual hierarchy and the component
+system over generic equal-weight card grids. Consume the compiled task `ui_contract`; do not
+reconstruct design intent from task prose. Workers preserve design inputs and
+return changed surfaces, required states/viewports, and visual risks, but do not
+run the full viewport/state capture loop per Txx. In a Leader-owned gate attempt,
+run the integrated real surface once per applicable fingerprint and record
+`structure_snapshot`, `visual_capture`, and `runtime_diagnostics` with
 `evidence_scope: integrated`; visually inspect, repair drift, and recapture in
 a new attempt inside the same gate. For a passing comparison, call
 `specify-runtime evidence visual-compare --feature-dir <feature-dir> --task-id <Txxx> --input-json '<observed-comparison-json>' --format json` with only the observed entrypoint/revision, typed evidence refs, matrix differences, explicit verdict, and reviewer. The runtime derives the approved preview/manifest/handoff bindings, exact `DS-*`/`DH-*` coverage, tolerance, deviations, canonical report, and byte digest from the task contract. Never read the stable template or author/patch the report. Record behavior checks separately from

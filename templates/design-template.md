@@ -79,6 +79,19 @@ Downstream agents must not treat `status: bootstrap` as locked visual truth.
 This seed intentionally contains no palette, type scale, spacing scale, radius,
 or component style to copy. Select them from product context and live evidence.
 
+## Design Personality / DNA
+
+Record design personality when this system is approved (not as bootstrap filler):
+
+- Product subject and audience
+- Personality traits (for example trustworthy, intelligent, calm)
+- Explicit avoid list (for example playful toy feel, generic SaaS dashboard)
+- Global dials when set in the design brief: variance / motion / density (1-10)
+
+Downstream agents must read approved DNA and dials before generating UI. They
+are not free-form style adjectives after approval—they bind visual hierarchy,
+motion, and density choices.
+
 ## Design Direction
 
 Record the subject, audience, single user job, visual/content/interaction
@@ -96,6 +109,11 @@ stable `DS-*` decision ID.
 Define semantic color modes, typography hierarchy, spacing, geometry,
 elevation, sizing, layout, and motion. Record resolved font behavior and
 foreground/background contrast pairs instead of relying on aesthetic labels.
+
+When values were reverse-engineered from screenshots or live UI, record
+**evidence level** per material token (`measured` |
+`evidence-backed-inference` | `assumption`) so downstream work does not treat
+guesses as measured truth.
 
 ## Platforms
 
