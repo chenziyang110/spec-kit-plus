@@ -68,29 +68,21 @@ new immutable review round; an export or in-place mutation of the approved
 round is not a substitute. For `create` and those `refine` routes, author
 `.specify/design/previews/round-NN.manifest.json` from
 `{{specify-subcmd:specify-runtime design preview-manifest --profiles <comma-separated-profile-ids> --out .specify/design/previews/round-NN.manifest.json}}`,
-then render it with
+then render the freeform board shell with
 `{{specify-subcmd:specify-runtime design preview --manifest .specify/design/previews/round-NN.manifest.json --out .specify/design/previews/round-NN.html}}`.
-Do not hand-edit the generated HTML or globally replace direction IDs; the
-renderer owns candidate metadata, the embedded manifest, URL targets, and
-per-direction style scopes. Produce exactly three project-specific directions
-in that one self-contained board. The deterministic profile model supplies
-required capabilities, input modes, measurement units, specimen kinds, states,
-and targets. All directions carry the same ordered `specimen_ids`, and every
-acceptance row binds its profile's exact specimen set. Hold representative
-content and coverage constant so direction differences are comparable, but force
-project-specific `dials` (not scaffold baseline wording), multi-axis dial
-distance, unique signatures, and divergent visual token payloads—ready lint
-rejects near-duplicates and identical render systems. Use
-modern native HTML/CSS—custom properties, cascade layers,
-fluid scales, container queries, and progressive view transitions—with only
-bounded inline review logic and no framework, CDN, remote runtime dependency,
-network call, persistence, analytics, or business behavior.
+The shell is chrome plus three freeform `#direction-*` canvases—not a fixed
+specimen product UI. **Author creative HTML/CSS inside each direction canvas**
+(taste-skill-style freeform layout/type/motion). Hand-edit direction canvases
+as required; preserve direction IDs, hash routing, and `#design-preview-manifest`.
+Produce exactly three project-specific directions in one self-contained board.
+Hold representative content constant; force project-specific `dials` (not
+scaffold baseline wording), multi-axis dial distance, unique signatures, and
+divergent visual token payloads—ready lint rejects near-duplicates and identical
+render systems. Use modern native HTML/CSS with no framework, CDN, remote
+runtime, network call, persistence, analytics, or business behavior.
 
-Configure representative content for every specimen, boundaries, modes, every
-decision-to-owner mapping, stable `DH-*` component/target/acceptance contracts,
-structured comparison
-tolerance, and the three directions in the compact manifest. The renderer produces the
-matching candidate `spec-kit-design-preview-manifest-v1`; run
+Configure the compact manifest with directions, boundaries, modes, decisions,
+and `DH-*` contracts for handoff—not as a forced HTML specimen grid. Run
 `{{specify-subcmd:specify-runtime design preview-lint .specify/design/previews/round-NN.html --level ready}}`,
 and inspect direction switching, keyboard operation, responsive widths, state
 coverage, motion, and reduced motion in a real browser. Present the exact round

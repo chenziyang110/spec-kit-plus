@@ -1,9 +1,102 @@
-{% include "styles/00-preamble.css" %}
-{% include "styles/01-reset.css" %}
-{% include "styles/02-tokens.css" %}
-{% include "styles/03-base.css" %}
-{% include "styles/04-layout.css" %}
-{% include "styles/05-components.css" %}
-{% include "styles/05a-capabilities.css" %}
-{% include "styles/06-motion.css" %}
-{% include "styles/07-responsive.css" %}
+/* Freeform board chrome only. Direction canvases are intentionally unconstrained. */
+:root {
+  --board-ink: #12141a;
+  --board-muted: #5b6472;
+  --board-line: #d7dde7;
+  --board-canvas: #f4f6fa;
+  --board-surface: #ffffff;
+  --board-accent: #2563eb;
+  --motion-duration-fast: 120ms;
+  --motion-duration-base: 220ms;
+  --motion-easing-standard: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --motion-easing-emphasized: cubic-bezier(0.16, 1, 0.3, 1);
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0;
+  min-height: 100%;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  background: var(--board-canvas);
+  color: var(--board-ink);
+}
+body[data-active-direction="direction-a"] { --preview-signature: freeform-a; }
+body[data-active-direction="direction-b"] { --preview-signature: freeform-b; }
+body[data-active-direction="direction-c"] { --preview-signature: freeform-c; }
+.board-chrome {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: grid;
+  gap: 0.75rem;
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid var(--board-line);
+  background: color-mix(in srgb, var(--board-surface) 92%, transparent);
+  backdrop-filter: blur(10px);
+}
+.board-chrome h1 { margin: 0; font-size: 0.95rem; letter-spacing: 0.02em; }
+.board-chrome p {
+  margin: 0.15rem 0 0;
+  color: var(--board-muted);
+  font-size: 0.82rem;
+  max-width: 70ch;
+}
+.direction-tabs { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.direction-tabs a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.75rem;
+  border: 1px solid var(--board-line);
+  border-radius: 999px;
+  background: var(--board-surface);
+  color: inherit;
+  text-decoration: none;
+  font-size: 0.85rem;
+}
+body[data-active-direction="direction-a"] .direction-tabs a[data-direction-target="direction-a"],
+body[data-active-direction="direction-b"] .direction-tabs a[data-direction-target="direction-b"],
+body[data-active-direction="direction-c"] .direction-tabs a[data-direction-target="direction-c"] {
+  border-color: var(--board-accent);
+  box-shadow: 0 0 0 1px var(--board-accent) inset;
+}
+.direction-stage { padding: 0; }
+.direction-canvas { display: none; min-height: 100dvh; }
+body[data-active-direction="direction-a"] #direction-a,
+body[data-active-direction="direction-b"] #direction-b,
+body[data-active-direction="direction-c"] #direction-c { display: block; }
+.direction-canvas .freeform-seed {
+  min-height: 100dvh;
+  padding: clamp(1.5rem, 4vw, 3.5rem);
+  display: grid;
+  align-content: start;
+  gap: 1rem;
+}
+.direction-canvas .freeform-seed h2 {
+  margin: 0;
+  font-size: clamp(1.8rem, 4vw, 3rem);
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+  max-width: 16ch;
+}
+.direction-canvas .freeform-seed p {
+  margin: 0;
+  max-width: 62ch;
+  color: var(--board-muted);
+  line-height: 1.55;
+}
+.direction-canvas .freeform-seed .seed-note {
+  margin-top: 1rem;
+  padding: 0.85rem 1rem;
+  border-left: 3px solid var(--board-accent);
+  background: color-mix(in srgb, var(--board-surface) 80%, var(--board-canvas));
+  font-size: 0.9rem;
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

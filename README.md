@@ -655,7 +655,7 @@ when the `classic` profile is selected.
 **Design Governance Foundation v1.0** (frozen architecture contract): AI design
 artifacts are validated for deliverable quality, not only renderability—taste
 intake, structural/semantic/quality layers, diagnostic recovery, and a Golden
-Artifact Set as regression truth. Do not stack new ready-gate conditions
+Artifact Set as regression truth. Preview boards are freeform three-direction canvases (not a fixed product specimen template); agents author creative HTML inside each direction while the embedded manifest and ready lint enforce governance. Do not stack new ready-gate conditions
 without a layer, recovery path, diagnostic contract, and golden fixture. Full
 constraint text lives in `PROJECT-HANDBOOK.md` under
 `Design Governance Foundation v1.0`. Baseline fixtures:

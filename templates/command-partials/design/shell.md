@@ -148,24 +148,27 @@ When live UI or an approved system already exists:
    Promote to `refine` only when design truth must change, then open a new
    immutable review round.
 
-## Three-Direction Preview Loop
+## Three-Direction Preview Loop (freeform board)
+
+The preview board is chrome plus three freeform direction canvases, not a fixed
+product UI specimen grid. Follow taste-skill-style creative authorship: invent
+layout, type, motion, and composition freely for each direction while governance
+stays machine-checkable via the embedded manifest and ready lint.
 
 - For `create`, or any unresolved high-visibility `refine`, with either input
-  strategy, let
-  the design CLI own `.specify/design/previews/round-NN.manifest.json` as its
-  compact source. Scaffold it with
+  strategy, scaffold the compact source with
   `{{specify-subcmd:specify-runtime design preview-manifest --profiles <comma-separated-profile-ids> --out .specify/design/previews/round-NN.manifest.json}}`,
-  fill the project-specific values only through leased JSON-pointer `specify-runtime artifact patch` calls, then render it with
+  fill project-specific manifest fields through leased `specify-runtime artifact patch`
+  calls, then render the freeform board shell with
   `{{specify-subcmd:specify-runtime design preview --manifest .specify/design/previews/round-NN.manifest.json --out .specify/design/previews/round-NN.html}}`.
-  Do not hand-edit the generated HTML or globally replace direction IDs; the
-  renderer owns candidate status, review round, embedded manifest, direction
-  controls, URL targets, and per-direction style scopes.
-- Each review round contains exactly three project-specific directions in one
-  self-contained HTML board. The profile registry deterministically projects
-  required capabilities, input modes, measurement units, specimens, states,
-  and presentation targets into the manifest. Every direction must carry the
-  same ordered `specimen_ids`; every target's `DH-*` acceptance row must bind
-  the exact specimen set for that profile.
+- **Author creative HTML/CSS inside each `#direction-*` canvas** after render.
+  Hand-editing direction canvases is expected. Preserve stable direction IDs
+  (`direction-a|b|c`), board chrome, hash routing, and `#design-preview-manifest`.
+  Do not treat freeform seed copy as product UI.
+- Each review round holds exactly three project-specific directions in one
+  self-contained HTML board. Keep comparison content constant; change design
+  language freely. Manifest capability profiles still project specimens/states
+  for handoff contracts without forcing a fixed specimen HTML layout.
 - Force direction divergence while holding comparison content constant: each
   direction needs its own project-specific `dials` triple
   (variance/motion/density with non-scaffold inference reasons), unique

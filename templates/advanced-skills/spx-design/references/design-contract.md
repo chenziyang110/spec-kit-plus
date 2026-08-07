@@ -24,10 +24,7 @@ applicable, anti-slop locks, and synthesize reference-board intents when used).
 Then query design profiles through the design CLI, select one or more visual
 capability profiles, generate `round-NN.manifest.json` with
 `specify-runtime design preview-manifest --profiles ...`, and render it with
-`specify-runtime design preview --manifest`; do not
-hand-edit the generated HTML. The installed `design-preview-template.html` is
-the stable project-level review carrier, not a claim that every platform uses
-the same Web specimen. The profile registry determines required capabilities,
+`specify-runtime design preview --manifest`; render the freeform board shell. Author creative HTML/CSS inside each direction canvas (hand-edit expected). The board is chrome plus freeform canvases, not a fixed specimen product UI. The profile registry determines required capabilities,
 input modes, units, specimens, state obligations, and presentation targets for
 Web, mobile, desktop, CLI, TUI, and content-led surfaces. All three directions
 must carry the same ordered specimen set and remain content-comparable, but

@@ -138,40 +138,28 @@ def _render_manifest() -> dict[str, object]:
     return manifest
 
 
-def test_design_preview_template_is_a_modern_three_direction_board() -> None:
+def test_design_preview_template_is_a_freeform_three_direction_board() -> None:
     content = PREVIEW_TEMPLATE.read_text(encoding="utf-8")
 
     assert lint_design_preview_file(PREVIEW_TEMPLATE) == []
     assert content.count("data-direction-id=") == 3
     assert 'data-design-preview-schema="spec-kit-design-preview-v1"' in content
-    assert 'data-preview-section="foundations"' in content
-    assert 'data-preview-section="components"' in content
-    assert 'data-preview-section="states"' in content
-    assert 'data-preview-section="motion"' in content
-    assert 'data-preview-section="responsive"' in content
-    assert 'data-preview-section="handoff"' in content
-    assert "@layer" in content
-    assert "@container" in content
-    assert "color-mix(" in content
-    assert "clamp(" in content
+    assert "freeform" in content.lower()
+    assert 'data-preview-section="foundations"' not in content
+    assert 'id="capability-specimen-grid"' not in content
+    assert "renderCapabilityBoard" not in content
     assert "prefers-reduced-motion: reduce" in content
-    assert "document.startViewTransition" in content
     assert "--motion-duration-fast" in content
     assert "--motion-easing-emphasized" in content
     assert 'data-active-direction="direction-a"' in content
-    assert "document.body.dataset.activeDirection = directionId" in content
+    assert "dataset.activeDirection" in content
     assert 'id="design-preview-manifest"' in content
     assert '"modes": {' in content
     assert '"high-contrast": {' in content
     assert 'id="direction-a"' in content
     assert "location.hash" in content
     assert "hashchange" in content
-    assert 'id="direction-comparison"' in content
-    assert 'id="simulated-viewport"' in content
-    assert 'id="capability-specimen-grid"' in content
-    assert 'id="profile-controls"' in content
     assert '"schema": "spec-kit-design-capability-model-v1"' in content
-    assert "renderCapabilityBoard" in content
     assert "https://" not in content
     assert "http://" not in content
     assert "<script src=" not in content
@@ -521,11 +509,11 @@ def test_design_preview_ready_lint_requires_a_style_scope_for_each_direction(
     tmp_path: Path,
 ) -> None:
     preview = tmp_path / "direction-style-scope.html"
+    # Remove every direction-c style scope so ready lint reports a missing scope.
     preview.write_text(
         _candidate_preview().replace(
             'body[data-active-direction="direction-c"]',
             'body[data-active-direction="direction-b"]',
-            1,
         ),
         encoding="utf-8",
     )
@@ -844,9 +832,8 @@ def test_render_design_preview_builds_ready_html_from_manifest(
     assert lint_design_preview_file(output, level="ready") == []
     assert 'data-preview-status="candidate"' in content
     assert 'data-review-round="4"' in content
-    assert 'id="direction-announcement"' in content
-    assert 'id="direction-cost"' in content
-    assert 'id="direction-comparison"' in content
+    assert "freeform" in content.lower()
+    assert 'id="capability-specimen-grid"' not in content
     for direction_id in (
         "direction-ledger",
         "direction-ribbon",
@@ -863,7 +850,7 @@ def test_render_design_preview_builds_ready_html_from_manifest(
     }
 
 
-def test_design_preview_cli_renders_manifest_without_html_editing(
+def test_design_preview_cli_renders_manifest_to_freeform_board(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1013,7 +1000,13 @@ def test_approve_design_preview_freezes_direction_and_binds_sidecar(
     )
     assert lint_design_preview_file(preview, level="ready") == []
 
-    preview.write_text(content.replace("Compare all", "Compare directions"), encoding="utf-8")
+    preview.write_text(
+        content.replace(
+            "Freeform design review board",
+            "Freeform design review board (edited)",
+        ),
+        encoding="utf-8",
+    )
     diagnostics = lint_design_preview_file(preview, level="ready")
 
     assert any(item.code == "preview-stale-approval-sidecar" for item in diagnostics)
@@ -1103,6 +1096,8 @@ def test_jinja_preview_source_matches_generated_compatibility_artifact() -> None
     assert source.stat().st_size < 1_000
     assert rendered == PREVIEW_TEMPLATE.read_text(encoding="utf-8")
     assert "{% include" not in rendered
+    assert "freeform" in rendered.lower()
+    assert "capability-specimen-grid" not in rendered
 
 
 def test_design_workflows_require_question_driven_three_option_iteration() -> None:
@@ -1116,7 +1111,7 @@ def test_design_workflows_require_question_driven_three_option_iteration() -> No
 
     assert "one high-impact design question at a time" in combined
     assert "exactly three" in combined
-    assert "design-preview-template.html" in combined
+    assert "freeform" in combined
     assert "round-" in combined
     assert "until the user approves" in combined
     assert "do not overwrite" in combined
@@ -1124,8 +1119,8 @@ def test_design_workflows_require_question_driven_three_option_iteration() -> No
     assert "motion" in combined
     assert "prefers-reduced-motion" in combined
     assert "feature-level `ui-target.html`" in combined
+    assert "author creative" in combined or "hand-edit" in combined
     for workflow in (classic.lower(), advanced.lower()):
         assert "round-nn.manifest.json" in workflow
         assert "design preview-manifest" in workflow
         assert "design preview --manifest" in workflow
-        assert "do not hand-edit" in workflow

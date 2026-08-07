@@ -41,6 +41,11 @@ Foundation defines whether an AI design artifact is **implementation-ready**:
 - recoverable when validation fails
 - protected against regression through golden artifacts
 
+Preview boards are freeform three-direction HTML canvases (chrome only in
+the scaffold). Fixed specimen grids must not constrain visual imagination;
+governance lives in the embedded machine manifest, ready lint, diagnostics,
+and golden artifacts.
+
 Product evolution after v1.0 should prefer real-project stress tests of this
 contract over stacking more ready-gate conditions.
 
