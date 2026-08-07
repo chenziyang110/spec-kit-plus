@@ -33,10 +33,13 @@ from specify_cli.launcher import (
 REPO = "chenziyang110/spec-kit-plus"
 EXPECTED_RUNTIME_PROTOCOL = "specify-runtime.v1"
 SOURCE_BUILD_MARKER_VERSION = 1
+FALLBACK_RELEASE_MARKER_VERSION = 1
 RUNTIME_LAUNCHER_BINDING_VERSION = 1
 RUNTIME_DOWNLOAD_MIRRORS_ENV = "SPECIFY_RUNTIME_DOWNLOAD_MIRRORS"
 RUNTIME_DOWNLOAD_TIMEOUT_ENV = "SPECIFY_RUNTIME_DOWNLOAD_TIMEOUT"
 DEFAULT_DOWNLOAD_TIMEOUT_SECONDS = 60
+# Cold ``go build`` on Windows/CI can exceed two minutes after module fetch.
+DEFAULT_SOURCE_BUILD_TIMEOUT_SECONDS = 300
 # Free community GitHub-release mirrors for open-source installs (esp. regions
 # where github.com is slow/unreachable). Official GitHub is always first unless
 # SPECIFY_RUNTIME_DOWNLOAD_MIRRORS fully replaces the list.
@@ -48,15 +51,13 @@ DEFAULT_DOWNLOAD_URL_TEMPLATES: tuple[str, ...] = (
     "https://gh-proxy.com/{github_url}",
     "https://gitdl.cn/{github_url}",
 )
+# Keep in sync with tools/specify-runtime/main.go defaultCapabilities().
+# Install-time handshake requires every id here to be present on the binary.
 REQUIRED_CAPABILITIES = (
     "api.handshake",
     "api.list",
     "api.schema",
     "api.show",
-    "accept.closeout",
-    "accept.prepare",
-    "accept.route-repair",
-    "accept.validate",
     "artifact.catalog",
     "artifact.checklist",
     "artifact.delete",
@@ -78,6 +79,7 @@ REQUIRED_CAPABILITIES = (
     "cognition.closeout-plan",
     "cognition.compass",
     "cognition.complete-refresh",
+    "cognition.mutation-receipt",
     "cognition.delta.append",
     "cognition.delta.begin",
     "cognition.delta.status",
@@ -135,8 +137,8 @@ REQUIRED_CAPABILITIES = (
     "evidence.import",
     "evidence.register",
     "evidence.show",
-    "evidence.verify",
     "evidence.visual-compare",
+    "evidence.verify",
     "hook.extension-plan",
     "hook.validate-artifacts",
     "hook.validate-commit",
@@ -154,6 +156,42 @@ REQUIRED_CAPABILITIES = (
     "implement.validation-finish",
     "implement.validation-start",
     "implement.validation-status",
+    "review.closeout",
+    "review.exception-confirm",
+    "review.exception-propose",
+    "review.prepare",
+    "review.resume-audit",
+    "review.target-bind",
+    "review.validate",
+    "result.depend",
+    "result.list",
+    "result.path",
+    "result.reopen",
+    "result.show",
+    "result.submit",
+    "run.cancel",
+    "run.create",
+    "run.events",
+    "run.launch",
+    "run.show",
+    "run.supervise",
+    "candidate.build",
+    "candidate.review",
+    "candidate.show",
+    "accept.closeout",
+    "accept.prepare",
+    "accept.receipt",
+    "accept.route-repair",
+    "accept.validate",
+    "cas.publish",
+    "sp-teams.auto-dispatch",
+    "sp-teams.complete-batch",
+    "sp-teams.doctor",
+    "sp-teams.live-probe",
+    "sp-teams.result-template",
+    "sp-teams.status",
+    "sp-teams.submit-result",
+    "sp-teams.sync-back",
     "learning.capture",
     "learning.capture-auto",
     "learning.list",
@@ -163,8 +201,8 @@ REQUIRED_CAPABILITIES = (
     "learning.show",
     "learning.start",
     "learning.status",
-    "prd-build.scaffold",
     "prd-build.status",
+    "prd-build.scaffold",
     "prd-scan.finalize",
     "prd-scan.init",
     "prd-scan.record-list",
@@ -173,32 +211,18 @@ REQUIRED_CAPABILITIES = (
     "prd-scan.record-upsert",
     "prd-scan.status",
     "quick.archive",
+    "quick.checkpoint-confirm",
+    "quick.checkpoint-show",
+    "quick.checkpoint-stage",
     "quick.close",
+    "quick.item-accept",
+    "quick.item-start",
+    "quick.item-status",
     "quick.list",
+    "quick.packet-compile",
     "quick.resume",
     "quick.status",
-    "result.path",
-    "result.submit",
-    "review.closeout",
-    "review.exception-confirm",
-    "review.exception-propose",
-    "review.prepare",
-    "review.resume-audit",
-    "review.target-bind",
-    "review.validate",
-    "run.cancel",
-    "run.create",
-    "run.events",
-    "run.show",
-    "run.supervise",
-    "sp-teams.auto-dispatch",
-    "sp-teams.complete-batch",
-    "sp-teams.doctor",
-    "sp-teams.live-probe",
-    "sp-teams.result-template",
-    "sp-teams.status",
-    "sp-teams.submit-result",
-    "sp-teams.sync-back",
+    "sync.safe",
     "tasks.build",
     "tasks.finalize",
     "tasks.handoff",
@@ -206,15 +230,15 @@ REQUIRED_CAPABILITIES = (
     "tasks.set-root",
     "tasks.upsert",
     "validate.spec",
-    "workflow.show",
+    "workflow.block",
+    "workflow.closeout",
+    "workflow.complete-stage",
     "workflow.enter",
     "workflow.next",
-    "workflow.complete-stage",
-    "workflow.transition",
     "workflow.reopen",
-    "workflow.block",
     "workflow.resolve",
-    "workflow.closeout",
+    "workflow.show",
+    "workflow.transition",
 )
 RUNTIME_COMMAND = "specify-runtime"
 RUNTIME_ENV = "SPECIFY_RUNTIME_BIN"
@@ -750,6 +774,24 @@ def _release_binary_is_compatible(binary: Path, version: str) -> bool:
     )
 
 
+def _clean_release_binary_meets_contract(binary: Path) -> bool:
+    """Return whether a clean published release meets the current runtime contract.
+
+    Unlike ``_release_binary_is_compatible``, this does not require the binary's
+    ``cli_version`` to match the package pin. That lets installs continue when
+    the package version has been bumped but the matching GitHub release asset is
+    not published yet, as long as the latest clean release still exposes the
+    required protocol and capabilities.
+    """
+
+    if not binary.is_file() or not launcher_supports_required_commands((str(binary),)):
+        return False
+    info = _runtime_handshake((str(binary),))
+    if info is None:
+        return False
+    return _release_identity_is_compatible(info, expected_version="latest")
+
+
 def _allow_dirty_runtime() -> bool:
     return os.environ.get(ALLOW_DIRTY_ENV, "").strip().lower() in {
         "1",
@@ -786,6 +828,10 @@ def _local_runtime_source_checkout() -> Path | None:
 
 def _source_build_marker(binary: Path) -> Path:
     return binary.with_name(f"{binary.name}.source-build.json")
+
+
+def _fallback_release_marker(binary: Path) -> Path:
+    return binary.with_name(f"{binary.name}.fallback-release.json")
 
 
 def _sha256_file(path: Path) -> str:
@@ -893,6 +939,21 @@ def _write_source_build_marker(binary: Path, source_dir: Path) -> None:
         _source_build_marker(binary),
         json.dumps(marker, sort_keys=True, separators=(",", ":")) + "\n",
     )
+    _fallback_release_marker(binary).unlink(missing_ok=True)
+
+
+def _write_fallback_release_marker(binary: Path, requested_version: str) -> None:
+    marker = {
+        "marker_version": FALLBACK_RELEASE_MARKER_VERSION,
+        "binary_sha256": _sha256_file(binary),
+        "runtime_contract_sha256": _runtime_contract_fingerprint(),
+        "requested_version": requested_version,
+    }
+    atomic_write_text(
+        _fallback_release_marker(binary),
+        json.dumps(marker, sort_keys=True, separators=(",", ":")) + "\n",
+    )
+    _source_build_marker(binary).unlink(missing_ok=True)
 
 
 def _source_build_marker_matches(binary: Path) -> bool:
@@ -914,6 +975,24 @@ def _source_build_marker_matches(binary: Path) -> bool:
         return False
 
 
+def _fallback_release_marker_matches(binary: Path, requested_version: str) -> bool:
+    marker_path = _fallback_release_marker(binary)
+    if not marker_path.is_file() or not binary.is_file():
+        return False
+    try:
+        marker = json.loads(read_local_state_text(marker_path, root=marker_path.parent))
+        if not isinstance(marker, dict):
+            return False
+        return (
+            marker.get("marker_version") == FALLBACK_RELEASE_MARKER_VERSION
+            and marker.get("binary_sha256") == _sha256_file(binary)
+            and marker.get("runtime_contract_sha256") == _runtime_contract_fingerprint()
+            and marker.get("requested_version") == requested_version
+        )
+    except (OSError, ValueError, json.JSONDecodeError):
+        return False
+
+
 def _cached_binary_is_compatible(binary: Path, version: str = DEFAULT_VERSION) -> bool:
     # Prefer reusing either a matching source-built binary or a compatible
     # release binary. Source-bound installs no longer reject release caches.
@@ -922,7 +1001,12 @@ def _cached_binary_is_compatible(binary: Path, version: str = DEFAULT_VERSION) -
         allow_dirty=True,
     ):
         return True
-    return _release_binary_is_compatible(binary, version)
+    if _release_binary_is_compatible(binary, version):
+        return True
+    # Keep a clean latest-release fallback while the package pin has no asset yet.
+    return _fallback_release_marker_matches(
+        binary, version
+    ) and _clean_release_binary_meets_contract(binary)
 
 
 def _build_from_source(source_dir: Path, dest: Path) -> Path:
@@ -942,7 +1026,7 @@ def _build_from_source(source_dir: Path, dest: Path) -> Path:
         encoding="utf-8",
         errors="replace",
         text=True,
-        timeout=120,
+        timeout=DEFAULT_SOURCE_BUILD_TIMEOUT_SECONDS,
     )
     if result.returncode != 0:
         detail = (result.stderr or result.stdout).strip()
@@ -977,6 +1061,25 @@ def _build_supported_binary_from_source(binary: Path, version: str, reason: str)
 
 def _ensure_supported_binary(binary: Path, version: str) -> Path:
     if _release_binary_is_compatible(binary, version):
+        _fallback_release_marker(binary).unlink(missing_ok=True)
+        return binary
+    # A successful source build already wrote its marker and passed the dirty
+    # contract check. Do not rebuild with a misleading "release lacks …" reason.
+    if _source_build_marker_matches(binary) and _binary_is_compatible(
+        binary,
+        allow_dirty=True,
+    ):
+        return binary
+    # Accept a clean published release that still meets protocol/capabilities
+    # when the exact package pin is unpublished or lags the binary identity.
+    if _clean_release_binary_meets_contract(binary):
+        if version != "latest":
+            _write_fallback_release_marker(binary, version)
+            print(
+                f"  Using clean release asset that meets the runtime contract "
+                f"(package pin {version} has no matching identity on the binary)...",
+                file=sys.stderr,
+            )
         return binary
     return _build_supported_binary_from_source(
         binary,
@@ -985,15 +1088,45 @@ def _ensure_supported_binary(binary: Path, version: str) -> Path:
     )
 
 
+def _download_or_build_runtime(version: str, candidate: Path) -> Path:
+    """Download the pinned release, then latest, then source-build as last resort."""
+
+    try:
+        return download(version, candidate)
+    except Exception as pinned_exc:
+        if version != "latest":
+            try:
+                print(
+                    f"  Pinned release {version} unavailable "
+                    f"({pinned_exc}); trying latest release asset...",
+                    file=sys.stderr,
+                )
+                return download("latest", candidate)
+            except Exception as latest_exc:
+                return _build_supported_binary_from_source(
+                    candidate,
+                    version,
+                    "pinned and latest release asset download failed "
+                    f"(pinned={pinned_exc}; latest={latest_exc})",
+                )
+        return _build_supported_binary_from_source(
+            candidate,
+            version,
+            f"release asset download failed ({pinned_exc})",
+        )
+
+
 def ensure_binary(version: str = DEFAULT_VERSION, force: bool = False) -> Path:
     """Return a cached specify-runtime binary, preferring release assets.
 
     Order:
     1. ``SPECIFY_RUNTIME_BIN`` when set and compatible
-    2. Compatible cache hit (release or prior source build)
-    3. Download the prebuilt GitHub release asset
-    4. Fall back to bundled-source ``go build`` only if download fails or the
-       release binary lacks required protocol/capabilities
+    2. Compatible cache hit (exact release, prior source build, or accepted
+       clean-release fallback for the same package pin)
+    3. Download the prebuilt GitHub release asset for the package pin
+    4. If the pin has no asset, try the latest published release asset
+    5. Fall back to bundled-source ``go build`` only if downloads fail or the
+       binary lacks required protocol/capabilities
 
     Source-bound / local-checkout installs (``source_build_required``) still
     enable the source-build fallback; they no longer skip release download.
@@ -1026,28 +1159,28 @@ def ensure_binary(version: str = DEFAULT_VERSION, force: bool = False) -> Path:
         os.close(candidate_fd)
         candidate = Path(candidate_name)
         candidate_marker = _source_build_marker(candidate)
+        candidate_fallback = _fallback_release_marker(candidate)
         dest_marker = _source_build_marker(dest)
+        dest_fallback = _fallback_release_marker(dest)
         try:
-            try:
-                binary = download(version, candidate)
-            except Exception as exc:
-                binary = _build_supported_binary_from_source(
-                    candidate,
-                    version,
-                    f"release asset download failed ({exc})",
-                )
+            binary = _download_or_build_runtime(version, candidate)
             binary = _ensure_supported_binary(binary, version)
             os.replace(binary, dest)
             if candidate_marker.is_file():
                 os.replace(candidate_marker, dest_marker)
             else:
                 dest_marker.unlink(missing_ok=True)
+            if candidate_fallback.is_file():
+                os.replace(candidate_fallback, dest_fallback)
+            else:
+                dest_fallback.unlink(missing_ok=True)
             if platform.system().lower() != "windows":
                 os.chmod(dest, 0o755)
             return dest
         finally:
             candidate.unlink(missing_ok=True)
             candidate_marker.unlink(missing_ok=True)
+            candidate_fallback.unlink(missing_ok=True)
 
 
 def write_project_launcher_config(project_root: Path, binary: Path) -> Path | None:

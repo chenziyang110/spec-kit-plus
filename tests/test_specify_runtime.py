@@ -543,6 +543,153 @@ def test_ensure_binary_prefers_release_download_even_when_source_build_flagged(
     assert build_calls == []
 
 
+def test_ensure_binary_tries_latest_when_pinned_release_missing(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    runtime = _load_runtime()
+    cache = tmp_path / "cache"
+    cache.mkdir()
+    download_calls: list[str] = []
+    build_calls: list[str] = []
+
+    monkeypatch.delenv("SPECIFY_RUNTIME_BIN", raising=False)
+    monkeypatch.setattr(runtime, "cache_dir", lambda: cache)
+    monkeypatch.setattr(
+        runtime,
+        "cached_executable",
+        lambda: cache / RUNTIME_BINARY_NAME,
+    )
+    monkeypatch.setattr(runtime, "_cached_binary_is_compatible", lambda *_a, **_k: False)
+    monkeypatch.setattr(runtime, "interprocess_lock", lambda _path: _NullLock())
+
+    def fake_download(version: str, destination: Path | None = None) -> Path:
+        download_calls.append(version)
+        if version == "v0.6.16":
+            raise runtime.SpecifyRuntimeError("HTTP 404")
+        dest = Path(destination or (tmp_path / "latest-runtime"))
+        _write_executable(dest)
+        return dest
+
+    def fake_build(*_args: object, **_kwargs: object) -> Path:
+        build_calls.append("built")
+        raise AssertionError("source build must not run when latest download succeeds")
+
+    monkeypatch.setattr(runtime, "download", fake_download)
+    monkeypatch.setattr(runtime, "_build_supported_binary_from_source", fake_build)
+    monkeypatch.setattr(
+        runtime,
+        "_ensure_supported_binary",
+        lambda binary, _version: binary,
+    )
+
+    result = runtime.ensure_binary("v0.6.16")
+
+    assert result == cache / RUNTIME_BINARY_NAME
+    assert result.is_file()
+    assert download_calls == ["v0.6.16", "latest"]
+    assert build_calls == []
+
+
+def test_ensure_supported_binary_does_not_rebuild_source_build(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    runtime = _load_runtime()
+    binary = _write_executable(tmp_path / RUNTIME_BINARY_NAME)
+    build_calls: list[str] = []
+
+    monkeypatch.setattr(runtime, "_release_binary_is_compatible", lambda *_a, **_k: False)
+    monkeypatch.setattr(runtime, "_source_build_marker_matches", lambda _binary: True)
+    monkeypatch.setattr(
+        runtime,
+        "_binary_is_compatible",
+        lambda _binary, allow_dirty=False: allow_dirty is True,
+    )
+    monkeypatch.setattr(
+        runtime,
+        "_clean_release_binary_meets_contract",
+        lambda _binary: False,
+    )
+
+    def fake_build(*_args: object, **_kwargs: object) -> Path:
+        build_calls.append("built")
+        raise AssertionError("already-built source binary must not rebuild")
+
+    monkeypatch.setattr(runtime, "_build_supported_binary_from_source", fake_build)
+
+    result = runtime._ensure_supported_binary(binary, "v0.6.16")
+
+    assert result == binary
+    assert build_calls == []
+
+
+def test_ensure_supported_binary_accepts_clean_release_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    runtime = _load_runtime()
+    binary = _write_executable(tmp_path / RUNTIME_BINARY_NAME)
+    build_calls: list[str] = []
+    marker_versions: list[str] = []
+
+    monkeypatch.setattr(runtime, "_release_binary_is_compatible", lambda *_a, **_k: False)
+    monkeypatch.setattr(runtime, "_source_build_marker_matches", lambda _binary: False)
+    monkeypatch.setattr(runtime, "_clean_release_binary_meets_contract", lambda _binary: True)
+    monkeypatch.setattr(
+        runtime,
+        "_write_fallback_release_marker",
+        lambda _binary, requested: marker_versions.append(requested),
+    )
+
+    def fake_build(*_args: object, **_kwargs: object) -> Path:
+        build_calls.append("built")
+        raise AssertionError("clean release fallback must not force source build")
+
+    monkeypatch.setattr(runtime, "_build_supported_binary_from_source", fake_build)
+
+    result = runtime._ensure_supported_binary(binary, "v0.6.16")
+
+    assert result == binary
+    assert marker_versions == ["v0.6.16"]
+    assert build_calls == []
+
+
+def test_cached_binary_accepts_fallback_release_marker(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    runtime = _load_runtime()
+    binary = _write_executable(tmp_path / RUNTIME_BINARY_NAME)
+
+    monkeypatch.setattr(runtime, "_source_build_marker_matches", lambda _binary: False)
+    monkeypatch.setattr(runtime, "_release_binary_is_compatible", lambda *_a, **_k: False)
+    monkeypatch.setattr(
+        runtime,
+        "_fallback_release_marker_matches",
+        lambda _binary, requested: requested == "v0.6.16",
+    )
+    monkeypatch.setattr(runtime, "_clean_release_binary_meets_contract", lambda _binary: True)
+
+    assert runtime._cached_binary_is_compatible(binary, "v0.6.16") is True
+    assert runtime._cached_binary_is_compatible(binary, "v0.6.17") is False
+
+
+def test_fallback_release_marker_round_trip(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    runtime = _load_runtime()
+    binary = _write_executable(tmp_path / RUNTIME_BINARY_NAME)
+    monkeypatch.setattr(runtime, "_runtime_contract_fingerprint", lambda: "contract-fp")
+
+    runtime._write_fallback_release_marker(binary, "v0.6.16")
+
+    assert runtime._fallback_release_marker_matches(binary, "v0.6.16") is True
+    assert runtime._fallback_release_marker_matches(binary, "v0.6.15") is False
+    assert not runtime._source_build_marker(binary).is_file()
+
+
 class _NullLock:
     def __enter__(self) -> "_NullLock":
         return self
