@@ -16,11 +16,21 @@ MCP_IMPORT_HINT = (
 
 
 def _load_fastmcp():
+    """Load the MCP server class across SDK v1 (FastMCP) and v2 (MCPServer)."""
     try:
+        # MCP Python SDK v1
         from mcp.server.fastmcp import FastMCP
+
+        return FastMCP
+    except ImportError:
+        pass
+    try:
+        # MCP Python SDK v2+
+        from mcp.server import MCPServer
+
+        return MCPServer
     except ImportError as exc:  # pragma: no cover - exercised via runtime/manual path
         raise RuntimeError(MCP_IMPORT_HINT) from exc
-    return FastMCP
 
 
 def _looks_like_windows_absolute_path(raw: str) -> bool:

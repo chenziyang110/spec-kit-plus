@@ -1,6 +1,9 @@
 from pathlib import Path
+import sys
+import types
 
-from specify_cli.mcp.teams_server import build_teams_mcp_server
+from specify_cli.codex_team.installer import can_configure_specify_teams_mcp
+from specify_cli.mcp.teams_server import _load_fastmcp, build_teams_mcp_server
 
 
 class FakeFastMCP:
@@ -111,3 +114,61 @@ def test_build_teams_mcp_server_registers_read_only_resources(monkeypatch) -> No
     status_resource = server.resources["specify-teams://status/{session_id}"]
     rendered = status_resource("default")
     assert '"operation": "status"' in rendered
+
+
+def test_load_fastmcp_falls_back_to_mcpserver(monkeypatch) -> None:
+    """MCP SDK v2 removed FastMCP; loader must use MCPServer instead."""
+
+    class FakeMCPServer:
+        def __init__(self, name: str):
+            self.name = name
+
+    import builtins
+
+    orig_import = builtins.__import__
+
+    def fake_import(name, globals=None, locals=None, fromlist=(), level=0):  # noqa: A002
+        if name == "mcp.server.fastmcp" or (name == "mcp.server" and fromlist and "fastmcp" in fromlist):
+            raise ImportError("no FastMCP in v2")
+        if name == "mcp.server" and fromlist and "MCPServer" in fromlist:
+            mod = types.ModuleType("mcp.server")
+            mod.MCPServer = FakeMCPServer
+            return mod
+        if name == "mcp.server.fastmcp":
+            raise ImportError("no FastMCP in v2")
+        return orig_import(name, globals, locals, fromlist, level)
+
+    monkeypatch.setattr(builtins, "__import__", fake_import)
+    # Ensure a stale FastMCP module cannot short-circuit the ImportError path.
+    monkeypatch.delitem(sys.modules, "mcp.server.fastmcp", raising=False)
+    monkeypatch.delitem(sys.modules, "mcp.server.fastmcp.server", raising=False)
+
+    loaded = _load_fastmcp()
+    assert loaded is FakeMCPServer
+
+
+def test_can_configure_specify_teams_mcp_accepts_mcpserver(monkeypatch) -> None:
+    import builtins
+
+    orig_import = builtins.__import__
+
+    def fake_import(name, globals=None, locals=None, fromlist=(), level=0):  # noqa: A002
+        if name == "mcp.server.fastmcp":
+            raise ImportError("no FastMCP in v2")
+        if name == "mcp.server" and fromlist and "MCPServer" in fromlist:
+            mod = types.ModuleType("mcp.server")
+
+            class MCPServer:  # noqa: N801
+                pass
+
+            mod.MCPServer = MCPServer
+            return mod
+        return orig_import(name, globals, locals, fromlist, level)
+
+    monkeypatch.setattr(builtins, "__import__", fake_import)
+    monkeypatch.delitem(sys.modules, "mcp.server.fastmcp", raising=False)
+    monkeypatch.setattr(
+        "specify_cli.codex_team.installer.shutil.which",
+        lambda cmd: r"C:\bin\specify-teams-mcp" if cmd == "specify-teams-mcp" else None,
+    )
+    assert can_configure_specify_teams_mcp() is True
