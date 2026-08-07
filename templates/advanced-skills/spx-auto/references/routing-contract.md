@@ -31,9 +31,10 @@ findings use `accept route-repair`.
 When a managed Run declares a feature subject, verify the current directory is
 `SPECIFY_RUN_WORKSPACE` and route only state belonging to that subject. A
 recorded upstream gate outranks an implementation tracker or later artifact.
-For an unbound read-only invocation, stop on conflicting states or anything
-other than exactly one unique safe candidate; report the evidence and smallest
-repair instead of guessing.
+For an unbound read-only invocation, stop on conflicting or `uncertain` states
+or anything other than exactly one unique safe candidate; reconcile candidates
+against live workflow artifacts before routing, then report the evidence and
+smallest repair instead of guessing.
 
 Discover candidates only through the managed Run subject, `discussion list`,
 `quick list`, and bounded `artifact list` queries

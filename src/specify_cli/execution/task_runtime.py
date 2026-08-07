@@ -1005,10 +1005,14 @@ def reopen_task(
             "before it can be reopened"
         )
     result_ref = expected_result_ref
-    result_path = safe_local_state_path(feature / Path(result_ref), root=feature)
     try:
+        # Resolve path only when the result exists; a missing path (or a
+        # symlinked missing path) must still allow reopen without failing the
+        # symlink policy before FileNotFound handling.
+        result_path = safe_local_state_path(feature / Path(result_ref), root=feature)
         result_before = read_local_state_bytes(result_path, root=feature)
     except FileNotFoundError:
+        result_path = feature / Path(result_ref)
         result_before = None
         previous_result = None
     except (OSError, ValueError) as exc:

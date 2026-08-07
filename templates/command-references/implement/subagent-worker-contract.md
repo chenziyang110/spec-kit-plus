@@ -15,7 +15,7 @@ You are the workflow leader. You own routing, execution-state truth, acceptance,
 - Call `specify-runtime implement task-next` for the canonical ready task and compact execution state; query only its additional required refs through `specify-runtime artifact show`.
 - Use `leader-direct` for a small or tightly coupled ready task when delegation would add more coordination than execution value and no high-risk trigger requires an independent lane.
 - Use `one-subagent` for one independent bounded task, for dependent ready tasks, or when selected tasks share write scope (serial packets / resume worker).
-- Use `parallel-subagents` only for multiple validated lanes with **isolated** write sets and an explicit join point.
+- Use `parallel-subagents` only for multiple validated lanes with isolated write sets and an explicit join point.
 - Use `managed-team` only when the runtime supports it and durable team state, explicit multi-wave join tracking, or lifecycle control is required beyond an in-session subagent burst. It is not an ordinary dispatch fallback.
 - Compile and validate a `WorkerTaskPacket` just in time only for delegated work. Leader-direct tasks do not require a packet.
 - Use `native-subagents` when selected and available. Re-evaluate the route after drift, failure, or each join instead of treating dispatch preference as a blocker by itself.

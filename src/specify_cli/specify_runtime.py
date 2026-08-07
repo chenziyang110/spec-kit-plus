@@ -215,6 +215,7 @@ REQUIRED_CAPABILITIES = (
     "quick.checkpoint-show",
     "quick.checkpoint-stage",
     "quick.close",
+    "quick.cognition-closeout",
     "quick.item-accept",
     "quick.item-start",
     "quick.item-status",

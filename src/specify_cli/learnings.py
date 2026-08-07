@@ -1677,14 +1677,17 @@ def _safe_ref_from_registry_value(project_root: Path, value: Any) -> str:
         or normalized_raw.startswith("//")
         or normalized_raw.startswith("/")
     )
+    # Prefer redacted absolute machine paths over project-relative collapse so
+    # migrated registry rows keep a stable, non-local source_ref form.
+    sanitized = _sanitize_text(normalized_raw)
+    if looks_external_absolute or sanitized.startswith("<USER_HOME>"):
+        if sanitized.startswith("<USER_HOME>"):
+            return sanitized
+        if looks_external_absolute:
+            return Path(sanitized).name
     candidate = Path(raw)
     if candidate.is_absolute():
         return _safe_project_relative_ref(project_root, candidate)
-    sanitized = _sanitize_text(normalized_raw)
-    if looks_external_absolute:
-        if sanitized.startswith("<USER_HOME>/"):
-            return sanitized
-        return Path(sanitized).name
     candidate = project_root / sanitized
     try:
         return candidate.resolve().relative_to(project_root.resolve()).as_posix()

@@ -8,7 +8,11 @@ from pathlib import Path
 import re
 from typing import Any
 
-from specify_cli.learning_policy import LearningPolicy, LearningPolicyError, load_learning_policy
+from specify_cli.learning_policy import (
+    LearningPolicy,
+    LearningPolicyError,
+    load_learning_policy,
+)
 
 from .checkpoint_serializers import normalize_command_name
 from .events import (
@@ -97,12 +101,30 @@ def _coerce_str_list(value: Any) -> list[str]:
     return values
 
 
-def _canonical_trigger_signal(value: str) -> str:
+def _canonical_trigger_signal_kind(value: str) -> str:
+    """Normalize only the kind prefix of a trigger signal."""
+
     raw = str(value or "").strip()
     if not raw:
         return ""
     kind = raw.partition(":")[0]
     return kind.strip().lower().replace("-", "_").replace(" ", "_")
+
+
+def _canonical_trigger_signal(value: str) -> str:
+    """Normalize a trigger signal while preserving optional detail after ':'."""
+
+    raw = str(value or "").strip()
+    if not raw:
+        return ""
+    kind, sep, detail = raw.partition(":")
+    kind_norm = kind.strip().lower().replace("-", "_").replace(" ", "_")
+    if not kind_norm:
+        return ""
+    if not sep:
+        return kind_norm
+    detail_text = detail.strip()
+    return f"{kind_norm}: {detail_text}" if detail_text else kind_norm
 
 
 def _canonical_trigger_signals(value: Any) -> list[str]:
@@ -115,6 +137,16 @@ def _canonical_trigger_signals(value: Any) -> list[str]:
             if signal
         )
     )
+
+
+def _canonical_trigger_signal_kinds(value: Any) -> set[str]:
+    return {
+        kind
+        for kind in (
+            _canonical_trigger_signal_kind(item) for item in _coerce_str_list(value)
+        )
+        if kind
+    }
 
 
 def _sanitize_signal_list(
@@ -586,13 +618,17 @@ def _has_matching_durable_capture(
         if path.exists():
             entries.extend(read_learning_entries(path)[1])
     observed_at = str(recent_signal.get("observed_at") or "").strip()
-    required_signals = set(_canonical_trigger_signals(recent_signal.get("trigger_signals")))
+    # Match on kinds only so detail-bearing signals still satisfy a durable
+    # capture that recorded the same trigger kind.
+    required_signals = _canonical_trigger_signal_kinds(
+        recent_signal.get("trigger_signals")
+    )
     for entry in entries:
         if not is_relevant_to_command(entry, f"sp-{command_name}"):
             continue
         if not _entry_seen_after_signal(entry.last_seen, observed_at):
             continue
-        entry_signals = set(_canonical_trigger_signals(entry.trigger_signals))
+        entry_signals = _canonical_trigger_signal_kinds(entry.trigger_signals)
         if required_signals and not required_signals.intersection(entry_signals):
             continue
         return True
@@ -779,9 +815,7 @@ def learning_review_hook(_project_root: Path, payload: dict[str, object]) -> Hoo
                     "content_safety": _content_safety(rationale_labels),
                 },
             )
-        review_status = learning_review_status(
-            _project_root, command_name=command_name
-        )
+        review_status = learning_review_status(_project_root, command_name=command_name)
         if review_status["pending"]:
             try:
                 review_learning(
@@ -806,9 +840,7 @@ def learning_review_hook(_project_root: Path, payload: dict[str, object]) -> Hoo
                         "content_safety": _content_safety(rationale_labels),
                     },
                 )
-        _clear_recent_signal(
-            _project_root, command_name=command_name, policy=policy
-        )
+        _clear_recent_signal(_project_root, command_name=command_name, policy=policy)
 
     return HookResult(
         event=WORKFLOW_LEARNING_REVIEW,
@@ -873,8 +905,7 @@ def learning_capture_hook(project_root: Path, payload: dict[str, object]) -> Hoo
             learning_type=learning_type,
             summary=summary,
             evidence=evidence,
-            recurrence_key=str(payload.get("recurrence_key") or "").strip()
-            or None,
+            recurrence_key=str(payload.get("recurrence_key") or "").strip() or None,
             signal_strength=str(payload.get("signal_strength") or "medium"),
             applies_to=_coerce_str_list(payload.get("applies_to")) or None,
             default_scope=str(payload.get("default_scope") or "").strip() or None,
@@ -909,9 +940,7 @@ def learning_capture_hook(project_root: Path, payload: dict[str, object]) -> Hoo
             writes={"learning_review": ".planning/learnings/review-state.json"},
             data={
                 "capture": capture_payload,
-                "injection_targets": capture_payload["entry"][
-                    "injection_targets"
-                ],
+                "injection_targets": capture_payload["entry"]["injection_targets"],
             },
         )
     return HookResult(

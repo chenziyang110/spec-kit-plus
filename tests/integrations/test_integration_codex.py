@@ -1120,7 +1120,8 @@ def test_codex_generated_sp_implement_includes_native_spawn_agent_routing(tmp_pa
     assert "close_agent" not in content
     assert "inline result submission" in content.lower()
     assert "runtime-owned compatibility path" in content.lower()
-    assert "--command implement" in content
+    # Implement uses stage-owned result-merge, not result submit --command implement.
+    assert "implement result-merge" in content.lower()
     assert "--result-json" in content
     assert "return the workertaskresult inline" in content.lower()
     assert "the runtime derives and writes it" in content.lower()

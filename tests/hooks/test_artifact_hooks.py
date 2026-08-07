@@ -2388,7 +2388,8 @@ def test_tasks_require_required_review_obligations_for_every_acceptance_ref(
 
     assert any(
         "required review_obligations are missing acceptance_refs" in error
-        and "plan-contract.json#/acceptance_refs/1" in error
+        # Obligations are validated against expanded plan/spec acceptance refs.
+        and "spec-contract.json#/acceptance_criteria/1" in error
         for error in errors
     )
 
