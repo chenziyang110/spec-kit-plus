@@ -101,30 +101,19 @@ def _coerce_str_list(value: Any) -> list[str]:
     return values
 
 
-def _canonical_trigger_signal_kind(value: str) -> str:
-    """Normalize only the kind prefix of a trigger signal."""
+def _canonical_trigger_signal(value: str) -> str:
+    """Normalize a trigger signal to its canonical kind tag only.
+
+    Free-form detail after ':' is accepted on input for ergonomics, but new
+    records store only the kind. That keeps agent-facing Learning free of
+    incident prose while still matching explicit semantic triggers.
+    """
 
     raw = str(value or "").strip()
     if not raw:
         return ""
     kind = raw.partition(":")[0]
     return kind.strip().lower().replace("-", "_").replace(" ", "_")
-
-
-def _canonical_trigger_signal(value: str) -> str:
-    """Normalize a trigger signal while preserving optional detail after ':'."""
-
-    raw = str(value or "").strip()
-    if not raw:
-        return ""
-    kind, sep, detail = raw.partition(":")
-    kind_norm = kind.strip().lower().replace("-", "_").replace(" ", "_")
-    if not kind_norm:
-        return ""
-    if not sep:
-        return kind_norm
-    detail_text = detail.strip()
-    return f"{kind_norm}: {detail_text}" if detail_text else kind_norm
 
 
 def _canonical_trigger_signals(value: Any) -> list[str]:
@@ -137,16 +126,6 @@ def _canonical_trigger_signals(value: Any) -> list[str]:
             if signal
         )
     )
-
-
-def _canonical_trigger_signal_kinds(value: Any) -> set[str]:
-    return {
-        kind
-        for kind in (
-            _canonical_trigger_signal_kind(item) for item in _coerce_str_list(value)
-        )
-        if kind
-    }
 
 
 def _sanitize_signal_list(
@@ -620,15 +599,15 @@ def _has_matching_durable_capture(
     observed_at = str(recent_signal.get("observed_at") or "").strip()
     # Match on kinds only so detail-bearing signals still satisfy a durable
     # capture that recorded the same trigger kind.
-    required_signals = _canonical_trigger_signal_kinds(
-        recent_signal.get("trigger_signals")
+    required_signals = set(
+        _canonical_trigger_signals(recent_signal.get("trigger_signals"))
     )
     for entry in entries:
         if not is_relevant_to_command(entry, f"sp-{command_name}"):
             continue
         if not _entry_seen_after_signal(entry.last_seen, observed_at):
             continue
-        entry_signals = _canonical_trigger_signal_kinds(entry.trigger_signals)
+        entry_signals = set(_canonical_trigger_signals(entry.trigger_signals))
         if required_signals and not required_signals.intersection(entry_signals):
             continue
         return True
