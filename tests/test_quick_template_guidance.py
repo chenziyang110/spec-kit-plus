@@ -116,7 +116,11 @@ def test_quick_template_exists_and_defines_lightweight_tracked_flow() -> None:
     assert "leader-inline is not a silent default" in content
     assert "blocked_dispatch" in content
     assert "attempted_shape" in content
-    assert "chosen_shape: leader-inline" in content
+    assert "chosen_shape: leader-inline" in content or "allow-inline" in content
+    assert "hard q loop" in content
+    assert "result submit" in content
+    assert "docs-only" in content
+    assert "requires_worker" in content or "allow-inline" in content
     assert ".planning/quick/<id>-<slug>/" in content
     assert ".planning/quick/index.json" in content
     assert "status.md" in content

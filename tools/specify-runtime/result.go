@@ -614,6 +614,15 @@ func asStringList(value any) []string {
 			return []string{}
 		}
 		return []string{stripped}
+	case []string:
+		values := []string{}
+		for _, item := range typed {
+			text := strings.TrimSpace(item)
+			if text != "" {
+				values = append(values, text)
+			}
+		}
+		return values
 	case []any:
 		values := []string{}
 		for _, item := range typed {

@@ -1154,6 +1154,7 @@ func defaultCapabilities() []string {
 		"quick.checkpoint-confirm",
 		"quick.checkpoint-show",
 		"quick.checkpoint-stage",
+		"quick.allow-inline",
 		"quick.close",
 		"quick.cognition-closeout",
 		"quick.item-accept",

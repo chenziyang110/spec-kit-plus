@@ -119,6 +119,27 @@ y
 		t.Fatalf("close resolved should fail with pending items")
 	}
 
+	// Without worker result, accept must refuse.
+	env = runScriptDomainEnvelope(t, runQuick, []string{
+		"--project-root", root,
+		"item-accept", "260805-010",
+		"--item", "Q1",
+		"--evidence", "types match in tests",
+	})
+	if env.Status == "ok" {
+		t.Fatalf("accept Q1 without worker result should fail")
+	}
+	if !strings.Contains(fmt.Sprint(env.Blockers), "worker_result_required") {
+		t.Fatalf("expected worker_result_required, got %v", env.Blockers)
+	}
+	if env.Data["requires_worker"] != true && env.Status == "ok" {
+		// start response carries requires_worker; accept failure still ok
+	}
+
+	mustWriteQuickWorkerResult(t, workspace, "Q1", map[string]any{
+		"task_id": "Q1", "status": "success", "summary": "types match",
+		"changed_files": []any{"src/a.go"},
+	})
 	env = runScriptDomainEnvelope(t, runQuick, []string{
 		"--project-root", root,
 		"item-accept", "260805-010",
@@ -127,6 +148,9 @@ y
 	})
 	if env.Status != "ok" {
 		t.Fatalf("accept Q1 failed: %v", env.Blockers)
+	}
+	if proof, _ := env.Data["worker_proof"].(map[string]any); proof["mode"] != "worker" {
+		t.Fatalf("worker_proof = %#v", env.Data["worker_proof"])
 	}
 	ready := env.Data["ready_item_ids"].([]any)
 	if len(ready) != 1 || ready[0] != "Q2" {
@@ -141,7 +165,14 @@ y
 	if env.Status != "ok" {
 		t.Fatalf("Q2 start after Q1 accept failed: %v", env.Blockers)
 	}
+	if env.Data["requires_worker"] != true {
+		t.Fatalf("item-start should set requires_worker")
+	}
 
+	mustWriteQuickWorkerResult(t, workspace, "Q2", map[string]any{
+		"task_id": "Q2", "status": "DONE", "summary": "api passes",
+		"changed_files": []any{"src/b.go"},
+	})
 	env = runScriptDomainEnvelope(t, runQuick, []string{
 		"--project-root", root,
 		"item-accept", "260805-010",
@@ -248,5 +279,175 @@ y
 	})
 	if env.Status == "ok" {
 		t.Fatalf("start should require confirmed checkpoint")
+	}
+}
+
+func TestQuickAllowInlineAndRejectDocsOnly(t *testing.T) {
+	root := t.TempDir()
+	workspace := filepath.Join(root, ".planning", "quick", "260808-inline")
+	mustMkdirAllScriptDomainTest(t, workspace)
+	mustWriteScriptDomainTest(t, filepath.Join(workspace, "STATUS.md"), `---
+id: "260808-inline"
+slug: "inline"
+title: "Inline"
+status: gathering
+understanding_confirmed: false
+---
+
+## Understanding Checkpoint
+
+x
+
+## Execution
+
+y
+`)
+	payload := map[string]any{
+		"source": map[string]any{"kind": "prompt"},
+		"decision": map[string]any{
+			"goal":                "ship Q1",
+			"user_visible_result": "done",
+			"scope":               map[string]any{"include": []any{"a"}, "exclude": []any{"b"}},
+			"items": []any{
+				map[string]any{
+					"id": "Q1", "deliverable": "one", "depends_on": []any{},
+					"acceptance": "ok", "write_scope": []any{"src/a.go"},
+				},
+			},
+			"reconfirmation_trigger": "x",
+		},
+	}
+	raw, _ := json.Marshal(payload)
+	env := runScriptDomainEnvelope(t, runQuick, []string{
+		"--project-root", root, "checkpoint-stage", "260808-inline", "--input-json", string(raw),
+	})
+	digest := stringValue(env.Data["confirmation_digest"])
+	_ = runScriptDomainEnvelope(t, runQuick, []string{
+		"--project-root", root, "checkpoint-confirm", "260808-inline", "--digest", digest,
+	})
+	env = runScriptDomainEnvelope(t, runQuick, []string{
+		"--project-root", root, "item-start", "260808-inline", "--item", "Q1",
+	})
+	if env.Status != "ok" {
+		t.Fatalf("start: %v", env.Blockers)
+	}
+
+	// Soft reason refused on allow-inline command.
+	env = runScriptDomainEnvelope(t, runQuick, []string{
+		"--project-root", root,
+		"allow-inline", "260808-inline",
+		"--item", "Q1",
+		"--reason", "docs-only small edit",
+	})
+	if env.Status == "ok" {
+		t.Fatalf("docs-only allow-inline should fail")
+	}
+
+	// Valid spawn failure approves inline.
+	env = runScriptDomainEnvelope(t, runQuick, []string{
+		"--project-root", root,
+		"allow-inline", "260808-inline",
+		"--item", "Q1",
+		"--reason", "spawn_failed: spawn_subagent missing in harness",
+	})
+	if env.Status != "ok" {
+		t.Fatalf("allow-inline should pass: %v", env.Blockers)
+	}
+	if env.Data["requires_worker"] != false {
+		t.Fatalf("allow-inline should clear requires_worker: %#v", env.Data)
+	}
+
+	env = runScriptDomainEnvelope(t, runQuick, []string{
+		"--project-root", root,
+		"item-accept", "260808-inline",
+		"--item", "Q1",
+		"--evidence", "leader completed after spawn failure",
+	})
+	if env.Status != "ok" {
+		t.Fatalf("accept after allow-inline should pass: %v", env.Blockers)
+	}
+	proof, _ := env.Data["worker_proof"].(map[string]any)
+	if proof["mode"] != "leader-inline" {
+		t.Fatalf("worker_proof = %#v", proof)
+	}
+}
+
+func TestQuickItemAcceptRejectsOutOfScopeChangedFiles(t *testing.T) {
+	root := t.TempDir()
+	workspace := filepath.Join(root, ".planning", "quick", "260808-scope")
+	mustMkdirAllScriptDomainTest(t, workspace)
+	mustWriteScriptDomainTest(t, filepath.Join(workspace, "STATUS.md"), `---
+id: "260808-scope"
+slug: "scope"
+title: "Scope"
+status: gathering
+understanding_confirmed: false
+---
+
+## Understanding Checkpoint
+
+x
+
+## Execution
+
+y
+`)
+	payload := map[string]any{
+		"source": map[string]any{"kind": "prompt"},
+		"decision": map[string]any{
+			"goal":                "g",
+			"user_visible_result": "r",
+			"scope":               map[string]any{"include": []any{"a"}, "exclude": []any{"b"}},
+			"items": []any{
+				map[string]any{
+					"id": "Q1", "deliverable": "one", "depends_on": []any{},
+					"acceptance": "ok", "write_scope": []any{"src/allowed.go"},
+				},
+			},
+			"reconfirmation_trigger": "x",
+		},
+	}
+	raw, _ := json.Marshal(payload)
+	env := runScriptDomainEnvelope(t, runQuick, []string{
+		"--project-root", root, "checkpoint-stage", "260808-scope", "--input-json", string(raw),
+	})
+	digest := stringValue(env.Data["confirmation_digest"])
+	_ = runScriptDomainEnvelope(t, runQuick, []string{
+		"--project-root", root, "checkpoint-confirm", "260808-scope", "--digest", digest,
+	})
+	_ = runScriptDomainEnvelope(t, runQuick, []string{
+		"--project-root", root, "item-start", "260808-scope", "--item", "Q1",
+	})
+	mustWriteQuickWorkerResult(t, workspace, "Q1", map[string]any{
+		"task_id": "Q1", "status": "success",
+		"changed_files": []any{"src/other.go"},
+	})
+	env = runScriptDomainEnvelope(t, runQuick, []string{
+		"--project-root", root,
+		"item-accept", "260808-scope",
+		"--item", "Q1",
+		"--evidence", "ok",
+	})
+	if env.Status == "ok" {
+		t.Fatalf("out-of-scope changed_files should fail accept")
+	}
+	if !strings.Contains(fmt.Sprint(env.Blockers), "write_scope") {
+		t.Fatalf("expected write_scope error, got %v", env.Blockers)
+	}
+}
+
+func mustWriteQuickWorkerResult(t *testing.T, workspace, laneID string, payload map[string]any) {
+	t.Helper()
+	dir := filepath.Join(workspace, "worker-results")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatalf("mkdir worker-results: %v", err)
+	}
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("marshal worker result: %v", err)
+	}
+	path := filepath.Join(dir, laneID+".json")
+	if err := os.WriteFile(path, raw, 0o644); err != nil {
+		t.Fatalf("write worker result: %v", err)
 	}
 }

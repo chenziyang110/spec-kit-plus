@@ -118,15 +118,20 @@ blocked_dispatch:
   status: none
   # none | recorded-fallback | subagent-blocked
   reason: ""
-  # Required before any leader-inline source edit after item-start.
+  # Illegal: docs-only, few files, serial order, save time.
+  # Legal: spawn_failed / tool_missing via `quick allow-inline --item Qn --reason`.
   attempted_shape: ""
   # one-subagent | parallel-subagents | none
   chosen_shape: ""
   # one-subagent | parallel-subagents | leader-inline | subagent-blocked
-  note: "Write-scope parallel conflicts default to one-subagent serial, not leader-inline."
+  note: "Write-scope parallel conflicts default to one-subagent serial. item-accept requires worker result submit."
 work_item_status:
   - work_item_id: Q1
     status: pending
+    requires_worker: false
+    execution_mode: ""
+    worker_result_id: ""
+    inline_approved: false
     acceptance_evidence: []
 batches: []
 lanes: []

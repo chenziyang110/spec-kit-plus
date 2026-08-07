@@ -47,10 +47,13 @@ Dispatch one safe validated lane as `one-subagent` or multiple safe isolated lan
   gate, write scope, and confirmation digest. Use `--allow-blocked` only for
   diagnostics; never dispatch a non-ready packet.
 - Start and accept work items only through runtime gates:
-  `quick item-start --item Qn`, then after evidence
+  `quick item-start --item Qn` (sets `requires_worker: true`) → **spawn subagent**
+  → join → `result submit --command quick --lane-id Qn` →
   `quick item-accept --item Qn --evidence "..."`. Runtime rejects starting a
-  dependent item until every prerequisite is `accepted`, and rejects
-  `quick close ... resolved` until every Q item is accepted.
+  dependent item until every prerequisite is `accepted`, rejects `item-accept`
+  without a matching worker result (or prior `quick allow-inline`), and rejects
+  `quick close ... resolved` until every Q item is accepted with
+  `execution_mode` worker or audited leader-inline.
 - Bind every packet to exactly one confirmed `work_item_id`, its `depends_on`
   ids, prerequisite acceptance evidence, and the matching work-item acceptance
   rows. A lane may be smaller than one work item, but it must still name which
@@ -85,8 +88,10 @@ The following flags are available and composable:
 - Substantive multi-item or multi-surface quick-task lanes must use native subagent execution once a validated `WorkerTaskPacket` or equivalent execution contract preserves quality. If the readiness bar for a delegated lane is not met, compile the missing contract before dispatch; if the contract cannot be made safe, record `subagent-blocked` and stop for escalation or recovery. Subagent count and packetization are agent-owned Delivery Map concerns and never require user confirmation.
 - If two or more independent subagent lanes can safely run in parallel and that fan-out materially improves throughput, dispatch multiple subagents instead of serial execution.
 - `subagent-blocked` is an exception path, not a strategy choice. Use it only when native subagent dispatch is concretely unavailable or the current batch cannot be packetized safely—not merely because writes overlap or the task looks small.
-- **Leader-inline is not a silent default.** Use it only after an explicit dispatch decision fails or native subagents are unavailable. Before any Leader source edit under leader-inline, use leased `specify-runtime artifact patch` on the quick-status artifact to set `blocked_dispatch` with `status`, `reason`, `attempted_shape` (usually `one-subagent`), and `chosen_shape: leader-inline`. Unrecorded leader-inline after `item-start` is a process defect.
-- If subagent-blocked or leader-inline fallback is used, patch the concrete reason into `STATUS.md` through the artifact CLI before implementation edits.
+- **Leader-inline is not a silent default and is not a docs-only shortcut.** Illegal excuses: docs-only, few files, serial Q order, save time. Legal only after spawn/tool failure via machine command:
+  `specify-runtime quick allow-inline <id> --item Qn --reason "spawn_failed: ..."`
+  (runtime rejects soft reasons and projects `blocked_dispatch` + clears `requires_worker`). Unrecorded leader-inline after `item-start` is a process defect; `item-accept` and `close resolved` both refuse it.
+- If subagent-blocked or leader-inline fallback is used, the `allow-inline` command is the audit record; do not rely on prose-only STATUS patches.
 - The first actionable execution step after scope lock and understanding confirmation is to dispatch the first subagent batch, not to continue local deep-dive analysis or implement the first Q item leader-inline.
 - Use `.specify/templates/worker-prompts/quick-worker.md` as the default contract for quick-task subagents so the subagent returns enough state for the leader to keep `STATUS.md` accurate.
 - Prefer structured subagent results compatible with the shared `WorkerTaskResult` contract when the current runtime supports them.

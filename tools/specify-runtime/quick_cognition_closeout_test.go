@@ -75,6 +75,10 @@ project_cognition_refresh:
 	if env.Status != "ok" {
 		t.Fatalf("start failed: %v", env.Blockers)
 	}
+	mustWriteQuickWorkerResult(t, workspace, "Q1", map[string]any{
+		"task_id": "Q1", "status": "success", "summary": "icons",
+		"changed_files": []any{"web/src/components/Icon.vue"},
+	})
 	env = runScriptDomainEnvelope(t, runQuick, []string{
 		"--project-root", root, "item-accept", "260806-cognition", "--item", "Q1", "--evidence", "vue-tsc + tests",
 	})
@@ -192,6 +196,11 @@ y
 	if env.Status != "ok" {
 		t.Fatalf("start: %v", env.Blockers)
 	}
+	// Docs-only still needs worker result (or allow-inline); not a silent leader path.
+	mustWriteQuickWorkerResult(t, workspace, "Q1", map[string]any{
+		"task_id": "Q1", "status": "success", "summary": "notes",
+		"changed_files": []any{".planning/quick/260806-docs/STATUS.md"},
+	})
 	env = runScriptDomainEnvelope(t, runQuick, []string{
 		"--project-root", root, "item-accept", "260806-docs", "--item", "Q1", "--evidence", "ok",
 	})

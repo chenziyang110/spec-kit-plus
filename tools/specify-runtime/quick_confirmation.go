@@ -90,12 +90,34 @@ type quickConfirmationExecution struct {
 	ActiveItemIDs  []string              `json:"active_item_ids,omitempty"`
 	JoinPoint      string                `json:"join_point,omitempty"`
 	Blockers       []string              `json:"blockers,omitempty"`
+	// BlockedDispatch is the machine-readable leader-inline / subagent-blocked record.
+	BlockedDispatch *quickBlockedDispatch `json:"blocked_dispatch,omitempty"`
+}
+
+type quickBlockedDispatch struct {
+	Status         string `json:"status,omitempty"`          // none | recorded-fallback | subagent-blocked
+	Reason         string `json:"reason,omitempty"`
+	AttemptedShape string `json:"attempted_shape,omitempty"` // one-subagent | parallel-subagents | none
+	ChosenShape    string `json:"chosen_shape,omitempty"`    // leader-inline | subagent-blocked | ...
+	ItemID         string `json:"item_id,omitempty"`
+	ApprovedAt     string `json:"approved_at,omitempty"`
 }
 
 type quickWorkItemStatus struct {
 	WorkItemID         string   `json:"work_item_id"`
 	Status             string   `json:"status"`
 	AcceptanceEvidence []string `json:"acceptance_evidence,omitempty"`
+	// RequiresWorker is true after item-start until worker result or allow-inline.
+	RequiresWorker bool `json:"requires_worker,omitempty"`
+	// WorkerResultID / WorkerResultRef bind accept to a result submit record.
+	WorkerResultID  string `json:"worker_result_id,omitempty"`
+	WorkerResultRef string `json:"worker_result_ref,omitempty"`
+	WorkerLaneID    string `json:"worker_lane_id,omitempty"`
+	// ExecutionMode is worker | leader-inline after accept.
+	ExecutionMode string `json:"execution_mode,omitempty"`
+	// InlineReason is set by allow-inline or item-accept --allow-inline.
+	InlineReason   string `json:"inline_reason,omitempty"`
+	InlineApproved bool   `json:"inline_approved,omitempty"`
 }
 
 func (service quickService) runCheckpoint(mode, quickID string, args []string) (Envelope, error) {
@@ -1150,8 +1172,23 @@ func buildQuickStatusExecutionSection(doc *quickConfirmationDoc) string {
 	b.WriteString(fmt.Sprintf("join_point: %q\n", doc.Execution.JoinPoint))
 	b.WriteString(fmt.Sprintf("blockers: %s\n", formatYAMLStringList(doc.Execution.Blockers)))
 	b.WriteString("blocked_dispatch:\n")
-	b.WriteString("  status: none\n")
-	b.WriteString("  reason: \"\"\n")
+	if doc.Execution.BlockedDispatch != nil && strings.TrimSpace(doc.Execution.BlockedDispatch.Status) != "" {
+		bd := doc.Execution.BlockedDispatch
+		b.WriteString(fmt.Sprintf("  status: %s\n", firstNonEmpty(bd.Status, "none")))
+		b.WriteString(fmt.Sprintf("  reason: %q\n", bd.Reason))
+		b.WriteString(fmt.Sprintf("  attempted_shape: %q\n", bd.AttemptedShape))
+		b.WriteString(fmt.Sprintf("  chosen_shape: %q\n", bd.ChosenShape))
+		if bd.ItemID != "" {
+			b.WriteString(fmt.Sprintf("  item_id: %s\n", bd.ItemID))
+		}
+	} else {
+		b.WriteString("  status: none\n")
+		b.WriteString("  reason: \"\"\n")
+		b.WriteString("  # Illegal: docs-only, few files, serial order, save time.\n")
+		b.WriteString("  # Legal: spawn_failed / tool_missing after real attempts; use quick allow-inline.\n")
+		b.WriteString("  attempted_shape: \"\"\n")
+		b.WriteString("  chosen_shape: \"\"\n")
+	}
 	b.WriteString("work_item_status:\n")
 	statusByID := map[string]quickWorkItemStatus{}
 	for _, row := range doc.Execution.WorkItemStatus {
@@ -1162,6 +1199,10 @@ func buildQuickStatusExecutionSection(doc *quickConfirmationDoc) string {
 		status := firstNonEmpty(row.Status, "pending")
 		b.WriteString(fmt.Sprintf("  - work_item_id: %s\n", item.ID))
 		b.WriteString(fmt.Sprintf("    status: %s\n", status))
+		b.WriteString(fmt.Sprintf("    requires_worker: %t\n", row.RequiresWorker))
+		b.WriteString(fmt.Sprintf("    execution_mode: %q\n", row.ExecutionMode))
+		b.WriteString(fmt.Sprintf("    worker_result_id: %q\n", row.WorkerResultID))
+		b.WriteString(fmt.Sprintf("    inline_approved: %t\n", row.InlineApproved))
 		b.WriteString(fmt.Sprintf("    acceptance_evidence: %s\n", formatYAMLStringList(row.AcceptanceEvidence)))
 	}
 	b.WriteString("batches:\n")
