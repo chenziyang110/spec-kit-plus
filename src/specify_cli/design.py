@@ -58,14 +58,9 @@ DESIGN_CAPABILITY_MODEL_SCHEMA = "spec-kit-design-capability-model-v1"
 DESIGN_PREVIEW_MANIFEST_ID = "design-preview-manifest"
 DESIGN_PREVIEW_DIRECTION_RE = re.compile(r"^direction-[a-z0-9][a-z0-9-]*$")
 DESIGN_SPECIMEN_ID_RE = re.compile(r"^SP-[A-Z0-9]+(?:-[A-Z0-9]+)+$")
-DESIGN_PREVIEW_REQUIRED_SECTIONS = (
-    "foundations",
-    "components",
-    "states",
-    "motion",
-    "responsive",
-    "handoff",
-)
+# Freeform boards do not require fixed specimen sections (foundations/components/...).
+# Direction canvases carry creative layout; governance lives in the embedded manifest.
+DESIGN_PREVIEW_REQUIRED_SECTIONS: tuple[str, ...] = ()
 DESIGN_PREVIEW_PLACEHOLDER_RE = re.compile(r"__[A-Z0-9_]+__")
 DESIGN_PREVIEW_REMOTE_RE = re.compile(r"(?i)(?:https?:)?//")
 DESIGN_PREVIEW_NETWORK_SCRIPT_RE = re.compile(
