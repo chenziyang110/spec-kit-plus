@@ -119,8 +119,7 @@ evidence triad into the quick-status artifact via leased
 `specify-runtime artifact patch`. When an approved design system is the basis,
 patch its approved visual ref, preview/manifest/handoff SHA-256 values,
 immutable handoff ref, and selected `DS-*`/`DH-*` rows into that same artifact
-and every UI worker contract. An active Quick task must not silently adopt a
-later design approval; adoption requires a confirmed UI checkpoint amendment
+and every UI worker contract. An active Quick task must not silently adopt a later design approval; adoption requires a confirmed UI checkpoint amendment
 with the replacement binding. Preserve original visual references and run the
 UI gate's real-entrypoint capture/inspect/refine loop. Escalate a new visual
 direction to `$spx-design`. Keep multi-surface or acceptance-heavy UI in Quick
@@ -142,4 +141,11 @@ Patch `STATUS.md` at meaningful transitions through leased `specify-runtime arti
 5. Only then: `{{specify-subcmd:specify-runtime quick close <id> resolved}}` (argv is positional status, not a bare close).
 6. Archive later only with `{{specify-subcmd:specify-runtime quick archive <id>}}`.
 
-Do not tell the user the workflow is complete, and do not run `quick close … resolved`, until step 3 succeeds when cognition is required. `item-accept` and green tests alone are not terminal completion. Report changed paths, evidence, residual risk, and `project_cognition_refresh`. This invocation authorizes only this workflow stage; report any explicit user-selected workflow change as a handoff and do not invoke another workflow in this run.
+Apply the receipt-bound finalizer gate in `references/project-cognition.md`
+before any clean source-changing close claim. Do not tell the user the workflow
+is complete, and do not run `quick close … resolved`, until step 3 succeeds when
+cognition is required. `item-accept` and green tests alone are not terminal
+completion. Report changed paths, evidence, residual risk, and
+`project_cognition_refresh`. This invocation authorizes only this workflow
+stage; report any explicit user-selected workflow change as a handoff and do not
+invoke another workflow in this run.
