@@ -602,10 +602,61 @@ def _diagnostics_payload(diagnostics: list[DesignDiagnostic]) -> dict[str, Any]:
     return {
         "ok": not diagnostics,
         "diagnostics": [
-            {"level": d.level, "code": d.code, "message": d.message, "path": d.path}
+            {
+                "level": d.level,
+                "code": d.code,
+                "message": d.message,
+                "path": d.path,
+                **(
+                    {"layer": d.layer}
+                    if getattr(d, "layer", None)
+                    else {}
+                ),
+                **(
+                    {"why": d.why}
+                    if getattr(d, "why", None)
+                    else {}
+                ),
+                **(
+                    {"recovery": list(d.recovery)}
+                    if getattr(d, "recovery", ())
+                    else {}
+                ),
+                **(
+                    {"agent_action": list(d.agent_action)}
+                    if getattr(d, "agent_action", ())
+                    else {}
+                ),
+            }
             for d in diagnostics
         ],
     }
+
+
+def _print_design_diagnostics(diagnostics: list[DesignDiagnostic]) -> None:
+    """Human/agent-readable lint failure output with recovery layers."""
+
+    for diagnostic in diagnostics:
+        layer = getattr(diagnostic, "layer", None) or "unknown"
+        console.print(
+            f"[bold]{diagnostic.code}[/bold] "
+            f"(layer={layer}, severity={diagnostic.level})"
+        )
+        console.print(f"  path: {diagnostic.path}")
+        console.print(f"  message: {diagnostic.message}")
+        why = getattr(diagnostic, "why", None)
+        if why:
+            console.print(f"  why: {why}")
+        recovery = getattr(diagnostic, "recovery", ()) or ()
+        if recovery:
+            console.print("  recovery:")
+            for item in recovery:
+                console.print(f"    - {item}")
+        actions = getattr(diagnostic, "agent_action", ()) or ()
+        if actions:
+            console.print("  agent_action:")
+            for item in actions:
+                console.print(f"    - {item}")
 
 
 def _display_path(path: Path) -> str:
@@ -921,8 +972,12 @@ def design_preview_lint(
         console.print(f"{_display_path(path)} is valid at {normalized_level} level")
         return
 
-    for diagnostic in diagnostics:
-        console.print(f"{diagnostic.code}: {diagnostic.message}")
+    console.print(
+        f"[red]READY FAILED[/red]"
+        if normalized_level == "ready"
+        else f"[red]LINT FAILED[/red] ({normalized_level})"
+    )
+    _print_design_diagnostics(diagnostics)
     raise typer.Exit(1)
 
 

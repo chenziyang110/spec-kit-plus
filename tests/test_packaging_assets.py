@@ -37,6 +37,14 @@ def test_design_assets_are_packaged() -> None:
 
     assert '"templates/design-template.md" = "specify_cli/core_pack/templates/design-template.md"' in pyproject
     assert '"templates/design-library" = "specify_cli/core_pack/templates/design-library"' in pyproject
+    assert (
+        '"templates/design-diagnostic-contract.json" = '
+        '"specify_cli/core_pack/templates/design-diagnostic-contract.json"'
+    ) in pyproject
+    assert (
+        '"templates/visual-fingerprint-rule.json" = '
+        '"specify_cli/core_pack/templates/visual-fingerprint-rule.json"'
+    ) in pyproject
 
 
 def test_cli_dependency_metadata_pins_pydantic_graph_base_node_api() -> None:
