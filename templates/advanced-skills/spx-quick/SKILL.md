@@ -53,7 +53,8 @@ and render the runtime Decision Checkpoint plus Delivery Map from
 `decision.ui_confirmation` and append its UI proposal. For staged non-inherited
 checkpoints, ask once for both decisions and bind with
 `{{specify-subcmd:specify-runtime quick checkpoint-confirm <id> --digest <confirmation_digest> --format json}}`.
-During execution, prefer
+For staged non-inherited checkpoints, wait for user confirmation before
+substantive execution. During execution, prefer
 `{{specify-subcmd:specify-runtime quick checkpoint-show <id> --view pulse --format json}}`
 over vague waiting text. Keep Delivery Map, waves, subagents, and file splits
 agent-owned; they never enter `confirmation_digest`.
@@ -79,7 +80,7 @@ The `--feature-dir` spelling is retained for compatibility and accepts the Quick
 workspace; do not mark consumption before the binding evidence exists.
 
 Inspect the current diff and cognition-selected paths, then execute the full
-confirmed scope under `execution_model: subagent-mandatory`. When durable
+confirmed scope with mandatory native-subagent execution. When durable
 planning no longer fits compact state, create an absent task-local `PLAN.md`
 with `specify-runtime artifact scaffold --kind quick-plan`, query it on resume,
 and patch only named sections; never submit or reconstruct the whole plan.
@@ -145,7 +146,8 @@ Apply the receipt-bound finalizer gate in `references/project-cognition.md`
 before any clean source-changing close claim. Do not tell the user the workflow
 is complete, and do not run `quick close … resolved`, until step 3 succeeds when
 cognition is required. `item-accept` and green tests alone are not terminal
-completion. Report changed paths, evidence, residual risk, and
+truth; only `quick close … resolved` after cognition closeout is terminal truth.
+Report changed paths, evidence, residual risk, and
 `project_cognition_refresh`. This invocation authorizes only this workflow
 stage; report any explicit user-selected workflow change as a handoff and do not
 invoke another workflow in this run.

@@ -625,9 +625,9 @@ runtime operations entrypoint. Classic assets and behavior remain unchanged
 when the `classic` profile is selected.
 
 - `design` / `sp-design` and Advanced `$spx-design` use `specify-runtime design`
-  as one natural-language entrypoint that routes `create/refine/audit`; reference
-  synthesis is an input strategy for create/refine rather than another public
-  command or terminal task type. The first formal consumer is `sp-specify`,
+  as one natural-language design-system entrypoint that routes `create/refine/audit`;
+  reference synthesis is an input strategy for create/refine rather than another
+  public command or terminal task type. The first formal consumer is `sp-specify`,
   while `sp-quick` may pin the same approved snapshot for direct delivery.
   A later approval must not silently retarget an active formal feature or Quick
   workspace; adoption is explicit through Specify rebinding or a confirmed
