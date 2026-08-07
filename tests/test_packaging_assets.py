@@ -52,7 +52,7 @@ def test_cli_dependency_metadata_pins_pydantic_graph_base_node_api() -> None:
 
     dependencies = pyproject["project"]["dependencies"]
 
-    assert "pydantic-graph<2" in dependencies
+    assert "pydantic-graph<3" in dependencies
     assert not any(dependency.startswith("pydantic-ai") for dependency in dependencies)
 
 
