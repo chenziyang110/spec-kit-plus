@@ -1,0 +1,885 @@
+{
+  "schema": "spec-kit-design-preview-manifest-v1",
+  "configured": true,
+  "project": {
+    "name": "Configured design content",
+    "short_name": "Configured design content",
+    "subject": "Configured design content",
+    "audience": "Configured design content",
+    "single_job": "Configured design content",
+    "brief": "Configured design content",
+    "surface_types": [
+      "Configured design content"
+    ],
+    "platforms": [
+      "Configured design content"
+    ],
+    "modules": [
+      "core",
+      "Configured design content"
+    ]
+  },
+  "capability_model": {
+    "schema": "spec-kit-design-capability-model-v1",
+    "profile_ids": [
+      "web"
+    ],
+    "profiles": [
+      {
+        "id": "web",
+        "label": "Web application",
+        "summary": "Responsive browser surfaces with pointer, keyboard, forms, navigation, and asynchronous feedback.",
+        "input_modes": [
+          "pointer",
+          "keyboard"
+        ],
+        "measurement_units": [
+          "px"
+        ]
+      }
+    ],
+    "capability_ids": [
+      "layout.responsive",
+      "navigation.hierarchical",
+      "input.pointer",
+      "input.keyboard",
+      "controls.form",
+      "feedback.async",
+      "state.interactive",
+      "color.modes",
+      "motion.adaptive"
+    ],
+    "input_modes": [
+      "pointer",
+      "keyboard"
+    ],
+    "measurement_units": [
+      "px"
+    ],
+    "specimens": [
+      {
+        "id": "SP-WEB-WORKSPACE-001",
+        "profile_id": "web",
+        "kind": "web-workspace",
+        "title": "Responsive application workspace",
+        "purpose": "Prove hierarchy, navigation, primary action, and responsive reflow with representative content.",
+        "capability_ids": [
+          "layout.responsive",
+          "navigation.hierarchical",
+          "input.pointer",
+          "input.keyboard"
+        ],
+        "required_states": [
+          "default",
+          "focus",
+          "loading",
+          "empty",
+          "error"
+        ],
+        "content_keys": [
+          "surface_eyebrow",
+          "surface_title",
+          "primary_action",
+          "card_one",
+          "card_two",
+          "card_three"
+        ]
+      },
+      {
+        "id": "SP-WEB-CONTROLS-001",
+        "profile_id": "web",
+        "kind": "web-controls",
+        "title": "Forms and action hierarchy",
+        "purpose": "Prove labels, control anatomy, focus, validation, disabled behavior, and action priority.",
+        "capability_ids": [
+          "controls.form",
+          "input.pointer",
+          "input.keyboard",
+          "state.interactive"
+        ],
+        "required_states": [
+          "default",
+          "hover",
+          "focus",
+          "disabled",
+          "loading",
+          "error"
+        ],
+        "content_keys": [
+          "primary_field_label",
+          "primary_field_value",
+          "select_label",
+          "select_option_primary",
+          "select_option_secondary",
+          "primary_action"
+        ]
+      },
+      {
+        "id": "SP-WEB-COLLECTION-001",
+        "profile_id": "web",
+        "kind": "web-collection",
+        "title": "Collection and asynchronous feedback",
+        "purpose": "Prove real data volume, status language, empty/error recovery, and progressive updates.",
+        "capability_ids": [
+          "feedback.async",
+          "state.interactive",
+          "color.modes",
+          "motion.adaptive"
+        ],
+        "required_states": [
+          "default",
+          "loading",
+          "empty",
+          "error"
+        ],
+        "content_keys": [
+          "collection_title",
+          "collection_meta",
+          "loading_label",
+          "success_label",
+          "error_label"
+        ]
+      }
+    ]
+  },
+  "review": {
+    "round": "Configured design content",
+    "status": "candidate",
+    "approved_direction": null
+  },
+  "content": {
+    "primary_field_label": "Configured design content",
+    "primary_field_value": "Configured design content",
+    "select_label": "Configured design content",
+    "select_option_primary": "Configured design content",
+    "select_option_secondary": "Configured design content",
+    "checkbox_label": "Configured design content",
+    "radio_label": "Configured design content",
+    "switch_label": "Configured design content",
+    "notes_label": "Configured design content",
+    "notes_value": "Configured design content",
+    "loading_label": "Configured design content",
+    "surface_eyebrow": "Configured design content",
+    "surface_title": "Configured design content",
+    "primary_action": "Configured design content",
+    "card_one": "Configured design content",
+    "card_two": "Configured design content",
+    "card_three": "Configured design content",
+    "collection_title": "Configured design content",
+    "collection_meta": "Configured design content",
+    "success_label": "Configured design content",
+    "empty_label": "Configured design content",
+    "error_label": "Configured design content",
+    "secondary_action": "Configured design content",
+    "command_label": "Configured design content",
+    "command_hint": "Configured design content",
+    "command_name": "Configured design content",
+    "command_summary": "Configured design content",
+    "command_example": "Configured design content",
+    "recovery_hint": "Configured design content",
+    "cancel_label": "Configured design content",
+    "piped_output": "Configured design content",
+    "detail_title": "Configured design content",
+    "detail_body": "Configured design content",
+    "article_title": "Configured design content",
+    "article_deck": "Configured design content",
+    "article_body": "Configured design content",
+    "link_label": "Configured design content",
+    "media_alt": "Configured design content",
+    "media_caption": "Configured design content",
+    "media_credit": "Configured design content",
+    "localized_heading": "Configured design content",
+    "localized_body": "Configured design content",
+    "callout_label": "Configured design content",
+    "footnote_label": "Configured design content"
+  },
+  "directions": [
+    {
+      "id": "direction-a",
+      "name": "Configured design content",
+      "visual_thesis": "Configured design content",
+      "content_thesis": "Configured design content",
+      "interaction_thesis": "Configured design content",
+      "signature_element": "Split hero with editorial media column",
+      "gain": "Configured design content",
+      "cost": "Configured design content",
+      "specimen_ids": [
+        "SP-WEB-WORKSPACE-001",
+        "SP-WEB-CONTROLS-001",
+        "SP-WEB-COLLECTION-001"
+      ],
+      "typography": {
+        "display": "\"Arial Narrow\", \"Aptos Display\", \"Segoe UI\", sans-serif",
+        "body": "\"Aptos\", \"Segoe UI\", sans-serif",
+        "heading_tracking": "-.045em"
+      },
+      "geometry": {
+        "radius_control": "999px",
+        "radius_surface": "4px"
+      },
+      "density": {
+        "space_unit": "4px",
+        "label": "compact",
+        "scale": 0.88
+      },
+      "elevation": {
+        "surface": "0 18px 55px rgb(49 42 28 / 12%)",
+        "control": "0 5px 14px rgb(49 42 28 / 12%)"
+      },
+      "motion": {
+        "duration_fast": "110ms",
+        "duration_base": "220ms",
+        "duration_slow": "460ms",
+        "easing_standard": "cubic-bezier(.2, .7, .2, 1)",
+        "easing_emphasized": "cubic-bezier(.16, 1, .3, 1)",
+        "distance_enter": "12px",
+        "stagger": "28ms",
+        "reduced_motion": "opacity and color change without spatial travel"
+      },
+      "modes": {
+        "light": {
+          "canvas": "#f3efe5",
+          "canvas_deep": "#e5ddcb",
+          "surface": "#fffdf7",
+          "surface_raised": "#ffffff",
+          "ink": "#14211f",
+          "ink_muted": "#56645f",
+          "line": "#c9c7bb",
+          "accent": "#c43d29",
+          "accent_ink": "#ffffff",
+          "support": "#1d6f64",
+          "warning": "#9b570f",
+          "danger": "#a92b2b"
+        },
+        "dark": {
+          "canvas": "#15120e",
+          "canvas_deep": "#0b0907",
+          "surface": "#211d17",
+          "surface_raised": "#2a251e",
+          "ink": "#fff8ed",
+          "ink_muted": "#d6c7b1",
+          "line": "#574d3f",
+          "accent": "#ff8068",
+          "accent_ink": "#210704",
+          "support": "#63c6b7",
+          "warning": "#ffc36b",
+          "danger": "#ff8585"
+        },
+        "high-contrast": {
+          "canvas": "#000000",
+          "canvas_deep": "#000000",
+          "surface": "#000000",
+          "surface_raised": "#111111",
+          "ink": "#ffffff",
+          "ink_muted": "#f2f2f2",
+          "line": "#ffffff",
+          "accent": "#ffde59",
+          "accent_ink": "#000000",
+          "support": "#65ffd6",
+          "warning": "#ffde59",
+          "danger": "#ff8a8a"
+        }
+      },
+      "dials": {
+        "variance": 8,
+        "motion": 7,
+        "density": 3,
+        "inference_reason": "Consumer app marketing: high layout variance and generous whitespace for conversion-first storytelling"
+      },
+      "aesthetic_family": "marketing-editorial-asymmetric"
+    },
+    {
+      "id": "direction-b",
+      "name": "Configured design content",
+      "visual_thesis": "Configured design content",
+      "content_thesis": "Configured design content",
+      "interaction_thesis": "Configured design content",
+      "signature_element": "Soft card stack with calm premium surfaces",
+      "gain": "Configured design content",
+      "cost": "Configured design content",
+      "specimen_ids": [
+        "SP-WEB-WORKSPACE-001",
+        "SP-WEB-CONTROLS-001",
+        "SP-WEB-COLLECTION-001"
+      ],
+      "typography": {
+        "display": "\"Bahnschrift\", \"Aptos Display\", \"Segoe UI\", sans-serif",
+        "body": "\"Aptos\", \"Segoe UI\", sans-serif",
+        "heading_tracking": "-.055em"
+      },
+      "geometry": {
+        "radius_control": "12px",
+        "radius_surface": "20px"
+      },
+      "density": {
+        "space_unit": "5px",
+        "label": "balanced",
+        "scale": 1
+      },
+      "elevation": {
+        "surface": "0 30px 80px rgb(0 0 0 / 22%)",
+        "control": "0 8px 30px rgb(0 0 0 / 18%)"
+      },
+      "motion": {
+        "duration_fast": "150ms",
+        "duration_base": "300ms",
+        "duration_slow": "680ms",
+        "easing_standard": "cubic-bezier(.22, .76, .25, 1)",
+        "easing_emphasized": "cubic-bezier(.12, .9, .18, 1)",
+        "distance_enter": "20px",
+        "stagger": "52ms",
+        "reduced_motion": "cross-fade with persistent spatial orientation"
+      },
+      "modes": {
+        "light": {
+          "canvas": "#edf6f7",
+          "canvas_deep": "#dbe9eb",
+          "surface": "#f7fcfc",
+          "surface_raised": "#ffffff",
+          "ink": "#10262a",
+          "ink_muted": "#4f676c",
+          "line": "#b8cdd0",
+          "accent": "#087b68",
+          "accent_ink": "#ffffff",
+          "support": "#3657b7",
+          "warning": "#8b5200",
+          "danger": "#a91f38"
+        },
+        "dark": {
+          "canvas": "#07101b",
+          "canvas_deep": "#04080f",
+          "surface": "#0d1927",
+          "surface_raised": "#122338",
+          "ink": "#edf9ff",
+          "ink_muted": "#9db6c4",
+          "line": "#375268",
+          "accent": "#48e5c2",
+          "accent_ink": "#031611",
+          "support": "#91a7ff",
+          "warning": "#ffc857",
+          "danger": "#ff8394"
+        },
+        "high-contrast": {
+          "canvas": "#000000",
+          "canvas_deep": "#000000",
+          "surface": "#000000",
+          "surface_raised": "#101820",
+          "ink": "#ffffff",
+          "ink_muted": "#f2f2f2",
+          "line": "#ffffff",
+          "accent": "#53ffd6",
+          "accent_ink": "#000000",
+          "support": "#b7c4ff",
+          "warning": "#ffe36b",
+          "danger": "#ff91a2"
+        }
+      },
+      "dials": {
+        "variance": 5,
+        "motion": 4,
+        "density": 5,
+        "inference_reason": "Consumer app product: calmer density for day-to-day engagement with soft premium motion"
+      },
+      "aesthetic_family": "soft-premium-calm"
+    },
+    {
+      "id": "direction-c",
+      "name": "Configured design content",
+      "visual_thesis": "Configured design content",
+      "content_thesis": "Configured design content",
+      "interaction_thesis": "Configured design content",
+      "signature_element": "Kinetic type ribbon with sparse sections",
+      "gain": "Configured design content",
+      "cost": "Configured design content",
+      "specimen_ids": [
+        "SP-WEB-WORKSPACE-001",
+        "SP-WEB-CONTROLS-001",
+        "SP-WEB-COLLECTION-001"
+      ],
+      "typography": {
+        "display": "Georgia, \"Times New Roman\", serif",
+        "body": "\"Trebuchet MS\", \"Aptos\", sans-serif",
+        "heading_tracking": "-.035em"
+      },
+      "geometry": {
+        "radius_control": "0px",
+        "radius_surface": "0px"
+      },
+      "density": {
+        "space_unit": "6px",
+        "label": "generous",
+        "scale": 1.08
+      },
+      "elevation": {
+        "surface": "0 24px 70px rgb(91 53 75 / 14%)",
+        "control": "0 9px 24px rgb(91 53 75 / 15%)"
+      },
+      "motion": {
+        "duration_fast": "180ms",
+        "duration_base": "360ms",
+        "duration_slow": "760ms",
+        "easing_standard": "cubic-bezier(.33, .65, .28, 1)",
+        "easing_emphasized": "cubic-bezier(.2, 1.2, .2, 1)",
+        "distance_enter": "26px",
+        "stagger": "68ms",
+        "reduced_motion": "tonal emphasis and instant layout settlement"
+      },
+      "modes": {
+        "light": {
+          "canvas": "#fff7ef",
+          "canvas_deep": "#f4dfcc",
+          "surface": "#fffaf4",
+          "surface_raised": "#ffffff",
+          "ink": "#2b1c2e",
+          "ink_muted": "#715e70",
+          "line": "#dfc7d4",
+          "accent": "#7142e8",
+          "accent_ink": "#ffffff",
+          "support": "#a83c2c",
+          "warning": "#8d540f",
+          "danger": "#aa2947"
+        },
+        "dark": {
+          "canvas": "#1a1020",
+          "canvas_deep": "#100914",
+          "surface": "#27172f",
+          "surface_raised": "#33203c",
+          "ink": "#fff7ff",
+          "ink_muted": "#d8c5d8",
+          "line": "#654c69",
+          "accent": "#c3a8ff",
+          "accent_ink": "#180b25",
+          "support": "#ff9b82",
+          "warning": "#ffd37f",
+          "danger": "#ff8fa8"
+        },
+        "high-contrast": {
+          "canvas": "#000000",
+          "canvas_deep": "#000000",
+          "surface": "#000000",
+          "surface_raised": "#171017",
+          "ink": "#ffffff",
+          "ink_muted": "#f2f2f2",
+          "line": "#ffffff",
+          "accent": "#d6c3ff",
+          "accent_ink": "#000000",
+          "support": "#ffad98",
+          "warning": "#ffe18b",
+          "danger": "#ff9ab1"
+        }
+      },
+      "dials": {
+        "variance": 9,
+        "motion": 9,
+        "density": 2,
+        "inference_reason": "Consumer brand moment: expressive motion and low density to differentiate acquisition surfaces"
+      },
+      "aesthetic_family": "industrial-brutalist"
+    }
+  ],
+  "boundaries": {
+    "must_preserve": [
+      "Configured design content",
+      "Configured design content",
+      "Configured design content"
+    ],
+    "may_adapt": [
+      "Configured design content",
+      "Configured design content",
+      "Configured design content"
+    ],
+    "must_not": [
+      "Configured design content",
+      "Configured design content",
+      "Configured design content"
+    ]
+  },
+  "decisions": [
+    {
+      "id": "DS-COLOR-001",
+      "kind": "color",
+      "title": "Semantic color roles and accessible foreground pairs",
+      "statement": "Configured design content",
+      "source_ref": "Configured design content",
+      "affected_surfaces": [
+        "Configured design content"
+      ],
+      "verification": "computed style, contrast report, and visual capture"
+    },
+    {
+      "id": "DS-TYPE-001",
+      "kind": "typography",
+      "title": "Display and body hierarchy",
+      "statement": "Configured design content",
+      "source_ref": "Configured design content",
+      "affected_surfaces": [
+        "Configured design content"
+      ],
+      "verification": "resolved font evidence and visual capture"
+    },
+    {
+      "id": "DS-SPACE-001",
+      "kind": "spacing",
+      "title": "Density and spacing rhythm",
+      "statement": "Configured design content",
+      "source_ref": "Configured design content",
+      "affected_surfaces": [
+        "Configured design content"
+      ],
+      "verification": "computed token export and viewport capture"
+    },
+    {
+      "id": "DS-COMP-001",
+      "kind": "component",
+      "title": "Control anatomy and required state language",
+      "statement": "Configured design content",
+      "source_ref": "Configured design content",
+      "affected_surfaces": [
+        "Configured design content"
+      ],
+      "verification": "state matrix and structure snapshot"
+    },
+    {
+      "id": "DS-MOTION-001",
+      "kind": "motion",
+      "title": "Entrance, feedback, transition, and reduced-motion behavior",
+      "statement": "Configured design content",
+      "source_ref": "Configured design content",
+      "affected_surfaces": [
+        "Configured design content"
+      ],
+      "verification": "runtime capture and reduced-motion check"
+    },
+    {
+      "id": "DS-RESP-001",
+      "kind": "responsive",
+      "title": "Navigation, density, and hierarchy adaptation",
+      "statement": "Configured design content",
+      "source_ref": "Configured design content",
+      "affected_surfaces": [
+        "Configured design content"
+      ],
+      "verification": "viewport and state matrix"
+    },
+    {
+      "id": "DS-CONTENT-001",
+      "kind": "content",
+      "title": "Representative product content and visible data volume",
+      "statement": "Configured design content",
+      "source_ref": "Configured design content",
+      "affected_surfaces": [
+        "Configured design content"
+      ],
+      "verification": "content source evidence and visual capture"
+    }
+  ],
+  "token_map": [
+    {
+      "id": "DH-BIND-COLOR-001",
+      "decision_id": "DS-COLOR-001",
+      "source_path": "direction.modes.light.accent",
+      "preview_token": "--accent",
+      "production_owner": "Configured design content",
+      "production_target": "Configured design content",
+      "verification": "computed style + contrast report + visual capture"
+    },
+    {
+      "id": "DH-BIND-TYPE-001",
+      "decision_id": "DS-TYPE-001",
+      "source_path": "direction.typography",
+      "preview_token": "--font-display",
+      "production_owner": "Configured design content",
+      "production_target": "Configured design content",
+      "verification": "resolved font evidence + visual capture"
+    },
+    {
+      "id": "DH-BIND-SPACE-001",
+      "decision_id": "DS-SPACE-001",
+      "source_path": "direction.density",
+      "preview_token": "--space-unit / --density",
+      "production_owner": "Configured design content",
+      "production_target": "Configured design content",
+      "verification": "computed token export + viewport capture"
+    },
+    {
+      "id": "DH-BIND-COMP-001",
+      "decision_id": "DS-COMP-001",
+      "source_path": "direction.geometry",
+      "preview_token": "--radius-surface",
+      "production_owner": "Configured design content",
+      "production_target": "Configured design content",
+      "verification": "token export + structure snapshot + visual capture"
+    },
+    {
+      "id": "DH-BIND-MOTION-001",
+      "decision_id": "DS-MOTION-001",
+      "source_path": "direction.motion",
+      "preview_token": "--motion-easing-emphasized",
+      "production_owner": "Configured design content",
+      "production_target": "Configured design content",
+      "verification": "runtime capture + reduced-motion check"
+    },
+    {
+      "id": "DH-BIND-RESP-001",
+      "decision_id": "DS-RESP-001",
+      "source_path": "reproduction.responsive_matrix",
+      "preview_token": "responsive.viewport-matrix",
+      "production_owner": "Configured design content",
+      "production_target": "Configured design content",
+      "verification": "viewport structure + visual capture"
+    },
+    {
+      "id": "DH-BIND-CONTENT-001",
+      "decision_id": "DS-CONTENT-001",
+      "source_path": "content",
+      "preview_token": "content.representative-fixture",
+      "production_owner": "Configured design content",
+      "production_target": "Configured design content",
+      "verification": "content evidence + visual capture"
+    }
+  ],
+  "handoff": {
+    "reproduction_mode": "exact",
+    "component_contracts": [
+      {
+        "id": "DH-COMP-WEB-001",
+        "component": "Web interaction system",
+        "anatomy": [
+          "navigation and page hierarchy",
+          "form and action controls",
+          "collection and feedback states"
+        ],
+        "required_states": [
+          "default",
+          "hover",
+          "focus",
+          "disabled",
+          "loading",
+          "empty",
+          "error"
+        ],
+        "decision_ids": [
+          "DS-COMP-001",
+          "DS-TYPE-001",
+          "DS-SPACE-001"
+        ],
+        "must_match": [
+          "anatomy",
+          "hierarchy",
+          "state language",
+          "token bindings",
+          "focus order"
+        ]
+      }
+    ],
+    "responsive_matrix": [
+      {
+        "id": "DH-RESP-WEB-COMPACT-001",
+        "profile_id": "web",
+        "label": "compact web",
+        "target": {
+          "width": 390,
+          "height": 844,
+          "unit": "px"
+        },
+        "review_width_px": 390,
+        "state": "default",
+        "adaptation": "Configured design content",
+        "decision_ids": [
+          "DS-RESP-001",
+          "DS-SPACE-001",
+          "DS-COMP-001"
+        ]
+      },
+      {
+        "id": "DH-RESP-WEB-REGULAR-001",
+        "profile_id": "web",
+        "label": "regular web",
+        "target": {
+          "width": 1024,
+          "height": 768,
+          "unit": "px"
+        },
+        "review_width_px": 1024,
+        "state": "default",
+        "adaptation": "Configured design content",
+        "decision_ids": [
+          "DS-RESP-001",
+          "DS-SPACE-001",
+          "DS-COMP-001"
+        ]
+      },
+      {
+        "id": "DH-RESP-WEB-WIDE-001",
+        "profile_id": "web",
+        "label": "wide web",
+        "target": {
+          "width": 1440,
+          "height": 900,
+          "unit": "px"
+        },
+        "review_width_px": 1440,
+        "state": "default",
+        "adaptation": "Configured design content",
+        "decision_ids": [
+          "DS-RESP-001",
+          "DS-SPACE-001",
+          "DS-COMP-001"
+        ]
+      }
+    ],
+    "visual_acceptance_matrix": [
+      {
+        "id": "DH-VA-WEB-COMPACT-001",
+        "target_id": "DH-RESP-WEB-COMPACT-001",
+        "specimen_ids": [
+          "SP-WEB-WORKSPACE-001",
+          "SP-WEB-CONTROLS-001",
+          "SP-WEB-COLLECTION-001"
+        ],
+        "states": [
+          "default",
+          "hover",
+          "focus",
+          "disabled",
+          "loading",
+          "empty",
+          "error"
+        ],
+        "color_modes": [
+          "light",
+          "dark",
+          "high-contrast"
+        ],
+        "motion_modes": [
+          "full",
+          "reduced"
+        ],
+        "decision_ids": [
+          "DS-COLOR-001",
+          "DS-TYPE-001",
+          "DS-SPACE-001",
+          "DS-COMP-001",
+          "DS-CONTENT-001"
+        ],
+        "must_match": [
+          "structure",
+          "geometry",
+          "tokens",
+          "content",
+          "state"
+        ],
+        "evidence": [
+          "structure_snapshot",
+          "visual_capture",
+          "runtime_diagnostics",
+          "visual_comparison_or_human_review"
+        ]
+      },
+      {
+        "id": "DH-VA-WEB-REGULAR-001",
+        "target_id": "DH-RESP-WEB-REGULAR-001",
+        "specimen_ids": [
+          "SP-WEB-WORKSPACE-001",
+          "SP-WEB-CONTROLS-001",
+          "SP-WEB-COLLECTION-001"
+        ],
+        "states": [
+          "default",
+          "loading",
+          "error"
+        ],
+        "color_modes": [
+          "light",
+          "dark",
+          "high-contrast"
+        ],
+        "motion_modes": [
+          "full",
+          "reduced"
+        ],
+        "decision_ids": [
+          "DS-COLOR-001",
+          "DS-TYPE-001",
+          "DS-SPACE-001",
+          "DS-COMP-001",
+          "DS-MOTION-001",
+          "DS-RESP-001",
+          "DS-CONTENT-001"
+        ],
+        "must_match": [
+          "structure",
+          "geometry",
+          "tokens",
+          "content",
+          "state",
+          "motion"
+        ],
+        "evidence": [
+          "structure_snapshot",
+          "visual_capture",
+          "runtime_diagnostics",
+          "visual_comparison_or_human_review"
+        ]
+      },
+      {
+        "id": "DH-VA-WEB-WIDE-001",
+        "target_id": "DH-RESP-WEB-WIDE-001",
+        "specimen_ids": [
+          "SP-WEB-WORKSPACE-001",
+          "SP-WEB-CONTROLS-001",
+          "SP-WEB-COLLECTION-001"
+        ],
+        "states": [
+          "default",
+          "loading"
+        ],
+        "color_modes": [
+          "light",
+          "dark",
+          "high-contrast"
+        ],
+        "motion_modes": [
+          "full",
+          "reduced"
+        ],
+        "decision_ids": [
+          "DS-MOTION-001",
+          "DS-RESP-001"
+        ],
+        "must_match": [
+          "structure",
+          "geometry",
+          "tokens",
+          "motion"
+        ],
+        "evidence": [
+          "structure_snapshot",
+          "visual_capture",
+          "runtime_diagnostics",
+          "visual_comparison_or_human_review"
+        ]
+      }
+    ],
+    "comparison_tolerance": {
+      "structure": "exact",
+      "content": "exact",
+      "tokens": "exact",
+      "geometry": {
+        "unit": "px",
+        "max_delta": 2
+      },
+      "color": {
+        "method": "delta-e-2000",
+        "max_delta": 2
+      },
+      "text_wrap": "exact",
+      "motion": {
+        "unit": "ms",
+        "max_delta": 16
+      },
+      "platform_variance": "approved-deviation-only"
+    },
+    "accepted_deviations": []
+  }
+}

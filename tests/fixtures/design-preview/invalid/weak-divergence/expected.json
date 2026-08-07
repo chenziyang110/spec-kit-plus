@@ -1,0 +1,9 @@
+{
+  "result": "fail",
+  "diagnostics": [
+    {
+      "code": "preview-insufficient-direction-divergence",
+      "layer": "quality"
+    }
+  ]
+}
