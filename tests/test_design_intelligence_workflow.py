@@ -118,7 +118,7 @@ def test_design_intelligence_partials_are_single_sourced() -> None:
     """Classic DI rule body lives under design-intelligence/; common is orchestrator."""
 
     expected = (
-        "context.md",
+        "shared-foundation.md",
         "evidence-rules.md",
         "stage-hooks.md",
         "ui-quality-gate-pointer.md",

@@ -13,7 +13,7 @@ Apply when work changes a user-visible screen, component, layout, navigation or
 interaction flow, responsive behavior, visual state, desktop/mobile surface,
 TUI layout, or CLI presentation—even without an external screenshot.
 
-{{spec-kit-include: ../design-intelligence/context.md}}
+{{spec-kit-include: ../design-intelligence/shared-foundation.md}}
 
 {{spec-kit-include: ../design-intelligence/evidence-rules.md}}
 
