@@ -652,6 +652,15 @@ when the `classic` profile is selected.
   `anti-slop-policy.md` are inspiration only and never substitute for
   `design approve`.
 
+**Design Governance Foundation v1.0** (frozen architecture contract): AI design
+artifacts are validated for deliverable quality, not only renderability—taste
+intake, structural/semantic/quality layers, diagnostic recovery, and a Golden
+Artifact Set as regression truth. Do not stack new ready-gate conditions
+without a layer, recovery path, diagnostic contract, and golden fixture. Full
+constraint text lives in `PROJECT-HANDBOOK.md` under
+`Design Governance Foundation v1.0`. Baseline fixtures:
+`tests/fixtures/design-preview/`.
+
 Substantive feature UI is handled during `sp-specify`/`$spx-specify` even when
 no screenshot is supplied: it produces a feature `ui-brief.md` that carries
 experience intent, hierarchy, states, responsive/accessibility behavior, and
