@@ -1,6 +1,6 @@
 ---
 name: spx-quick
-description: Tracked direct-delivery workflow for advanced coding models. Use when non-trivial work of any size needs resumable planning, implementation, and verification without first creating a formal feature specification.
+description: Tracked direct-delivery workflow for advanced coding models. Use when non-trivial work of any size needs resumable planning, implementation, and verification without first creating a formal feature specification. After item-start, MUST spawn_subagent before any write_scope file edit; item-accept requires worker result submit (or quick allow-inline).
 ---
 
 # SPX Quick
@@ -18,6 +18,25 @@ or multiple plausible product behaviors.
 Read `references/ui-quality-gate.md` for any user-visible UI change.
 
 `$spx-quick` always starts a new run. Record that new run with `specify-runtime run create`, then execute only through `specify-runtime run supervise`; do not resume another workflow's run.
+
+## Hard Q Loop (do not skip)
+
+After checkpoint confirmation, every in-progress `Qn` uses this hard order.
+Leader owns scope, `STATUS.md`, join, accept—not `write_scope` edits.
+
+1. `quick packet-compile --item Qn`
+2. `quick item-start --item Qn` (`requires_worker: true`)
+3. **Spawn subagent** for the Qn write scope (required; no Edit/Write first)
+4. Wait / join
+5. `result submit --command quick --workspace .planning/quick/<id>-<slug> --lane-id Qn --result-json '...'`
+6. `quick item-accept --item Qn --evidence '...'` (runtime requires worker result)
+7. Only then start the next Q
+
+**Forbidden** between item-start and item-accept: Leader mutation of that item's
+`write_scope`. **Illegal excuses:** docs-only, few files, serial order, save
+time. **Legal leader-inline only via**
+`quick allow-inline --item Qn --reason "spawn_failed: ..."` after real spawn/tool
+failure, then accept.
 
 Accept non-trivial direct-delivery work whose outcome can be confirmed at the
 Quick Checkpoint. Task size, capability count, architecture, migration,
@@ -87,28 +106,25 @@ and patch only named sections; never submit or reconstruct the whole plan.
 Scale that plan, dependency-aware lanes, and multiple ready batches to the
 workload.
 
-After checkpoint confirmation, the first substantive step is dispatch, not
-Leader implementation. Use runtime gates
-`quick packet-compile --item Qn` → `quick item-start --item Qn` → native
-subagent → join → `quick item-accept --item Qn`. Default shapes:
+After checkpoint confirmation, the first substantive step is the **Hard Q Loop**
+above—not Leader implementation. Default shapes:
 
 - non-overlapping ready items → `parallel-subagents`;
-- one lane, dependent Q items, or **shared/overlapping write scopes** (same
-  component/file) → `one-subagent` serial (spawn or resume one worker; do not
-  treat parallel write-conflict errors as permission to implement leader-inline);
-- native dispatch unavailable or unpacketizable → record `blocked_dispatch` in
-  `STATUS.md` (`attempted_shape`, `chosen_shape`, `reason`) before any
-  leader-inline fallback.
+- one lane, dependent Q items, or **shared/overlapping write scopes** →
+  `one-subagent` serial;
+- native dispatch unavailable → `quick allow-inline --reason "spawn_failed: ..."`
+  only after real attempts (never docs-only).
 
-A narrow single-file UX tweak does not waive subagent-first. Leader-inline
-without a patched `blocked_dispatch` reason is a process defect. A behavior
-change must run and record RED before production edits. If no reliable
-automated surface exists, build the smallest viable harness as its own Quick
-lane or batch; if that work is concretely blocked, record the blocker rather
-than replacing evidence with a `$spx-specify` handoff. For a propagating change, record a minimal sweep before
-editing and prove full affected-surface or callsite coverage across consumers,
-generated/mirrored copies, registrations, and verification entry points;
-sampling or an unverified surface leaves the task blocked.
+A narrow single-file or docs-only change does **not** waive subagent-first.
+Runtime refuses `item-accept` without a matching `result submit` (or prior
+`allow-inline`). Close refuses items missing `execution_mode` worker/inline
+proof. A behavior change must run and record RED before production edits. If no
+reliable automated surface exists, build the smallest viable harness as its own
+Quick lane; if blocked, record the blocker rather than a `$spx-specify` handoff.
+For a propagating change, record a minimal sweep before editing and prove full
+affected-surface or callsite coverage across consumers, generated/mirrored
+copies, registrations, and verification entry points; sampling or an unverified
+surface leaves the task blocked.
 
 For UI work, run **UI Audit** then the **Quick Design Loop**
 (design-before-code): audit issues → analyze current UI / system model →

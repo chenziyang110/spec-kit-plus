@@ -217,6 +217,7 @@ REQUIRED_CAPABILITIES = (
     "quick.close",
     "quick.cognition-closeout",
     "quick.item-accept",
+    "quick.allow-inline",
     "quick.item-start",
     "quick.item-status",
     "quick.list",

@@ -71,26 +71,27 @@ command. Repository evidence may resolve
 technical questions; ask the user only for product choices or authority the
 repository cannot supply.
 
-Execute confirmed work items in dependency order through runtime gates:
-`quick packet-compile --item Qn`, `quick item-start --item Qn`, native subagent
-dispatch for that item's write scope, join, then
+Execute confirmed work items in dependency order through the hard Q loop:
+`quick packet-compile --item Qn` → `quick item-start --item Qn`
+(`requires_worker: true`) → **spawn subagent** (no Leader write_scope Edit/Write
+first) → join → `result submit --command quick --lane-id Qn` →
 `quick item-accept --item Qn --evidence ...`. Runtime rejects starting or
-compiling a dependent item until every prerequisite is `accepted`, and rejects
-`quick close ... resolved` until every work item is accepted. A worker packet
-names one `work_item_id`, its `depends_on` ids, prerequisite evidence, and its
-exact work-item acceptance. Each `work_item_status` is `pending`, `ready`,
+compiling a dependent item until every prerequisite is `accepted`, rejects
+`item-accept` without a matching worker result (or prior
+`quick allow-inline --reason` after spawn/tool failure), and rejects
+`quick close ... resolved` until every work item is accepted with
+`execution_mode` worker or audited leader-inline. A worker packet names one
+`work_item_id`, its `depends_on` ids, prerequisite evidence, and its exact
+work-item acceptance. Each `work_item_status` is `pending`, `ready`,
 `in_progress`, `blocked`, or `accepted`; only `accepted` satisfies a dependency.
-Implementation completion without the item's required acceptance evidence does
-not unlock its dependents.
 
 Independent ready items may share a batch only with non-overlapping write
 scopes. When Q items share a file or otherwise conflict, keep
-`dispatch_shape: one-subagent` and run serial `item-start`/`item-accept`
-cycles—optionally resuming the same subagent. A parallel-wave write-scope error
-is a sequencing signal, not a Leader-implement signal. If Leader must implement
-(native subagents unavailable), patch `blocked_dispatch` with
-`attempted_shape: one-subagent`, `chosen_shape: leader-inline`, and a concrete
-reason before the first source edit. One completed batch is progress, not task
+`dispatch_shape: one-subagent` and run serial hard-loop cycles—optionally
+resuming the same subagent. Docs-only, few files, serial order, and time-saving
+are **not** valid leader-inline reasons. If Leader must implement after real
+spawn failure, run `quick allow-inline --item Qn --reason "spawn_failed: ..."`
+before the first source edit. One completed batch is progress, not task
 completion; close only after every work item is accepted and the overall
 completion evidence passes.
 

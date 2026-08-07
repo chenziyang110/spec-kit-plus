@@ -133,6 +133,10 @@ def test_classic_grok_plan_and_tasks_wire_spawn_subagent_and_result_submit(tmp_p
     assert "subagents-first dispatch model" in map_scan
     assert "Grok Adaptive Execution" in implement or "Grok Leader Gate" in implement
     assert "spawn_subagent" in quick and "wait_agent" not in quick.split("Grok Leader Gate")[-1][:800]
+    assert "Hard Q Loop" in quick
+    assert "result submit" in quick
+    assert "docs-only" in quick
+    assert "allow-inline" in quick
     assert "result submit --command plan" in plan
     assert "result submit --command tasks" in tasks
     assert "Tool surface (Grok Build install)" in plan

@@ -28,6 +28,9 @@ The worker returns:
 - failed assumptions, blockers, and recovery recommendation;
 - any scope or contract conflict requiring leader judgment.
 
-The leader must not edit the worker's active write scope. Consume the handoff
-before closing the lane; idle or stopped execution is not a result. Re-run the
-meaningful integrated verification on the leader path.
+The leader must not edit the worker's active write scope between `item-start`
+and `item-accept`. Consume the handoff (`result submit` with lane-id matching
+the Q item) before closing the lane; idle or stopped execution is not a result,
+and runtime refuses `item-accept` without that worker result (or prior
+`quick allow-inline`). Re-run the meaningful integrated verification on the
+leader path.

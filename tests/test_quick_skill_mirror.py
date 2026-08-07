@@ -78,6 +78,8 @@ def test_repo_quick_skill_mirror_has_codex_subagent_dispatch_contract(
     assert "blocked_dispatch" in full_body
     assert "write-scope conflict" in full_body or "overlapping write" in full_body
     assert "leader-inline is not a silent default" in full_body
+    assert "hard q loop" in full_body or "result submit" in full_body
+    assert "docs-only" in full_body or "allow-inline" in full_body
     assert "continue automatically until the quick task is complete or blocked" in full_body
     assert "if exactly one unfinished quick task exists" in full_body
     assert "if multiple unfinished quick tasks exist" in full_body

@@ -147,12 +147,16 @@ func runQuick(args []string, stdout io.Writer) int {
 			"checkpoint-confirm",
 			"checkpoint-show",
 			"item-start",
+			"allow-inline",
 			"item-accept",
 			"item-status",
 			"packet-compile",
 		}
 		env.Data["close_usage"] = "specify-runtime quick close <id> resolved|blocked"
 		env.Data["cognition_closeout_usage"] = "specify-runtime quick cognition-closeout <id> --result-state ready|no_op|mark-dirty|partial [--reason <text>] [--evidence-json <array>] [--update-id <id>] --format json"
+		env.Data["item_accept_usage"] = "specify-runtime quick item-accept <id> --item Qn --evidence <text> [--allow-inline --reason <spawn_failed:...>] --format json"
+		env.Data["item_accept_requires"] = "matching worker-results/<lane-id>.json from result submit, or prior allow-inline / --allow-inline after spawn/tool failure; docs-only is invalid"
+		env.Data["allow_inline_usage"] = "specify-runtime quick allow-inline <id> --item Qn --reason 'spawn_failed: ...' --format json"
 		return writeEnvelope(stdout, env)
 	}
 	mode := positionalArg(args, 0, "list")
@@ -168,7 +172,7 @@ func runQuick(args []string, stdout io.Writer) int {
 			return writeEnvelope(stdout, scriptDomainError("quick", err))
 		}
 		return writeEnvelope(stdout, env)
-	case "item-start", "item-accept", "item-status", "packet-compile":
+	case "item-start", "allow-inline", "item-accept", "item-status", "packet-compile":
 		env, err := service.runExecution(mode, quickID, args)
 		if err != nil {
 			return writeEnvelope(stdout, scriptDomainError("quick", err))
