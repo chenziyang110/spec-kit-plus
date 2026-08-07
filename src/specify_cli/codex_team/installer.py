@@ -50,9 +50,13 @@ def integration_supports_codex_team(integration_key: str | None) -> bool:
 def can_configure_specify_teams_mcp() -> bool:
     """Return whether the optional teams MCP facade can be configured."""
     try:
+        # Prefer v1 FastMCP; fall back to v2 MCPServer.
         from mcp.server.fastmcp import FastMCP  # noqa: F401
     except ImportError:
-        return False
+        try:
+            from mcp.server import MCPServer  # noqa: F401
+        except ImportError:
+            return False
     return shutil.which(SPECIFY_TEAMS_MCP_COMMAND) is not None
 
 
