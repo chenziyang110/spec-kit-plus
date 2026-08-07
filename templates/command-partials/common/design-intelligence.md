@@ -34,12 +34,28 @@ other stages **consume** that truth through Design Intelligence hooks.
 | Anti-slop locks | `design_brief.anti_slop_locks` + `design-library/anti-slop-policy.md` |
 | UI System Model (tokens/components/states/responsive/behavior) | approved `DESIGN.md` + `.specify/design/design-system.json` |
 | Evidence confidence on reverse-engineered claims | design brief / references / decision rows |
+| DesignContext schema | `templates/design-intelligence/schema/design-context.schema.json` (v1) |
 | Approval authority | `specify-runtime design approve` / export digests only |
 | Feature composition | `ui-brief.md` → plan `ui_design_contract` → task `ui_contract` |
 | Durable discussion carry | discussion Design Carry-Forward + handoff `design_context` |
 
 Do **not** create a parallel root `.design/` tree. Use `.specify/design/**` and
 root `DESIGN.md` only.
+
+## DesignContext v1 (schema contract)
+
+Durable design-context payloads **MUST** conform to DesignContext v1 when
+serialized as structured JSON (discussion handoff fields, brief-adjacent
+machine records, or future runtime owners):
+
+- Schema: `templates/design-intelligence/schema/design-context.schema.json`
+- Required: `version: "1.0"`, `intent.user_goal`
+- Optional: `design_language` (tone + dials), `system`, `references`, `decisions`
+- Validate structure only via `specify_cli.design_intelligence.validate_design_context`
+  (no taste scoring, no screenshot parsing)
+
+Prompt-stage prose may remain human-readable; machine-readable carry-forward
+should not invent a second parallel vocabulary.
 
 ## Pipeline: Evidence → System → Implementation
 

@@ -112,7 +112,8 @@ Reverse-engineered claims carry `measured` | `evidence-backed-inference` |
 behavior / engineering layers: tokens, components, state matrix (including
 hover/focus/loading/empty/error), responsive rules, and keyboard/behavior.
 Bind into approved `DESIGN.md` and `.specify/design/design-system.json`—not a
-parallel root `.design/` tree.
+parallel root `.design/` tree. Structured design-context JSON **MUST** conform
+to DesignContext v1 (`templates/design-intelligence/schema/design-context.schema.json`).
 
 ### Stage hooks
 

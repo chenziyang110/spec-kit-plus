@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spec-kit-plus.local/schemas/design-context-v1.json",
+  "title": "Spec Kit Plus DesignContext v1",
+  "description": "Durable Design Intelligence design context. Schema-only contract; not a new mainline command or parallel root design tree.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "intent"],
+  "properties": {
+    "version": {
+      "type": "string",
+      "const": "1.0",
+      "description": "DesignContext schema version. Only 1.0 is valid for this schema."
+    },
+    "intent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["user_goal"],
+      "properties": {
+        "user_goal": {
+          "type": "string",
+          "minLength": 1
+        },
+        "product_context": {
+          "type": ["string", "null"]
+        }
+      }
+    },
+    "design_language": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "tone": { "type": ["string", "null"] },
+        "density": {
+          "type": ["number", "null"],
+          "minimum": 1,
+          "maximum": 10
+        },
+        "motion": {
+          "type": ["number", "null"],
+          "minimum": 1,
+          "maximum": 10
+        },
+        "variance": {
+          "type": ["number", "null"],
+          "minimum": 1,
+          "maximum": 10
+        },
+        "visual_direction": { "type": ["string", "null"] }
+      }
+    },
+    "system": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "tokens": {
+          "type": ["object", "array", "null"]
+        },
+        "components": {
+          "type": ["object", "array", "null"]
+        },
+        "constraints": {
+          "type": "array",
+          "items": true
+        }
+      }
+    },
+    "references": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["source", "type"],
+        "properties": {
+          "source": { "type": "string", "minLength": 1 },
+          "type": {
+            "type": "string",
+            "enum": [
+              "screenshot",
+              "live-ui",
+              "url",
+              "notes",
+              "design-export",
+              "other"
+            ]
+          }
+        }
+      }
+    },
+    "decisions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["rationale"],
+        "properties": {
+          "rationale": { "type": "string", "minLength": 1 }
+        }
+      }
+    }
+  }
+}
