@@ -1,6 +1,6 @@
 # Project Handbook
 
-**Last Updated:** 2026-07-15
+**Last Updated:** 2026-08-07
 **Purpose:** Root navigation artifact for this repository.
 
 ## System Summary
@@ -24,6 +24,159 @@ Schema v5 adds revision-bound, expiring reconciliation to the auditable live fee
 
 This repository owns the human/operator `specify` CLI, the agent-facing `specify-runtime` CLI, bundled templates/scripts, supported-agent integration adapters, project-map compatibility/export templates, extension/preset managers, and optional Codex team runtime packaging. It coordinates with external agent CLIs, Git, uv/pip packaging, Node/npm, Cargo/Rust, optional MCP dependencies, tmux/psmux, and GitHub Actions. It does not own upstream agent CLI behavior, external MCP server implementations, terminal multiplexers, or the user's global `specify` installation.
 
+## Design Governance Foundation v1.0
+
+This section is an **architecture constraint declaration**, not a changelog.
+It freezes the minimum quality contract for AI-generated design artifacts in
+spec-kit-plus.
+
+### Overview
+
+spec-kit-plus is not only a design-artifact generator. The Design Governance
+Foundation defines whether an AI design artifact is **implementation-ready**:
+
+- derived from explicit design intent (taste intake)
+- meaningfully differentiated across directions
+- validated through machine-checkable rules
+- recoverable when validation fails
+- protected against regression through golden artifacts
+
+Product evolution after v1.0 should prefer real-project stress tests of this
+contract over stacking more ready-gate conditions.
+
+### Governance pipeline
+
+```text
+Intent
+  → Taste Intake
+  → Direction Strategy
+  → Manifest
+  → Structural Validation
+  → Semantic Validation
+  → Visual Quality Validation
+  → Diagnostic Recovery
+  → Implementation
+```
+
+### Validation layers
+
+Every new governance rule must declare a layer and a recovery class before it
+ships. If it cannot answer the questions below, it is not ready for the
+governance surface.
+
+#### Structural
+
+**Question:** Can this artifact be correctly understood?
+
+Examples: schema validity, required fields, artifact shape, parseability.
+
+**Recovery:** Fix structure. Do **not** regenerate design intent.
+
+#### Semantic
+
+**Question:** Does this artifact represent real project design intent?
+
+Examples: scaffold leakage, unresolved taste decisions, template-derived
+reasoning, placeholder families.
+
+**Recovery:** Redo intake and design reasoning. Do **not** only retune colors.
+
+#### Quality
+
+**Question:** Are design directions materially different and implementation-ready?
+
+Examples: insufficient dial divergence, identical visual fingerprints,
+metadata-only differentiation.
+
+**Recovery:** Modify render-driving visual systems (typography, geometry,
+density tokens, elevation, motion, modes). Do **not** only rename metadata.
+
+### Diagnostic contract
+
+Every governance failure must provide:
+
+- diagnostic code
+- validation layer (`structural` | `semantic` | `quality`)
+- reason (`why`)
+- recovery guidance
+- agent action constraints
+
+Failures guide correction; they do not only block execution. Source of truth:
+`templates/design-diagnostic-contract.json`. Fingerprint rule contract:
+`templates/visual-fingerprint-rule.json` and
+`templates/design-library/visual-fingerprint-spec.md` (versioned; comparable
+only when version and dimensions match).
+
+### Golden Artifact Set
+
+The Golden Artifact Set is the **regression source of truth**, not ordinary
+unit-test junk data. Location: `tests/fixtures/design-preview/`.
+
+It contains valid and invalid design-preview artifacts, expected ready-lint
+outcomes, and expected diagnostic contracts. Regeneration uses
+`scripts/generate-design-preview-golden-set.py` only when governance rules
+intentionally change.
+
+**Correct evolution path**
+
+1. Explain why the design standard must change.
+2. Update the Golden Set (or introduce an explicit version path).
+3. Pass regression.
+
+**Forbidden evolution path**
+
+1. Rule fails on CI.
+2. Weaken the rule solely to make existing artifacts pass.
+3. Green CI without a standards rationale.
+
+### Rule admission checklist
+
+Before adding or tightening a ready-level condition, answer all of:
+
+1. Layer: structural, semantic, or quality?
+2. Recovery: what must the agent change, and what must it **not** change?
+3. Diagnostic: code, why, recovery, agent_action present in the contract?
+4. Golden case: is there a valid or invalid fixture that locks the intent?
+
+If any answer is missing, the rule does not enter governance.
+
+### Version policy (v1.0 freeze)
+
+v1.0 freezes:
+
+- validation layer taxonomy (structural / semantic / quality)
+- diagnostic recovery model
+- golden artifact concept as regression truth
+- fingerprint validation principle (render payload, not labels alone)
+- non-weakening policy for gates under green-CI pressure
+
+Future changes must preserve compatibility or introduce an **explicit**
+version migration path (for example fingerprint rule v2, golden_spec_version).
+Do not silently expand ready conditions as the default growth mode.
+
+### Out of foundation scope (future)
+
+Agent repair loops may sit on top of this foundation only when they:
+
+1. read diagnostic contracts for bounded fix scope
+2. re-run ready lint
+3. remain accountable to the Golden Set (fail before fix, pass after fix,
+   no cheat-path substitution)
+
+Automatic repair without golden accountability is not part of v1.0.
+
+### Source surfaces
+
+| Concern | Location |
+| --- | --- |
+| Workflow entry | `sp-design` / `$spx-design`, design brief, design CLI |
+| Ready lint / fingerprint | `src/specify_cli/design.py` |
+| Diagnostic recovery | `templates/design-diagnostic-contract.json` |
+| Fingerprint rule | `templates/visual-fingerprint-rule.json` |
+| Fingerprint human spec | `templates/design-library/visual-fingerprint-spec.md` |
+| Golden Set | `tests/fixtures/design-preview/**` |
+| Golden harness | `tests/test_design_artifact_golden_set.py` |
+
 ## High-Value Capabilities
 
 - **Project initialization and generated agent surfaces**: `specify init` resolves `--ai` or `--integration`, installs command/skill/workflow files, copies scripts/templates, and records integration manifests. Read `src/specify_cli/__init__.py`, `src/specify_cli/integrations/**`, and `modules/specify-cli-core/ARCHITECTURE.md`.
@@ -31,7 +184,7 @@ This repository owns the human/operator `specify` CLI, the agent-facing `specify
 - **Project Learning lifecycle**: Agents consume Learning only through read-only CLI progressive disclosure: `learning start` returns relevant compact cards, `learning list` filters/pages summaries, and `learning show` expands one selected agent-oriented record. `capture` / `capture-auto` create or merge every reusable candidate; `learning start` protects mature knowledge with a 15-card stable quota and up to 5 candidate cards, while ranking candidates by context, assessed value, recurrence, and novelty and diversifying repeated families when enough exist. The bound controls disclosure, not storage. `promote` explicitly confirms a candidate before any separate project-rule promotion, so reads never mutate lifecycle state. Classic commands share the Learning partial/passive skill, every Advanced skill receives `_shared/project-learning.md`, and SPX names normalize to the same Classic namespace. Confirmed, index, detail, and candidate files remain runtime implementation surfaces rather than normal agent reads.
 - **Project Learning assessment and policy**: Start/list/show may include an optional backward-compatible `assessment` with independent learning-value tier/reasons, content sensitivity/risk/redaction labels, and `capture-safe|capture-sanitized|defer|ignore` decision/reason. Sensitivity is never an eligibility veto: reusable sensitive lessons are abstracted and captured, while high-value evidence is deferred only when sanitization removes all reusable meaning. Canonical labels cover credentials, email, private keys, machine paths, personal identifiers, business identifiers, and organization-sensitive terms. `.specify/config.json.project_learning` accepts only four literal detector lists (at most 64 distinct 1..128-character entries each) plus `deferred_review_days=1..365`; arbitrary regex is forbidden. Invalid policy warns on built-in-protected reads, while mutation or assessment commands (including dry-run) fail closed.
 - **Project Learning review and observability**: `capture-auto --dry-run` returns a sanitized assessment without writes. Runtime-native `learning review` records `none|captured|auto-captured|deferred|manual-capture-needed`; deferred and manual-capture-needed require rationale and remain pending until a matching durable candidate, confirmed learning, or project rule exists. Captured decisions succeed only after that match is verified, while `none` is blocked by matching pending work. Read-only `learning status` reports aggregate pending/due/age buckets only, without rationale, Learning refs, recurrence keys, or timestamps. `learning metrics` reports aggregate totals, decisions, value/risk tiers, reason/label counts, derived confirmation rate, and in-memory age buckets. Persistent metrics never contain age buckets, evidence, Learning refs, paths, rationale, or timestamps. Neither read surface mutates aging or increments metrics.
-- **UI design-system handoff**: Generated projects include a root `DESIGN.md` bootstrap seed, not approved product direction. Upstream maintains the preview through focused Jinja source parts and a deterministic renderer; generated projects receive the single self-contained compatibility HTML and compact editable manifest. `sp-design` / `$spx-design` is one prompt-routed entrypoint with `create/refine/audit` task types; reference synthesis is an input strategy for create/refine, not another public command. Visual create and project-wide refine require durable taste intake in the design brief (`design_read`, dials, aesthetic family, foundation strategy, redesign mode, anti-slop locks, synthesize reference-board intents) before three-direction preview work; ready-level preview lint rejects identical dial triples or duplicate signatures while holding shared specimen content constant. Surface-aware anti-slop policy and design-library aesthetic seeds are subordinate inspiration only—never approval truth. Refine/audit use a preserve-vs-overhaul redesign protocol that audits live UI before mutating approved design truth. `specify-runtime design profiles` exposes the deterministic `web`, `mobile`, `desktop`, `cli`, `tui`, `content`, and `no-ui` routes; selected visual profiles project their own capabilities, three stable `SP-*` specimens, states, targets, input modes, and production units, while evidence-backed `no-ui` creates no visual artifact. The workflow asks decision-changing questions, renders three comparable directions, and uses `specify-runtime design approve` to freeze one exact direction with a byte-bound approval sidecar, preview/manifest digests, the exact ordered profile/specimen model, a separate immutable handoff sidecar/digest, stable `DS-*` decisions, and stable `DH-*` implementation contracts before `specify-runtime design lint --level ready` can pass. `sp-specify` is the first formal consumer; `sp-quick` is the direct-delivery consumer and pins the same approval in Quick state and worker contracts. A later approval must not silently retarget either active path: formal adoption rebinds through Specify, while Quick uses a confirmed checkpoint amendment. `specify-runtime design export --format json|tailwind` produces deterministic implementation data; `specify-runtime design import` records synthesis input. Substantive UI work creates `ui-brief.md`; external UI reference inputs additionally use the CLI-owned `ui-reference-artifact` lane, which submits `ui-reference-notes.md` through `specify-runtime artifact`, imports binary attachments through `specify-runtime evidence import`, and defaults fidelity to `approximate`. Optional feature `ui-target.html` is scaffolded/linted with `specify-runtime design ui-target` / `ui-target-lint` and cannot replace the approved project preview or handoff. Spec/plan/task/packet contracts preserve exact artifact refs/hashes and select immutable decision/handoff rows by ID instead of reauthoring them. Completion requires real-entrypoint evidence plus a `spec-kit-visual-comparison-v1` report registered through `specify-runtime evidence` and covering every applicable decision and handoff contract; unavailable comparison remains `pending-human-review`.
+- **UI design-system handoff**: Governed by **Design Governance Foundation v1.0** (see above). Generated projects include a root `DESIGN.md` bootstrap seed, not approved product direction. Upstream maintains the preview through focused Jinja source parts and a deterministic renderer; generated projects receive the single self-contained compatibility HTML and compact editable manifest. `sp-design` / `$spx-design` is one prompt-routed entrypoint with `create/refine/audit` task types; reference synthesis is an input strategy for create/refine, not another public command. Visual create and project-wide refine require durable taste intake in the design brief (`design_read`, dials, aesthetic family, foundation strategy, redesign mode, anti-slop locks, synthesize reference-board intents) before three-direction preview work; ready-level preview lint rejects identical dial triples or duplicate signatures while holding shared specimen content constant. Surface-aware anti-slop policy and design-library aesthetic seeds are subordinate inspiration only—never approval truth. Refine/audit use a preserve-vs-overhaul redesign protocol that audits live UI before mutating approved design truth. `specify-runtime design profiles` exposes the deterministic `web`, `mobile`, `desktop`, `cli`, `tui`, `content`, and `no-ui` routes; selected visual profiles project their own capabilities, three stable `SP-*` specimens, states, targets, input modes, and production units, while evidence-backed `no-ui` creates no visual artifact. The workflow asks decision-changing questions, renders three comparable directions, and uses `specify-runtime design approve` to freeze one exact direction with a byte-bound approval sidecar, preview/manifest digests, the exact ordered profile/specimen model, a separate immutable handoff sidecar/digest, stable `DS-*` decisions, and stable `DH-*` implementation contracts before `specify-runtime design lint --level ready` can pass. `sp-specify` is the first formal consumer; `sp-quick` is the direct-delivery consumer and pins the same approval in Quick state and worker contracts. A later approval must not silently retarget either active path: formal adoption rebinds through Specify, while Quick uses a confirmed checkpoint amendment. `specify-runtime design export --format json|tailwind` produces deterministic implementation data; `specify-runtime design import` records synthesis input. Substantive UI work creates `ui-brief.md`; external UI reference inputs additionally use the CLI-owned `ui-reference-artifact` lane, which submits `ui-reference-notes.md` through `specify-runtime artifact`, imports binary attachments through `specify-runtime evidence import`, and defaults fidelity to `approximate`. Optional feature `ui-target.html` is scaffolded/linted with `specify-runtime design ui-target` / `ui-target-lint` and cannot replace the approved project preview or handoff. Spec/plan/task/packet contracts preserve exact artifact refs/hashes and select immutable decision/handoff rows by ID instead of reauthoring them. Completion requires real-entrypoint evidence plus a `spec-kit-visual-comparison-v1` report registered through `specify-runtime evidence` and covering every applicable decision and handoff contract; unavailable comparison remains `pending-human-review`.
 - **Agent-native phase pipeline**: At handoff, `sp-discussion` presents both routes and their eligibility, explains any blocker, gives a complexity-informed recommendation among eligible routes from delivery complexity and consequence profile, and requires the user's final choice before emitting one confirmed Agent-only JSON requirement contract. For bounded, well-understood delivery it recommends `sp-quick`; for high ambiguity/complexity, interacting systems, architecture/data migration/security/compliance/rollout concerns, broad acceptance obligations, or durable traceability it recommends `sp-specify`. Size alone is not a hard routing ceiling, and either eligible user choice wins. Quick binds the contract into task-local `STATUS.md`; the formal path compiles it into `spec-contract.json` with exact machine-readable `acceptance_coverage` and continues through `sp-plan` (`plan-contract.json`), `sp-tasks` (`task-index.json` plus per-task lifecycle records), `sp-implement` (`implementation-handoff.json`), mandatory `sp-review` / `spx-review` (`review-state.json`), and finally human `sp-accept` (`human-acceptance.json`).
 - **Post-implementation system review and human acceptance**: `implement closeout` prepares the Review handoff, not human acceptance. Review owns `review-state.json`, `review-results/`, and integrated `review-evidence/`; its closeout refreshes `implementation-summary.md`, preserves `human_acceptance_obligations` and `human_acceptance_scenarios` in the Review-to-Accept handoff, and prepares a fingerprinted `human-acceptance.json` projection bound to the approved reviewed snapshot and Review-owned runtime targets; it does not prefill human PASS. Acceptance requires zero uncovered required human obligations, does not repeat System Review, and cannot edit source. The Accept Agent safely starts or checks those immutable targets (`source`, `build`, `deployment`, or `device`), records only session readiness/action fields, prepares isolated test data, positions the start state, and assists with diagnostics, while the human performs each new-or-changed requirement journey and supplies structured confirmations plus the final verdict. Accept does not diagnose: every failed observation first goes to the Review Leader, who owns diagnosis, an independent Fix, and independent revalidation and may return upstream only after proving a requirement, design, or architecture truth gap. Any repair creates a new Review cycle and resets every human scenario; changed code/config, reviewed snapshot, or runtime target identity invalidates prior Review and acceptance evidence.
 - **Cross-profile blocked exits**: Every generated Classic `sp-*` command and Advanced `spx-*` skill uses the shared workflow-blocker schema and compact human view. A blocked exit records workflow/stage, category, owner, exact cause, sanitized evidence, attempted recovery, affected scope, next action, unblock criteria, and resume point. Agent-capable repair and available fallbacks must not be delegated to the user. Genuine human boundaries add a self-contained Human Action Guide with prerequisites, safety, numbered UI/command steps, expected result and failure branch per step, independent verification, sanitized evidence to return, and the exact resume action. Protected CI guidance binds repository, branch, commit, pipeline/job, authorization, terminal status, and pipeline URL/ID; pending UI review binds the real entrypoint, viewport/state matrix, approved references, decision criteria, captures, and repair notes.
@@ -228,6 +381,7 @@ Use `CA-###` IDs for consequence obligations that must survive handoff from `dis
 - Change CLI internals: `modules/specify-cli-core/OVERVIEW.md`, then `modules/specify-cli-core/ARCHITECTURE.md`.
 - Change Codex team runtime or bundled engine: `modules/agent-teams-engine/OVERVIEW.md`, then `root/OPERATIONS.md`.
 - Diagnose test failures: `root/TESTING.md`, then the module `TESTING.md` for the affected area.
+- Change design governance (taste, ready lint, diagnostics, golden artifacts): **Design Governance Foundation v1.0** in this handbook first, then `tests/fixtures/design-preview/README.md` and the rule admission checklist.
 
 ## Topic Map
 
