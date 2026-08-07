@@ -104,6 +104,12 @@ class DesignDiagnostic:
     message: str
     path: str
     level: str = "error"
+    # Recovery contract (layer/severity/recovery/agent_action). Optional so
+    # existing constructors remain valid; lint enriches from the contract file.
+    layer: str | None = None
+    recovery: tuple[str, ...] = ()
+    agent_action: tuple[str, ...] = ()
+    why: str | None = None
 
 
 class DesignLintError(ValueError):
@@ -1009,19 +1015,173 @@ def _is_scaffold_taste_reason(reason: str) -> bool:
     return any(lowered.startswith(prefix) for prefix in _SCAFFOLD_TASTE_REASON_PREFIXES)
 
 
-def _direction_visual_fingerprint(direction: dict[str, Any]) -> str:
-    """Canonical hash of render-driving visual systems for one direction."""
+_VISUAL_FINGERPRINT_RULE_CACHE: dict[str, Any] | None = None
+_DIAGNOSTIC_CONTRACT_CACHE: dict[str, Any] | None = None
+_DEFAULT_FINGERPRINT_DIMENSIONS = (
+    "typography",
+    "geometry",
+    "density",
+    "elevation",
+    "motion",
+    "modes",
+)
 
-    payload = {
-        "typography": direction.get("typography"),
-        "geometry": direction.get("geometry"),
-        "density": direction.get("density"),
-        "elevation": direction.get("elevation"),
-        "motion": direction.get("motion"),
-        "modes": direction.get("modes"),
+
+def _load_visual_fingerprint_rule() -> dict[str, Any]:
+    """Load the versioned visual fingerprint rule (v1 dimensions + version)."""
+
+    global _VISUAL_FINGERPRINT_RULE_CACHE
+    if _VISUAL_FINGERPRINT_RULE_CACHE is not None:
+        return _VISUAL_FINGERPRINT_RULE_CACHE
+    path = _locate_design_schema("visual-fingerprint-rule.json")
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError, TypeError):
+        payload = {
+            "schema": "spec-kit-visual-fingerprint-rule-v1",
+            "version": "1",
+            "dimensions": list(_DEFAULT_FINGERPRINT_DIMENSIONS),
+        }
+    if not isinstance(payload, dict):
+        payload = {
+            "version": "1",
+            "dimensions": list(_DEFAULT_FINGERPRINT_DIMENSIONS),
+        }
+    version = str(payload.get("version") or "1").strip() or "1"
+    dimensions = payload.get("dimensions")
+    if not isinstance(dimensions, list) or not dimensions:
+        dimensions = list(_DEFAULT_FINGERPRINT_DIMENSIONS)
+    else:
+        dimensions = [str(item).strip() for item in dimensions if str(item).strip()]
+    rule = {
+        "schema": str(payload.get("schema") or "spec-kit-visual-fingerprint-rule-v1"),
+        "version": version,
+        "dimensions": dimensions,
     }
-    encoded = json.dumps(payload, sort_keys=True, ensure_ascii=False, default=str)
-    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+    _VISUAL_FINGERPRINT_RULE_CACHE = rule
+    return rule
+
+
+def _load_design_diagnostic_contract() -> dict[str, Any]:
+    """Load diagnostic recovery contract for agent-facing lint enrichment."""
+
+    global _DIAGNOSTIC_CONTRACT_CACHE
+    if _DIAGNOSTIC_CONTRACT_CACHE is not None:
+        return _DIAGNOSTIC_CONTRACT_CACHE
+    path = _locate_design_schema("design-diagnostic-contract.json")
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError, TypeError):
+        payload = {}
+    if not isinstance(payload, dict):
+        payload = {}
+    _DIAGNOSTIC_CONTRACT_CACHE = payload
+    return payload
+
+
+def _normalize_fingerprint_value(value: Any) -> Any:
+    """Recursively normalize values for stable fingerprint hashing."""
+
+    if isinstance(value, dict):
+        return {
+            str(key): _normalize_fingerprint_value(item)
+            for key, item in sorted(value.items(), key=lambda pair: str(pair[0]))
+        }
+    if isinstance(value, list):
+        return [_normalize_fingerprint_value(item) for item in value]
+    if isinstance(value, str):
+        return re.sub(r"\s+", " ", value.strip())
+    return value
+
+
+def _direction_visual_fingerprint(direction: dict[str, Any]) -> dict[str, Any]:
+    """Return a versioned visual fingerprint for one direction.
+
+    Fingerprints are comparable only when version and dimensions match.
+    """
+
+    rule = _load_visual_fingerprint_rule()
+    dimensions = list(rule["dimensions"])
+    payload = {
+        dimension: _normalize_fingerprint_value(direction.get(dimension))
+        for dimension in dimensions
+    }
+    encoded = json.dumps(payload, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+    digest = hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+    return {
+        "version": str(rule["version"]),
+        "dimensions": dimensions,
+        "hash": digest,
+    }
+
+
+def _visual_fingerprints_comparable(
+    left: dict[str, Any],
+    right: dict[str, Any],
+) -> bool:
+    return (
+        str(left.get("version") or "") == str(right.get("version") or "")
+        and list(left.get("dimensions") or []) == list(right.get("dimensions") or [])
+    )
+
+
+def _enrich_design_diagnostic(diagnostic: DesignDiagnostic) -> DesignDiagnostic:
+    """Attach layer/recovery/agent_action from the diagnostic contract."""
+
+    contract = _load_design_diagnostic_contract()
+    codes = contract.get("codes") if isinstance(contract.get("codes"), dict) else {}
+    default = contract.get("default") if isinstance(contract.get("default"), dict) else {}
+    entry = codes.get(diagnostic.code) if isinstance(codes, dict) else None
+    if not isinstance(entry, dict):
+        entry = default
+
+    layer = entry.get("layer") if isinstance(entry, dict) else None
+    if not isinstance(layer, str) or not layer.strip():
+        layer = str(default.get("layer") or "structural")
+    severity = entry.get("severity") if isinstance(entry, dict) else None
+    if not isinstance(severity, str) or not severity.strip():
+        severity = diagnostic.level or str(default.get("severity") or "error")
+    why = entry.get("why") if isinstance(entry, dict) else None
+    if not isinstance(why, str) or not why.strip():
+        why = default.get("why") if isinstance(default.get("why"), str) else None
+    recovery_raw = (
+        entry.get("recovery")
+        if isinstance(entry, dict) and isinstance(entry.get("recovery"), list)
+        else default.get("recovery")
+    )
+    actions_raw = (
+        entry.get("agent_action")
+        if isinstance(entry, dict) and isinstance(entry.get("agent_action"), list)
+        else default.get("agent_action")
+    )
+    recovery = tuple(
+        str(item).strip()
+        for item in (recovery_raw or ())
+        if str(item).strip()
+    )
+    agent_action = tuple(
+        str(item).strip()
+        for item in (actions_raw or ())
+        if str(item).strip()
+    )
+    return DesignDiagnostic(
+        code=diagnostic.code,
+        message=diagnostic.message,
+        path=diagnostic.path,
+        level=severity,
+        layer=layer.strip(),
+        recovery=recovery,
+        agent_action=agent_action,
+        why=why.strip() if isinstance(why, str) and why.strip() else None,
+    )
+
+
+def enrich_design_diagnostics(
+    diagnostics: list[DesignDiagnostic],
+) -> list[DesignDiagnostic]:
+    """Public helper: enrich diagnostics with recovery contract fields."""
+
+    return [_enrich_design_diagnostic(item) for item in diagnostics]
 
 
 def _direction_divergence_diagnostics(
@@ -1032,7 +1192,7 @@ def _direction_divergence_diagnostics(
     diagnostics: list[DesignDiagnostic] = []
     dial_vectors: list[tuple[int, int, int]] = []
     signatures: list[str] = []
-    visual_fingerprints: list[str] = []
+    visual_fingerprints: list[dict[str, Any]] = []
 
     for index, direction in enumerate(directions):
         if not isinstance(direction, dict):
@@ -1164,17 +1324,27 @@ def _direction_divergence_diagnostics(
             "manifest.directions",
         )
 
-    if len(visual_fingerprints) == 3 and len(set(visual_fingerprints)) < 3:
-        _add_diagnostic(
-            diagnostics,
-            "preview-undifferentiated-direction-visuals",
-            (
-                "ready directions must differ in render-driving visual systems "
-                "(typography, geometry, density tokens, elevation, motion, or color modes); "
-                "distinct dials/signatures alone are not enough when visual payloads match"
-            ),
-            "manifest.directions",
+    if len(visual_fingerprints) == 3:
+        comparable = all(
+            _visual_fingerprints_comparable(visual_fingerprints[0], item)
+            for item in visual_fingerprints[1:]
         )
+        if comparable:
+            hashes = [str(item.get("hash") or "") for item in visual_fingerprints]
+            if len(set(hashes)) < 3:
+                rule = _load_visual_fingerprint_rule()
+                _add_diagnostic(
+                    diagnostics,
+                    "preview-undifferentiated-direction-visuals",
+                    (
+                        "ready directions must differ in render-driving visual systems "
+                        f"(fingerprint rule v{rule['version']}: "
+                        + ", ".join(rule["dimensions"])
+                        + "); distinct dials/signatures alone are not enough when "
+                        "visual payloads match"
+                    ),
+                    "manifest.directions",
+                )
 
     return diagnostics
 
@@ -2268,45 +2438,53 @@ def lint_design_preview_file(
     if normalized_level not in SUPPORTED_LINT_LEVELS:
         raise DesignLintError(f"unsupported design preview lint level: {level}")
     if not path.exists():
-        return [
-            DesignDiagnostic(
-                "preview-missing-file",
-                f"{path} does not exist",
-                str(path),
-            )
-        ]
+        return enrich_design_diagnostics(
+            [
+                DesignDiagnostic(
+                    "preview-missing-file",
+                    f"{path} does not exist",
+                    str(path),
+                )
+            ]
+        )
     if not path.is_file():
-        return [
-            DesignDiagnostic(
-                "preview-read-error",
-                f"{path} is not a file",
-                str(path),
-            )
-        ]
+        return enrich_design_diagnostics(
+            [
+                DesignDiagnostic(
+                    "preview-read-error",
+                    f"{path} is not a file",
+                    str(path),
+                )
+            ]
+        )
 
     try:
         content = path.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError) as exc:
-        return [
-            DesignDiagnostic(
-                "preview-read-error",
-                f"cannot read {path}: {exc}",
-                str(path),
-            )
-        ]
+        return enrich_design_diagnostics(
+            [
+                DesignDiagnostic(
+                    "preview-read-error",
+                    f"cannot read {path}: {exc}",
+                    str(path),
+                )
+            ]
+        )
 
     parser = _DesignPreviewHTMLParser()
     try:
         parser.feed(content)
         parser.close()
     except Exception as exc:
-        return [
-            DesignDiagnostic(
-                "preview-parse-error",
-                f"cannot parse {path}: {exc}",
-                str(path),
-            )
-        ]
+        return enrich_design_diagnostics(
+            [
+                DesignDiagnostic(
+                    "preview-parse-error",
+                    f"cannot parse {path}: {exc}",
+                    str(path),
+                )
+            ]
+        )
 
     diagnostics: list[DesignDiagnostic] = []
     if not re.search(r"(?i)<!doctype\s+html\s*>", content):
@@ -2514,7 +2692,7 @@ def lint_design_preview_file(
                 )
             )
 
-    return diagnostics
+    return enrich_design_diagnostics(diagnostics)
 
 
 def scaffold_design_preview_manifest(

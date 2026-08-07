@@ -1,0 +1,272 @@
+{
+  "schema": "spec-kit-design-diagnostic-contract-v1",
+  "layers": {
+    "structural": {
+      "summary": "Artifact shape or schema is invalid. Fix fields; do not redesign.",
+      "default_recovery": [
+        "fix the referenced path shape",
+        "do not regenerate the whole design direction set"
+      ]
+    },
+    "semantic": {
+      "summary": "Fields exist but meaning is scaffolded, incomplete, or not project-owned.",
+      "default_recovery": [
+        "redo or complete taste intake",
+        "replace template-derived values with project-specific decisions"
+      ]
+    },
+    "quality": {
+      "summary": "Artifact is well-formed but directions are not materially differentiated.",
+      "default_recovery": [
+        "change render-driving visual systems",
+        "do not only edit metadata labels"
+      ]
+    }
+  },
+  "default": {
+    "layer": "structural",
+    "severity": "error",
+    "why": "Unclassified design diagnostic.",
+    "recovery": [
+      "read the message and path",
+      "apply a targeted fix at the path",
+      "prefer patch over full regenerate"
+    ],
+    "agent_action": [
+      "inspect path",
+      "fix only the failing field when possible"
+    ]
+  },
+  "codes": {
+    "preview-missing-file": {
+      "layer": "structural",
+      "severity": "error",
+      "why": "The preview HTML path does not exist.",
+      "recovery": ["create or correct the preview path", "do not invent design content yet"],
+      "agent_action": ["verify --out path", "scaffold preview if missing"]
+    },
+    "preview-read-error": {
+      "layer": "structural",
+      "severity": "error",
+      "why": "The preview file cannot be read as UTF-8 HTML.",
+      "recovery": ["fix file encoding and permissions", "ensure path points to a file"],
+      "agent_action": ["open the path", "rewrite as UTF-8 HTML if corrupted"]
+    },
+    "preview-parse-error": {
+      "layer": "structural",
+      "severity": "error",
+      "why": "HTML could not be parsed.",
+      "recovery": ["fix broken tags", "re-render from the design preview template"],
+      "agent_action": ["do not redesign; repair markup"]
+    },
+    "preview-missing-doctype": {
+      "layer": "structural",
+      "severity": "error",
+      "why": "Document type declaration is missing.",
+      "recovery": ["add <!doctype html>", "re-render through design preview CLI"],
+      "agent_action": ["patch doctype only"]
+    },
+    "preview-missing-language": {
+      "layer": "structural",
+      "severity": "error",
+      "why": "html lang is missing.",
+      "recovery": ["set html lang", "re-render preview if template-owned"],
+      "agent_action": ["patch html[lang]"]
+    },
+    "preview-invalid-schema": {
+      "layer": "structural",
+      "severity": "error",
+      "why": "Preview data-design-preview-schema does not match the expected constant.",
+      "recovery": ["use the packaged preview template/renderer", "do not hand-author schema ids"],
+      "agent_action": ["re-render via design preview"]
+    },
+    "preview-missing-manifest": {
+      "layer": "structural",
+      "severity": "error",
+      "why": "Embedded design-preview-manifest script is missing.",
+      "recovery": ["re-render preview with a valid manifest", "do not invent a partial script block"],
+      "agent_action": ["run design preview --manifest"]
+    },
+    "preview-invalid-manifest-schema": {
+      "layer": "structural",
+      "severity": "error",
+      "why": "Manifest schema constant is wrong.",
+      "recovery": ["set schema to spec-kit-design-preview-manifest-v1", "re-render if needed"],
+      "agent_action": ["patch manifest.schema"]
+    },
+    "preview-manifest-schema-error": {
+      "layer": "structural",
+      "severity": "error",
+      "why": "Manifest fails the v1 JSON Schema shape check.",
+      "recovery": [
+        "fix manifest shape at the reported path",
+        "do not regenerate design strategy solely for schema errors"
+      ],
+      "agent_action": [
+        "read path",
+        "patch only invalid fields",
+        "re-run structural lint before ready"
+      ]
+    },
+    "preview-manifest-not-configured": {
+      "layer": "structural",
+      "severity": "error",
+      "why": "Ready lint requires configured=true.",
+      "recovery": ["set configured true only after project content is filled"],
+      "agent_action": ["complete project/content fields", "then set configured"]
+    },
+    "preview-manifest-direction-count": {
+      "layer": "structural",
+      "severity": "error",
+      "why": "Exactly three directions are required.",
+      "recovery": ["provide exactly three direction objects"],
+      "agent_action": ["do not add a fourth; keep three comparable options"]
+    },
+    "preview-unresolved-placeholder": {
+      "layer": "semantic",
+      "severity": "error",
+      "why": "Scaffold placeholders remain in the preview.",
+      "recovery": [
+        "replace __PLACEHOLDER__ values with project content",
+        "do not claim ready while placeholders remain"
+      ],
+      "agent_action": ["search __", "patch remaining placeholders"]
+    },
+    "preview-missing-direction-dials": {
+      "layer": "semantic",
+      "severity": "error",
+      "why": "Ready requires project taste dials on each direction.",
+      "recovery": [
+        "complete taste intake",
+        "write dials.variance/motion/density with inference_reason"
+      ],
+      "agent_action": ["update design-brief taste intake", "patch direction.dials"]
+    },
+    "preview-invalid-direction-dials": {
+      "layer": "semantic",
+      "severity": "error",
+      "why": "Dial axes are missing or outside integers 1-10.",
+      "recovery": ["set variance/motion/density to integers 1-10"],
+      "agent_action": ["patch dials axes only"]
+    },
+    "preview-missing-dial-inference": {
+      "layer": "semantic",
+      "severity": "error",
+      "why": "Dial inference_reason is empty.",
+      "recovery": ["explain why these dial values fit the product"],
+      "agent_action": ["write project-specific inference_reason"]
+    },
+    "preview-unresolved-dial-inference": {
+      "layer": "semantic",
+      "severity": "error",
+      "why": "Dial inference still contains scaffold placeholders.",
+      "recovery": ["replace placeholder inference with project reasoning"],
+      "agent_action": ["patch inference_reason; do not leave __ tokens"]
+    },
+    "preview-scaffold-taste-reason": {
+      "layer": "semantic",
+      "severity": "error",
+      "why": "Inference still uses scaffold baseline wording.",
+      "recovery": [
+        "redo taste intake for this project",
+        "replace template-derived reasoning"
+      ],
+      "agent_action": [
+        "delete Scaffold baseline: reasons",
+        "write product-specific dial rationale"
+      ]
+    },
+    "preview-missing-aesthetic-family": {
+      "layer": "semantic",
+      "severity": "error",
+      "why": "aesthetic_family is missing.",
+      "recovery": ["select a project aesthetic family per direction"],
+      "agent_action": ["patch aesthetic_family"]
+    },
+    "preview-unresolved-aesthetic-family": {
+      "layer": "semantic",
+      "severity": "error",
+      "why": "aesthetic_family still contains placeholders.",
+      "recovery": ["replace scaffold family placeholders"],
+      "agent_action": ["set a concrete family id or name"]
+    },
+    "preview-undifferentiated-direction-dials": {
+      "layer": "quality",
+      "severity": "error",
+      "why": "Two or more directions share the same dial triple.",
+      "recovery": [
+        "change dial vectors so each direction is distinct",
+        "keep shared specimen content constant"
+      ],
+      "agent_action": [
+        "adjust variance/motion/density",
+        "do not only rename signatures"
+      ]
+    },
+    "preview-insufficient-direction-divergence": {
+      "layer": "quality",
+      "severity": "error",
+      "why": "Dial vectors differ only trivially (need multi-axis distance).",
+      "recovery": [
+        "change at least two dial axes between each pair",
+        "ensure Manhattan distance >= 4 between each pair"
+      ],
+      "agent_action": [
+        "widen dial contrast across directions",
+        "do not use single-axis +1 steps as three options"
+      ]
+    },
+    "preview-undifferentiated-direction-signatures": {
+      "layer": "quality",
+      "severity": "error",
+      "why": "Signatures are effectively the same after normalization.",
+      "recovery": [
+        "give each direction a meaningfully different signature element",
+        "avoid punctuation-only or whitespace-only differences"
+      ],
+      "agent_action": ["rewrite signature_element for each direction"]
+    },
+    "preview-undifferentiated-direction-visuals": {
+      "layer": "quality",
+      "severity": "error",
+      "why": "Directions share the same visual fingerprint (render token payload).",
+      "recovery": [
+        "modify visual token systems, not only metadata",
+        "differentiate typography, geometry, density, elevation, motion, or modes"
+      ],
+      "agent_action": [
+        "do NOT only change dials, aesthetic_family, or signature labels",
+        "change at least one render-driving dimension set per direction",
+        "re-run ready lint after token edits"
+      ]
+    },
+    "preview-not-candidate": {
+      "layer": "semantic",
+      "severity": "error",
+      "why": "Preview is still scaffold status, not a candidate board.",
+      "recovery": ["render/configure a candidate round before ready"],
+      "agent_action": ["complete configuration", "set candidate status via renderer"]
+    },
+    "preview-incomplete-project-context": {
+      "layer": "semantic",
+      "severity": "error",
+      "why": "Project subject/audience/job context is incomplete.",
+      "recovery": ["fill project context from the design brief"],
+      "agent_action": ["patch manifest.project fields"]
+    },
+    "preview-incomplete-direction": {
+      "layer": "semantic",
+      "severity": "error",
+      "why": "A direction is missing thesis/signature/gain/cost fields.",
+      "recovery": ["complete direction prose fields for ready comparison"],
+      "agent_action": ["patch incomplete direction fields"]
+    },
+    "preview-insufficient-contrast": {
+      "layer": "quality",
+      "severity": "error",
+      "why": "Palette pairs fail minimum contrast.",
+      "recovery": ["adjust ink/canvas/accent colors for WCAG AA 4.5:1"],
+      "agent_action": ["edit modes palettes", "do not only change labels"]
+    }
+  }
+}

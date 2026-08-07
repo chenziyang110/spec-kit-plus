@@ -1,0 +1,20 @@
+{
+  "schema": "spec-kit-visual-fingerprint-rule-v1",
+  "version": "1",
+  "dimensions": [
+    "typography",
+    "geometry",
+    "density",
+    "elevation",
+    "motion",
+    "modes"
+  ],
+  "spec_path": "templates/design-library/visual-fingerprint-spec.md",
+  "canonicalization": [
+    "select declared dimensions only",
+    "sort object keys recursively",
+    "normalize string whitespace",
+    "serialize canonical JSON",
+    "sha256 utf-8 bytes to lowercase hex"
+  ]
+}
