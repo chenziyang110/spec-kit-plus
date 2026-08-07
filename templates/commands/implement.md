@@ -53,20 +53,37 @@ state. Discussion never hands off directly to `sp-implement`.
    `open_logical_gate`, or `validation_complete`. `remaining_epochs` and
    `remaining_gate_slots` count only unopened logical gates; zero never blocks
    a progress-bound attempt inside an existing gate.
-7. For UI work, query task-local design inputs through `specify-runtime artifact show`, preserve their states and changed surfaces through `specify-runtime implement`, and
-   capture requirements, but do not run the full viewport/state capture loop per
-   Txx. Group the matrix by integrated surface and capture typed
-   `structure_snapshot`, `visual_capture`, and `runtime_diagnostics` evidence
-   through `specify-runtime evidence register|import` with `evidence_scope: integrated`.
-   Bind shared refs and the task's structured `ui_verification` into each task lifecycle only through `specify-runtime implement result-merge|task-accept`; include the required evidence, difference inventory, accepted deviations, and objective-comparison or `pending-human-review` result.
-   For every passing visual comparison, submit only the observed entrypoint/revision, typed evidence refs, matrix differences, explicit verdict, and reviewer through `specify-runtime evidence visual-compare --feature-dir <feature-dir> --task-id <Txxx> --input-json '<observed-comparison-json>' --format json`. The runtime derives and atomically writes the registered report from the task's approved preview/manifest/handoff bindings, exact `DS-*`/`DH-*` coverage, comparison tolerance, and accepted deviations; use its returned report ref and byte digest in `ui_verification`. Never read or reconstruct `visual-comparison-template.json`, and never generically submit or patch the report. Query the packet's must-read immutable handoff through `specify-runtime artifact show` before UI work and
-   resolve selected rows and implementation bindings from it; a missing file,
-   digest mismatch, unknown ID, or copied-row mismatch blocks implementation
-   rather than authorizing reconstruction. This is
-   evidence reuse, not permission to recapture or rerun the matrix per task. Unavailable
-   objective comparison remains `pending-human-review`, never an implicit pass.
-   Route an invalid, bootstrap, or missing design source to `sp-design` instead
-   of inventing one.
+7. For UI work, apply Design Intelligence **UI Implementation Rules** before
+   generating UI: query approved `DESIGN.md`, UI System Model (tokens,
+   components, states), surface-aware anti-slop policy, and the task
+   `ui_contract` through `specify-runtime artifact show`. Prefer visual hierarchy
+   and the component system over generic equal-weight card grids. Preserve states and changed surfaces
+   through `specify-runtime implement`, and capture requirements, but do not run
+   the full viewport/state capture loop per Txx. Group the matrix by integrated
+   surface and capture typed `structure_snapshot`, `visual_capture`, and
+   `runtime_diagnostics` evidence through `specify-runtime evidence
+   register|import` with `evidence_scope: integrated`. Bind shared refs and the
+   task's structured `ui_verification` into each task lifecycle only through
+   `specify-runtime implement result-merge|task-accept`; include the required
+   evidence, difference inventory, accepted deviations, and
+   objective-comparison or `pending-human-review` result. For every passing
+   visual comparison, submit only the observed entrypoint/revision, typed
+   evidence refs, matrix differences, explicit verdict, and reviewer through
+   `specify-runtime evidence visual-compare --feature-dir <feature-dir>
+   --task-id <Txxx> --input-json '<observed-comparison-json>' --format json`.
+   The runtime derives and atomically writes the registered report from the
+   task's approved preview/manifest/handoff bindings, exact `DS-*`/`DH-*`
+   coverage, comparison tolerance, and accepted deviations; use its returned
+   report ref and byte digest in `ui_verification`. Never read or reconstruct
+   `visual-comparison-template.json`, and never generically submit or patch the
+   report. Query the packet's must-read immutable handoff through
+   `specify-runtime artifact show` before UI work and resolve selected rows and
+   implementation bindings from it; a missing file, digest mismatch, unknown ID,
+   or copied-row mismatch blocks implementation rather than authorizing
+   reconstruction. This is evidence reuse, not permission to recapture or rerun
+   the matrix per task. Unavailable objective comparison remains
+   `pending-human-review`, never an implicit pass. Route an invalid, bootstrap,
+   or missing design source to `sp-design` instead of inventing one.
 8. After successful technical closeout, call `{{specify-subcmd:specify-runtime implement closeout --feature-dir <feature-dir> --format json}}`. That command exclusively derives and atomically writes the preliminary `implementation-summary.md` and deterministic `implementation-handoff.json`, including the unchanged validation ledger, logical-gate count, and attempt history. It revalidates the live Spec, Plan, and Tasks and preserves their exact complete `acceptance_refs` denominator, `acceptance_denominator_sha256`, and frozen Human Acceptance Universe (`human_acceptance_obligations`, `human_acceptance_scenarios`, and `human_acceptance_contract_sha256`) unchanged. Never author, patch, submit, or stage either artifact yourself or through the generic artifact channel. Implement must not create, infer, or prefill `reviewed_runtime_targets`; only Review creates them from final integrated evidence. Complete only the `implement` stage, recommend `{{invoke:review}}`, and stop. The embedded event-triggered task review remains part of implementation, while `sp-review` owns the reserved delivery gate and may retry attempts inside it to prove startup, user journeys, interaction, and integrated wiring from real entrypoints. Do not invoke Review inline or claim that task completion equals a usable reviewed product.
 
 ## Non-Terminal Progress Guard

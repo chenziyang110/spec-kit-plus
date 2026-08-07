@@ -554,7 +554,7 @@ func renderStaticArtifactScaffold(kind artifactScaffoldKind, template []byte, va
 		"debug-session":             {"status: intake", "understanding_confirmed: false", "## Understanding Checkpoint"},
 		"deep-research":             {"# Deep Research", "**Status**: Pending", "## Feasibility Decision", "## Contradiction Resolution Log", "## Planning Handoff", "## Capability Cards", "## Research Exclusions", "## Planning Handoff Readiness Checklist", "## Next Command"},
 		"deep-research-not-needed":  {"# Deep Research", "**Status**: Pending", "## Feasibility Decision", "## Planning Handoff", "## Next Command"},
-		"design-brief":              {"design_brief:", "status: draft", "# Design Brief", "## Taste Intake", "## Confirmed Experience", "## Approval", "design_read:", "dials:", "aesthetic_family:", "foundation_strategy:", "redesign_mode:", "anti_slop_locks:", "reference_board_intents:"},
+		"design-brief":              {"design_brief:", "status: draft", "# Design Brief", "## Taste Intake", "## UI Evidence And System Model", "## Confirmed Experience", "## Approval", "design_read:", "dials:", "aesthetic_family:", "foundation_strategy:", "redesign_mode:", "anti_slop_locks:", "reference_board_intents:"},
 		"design-review":             {"# Design Review", "## Approved Direction", "## Immutable References", "## Recommended Next Workflow"},
 		"quick-plan":                {"# Quick Task Plan", "## Outcome and Boundaries", "## Acceptance and Verification"},
 		"quick-summary":             {"# Quick Task Summary", "## Outcome", "## Verification", "## Residual Risk"},

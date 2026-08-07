@@ -21,6 +21,13 @@ Before locking a new or materially changed direction, complete durable taste
 intake in the design brief (`design_read`, variance/motion/density dials with
 inference reason, aesthetic family, foundation strategy, redesign mode when
 applicable, anti-slop locks, and synthesize reference-board intents when used).
+When screenshots, live UI, or other references are present, run **UI Evidence
+Analysis** first: surface/page map, candidate tokens/components/states/
+responsive rules, each claim tagged
+`measured` | `evidence-backed-inference` | `assumption` with a reason when not
+measured. Build the **UI System Model** (pixel/system/behavior/engineering
+layers) before treating any single page clone as the design. Prefer system rules
+over one-shot page generation.
 Then query design profiles through the design CLI, select one or more visual
 capability profiles, generate `round-NN.manifest.json` with
 `specify-runtime design preview-manifest --profiles ...`, and render it with
@@ -37,9 +44,9 @@ artifact must not load remote code/assets, persist data, call a network,
 simulate business logic, or claim to be production implementation.
 
 For refine/audit of live UI, audit before mutate: classify `preserve` vs
-`overhaul`, extract brand tokens and signatures to keep, list AI-slop drift to
-retire, and never treat design-library seeds or anti-slop policy as approval
-truth.
+`overhaul`, extract brand tokens and signatures to keep with evidence levels,
+list AI-slop drift to retire, and never treat design-library seeds or anti-slop
+policy as approval truth.
 
 Every direction defines motion purpose plus duration, easing, distance or
 spatial behavior, and a `prefers-reduced-motion` equivalent. Compare all three

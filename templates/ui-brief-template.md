@@ -18,6 +18,13 @@
 - Subject:
 - Audience:
 - Single user job:
+- Design DNA / personality:
+- Feeling / tone and avoid list:
+- Dials (variance / motion / density) and inference reason:
+- Anti-slop locks (surface-aware; subordinate to approved DESIGN.md):
+- Design Intelligence sources: DESIGN.md, design brief, discussion design_context
+- UI System Model: tokens | components | states | responsive | behavior
+- Evidence levels used on reverse-engineered claims (measured / inference / assumption):
 
 ## Approved Direction
 

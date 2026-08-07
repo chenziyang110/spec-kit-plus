@@ -109,18 +109,21 @@ editing and prove full affected-surface or callsite coverage across consumers,
 generated/mirrored copies, registrations, and verification entry points;
 sampling or an unverified surface leaves the task blocked.
 
-For UI work, record design sources, affected states/viewports, visual
-acceptance, direction source/signature, reference intents, real content/image
-sources, and the structure/visual/runtime evidence triad in `STATUS.md`. When
-approved `DESIGN.md` is the basis, pin its approved visual ref,
-preview/manifest/handoff SHA-256 values, immutable handoff ref, and selected
-`DS-*`/`DH-*` rows in `STATUS.md` and every UI worker contract. An active Quick
-task must not silently adopt a later design approval; adoption requires a
-confirmed UI checkpoint amendment with the replacement binding. Preserve original visual references and
-run the UI gate's real-entrypoint capture/inspect/refine loop. Escalate a new
-visual direction to `$spx-design`. Keep multi-surface or acceptance-heavy UI in
-Quick and expand its task-local plan, batches, viewport/state matrix, and
-evidence; do not shrink the UI outcome.
+For UI work, run **UI Audit** then the **Quick Design Loop**
+(design-before-code): audit issues → analyze current UI / system model →
+identify issue → propose before/after against DNA/dials/anti-slop → implement →
+visual review. Do not jump straight to code or CSS. Record design sources, affected
+states/viewports, visual acceptance, direction source/signature, reference
+intents, real content/image sources, and the structure/visual/runtime evidence
+triad in `STATUS.md`. When approved `DESIGN.md` is the basis, pin its approved
+visual ref, preview/manifest/handoff SHA-256 values, immutable handoff ref, and
+selected `DS-*`/`DH-*` rows in `STATUS.md` and every UI worker contract. An active
+Quick task must not silently adopt a later design approval; adoption requires a
+confirmed UI checkpoint amendment with the replacement binding. Preserve original
+visual references and run the UI gate's real-entrypoint capture/inspect/refine
+loop. Escalate a new visual direction to `$spx-design`. Keep multi-surface or
+acceptance-heavy UI in Quick and expand its task-local plan, batches,
+viewport/state matrix, and evidence; do not shrink the UI outcome.
 
 Patch `STATUS.md` at meaningful transitions through leased `specify-runtime artifact patch` calls. Create an absent `SUMMARY.md` with `artifact scaffold --kind quick-summary`, query it on resume, and patch only its named terminal sections through fresh leases; never submit or reconstruct the whole summary.
 

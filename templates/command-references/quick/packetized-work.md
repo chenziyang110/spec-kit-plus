@@ -4,6 +4,25 @@ Purpose: preserve mandatory subagent execution, leader role, execution modes, co
 
 Preserved Contract: substantive quick-task work remains packetized and leader-owned with structured worker results.
 
+## Quick Design Loop (UI-bearing work)
+
+When the work item changes user-visible UI, require **UI Audit** plus the
+design-before-code loop before dispatching implementation:
+
+1. **UI Audit** — issue list only: hierarchy, spacing consistency, missing
+   states (loading/empty/error/focus), generic equal-card layouts, DNA drift.
+2. Analyze current UI (live surface, approved `DESIGN.md`, UI System Model,
+   brief/context).
+3. Identify the design issue (hierarchy, density, feedback, generic look, etc.).
+4. Propose the improvement (before → after) against design DNA, dials,
+   anti-slop locks, and system model—not ad-hoc CSS taste.
+5. Implement the smallest coherent change under the packet contract.
+6. Visual check at real entry points: capture → inspect → fix → recapture.
+
+Record the audit issues, loop steps, and design sources in `STATUS.md` or the
+worker packet. Bare code edits that skip audit/analysis/proposal for UI changes
+are a process defect.
+
 ## Mandatory Subagent Execution
 
 {{spec-kit-include: ../../command-partials/common/dispatch-mode-gradient.md}}

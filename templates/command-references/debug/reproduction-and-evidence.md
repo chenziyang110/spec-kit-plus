@@ -26,6 +26,13 @@ Session mutation contract: `SESSION PATCH <fields-or-sections>` means build the 
   and intents, reproduce the real entry point at the confirmed viewport/window
   and state, and capture pre-fix structure, visual, and runtime evidence. Do not
   turn that baseline into a repair design before causal evidence supports one.
+- For UI symptoms, record **UI Debug Mode** classification in the session:
+  `visual/layout`, `UX/interaction` (including hover/focus/keyboard/loading/
+  empty/error), and/or `taste/generic-look`, with issue, reason, and
+  design-aware fix direction (hierarchy, density, feedback, anti-slop/DNA).
+  Reproduce the failing state, not only the default happy path.
+  Taste/generic-look issues still need evidence at the real entry point; do not
+  "restyle" without a named failure mechanism.
 - Query `.specify/memory/constitution.md` through `specify-runtime artifact show` if present before forming or validating a fix so the investigation honors project-level MUST/SHOULD constraints.
 - Consume project rules and Learning through `learning start --command debug`; expand only selected records whose triggers match the failing area.
 - The causal map is produced by a **think subagent** (dispatched automatically by the graph engine at Stage 1A). The constraints below apply to that subagent, not to the leader.

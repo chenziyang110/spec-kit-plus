@@ -11,6 +11,23 @@ implementation invents generic one-off styling. Use it whenever UI, UX, visual
 design, design-system, accessibility, component coverage, platform interface,
 TUI, or CLI output quality affects the outcome.
 
+## Design Intelligence
+
+Horizontal **Design Intelligence Engine** across discussion, design, specify,
+quick, implement, debug, and review—not a separate workflow command. Combines
+Taste Intelligence, Design System Reverse Engineering (Evidence → UI System
+Model → Implementation), and Visual Validation. When UI is involved: read taste
+DNA / personality, dials (variance · motion · density), evidence levels
+(`measured` / `evidence-backed-inference` / `assumption`), UI System Model
+(tokens, components, states, responsive, behavior), surface-aware anti-slop, and
+design readiness. Subordinate all of these to approved `DESIGN.md` + immutable
+preview/approval/handoff under `.specify/design/**`—never a parallel root
+`.design/` tree. Bootstrap seed is never product direction. Discussion captures
+durable `design_context`; design reverse-engineers system rules; specify carries
+UI Requirements + Acceptance Criteria; quick runs UI Audit then
+design-before-code; debug uses UI Debug Mode (layout / interaction / taste);
+implement/review require system model + anti-slop + visual validation loop.
+
 ## Design System Gate
 
 - Before substantive UI work, look for `DESIGN.md` or an equivalent committed

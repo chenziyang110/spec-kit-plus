@@ -65,6 +65,22 @@
     "design_system_requirements": [],
     "design_system_status": "not-applicable",
     "design_risk_level": "none",
+    "design_context": {
+      "ui_involved": false,
+      "feeling_tone": null,
+      "design_read": null,
+      "dials": {
+        "variance": null,
+        "motion": null,
+        "density": null
+      },
+      "reference_products": [],
+      "information_density": null,
+      "interaction_complexity": null,
+      "anti_slop_locks": [],
+      "surface_type": null,
+      "sp_design_required": false
+    },
     "review_criteria_carried_forward": [],
     "must_not_dilute": []
   },

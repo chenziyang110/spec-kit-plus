@@ -25,6 +25,12 @@ in the relevant design/fidelity refs. Record:
 - real content and image plans; per-reference use intent; and required
   `structure_snapshot`, `visual_capture`, `runtime_diagnostics`, and
   `visual_comparison_or_human_review` evidence.
+- **UI Requirements** and **UI Acceptance Criteria** plus Design Intelligence
+  fields: design DNA / personality, dials (`variance` / `motion` / `density`)
+  when known, surface type, anti-slop locks subordinate to approved `DESIGN.md`,
+  UI System Model refs (tokens/components/states/responsive), required state
+  matrix, and quality rules that forbid generic dashboard/template patterns.
+  Inherit discussion `design_context` when the handoff carries it.
 
 When original UI references exist, preserve inspectable source paths or URLs and
 record fidelity as `approximate` by default, `high`, or `inspiration`.

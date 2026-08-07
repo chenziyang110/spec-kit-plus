@@ -54,6 +54,20 @@
 - design_system_requirements: []
 - design_system_status: [unknown | ready | soft-risk | blocked | not-applicable]
 - design_risk_level: [none | low | medium | high]
+- design_context:
+  - ui_involved: [true | false | unknown]
+  - feeling_tone: [null or short personality / tone]
+  - design_read: [null or one-line kind / audience / vibe / foundation lean]
+  - dials:
+    - variance: [null | 1-10]
+    - motion: [null | 1-10]
+    - density: [null | 1-10]
+  - reference_products: []
+  - information_density: [null | low | medium | high | notes]
+  - interaction_complexity: [null | low | medium | high | notes]
+  - anti_slop_locks: []
+  - surface_type: [null | landing | product-workspace | hybrid | existing-pattern-maintenance]
+  - sp_design_required: [true | false | deferred]
 
 ## Advisor Contract
 

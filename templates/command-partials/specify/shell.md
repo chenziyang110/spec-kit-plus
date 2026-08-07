@@ -1,5 +1,7 @@
 {{spec-kit-include: ../common/user-input.md}}
 
+{{spec-kit-include: ../common/design-intelligence.md}}
+
 ## Objective
 
 Turn a new or changed feature request into a reviewed, planning-ready specification package through a concise collaborative flow: understand context, clarify one high-impact question at a time, compare approaches, confirm the spec shape, write artifacts, self-review, and ask the user to review before planning.
@@ -27,6 +29,10 @@ Turn a new or changed feature request into a reviewed, planning-ready specificat
 
 ## UI Reference Input
 
+- For UI-bearing work, apply Design Intelligence: inherit discussion
+  `design_context` when present; record design DNA, dials, and anti-slop lean;
+  and write explicit **UI Acceptance Criteria** (layout, interaction states,
+  quality/DNA, visual evidence) into Experience Requirements and `ui-brief.md`.
 - First classify UI applicability independently of whether the user supplied a
   screenshot. New or changed user-visible screens, components, layouts,
   navigation, interaction flows, responsive behavior, visual states, TUI

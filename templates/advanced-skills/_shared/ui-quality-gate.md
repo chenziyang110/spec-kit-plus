@@ -88,3 +88,55 @@ a parallel motion-evidence schema.
 If visual comparison is unavailable, record `pending-human-review` and the
 exact evidence/decision needed. Never claim visual match from prose, component
 tests, or source inspection alone.
+
+## Design Intelligence
+
+Horizontal Design Intelligence Engine for every UI-bearing stage: **Taste
+Intelligence** + **Design System Reverse Engineering** + **Visual Validation**.
+Not a new mainline command. Reuse design-brief dials (`variance` / `motion` /
+`density`), `design_read`, anti-slop locks, and approved `DESIGN.md`—do not
+invent a second parameter system or approval authority. UI is a design-system
+modeling problem: Evidence → System → Implementation. Prefer tokens, components,
+states, and responsive rules over one-shot page clones.
+
+### Taste DNA and dials
+
+Record or inherit design personality (feeling/tone, what to avoid), one-line
+`design_read`, dials 1-10 with inference reason, surface type, and active
+anti-slop locks before generating or materially changing UI.
+
+### Evidence Level and UI System Model
+
+Reverse-engineered claims carry `measured` | `evidence-backed-inference` |
+`assumption` with a reason when not measured. Model UI as pixel / system /
+behavior / engineering layers: tokens, components, state matrix (including
+hover/focus/loading/empty/error), responsive rules, and keyboard/behavior.
+Bind into approved `DESIGN.md` and `.specify/design/design-system.json`—not a
+parallel root `.design/` tree.
+
+### Stage hooks
+
+- **Discussion — design discovery**: when UI is involved, capture durable
+  `design_context` (not chat-only): `ui_involved`, `feeling_tone`, dials or
+  deferred nulls, reference products/intents, information density, interaction
+  complexity, anti-slop locks, whether UI Evidence Analysis is needed, and
+  whether `$spx-design` is required. Persist in Design Carry-Forward and handoff
+  `discussion_decision_digest.design_context`.
+- **Design — reverse engineering**: on synthesize or live refine, extract
+  tokens/components/states/responsive with evidence levels before boards;
+  approve only through design approve/export.
+- **Specify — UI Requirements + acceptance**: layout pattern; design-system
+  token/component use; required states (loading/empty/error/success/disabled/
+  focus); responsive targets; quality (no generic dashboard/template; maintain
+  DNA/dials); visual evidence kinds.
+- **Quick — UI Audit then design-before-code**: UI Audit issue list first →
+  analyze → identify issue → propose before/after → implement → visual check.
+  Do not jump straight to code edits.
+- **Debug — UI Debug Mode**: classify visual/layout (spacing, alignment,
+  overflow, responsive), UX/interaction (unclear action, hover/focus/keyboard,
+  loading/empty/error), or taste/generic-look. Name issue, reason, and
+  design-aware fix before coding.
+- **Implement / Review**: query approved design + UI System Model + anti-slop +
+  task `ui_contract` before UI generation; prefer visual hierarchy over
+  equal-weight card grids; visual validation loop
+  (capture → compare → fix → recapture) or `pending-human-review`.

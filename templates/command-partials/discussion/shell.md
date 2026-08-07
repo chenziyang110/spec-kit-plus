@@ -1,5 +1,7 @@
 {{spec-kit-include: ../common/user-input.md}}
 
+{{spec-kit-include: ../common/design-intelligence.md}}
+
 ## Objective
 
 Drive a resumable product and technical discussion that locks context boundaries, matures a rough idea into requirements and implementation options, and produces one reviewed handoff contract before direct Quick delivery or formal specification.
@@ -59,7 +61,7 @@ Drive a resumable product and technical discussion that locks context boundaries
 - If the user asks to transfer functionality into another project, lock `target_project_root` immediately before technicalizing.
 - When the user explicitly asks to hand off or continue the next stage, assess `ready-for-contract`, `continue-discussion`, or `blocked` in memory and persist the result through canonical state or the single JSON contract; do not create a duplicate assessment document.
 - Before that explicit lifecycle request, do not answer with only "next I recommend handoff assessment"; provide a pre-handoff readiness preview with concrete assessment content.
-- After functional discussion is stable and when no explicit handoff request is active, offer an optional UI and interaction discussion for UI-facing requirements; keep `ui_discussion_status` and confirmed or deferred UI decisions in active memory until the next semantic checkpoint or save trigger; the UI pass is not a mandatory handoff gate.
+- After functional discussion is stable and when no explicit handoff request is active, offer an optional UI and interaction discussion for UI-facing requirements; run Design Discovery to set durable `design_context` (feeling/tone, dials, density, motion, references, anti-slop lean, whether `sp-design` is required); keep `ui_discussion_status`, `design_context`, and confirmed or deferred UI decisions in active memory until the next semantic checkpoint or save trigger; the UI pass is not a mandatory handoff gate.
 - If explicit handoff is already requested, run handoff assessment first and return to UI discussion only when UI decisions block readiness or the user reopens UI discussion.
 - If the direction is coherent and boundary-locked after explicit handoff request, present both paths with their eligibility and the complexity-informed recommendation among eligible paths, then obtain the user's final consumer choice. Do not call `specify-runtime discussion write-handoff` until the user has selected an eligible consumer; then submit exactly one draft contract with `recommended_consumer` recording that confirmed selection. The runtime owns `handoff-to-specify.json`.
 - If the direction is too broad to express as one coherent package, continue the discussion instead of writing candidate-specific handoff files.
@@ -90,7 +92,7 @@ Drive a resumable product and technical discussion that locks context boundaries
 - Before every final response that names `sp-quick` or `sp-specify`, run `specify-runtime discussion status <slug> --format json` and consume its canonical status and selected `recommended_consumer`; withhold the invocation unless status is exactly `handoff-ready` and the named workflow is the selected consumer.
 - Do not mark handoff ready if role objects, target path context, evidence provenance, self-review status, user confirmation, or blocking unknown handling is missing.
 - Preserve `coverage_status`, `planning_gate_status`, `hard_unknown_count`, and `open_conflict_count` for the downstream fidelity gate.
-- For UI-facing work, preserve `ui_discussion_status`; confirmed UI decisions; deferred UI unknowns; and Markdown-carried ASCII sketches with JSON fields `ui_sketches_present`, `ui_sketch_summary`, and `ui_sketch_reference`.
+- For UI-facing work, preserve `ui_discussion_status`; durable `design_context`; confirmed UI decisions; deferred UI unknowns; and Markdown-carried ASCII sketches with JSON fields `ui_sketches_present`, `ui_sketch_summary`, and `ui_sketch_reference`. On handoff, carry `design_context` inside `discussion_decision_digest` with experience and design-system fields.
 
 ## Guardrails
 

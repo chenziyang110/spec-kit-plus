@@ -20,7 +20,10 @@ Read `references/consequence-gate.md` when the suspected cause or fix touches
 lifecycle, shared state, destructive behavior, compatibility, migration,
 security, concurrency, retry, recovery, or generated consumers.
 Read `references/ui-quality-gate.md` when the symptom is visual, responsive,
-interaction, focus, accessibility, TUI, or CLI presentation behavior.
+interaction, focus, accessibility, TUI, or CLI presentation behavior. For those
+UI symptoms, enter **UI Debug Mode**: classify visual/layout, UX/interaction
+(hover/focus/keyboard/loading/empty/error), and/or taste/generic-look; record
+issue, reason, and design-aware fix direction before coding.
 
 `$spx-debug` always starts a new run. Record that new run with `specify-runtime run create`, then execute only through `specify-runtime run supervise`; do not resume another workflow's run.
 

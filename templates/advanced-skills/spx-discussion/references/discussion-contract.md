@@ -9,7 +9,11 @@ Before a handoff, preserve the locked target root, `verified_project_facts`,
 evidence checked, open assumptions, and advice confidence. Carry triggered
 consequence obligations with affected objects and stop/reopen conditions. For UI
 work, keep every original UI reference, confirmed direction and interaction
-decision, and deferred UI unknown with its downstream owner.
+decision, and deferred UI unknown with its downstream owner. Run Design
+Discovery when UI is involved and persist durable `design_context` (feeling/tone,
+dials, density, motion, references, anti-slop lean, `sp_design_required`) into
+Design Carry-Forward and handoff `discussion_decision_digest.design_context`—
+not chat-only prose.
 
 Use deterministic discussion helpers for lifecycle changes. A handoff is
 eligible only when its evidence exists, product boundaries are explicit,

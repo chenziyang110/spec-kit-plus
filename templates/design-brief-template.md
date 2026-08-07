@@ -61,6 +61,21 @@ inspiration only; they never substitute for `design approve`.
 - Anti-slop locks (project-specific subset of the surface-aware policy):
 - Reference-board intents when synthesizing (`mood` | `layout` | `type` | `color-only`):
 
+## UI Evidence And System Model
+
+Fill when reverse-engineering screenshots, live UI, or design exports. Skip for
+pure greenfield taste-only create until sources exist. Confidence uses
+`measured` | `evidence-backed-inference` | `assumption`.
+
+- Evidence sources (paths/URLs/screenshots):
+- Surface / page map:
+- Token inventory (value + confidence + reason if not measured):
+- Component inventory (name + anatomy + confidence):
+- State matrix (hover/focus/loading/empty/error/… coverage):
+- Responsive rules (desktop/tablet/mobile or content breakpoints):
+- Behavior / keyboard notes:
+- Open assumptions that must not become silent approved truth:
+
 ## Confirmed Experience
 
 - Product subject:
