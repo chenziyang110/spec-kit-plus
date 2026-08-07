@@ -5957,7 +5957,7 @@ def _get_skills_dir(project_path: Path, selected_ai: str) -> Path:
 DEFAULT_SKILLS_DIR = ".agents/skills"
 NATIVE_SKILLS_AGENTS = {"codex", "kimi"}
 SKILL_DESCRIPTIONS = {
-    "design": "Use one prompt-routed design entry to create, refine, or audit the root DESIGN.md contract; reference synthesis is an input strategy, formal adoption flows through Specify, and direct delivery flows through Quick.",
+    "design": "Use when product or UI visual direction needs a prompt-routed design-system create, refine, or audit of the root DESIGN.md contract; reference synthesis is an input strategy, formal adoption flows through Specify, and direct delivery flows through Quick.",
     "discussion": "Use when a rough idea or requirement needs a resumable senior product-engineering discussion before direct Quick delivery or formal specification.",
     "specify": "Use when a new or changed feature request needs guided requirement discovery and a planning-ready specification package.",
     "prd-scan": "Use when an existing repository needs read-only heavy reconstruction scan outputs before final PRD synthesis; execution is subagent-mandatory and critical claims target L4 Reconstruction-Ready.",

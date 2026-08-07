@@ -4368,8 +4368,11 @@ def _validate_tasks_human_acceptance_contract(feature_dir: Path) -> list[str]:
                     f"task-index.json human acceptance obligation id must be unique: {obligation_id}"
                 )
             else:
+                # Store expanded source_ref so later scenario/dedication checks
+                # compare against the same canonical acceptance_refs set.
                 obligations_by_id[obligation_id] = {
                     **value,
+                    "source_ref": source_ref,
                     "scenario_ids": scenario_ids,
                 }
 

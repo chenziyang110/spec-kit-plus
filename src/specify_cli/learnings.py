@@ -1672,22 +1672,27 @@ def _safe_ref_from_registry_value(project_root: Path, value: Any) -> str:
     if not raw:
         return ""
     normalized_raw = raw.replace("\\", "/")
-    looks_external_absolute = bool(
-        re.match(r"^[A-Za-z]:/", normalized_raw)
-        or normalized_raw.startswith("//")
-        or normalized_raw.startswith("/")
-    )
-    candidate = Path(raw)
-    if candidate.is_absolute():
-        return _safe_project_relative_ref(project_root, candidate)
     sanitized = _sanitize_text(normalized_raw)
-    if looks_external_absolute:
-        if sanitized.startswith("<USER_HOME>/"):
-            return sanitized
-        return Path(sanitized).name
-    candidate = project_root / sanitized
+    candidate = Path(raw)
+    # Prefer project-relative refs for paths inside the project (even when the
+    # absolute path also sits under the user home temp tree).
+    if candidate.is_absolute():
+        try:
+            return (
+                candidate.resolve()
+                .relative_to(project_root.resolve())
+                .as_posix()
+            )
+        except ValueError:
+            if sanitized.startswith("<USER_HOME>"):
+                return sanitized
+            return Path(sanitized).name or candidate.name
+    if sanitized.startswith("<USER_HOME>"):
+        return sanitized
     try:
-        return candidate.resolve().relative_to(project_root.resolve()).as_posix()
+        return (project_root / sanitized).resolve().relative_to(
+            project_root.resolve()
+        ).as_posix()
     except ValueError:
         return Path(sanitized).name
 

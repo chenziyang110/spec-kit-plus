@@ -1,6 +1,6 @@
 # Quick worker contract
 
-Use for each substantive Q-item lane under Quick's subagent-mandatory model.
+Use for each substantive Q-item lane under Quick's mandatory native-subagent model.
 The leader owns `STATUS.md`, scope, join decisions, final verification, and
 cognition closeout—not the default first implementation edit.
 

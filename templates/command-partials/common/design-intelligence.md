@@ -15,31 +15,49 @@ TUI layout, or CLI presentation—even without an external screenshot.
 
 ## Design Intelligence Engine (three capabilities)
 
-| Capability | Role |
-| --- | --- |
-| **Taste Intelligence** | Personality/DNA, dials, anti-slop, signature |
-| **Design System Reverse Engineering** | Evidence → UI System Model before implementation |
-| **Visual Validation** | Real-entrypoint capture, comparison, pending-human-review |
+- **Taste Intelligence**: personality/DNA, dials, anti-slop, signature
+- **Design System Reverse Engineering**: Evidence → UI System Model before
+  implementation
+- **Visual Validation**: real-entrypoint capture, comparison,
+  pending-human-review
 
 `sp-design` / `spx-design` is the studio that materializes approved system truth;
 other stages **consume** that truth through Design Intelligence hooks.
 
 ## Owners (do not invent parallel systems)
 
-| Concern | Canonical owner |
-| --- | --- |
-| Design DNA / theses / signature | approved `DESIGN.md` + design brief |
-| Global dials | `design_brief.dials` variance · motion · density (1-10) |
-| Taste intake | `design_read`, aesthetic family, foundation strategy, redesign mode |
-| Anti-slop locks | `design_brief.anti_slop_locks` + `design-library/anti-slop-policy.md` |
-| UI System Model (tokens/components/states/responsive/behavior) | approved `DESIGN.md` + `.specify/design/design-system.json` |
-| Evidence confidence on reverse-engineered claims | design brief / references / decision rows |
-| Approval authority | `specify-runtime design approve` / export digests only |
-| Feature composition | `ui-brief.md` → plan `ui_design_contract` → task `ui_contract` |
-| Durable discussion carry | discussion Design Carry-Forward + handoff `design_context` |
+- Design DNA / theses / signature → approved `DESIGN.md` + design brief
+- Global dials → `design_brief.dials` variance · motion · density (1-10)
+- Taste intake → `design_read`, aesthetic family, foundation strategy, redesign
+  mode
+- Anti-slop locks → `design_brief.anti_slop_locks` +
+  `design-library/anti-slop-policy.md`
+- UI System Model → approved `DESIGN.md` + `.specify/design/design-system.json`
+- Evidence confidence → design brief / references / decision rows
+- DesignContext schema →
+  `templates/design-intelligence/schema/design-context.schema.json` (v1)
+- Approval authority → `specify-runtime design approve` / export digests only
+- Feature composition → `ui-brief.md` → plan `ui_design_contract` → task
+  `ui_contract`
+- Durable discussion carry → Design Carry-Forward + handoff `design_context`
 
 Do **not** create a parallel root `.design/` tree. Use `.specify/design/**` and
 root `DESIGN.md` only.
+
+## DesignContext v1 (schema contract)
+
+Durable design-context payloads **MUST** conform to DesignContext v1 when
+serialized as structured JSON (discussion handoff fields, brief-adjacent
+machine records, or future runtime owners):
+
+- Schema: `templates/design-intelligence/schema/design-context.schema.json`
+- Required: `version: "1.0"`, `intent.user_goal`
+- Optional: `design_language` (tone + dials), `system`, `references`, `decisions`
+- Validate structure only via `specify_cli.design_intelligence.validate_design_context`
+  (no taste scoring, no screenshot parsing)
+
+Prompt-stage prose may remain human-readable; machine-readable carry-forward
+should not invent a second parallel vocabulary.
 
 ## Pipeline: Evidence → System → Implementation
 
@@ -62,11 +80,12 @@ preview before approval; reverse engineering applies when sources exist.
 Every token, layout rule, or component observation from screenshots/live UI
 must carry one of:
 
-| Level | Meaning |
-| --- | --- |
-| `measured` | Directly observed (devtools, source, exact asset, counted spacing) |
-| `evidence-backed-inference` | Strong visual/code pattern evidence; state the reason |
-| `assumption` | Temporary working guess; must not silently become approved truth |
+- `measured` — directly observed (devtools, source, exact asset, counted
+  spacing)
+- `evidence-backed-inference` — strong visual/code pattern evidence; state the
+  reason
+- `assumption` — temporary working guess; must not silently become approved
+  truth
 
 Never promote `assumption` to implementation “must match” without user
 confirmation or higher evidence. Record reason when level is not `measured`.

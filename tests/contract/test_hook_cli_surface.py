@@ -7208,9 +7208,9 @@ def test_hook_signal_learning_accepts_explicit_semantic_trigger(tmp_path: Path):
     assert result.exit_code == 0, result.output
     payload = json.loads(result.output.strip())
     assert payload["status"] == "warn"
-    assert payload["data"]["trigger_signals"] == [
-        "user_correction: sp-plan must not create tasks.md"
-    ]
+    # Explicit semantic triggers may include free-form detail after ':', but
+    # Learning stores only the canonical kind tag.
+    assert payload["data"]["trigger_signals"] == ["user_correction"]
 
 
 def test_hook_complete_refresh_accepts_json_format_alias(tmp_path: Path):

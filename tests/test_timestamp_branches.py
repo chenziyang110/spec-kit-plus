@@ -491,14 +491,16 @@ class TestManagedRunFeatureDirResolution:
     def test_check_prerequisites_rejects_managed_run_feature_dir_escape(
         self, git_repo: Path
     ):
-        outside_feature_dir = git_repo.parent / "outside-feature"
-        outside_feature_dir.mkdir()
+        # Unique sibling name avoids xdist collisions under a shared parent tmp.
+        outside_name = f"outside-feature-{git_repo.name}"
+        outside_feature_dir = git_repo.parent / outside_name
+        outside_feature_dir.mkdir(exist_ok=True)
         (outside_feature_dir / "spec.md").write_text("# spec\n", encoding="utf-8")
         env = {
             "SPECIFY_RUN_MANAGED": "1",
             "SPECIFY_RUN_WORKSPACE": str(git_repo),
             "SPECIFY_RUN_SUBJECT_TYPE": "feature",
-            "SPECIFY_RUN_SUBJECT_ID": "outside-feature",
+            "SPECIFY_RUN_SUBJECT_ID": outside_name,
             "WSLENV": "SPECIFY_RUN_MANAGED:SPECIFY_RUN_WORKSPACE/p:SPECIFY_RUN_SUBJECT_TYPE:SPECIFY_RUN_SUBJECT_ID",
         }
 
@@ -507,7 +509,7 @@ class TestManagedRunFeatureDirResolution:
             "--json",
             "--paths-only",
             "--feature-dir",
-            "../outside-feature",
+            f"../{outside_name}",
             env=env,
         )
 

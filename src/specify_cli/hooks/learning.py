@@ -8,7 +8,11 @@ from pathlib import Path
 import re
 from typing import Any
 
-from specify_cli.learning_policy import LearningPolicy, LearningPolicyError, load_learning_policy
+from specify_cli.learning_policy import (
+    LearningPolicy,
+    LearningPolicyError,
+    load_learning_policy,
+)
 
 from .checkpoint_serializers import normalize_command_name
 from .events import (
@@ -98,6 +102,13 @@ def _coerce_str_list(value: Any) -> list[str]:
 
 
 def _canonical_trigger_signal(value: str) -> str:
+    """Normalize a trigger signal to its canonical kind tag only.
+
+    Free-form detail after ':' is accepted on input for ergonomics, but new
+    records store only the kind. That keeps agent-facing Learning free of
+    incident prose while still matching explicit semantic triggers.
+    """
+
     raw = str(value or "").strip()
     if not raw:
         return ""
@@ -586,7 +597,11 @@ def _has_matching_durable_capture(
         if path.exists():
             entries.extend(read_learning_entries(path)[1])
     observed_at = str(recent_signal.get("observed_at") or "").strip()
-    required_signals = set(_canonical_trigger_signals(recent_signal.get("trigger_signals")))
+    # Match on kinds only so detail-bearing signals still satisfy a durable
+    # capture that recorded the same trigger kind.
+    required_signals = set(
+        _canonical_trigger_signals(recent_signal.get("trigger_signals"))
+    )
     for entry in entries:
         if not is_relevant_to_command(entry, f"sp-{command_name}"):
             continue
@@ -779,9 +794,7 @@ def learning_review_hook(_project_root: Path, payload: dict[str, object]) -> Hoo
                     "content_safety": _content_safety(rationale_labels),
                 },
             )
-        review_status = learning_review_status(
-            _project_root, command_name=command_name
-        )
+        review_status = learning_review_status(_project_root, command_name=command_name)
         if review_status["pending"]:
             try:
                 review_learning(
@@ -806,9 +819,7 @@ def learning_review_hook(_project_root: Path, payload: dict[str, object]) -> Hoo
                         "content_safety": _content_safety(rationale_labels),
                     },
                 )
-        _clear_recent_signal(
-            _project_root, command_name=command_name, policy=policy
-        )
+        _clear_recent_signal(_project_root, command_name=command_name, policy=policy)
 
     return HookResult(
         event=WORKFLOW_LEARNING_REVIEW,
@@ -873,8 +884,7 @@ def learning_capture_hook(project_root: Path, payload: dict[str, object]) -> Hoo
             learning_type=learning_type,
             summary=summary,
             evidence=evidence,
-            recurrence_key=str(payload.get("recurrence_key") or "").strip()
-            or None,
+            recurrence_key=str(payload.get("recurrence_key") or "").strip() or None,
             signal_strength=str(payload.get("signal_strength") or "medium"),
             applies_to=_coerce_str_list(payload.get("applies_to")) or None,
             default_scope=str(payload.get("default_scope") or "").strip() or None,
@@ -909,9 +919,7 @@ def learning_capture_hook(project_root: Path, payload: dict[str, object]) -> Hoo
             writes={"learning_review": ".planning/learnings/review-state.json"},
             data={
                 "capture": capture_payload,
-                "injection_targets": capture_payload["entry"][
-                    "injection_targets"
-                ],
+                "injection_targets": capture_payload["entry"]["injection_targets"],
             },
         )
     return HookResult(

@@ -108,8 +108,7 @@ change, reference the approved `DESIGN.md`/live pattern, affected entry point,
   preview/manifest/handoff SHA-256 values, immutable handoff ref, and selected
   `DS-*`/`DH-*` rows into the quick-status artifact via leased
   `specify-runtime artifact patch` and into every UI worker packet. An active
-  Quick task must not silently adopt a later design approval; adoption requires
-  a confirmed UI checkpoint amendment with the replacement binding.
+  Quick task must not silently adopt a later design approval; adoption requires a confirmed UI checkpoint amendment with the replacement binding.
 - Carry the confirmed UI Confirmation unchanged into every UI worker packet and
   keep the matching fields current on the quick-status artifact only through
   leased `specify-runtime artifact patch`. A worker may implement within its
