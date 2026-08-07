@@ -121,8 +121,10 @@ Runtime refuses `item-accept` without a matching `result submit` (or prior
 proof. A behavior change must run and record RED before production edits. If no
 reliable automated surface exists, build the smallest viable harness as its own
 Quick lane; if blocked, record the blocker rather than a `$spx-specify` handoff.
-For a propagating change, prove full affected-surface coverage; sampling leaves
-the task blocked.
+For a propagating change, record a minimal sweep before editing and prove full
+affected-surface or callsite coverage across consumers, generated/mirrored
+copies, registrations, and verification entry points; sampling or an unverified
+surface leaves the task blocked.
 
 For UI work, run **UI Audit** then the **Quick Design Loop**
 (design-before-code): audit issues → analyze current UI / system model →
