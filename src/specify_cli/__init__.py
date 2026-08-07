@@ -973,7 +973,7 @@ def design_preview_lint(
         return
 
     console.print(
-        f"[red]READY FAILED[/red]"
+        "[red]READY FAILED[/red]"
         if normalized_level == "ready"
         else f"[red]LINT FAILED[/red] ({normalized_level})"
     )

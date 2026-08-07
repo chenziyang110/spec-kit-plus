@@ -19,9 +19,10 @@ design-before-code loop before dispatching implementation:
 5. Implement the smallest coherent change under the packet contract.
 6. Visual check at real entry points: capture → inspect → fix → recapture.
 
-Record the audit issues, loop steps, and design sources in `STATUS.md` or the
-worker packet. Bare code edits that skip audit/analysis/proposal for UI changes
-are a process defect.
+Persist audit issues, loop steps, and design sources through leased
+`specify-runtime artifact patch` on the quick-status artifact (or the worker
+packet). Bare code edits that skip audit/analysis/proposal for UI changes are a
+process defect.
 
 ## Mandatory Subagent Execution
 
@@ -84,7 +85,7 @@ The following flags are available and composable:
 - Substantive multi-item or multi-surface quick-task lanes must use native subagent execution once a validated `WorkerTaskPacket` or equivalent execution contract preserves quality. If the readiness bar for a delegated lane is not met, compile the missing contract before dispatch; if the contract cannot be made safe, record `subagent-blocked` and stop for escalation or recovery. Subagent count and packetization are agent-owned Delivery Map concerns and never require user confirmation.
 - If two or more independent subagent lanes can safely run in parallel and that fan-out materially improves throughput, dispatch multiple subagents instead of serial execution.
 - `subagent-blocked` is an exception path, not a strategy choice. Use it only when native subagent dispatch is concretely unavailable or the current batch cannot be packetized safely—not merely because writes overlap or the task looks small.
-- **Leader-inline is not a silent default.** Use it only after an explicit dispatch decision fails or native subagents are unavailable. Before any Leader source edit under leader-inline, patch `STATUS.md` `blocked_dispatch` with `status`, `reason`, `attempted_shape` (usually `one-subagent`), and `chosen_shape: leader-inline`. Unrecorded leader-inline after `item-start` is a process defect.
+- **Leader-inline is not a silent default.** Use it only after an explicit dispatch decision fails or native subagents are unavailable. Before any Leader source edit under leader-inline, use leased `specify-runtime artifact patch` on the quick-status artifact to set `blocked_dispatch` with `status`, `reason`, `attempted_shape` (usually `one-subagent`), and `chosen_shape: leader-inline`. Unrecorded leader-inline after `item-start` is a process defect.
 - If subagent-blocked or leader-inline fallback is used, patch the concrete reason into `STATUS.md` through the artifact CLI before implementation edits.
 - The first actionable execution step after scope lock and understanding confirmation is to dispatch the first subagent batch, not to continue local deep-dive analysis or implement the first Q item leader-inline.
 - Use `.specify/templates/worker-prompts/quick-worker.md` as the default contract for quick-task subagents so the subagent returns enough state for the leader to keep `STATUS.md` accurate.
@@ -103,15 +104,18 @@ change, reference the approved `DESIGN.md`/live pattern, affected entry point,
   structure/visual/runtime evidence. Route a missing/bootstrap design or new visual direction to
   `sp-design`. Keep multi-surface or acceptance-heavy implementation in quick;
   expand its task-local plan, viewport/state matrix, batches, and evidence.
-- When approved `DESIGN.md` is the basis, pin its approved visual ref,
+- When an approved design system is the basis, patch its approved visual ref,
   preview/manifest/handoff SHA-256 values, immutable handoff ref, and selected
-  `DS-*`/`DH-*` rows in `STATUS.md` and every UI worker packet. An active Quick
-  task must not silently adopt a later design approval; adoption requires a
-  confirmed UI checkpoint amendment with the replacement binding.
-- Carry the confirmed UI Confirmation unchanged into `STATUS.md` and every UI
-  worker packet. A worker may implement within its `must preserve`/`may adapt`
-  boundaries but must not redesign the confirmed proposal; any conflict returns
-  to the leader as a checkpoint amendment or workflow escalation.
+  `DS-*`/`DH-*` rows into the quick-status artifact via leased
+  `specify-runtime artifact patch` and into every UI worker packet. An active
+  Quick task must not silently adopt a later design approval; adoption requires
+  a confirmed UI checkpoint amendment with the replacement binding.
+- Carry the confirmed UI Confirmation unchanged into every UI worker packet and
+  keep the matching fields current on the quick-status artifact only through
+  leased `specify-runtime artifact patch`. A worker may implement within its
+  `must preserve`/`may adapt` boundaries but must not redesign the confirmed
+  proposal; any conflict returns to the leader as a checkpoint amendment or
+  workflow escalation.
 - Treat a user-provided PNG, screenshot, mockup, design export, reference image, or "make it like this" UI request as a first-class worker input when it shapes the quick task.
 - Before dispatch, record the image inputs in the quick-task context and include them in the `WorkerTaskPacket` or equivalent lane contract as `image_inputs` or UI reference inputs with stable project-relative paths when available.
 - If the image exists only as a chat attachment, either pass it to the subagent as a runtime image item/local_image when supported or import the runtime-provided local attachment through `specify-runtime evidence import --file <local-path> --scope ui-reference --source chat-attachment --provenance user-provided`, then pass the returned content-addressed `object_ref` and evidence record. Never copy or materialize a project file directly. Do not rely on inherited chat context, `fork_context`, or a prose summary as the only handoff.

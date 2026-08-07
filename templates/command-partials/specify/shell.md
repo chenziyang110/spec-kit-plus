@@ -30,9 +30,11 @@ Turn a new or changed feature request into a reviewed, planning-ready specificat
 ## UI Reference Input
 
 - For UI-bearing work, apply Design Intelligence: inherit discussion
-  `design_context` when present; record design DNA, dials, and anti-slop lean;
-  and write explicit **UI Acceptance Criteria** (layout, interaction states,
-  quality/DNA, visual evidence) into Experience Requirements and `ui-brief.md`.
+  `design_context` when present; carry design DNA, dials, and anti-slop lean;
+  and patch explicit **UI Acceptance Criteria** (layout, interaction states,
+  quality/DNA, visual evidence) into Experience Requirements and the ui-brief
+  via `specify-runtime artifact scaffold --kind ui-brief` when needed plus
+  leased `specify-runtime artifact patch` calls.
 - First classify UI applicability independently of whether the user supplied a
   screenshot. New or changed user-visible screens, components, layouts,
   navigation, interaction flows, responsive behavior, visual states, TUI

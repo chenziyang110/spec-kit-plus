@@ -115,9 +115,10 @@ When durable Codex team state is explicitly needed,
 hand off to `$spx-implement-teams` and stop; do not switch workflows inline.
 
 For UI-bearing work, apply Design Intelligence **UI Implementation Rules** before
-generating UI: query approved `DESIGN.md`, UI System Model (tokens, components,
-states), surface-aware anti-slop, and the task `ui_contract`; prefer visual
-hierarchy and the component system over generic equal-weight card grids. Consume the compiled task `ui_contract`; do not
+generating UI: query the approved design system and UI System Model (tokens,
+components, states) through `specify-runtime artifact show`, plus surface-aware
+anti-slop and the task `ui_contract`; prefer visual hierarchy and the component
+system over generic equal-weight card grids. Consume the compiled task `ui_contract`; do not
 reconstruct design intent from task prose. Workers preserve design inputs and
 return changed surfaces, required states/viewports, and visual risks, but do not
 run the full viewport/state capture loop per Txx. In a Leader-owned gate attempt,

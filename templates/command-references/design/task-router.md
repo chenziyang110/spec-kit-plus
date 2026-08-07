@@ -86,11 +86,11 @@ ambiguity between `audit` and mutation, start with `audit`; promote to
 
 ## Taste Intake And Synthesize Intents
 
-- Visual `create` and project-wide `refine` require durable taste intake in
-  `.specify/design/design-brief.md` before three-direction preview work:
-  `design_read`, dials with inference reason, `aesthetic_family`,
-  `foundation_strategy`, `redesign_mode` when live UI exists, and
-  `anti_slop_locks` from the surface-aware policy.
+- Visual `create` and project-wide `refine` require durable taste intake in the
+  design-brief artifact (scaffold/patch via `specify-runtime artifact` only)
+  before three-direction preview work: `design_read`, dials with inference
+  reason, `aesthetic_family`, `foundation_strategy`, `redesign_mode` when live
+  UI exists, and `anti_slop_locks` from the surface-aware policy.
 - `input_strategy: synthesize` may attach reference-board intents
   (`mood`, `layout`, `type`, `color-only`). Keep original inspectable assets;
   prose alone is not a fidelity source. Third-party references are evidence,
