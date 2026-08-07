@@ -72,8 +72,10 @@ and never require a colon subskill or explicit mode argument.
 4. **UI Evidence Analysis (when references or live UI exist):** collect sources
    into a surface/page map; extract candidate tokens, components, states, and
    responsive rules; tag each claim with evidence level
-   `measured` | `evidence-backed-inference` | `assumption` and a reason when not
-   measured. Do not treat screenshot similarity as measured truth.
+   Design Evidence v1 (`measured` | `inferred` | `assumption`; alias
+   `evidence-backed-inference`) with rationale when not measured and source or
+   source_gap when inferred. Do not treat screenshot similarity as measured
+   truth.
 5. Use project cognition to locate likely UI entry points, token/theme owners,
    reusable component owners, responsive/state patterns, visual or accessibility
    tests, and design assets; verify every selected route in live files before it

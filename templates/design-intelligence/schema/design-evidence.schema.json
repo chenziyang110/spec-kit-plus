@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spec-kit-plus.local/schemas/design-evidence-v1.json",
+  "title": "Spec Kit Plus Design Evidence v1",
+  "description": "Formal Design Intelligence Evidence object. Prompt labels remain subordinate to this schema. Canonical types: measured | inferred | assumption. The prose alias evidence-backed-inference maps to inferred.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["claim", "type"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Optional stable id for cross-artifact references (for example EV-001)."
+    },
+    "claim": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The design claim being asserted (token, layout rule, component observation, etc.)."
+    },
+    "type": {
+      "type": "string",
+      "enum": ["measured", "inferred", "assumption", "evidence-backed-inference"],
+      "description": "Evidence level. Prefer measured | inferred | assumption. evidence-backed-inference is accepted as an inferred alias."
+    },
+    "source": {
+      "type": ["string", "null"],
+      "description": "Inspectable origin: path, URL, screenshot id, live route, or export locator. Null only when source_gap explains the absence."
+    },
+    "source_gap": {
+      "type": ["string", "null"],
+      "description": "Explicit gap statement when inferred claims lack a concrete source. Required when type is inferred/alias and source is empty."
+    },
+    "confidence": {
+      "description": "Optional numeric (0-1) or qualitative confidence.",
+      "oneOf": [
+        {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        {
+          "type": "string",
+          "enum": ["high", "medium", "low"]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "rationale": {
+      "type": ["string", "null"],
+      "description": "Why the claim holds. Required for non-measured types after semantic validation."
+    },
+    "subject": {
+      "type": ["string", "null"],
+      "description": "Optional subject key (for example color.primary or Button.default)."
+    }
+  }
+}

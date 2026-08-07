@@ -107,13 +107,27 @@ anti-slop locks before generating or materially changing UI.
 
 ### Evidence Level and UI System Model
 
-Reverse-engineered claims carry `measured` | `evidence-backed-inference` |
-`assumption` with a reason when not measured. Model UI as pixel / system /
-behavior / engineering layers: tokens, components, state matrix (including
-hover/focus/loading/empty/error), responsive rules, and keyboard/behavior.
-Bind into approved `DESIGN.md` and `.specify/design/design-system.json`—not a
-parallel root `.design/` tree. Structured design-context JSON **MUST** conform
-to DesignContext v1 (`templates/design-intelligence/schema/design-context.schema.json`).
+This SPX file is an **install surface**, not a second rule book. Durable
+contracts live in shared Design Intelligence schemas:
+
+- DesignContext v1:
+  `templates/design-intelligence/schema/design-context.schema.json`
+- Design Evidence v1:
+  `templates/design-intelligence/schema/design-evidence.schema.json`
+- Lifecycle / paths: `templates/design-intelligence/ARTIFACT-LIFECYCLE.md`
+- Capability matrix: `templates/design-intelligence/CAPABILITY-MATRIX.md`
+
+Reverse-engineered claims use Design Evidence v1: `measured` | `inferred` |
+`assumption` (alias `evidence-backed-inference` → `inferred`). Non-measured
+requires rationale; inferred requires source or explicit source_gap. Validate
+with `validate_design_evidence` / `validate_design_context`. Model UI as pixel /
+system / behavior / engineering layers: tokens, components, state matrix
+(including hover/focus/loading/empty/error), responsive rules, and
+keyboard/behavior. Bind into approved `DESIGN.md` and
+`.specify/design/design-system.json`—not a parallel root `.design/` tree.
+Optional executable reports use
+`ui-quality-gate-report.schema.json` and
+`run_ui_quality_gate_rules` without replacing design approve.
 
 ### Stage hooks
 

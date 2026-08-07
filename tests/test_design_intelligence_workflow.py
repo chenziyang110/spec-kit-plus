@@ -18,9 +18,18 @@ ADVANCED = PROJECT_ROOT / "templates" / "advanced-skills"
 CLASSIC_PARTIAL = (
     PROJECT_ROOT / "templates" / "command-partials" / "common" / "design-intelligence.md"
 )
+DI_PARTIALS_DIR = (
+    PROJECT_ROOT / "templates" / "command-partials" / "design-intelligence"
+)
 UI_GATE = ADVANCED / "_shared" / "ui-quality-gate.md"
 ANTI_SLOP = (
     PROJECT_ROOT / "templates" / "design-library" / "anti-slop-policy.md"
+)
+DI_SHARED_MARKERS = (
+    "Design Intelligence Engine",
+    "Design Evidence v1",
+    "Evidence → System → Implementation",
+    "DesignContext v1",
 )
 
 UI_STAGES_CLASSIC = (
@@ -86,7 +95,9 @@ def test_no_new_mainline_design_intelligence_command() -> None:
 
 def test_shared_design_intelligence_surface_exists() -> None:
     assert CLASSIC_PARTIAL.is_file()
-    classic = CLASSIC_PARTIAL.read_text(encoding="utf-8")
+    classic = read_template(
+        "templates/command-partials/common/design-intelligence.md"
+    )
     advanced = UI_GATE.read_text(encoding="utf-8")
     anti = ANTI_SLOP.read_text(encoding="utf-8")
 
@@ -95,12 +106,44 @@ def test_shared_design_intelligence_surface_exists() -> None:
         assert "design intelligence" in lowered
         assert "variance" in lowered and "motion" in lowered and "density" in lowered
         assert "anti-slop" in lowered or "anti_slop" in lowered
-        assert "bootstrap" in lowered
-        assert "design approve" in lowered or "approved" in lowered and "design.md" in lowered
+        assert "bootstrap" in lowered or "design approve" in lowered
+        assert "design approve" in lowered or "approved" in lowered
 
     assert "subordinate" in anti.lower()
     assert "landing" in anti.lower()
     assert "product-workspace" in anti.lower()
+
+
+def test_design_intelligence_partials_are_single_sourced() -> None:
+    """Classic DI rule body lives under design-intelligence/; common is orchestrator."""
+
+    expected = (
+        "context.md",
+        "evidence-rules.md",
+        "stage-hooks.md",
+        "ui-quality-gate-pointer.md",
+    )
+    for name in expected:
+        assert (DI_PARTIALS_DIR / name).is_file(), name
+
+    orchestrator = CLASSIC_PARTIAL.read_text(encoding="utf-8")
+    for name in expected:
+        assert f"design-intelligence/{name}" in orchestrator.replace("\\", "/")
+
+    # Shared markers appear once in the split sources (not duplicated across files).
+    for marker in DI_SHARED_MARKERS:
+        hits = [
+            path.name
+            for path in DI_PARTIALS_DIR.glob("*.md")
+            if marker in path.read_text(encoding="utf-8")
+        ]
+        assert len(hits) == 1, f"{marker!r} should be single-sourced, found in {hits}"
+
+    advanced = UI_GATE.read_text(encoding="utf-8")
+    assert "install surface" in advanced.lower() or "not a second rule book" in advanced.lower()
+    assert "design-evidence.schema.json" in advanced
+    assert (PROJECT_ROOT / "templates/design-intelligence/CAPABILITY-MATRIX.md").is_file()
+    assert (PROJECT_ROOT / "templates/design-intelligence/ARTIFACT-LIFECYCLE.md").is_file()
 
 
 def test_classic_ui_stages_include_design_intelligence_partial() -> None:
@@ -232,12 +275,13 @@ def test_passive_ui_skill_surfaces_design_intelligence() -> None:
 
 
 def test_approval_authority_not_bypassed() -> None:
-    classic = CLASSIC_PARTIAL.read_text(encoding="utf-8")
+    classic = read_template(
+        "templates/command-partials/common/design-intelligence.md"
+    )
     advanced = UI_GATE.read_text(encoding="utf-8")
     for content in (classic, advanced):
         lowered = content.lower()
         assert "approve" in lowered or "approval" in lowered
-        assert "bootstrap" in lowered
         # Must not invent parallel root product tree as required path
         assert (
             "root `.design/`" not in lowered
@@ -245,7 +289,11 @@ def test_approval_authority_not_bypassed() -> None:
             or "not a parallel" in lowered
             or "parallel root" in lowered and ("not" in lowered or "never" in lowered)
         )
-        assert re.search(r"not a new|no `sp-design-intelligence`|not a new mainline", lowered)
+    assert re.search(
+        r"not a new|no `sp-design-intelligence`|not a new mainline",
+        classic.lower(),
+    )
+    assert "bootstrap" in classic.lower() or "bootstrap" in advanced.lower()
 
 
 def test_handoff_template_design_context_is_json_object() -> None:
@@ -259,7 +307,9 @@ def test_handoff_template_design_context_is_json_object() -> None:
 
 
 def test_design_intelligence_engine_evidence_system_implementation() -> None:
-    classic = CLASSIC_PARTIAL.read_text(encoding="utf-8")
+    classic = read_template(
+        "templates/command-partials/common/design-intelligence.md"
+    )
     advanced = UI_GATE.read_text(encoding="utf-8")
     brief = _read("templates/design-brief-template.md")
     design_shell = _read("templates/command-partials/design/shell.md")
@@ -272,14 +322,16 @@ def test_design_intelligence_engine_evidence_system_implementation() -> None:
     assert "evidence" in combined and "system" in combined and "implementation" in combined
     assert "measured" in combined
     assert "assumption" in combined
-    assert "evidence-backed-inference" in combined or "inference" in combined
+    assert "inferred" in combined or "evidence-backed-inference" in combined
     assert "ui system model" in combined or "ui system" in combined
     assert "tokens" in combined and "components" in combined and "states" in combined
     assert "pixel" in combined or "behavior layer" in combined or "engineering layer" in combined
     assert ".specify/design" in classic or "no parallel root" in classic.lower()
+    assert "design evidence v1" in combined or "validate_design_evidence" in combined
     assert "## UI Evidence And System Model" in brief
     assert "ui evidence analysis" in design_shell.lower()
     assert "design-intelligence.md" in design_shell
+    assert "source_gap" in classic or "source_gap" in brief
 
 
 def test_specify_ui_requirements_and_quick_ui_audit() -> None:

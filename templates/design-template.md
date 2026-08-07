@@ -111,9 +111,10 @@ elevation, sizing, layout, and motion. Record resolved font behavior and
 foreground/background contrast pairs instead of relying on aesthetic labels.
 
 When values were reverse-engineered from screenshots or live UI, record
-**evidence level** per material token (`measured` |
-`evidence-backed-inference` | `assumption`) so downstream work does not treat
-guesses as measured truth.
+**Design Evidence v1** per material token (`measured` | `inferred` |
+`assumption`; alias `evidence-backed-inference`) so downstream work does not
+treat guesses as measured truth. Non-measured claims need rationale; inferred
+claims need source or source_gap.
 
 ## Platforms
 
