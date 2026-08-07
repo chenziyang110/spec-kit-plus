@@ -188,16 +188,25 @@
       "additionalProperties": false,
       "required": ["variance", "motion", "density", "inference_reason"],
       "properties": {
-        "variance": {"$ref": "#/$defs/dialAxis"},
-        "motion": {"$ref": "#/$defs/dialAxis"},
-        "density": {"$ref": "#/$defs/dialAxis"},
-        "inference_reason": {"type": "string", "minLength": 1}
+        "variance": {
+          "description": "Optional on scaffold/structural manifests; required as 1-10 at ready lint.",
+          "anyOf": [{"type": "null"}, {"$ref": "#/$defs/dialAxis"}]
+        },
+        "motion": {
+          "description": "Optional on scaffold/structural manifests; required as 1-10 at ready lint.",
+          "anyOf": [{"type": "null"}, {"$ref": "#/$defs/dialAxis"}]
+        },
+        "density": {
+          "description": "Taste dial 1-10 (layout density intent), distinct from direction.density spacing tokens.",
+          "anyOf": [{"type": "null"}, {"$ref": "#/$defs/dialAxis"}]
+        },
+        "inference_reason": {"type": "string"}
       }
     },
     "direction": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "name", "visual_thesis", "content_thesis", "interaction_thesis", "signature_element", "gain", "cost", "specimen_ids", "typography", "geometry", "density", "elevation", "motion", "modes", "dials", "aesthetic_family"],
+      "required": ["id", "name", "visual_thesis", "content_thesis", "interaction_thesis", "signature_element", "gain", "cost", "specimen_ids", "typography", "geometry", "density", "elevation", "motion", "modes"],
       "properties": {
         "id": {"type": "string", "pattern": "^direction-[a-z0-9][a-z0-9-]*$"},
         "name": {"type": "string"},
@@ -208,8 +217,14 @@
         "gain": {"type": "string"},
         "cost": {"type": "string"},
         "specimen_ids": {"$ref": "#/$defs/specimenIds"},
-        "dials": {"$ref": "#/$defs/directionDials"},
-        "aesthetic_family": {"type": "string", "minLength": 1},
+        "dials": {
+          "description": "Optional in v1 structural schema for backward compatibility; ready lint requires project-specific dials.",
+          "$ref": "#/$defs/directionDials"
+        },
+        "aesthetic_family": {
+          "description": "Optional in v1 structural schema for backward compatibility; ready lint requires a non-scaffold family.",
+          "type": "string"
+        },
         "typography": {
           "type": "object",
           "additionalProperties": false,

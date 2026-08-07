@@ -56,10 +56,23 @@ var artifactScaffoldKinds = map[string]artifactScaffoldKind{
 		EstimatedTokenSavings: 1500,
 	},
 	"design-brief": {
-		Kind:                  "design-brief",
-		TemplatePath:          "design-brief-template.md",
-		AllowedPaths:          [][]string{{".specify", "design", "design-brief.md"}},
-		AgentFillRequired:     []string{"subject", "audience", "single_job", "decisions"},
+		Kind:         "design-brief",
+		TemplatePath: "design-brief-template.md",
+		AllowedPaths: [][]string{{".specify", "design", "design-brief.md"}},
+		// redesign_mode is conditional (live UI / refine|audit) and is not
+		// unconditionally required by scaffold contracts.
+		AgentFillRequired: []string{
+			"subject",
+			"audience",
+			"single_job",
+			"decisions",
+			"design_read",
+			"dials",
+			"aesthetic_family",
+			"foundation_strategy",
+			"anti_slop_locks",
+			"reference_board_intents",
+		},
 		EstimatedTokenSavings: 700,
 	},
 	"design-review": {

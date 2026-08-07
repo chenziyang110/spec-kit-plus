@@ -62,17 +62,32 @@ def _diversify_direction_taste(manifest: dict[str, object]) -> None:
     taste = (
         (
             "Configured signature A",
-            {"variance": 5, "motion": 3, "density": 7, "inference_reason": "Fixture A product density"},
+            {
+                "variance": 5,
+                "motion": 3,
+                "density": 7,
+                "inference_reason": "Project intake: dense workspace hierarchy for operators",
+            },
             "minimal-product-linear",
         ),
         (
             "Configured signature B",
-            {"variance": 7, "motion": 5, "density": 5, "inference_reason": "Fixture B balanced product"},
+            {
+                "variance": 7,
+                "motion": 5,
+                "density": 5,
+                "inference_reason": "Project intake: balanced product language for mixed tasks",
+            },
             "developer-tool-sharp",
         ),
         (
             "Configured signature C",
-            {"variance": 8, "motion": 7, "density": 3, "inference_reason": "Fixture C expressive lean"},
+            {
+                "variance": 8,
+                "motion": 7,
+                "density": 3,
+                "inference_reason": "Project intake: expressive marketing lean for acquisition",
+            },
             "marketing-editorial-asymmetric",
         ),
     )
@@ -223,20 +238,41 @@ def test_design_preview_ready_lint_rejects_duplicate_signatures(
     )
 
 
-def test_design_preview_manifest_schema_requires_direction_dials() -> None:
+def test_design_preview_manifest_schema_keeps_taste_fields_optional_on_v1() -> None:
     schema = json.loads(
         (REPO_ROOT / "templates" / "design-preview-manifest.schema.json").read_text(
             encoding="utf-8"
         )
     )
     direction = schema["$defs"]["direction"]
-    assert "dials" in direction["required"]
-    assert "aesthetic_family" in direction["required"]
+    assert "dials" not in direction["required"]
+    assert "aesthetic_family" not in direction["required"]
+    assert "dials" in direction["properties"]
+    assert "aesthetic_family" in direction["properties"]
     dials = schema["$defs"]["directionDials"]
     assert dials["required"] == ["variance", "motion", "density", "inference_reason"]
 
 
-def test_design_preview_ready_lint_rejects_missing_or_invalid_dials(
+def test_design_preview_legacy_v1_without_taste_fields_passes_structural(
+    tmp_path: Path,
+) -> None:
+    content = _candidate_preview()
+    manifest = _preview_manifest(content)
+    for direction in manifest["directions"]:
+        assert isinstance(direction, dict)
+        direction.pop("dials", None)
+        direction.pop("aesthetic_family", None)
+    preview = tmp_path / "legacy-v1.html"
+    preview.write_text(_replace_preview_manifest(content, manifest), encoding="utf-8")
+
+    structural = lint_design_preview_file(preview, level="structural")
+    ready = lint_design_preview_file(preview, level="ready")
+
+    assert not any(item.code == "preview-manifest-schema-error" for item in structural)
+    assert any(item.code == "preview-missing-direction-dials" for item in ready)
+
+
+def test_design_preview_ready_lint_rejects_missing_or_null_dials(
     tmp_path: Path,
 ) -> None:
     content = _candidate_preview()
@@ -249,10 +285,10 @@ def test_design_preview_ready_lint_rejects_missing_or_invalid_dials(
     assert isinstance(second, dict)
     first.pop("dials", None)
     second["dials"] = {
-        "variance": 11,
-        "motion": True,
-        "density": 0,
-        "inference_reason": "invalid",
+        "variance": None,
+        "motion": None,
+        "density": None,
+        "inference_reason": "project-specific but axes still null",
     }
     preview = tmp_path / "bad-dials.html"
     preview.write_text(_replace_preview_manifest(content, manifest), encoding="utf-8")
@@ -260,8 +296,9 @@ def test_design_preview_ready_lint_rejects_missing_or_invalid_dials(
     diagnostics = lint_design_preview_file(preview, level="ready")
     codes = {item.code for item in diagnostics}
 
-    assert "preview-missing-direction-dials" in codes or "preview-manifest-schema-error" in codes
-    assert "preview-invalid-direction-dials" in codes or "preview-manifest-schema-error" in codes
+    assert "preview-missing-direction-dials" in codes
+    assert "preview-invalid-direction-dials" in codes
+    assert "preview-manifest-schema-error" not in codes
 
 
 def test_design_preview_structural_lint_allows_identical_dials(
@@ -286,6 +323,9 @@ def test_design_preview_structural_lint_allows_identical_dials(
     assert not any(
         item.code == "preview-undifferentiated-direction-dials" for item in diagnostics
     )
+    assert not any(
+        item.code == "preview-insufficient-direction-divergence" for item in diagnostics
+    )
 
 
 def test_design_preview_ready_lint_requires_dial_inference_and_family(
@@ -304,15 +344,129 @@ def test_design_preview_ready_lint_requires_dial_inference_and_family(
         "inference_reason": "   ",
     }
     first["aesthetic_family"] = ""
-    # Keep remaining directions unique so only inference/family fail on first.
     preview = tmp_path / "missing-inference.html"
     preview.write_text(_replace_preview_manifest(content, manifest), encoding="utf-8")
 
     diagnostics = lint_design_preview_file(preview, level="ready")
     codes = {item.code for item in diagnostics}
 
-    assert "preview-missing-dial-inference" in codes or "preview-manifest-schema-error" in codes
-    assert "preview-missing-aesthetic-family" in codes or "preview-manifest-schema-error" in codes
+    assert "preview-missing-dial-inference" in codes
+    assert "preview-missing-aesthetic-family" in codes
+    assert "preview-manifest-schema-error" not in codes
+
+
+def test_design_preview_ready_rejects_scaffold_baseline_taste_reasons(
+    tmp_path: Path,
+) -> None:
+    content = _candidate_preview()
+    manifest = _preview_manifest(content)
+    directions = manifest["directions"]
+    assert isinstance(directions, list)
+    for index, direction in enumerate(directions):
+        assert isinstance(direction, dict)
+        dials = direction["dials"]
+        assert isinstance(dials, dict)
+        dials["inference_reason"] = f"Scaffold baseline: leftover template {index}"
+    preview = tmp_path / "scaffold-reason.html"
+    preview.write_text(_replace_preview_manifest(content, manifest), encoding="utf-8")
+
+    diagnostics = lint_design_preview_file(preview, level="ready")
+
+    assert any(item.code == "preview-scaffold-taste-reason" for item in diagnostics)
+
+
+def test_design_preview_ready_rejects_near_duplicate_dial_vectors(
+    tmp_path: Path,
+) -> None:
+    content = _candidate_preview()
+    manifest = _preview_manifest(content)
+    near = (
+        {"variance": 5, "motion": 5, "density": 5, "inference_reason": "near A"},
+        {"variance": 5, "motion": 5, "density": 6, "inference_reason": "near B"},
+        {"variance": 5, "motion": 5, "density": 7, "inference_reason": "near C"},
+    )
+    for direction, dials in zip(manifest["directions"], near, strict=True):
+        assert isinstance(direction, dict)
+        direction["dials"] = dials
+    preview = tmp_path / "near-dials.html"
+    preview.write_text(_replace_preview_manifest(content, manifest), encoding="utf-8")
+
+    diagnostics = lint_design_preview_file(preview, level="ready")
+
+    assert any(
+        item.code == "preview-insufficient-direction-divergence" for item in diagnostics
+    )
+
+
+def test_design_preview_ready_rejects_punctuation_only_signature_variants(
+    tmp_path: Path,
+) -> None:
+    content = _candidate_preview()
+    manifest = _preview_manifest(content)
+    signatures = ("Progress rail", "Progress rail.", "Progress  rail")
+    for direction, signature in zip(manifest["directions"], signatures, strict=True):
+        assert isinstance(direction, dict)
+        direction["signature_element"] = signature
+    preview = tmp_path / "near-signatures.html"
+    preview.write_text(_replace_preview_manifest(content, manifest), encoding="utf-8")
+
+    diagnostics = lint_design_preview_file(preview, level="ready")
+
+    assert any(
+        item.code == "preview-undifferentiated-direction-signatures"
+        for item in diagnostics
+    )
+
+
+def test_design_preview_ready_rejects_identical_visual_payloads(
+    tmp_path: Path,
+) -> None:
+    content = _candidate_preview()
+    manifest = _preview_manifest(content)
+    directions = manifest["directions"]
+    assert isinstance(directions, list)
+    first = directions[0]
+    assert isinstance(first, dict)
+    shared_visual = {
+        key: first[key]
+        for key in (
+            "typography",
+            "geometry",
+            "density",
+            "elevation",
+            "motion",
+            "modes",
+        )
+    }
+    for direction in directions:
+        assert isinstance(direction, dict)
+        direction.update(shared_visual)
+    preview = tmp_path / "same-visuals.html"
+    preview.write_text(_replace_preview_manifest(content, manifest), encoding="utf-8")
+
+    diagnostics = lint_design_preview_file(preview, level="ready")
+
+    assert any(
+        item.code == "preview-undifferentiated-direction-visuals" for item in diagnostics
+    )
+
+
+def test_design_preview_scaffold_template_uses_unresolved_taste_placeholders() -> None:
+    content = PREVIEW_TEMPLATE.read_text(encoding="utf-8")
+    manifest = _preview_manifest(content)
+    for direction in manifest["directions"]:
+        assert isinstance(direction, dict)
+        dials = direction["dials"]
+        assert isinstance(dials, dict)
+        assert dials["variance"] is None
+        assert dials["motion"] is None
+        assert dials["density"] is None
+        assert "__" in str(dials["inference_reason"])
+        assert "__" in str(direction["aesthetic_family"])
+
+    ready = lint_design_preview_file(PREVIEW_TEMPLATE, level="ready")
+    codes = {item.code for item in ready}
+    assert "preview-unresolved-placeholder" in codes
 
 
 def test_design_preview_lint_rejects_remote_runtime_dependency(

@@ -152,6 +152,26 @@ def test_design_brief_persists_the_prompt_route() -> None:
     assert "## Taste Intake" in content
 
 
+def test_design_brief_scaffold_agent_fill_required_includes_taste_fields() -> None:
+    scaffold = _read(
+        PROJECT_ROOT / "tools" / "specify-runtime" / "artifact_scaffold.go"
+    )
+    # Bound the design-brief kind block so we do not match unrelated kinds.
+    start = scaffold.index('"design-brief"')
+    end = scaffold.index('"design-review"', start)
+    block = scaffold[start:end]
+    for field in (
+        "design_read",
+        "dials",
+        "aesthetic_family",
+        "foundation_strategy",
+        "anti_slop_locks",
+        "reference_board_intents",
+    ):
+        assert f'"{field}"' in block
+    assert '"redesign_mode"' not in block
+
+
 def test_design_surfaces_teach_taste_intake_divergence_and_redesign() -> None:
     classic_shell = _read(
         PROJECT_ROOT / "templates" / "command-partials" / "design" / "shell.md"
