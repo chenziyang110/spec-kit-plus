@@ -281,12 +281,12 @@
         }
       },
       "dials": {
-        "variance": 5,
-        "motion": 3,
-        "density": 7,
-        "inference_reason": "Scaffold baseline: product-workspace contrast (dir A)"
+        "variance": null,
+        "motion": null,
+        "density": null,
+        "inference_reason": "__DIRECTION_A_DIAL_INFERENCE__"
       },
-      "aesthetic_family": "minimal-product-linear"
+      "aesthetic_family": "__DIRECTION_A_AESTHETIC_FAMILY__"
     },
     {
       "id": "direction-b",
@@ -375,12 +375,12 @@
         }
       },
       "dials": {
-        "variance": 7,
-        "motion": 5,
-        "density": 5,
-        "inference_reason": "Scaffold baseline: balanced product direction (dir B)"
+        "variance": null,
+        "motion": null,
+        "density": null,
+        "inference_reason": "__DIRECTION_B_DIAL_INFERENCE__"
       },
-      "aesthetic_family": "developer-tool-sharp"
+      "aesthetic_family": "__DIRECTION_B_AESTHETIC_FAMILY__"
     },
     {
       "id": "direction-c",
@@ -469,12 +469,12 @@
         }
       },
       "dials": {
-        "variance": 8,
-        "motion": 7,
-        "density": 3,
-        "inference_reason": "Scaffold baseline: expressive marketing lean (dir C)"
+        "variance": null,
+        "motion": null,
+        "density": null,
+        "inference_reason": "__DIRECTION_C_DIAL_INFERENCE__"
       },
-      "aesthetic_family": "marketing-editorial-asymmetric"
+      "aesthetic_family": "__DIRECTION_C_AESTHETIC_FAMILY__"
     }
   ],
   "boundaries": {

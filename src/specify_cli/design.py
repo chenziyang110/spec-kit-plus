@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 from dataclasses import dataclass
+from itertools import combinations
 import hashlib
 from html.parser import HTMLParser
 import json
@@ -960,6 +961,16 @@ def _capability_model_diagnostics(
     return diagnostics
 
 
+# Ready-level taste gates: min pairwise axis changes and Manhattan distance.
+_DIAL_MIN_CHANGED_AXES = 2
+_DIAL_MIN_MANHATTAN_DISTANCE = 4
+_SCAFFOLD_TASTE_REASON_PREFIXES = (
+    "scaffold baseline:",
+    "scaffold default:",
+    "template baseline:",
+)
+
+
 def _direction_dial_vector(dials: dict[str, Any]) -> tuple[int, int, int] | None:
     """Return a normalized variance/motion/density triple when all axes are valid."""
 
@@ -972,6 +983,47 @@ def _direction_dial_vector(dials: dict[str, Any]) -> tuple[int, int, int] | None
     return values[0], values[1], values[2]
 
 
+def _dial_manhattan_distance(
+    left: tuple[int, int, int],
+    right: tuple[int, int, int],
+) -> int:
+    return sum(abs(a - b) for a, b in zip(left, right, strict=True))
+
+
+def _dial_changed_axes(
+    left: tuple[int, int, int],
+    right: tuple[int, int, int],
+) -> int:
+    return sum(a != b for a, b in zip(left, right, strict=True))
+
+
+def _normalize_signature_for_divergence(value: str) -> str:
+    """Collapse whitespace and trailing punctuation so near-duplicates collide."""
+
+    normalized = re.sub(r"\s+", " ", value.strip().casefold())
+    return re.sub(r"[\W_]+$", "", normalized)
+
+
+def _is_scaffold_taste_reason(reason: str) -> bool:
+    lowered = reason.strip().casefold()
+    return any(lowered.startswith(prefix) for prefix in _SCAFFOLD_TASTE_REASON_PREFIXES)
+
+
+def _direction_visual_fingerprint(direction: dict[str, Any]) -> str:
+    """Canonical hash of render-driving visual systems for one direction."""
+
+    payload = {
+        "typography": direction.get("typography"),
+        "geometry": direction.get("geometry"),
+        "density": direction.get("density"),
+        "elevation": direction.get("elevation"),
+        "motion": direction.get("motion"),
+        "modes": direction.get("modes"),
+    }
+    encoded = json.dumps(payload, sort_keys=True, ensure_ascii=False, default=str)
+    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+
 def _direction_divergence_diagnostics(
     directions: list[Any],
 ) -> list[DesignDiagnostic]:
@@ -980,6 +1032,7 @@ def _direction_divergence_diagnostics(
     diagnostics: list[DesignDiagnostic] = []
     dial_vectors: list[tuple[int, int, int]] = []
     signatures: list[str] = []
+    visual_fingerprints: list[str] = []
 
     for index, direction in enumerate(directions):
         if not isinstance(direction, dict):
@@ -1015,6 +1068,26 @@ def _direction_divergence_diagnostics(
                     f"ready direction {direction_id} must explain dial inference_reason",
                     f"manifest.directions[{index}].dials.inference_reason",
                 )
+            elif DESIGN_PREVIEW_PLACEHOLDER_RE.search(reason):
+                _add_diagnostic(
+                    diagnostics,
+                    "preview-unresolved-dial-inference",
+                    (
+                        f"ready direction {direction_id} inference_reason must replace "
+                        "scaffold placeholders with project-specific reasoning"
+                    ),
+                    f"manifest.directions[{index}].dials.inference_reason",
+                )
+            elif _is_scaffold_taste_reason(reason):
+                _add_diagnostic(
+                    diagnostics,
+                    "preview-scaffold-taste-reason",
+                    (
+                        f"ready direction {direction_id} inference_reason still uses "
+                        "scaffold baseline wording; replace with project intake"
+                    ),
+                    f"manifest.directions[{index}].dials.inference_reason",
+                )
 
         family = direction.get("aesthetic_family")
         if not isinstance(family, str) or not family.strip():
@@ -1024,21 +1097,60 @@ def _direction_divergence_diagnostics(
                 f"ready direction {direction_id} must define aesthetic_family",
                 f"manifest.directions[{index}].aesthetic_family",
             )
+        elif DESIGN_PREVIEW_PLACEHOLDER_RE.search(family):
+            _add_diagnostic(
+                diagnostics,
+                "preview-unresolved-aesthetic-family",
+                (
+                    f"ready direction {direction_id} aesthetic_family must replace "
+                    "scaffold placeholders with a project-selected family"
+                ),
+                f"manifest.directions[{index}].aesthetic_family",
+            )
 
-        signature = str(direction.get("signature_element") or "").strip().casefold()
+        signature = _normalize_signature_for_divergence(
+            str(direction.get("signature_element") or "")
+        )
         if signature:
             signatures.append(signature)
 
-    if len(dial_vectors) == 3 and len(set(dial_vectors)) < 3:
-        _add_diagnostic(
-            diagnostics,
-            "preview-undifferentiated-direction-dials",
-            (
-                "ready directions must diverge on dial vectors "
-                "(variance, motion, density); identical triples are not comparable options"
-            ),
-            "manifest.directions",
-        )
+        visual_fingerprints.append(_direction_visual_fingerprint(direction))
+
+    if len(dial_vectors) == 3:
+        if len(set(dial_vectors)) < 3:
+            _add_diagnostic(
+                diagnostics,
+                "preview-undifferentiated-direction-dials",
+                (
+                    "ready directions must diverge on dial vectors "
+                    "(variance, motion, density); identical triples are not comparable options"
+                ),
+                "manifest.directions",
+            )
+        else:
+            for left_index, right_index in combinations(range(3), 2):
+                left = dial_vectors[left_index]
+                right = dial_vectors[right_index]
+                changed = _dial_changed_axes(left, right)
+                distance = _dial_manhattan_distance(left, right)
+                if (
+                    changed < _DIAL_MIN_CHANGED_AXES
+                    or distance < _DIAL_MIN_MANHATTAN_DISTANCE
+                ):
+                    _add_diagnostic(
+                        diagnostics,
+                        "preview-insufficient-direction-divergence",
+                        (
+                            "ready directions must differ on at least "
+                            f"{_DIAL_MIN_CHANGED_AXES} dial axes and have Manhattan "
+                            f"distance >= {_DIAL_MIN_MANHATTAN_DISTANCE}; "
+                            f"directions[{left_index}]={left} and "
+                            f"directions[{right_index}]={right} only change "
+                            f"{changed} axis/axes with distance {distance}"
+                        ),
+                        "manifest.directions",
+                    )
+                    break
 
     if len(signatures) == 3 and len(set(signatures)) < 3:
         _add_diagnostic(
@@ -1046,7 +1158,20 @@ def _direction_divergence_diagnostics(
             "preview-undifferentiated-direction-signatures",
             (
                 "ready directions must each declare a unique signature_element "
-                "so the user can tell them apart"
+                "so the user can tell them apart (ignoring case, spacing, and "
+                "trailing punctuation)"
+            ),
+            "manifest.directions",
+        )
+
+    if len(visual_fingerprints) == 3 and len(set(visual_fingerprints)) < 3:
+        _add_diagnostic(
+            diagnostics,
+            "preview-undifferentiated-direction-visuals",
+            (
+                "ready directions must differ in render-driving visual systems "
+                "(typography, geometry, density tokens, elevation, motion, or color modes); "
+                "distinct dials/signatures alone are not enough when visual payloads match"
             ),
             "manifest.directions",
         )

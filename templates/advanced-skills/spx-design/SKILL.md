@@ -78,8 +78,9 @@ required capabilities, input modes, measurement units, specimen kinds, states,
 and targets. All directions carry the same ordered `specimen_ids`, and every
 acceptance row binds its profile's exact specimen set. Hold representative
 content and coverage constant so direction differences are comparable, but force
-divergent `dials` triples and unique `signature_element` values—ready lint
-rejects undifferentiated boards. Use
+project-specific `dials` (not scaffold baseline wording), multi-axis dial
+distance, unique signatures, and divergent visual token payloads—ready lint
+rejects near-duplicates and identical render systems. Use
 modern native HTML/CSS—custom properties, cascade layers,
 fluid scales, container queries, and progressive view transitions—with only
 bounded inline review logic and no framework, CDN, remote runtime dependency,

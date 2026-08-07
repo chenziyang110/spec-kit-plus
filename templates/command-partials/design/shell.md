@@ -167,11 +167,13 @@ When live UI or an approved system already exists:
   same ordered `specimen_ids`; every target's `DH-*` acceptance row must bind
   the exact specimen set for that profile.
 - Force direction divergence while holding comparison content constant: each
-  direction needs its own `dials` triple (variance/motion/density), unique
-  `signature_element`, and `aesthetic_family`. A common pattern is primary
-  inferred dials, density/variance contrast, and motion/signature contrast.
-  Undifferentiated dial triples or duplicate signatures fail ready-level
-  `design preview-lint`.
+  direction needs its own project-specific `dials` triple
+  (variance/motion/density with non-scaffold inference reasons), unique
+  `signature_element`, and `aesthetic_family`. Ready lint rejects scaffold
+  baseline taste wording, near-duplicate dial vectors (multi-axis distance),
+  near-duplicate signatures, and identical visual token payloads
+  (typography/geometry/density/elevation/motion/modes). Do not ship template
+  dials unchanged.
 - Configure the manifest with representative content for every specimen,
   directions, boundaries, tokens, every decision-to-owner mapping, modes, and
   targets. Keep registry-required capabilities and specimen kinds; add a
