@@ -1,7 +1,8 @@
 """DesignContext v1 schema loader and structural validator.
 
-Validates required fields and version only. Does not score taste, reverse-
-engineer screenshots, or enforce design approve authority.
+Validates required fields and version only. When an ``evidence`` array is
+present, also applies Design Evidence semantic rules. Does not score taste,
+reverse-engineer screenshots, or enforce design approve authority.
 """
 
 from __future__ import annotations
@@ -12,6 +13,8 @@ from pathlib import Path
 from typing import Any
 
 from jsonschema import Draft202012Validator
+
+from .evidence import validate_design_evidence_list
 
 DESIGN_CONTEXT_VERSION = "1.0"
 _SCHEMA_RELATIVE = Path("design-intelligence") / "schema" / "design-context.schema.json"
@@ -106,6 +109,21 @@ def validate_design_context(payload: Any) -> DesignContextValidationResult:
                 "$.version",
             )
         )
+
+    evidence = payload.get("evidence")
+    if evidence is not None:
+        evidence_result = validate_design_evidence_list(evidence)
+        for error in evidence_result.errors:
+            path = error.path
+            if path == "$":
+                remapped = "$.evidence"
+            elif path.startswith("$["):
+                remapped = "$.evidence" + path[1:]
+            elif path.startswith("$."):
+                remapped = "$.evidence" + path[1:]
+            else:
+                remapped = f"$.evidence.{path}"
+            errors.append(DesignContextValidationError(error.message, remapped))
 
     return DesignContextValidationResult(
         valid=not errors,

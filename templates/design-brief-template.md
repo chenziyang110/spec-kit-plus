@@ -64,13 +64,18 @@ inspiration only; they never substitute for `design approve`.
 ## UI Evidence And System Model
 
 Fill when reverse-engineering screenshots, live UI, or design exports. Skip for
-pure greenfield taste-only create until sources exist. Confidence uses
-`measured` | `evidence-backed-inference` | `assumption`.
+pure greenfield taste-only create until sources exist.
+
+Evidence uses Design Evidence v1 (`measured` | `inferred` | `assumption`;
+prose alias `evidence-backed-inference` → `inferred`). Non-measured claims need
+rationale; inferred claims need `source` or explicit `source_gap`. Durable JSON
+belongs under `.specify/design/evidence/` and must validate with
+`validate_design_evidence` — prompt labels are subordinate to the schema.
 
 - Evidence sources (paths/URLs/screenshots):
 - Surface / page map:
-- Token inventory (value + confidence + reason if not measured):
-- Component inventory (name + anatomy + confidence):
+- Token inventory (value + type + source/source_gap + rationale if not measured):
+- Component inventory (name + anatomy + type + rationale):
 - State matrix (hover/focus/loading/empty/error/… coverage):
 - Responsive rules (desktop/tablet/mobile or content breakpoints):
 - Behavior / keyboard notes:

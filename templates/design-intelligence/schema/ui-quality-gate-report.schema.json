@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spec-kit-plus.local/schemas/ui-quality-gate-report-v1.json",
+  "title": "Spec Kit Plus UI Quality Gate Report v1",
+  "description": "Structured issues JSON for the executable UI quality gate path. Does not replace specify-runtime design approve authority or require screenshot ML.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "status", "issues"],
+  "properties": {
+    "version": {
+      "type": "string",
+      "const": "1.0"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["pass", "fail", "pending-human-review", "not-run"]
+    },
+    "scope": {
+      "type": ["string", "null"],
+      "description": "Optional surface or artifact path under review."
+    },
+    "checked_at": {
+      "type": ["string", "null"],
+      "description": "Optional ISO-8601 timestamp."
+    },
+    "issues": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "category", "severity", "message"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "category": {
+            "type": "string",
+            "enum": [
+              "typography",
+              "spacing",
+              "responsive",
+              "a11y",
+              "consistency",
+              "motion",
+              "evidence",
+              "other"
+            ]
+          },
+          "severity": {
+            "type": "string",
+            "enum": ["error", "warning", "info"]
+          },
+          "message": { "type": "string", "minLength": 1 },
+          "path": { "type": ["string", "null"] },
+          "rule_id": { "type": ["string", "null"] }
+        }
+      }
+    }
+  }
+}

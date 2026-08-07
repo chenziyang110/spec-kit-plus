@@ -97,6 +97,39 @@
           "rationale": { "type": "string", "minLength": 1 }
         }
       }
+    },
+    "evidence": {
+      "type": "array",
+      "description": "Optional Design Evidence v1 objects. Structural JSON Schema here is permissive; semantic rules (rationale/source) are enforced by validate_design_evidence.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["claim", "type"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "claim": { "type": "string", "minLength": 1 },
+          "type": {
+            "type": "string",
+            "enum": [
+              "measured",
+              "inferred",
+              "assumption",
+              "evidence-backed-inference"
+            ]
+          },
+          "source": { "type": ["string", "null"] },
+          "source_gap": { "type": ["string", "null"] },
+          "confidence": {
+            "oneOf": [
+              { "type": "number", "minimum": 0, "maximum": 1 },
+              { "type": "string", "enum": ["high", "medium", "low"] },
+              { "type": "null" }
+            ]
+          },
+          "rationale": { "type": ["string", "null"] },
+          "subject": { "type": ["string", "null"] }
+        }
+      }
     }
   }
 }
