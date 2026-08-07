@@ -1,0 +1,9 @@
+{
+  "result": "fail",
+  "diagnostics": [
+    {
+      "code": "preview-undifferentiated-direction-visuals",
+      "layer": "quality"
+    }
+  ]
+}

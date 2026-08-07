@@ -1,0 +1,9 @@
+{
+  "result": "fail",
+  "diagnostics": [
+    {
+      "code": "preview-scaffold-taste-reason",
+      "layer": "semantic"
+    }
+  ]
+}
