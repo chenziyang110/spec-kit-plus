@@ -1339,7 +1339,7 @@ class IntegrationBase(ABC):
             "- Query `.specify/memory/constitution.md` first through `specify-runtime artifact show` if it exists.\n"
             "- Create a new quick-task `STATUS.md` only through `specify-runtime artifact scaffold --kind quick-status`, or resume it through targeted `artifact show` calls.\n"
             "- If `understanding_confirmed` is not `true`, stage the runtime Decision Checkpoint with `specify-runtime quick checkpoint-stage`, show `--view decision` and `--view delivery`, and wait for user confirmation (or inherit a discussion digest with no semantic delta) before implementation work.\n"
-            "- Do not proceed until `understanding_confirmed: true`.\n"
+            "- Do not proceed to code edits, broad repository analysis, delegation, or validation commands until `understanding_confirmed: true` has been set by `quick checkpoint-confirm` / inherited stage (or an equivalent leased frontmatter patch).\n"
             "- After confirmation, run the Hard Q Loop for each Q item.\n"
             "- Dispatch `one-subagent` for serial/shared write scopes; `parallel-subagents` only for isolated write sets.\n"
             "- Wait for every subagent's structured handoff before accepting the join point.\n"
