@@ -249,8 +249,9 @@ func (service quickService) allowInlineWorkItem(workspacePath, workspace, itemID
 	if _, ok := findQuickItem(doc, itemID); !ok {
 		return nil, fmt.Errorf("unknown work item %s", itemID)
 	}
-	if forbidden, keyword := quickForbiddenInlineReason(reason); forbidden {
-		return nil, fmt.Errorf("worker_result_required: leader-inline reason %q is not allowed (matched %q); only spawn/tool/subagent-blocked failures may use allow-inline", reason, keyword)
+	reason, err = normalizeQuickInlineReason(reason)
+	if err != nil {
+		return nil, fmt.Errorf("worker_result_required: %w", err)
 	}
 	statusByID := quickStatusMap(doc)
 	st := strings.ToLower(statusByID[itemID].Status)
@@ -359,7 +360,11 @@ func (service quickService) acceptWorkItem(workspacePath, workspace, itemID stri
 		statusByID = quickStatusMap(doc)
 	}
 
-	proof, err := requireQuickWorkerAcceptProof(workspacePath, workspace, itemID, item, statusByID[itemID])
+	if strings.ToLower(strings.TrimSpace(statusByID[itemID].Status)) != "in_progress" {
+		return nil, nil, fmt.Errorf("worker_result_required: item %s must be in_progress before item-accept (run item-start first)", itemID)
+	}
+
+	proof, err := requireQuickWorkerAcceptProof(workspacePath, workspace, itemID, item, doc, statusByID[itemID])
 	if err != nil {
 		return nil, nil, err
 	}
@@ -436,15 +441,16 @@ func setQuickItemWorkerProof(doc *quickConfirmationDoc, itemID string, proof *qu
 	}
 }
 
-func requireQuickWorkerAcceptProof(workspacePath, workspace, itemID string, item quickConfirmationItem, row quickWorkItemStatus) (*quickWorkerAcceptProof, error) {
+func requireQuickWorkerAcceptProof(workspacePath, workspace, itemID string, item quickConfirmationItem, doc *quickConfirmationDoc, row quickWorkItemStatus) (*quickWorkerAcceptProof, error) {
 	// Audited leader-inline path.
 	if row.InlineApproved && !row.RequiresWorker && strings.TrimSpace(row.InlineReason) != "" {
-		if forbidden, keyword := quickForbiddenInlineReason(row.InlineReason); forbidden {
-			return nil, fmt.Errorf("worker_result_required: leader-inline reason %q is not allowed (matched %q)", row.InlineReason, keyword)
+		normalizedReason, err := normalizeQuickInlineReason(row.InlineReason)
+		if err != nil {
+			return nil, fmt.Errorf("worker_result_required: %w", err)
 		}
 		return &quickWorkerAcceptProof{
 			Mode:         "leader-inline",
-			InlineReason: row.InlineReason,
+			InlineReason: normalizedReason,
 		}, nil
 	}
 
@@ -457,12 +463,18 @@ func requireQuickWorkerAcceptProof(workspacePath, workspace, itemID string, item
 		return nil, fmt.Errorf("worker_result_required: worker result for %s has status %q (need success, DONE, or DONE_WITH_CONCERNS)", itemID, firstNonEmpty(asString(result["reported_status"]), status))
 	}
 	changed := asStringList(result["changed_files"])
+	if len(item.WriteScope) > 0 && len(changed) == 0 {
+		return nil, fmt.Errorf("worker_result_required: worker result for %s must include non-empty changed_files for write_scope verification", itemID)
+	}
 	if err := validateQuickChangedFilesInScope(changed, item.WriteScope); err != nil {
 		return nil, fmt.Errorf("worker_result_required: %w", err)
 	}
 	rel := filepath.ToSlash(filepath.Join(".planning", "quick", workspace, "worker-results", laneID+".json"))
 	if relFromWS, err := filepath.Rel(workspacePath, absPath); err == nil {
 		rel = filepath.ToSlash(filepath.Join(".planning", "quick", workspace, relFromWS))
+	}
+	if err := ensureQuickWorkerResultUnused(doc, itemID, rel, laneID); err != nil {
+		return nil, fmt.Errorf("worker_result_required: %w", err)
 	}
 	return &quickWorkerAcceptProof{
 		Mode:         "worker",
@@ -473,22 +485,44 @@ func requireQuickWorkerAcceptProof(workspacePath, workspace, itemID string, item
 	}, nil
 }
 
-func quickForbiddenInlineReason(reason string) (bool, string) {
-	lower := strings.ToLower(strings.TrimSpace(reason))
-	forbidden := []string{
-		"docs-only", "docs only", "documentation only", "doc only",
-		"small edit", "small change", "few files", "file few", "few file",
-		"serial only", "serial dependency", "serial deps",
-		"save time", "saves time", "faster", "quicker", "time-saving", "time saving",
-		"trivial", "simple docs", "readme only", "skill only",
-		"leader knows", "i already", "already edited", "already wrote",
+func normalizeQuickInlineReason(reason string) (string, error) {
+	reason = strings.TrimSpace(reason)
+	if reason == "" {
+		return "", fmt.Errorf("leader-inline reason is required")
 	}
-	for _, keyword := range forbidden {
-		if strings.Contains(lower, keyword) {
-			return true, keyword
+	parts := strings.SplitN(reason, ":", 2)
+	if len(parts) != 2 {
+		return "", fmt.Errorf("leader-inline reason %q is invalid; use one of spawn_failed:<detail>, tool_missing:<detail>, or subagent-blocked:<detail>", reason)
+	}
+	prefix := strings.ToLower(strings.TrimSpace(parts[0]))
+	detail := strings.TrimSpace(parts[1])
+	if detail == "" {
+		return "", fmt.Errorf("leader-inline reason %q is invalid; include non-empty detail after the prefix", reason)
+	}
+	switch prefix {
+	case "spawn_failed", "tool_missing", "subagent-blocked":
+		return prefix + ": " + detail, nil
+	default:
+		return "", fmt.Errorf("leader-inline reason %q is invalid; use one of spawn_failed:<detail>, tool_missing:<detail>, or subagent-blocked:<detail>", reason)
+	}
+}
+
+func ensureQuickWorkerResultUnused(doc *quickConfirmationDoc, itemID, resultRef, laneID string) error {
+	if doc == nil {
+		return nil
+	}
+	for _, row := range doc.Execution.WorkItemStatus {
+		if row.WorkItemID == itemID || strings.ToLower(strings.TrimSpace(row.Status)) != "accepted" {
+			continue
+		}
+		if row.WorkerResultRef != "" && row.WorkerResultRef == resultRef {
+			return fmt.Errorf("worker result %s is already bound to accepted item %s", resultRef, row.WorkItemID)
+		}
+		if row.WorkerLaneID != "" && laneID != "" && strings.EqualFold(row.WorkerLaneID, laneID) {
+			return fmt.Errorf("worker lane %s is already bound to accepted item %s", laneID, row.WorkItemID)
 		}
 	}
-	return false, ""
+	return nil
 }
 
 func findQuickWorkerResult(workspacePath, itemID string) (map[string]any, string, string, error) {
@@ -565,7 +599,7 @@ func findQuickWorkerResult(workspacePath, itemID string) (map[string]any, string
 		)
 		laneMatch := quickLaneMatchRank(cand.laneID, itemID) >= 0
 		payloadMatch := payloadItem == itemID || strings.EqualFold(payloadItem, itemID)
-		if !laneMatch && !payloadMatch {
+		if !laneMatch || !payloadMatch {
 			continue
 		}
 		return normalized, cand.path, cand.laneID, nil
@@ -594,7 +628,7 @@ func quickLaneMatchRank(laneID, itemID string) int {
 }
 
 func validateQuickChangedFilesInScope(changedFiles, writeScope []string) error {
-	if len(writeScope) == 0 || len(changedFiles) == 0 {
+	if len(writeScope) == 0 {
 		return nil
 	}
 	outOfScope := []string{}
@@ -718,11 +752,11 @@ func compileQuickWorkerPacket(doc *quickConfirmationDoc, itemID string) (map[str
 		"blockers":               blockers,
 		"requires_worker":        true,
 		"worker_contract": map[string]any{
-			"complete_one_work_item_only":     true,
-			"must_not_start_if_deps_open":     true,
-			"must_return_acceptance_evidence": true,
+			"complete_one_work_item_only":      true,
+			"must_not_start_if_deps_open":      true,
+			"must_return_acceptance_evidence":  true,
 			"must_result_submit_before_accept": true,
-			"status_md_leader_owned":          true,
+			"status_md_leader_owned":           true,
 		},
 	}
 	return packet, len(blockers) == 0, blockers, nil

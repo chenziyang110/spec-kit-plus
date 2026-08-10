@@ -119,7 +119,7 @@ blocked_dispatch:
   # none | recorded-fallback | subagent-blocked
   reason: ""
   # Illegal: docs-only, few files, serial order, save time.
-  # Legal: spawn_failed / tool_missing via `quick allow-inline --item Qn --reason`.
+  # Legal: spawn_failed:<detail> / tool_missing:<detail> / subagent-blocked:<detail> via `quick allow-inline --item Qn --reason`.
   attempted_shape: ""
   # one-subagent | parallel-subagents | none
   chosen_shape: ""
