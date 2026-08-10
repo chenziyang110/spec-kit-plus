@@ -102,7 +102,7 @@ flowchart LR
 - Use `quick` / `spx-quick` for resumable direct delivery when the requested outcome is already clear enough to implement without first creating a formal specification. Quick is not limited to small tasks: it may handle larger, multi-capability, architecture, migration, compatibility, rollout, or acceptance-heavy work through task-local planning, lanes or batches, consequence tracking, and validation.
 - Use `clarify` only when an existing specification needs deeper analysis before planning.
 - Use `deep-research` when requirements are clear but feasibility, external evidence, or an implementation chain still needs proof before planning.
-- Use `test-design` / `spx-test-design` optionally after `plan` and before `tasks` when the project or feature needs a frozen test universe, professional case catalog, test-data/material pack, explicit gaps, and bounded leader/subagent discovery. It claims only `complete_against_frozen_scope`, never absolute completeness.
+- Use `sp-test-design` (Classic; rendered invocation `test-design`) / `spx-test-design` (Advanced) as an independent producer when a project, feature, formal Plan, Quick task, Tasks graph, or Review needs a frozen test universe, professional case catalog, test-data/material pack, explicit gaps, and bounded leader/subagent discovery. It does not require a completed Plan. It publishes a content-addressed package and typed pointer-only projections for selected read-only consumers. The default formal path still keeps `plan -> [optional test-design] -> tasks`, and completeness remains only `complete_against_frozen_scope`, never absolute.
 - Review the seeded constitution and run `constitution` when the project needs explicit governance changes.
 - Use `auto` to resume the safest next step from recorded workflow state.
 
@@ -545,7 +545,7 @@ final-claim gate. The advanced profile is command-equivalent and
 prompt-optimized: every Classic command keeps an independent SPX entrypoint,
 state owner, write boundary, resumable stop point, and explicit side-effect
 gate. The normal feature path is
-`spx-specify -> spx-plan -> [spx-test-design] -> spx-tasks -> spx-implement -> spx-review -> spx-accept`; test design is optional, while clarification,
+`spx-specify -> spx-plan -> [spx-test-design] -> spx-tasks -> spx-implement -> spx-review -> spx-accept`; test design is optional on that default formal path, while its independent producer can publish typed Plan, Quick, Tasks, or Review projections without waiting for Plan completion. Clarification,
 discussion (including an optional confirmed handoff into `spx-quick` or
 `spx-specify`),
 research, analysis, checklists, issue export, team execution,
@@ -1091,11 +1091,17 @@ After planning, continue with:
 specify -> plan -> [test-design] -> tasks -> implement -> review -> accept
 ```
 
-`test-design` is the optional planning-only quality lane. Its leader freezes the
-scope, uses project cognition and bounded read-only subagents to discover test
-obligations, joins an independent audit, and emits runtime-owned test cases,
-data/material decisions, gaps, and a pointer-only Tasks handoff. It does not
-write executable tests or fixtures; those remain owned by `tasks -> implement`.
+`test-design` is an independent producer and planning-only quality lane; it
+does not require a completed Plan. Its leader freezes the scope, uses Project
+Cognition only for navigation, verifies facts against current code, tests,
+configuration, official contracts, and live evidence, coordinates bounded
+read-only subagents, and joins an independent audit. The runtime publishes the
+content-addressed package and builds typed pointer-only projections for Plan,
+Quick, Tasks, and Review. Those consumers verify and read them without changing
+canonical Test Design. Implement consumes only the verified task-packet
+TC/TD subset, and Review treats Test Design as an oracle rather than PASS
+evidence. The default formal path remains `plan -> [optional test-design] ->
+tasks`; executable tests and fixtures remain owned by `tasks -> implement`.
 
 `plan` and `tasks` use adaptive execution: `execution_model: adaptive`, `execution_mode: light | standard | heavy`, and `dispatch_shape: leader-inline | one-subagent | parallel-subagents | subagent-blocked`. Light, low-risk single-lane planning or task generation runs leader-inline. Standard work uses native subagents when available; if native subagents are unavailable and no high-risk trigger is present, it may continue leader-inline with `capability_degraded: true`. Standard work that has no safe subagent lane or cannot be packetized safely records `dispatch_shape: subagent-blocked` and stops. Heavy or safety-critical work also blocks when native subagents are unavailable or the work is unpacketizable. Managed-team fallback is not part of adaptive plan/tasks dispatch.
 

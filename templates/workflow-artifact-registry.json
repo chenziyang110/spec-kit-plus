@@ -251,6 +251,15 @@
       "safe_instruction_patterns": ["test-design", "artifact show", "artifact list", "artifact prepare", "artifact scaffold", "artifact patch", "test-state", "test-universe", "test-catalog", "test-data-manifest", "coverage-matrix", "test-gaps", "lane-manifest", "lane-results", "handoff-to-tasks", "registered owner", "cli-owned", "runtime-owned", "never submit", "never reconstruct"]
     },
     {
+      "id": "test_design_publication_and_projections",
+      "path_patterns": ["**/test-design/test-design-publication.json", "**/test-design/projections/*.json"],
+      "owner_cli": ["specify-runtime test-design publish", "specify-runtime test-design projection-build", "specify-runtime artifact show", "specify-runtime artifact list"],
+      "path_hints": ["test-design/test-design-publication.json", "test-design/projections/"],
+      "forbidden_cli_patterns": ["artifact\\s+(?:prepare\\s*(?:/|\\||plus)\\s*)?submit", "artifact\\s+patch", "artifact\\s+delete", "artifact\\s+scaffold"],
+      "instruction_sources": ["templates/artifacts/test-design-publication.json", "templates/artifacts/test-design-projection.json"],
+      "safe_instruction_patterns": ["test-design publish", "test-design projection-build", "test-design projection-verify", "artifact show", "artifact list", "publication", "projection", "runtime-owned", "show/list only", "never edit", "never patch", "never submit", "never delete"]
+    },
+    {
       "id": "test_design_runtime_history",
       "path_patterns": ["**/test-design/lane-results/*.json", "**/test-design/lane-results/checkpoints/*.json", "**/test-design/handoff-history/*.json"],
       "owner_cli": ["specify-runtime test-design", "specify-runtime artifact show", "specify-runtime artifact list"],

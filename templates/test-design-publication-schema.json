@@ -1,0 +1,145 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spec-kit-plus.local/schemas/test-design-publication-schema.json",
+  "title": "Spec Kit Plus Test Design Publication",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "publication_id",
+    "scope",
+    "artifact_root",
+    "source_fingerprint",
+    "state_revision",
+    "claim_status",
+    "artifact_refs",
+    "artifact_digests",
+    "obligation_refs",
+    "test_case_refs",
+    "test_data_refs",
+    "coverage_refs",
+    "gap_ref",
+    "gap_refs",
+    "audit_result_ref",
+    "forbidden_claims",
+    "test_execution_status"
+  ],
+  "properties": {
+    "schema_version": { "const": "spec-kit-test-design-publication-v1" },
+    "publication_id": { "type": "string", "minLength": 1 },
+    "scope": { "enum": ["project", "feature"] },
+    "artifact_root": { "type": "string", "minLength": 1 },
+    "feature_ref": { "type": ["string", "null"], "minLength": 1 },
+    "source_fingerprint": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "state_revision": { "type": "integer", "minimum": 1 },
+    "claim_status": {
+      "enum": [
+        "complete_against_frozen_scope",
+        "qualified_with_declared_gaps"
+      ]
+    },
+    "artifact_refs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "state",
+        "universe",
+        "catalog",
+        "data_manifest",
+        "coverage_matrix",
+        "gaps",
+        "audit_result"
+      ],
+      "properties": {
+        "state": { "type": "string", "minLength": 1 },
+        "universe": { "type": "string", "minLength": 1 },
+        "catalog": { "type": "string", "minLength": 1 },
+        "data_manifest": { "type": "string", "minLength": 1 },
+        "coverage_matrix": { "type": "string", "minLength": 1 },
+        "gaps": { "type": "string", "minLength": 1 },
+        "audit_result": { "type": "string", "minLength": 1 }
+      }
+    },
+    "artifact_digests": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "state",
+        "universe",
+        "catalog",
+        "data_manifest",
+        "coverage_matrix",
+        "gaps",
+        "audit_result"
+      ],
+      "properties": {
+        "state": { "$ref": "#/$defs/sha256" },
+        "universe": { "$ref": "#/$defs/sha256" },
+        "catalog": { "$ref": "#/$defs/sha256" },
+        "data_manifest": { "$ref": "#/$defs/sha256" },
+        "coverage_matrix": { "$ref": "#/$defs/sha256" },
+        "gaps": { "$ref": "#/$defs/sha256" },
+        "audit_result": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "obligation_refs": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/pointer" }
+    },
+    "test_case_refs": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/pointer" }
+    },
+    "test_data_refs": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/pointer" }
+    },
+    "coverage_refs": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/pointer" }
+    },
+    "gap_ref": { "type": "string", "minLength": 1 },
+    "gap_refs": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/pointer" }
+    },
+    "audit_result_ref": { "type": "string", "minLength": 1 },
+    "forbidden_claims": { "$ref": "#/$defs/forbiddenClaims" },
+    "test_execution_status": { "const": "not_executed_by_test_design" }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "pointer": { "type": "string", "pattern": "^[^#]+\\.json#/[^/]+/[^/]+$" },
+    "forbiddenClaims": {
+      "type": "array",
+      "minItems": 6,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "tests_executed",
+          "tests_passed",
+          "behavior_fixed",
+          "implementation_complete",
+          "release_safe",
+          "absolute_complete"
+        ]
+      },
+      "allOf": [
+        { "contains": { "const": "tests_executed" } },
+        { "contains": { "const": "tests_passed" } },
+        { "contains": { "const": "behavior_fixed" } },
+        { "contains": { "const": "implementation_complete" } },
+        { "contains": { "const": "release_safe" } },
+        { "contains": { "const": "absolute_complete" } }
+      ]
+    }
+  }
+}

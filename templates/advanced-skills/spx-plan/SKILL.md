@@ -32,6 +32,24 @@ unknowns, and zero open conflicts. Fail closed to the owning upstream workflow
 when any gate fails. Verify architecture claims against cognition-selected live
 repository paths.
 
+Treat `plan-contract.json#/test_design_gate/decision` as exactly
+`not_selected`, `selected`, or `required`. A selected/required binding may be
+all-null while production is pending; partial binding is invalid. When Plan
+actually consumes a projection, require the complete binding produced by the
+independent `$spx-test-design` producer and verify it before use with
+`{{specify-subcmd:specify-runtime test-design projection-verify --feature-dir <feature-dir> --projection-ref <project-relative-ref> --expected-sha256 <sha256> --format json}}`.
+Omit `--feature-dir` only for explicit project scope. Consume the canonical,
+typed pointer-only projection read-only. Never create, patch, replace, weaken,
+or copy its publication, projection, cases, data, coverage, gaps, or audit. A
+projection needed for a Plan decision routes to `$spx-test-design`; otherwise
+Plan may finish with the all-null pending selection and route it next. Test
+Design does not require Plan completion. The Plan binding proves only Plan
+consumption, never Tasks authorization, and must not use the Plan contract as a
+self-hashing basis. Build the Plan projection against the current immutable
+upstream `spec-contract.json`; then record only the returned binding in
+`plan-contract.json`. Tasks requires its own projection, a fresh feature handoff,
+and runtime task-index binding. Plan choices do not rewrite Test Design.
+
 Treat `plan-contract.json#/acceptance_refs` as the exact complete fail-closed
 Spec-to-Plan denominator. For a ready version-2 plan it is the unique ordered
 list `spec-contract.json#/acceptance_criteria/0..N-1`, covering every live
@@ -108,7 +126,10 @@ tests, migrations, or runtime configuration in this workflow. Preserve canonical
 Run `{{specify-subcmd:specify-runtime hook validate-artifacts --command plan --feature-dir <feature-dir> --format json}}`
 and repair or block on a non-OK result.
 Stop after reporting the validated plan. When the user requested a dedicated
-test design or the plan's risk and coverage obligations warrant one, recommend
-the optional `$spx-test-design` workflow; otherwise recommend `$spx-tasks`.
+test design or the plan's risk and coverage obligations warrant one, record the
+gate as `selected` or `required` and recommend the independent
+`$spx-test-design` workflow; otherwise record `not_selected` and recommend
+`$spx-tasks`. The default formal path remains Plan -> optional Test Design ->
+Tasks, without making completed Plan an entry prerequisite for Test Design.
 Do not invoke `$spx-test-design`. Do not invoke `$spx-tasks` in this run; a
 handoff is not authorization to execute either workflow.

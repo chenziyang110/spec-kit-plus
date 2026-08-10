@@ -291,6 +291,189 @@ func TestTestDesignTasksBuildPreservesRefsAndRendersThemInTasksMarkdown(t *testi
 	}
 }
 
+func TestTestDesignImplementContinuesAfterExecutionStartsButStillRejectsArtifactTamper(t *testing.T) {
+	fixture := setupValidatedTestDesignProjectionFixture(t, "feature", 2)
+	requireTestDesignOK(t, fixture.command("handoff", "--format", "json"))
+	templatesDir := filepath.Join(fixture.projectRoot, ".specify", "templates")
+	if err := writeTestDesignJSONFixture(filepath.Join(templatesDir, "task-index-template.json"), map[string]any{
+		"version": 2, "status": "draft", "source_contract": "plan-contract.json",
+		"source_revision": nil, "policy_refs": []any{}, "user_confirmed_deferral_refs": []any{},
+		"implementation_target_ref": nil, "acceptance_refs": []any{}, "official_entrypoints": []any{},
+		"system_review_scenarios": []any{}, "review_obligations": []any{},
+		"human_acceptance_obligations": []any{}, "human_acceptance_scenarios": []any{},
+		"validation_policy": map[string]any{
+			"mode": "feature_epochs", "max_epochs": 3, "budget_scope": "implement-review",
+			"budget_ref": "implementation-review/validation-runs.json", "heavy_gate_owner": "leader",
+		},
+		"tasks": []any{}, "parallel_batches": []any{}, "join_points": []any{},
+		"validation": []any{}, "transition": map[string]any{},
+		"test_design_handoff_ref": nil, "test_design_handoff_sha256": nil,
+		"test_design_source_fingerprint": nil, "test_design_state_revision": nil,
+		"test_design_artifact_digests": map[string]any{},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeTestDesignJSONFixture(filepath.Join(templatesDir, "task-packet-template.json"), map[string]any{
+		"version": 2, "task_id": nil, "source_task_ref": nil, "source_revision": nil,
+		"objective": nil, "policy_refs": []any{}, "user_confirmed_deferral_refs": []any{},
+		"implementation_target_ref": nil, "authoritative_refs": []any{}, "read_scope": []any{},
+		"write_scope": []any{}, "forbidden_drift": []any{}, "acceptance_refs": []any{},
+		"must_preserve_refs": []any{}, "consequence_obligation_refs": []any{},
+		"capability_operation_refs": []any{}, "fidelity_refs": []any{},
+		"ui_contract": map[string]any{
+			"fidelity_level": "none", "required_states": []any{}, "required_evidence": []any{}, "must_not": []any{},
+		},
+		"validation_policy": map[string]any{}, "task_checks": []any{}, "required_validation": []any{},
+		"required_consumer_evidence": []any{}, "test_case_refs": []any{}, "test_data_refs": []any{},
+		"done_condition": []any{}, "stop_and_reopen_conditions": []any{}, "recovery": nil,
+		"test_design_handoff_ref": nil, "test_design_handoff_sha256": nil,
+		"test_design_source_fingerprint": nil, "test_design_state_revision": nil,
+		"test_design_artifact_digests": map[string]any{},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeTestDesignJSONFixture(filepath.Join(templatesDir, "task-lifecycle-template.json"), map[string]any{
+		"version": 1, "revision": 0, "task_id": nil, "task_ref": nil, "source_revision": nil,
+		"execution_mode": "leader-direct", "packet_ref": nil, "result_ref": nil, "status": "pending",
+		"changed_paths": []any{}, "validation": []any{}, "review": nil,
+		"ui_verification": map[string]any{"applicable": false}, "obligation_evidence": []any{},
+		"blockers": []any{}, "recovery": nil,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	definitionRaw, err := json.Marshal(map[string]any{
+		"title": "Execution may implement a frozen test design", "source_revision": 8,
+		"tasks": []any{
+			map[string]any{
+				"id": "T001", "objective": "Implement approval", "dependencies": []any{},
+				"expected_write_scope": []any{"src/approval.go"}, "required_refs": []any{"docs/test-design.md"},
+				"acceptance": []any{"Approval behavior matches TC-001"}, "verification": []any{"gofmt check"},
+				"test_case_refs": []any{"test-catalog.json#/cases/TC-001"},
+				"test_data_refs": []any{"test-data-manifest.json#/datasets/TD-001"},
+			},
+			map[string]any{
+				"id": "T002", "objective": "Implement reversal", "dependencies": []any{"T001"},
+				"expected_write_scope": []any{"src/reversal.go"}, "required_refs": []any{"docs/test-design.md"},
+				"acceptance": []any{"Reversal behavior matches TC-002"}, "verification": []any{"go test ./..."},
+				"test_case_refs": []any{"test-catalog.json#/cases/TC-002"},
+				"test_data_refs": []any{"test-data-manifest.json#/datasets/TD-002"},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertTaskRuntimeCommandOK(t, []string{
+		"tasks", "build", "--feature-dir", fixture.featureRel, "--definition-json", string(definitionRaw), "--format", "json",
+	})
+	assertTaskRuntimeCommandOK(t, []string{"tasks", "finalize", "--feature-dir", fixture.featureRel, "--format", "json"})
+	taskIndexPath := filepath.Join(fixture.projectRoot, filepath.FromSlash(fixture.featureRel), "task-index.json")
+	taskIndex := readTestDesignJSONMap(t, taskIndexPath)
+	taskList, _ := taskIndex["tasks"].([]any)
+	firstTask, _ := taskList[0].(map[string]any)
+	originalTaskStatus := firstTask["status"]
+	firstTask["status"] = "deferred"
+	if err := writeTestDesignJSONFixture(taskIndexPath, taskIndex); err != nil {
+		t.Fatal(err)
+	}
+	sourcePath := filepath.Join(fixture.projectRoot, "src", "approval.go")
+	originalSource, err := os.ReadFile(sourcePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(sourcePath, []byte("package approval\n// deferred before execution\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	deferredExit, deferredEnv := runTaskRuntimeCommand(t, []string{
+		"implement", "packet-compile", "--feature-dir", fixture.featureRel, "--task-id", "T001", "--format", "json",
+	})
+	if deferredExit == 0 || deferredEnv.Status == "ok" || !strings.Contains(testDesignProjectionEnvelopeText(deferredEnv), "sources are stale") {
+		t.Fatalf("pre-execution deferred task bypassed live source freshness: exit=%d env=%#v", deferredExit, deferredEnv)
+	}
+	if err := os.WriteFile(sourcePath, originalSource, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	firstTask["status"] = originalTaskStatus
+	if err := writeTestDesignJSONFixture(taskIndexPath, taskIndex); err != nil {
+		t.Fatal(err)
+	}
+	compiled := assertTaskRuntimeCommandOK(t, []string{
+		"implement", "packet-compile", "--feature-dir", fixture.featureRel, "--task-id", "T001", "--format", "json",
+	})
+	packetRef := strings.TrimSpace(asString(compiled["packet_ref"]))
+	if packetRef == "" {
+		t.Fatalf("T001 packet compile returned no packet_ref: %#v", compiled)
+	}
+	assertTaskRuntimeCommandOK(t, []string{
+		"implement", "task-start", "--feature-dir", fixture.featureRel, "--task-id", "T001",
+		"--execution-mode", "delegated", "--packet-ref", packetRef, "--format", "json",
+	})
+	if err := os.WriteFile(sourcePath, []byte("package approval\n// implementation started\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	result := `{"task_id":"T001","status":"success","changed_files":["src/approval.go"],"validation_results":[{"command":"gofmt check","status":"passed","output":"PASS"}],"blockers":[],"suggested_recovery_actions":[]}`
+	assertTaskRuntimeCommandOK(t, []string{
+		"implement", "result-merge", "--feature-dir", fixture.featureRel, "--task-id", "T001", "--result-json", result, "--format", "json",
+	})
+	assertTaskRuntimeCommandOK(t, []string{
+		"implement", "task-accept", "--feature-dir", fixture.featureRel, "--task-id", "T001", "--format", "json",
+	})
+	assertTaskRuntimeCommandOK(t, []string{
+		"implement", "packet-compile", "--feature-dir", fixture.featureRel, "--task-id", "T002", "--format", "json",
+	})
+
+	for _, tamper := range []struct {
+		name string
+		path string
+	}{
+		{name: "canonical catalog", path: filepath.Join(fixture.artifactRoot, "test-catalog.json")},
+		{name: "published handoff", path: filepath.Join(fixture.artifactRoot, "handoff-to-tasks.json")},
+	} {
+		t.Run(tamper.name, func(t *testing.T) {
+			original, readErr := os.ReadFile(tamper.path)
+			if readErr != nil {
+				t.Fatal(readErr)
+			}
+			if writeErr := os.WriteFile(tamper.path, append(append([]byte{}, original...), ' '), 0o644); writeErr != nil {
+				t.Fatal(writeErr)
+			}
+			exit, env := runTaskRuntimeCommand(t, []string{
+				"implement", "packet-compile", "--feature-dir", fixture.featureRel, "--task-id", "T002", "--format", "json",
+			})
+			if exit == 0 || env.Status == "ok" || !strings.Contains(testDesignProjectionEnvelopeText(env), "test-design") {
+				t.Fatalf("Implement accepted %s tamper after execution started: exit=%d env=%#v", tamper.name, exit, env)
+			}
+			if writeErr := os.WriteFile(tamper.path, original, 0o644); writeErr != nil {
+				t.Fatal(writeErr)
+			}
+		})
+	}
+}
+
+func TestImplementTestDesignIntegrityModeStartsOnlyAfterExecution(t *testing.T) {
+	for _, tc := range []struct {
+		status  string
+		started bool
+	}{
+		{status: "pending", started: false},
+		{status: "ready", started: false},
+		{status: "deferred", started: false},
+		{status: "in_progress", started: true},
+		{status: "implemented", started: true},
+		{status: "accepted", started: true},
+		{status: "blocked", started: true},
+		{status: "failed", started: true},
+	} {
+		t.Run(tc.status, func(t *testing.T) {
+			index := map[string]any{"tasks": []any{map[string]any{"id": "T001", "status": tc.status}}}
+			if got := implementTaskIndexExecutionStarted(index); got != tc.started {
+				t.Fatalf("execution-started(%s)=%t, want %t", tc.status, got, tc.started)
+			}
+		})
+	}
+}
+
 func TestTestDesignTasksBuildFailsClosedWhenWorkspaceExistsWithoutHandoff(t *testing.T) {
 	projectRoot := t.TempDir()
 	featureRel := filepath.ToSlash(filepath.Join("specs", "001-test-design"))
@@ -343,7 +526,11 @@ func TestTestDesignTasksBuildHonorsSelectedOrRequiredPlanGate(t *testing.T) {
 				"status": "ready", "source_revision": 7, "acceptance_refs": []any{},
 				"test_design_gate": map[string]any{
 					"decision": decision, "reason_refs": []any{"spec-contract.json#/acceptance/AC-001"},
-					"projection_ref": nil, "projection_sha256": nil,
+					"projection_binding": map[string]any{
+						"publication_ref": nil, "publication_sha256": nil,
+						"projection_ref": nil, "projection_sha256": nil,
+						"source_fingerprint": nil, "state_revision": nil,
+					},
 				},
 			}); err != nil {
 				t.Fatal(err)
@@ -371,6 +558,59 @@ func TestTestDesignTasksBuildHonorsSelectedOrRequiredPlanGate(t *testing.T) {
 				t.Fatalf("plan gate %s was bypassed: exit=%d stderr=%q stdout=%q", decision, exit, stderr.String(), stdout.String())
 			}
 		})
+	}
+}
+
+func TestTestDesignTasksRejectConflictingPlanGatePaths(t *testing.T) {
+	projectRoot := t.TempDir()
+	featureRel := filepath.ToSlash(filepath.Join("specs", "001-test-design"))
+	featureDir := filepath.Join(projectRoot, filepath.FromSlash(featureRel))
+	if err := os.MkdirAll(filepath.Join(featureDir, "plan"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	gate := func(decision string) map[string]any {
+		return map[string]any{
+			"test_design_gate": map[string]any{
+				"decision":    decision,
+				"reason_refs": []any{},
+				"projection_binding": map[string]any{
+					"publication_ref": nil, "publication_sha256": nil,
+					"projection_ref": nil, "projection_sha256": nil,
+					"source_fingerprint": nil, "state_revision": nil,
+				},
+			},
+		}
+	}
+	if err := writeTestDesignJSONFixture(filepath.Join(featureDir, "plan-contract.json"), gate("not_selected")); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeTestDesignJSONFixture(filepath.Join(featureDir, "plan", "plan-contract.json"), gate("required")); err != nil {
+		t.Fatal(err)
+	}
+	_, err := taskControlPlanTestDesignGateDecision(projectRoot, featureRel)
+	if err == nil || !strings.Contains(err.Error(), "conflicting plan-contract test_design_gate decisions") {
+		t.Fatalf("conflicting gate paths were accepted: %v", err)
+	}
+}
+
+func TestTestDesignTasksRejectPartialPlanProjectionBinding(t *testing.T) {
+	plan := map[string]any{
+		"test_design_gate": map[string]any{
+			"decision":    "selected",
+			"reason_refs": []any{"spec-contract.json#/acceptance/AC-001"},
+			"projection_binding": map[string]any{
+				"publication_ref":    "specs/001-test-design/test-design/test-design-publication.json",
+				"publication_sha256": nil,
+				"projection_ref":     nil,
+				"projection_sha256":  nil,
+				"source_fingerprint": nil,
+				"state_revision":     nil,
+			},
+		},
+	}
+	_, err := taskControlParsePlanTestDesignGate(plan, "plan-contract.json")
+	if err == nil || !strings.Contains(err.Error(), "entirely null or entirely populated") {
+		t.Fatalf("partial projection binding was accepted: %v", err)
 	}
 }
 

@@ -40,6 +40,33 @@ agent_scripts:
 
 [AGENT] `sp-plan` continues the same run created for the feature. Confirm the same run with `specify-runtime run show`, then execute planning work only through `specify-runtime run supervise`.
 
+## Read-Only Test Design Projection Gate
+
+`plan-contract.json#/test_design_gate/decision` is exactly
+`not_selected`, `selected`, or `required`. `not_selected` records why no Test
+Design input is being consumed. `selected` or `required` may initially carry an
+all-null `projection_binding` while production is pending; partial binding is
+invalid. Only when Plan actually consumes a producer-built Plan projection must
+the binding be complete and verified before reading any selected obligation,
+case, data, coverage, gap, or audit ref:
+
+`{{specify-subcmd:specify-runtime test-design projection-verify --feature-dir <feature-dir> --projection-ref <project-relative-ref> --expected-sha256 <sha256> --format json}}`
+
+Omit `--feature-dir` only for an explicitly selected project-scope projection.
+The verified projection is a typed pointer-only planning input. Plan consumes it
+read-only and must not create, patch, replace, weaken, or copy the canonical Test
+Design publication, projection, catalog, data manifest, coverage matrix, gaps,
+or audit result. If Plan needs the projection to decide architecture, a missing
+or stale binding routes to `{{invoke:test-design}}`; otherwise Plan may finish
+with the all-null pending binding and route the producer next. Test Design does
+not require Plan completion. A Plan binding records only Plan's actual
+consumption, never Tasks authorization, and must not use the Plan contract as a
+self-hashing basis. Build the Plan projection against the current immutable
+upstream `spec-contract.json`; then record only the returned binding in
+`plan-contract.json`. Tasks later requires its own verified projection, a fresh
+feature `handoff-to-tasks.json`, and runtime-owned task-index binding. Plan
+decisions do not become canonical Test Design truth.
+
 ## Main Flow
 
 1. Resolve `FEATURE_DIR` without creating `plan.md`. Prefer the explicit feature argument; otherwise use the managed Run's `SPECIFY_RUN_SUBJECT_ID` only when `SPECIFY_RUN_MANAGED=1`, `SPECIFY_RUN_SUBJECT_TYPE=feature`, and the current directory equals `SPECIFY_RUN_WORKSPACE`. Fall back to the installed prerequisite helper's paths-only mode only when it returns one unambiguous feature. Never infer the feature from the Run's private Git ref. Enter `plan` with the deterministic `specify-runtime workflow transition` command and stop on exit `10`; do not edit source/runtime/test files.
@@ -53,7 +80,7 @@ agent_scripts:
    theses and approved visual, reference intents, real content/image plans, and
    evidence triad exactly; carry verified cognition-selected UI routes in the
    compact plan context capsule for worker packet compilation.
-8. Re-check constitution, complexity, risk, locked planning decisions, and deep-research `PH-###` traceability. Deep-research `PH-###` items remain direct evidence refs queried through their registered artifact owner; planning must not restate them as unsupported prose. Run `{AGENT_SCRIPT}` to refresh the generated Agent context, then use the shared `workflow complete-stage` gate as the single deterministic artifact validation and fail closed on an incomplete planning package. When the user requested comprehensive test design, a repository/feature risk review requires it, or test-material provenance is planning-critical, recommend the optional `{{invoke:test-design}}` gate while the completed Plan remains the required-stage owner; otherwise recommend `{{invoke:tasks}}` directly.
+8. Re-check constitution, complexity, risk, locked planning decisions, deep-research `PH-###` traceability, and the `test_design_gate`. Deep-research `PH-###` items remain direct evidence refs queried through their registered artifact owner; planning must not restate them as unsupported prose. Run `{AGENT_SCRIPT}` to refresh the generated Agent context, then use the shared `workflow complete-stage` gate as the single deterministic artifact validation and fail closed on an incomplete planning package. When the user requested comprehensive test design, a repository/feature risk review requires it, or test-material provenance is planning-critical, record `selected` or `required` and recommend the independent `{{invoke:test-design}}` producer; otherwise record `not_selected` and recommend `{{invoke:tasks}}` directly. The default formal path remains Plan -> optional Test Design -> Tasks, but Test Design itself does not depend on completed Plan state.
 
 Do not create `tasks.md` or `task-index.json`; the separately invoked task workflow owns them. Do not edit production source, tests, migrations, or runtime configuration during planning.
 

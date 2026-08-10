@@ -70,7 +70,8 @@ func TestTestDesignProjectionBuildUsesPointerOnlyConsumerClosure(t *testing.T) {
 	fixture := setupValidatedTestDesignProjectionFixture(t, "feature", 2)
 	publishTestDesignProjectionFixture(t, fixture)
 
-	planBasis := writeTestDesignProjectionBasis(t, fixture.projectRoot, filepath.ToSlash(filepath.Join(fixture.featureRel, "plan-contract.json")), map[string]any{"version": 2, "status": "ready"})
+	planBasis := writeTestDesignProjectionBasis(t, fixture.projectRoot, filepath.ToSlash(filepath.Join(fixture.featureRel, "spec-contract.json")), map[string]any{"version": 1, "status": "planning-ready"})
+	tasksBasis := writeTestDesignProjectionBasis(t, fixture.projectRoot, filepath.ToSlash(filepath.Join(fixture.featureRel, "plan-contract.json")), map[string]any{"version": 2, "status": "ready"})
 	quickBasis := writeTestDesignProjectionBasis(t, fixture.projectRoot, ".planning/quick/260811-projection/confirmation.json", map[string]any{"schema": "quick-confirmation-v1", "confirmation_digest": "quick-basis"})
 	reviewBasis := writeTestDesignProjectionBasis(t, fixture.projectRoot, filepath.ToSlash(filepath.Join(fixture.featureRel, "implementation-handoff.json")), map[string]any{"version": 1, "status": "ready_for_review"})
 
@@ -91,7 +92,7 @@ func TestTestDesignProjectionBuildUsesPointerOnlyConsumerClosure(t *testing.T) {
 		}
 	}
 
-	tasks, _, _ := buildTestDesignProjection(t, fixture, "tasks", planBasis, "")
+	tasks, _, _ := buildTestDesignProjection(t, fixture, "tasks", tasksBasis, "")
 	assertPointerOnlyTestDesignProjection(t, tasks, "tasks")
 	tasksSelection, _ := tasks["selection"].(map[string]any)
 	assertStringListEquals(t, tasksSelection["obligation_refs"], []string{
@@ -103,7 +104,7 @@ func TestTestDesignProjectionBuildUsesPointerOnlyConsumerClosure(t *testing.T) {
 	assertPointerOnlyTestDesignProjection(t, review, "review")
 
 	partialTasks, partialTasksExit := runTestDesignWorkflowCommand(t, fixture.command(
-		"projection-build", "--consumer", "tasks", "--basis-ref", planBasis, "--obligation-ids", "TO-001", "--format", "json",
+		"projection-build", "--consumer", "tasks", "--basis-ref", tasksBasis, "--obligation-ids", "TO-001", "--format", "json",
 	))
 	if partialTasksExit == 0 || partialTasks.Status == "ok" || !strings.Contains(testDesignProjectionEnvelopeText(partialTasks), "full frozen obligation denominator") {
 		t.Fatalf("Tasks accepted a subset projection: exit=%d env=%#v", partialTasksExit, partialTasks)
@@ -114,6 +115,26 @@ func TestTestDesignProjectionBuildUsesPointerOnlyConsumerClosure(t *testing.T) {
 	))
 	if implementExit == 0 || implement.Status == "ok" || !strings.Contains(testDesignProjectionEnvelopeText(implement), "task packet") {
 		t.Fatalf("Implement received an independent projection instead of the Tasks-bound JIT packet: exit=%d env=%#v", implementExit, implement)
+	}
+
+	wrongBases := []struct {
+		consumer string
+		basisRef string
+	}{
+		{consumer: "plan", basisRef: tasksBasis},
+		{consumer: "quick", basisRef: planBasis},
+		{consumer: "tasks", basisRef: planBasis},
+		{consumer: "review", basisRef: planBasis},
+	}
+	for _, tc := range wrongBases {
+		t.Run(tc.consumer+" wrong basis", func(t *testing.T) {
+			env, exit := runTestDesignWorkflowCommand(t, fixture.command(
+				"projection-build", "--consumer", tc.consumer, "--basis-ref", tc.basisRef, "--format", "json",
+			))
+			if exit == 0 || env.Status == "ok" || !strings.Contains(testDesignProjectionEnvelopeText(env), "basis") {
+				t.Fatalf("%s accepted incompatible projection basis %q: exit=%d env=%#v", tc.consumer, tc.basisRef, exit, env)
+			}
+		})
 	}
 }
 
@@ -172,6 +193,47 @@ func TestTestDesignLegacyHandoffRemainsTasksCompatibleAfterPublication(t *testin
 	assertStringListEquals(t, handoff["test_data_refs"], []string{"test-data-manifest.json#/datasets/TD-001"})
 }
 
+func TestTestDesignFormalTasksProjectionRepublishesAfterHandoff(t *testing.T) {
+	fixture := setupValidatedTestDesignProjectionFixture(t, "feature", 1)
+	publishTestDesignProjectionFixture(t, fixture)
+	basisRef := writeTestDesignProjectionBasis(
+		t,
+		fixture.projectRoot,
+		filepath.ToSlash(filepath.Join(fixture.featureRel, "plan-contract.json")),
+		map[string]any{"version": 2, "status": "ready"},
+	)
+	_, oldProjectionRef, oldProjectionSHA := buildTestDesignProjection(t, fixture, "tasks", basisRef, "")
+	requireTestDesignProjectionVerifyOK(t, fixture, oldProjectionRef, oldProjectionSHA)
+
+	requireTestDesignOK(t, fixture.command("handoff", "--format", "json"))
+	stale, staleExit := runTestDesignWorkflowCommand(t, fixture.command(
+		"projection-verify", "--projection-ref", oldProjectionRef,
+		"--expected-sha256", oldProjectionSHA, "--format", "json",
+	))
+	if staleExit == 0 || stale.Status == "ok" {
+		t.Fatalf("pre-handoff Tasks projection remained fresh after the state revision changed: exit=%d env=%#v", staleExit, stale)
+	}
+
+	state, err := testDesignReadState(fixture.artifactRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if state.Phase != "handed-off" {
+		t.Fatalf("handoff phase=%q, want handed-off", state.Phase)
+	}
+	requireTestDesignOK(t, fixture.command(
+		"publish", "--expected-revision", fmt.Sprint(state.Revision), "--format", "json",
+	))
+	_, currentProjectionRef, currentProjectionSHA := buildTestDesignProjection(t, fixture, "tasks", basisRef, "")
+	if currentProjectionRef != oldProjectionRef {
+		t.Fatalf("Tasks projection path changed across publication revisions: old=%q current=%q", oldProjectionRef, currentProjectionRef)
+	}
+	if currentProjectionSHA == oldProjectionSHA {
+		t.Fatalf("Tasks projection digest did not change after handed-off republication: %q", currentProjectionSHA)
+	}
+	requireTestDesignProjectionVerifyOK(t, fixture, currentProjectionRef, currentProjectionSHA)
+}
+
 func TestTestDesignProjectPublicationAllowsPlanAndQuickButRejectsTasks(t *testing.T) {
 	fixture := setupValidatedTestDesignProjectionFixture(t, "project", 1)
 	publishTestDesignProjectionFixture(t, fixture)
@@ -189,6 +251,34 @@ func TestTestDesignProjectPublicationAllowsPlanAndQuickButRejectsTasks(t *testin
 	if exit == 0 || tasks.Status == "ok" || !strings.Contains(testDesignProjectionEnvelopeText(tasks), "feature scope") {
 		t.Fatalf("project publication authorized Tasks: exit=%d env=%#v", exit, tasks)
 	}
+}
+
+func TestTestDesignStatusRoutesIndependentPublicationAndTasksRepublish(t *testing.T) {
+	projectFixture := setupValidatedTestDesignProjectionFixture(t, "project", 1)
+	projectStatus := requireTestDesignOK(t, projectFixture.command("status", "--format", "json"))
+	if projectStatus.Data["next_action"] != "publish" || !testDesignArgvContains(projectStatus.NextArgv, "--expected-revision") {
+		t.Fatalf("project validated status did not route to CAS publication: %#v", projectStatus)
+	}
+
+	featureFixture := setupValidatedTestDesignProjectionFixture(t, "feature", 1)
+	featureStatus := requireTestDesignOK(t, featureFixture.command("status", "--format", "json"))
+	if featureStatus.Data["next_action"] != "handoff" {
+		t.Fatalf("feature validated status did not preserve the default Tasks compatibility route: %#v", featureStatus)
+	}
+	requireTestDesignOK(t, featureFixture.command("handoff", "--format", "json"))
+	handedOffStatus := requireTestDesignOK(t, featureFixture.command("status", "--format", "json"))
+	if handedOffStatus.Data["next_action"] != "publish" || !testDesignArgvContains(handedOffStatus.NextArgv, "--expected-revision") {
+		t.Fatalf("handed-off status did not route to current-revision publication: %#v", handedOffStatus)
+	}
+}
+
+func testDesignArgvContains(argv []string, value string) bool {
+	for _, item := range argv {
+		if item == value {
+			return true
+		}
+	}
+	return false
 }
 
 type testDesignProjectionFixture struct {
@@ -318,6 +408,13 @@ func setupValidatedTestDesignProjectionFixture(t *testing.T, scope string, oblig
 	validated := requireTestDesignOK(t, fixture.command("validate", "--format", "json"))
 	if validated.Data["claim_status"] != "complete_against_frozen_scope" {
 		t.Fatalf("validated projection fixture claim=%#v", validated.Data["claim_status"])
+	}
+	next := strings.Join(validated.NextArgv, " ")
+	if scope == "project" && (!strings.Contains(next, " publish ") || strings.Contains(next, " handoff ")) {
+		t.Fatalf("project validation next_argv must route to publish, got %#v", validated.NextArgv)
+	}
+	if scope == "feature" && !strings.Contains(next, " handoff ") {
+		t.Fatalf("feature validation next_argv must preserve the default Tasks handoff route, got %#v", validated.NextArgv)
 	}
 	return fixture
 }

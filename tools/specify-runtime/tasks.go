@@ -477,7 +477,160 @@ func loadTaskControlTemplate(root string) (map[string]any, error) {
 	return payload, nil
 }
 
+var taskControlTestDesignProjectionBindingFields = []string{
+	"publication_ref",
+	"publication_sha256",
+	"projection_ref",
+	"projection_sha256",
+	"source_fingerprint",
+	"state_revision",
+}
+
+func taskControlParsePlanTestDesignGate(plan map[string]any, label string) (string, error) {
+	rawGate, exists := plan["test_design_gate"]
+	if !exists || rawGate == nil {
+		return "not_selected", nil
+	}
+	gate, ok := rawGate.(map[string]any)
+	if !ok {
+		return "", fmt.Errorf("%s test_design_gate must contain an object", label)
+	}
+	for _, field := range taskControlTestDesignProjectionBindingFields {
+		if _, flattened := gate[field]; flattened {
+			return "", fmt.Errorf("%s test_design_gate projection fields must be nested under projection_binding", label)
+		}
+	}
+	decisionValue, ok := gate["decision"].(string)
+	if !ok {
+		return "", fmt.Errorf("%s test_design_gate.decision must be not_selected, selected, or required", label)
+	}
+	decision := strings.ToLower(strings.TrimSpace(decisionValue))
+	if decision != "not_selected" && decision != "selected" && decision != "required" {
+		return "", fmt.Errorf("%s test_design_gate.decision must be not_selected, selected, or required", label)
+	}
+	if rawReasons, exists := gate["reason_refs"]; exists {
+		reasons, ok := rawReasons.([]any)
+		if !ok {
+			return "", fmt.Errorf("%s test_design_gate.reason_refs must be an array of non-empty strings", label)
+		}
+		seen := map[string]bool{}
+		for _, rawReason := range reasons {
+			reason, ok := rawReason.(string)
+			reason = strings.TrimSpace(reason)
+			if !ok || reason == "" {
+				return "", fmt.Errorf("%s test_design_gate.reason_refs must be an array of non-empty strings", label)
+			}
+			if seen[reason] {
+				return "", fmt.Errorf("%s test_design_gate.reason_refs must not contain duplicates", label)
+			}
+			seen[reason] = true
+		}
+	}
+	rawBinding, hasBinding := gate["projection_binding"]
+	if !hasBinding || rawBinding == nil {
+		return decision, nil
+	}
+	binding, ok := rawBinding.(map[string]any)
+	if !ok {
+		return "", fmt.Errorf("%s test_design_gate.projection_binding must contain an object", label)
+	}
+	if len(binding) != len(taskControlTestDesignProjectionBindingFields) {
+		return "", fmt.Errorf("%s test_design_gate.projection_binding must contain exactly %s", label, strings.Join(taskControlTestDesignProjectionBindingFields, ", "))
+	}
+	nullCount := 0
+	for _, field := range taskControlTestDesignProjectionBindingFields {
+		value, exists := binding[field]
+		if !exists {
+			return "", fmt.Errorf("%s test_design_gate.projection_binding must contain exactly %s", label, strings.Join(taskControlTestDesignProjectionBindingFields, ", "))
+		}
+		if value == nil {
+			nullCount++
+		}
+	}
+	if nullCount != 0 && nullCount != len(taskControlTestDesignProjectionBindingFields) {
+		return "", fmt.Errorf("%s test_design_gate.projection_binding must be entirely null or entirely populated", label)
+	}
+	if nullCount == len(taskControlTestDesignProjectionBindingFields) {
+		return decision, nil
+	}
+	for _, field := range []string{"publication_ref", "projection_ref"} {
+		ref, ok := binding[field].(string)
+		ref = strings.TrimSpace(ref)
+		clean := filepath.ToSlash(filepath.Clean(filepath.FromSlash(ref)))
+		if !ok || ref == "" || filepath.IsAbs(ref) || clean == ".." || strings.HasPrefix(clean, "../") {
+			return "", fmt.Errorf("%s test_design_gate.projection_binding.%s must be a non-empty project-relative reference", label, field)
+		}
+	}
+	for _, field := range []string{"publication_sha256", "projection_sha256", "source_fingerprint"} {
+		digest, ok := binding[field].(string)
+		if !ok || !testDesignSHA256Pattern.MatchString(digest) {
+			return "", fmt.Errorf("%s test_design_gate.projection_binding.%s must be a lowercase SHA-256 digest", label, field)
+		}
+	}
+	if intFromAny(binding["state_revision"]) < 1 {
+		return "", fmt.Errorf("%s test_design_gate.projection_binding.state_revision must be a positive integer", label)
+	}
+	if decision == "not_selected" {
+		return "", fmt.Errorf("%s not_selected test_design_gate must not retain a projection binding", label)
+	}
+	return decision, nil
+}
+
+func taskControlPlanTestDesignGateDecision(projectRoot, featureRel string) (string, error) {
+	type gateDecision struct {
+		label    string
+		decision string
+	}
+	decisions := []gateDecision{}
+	for _, candidate := range []string{
+		filepath.ToSlash(filepath.Join(featureRel, "plan-contract.json")),
+		filepath.ToSlash(filepath.Join(featureRel, "plan", "plan-contract.json")),
+	} {
+		path, err := testDesignSecureProjectPath(projectRoot, candidate)
+		if err != nil {
+			return "", fmt.Errorf("inspect plan-contract.json test_design_gate: %w", err)
+		}
+		info, err := os.Lstat(path)
+		if os.IsNotExist(err) {
+			continue
+		}
+		if err != nil {
+			return "", fmt.Errorf("inspect plan-contract.json test_design_gate: %w", err)
+		}
+		if !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 {
+			return "", fmt.Errorf("plan-contract.json must be a regular non-symlink file")
+		}
+		plan, err := readImplementJSONMap(path)
+		if err != nil {
+			return "", fmt.Errorf("plan-contract.json is invalid: %w", err)
+		}
+		label := filepath.ToSlash(strings.TrimPrefix(candidate, strings.TrimSuffix(featureRel, "/")+"/"))
+		decision, err := taskControlParsePlanTestDesignGate(plan, label)
+		if err != nil {
+			return "", err
+		}
+		decisions = append(decisions, gateDecision{label: label, decision: decision})
+	}
+	if len(decisions) == 0 {
+		return "not_selected", nil
+	}
+	for _, decision := range decisions[1:] {
+		if decision.decision != decisions[0].decision {
+			return "", fmt.Errorf("conflicting plan-contract test_design_gate decisions: %s=%s, %s=%s", decisions[0].label, decisions[0].decision, decision.label, decision.decision)
+		}
+	}
+	return decisions[0].decision, nil
+}
+
 func taskControlValidateTestDesignBinding(root, feature string, payload map[string]any, bind, requireAll bool) error {
+	return taskControlValidateTestDesignBindingWithSourcePolicy(root, feature, payload, bind, requireAll, true)
+}
+
+func taskControlValidateTestDesignBindingIntegrity(root, feature string, payload map[string]any, bind, requireAll bool) error {
+	return taskControlValidateTestDesignBindingWithSourcePolicy(root, feature, payload, bind, requireAll, false)
+}
+
+func taskControlValidateTestDesignBindingWithSourcePolicy(root, feature string, payload map[string]any, bind, requireAll, requireLiveSourceFreshness bool) error {
 	tasks, ok := payload["tasks"].([]any)
 	if !ok {
 		return fmt.Errorf("task-index tasks must be an array")
@@ -516,6 +669,10 @@ func taskControlValidateTestDesignBinding(root, feature string, payload map[stri
 	if _, err := testDesignSecureProjectPath(projectRoot, filepath.ToSlash(featureRel)); err != nil {
 		return fmt.Errorf("feature directory is unsafe: %w", err)
 	}
+	planGateDecision, err := taskControlPlanTestDesignGateDecision(projectRoot, filepath.ToSlash(featureRel))
+	if err != nil {
+		return err
+	}
 	service := testDesignService{projectRoot: projectRoot}
 	artifactRoot, _, _, err := service.resolveRoot(filepath.ToSlash(featureRel))
 	if err != nil {
@@ -533,6 +690,9 @@ func taskControlValidateTestDesignBinding(root, feature string, payload map[stri
 	_, stateStatErr := os.Lstat(statePath)
 	_, statErr := os.Lstat(handoffPath)
 	if os.IsNotExist(statErr) {
+		if planGateDecision == "selected" || planGateDecision == "required" {
+			return fmt.Errorf("plan-contract test-design gate decision %s requires a current feature test-design/handoff-to-tasks.json before Tasks can continue", planGateDecision)
+		}
 		if rootStatErr == nil || stateStatErr == nil {
 			return fmt.Errorf("test-design workspace exists but has no fresh handed-off bundle")
 		}
@@ -556,7 +716,12 @@ func taskControlValidateTestDesignBinding(root, feature string, payload map[stri
 	if statErr != nil {
 		return fmt.Errorf("inspect test-design handoff: %w", statErr)
 	}
-	binding, err := service.verifyPublishedHandoff(artifactRoot)
+	var binding testDesignPublishedHandoff
+	if requireLiveSourceFreshness {
+		binding, err = service.verifyPublishedHandoff(artifactRoot)
+	} else {
+		binding, err = service.verifyPublishedHandoffIntegrity(artifactRoot)
+	}
 	if err != nil {
 		return fmt.Errorf("test-design handoff is stale or invalid: %w", err)
 	}

@@ -670,6 +670,13 @@ def _build(
     )
 
 
+def _set_task_status(feature: Path, status: str) -> None:
+    task_index_path = feature / "task-index.json"
+    task_index = json.loads(task_index_path.read_text(encoding="utf-8"))
+    task_index["tasks"][0]["status"] = status
+    _write_json(task_index_path, task_index)
+
+
 def test_tasks_surfaces_treat_optional_test_design_handoff_as_authoritative_input() -> (
     None
 ):
@@ -849,8 +856,14 @@ def test_tasks_build_rejects_a_plan_selected_test_design_without_feature_handoff
     plan_contract["test_design_gate"] = {
         "decision": decision,
         "reason_refs": ["spec-contract.json#/acceptance/AC-001"],
-        "projection_ref": None,
-        "projection_sha256": None,
+        "projection_binding": {
+            "publication_ref": None,
+            "publication_sha256": None,
+            "projection_ref": None,
+            "projection_sha256": None,
+            "source_fingerprint": None,
+            "state_revision": None,
+        },
     }
     _write_json(feature / "plan-contract.json", plan_contract)
 
@@ -872,8 +885,14 @@ def test_tasks_build_allows_an_explicitly_unselected_test_design_without_root(
     plan_contract["test_design_gate"] = {
         "decision": "not_selected",
         "reason_refs": [],
-        "projection_ref": None,
-        "projection_sha256": None,
+        "projection_binding": {
+            "publication_ref": None,
+            "publication_sha256": None,
+            "projection_ref": None,
+            "projection_sha256": None,
+            "source_fingerprint": None,
+            "state_revision": None,
+        },
     }
     _write_json(feature / "plan-contract.json", plan_contract)
 
@@ -892,8 +911,14 @@ def test_tasks_build_rejects_an_unknown_plan_test_design_gate_decision(
     plan_contract["test_design_gate"] = {
         "decision": "sometimes",
         "reason_refs": [],
-        "projection_ref": None,
-        "projection_sha256": None,
+        "projection_binding": {
+            "publication_ref": None,
+            "publication_sha256": None,
+            "projection_ref": None,
+            "projection_sha256": None,
+            "source_fingerprint": None,
+            "state_revision": None,
+        },
     }
     _write_json(feature / "plan-contract.json", plan_contract)
 
@@ -901,6 +926,66 @@ def test_tasks_build_rejects_an_unknown_plan_test_design_gate_decision(
 
     assert result.exit_code == 10
     assert "test_design_gate.decision" in result.output
+
+
+def test_tasks_build_rejects_conflicting_plan_test_design_gate_paths(
+    tmp_path: Path,
+) -> None:
+    project, feature = _project(tmp_path)
+    root_plan = json.loads(
+        (feature / "plan-contract.json").read_text(encoding="utf-8")
+    )
+    root_plan["test_design_gate"] = {
+        "decision": "not_selected",
+        "reason_refs": [],
+        "projection_binding": {
+            "publication_ref": None,
+            "publication_sha256": None,
+            "projection_ref": None,
+            "projection_sha256": None,
+            "source_fingerprint": None,
+            "state_revision": None,
+        },
+    }
+    _write_json(feature / "plan-contract.json", root_plan)
+    nested_plan = dict(root_plan)
+    nested_plan["test_design_gate"] = {
+        **root_plan["test_design_gate"],
+        "decision": "required",
+    }
+    _write_json(feature / "plan" / "plan-contract.json", nested_plan)
+
+    result = _build(project, feature, _task(case_refs=[]))
+
+    assert result.exit_code == 10
+    assert "conflicting plan-contract test_design_gate decisions" in result.output
+
+
+def test_tasks_build_rejects_a_partial_plan_projection_binding(
+    tmp_path: Path,
+) -> None:
+    project, feature = _project(tmp_path)
+    plan_contract = json.loads(
+        (feature / "plan-contract.json").read_text(encoding="utf-8")
+    )
+    plan_contract["test_design_gate"] = {
+        "decision": "selected",
+        "reason_refs": ["spec-contract.json#/acceptance/AC-001"],
+        "projection_binding": {
+            "publication_ref": "test-design/test-design-publication.json",
+            "publication_sha256": None,
+            "projection_ref": None,
+            "projection_sha256": None,
+            "source_fingerprint": None,
+            "state_revision": None,
+        },
+    }
+    _write_json(feature / "plan-contract.json", plan_contract)
+
+    result = _build(project, feature, _task(case_refs=[]))
+
+    assert result.exit_code == 10
+    assert "entirely null or entirely populated" in result.output
 
 
 def test_test_design_evidence_record_identity_and_rfc3339_are_verified(
@@ -1723,6 +1808,126 @@ def test_jit_worker_packet_rejects_tamper_after_tasks_handoff(
     catalog_path.write_bytes(catalog_path.read_bytes() + b" ")
 
     with pytest.raises(PacketValidationError, match="test-design binding is invalid"):
+        compile_worker_task_packet(
+            project_root=project,
+            feature_dir=feature,
+            task_id="T001",
+        )
+
+
+@pytest.mark.parametrize(
+    "not_started_status",
+    ["pending", "ready", "deferred"],
+)
+def test_jit_worker_packet_rejects_source_drift_before_execution_starts(
+    tmp_path: Path,
+    not_started_status: str,
+) -> None:
+    project, feature = _project(tmp_path)
+    _publish_test_design_handoff(project, feature)
+    built = _build(project, feature, _all_test_design_refs_task())
+    assert built.exit_code == 0, built.output
+    finalized = _invoke(
+        project,
+        [
+            "tasks",
+            "finalize",
+            "--feature-dir",
+            str(feature.relative_to(project)),
+            "--format",
+            "json",
+        ],
+    )
+    assert finalized.exit_code == 0, finalized.output
+    _set_task_status(feature, not_started_status)
+    (feature / "plan.md").write_text("# Changed plan\n", encoding="utf-8")
+
+    with pytest.raises(PacketValidationError, match="test-design sources are stale"):
+        compile_worker_task_packet(
+            project_root=project,
+            feature_dir=feature,
+            task_id="T001",
+        )
+
+
+@pytest.mark.parametrize(
+    "started_status",
+    ["in_progress", "implemented", "accepted", "blocked", "failed"],
+)
+def test_jit_worker_packet_uses_bound_test_design_after_execution_starts(
+    tmp_path: Path,
+    started_status: str,
+) -> None:
+    project, feature = _project(tmp_path)
+    expected = _publish_test_design_handoff(project, feature)
+    built = _build(project, feature, _all_test_design_refs_task())
+    assert built.exit_code == 0, built.output
+    finalized = _invoke(
+        project,
+        [
+            "tasks",
+            "finalize",
+            "--feature-dir",
+            str(feature.relative_to(project)),
+            "--format",
+            "json",
+        ],
+    )
+    assert finalized.exit_code == 0, finalized.output
+    _set_task_status(feature, started_status)
+    (feature / "plan.md").write_text("# Changed plan\n", encoding="utf-8")
+
+    packet = compile_worker_task_packet(
+        project_root=project,
+        feature_dir=feature,
+        task_id="T001",
+    )
+
+    assert packet.test_design_handoff_sha256 == expected["sha256"]
+    assert (
+        packet.test_design_source_fingerprint
+        == expected["source_fingerprint"]
+    )
+    assert packet.test_design_artifact_digests == expected["artifact_digests"]
+
+
+@pytest.mark.parametrize(
+    ("tamper_target", "expected_error"),
+    [
+        ("test-catalog.json", "lane-manifest synthesis artifacts are stale"),
+        (
+            "handoff-to-tasks.json",
+            "task-index test-design binding is stale",
+        ),
+    ],
+)
+def test_jit_worker_packet_rejects_canonical_test_design_tamper_after_start(
+    tmp_path: Path,
+    tamper_target: str,
+    expected_error: str,
+) -> None:
+    project, feature = _project(tmp_path)
+    _publish_test_design_handoff(project, feature)
+    built = _build(project, feature, _all_test_design_refs_task())
+    assert built.exit_code == 0, built.output
+    finalized = _invoke(
+        project,
+        [
+            "tasks",
+            "finalize",
+            "--feature-dir",
+            str(feature.relative_to(project)),
+            "--format",
+            "json",
+        ],
+    )
+    assert finalized.exit_code == 0, finalized.output
+    _set_task_status(feature, "in_progress")
+    (feature / "plan.md").write_text("# Changed plan\n", encoding="utf-8")
+    target = feature / "test-design" / tamper_target
+    target.write_bytes(target.read_bytes() + b" ")
+
+    with pytest.raises(PacketValidationError, match=expected_error):
         compile_worker_task_packet(
             project_root=project,
             feature_dir=feature,

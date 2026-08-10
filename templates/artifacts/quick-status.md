@@ -28,6 +28,20 @@ handoff_delivery_contract:
   excluded_scope: []
   validation_route: []
 
+## Test Design Input
+<!-- agent-fill:test_design_input; verify bindings with specify-runtime test-design projection-verify -->
+
+test_design_gate:
+  decision: not_selected
+  reason_refs: []
+  projection_binding:
+    publication_ref:
+    publication_sha256:
+    projection_ref:
+    projection_sha256:
+    source_fingerprint:
+    state_revision:
+
 ## Current Focus
 <!-- agent-fill:current_focus -->
 

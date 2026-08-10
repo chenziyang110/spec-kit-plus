@@ -41,6 +41,9 @@ STORY_RE = re.compile(r"\[(US\d+)\]")
 MP_LINE_RE = re.compile(r"\b(MP-\d{3})\b\s*:?\s*(?P<claim>.+)")
 MP_ID_ONLY_RE = re.compile(r"\bMP-\d{3}\b")
 CONSEQUENCE_ID_RE = re.compile(r"\bCA-\d{3}\b")
+EXECUTION_STARTED_TASK_STATUSES = frozenset(
+    {"in_progress", "implemented", "accepted", "blocked", "failed"}
+)
 
 
 def _read(path: Path) -> str:
@@ -95,6 +98,18 @@ def _task_index_entry(payload: dict[str, object], task_id: str) -> dict[str, obj
         if isinstance(candidate, str) and candidate.upper() == normalized:
             return item
     return {}
+
+
+def _task_execution_has_started(payload: dict[str, object]) -> bool:
+    tasks = payload.get("tasks")
+    if not isinstance(tasks, list):
+        return False
+    return any(
+        isinstance(task, dict)
+        and str(task.get("status") or "").strip().lower()
+        in EXECUTION_STARTED_TASK_STATUSES
+        for task in tasks
+    )
 
 
 def _task_contract_mapping_body(tasks_text: str) -> str:
@@ -741,12 +756,18 @@ def compile_worker_task_packet(
         for field in test_design_binding
     )
     if canonical_task_index or has_test_design_binding:
+        source_freshness_policy = (
+            "bound_snapshot"
+            if _task_execution_has_started(task_index)
+            else "strict"
+        )
         try:
             test_design_binding = validate_task_test_design_binding(
                 project_root,
                 feature_dir,
                 task_index,
                 require_all=True,
+                source_freshness_policy=source_freshness_policy,
             )
         except TaskAuthoringError as exc:
             raise PacketValidationError(

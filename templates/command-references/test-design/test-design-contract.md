@@ -1,13 +1,18 @@
 Trigger: when selecting a mode or artifact root, freezing scope, qualifying completeness, resolving test-material dispositions, validating, or handing off to Tasks.
 
-Purpose: Preserve the planning-only Test Design lifecycle and its defensible completeness boundary outside the main-flow prompt.
+Purpose: Preserve the independent planning-only Test Design producer lifecycle and its defensible completeness boundary outside the main-flow prompt.
 
 Preserved Contract: One invocation selects `project-baseline`, `feature`, `incremental-update`, or `audit`; runtime-owned artifacts remain under `.specify/test-design/` or `<FEATURE_DIR>/test-design/`; every obligation, case, material, evidence item, exclusion, and gap stays traceable to the frozen source fingerprint.
 
 The Leader freezes source refs, included and excluded paths, risk dimensions,
-revision evidence, and the selected root before lane preparation. Feature mode
-is optional after a completed Plan and before Tasks and must not mutate
-`workflow.json`; project-baseline is standalone. Incremental update preserves
+revision evidence, and the selected root before lane preparation. Test Design
+is an independent producer and does not require a completed Plan. Feature mode
+may use a current specification or Plan as an intended-behavior basis but must
+not mutate `workflow.json`; project-baseline is standalone. Current code is
+final authority for implemented behavior; tests, configuration, official
+contracts, and live runtime evidence corroborate it. Project Cognition is
+navigation only, cannot prove a Test Design claim, and never replaces code
+verification. Incremental update preserves
 stable IDs only where current evidence still supports them. Audit never expands
 or silently retargets the frozen source boundary.
 
@@ -19,7 +24,8 @@ lane, validation, and handoff state. Audit rejects any frozen-boundary change.
 The runtime owns `test-state.json`, `test-universe.json`, `test-catalog.json`,
 `test-data-manifest.json`, `coverage-matrix.json`, `test-gaps.json`,
 `lane-manifest.json`, accepted results, deterministic views, and
-`handoff-to-tasks.json`, and mediates every mutation to those files. Workers
+`handoff-to-tasks.json`, the content-addressed publication, and typed consumer
+projections, and mediates every mutation to those files. Workers
 never write canonical artifacts, direct-write a runtime file, or perform a
 whole-file merge. After inspecting and accepting bounded lane results, the
 Leader selects the accepted truth. The Leader submits approved universe,
@@ -28,7 +34,7 @@ catalog, data, and coverage changes only through a fresh lease plus targeted
 `gap-reconcile`. `synthesize` validates the already-patched canonical bundle,
 records its artifact digests, and advances runtime state; it does not
 automatically materialize worker proposals. Only the runtime calculates claim
-status and creates the Tasks handoff.
+status and creates the Tasks handoff, publication, and projections.
 
 Every material has one disposition from `reuse`, `generate`, `search`,
 `request`, `block`, or `defer`, with provenance, readiness, sensitivity,
@@ -58,8 +64,24 @@ under evidence scope `test-design`, preserving the Deep Research record and
 Planning Handoff in provenance. Canonical Test Design rows cite the resulting
 `test-design` record ref; they do not cite another scope directly.
 
+After validation, `specify-runtime test-design publish` creates the immutable
+content-addressed package. `specify-runtime test-design projection-build`
+creates a consumer-specific, typed, pointer-only selection for `plan`, `quick`,
+`tasks`, or `review`, bound to a project-relative basis ref and optional `TO-*`
+selection. `specify-runtime test-design projection-verify` verifies its exact
+path and SHA-256 before use. Project scope omits `--feature-dir` and supports
+only Plan or Quick projections; Tasks and Review are feature-only. Neither the
+producer nor a consumer may patch a publication or projection, and a projection
+must not duplicate canonical case, data, coverage, gap, or audit bodies.
+For Tasks, preserve the exact revision order `validate -> handoff -> publish ->
+projection-build --consumer tasks -> projection-verify`; `handoff` increments
+revision, so publish uses the new handed-off revision. Plan, Quick, and a
+feature-scoped Review may publish/build directly from validated state. Never hand off after publish,
+because that revision change stales the publication.
+
 The only completion states are `complete_against_frozen_scope`,
 `qualified_with_declared_gaps`, `blocked`, and `stale`. The workflow must never
-claim `absolutely_complete`. A feature handoff is pointer-only and preserves
-test-case refs, test-data refs, gap and audit refs, and the frozen source
-fingerprint for `sp-tasks`.
+claim `absolutely_complete`. A feature handoff is a compatibility pointer for
+`sp-tasks`; typed projections are the public read-only contract for selected
+Plan, Quick, Tasks, and Review consumers. Both preserve the frozen source
+fingerprint and canonical refs without copied truth.

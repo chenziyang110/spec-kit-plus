@@ -2,7 +2,7 @@
 
 Workers perform bounded, read-only discovery or independent audit. The Leader
 retains scope, canonical artifact mutation, lane acceptance, synthesis,
-validation, and handoff authority.
+validation, publication, projection, and handoff authority.
 
 Every substantive discovery packet must be executed by a non-Leader worker.
 The Leader must not perform discovery serially as a substitute. If no worker is
@@ -70,7 +70,7 @@ explicitly partial packet result. Execute its exact `yield_argv_prefix` with
 unable to continue safely; never reconstruct either argv. The reason must be
 non-empty and sanitized because the runtime persists it in yield history. A worker must not
 accept its own result and must never call `lane-accept`, `synthesize`,
-`validate`, or `handoff`.
+`validate`, `publish`, `projection-build`, `projection-verify`, or `handoff`.
 
 ## Independent audit packet
 

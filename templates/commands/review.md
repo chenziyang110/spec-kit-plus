@@ -21,10 +21,28 @@ scripts:
 
 [AGENT] `sp-review` starts from the exact immutable Candidate built from eligible implementation Results. Inspect it with `specify-runtime candidate show` and run integrated proof with `specify-runtime candidate review`. Bind frozen product targets through `specify-runtime review target-bind`. Any accepted code repair runs through `specify-runtime run supervise` as a new repair Run, seals a new Result, and requires a newly built and reviewed Candidate; never mutate or directly integrate the old Candidate.
 
+## Read-Only Test Design Oracle Intake
+
+When the upstream gate is `selected` or `required`, or the canonical task index
+carries a Test Design binding, require a producer-built Review projection and
+verify it before reading any selected ref:
+
+`{{specify-subcmd:specify-runtime test-design projection-verify --feature-dir <feature-dir> --projection-ref <project-relative-ref> --expected-sha256 <sha256> --format json}}`
+
+The verified projection is a canonical, typed, pointer-only oracle/input for
+coverage discovery and scenario expectations. Review consumes it read-only and
+must not create, patch, replace, weaken, or copy the Test Design publication,
+projection, cases, data, coverage, gaps, or audit. Missing, stale, tampered,
+foreign, active, blocked, or unpublished selected/required input routes to
+`{{invoke:test-design}}` and stops. **Test Design is not PASS evidence** and
+does not prove the implementation passes. Review still performs independent
+coverage discovery and captures fresh integrated evidence from every applicable
+real entrypoint against the final reviewed snapshot.
+
 ## Main Flow
 
 1. Run `{SCRIPT}` to resolve one implemented feature and inspect repository status. Initial Review transitions from validated `implement`; an acceptance repair arrives through CLI-owned `accept route-repair` with `review` already active. Run `{{specify-subcmd:specify-runtime review prepare --feature-dir <feature-dir> --expected-revision <revision> --format json}}`; stop when the implementation handoff, fingerprint, prior approved Review digest, routed acceptance finding, or revision is missing, stale, or ambiguous. Acceptance repair must create the next immutable Review cycle rather than editing or reapproving the old cycle.
-2. Query `implementation-handoff.json` and current `review-state.json` through targeted `specify-runtime artifact show` calls, including every confirmed deferral, required acceptance ref, and official entrypoint. Each DEF is unresolved scope transferred from Implement: restore its exact refs and withheld claims, then rerun it; never count it as prior PASS evidence.
+2. Query `implementation-handoff.json` and current `review-state.json` through targeted `specify-runtime artifact show` calls, including every confirmed deferral, required acceptance ref, official entrypoint, and upstream Test Design gate/binding. Verify any selected/required Review projection before using it as an oracle. Each DEF is unresolved scope transferred from Implement: restore its exact refs and withheld claims, then rerun it; never count it or Test Design as prior PASS evidence.
 3. Compile the bounded Review Universe from authoritative acceptance obligations, official entrypoints, changed consumer surfaces, runtime-discovered controls and registrations, and affected regression paths. Use independent coverage discovery so the handoff scenario matrix is a minimum rather than a blind spot; the Leader owns the zero-uncovered reconciliation. Before executing a heavyweight command or real scenario, inspect validation status and follow its `attempt_decision`. `remaining_epochs: 0` means no new logical gate slots, not that Review is dead: a returned `retry_same_gate` opens the next physical attempt inside delivery, while `repair_before_retry` requires diagnosis and a changed fingerprint. Scenario slices within that attempt share it rather than incrementing logical gate count.
 4. Start the software from every applicable official real entrypoint and wait for its declared ready signal. The Leader orchestrates an independent read-only Review/Audit wave, joins every result, reconciles coverage, and forbids audit workers from editing product code or declaring coverage complete. Register/import all new scenario evidence through `specify-runtime evidence`, and submit every packet result inline through `specify-runtime result submit --command review`; the CLIs alone materialize current-cycle evidence and results, and earlier-cycle evidence cannot close the new cycle.
 5. Exercise real actions and observable results inside that delivery attempt. Trace button, link, menu, form, command, route, handler, provider, factory, service, persistence or external dependency, and user feedback wiring where applicable. For UI scenarios capture integrated `structure_snapshot`, `visual_capture`, and `runtime_diagnostics` evidence from the real entrypoint once per applicable surface/fingerprint. Revalidate design-system fidelity, anti-slop, and design DNA/hierarchy against approved `DESIGN.md` and the UI contract—not code correctness alone. Do not run the full viewport/state capture loop per Txx.

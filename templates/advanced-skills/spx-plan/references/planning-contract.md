@@ -11,6 +11,21 @@ Record only decisions that constrain implementation:
 - verification at real entry points and important boundaries;
 - alternatives, assumptions, and risks that materially affect the design.
 
+Record `test_design_gate.decision` as exactly `not_selected`, `selected`, or
+`required`. A selected/required gate carries either an all-null pending binding
+or the full runtime-produced `projection_binding`; partial binding is invalid.
+When Plan consumes it, verify with `specify-runtime test-design
+projection-verify --feature-dir <feature-dir> --projection-ref
+<project-relative-ref> --expected-sha256 <sha256>` before reading the typed
+pointer-only selection; omit `--feature-dir` for project scope. Plan consumes
+that canonical projection read-only and must not mutate or copy its publication,
+cases, data, coverage, gaps, or audit. Missing input needed by Plan routes to the
+independent `$spx-test-design` producer; otherwise all-null pending selection
+may route there afterward. It does not require a completed Plan. `not_selected`
+has no invented binding. This binding proves only Plan consumption, never Tasks
+authorization; Tasks requires a fresh feature handoff, its own projection, and
+runtime task-index binding. Avoid a Plan-contract basis/hash cycle.
+
 When UI applies, preserve the feature `ui-brief.md` rather than reinterpreting
 it. Query `.specify/design/design-system.json` and `DESIGN.md` through targeted
 `specify-runtime artifact show` calls; use the former as the machine-readable source

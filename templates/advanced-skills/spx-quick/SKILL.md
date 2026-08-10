@@ -19,6 +19,23 @@ Read `references/ui-quality-gate.md` for any user-visible UI change.
 
 `$spx-quick` always starts a new run. Record that new run with `specify-runtime run create`, then execute only through `specify-runtime run supervise`; do not resume another workflow's run.
 
+The runtime-managed `STATUS.md` Test Design input uses
+`test_design_gate.decision: not_selected|selected|required` plus a
+`projection_binding`. For `selected` or `required`, verify the producer-built
+projection before use with
+`{{specify-subcmd:specify-runtime test-design projection-verify --projection-ref <project-relative-ref> --expected-sha256 <sha256> --format json}}`,
+adding `--feature-dir <feature-dir>` only for feature scope. Consume that
+canonical typed pointer-only projection read-only. Never create, patch,
+replace, weaken, or copy the Test Design publication, projection, cases, data,
+coverage, gaps, or audit. A selected/required gate with no root or a missing,
+stale, tampered, or foreign projection routes to the independent
+`$spx-test-design` producer and stops. It does not require Plan completion.
+First stage the user-owned decision through `quick checkpoint-stage`. Resume
+Quick only after Test Design publishes and builds the Quick projection against
+the stable project-relative `.planning/quick/<id>/confirmation.json`, never the
+mutable `STATUS.md` that will receive `projection_binding`. `not_selected` is
+the legal optional path and carries no invented binding.
+
 ## Hard Q Loop (do not skip)
 
 After checkpoint confirmation, every in-progress `Qn` uses this hard order.

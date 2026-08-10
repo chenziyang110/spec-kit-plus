@@ -44,6 +44,9 @@ _RFC3339_RE = re.compile(
     r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?"
     r"(?:Z|[+-]\d{2}:\d{2})$"
 )
+_TEST_DESIGN_SOURCE_FRESHNESS_POLICIES = frozenset(
+    {"strict", "bound_snapshot"}
+)
 _TERMINAL_STATUSES = {"accepted", "deferred"}
 _AUTHORING_MUTABLE_STATUSES = {"pending", "ready", "blocked", "failed"}
 _TEST_DESIGN_ROOT_FIELDS = {
@@ -52,6 +55,14 @@ _TEST_DESIGN_ROOT_FIELDS = {
     "test_design_source_fingerprint",
     "test_design_state_revision",
     "test_design_artifact_digests",
+}
+_TEST_DESIGN_PROJECTION_BINDING_FIELDS = {
+    "publication_ref",
+    "publication_sha256",
+    "projection_ref",
+    "projection_sha256",
+    "source_fingerprint",
+    "state_revision",
 }
 _PROTECTED_ROOT_FIELDS = {
     "version",
@@ -1477,8 +1488,16 @@ def _validate_accepted_test_design_audit(
 
 
 def _verify_published_test_design_handoff(
-    root: Path, feature: Path
+    root: Path,
+    feature: Path,
+    *,
+    source_freshness_policy: str = "strict",
 ) -> dict[str, Any]:
+    if source_freshness_policy not in _TEST_DESIGN_SOURCE_FRESHNESS_POLICIES:
+        raise TaskAuthoringError(
+            "test-design source freshness policy must be strict or "
+            "bound_snapshot"
+        )
     test_design_root = safe_local_state_path(feature / "test-design", root=root)
     handoff, handoff_raw = _read_object_with_raw(
         test_design_root / "handoff-to-tasks.json",
@@ -1580,19 +1599,20 @@ def _verify_published_test_design_handoff(
         label="test-design state source",
         require_nonempty=True,
     )
-    current_fingerprint = _test_design_source_fingerprint(
-        root,
-        source_refs=source_refs,
-        included_paths=included_paths,
-        excluded_paths=excluded_paths,
-        risk_dimensions=risk_dimensions,
-        artifact_root=artifact_root,
-    )
-    if current_fingerprint != source_fingerprint:
-        raise TaskAuthoringError(
-            "test-design sources are stale: source fingerprint changed from "
-            f"{source_fingerprint} to {current_fingerprint}"
+    if source_freshness_policy == "strict":
+        current_fingerprint = _test_design_source_fingerprint(
+            root,
+            source_refs=source_refs,
+            included_paths=included_paths,
+            excluded_paths=excluded_paths,
+            risk_dimensions=risk_dimensions,
+            artifact_root=artifact_root,
         )
+        if current_fingerprint != source_fingerprint:
+            raise TaskAuthoringError(
+                "test-design sources are stale: source fingerprint changed from "
+                f"{source_fingerprint} to {current_fingerprint}"
+            )
 
     bundle: dict[str, dict[str, Any]] = {}
     bundle_raw: dict[str, bytes] = {}
@@ -1739,6 +1759,131 @@ def _test_design_binding_empty(payload: Mapping[str, Any]) -> bool:
     return digests is None or (isinstance(digests, Mapping) and not digests)
 
 
+def _parse_plan_test_design_gate(plan: Mapping[str, Any], *, label: str) -> str:
+    raw_gate = plan.get("test_design_gate")
+    if raw_gate is None:
+        return "not_selected"
+    if not isinstance(raw_gate, Mapping):
+        raise TaskAuthoringError(
+            f"{label} test_design_gate must contain an object"
+        )
+    flattened_binding = _TEST_DESIGN_PROJECTION_BINDING_FIELDS & set(raw_gate)
+    if flattened_binding:
+        raise TaskAuthoringError(
+            f"{label} test_design_gate projection fields must be nested under "
+            "projection_binding"
+        )
+    raw_decision = raw_gate.get("decision")
+    if not isinstance(raw_decision, str):
+        raise TaskAuthoringError(
+            f"{label} test_design_gate.decision must be "
+            "not_selected, selected, or required"
+        )
+    decision = raw_decision.strip().lower()
+    if decision not in {"not_selected", "selected", "required"}:
+        raise TaskAuthoringError(
+            f"{label} test_design_gate.decision must be "
+            "not_selected, selected, or required"
+        )
+    reason_refs = raw_gate.get("reason_refs", [])
+    if not isinstance(reason_refs, list) or any(
+        not isinstance(item, str) or not item.strip() for item in reason_refs
+    ):
+        raise TaskAuthoringError(
+            f"{label} test_design_gate.reason_refs must be an array of "
+            "non-empty strings"
+        )
+    if len({item.strip() for item in reason_refs}) != len(reason_refs):
+        raise TaskAuthoringError(
+            f"{label} test_design_gate.reason_refs must not contain duplicates"
+        )
+    projection_binding = raw_gate.get("projection_binding")
+    if projection_binding is None:
+        return decision
+    if not isinstance(projection_binding, Mapping):
+        raise TaskAuthoringError(
+            f"{label} test_design_gate.projection_binding must contain an object"
+        )
+    if set(projection_binding) != _TEST_DESIGN_PROJECTION_BINDING_FIELDS:
+        raise TaskAuthoringError(
+            f"{label} test_design_gate.projection_binding must contain exactly "
+            + ", ".join(sorted(_TEST_DESIGN_PROJECTION_BINDING_FIELDS))
+        )
+    values = [projection_binding[field] for field in _TEST_DESIGN_PROJECTION_BINDING_FIELDS]
+    if any(value is not None for value in values) and any(
+        value is None for value in values
+    ):
+        raise TaskAuthoringError(
+            f"{label} test_design_gate.projection_binding must be entirely null "
+            "or entirely populated"
+        )
+    if all(value is None for value in values):
+        return decision
+    for field in ("publication_ref", "projection_ref"):
+        value = projection_binding[field]
+        if not isinstance(value, str) or not value.strip():
+            raise TaskAuthoringError(
+                f"{label} test_design_gate.projection_binding.{field} must be a "
+                "non-empty project-relative reference"
+            )
+    for field in (
+        "publication_sha256",
+        "projection_sha256",
+        "source_fingerprint",
+    ):
+        value = projection_binding[field]
+        if not isinstance(value, str) or not _SHA256_RE.fullmatch(value):
+            raise TaskAuthoringError(
+                f"{label} test_design_gate.projection_binding.{field} must be a "
+                "lowercase SHA-256 digest"
+            )
+    revision = projection_binding["state_revision"]
+    if isinstance(revision, bool) or not isinstance(revision, int) or revision < 1:
+        raise TaskAuthoringError(
+            f"{label} test_design_gate.projection_binding.state_revision must be "
+            "a positive integer"
+        )
+    if decision == "not_selected":
+        raise TaskAuthoringError(
+            f"{label} not_selected test_design_gate must not retain a projection binding"
+        )
+    return decision
+
+
+def _plan_test_design_gate_decision(root: Path, feature: Path) -> str:
+    decisions: list[tuple[str, str]] = []
+    for candidate in (
+        feature / "plan-contract.json",
+        feature / "plan" / "plan-contract.json",
+    ):
+        try:
+            safe_candidate = safe_local_state_path(candidate, root=root)
+            metadata = safe_candidate.lstat()
+        except FileNotFoundError:
+            continue
+        except (OSError, ValueError) as exc:
+            raise TaskAuthoringError(
+                f"inspect plan-contract.json test_design_gate: {exc}"
+            ) from exc
+        if not stat.S_ISREG(metadata.st_mode) or stat.S_ISLNK(metadata.st_mode):
+            raise TaskAuthoringError(
+                "plan-contract.json must be a regular non-symlink file"
+            )
+        label = candidate.relative_to(feature).as_posix()
+        plan = _read_object(candidate, root=root, label=label)
+        decisions.append(
+            (label, _parse_plan_test_design_gate(plan, label=label))
+        )
+    if not decisions:
+        return "not_selected"
+    if len({decision for _, decision in decisions}) != 1:
+        rendered = ", ".join(f"{label}={decision}" for label, decision in decisions)
+        raise TaskAuthoringError(
+            "conflicting plan-contract test_design_gate decisions: " + rendered
+        )
+    return decisions[0][1]
+
+
 def _clear_test_design_binding(payload: dict[str, Any]) -> None:
     payload["test_design_handoff_ref"] = None
     payload["test_design_handoff_sha256"] = None
@@ -1795,7 +1940,14 @@ def _validate_test_design_binding(
     *,
     bind: bool,
     require_all: bool,
+    source_freshness_policy: str = "strict",
 ) -> None:
+    if source_freshness_policy not in _TEST_DESIGN_SOURCE_FRESHNESS_POLICIES:
+        raise TaskAuthoringError(
+            "test-design source freshness policy must be strict or "
+            "bound_snapshot"
+        )
+    plan_gate_decision = _plan_test_design_gate_decision(root, feature)
     tasks = payload.get("tasks")
     if not isinstance(tasks, list):
         raise TaskAuthoringError("task-index tasks must be an array")
@@ -1814,6 +1966,12 @@ def _validate_test_design_binding(
         safe_handoff_path = safe_local_state_path(handoff_path, root=root)
         safe_handoff_path.lstat()
     except FileNotFoundError:
+        if plan_gate_decision in {"selected", "required"}:
+            raise TaskAuthoringError(
+                "plan-contract test-design gate decision "
+                f"{plan_gate_decision} requires a current feature "
+                "test-design/handoff-to-tasks.json before Tasks can continue"
+            )
         existing_workspace_paths: list[str] = []
         for candidate in (
             feature / "test-design",
@@ -1850,7 +2008,11 @@ def _validate_test_design_binding(
     except (OSError, ValueError) as exc:
         raise TaskAuthoringError(f"inspect test-design handoff: {exc}") from exc
     try:
-        binding = _verify_published_test_design_handoff(root, feature)
+        binding = _verify_published_test_design_handoff(
+            root,
+            feature,
+            source_freshness_policy=source_freshness_policy,
+        )
     except TaskAuthoringError as exc:
         raise TaskAuthoringError(
             f"test-design handoff is stale or invalid: {exc}"
@@ -1893,6 +2055,7 @@ def validate_task_test_design_binding(
     task_index: Mapping[str, Any],
     *,
     require_all: bool,
+    source_freshness_policy: str = "strict",
 ) -> dict[str, Any]:
     """Revalidate and return the runtime-owned test-design packet binding."""
 
@@ -1904,6 +2067,7 @@ def validate_task_test_design_binding(
         payload,
         bind=False,
         require_all=require_all,
+        source_freshness_policy=source_freshness_policy,
     )
     return {
         "test_design_handoff_ref": deepcopy(

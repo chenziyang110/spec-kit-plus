@@ -77,6 +77,16 @@ earlier-cycle evidence cannot close the current cycle.
 
 ## Mandatory scenario matrix
 
+When Test Design is selected/required or bound upstream, verify the Review
+projection with `specify-runtime test-design projection-verify --feature-dir
+<feature-dir> --projection-ref <project-relative-ref> --expected-sha256
+<sha256>` before reading it. It is a canonical typed pointer-only, read-only
+oracle and minimum coverage input. Review must not mutate or copy its
+publication, projection, cases, data, coverage, gaps, or audit. Test Design is
+not PASS evidence; only fresh integrated real-entrypoint observations against
+the reviewed snapshot can pass scenarios. Missing or stale selected input
+routes to `$spx-test-design`.
+
 The leader compiles the Review Universe from authoritative acceptance and
 design/architecture obligations, handoff scenarios, changed consumer surfaces,
 runtime-discovered controls/registrations, and affected shared paths. Use

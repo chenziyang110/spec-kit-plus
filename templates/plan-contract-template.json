@@ -54,6 +54,18 @@
   },
   "consequence_obligations": [],
   "operational_consequence_decisions": [],
+  "test_design_gate": {
+    "decision": "not_selected",
+    "reason_refs": [],
+    "projection_binding": {
+      "publication_ref": null,
+      "publication_sha256": null,
+      "projection_ref": null,
+      "projection_sha256": null,
+      "source_fingerprint": null,
+      "state_revision": null
+    }
+  },
   "ui_design_contract": {
     "ui_applicable": false,
     "ui_work_type": null,

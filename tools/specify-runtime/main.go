@@ -1071,6 +1071,9 @@ func defaultCapabilities() []string {
 		"test-design.lane-lease",
 		"test-design.lane-prepare",
 		"test-design.lane-yield",
+		"test-design.projection-build",
+		"test-design.projection-verify",
+		"test-design.publish",
 		"test-design.status",
 		"test-design.synthesize",
 		"test-design.universe-build",
@@ -1288,6 +1291,12 @@ func capabilitySummary(id string) string {
 		return "Create an independent audit lane bound to exact source and artifact digests."
 	case "test-design.validate":
 		return "Validate freshness, traceability, data hygiene, audit closure, and claim status."
+	case "test-design.publish":
+		return "Publish one consumer-neutral, pointer-only binding for a validated test-design bundle."
+	case "test-design.projection-build":
+		return "Derive a digest-bound current Plan, Quick, Tasks, or Review pointer projection slot from the current publication."
+	case "test-design.projection-verify":
+		return "Fail closed unless a consumer projection, publication, basis, source, and selected closure are all current."
 	case "test-design.handoff":
 		return "Atomically publish a pointer-only test-design handoff for Tasks."
 	case "artifact.prune":

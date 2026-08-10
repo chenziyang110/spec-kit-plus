@@ -1,6 +1,6 @@
 ---
 name: spx-test-design
-description: Planning-only test intelligence workflow for advanced coding models. Use when a project or planned feature needs a frozen test universe, traceable professional test cases, explicit test-data decisions, an independent coverage audit, or a fresh handoff before task generation.
+description: Independent planning-only test intelligence producer for advanced coding models. Use when a project or feature needs a frozen test universe, traceable professional test cases, explicit test-data decisions, an independent coverage audit, a published package, or typed consumer projections.
 ---
 
 # SPX Test Design
@@ -17,7 +17,8 @@ This is a planning-only workflow. Source, tests, repository fixtures,
 migrations, production configuration, and build tooling are read-only. Design
 tests and their material package; do not implement, execute, or repair tests.
 The Leader owns scope, canonical artifacts, lane acceptance, synthesis,
-independent audit, validation, and the final handoff.
+independent audit, validation, publication, projections, and the compatibility
+Tasks handoff.
 
 ## Select and freeze the run
 
@@ -25,24 +26,31 @@ Select exactly one mode:
 
 - `project-baseline`: scan a declared project boundary and use
   `.specify/test-design/`.
-- `feature`: design from a validated feature plan and use
+- `feature`: design from an explicitly selected feature boundary and use
   `<FEATURE_DIR>/test-design/`.
 - `incremental-update`: CAS-reenter an existing root against an explicit source
   delta while preserving semantically unchanged stable IDs.
 - `audit`: CAS-reenter an existing package for assessment without expanding its
   frozen boundary.
 
-For feature-scoped work, resolve the feature in paths-only mode, run
-`{{specify-subcmd:specify-runtime workflow show --feature-dir <feature-dir> --format json}}`,
-and require current planning truth. The expected workflow owner remains `plan`;
-never edit `FEATURE_DIR/workflow.json` or transition the required stage.
-`$spx-test-design` is optional between `$spx-plan` and `$spx-tasks`, not a
-replacement for either stage.
+`$spx-test-design` is an **independent producer** and does not require Plan
+completion or a completed Plan. For feature-scoped work, resolve the feature
+explicitly. If a feature workflow exists, query
+`{{specify-subcmd:specify-runtime workflow show --feature-dir <feature-dir> --format json}}`
+only to bind current sources and consumer context; never edit
+`FEATURE_DIR/workflow.json` or transition its required stage. The default formal
+path may still select Test Design between `$spx-plan` and `$spx-tasks`, but a
+project or feature run may begin independently from current evidence.
 
 Before discovery, freeze the query, source refs, included and excluded paths,
 risk dimensions, and runtime-computed fingerprint. Include the applicable
 capabilities, requirements, entrypoints, environments, operational risks, and
-UI surfaces. Do not claim coverage outside that denominator. Initialize through
+UI surfaces. Current code is final authority for implemented behavior; tests,
+configuration, official contracts, and live runtime evidence corroborate it.
+Project Cognition is navigation only and no cognition claim may replace code
+verification. A specification or Plan may supply an
+intended-behavior basis but is not an entry prerequisite. Do not claim coverage
+outside the frozen denominator. Initialize through
 one of these runtime-owned forms, passing the frozen input as JSON:
 
 ```text
@@ -54,7 +62,10 @@ On resume, run
 `{{specify-subcmd:specify-runtime test-design status --feature-dir <feature-dir> --format json}}`
 (omit `--feature-dir` for project scope) and continue from its phase, revision,
 accepted results, blockers, and source fingerprint; never reconstruct state
-from chat or overwrite runtime-owned state files. Reenter an existing root only
+from chat or overwrite runtime-owned state files. `next_action` expresses the
+default formal Tasks route; for an explicitly selected Plan or Quick consumer
+at validated feature state, use the permitted direct `publish` branch below
+instead of `handoff`. Reenter an existing root only
 through one of these compare-and-swap forms using the revision returned by
 `status`:
 
@@ -157,7 +168,7 @@ stop with the affected coverage and gap refs and route to
 its primary-source findings, evidence records, and `Planning Handoff`; then CAS
 reenter the test-design root when those findings change the frozen inputs.
 
-## Audit, validate, and hand off
+## Audit, validate, publish, and project
 
 After synthesis, run
 `{{specify-subcmd:specify-runtime test-design audit-prepare --feature-dir <feature-dir> --expected-revision <revision> --format json}}`.
@@ -186,7 +197,36 @@ artifact refs, `test_case_refs`, `test_data_refs`, gap ref, audit ref, source
 fingerprint, and claim status. Do not copy the catalog or data manifest into
 the handoff.
 
+For a Tasks consumer, preserve the exact lifecycle `validate -> handoff ->
+publish -> projection-build --consumer tasks -> projection-verify`. Because
+`handoff` increments state revision, rerun `status` after handoff and publish
+with that new handed-off revision. Plan and Quick may publish/build directly
+from validated state; Review and Tasks are feature-only consumers. Publish with
+`{{specify-subcmd:specify-runtime test-design publish --feature-dir <feature-dir> --expected-revision <revision> --format json}}`,
+omitting `--feature-dir` for project scope. The runtime alone writes the
+content-addressed publication. For feature scope, run
+`{{specify-subcmd:specify-runtime test-design projection-build --feature-dir <feature-dir> --consumer <plan|quick|tasks|review> --basis-ref <project-relative-ref> --obligation-ids <TO-001,TO-002> --format json}}`;
+for project scope omit `--feature-dir` and allow only `plan|quick`. Project
+Tasks or Review projection is invalid. Omit `--obligation-ids` only for the
+complete applicable denominator. Verify the returned pointer with
+`{{specify-subcmd:specify-runtime test-design projection-verify --feature-dir <feature-dir> --projection-ref <project-relative-ref> --expected-sha256 <sha256> --format json}}`,
+omitting `--feature-dir` only for a project Plan/Quick projection. Publications and projections
+are runtime-owned canonical artifacts. A projection is typed and pointer-only;
+it never copies catalog, data, coverage, gap, or audit bodies, and neither the
+producer nor a consumer patches it. A later feature `handoff` is legal, but its
+revision increment invalidates every earlier publication and projection; rerun
+`status`, `publish`, `projection-build`, and `projection-verify` before further
+consumption.
+
+Use an immutable upstream consumer basis: Plan uses the current feature
+`spec-contract.json`; Quick uses the runtime-owned
+`.planning/quick/<id>/confirmation.json`; Tasks uses the finalized
+`plan-contract.json`; Review uses `implementation-handoff.json`. Never use the
+consumer artifact that will receive `projection_binding` as its own basis.
+
 This invocation authorizes only this planning-only test-design workflow. It does
 not make the code map dirty and requires no project-cognition closeout. Report
-the frozen scope, claim status, material readiness, unresolved gaps, and handoff
-path. Stop and recommend `$spx-tasks`; do not invoke it in the same run.
+the frozen scope, claim status, material readiness, unresolved gaps,
+publication, built projection refs, and compatibility handoff path. Stop at the
+selected consumer boundary; in the default formal path recommend `$spx-tasks`
+without invoking it in the same run.

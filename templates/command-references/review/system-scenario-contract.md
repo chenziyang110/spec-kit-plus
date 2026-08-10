@@ -6,6 +6,16 @@ Purpose: prove integrated, user-observable behavior rather than implementation-s
 
 Before scenario execution, the Leader compiles the Review Universe from the handoff plus independent coverage discovery of authoritative requirements, design/architecture obligations, changed consumer surfaces, runtime controls and registrations, and affected shared paths. The handoff matrix is a minimum, never the complete universe by assertion. Reconcile each obligation and discovered surface to a required scenario or a specific evidence-backed out-of-scope disposition.
 
+When Test Design is selected/required or bound upstream, first run
+`specify-runtime test-design projection-verify --feature-dir <feature-dir>
+--projection-ref <project-relative-ref> --expected-sha256 <sha256>`. Consume the
+canonical typed pointer-only Review projection read-only as an oracle and
+minimum coverage input. Never mutate or copy its publication, projection,
+cases, data, coverage, gaps, or audit. Test Design is not PASS evidence and does
+not prove the implementation passes; fresh integrated real-entrypoint proof is
+still required. Missing or stale selected input routes back to the independent
+Test Design producer.
+
 Review always covers:
 
 - installation/build/startup and the ready signal for each applicable official real entrypoint;

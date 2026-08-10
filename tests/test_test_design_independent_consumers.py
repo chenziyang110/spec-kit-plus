@@ -292,6 +292,25 @@ def test_both_profiles_define_read_only_verified_projection_consumers(
         assert "specify-runtime test-design projection-verify" in content
 
 
+def test_projection_basis_is_stable_and_consumer_specific() -> None:
+    producer = _normalized(
+        "templates/commands/test-design.md",
+        "templates/advanced-skills/spx-test-design/SKILL.md",
+    )
+    assert "spec-contract.json" in producer
+    assert ".planning/quick/<id>/confirmation.json" in producer
+    assert "plan-contract.json" in producer
+    assert "implementation-handoff.json" in producer
+
+    plan = _normalized(*CONSUMER_SURFACES["plan"])
+    assert "spec-contract.json" in plan
+    assert "self-hashing" in plan
+
+    quick = _normalized(*CONSUMER_SURFACES["quick"])
+    assert ".planning/quick/<id>/confirmation.json" in quick
+    assert "status.md basis" not in quick
+
+
 @pytest.mark.parametrize(
     "surface",
     (

@@ -3,7 +3,7 @@
 ## Authority and roots
 
 The test-design runtime owns lifecycle state, lane manifests and results, gap
-state, validation, and handoff generation. The artifact runtime owns mutation
+state, validation, publication, projection, and handoff generation. The artifact runtime owns mutation
 of the four canonical design artifacts. Read them with `artifact show`; create
 them only through test-design initialization or their registered scaffolds and
 update them only through fresh leased JSON-pointer `artifact patch` operations.
@@ -13,16 +13,20 @@ artifact.
 | Mode | Scope root | Entry condition | Preservation rule |
 | --- | --- | --- | --- |
 | `project-baseline` | `.specify/test-design/` | declared repository boundary | establish the first frozen denominator |
-| `feature` | `<FEATURE_DIR>/test-design/` | validated plan and current feature sources | bind cases to plan and acceptance refs |
+| `feature` | `<FEATURE_DIR>/test-design/` | explicit feature boundary and current authoritative sources | bind cases to selected feature obligations and consumer bases |
 | `incremental-update` | existing matching root | explicit source delta and current runtime revision | retain stable IDs for semantically unchanged rows |
 | `audit` | existing matching root | package, original denominator, and current runtime revision exist | report findings; do not expand scope |
 
-Feature mode is an optional planning auxiliary. Query current stage authority
-with
+Test Design is an independent producer and does not require a completed Plan.
+Feature mode may use a current specification or Plan as intended-behavior input,
+but current code is final authority for implemented behavior; tests,
+configuration, official contracts, and live runtime evidence corroborate it.
+Project Cognition only navigates to those sources and no cognition claim may
+replace code verification. If
+a feature workflow exists, query it with
 `{{specify-subcmd:specify-runtime workflow show --feature-dir <feature-dir> --format json}}`
-and require `plan` as the current owner, but do not mutate or advance the
-required Specify-to-Plan-to-Tasks state machine. Project mode does not invent a
-feature directory or feature workflow.
+for source and consumer context but do not mutate or advance it. Project mode
+does not invent a feature directory or feature workflow.
 
 For ordinary resume, query `test-design status` and follow its exact next argv.
 Only `init --mode incremental-update|audit --expected-revision <revision>` may
@@ -50,6 +54,9 @@ The canonical root contains:
 - `lane-manifest.json` and `lane-results/`: runtime-owned bounded discovery and
   audit records.
 - `handoff-to-tasks.json`: runtime-generated pointer-only downstream contract.
+- publication: runtime-generated, content-addressed canonical package.
+- projections: runtime-generated typed pointer-only selections for `plan`,
+  `quick`, `tasks`, or `review`, each bound to a basis ref and SHA-256.
 
 ## Frozen denominator
 
@@ -161,11 +168,28 @@ Never use totalizing claims. The package can prove only completeness against
 its frozen denominator. Validation failure remains a typed blocker and follows
 `references/blocker-resolution.md`; do not relabel it as a warning.
 
-## Downstream boundary
+## Publication and downstream boundary
 
-The handoff to `$spx-tasks` contains refs, not duplicated content. Tasks bind
+After validation, call `specify-runtime test-design publish` with the current
+revision. Build only explicitly selected consumer views with
+`specify-runtime test-design projection-build --consumer plan|quick|tasks|review
+--basis-ref <project-relative-ref>` and optional obligation IDs, then verify each
+returned ref and digest with `specify-runtime test-design projection-verify`.
+Project scope omits `--feature-dir` and supports only Plan or Quick projections;
+Tasks and Review projections are feature-only. Publications and projections are
+runtime-owned; no workflow patches them. A projection contains typed pointers
+and selection metadata, not copied canonical bodies.
+
+Tasks has one stricter compatibility sequence: `validate -> handoff -> publish
+-> projection-build --consumer tasks -> projection-verify`. Since `handoff`
+increments revision, publish must bind the new handed-off revision. Plan, Quick,
+and a feature-scoped Review publish/build directly from validated state. Never call `handoff`
+after publish because it makes that publication stale.
+
+The compatibility handoff to `$spx-tasks` contains refs, not duplicated content. Tasks bind
 the relevant `test_case_refs` and `test_data_refs` to task-local contracts and
 shared gates. Implement realizes fixtures and tests; Review executes integrated
 verification and checks fresh evidence. Test Design does neither. A later source
-or plan change invalidates the handoff until an incremental update validates a
-new fingerprint.
+or basis change invalidates the affected handoff or projection until an
+incremental update validates a new fingerprint and the runtime republishes and
+rebuilds the consumer view.

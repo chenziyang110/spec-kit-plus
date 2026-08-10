@@ -4,6 +4,12 @@ The leader orchestrates subagents through three explicit waves and retains
 global state, the Review Universe, shared runtime resources, joins, finding
 acceptance, zero-uncovered reconciliation, and the final verdict.
 
+When applicable, packets carry only selected refs from the verified read-only
+Test Design Review projection. Those canonical refs are oracles, never PASS
+evidence. A worker must not mutate or copy the Test Design publication,
+projection, cases, data, coverage, gaps, or audit, and still must return fresh
+real-entrypoint observations for its scenario.
+
 These are orchestration waves inside the validation ledger shared across
 Implement and Review, not separate permission to rerun heavyweight gates. Do not
 reset the ledger. The Leader opens attempts inside Review's delivery gate.

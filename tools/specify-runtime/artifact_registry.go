@@ -74,6 +74,8 @@ var artifactTypePatterns = []artifactTypePattern{
 	newFeatureWorkspacePattern("test-design/test-gaps.json", ArtifactTypeMetadata{TypeID: "feature-test-design-gaps", Owner: "specify-runtime test-design", Role: "canonical", Schema: "json/test-design-gaps", Operations: []string{"show", "list"}, SummaryAdapter: "json-top-level-keys"}),
 	newFeatureWorkspacePattern("test-design/lane-manifest.json", ArtifactTypeMetadata{TypeID: "feature-test-design-lane-manifest", Owner: "specify-runtime test-design", Role: "runtime-internal", Schema: "json/test-design-lane-manifest", Operations: []string{"show", "list"}, SummaryAdapter: "json-top-level-keys"}),
 	newFeatureWorkspacePattern("test-design/handoff-to-tasks.json", ArtifactTypeMetadata{TypeID: "feature-test-design-handoff", Owner: "specify-runtime test-design handoff", Role: "derived", Schema: "json/test-design-handoff", Operations: []string{"show", "list"}, SummaryAdapter: "json-top-level-keys"}),
+	newFeatureWorkspacePattern("test-design/test-design-publication.json", ArtifactTypeMetadata{TypeID: "feature-test-design-publication", Owner: "specify-runtime test-design publish", Role: "derived", Schema: "json/test-design-publication", Operations: []string{"show", "list"}, SummaryAdapter: "json-top-level-keys"}),
+	newFeatureWorkspaceNestedPattern("test-design/projections/", ".json", ArtifactTypeMetadata{TypeID: "feature-test-design-projection", Owner: "specify-runtime test-design projection-build", Role: "derived", Schema: "json/test-design-projection", Operations: []string{"show", "list"}, SummaryAdapter: "json-top-level-keys"}),
 	newFeatureWorkspaceNestedPattern("test-design/handoff-history/", ".json", ArtifactTypeMetadata{TypeID: "feature-test-design-handoff-history", Owner: "specify-runtime test-design", Role: "runtime-internal", Schema: "json/test-design-handoff", Operations: []string{"show", "list"}, SummaryAdapter: "json-top-level-keys"}),
 	newFeatureWorkspaceNestedPattern("test-design/lane-results/checkpoints/", ".json", ArtifactTypeMetadata{TypeID: "feature-test-design-lane-checkpoint", Owner: "specify-runtime test-design", Role: "runtime-internal", Schema: "json/test-design-lane-result", Operations: []string{"show", "list"}, SummaryAdapter: "json-top-level-keys"}),
 	newFeatureWorkspaceNestedPattern("test-design/lane-results/", ".json", ArtifactTypeMetadata{TypeID: "feature-test-design-lane-result", Owner: "specify-runtime test-design", Role: "runtime-internal", Schema: "json/test-design-lane-result", Operations: []string{"show", "list"}, SummaryAdapter: "json-top-level-keys"}),
@@ -85,6 +87,13 @@ var artifactTypePatterns = []artifactTypePattern{
 	newProjectTestDesignPattern("test-gaps.json", ArtifactTypeMetadata{TypeID: "project-test-design-gaps", Owner: "specify-runtime test-design", Role: "canonical", Schema: "json/test-design-gaps", Operations: []string{"show", "list"}, SummaryAdapter: "json-top-level-keys"}),
 	newProjectTestDesignPattern("lane-manifest.json", ArtifactTypeMetadata{TypeID: "project-test-design-lane-manifest", Owner: "specify-runtime test-design", Role: "runtime-internal", Schema: "json/test-design-lane-manifest", Operations: []string{"show", "list"}, SummaryAdapter: "json-top-level-keys"}),
 	newProjectTestDesignPattern("handoff-to-tasks.json", ArtifactTypeMetadata{TypeID: "project-test-design-handoff", Owner: "specify-runtime test-design handoff", Role: "derived", Schema: "json/test-design-handoff", Operations: []string{"show", "list"}, SummaryAdapter: "json-top-level-keys"}),
+	newProjectTestDesignPattern("test-design-publication.json", ArtifactTypeMetadata{TypeID: "project-test-design-publication", Owner: "specify-runtime test-design publish", Role: "derived", Schema: "json/test-design-publication", Operations: []string{"show", "list"}, SummaryAdapter: "json-top-level-keys"}),
+	{
+		metadata: ArtifactTypeMetadata{TypeID: "project-test-design-projection", Owner: "specify-runtime test-design projection-build", Role: "derived", Schema: "json/test-design-projection", Operations: []string{"show", "list"}, SummaryAdapter: "json-top-level-keys"},
+		match: func(path string) bool {
+			return strings.HasPrefix(path, ".specify/test-design/projections/") && strings.HasSuffix(path, ".json")
+		},
+	},
 	{
 		metadata: ArtifactTypeMetadata{TypeID: "project-test-design-handoff-history", Owner: "specify-runtime test-design", Role: "runtime-internal", Schema: "json/test-design-handoff", Operations: []string{"show", "list"}, SummaryAdapter: "json-top-level-keys"},
 		match: func(path string) bool {

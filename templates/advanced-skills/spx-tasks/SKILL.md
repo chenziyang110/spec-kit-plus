@@ -20,14 +20,30 @@ workflow runtime before creating task artifacts.
 Read `references/ui-quality-gate.md` when the plan carries a UI design contract.
 
 Query `plan-contract.json` first through `specify-runtime artifact show` and verify named owners, paths, and verification
-entry points against cognition-selected live evidence. If an optional
-`handoff-to-tasks.json` test-design handoff is present, query it through the
-artifact runtime, require its source fingerprint and claim status to be current,
-and treat its refs as authoritative input for task shaping rather than
-reconstructing test intent from prose. Route a stale, blocked, or requested
-missing package to `$spx-test-design`. If planning truth is missing or stale,
+entry points against cognition-selected live evidence. Read
+`test_design_gate.decision` as exactly `not_selected`, `selected`, or
+`required`. For selected/required input, require the producer-built Tasks
+projection and verify it first with
+`{{specify-subcmd:specify-runtime test-design projection-verify --feature-dir <feature-dir> --projection-ref <project-relative-ref> --expected-sha256 <sha256> --format json}}`.
+Consume the canonical typed pointer-only projection read-only; never create,
+patch, replace, weaken, or copy its publication, projection, cases, data,
+coverage, gaps, or audit. If the independent `$spx-test-design` producer also
+emitted the compatibility `handoff-to-tasks.json`, query it through the artifact
+runtime, require its source fingerprint and claim status to be current, and
+treat its refs as authoritative input for task shaping rather than
+reconstructing test intent from prose. Route no-root, active, blocked,
+unpublished, stale, tampered, foreign, or requested missing selected/required
+input to `$spx-test-design`; `not_selected` with no root is the legal optional
+skip. If planning truth is missing or stale,
 stop and route to `$spx-plan`, `$spx-clarify`, or `$spx-deep-research`; do not
 hide design work inside a task.
+
+The pointer-only **test-design handoff** remains the Tasks CLI compatibility
+contract alongside the verified Tasks projection; neither is model-authored.
+The Plan binding may be all-null pending or Plan-only and never authorizes
+Tasks. Tasks verifies its separate feature projection for read-only
+decomposition; the fresh feature handoff plus runtime-owned task-index binding
+provides final authorization and all-and-only ref enforcement.
 
 Run
 `{{specify-subcmd:specify-runtime hook validate-state --command tasks --feature-dir <feature-dir> --autofix --format json}}`

@@ -646,10 +646,29 @@ func loadReadyImplementTaskIndex(root, feature string) (map[string]any, error) {
 	if index["status"] != "ready" {
 		return nil, fmt.Errorf("task-index.json must use version 2 with status ready")
 	}
-	if err := taskControlValidateTestDesignBinding(root, feature, index, false, true); err != nil {
+	validateBinding := taskControlValidateTestDesignBinding
+	if implementTaskIndexExecutionStarted(index) {
+		validateBinding = taskControlValidateTestDesignBindingIntegrity
+	}
+	if err := validateBinding(root, feature, index, false, true); err != nil {
 		return nil, fmt.Errorf("task-index test-design binding is not consumable: %w", err)
 	}
 	return index, nil
+}
+
+func implementTaskIndexExecutionStarted(index map[string]any) bool {
+	tasks, _ := index["tasks"].([]any)
+	for _, raw := range tasks {
+		task, ok := raw.(map[string]any)
+		if !ok {
+			continue
+		}
+		switch taskControlStatus(task) {
+		case "in_progress", "implemented", "accepted", "blocked", "failed":
+			return true
+		}
+	}
+	return false
 }
 
 func findImplementTask(index map[string]any, taskID string) (int, map[string]any, error) {

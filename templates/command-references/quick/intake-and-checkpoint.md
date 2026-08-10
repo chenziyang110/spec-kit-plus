@@ -44,6 +44,26 @@ handoff `review_digest`. Runtime marks the checkpoint `inherited`, projects the
 Decision Checkpoint summary plus Delivery Map, and continues without repeated
 user confirmation. Otherwise stage only the changed decision delta.
 
+## Optional Test Design Input
+
+`STATUS.md` carries a runtime-managed `test_design_gate` with decision exactly
+`not_selected`, `selected`, or `required` and a digest-bound
+`projection_binding`. Before any selected/required Test Design ref affects the
+checkpoint or execution, run `specify-runtime test-design projection-verify
+[--feature-dir <feature-dir>] --projection-ref <project-relative-ref>
+--expected-sha256 <sha256>`. Project scope omits `--feature-dir`. Consume the
+canonical typed pointer-only projection read-only. Quick must not author,
+patch, replace, weaken, or copy the Test Design publication, projection,
+catalog, data, coverage, gaps, or audit. A missing root or a stale, missing,
+tampered, or foreign selected/required binding routes to independent
+`sp-test-design`; it does not require Plan completion. `not_selected` carries
+no fabricated binding.
+
+Stage the user-owned decision first. The Quick projection basis is the
+runtime-owned `.planning/quick/<id>/confirmation.json` produced by
+`quick checkpoint-stage`, never the mutable `STATUS.md` that later receives the
+`projection_binding`.
+
 ## Understanding Checkpoint
 
 `sp-quick` has one default Decision Checkpoint before substantive execution.

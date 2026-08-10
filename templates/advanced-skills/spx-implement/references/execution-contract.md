@@ -104,6 +104,13 @@ projections. Do not edit them directly or stage packet/result JSON files.
 For `result-merge`, use `validation_results` objects and
 `api schema implement-result-merge-input`; prefer `@path`/clean argv JSON over
 shell `ConvertTo-Json`.
+
+When Test Design is bound, JIT compilation supplies only the current task
+packet subset: canonical task-local `test_case_refs`, `test_data_refs`, and the
+runtime-owned binding. Consume it read-only. Do not independently read a global
+publication or projection, merge refs from a noncanonical Markdown task
+projection, or change canonical Test Design artifacts. Any missing, partial, stale, tampered, or foreign
+binding is a pre-edit blocker routed to Tasks/Test Design.
 If `task-next` or `resume-audit` returns
 `reason_code: task-reopen-required`, run its supplied `implement task-reopen`
 action with the observed task/workflow revisions, reason, and evidence. It

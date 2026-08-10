@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spec-kit-plus.local/schemas/test-design-projection-schema.json",
+  "title": "Spec Kit Plus Test Design Consumer Projection",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "projection_id",
+    "publication_ref",
+    "publication_sha256",
+    "consumer",
+    "basis_ref",
+    "basis_sha256",
+    "scope",
+    "artifact_root",
+    "source_fingerprint",
+    "state_revision",
+    "claim_status",
+    "selection",
+    "selection_sha256",
+    "forbidden_claims",
+    "test_execution_status"
+  ],
+  "properties": {
+    "schema_version": { "const": "spec-kit-test-design-projection-v1" },
+    "projection_id": { "type": "string", "minLength": 1 },
+    "publication_ref": { "type": "string", "minLength": 1 },
+    "publication_sha256": { "$ref": "#/$defs/sha256" },
+    "consumer": { "enum": ["plan", "quick", "tasks", "review"] },
+    "basis_ref": { "type": "string", "minLength": 1 },
+    "basis_sha256": { "$ref": "#/$defs/sha256" },
+    "scope": { "enum": ["project", "feature"] },
+    "artifact_root": { "type": "string", "minLength": 1 },
+    "source_fingerprint": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "state_revision": { "type": "integer", "minimum": 1 },
+    "claim_status": {
+      "enum": [
+        "complete_against_frozen_scope",
+        "qualified_with_declared_gaps"
+      ]
+    },
+    "selection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "obligation_refs",
+        "test_case_refs",
+        "test_data_refs",
+        "coverage_refs",
+        "gap_refs"
+      ],
+      "properties": {
+        "obligation_refs": { "$ref": "#/$defs/pointers" },
+        "test_case_refs": { "$ref": "#/$defs/pointers" },
+        "test_data_refs": { "$ref": "#/$defs/pointers" },
+        "coverage_refs": { "$ref": "#/$defs/pointers" },
+        "gap_refs": { "$ref": "#/$defs/pointers" }
+      }
+    },
+    "selection_sha256": { "$ref": "#/$defs/sha256" },
+    "forbidden_claims": { "$ref": "#/$defs/forbiddenClaims" },
+    "test_execution_status": { "const": "not_executed_by_test_design" }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "pointer": { "type": "string", "pattern": "^[^#]+\\.json#/[^/]+/[^/]+$" },
+    "pointers": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/pointer" }
+    },
+    "forbiddenClaims": {
+      "type": "array",
+      "minItems": 6,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "tests_executed",
+          "tests_passed",
+          "behavior_fixed",
+          "implementation_complete",
+          "release_safe",
+          "absolute_complete"
+        ]
+      },
+      "allOf": [
+        { "contains": { "const": "tests_executed" } },
+        { "contains": { "const": "tests_passed" } },
+        { "contains": { "const": "behavior_fixed" } },
+        { "contains": { "const": "implementation_complete" } },
+        { "contains": { "const": "release_safe" } },
+        { "contains": { "const": "absolute_complete" } }
+      ]
+    }
+  }
+}

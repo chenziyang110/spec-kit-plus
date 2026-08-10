@@ -16,6 +16,29 @@ workflow_contract:
 
 [AGENT] `sp-quick` always starts a new run. Record that new run with `specify-runtime run create`, then execute only through `specify-runtime run supervise`; do not resume another workflow's run.
 
+## Read-Only Test Design Projection Gate
+
+The runtime-managed `STATUS.md` Test Design input records
+`test_design_gate.decision: not_selected|selected|required` and its
+`projection_binding`. `not_selected` is the normal optional path. For
+`selected` or `required`, verify the producer-built projection before reading
+it:
+
+`{{specify-subcmd:specify-runtime test-design projection-verify --projection-ref <project-relative-ref> --expected-sha256 <sha256> --format json}}`
+
+Add `--feature-dir <feature-dir>` only when the selected projection is feature
+scoped; project scope omits it. The projection is a canonical, typed,
+pointer-only input. Quick consumes it read-only and must not create, patch,
+replace, weaken, or copy the Test Design publication, projection, cases, data,
+coverage, gaps, or audit. A selected/required gate with no Test Design root or
+a missing, stale, tampered, or foreign projection routes to the independent
+`{{invoke:test-design}}` producer and stops. Test Design does not require Plan
+completion. First stage the user-owned decision through `quick
+checkpoint-stage`; Test Design builds the Quick projection against the stable
+project-relative `.planning/quick/<id>/confirmation.json`, never the mutable
+`STATUS.md` that will receive `projection_binding`. Resume Quick and bind the
+returned refs/digests through the runtime-owned STATUS contract.
+
 ## Hard Q Loop (do not skip)
 
 After checkpoint confirmation, **every** in-progress `Qn` uses this hard order. Leader owns scope, STATUS, join, accept—not write_scope edits.
@@ -47,7 +70,7 @@ After checkpoint confirmation, **every** in-progress `Qn` uses this hard order. 
 
 1. Accept non-trivial direct-delivery work of any size whose outcome can be confirmed at the Quick Checkpoint. Scale the quick workspace instead of routing to `{{invoke:specify}}` because work is large, cross-cutting, multi-capability, migration-heavy, or acceptance-heavy; route unknown failure mechanisms to `{{invoke:debug}}`.
 2. Create `.planning/quick/<id>-<slug>/STATUS.md` only with `artifact scaffold --kind quick-status`; resume via `artifact show`, and mutate frontmatter/sections only through leased `artifact patch` calls.
-3. Consume eligible discussion handoff or quick-task context without silently changing the confirmed scope; record consequence coverage, planning depth, and any user-owned checkpoint amendment.
+3. Consume eligible discussion handoff or quick-task context without silently changing the confirmed scope; record consequence coverage, planning depth, any user-owned checkpoint amendment, and the exact `not_selected|selected|required` Test Design gate. Verify a selected/required projection before it shapes any Q item.
 4. Use `choose_subagent_dispatch(command_name="quick", snapshot, workload_shape)` and packetized contracts for every substantive Q item. Default `one-subagent` when Q items share write scope or depend serially; `parallel-subagents` only for isolated write sets. Parallel write-conflict is not leader-inline permission.
 5. Execute the **Hard Q Loop** for each Q item; patch `STATUS.md` through the artifact CLI at phase transitions; validate changed surfaces.
 6. **Before** `quick close … resolved` on source-changing work: run inline project cognition closeout (`cognition closeout-plan` → update → validate-build/complete-refresh or mark-dirty), then record `specify-runtime quick cognition-closeout <id> --result-state ready|no_op|mark-dirty|partial --reason "…"`. Greenfield/empty graph still needs `no_op` or `mark-dirty` with reason—never skip. Create the quick-summary artifact with `artifact scaffold --kind quick-summary` and patch it (including `project_cognition_refresh`) through leased `specify-runtime artifact patch` calls, confirm `quick status` shows `cognition_closeout.allowed_close=true`, and only then `specify-runtime quick close <id> resolved`. Close also requires every Q to have `execution_mode` worker or audited leader-inline.

@@ -22,6 +22,25 @@ Scaffold `plan-contract.json` through its artifact CLI owner, then fill targeted
 - conditional artifact refs for research, data model, contracts, and validation scenario;
 - review risks, stop/reopen conditions, and compact agent transition to `sp-tasks`.
 
+### Test Design Gate
+
+Keep `test_design_gate.decision` as exactly `not_selected`, `selected`, or
+`required`, with reason refs and the runtime-shaped `projection_binding`.
+For `selected` or `required`, the binding is either entirely null while
+production is pending, or all refs, SHA-256 values, source fingerprint, and
+state revision are present and current; partial binding is invalid. Before Plan use,
+run `specify-runtime test-design projection-verify --feature-dir <feature-dir>
+--projection-ref <project-relative-ref> --expected-sha256 <sha256>`; omit
+`--feature-dir` only for project scope. The projection is a canonical typed
+pointer-only input consumed read-only. Plan must not author or patch the Test
+Design publication, projection, cases, data, coverage, gaps, or audit. Missing
+input needed by Plan routes to independent `sp-test-design`; otherwise the
+all-null pending selection routes there after Plan. It does not require a
+completed Plan. `not_selected` has no fabricated binding. The Plan binding
+proves only Plan consumption, never Tasks authorization; Tasks requires a fresh
+feature handoff, its own verified projection, and runtime task-index binding.
+Avoid a Plan-contract basis/hash cycle.
+
 Do not copy the requirement contract, context capsule prose, evidence bodies, or full consequence analysis. Use stable refs and add only phase-owned decisions.
 
 `acceptance_refs` is a fail-closed denominator, not a selected subset. For a

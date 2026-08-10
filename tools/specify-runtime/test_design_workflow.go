@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -23,6 +24,9 @@ const (
 	testDesignStateSchema        = "spec-kit-test-design-state-v1"
 	testDesignGapsSchema         = "spec-kit-test-design-gaps-v1"
 	testDesignHandoffSchema      = "spec-kit-test-design-handoff-v1"
+	testDesignPublicationFile    = "test-design-publication.json"
+	testDesignPublicationV1      = "spec-kit-test-design-publication-v1"
+	testDesignProjectionV1       = "spec-kit-test-design-projection-v1"
 	testDesignLaneProtocol       = "test_design_lane_result.v1"
 	testDesignLaneManifestFormat = "test-design-lane-manifest"
 )
@@ -151,6 +155,29 @@ type testDesignPublishedHandoff struct {
 	TestDataRefs      []string
 }
 
+type testDesignPublicationBinding struct {
+	Ref               string
+	SHA256            string
+	Scope             string
+	ArtifactRoot      string
+	FeatureDir        *string
+	SourceFingerprint string
+	StateRevision     int
+	ClaimStatus       string
+	ArtifactDigests   map[string]string
+	ObligationRefs    []string
+	TestCaseRefs      []string
+	TestDataRefs      []string
+	CoverageRefs      []string
+	GapRefs           []string
+}
+
+type testDesignPublicationSnapshot struct {
+	State       testDesignState
+	Bundle      testDesignBundle
+	Publication map[string]any
+}
+
 func runTestDesign(args []string, stdout io.Writer) int {
 	if len(args) == 0 {
 		return writeEnvelope(stdout, testDesignFailure("usage-error", "missing test-design subcommand", nil))
@@ -189,6 +216,12 @@ func runTestDesign(args []string, stdout io.Writer) int {
 		env = service.auditPrepare(args[1:])
 	case "validate":
 		env = service.validate(args[1:])
+	case "publish":
+		env = service.publish(args[1:])
+	case "projection-build":
+		env = service.projectionBuild(args[1:])
+	case "projection-verify":
+		env = service.projectionVerify(args[1:])
 	case "handoff":
 		env = service.handoff(args[1:])
 	default:
@@ -203,19 +236,22 @@ func testDesignValidateOptions(args []string) error {
 	}
 	common := []string{"--project-root", "--format"}
 	perCommand := map[string][]string{
-		"init":            {"--scope", "--feature-dir", "--mode", "--input-json", "--expected-revision", "--leader-id"},
-		"status":          {"--feature-dir"},
-		"universe-build":  {"--feature-dir", "--expected-revision"},
-		"lane-prepare":    {"--feature-dir", "--input-json", "--expected-revision"},
-		"lane-lease":      {"--feature-dir", "--worker-id", "--expected-revision"},
-		"lane-checkpoint": {"--feature-dir", "--lane-id", "--attempt-id", "--result-json", "--expected-revision"},
-		"lane-yield":      {"--feature-dir", "--lane-id", "--attempt-id", "--reason"},
-		"lane-accept":     {"--feature-dir", "--lane-id", "--attempt-id", "--expected-revision"},
-		"gap-reconcile":   {"--feature-dir", "--leader-id", "--input-json", "--expected-revision"},
-		"synthesize":      {"--feature-dir", "--leader-id", "--expected-revision"},
-		"audit-prepare":   {"--feature-dir", "--expected-revision"},
-		"validate":        {"--feature-dir", "--expected-revision"},
-		"handoff":         {"--feature-dir", "--expected-revision"},
+		"init":              {"--scope", "--feature-dir", "--mode", "--input-json", "--expected-revision", "--leader-id"},
+		"status":            {"--feature-dir"},
+		"universe-build":    {"--feature-dir", "--expected-revision"},
+		"lane-prepare":      {"--feature-dir", "--input-json", "--expected-revision"},
+		"lane-lease":        {"--feature-dir", "--worker-id", "--expected-revision"},
+		"lane-checkpoint":   {"--feature-dir", "--lane-id", "--attempt-id", "--result-json", "--expected-revision"},
+		"lane-yield":        {"--feature-dir", "--lane-id", "--attempt-id", "--reason"},
+		"lane-accept":       {"--feature-dir", "--lane-id", "--attempt-id", "--expected-revision"},
+		"gap-reconcile":     {"--feature-dir", "--leader-id", "--input-json", "--expected-revision"},
+		"synthesize":        {"--feature-dir", "--leader-id", "--expected-revision"},
+		"audit-prepare":     {"--feature-dir", "--expected-revision"},
+		"validate":          {"--feature-dir", "--expected-revision"},
+		"publish":           {"--feature-dir", "--expected-revision"},
+		"projection-build":  {"--feature-dir", "--consumer", "--basis-ref", "--obligation-ids"},
+		"projection-verify": {"--feature-dir", "--projection-ref", "--expected-sha256"},
+		"handoff":           {"--feature-dir", "--expected-revision"},
 	}
 	commandOptions, ok := perCommand[args[0]]
 	if !ok {
@@ -248,7 +284,7 @@ func testDesignValidateOptions(args []string) error {
 
 func writeTestDesignHelp(stdout io.Writer) int {
 	_, _ = fmt.Fprintln(stdout, "Usage: specify-runtime test-design <subcommand> [options]")
-	_, _ = fmt.Fprintln(stdout, "Subcommands: init, status, universe-build, lane-prepare, lane-lease, lane-checkpoint, lane-yield, lane-accept, gap-reconcile, synthesize, audit-prepare, validate, handoff")
+	_, _ = fmt.Fprintln(stdout, "Subcommands: init, status, universe-build, lane-prepare, lane-lease, lane-checkpoint, lane-yield, lane-accept, gap-reconcile, synthesize, audit-prepare, validate, publish, projection-build, projection-verify, handoff")
 	return 0
 }
 
@@ -520,6 +556,20 @@ func (service testDesignService) status(args []string) Envelope {
 		env.Data["handoff_freshness"] = "missing"
 	} else {
 		env.Data["handoff_freshness"] = "not-published"
+	}
+	if _, publicationErr := os.Lstat(filepath.Join(root, testDesignPublicationFile)); publicationErr == nil {
+		binding, verifyErr := service.verifyPublication(root)
+		if verifyErr != nil {
+			env.Data["publication_freshness"] = "stale"
+			env.Data["publication_error"] = verifyErr.Error()
+		} else {
+			env.Data["publication_freshness"] = "current"
+			env.Data["publication_sha256"] = binding.SHA256
+		}
+	} else if state.Phase == "handed-off" {
+		env.Data["publication_freshness"] = "missing"
+	} else {
+		env.Data["publication_freshness"] = "not-published"
 	}
 	next := testDesignNextSubcommand(state, manifest)
 	env.Data["next_action"] = next
@@ -1354,10 +1404,252 @@ func (service testDesignService) validate(args []string) Envelope {
 		env.Data["claim_status"] = claimStatus
 		env.Data["artifact_digests"] = digests
 		if status == "ok" {
-			env.NextArgv = service.commandArgv(state, "handoff")
+			nextCommand := "handoff"
+			if state.Scope == "project" {
+				nextCommand = "publish"
+			}
+			env.NextArgv = service.commandArgv(state, nextCommand)
 		}
 		return env
 	})
+}
+
+func (service testDesignService) publish(args []string) Envelope {
+	if strings.TrimSpace(optionValue(args, "--expected-revision", "")) == "" {
+		return testDesignFailure("usage-error", "test-design publish requires --expected-revision", nil)
+	}
+	root, rootRef, _, err := service.resolveRoot(optionValue(args, "--feature-dir", ""))
+	if err != nil {
+		return testDesignFailure("usage-error", "test-design root is invalid", err)
+	}
+	return service.withMutationLock(root, func() Envelope {
+		state, readErr := testDesignReadState(root)
+		if readErr != nil {
+			return testDesignFailure("blocked", "test-design state is unavailable", readErr)
+		}
+		if revisionErr := testDesignCheckExpectedRevision(args, state); revisionErr != nil {
+			return testDesignFailure("blocked", "test-design revision changed", revisionErr)
+		}
+		if state.Phase != "validated" && state.Phase != "handed-off" {
+			return testDesignFailure("blocked", "test-design publish requires a validated bundle", fmt.Errorf("current phase is %s", state.Phase))
+		}
+		publicationPath, pathErr := service.containedArtifactPath(root, testDesignPublicationFile)
+		if pathErr != nil {
+			return testDesignFailure("blocked", "test-design publication path is unsafe", pathErr)
+		}
+		if _, statErr := os.Lstat(publicationPath); statErr == nil {
+			if binding, verifyErr := service.verifyPublication(root); verifyErr == nil {
+				return testDesignPublicationEnvelope(binding, state, rootRef, "test-design publication already current")
+			}
+		} else if !errors.Is(statErr, os.ErrNotExist) {
+			return testDesignFailure("blocked", "test-design publication cannot be inspected", statErr)
+		}
+		snapshot, snapshotErr := service.preparePublicationSnapshot(root, state)
+		if snapshotErr != nil {
+			return testDesignFailure("blocked", "test-design publication inputs are stale or invalid", snapshotErr)
+		}
+		updates, updateErr := testDesignFileUpdates(map[string]any{publicationPath: snapshot.Publication})
+		if updateErr != nil {
+			return testDesignFailure("error", "cannot render test-design publication", updateErr)
+		}
+		if _, transactionErr := applyFileTransaction(service.projectRoot, "test-design.publish", updates); transactionErr != nil {
+			return testDesignFailure("error", "cannot publish test-design bundle", transactionErr)
+		}
+		binding, verifyErr := service.verifyPublication(root)
+		if verifyErr != nil {
+			return testDesignFailure("error", "published test-design bundle failed verification", verifyErr)
+		}
+		return testDesignPublicationEnvelope(binding, snapshot.State, rootRef, "test-design publication created")
+	})
+}
+
+func testDesignPublicationEnvelope(binding testDesignPublicationBinding, state testDesignState, rootRef, summary string) Envelope {
+	env := NewEnvelope("ok", summary)
+	env.Data = testDesignStateData(state, rootRef)
+	env.Data["publication_ref"] = binding.Ref
+	env.Data["publication_sha256"] = binding.SHA256
+	env.Data["test_execution_status"] = "not_executed_by_test_design"
+	return env
+}
+
+func (service testDesignService) preparePublicationSnapshot(root string, state testDesignState) (testDesignPublicationSnapshot, error) {
+	var snapshot testDesignPublicationSnapshot
+	if state.Phase != "validated" && state.Phase != "handed-off" {
+		return snapshot, fmt.Errorf("current phase %s is not eligible for publication", state.Phase)
+	}
+	if state.ClaimStatus != "complete_against_frozen_scope" && state.ClaimStatus != "qualified_with_declared_gaps" {
+		return snapshot, fmt.Errorf("claim_status %s is not eligible for publication", state.ClaimStatus)
+	}
+	if err := service.requireFreshSources(state); err != nil {
+		return snapshot, fmt.Errorf("test-design sources are stale: %w", err)
+	}
+	bundle, err := testDesignReadBundle(root)
+	if err != nil {
+		return snapshot, err
+	}
+	if err := testDesignValidateBundle(bundle); err != nil {
+		return snapshot, err
+	}
+	if err := service.validateBundleEvidence(bundle); err != nil {
+		return snapshot, err
+	}
+	if classified := testDesignClassifyClaim(bundle); classified == "blocked" || classified != state.ClaimStatus {
+		return snapshot, fmt.Errorf("claim no longer matches the current bundle: %s", classified)
+	}
+	digests, err := testDesignBundleDigests(root)
+	if err != nil {
+		return snapshot, err
+	}
+	manifest, err := testDesignReadManifest(root)
+	if err != nil {
+		return snapshot, err
+	}
+	if _, err := testDesignValidateStateAuditBinding(state, manifest); err != nil {
+		return snapshot, err
+	}
+	if err := service.validateAuditResults(root, manifest, state.Source.Fingerprint, digests); err != nil {
+		return snapshot, err
+	}
+	if state.Audit.Status != "accepted" || state.Audit.ResultRef == nil || strings.TrimSpace(*state.Audit.ResultRef) == "" {
+		return snapshot, fmt.Errorf("test-design state has no accepted audit result")
+	}
+	stateRaw, err := testDesignMarshal(state)
+	if err != nil {
+		return snapshot, err
+	}
+	statePath, err := service.containedArtifactPath(root, "test-state.json")
+	if err != nil {
+		return snapshot, err
+	}
+	onDiskStateRaw, err := testDesignReadRegularFile(statePath)
+	if err != nil {
+		return snapshot, err
+	}
+	if !bytes.Equal(onDiskStateRaw, stateRaw) {
+		return snapshot, fmt.Errorf("test-state.json is non-canonical or changed outside the runtime")
+	}
+	auditResultPath, err := service.containedArtifactPath(root, *state.Audit.ResultRef)
+	if err != nil {
+		return snapshot, err
+	}
+	auditRaw, err := testDesignReadRegularFile(auditResultPath)
+	if err != nil {
+		return snapshot, err
+	}
+	artifactDigests := map[string]any{
+		"state":           testDesignDigest(stateRaw),
+		"universe":        digests["test-universe.json"],
+		"catalog":         digests["test-catalog.json"],
+		"data_manifest":   digests["test-data-manifest.json"],
+		"coverage_matrix": digests["coverage-matrix.json"],
+		"gaps":            digests["test-gaps.json"],
+		"audit_result":    testDesignDigest(auditRaw),
+	}
+	publicationID := "tdpub-" + canonicalJSONSHA256(map[string]any{
+		"scope": state.Scope, "artifact_root": state.ArtifactRoot, "source_fingerprint": state.Source.Fingerprint,
+		"state_revision": state.Revision, "claim_status": state.ClaimStatus, "artifact_digests": artifactDigests,
+	})[:24]
+	publication := map[string]any{
+		"schema_version":     testDesignPublicationV1,
+		"publication_id":     publicationID,
+		"scope":              state.Scope,
+		"artifact_root":      state.ArtifactRoot,
+		"source_fingerprint": state.Source.Fingerprint,
+		"state_revision":     state.Revision,
+		"claim_status":       state.ClaimStatus,
+		"artifact_refs": map[string]any{
+			"state": "test-state.json", "universe": "test-universe.json", "catalog": "test-catalog.json",
+			"data_manifest": "test-data-manifest.json", "coverage_matrix": "coverage-matrix.json", "gaps": "test-gaps.json",
+			"audit_result": *state.Audit.ResultRef,
+		},
+		"artifact_digests":      artifactDigests,
+		"obligation_refs":       testDesignObligationPointers(bundle.Universe),
+		"test_case_refs":        testDesignCatalogPointers(bundle.Catalog),
+		"test_data_refs":        testDesignDataPointers(bundle.DataManifest),
+		"coverage_refs":         testDesignCoveragePointers(bundle.CoverageMatrix),
+		"gap_ref":               "test-gaps.json",
+		"gap_refs":              testDesignGapPointers(bundle.Gaps),
+		"audit_result_ref":      *state.Audit.ResultRef,
+		"forbidden_claims":      testDesignPublicationForbiddenClaims(),
+		"test_execution_status": "not_executed_by_test_design",
+	}
+	return testDesignPublicationSnapshot{State: state, Bundle: bundle, Publication: publication}, nil
+}
+
+func testDesignPublicationForbiddenClaims() []string {
+	return []string{"tests_executed", "tests_passed", "behavior_fixed", "implementation_complete", "release_safe", "absolute_complete"}
+}
+
+func (service testDesignService) verifyPublication(root string) (testDesignPublicationBinding, error) {
+	var binding testDesignPublicationBinding
+	publicationPath, err := service.containedArtifactPath(root, testDesignPublicationFile)
+	if err != nil {
+		return binding, err
+	}
+	publicationRaw, err := testDesignReadRegularFile(publicationPath)
+	if err != nil {
+		return binding, err
+	}
+	publication, err := testDesignReadObject(publicationPath)
+	if err != nil {
+		return binding, err
+	}
+	state, err := testDesignReadState(root)
+	if err != nil {
+		return binding, err
+	}
+	snapshot, err := service.preparePublicationSnapshot(root, state)
+	if err != nil {
+		return binding, err
+	}
+	expectedRaw, err := testDesignMarshal(snapshot.Publication)
+	if err != nil {
+		return binding, err
+	}
+	if !bytes.Equal(publicationRaw, expectedRaw) {
+		return binding, fmt.Errorf("%s is stale, non-canonical, or contains copied truth", testDesignPublicationFile)
+	}
+	if strings.TrimSpace(asString(publication["schema_version"])) != testDesignPublicationV1 {
+		return binding, fmt.Errorf("%s has an unsupported schema", testDesignPublicationFile)
+	}
+	artifactDigests, err := testDesignPublicationDigestStrings(publication["artifact_digests"])
+	if err != nil {
+		return binding, err
+	}
+	binding = testDesignPublicationBinding{
+		Ref:               filepath.ToSlash(filepath.Join(state.ArtifactRoot, testDesignPublicationFile)),
+		SHA256:            testDesignDigest(publicationRaw),
+		Scope:             state.Scope,
+		ArtifactRoot:      state.ArtifactRoot,
+		FeatureDir:        state.FeatureDir,
+		SourceFingerprint: state.Source.Fingerprint,
+		StateRevision:     state.Revision,
+		ClaimStatus:       state.ClaimStatus,
+		ArtifactDigests:   artifactDigests,
+		ObligationRefs:    testDesignStrings(publication["obligation_refs"]),
+		TestCaseRefs:      testDesignStrings(publication["test_case_refs"]),
+		TestDataRefs:      testDesignStrings(publication["test_data_refs"]),
+		CoverageRefs:      testDesignStrings(publication["coverage_refs"]),
+		GapRefs:           testDesignStrings(publication["gap_refs"]),
+	}
+	return binding, nil
+}
+
+func testDesignPublicationDigestStrings(value any) (map[string]string, error) {
+	raw, ok := value.(map[string]any)
+	expected := []string{"state", "universe", "catalog", "data_manifest", "coverage_matrix", "gaps", "audit_result"}
+	if !ok || len(raw) != len(expected) {
+		return nil, fmt.Errorf("publication artifact_digests must contain exactly seven entries")
+	}
+	result := map[string]string{}
+	for _, key := range expected {
+		digest := strings.TrimSpace(asString(raw[key]))
+		if !testDesignSHA256Pattern.MatchString(digest) {
+			return nil, fmt.Errorf("publication artifact digest %s is invalid", key)
+		}
+		result[key] = digest
+	}
+	return result, nil
 }
 
 func (service testDesignService) handoff(args []string) Envelope {
@@ -1381,49 +1673,14 @@ func (service testDesignService) handoff(args []string) Envelope {
 			if verifyErr != nil {
 				return testDesignFailure("blocked", "existing test-design handoff is stale or invalid", verifyErr)
 			}
-			env := NewEnvelope("ok", "test-design handoff already published")
-			env.Data = testDesignStateData(state, rootRef)
-			env.Data["handoff_ref"] = filepath.ToSlash(filepath.Join(rootRef, "handoff-to-tasks.json"))
-			env.Data["handoff_sha256"] = binding.SHA256
-			env.Data["next_command"] = "/sp.tasks"
-			env.NextArgv = []string{"/sp.tasks"}
-			return env
+			return testDesignLegacyHandoffEnvelope(binding, state, rootRef, "test-design handoff already published")
 		}
 		if state.Phase != "validated" {
 			return testDesignFailure("blocked", "test-design handoff requires a validated bundle", fmt.Errorf("current phase is %s", state.Phase))
 		}
-		if state.ClaimStatus != "complete_against_frozen_scope" && state.ClaimStatus != "qualified_with_declared_gaps" {
-			return testDesignFailure("blocked", "test-design claim is not eligible for downstream handoff", fmt.Errorf("claim_status is %s", state.ClaimStatus))
-		}
-		if freshnessErr := service.requireFreshSources(state); freshnessErr != nil {
-			return service.persistStaleState(root, rootRef, state, freshnessErr)
-		}
-		bundle, bundleErr := testDesignReadBundle(root)
-		if bundleErr != nil {
-			return testDesignFailure("invalid", "test-design handoff inputs cannot be read", bundleErr)
-		}
-		if validationErr := testDesignValidateBundle(bundle); validationErr != nil {
-			return testDesignFailure("invalid", "test-design handoff inputs are invalid", validationErr)
-		}
-		if evidenceErr := service.validateBundleEvidence(bundle); evidenceErr != nil {
-			return testDesignFailure("invalid", "test-design handoff evidence is invalid", evidenceErr)
-		}
-		digests, digestErr := testDesignBundleDigests(root)
-		if digestErr != nil {
-			return testDesignFailure("error", "cannot fingerprint test-design handoff inputs", digestErr)
-		}
-		manifest, manifestErr := testDesignReadManifest(root)
-		if manifestErr != nil {
-			return testDesignFailure("blocked", "test-design lane manifest is unavailable", manifestErr)
-		}
-		if _, bindingErr := testDesignValidateStateAuditBinding(state, manifest); bindingErr != nil {
-			return testDesignFailure("blocked", "test-design state is not bound to the accepted audit lane", bindingErr)
-		}
-		if auditErr := service.validateAuditResults(root, manifest, state.Source.Fingerprint, digests); auditErr != nil {
-			return testDesignFailure("blocked", "test-design artifacts or audit changed after validation", auditErr)
-		}
-		if state.Audit.Status != "accepted" || state.Audit.ResultRef == nil || strings.TrimSpace(*state.Audit.ResultRef) == "" {
-			return testDesignFailure("blocked", "test-design handoff requires an accepted audit result", nil)
+		snapshot, snapshotErr := service.preparePublicationSnapshot(root, state)
+		if snapshotErr != nil {
+			return testDesignFailure("blocked", "test-design handoff inputs are stale or invalid", snapshotErr)
 		}
 		state.Phase = "handed-off"
 		state.Status = "complete"
@@ -1432,20 +1689,16 @@ func (service testDesignService) handoff(args []string) Envelope {
 		if stateMarshalErr != nil {
 			return testDesignFailure("error", "cannot render final test-design state", stateMarshalErr)
 		}
-		auditResultPath := filepath.Join(root, filepath.FromSlash(*state.Audit.ResultRef))
-		auditResultRaw, auditReadErr := testDesignReadRegularFile(auditResultPath)
-		if auditReadErr != nil {
-			return testDesignFailure("blocked", "accepted audit result is unavailable", auditReadErr)
+		digestStrings, digestErr := testDesignPublicationDigestStrings(snapshot.Publication["artifact_digests"])
+		if digestErr != nil {
+			return testDesignFailure("error", "cannot fingerprint test-design handoff inputs", digestErr)
 		}
-		artifactDigests := map[string]any{
-			"state":           testDesignDigest(stateRaw),
-			"universe":        digests["test-universe.json"],
-			"catalog":         digests["test-catalog.json"],
-			"data_manifest":   digests["test-data-manifest.json"],
-			"coverage_matrix": digests["coverage-matrix.json"],
-			"gaps":            digests["test-gaps.json"],
-			"audit_result":    testDesignDigest(auditResultRaw),
+		artifactDigests := map[string]any{}
+		for key, digest := range digestStrings {
+			artifactDigests[key] = digest
 		}
+		digestStrings["state"] = testDesignDigest(stateRaw)
+		artifactDigests["state"] = digestStrings["state"]
 		handoff := map[string]any{
 			"schema_version":     testDesignHandoffSchema,
 			"source_fingerprint": state.Source.Fingerprint,
@@ -1459,8 +1712,8 @@ func (service testDesignService) handoff(args []string) Envelope {
 				"coverage_matrix": "coverage-matrix.json",
 			},
 			"artifact_digests": artifactDigests,
-			"test_case_refs":   testDesignCatalogPointers(bundle.Catalog),
-			"test_data_refs":   testDesignDataPointers(bundle.DataManifest),
+			"test_case_refs":   testDesignCatalogPointers(snapshot.Bundle.Catalog),
+			"test_data_refs":   testDesignDataPointers(snapshot.Bundle.DataManifest),
 			"gap_ref":          "test-gaps.json",
 			"audit_result_ref": *state.Audit.ResultRef,
 			"next_command":     "/sp.tasks",
@@ -1469,28 +1722,476 @@ func (service testDesignService) handoff(args []string) Envelope {
 		if marshalErr != nil {
 			return testDesignFailure("error", "cannot render test-design handoff", marshalErr)
 		}
-		handoffDigest := testDesignDigest(handoffRaw)
-		updates, updateErr := testDesignFileUpdates(map[string]any{
-			filepath.Join(root, "handoff-to-tasks.json"): handoff,
-			filepath.Join(root, "test-state.json"):       state,
-		})
+		handoffPath, pathErr := service.containedArtifactPath(root, "handoff-to-tasks.json")
+		if pathErr != nil {
+			return testDesignFailure("blocked", "test-design handoff path is unsafe", pathErr)
+		}
+		statePath, pathErr := service.containedArtifactPath(root, "test-state.json")
+		if pathErr != nil {
+			return testDesignFailure("blocked", "test-design state path is unsafe", pathErr)
+		}
+		updates, updateErr := testDesignFileUpdates(map[string]any{handoffPath: handoff, statePath: state})
 		if updateErr != nil {
 			return testDesignFailure("error", "cannot render test-design handoff transaction", updateErr)
 		}
 		if _, transactionErr := applyFileTransaction(service.projectRoot, "test-design.handoff", updates); transactionErr != nil {
 			return testDesignFailure("error", "cannot publish test-design handoff", transactionErr)
 		}
-		env := NewEnvelope("ok", "test-design handoff published")
-		env.Data = testDesignStateData(state, rootRef)
-		env.Data["handoff_ref"] = filepath.ToSlash(filepath.Join(rootRef, "handoff-to-tasks.json"))
-		env.Data["handoff_sha256"] = handoffDigest
-		env.Data["next_command"] = "/sp.tasks"
-		env.NextArgv = []string{"/sp.tasks"}
+		binding := testDesignPublishedHandoff{
+			Ref:               filepath.ToSlash(filepath.Join(rootRef, "handoff-to-tasks.json")),
+			SHA256:            testDesignDigest(handoffRaw),
+			SourceFingerprint: state.Source.Fingerprint,
+			StateRevision:     state.Revision,
+			ArtifactDigests:   digestStrings,
+			TestCaseRefs:      testDesignCatalogPointers(snapshot.Bundle.Catalog),
+			TestDataRefs:      testDesignDataPointers(snapshot.Bundle.DataManifest),
+		}
+		return testDesignLegacyHandoffEnvelope(binding, state, rootRef, "test-design handoff published")
+	})
+}
+
+func testDesignLegacyHandoffEnvelope(binding testDesignPublishedHandoff, state testDesignState, rootRef, summary string) Envelope {
+	env := NewEnvelope("ok", summary)
+	env.Data = testDesignStateData(state, rootRef)
+	env.Data["handoff_ref"] = filepath.ToSlash(filepath.Join(rootRef, "handoff-to-tasks.json"))
+	env.Data["handoff_sha256"] = binding.SHA256
+	env.Data["next_command"] = "/sp.tasks"
+	env.NextArgv = []string{"/sp.tasks"}
+	return env
+}
+
+func (service testDesignService) projectionBuild(args []string) Envelope {
+	root, _, _, err := service.resolveRoot(optionValue(args, "--feature-dir", ""))
+	if err != nil {
+		return testDesignFailure("usage-error", "test-design root is invalid", err)
+	}
+	return service.withMutationLock(root, func() Envelope {
+		consumer := strings.ToLower(strings.TrimSpace(optionValue(args, "--consumer", "")))
+		binding, verifyErr := service.verifyPublication(root)
+		if verifyErr != nil {
+			return testDesignFailure("blocked", "test-design publication is stale or unavailable", verifyErr)
+		}
+		if consumerErr := testDesignValidateProjectionConsumer(consumer, binding.Scope); consumerErr != nil {
+			return testDesignFailure("blocked", "test-design projection consumer is not eligible", consumerErr)
+		}
+		basisRef, basisRaw, basisErr := service.readProjectionBasis(optionValue(args, "--basis-ref", ""))
+		if basisErr != nil {
+			return testDesignFailure("blocked", "test-design projection basis is unavailable", basisErr)
+		}
+		if basisContractErr := testDesignValidateProjectionBasis(binding, consumer, basisRef); basisContractErr != nil {
+			return testDesignFailure("blocked", "test-design projection basis is incompatible", basisContractErr)
+		}
+		bundle, bundleErr := testDesignReadBundle(root)
+		if bundleErr != nil {
+			return testDesignFailure("blocked", "test-design projection bundle is unavailable", bundleErr)
+		}
+		selectedIDs, selectionErr := testDesignProjectionObligationIDs(bundle.Universe, optionValue(args, "--obligation-ids", ""), hasFlag(args, "--obligation-ids"))
+		if selectionErr != nil {
+			return testDesignFailure("invalid", "test-design projection obligation selection is invalid", selectionErr)
+		}
+		selection, selectionErr := testDesignBuildProjectionSelection(bundle, selectedIDs, consumer)
+		if selectionErr != nil {
+			return testDesignFailure("invalid", "test-design projection closure is invalid", selectionErr)
+		}
+		payload := testDesignProjectionPayload(binding, consumer, basisRef, testDesignDigest(basisRaw), selection)
+		payloadRaw, marshalErr := testDesignMarshal(payload)
+		if marshalErr != nil {
+			return testDesignFailure("error", "cannot render test-design projection", marshalErr)
+		}
+		projectionSHA := testDesignDigest(payloadRaw)
+		projectionID := strings.TrimSpace(asString(payload["projection_id"]))
+		projectionName := projectionID + ".json"
+		projectionPath, pathErr := service.containedArtifactPath(root, filepath.ToSlash(filepath.Join("projections", projectionName)))
+		if pathErr != nil {
+			return testDesignFailure("blocked", "test-design projection path is unsafe", pathErr)
+		}
+		existingRaw, readErr := testDesignReadRegularFile(projectionPath)
+		needsWrite := readErr == nil && !bytes.Equal(existingRaw, payloadRaw)
+		if errors.Is(readErr, os.ErrNotExist) {
+			needsWrite = true
+		} else if readErr != nil {
+			return testDesignFailure("blocked", "test-design projection cannot be inspected", readErr)
+		}
+		if needsWrite {
+			if _, transactionErr := applyFileTransaction(service.projectRoot, "test-design.projection-build", []fileTransactionUpdate{{
+				Path: projectionPath, Content: payloadRaw, Perm: 0o644,
+			}}); transactionErr != nil {
+				return testDesignFailure("error", "cannot publish test-design projection", transactionErr)
+			}
+		}
+		env := NewEnvelope("ok", "test-design projection built")
+		env.Data = map[string]any{
+			"consumer": consumer, "projection_id": projectionID,
+			"projection_ref":    filepath.ToSlash(filepath.Join(binding.ArtifactRoot, "projections", projectionName)),
+			"projection_sha256": projectionSHA, "publication_ref": binding.Ref, "publication_sha256": binding.SHA256,
+			"basis_ref": basisRef, "basis_sha256": testDesignDigest(basisRaw),
+		}
 		return env
 	})
 }
 
+func (service testDesignService) projectionVerify(args []string) Envelope {
+	root, _, _, err := service.resolveRoot(optionValue(args, "--feature-dir", ""))
+	if err != nil {
+		return testDesignFailure("usage-error", "test-design root is invalid", err)
+	}
+	expectedSHA := strings.ToLower(strings.TrimSpace(optionValue(args, "--expected-sha256", "")))
+	if !testDesignSHA256Pattern.MatchString(expectedSHA) {
+		return testDesignFailure("usage-error", "projection-verify requires --expected-sha256", fmt.Errorf("expected digest must be 64 lowercase hexadecimal characters"))
+	}
+	projectionRef := strings.TrimSpace(optionValue(args, "--projection-ref", ""))
+	if projectionRef == "" {
+		return testDesignFailure("usage-error", "projection-verify requires --projection-ref", nil)
+	}
+	projectionPath, normalizedRef, projectionRaw, readErr := service.readProjectRegularFile(projectionRef)
+	if readErr != nil {
+		return testDesignFailure("blocked", "test-design projection is unavailable", readErr)
+	}
+	rootAbs, err := filepath.Abs(root)
+	if err != nil {
+		return testDesignFailure("blocked", "test-design projection root is invalid", err)
+	}
+	projectionRel, err := filepath.Rel(rootAbs, projectionPath)
+	if err != nil || projectionRel == ".." || strings.HasPrefix(projectionRel, ".."+string(filepath.Separator)) || !strings.HasPrefix(filepath.ToSlash(projectionRel), "projections/") {
+		return testDesignFailure("blocked", "test-design projection escapes its publication root", fmt.Errorf("projection_ref must identify a file under the selected test-design projections directory"))
+	}
+	actualSHA := testDesignDigest(projectionRaw)
+	if actualSHA != expectedSHA {
+		return testDesignFailure("blocked", "test-design projection digest is stale", fmt.Errorf("expected %s but found %s", expectedSHA, actualSHA))
+	}
+	projection, decodeErr := testDesignReadObject(projectionPath)
+	if decodeErr != nil {
+		return testDesignFailure("blocked", "test-design projection is malformed", decodeErr)
+	}
+	consumer := strings.ToLower(strings.TrimSpace(asString(projection["consumer"])))
+	binding, publicationErr := service.verifyPublication(root)
+	if publicationErr != nil {
+		return testDesignFailure("blocked", "test-design publication is stale or invalid", publicationErr)
+	}
+	if consumerErr := testDesignValidateProjectionConsumer(consumer, binding.Scope); consumerErr != nil {
+		return testDesignFailure("blocked", "test-design projection consumer is not eligible", consumerErr)
+	}
+	basisRef := strings.TrimSpace(asString(projection["basis_ref"]))
+	normalizedBasisRef, basisRaw, basisErr := service.readProjectionBasis(basisRef)
+	if basisErr != nil {
+		return testDesignFailure("blocked", "test-design projection basis is unavailable", basisErr)
+	}
+	if basisContractErr := testDesignValidateProjectionBasis(binding, consumer, normalizedBasisRef); basisContractErr != nil {
+		return testDesignFailure("blocked", "test-design projection basis is incompatible", basisContractErr)
+	}
+	if normalizedBasisRef != basisRef || testDesignDigest(basisRaw) != strings.TrimSpace(asString(projection["basis_sha256"])) {
+		return testDesignFailure("blocked", "test-design projection basis is stale", nil)
+	}
+	selection, ok := projection["selection"].(map[string]any)
+	if !ok {
+		return testDesignFailure("blocked", "test-design projection selection is malformed", nil)
+	}
+	selectedIDs, selectionErr := testDesignProjectionIDsFromPointers(selection)
+	if selectionErr != nil {
+		return testDesignFailure("blocked", "test-design projection selection is malformed", selectionErr)
+	}
+	bundle, bundleErr := testDesignReadBundle(root)
+	if bundleErr != nil {
+		return testDesignFailure("blocked", "test-design projection bundle is unavailable", bundleErr)
+	}
+	expectedSelection, selectionErr := testDesignBuildProjectionSelection(bundle, selectedIDs, consumer)
+	if selectionErr != nil {
+		return testDesignFailure("blocked", "test-design projection selection is stale", selectionErr)
+	}
+	expectedPayload := testDesignProjectionPayload(binding, consumer, normalizedBasisRef, testDesignDigest(basisRaw), expectedSelection)
+	expectedRaw, marshalErr := testDesignMarshal(expectedPayload)
+	if marshalErr != nil {
+		return testDesignFailure("error", "cannot verify test-design projection", marshalErr)
+	}
+	if !bytes.Equal(projectionRaw, expectedRaw) {
+		return testDesignFailure("blocked", "test-design projection is stale, non-canonical, or contains copied truth", nil)
+	}
+	expectedName := strings.TrimSpace(asString(expectedPayload["projection_id"])) + ".json"
+	expectedRef := filepath.ToSlash(filepath.Join(binding.ArtifactRoot, "projections", expectedName))
+	if normalizedRef != expectedRef {
+		return testDesignFailure("blocked", "test-design projection ref does not match its canonical consumer slot", fmt.Errorf("expected %s", expectedRef))
+	}
+	env := NewEnvelope("ok", "test-design projection is valid and fresh")
+	env.Data = map[string]any{
+		"valid": true, "fresh": true, "consumer": consumer,
+		"projection_ref": normalizedRef, "projection_sha256": actualSHA,
+		"publication_ref": binding.Ref, "publication_sha256": binding.SHA256,
+		"basis_ref": normalizedBasisRef, "basis_sha256": testDesignDigest(basisRaw),
+	}
+	return env
+}
+
+func testDesignValidateProjectionConsumer(consumer, scope string) error {
+	switch consumer {
+	case "implement":
+		return fmt.Errorf("Implement consumes the Tasks-bound task packet; no independent test-design projection is supported")
+	case "plan", "quick":
+		return nil
+	case "tasks", "review":
+		if scope != "feature" {
+			return fmt.Errorf("%s projection requires feature scope", consumer)
+		}
+		return nil
+	default:
+		return fmt.Errorf("consumer must be plan, quick, tasks, or review")
+	}
+}
+
+func testDesignValidateProjectionBasis(binding testDesignPublicationBinding, consumer, basisRef string) error {
+	basisRef = filepath.ToSlash(filepath.Clean(filepath.FromSlash(strings.TrimSpace(basisRef))))
+	if basisRef == "." || basisRef == "" {
+		return fmt.Errorf("consumer basis must be a project-relative file")
+	}
+	if consumer == "quick" {
+		parts := strings.Split(basisRef, "/")
+		if len(parts) != 4 || parts[0] != ".planning" || parts[1] != "quick" || strings.TrimSpace(parts[2]) == "" || parts[2] == "." || parts[2] == ".." || parts[3] != "confirmation.json" {
+			return fmt.Errorf("Quick projection basis must be .planning/quick/<id>/confirmation.json")
+		}
+		return nil
+	}
+	if binding.Scope != "feature" {
+		return nil
+	}
+	if binding.FeatureDir == nil || strings.TrimSpace(*binding.FeatureDir) == "" {
+		return fmt.Errorf("feature publication has no feature directory binding")
+	}
+	featureDir := strings.TrimSuffix(filepath.ToSlash(filepath.Clean(filepath.FromSlash(*binding.FeatureDir))), "/")
+	switch consumer {
+	case "plan":
+		if basisRef != featureDir+"/spec-contract.json" {
+			return fmt.Errorf("Plan projection basis must be the selected feature spec-contract.json")
+		}
+	case "tasks":
+		if basisRef != featureDir+"/plan-contract.json" && basisRef != featureDir+"/plan/plan-contract.json" {
+			return fmt.Errorf("Tasks projection basis must be the selected feature plan-contract.json")
+		}
+	case "review":
+		if basisRef != featureDir+"/implementation-handoff.json" {
+			return fmt.Errorf("Review projection basis must be the selected feature implementation-handoff.json")
+		}
+	}
+	return nil
+}
+
+func (service testDesignService) readProjectionBasis(ref string) (string, []byte, error) {
+	_, normalized, raw, err := service.readProjectRegularFile(ref)
+	return normalized, raw, err
+}
+
+func (service testDesignService) readProjectRegularFile(ref string) (string, string, []byte, error) {
+	ref = strings.TrimSpace(ref)
+	if ref == "" || filepath.IsAbs(ref) {
+		return "", "", nil, fmt.Errorf("project-relative file ref is required")
+	}
+	projectRoot, err := filepath.Abs(service.projectRoot)
+	if err != nil {
+		return "", "", nil, err
+	}
+	projectRoot, err = filepath.EvalSymlinks(projectRoot)
+	if err != nil {
+		return "", "", nil, err
+	}
+	path, err := testDesignResolveProjectPath(projectRoot, ref)
+	if err != nil {
+		return "", "", nil, err
+	}
+	normalized, err := filepath.Rel(projectRoot, path)
+	if err != nil || normalized == ".." || strings.HasPrefix(normalized, ".."+string(filepath.Separator)) {
+		return "", "", nil, fmt.Errorf("file ref escapes the project root")
+	}
+	raw, err := testDesignReadRegularFile(path)
+	if err != nil {
+		return "", "", nil, err
+	}
+	return path, filepath.ToSlash(normalized), raw, nil
+}
+
+func testDesignProjectionObligationIDs(universe map[string]any, raw string, explicitlySet bool) ([]string, error) {
+	all := testDesignUniverseObligationRefs(universe)
+	if len(all) == 0 {
+		return nil, fmt.Errorf("published test-design universe has no obligations")
+	}
+	if !explicitlySet {
+		return all, nil
+	}
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil, fmt.Errorf("--obligation-ids must contain at least one TO-* id")
+	}
+	allowed := map[string]bool{}
+	for _, id := range all {
+		allowed[id] = true
+	}
+	seen := map[string]bool{}
+	for _, part := range strings.Split(raw, ",") {
+		id := strings.TrimSpace(part)
+		if !testDesignObligationPattern.MatchString(id) || !allowed[id] {
+			return nil, fmt.Errorf("unknown or invalid obligation id %q", id)
+		}
+		if seen[id] {
+			return nil, fmt.Errorf("duplicate obligation id %s", id)
+		}
+		seen[id] = true
+	}
+	return testDesignSortedKeys(seen), nil
+}
+
+func testDesignBuildProjectionSelection(bundle testDesignBundle, selectedIDs []string, consumer string) (map[string]any, error) {
+	allIDs := testDesignUniverseObligationRefs(bundle.Universe)
+	if consumer == "tasks" && !testDesignSameStringSet(selectedIDs, allIDs) {
+		return nil, fmt.Errorf("Tasks projection must preserve the full frozen obligation denominator")
+	}
+	obligations, err := testDesignIndexRows(bundle.Universe["obligations"], "obligation_id", "test-universe obligations")
+	if err != nil {
+		return nil, err
+	}
+	cases, err := testDesignIndexRows(bundle.Catalog["cases"], "test_case_id", "test-catalog cases")
+	if err != nil {
+		return nil, err
+	}
+	datasets, err := testDesignIndexRows(bundle.DataManifest["datasets"], "test_data_id", "test-data-manifest datasets")
+	if err != nil {
+		return nil, err
+	}
+	coverage, err := testDesignIndexRows(bundle.CoverageMatrix["rows"], "coverage_id", "coverage-matrix rows")
+	if err != nil {
+		return nil, err
+	}
+	gaps, err := testDesignIndexRows(bundle.Gaps["gaps"], "gap_id", "test-gaps gaps")
+	if err != nil {
+		return nil, err
+	}
+	selected := map[string]bool{}
+	caseIDs := map[string]bool{}
+	dataIDs := map[string]bool{}
+	coverageIDs := map[string]bool{}
+	gapIDs := map[string]bool{}
+	for _, obligationID := range selectedIDs {
+		obligation, ok := obligations[obligationID]
+		if !ok {
+			return nil, fmt.Errorf("selected obligation %s is absent from the universe", obligationID)
+		}
+		selected[obligationID] = true
+		for _, id := range testDesignStrings(obligation["test_case_ids"]) {
+			caseIDs[id] = true
+		}
+		for _, id := range testDesignStrings(obligation["gap_refs"]) {
+			gapIDs[id] = true
+		}
+	}
+	for coverageID, row := range coverage {
+		if !selected[strings.TrimSpace(asString(row["obligation_ref"]))] {
+			continue
+		}
+		coverageIDs[coverageID] = true
+		if caseID := strings.TrimSpace(asString(row["test_case_ref"])); caseID != "" {
+			caseIDs[caseID] = true
+		}
+		for _, id := range testDesignStrings(row["test_data_refs"]) {
+			dataIDs[id] = true
+		}
+		for _, id := range testDesignStrings(row["gap_refs"]) {
+			gapIDs[id] = true
+		}
+	}
+	for caseID := range caseIDs {
+		candidate, ok := cases[caseID]
+		if !ok {
+			return nil, fmt.Errorf("selected closure references missing test case %s", caseID)
+		}
+		for _, id := range testDesignStrings(candidate["test_data_refs"]) {
+			dataIDs[id] = true
+		}
+	}
+	for dataID := range dataIDs {
+		if _, ok := datasets[dataID]; !ok {
+			return nil, fmt.Errorf("selected closure references missing test data %s", dataID)
+		}
+	}
+	for gapID := range gapIDs {
+		if _, ok := gaps[gapID]; !ok {
+			return nil, fmt.Errorf("selected closure references missing gap %s", gapID)
+		}
+	}
+	return map[string]any{
+		"obligation_refs": testDesignPointerList("test-universe.json#/obligations/", testDesignSortedKeys(selected)),
+		"test_case_refs":  testDesignPointerList("test-catalog.json#/cases/", testDesignSortedKeys(caseIDs)),
+		"test_data_refs":  testDesignPointerList("test-data-manifest.json#/datasets/", testDesignSortedKeys(dataIDs)),
+		"coverage_refs":   testDesignPointerList("coverage-matrix.json#/rows/", testDesignSortedKeys(coverageIDs)),
+		"gap_refs":        testDesignPointerList("test-gaps.json#/gaps/", testDesignSortedKeys(gapIDs)),
+	}, nil
+}
+
+func testDesignProjectionPayload(binding testDesignPublicationBinding, consumer, basisRef, basisSHA string, selection map[string]any) map[string]any {
+	selectionSHA := canonicalJSONSHA256(selection)
+	projectionID := "tdproj-" + canonicalJSONSHA256(map[string]any{
+		"consumer": consumer, "basis_ref": basisRef, "selection_sha256": selectionSHA,
+	})[:24]
+	return map[string]any{
+		"schema_version": testDesignProjectionV1, "projection_id": projectionID,
+		"publication_ref": binding.Ref, "publication_sha256": binding.SHA256,
+		"consumer": consumer, "basis_ref": basisRef, "basis_sha256": basisSHA,
+		"scope": binding.Scope, "artifact_root": binding.ArtifactRoot,
+		"source_fingerprint": binding.SourceFingerprint, "state_revision": binding.StateRevision, "claim_status": binding.ClaimStatus,
+		"selection": selection, "selection_sha256": selectionSHA,
+		"forbidden_claims": testDesignPublicationForbiddenClaims(), "test_execution_status": "not_executed_by_test_design",
+	}
+}
+
+func testDesignProjectionIDsFromPointers(selection map[string]any) ([]string, error) {
+	expected := map[string]string{
+		"obligation_refs": "test-universe.json#/obligations/", "test_case_refs": "test-catalog.json#/cases/",
+		"test_data_refs": "test-data-manifest.json#/datasets/", "coverage_refs": "coverage-matrix.json#/rows/", "gap_refs": "test-gaps.json#/gaps/",
+	}
+	if len(selection) != len(expected) {
+		return nil, fmt.Errorf("selection must contain exactly the five pointer arrays")
+	}
+	for field, prefix := range expected {
+		refs, err := testDesignRequireStringList(selection, field, "projection selection", field == "obligation_refs")
+		if err != nil {
+			return nil, err
+		}
+		seen := map[string]bool{}
+		for _, ref := range refs {
+			if !strings.HasPrefix(ref, prefix) || strings.TrimPrefix(ref, prefix) == "" {
+				return nil, fmt.Errorf("selection %s contains non-canonical pointer %s", field, ref)
+			}
+			if seen[ref] {
+				return nil, fmt.Errorf("selection %s contains duplicate pointer %s", field, ref)
+			}
+			seen[ref] = true
+		}
+	}
+	obligationRefs, _ := testDesignRequireStringList(selection, "obligation_refs", "projection selection", true)
+	ids := make([]string, 0, len(obligationRefs))
+	for _, ref := range obligationRefs {
+		id := strings.TrimPrefix(ref, "test-universe.json#/obligations/")
+		if !testDesignObligationPattern.MatchString(id) {
+			return nil, fmt.Errorf("selection contains invalid obligation pointer %s", ref)
+		}
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	return ids, nil
+}
+
+func testDesignPointerList(prefix string, ids []string) []string {
+	result := make([]string, 0, len(ids))
+	for _, id := range ids {
+		result = append(result, prefix+id)
+	}
+	return result
+}
+
 func (service testDesignService) verifyPublishedHandoff(root string) (testDesignPublishedHandoff, error) {
+	return service.verifyPublishedHandoffWithSourcePolicy(root, true)
+}
+
+func (service testDesignService) verifyPublishedHandoffIntegrity(root string) (testDesignPublishedHandoff, error) {
+	return service.verifyPublishedHandoffWithSourcePolicy(root, false)
+}
+
+func (service testDesignService) verifyPublishedHandoffWithSourcePolicy(root string, requireLiveSourceFreshness bool) (testDesignPublishedHandoff, error) {
 	var binding testDesignPublishedHandoff
 	handoffPath := filepath.Join(root, "handoff-to-tasks.json")
 	info, err := os.Lstat(handoffPath)
@@ -1532,8 +2233,10 @@ func (service testDesignService) verifyPublishedHandoff(root string) (testDesign
 	if strings.TrimSpace(asString(handoff["source_fingerprint"])) != state.Source.Fingerprint || strings.TrimSpace(asString(handoff["claim_status"])) != state.ClaimStatus {
 		return binding, fmt.Errorf("test-design handoff source or claim does not match state")
 	}
-	if freshnessErr := service.requireFreshSources(state); freshnessErr != nil {
-		return binding, fmt.Errorf("test-design sources are stale: %w", freshnessErr)
+	if requireLiveSourceFreshness {
+		if freshnessErr := service.requireFreshSources(state); freshnessErr != nil {
+			return binding, fmt.Errorf("test-design sources are stale: %w", freshnessErr)
+		}
 	}
 	projectRoot, err := filepath.Abs(service.projectRoot)
 	if err != nil {
@@ -2578,6 +3281,9 @@ func (service testDesignService) commandArgv(state testDesignState, subcommand s
 	argv := []string{"specify-runtime", "test-design", subcommand}
 	if state.Scope == "feature" && state.FeatureDir != nil && strings.TrimSpace(*state.FeatureDir) != "" {
 		argv = append(argv, "--feature-dir", *state.FeatureDir)
+	}
+	if subcommand == "publish" {
+		argv = append(argv, "--expected-revision", strconv.Itoa(state.Revision))
 	}
 	argv = append(argv, "--format", "json")
 	return argv
@@ -4253,7 +4959,12 @@ func testDesignNextSubcommand(state testDesignState, manifest testDesignLaneMani
 	case "audit":
 		return "validate"
 	case "validated":
+		if state.Scope == "project" {
+			return "publish"
+		}
 		return "handoff"
+	case "handed-off":
+		return "publish"
 	default:
 		return ""
 	}
@@ -4277,6 +4988,10 @@ func testDesignUniverseObligationRefs(universe map[string]any) []string {
 		}
 	}
 	return testDesignSortedKeys(seen)
+}
+
+func testDesignObligationPointers(universe map[string]any) []string {
+	return testDesignPointerList("test-universe.json#/obligations/", testDesignUniverseObligationRefs(universe))
 }
 
 func testDesignCatalogPointers(catalog map[string]any) []string {
@@ -4304,6 +5019,16 @@ func testDesignCoveragePointers(matrix map[string]any) []string {
 	for _, row := range testDesignObjects(matrix["rows"]) {
 		if id := strings.TrimSpace(asString(row["coverage_id"])); id != "" {
 			seen["coverage-matrix.json#/rows/"+id] = true
+		}
+	}
+	return testDesignSortedKeys(seen)
+}
+
+func testDesignGapPointers(gaps map[string]any) []string {
+	seen := map[string]bool{}
+	for _, row := range testDesignObjects(gaps["gaps"]) {
+		if id := strings.TrimSpace(asString(row["gap_id"])); id != "" {
+			seen["test-gaps.json#/gaps/"+id] = true
 		}
 	}
 	return testDesignSortedKeys(seen)
