@@ -837,6 +837,72 @@ def test_tasks_build_rejects_an_existing_unhanded_test_design_root(
     assert "workspace exists without a current" in result.output
 
 
+@pytest.mark.parametrize("decision", ["selected", "required"])
+def test_tasks_build_rejects_a_plan_selected_test_design_without_feature_handoff(
+    tmp_path: Path,
+    decision: str,
+) -> None:
+    project, feature = _project(tmp_path)
+    plan_contract = json.loads(
+        (feature / "plan-contract.json").read_text(encoding="utf-8")
+    )
+    plan_contract["test_design_gate"] = {
+        "decision": decision,
+        "reason_refs": ["spec-contract.json#/acceptance/AC-001"],
+        "projection_ref": None,
+        "projection_sha256": None,
+    }
+    _write_json(feature / "plan-contract.json", plan_contract)
+
+    result = _build(project, feature, _task(case_refs=[]))
+
+    assert result.exit_code == 10
+    assert "test-design" in result.output.lower()
+    assert decision in result.output.lower()
+    assert "handoff-to-tasks.json" in result.output
+
+
+def test_tasks_build_allows_an_explicitly_unselected_test_design_without_root(
+    tmp_path: Path,
+) -> None:
+    project, feature = _project(tmp_path)
+    plan_contract = json.loads(
+        (feature / "plan-contract.json").read_text(encoding="utf-8")
+    )
+    plan_contract["test_design_gate"] = {
+        "decision": "not_selected",
+        "reason_refs": [],
+        "projection_ref": None,
+        "projection_sha256": None,
+    }
+    _write_json(feature / "plan-contract.json", plan_contract)
+
+    result = _build(project, feature, _task(case_refs=[]))
+
+    assert result.exit_code == 0, result.output
+
+
+def test_tasks_build_rejects_an_unknown_plan_test_design_gate_decision(
+    tmp_path: Path,
+) -> None:
+    project, feature = _project(tmp_path)
+    plan_contract = json.loads(
+        (feature / "plan-contract.json").read_text(encoding="utf-8")
+    )
+    plan_contract["test_design_gate"] = {
+        "decision": "sometimes",
+        "reason_refs": [],
+        "projection_ref": None,
+        "projection_sha256": None,
+    }
+    _write_json(feature / "plan-contract.json", plan_contract)
+
+    result = _build(project, feature, _task(case_refs=[]))
+
+    assert result.exit_code == 10
+    assert "test_design_gate.decision" in result.output
+
+
 def test_test_design_evidence_record_identity_and_rfc3339_are_verified(
     tmp_path: Path,
 ) -> None:

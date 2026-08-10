@@ -319,6 +319,61 @@ func TestTestDesignTasksBuildFailsClosedWhenWorkspaceExistsWithoutHandoff(t *tes
 	}
 }
 
+func TestTestDesignTasksBuildHonorsSelectedOrRequiredPlanGate(t *testing.T) {
+	for _, decision := range []string{"selected", "required"} {
+		t.Run(decision, func(t *testing.T) {
+			projectRoot := t.TempDir()
+			featureRel := filepath.ToSlash(filepath.Join("specs", "001-test-design"))
+			featureDir := filepath.Join(projectRoot, filepath.FromSlash(featureRel))
+			templatesDir := filepath.Join(projectRoot, ".specify", "templates")
+			if err := os.MkdirAll(featureDir, 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.MkdirAll(templatesDir, 0o755); err != nil {
+				t.Fatal(err)
+			}
+			templateRaw, err := os.ReadFile(filepath.Join("..", "..", "templates", "task-index-template.json"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(templatesDir, "task-index-template.json"), templateRaw, 0o644); err != nil {
+				t.Fatal(err)
+			}
+			if err := writeTestDesignJSONFixture(filepath.Join(featureDir, "plan-contract.json"), map[string]any{
+				"status": "ready", "source_revision": 7, "acceptance_refs": []any{},
+				"test_design_gate": map[string]any{
+					"decision": decision, "reason_refs": []any{"spec-contract.json#/acceptance/AC-001"},
+					"projection_ref": nil, "projection_sha256": nil,
+				},
+			}); err != nil {
+				t.Fatal(err)
+			}
+			definition, err := json.Marshal(map[string]any{
+				"title": "Plan-selected Test Design", "source_revision": 7,
+				"tasks": []any{map[string]any{
+					"id": "T001", "objective": "Implement the selected design",
+					"dependencies": []any{}, "expected_write_scope": []any{"src/feature.go"},
+					"required_refs": []any{}, "acceptance": []any{"Selected design is implemented"},
+					"verification": []any{"go test ./..."}, "test_case_refs": []any{}, "test_data_refs": []any{},
+				}},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			withTestDesignCWD(t, projectRoot)
+			var stdout, stderr bytes.Buffer
+			exit := Run([]string{
+				"tasks", "build", "--feature-dir", featureRel,
+				"--definition-json", string(definition), "--format", "json",
+			}, &stdout, &stderr, "test")
+			combined := strings.ToLower(stdout.String() + stderr.String())
+			if exit == 0 || !strings.Contains(combined, decision) || !strings.Contains(combined, "handoff-to-tasks.json") {
+				t.Fatalf("plan gate %s was bypassed: exit=%d stderr=%q stdout=%q", decision, exit, stderr.String(), stdout.String())
+			}
+		})
+	}
+}
+
 func seedTestDesignScaffoldTemplates(projectRoot string) error {
 	artifactDir := filepath.Join(projectRoot, ".specify", "templates", "artifacts")
 	if err := os.MkdirAll(artifactDir, 0o755); err != nil {
