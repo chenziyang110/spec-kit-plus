@@ -1239,8 +1239,8 @@ func TestArtifactScaffoldHelpDescribesCanonicalInvocation(t *testing.T) {
 
 func TestArtifactScaffoldCatalogPublishesOnlyImplementedKinds(t *testing.T) {
 	result := ArtifactScaffoldCatalog()
-	if result.Status != "ok" || len(result.Items) != 25 {
-		t.Fatalf("artifact scaffold catalog = %#v, want twenty-five kinds", result)
+	if result.Status != "ok" || len(result.Items) != 29 {
+		t.Fatalf("artifact scaffold catalog = %#v, want twenty-nine kinds", result)
 	}
 	kinds := map[string]bool{}
 	for _, item := range result.Items {
@@ -1282,6 +1282,10 @@ func TestArtifactScaffoldCatalogPublishesOnlyImplementedKinds(t *testing.T) {
 		"specify-context",
 		"specify-draft",
 		"task-generation-lane-manifest",
+		"test-catalog",
+		"test-data-manifest",
+		"test-universe",
+		"coverage-matrix",
 		"ui-brief",
 		"ui-reference-notes",
 		"workflow-state",
@@ -1290,7 +1294,7 @@ func TestArtifactScaffoldCatalogPublishesOnlyImplementedKinds(t *testing.T) {
 			t.Fatalf("catalog kinds = %#v, missing %q", kinds, kind)
 		}
 	}
-	if len(kinds) != 25 {
+	if len(kinds) != 29 {
 		t.Fatalf("catalog kinds = %#v", kinds)
 	}
 }
