@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 import json
 from pathlib import Path
 
@@ -273,6 +274,46 @@ def test_test_data_manifest_schema_can_express_data_hygiene_constraints() -> Non
     assert "retention_policy" in text
     assert "sanitized" in text
     assert "restricted" in text or "internal" in text
+
+
+def test_catalog_schema_accepts_repository_refs_and_ids_beyond_999() -> None:
+    contract = next(item for item in ARTIFACT_CONTRACTS if item["name"] == "test-catalog")
+    payload = deepcopy(contract["valid"])
+    case = payload["cases"][0]
+    case["test_case_id"] = "TC-1000"
+    case["requirement_refs"] = ["spec-contract.json#/acceptance_criteria/0"]
+    case["capability_refs"] = ["CAP-1000"]
+    case["scenario_refs"] = ["SCN-1000"]
+    case["test_data_refs"] = ["TD-1000"]
+
+    _validator(str(contract["schema"])).validate(payload)
+
+
+def test_data_manifest_schema_rejects_unsanitized_pii() -> None:
+    contract = next(
+        item for item in ARTIFACT_CONTRACTS if item["name"] == "test-data-manifest"
+    )
+    payload = deepcopy(contract["valid"])
+    dataset = payload["datasets"][0]
+    dataset["contains_pii"] = True
+    dataset["sensitivity"] = "public"
+    dataset["hygiene"]["sanitization_status"] = "not_required"
+
+    errors = list(_validator(str(contract["schema"])).iter_errors(payload))
+    assert errors, "unsafe unsanitized PII unexpectedly passed"
+
+
+def test_coverage_gap_row_can_be_explicit_without_fabricated_evidence() -> None:
+    contract = next(
+        item for item in ARTIFACT_CONTRACTS if item["name"] == "coverage-matrix"
+    )
+    payload = deepcopy(contract["valid"])
+    row = payload["rows"][0]
+    row["status"] = "missing"
+    row["evidence_refs"] = []
+    row["acceptance_refs"] = []
+
+    _validator(str(contract["schema"])).validate(payload)
 
 
 def test_coverage_matrix_template_is_a_deterministic_view_not_the_source_of_truth() -> None:
