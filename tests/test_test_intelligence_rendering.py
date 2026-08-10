@@ -190,6 +190,41 @@ def test_bundle_rejects_coverage_requirement_drift() -> None:
         )
 
 
+def test_scenario_can_trace_multiple_layered_cases_and_coverage_rows() -> None:
+    universe, catalog, data_manifest, coverage = _bundle()
+
+    second_universe_case = deepcopy(universe["test_cases"][0])
+    second_universe_case["test_case_id"] = "TC-002"
+    second_universe_case["title"] = "Approval contract is enforced at integration level"
+    second_universe_case["kind"] = "integration"
+    second_universe_case["coverage_refs"] = ["COV-002"]
+    universe["test_cases"].append(second_universe_case)
+    universe["capabilities"][0]["test_case_ids"].append("TC-002")
+    scenario = universe["scenarios"][0]
+    scenario["test_case_ids"].append("TC-002")
+    scenario.pop("coverage_ref")
+    scenario["coverage_refs"] = ["COV-001", "COV-002"]
+
+    second_catalog_case = deepcopy(catalog["cases"][0])
+    second_catalog_case["test_case_id"] = "TC-002"
+    second_catalog_case["title"] = "Approval contract is enforced at integration level"
+    second_catalog_case["stage"] = "integration"
+    catalog["cases"].append(second_catalog_case)
+    data_manifest["datasets"][0]["applicable_test_case_ids"].append("TC-002")
+
+    second_coverage_row = deepcopy(coverage["rows"][0])
+    second_coverage_row["coverage_id"] = "COV-002"
+    second_coverage_row["test_case_ref"] = "TC-002"
+    coverage["rows"].append(second_coverage_row)
+
+    validate_test_intelligence_bundle(
+        universe=universe,
+        catalog=catalog,
+        data_manifest=data_manifest,
+        coverage_matrix=coverage,
+    )
+
+
 def test_catalog_markdown_is_deterministic_and_declares_json_authority() -> None:
     _, catalog, _, _ = _bundle()
 
