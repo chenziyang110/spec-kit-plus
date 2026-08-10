@@ -99,6 +99,22 @@ func TestTasksBuildPreservesTestDesignRefsAndRendersThemInTasksMarkdown(t *testi
 	}); err != nil {
 		t.Fatal(err)
 	}
+	if err := writeTestDesignJSONFixture(filepath.Join(templatesDir, "task-packet-template.json"), map[string]any{
+		"version": 2, "task_id": nil, "source_task_ref": nil, "source_revision": nil,
+		"objective": nil, "policy_refs": []any{}, "user_confirmed_deferral_refs": []any{},
+		"implementation_target_ref": nil, "authoritative_refs": []any{}, "read_scope": []any{},
+		"write_scope": []any{}, "forbidden_drift": []any{}, "acceptance_refs": []any{},
+		"must_preserve_refs": []any{}, "consequence_obligation_refs": []any{},
+		"capability_operation_refs": []any{}, "fidelity_refs": []any{},
+		"ui_contract": map[string]any{
+			"fidelity_level": "none", "required_states": []any{}, "required_evidence": []any{}, "must_not": []any{},
+		},
+		"validation_policy": map[string]any{}, "task_checks": []any{}, "required_validation": []any{},
+		"required_consumer_evidence": []any{}, "test_case_refs": []any{}, "test_data_refs": []any{},
+		"done_condition": []any{}, "stop_and_reopen_conditions": []any{}, "recovery": nil,
+	}); err != nil {
+		t.Fatal(err)
+	}
 
 	definitionRaw, err := json.Marshal(map[string]any{
 		"title":           "Test design consumption",
@@ -170,6 +186,28 @@ func TestTasksBuildPreservesTestDesignRefsAndRendersThemInTasksMarkdown(t *testi
 			t.Fatalf("tasks.md missing %q:\n%s", want, text)
 		}
 	}
+
+	exit = Run([]string{
+		"tasks", "finalize", "--feature-dir", featureRel, "--format", "json",
+	}, &stdout, &stderr, "test")
+	if exit != 0 {
+		t.Fatalf("tasks finalize exit = %d stderr=%q stdout=%q", exit, stderr.String(), stdout.String())
+	}
+	exit = Run([]string{
+		"implement", "packet-compile", "--feature-dir", featureRel, "--task-id", "T001", "--format", "json",
+	}, &stdout, &stderr, "test")
+	if exit != 0 {
+		t.Fatalf("implement packet-compile exit = %d stderr=%q stdout=%q", exit, stderr.String(), stdout.String())
+	}
+
+	packet := readTestDesignJSONMap(t, filepath.Join(featureDir, "implementation-review", "packets", "T001.json"))
+	assertStringListEquals(t, packet["test_case_refs"], []string{
+		"test-design-handoff.json#/test_cases/TC-001",
+		"test-design-handoff.json#/test_cases/TC-002",
+	})
+	assertStringListEquals(t, packet["test_data_refs"], []string{
+		"test-design-handoff.json#/test_data/TD-001",
+	})
 }
 
 func seedTestDesignScaffoldTemplates(projectRoot string) error {
