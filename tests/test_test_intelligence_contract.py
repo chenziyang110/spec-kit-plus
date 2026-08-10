@@ -303,6 +303,33 @@ def test_data_manifest_schema_rejects_unsanitized_pii() -> None:
     assert errors, "unsafe unsanitized PII unexpectedly passed"
 
 
+def test_data_manifest_schema_accepts_large_ids_and_restricted_pii() -> None:
+    contract = next(
+        item for item in ARTIFACT_CONTRACTS if item["name"] == "test-data-manifest"
+    )
+    payload = deepcopy(contract["valid"])
+    dataset = payload["datasets"][0]
+    dataset["test_data_id"] = "TD-1000"
+    dataset["applicable_test_case_ids"] = ["TC-1000"]
+    dataset["applicable_scenario_ids"] = ["SCN-1000"]
+    dataset["contains_pii"] = True
+    dataset["sensitivity"] = "restricted"
+    dataset["hygiene"]["sanitization_status"] = "pending"
+
+    _validator(str(contract["schema"])).validate(payload)
+
+
+def test_data_sensitivity_rejects_workflow_state_labels() -> None:
+    contract = next(
+        item for item in ARTIFACT_CONTRACTS if item["name"] == "test-data-manifest"
+    )
+    payload = deepcopy(contract["valid"])
+    payload["datasets"][0]["sensitivity"] = "pending"
+
+    errors = list(_validator(str(contract["schema"])).iter_errors(payload))
+    assert errors, "workflow state unexpectedly accepted as a sensitivity classification"
+
+
 def test_coverage_gap_row_can_be_explicit_without_fabricated_evidence() -> None:
     contract = next(
         item for item in ARTIFACT_CONTRACTS if item["name"] == "coverage-matrix"
@@ -310,6 +337,20 @@ def test_coverage_gap_row_can_be_explicit_without_fabricated_evidence() -> None:
     payload = deepcopy(contract["valid"])
     row = payload["rows"][0]
     row["status"] = "missing"
+    row["evidence_refs"] = []
+    row["acceptance_refs"] = []
+
+    _validator(str(contract["schema"])).validate(payload)
+
+
+@pytest.mark.parametrize("status", ["blocked", "deferred", "excluded", "not_applicable"])
+def test_coverage_schema_accepts_explicit_noncoverage_dispositions(status: str) -> None:
+    contract = next(
+        item for item in ARTIFACT_CONTRACTS if item["name"] == "coverage-matrix"
+    )
+    payload = deepcopy(contract["valid"])
+    row = payload["rows"][0]
+    row["status"] = status
     row["evidence_refs"] = []
     row["acceptance_refs"] = []
 
