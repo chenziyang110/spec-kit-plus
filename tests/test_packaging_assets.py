@@ -302,6 +302,22 @@ def test_wheel_force_include_bundles_structured_workflow_contract_templates() ->
         ) in pyproject
 
 
+def test_wheel_force_include_bundles_test_intelligence_schemas() -> None:
+    pyproject = (REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8")
+
+    for schema in (
+        "test-universe-schema.json",
+        "test-catalog-schema.json",
+        "test-data-manifest-schema.json",
+        "coverage-matrix-schema.json",
+    ):
+        assert (
+            f'"templates/{schema}" = '
+            f'"specify_cli/core_pack/templates/{schema}"'
+        ) in pyproject
+        assert (REPO_ROOT / "templates" / schema).is_file()
+
+
 def test_wheel_force_include_bundles_artifact_scaffold_templates() -> None:
     pyproject = (REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8")
 
