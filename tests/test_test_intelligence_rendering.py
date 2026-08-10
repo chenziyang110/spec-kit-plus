@@ -254,6 +254,12 @@ def test_catalog_markdown_is_deterministic_and_declares_json_authority() -> None
     assert "### Steps" in first
     assert "### Pass Criteria" in first
     assert "`TD-001`" in first
+    assert "1. Open the official approval entrypoint." in first
+    assert "2. Approve the order." in first
+    assert first.index("1. Open the official approval entrypoint.") < first.index(
+        "2. Approve the order."
+    )
+    assert "- The order becomes approved exactly once." in first
 
 
 def test_schema_candidates_include_the_wheel_core_pack_location() -> None:
