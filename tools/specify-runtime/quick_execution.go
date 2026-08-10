@@ -463,7 +463,7 @@ func requireQuickWorkerAcceptProof(workspacePath, workspace, itemID string, item
 		return nil, fmt.Errorf("worker_result_required: worker result for %s has status %q (need success, DONE, or DONE_WITH_CONCERNS)", itemID, firstNonEmpty(asString(result["reported_status"]), status))
 	}
 	changed := asStringList(result["changed_files"])
-	if len(changed) == 0 {
+	if len(item.WriteScope) > 0 && len(changed) == 0 {
 		return nil, fmt.Errorf("worker_result_required: worker result for %s must include non-empty changed_files for write_scope verification", itemID)
 	}
 	if err := validateQuickChangedFilesInScope(changed, item.WriteScope); err != nil {
