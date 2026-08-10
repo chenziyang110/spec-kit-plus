@@ -73,7 +73,7 @@ func TestTestDesignArtifactsAreCanonicalPatchableAndRejectWholeFileSubmit(t *tes
 	}
 }
 
-func TestTasksBuildPreservesTestDesignRefsAndRendersThemInTasksMarkdown(t *testing.T) {
+func TestTestDesignTasksBuildPreservesRefsAndRendersThemInTasksMarkdown(t *testing.T) {
 	projectRoot := t.TempDir()
 	featureRel := filepath.ToSlash(filepath.Join("specs", "001-test-design"))
 	featureDir := filepath.Join(projectRoot, filepath.FromSlash(featureRel))
