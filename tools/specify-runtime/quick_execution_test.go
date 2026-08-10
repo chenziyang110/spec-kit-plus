@@ -602,7 +602,7 @@ func TestQuickItemAcceptRejectsReusedWorkerResultAcrossItems(t *testing.T) {
 	}
 }
 
-func TestQuickItemAcceptRejectsSuccessResultWithoutChangedFiles(t *testing.T) {
+func TestQuickItemAcceptRejectsSuccessResultWithoutChangedFilesWhenWriteScopePresent(t *testing.T) {
 	testCases := []struct {
 		name    string
 		payload map[string]any
@@ -628,8 +628,8 @@ func TestQuickItemAcceptRejectsSuccessResultWithoutChangedFiles(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			// Safety contract: success results must provide non-empty changed_files
-			// so write_scope enforcement has concrete evidence to validate.
+			// Safety contract: scoped success results must provide non-empty
+			// changed_files so write_scope enforcement has concrete evidence.
 			root, workspace := stageConfirmedQuickExecutionTestWorkspace(t, "260810-changed-files", map[string]any{
 				"source": map[string]any{"kind": "prompt"},
 				"decision": map[string]any{
@@ -663,6 +663,43 @@ func TestQuickItemAcceptRejectsSuccessResultWithoutChangedFiles(t *testing.T) {
 				t.Fatalf("success result without concrete changed_files should fail, got ok: %#v", env.Data)
 			}
 		})
+	}
+}
+
+func TestQuickItemAcceptAllowsNoChangedFilesWithoutWriteScope(t *testing.T) {
+	root, workspace := stageConfirmedQuickExecutionTestWorkspace(t, "260810-no-write", map[string]any{
+		"source": map[string]any{"kind": "prompt"},
+		"decision": map[string]any{
+			"goal":                "verify Q1",
+			"user_visible_result": "verified",
+			"scope":               map[string]any{"include": []any{"a"}, "exclude": []any{"b"}},
+			"items": []any{
+				map[string]any{
+					"id": "Q1", "deliverable": "verification", "depends_on": []any{},
+					"acceptance": "verification passes",
+				},
+			},
+			"reconfirmation_trigger": "x",
+		},
+	})
+	env := runScriptDomainEnvelope(t, runQuick, []string{
+		"--project-root", root, "item-start", "260810-no-write", "--item", "Q1",
+	})
+	if env.Status != "ok" {
+		t.Fatalf("start: %v", env.Blockers)
+	}
+	mustWriteQuickWorkerResult(t, workspace, "Q1", map[string]any{
+		"task_id": "Q1", "status": "success", "summary": "verified without writes",
+	})
+
+	env = runScriptDomainEnvelope(t, runQuick, []string{
+		"--project-root", root,
+		"item-accept", "260810-no-write",
+		"--item", "Q1",
+		"--evidence", "verification passes",
+	})
+	if env.Status != "ok" {
+		t.Fatalf("no-write worker result should be accepted: %v", env.Blockers)
 	}
 }
 
