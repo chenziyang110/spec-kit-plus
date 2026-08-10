@@ -70,3 +70,14 @@ def test_run_ui_quality_gate_rules_flags_evidence_and_states() -> None:
 def test_run_ui_quality_gate_rules_not_run_without_inputs() -> None:
     report = run_ui_quality_gate_rules()
     assert report.status == "not-run"
+
+
+def test_run_ui_quality_gate_rules_rejects_partial_state_inputs() -> None:
+    required_only = run_ui_quality_gate_rules(required_states=["default"])
+    observed_only = run_ui_quality_gate_rules(observed_states=["default"])
+
+    for report in (required_only, observed_only):
+        assert report.status == "fail"
+        assert any(issue.rule_id == "states.input_pair" for issue in report.issues)
+        assert any(issue.severity == "error" for issue in report.issues)
+        assert validate_ui_quality_gate_report(report.as_dict()).valid is True
