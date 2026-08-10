@@ -179,8 +179,8 @@ func TestTasksBuildPreservesTestDesignRefsAndRendersThemInTasksMarkdown(t *testi
 	}
 	text := string(rendered)
 	for _, want := range []string{
-		"| test_case_refs | [test-design-handoff.json#/test_cases/TC-001, test-design-handoff.json#/test_cases/TC-002] |",
-		"| test_data_refs | [test-design-handoff.json#/test_data/TD-001] |",
+		"| test_case_refs | `test-design-handoff.json#/test_cases/TC-001`, `test-design-handoff.json#/test_cases/TC-002` |",
+		"| test_data_refs | `test-design-handoff.json#/test_data/TD-001` |",
 	} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("tasks.md missing %q:\n%s", want, text)

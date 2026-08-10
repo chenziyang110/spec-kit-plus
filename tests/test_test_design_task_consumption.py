@@ -140,6 +140,15 @@ def test_tasks_build_preserves_test_design_refs_in_canonical_task_index(
     assert task["test_data_refs"] == [
         "test-design-handoff.json#/test_data/TD-001",
     ]
+    tasks_markdown = (feature / "tasks.md").read_text(encoding="utf-8")
+    assert (
+        "| test_case_refs | `test-design-handoff.json#/test_cases/TC-001`, "
+        "`test-design-handoff.json#/test_cases/TC-002` |"
+    ) in tasks_markdown
+    assert (
+        "| test_data_refs | `test-design-handoff.json#/test_data/TD-001` |"
+        in tasks_markdown
+    )
 
 
 def test_jit_worker_packet_carries_test_design_refs_to_implement(
