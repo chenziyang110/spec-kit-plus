@@ -20,7 +20,7 @@ workflow runtime before creating task artifacts.
 Read `references/ui-quality-gate.md` when the plan carries a UI design contract.
 
 Query `plan-contract.json` first through `specify-runtime artifact show` and verify named owners, paths, and verification
-entry points against cognition-selected live evidence. If planning truth is
+entry points against cognition-selected live evidence. If an optional test-design handoff is present, treat that test-design handoff as authoritative input for task shaping and preserve its task-local refs rather than reconstructing test intent from prose. If planning truth is
 missing or stale, stop and route to `$spx-plan`, `$spx-clarify`, or
 `$spx-deep-research`; do not hide design work inside a task.
 
@@ -46,6 +46,10 @@ overlap; name the join and combined check. Write-overlapping task-generation
 lanes use serial `one-subagent` (or leader-inline only under adaptive light /
 recorded standard degradation)—never unrecorded leader synthesis after a
 parallel conflict.
+When present, `test_case_refs` and `test_data_refs` are task-local authoritative
+inputs copied from that test-design handoff and preserved into the canonical
+task graph for later JIT packet compilation. They do not create or imply a
+public `sp-test-design` command surface.
 
 Set root `validation_policy` to `mode: feature_epochs`, `max_epochs: 3`,
 `budget_scope: implement-review`,

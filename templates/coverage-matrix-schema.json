@@ -1,0 +1,134 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spec-kit-plus.local/schemas/coverage-matrix-schema.json",
+  "title": "Spec Kit Plus Coverage Matrix",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "artifact",
+    "rows"
+  ],
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "artifact": {
+      "const": "coverage-matrix"
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/row"
+      }
+    }
+  },
+  "$defs": {
+    "row": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "coverage_id",
+        "requirement_ref",
+        "capability_ref",
+        "scenario_ref",
+        "test_case_ref",
+        "test_data_refs",
+        "evidence_refs",
+        "acceptance_refs",
+        "status"
+      ],
+      "properties": {
+        "coverage_id": {
+          "type": "string",
+          "pattern": "^COV-[0-9]{3,}$"
+        },
+        "requirement_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "capability_ref": {
+          "type": "string",
+          "pattern": "^CAP-[0-9]{3,}$"
+        },
+        "scenario_ref": {
+          "type": "string",
+          "pattern": "^SCN-[0-9]{3,}$"
+        },
+        "test_case_ref": {
+          "type": "string",
+          "pattern": "^TC-[0-9]{3,}$"
+        },
+        "test_data_refs": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^TD-[0-9]{3,}$"
+          }
+        },
+        "evidence_refs": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "acceptance_refs": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "status": {
+          "enum": [
+            "covered",
+            "partial",
+            "missing",
+            "waived",
+            "gap",
+            "blocked",
+            "deferred",
+            "excluded",
+            "not_applicable"
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "covered"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "anyOf": [
+              {
+                "properties": {
+                  "evidence_refs": {
+                    "minItems": 1
+                  }
+                }
+              },
+              {
+                "properties": {
+                  "acceptance_refs": {
+                    "minItems": 1
+                  }
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  }
+}

@@ -174,6 +174,30 @@ var artifactScaffoldKinds = map[string]artifactScaffoldKind{
 		FillTargets:           map[string]map[string]string{"status": {"type": "json_pointer", "pointer": "/status"}, "lanes": {"type": "json_pointer", "pointer": "/lanes"}},
 		EstimatedTokenSavings: 220,
 	},
+	"test-universe": {
+		Kind:                  "test-universe",
+		TemplatePath:          "artifacts/test-universe.json",
+		AllowedPaths:          [][]string{{"specs", "*", "test-design", "test-universe.json"}, {".specify", "features", "*", "test-design", "test-universe.json"}},
+		EstimatedTokenSavings: 120,
+	},
+	"test-catalog": {
+		Kind:                  "test-catalog",
+		TemplatePath:          "artifacts/test-catalog.json",
+		AllowedPaths:          [][]string{{"specs", "*", "test-design", "test-catalog.json"}, {".specify", "features", "*", "test-design", "test-catalog.json"}},
+		EstimatedTokenSavings: 120,
+	},
+	"test-data-manifest": {
+		Kind:                  "test-data-manifest",
+		TemplatePath:          "artifacts/test-data-manifest.json",
+		AllowedPaths:          [][]string{{"specs", "*", "test-design", "test-data-manifest.json"}, {".specify", "features", "*", "test-design", "test-data-manifest.json"}},
+		EstimatedTokenSavings: 120,
+	},
+	"coverage-matrix": {
+		Kind:                  "coverage-matrix",
+		TemplatePath:          "artifacts/coverage-matrix.json",
+		AllowedPaths:          [][]string{{"specs", "*", "test-design", "coverage-matrix.json"}, {".specify", "features", "*", "test-design", "coverage-matrix.json"}},
+		EstimatedTokenSavings: 120,
+	},
 	"plan-contract": {
 		Kind:         "plan-contract",
 		TemplatePath: "plan-contract-template.json",
@@ -437,11 +461,31 @@ func renderArtifactScaffold(kind artifactScaffoldKind, template []byte, variable
 		return renderLaneManifestScaffold(kind, template, variables)
 	case "clarification-evidence-index":
 		return renderEvidenceIndexScaffold(kind, template, variables)
+	case "test-universe", "test-catalog", "test-data-manifest", "coverage-matrix":
+		return renderCanonicalJSONScaffold(kind, template, variables)
 	case "alignment", "clarification-checkpoints", "constitution", "data-model", "debug-session", "deep-research", "deep-research-not-needed", "design-brief", "design-review", "quick-plan", "quick-summary", "quickstart", "references", "research", "specify-context", "specify-draft", "ui-brief", "ui-reference-notes", "workflow-state":
 		return renderStaticArtifactScaffold(kind, template, variables)
 	default:
 		return nil, fmt.Errorf("unsupported artifact scaffold kind %q", kind.Kind)
 	}
+}
+
+func renderCanonicalJSONScaffold(kind artifactScaffoldKind, template []byte, variables map[string]any) ([]byte, error) {
+	if len(variables) != 0 {
+		return nil, fmt.Errorf("%s does not accept scaffold variables; patch the canonical JSON after creation", kind.Kind)
+	}
+	var payload any
+	if err := json.Unmarshal(template, &payload); err != nil {
+		return nil, fmt.Errorf("%s template is invalid JSON: %w", kind.Kind, err)
+	}
+	var output bytes.Buffer
+	encoder := json.NewEncoder(&output)
+	encoder.SetEscapeHTML(false)
+	encoder.SetIndent("", "  ")
+	if err := encoder.Encode(payload); err != nil {
+		return nil, err
+	}
+	return output.Bytes(), nil
 }
 
 func renderEvidenceIndexScaffold(kind artifactScaffoldKind, template []byte, variables map[string]any) ([]byte, error) {

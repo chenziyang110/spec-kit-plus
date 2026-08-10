@@ -47,6 +47,7 @@ var taskControlAuthoredFields = map[string]bool{
 	"required_refs": true, "authoritative_refs": true, "policy_refs": true,
 	"forbidden_drift": true, "hard_rules": true, "acceptance": true, "done_condition": true, "acceptance_refs": true,
 	"verification": true, "required_validation": true, "task_checks": true,
+	"test_case_refs": true, "test_data_refs": true,
 	"consumer_surfaces": true, "required_consumer_evidence": true, "required_evidence": true,
 	"must_preserve_ids": true, "must_preserve_refs": true,
 	"consequence_obligation_ids": true, "consequence_obligation_refs": true,
@@ -555,7 +556,7 @@ func normalizeTaskControlTask(value any, allowRuntimeFields bool) (map[string]an
 			return nil, fmt.Errorf("task field %s is CLI-owned and cannot be authored", key)
 		}
 		if !allowRuntimeFields && !taskControlAuthoredFields[key] {
-			return nil, fmt.Errorf("task contains unsupported field %q; accepted fields include objective (alias: title), acceptance (alias: done_condition), dependencies, expected_write_scope, required_refs, verification, ui_contract", key)
+			return nil, fmt.Errorf("task contains unsupported field %q; accepted fields include objective (alias: title), acceptance (alias: done_condition), dependencies, expected_write_scope, required_refs, verification, test_case_refs, test_data_refs, ui_contract", key)
 		}
 	}
 	idValue := task["id"]
@@ -605,6 +606,7 @@ func normalizeTaskControlTask(value any, allowRuntimeFields bool) (map[string]an
 	for _, key := range []string{
 		"read_scope", "required_refs", "authoritative_refs", "policy_refs", "forbidden_drift", "hard_rules",
 		"acceptance", "verification", "required_validation", "task_checks", "consumer_surfaces", "required_consumer_evidence",
+		"test_case_refs", "test_data_refs",
 		"required_evidence", "must_preserve_ids", "must_preserve_refs",
 		"consequence_obligation_ids", "consequence_obligation_refs",
 		"capability_operations", "capability_operation_refs", "fidelity_refs",
@@ -1194,6 +1196,8 @@ func renderTaskControlMarkdown(payload map[string]any, title string) (string, er
 			"| read_scope | "+taskControlRenderList(task["read_scope"])+" |",
 			"| write_scope | "+taskControlRenderList(task["expected_write_scope"])+" |",
 			"| required_refs | "+taskControlRenderList(task["required_refs"])+" |",
+			"| test_case_refs | "+taskControlRenderList(task["test_case_refs"])+" |",
+			"| test_data_refs | "+taskControlRenderList(task["test_data_refs"])+" |",
 			"| dependencies | "+taskControlRenderList(task["dependencies"])+" |",
 			"", "### Acceptance and Verification", "",
 			"- Acceptance: "+taskControlRenderList(task["acceptance"]),

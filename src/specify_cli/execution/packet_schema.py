@@ -182,6 +182,8 @@ class WorkerTaskPacket:
     acceptance_criteria: list[str] = field(default_factory=list)
     consumer_surfaces: list[str] = field(default_factory=list)
     required_evidence: list[str] = field(default_factory=list)
+    test_case_refs: list[str] = field(default_factory=list)
+    test_data_refs: list[str] = field(default_factory=list)
     global_constraints: list[str] = field(default_factory=list)
     interfaces: PacketInterfaces = field(default_factory=PacketInterfaces)
     review_inputs: list[str] = field(default_factory=list)

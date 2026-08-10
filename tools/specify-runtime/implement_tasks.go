@@ -101,6 +101,8 @@ func runImplementPacketCompile(args []string) (map[string]any, error) {
 	packet["task_checks"] = stringsToAny(anyStringSlice(task["task_checks"]))
 	packet["required_validation"] = stringsToAny(anyStringSlice(task["verification"]))
 	packet["required_consumer_evidence"] = stringsToAny(anyStringSlice(task["consumer_surfaces"]))
+	packet["test_case_refs"] = stringsToAny(anyStringSlice(task["test_case_refs"]))
+	packet["test_data_refs"] = stringsToAny(anyStringSlice(task["test_data_refs"]))
 	packet["done_condition"] = stringsToAny(anyStringSlice(task["acceptance"]))
 	packet["stop_and_reopen_conditions"] = stringsToAny(anyStringSlice(task["stop_and_reopen_conditions"]))
 	packet["recovery"] = cloneJSONValue(task["recovery"])

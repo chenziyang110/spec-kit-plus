@@ -1,0 +1,163 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spec-kit-plus.local/schemas/test-catalog-schema.json",
+  "title": "Spec Kit Plus Test Catalog",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "artifact",
+    "cases"
+  ],
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "artifact": {
+      "const": "test-catalog"
+    },
+    "cases": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/test_case"
+      }
+    }
+  },
+  "$defs": {
+    "test_case_id": {
+      "type": "string",
+      "pattern": "^TC-[0-9]{3,}$"
+    },
+    "requirement_ref": {
+      "type": "string",
+      "minLength": 1
+    },
+    "capability_ref": {
+      "type": "string",
+      "pattern": "^CAP-[0-9]{3,}$"
+    },
+    "scenario_ref": {
+      "type": "string",
+      "pattern": "^SCN-[0-9]{3,}$"
+    },
+    "test_data_ref": {
+      "type": "string",
+      "pattern": "^TD-[0-9]{3,}$"
+    },
+    "test_case": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "test_case_id",
+        "title",
+        "stage",
+        "priority",
+        "requirement_refs",
+        "capability_refs",
+        "scenario_refs",
+        "test_data_refs",
+        "verification_method",
+        "pass_criteria"
+      ],
+      "properties": {
+        "test_case_id": {
+          "$ref": "#/$defs/test_case_id"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "objective": {
+          "type": "string",
+          "minLength": 1
+        },
+        "stage": {
+          "enum": [
+            "unit",
+            "integration",
+            "workflow",
+            "review",
+            "acceptance",
+            "research-proof"
+          ]
+        },
+        "priority": {
+          "enum": [
+            "p0",
+            "p1",
+            "p2"
+          ]
+        },
+        "requirement_refs": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/requirement_ref"
+          }
+        },
+        "capability_refs": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/capability_ref"
+          }
+        },
+        "scenario_refs": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/scenario_ref"
+          }
+        },
+        "test_data_refs": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/test_data_ref"
+          }
+        },
+        "verification_method": {
+          "enum": [
+            "command-check",
+            "rule-check",
+            "manual-observation",
+            "visual-compare",
+            "runtime-diagnostics"
+          ]
+        },
+        "preconditions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "steps": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "pass_criteria": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "evidence_requirements": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    }
+  }
+}

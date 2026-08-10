@@ -64,6 +64,8 @@
   "task_checks": [],
   "required_validation": [],
   "required_consumer_evidence": [],
+  "test_case_refs": [],
+  "test_data_refs": [],
   "done_condition": [],
   "stop_and_reopen_conditions": [],
   "recovery": null

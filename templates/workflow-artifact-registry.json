@@ -242,6 +242,15 @@
       "safe_instruction_patterns": ["artifact show", "artifact list", "artifact prepare", "artifact scaffold", "artifact patch", "quickstart", "data-model", "registered owner", "cli-owned", "never submit", "never reconstruct"]
     },
     {
+      "id": "feature_test_design_artifacts",
+      "path_patterns": ["**/test-design/test-universe.json", "**/test-design/test-catalog.json", "**/test-design/test-data-manifest.json", "**/test-design/coverage-matrix.json"],
+      "owner_cli": ["specify-runtime artifact scaffold --kind test-universe", "specify-runtime artifact scaffold --kind test-catalog", "specify-runtime artifact scaffold --kind test-data-manifest", "specify-runtime artifact scaffold --kind coverage-matrix", "specify-runtime artifact patch"],
+      "path_hints": ["test-design/test-universe.json", "test-design/test-catalog.json", "test-design/test-data-manifest.json", "test-design/coverage-matrix.json"],
+      "forbidden_cli_patterns": ["artifact\\s+(?:prepare\\s*(?:/|\\||plus)\\s*)?submit"],
+      "instruction_sources": ["templates/artifacts/test-universe.json", "templates/artifacts/test-catalog.json", "templates/artifacts/test-data-manifest.json", "templates/artifacts/coverage-matrix.json"],
+      "safe_instruction_patterns": ["artifact show", "artifact list", "artifact prepare", "artifact scaffold", "artifact patch", "test-universe", "test-catalog", "test-data-manifest", "coverage-matrix", "registered owner", "cli-owned", "never submit", "never reconstruct"]
+    },
+    {
       "id": "feature_flexible_research_artifacts",
       "path_patterns": ["**/research-spikes/**", "**/contracts/**"],
       "owner_cli": ["specify-runtime artifact"],

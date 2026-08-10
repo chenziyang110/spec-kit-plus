@@ -1059,6 +1059,18 @@ def compile_worker_task_packet(
             + _string_list(task_entry.get("required_consumer_evidence"))
             + _string_list(task_entry.get("required_evidence"))
         ),
+        test_case_refs=_unique(
+            _task_detail_table_field_values(
+                task_detail, "Scope Boundaries", "test_case_refs"
+            )
+            + _string_list(task_entry.get("test_case_refs"))
+        ),
+        test_data_refs=_unique(
+            _task_detail_table_field_values(
+                task_detail, "Scope Boundaries", "test_data_refs"
+            )
+            + _string_list(task_entry.get("test_data_refs"))
+        ),
         global_constraints=_unique(
             _section_or_subsection_values(
                 plan_text,
