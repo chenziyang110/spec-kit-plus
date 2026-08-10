@@ -239,6 +239,14 @@ def test_test_intelligence_schema_rejects_core_invalid_example(
     assert errors, f"{artifact['name']} invalid example unexpectedly passed"
 
 
+@pytest.mark.parametrize("artifact", ARTIFACT_CONTRACTS, ids=lambda item: str(item["name"]))
+def test_canonical_json_scaffold_is_schema_valid(
+    artifact: dict[str, object],
+) -> None:
+    scaffold = _load_json(f"templates/artifacts/{artifact['name']}.json")
+    _validator(str(artifact["schema"])).validate(scaffold)
+
+
 def test_test_universe_schema_can_express_stable_ids_and_bidirectional_links() -> None:
     schema = _load_json("templates/test-universe-schema.json")
     text = json.dumps(schema).lower()
