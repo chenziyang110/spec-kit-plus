@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from pathlib import Path
 
 import pytest
 
+import specify_cli.test_intelligence as test_intelligence
 from specify_cli.test_intelligence import (
     TestIntelligenceValidationError,
     render_test_catalog_markdown,
@@ -140,6 +142,54 @@ def test_bundle_rejects_unknown_data_and_one_way_case_links() -> None:
     assert "test-data-manifest" in message
 
 
+def test_bundle_rejects_duplicate_stable_ids() -> None:
+    universe, catalog, data_manifest, coverage = _bundle()
+    duplicate = deepcopy(universe["capabilities"][0])
+    universe["capabilities"].append(duplicate)
+
+    with pytest.raises(TestIntelligenceValidationError, match="duplicate CAP-001"):
+        validate_test_intelligence_bundle(
+            universe=universe,
+            catalog=catalog,
+            data_manifest=data_manifest,
+            coverage_matrix=coverage,
+        )
+
+
+def test_bundle_rejects_one_way_capability_links() -> None:
+    universe, catalog, data_manifest, coverage = _bundle()
+    universe["capabilities"].append(
+        {
+            "capability_id": "CAP-002",
+            "title": "Unacknowledged capability link",
+            "requirement_refs": ["REQ-002"],
+            "test_case_ids": ["TC-001"],
+            "scenario_ids": ["SCN-001"],
+        }
+    )
+
+    with pytest.raises(TestIntelligenceValidationError, match="reverse"):
+        validate_test_intelligence_bundle(
+            universe=universe,
+            catalog=catalog,
+            data_manifest=data_manifest,
+            coverage_matrix=coverage,
+        )
+
+
+def test_bundle_rejects_coverage_requirement_drift() -> None:
+    universe, catalog, data_manifest, coverage = _bundle()
+    coverage["rows"][0]["requirement_ref"] = "REQ-999"
+
+    with pytest.raises(TestIntelligenceValidationError, match="REQ-999"):
+        validate_test_intelligence_bundle(
+            universe=universe,
+            catalog=catalog,
+            data_manifest=data_manifest,
+            coverage_matrix=coverage,
+        )
+
+
 def test_catalog_markdown_is_deterministic_and_declares_json_authority() -> None:
     _, catalog, _, _ = _bundle()
 
@@ -154,3 +204,17 @@ def test_catalog_markdown_is_deterministic_and_declares_json_authority() -> None
     assert "### Steps" in first
     assert "### Pass Criteria" in first
     assert "`TD-001`" in first
+
+
+def test_schema_candidates_include_the_wheel_core_pack_location() -> None:
+    source, packaged = test_intelligence._schema_candidates(
+        Path("test-universe-schema.json")
+    )
+
+    assert source.name == "test-universe-schema.json"
+    assert packaged == (
+        Path(test_intelligence.__file__).resolve().parent
+        / "core_pack"
+        / "templates"
+        / "test-universe-schema.json"
+    )
