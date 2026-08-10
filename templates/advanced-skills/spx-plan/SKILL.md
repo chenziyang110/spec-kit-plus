@@ -107,6 +107,8 @@ tests, migrations, or runtime configuration in this workflow. Preserve canonical
 `/sp.*` state identifiers. This invocation authorizes only this workflow stage.
 Run `{{specify-subcmd:specify-runtime hook validate-artifacts --command plan --feature-dir <feature-dir> --format json}}`
 and repair or block on a non-OK result.
-Stop after reporting the validated plan and recommend `$spx-tasks` when ready.
-Do not invoke `$spx-tasks` in this run; a handoff is not authorization to execute
-it.
+Stop after reporting the validated plan. When the user requested a dedicated
+test design or the plan's risk and coverage obligations warrant one, recommend
+the optional `$spx-test-design` workflow; otherwise recommend `$spx-tasks`.
+Do not invoke `$spx-test-design`. Do not invoke `$spx-tasks` in this run; a
+handoff is not authorization to execute either workflow.

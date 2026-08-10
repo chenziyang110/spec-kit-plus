@@ -1,7 +1,12 @@
 # Test Universe
 
 `test-universe.json` is canonical. This Markdown is a deterministic view of the
-current capability, scenario, and test-case graph.
+frozen `TO-*` obligation denominator and its capability, scenario, and
+test-case graph.
+
+## Obligations
+
+- No `TO-*` rows recorded.
 
 ## Capability Graph
 

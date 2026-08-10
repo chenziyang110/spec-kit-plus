@@ -3868,6 +3868,39 @@ def test_auto_template_routes_from_existing_state_surfaces():
     assert "/sp.fast" in content
 
 
+def test_auto_routes_feature_test_design_before_tasks_and_rejects_stale_handoffs() -> None:
+    content = _read("templates/commands/auto.md")
+    lowered = " ".join(content.lower().split())
+
+    assert "artifact list --path-prefix <feature-dir>/test-design/" in lowered
+    assert "artifact show --path <feature-dir>/test-design/test-state.json" in lowered
+    assert "specify-runtime test-design status --feature-dir <feature-dir>" in lowered
+    for state in ("active", "blocked", "validated-unhanded", "stale"):
+        assert state in lowered
+    assert "route to canonical `/sp.test-design`" in lowered
+    assert "handoff_freshness=current" in lowered
+    assert "only" in lowered and "allow `/sp.tasks`" in lowered
+    assert "state_revision" in lowered
+    assert "source_fingerprint" in lowered
+    assert "artifact_digests" in lowered
+
+
+def test_shared_routing_keeps_test_design_optional_and_project_scope_isolated() -> None:
+    content = _read("templates/passive-skills/spec-kit-workflow-routing/SKILL.md")
+    lowered = " ".join(content.lower().split())
+
+    assert "sp-plan -> [sp-test-design] -> sp-tasks" in lowered
+    assert "artifact list --path-prefix <feature-dir>/test-design/" in lowered
+    assert "specify-runtime test-design status --feature-dir <feature-dir>" in lowered
+    for state in ("active", "blocked", "validated-unhanded", "stale"):
+        assert state in lowered
+    assert "fresh handed-off" in lowered
+    assert "project-baseline" in lowered
+    assert "explicitly selected project scope" in lowered
+    assert "must not compete with or override a selected feature lineage" in lowered
+    assert "{{invoke:test-design}}" in content
+
+
 def test_discussion_convergence_never_becomes_implementation_authority() -> None:
     surfaces = {
         "classic": " ".join(

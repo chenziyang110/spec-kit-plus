@@ -107,6 +107,7 @@ _ORDINARY_SP_COMMANDS = frozenset(
         "research",
         "specify",
         "tasks",
+        "test-design",
         "taskstoissues",
     }
 )

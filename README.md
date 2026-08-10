@@ -102,6 +102,7 @@ flowchart LR
 - Use `quick` / `spx-quick` for resumable direct delivery when the requested outcome is already clear enough to implement without first creating a formal specification. Quick is not limited to small tasks: it may handle larger, multi-capability, architecture, migration, compatibility, rollout, or acceptance-heavy work through task-local planning, lanes or batches, consequence tracking, and validation.
 - Use `clarify` only when an existing specification needs deeper analysis before planning.
 - Use `deep-research` when requirements are clear but feasibility, external evidence, or an implementation chain still needs proof before planning.
+- Use `test-design` / `spx-test-design` optionally after `plan` and before `tasks` when the project or feature needs a frozen test universe, professional case catalog, test-data/material pack, explicit gaps, and bounded leader/subagent discovery. It claims only `complete_against_frozen_scope`, never absolute completeness.
 - Review the seeded constitution and run `constitution` when the project needs explicit governance changes.
 - Use `auto` to resume the safest next step from recorded workflow state.
 
@@ -110,7 +111,7 @@ flowchart LR
 | Layer | Canonical workflows |
 | --- | --- |
 | Core workflow skills | `constitution`, `specify`, `plan`, `tasks`, `implement`, `review`, `accept` |
-| Support skills | `auto`, `ask`, `discussion`, `clarify`, `deep-research` (`research` compatibility alias), `design`, `fast`, `quick`, `checklist`, `analyze`, `debug`, `explain`, `integrate`, `implement-teams`, `prd-scan`, `prd-build`, `prd` (deprecated compatibility entrypoint), `map-scan`, `map-build`, `map-update`, `taskstoissues` |
+| Support skills | `auto`, `ask`, `discussion`, `clarify`, `deep-research` (`research` compatibility alias), `test-design`, `design`, `fast`, `quick`, `checklist`, `analyze`, `debug`, `explain`, `integrate`, `implement-teams`, `prd-scan`, `prd-build`, `prd` (deprecated compatibility entrypoint), `map-scan`, `map-build`, `map-update`, `taskstoissues` |
 | Codex-only runtime | `sp-teams` for durable managed-team state and `team` for runtime operations inside the generated agent catalog |
 
 The generated `ask` workflow is read-only, evidence-backed project Q&A. `prd-scan -> prd-build` reconstructs current product documentation from an existing repository and is a peer workflow, not an automatic handoff to `plan`.
@@ -520,7 +521,7 @@ $spx-map-build            $spx-map-rebuild          $spx-map-scan
 $spx-map-update           $spx-plan                 $spx-prd
 $spx-prd-build            $spx-prd-scan             $spx-quick
 $spx-research             $spx-specify              $spx-tasks
-$spx-taskstoissues        $spx-team
+$spx-taskstoissues        $spx-team                 $spx-test-design
 ```
 
 Advanced installs also include the unchanged Classic map companions:
@@ -544,7 +545,7 @@ final-claim gate. The advanced profile is command-equivalent and
 prompt-optimized: every Classic command keeps an independent SPX entrypoint,
 state owner, write boundary, resumable stop point, and explicit side-effect
 gate. The normal feature path is
-`spx-specify -> spx-plan -> spx-tasks -> spx-implement -> spx-review -> spx-accept`; clarification,
+`spx-specify -> spx-plan -> [spx-test-design] -> spx-tasks -> spx-implement -> spx-review -> spx-accept`; test design is optional, while clarification,
 discussion (including an optional confirmed handoff into `spx-quick` or
 `spx-specify`),
 research, analysis, checklists, issue export, team execution,
@@ -841,7 +842,7 @@ Kimi.
 Skill map after `specify init`:
 
 - Core workflow skills: `constitution`, `specify`, `plan`, `tasks`, `implement`, `review`, `accept`
-- Support skills: `auto`, `ask`, `discussion`, `clarify`, `deep-research` (`research` alias), `design`, `fast`, `quick`, `checklist`, `analyze`, `debug`, `explain`, `integrate`, `implement-teams`, `prd-scan`, `prd-build`, `prd` (deprecated compatibility entrypoint), `map-scan`, `map-build`, `map-update`, `taskstoissues`
+- Support skills: `auto`, `ask`, `discussion`, `clarify`, `deep-research` (`research` alias), `test-design`, `design`, `fast`, `quick`, `checklist`, `analyze`, `debug`, `explain`, `integrate`, `implement-teams`, `prd-scan`, `prd-build`, `prd` (deprecated compatibility entrypoint), `map-scan`, `map-build`, `map-update`, `taskstoissues`
 - Codex-only runtime: terminal `specify sp-teams` operations plus the generated `sp-teams` and `team` catalog entries
 
 Conditional gates and follow-up commands:
@@ -885,7 +886,7 @@ Conditional gates and follow-up commands:
   Schema v5 is current-only. The current runtime does not migrate schema v4 or older databases. Never move, remove, archive, or replace `project-cognition.db` directly. Run `specify-runtime cognition archive-incompatible-store --inspect --format json`, execute its hash-guarded `archive_argv`, then run `sp-map-scan -> sp-map-build` with the current binary to publish schema v5 with revisioned typed graph-claim lifecycle and reconciliation tables.
 - Support drift is not runtime-truth staleness. When `freshness` is `support_drift`, resolve or ignore the support-surface change instead of reflexively routing to `map-update`.
 - Map points, code proves: technical claims must be backed by live code, tests, scripts, configuration, or authoritative docs.
-- Planning-only workflows do not acquire source mutation authority: `specify`, `clarify`, `deep-research`, `plan`, and `tasks` write their owned planning artifacts only. If a request requires source/runtime/template/config/test/generated-asset changes, they must hand off to a registry-owned mutation workflow and stop; they do not conditionally run mutation closeout themselves. The receiving mutation owner applies its rendered planner-first project cognition closeout, while `sp-map-update` remains the external/manual maintenance workflow for user edits, interrupted workflow repair, explicit map maintenance, and follow-up repair.
+- Planning-only workflows do not acquire source mutation authority: `specify`, `clarify`, `deep-research`, `plan`, `test-design`, and `tasks` write their owned planning artifacts only. If a request requires source/runtime/template/config/test/generated-asset changes, they must hand off to a registry-owned mutation workflow and stop; they do not conditionally run mutation closeout themselves. The receiving mutation owner applies its rendered planner-first project cognition closeout, while `sp-map-update` remains the external/manual maintenance workflow for user edits, interrupted workflow repair, explicit map maintenance, and follow-up repair.
 - `auto` to resume the recommended next workflow step from current repository state; for feature stages it reads `workflow.json` through `specify-runtime workflow show` then `specify-runtime workflow next` and consumes structured `next_argv` before consulting rich `workflow-state.md`, `implement-tracker.md`, quick-task `STATUS.md`, or debug session files. It continues under the routed workflow's contract without rewriting downstream state to `sp-auto`. When the routed workflow would only ask a bounded question or confirmation with one safe recommended/default answer, `auto` accepts that recommendation and continues; when it cannot do so safely, it reports the blocker plus a self-unblock recommendation instead of waiting silently.
 - inside a managed Run, `auto` routes only the current Run subject and verifies `SPECIFY_RUN_WORKSPACE`; an unbound read-only invocation stops when more than one safe candidate remains instead of guessing from branch recency
 - `ask` for read-only evidence-backed project Q&A. Use it when you need a direct answer from project files, templates, docs, state, or memory before choosing an action workflow. Project cognition guides the search; live evidence proves the answer. Same-topic follow-ups reuse the prior evidence set when it still applies, localized or project-slang terms are normalized into project vocabulary, and complex answers separate proven facts from evidence-derived inferences. `sp-ask` is independent from `sp-discussion`; it creates no ask state or handoff, makes no source edits, and does not run tests, builds, package managers, or project CLI commands by default. Do not teach a `specify ask` helper in v1.
@@ -1087,8 +1088,14 @@ Native hook coverage matrix:
 After planning, continue with:
 
 ```text
-specify -> plan -> tasks -> implement -> review -> accept
+specify -> plan -> [test-design] -> tasks -> implement -> review -> accept
 ```
+
+`test-design` is the optional planning-only quality lane. Its leader freezes the
+scope, uses project cognition and bounded read-only subagents to discover test
+obligations, joins an independent audit, and emits runtime-owned test cases,
+data/material decisions, gaps, and a pointer-only Tasks handoff. It does not
+write executable tests or fixtures; those remain owned by `tasks -> implement`.
 
 `plan` and `tasks` use adaptive execution: `execution_model: adaptive`, `execution_mode: light | standard | heavy`, and `dispatch_shape: leader-inline | one-subagent | parallel-subagents | subagent-blocked`. Light, low-risk single-lane planning or task generation runs leader-inline. Standard work uses native subagents when available; if native subagents are unavailable and no high-risk trigger is present, it may continue leader-inline with `capability_degraded: true`. Standard work that has no safe subagent lane or cannot be packetized safely records `dispatch_shape: subagent-blocked` and stops. Heavy or safety-critical work also blocks when native subagents are unavailable or the work is unpacketizable. Managed-team fallback is not part of adaptive plan/tasks dispatch.
 

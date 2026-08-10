@@ -197,5 +197,6 @@ without an allowed receipt. Quick uses the same receipt under its workspace
 the same receipt before claiming completion even when they lack a formal stage
 machine.
 
-Specification, plan, task, checklist, research, and other planning-only artifact
-changes do not make the code map dirty and do not require cognition closeout.
+Specification, plan, task, checklist, test-design, research, and other
+planning-only artifact changes do not make the code map dirty and do not
+require cognition closeout.

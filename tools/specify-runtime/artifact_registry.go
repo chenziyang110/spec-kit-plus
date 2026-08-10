@@ -70,6 +70,39 @@ var artifactTypePatterns = []artifactTypePattern{
 	newFeatureWorkspacePattern("test-design/test-catalog.json", ArtifactTypeMetadata{TypeID: "feature-test-catalog", Owner: "specify-runtime artifact scaffold / artifact patch", Role: "canonical", Schema: "json/test-catalog", Operations: []string{"prepare", "patch", "show", "list"}, SummaryAdapter: "json-top-level-keys"}),
 	newFeatureWorkspacePattern("test-design/test-data-manifest.json", ArtifactTypeMetadata{TypeID: "feature-test-data-manifest", Owner: "specify-runtime artifact scaffold / artifact patch", Role: "canonical", Schema: "json/test-data-manifest", Operations: []string{"prepare", "patch", "show", "list"}, SummaryAdapter: "json-top-level-keys"}),
 	newFeatureWorkspacePattern("test-design/coverage-matrix.json", ArtifactTypeMetadata{TypeID: "feature-coverage-matrix", Owner: "specify-runtime artifact scaffold / artifact patch", Role: "canonical", Schema: "json/coverage-matrix", Operations: []string{"prepare", "patch", "show", "list"}, SummaryAdapter: "json-top-level-keys"}),
+	newFeatureWorkspacePattern("test-design/test-state.json", ArtifactTypeMetadata{TypeID: "feature-test-design-state", Owner: "specify-runtime test-design", Role: "runtime-internal", Schema: "json/test-design-state", Operations: []string{"show", "list"}, SummaryAdapter: "json-top-level-keys"}),
+	newFeatureWorkspacePattern("test-design/test-gaps.json", ArtifactTypeMetadata{TypeID: "feature-test-design-gaps", Owner: "specify-runtime test-design", Role: "canonical", Schema: "json/test-design-gaps", Operations: []string{"show", "list"}, SummaryAdapter: "json-top-level-keys"}),
+	newFeatureWorkspacePattern("test-design/lane-manifest.json", ArtifactTypeMetadata{TypeID: "feature-test-design-lane-manifest", Owner: "specify-runtime test-design", Role: "runtime-internal", Schema: "json/test-design-lane-manifest", Operations: []string{"show", "list"}, SummaryAdapter: "json-top-level-keys"}),
+	newFeatureWorkspacePattern("test-design/handoff-to-tasks.json", ArtifactTypeMetadata{TypeID: "feature-test-design-handoff", Owner: "specify-runtime test-design handoff", Role: "derived", Schema: "json/test-design-handoff", Operations: []string{"show", "list"}, SummaryAdapter: "json-top-level-keys"}),
+	newFeatureWorkspaceNestedPattern("test-design/handoff-history/", ".json", ArtifactTypeMetadata{TypeID: "feature-test-design-handoff-history", Owner: "specify-runtime test-design", Role: "runtime-internal", Schema: "json/test-design-handoff", Operations: []string{"show", "list"}, SummaryAdapter: "json-top-level-keys"}),
+	newFeatureWorkspaceNestedPattern("test-design/lane-results/checkpoints/", ".json", ArtifactTypeMetadata{TypeID: "feature-test-design-lane-checkpoint", Owner: "specify-runtime test-design", Role: "runtime-internal", Schema: "json/test-design-lane-result", Operations: []string{"show", "list"}, SummaryAdapter: "json-top-level-keys"}),
+	newFeatureWorkspaceNestedPattern("test-design/lane-results/", ".json", ArtifactTypeMetadata{TypeID: "feature-test-design-lane-result", Owner: "specify-runtime test-design", Role: "runtime-internal", Schema: "json/test-design-lane-result", Operations: []string{"show", "list"}, SummaryAdapter: "json-top-level-keys"}),
+	newProjectTestDesignPattern("test-universe.json", ArtifactTypeMetadata{TypeID: "project-test-universe", Owner: "specify-runtime artifact scaffold / artifact patch", Role: "canonical", Schema: "json/test-universe", Operations: []string{"prepare", "patch", "show", "list"}, SummaryAdapter: "json-top-level-keys"}),
+	newProjectTestDesignPattern("test-catalog.json", ArtifactTypeMetadata{TypeID: "project-test-catalog", Owner: "specify-runtime artifact scaffold / artifact patch", Role: "canonical", Schema: "json/test-catalog", Operations: []string{"prepare", "patch", "show", "list"}, SummaryAdapter: "json-top-level-keys"}),
+	newProjectTestDesignPattern("test-data-manifest.json", ArtifactTypeMetadata{TypeID: "project-test-data-manifest", Owner: "specify-runtime artifact scaffold / artifact patch", Role: "canonical", Schema: "json/test-data-manifest", Operations: []string{"prepare", "patch", "show", "list"}, SummaryAdapter: "json-top-level-keys"}),
+	newProjectTestDesignPattern("coverage-matrix.json", ArtifactTypeMetadata{TypeID: "project-coverage-matrix", Owner: "specify-runtime artifact scaffold / artifact patch", Role: "canonical", Schema: "json/coverage-matrix", Operations: []string{"prepare", "patch", "show", "list"}, SummaryAdapter: "json-top-level-keys"}),
+	newProjectTestDesignPattern("test-state.json", ArtifactTypeMetadata{TypeID: "project-test-design-state", Owner: "specify-runtime test-design", Role: "runtime-internal", Schema: "json/test-design-state", Operations: []string{"show", "list"}, SummaryAdapter: "json-top-level-keys"}),
+	newProjectTestDesignPattern("test-gaps.json", ArtifactTypeMetadata{TypeID: "project-test-design-gaps", Owner: "specify-runtime test-design", Role: "canonical", Schema: "json/test-design-gaps", Operations: []string{"show", "list"}, SummaryAdapter: "json-top-level-keys"}),
+	newProjectTestDesignPattern("lane-manifest.json", ArtifactTypeMetadata{TypeID: "project-test-design-lane-manifest", Owner: "specify-runtime test-design", Role: "runtime-internal", Schema: "json/test-design-lane-manifest", Operations: []string{"show", "list"}, SummaryAdapter: "json-top-level-keys"}),
+	newProjectTestDesignPattern("handoff-to-tasks.json", ArtifactTypeMetadata{TypeID: "project-test-design-handoff", Owner: "specify-runtime test-design handoff", Role: "derived", Schema: "json/test-design-handoff", Operations: []string{"show", "list"}, SummaryAdapter: "json-top-level-keys"}),
+	{
+		metadata: ArtifactTypeMetadata{TypeID: "project-test-design-handoff-history", Owner: "specify-runtime test-design", Role: "runtime-internal", Schema: "json/test-design-handoff", Operations: []string{"show", "list"}, SummaryAdapter: "json-top-level-keys"},
+		match: func(path string) bool {
+			return strings.HasPrefix(path, ".specify/test-design/handoff-history/") && strings.HasSuffix(path, ".json")
+		},
+	},
+	{
+		metadata: ArtifactTypeMetadata{TypeID: "project-test-design-lane-checkpoint", Owner: "specify-runtime test-design", Role: "runtime-internal", Schema: "json/test-design-lane-result", Operations: []string{"show", "list"}, SummaryAdapter: "json-top-level-keys"},
+		match: func(path string) bool {
+			return strings.HasPrefix(path, ".specify/test-design/lane-results/checkpoints/") && strings.HasSuffix(path, ".json")
+		},
+	},
+	{
+		metadata: ArtifactTypeMetadata{TypeID: "project-test-design-lane-result", Owner: "specify-runtime test-design", Role: "runtime-internal", Schema: "json/test-design-lane-result", Operations: []string{"show", "list"}, SummaryAdapter: "json-top-level-keys"},
+		match: func(path string) bool {
+			return strings.HasPrefix(path, ".specify/test-design/lane-results/") && strings.HasSuffix(path, ".json")
+		},
+	},
 	newFeatureWorkspaceNestedPattern("clarification/handoffs/", ".json", ArtifactTypeMetadata{TypeID: "clarification-handoff", Owner: "specify-runtime result submit", Role: "canonical", Schema: "json/worker-result", Operations: []string{"show", "list"}, SummaryAdapter: "json-top-level-keys"}),
 	newFeatureWorkspaceNestedPattern("clarification/", ".json", ArtifactTypeMetadata{TypeID: "clarification-json", Owner: "specify-runtime artifact", Role: "canonical", Schema: "json/clarification", Operations: []string{"prepare", "submit", "patch", "show", "list"}, SummaryAdapter: "json-top-level-keys"}),
 	newFeatureWorkspaceNestedPattern("clarification/", ".ndjson", ArtifactTypeMetadata{TypeID: "clarification-events", Owner: "specify-runtime artifact", Role: "canonical", Schema: "ndjson/clarification-events", Operations: []string{"prepare", "submit", "patch", "show", "list"}, SummaryAdapter: "text-lines"}),
@@ -512,6 +545,12 @@ func newFeatureArtifactPattern(suffix string, metadata ArtifactTypeMetadata) art
 func newFeatureWorkspacePattern(suffix string, metadata ArtifactTypeMetadata) artifactTypePattern {
 	return artifactTypePattern{metadata: metadata, match: func(path string) bool {
 		return featureWorkspaceRelative(path) == suffix
+	}}
+}
+
+func newProjectTestDesignPattern(name string, metadata ArtifactTypeMetadata) artifactTypePattern {
+	return artifactTypePattern{metadata: metadata, match: func(path string) bool {
+		return path == ".specify/test-design/"+name
 	}}
 }
 

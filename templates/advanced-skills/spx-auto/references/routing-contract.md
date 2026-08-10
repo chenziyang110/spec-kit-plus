@@ -14,6 +14,16 @@ skip or reverse the runtime stage. Legacy `next_command`/`active_command`
 heuristics are fallback only for noncanonical auxiliary state when no runtime
 file exists.
 
+Test Design is an optional auxiliary stage and intentionally does not mutate
+`workflow.json`. Before accepting a Plan-to-Tasks transition, use targeted
+`artifact list`/`artifact show` discovery for
+`FEATURE_DIR/test-design/test-state.json`; when it exists, run
+`specify-runtime test-design status --feature-dir <feature-dir> --format json`.
+Route active, blocked, stale, validated-but-unhanded, or digest-mismatched state
+to `spx-test-design`. Route to `spx-tasks` only when no Test Design root was
+selected or status proves the validated pointer handoff and every bound
+artifact digest is current. Never infer freshness by reading storage files.
+
 A blocked runtime intentionally has no `next_argv`. Preserve its tutorial and
 wait for the declared evidence; when available, fill only the required evidence
 input in `data.resolution_action` and execute its runtime-owned base argv.
@@ -83,7 +93,8 @@ Choose the first applicable trustworthy route:
 - planning-ready spec has unresolved implementation-chain feasibility:
   `spx-deep-research`;
 - planning-ready spec lacks a coherent technical design: `spx-plan`;
-- ready plan lacks an executable task graph: `spx-tasks`;
+- ready plan has active, stale, or unconsumed Test Design state: `spx-test-design`;
+- ready plan lacks an executable task graph and has no selected Test Design root, or has its fresh handoff: `spx-tasks`;
 - persisted consistency gate is required or stale: `spx-analyze`;
 - ready tasks remain and prerequisites agree: `spx-implement`;
 - new request is truly trivial and passes the fast gate: `spx-fast`;

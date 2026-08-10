@@ -20,11 +20,29 @@ ARTIFACT_CONTRACTS: tuple[dict[str, object], ...] = (
             "version": 1,
             "artifact": "test-universe",
             "feature_ref": "features/042-test-intelligence",
+            "obligations": [
+                {
+                    "obligation_id": "TO-001",
+                    "title": "Manager approval is accepted exactly once",
+                    "source_refs": ["REQ-001"],
+                    "capability_refs": ["CAP-001"],
+                    "scenario_refs": ["SCN-001"],
+                    "dimension": "functional",
+                    "risk_tier": "critical",
+                    "applicability": "applicable",
+                    "rationale": "Approval is inside the frozen feature scope.",
+                    "required_evidence_classes": ["system"],
+                    "test_case_ids": ["TC-001"],
+                    "gap_refs": [],
+                    "invalidation_triggers": ["Approval contract or entrypoint changes"],
+                }
+            ],
             "capabilities": [
                 {
                     "capability_id": "CAP-001",
                     "title": "Evidence-backed order approval",
                     "requirement_refs": ["REQ-001"],
+                    "obligation_ids": ["TO-001"],
                     "test_case_ids": ["TC-001"],
                     "scenario_ids": ["SCN-001"],
                 }
@@ -34,6 +52,7 @@ ARTIFACT_CONTRACTS: tuple[dict[str, object], ...] = (
                     "scenario_id": "SCN-001",
                     "title": "Manager approves a queued order",
                     "capability_refs": ["CAP-001"],
+                    "obligation_refs": ["TO-001"],
                     "test_case_ids": ["TC-001"],
                     "coverage_ref": "COV-001",
                 }
@@ -43,6 +62,7 @@ ARTIFACT_CONTRACTS: tuple[dict[str, object], ...] = (
                     "test_case_id": "TC-001",
                     "title": "Approval journey succeeds from the real entrypoint",
                     "kind": "review",
+                    "obligation_refs": ["TO-001"],
                     "capability_refs": ["CAP-001"],
                     "scenario_refs": ["SCN-001"],
                     "data_refs": ["TD-001"],
@@ -78,17 +98,49 @@ ARTIFACT_CONTRACTS: tuple[dict[str, object], ...] = (
                 {
                     "test_case_id": "TC-001",
                     "title": "Approval journey succeeds from the real entrypoint",
+                    "objective": "Prove one queued order is approved exactly once.",
+                    "status": "approved",
                     "stage": "review",
                     "priority": "p0",
+                    "risk_tags": ["approval", "idempotency"],
                     "requirement_refs": ["REQ-001"],
+                    "obligation_refs": ["TO-001"],
                     "capability_refs": ["CAP-001"],
                     "scenario_refs": ["SCN-001"],
                     "test_data_refs": ["TD-001"],
+                    "automation_target": "hybrid",
+                    "owner_stage": "review",
+                    "environment": ["isolated review runtime"],
+                    "entrypoint_refs": ["approval UI"],
+                    "preconditions": ["A queued order exists"],
+                    "roles_permissions": ["manager role"],
+                    "configuration": ["approval feature enabled"],
+                    "steps": ["Open the approval queue", "Approve the order"],
+                    "expected_results": ["The queued order is visible", "The order becomes approved exactly once"],
+                    "variants": {
+                        "positive": "covered",
+                        "negative": "deferred",
+                        "boundary": "deferred",
+                        "state": "covered",
+                        "permission": "covered",
+                        "concurrency": "deferred",
+                        "timing": "not_applicable",
+                        "recovery": "deferred",
+                        "compatibility": "not_applicable",
+                    },
+                    "cleanup_reset": "Delete the synthetic order after review.",
+                    "idempotency": "A repeated approval does not create a second transition.",
+                    "side_effect_boundary": "Only the isolated synthetic order may change.",
                     "verification_method": "runtime-diagnostics",
                     "pass_criteria": [
                         "Real entrypoint becomes ready",
                         "User-visible approval confirmation is shown",
                     ],
+                    "evidence_requirements": ["runtime_diagnostics"],
+                    "freshness_rule": "Evidence must match the current source fingerprint.",
+                    "invalidation_triggers": ["Approval contract, role, or entrypoint changes"],
+                    "flake_risks": [],
+                    "residual_risk": "Deferred variants remain tracked in test-gaps.json.",
                 }
             ],
         },
@@ -126,6 +178,29 @@ ARTIFACT_CONTRACTS: tuple[dict[str, object], ...] = (
                     "sensitivity": "sanitized",
                     "contains_pii": False,
                     "source": "generated",
+                    "disposition": "generate",
+                    "readiness": "recipe-ready",
+                    "provenance_refs": [],
+                    "format": "json",
+                    "schema_ref": "approval-order-schema.json",
+                    "volume": "one queued order",
+                    "relationships": ["order belongs to synthetic manager tenant"],
+                    "constraints": ["non-production identifiers only"],
+                    "license": "project-generated",
+                    "usage_limits": "isolated test environments only",
+                    "fixed_seed": "42",
+                    "distribution": "one deterministic happy-path record",
+                    "edge_partitions": ["queued state"],
+                    "checksum": "sha256 computed after generation",
+                    "allowed_usage": ["review", "automated test"],
+                    "environment_refs": ["isolated review runtime"],
+                    "snapshot_binding": "current source fingerprint",
+                    "refresh_policy": "regenerate when the order schema changes",
+                    "cleanup_reset": "delete the synthetic order after the run",
+                    "oracle_binding": "order status equals approved exactly once",
+                    "limitations": [],
+                    "residual_risk": "none",
+                    "generation_recipe": "Generate deterministic approval queue records with a fixed seed.",
                     "applicable_test_case_ids": ["TC-001"],
                     "applicable_scenario_ids": ["SCN-001"],
                     "hygiene": {
@@ -168,12 +243,14 @@ ARTIFACT_CONTRACTS: tuple[dict[str, object], ...] = (
                 {
                     "coverage_id": "COV-001",
                     "requirement_ref": "REQ-001",
+                    "obligation_ref": "TO-001",
                     "capability_ref": "CAP-001",
                     "scenario_ref": "SCN-001",
                     "test_case_ref": "TC-001",
                     "test_data_refs": ["TD-001"],
                     "evidence_refs": ["EVD-001"],
                     "acceptance_refs": ["HA-001"],
+                    "gap_refs": [],
                     "status": "covered",
                 }
             ],
@@ -191,6 +268,7 @@ ARTIFACT_CONTRACTS: tuple[dict[str, object], ...] = (
                     "test_data_refs": [],
                     "evidence_refs": [],
                     "acceptance_refs": [],
+                    "gap_refs": [],
                     "status": "covered",
                 }
             ],
@@ -314,9 +392,25 @@ def test_data_manifest_schema_accepts_large_ids_and_restricted_pii() -> None:
     dataset["applicable_scenario_ids"] = ["SCN-1000"]
     dataset["contains_pii"] = True
     dataset["sensitivity"] = "restricted"
-    dataset["hygiene"]["sanitization_status"] = "pending"
+    dataset["hygiene"]["sanitization_status"] = "restricted-access"
 
     _validator(str(contract["schema"])).validate(payload)
+
+
+def test_data_manifest_defer_requires_auditable_blocker_and_deferred_readiness() -> None:
+    contract = next(
+        item for item in ARTIFACT_CONTRACTS if item["name"] == "test-data-manifest"
+    )
+    payload = deepcopy(contract["valid"])
+    dataset = payload["datasets"][0]
+    dataset["disposition"] = "defer"
+    dataset["readiness"] = "ready"
+    dataset.pop("limitations")
+    dataset.pop("residual_risk")
+
+    errors = list(_validator(str(contract["schema"])).iter_errors(payload))
+
+    assert errors, "deferred material without blocker details unexpectedly passed"
 
 
 def test_data_sensitivity_rejects_workflow_state_labels() -> None:
@@ -330,6 +424,39 @@ def test_data_sensitivity_rejects_workflow_state_labels() -> None:
     assert errors, "workflow state unexpectedly accepted as a sensitivity classification"
 
 
+def test_search_ready_data_requires_content_addressed_provenance_and_checksum() -> None:
+    contract = next(
+        item for item in ARTIFACT_CONTRACTS if item["name"] == "test-data-manifest"
+    )
+    payload = deepcopy(contract["valid"])
+    dataset = payload["datasets"][0]
+    dataset["disposition"] = "search"
+    dataset["readiness"] = "ready"
+    dataset["source"] = "imported"
+    dataset["provenance_refs"] = []
+    dataset["checksum"] = "pending"
+
+    errors = list(_validator(str(contract["schema"])).iter_errors(payload))
+    assert errors, "unprovenanced search result unexpectedly became ready"
+
+    dataset["provenance_refs"] = [
+        ".specify/evidence/records/evd-0123456789abcdef01234567.json"
+    ]
+    dataset["checksum"] = "sha256:" + ("a" * 64)
+    _validator(str(contract["schema"])).validate(payload)
+
+
+def test_ready_data_rejects_pending_or_blocked_sanitization() -> None:
+    contract = next(
+        item for item in ARTIFACT_CONTRACTS if item["name"] == "test-data-manifest"
+    )
+    payload = deepcopy(contract["valid"])
+    payload["datasets"][0]["hygiene"]["sanitization_status"] = "pending"
+
+    errors = list(_validator(str(contract["schema"])).iter_errors(payload))
+    assert errors, "ready data with pending sanitization unexpectedly passed"
+
+
 def test_coverage_gap_row_can_be_explicit_without_fabricated_evidence() -> None:
     contract = next(
         item for item in ARTIFACT_CONTRACTS if item["name"] == "coverage-matrix"
@@ -339,8 +466,22 @@ def test_coverage_gap_row_can_be_explicit_without_fabricated_evidence() -> None:
     row["status"] = "missing"
     row["evidence_refs"] = []
     row["acceptance_refs"] = []
+    row["gap_refs"] = ["GAP-001"]
 
     _validator(str(contract["schema"])).validate(payload)
+
+
+def test_coverage_noncovered_row_requires_explicit_gap_ref() -> None:
+    contract = next(
+        item for item in ARTIFACT_CONTRACTS if item["name"] == "coverage-matrix"
+    )
+    payload = deepcopy(contract["valid"])
+    row = payload["rows"][0]
+    row["status"] = "partial"
+    row["gap_refs"] = []
+
+    errors = list(_validator(str(contract["schema"])).iter_errors(payload))
+    assert errors, "partial coverage without GAP-* accounting unexpectedly passed"
 
 
 @pytest.mark.parametrize("status", ["blocked", "deferred", "excluded", "not_applicable"])
@@ -353,6 +494,7 @@ def test_coverage_schema_accepts_explicit_noncoverage_dispositions(status: str) 
     row["status"] = status
     row["evidence_refs"] = []
     row["acceptance_refs"] = []
+    row["gap_refs"] = [] if status == "not_applicable" else ["GAP-001"]
 
     _validator(str(contract["schema"])).validate(payload)
 

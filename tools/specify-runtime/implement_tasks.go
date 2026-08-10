@@ -103,6 +103,11 @@ func runImplementPacketCompile(args []string) (map[string]any, error) {
 	packet["required_consumer_evidence"] = stringsToAny(anyStringSlice(task["consumer_surfaces"]))
 	packet["test_case_refs"] = stringsToAny(anyStringSlice(task["test_case_refs"]))
 	packet["test_data_refs"] = stringsToAny(anyStringSlice(task["test_data_refs"]))
+	packet["test_design_handoff_ref"] = cloneJSONValue(index["test_design_handoff_ref"])
+	packet["test_design_handoff_sha256"] = cloneJSONValue(index["test_design_handoff_sha256"])
+	packet["test_design_source_fingerprint"] = cloneJSONValue(index["test_design_source_fingerprint"])
+	packet["test_design_state_revision"] = cloneJSONValue(index["test_design_state_revision"])
+	packet["test_design_artifact_digests"] = cloneJSONValue(index["test_design_artifact_digests"])
 	packet["done_condition"] = stringsToAny(anyStringSlice(task["acceptance"]))
 	packet["stop_and_reopen_conditions"] = stringsToAny(anyStringSlice(task["stop_and_reopen_conditions"]))
 	packet["recovery"] = cloneJSONValue(task["recovery"])
@@ -640,6 +645,9 @@ func loadReadyImplementTaskIndex(root, feature string) (map[string]any, error) {
 	}
 	if index["status"] != "ready" {
 		return nil, fmt.Errorf("task-index.json must use version 2 with status ready")
+	}
+	if err := taskControlValidateTestDesignBinding(root, feature, index, false, true); err != nil {
+		return nil, fmt.Errorf("task-index test-design binding is not consumable: %w", err)
 	}
 	return index, nil
 }

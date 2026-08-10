@@ -1,0 +1,126 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spec-kit-plus.local/schemas/test-design-lane-result-schema.json",
+  "title": "Spec Kit Plus Test Design Lane Result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "lane_id",
+    "attempt_id",
+    "status",
+    "inspected_paths",
+    "evidence_refs",
+    "obligation_results",
+    "checks",
+    "candidate_cases",
+    "data_requirements",
+    "contradictions",
+    "unknowns",
+    "gaps",
+    "summary"
+  ],
+  "properties": {
+    "lane_id": { "type": "string", "pattern": "^(LANE|AUDIT)-[0-9]{3,}$" },
+    "attempt_id": { "type": "string", "pattern": "^ATTEMPT-[0-9]{3,}$" },
+    "status": { "enum": ["success", "blocked", "failed", "partial"] },
+    "inspected_paths": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
+    "evidence_refs": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/evidence_ref" }
+    },
+    "obligation_results": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/obligation_result" }
+    },
+    "checks": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/audit_check" }
+    },
+    "candidate_cases": { "type": "array", "items": { "type": "object" } },
+    "data_requirements": { "type": "array", "items": { "type": "object" } },
+    "contradictions": { "type": "array", "items": { "type": "object" } },
+    "unknowns": { "type": "array", "items": { "type": "object" } },
+    "gaps": { "type": "array", "items": { "type": "object" } },
+    "findings": { "type": "array", "items": { "type": "object" } },
+    "summary": { "type": "string", "minLength": 1 }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "status": { "enum": ["success", "partial"] } },
+        "required": ["status"]
+      },
+      "then": {
+        "properties": {
+          "inspected_paths": { "minItems": 1 },
+          "evidence_refs": { "minItems": 1 },
+          "obligation_results": { "minItems": 1 }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "lane_id": { "pattern": "^AUDIT-" } },
+        "required": ["lane_id"]
+      },
+      "then": {
+        "required": ["findings"],
+        "properties": { "checks": { "minItems": 1 } }
+      }
+    }
+  ],
+  "$defs": {
+    "evidence_ref": {
+      "type": "string",
+      "pattern": "^\\.specify/evidence/records/evd-[0-9a-f]{24}\\.json$"
+    },
+    "obligation_result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["obligation_id", "status", "evidence_refs", "gap_refs", "summary"],
+      "properties": {
+        "obligation_id": { "type": "string", "pattern": "^TO-[0-9]{3,}$" },
+        "status": { "enum": ["covered", "gap", "unknown", "not_applicable"] },
+        "evidence_refs": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/evidence_ref" } },
+        "gap_refs": { "type": "array", "uniqueItems": true, "items": { "type": "string", "pattern": "^GAP-[0-9]{3,}$" } },
+        "summary": { "type": "string", "minLength": 1 }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "status": { "enum": ["covered", "not_applicable"] } }, "required": ["status"] },
+          "then": { "properties": { "evidence_refs": { "minItems": 1 }, "gap_refs": { "maxItems": 0 } } }
+        },
+        {
+          "if": { "properties": { "status": { "enum": ["gap", "unknown"] } }, "required": ["status"] },
+          "then": { "properties": { "gap_refs": { "minItems": 1 } } }
+        }
+      ]
+    },
+    "audit_check": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["check_id", "status", "evidence_refs", "affected_obligation_refs", "finding_refs", "summary"],
+      "properties": {
+        "check_id": { "type": "string", "pattern": "^[a-z][a-z0-9_-]+$" },
+        "status": { "enum": ["passed", "finding", "blocked", "not_applicable"] },
+        "evidence_refs": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/evidence_ref" } },
+        "affected_obligation_refs": { "type": "array", "uniqueItems": true, "items": { "type": "string", "pattern": "^TO-[0-9]{3,}$" } },
+        "finding_refs": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
+        "summary": { "type": "string", "minLength": 1 }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "status": { "const": "passed" } }, "required": ["status"] },
+          "then": { "properties": { "evidence_refs": { "minItems": 1 } } }
+        },
+        {
+          "if": { "properties": { "status": { "enum": ["finding", "blocked"] } }, "required": ["status"] },
+          "then": { "properties": { "finding_refs": { "minItems": 1 } } }
+        }
+      ]
+    }
+  }
+}

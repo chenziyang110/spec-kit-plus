@@ -137,6 +137,11 @@
       "canonical_workflow": null,
       "reason": "Task artifacts are planning-only."
     },
+    "test-design": {
+      "mode": "no_closeout",
+      "canonical_workflow": null,
+      "reason": "Test-design artifacts and material plans are planning-only."
+    },
     "taskstoissues": {
       "mode": "no_closeout",
       "canonical_workflow": null,

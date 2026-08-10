@@ -164,6 +164,23 @@ func applyFileTransactionWithPreconditions(projectRoot, kind string, updates []f
 	if err := recoverFileTransactionsLocked(root); err != nil {
 		return receipt, err
 	}
+	// Re-resolve after acquiring the transaction lock. This closes the window
+	// between normalization and mutation and rejects Windows junction/reparse
+	// parents just like symlink parents.
+	for index := range normalized {
+		secured, secureErr := secureProjectPath(root, normalized[index].rel)
+		if secureErr != nil {
+			return receipt, secureErr
+		}
+		normalized[index].path = secured
+	}
+	for index := range normalizedPreconditions {
+		secured, secureErr := secureProjectPath(root, normalizedPreconditions[index].rel)
+		if secureErr != nil {
+			return receipt, secureErr
+		}
+		normalizedPreconditions[index].path = secured
+	}
 	for _, precondition := range normalizedPreconditions {
 		current, readErr := os.ReadFile(precondition.path)
 		if precondition.mustNotExist {
@@ -244,6 +261,13 @@ func applyFileTransactionWithPreconditions(projectRoot, kind string, updates []f
 	}
 
 	for index, update := range normalized {
+		secured, secureErr := secureProjectPath(root, update.rel)
+		if secureErr != nil {
+			rollbackErr := rollbackFileTransaction(root, txRoot, journal)
+			cleanup()
+			return receipt, combineFileTransactionErrors(secureErr, rollbackErr)
+		}
+		update.path = secured
 		if err := os.MkdirAll(filepath.Dir(update.path), 0o755); err != nil {
 			rollbackErr := rollbackFileTransaction(root, txRoot, journal)
 			cleanup()

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 )
 
@@ -36,7 +37,30 @@ func secureProjectPath(projectRoot, relative string) (string, error) {
 			return "", statErr
 		}
 		if info.Mode()&os.ModeSymlink != 0 {
-			return "", fmt.Errorf("project path crosses symlink %q", current)
+			return "", fmt.Errorf("project path crosses symlink or junction %q", current)
+		}
+		// Windows directory junctions and other reparse points are not always
+		// reported through os.ModeSymlink. Resolve every existing ancestor and
+		// reject any indirection, including one that happens to land back inside
+		// the project, so callers never write through an alias boundary.
+		resolved, resolveErr := filepath.EvalSymlinks(current)
+		if resolveErr != nil {
+			return "", resolveErr
+		}
+		resolved, resolveErr = filepath.Abs(resolved)
+		if resolveErr != nil {
+			return "", resolveErr
+		}
+		currentAbs, currentErr := filepath.Abs(current)
+		if currentErr != nil {
+			return "", currentErr
+		}
+		same := filepath.Clean(resolved) == filepath.Clean(currentAbs)
+		if runtime.GOOS == "windows" {
+			same = strings.EqualFold(filepath.Clean(resolved), filepath.Clean(currentAbs))
+		}
+		if !same {
+			return "", fmt.Errorf("project path crosses reparse point %q", current)
 		}
 	}
 	return target, nil

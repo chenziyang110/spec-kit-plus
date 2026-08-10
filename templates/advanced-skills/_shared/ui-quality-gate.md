@@ -144,6 +144,10 @@ Optional executable reports use
   token/component use; required states (loading/empty/error/success/disabled/
   focus); responsive targets; quality (no generic dashboard/template; maintain
   DNA/dials); visual evidence kinds.
+- **Test Design — UI coverage obligations**: enumerate accessibility,
+  responsive, viewport/state, interaction, motion, and visual-comparison cases
+  plus their data and evidence needs. Do not implement tests, run captures, or
+  substitute a test-design audit for real-entrypoint review evidence.
 - **Quick — UI Audit then design-before-code**: UI Audit issue list first →
   analyze → identify issue → propose before/after → implement → visual check.
   Do not jump straight to code edits.

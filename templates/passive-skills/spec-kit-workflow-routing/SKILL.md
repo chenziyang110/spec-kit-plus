@@ -87,7 +87,7 @@ explicit numeric option.
 
 ## Recommendation Rules
 
-- The default generated path is `sp-specify -> sp-plan -> sp-tasks -> sp-implement -> sp-review -> sp-accept`. `sp-checklist` and `sp-analyze` remain visible optional diagnostics, but they are not default quality nets for clean workflow progress. Event-triggered task review remains embedded in `sp-implement`; the mandatory public `sp-review` that follows it is a distinct system-level real-entrypoint, interaction, wiring, repair, and revalidation gate. `sp-accept` remains a separate human product-acceptance stage after approved Review.
+- The default generated path is `sp-specify -> sp-plan -> [sp-test-design] -> sp-tasks -> sp-implement -> sp-review -> sp-accept`. The bracketed Test Design gate is optional only when no feature-scoped Test Design root or recorded selection exists. `sp-checklist` and `sp-analyze` remain visible optional diagnostics, but they are not default quality nets for clean workflow progress. Event-triggered task review remains embedded in `sp-implement`; the mandatory public `sp-review` that follows it is a distinct system-level real-entrypoint, interaction, wiring, repair, and revalidation gate. `sp-accept` remains a separate human product-acceptance stage after approved Review.
 - Use `sp-fast` for trivial, local, low-risk fixes that touch at most 3 files and do
   not cross a shared surface.
 - Use `sp-quick` for non-trivial direct delivery that needs resumable state,
@@ -158,7 +158,10 @@ explicit numeric option.
   route into the canonical feasibility gate and must not create separate
   `sp-research` artifacts or workflow state.
 - Use `sp-plan` only after a valid spec package exists.
-- Use `sp-tasks` only after planning artifacts are ready.
+- Use `sp-test-design` after Plan when the user or feature state selects an evidence-backed Test Universe, professional case catalog, data/material package, and explicit gaps before task decomposition.
+- Before recommending or routing `sp-tasks` for a selected feature, run `{{specify-subcmd:specify-runtime artifact list --path-prefix <feature-dir>/test-design/ --format json}}`; show the selected `test-state.json` and `handoff-to-tasks.json` through `specify-runtime artifact show`, then run `{{specify-subcmd:specify-runtime test-design status --feature-dir <feature-dir> --format json}}`. An `active`, `blocked`, `validated-unhanded`, or `stale` result routes to `sp-test-design`. An existing root permits Tasks only when it is fresh handed-off and the current handoff remains bound to its state revision, source fingerprint, and artifact digests. If no feature root or recorded Test Design selection exists, the optional Plan-to-Tasks route remains legal.
+- A `project-baseline` under `.specify/test-design/` resumes only when routing explicitly selected project scope. It must not compete with or override a selected feature lineage, and it cannot authorize feature Tasks.
+- Use `sp-tasks` only after planning artifacts are ready and any selected or existing feature Test Design gate has a fresh handed-off package.
 - Use `sp-implement` after `sp-tasks` produces canonical `task-index.json` in any execution mode, renders `tasks.md`, and records `/sp.implement`. Light mode keeps this package compact; it does not bypass the CLI-owned index. `sp-implement` selects leader-direct or delegated execution per task, compiles delegated packets just in time, runs event-triggered review, and records result/validation/review/recovery once in the task lifecycle record. Product goal, scope, architecture, required evidence, `MP-*`, `CA-###`, and feasibility conflicts route back to their upstream owner.
 - Route planned implementation to `sp-implement`; its embedded task review is event-triggered by drift, parallel joins, validation failure, obligation conflicts, or the review-window threshold. Repair task-layer defects there and route upstream truth defects to their owner. Do not turn that embedded control into a separate task-review command or require task briefs, review packages, a duplicate ledger, and branch review for every task.
 - Use `sp-review` after successful implementation closeout. It must start the integrated product from official real entrypoints, exercise required user journeys and interaction/consumer wiring, record findings, and repair every approved-scope defect. The Leader builds the Review Universe, dispatches independent read-only Audit subagents, joins every packet, dispatches isolated Fix subagents, and assigns independent Revalidation subagents; only the Leader may declare zero uncovered coverage or the final verdict. The failed/dependent/affected set scopes finding-level revalidation, but after any Fix the Leader reruns every required Review scenario and recaptures all required evidence against the final snapshot. Review alone creates the immutable `reviewed_runtime_targets` and target digest used by Acceptance. Unknown mechanisms stay inside Review through read-only diagnostic packets, and repair size or missing code never sends work back to implementation/tasks. Only proven requirement, design, or architecture truth gaps reopen an upstream workflow.
@@ -232,6 +235,7 @@ user what to type:
 - Pre-spec discussion: `{{invoke:discussion}}`
 - Existing-project PRD extraction: `{{invoke:prd-scan}} -> {{invoke:prd-build}}`
 - Planning handoff: `{{invoke:plan}}`
+- Optional Test Design after planning: `{{invoke:test-design}}`
 - Task generation: `{{invoke:tasks}}`
 - Implementation execution: `{{invoke:implement}}`
 - Integrated system review and repair: `{{invoke:review}}`

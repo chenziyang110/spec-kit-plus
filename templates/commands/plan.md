@@ -4,8 +4,12 @@ workflow_contract:
   when_to_use: The current spec package is ready for design work, but implementation should not start until explicit planning artifacts exist.
   primary_objective: Produce the planning artifact set that turns specification intent into an implementation-ready architecture and execution approach.
   primary_outputs: 'Canonical agent-only `plan-contract.json` plus project-facing `plan.md`; `research.md`, `quickstart.md`, `data-model.md`, and `contracts/` only when their triggers are present; planning lane records only when delegated lanes are used. `workflow-state.md` remains resume state rather than phase handoff truth.'
-  default_handoff: '/sp.tasks for decomposition; /sp.checklist remains optional for requirements-quality review, not a default handoff.'
+  default_handoff: '/sp.tasks for decomposition; /sp.test-design is an optional post-plan gate for a comprehensive Test Universe and material plan; /sp.checklist remains optional for requirements-quality review.'
 handoffs:
+  - label: Design Tests
+    agent: sp.test-design
+    prompt: Freeze the planned feature test universe, cases, materials, coverage, and gaps before task decomposition.
+    send: false
   - label: Create Tasks
     agent: sp.tasks
     prompt: Break the plan into tasks
@@ -49,7 +53,7 @@ agent_scripts:
    theses and approved visual, reference intents, real content/image plans, and
    evidence triad exactly; carry verified cognition-selected UI routes in the
    compact plan context capsule for worker packet compilation.
-8. Re-check constitution, complexity, risk, locked planning decisions, and deep-research `PH-###` traceability. Deep-research `PH-###` items remain direct evidence refs queried through their registered artifact owner; planning must not restate them as unsupported prose. Run `{AGENT_SCRIPT}` to refresh the generated Agent context, then use the shared `workflow complete-stage` gate as the single deterministic artifact validation and fail closed on an incomplete planning package before recommending `{{invoke:tasks}}`.
+8. Re-check constitution, complexity, risk, locked planning decisions, and deep-research `PH-###` traceability. Deep-research `PH-###` items remain direct evidence refs queried through their registered artifact owner; planning must not restate them as unsupported prose. Run `{AGENT_SCRIPT}` to refresh the generated Agent context, then use the shared `workflow complete-stage` gate as the single deterministic artifact validation and fail closed on an incomplete planning package. When the user requested comprehensive test design, a repository/feature risk review requires it, or test-material provenance is planning-critical, recommend the optional `{{invoke:test-design}}` gate while the completed Plan remains the required-stage owner; otherwise recommend `{{invoke:tasks}}` directly.
 
 Do not create `tasks.md` or `task-index.json`; the separately invoked task workflow owns them. Do not edit production source, tests, migrations, or runtime configuration during planning.
 

@@ -1,0 +1,7 @@
+interface:
+  display_name: "SPX Test Design"
+  short_description: "Design scoped test and data packs"
+  default_prompt: "Use $spx-test-design to build an evidence-backed test universe, professional case catalog, and safe data pack."
+
+policy:
+  allow_implicit_invocation: false

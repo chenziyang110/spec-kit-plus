@@ -32,6 +32,20 @@ func TestCompassPublishesTestDesignLiveReadProfile(t *testing.T) {
 	}
 }
 
+func TestTestDesignIntentAliasesShareFingerprintAndExpandCandidateTerms(t *testing.T) {
+	left := CompassInput{Intent: "test-design", Query: "Build the approval data pack"}
+	right := CompassInput{Intent: "test_design", Query: "Build the approval data pack"}
+	if compassFingerprint(left) != compassFingerprint(right) {
+		t.Fatalf("alias fingerprints differ: %q != %q", compassFingerprint(left), compassFingerprint(right))
+	}
+	terms := compassCandidateTerms(left, termsFrom(left.Intent+" "+left.Query, 30), nil)
+	for _, want := range []string{"test", "verification", "fixture", "harness", "ci", "entrypoint", "regression", "security", "performance", "history"} {
+		if !testDesignStringSliceContains(terms, want) {
+			t.Fatalf("candidate terms=%#v, missing %q", terms, want)
+		}
+	}
+}
+
 func testDesignAnySliceContains(values []any, want string) bool {
 	for _, value := range values {
 		if value == want {
@@ -41,3 +55,11 @@ func testDesignAnySliceContains(values []any, want string) bool {
 	return false
 }
 
+func testDesignStringSliceContains(values []string, want string) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
+}

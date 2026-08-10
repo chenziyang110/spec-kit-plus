@@ -66,6 +66,11 @@
   "required_consumer_evidence": [],
   "test_case_refs": [],
   "test_data_refs": [],
+  "test_design_handoff_ref": null,
+  "test_design_handoff_sha256": null,
+  "test_design_source_fingerprint": null,
+  "test_design_state_revision": null,
+  "test_design_artifact_digests": {},
   "done_condition": [],
   "stop_and_reopen_conditions": [],
   "recovery": null

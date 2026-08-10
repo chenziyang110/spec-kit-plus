@@ -52,10 +52,26 @@ Its job is to read current repository state, identify the recommended next Spec 
 - For every feature-bearing candidate, first run `{{specify-subcmd:specify-runtime workflow show --feature-dir <feature-dir> --format json}}`, then `{{specify-subcmd:specify-runtime workflow next --feature-dir <feature-dir> --format json}}`. `FEATURE_DIR/workflow.json` is the required-stage phase lock. Consume the returned structured `next_argv`; never reconstruct or infer the required phase action from Markdown fields.
 - When `next_argv` names `specify-runtime workflow complete-stage`, route to the current required-stage owner so it can finish and validate that stage. When it names `specify-runtime workflow transition --to <stage>`, route to that destination stage and pass the exact argv. When active `accept` returns `specify-runtime workflow closeout`, route to the current accept owner so human acceptance can resume; only completed `accept` has no successor.
 - A blocked runtime intentionally has no `next_argv`. Preserve its tutorial and wait for the declared evidence; once present, fill only the required evidence input in `data.resolution_action` and execute its runtime-owned base argv. `show_argv` refreshes state but never resolves it.
+- Before a selected feature lineage moves from completed Plan to Tasks, apply the **Test Design intercept** below. Test Design is optional when no feature-scoped root or recorded selection exists, but an existing or selected Test Design run is an upstream gate that `sp-auto` must finish rather than bypass.
 - Inspect the current repository state surfaces in priority order only after resolving the current workflow lineage.
 - When concurrent Runs exist, never inspect or resume another Run's subject from the current sandbox. Route only the current Run subject; an unbound invocation must stop when repository state exposes multiple safe candidates.
 - Resolve exactly one safe canonical next command.
 - Continue under that command's full shared contract instead of improvising a blended workflow.
+
+## Test Design Intercept Before Tasks
+
+Before routing a selected feature from Plan to `/sp.tasks`:
+
+1. Run `{{specify-subcmd:specify-runtime artifact list --path-prefix <feature-dir>/test-design/ --format json}}`. If it returns `feature-test-design-state`, query the selected state with `{{specify-subcmd:specify-runtime artifact show --path <feature-dir>/test-design/test-state.json --view summary --format json}}`; if it returns `feature-test-design-handoff`, also query `{{specify-subcmd:specify-runtime artifact show --path <feature-dir>/test-design/handoff-to-tasks.json --view summary --format json}}`.
+2. For an existing root, run `{{specify-subcmd:specify-runtime test-design status --feature-dir <feature-dir> --format json}}` and use that verified runtime response, not the mere presence of a handoff filename.
+3. Classify `status=active`, `status=blocked`, a `validated-unhanded` result (validated claim but no current published handoff), or `claim_status=stale` / `handoff_freshness=stale|missing` as resumable Test Design. Route to canonical `/sp.test-design`; do not route to Tasks or silently ignore the package.
+4. Only allow `/sp.tasks` to consume an existing Test Design root when it is fresh handed-off: `phase=handed-off`, the claim is `complete_against_frozen_scope` or `qualified_with_declared_gaps`, `handoff_freshness=current`, and the shown handoff's `state_revision`, `source_fingerprint`, and `artifact_digests` match current runtime state. A selected Test Design route with no root also goes to `/sp.test-design` for initialization. When no root exists and Test Design was neither selected nor recorded, the optional gate may be skipped and the normal Plan-to-Tasks route remains legal.
+
+Project baseline is a separate scope. Inspect `.specify/test-design/` and run
+`{{specify-subcmd:specify-runtime test-design status --format json}}` only when
+this `sp-auto` invocation explicitly selected project scope. An active project
+baseline must not compete with or override a selected feature lineage, and a
+project handoff never authorizes feature Tasks.
 
 ## Output Contract
 
@@ -65,10 +81,10 @@ Its job is to read current repository state, identify the recommended next Spec 
 
 ## Guardrails
 
-- `sp-auto` does not replace `sp-specify`, `sp-plan`, `sp-tasks`, `sp-analyze`, `sp-implement`, `sp-review`, `sp-accept`, `sp-debug`, `sp-quick`, or `sp-fast`.
+- `sp-auto` does not replace `sp-specify`, `sp-plan`, `sp-test-design`, `sp-tasks`, `sp-analyze`, `sp-implement`, `sp-review`, `sp-accept`, `sp-debug`, `sp-quick`, or `sp-fast`.
 - `sp-auto` must never invent a new phase progression from chat memory when repository state already records the next step.
 - Always obey the recorded upstream gate.
-- Do not rewrite the underlying workflow state to `/sp.auto`; preserve the canonical downstream `next_command` such as `/sp.plan`, `/sp.tasks`, `/sp.implement`, `/sp.review`, `/sp.accept`, `/sp.debug`, `/sp.quick`, `/sp.fast`, `/sp.clarify`, or `/sp.deep-research`. Preserve `/sp.analyze` only when a targeted `specify-runtime artifact show` response explicitly records that legacy or diagnostic route.
+- Do not rewrite the underlying workflow state to `/sp.auto`; preserve the canonical downstream `next_command` such as `/sp.plan`, `/sp.test-design`, `/sp.tasks`, `/sp.implement`, `/sp.review`, `/sp.accept`, `/sp.debug`, `/sp.quick`, `/sp.fast`, `/sp.clarify`, or `/sp.deep-research`. Preserve `/sp.analyze` only when a targeted `specify-runtime artifact show` response explicitly records that legacy or diagnostic route.
 - If state is missing, stale, conflicting, or cannot identify one safe next step, stop in read-only diagnosis and report the exact blocker instead of improvising a route.
 - Do not guess when multiple resumable candidates exist.
 - Never auto-resume an uncertain or unbound candidate.
@@ -187,6 +203,7 @@ Typical canonical targets include:
 - `/sp.clarify`
 - `/sp.deep-research`
 - `/sp.plan`
+- `/sp.test-design`
 - `/sp.tasks`
 - `/sp.analyze`
 - `/sp.implement`

@@ -56,6 +56,7 @@ SPX_SKILLS = {
     "spx-tasks",
     "spx-taskstoissues",
     "spx-team",
+    "spx-test-design",
 }
 CLASSIC_MAP_COMPANION_SKILLS = {
     "sp-map-build",
@@ -1857,6 +1858,16 @@ def test_advanced_source_commands_use_launcher_placeholders() -> None:
     assert "{{specify-subcmd:specify-runtime sp-teams auto-dispatch" in (
         ADVANCED_SKILLS / "spx-implement-teams" / "references" / "codex-teams.md"
     ).read_text(encoding="utf-8")
+
+
+def test_spx_test_design_gap_reconcile_uses_renderer_safe_json_placeholder() -> None:
+    content = (ADVANCED_SKILLS / "spx-test-design" / "SKILL.md").read_text(
+        encoding="utf-8"
+    )
+
+    assert "test-design gap-reconcile" in content
+    assert "--input-json <gap-json>" in content
+    assert "--input-json '{\"gaps\"" not in content
 
 
 def test_classic_profile_keeps_existing_skills_and_does_not_install_spx(

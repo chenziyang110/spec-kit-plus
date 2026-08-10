@@ -20,9 +20,14 @@ workflow runtime before creating task artifacts.
 Read `references/ui-quality-gate.md` when the plan carries a UI design contract.
 
 Query `plan-contract.json` first through `specify-runtime artifact show` and verify named owners, paths, and verification
-entry points against cognition-selected live evidence. If an optional test-design handoff is present, treat that test-design handoff as authoritative input for task shaping and preserve its task-local refs rather than reconstructing test intent from prose. If planning truth is
-missing or stale, stop and route to `$spx-plan`, `$spx-clarify`, or
-`$spx-deep-research`; do not hide design work inside a task.
+entry points against cognition-selected live evidence. If an optional
+`handoff-to-tasks.json` test-design handoff is present, query it through the
+artifact runtime, require its source fingerprint and claim status to be current,
+and treat its refs as authoritative input for task shaping rather than
+reconstructing test intent from prose. Route a stale, blocked, or requested
+missing package to `$spx-test-design`. If planning truth is missing or stale,
+stop and route to `$spx-plan`, `$spx-clarify`, or `$spx-deep-research`; do not
+hide design work inside a task.
 
 Run
 `{{specify-subcmd:specify-runtime hook validate-state --command tasks --feature-dir <feature-dir> --autofix --format json}}`
@@ -48,8 +53,15 @@ recorded standard degradation)—never unrecorded leader synthesis after a
 parallel conflict.
 When present, `test_case_refs` and `test_data_refs` are task-local authoritative
 inputs copied from that test-design handoff and preserved into the canonical
-task graph for later JIT packet compilation. They do not create or imply a
-public `sp-test-design` command surface.
+task graph for later JIT packet compilation. `$spx-test-design` is the public
+Advanced producer; its handoff remains pointer-only and the canonical runtime
+next stage remains `/sp.tasks`.
+`tasks build` binds the handoff ref/SHA-256, source fingerprint, state revision,
+and artifact digests into runtime-owned task-index fields. Never author or
+patch those fields. Every task ref must be a handoff member; before finalize,
+the task-wide unions must consume all and only the handoff case/data arrays.
+Finalize and handoff recompute all bindings and reject stale, tampered, forged,
+foreign, missing, or partial consumption.
 
 Set root `validation_policy` to `mode: feature_epochs`, `max_epochs: 3`,
 `budget_scope: implement-review`,

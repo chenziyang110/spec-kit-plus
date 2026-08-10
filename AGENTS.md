@@ -78,8 +78,8 @@ present in a test project.
   independent `spx-*` catalog from `templates/advanced-skills/**`. It is
   command-equivalent and prompt-optimized for advanced models: every Classic
   command has an independent SPX counterpart, while `spx-map-rebuild` is an
-  additional convenience orchestrator. The current topology is 30 SPX skills:
-  29 one-to-one Classic command counterparts plus `spx-map-rebuild`. Advanced
+  additional convenience orchestrator. The current topology is 31 SPX skills:
+  30 one-to-one Classic command counterparts plus `spx-map-rebuild`. Advanced
   keeps command ownership, read/write boundaries, resumable stops, and
   external-side-effect gates; it removes repeated tutorials, fixed role chains,
   unnecessary mandatory delegation, long examples, and model-authored stable
@@ -104,6 +104,11 @@ present in a test project.
 - Advanced does **not** install the Classic passive-skill prompt bundle.
   Essential safety and execution gates belong in the owning SPX skill, a
   profile-local Advanced reference, or shared deterministic runtime.
+- `sp-test-design` / `spx-test-design` is an optional planning-only lane after
+  Plan and before Tasks, or an independent project-baseline lane. It owns a
+  frozen test universe, professional case/data/gap package, bounded read-only
+  leader/subagent discovery, independent audit, and pointer-only Tasks handoff;
+  it never claims absolute completeness or implements executable test assets.
 - **Intentional map exception:** every Advanced install also generates the
   original Classic `sp-map-scan`, `sp-map-build`, and `sp-map-update` skills,
   including their Classic command-reference sidecars, through the unchanged

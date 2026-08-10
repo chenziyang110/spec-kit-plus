@@ -179,6 +179,11 @@ def validate_test_intelligence_bundle(
         label="coverage-matrix",
     )
 
+    obligations = _require_unique_ids(
+        universe.get("obligations", []),
+        id_key="obligation_id",
+        label="test-universe obligations",
+    )
     capabilities = _require_unique_ids(
         universe.get("capabilities", []),
         id_key="capability_id",
@@ -215,7 +220,56 @@ def validate_test_intelligence_bundle(
             "test-universe and test-catalog must declare the same test_case_id set"
         )
 
+    for obligation_id, obligation in obligations.items():
+        for capability_id in obligation["capability_refs"]:
+            if capability_id not in capabilities:
+                raise TestIntelligenceValidationError(
+                    f"{obligation_id} references missing capability {capability_id}"
+                )
+            if obligation_id not in capabilities[capability_id]["obligation_ids"]:
+                raise TestIntelligenceValidationError(
+                    f"{obligation_id} is missing the reverse capability link from {capability_id}"
+                )
+        for scenario_id in obligation["scenario_refs"]:
+            if scenario_id not in scenarios:
+                raise TestIntelligenceValidationError(
+                    f"{obligation_id} references missing scenario {scenario_id}"
+                )
+            if obligation_id not in scenarios[scenario_id]["obligation_refs"]:
+                raise TestIntelligenceValidationError(
+                    f"{obligation_id} is missing the reverse scenario link from {scenario_id}"
+                )
+        for case_id in obligation["test_case_ids"]:
+            if case_id not in universe_cases:
+                raise TestIntelligenceValidationError(
+                    f"{obligation_id} references missing test case {case_id}"
+                )
+            if obligation_id not in universe_cases[case_id]["obligation_refs"]:
+                raise TestIntelligenceValidationError(
+                    f"{obligation_id} is missing the reverse test-case link from {case_id}"
+                )
+            if obligation_id not in catalog_cases[case_id]["obligation_refs"]:
+                raise TestIntelligenceValidationError(
+                    f"{obligation_id} is missing the catalog link from {case_id}"
+                )
+        if obligation["applicability"] == "applicable" and not any(
+            str(row["obligation_ref"]) == obligation_id
+            for row in coverage_rows.values()
+        ):
+            raise TestIntelligenceValidationError(
+                f"{obligation_id} is applicable but has no coverage-matrix accounting row"
+            )
+
     for capability_id, capability in capabilities.items():
+        for obligation_id in capability["obligation_ids"]:
+            if obligation_id not in obligations:
+                raise TestIntelligenceValidationError(
+                    f"{capability_id} references missing obligation {obligation_id}"
+                )
+            if capability_id not in obligations[obligation_id]["capability_refs"]:
+                raise TestIntelligenceValidationError(
+                    f"{capability_id} is missing the reverse obligation link from {obligation_id}"
+                )
         for scenario_id in capability["scenario_ids"]:
             if scenario_id not in scenarios:
                 raise TestIntelligenceValidationError(
@@ -236,6 +290,15 @@ def validate_test_intelligence_bundle(
                 )
 
     for scenario_id, scenario in scenarios.items():
+        for obligation_id in scenario["obligation_refs"]:
+            if obligation_id not in obligations:
+                raise TestIntelligenceValidationError(
+                    f"{scenario_id} references missing obligation {obligation_id}"
+                )
+            if scenario_id not in obligations[obligation_id]["scenario_refs"]:
+                raise TestIntelligenceValidationError(
+                    f"{scenario_id} is missing the reverse obligation link from {obligation_id}"
+                )
         for capability_id in scenario["capability_refs"]:
             if capability_id not in capabilities:
                 raise TestIntelligenceValidationError(
@@ -269,6 +332,25 @@ def validate_test_intelligence_bundle(
 
     for case_id, universe_case in universe_cases.items():
         catalog_case = catalog_cases[case_id]
+        if _sorted_strings(universe_case["obligation_refs"]) != _sorted_strings(
+            catalog_case["obligation_refs"]
+        ):
+            raise TestIntelligenceValidationError(
+                f"{case_id} obligation_refs differ between test-universe and test-catalog"
+            )
+        for obligation_id in universe_case["obligation_refs"]:
+            if obligation_id not in obligations:
+                raise TestIntelligenceValidationError(
+                    f"{case_id} references missing obligation {obligation_id}"
+                )
+            if case_id not in obligations[obligation_id]["test_case_ids"]:
+                raise TestIntelligenceValidationError(
+                    f"{case_id} is missing the reverse obligation link from {obligation_id}"
+                )
+        if len(catalog_case["steps"]) != len(catalog_case["expected_results"]):
+            raise TestIntelligenceValidationError(
+                f"{case_id} must have one observable expected result per ordered step"
+            )
         for data_id in catalog_case["test_data_refs"]:
             if data_id not in datasets:
                 raise TestIntelligenceValidationError(
@@ -337,6 +419,43 @@ def validate_test_intelligence_bundle(
                 f"{coverage_id} references missing test case {case_id} in test-catalog"
             )
         universe_case = universe_cases[case_id]
+        obligation_id = str(row["obligation_ref"])
+        if obligation_id not in obligations:
+            raise TestIntelligenceValidationError(
+                f"{coverage_id} references missing obligation {obligation_id}"
+            )
+        obligation = obligations[obligation_id]
+        status = str(row["status"])
+        gap_refs = _sorted_strings(row["gap_refs"])
+        unknown_gap_refs = sorted(
+            set(gap_refs) - set(_sorted_strings(obligation["gap_refs"]))
+        )
+        if unknown_gap_refs:
+            raise TestIntelligenceValidationError(
+                f"{coverage_id} gap_refs are not linked from {obligation_id}: "
+                + ", ".join(unknown_gap_refs)
+            )
+        applicability = str(obligation["applicability"])
+        if status == "covered" and applicability != "applicable":
+            raise TestIntelligenceValidationError(
+                f"{coverage_id} cannot be covered when {obligation_id} is {applicability}"
+            )
+        if status == "not_applicable" and applicability != "not_applicable":
+            raise TestIntelligenceValidationError(
+                f"{coverage_id} cannot be not_applicable when {obligation_id} is {applicability}"
+            )
+        if applicability == "not_applicable" and status != "not_applicable":
+            raise TestIntelligenceValidationError(
+                f"{coverage_id} must be not_applicable because {obligation_id} is not_applicable"
+            )
+        if case_id not in obligation["test_case_ids"]:
+            raise TestIntelligenceValidationError(
+                f"{coverage_id} obligation {obligation_id} does not link test case {case_id}"
+            )
+        if obligation_id not in universe_case["obligation_refs"]:
+            raise TestIntelligenceValidationError(
+                f"{coverage_id} obligation {obligation_id} is absent from {case_id}"
+            )
         capability_id = str(row["capability_ref"])
         if capability_id not in capabilities:
             raise TestIntelligenceValidationError(
@@ -349,6 +468,14 @@ def validate_test_intelligence_bundle(
                 f"{coverage_id} references missing scenario {scenario_id} in test-universe"
             )
         scenario = scenarios[scenario_id]
+        if capability_id not in obligation["capability_refs"]:
+            raise TestIntelligenceValidationError(
+                f"{coverage_id} capability {capability_id} is not linked from {obligation_id}"
+            )
+        if scenario_id not in obligation["scenario_refs"]:
+            raise TestIntelligenceValidationError(
+                f"{coverage_id} scenario {scenario_id} is not linked from {obligation_id}"
+            )
         if coverage_id not in _scenario_coverage_refs(scenario):
             raise TestIntelligenceValidationError(
                 f"{coverage_id} is missing the reverse scenario coverage link from {scenario_id}"
@@ -386,6 +513,14 @@ def validate_test_intelligence_bundle(
                     f"{coverage_id} references missing dataset {data_id} in test-data-manifest"
                 )
             dataset = datasets[data_id]
+            if data_id not in catalog_cases[case_id]["test_data_refs"]:
+                raise TestIntelligenceValidationError(
+                    f"{coverage_id} dataset {data_id} is absent from catalog case {case_id}"
+                )
+            if data_id not in universe_case["data_refs"]:
+                raise TestIntelligenceValidationError(
+                    f"{coverage_id} dataset {data_id} is absent from universe case {case_id}"
+                )
             if case_id not in dataset["applicable_test_case_ids"]:
                 raise TestIntelligenceValidationError(
                     f"{coverage_id} dataset {data_id} is not applicable to test case {case_id} in test-data-manifest"
@@ -401,10 +536,25 @@ def validate_test_intelligence_bundle(
                 raise TestIntelligenceValidationError(
                     f"{data_id} references missing test case {case_id} in test-catalog"
                 )
+            if data_id not in catalog_cases[case_id]["test_data_refs"]:
+                raise TestIntelligenceValidationError(
+                    f"{data_id} is not linked back from catalog case {case_id}"
+                )
+            if data_id not in universe_cases[case_id]["data_refs"]:
+                raise TestIntelligenceValidationError(
+                    f"{data_id} is not linked back from universe case {case_id}"
+                )
         for scenario_id in dataset["applicable_scenario_ids"]:
             if scenario_id not in scenarios:
                 raise TestIntelligenceValidationError(
                     f"{data_id} references missing scenario {scenario_id} in test-universe"
+                )
+            if not any(
+                data_id in universe_cases[case_id]["data_refs"]
+                for case_id in scenarios[scenario_id]["test_case_ids"]
+            ):
+                raise TestIntelligenceValidationError(
+                    f"{data_id} has no linked test case for scenario {scenario_id}"
                 )
 
 
@@ -419,10 +569,56 @@ def render_test_universe_markdown(universe: dict[str, Any]) -> str:
     lines = [
         "# Test Universe",
         "",
-        "`test-universe.json` is canonical. This Markdown is a deterministic view of the current capability, scenario, and test-case graph.",
+        "`test-universe.json` is canonical. This Markdown is a deterministic view of the frozen obligation denominator and its capability, scenario, and test-case graph.",
         "",
-        "## Capabilities",
+        "## Obligations",
     ]
+    obligations = _sorted_items(universe.get("obligations", []), "obligation_id")
+    if not obligations:
+        lines.extend(["", "- No `TO-*` rows recorded."])
+    else:
+        for obligation in obligations:
+            lines.extend(
+                [
+                    "",
+                    f"### {obligation['obligation_id']} — {obligation['title']}",
+                    "",
+                    f"- Dimension: `{obligation['dimension']}`",
+                    f"- Risk Tier: `{obligation['risk_tier']}`",
+                    f"- Applicability: `{obligation['applicability']}`",
+                    f"- Rationale: {obligation['rationale']}",
+                    "",
+                    "#### Source Refs",
+                    "",
+                    *_format_refs(obligation["source_refs"]),
+                    "",
+                    "#### Required Evidence Classes",
+                    "",
+                    *_format_refs(obligation["required_evidence_classes"]),
+                    "",
+                    "#### Capability Refs",
+                    "",
+                    *_format_refs(obligation["capability_refs"]),
+                    "",
+                    "#### Scenario Refs",
+                    "",
+                    *_format_refs(obligation["scenario_refs"]),
+                    "",
+                    "#### Test Case Refs",
+                    "",
+                    *_format_refs(obligation["test_case_ids"]),
+                    "",
+                    "#### Gap Refs",
+                    "",
+                    *_format_refs(obligation["gap_refs"]),
+                    "",
+                    "#### Invalidation Triggers",
+                    "",
+                    *_format_text_bullets(obligation["invalidation_triggers"]),
+                ]
+            )
+
+    lines.extend(["", "## Capabilities"])
     capabilities = _sorted_items(universe.get("capabilities", []), "capability_id")
     if not capabilities:
         lines.extend(["", "- No `CAP-*` rows recorded."])
@@ -436,6 +632,10 @@ def render_test_universe_markdown(universe: dict[str, Any]) -> str:
                     "#### Requirement Refs",
                     "",
                     *_format_refs(capability["requirement_refs"]),
+                    "",
+                    "#### Obligation Refs",
+                    "",
+                    *_format_refs(capability["obligation_ids"]),
                     "",
                     "#### Scenario Refs",
                     "",
@@ -462,6 +662,10 @@ def render_test_universe_markdown(universe: dict[str, Any]) -> str:
                     "",
                     *_format_refs(scenario["capability_refs"]),
                     "",
+                    "#### Obligation Refs",
+                    "",
+                    *_format_refs(scenario["obligation_refs"]),
+                    "",
                     "#### Test Case Refs",
                     "",
                     *_format_refs(scenario["test_case_ids"]),
@@ -484,6 +688,10 @@ def render_test_universe_markdown(universe: dict[str, Any]) -> str:
                     f"### {case['test_case_id']} — {case['title']}",
                     "",
                     f"- Kind: `{case['kind']}`",
+                    "",
+                    "#### Obligation Refs",
+                    "",
+                    *_format_refs(case["obligation_refs"]),
                     "",
                     "#### Capability Refs",
                     "",
@@ -528,13 +736,24 @@ def render_test_catalog_markdown(catalog: dict[str, Any]) -> str:
                 "",
                 f"## {case['test_case_id']} — {case['title']}",
                 "",
+                f"- Status: `{case['status']}`",
                 f"- Stage: `{case['stage']}`",
                 f"- Priority: `{case['priority']}`",
+                f"- Automation Target: `{case['automation_target']}`",
+                f"- Owner Stage: `{case['owner_stage']}`",
                 f"- Verification Method: `{case['verification_method']}`",
+                "",
+                "### Risk Tags",
+                "",
+                *_format_refs(case["risk_tags"]),
                 "",
                 "### Requirement Refs",
                 "",
                 *_format_refs(case["requirement_refs"]),
+                "",
+                "### Obligation Refs",
+                "",
+                *_format_refs(case["obligation_refs"]),
                 "",
                 "### Capability Refs",
                 "",
@@ -547,30 +766,66 @@ def render_test_catalog_markdown(catalog: dict[str, Any]) -> str:
                 "### Test Data Refs",
                 "",
                 *_format_refs(case["test_data_refs"]),
+                "",
+                "### Environment",
+                "",
+                *_format_text_bullets(case["environment"]),
+                "",
+                "### Entrypoint Refs",
+                "",
+                *_format_refs(case["entrypoint_refs"]),
             ]
         )
-        if case.get("objective"):
-            lines.extend(["", "### Objective", "", f"- {case['objective']}"])
-        if case.get("preconditions"):
-            lines.extend(
-                ["", "### Preconditions", "", *_format_text_bullets(case["preconditions"])]
-            )
-        if case.get("steps"):
-            lines.extend(
-                ["", "### Steps", "", *_format_numbered_steps(case["steps"])]
-            )
+        lines.extend(["", "### Objective", "", f"- {case['objective']}"])
+        lines.extend(
+            ["", "### Preconditions", "", *_format_text_bullets(case["preconditions"])]
+        )
+        lines.extend(
+            ["", "### Roles and Permissions", "", *_format_text_bullets(case["roles_permissions"])]
+        )
+        lines.extend(
+            ["", "### Configuration", "", *_format_text_bullets(case["configuration"])]
+        )
+        lines.extend(
+            ["", "### Steps", "", *_format_numbered_steps(case["steps"])]
+        )
+        lines.extend(
+            ["", "### Expected Results", "", *_format_numbered_steps(case["expected_results"])]
+        )
         lines.extend(
             ["", "### Pass Criteria", "", *_format_text_bullets(case["pass_criteria"])]
         )
-        if case.get("evidence_requirements"):
-            lines.extend(
-                [
-                    "",
-                    "### Evidence Requirements",
-                    "",
-                    *_format_refs(case["evidence_requirements"]),
-                ]
-            )
+        lines.extend(
+            [
+                "",
+                "### Variant Dispositions",
+                "",
+                *[
+                    f"- {name}: `{case['variants'][name]}`"
+                    for name in sorted(case["variants"])
+                ],
+                "",
+                "### Evidence Requirements",
+                "",
+                *_format_refs(case["evidence_requirements"]),
+                "",
+                "### Lifecycle and Isolation",
+                "",
+                f"- Cleanup / Reset: {case['cleanup_reset']}",
+                f"- Idempotency: {case['idempotency']}",
+                f"- Side-Effect Boundary: {case['side_effect_boundary']}",
+                f"- Freshness Rule: {case['freshness_rule']}",
+                f"- Residual Risk: {case['residual_risk']}",
+                "",
+                "#### Invalidation Triggers",
+                "",
+                *_format_text_bullets(case["invalidation_triggers"]),
+                "",
+                "#### Flake Risks",
+                "",
+                *_format_text_bullets(case["flake_risks"]),
+            ]
+        )
     return "\n".join(lines) + "\n"
 
 
@@ -602,6 +857,12 @@ def render_test_data_manifest_markdown(data_manifest: dict[str, Any]) -> str:
                 f"- Sensitivity: `{dataset['sensitivity']}`",
                 f"- Contains PII: `{str(dataset['contains_pii']).lower()}`",
                 f"- Source: `{dataset['source']}`",
+                f"- Disposition: `{dataset['disposition']}`",
+                f"- Readiness: `{dataset['readiness']}`",
+                "",
+                "### Provenance Refs",
+                "",
+                *_format_refs(dataset["provenance_refs"]),
                 "",
                 "### Applicable Test Cases",
                 "",
@@ -618,6 +879,41 @@ def render_test_data_manifest_markdown(data_manifest: dict[str, Any]) -> str:
                 f"- Retention Policy: `{hygiene['retention_policy']}`",
             ]
         )
+        for key, title in (
+            ("format", "Format"),
+            ("schema_ref", "Schema Ref"),
+            ("volume", "Volume"),
+            ("license", "License"),
+            ("usage_limits", "Usage Limits"),
+            ("fixed_seed", "Fixed Seed"),
+            ("distribution", "Distribution"),
+            ("checksum", "Checksum"),
+            ("snapshot_binding", "Snapshot Binding"),
+            ("refresh_policy", "Refresh Policy"),
+            ("cleanup_reset", "Cleanup / Reset"),
+            ("oracle_binding", "Oracle Binding"),
+            ("residual_risk", "Residual Risk"),
+        ):
+            if dataset.get(key) is not None:
+                lines.append(f"- {title}: {dataset[key]}")
+        for key, title in (
+            ("relationships", "Relationships"),
+            ("constraints", "Constraints"),
+            ("edge_partitions", "Edge Partitions"),
+            ("allowed_usage", "Allowed Usage"),
+            ("environment_refs", "Environment Refs"),
+            ("limitations", "Limitations"),
+        ):
+            if key in dataset:
+                lines.extend(["", f"### {title}", "", *_format_text_bullets(dataset[key])])
+        for key, title in (
+            ("generation_recipe", "Generation Recipe"),
+            ("request_instructions", "Request Instructions"),
+            ("blocker_reason", "Blocker Reason"),
+            ("unblock_criteria", "Unblock Criteria"),
+        ):
+            if dataset.get(key):
+                lines.extend(["", f"### {title}", "", str(dataset[key])])
     return "\n".join(lines) + "\n"
 
 
@@ -645,6 +941,7 @@ def render_coverage_matrix_markdown(coverage_matrix: dict[str, Any]) -> str:
                 f"## {row['coverage_id']}",
                 "",
                 f"- Requirement Ref: `{row['requirement_ref']}`",
+                f"- Obligation Ref: `{row['obligation_ref']}`",
                 f"- Capability Ref: `{row['capability_ref']}`",
                 f"- Scenario Ref: `{row['scenario_ref']}`",
                 f"- Test Case Ref: `{row['test_case_ref']}`",
@@ -661,6 +958,10 @@ def render_coverage_matrix_markdown(coverage_matrix: dict[str, Any]) -> str:
                 "### Acceptance Refs",
                 "",
                 *_format_refs(row["acceptance_refs"]),
+                "",
+                "### Gap Refs",
+                "",
+                *_format_refs(row["gap_refs"]),
             ]
         )
     return "\n".join(lines) + "\n"

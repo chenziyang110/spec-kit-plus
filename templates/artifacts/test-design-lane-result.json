@@ -1,0 +1,16 @@
+{
+  "lane_id": "LANE-001",
+  "attempt_id": "ATTEMPT-001",
+  "status": "blocked",
+  "inspected_paths": [],
+  "evidence_refs": [],
+  "obligation_results": [],
+  "checks": [],
+  "candidate_cases": [],
+  "data_requirements": [],
+  "contradictions": [],
+  "unknowns": [],
+  "gaps": [],
+  "findings": [],
+  "summary": "pending"
+}

@@ -61,6 +61,8 @@ func Run(args []string, stdout, stderr io.Writer, cliVersion string) int {
 		return runDiscussion(args[1:], stdout)
 	case "design":
 		return runDesign(args[1:], stdout)
+	case "test-design":
+		return runTestDesign(args[1:], stdout)
 	case "evidence":
 		return runEvidence(args[1:], stdout)
 	case "doctor":
@@ -101,6 +103,7 @@ func writeHelp(stdout io.Writer) int {
 		"cognition",
 		"discussion",
 		"design",
+		"test-design",
 		"doctor",
 		"evidence",
 		"hook",
@@ -1059,6 +1062,19 @@ func defaultCapabilities() []string {
 		"design.profiles",
 		"design.ui-target",
 		"design.ui-target-lint",
+		"test-design.audit-prepare",
+		"test-design.handoff",
+		"test-design.gap-reconcile",
+		"test-design.init",
+		"test-design.lane-accept",
+		"test-design.lane-checkpoint",
+		"test-design.lane-lease",
+		"test-design.lane-prepare",
+		"test-design.lane-yield",
+		"test-design.status",
+		"test-design.synthesize",
+		"test-design.universe-build",
+		"test-design.validate",
 		"discussion.archive",
 		"discussion.bind-consumer",
 		"discussion.checkpoint",
@@ -1248,6 +1264,32 @@ func capabilitySummary(id string) string {
 		return "Resolve enabled unconditional extension hooks without exposing project YAML to the agent."
 	case "artifact.registry":
 		return "List artifact types, owners, roles, schemas, and allowed operations."
+	case "test-design.init":
+		return "Initialize a runtime-owned project or feature test-design workspace."
+	case "test-design.status":
+		return "Show resumable test-design state, lane counts, and the exact next action."
+	case "test-design.universe-build":
+		return "Freeze and validate the current test universe against its declared sources."
+	case "test-design.lane-prepare":
+		return "Create bounded discovery lanes from leader-authored structured input."
+	case "test-design.lane-lease":
+		return "Lease one pending test-design lane and return its runtime-owned packet."
+	case "test-design.lane-checkpoint":
+		return "Validate and persist one packet-local cumulative worker checkpoint."
+	case "test-design.lane-yield":
+		return "Release a leased lane while preserving its accepted checkpoint cursor."
+	case "test-design.lane-accept":
+		return "Validate and accept one worker proposal without granting global completeness."
+	case "test-design.gap-reconcile":
+		return "CAS-upsert leader-confirmed worker gap proposals and reconcile their TO/COV links."
+	case "test-design.synthesize":
+		return "Join accepted discovery proposals into the canonical test-intelligence bundle."
+	case "test-design.audit-prepare":
+		return "Create an independent audit lane bound to exact source and artifact digests."
+	case "test-design.validate":
+		return "Validate freshness, traceability, data hygiene, audit closure, and claim status."
+	case "test-design.handoff":
+		return "Atomically publish a pointer-only test-design handoff for Tasks."
 	case "artifact.prune":
 		return "Prune expired artifact leases."
 	case "evidence.allocate":

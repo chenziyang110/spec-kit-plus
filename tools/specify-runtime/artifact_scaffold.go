@@ -177,25 +177,25 @@ var artifactScaffoldKinds = map[string]artifactScaffoldKind{
 	"test-universe": {
 		Kind:                  "test-universe",
 		TemplatePath:          "artifacts/test-universe.json",
-		AllowedPaths:          [][]string{{"specs", "*", "test-design", "test-universe.json"}, {".specify", "features", "*", "test-design", "test-universe.json"}},
+		AllowedPaths:          [][]string{{"specs", "*", "test-design", "test-universe.json"}, {".specify", "features", "*", "test-design", "test-universe.json"}, {".specify", "test-design", "test-universe.json"}},
 		EstimatedTokenSavings: 120,
 	},
 	"test-catalog": {
 		Kind:                  "test-catalog",
 		TemplatePath:          "artifacts/test-catalog.json",
-		AllowedPaths:          [][]string{{"specs", "*", "test-design", "test-catalog.json"}, {".specify", "features", "*", "test-design", "test-catalog.json"}},
+		AllowedPaths:          [][]string{{"specs", "*", "test-design", "test-catalog.json"}, {".specify", "features", "*", "test-design", "test-catalog.json"}, {".specify", "test-design", "test-catalog.json"}},
 		EstimatedTokenSavings: 120,
 	},
 	"test-data-manifest": {
 		Kind:                  "test-data-manifest",
 		TemplatePath:          "artifacts/test-data-manifest.json",
-		AllowedPaths:          [][]string{{"specs", "*", "test-design", "test-data-manifest.json"}, {".specify", "features", "*", "test-design", "test-data-manifest.json"}},
+		AllowedPaths:          [][]string{{"specs", "*", "test-design", "test-data-manifest.json"}, {".specify", "features", "*", "test-design", "test-data-manifest.json"}, {".specify", "test-design", "test-data-manifest.json"}},
 		EstimatedTokenSavings: 120,
 	},
 	"coverage-matrix": {
 		Kind:                  "coverage-matrix",
 		TemplatePath:          "artifacts/coverage-matrix.json",
-		AllowedPaths:          [][]string{{"specs", "*", "test-design", "coverage-matrix.json"}, {".specify", "features", "*", "test-design", "coverage-matrix.json"}},
+		AllowedPaths:          [][]string{{"specs", "*", "test-design", "coverage-matrix.json"}, {".specify", "features", "*", "test-design", "coverage-matrix.json"}, {".specify", "test-design", "coverage-matrix.json"}},
 		EstimatedTokenSavings: 120,
 	},
 	"plan-contract": {

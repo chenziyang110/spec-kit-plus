@@ -245,6 +245,15 @@
       "references": ["spx-team/references/runtime-boundary.md"],
       "assets": [],
       "optimization": "thin supported Codex runtime entrypoint separated from feature execution"
+    },
+    "spx-test-design": {
+      "absorbs": ["test-design"],
+      "references": [
+        "spx-test-design/references/test-design-contract.md",
+        "spx-test-design/references/worker-contract.md"
+      ],
+      "assets": [],
+      "optimization": "scope-frozen test intelligence with bounded discovery, explicit material dispositions, and independent audit"
     }
   }
 }

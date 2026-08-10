@@ -102,6 +102,14 @@ def test_worker_task_packet_captures_required_execution_contract() -> None:
         done_criteria=["login/logout behavior implemented"],
         handoff_requirements=["return changed files"],
         platform_guardrails=["supported_platforms: windows, linux"],
+        test_design_handoff_ref="test-design/handoff-to-tasks.json",
+        test_design_handoff_sha256="1" * 64,
+        test_design_source_fingerprint="2" * 64,
+        test_design_state_revision=9,
+        test_design_artifact_digests={
+            "state": "3" * 64,
+            "universe": "4" * 64,
+        },
         dispatch_policy=DispatchPolicy(mode="hard_fail", must_acknowledge_rules=True),
         consequence_obligations=[
             ConsequenceObligation(
@@ -124,6 +132,16 @@ def test_worker_task_packet_captures_required_execution_contract() -> None:
     assert packet.platform_guardrails == ["supported_platforms: windows, linux"]
     assert packet.consequence_obligations[0].obligation_id == "CA-001"
     assert packet.consequence_obligations[0].affected_objects == ["team", "worker"]
+    payload = worker_task_packet_payload(packet)
+    restored = worker_task_packet_from_json(json.dumps(payload))
+    assert restored.test_design_handoff_ref == packet.test_design_handoff_ref
+    assert restored.test_design_handoff_sha256 == packet.test_design_handoff_sha256
+    assert (
+        restored.test_design_source_fingerprint
+        == packet.test_design_source_fingerprint
+    )
+    assert restored.test_design_state_revision == 9
+    assert restored.test_design_artifact_digests == packet.test_design_artifact_digests
 
 
 def test_worker_task_packet_captures_ui_contract_and_result_verification() -> None:

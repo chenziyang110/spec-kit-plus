@@ -122,6 +122,7 @@ KNOWN_COMMANDS = (
     "sp-tasks",
     "sp-taskstoissues",
     "sp-team",
+    "sp-test-design",
 )
 COMMAND_ALIASES = {
     "sp-research": "sp-deep-research",

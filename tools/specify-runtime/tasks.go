@@ -38,6 +38,14 @@ var taskControlRuntimeFields = map[string]bool{
 	"result_ref":    true,
 }
 
+var taskControlTestDesignRootFields = map[string]bool{
+	"test_design_handoff_ref":        true,
+	"test_design_handoff_sha256":     true,
+	"test_design_source_fingerprint": true,
+	"test_design_state_revision":     true,
+	"test_design_artifact_digests":   true,
+}
+
 var taskControlAuthoredFields = map[string]bool{
 	"id": true, "task_id": true, "story_id": true, "phase": true,
 	"objective": true, "title": true, "description": true, "dependencies": true, "depends_on": true,
@@ -128,6 +136,9 @@ func runTasksBuild(args []string) (map[string]any, error) {
 		if key == "version" || key == "status" || key == "transition" {
 			return nil, fmt.Errorf("%s is CLI-owned and cannot be authored", key)
 		}
+		if taskControlTestDesignRootFields[key] {
+			return nil, fmt.Errorf("%s is CLI-owned and bound from test-design handoff", key)
+		}
 		payload[key] = cloneJSONValue(value)
 	}
 	tasks, err := normalizeTaskControlTasks(payload["tasks"], false)
@@ -142,6 +153,9 @@ func runTasksBuild(args []string) (map[string]any, error) {
 	payload["status"] = "draft"
 	payload["tasks"] = tasks
 	if err := normalizeTaskControlRootObjectLists(payload); err != nil {
+		return nil, err
+	}
+	if err := taskControlValidateTestDesignBinding(root, feature, payload, true, false); err != nil {
 		return nil, err
 	}
 	payload["transition"] = map[string]any{
@@ -195,6 +209,9 @@ func runTasksUpsert(args []string) (map[string]any, error) {
 		tasks = append(tasks, task)
 	}
 	payload["tasks"] = tasks
+	if err := taskControlValidateTestDesignBinding(root, feature, payload, false, false); err != nil {
+		return nil, err
+	}
 	markTaskControlDraft(payload, "task package changed after its last finalize")
 	return commitTaskControlPackage(root, feature, payload, title, "tasks.upsert")
 }
@@ -227,9 +244,15 @@ func runTasksSetRoot(args []string) (map[string]any, error) {
 			}
 			return nil, fmt.Errorf("root patch contains CLI-owned field %q", key)
 		}
+		if taskControlTestDesignRootFields[key] {
+			return nil, fmt.Errorf("root patch contains CLI-owned test-design binding field %q", key)
+		}
 		payload[key] = cloneJSONValue(value)
 	}
 	if err := normalizeTaskControlRootObjectLists(payload); err != nil {
+		return nil, err
+	}
+	if err := taskControlValidateTestDesignBinding(root, feature, payload, false, false); err != nil {
 		return nil, err
 	}
 	// Shape-only repairs (for example official_entrypoints string→object) on an
@@ -295,6 +318,9 @@ func runTasksRemove(args []string) (map[string]any, error) {
 		}
 	}
 	payload["tasks"] = kept
+	if err := taskControlValidateTestDesignBinding(root, feature, payload, false, false); err != nil {
+		return nil, err
+	}
 	markTaskControlDraft(payload, "task package changed after its last finalize")
 	return commitTaskControlPackage(root, feature, payload, title, "tasks.remove")
 }
@@ -319,6 +345,9 @@ func runTasksFinalize(args []string) (map[string]any, error) {
 		return nil, err
 	}
 	if err := validateTaskControlAcceptance(feature, payload); err != nil {
+		return nil, err
+	}
+	if err := taskControlValidateTestDesignBinding(root, feature, payload, false, true); err != nil {
 		return nil, err
 	}
 	payload["status"] = "ready"
@@ -347,6 +376,9 @@ func runTasksHandoff(args []string) (map[string]any, error) {
 	if err != nil {
 		return nil, err
 	}
+	if err := taskControlValidateTestDesignBinding(root, feature, payload, false, true); err != nil {
+		return nil, err
+	}
 	transition, _ := payload["transition"].(map[string]any)
 	if taskControlStatus(payload) != "ready" || strings.ToLower(strings.TrimSpace(anyString(transition["status"]))) != "ready" {
 		return nil, fmt.Errorf("task package must be finalized before creating a handoff")
@@ -357,14 +389,19 @@ func runTasksHandoff(args []string) (map[string]any, error) {
 		return nil, fmt.Errorf("read canonical task index: %w", err)
 	}
 	handoff := map[string]any{
-		"version":           1,
-		"status":            "ready",
-		"target":            target,
-		"task_index_ref":    "task-index.json",
-		"tasks_ref":         "tasks.md",
-		"task_index_sha256": taskControlSHA256(indexRaw),
-		"source_revision":   cloneJSONValue(payload["source_revision"]),
-		"task_count":        len(payload["tasks"].([]any)),
+		"version":                        1,
+		"status":                         "ready",
+		"target":                         target,
+		"task_index_ref":                 "task-index.json",
+		"tasks_ref":                      "tasks.md",
+		"task_index_sha256":              taskControlSHA256(indexRaw),
+		"source_revision":                cloneJSONValue(payload["source_revision"]),
+		"task_count":                     len(payload["tasks"].([]any)),
+		"test_design_handoff_ref":        cloneJSONValue(payload["test_design_handoff_ref"]),
+		"test_design_handoff_sha256":     cloneJSONValue(payload["test_design_handoff_sha256"]),
+		"test_design_source_fingerprint": cloneJSONValue(payload["test_design_source_fingerprint"]),
+		"test_design_state_revision":     cloneJSONValue(payload["test_design_state_revision"]),
+		"test_design_artifact_digests":   cloneJSONValue(payload["test_design_artifact_digests"]),
 	}
 	raw, err := marshalTaskControlJSON(handoff)
 	if err != nil {
@@ -438,6 +475,186 @@ func loadTaskControlTemplate(root string) (map[string]any, error) {
 		return nil, fmt.Errorf("task-index template is invalid or missing: %w", err)
 	}
 	return payload, nil
+}
+
+func taskControlValidateTestDesignBinding(root, feature string, payload map[string]any, bind, requireAll bool) error {
+	tasks, ok := payload["tasks"].([]any)
+	if !ok {
+		return fmt.Errorf("task-index tasks must be an array")
+	}
+	usedCases := map[string]bool{}
+	usedData := map[string]bool{}
+	for _, raw := range tasks {
+		task, ok := raw.(map[string]any)
+		if !ok {
+			return fmt.Errorf("task-index tasks must contain objects")
+		}
+		for _, ref := range anyStringSlice(task["test_case_refs"]) {
+			usedCases[ref] = true
+		}
+		for _, ref := range anyStringSlice(task["test_data_refs"]) {
+			usedData[ref] = true
+		}
+	}
+	hasTaskRefs := len(usedCases) > 0 || len(usedData) > 0
+	projectRoot, err := filepath.Abs(root)
+	if err != nil {
+		return fmt.Errorf("resolve project root: %w", err)
+	}
+	projectRoot, err = filepath.EvalSymlinks(projectRoot)
+	if err != nil {
+		return fmt.Errorf("resolve project root: %w", err)
+	}
+	featureAbs, err := filepath.Abs(feature)
+	if err != nil {
+		return fmt.Errorf("resolve feature directory: %w", err)
+	}
+	featureRel, err := filepath.Rel(projectRoot, featureAbs)
+	if err != nil || featureRel == ".." || strings.HasPrefix(featureRel, ".."+string(filepath.Separator)) {
+		return fmt.Errorf("feature directory must stay inside the project root")
+	}
+	if _, err := testDesignSecureProjectPath(projectRoot, filepath.ToSlash(featureRel)); err != nil {
+		return fmt.Errorf("feature directory is unsafe: %w", err)
+	}
+	service := testDesignService{projectRoot: projectRoot}
+	artifactRoot, _, _, err := service.resolveRoot(filepath.ToSlash(featureRel))
+	if err != nil {
+		return fmt.Errorf("resolve test-design root: %w", err)
+	}
+	handoffPath, err := service.containedArtifactPath(artifactRoot, "handoff-to-tasks.json")
+	if err != nil {
+		return fmt.Errorf("resolve test-design handoff: %w", err)
+	}
+	_, rootStatErr := os.Lstat(artifactRoot)
+	statePath, statePathErr := service.containedArtifactPath(artifactRoot, "test-state.json")
+	if statePathErr != nil {
+		return fmt.Errorf("resolve test-design state: %w", statePathErr)
+	}
+	_, stateStatErr := os.Lstat(statePath)
+	_, statErr := os.Lstat(handoffPath)
+	if os.IsNotExist(statErr) {
+		if rootStatErr == nil || stateStatErr == nil {
+			return fmt.Errorf("test-design workspace exists but has no fresh handed-off bundle")
+		}
+		if rootStatErr != nil && !os.IsNotExist(rootStatErr) {
+			return fmt.Errorf("inspect test-design root: %w", rootStatErr)
+		}
+		if stateStatErr != nil && !os.IsNotExist(stateStatErr) {
+			return fmt.Errorf("inspect test-design state: %w", stateStatErr)
+		}
+		if hasTaskRefs {
+			return fmt.Errorf("task test_case_refs/test_data_refs require a current test-design/handoff-to-tasks.json")
+		}
+		if !bind && !taskControlTestDesignBindingEmpty(payload) {
+			return fmt.Errorf("task-index test-design binding is stale because its handoff is missing")
+		}
+		if bind {
+			taskControlClearTestDesignBinding(payload)
+		}
+		return nil
+	}
+	if statErr != nil {
+		return fmt.Errorf("inspect test-design handoff: %w", statErr)
+	}
+	binding, err := service.verifyPublishedHandoff(artifactRoot)
+	if err != nil {
+		return fmt.Errorf("test-design handoff is stale or invalid: %w", err)
+	}
+	allowedCases := map[string]bool{}
+	for _, ref := range binding.TestCaseRefs {
+		allowedCases[ref] = true
+	}
+	allowedData := map[string]bool{}
+	for _, ref := range binding.TestDataRefs {
+		allowedData[ref] = true
+	}
+	for ref := range usedCases {
+		if !allowedCases[ref] {
+			return fmt.Errorf("task test_case_ref %s is not a member of the test-design handoff", ref)
+		}
+	}
+	for ref := range usedData {
+		if !allowedData[ref] {
+			return fmt.Errorf("task test_data_ref %s is not a member of the test-design handoff", ref)
+		}
+	}
+	if requireAll {
+		for _, ref := range binding.TestCaseRefs {
+			if !usedCases[ref] {
+				return fmt.Errorf("test-design case %s is not consumed by any task", ref)
+			}
+		}
+		for _, ref := range binding.TestDataRefs {
+			if !usedData[ref] {
+				return fmt.Errorf("test-design data %s is not consumed by any task", ref)
+			}
+		}
+	}
+	if bind {
+		taskControlSetTestDesignBinding(payload, binding)
+		return nil
+	}
+	if err := taskControlCompareTestDesignBinding(payload, binding); err != nil {
+		return err
+	}
+	return nil
+}
+
+func taskControlTestDesignBindingEmpty(payload map[string]any) bool {
+	for _, key := range []string{"test_design_handoff_ref", "test_design_handoff_sha256", "test_design_source_fingerprint"} {
+		if strings.TrimSpace(anyString(payload[key])) != "" {
+			return false
+		}
+	}
+	if intFromAny(payload["test_design_state_revision"]) != 0 {
+		return false
+	}
+	if raw, exists := payload["test_design_artifact_digests"]; exists && raw != nil {
+		values, ok := raw.(map[string]any)
+		if !ok || len(values) > 0 {
+			return false
+		}
+	}
+	return true
+}
+
+func taskControlClearTestDesignBinding(payload map[string]any) {
+	payload["test_design_handoff_ref"] = nil
+	payload["test_design_handoff_sha256"] = nil
+	payload["test_design_source_fingerprint"] = nil
+	payload["test_design_state_revision"] = nil
+	payload["test_design_artifact_digests"] = map[string]any{}
+}
+
+func taskControlSetTestDesignBinding(payload map[string]any, binding testDesignPublishedHandoff) {
+	payload["test_design_handoff_ref"] = binding.Ref
+	payload["test_design_handoff_sha256"] = binding.SHA256
+	payload["test_design_source_fingerprint"] = binding.SourceFingerprint
+	payload["test_design_state_revision"] = binding.StateRevision
+	digests := map[string]any{}
+	for key, value := range binding.ArtifactDigests {
+		digests[key] = value
+	}
+	payload["test_design_artifact_digests"] = digests
+}
+
+func taskControlCompareTestDesignBinding(payload map[string]any, binding testDesignPublishedHandoff) error {
+	if strings.TrimSpace(anyString(payload["test_design_handoff_ref"])) != binding.Ref ||
+		strings.TrimSpace(anyString(payload["test_design_handoff_sha256"])) != binding.SHA256 ||
+		strings.TrimSpace(anyString(payload["test_design_source_fingerprint"])) != binding.SourceFingerprint ||
+		intFromAny(payload["test_design_state_revision"]) != binding.StateRevision {
+		return fmt.Errorf("task-index test-design binding is stale; rebuild tasks against the current handoff")
+	}
+	actual, ok := payload["test_design_artifact_digests"].(map[string]any)
+	if !ok || len(actual) != len(binding.ArtifactDigests) {
+		return fmt.Errorf("task-index test-design artifact digests are missing or stale")
+	}
+	for key, expected := range binding.ArtifactDigests {
+		if strings.TrimSpace(anyString(actual[key])) != expected {
+			return fmt.Errorf("task-index test-design artifact digest %s is stale", key)
+		}
+	}
+	return nil
 }
 
 func expandTaskControlUIContracts(root string, tasks []any) ([]any, error) {

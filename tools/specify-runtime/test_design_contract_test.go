@@ -73,6 +73,74 @@ func TestTestDesignArtifactsAreCanonicalPatchableAndRejectWholeFileSubmit(t *tes
 	}
 }
 
+func TestTaskControlTestDesignBindingRejectsMalformedDigestContainer(t *testing.T) {
+	payload := map[string]any{
+		"test_design_handoff_ref":        nil,
+		"test_design_handoff_sha256":     nil,
+		"test_design_source_fingerprint": nil,
+		"test_design_state_revision":     nil,
+		"test_design_artifact_digests":   []any{},
+	}
+	if taskControlTestDesignBindingEmpty(payload) {
+		t.Fatal("malformed array-valued test-design artifact digests were treated as an empty optional binding")
+	}
+}
+
+func TestTestDesignPublishedHandoffRequiresExactAcceptedAuditBinding(t *testing.T) {
+	projectRoot := t.TempDir()
+	featureRel := filepath.ToSlash(filepath.Join("specs", "001-test-design"))
+	featureDir := filepath.Join(projectRoot, filepath.FromSlash(featureRel))
+	if err := os.MkdirAll(featureDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := seedTestDesignScaffoldTemplates(projectRoot); err != nil {
+		t.Fatal(err)
+	}
+	withTestDesignCWD(t, projectRoot)
+	publishValidTestDesignHandoff(t, projectRoot, featureRel)
+	artifactRoot := filepath.Join(featureDir, "test-design")
+	state, err := testDesignReadState(artifactRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	manifest, err := testDesignReadManifest(artifactRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wrongState := state
+	wrongLaneID := "AUDIT-999"
+	wrongState.Audit.LaneID = &wrongLaneID
+	if _, err := testDesignValidateStateAuditBinding(wrongState, manifest); err == nil {
+		t.Fatal("mismatched state audit lane_id was accepted")
+	}
+
+	manifestPath := filepath.Join(artifactRoot, "lane-manifest.json")
+	originalManifest, err := os.ReadFile(manifestPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	retained := make([]testDesignLane, 0, len(manifest.Lanes))
+	for _, lane := range manifest.Lanes {
+		if lane.Kind != "audit" {
+			retained = append(retained, lane)
+		}
+	}
+	manifest.Lanes = retained
+	mutatedManifest, err := json.MarshalIndent(manifest, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(manifestPath, append(mutatedManifest, '\n'), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := (testDesignService{projectRoot: projectRoot}).verifyPublishedHandoff(artifactRoot); err == nil {
+		t.Fatal("published handoff verified after its accepted audit lane was removed")
+	}
+	if err := os.WriteFile(manifestPath, originalManifest, 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestTestDesignTasksBuildPreservesRefsAndRendersThemInTasksMarkdown(t *testing.T) {
 	projectRoot := t.TempDir()
 	featureRel := filepath.ToSlash(filepath.Join("specs", "001-test-design"))
@@ -82,6 +150,9 @@ func TestTestDesignTasksBuildPreservesRefsAndRendersThemInTasksMarkdown(t *testi
 		t.Fatal(err)
 	}
 	if err := os.MkdirAll(templatesDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := seedTestDesignScaffoldTemplates(projectRoot); err != nil {
 		t.Fatal(err)
 	}
 	if err := writeTestDesignJSONFixture(filepath.Join(templatesDir, "task-index-template.json"), map[string]any{
@@ -96,6 +167,9 @@ func TestTestDesignTasksBuildPreservesRefsAndRendersThemInTasksMarkdown(t *testi
 		},
 		"tasks": []any{}, "parallel_batches": []any{}, "join_points": []any{},
 		"validation": []any{}, "transition": map[string]any{},
+		"test_design_handoff_ref": nil, "test_design_handoff_sha256": nil,
+		"test_design_source_fingerprint": nil, "test_design_state_revision": nil,
+		"test_design_artifact_digests": map[string]any{},
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -112,9 +186,14 @@ func TestTestDesignTasksBuildPreservesRefsAndRendersThemInTasksMarkdown(t *testi
 		"validation_policy": map[string]any{}, "task_checks": []any{}, "required_validation": []any{},
 		"required_consumer_evidence": []any{}, "test_case_refs": []any{}, "test_data_refs": []any{},
 		"done_condition": []any{}, "stop_and_reopen_conditions": []any{}, "recovery": nil,
+		"test_design_handoff_ref": nil, "test_design_handoff_sha256": nil,
+		"test_design_source_fingerprint": nil, "test_design_state_revision": nil,
+		"test_design_artifact_digests": map[string]any{},
 	}); err != nil {
 		t.Fatal(err)
 	}
+	withTestDesignCWD(t, projectRoot)
+	publishValidTestDesignHandoff(t, projectRoot, featureRel)
 
 	definitionRaw, err := json.Marshal(map[string]any{
 		"title":           "Test design consumption",
@@ -129,11 +208,10 @@ func TestTestDesignTasksBuildPreservesRefsAndRendersThemInTasksMarkdown(t *testi
 				"acceptance":           []any{"Publish flow matches the authored test design"},
 				"verification":         []any{"pytest tests/unit/test_publish.py -q"},
 				"test_case_refs": []any{
-					"test-design-handoff.json#/test_cases/TC-001",
-					"test-design-handoff.json#/test_cases/TC-002",
+					"test-catalog.json#/cases/TC-001",
 				},
 				"test_data_refs": []any{
-					"test-design-handoff.json#/test_data/TD-001",
+					"test-data-manifest.json#/datasets/TD-001",
 				},
 			},
 		},
@@ -141,15 +219,6 @@ func TestTestDesignTasksBuildPreservesRefsAndRendersThemInTasksMarkdown(t *testi
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	oldCWD, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Chdir(projectRoot); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = os.Chdir(oldCWD) })
 
 	var stdout, stderr bytes.Buffer
 	exit := Run([]string{
@@ -166,11 +235,10 @@ func TestTestDesignTasksBuildPreservesRefsAndRendersThemInTasksMarkdown(t *testi
 	}
 	task, _ := tasks[0].(map[string]any)
 	assertStringListEquals(t, task["test_case_refs"], []string{
-		"test-design-handoff.json#/test_cases/TC-001",
-		"test-design-handoff.json#/test_cases/TC-002",
+		"test-catalog.json#/cases/TC-001",
 	})
 	assertStringListEquals(t, task["test_data_refs"], []string{
-		"test-design-handoff.json#/test_data/TD-001",
+		"test-data-manifest.json#/datasets/TD-001",
 	})
 
 	rendered, err := os.ReadFile(filepath.Join(featureDir, "tasks.md"))
@@ -179,8 +247,8 @@ func TestTestDesignTasksBuildPreservesRefsAndRendersThemInTasksMarkdown(t *testi
 	}
 	text := string(rendered)
 	for _, want := range []string{
-		"| test_case_refs | `test-design-handoff.json#/test_cases/TC-001`, `test-design-handoff.json#/test_cases/TC-002` |",
-		"| test_data_refs | `test-design-handoff.json#/test_data/TD-001` |",
+		"| test_case_refs | `test-catalog.json#/cases/TC-001` |",
+		"| test_data_refs | `test-data-manifest.json#/datasets/TD-001` |",
 	} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("tasks.md missing %q:\n%s", want, text)
@@ -202,12 +270,53 @@ func TestTestDesignTasksBuildPreservesRefsAndRendersThemInTasksMarkdown(t *testi
 
 	packet := readTestDesignJSONMap(t, filepath.Join(featureDir, "implementation-review", "packets", "T001.json"))
 	assertStringListEquals(t, packet["test_case_refs"], []string{
-		"test-design-handoff.json#/test_cases/TC-001",
-		"test-design-handoff.json#/test_cases/TC-002",
+		"test-catalog.json#/cases/TC-001",
 	})
 	assertStringListEquals(t, packet["test_data_refs"], []string{
-		"test-design-handoff.json#/test_data/TD-001",
+		"test-data-manifest.json#/datasets/TD-001",
 	})
+	if packet["test_design_handoff_ref"] == nil || packet["test_design_handoff_sha256"] == nil || packet["test_design_source_fingerprint"] == nil || packet["test_design_state_revision"] == nil {
+		t.Fatalf("compiled packet is missing test-design binding: %#v", packet)
+	}
+	if err := os.WriteFile(filepath.Join(projectRoot, "src", "approval.go"), []byte("package approval\n// stale after task handoff\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	stdout.Reset()
+	stderr.Reset()
+	exit = Run([]string{
+		"implement", "packet-compile", "--feature-dir", featureRel, "--task-id", "T001", "--format", "json",
+	}, &stdout, &stderr, "test")
+	if exit == 0 || !strings.Contains(stdout.String()+stderr.String(), "test-design") {
+		t.Fatalf("stale test-design packet compile exit=%d stderr=%q stdout=%q", exit, stderr.String(), stdout.String())
+	}
+}
+
+func TestTestDesignTasksBuildFailsClosedWhenWorkspaceExistsWithoutHandoff(t *testing.T) {
+	projectRoot := t.TempDir()
+	featureRel := filepath.ToSlash(filepath.Join("specs", "001-test-design"))
+	featureDir := filepath.Join(projectRoot, filepath.FromSlash(featureRel))
+	templatesDir := filepath.Join(projectRoot, ".specify", "templates")
+	if err := os.MkdirAll(filepath.Join(featureDir, "test-design"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(templatesDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeTestDesignJSONFixture(filepath.Join(featureDir, "test-design", "test-state.json"), map[string]any{"status": "active"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeTestDesignJSONFixture(filepath.Join(templatesDir, "task-index-template.json"), map[string]any{
+		"version": 2, "status": "draft", "tasks": []any{}, "transition": map[string]any{},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	withTestDesignCWD(t, projectRoot)
+	definition, _ := json.Marshal(map[string]any{"tasks": []any{}})
+	var stdout, stderr bytes.Buffer
+	exit := Run([]string{"tasks", "build", "--feature-dir", featureRel, "--definition-json", string(definition), "--format", "json"}, &stdout, &stderr, "test")
+	if exit == 0 || !strings.Contains(stdout.String()+stderr.String(), "no fresh handed-off bundle") {
+		t.Fatalf("active workspace without handoff exit=%d stderr=%q stdout=%q", exit, stderr.String(), stdout.String())
+	}
 }
 
 func seedTestDesignScaffoldTemplates(projectRoot string) error {
@@ -218,7 +327,7 @@ func seedTestDesignScaffoldTemplates(projectRoot string) error {
 	templates := map[string]map[string]any{
 		"test-universe.json": {
 			"version": 1, "artifact": "test-universe", "feature_ref": "features/001-test-design",
-			"capabilities": []any{}, "scenarios": []any{}, "test_cases": []any{},
+			"obligations": []any{}, "capabilities": []any{}, "scenarios": []any{}, "test_cases": []any{},
 		},
 		"test-catalog.json": {
 			"version": 1, "artifact": "test-catalog", "cases": []any{},
