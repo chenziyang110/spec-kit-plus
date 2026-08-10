@@ -1185,7 +1185,7 @@ func buildQuickStatusExecutionSection(doc *quickConfirmationDoc) string {
 		b.WriteString("  status: none\n")
 		b.WriteString("  reason: \"\"\n")
 		b.WriteString("  # Illegal: docs-only, few files, serial order, save time.\n")
-		b.WriteString("  # Legal: spawn_failed / tool_missing after real attempts; use quick allow-inline.\n")
+		b.WriteString("  # Legal: spawn_failed:<detail> / tool_missing:<detail> / subagent-blocked:<detail> after real attempts; use quick allow-inline.\n")
 		b.WriteString("  attempted_shape: \"\"\n")
 		b.WriteString("  chosen_shape: \"\"\n")
 	}

@@ -130,6 +130,7 @@ def run_ui_quality_gate_rules(
 
     Current rules:
     - evidence semantic validity (missing rationale / inferred without source)
+    - state coverage requires required_states and observed_states as a pair
     - required state coverage when both required and observed lists are provided
 
     Future rules (typography, spacing, responsive, a11y, motion) may append
@@ -171,7 +172,18 @@ def run_ui_quality_gate_rules(
                 rule_id="evidence.semantic",
             )
 
-    if required_states is not None and observed_states is not None:
+    has_required = required_states is not None
+    has_observed = observed_states is not None
+
+    if has_required != has_observed:
+        _add(
+            "consistency",
+            "error",
+            "required_states and observed_states must be provided together",
+            path="$.states",
+            rule_id="states.input_pair",
+        )
+    elif has_required and has_observed:
         required = {item.strip() for item in required_states if isinstance(item, str)}
         observed = {item.strip() for item in observed_states if isinstance(item, str)}
         missing = sorted(state for state in required if state and state not in observed)
@@ -185,7 +197,7 @@ def run_ui_quality_gate_rules(
             )
 
     status = "pass" if not any(issue.severity == "error" for issue in issues) else "fail"
-    if not issues and evidence is None and required_states is None:
+    if not issues and evidence is None and not has_required and not has_observed:
         status = "not-run"
 
     return UiQualityGateReport(

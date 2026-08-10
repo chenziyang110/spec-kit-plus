@@ -123,12 +123,12 @@ jobs:
           if [ -z "$PREVIOUS_TAG" ]; then
             COMMIT_COUNT=$(git rev-list --count HEAD)
             if [ "$COMMIT_COUNT" -gt 20 ]; then
-              COMMITS=$(git log --oneline --pretty=format:"- %s" --no-merges HEAD~20..HEAD)
+              COMMITS=$(bash scripts/release-note-commits.sh HEAD~20..HEAD)
             else
-              COMMITS=$(git log --oneline --pretty=format:"- %s" --no-merges)
+              COMMITS=$(bash scripts/release-note-commits.sh HEAD)
             fi
           else
-            COMMITS=$(git log --oneline --pretty=format:"- %s" --no-merges "$PREVIOUS_TAG"..HEAD)
+            COMMITS=$(bash scripts/release-note-commits.sh "$PREVIOUS_TAG"..HEAD)
           fi
 
           cat > release_notes.md << NOTES_EOF

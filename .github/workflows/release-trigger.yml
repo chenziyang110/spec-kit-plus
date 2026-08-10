@@ -95,7 +95,7 @@ jobs:
             echo "Generating changelog from commits..."
             if [[ -n "$PREVIOUS_TAG" ]]; then
               echo "Changes since $PREVIOUS_TAG"
-              COMMITS=$(git log --oneline "$PREVIOUS_TAG"..HEAD --no-merges --pretty=format:"- %s" 2>/dev/null || echo "- Initial release")
+              COMMITS=$(bash scripts/release-note-commits.sh "$PREVIOUS_TAG"..HEAD 2>/dev/null || echo "- Initial release")
             else
               echo "No previous tag found - this is the first release"
               COMMITS="- Initial release"
