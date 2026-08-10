@@ -225,6 +225,21 @@ def test_scenario_can_trace_multiple_layered_cases_and_coverage_rows() -> None:
     )
 
 
+def test_bundle_allows_a_case_with_no_fabricated_test_data_dependency() -> None:
+    universe, catalog, data_manifest, coverage = _bundle()
+    universe["test_cases"][0]["data_refs"] = []
+    catalog["cases"][0]["test_data_refs"] = []
+    data_manifest["datasets"] = []
+    coverage["rows"][0]["test_data_refs"] = []
+
+    validate_test_intelligence_bundle(
+        universe=universe,
+        catalog=catalog,
+        data_manifest=data_manifest,
+        coverage_matrix=coverage,
+    )
+
+
 def test_catalog_markdown_is_deterministic_and_declares_json_authority() -> None:
     _, catalog, _, _ = _bundle()
 
