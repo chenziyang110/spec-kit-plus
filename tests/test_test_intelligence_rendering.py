@@ -9,6 +9,7 @@ import specify_cli.test_intelligence as test_intelligence
 from specify_cli.test_intelligence import (
     TestIntelligenceValidationError,
     render_test_catalog_markdown,
+    render_test_universe_markdown,
     validate_test_intelligence_bundle,
 )
 
@@ -260,6 +261,21 @@ def test_catalog_markdown_is_deterministic_and_declares_json_authority() -> None
         "2. Approve the order."
     )
     assert "- The order becomes approved exactly once." in first
+
+
+def test_universe_markdown_renders_capability_scenario_and_case_details() -> None:
+    universe, _, _, _ = _bundle()
+
+    rendered = render_test_universe_markdown(universe)
+
+    assert "## Capabilities" in rendered
+    assert "### CAP-001 — Evidence-backed order approval" in rendered
+    assert "## Scenarios" in rendered
+    assert "### SCN-001 — Manager approves a queued order" in rendered
+    assert "## Test Cases" in rendered
+    assert "### TC-001 — Approval succeeds from the real entrypoint" in rendered
+    assert "- Kind: `review`" in rendered
+    assert "`COV-001`" in rendered
 
 
 def test_schema_candidates_include_the_wheel_core_pack_location() -> None:
