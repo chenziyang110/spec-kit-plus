@@ -97,6 +97,10 @@ UIFidelityLevel = Literal["none", "approximate", "high", "inspiration"]
 
 @dataclass(slots=True)
 class UIContract:
+    design_change_id: str = ""
+    design_change_ref: str = ""
+    design_change_sha256: str = ""
+    design_contract_ref: str = ""
     ui_work_type: str = ""
     surface_type: str = ""
     platforms: list[str] = field(default_factory=list)

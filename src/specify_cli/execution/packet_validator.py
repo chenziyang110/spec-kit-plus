@@ -11,6 +11,7 @@ from .packet_schema import UI_CONTRACT_FIELDS, UIContract, WorkerTaskPacket
 MP_ID_RE = re.compile(r"^MP-\d{3}$")
 DESIGN_DECISION_ID_RE = re.compile(r"^DS-[A-Z]+-\d{3}$")
 DESIGN_HANDOFF_ID_RE = re.compile(r"^DH-[A-Z0-9]+(?:-[A-Z0-9]+)+$")
+DESIGN_CHANGE_ID_RE = re.compile(r"^UD-\d{4}$")
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 APPROVED_PREVIEW_REF_RE = re.compile(
     r"round-\d+\.html#direction-[a-z0-9-]+$", re.IGNORECASE
@@ -165,6 +166,65 @@ def validate_ui_contract(contract: UIContract) -> None:
         raise PacketValidationError(
             "DP1",
             "active UI contract fidelity_level must be approximate, high, or inspiration",
+        )
+    design_change_values = (
+        contract.design_change_id.strip(),
+        contract.design_change_ref.strip(),
+        contract.design_change_sha256.strip(),
+        contract.design_contract_ref.strip(),
+    )
+    has_design_change_binding = any(design_change_values)
+    if has_design_change_binding and not all(design_change_values):
+        raise PacketValidationError(
+            "DP1",
+            "UI contract design change ID, ref, SHA-256, and machine contract ref must be present together",
+        )
+    if has_design_change_binding:
+        if not DESIGN_CHANGE_ID_RE.fullmatch(contract.design_change_id):
+            raise PacketValidationError(
+                "DP1", "UI contract design_change_id must be a canonical UD-#### ID"
+            )
+        expected_workspace = f".specify/design/changes/{contract.design_change_id}"
+        expected_design_ref = f"{expected_workspace}/DESIGN.md"
+        expected_contract_ref = f"{expected_workspace}/design-contract.json"
+        if contract.design_change_ref != expected_design_ref:
+            raise PacketValidationError(
+                "DP1",
+                "UI contract design_change_ref must match its UD-* workspace",
+            )
+        if contract.design_contract_ref != expected_contract_ref:
+            raise PacketValidationError(
+                "DP1",
+                "UI contract design_contract_ref must match its UD-* workspace",
+            )
+        if not SHA256_RE.fullmatch(contract.design_change_sha256):
+            raise PacketValidationError(
+                "DP1", "UI contract design_change_sha256 must be a SHA-256 digest"
+            )
+        for required_source in (expected_design_ref, expected_contract_ref):
+            if required_source not in contract.design_sources:
+                raise PacketValidationError(
+                    "DP1",
+                    f"UI contract design_sources must include {required_source}",
+                )
+        for bound_ref in (
+            contract.approved_visual_ref,
+            contract.approved_handoff_ref,
+        ):
+            if bound_ref.startswith(".specify/design/changes/") and not bound_ref.startswith(
+                f"{expected_workspace}/"
+            ):
+                raise PacketValidationError(
+                    "DP1",
+                    "UI contract change-local approval refs must match design_change_id",
+                )
+    elif any(
+        source.startswith(".specify/design/changes/")
+        for source in contract.design_sources
+    ):
+        raise PacketValidationError(
+            "DP1",
+            "UI contract change-local design_sources require an exact design change binding",
         )
     if contract.ui_work_type not in UI_WORK_TYPES:
         raise PacketValidationError("DP1", "UI contract requires a valid ui_work_type")

@@ -1,9 +1,9 @@
 # UI Brief: {{feature_name}}
 
 - design_change_id: UD-____
-- design_ref: .specify/design/changes/<UD-ID>/DESIGN.md
+- design_change_ref: .specify/design/changes/<UD-ID>/DESIGN.md
 - design_contract_ref: .specify/design/changes/<UD-ID>/design-contract.json
-- registered_contract_sha256:
+- design_change_sha256:
 - design_readiness: approved | narrow-existing-pattern-exception | blocked
 - ui_work_type: existing-pattern | feature-extension | reference-implementation
 - surface_type: landing | product-workspace | hybrid | existing-pattern-maintenance

@@ -68,6 +68,10 @@
   },
   "ui_design_contract": {
     "ui_applicable": false,
+    "design_change_id": null,
+    "design_change_ref": null,
+    "design_change_sha256": null,
+    "design_contract_ref": null,
     "ui_work_type": null,
     "surface_type": null,
     "platforms": [],

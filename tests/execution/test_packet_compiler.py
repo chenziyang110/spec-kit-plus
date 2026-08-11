@@ -305,7 +305,7 @@ def test_compile_worker_task_packet_prefers_structured_task_index_ui_contract(
             runtime_evidence="pass",
             visual_comparison="passed",
             fidelity_status="passed",
-            approved_visual_ref="DESIGN.md#settings-direction",
+            approved_visual_ref=".specify/design/changes/UD-0042/previews/round-01.html#settings-direction",
             comparison_report_ref="artifacts/ui/settings-comparison.json",
             comparison_report_sha256="c" * 64,
             implementation_capture_refs=["artifacts/ui/settings.png"],

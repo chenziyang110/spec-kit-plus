@@ -122,7 +122,7 @@ description: "Task list template for feature implementation"
 ### Scope Boundaries
 | Field | Value |
 | --- | --- |
-| read_scope | [DESIGN.md, FEATURE_DIR/ui-brief.md] |
+| read_scope | [.specify/design/changes/UD-####/DESIGN.md, .specify/design/changes/UD-####/design-contract.json, FEATURE_DIR/ui-brief.md] |
 | write_scope | [task-owned implementation paths] |
 
 ### UI Implementation Contract
@@ -130,6 +130,7 @@ description: "Task list template for feature implementation"
 | --- | --- |
 | ui_contract_ref | task-index.json#/tasks/T###/ui_contract |
 | schema_ref | .specify/templates/task-packet-template.json#/ui_contract |
+| design_change_binding | [design_change_id; design_change_ref; design_change_sha256; design_contract_ref] |
 | direction_core | [ui_work_type; surface_type; platforms; subject; audience; single_job] |
 | approved_direction | [visual_thesis; content_thesis; interaction_thesis; signature_element; approved_visual_ref; approved_preview_sha256; approved_manifest_sha256; approved_handoff_ref; approved_handoff_sha256] |
 | task_inputs | [design_sources; design_decision_ids; handoff_contract_ids; reference_intents; real_content_plan; image_plan] |
@@ -169,7 +170,7 @@ requirements when the implemented surface must be wired into a real entry point.
 
 | Task ID | Consumes | Produces | Review Inputs |
 | --- | --- | --- | --- |
-| T### | [upstream component, route, schema, or artifact] | [component, route, schema, or artifact] | [plan.md, DESIGN.md, quickstart.md] |
+| T### | [upstream component, route, schema, or artifact] | [component, route, schema, or artifact] | [plan.md, pinned UD-* DESIGN.md, quickstart.md] |
 
 ## Review-Risk Notes
 

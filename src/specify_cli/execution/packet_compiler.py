@@ -335,6 +335,10 @@ def _ui_contract_from_task_entry(
             + ", ".join(sorted(missing_fields)),
         )
     return UIContract(
+        design_change_id=_mapping_string(payload, "design_change_id"),
+        design_change_ref=_mapping_string(payload, "design_change_ref"),
+        design_change_sha256=_mapping_string(payload, "design_change_sha256"),
+        design_contract_ref=_mapping_string(payload, "design_contract_ref"),
         ui_work_type=_mapping_string(payload, "ui_work_type"),
         surface_type=_mapping_string(payload, "surface_type"),
         platforms=_unique(_string_list(payload.get("platforms"))),

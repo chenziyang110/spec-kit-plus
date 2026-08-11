@@ -77,7 +77,8 @@ UI tasks additionally query the plan `ui_design_contract` and feature
 `ui-brief.md` through targeted `specify-runtime artifact show` calls. Each task owns a bounded surface/state outcome and carries
 task-specific `ui_contract`, fidelity level, design inputs, required states,
 real entry points, current direction fields, task-relevant reference/content/image
-records, immutable handoff ref/digest, task-relevant `DH-*` contract IDs,
+records, exact `design_change_id`/`design_change_ref`/`design_change_sha256`/
+`design_contract_ref`, immutable handoff ref/digest, task-relevant `DH-*` contract IDs,
 structure/visual/runtime evidence, and comparison or human review. Use
 `assets/ui-task.md` for the project-facing detail and
 `assets/ui-task-index-entry.json` as the semantic field catalog. Submit only
@@ -87,5 +88,7 @@ without an external fidelity target still sets `ui_contract.fidelity_level` to
 `approximate` against the approved design/brief; use `inspiration` only when it
 is the approved reference relationship. Missing UI fields are a graph defect, not
 `not_applicable`.
+Never resolve “latest” from `.specify/design/index.json`; copy the exact
+registered binding selected by the feature `ui-brief.md`.
 Task contracts may select a plan subset of `DH-*` IDs, and all UI tasks together
 must cover the plan set. They do not rewrite the selected handoff rows.

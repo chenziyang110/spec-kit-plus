@@ -3043,6 +3043,12 @@ UI_APPROVAL_DIGEST_FIELDS = (
     "approved_handoff_sha256",
 )
 UI_APPROVAL_REFERENCE_FIELDS = ("approved_handoff_ref",)
+UI_DESIGN_CHANGE_BINDING_FIELDS = (
+    "design_change_id",
+    "design_change_ref",
+    "design_change_sha256",
+    "design_contract_ref",
+)
 UI_SPEC_PLAN_CONTINUITY_LIST_FIELDS = (
     "entry_points",
     "required_states",
@@ -3077,6 +3083,7 @@ UI_CONTRACT_EVIDENCE = {
 }
 UI_DESIGN_DECISION_ID_RE = re.compile(r"^DS-[A-Z]+-\d{3}$")
 UI_DESIGN_HANDOFF_ID_RE = re.compile(r"^DH-[A-Z0-9]+(?:-[A-Z0-9]+)+$")
+UI_DESIGN_CHANGE_ID_RE = re.compile(r"^UD-\d{4}$")
 UI_SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 UI_APPROVED_PREVIEW_REF_RE = re.compile(
     r"round-\d+\.html#direction-[a-z0-9-]+$", re.IGNORECASE
@@ -3085,6 +3092,9 @@ UI_APPROVED_PREVIEW_REF_RE = re.compile(
 
 def _canonical_ui_continuity_value(field: str, value: Any) -> Any:
     """Normalize order-insensitive UI collections for continuity checks."""
+
+    if field in UI_DESIGN_CHANGE_BINDING_FIELDS:
+        return str(value or "").strip()
 
     if (
         field not in UI_CONTINUITY_LIST_FIELDS
@@ -3152,6 +3162,44 @@ def _validate_ui_contract_shape(contract: dict[str, Any], label: str) -> list[st
     for field in UI_CONTRACT_OBJECT_FIELDS:
         if not isinstance(contract.get(field), dict):
             errors.append(f"{label}.{field} must be an object")
+    binding_values = tuple(
+        str(contract.get(field) or "").strip()
+        for field in UI_DESIGN_CHANGE_BINDING_FIELDS
+    )
+    if any(binding_values) and not all(binding_values):
+        errors.append(
+            f"{label} design change ID, ref, SHA-256, and machine contract ref must be present together"
+        )
+    if all(binding_values):
+        change_id, design_ref, design_sha256, contract_ref = binding_values
+        expected_workspace = f".specify/design/changes/{change_id}"
+        expected_design_ref = f"{expected_workspace}/DESIGN.md"
+        expected_contract_ref = f"{expected_workspace}/design-contract.json"
+        if not UI_DESIGN_CHANGE_ID_RE.fullmatch(change_id):
+            errors.append(f"{label}.design_change_id must be a canonical UD-#### ID")
+        if design_ref != expected_design_ref:
+            errors.append(
+                f"{label}.design_change_ref must match its UD-* workspace"
+            )
+        if contract_ref != expected_contract_ref:
+            errors.append(
+                f"{label}.design_contract_ref must match its UD-* workspace"
+            )
+        if not UI_SHA256_RE.fullmatch(design_sha256):
+            errors.append(f"{label}.design_change_sha256 must be a SHA-256 digest")
+        source_values: list[Any] | None = None
+        for source_field in ("design_sources", "source_refs", "design_source_refs"):
+            candidate = contract.get(source_field)
+            if isinstance(candidate, list):
+                source_values = candidate
+                break
+        if source_values is not None:
+            normalized_sources = {str(item).strip() for item in source_values}
+            for required_ref in (expected_design_ref, expected_contract_ref):
+                if required_ref not in normalized_sources:
+                    errors.append(
+                        f"{label} design sources must include {required_ref}"
+                    )
     approved_ref = str(contract.get("approved_visual_ref") or "").strip()
     for field in UI_APPROVAL_DIGEST_FIELDS:
         digest = str(contract.get(field) or "").strip()
@@ -3580,6 +3628,7 @@ def _validate_plan_ui_contract(feature_dir: Path) -> list[str]:
             "ui_work_type",
             "surface_type",
             "fidelity_mode",
+            *UI_DESIGN_CHANGE_BINDING_FIELDS,
             *UI_CONTRACT_SCALAR_FIELDS,
             *UI_CONTRACT_LIST_FIELDS,
             *UI_CONTRACT_OBJECT_FIELDS,
@@ -3689,6 +3738,7 @@ def _validate_tasks_ui_contract(feature_dir: Path) -> list[str]:
             for field in (
                 "ui_work_type",
                 "surface_type",
+                *UI_DESIGN_CHANGE_BINDING_FIELDS,
                 *UI_CONTRACT_SCALAR_FIELDS,
                 *UI_CONTRACT_OBJECT_FIELDS,
                 *UI_APPROVAL_DIGEST_FIELDS,

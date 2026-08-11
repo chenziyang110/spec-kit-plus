@@ -19,6 +19,9 @@ Preserved Contract: leader-direct tasks stay compact; delegated packets carry ob
 - UI-bearing tasks use the complete current `ui_contract` as their only UI
   execution contract. Carry the direction
   core without reinterpreting it, only the task-relevant reference/content/image
-  records, and all platform-neutral evidence kinds. The compiler adds verified
+  records, and all platform-neutral evidence kinds. When a registered design
+  change applies, include its exact `design_change_id`, `design_change_ref`,
+  `design_change_sha256`, and `design_contract_ref`; never resolve “latest” or
+  replace it with a root `DESIGN.md`. The compiler adds verified
   plan cognition routes as compact `context_nav` instead of raw graph output.
 - If live evidence invalidates a predicted path or dependency, repair the task graph or stop/reopen; do not hide drift by expanding worker scope silently.

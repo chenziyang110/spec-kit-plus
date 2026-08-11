@@ -8,7 +8,7 @@ the selected design-change identity, feature-relevant rows, and feature delta.
 - Design change ID: UD-____
 - Registered design ref: .specify/design/changes/<UD-ID>/DESIGN.md
 - Machine contract ref: .specify/design/changes/<UD-ID>/design-contract.json
-- Registered contract SHA-256:
+- Registered design-change SHA-256:
 - Design readiness: approved | narrow-existing-pattern-exception | blocked
 - Approved visual ref: .specify/design/changes/<UD-ID>/previews/round-NN.html#direction-id
 - Approved direction ID and review round:
@@ -72,8 +72,9 @@ adoption; it does not authorize reinterpretation.
 
 - Required design sources: exact change ref, machine contract, visual ref,
   handoff ref, this brief, and original references
-- Required packet fields: design change ID/ref/digest, selected `DS-*`/`DH-*`
-  rows, entry points, states, Must Preserve / May Adapt / Must Not, evidence
+- Required packet fields: `design_change_id`, `design_change_ref`,
+  `design_change_sha256`, `design_contract_ref`, selected `DS-*`/`DH-*` rows,
+  entry points, states, Must Preserve / May Adapt / Must Not, evidence
 - Convergence loop: run real entry point -> capture -> query the exact pinned
   change and this brief -> compare -> repair -> recapture
 - Done condition: behavior checks and visual/interaction acceptance both pass

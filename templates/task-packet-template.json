@@ -17,6 +17,10 @@
   "capability_operation_refs": [],
   "fidelity_refs": [],
   "ui_contract": {
+    "design_change_id": "",
+    "design_change_ref": "",
+    "design_change_sha256": "",
+    "design_contract_ref": "",
     "ui_work_type": "",
     "surface_type": "",
     "platforms": [],
