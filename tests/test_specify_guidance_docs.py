@@ -72,7 +72,7 @@ def test_readme_advanced_profile_names_classic_map_companion_exception() -> None
     assert "does not install" in normalized or "absent" in normalized
 
 
-def test_docs_describe_design_workflow_and_design_md() -> None:
+def test_docs_describe_change_scoped_design_workflow() -> None:
     readme = _read("README.md")
     handbook = _read("PROJECT-HANDBOOK.md")
     template = _read("templates/project-handbook-template.md")
@@ -80,7 +80,7 @@ def test_docs_describe_design_workflow_and_design_md() -> None:
     for content in (readme, handbook, template):
         assert "sp-design" in content
         assert "DESIGN.md" in content
-        assert "design-system" in content.lower()
+        assert "design change" in content.lower() or "design-change" in content.lower()
         assert "specify-runtime design lint" in content
         assert ".specify/design/changes/<UD-ID>/DESIGN.md" in content
         assert ".specify/design/index.json" in content

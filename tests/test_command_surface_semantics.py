@@ -472,7 +472,7 @@ def test_templates_include_design_quality_sections() -> None:
     assert "UI Reference Processing" in read_template("templates/spec-template.md")
     assert "ui-reference-notes.md" in read_template("templates/spec-template.md")
     assert "ui-brief.md" in read_template("templates/spec-template.md")
-    assert "## Design System Adoption" in read_template("templates/plan-template.md")
+    assert "## Design Change Adoption" in read_template("templates/plan-template.md")
     assert "Design Quality Coverage" in read_template("templates/tasks-template.md")
     assert (
         "design-system" in read_template("templates/workflow-state-template.md").lower()

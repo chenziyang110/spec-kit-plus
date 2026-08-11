@@ -74,10 +74,12 @@ leased `artifact patch --section`; never emit or resubmit the full stable templa
 interfaces and data, compatibility or migration, security, verification,
 rollout or rollback, and material risks only when relevant.
 
-For UI-bearing work, query `.specify/design/design-system.json`, `DESIGN.md`,
-and `ui-brief.md` through targeted `specify-runtime artifact show` calls.
-Treat `.specify/design/design-system.json` as the machine-readable source of
-truth and `DESIGN.md` as its human-readable projection. Consume the returned
+For UI-bearing work, query `ui-brief.md`, then its exact registered
+`.specify/design/changes/<UD-ID>/design-contract.json` and matching
+change-local `DESIGN.md` through targeted `specify-runtime artifact show`
+calls. Treat the change-local JSON as the machine-readable source of truth and
+its `DESIGN.md` as the human-readable projection. Never select an unbound newer
+change from `.specify/design/index.json`. Consume the returned
 contract sections, original fidelity sources, and the spec design contract. Set
 `ui_design_contract.ui_applicable: true`, preserve `ui_brief_ref`, and record
 `design_readiness`. Populate it with the current direction contract,

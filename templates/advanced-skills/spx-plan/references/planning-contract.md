@@ -26,11 +26,13 @@ has no invented binding. This binding proves only Plan consumption, never Tasks
 authorization; Tasks requires a fresh feature handoff, its own projection, and
 runtime task-index binding. Avoid a Plan-contract basis/hash cycle.
 
-When UI applies, preserve the feature `ui-brief.md` rather than reinterpreting
-it. Query `.specify/design/design-system.json` and `DESIGN.md` through targeted
-`specify-runtime artifact show` calls; use the former as the machine-readable source
-of truth and the latter only as the corresponding human-readable
-projection for review and explanation. Explicitly set `ui_applicable: true`,
+When UI applies, preserve the feature `ui-brief.md` adoption binding rather
+than reinterpreting it. Query its exact
+`.specify/design/changes/<UD-ID>/design-contract.json` and matching `DESIGN.md`
+through targeted `specify-runtime artifact show` calls; use the former as the
+machine-readable source of truth and the latter only as the corresponding
+human-readable projection for review and explanation. Never resolve “latest”
+from the index. Explicitly set `ui_applicable: true`,
 preserve `ui_brief_ref`, and record `design_readiness: approved` or a bounded
 `narrow-existing-pattern-exception`. Map its work/surface/platform types,
 subject/audience/job, three theses, signature, approved visual ref, reference

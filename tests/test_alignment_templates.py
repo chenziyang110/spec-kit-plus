@@ -203,12 +203,14 @@ def test_discussion_carries_ui_design_intent_to_handoff() -> None:
     assert "sp-design" in content
 
 
-def test_specify_reads_design_md_for_ui_features() -> None:
+def test_specify_reads_registered_design_change_for_ui_features() -> None:
     content = _read("templates/commands/specify.md")
 
     assert "DESIGN.md" in content
     assert "Experience Requirements" in content
-    assert "design-system readiness" in content
+    assert ".specify/design/index.json" in content
+    assert ".specify/design/changes/<UD-ID>/DESIGN.md" in content
+    assert "Never" in content and "latest" in content
     assert "design_system_status" in content
     assert "strong blocker" in content.lower()
     assert "soft risk" in content.lower()
@@ -230,12 +232,12 @@ def test_discussion_design_carry_forward_artifacts_are_modeled() -> None:
         assert field in handoff
 
 
-def test_specify_design_readiness_has_alignment_and_context_slots() -> None:
+def test_specify_design_change_readiness_has_alignment_and_context_slots() -> None:
     command = _read("templates/commands/specify.md")
     alignment = _read("templates/alignment-template.md")
     context = _read("templates/context-template.md")
 
-    assert "design-system readiness" in command
+    assert "design readiness" in command
     assert "design_system_status" in alignment
     assert "design_risk_level" in alignment
     assert "Design System Readiness" in alignment
@@ -316,7 +318,7 @@ def test_plan_tasks_implement_preserve_design_quality_chain() -> None:
     tasks = _read("templates/commands/tasks.md")
     implement = _read("templates/commands/implement.md")
 
-    assert "Design System Adoption" in plan
+    assert "Design Change Adoption" in plan
     assert "token strategy" in plan.lower()
     assert "Design Quality Coverage" in tasks
     assert "required states" in tasks.lower()
@@ -556,8 +558,8 @@ def test_design_workflow_is_not_an_implementation_workflow() -> None:
     assert "css or theme implementation files" in lowered
     assert "ask the user to approve a direction" in lowered
     assert "{{specify-subcmd:specify-runtime design lint" in lowered
-    assert "specify-runtime design export design.md" in lowered
-    assert "never write `design.md` directly" in lowered
+    assert "specify-runtime design export <change-dir>/design.md" in lowered
+    assert "never write `<change-dir>/design.md` directly" in lowered
 
 
 def test_discussion_and_specify_share_read_only_evidence_lane_contract() -> None:
@@ -6011,22 +6013,10 @@ def test_ui_reference_artifact_templates_define_strict_formats() -> None:
     ]
 
     assert _h2_headings(brief) == [
-        "## Source Design System",
-        "## Experience Core",
-        "## Approved Direction",
-        "## Reference Inputs",
-        "## Fidelity Contract",
-        "## Screen Structure",
-        "## Information Hierarchy",
-        "## Real Content And Imagery",
-        "## Components And States",
-        "## Interactions",
-        "## Responsive Behavior",
-        "## Color Modes And Content Stress",
-        "## Accessibility And Keyboard Requirements",
-        "## Must Preserve",
-        "## May Adapt",
-        "## Must Not",
+        "## Source Design Change",
+        "## Feature Adoption",
+        "## Feature Delta",
+        "## Reference And Fidelity",
         "## Required Evidence",
         "## Worker Contract",
     ]

@@ -10,8 +10,9 @@ Preserved Contract: formal delivery binds design through `sp-specify`, direct de
   direct delivery, but it is not a formal design-contract consumer and must not
   bind or rewrite `DS-*`/`DH-*` rows.
 - `sp-specify` is the first formal consumer. It selects the feature-relevant
-  immutable approval, `DS-*` decisions, and `DH-*` handoff contracts and binds
-  them into `spec-contract.json` plus `ui-brief.md`.
+  registered `UD-*` contract, immutable approval digest, `DS-*` decisions, and
+  `DH-*` handoff contracts and binds them into `spec-contract.json` plus the
+  compact adoption document `ui-brief.md`.
 - `sp-plan` maps that already-bound feature contract into technical choices and
   `ui_design_contract`; it does not select an unbound newer design version.
 - `sp-tasks` projects the plan-bound subset into each task-local `ui_contract`.
@@ -36,7 +37,7 @@ Preserved Contract: formal delivery binds design through `sp-specify`, direct de
   active `spec-contract.json` already binds the exact current approval digests
   and selected design rows. A changed approval normally re-enters
   `sp-specify` first.
-- An audit pass that changes no design bytes or approval metadata may resume the
+- An audit pass that changes no design bytes, index state, or approval metadata may resume the
   originally blocked workflow when its existing binding is still exact. An
   audit failure routes project-wide design truth to `create`/`refine`,
   feature-local truth to `sp-specify`/`sp-quick`, and implementation drift to
@@ -47,7 +48,8 @@ Preserved Contract: formal delivery binds design through `sp-specify`, direct de
 - A newly approved design round must not silently retarget an existing feature
   or Quick workspace. Existing delivery remains pinned to its recorded preview,
   manifest, handoff refs, SHA-256 values, and selected `DS-*`/`DH-*` rows.
-- Future features may bind the new root baseline through `sp-specify`.
+- Future features may explicitly select the applicable registered change through
+  `sp-specify`; “latest” is never an adoption rule.
 - To adopt the new approval in an existing formal feature, re-enter
   `sp-specify`, record the design adoption delta, then regenerate the highest
   invalid downstream plan/task surfaces.
@@ -56,3 +58,8 @@ Preserved Contract: formal delivery binds design through `sp-specify`, direct de
   resumes. Without that confirmation, Quick remains pinned to its earlier
   snapshot.
 
+Every consumer records `.specify/design/changes/<UD-ID>/DESIGN.md`, its
+registered `approval_sha256`, preview/manifest/handoff digests, and selected
+`DS-*`/`DH-*` rows. A new approval must never silently retarget an existing
+consumer. The metadata-only `.specify/design/index.json` may resolve candidates,
+but cannot authorize adoption by itself.

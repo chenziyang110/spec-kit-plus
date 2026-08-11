@@ -1,180 +1,81 @@
 # UI Brief
 
-## Source Design System
+This is a feature adoption binding, not a copy of the design system. Keep only
+the selected design-change identity, feature-relevant rows, and feature delta.
 
-- Root design system: DESIGN.md
+## Source Design Change
+
+- Design change ID: UD-____
+- Registered design ref: .specify/design/changes/<UD-ID>/DESIGN.md
+- Machine contract ref: .specify/design/changes/<UD-ID>/design-contract.json
+- Registered contract SHA-256:
 - Design readiness: approved | narrow-existing-pattern-exception | blocked
-- UI work type: existing-pattern | feature-extension | reference-implementation
-- Relevant rules:
-- Token and component constraints:
+- Approved visual ref: .specify/design/changes/<UD-ID>/previews/round-NN.html#direction-id
+- Approved direction ID and review round:
+- Preview / manifest / handoff SHA-256:
+- Immutable handoff ref:
+- Selected design decision IDs: []
+- Selected handoff contract IDs and exact rows: []
 
-## Experience Core
+## Feature Adoption
 
 - UI work type: existing-pattern | feature-extension | reference-implementation
 - Surface type: landing | product-workspace | hybrid | existing-pattern-maintenance
-- Platforms: web | mobile | desktop | tui | cli | content
-- Approved capability profile IDs:
+- Platforms and capability profiles:
 - Applicable specimen IDs:
-- Subject:
-- Audience:
-- Single user job:
-- Design DNA / personality:
-- Feeling / tone and avoid list:
-- Dials (variance / motion / density) and inference reason:
-- Anti-slop locks (surface-aware; subordinate to approved DESIGN.md):
-- Design Intelligence sources: DESIGN.md, design brief, discussion design_context
-- UI System Model: tokens | components | states | responsive | behavior
-- Evidence levels used on reverse-engineered claims (measured / inference / assumption):
+- Real entry points:
+- Required states and viewports:
+- Subject / audience / single user job:
+- Design DNA / personality inherited by this feature:
+- Dials (variance / motion / density) and inference reason when relevant:
+- Anti-slop locks selected for this surface:
 
-## Approved Direction
+## Feature Delta
 
-- Visual thesis:
-- Content thesis:
-- Interaction thesis:
-- Signature element:
-- Approved project-level visual reference: .specify/design/previews/round-NN.html#direction-id | live governing surface
-- Approved direction ID and review round:
-- Approved preview SHA-256:
-- Approved manifest SHA-256:
-- Immutable design handoff reference:
-- Approved handoff SHA-256:
-- Applicable design decision IDs:
-- Applicable handoff contract IDs:
-- Exact selected handoff rows (retain each `DH-*` ID and every structured value; never paraphrase):
-- Safe system choices:
-- Deliberate creative risks, gain, and cost:
+Record only what this feature narrows, extends, or overrides. Empty means exact
+adoption; it does not authorize reinterpretation.
 
-## Reference Inputs
+- Layout and information hierarchy:
+- Tokens and components:
+- Component anatomy and required states:
+- Interaction and feedback timing:
+- Responsive adaptation:
+- Motion and reduced-motion behavior:
+- Accessibility and keyboard requirements:
+- Real content and imagery plan:
+- Must preserve:
+- May adapt:
+- Must not:
+
+## Reference And Fidelity
 
 - UI reference notes: ui-reference-notes.md | none
-- Visual target: ui-target.html when present
-- Original visual assets: stable paths when supplied
-- Reference intents: one `ref + exact | preserve-structure | inspiration | extract-tokens | do-not-copy` record per source
-- Ownership:
-
-## Fidelity Contract
-
-- Mode: approximate | high | inspiration
-- Must match:
-- May adapt:
-- Must not copy:
-- Human review condition:
-
-## Screen Structure
-
-- User job and experience intent:
-- Recognizable visual or interaction signature:
-- Real entry points:
-- Layout:
-- Regions:
-- Navigation:
-- Primary surface:
-
-## Information Hierarchy
-
-- First priority:
-- Second priority:
-- Supporting details:
-- De-emphasized details:
-
-## Real Content And Imagery
-
-- Real content source and affected states:
-- Image or illustration source, role, and responsive behavior:
-- Missing asset recovery; do not substitute decorative placeholders silently:
-
-## Components And States
-
-- Components:
-- Loading:
-- Empty:
-- Error:
-- Selected:
-- Disabled:
-- Permission-limited:
-- Success or failure feedback:
-- Component anatomy/variant decision IDs:
-
-## Interactions
-
-- Primary flow:
-- Secondary flow:
-- Keyboard and focus path:
-- Feedback timing:
-- Entrance, feedback, loading, and state-transition motion:
-- Duration, easing, and spatial tokens:
-- Reduced-motion equivalent:
-
-## Responsive Behavior
-
-- Desktop or primary viewport:
-- Mobile or narrow viewport:
-- Overflow behavior:
-- Breakpoint/adaptation matrix: [boundary | regions changed | hierarchy rule | density rule | evidence]
-
-## Color Modes And Content Stress
-
-- Required color modes: light | dark | high-contrast
-- Locale, long-copy, RTL, zoom, and visible-data-volume cases:
-- Font source and accepted fallback behavior:
-
-## Accessibility And Keyboard Requirements
-
-- Semantic structure:
-- Focus visibility:
-- Keyboard operation:
-- Contrast intent:
-
-## Must Preserve
-
-- Layout structure:
-- Information hierarchy:
-- Component density:
-- Visible data volume:
-- Primary interactions:
-
-## May Adapt
-
-- Exact icons:
-- Minor spacing:
-- Copy:
-- Framework-specific markup:
-
-## Must Not
-
-- Reinterpret the layout into a different pattern.
-- Replace dense tables or workbench views with cards unless explicitly allowed.
-- Add decorative gradients, unrelated hero sections, or visual treatment not present in the reference or brief.
-- Copy third-party source code or protected brand expression.
-- Treat ui-target.html as production source.
+- Visual target: ui-target.html | none
+- Original inspectable assets:
+- Reference intents: [{ref, intent: exact | preserve-structure | inspiration | extract-tokens | do-not-copy}]
+- Fidelity mode: approximate | high | inspiration
+- Fidelity criteria and human review condition:
+- Ownership and forbidden copying:
 
 ## Required Evidence
 
-- Structure snapshot:
-- Visual capture:
-- Runtime diagnostics:
-- Browser mapping: accessibility/DOM snapshot, viewport screenshot, console/runtime output
-- Key state screenshots or captures:
-- Keyboard and focus check:
-- Browser console check for web UI:
-- Accessibility check when interactive:
-- Difference inventory against reference or prior surface:
-- Accepted deviations and approver:
-- Motion and reduced-motion runtime check:
+- Required kinds: `structure_snapshot`, `visual_capture`,
+  `runtime_diagnostics`, `visual_comparison_or_human_review`
 - Visual acceptance matrix: [entry point | viewport | state | expected result | evidence path]
-- Decision coverage matrix: [decision ID | task IDs | entry point | viewport/state | comparison evidence]
-- Comparison report: [approved ref + preview/manifest/handoff SHA | handoff contract IDs | implementation capture | structure difference | visual difference | tolerance | accepted deviation]
-- Comparison tolerance: copy the complete structured handoff object; a prose summary is invalid
-- Human review requirement:
+- Decision coverage: [DS/DH ID | task IDs | viewport/state | comparison evidence]
+- Comparison report: [design ref + contract/preview/manifest/handoff SHA | implementation capture | difference | tolerance | deviation]
+- Comparison tolerance: copy the selected immutable structured object; prose is invalid
+- Accepted deviations and approver:
+- Pending human review condition:
 
 ## Worker Contract
 
-- Required references:
-- Required packet fields:
-- Required evidence kinds: `structure_snapshot`, `visual_capture`,
-  `runtime_diagnostics`, `visual_comparison_or_human_review`
-- Visual convergence loop: run real entry point -> capture representative
-  viewport/state -> query DESIGN.md/ui-brief through `specify-runtime artifact show`
-  -> inspect against the returned contract/reference -> fix -> recapture
+- Required design sources: exact change ref, machine contract, visual ref,
+  handoff ref, this brief, and original references
+- Required packet fields: design change ID/ref/digest, selected `DS-*`/`DH-*`
+  rows, entry points, states, Must Preserve / May Adapt / Must Not, evidence
+- Convergence loop: run real entry point -> capture -> query the exact pinned
+  change and this brief -> compare -> repair -> recapture
 - Done condition: behavior checks and visual/interaction acceptance both pass
-- Stop and reopen condition:
+- Stop condition: source/digest drift, missing state evidence, unresolved
+  overlap, or a requested design change outside the pinned contract

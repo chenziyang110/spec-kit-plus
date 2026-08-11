@@ -22,7 +22,7 @@ Spec Kit Plus is an independently developed Spec-Driven Development toolkit for 
 | Work in the agent you already use | One integration registry renders the same workflow concepts into skills, commands, prompts, hooks, and context files native to each supported tool. |
 | Match prompts to the model | **Classic** keeps the full, explicit `sp-*` workflow; **Advanced** provides independent, prompt-optimized `spx-*` skills for skills-based integrations. |
 | Navigate an existing codebase | Project Cognition narrows brownfield evidence reads and change-impact routes while requiring live repository verification before technical claims or edits. |
-| Treat UI and acceptance as executable work | `DESIGN.md`, feature `ui-brief.md`, task-local UI contracts, real-entrypoint evidence, and resumable human acceptance remain part of delivery rather than optional prose. |
+| Treat UI and acceptance as executable work | Change-scoped `.specify/design/changes/<UD-ID>/DESIGN.md`, feature `ui-brief.md`, task-local UI contracts, real-entrypoint evidence, and resumable human acceptance remain part of delivery rather than optional prose. |
 | Extend without forking the runtime | Presets, extensions, a generic integration, project Learning, and optional team execution add capabilities around the shared CLI and artifact contracts. |
 
 ## Quick start
@@ -626,15 +626,21 @@ runtime operations entrypoint. Classic assets and behavior remain unchanged
 when the `classic` profile is selected.
 
 - `design` / `sp-design` and Advanced `$spx-design` use `specify-runtime design`
-  as one natural-language design-system entrypoint that routes `create/refine/audit`;
+  as one natural-language UI-change entrypoint that routes `create/refine/audit`;
   reference synthesis is an input strategy for create/refine rather than another
   public command or terminal task type. The first formal consumer is `sp-specify`,
-  while `sp-quick` may pin the same approved snapshot for direct delivery.
+  while `sp-quick` may pin the same registered change for direct delivery.
   A later approval must not silently retarget an active formal feature or Quick
   workspace; adoption is explicit through Specify rebinding or a confirmed
   Quick checkpoint amendment.
-  Init's generic `status: bootstrap` file is a structural seed, not approved
-  product direction. Use the design workflow for new product UI, redesigns,
+  Each design round starts with `specify-runtime design change UD-####` and owns
+  `.specify/design/changes/<UD-ID>/DESIGN.md`, its brief, previews, approval,
+  handoff, and exported `design-contract.json`. Approved changes become
+  consumable only after `specify-runtime design register`; the metadata-only
+  `.specify/design/index.json` records scope, relationships, status, exact path,
+  and the registered document digest. A root `DESIGN.md` is read-only legacy
+  input when present and is never created or silently rewritten by init.
+  Use the design workflow for new product UI, redesigns,
   rebrands, core workflow experience, multi-platform interface decisions, and
   high-visibility customer-facing surfaces. Visual create and project-wide
   refine require durable taste intake in the design brief (one-line design
@@ -653,7 +659,8 @@ when the `classic` profile is selected.
   `anti-slop-policy.md` are inspiration only and never substitute for
   `design approve`.
 
-**Design Governance Foundation v1.0** (frozen architecture contract): AI design
+**Design Governance Foundation v1.0** remains the frozen preview-quality
+contract: AI design
 artifacts are validated for deliverable quality, not only renderability—taste
 intake, structural/semantic/quality layers, diagnostic recovery, and a Golden
 Artifact Set as regression truth. Preview boards are freeform three-direction canvases (not a fixed product specimen template); agents author creative HTML inside each direction while the embedded manifest and ready lint enforce governance. Do not stack new ready-gate conditions
@@ -661,6 +668,13 @@ without a layer, recovery path, diagnostic contract, and golden fixture. Full
 constraint text lives in `PROJECT-HANDBOOK.md` under
 `Design Governance Foundation v1.0`. Baseline fixtures:
 `tests/fixtures/design-preview/`.
+
+**Design Governance Foundation v2.0** governs ownership and consumption: every
+approved direction is an immutable, bounded UI change (`UD-*`), overlapping
+active scopes require an explicit `supersedes` relationship, consumers pin the
+registered path and SHA-256 instead of resolving “latest”, and only durable
+cross-change invariants graduate to project rules. See
+`docs/adr/0001-change-scoped-ui-design-contracts.md`.
 
 Substantive feature UI is handled during `sp-specify`/`$spx-specify` even when
 no screenshot is supplied: it produces a feature `ui-brief.md` that carries
@@ -1283,7 +1297,7 @@ Maintainer note:
 - `specify extension list`
 - `specify preset list`
 
-### Design System Runtime Helpers
+### UI Design Change Runtime Helpers
 
 - The checked-in `templates/design-preview-template.html` is generated from the
   upstream-only Jinja source in `src/specify_cli/design_preview_source/`. Run
@@ -1291,8 +1305,11 @@ Maintainer note:
   focused partial, or add `--check` to verify synchronization. Generated
   projects receive only the self-contained compatibility HTML and compact
   editable manifest, not the Jinja source tree.
+- `specify-runtime design change UD-0001 --title "..." --change-type redesign
+  --scope web:orders --profiles web` creates one bounded workspace and ensures
+  `.specify/design/index.json` exists without creating a root `DESIGN.md`.
 - `specify-runtime design preview-manifest --out
-  .specify/design/previews/round-NN.manifest.json --profiles web,mobile` writes
+  .specify/design/changes/UD-0001/previews/round-NN.manifest.json --profiles web,mobile` writes
   the compact editable source for a review round from the canonical capability
   registry. `specify-runtime design profiles` lists the supported `web`,
   `mobile`, `desktop`, `cli`, `tui`, `content`, and `no-ui` routes. Visual
@@ -1304,9 +1321,9 @@ Maintainer note:
   project-specific direction whose HTML preview, approval sidecar, immutable
   handoff, hashes, design decisions, handoff contracts, modes,
   responsive/content rules, and verification contract agree.
-- `specify-runtime design preview --out .specify/design/previews/round-NN.html`
+- `specify-runtime design preview --out .specify/design/changes/UD-0001/previews/round-NN.html`
   scaffolds the three-direction review board; add
-  `specify-runtime design preview --manifest .specify/design/previews/round-NN.manifest.json` to
+  `specify-runtime design preview --manifest .specify/design/changes/UD-0001/previews/round-NN.manifest.json` to
   deterministically render a ready candidate without hand-editing generated HTML;
   `specify-runtime design preview-lint PATH --level ready` validates a configured
   candidate; `specify-runtime design approve PATH --direction direction-X`
@@ -1315,10 +1332,11 @@ Maintainer note:
   exact ordered capability profiles and `SP-*` specimen set needed to reproduce
   the approved direction without treating the HTML carrier as a universal Web
   implementation target.
-- `specify-runtime design export --format json` exports normalized design tokens and component token references after ready validation.
+- `specify-runtime design export .specify/design/changes/UD-0001/DESIGN.md --format json` exports normalized design tokens and component token references after ready validation.
 - `specify-runtime design export --format tailwind` exports supported token categories into Tailwind theme fields after ready validation.
-- Existing projects can use `--allow-unapproved` as a temporary structural-compatibility export while `sp-design`/`spx-design` records project-specific approval and provenance.
-- `specify-runtime design import SOURCE_REFERENCE` writes `.specify/design/references.md` as input for `sp-design`; it does not overwrite `DESIGN.md`.
+- `specify-runtime design register .specify/design/changes/UD-0001/DESIGN.md` makes the ready, approved change consumable and pins its document digest in `.specify/design/index.json`; overlapping approved scope requires explicit `supersedes` metadata.
+- Existing projects can use `--allow-unapproved` as a temporary structural-compatibility export while `sp-design`/`spx-design` records change-specific approval and provenance.
+- `specify-runtime design import SOURCE_REFERENCE --out .specify/design/changes/UD-0001/references.md` records synthesis input for one design change; it does not overwrite either the change-local `DESIGN.md` or a legacy root file.
 - `specify-runtime design ui-target --out FEATURE_DIR/ui-target.html` scaffolds a
   feature-level composition/state target, and `specify-runtime design ui-target-lint
   PATH --level ready` validates its manifest, review controls, approved design

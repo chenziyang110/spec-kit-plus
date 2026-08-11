@@ -4,21 +4,26 @@ Read this for any substantive user-visible UI change, not only when a screenshot
 was supplied. Confirmed discussion state is governed by
 `discussion-handoff.md`.
 
-Create `ui-brief.md` through `specify-runtime artifact scaffold --kind ui-brief --path <feature-dir>/ui-brief.md`, then fill only its semantic sections through leased `artifact patch` calls; use `assets/ui-brief.md` only as compact field guidance, never as a block to reproduce. When original references exist, create `ui-reference-notes.md` through `artifact scaffold --kind ui-reference-notes` and patch its observed facts. Patch the related `spec-contract.json` fields through leased JSON-pointer `artifact patch`. Set
+Query `.specify/design/index.json`, select the registered change whose declared
+scope matches the feature, and query its exact change-local `DESIGN.md` and
+`design-contract.json`; never select “latest.” Create `ui-brief.md` through
+`specify-runtime artifact scaffold --kind ui-brief --path <feature-dir>/ui-brief.md`, then fill only its adoption and feature-delta sections through leased `artifact patch` calls; use `assets/ui-brief.md` only as compact field guidance, never as a block to reproduce. When original references exist, create `ui-reference-notes.md` through `artifact scaffold --kind ui-reference-notes` and patch its observed facts. Patch the related `spec-contract.json` fields through leased JSON-pointer `artifact patch`. Set
 `design_contract.ui_applicable: true`, `ui_work_type`,
 `surface_type`, `platforms`, `ui_brief_ref`, and the
-matching `design_system_status`; also carry the brief and original source paths
-in the relevant design/fidelity refs. Record:
+matching `design_system_status`; also carry the `UD-*` ID, exact design/change
+contract refs, registered contract SHA-256, brief, and original source paths in
+the relevant design/fidelity refs. Record:
 
 - subject, audience, single job, visual/content/interaction theses, signature,
   and the approved visual ref;
-- when supplied by design, the exact immutable project-level
+- when supplied by design, the exact immutable change-level
   `round-NN.html#direction-id`, approval sidecar, preview/manifest/handoff
   SHA-256 values, immutable handoff ref, applicable `DS-*` decisions and
   `DH-*` handoff contracts, motion tokens, and reduced-motion equivalent;
 - real entry points, surface/platform classification, experience intent, and
   information hierarchy;
-- approved `DESIGN.md` rules, tokens/components, and any explicit extension;
+- approved change-local `DESIGN.md` rows, tokens/components, and any explicit
+  feature-only delta;
 - layout, hierarchy, interaction, responsive, accessibility, and required state
   constraints; must-preserve, may-adapt, and must-not decisions;
 - a viewport/state acceptance matrix and later visual evidence.
@@ -27,7 +32,7 @@ in the relevant design/fidelity refs. Record:
   `visual_comparison_or_human_review` evidence.
 - **UI Requirements** and **UI Acceptance Criteria** plus Design Intelligence
   fields: design DNA / personality, dials (`variance` / `motion` / `density`)
-  when known, surface type, anti-slop locks subordinate to approved `DESIGN.md`,
+  when known, surface type, anti-slop locks subordinate to the selected change,
   UI System Model refs (tokens/components/states/responsive), required state
   matrix, and quality rules that forbid generic dashboard/template patterns.
   Inherit discussion `design_context` when the handoff carries it.
@@ -41,9 +46,9 @@ and deviation recording.
 
 Do not infer hidden behavior from a screenshot. Do not reduce original visual
 inputs to prose when downstream implementation needs to inspect them. If
-`DESIGN.md` is bootstrap/unapproved and the feature needs a new direction, stop
-and route to `$spx-design` instead of inheriting starter aesthetics.
-Do not substitute feature-level `ui-target.html` for an approved project-level
+no applicable registered change exists and the feature needs a new direction,
+stop and route to `$spx-design` instead of improvising or mutating legacy truth.
+Do not substitute feature-level `ui-target.html` for an approved change-level
 design preview; preserve both references when both apply.
 Do not restate the approved handoff from memory. Select task-relevant `DH-*`
 IDs from the immutable handoff, copy their structured rows unchanged, and mark

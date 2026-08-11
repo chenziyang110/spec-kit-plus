@@ -8,8 +8,8 @@ Preserved Contract: Specify owns formal binding, Quick owns direct binding and c
 
 - Discussion may shape intent and route choice, but it is not a formal
   design-contract consumer and never binds `DS-*`/`DH-*` rows.
-- `$spx-specify` is the first formal consumer. It pins the relevant immutable
-  approval, decisions, and handoff rows in `spec-contract.json` and
+- `$spx-specify` is the first formal consumer. It pins the relevant registered
+  `UD-*` contract, approval digest, decisions, and handoff rows in `spec-contract.json` and
   `ui-brief.md`.
 - `$spx-plan` maps only that bound contract into technical design;
   `$spx-tasks` projects it into task-local UI contracts; `$spx-implement`
@@ -34,10 +34,11 @@ Preserved Contract: Specify owns formal binding, Quick owns direct binding and c
 
 ## Immutable Adoption
 
-A new approval must not silently retarget an existing formal feature or Quick
+A new approval must never silently retarget an existing formal feature or Quick
 workspace. Keep old preview/manifest/handoff refs, SHA-256 values, and selected
 `DS-*`/`DH-*` rows pinned. Formal adoption re-enters Specify and regenerates the
 highest invalid downstream contract. Quick adoption requires a confirmed
-checkpoint amendment with the new exact binding. Future work may bind the new
-root baseline normally.
-
+checkpoint amendment with the new exact binding. Future work must explicitly
+select a registered `.specify/design/changes/<UD-ID>/DESIGN.md`; “latest” is
+never an adoption rule. The metadata-only `.specify/design/index.json` cannot
+authorize adoption by itself.
