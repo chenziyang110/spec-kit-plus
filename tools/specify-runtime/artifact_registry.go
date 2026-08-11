@@ -34,7 +34,23 @@ type artifactTypePattern struct {
 
 var artifactTypePatterns = []artifactTypePattern{
 	{
-		metadata: ArtifactTypeMetadata{TypeID: "project-design-contract", Owner: "specify-runtime design", Role: "canonical", Schema: "markdown/design-contract", Operations: []string{"show", "list"}, SummaryAdapter: "markdown-headings"},
+		metadata: ArtifactTypeMetadata{TypeID: "ui-design-change-index", Owner: "specify-runtime design change", Role: "canonical", Schema: "json/ui-design-change-index", Operations: []string{"show", "list"}, SummaryAdapter: "json-top-level-keys"},
+		match:    func(path string) bool { return path == ".specify/design/index.json" },
+	},
+	{
+		metadata: ArtifactTypeMetadata{TypeID: "ui-design-change-contract", Owner: "specify-runtime design", Role: "canonical", Schema: "markdown/ui-design-change", Operations: []string{"show", "list"}, SummaryAdapter: "markdown-headings"},
+		match: func(path string) bool {
+			const prefix = ".specify/design/changes/"
+			const suffix = "/DESIGN.md"
+			if !strings.HasPrefix(path, prefix) || !strings.HasSuffix(path, suffix) {
+				return false
+			}
+			changeID := strings.TrimSuffix(strings.TrimPrefix(path, prefix), suffix)
+			return changeID != "" && !strings.Contains(changeID, "/")
+		},
+	},
+	{
+		metadata: ArtifactTypeMetadata{TypeID: "project-design-contract", Owner: "specify-runtime design", Role: "legacy", Schema: "markdown/design-contract", Operations: []string{"show", "list"}, SummaryAdapter: "markdown-headings"},
 		match:    func(path string) bool { return path == "DESIGN.md" },
 	},
 	newFeatureWorkspacePattern("task-index.json", ArtifactTypeMetadata{TypeID: "feature-task-index", Owner: "specify-runtime tasks", Role: "canonical", Schema: "json/task-index", Operations: []string{"show", "list"}, SummaryAdapter: "json-top-level-keys"}),
@@ -357,7 +373,7 @@ var artifactTypePatterns = []artifactTypePattern{
 			SummaryAdapter: "json-top-level-keys",
 		},
 		match: func(path string) bool {
-			return strings.HasPrefix(path, ".specify/design/previews/") && strings.HasSuffix(path, ".manifest.json")
+			return strings.HasPrefix(path, ".specify/design/") && strings.Contains(path, "/previews/") && strings.HasSuffix(path, ".manifest.json")
 		},
 	},
 	{

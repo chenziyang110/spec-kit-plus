@@ -53,6 +53,8 @@ DESIGN_PREVIEW_SCHEMA = "spec-kit-design-preview-v1"
 DESIGN_PREVIEW_MANIFEST_SCHEMA = "spec-kit-design-preview-manifest-v1"
 DESIGN_PREVIEW_APPROVAL_SCHEMA = "spec-kit-design-preview-approval-v1"
 DESIGN_HANDOFF_SCHEMA = "spec-kit-design-handoff-v1"
+DESIGN_CHANGE_SCHEMA = "spec-kit-ui-design-change-v1"
+DESIGN_CHANGE_INDEX_SCHEMA = "spec-kit-ui-design-index-v1"
 DESIGN_CAPABILITY_PROFILES_SCHEMA = "spec-kit-design-capability-profiles-v1"
 DESIGN_CAPABILITY_MODEL_SCHEMA = "spec-kit-design-capability-model-v1"
 DESIGN_PREVIEW_MANIFEST_ID = "design-preview-manifest"
@@ -83,6 +85,9 @@ UI_TARGET_NETWORK_OR_PERSISTENCE_RE = re.compile(
 UI_TARGET_APPROVED_PREVIEW_REF_RE = re.compile(
     r"round-\d+\.html#direction-[a-z0-9-]+$", re.IGNORECASE
 )
+DESIGN_CHANGE_ID_RE = re.compile(r"^UD-[0-9]{4,}$")
+DESIGN_CHANGE_SCOPE_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/-]*$")
+SUPPORTED_DESIGN_CHANGE_TYPES = {"greenfield", "preserve", "overhaul", "extension"}
 
 
 @dataclass(frozen=True)
@@ -277,9 +282,19 @@ def parse_design_markdown(text: str, *, source: str = "DESIGN.md") -> DesignDocu
     if not isinstance(front_matter, dict):
         raise DesignLintError(f"{source}: YAML front matter must be a mapping")
 
-    design_system = front_matter.get("design_system")
+    legacy_design_system = front_matter.get("design_system")
+    design_change = front_matter.get("design_change")
+    if isinstance(legacy_design_system, dict) and isinstance(design_change, dict):
+        raise DesignLintError(
+            f"{source}: define exactly one of design_change or design_system"
+        )
+    design_system = (
+        design_change if isinstance(design_change, dict) else legacy_design_system
+    )
     if not isinstance(design_system, dict):
-        raise DesignLintError(f"{source}: missing design_system mapping")
+        raise DesignLintError(
+            f"{source}: missing design_change or legacy design_system mapping"
+        )
 
     return DesignDocument(
         source=source,
@@ -287,6 +302,197 @@ def parse_design_markdown(text: str, *, source: str = "DESIGN.md") -> DesignDocu
         design_system=design_system,
         body=match.group(2),
     )
+
+
+def _normalize_design_change_values(
+    values: list[str] | None,
+    *,
+    field: str,
+    required: bool = False,
+) -> list[str]:
+    normalized: list[str] = []
+    for raw in values or []:
+        value = str(raw).strip()
+        if not value:
+            continue
+        if value in normalized:
+            raise DesignLintError(f"{field} values must be unique")
+        normalized.append(value)
+    if required and not normalized:
+        raise DesignLintError(f"at least one {field} value is required")
+    return normalized
+
+
+def _render_design_change_template(
+    template: str,
+    *,
+    change_id: str,
+    title: str,
+    change_type: str,
+    scopes: list[str],
+    profile_ids: list[str],
+    baseline_refs: list[str],
+    supersedes: list[str],
+) -> str:
+    replacements = {
+        "__DESIGN_CHANGE_ID__": json.dumps(change_id, ensure_ascii=False),
+        "__DESIGN_CHANGE_TITLE__": json.dumps(title, ensure_ascii=False),
+        "__DESIGN_CHANGE_TYPE__": json.dumps(change_type, ensure_ascii=False),
+        "__DESIGN_CHANGE_SCOPES__": json.dumps(scopes, ensure_ascii=False),
+        "__DESIGN_CHANGE_PROFILES__": json.dumps(profile_ids, ensure_ascii=False),
+        "__DESIGN_CHANGE_BASELINE_REFS__": json.dumps(
+            baseline_refs, ensure_ascii=False
+        ),
+        "__DESIGN_CHANGE_SUPERSEDES__": json.dumps(
+            supersedes, ensure_ascii=False
+        ),
+    }
+    rendered = template
+    for placeholder, value in replacements.items():
+        rendered = rendered.replace(placeholder, value)
+    return rendered
+
+
+def scaffold_design_change(
+    project_root: Path,
+    *,
+    change_id: str,
+    title: str,
+    change_type: str,
+    scopes: list[str],
+    profile_ids: list[str],
+    baseline_refs: list[str] | None = None,
+    supersedes: list[str] | None = None,
+) -> Path:
+    """Create one bounded UI design-change workspace and register its metadata."""
+
+    normalized_id = change_id.strip().upper()
+    if not DESIGN_CHANGE_ID_RE.fullmatch(normalized_id):
+        raise DesignLintError("change_id must use UD- followed by at least four digits")
+    normalized_title = title.strip()
+    if not normalized_title:
+        raise DesignLintError("design change title is required")
+    normalized_type = change_type.strip().lower()
+    if normalized_type not in SUPPORTED_DESIGN_CHANGE_TYPES:
+        raise DesignLintError(
+            "design change type must be one of "
+            + ", ".join(sorted(SUPPORTED_DESIGN_CHANGE_TYPES))
+        )
+    normalized_scopes = _normalize_design_change_values(
+        scopes,
+        field="scope",
+        required=True,
+    )
+    invalid_scopes = [
+        scope
+        for scope in normalized_scopes
+        if not DESIGN_CHANGE_SCOPE_RE.fullmatch(scope)
+    ]
+    if invalid_scopes:
+        raise DesignLintError(
+            "design change scopes must be stable path-like identifiers: "
+            + ", ".join(invalid_scopes)
+        )
+    normalized_profiles = _normalize_design_change_values(
+        profile_ids,
+        field="profile",
+        required=True,
+    )
+    _selected_design_capability_profiles(normalized_profiles)
+    normalized_baselines = _normalize_design_change_values(
+        baseline_refs,
+        field="baseline_ref",
+    )
+    normalized_supersedes = _normalize_design_change_values(
+        supersedes,
+        field="supersedes",
+    )
+    for superseded_id in normalized_supersedes:
+        if not DESIGN_CHANGE_ID_RE.fullmatch(superseded_id):
+            raise DesignLintError(
+                "supersedes values must use UD- followed by at least four digits"
+            )
+        if superseded_id == normalized_id:
+            raise DesignLintError("a design change cannot supersede itself")
+
+    project_root = project_root.resolve()
+    design_root = project_root / ".specify" / "design"
+    workspace = design_root / "changes" / normalized_id
+    design_path = workspace / "DESIGN.md"
+    if design_path.exists():
+        raise DesignLintError(f"design change already exists: {normalized_id}")
+
+    index_path = design_root / "index.json"
+    if index_path.exists():
+        try:
+            index = json.loads(index_path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise DesignLintError(f"cannot read design change index: {exc}") from exc
+        if not isinstance(index, dict) or index.get("schema") != DESIGN_CHANGE_INDEX_SCHEMA:
+            raise DesignLintError("design change index has an invalid schema")
+        changes = index.get("changes")
+        if not isinstance(changes, list):
+            raise DesignLintError("design change index changes must be a list")
+    else:
+        index = {"schema": DESIGN_CHANGE_INDEX_SCHEMA, "changes": []}
+        changes = index["changes"]
+
+    if any(
+        isinstance(change, dict) and change.get("id") == normalized_id
+        for change in changes
+    ):
+        raise DesignLintError(f"design change already exists: {normalized_id}")
+
+    template_path = _locate_design_schema("design-change-template.md")
+    try:
+        template = template_path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        raise DesignLintError(f"cannot read design change template: {exc}") from exc
+    rendered = _render_design_change_template(
+        template,
+        change_id=normalized_id,
+        title=normalized_title,
+        change_type=normalized_type,
+        scopes=normalized_scopes,
+        profile_ids=normalized_profiles,
+        baseline_refs=normalized_baselines,
+        supersedes=normalized_supersedes,
+    )
+    try:
+        parsed = parse_design_markdown(rendered, source=str(template_path))
+    except (DesignLintError, yaml.YAMLError) as exc:
+        raise DesignLintError(f"rendered design change template is invalid: {exc}") from exc
+    if parsed.design_system.get("schema") != DESIGN_CHANGE_SCHEMA:
+        raise DesignLintError("rendered design change template has an invalid schema")
+
+    relative_design_path = design_path.relative_to(project_root).as_posix()
+    changes.append(
+        {
+            "id": normalized_id,
+            "title": normalized_title,
+            "design_ref": relative_design_path,
+            "status": "draft",
+            "change_type": normalized_type,
+            "scope": normalized_scopes,
+            "supersedes": normalized_supersedes,
+            "approval_sha256": None,
+            "consumers": [],
+        }
+    )
+    brief_template = _locate_design_schema("design-brief-template.md")
+    try:
+        brief = brief_template.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        raise DesignLintError(f"cannot read design brief template: {exc}") from exc
+
+    atomic_write_text(design_path, rendered)
+    atomic_write_text(workspace / "brief.md", brief)
+    (workspace / "previews").mkdir(parents=True, exist_ok=True)
+    atomic_write_text(
+        index_path,
+        json.dumps(index, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+    )
+    return design_path
 
 
 def design_preview_approval_path(path: Path) -> Path:
@@ -3421,6 +3627,17 @@ def export_design_system(
             "verification": document.design_system.get("verification", {}),
             "accessibility": document.design_system.get("accessibility", {}),
         }
+        if "design_change" in document.front_matter:
+            for key in (
+                "id",
+                "title",
+                "change_type",
+                "scope",
+                "baseline_refs",
+                "relationships",
+                "constraints",
+            ):
+                payload[key] = document.design_system.get(key)
         return json.dumps(payload, indent=2, sort_keys=True) + "\n"
 
     return json.dumps(_to_tailwind_theme(document.design_system), indent=2, sort_keys=True) + "\n"
@@ -3433,14 +3650,14 @@ def import_design_reference(source: str, *, out_dir: Path, notes: str = "") -> P
     notes_line = notes.strip() or "No notes supplied."
     content = (
         "# Design References\n\n"
-        "This file is input for `sp-design`. It is not the project design system.\n\n"
+        "This file is input for `sp-design`. It is not an approved UI design change.\n\n"
         "## Imported Reference\n\n"
         f"- Source: {source_line}\n"
         f"- Notes: {notes_line}\n\n"
         "## Synthesis Instructions\n\n"
         "- Extract reusable design principles.\n"
         "- Remove brand-specific expression.\n"
-        "- Write original project guidance into `DESIGN.md` only after user approval in `sp-design`.\n"
+        "- Write original scoped guidance into a change-local `DESIGN.md` only after user approval in `sp-design`.\n"
     )
     out_path.write_text(content, encoding="utf-8")
     return out_path
@@ -3448,8 +3665,16 @@ def import_design_reference(source: str, *, out_dir: Path, notes: str = "") -> P
 
 def _validate_design_system(document: DesignDocument, diagnostics: list[DesignDiagnostic]) -> None:
     design_system = document.design_system
-    if design_system.get("schema") != "spec-kit-design-v1":
-        _add_diagnostic(diagnostics, "invalid-schema", "schema must equal spec-kit-design-v1", "design_system.schema")
+    schema = design_system.get("schema")
+    if schema not in {"spec-kit-design-v1", DESIGN_CHANGE_SCHEMA}:
+        _add_diagnostic(
+            diagnostics,
+            "invalid-schema",
+            "schema must equal spec-kit-ui-design-change-v1 or legacy spec-kit-design-v1",
+            "design_change.schema",
+        )
+    if schema == DESIGN_CHANGE_SCHEMA:
+        _validate_design_change_metadata(design_system, diagnostics)
 
     platforms = design_system.get("platforms")
     if not isinstance(platforms, list) or not platforms:
@@ -3598,6 +3823,112 @@ def _validate_design_system(document: DesignDocument, diagnostics: list[DesignDi
                 f"accessibility must include {key}",
                 f"design_system.accessibility.{key}",
             )
+
+
+def _validate_design_change_metadata(
+    design_change: dict[str, Any],
+    diagnostics: list[DesignDiagnostic],
+) -> None:
+    change_id = str(design_change.get("id") or "").strip()
+    if not DESIGN_CHANGE_ID_RE.fullmatch(change_id):
+        _add_diagnostic(
+            diagnostics,
+            "invalid-design-change-id",
+            "design_change.id must use UD- followed by at least four digits",
+            "design_change.id",
+        )
+    if not str(design_change.get("title") or "").strip():
+        _add_diagnostic(
+            diagnostics,
+            "missing-design-change-title",
+            "design_change.title must be non-empty",
+            "design_change.title",
+        )
+    change_type = str(design_change.get("change_type") or "").strip().lower()
+    if change_type not in SUPPORTED_DESIGN_CHANGE_TYPES:
+        _add_diagnostic(
+            diagnostics,
+            "invalid-design-change-type",
+            "design_change.change_type must be greenfield, preserve, overhaul, or extension",
+            "design_change.change_type",
+        )
+
+    scope = design_change.get("scope")
+    if not isinstance(scope, dict):
+        _add_diagnostic(
+            diagnostics,
+            "invalid-design-change-scope",
+            "design_change.scope must be a mapping",
+            "design_change.scope",
+        )
+    else:
+        surfaces = scope.get("surfaces")
+        if (
+            not isinstance(surfaces, list)
+            or not surfaces
+            or any(
+                not isinstance(surface, str)
+                or not DESIGN_CHANGE_SCOPE_RE.fullmatch(surface)
+                for surface in surfaces
+            )
+        ):
+            _add_diagnostic(
+                diagnostics,
+                "invalid-design-change-surfaces",
+                "design_change.scope.surfaces must contain stable path-like identifiers",
+                "design_change.scope.surfaces",
+            )
+        for field in ("entrypoints", "states", "platforms"):
+            if not isinstance(scope.get(field), list):
+                _add_diagnostic(
+                    diagnostics,
+                    "invalid-design-change-scope",
+                    f"design_change.scope.{field} must be a list",
+                    f"design_change.scope.{field}",
+                )
+
+    if not isinstance(design_change.get("baseline_refs"), list):
+        _add_diagnostic(
+            diagnostics,
+            "invalid-design-change-baselines",
+            "design_change.baseline_refs must be a list",
+            "design_change.baseline_refs",
+        )
+    relationships = design_change.get("relationships")
+    if not isinstance(relationships, dict):
+        _add_diagnostic(
+            diagnostics,
+            "invalid-design-change-relationships",
+            "design_change.relationships must be a mapping",
+            "design_change.relationships",
+        )
+    else:
+        for field in ("supersedes", "depends_on", "conflicts_with"):
+            values = relationships.get(field)
+            if not isinstance(values, list):
+                _add_diagnostic(
+                    diagnostics,
+                    "invalid-design-change-relationships",
+                    f"design_change.relationships.{field} must be a list",
+                    f"design_change.relationships.{field}",
+                )
+    constraints = design_change.get("constraints")
+    if not isinstance(constraints, dict):
+        _add_diagnostic(
+            diagnostics,
+            "invalid-design-change-constraints",
+            "design_change.constraints must be a mapping",
+            "design_change.constraints",
+        )
+    else:
+        for field in ("must_preserve", "may_adapt", "must_not"):
+            if not isinstance(constraints.get(field), list):
+                _add_diagnostic(
+                    diagnostics,
+                    "invalid-design-change-constraints",
+                    f"design_change.constraints.{field} must be a list",
+                    f"design_change.constraints.{field}",
+                )
 
 
 def _validate_markdown_sections(document: DesignDocument, diagnostics: list[DesignDiagnostic]) -> None:

@@ -55,6 +55,7 @@ packages = ["src/specify_cli"]
 "templates/design-capability-profiles.json" = "specify_cli/core_pack/templates/design-capability-profiles.json"
 "templates/design-preview-manifest.schema.json" = "specify_cli/core_pack/templates/design-preview-manifest.schema.json"
 "templates/design-preview-template.html" = "specify_cli/core_pack/templates/design-preview-template.html"
+"templates/design-change-template.md" = "specify_cli/core_pack/templates/design-change-template.md"
 "templates/design-template.md" = "specify_cli/core_pack/templates/design-template.md"
 "templates/design-library" = "specify_cli/core_pack/templates/design-library"
 "templates/design-intelligence" = "specify_cli/core_pack/templates/design-intelligence"

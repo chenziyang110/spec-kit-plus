@@ -23,6 +23,8 @@ const (
 	designPreviewManifestSchema    = "spec-kit-design-preview-manifest-v1"
 	designPreviewApprovalSchema    = "spec-kit-design-preview-approval-v1"
 	designHandoffSchema            = "spec-kit-design-handoff-v1"
+	designChangeSchema             = "spec-kit-ui-design-change-v1"
+	designChangeIndexSchema        = "spec-kit-ui-design-index-v1"
 	designCapabilityProfilesSchema = "spec-kit-design-capability-profiles-v1"
 	designCapabilityModelSchema    = "spec-kit-design-capability-model-v1"
 	designPreviewManifestID        = "design-preview-manifest"
@@ -47,6 +49,8 @@ var (
 	canonicalDecisionIDRE   = regexp.MustCompile(`^DS-[A-Z0-9]+(?:-[A-Z0-9]+)+$`)
 	uiCanonicalDecisionIDRE = regexp.MustCompile(`^DS-[A-Z]+-\d{3}$`)
 	canonicalHandoffIDRE    = regexp.MustCompile(`^DH-[A-Z0-9]+(?:-[A-Z0-9]+)+$`)
+	designChangeIDRE        = regexp.MustCompile(`^UD-[0-9]{4,}$`)
+	designChangeScopeRE     = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:/-]*$`)
 )
 
 type designDiagnostic struct {
@@ -85,6 +89,8 @@ func runDesign(args []string, stdout io.Writer) int {
 		return writeDesignError(stdout, "usage-error", "missing design subcommand")
 	}
 	switch args[0] {
+	case "change":
+		return runDesignChange(args[1:], stdout)
 	case "lint":
 		return runDesignLint(args[1:], stdout)
 	case "preview":
@@ -108,6 +114,45 @@ func runDesign(args []string, stdout io.Writer) int {
 	default:
 		return writeDesignError(stdout, "usage-error", fmt.Sprintf("unknown design subcommand %q", args[0]))
 	}
+}
+
+func runDesignChange(args []string, stdout io.Writer) int {
+	if len(args) == 0 || strings.HasPrefix(args[0], "-") {
+		return writeDesignError(stdout, "usage-error", "design change requires a UD-* change ID")
+	}
+	title := strings.TrimSpace(optionValue(args, "--title", ""))
+	if title == "" {
+		return writeDesignError(stdout, "usage-error", "design change requires --title")
+	}
+	changeType := strings.ToLower(strings.TrimSpace(optionValue(args, "--type", "extension")))
+	scopes := optionValues(args, "--scope")
+	profileIDs, err := parseDesignCapabilityProfileIDs(optionValue(args, "--profiles", "web"))
+	if err != nil {
+		return writeDesignError(stdout, "usage-error", err.Error())
+	}
+	path, err := scaffoldDesignChange(
+		args[0],
+		title,
+		changeType,
+		scopes,
+		profileIDs,
+		optionValues(args, "--baseline-ref"),
+		optionValues(args, "--supersedes"),
+	)
+	if err != nil {
+		return writeDesignError(stdout, "blocked", err.Error())
+	}
+	workspace := filepath.Dir(path)
+	env := NewEnvelope("ok", "UI design change workspace created")
+	env.Data["path"] = filepath.ToSlash(path)
+	env.Data["index_path"] = ".specify/design/index.json"
+	env.Data["brief_path"] = filepath.ToSlash(filepath.Join(workspace, "brief.md"))
+	env.NextArgv = []string{
+		"specify-runtime", "design", "preview-manifest",
+		"--profiles", strings.Join(profileIDs, ","),
+		"--out", filepath.ToSlash(filepath.Join(workspace, "previews", "round-01.manifest.json")),
+	}
+	return writeEnvelope(stdout, env)
 }
 
 func runDesignLint(args []string, stdout io.Writer) int {
@@ -318,6 +363,184 @@ func runDesignImport(args []string, stdout io.Writer) int {
 	return writeEnvelope(stdout, env)
 }
 
+func normalizeDesignChangeValues(values []string, field string, required bool) ([]string, error) {
+	normalized := []string{}
+	seen := map[string]bool{}
+	for _, raw := range values {
+		value := strings.TrimSpace(raw)
+		if value == "" {
+			continue
+		}
+		if seen[value] {
+			return nil, fmt.Errorf("%s values must be unique", field)
+		}
+		seen[value] = true
+		normalized = append(normalized, value)
+	}
+	if required && len(normalized) == 0 {
+		return nil, fmt.Errorf("at least one %s value is required", field)
+	}
+	return normalized, nil
+}
+
+func designTemplateJSON(value any) (string, error) {
+	raw, err := json.Marshal(value)
+	if err != nil {
+		return "", err
+	}
+	return string(raw), nil
+}
+
+func scaffoldDesignChange(changeID, title, changeType string, scopes, profileIDs, baselineRefs, supersedes []string) (string, error) {
+	changeID = strings.ToUpper(strings.TrimSpace(changeID))
+	if !designChangeIDRE.MatchString(changeID) {
+		return "", fmt.Errorf("change ID must use UD- followed by at least four digits")
+	}
+	title = strings.TrimSpace(title)
+	if title == "" {
+		return "", fmt.Errorf("design change title is required")
+	}
+	changeType = strings.ToLower(strings.TrimSpace(changeType))
+	changeTypes := map[string]bool{"greenfield": true, "preserve": true, "overhaul": true, "extension": true}
+	if !changeTypes[changeType] {
+		return "", fmt.Errorf("design change type must be greenfield, preserve, overhaul, or extension")
+	}
+	normalizedScopes, err := normalizeDesignChangeValues(scopes, "scope", true)
+	if err != nil {
+		return "", err
+	}
+	for _, scope := range normalizedScopes {
+		if !designChangeScopeRE.MatchString(scope) {
+			return "", fmt.Errorf("design change scope must be a stable path-like identifier: %s", scope)
+		}
+	}
+	normalizedProfiles, err := normalizeDesignChangeValues(profileIDs, "profile", true)
+	if err != nil {
+		return "", err
+	}
+	if _, err := selectDesignCapabilityProfiles(normalizedProfiles); err != nil {
+		return "", err
+	}
+	normalizedBaselines, err := normalizeDesignChangeValues(baselineRefs, "baseline-ref", false)
+	if err != nil {
+		return "", err
+	}
+	normalizedSupersedes, err := normalizeDesignChangeValues(supersedes, "supersedes", false)
+	if err != nil {
+		return "", err
+	}
+	for index, supersededID := range normalizedSupersedes {
+		normalizedSupersedes[index] = strings.ToUpper(supersededID)
+		if !designChangeIDRE.MatchString(normalizedSupersedes[index]) {
+			return "", fmt.Errorf("supersedes values must use UD- followed by at least four digits")
+		}
+		if normalizedSupersedes[index] == changeID {
+			return "", fmt.Errorf("a design change cannot supersede itself")
+		}
+	}
+
+	workspace := filepath.Join(".specify", "design", "changes", changeID)
+	designPath := filepath.Join(workspace, "DESIGN.md")
+	if _, err := os.Stat(designPath); err == nil {
+		return "", fmt.Errorf("design change already exists: %s", changeID)
+	} else if !os.IsNotExist(err) {
+		return "", err
+	}
+
+	indexPath := filepath.Join(".specify", "design", "index.json")
+	indexPayload := map[string]any{
+		"schema":  designChangeIndexSchema,
+		"changes": []any{},
+	}
+	if raw, err := os.ReadFile(indexPath); err == nil {
+		if err := json.Unmarshal(raw, &indexPayload); err != nil {
+			return "", fmt.Errorf("cannot read design change index: %v", err)
+		}
+	} else if !os.IsNotExist(err) {
+		return "", fmt.Errorf("cannot read design change index: %v", err)
+	}
+	if indexPayload["schema"] != designChangeIndexSchema {
+		return "", fmt.Errorf("design change index has an invalid schema")
+	}
+	changes, ok := indexPayload["changes"].([]any)
+	if !ok {
+		return "", fmt.Errorf("design change index changes must be a list")
+	}
+	for _, rawChange := range changes {
+		change, _ := rawChange.(map[string]any)
+		if strings.TrimSpace(fmt.Sprint(change["id"])) == changeID {
+			return "", fmt.Errorf("design change already exists: %s", changeID)
+		}
+	}
+
+	templatePath, err := locateTemplate("design-change-template.md")
+	if err != nil {
+		return "", err
+	}
+	template, err := os.ReadFile(templatePath)
+	if err != nil {
+		return "", err
+	}
+	replacements := map[string]any{
+		"__DESIGN_CHANGE_ID__":            changeID,
+		"__DESIGN_CHANGE_TITLE__":         title,
+		"__DESIGN_CHANGE_TYPE__":          changeType,
+		"__DESIGN_CHANGE_SCOPES__":        normalizedScopes,
+		"__DESIGN_CHANGE_PROFILES__":      normalizedProfiles,
+		"__DESIGN_CHANGE_BASELINE_REFS__": normalizedBaselines,
+		"__DESIGN_CHANGE_SUPERSEDES__":    normalizedSupersedes,
+	}
+	rendered := string(template)
+	for placeholder, value := range replacements {
+		literal, err := designTemplateJSON(value)
+		if err != nil {
+			return "", err
+		}
+		rendered = strings.ReplaceAll(rendered, placeholder, literal)
+	}
+	doc, err := parseDesignMarkdown(rendered, templatePath)
+	if err != nil {
+		return "", fmt.Errorf("rendered design change template is invalid: %v", err)
+	}
+	if doc.DesignSystem["schema"] != designChangeSchema {
+		return "", fmt.Errorf("rendered design change template has an invalid schema")
+	}
+
+	briefTemplatePath, err := locateTemplate("design-brief-template.md")
+	if err != nil {
+		return "", err
+	}
+	brief, err := os.ReadFile(briefTemplatePath)
+	if err != nil {
+		return "", err
+	}
+	if err := writeTextAtomic(designPath, rendered); err != nil {
+		return "", err
+	}
+	if err := writeTextAtomic(filepath.Join(workspace, "brief.md"), string(brief)); err != nil {
+		return "", err
+	}
+	if err := os.MkdirAll(filepath.Join(workspace, "previews"), 0o755); err != nil {
+		return "", err
+	}
+	changes = append(changes, map[string]any{
+		"id":              changeID,
+		"title":           title,
+		"design_ref":      filepath.ToSlash(designPath),
+		"status":          "draft",
+		"change_type":     changeType,
+		"scope":           normalizedScopes,
+		"supersedes":      normalizedSupersedes,
+		"approval_sha256": nil,
+		"consumers":       []any{},
+	})
+	indexPayload["changes"] = changes
+	if err := writeJSONAtomic(indexPath, indexPayload); err != nil {
+		return "", err
+	}
+	return designPath, nil
+}
+
 func lintDesignFile(path, level string) []designDiagnostic {
 	info, err := os.Stat(path)
 	if err != nil {
@@ -364,6 +587,9 @@ func exportDesignSystem(path, format string, requireReady bool) (string, error) 
 		return marshalPretty(toTailwindTheme(doc.DesignSystem))
 	}
 	keys := []string{"schema", "name", "version", "status", "approval", "product_context", "direction_contract", "platforms", "capability_profiles", "specimens", "tokens", "color_modes", "components", "responsive", "content", "decisions", "verification", "accessibility"}
+	if _, ok := doc.FrontMatter["design_change"]; ok {
+		keys = append(keys, "id", "title", "change_type", "scope", "baseline_refs", "relationships", "constraints")
+	}
 	payload := map[string]any{}
 	for _, key := range keys {
 		if value, ok := doc.DesignSystem[key]; ok {
@@ -1065,9 +1291,17 @@ func parseDesignMarkdown(text, source string) (designDocument, error) {
 	if err != nil {
 		return designDocument{}, fmt.Errorf("%s: invalid YAML front matter: %v", source, err)
 	}
-	ds, ok := frontMatter["design_system"].(map[string]any)
-	if !ok {
-		return designDocument{}, fmt.Errorf("%s: missing design_system mapping", source)
+	legacyDesignSystem, hasLegacy := frontMatter["design_system"].(map[string]any)
+	designChange, hasChange := frontMatter["design_change"].(map[string]any)
+	if hasLegacy && hasChange {
+		return designDocument{}, fmt.Errorf("%s: define exactly one of design_change or design_system", source)
+	}
+	ds := legacyDesignSystem
+	if hasChange {
+		ds = designChange
+	}
+	if !hasLegacy && !hasChange {
+		return designDocument{}, fmt.Errorf("%s: missing design_change or legacy design_system mapping", source)
 	}
 	return designDocument{Source: source, FrontMatter: frontMatter, DesignSystem: ds, Body: match[2]}, nil
 }
@@ -1174,6 +1408,13 @@ func parseDesignYAMLScalar(value string) any {
 	case "false":
 		return false
 	}
+	if (strings.HasPrefix(value, "[") && strings.HasSuffix(value, "]")) ||
+		(strings.HasPrefix(value, "{") && strings.HasSuffix(value, "}")) {
+		var parsed any
+		if err := json.Unmarshal([]byte(value), &parsed); err == nil {
+			return parsed
+		}
+	}
 	if strings.HasPrefix(value, `"`) && strings.HasSuffix(value, `"`) {
 		if unquoted, err := strconv.Unquote(value); err == nil {
 			return unquoted
@@ -1190,8 +1431,12 @@ func parseDesignYAMLScalar(value string) any {
 
 func validateDesignSystem(doc designDocument, diagnostics *[]designDiagnostic) {
 	ds := doc.DesignSystem
-	if ds["schema"] != "spec-kit-design-v1" {
-		addDesignDiagnostic(diagnostics, "invalid-schema", "schema must equal spec-kit-design-v1", "design_system.schema")
+	schema := strings.TrimSpace(fmt.Sprint(ds["schema"]))
+	if schema != "spec-kit-design-v1" && schema != designChangeSchema {
+		addDesignDiagnostic(diagnostics, "invalid-schema", "schema must equal spec-kit-ui-design-change-v1 or legacy spec-kit-design-v1", "design_change.schema")
+	}
+	if schema == designChangeSchema {
+		validateDesignChangeMetadata(ds, diagnostics)
 	}
 	if platforms, ok := ds["platforms"].([]any); !ok || len(platforms) == 0 {
 		addDesignDiagnostic(diagnostics, "invalid-platforms", "platforms must be a non-empty list", "design_system.platforms")
@@ -1282,6 +1527,65 @@ func validateDesignSystem(doc designDocument, diagnostics *[]designDiagnostic) {
 	for _, key := range []string{"contrast_intent", "focus_visible", "keyboard_navigation", "reduced_motion"} {
 		if _, ok := accessibility[key]; !ok {
 			addDesignDiagnostic(diagnostics, "missing-accessibility-key", "accessibility must include "+key, "design_system.accessibility."+key)
+		}
+	}
+}
+
+func validateDesignChangeMetadata(change map[string]any, diagnostics *[]designDiagnostic) {
+	changeID := strings.TrimSpace(fmt.Sprint(change["id"]))
+	if !designChangeIDRE.MatchString(changeID) {
+		addDesignDiagnostic(diagnostics, "invalid-design-change-id", "design_change.id must use UD- followed by at least four digits", "design_change.id")
+	}
+	if strings.TrimSpace(fmt.Sprint(change["title"])) == "" {
+		addDesignDiagnostic(diagnostics, "missing-design-change-title", "design_change.title must be non-empty", "design_change.title")
+	}
+	changeType := strings.ToLower(strings.TrimSpace(fmt.Sprint(change["change_type"])))
+	validTypes := map[string]bool{"greenfield": true, "preserve": true, "overhaul": true, "extension": true}
+	if !validTypes[changeType] {
+		addDesignDiagnostic(diagnostics, "invalid-design-change-type", "design_change.change_type must be greenfield, preserve, overhaul, or extension", "design_change.change_type")
+	}
+	scope, ok := change["scope"].(map[string]any)
+	if !ok {
+		addDesignDiagnostic(diagnostics, "invalid-design-change-scope", "design_change.scope must be a mapping", "design_change.scope")
+	} else {
+		surfaces, ok := scope["surfaces"].([]any)
+		if !ok || len(surfaces) == 0 {
+			addDesignDiagnostic(diagnostics, "invalid-design-change-surfaces", "design_change.scope.surfaces must contain stable path-like identifiers", "design_change.scope.surfaces")
+		} else {
+			for _, rawSurface := range surfaces {
+				if !designChangeScopeRE.MatchString(strings.TrimSpace(fmt.Sprint(rawSurface))) {
+					addDesignDiagnostic(diagnostics, "invalid-design-change-surfaces", "design_change.scope.surfaces must contain stable path-like identifiers", "design_change.scope.surfaces")
+					break
+				}
+			}
+		}
+		for _, field := range []string{"entrypoints", "states", "platforms"} {
+			if _, ok := scope[field].([]any); !ok {
+				addDesignDiagnostic(diagnostics, "invalid-design-change-scope", "design_change.scope."+field+" must be a list", "design_change.scope."+field)
+			}
+		}
+	}
+	if _, ok := change["baseline_refs"].([]any); !ok {
+		addDesignDiagnostic(diagnostics, "invalid-design-change-baselines", "design_change.baseline_refs must be a list", "design_change.baseline_refs")
+	}
+	relationships, ok := change["relationships"].(map[string]any)
+	if !ok {
+		addDesignDiagnostic(diagnostics, "invalid-design-change-relationships", "design_change.relationships must be a mapping", "design_change.relationships")
+	} else {
+		for _, field := range []string{"supersedes", "depends_on", "conflicts_with"} {
+			if _, ok := relationships[field].([]any); !ok {
+				addDesignDiagnostic(diagnostics, "invalid-design-change-relationships", "design_change.relationships."+field+" must be a list", "design_change.relationships."+field)
+			}
+		}
+	}
+	constraints, ok := change["constraints"].(map[string]any)
+	if !ok {
+		addDesignDiagnostic(diagnostics, "invalid-design-change-constraints", "design_change.constraints must be a mapping", "design_change.constraints")
+	} else {
+		for _, field := range []string{"must_preserve", "may_adapt", "must_not"} {
+			if _, ok := constraints[field].([]any); !ok {
+				addDesignDiagnostic(diagnostics, "invalid-design-change-constraints", "design_change.constraints."+field+" must be a list", "design_change.constraints."+field)
+			}
 		}
 	}
 }
@@ -2318,14 +2622,14 @@ func designReferenceContent(source, notes string) string {
 		notes = "No notes supplied."
 	}
 	return "# Design References\n\n" +
-		"This file is input for `sp-design`. It is not the project design system.\n\n" +
+		"This file is input for `sp-design`. It is not an approved UI design change.\n\n" +
 		"## Imported Reference\n\n" +
 		"- Source: " + strings.TrimSpace(source) + "\n" +
 		"- Notes: " + notes + "\n\n" +
 		"## Synthesis Instructions\n\n" +
 		"- Extract reusable design principles.\n" +
 		"- Remove brand-specific expression.\n" +
-		"- Write original project guidance into `DESIGN.md` only after user approval in `sp-design`.\n"
+		"- Write original scoped guidance into a change-local `DESIGN.md` only after user approval in `sp-design`.\n"
 }
 
 func designContainedPath(path string, allowMissing bool) (string, Envelope, bool) {

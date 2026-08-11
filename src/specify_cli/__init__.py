@@ -106,6 +106,7 @@ from specify_cli.design import (
     lint_ui_target_file,
     parse_design_capability_profile_ids,
     render_design_preview,
+    scaffold_design_change,
     scaffold_design_preview,
     scaffold_design_preview_manifest,
     scaffold_ui_target,
@@ -832,6 +833,59 @@ def design_lint(
     for diagnostic in diagnostics:
         console.print(f"{diagnostic.code}: {diagnostic.message}")
     raise typer.Exit(1)
+
+
+@design_app.command("change")
+def design_change(
+    change_id: str = typer.Argument(
+        ...,
+        help="Stable UI design change ID in UD-0001 form",
+    ),
+    title: str = typer.Option(..., "--title", help="Human-readable change title"),
+    change_type: str = typer.Option(
+        "extension",
+        "--type",
+        help="Change type: greenfield, preserve, overhaul, or extension",
+    ),
+    scope: list[str] = typer.Option(
+        ...,
+        "--scope",
+        help="Repeatable affected surface identifier, for example web:orders/list",
+    ),
+    profiles: str = typer.Option(
+        "web",
+        "--profiles",
+        help="Comma-separated design capability profiles",
+    ),
+    baseline_ref: list[str] = typer.Option(
+        [],
+        "--baseline-ref",
+        help="Repeatable live or accepted design baseline reference",
+    ),
+    supersedes: list[str] = typer.Option(
+        [],
+        "--supersedes",
+        help="Repeatable prior UD-* change replaced by this change",
+    ),
+) -> None:
+    """Create one change-scoped UI design workspace without a root DESIGN.md."""
+
+    try:
+        profile_ids = parse_design_capability_profile_ids(profiles)
+        design_path = scaffold_design_change(
+            Path.cwd(),
+            change_id=change_id,
+            title=title,
+            change_type=change_type,
+            scopes=scope,
+            profile_ids=profile_ids,
+            baseline_refs=baseline_ref,
+            supersedes=supersedes,
+        )
+    except DesignLintError as exc:
+        console.print(f"[red]Error:[/red] {exc}")
+        raise typer.Exit(1)
+    console.print(f"Wrote {_display_path(design_path)}")
 
 
 @design_app.command("preview-manifest")
@@ -5467,17 +5521,6 @@ def _install_shared_infra(
     if templates_src.is_dir():
         dest_templates = project_path / ".specify" / "templates"
         dest_templates.mkdir(parents=True, exist_ok=True)
-
-        design_template_src = templates_src / "design-template.md"
-        design_file_dst = project_path / "DESIGN.md"
-        if design_template_src.exists():
-            # DESIGN.md is project-owned once created. Runtime repair may refresh
-            # generated scripts/templates, but must never replace approved design truth.
-            if design_file_dst.exists():
-                skipped_files.append(str(design_file_dst.relative_to(project_path)))
-            else:
-                shutil.copy2(design_template_src, design_file_dst)
-                manifest.record_existing("DESIGN.md")
 
         for src_path in templates_src.rglob("*"):
             if src_path.is_dir():
