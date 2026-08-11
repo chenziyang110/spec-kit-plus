@@ -81,9 +81,15 @@ def test_advanced_design_preserves_the_same_routing_contract() -> None:
     references = surface_map["skills"]["spx-design"]["references"]
     assert "spx-design/references/task-router.md" in references
     assert "spx-design/references/consumer-contract.md" in references
+    assert surface_map["skills"]["spx-design"]["assets"] == [
+        "spx-design/assets/design-change.md"
+    ]
+    optimization = surface_map["skills"]["spx-design"]["optimization"].lower()
+    assert "change-scoped" in optimization
+    assert "root design-system" not in optimization
 
 
-def test_quick_pins_the_approved_design_snapshot_for_direct_delivery() -> None:
+def test_quick_pins_an_exact_registered_design_change_for_direct_delivery() -> None:
     classic_quick = _read(
         PROJECT_ROOT
         / "templates"
@@ -96,10 +102,36 @@ def test_quick_pins_the_approved_design_snapshot_for_direct_delivery() -> None:
     )
 
     for content in (classic_quick, advanced_quick):
+        assert ".specify/design/index.json" in content
+        assert "design_change_id" in content
+        assert "design_change_ref" in content
+        assert "design_change_sha256" in content
+        assert "design_contract_ref" in content
+        assert "never resolve" in content.lower() and "latest" in content.lower()
         assert "preview/manifest/handoff SHA-256" in content
         assert "DS-*" in content
         assert "DH-*" in content
         assert "must not silently adopt a later design approval" in content.lower()
+
+
+def test_workflow_registry_models_change_scoped_design_artifacts_and_legacy_root() -> None:
+    registry = json.loads(
+        _read(PROJECT_ROOT / "templates" / "workflow-artifact-registry.json")
+    )
+    entries = {entry["id"]: entry for entry in registry["artifacts"]}
+
+    assert ".specify/design/index.json" in entries["ui_design_change_index"][
+        "path_patterns"
+    ]
+    change = entries["ui_design_change_contract"]
+    assert ".specify/design/changes/*/DESIGN.md" in change["path_patterns"]
+    assert ".specify/design/changes/*/design-contract.json" in change[
+        "path_patterns"
+    ]
+    workspace = entries["ui_design_change_workspace"]
+    assert ".specify/design/changes/*/brief.md" in workspace["path_patterns"]
+    assert ".specify/design/changes/*/review.md" in workspace["path_patterns"]
+    assert entries["legacy_project_design_contract"]["path_patterns"] == ["DESIGN.md"]
 
 
 def test_design_routing_is_documented_as_a_cross_profile_product_contract() -> None:

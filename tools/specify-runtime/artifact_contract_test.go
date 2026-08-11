@@ -420,6 +420,50 @@ func TestArtifactPatchRejectsSpecializedArtifacts(t *testing.T) {
 	}
 }
 
+func TestDesignChangeContractPatchStopsAfterRegistration(t *testing.T) {
+	projectRoot := t.TempDir()
+	path := ".specify/design/changes/UD-0042/DESIGN.md"
+	original := "---\ndesign_change:\n  schema: spec-kit-ui-design-change-v1\n  id: UD-0042\n---\n\n# UI Design Change\n\n## Product Feel\n\nDraft\n"
+	writeArtifactTestFile(t, projectRoot, path, original)
+	writeArtifactTestFile(t, projectRoot, ".specify/design/index.json", `{"schema":"spec-kit-ui-design-index-v1","changes":[{"id":"UD-0042","status":"draft","design_ref":".specify/design/changes/UD-0042/DESIGN.md","approval_sha256":null}]}`)
+
+	service := NewArtifactService(projectRoot)
+	draftLease := service.Prepare(ArtifactPrepareRequest{Path: path})
+	if draftLease.Status != "ok" {
+		t.Fatalf("draft design change prepare = %#v, want ok", draftLease)
+	}
+	draftPatch := service.Patch(ArtifactPatchRequest{
+		LeaseID: draftLease.Data["lease_id"].(string),
+		Section: "Product Feel",
+		Content: "Approved candidate",
+	})
+	if draftPatch.Status != "ok" {
+		t.Fatalf("draft design change patch = %#v, want ok", draftPatch)
+	}
+
+	registeredLease := service.Prepare(ArtifactPrepareRequest{Path: path})
+	if registeredLease.Status != "ok" {
+		t.Fatalf("pre-registration lease = %#v, want ok", registeredLease)
+	}
+	writeArtifactTestFile(t, projectRoot, ".specify/design/index.json", `{"schema":"spec-kit-ui-design-index-v1","changes":[{"id":"UD-0042","status":"approved","design_ref":".specify/design/changes/UD-0042/DESIGN.md","approval_sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}]}`)
+
+	blocked := service.Patch(ArtifactPatchRequest{
+		LeaseID: registeredLease.Data["lease_id"].(string),
+		Section: "Product Feel",
+		Content: "Mutated after registration",
+	})
+	if blocked.Status != "blocked" || !strings.Contains(fmt.Sprint(blocked.Blockers), "immutable") {
+		t.Fatalf("registered design change patch = %#v, want immutable blocker", blocked)
+	}
+	stored, err := os.ReadFile(filepath.Join(projectRoot, filepath.FromSlash(path)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(stored), "Mutated after registration") {
+		t.Fatalf("registered design change was mutated: %q", string(stored))
+	}
+}
+
 func TestArtifactPatchRejectsJSONLineAppendForNonJSONLineArtifacts(t *testing.T) {
 	projectRoot := t.TempDir()
 	service := NewArtifactService(projectRoot)
@@ -1076,10 +1120,12 @@ func TestArtifactScaffoldCreatesRegisteredStableWorkflowArtifacts(t *testing.T) 
 		{kind: "constitution", template: "constitution-template.md", path: ".specify/memory/constitution.md", contains: "# [PROJECT_NAME] Constitution"},
 		{kind: "data-model", template: "artifacts/data-model.md", path: "specs/001-demo/data-model.md", contains: "## Data Structures and Ownership"},
 		{kind: "design-brief", template: "design-brief-template.md", path: ".specify/design/design-brief.md", contains: "status: draft"},
+		{kind: "design-brief", template: "design-brief-template.md", path: ".specify/design/changes/UD-0042/brief.md", contains: "status: draft"},
 		{kind: "debug-session", template: "artifacts/debug-session.md", path: ".planning/debug/session-a.md", contains: "understanding_confirmed: false"},
 		{kind: "deep-research", template: "artifacts/deep-research.md", path: "specs/001-demo/deep-research.md", contains: "## Implementation Chain Evidence"},
 		{kind: "deep-research-not-needed", template: "artifacts/deep-research-not-needed.md", path: ".specify/features/001-demo/deep-research.md", contains: "**Status**: Pending"},
 		{kind: "design-review", template: "artifacts/design-review.md", path: ".specify/design/review.md", contains: "## Immutable References"},
+		{kind: "design-review", template: "artifacts/design-review.md", path: ".specify/design/changes/UD-0042/review.md", contains: "## Immutable References"},
 		{kind: "planning-lane-manifest", template: "artifacts/lane-manifest.json", path: "specs/001-demo/planning/lane-manifest.json", contains: `"command": "plan"`},
 		{kind: "quick-plan", template: "artifacts/quick-plan.md", path: ".planning/quick/001-demo/PLAN.md", contains: "## Work Items, Dependencies, and Batches"},
 		{kind: "quick-summary", template: "artifacts/quick-summary.md", path: ".planning/quick/001-demo/SUMMARY.md", contains: "## Recovery State"},

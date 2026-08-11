@@ -99,7 +99,7 @@ def _frontmatter(path: Path) -> dict:
 
 def test_spx_design_asset_passes_the_real_design_linter() -> None:
     diagnostics = lint_design_file(
-        ADVANCED_SKILLS / "spx-design" / "assets" / "design-system.md"
+        ADVANCED_SKILLS / "spx-design" / "assets" / "design-change.md"
     )
 
     assert diagnostics == []
@@ -692,7 +692,7 @@ def test_spx_ui_quality_contract_survives_design_to_implementation() -> None:
         ADVANCED_SKILLS / "spx-implement" / "references" / "execution-contract.md"
     ).read_text(encoding="utf-8")
     design_asset = (
-        ADVANCED_SKILLS / "spx-design" / "assets" / "design-system.md"
+        ADVANCED_SKILLS / "spx-design" / "assets" / "design-change.md"
     ).read_text(encoding="utf-8")
     for generic_anchor in ('value: "8px"', 'value: "16px"', 'value: "14px"'):
         assert generic_anchor not in design_asset
