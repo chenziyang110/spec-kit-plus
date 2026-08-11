@@ -1179,8 +1179,6 @@ class MarkdownIntegrationTests:
         i = get_integration(self.KEY)
         cmd_dir = i.registrar_config["dir"]
         files = []
-        files.append("DESIGN.md")
-
         # Command files
         references_root = i.shared_command_references_dir()
         for stem in self._command_stems():

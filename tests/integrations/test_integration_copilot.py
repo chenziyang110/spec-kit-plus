@@ -85,7 +85,6 @@ class TestCopilotIntegration:
 
         expected.extend(
             [
-                "DESIGN.md",
                 ".vscode/settings.json",
                 ".specify/bin/.gitignore",
                 PROJECT_SPECIFY_RUNTIME,

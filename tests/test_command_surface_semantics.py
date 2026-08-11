@@ -435,20 +435,36 @@ def test_ask_surface_is_read_only_stateless_and_has_no_specify_helper() -> None:
     assert "whether backend/server/runtime code exists" in lowered
 
 
-def test_design_command_declares_design_system_workflow_contract() -> None:
+def test_design_command_declares_change_scoped_workflow_contract() -> None:
     content = read_template("templates/commands/design.md")
     raw = (PROJECT_ROOT / "templates" / "commands" / "design.md").read_text(
         encoding="utf-8"
     )
 
     assert (
-        "description: Use when `specify-runtime design` must route one prompt to create, refine, or audit the root DESIGN.md design-system contract"
+        "description: Use when `specify-runtime design` must route one prompt to create, refine, or audit one bounded UI design change"
         in content
     )
     assert "primary_outputs" in content
-    assert "DESIGN.md" in content
-    assert ".specify/design/design-state.md" in content
+    assert ".specify/design/changes/<UD-ID>/DESIGN.md" in content
+    assert ".specify/design/index.json" in content
+    assert "specify-runtime design change" in content
+    assert "specify-runtime design register" in content
+    assert "read-only legacy baseline" in content
     assert "{{spec-kit-include: ../command-partials/design/shell.md}}" in raw
+
+
+def test_classic_and_advanced_design_contracts_pin_exact_change_identity() -> None:
+    classic = read_template("templates/commands/design.md")
+    advanced = read_template("templates/advanced-skills/spx-design/SKILL.md")
+
+    for content in (classic, advanced):
+        assert ".specify/design/changes/<UD-ID>/DESIGN.md" in content
+        assert ".specify/design/changes/<UD-ID>/design-contract.json" in content
+        assert ".specify/design/index.json" in content
+        assert "specify-runtime design register" in content
+        assert "supersedes" in content
+        assert "never silently retarget" in content
 
 
 def test_templates_include_design_quality_sections() -> None:

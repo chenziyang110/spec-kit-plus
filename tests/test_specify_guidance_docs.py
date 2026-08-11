@@ -82,6 +82,9 @@ def test_docs_describe_design_workflow_and_design_md() -> None:
         assert "DESIGN.md" in content
         assert "design-system" in content.lower()
         assert "specify-runtime design lint" in content
+        assert ".specify/design/changes/<UD-ID>/DESIGN.md" in content
+        assert ".specify/design/index.json" in content
+        assert "specify-runtime design register" in content
         assert "ui-brief.md" in content
         assert "ui-reference-notes.md" in content
         assert "ui-reference-artifact" in content
